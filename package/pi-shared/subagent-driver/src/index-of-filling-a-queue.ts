@@ -63,6 +63,7 @@ export {
   readTheQueueReportingProblems,
   readTheQueueThatMayNotBeThere,
 } from './reading-a-queue-a-kill-left.ts';
+export { namesInAFolderThatMayNotBeThere, } from './reading-a-folder-for-tests.ts';
 export {
   NO_ENTRY_OF_THAT_NAME,
   aFileLaidDown,
@@ -92,6 +93,7 @@ export {
   aClaimGivenBackOnlyIfOurs,
   aClaimRemovedOnlyIfItSays,
   anEntryRemovedOnlyIfTheAttempt,
+  putBackUnlessTheNameIsTaken,
   theIdentityQueued,
 } from './a-claim-taken-and-given-back.ts';
 export {

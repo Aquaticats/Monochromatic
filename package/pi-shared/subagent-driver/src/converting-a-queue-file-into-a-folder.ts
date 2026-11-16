@@ -58,6 +58,21 @@ export const BEING_CARRIED_ENDING = '.converting';
 export const CARRIED_ENDING = '.converting-carried';
 
 /**
+ What separates the mark of one recorded name from the name itself, which no mark holds.
+ */
+const CARRIED_MARK_SEPARATOR = ' ';
+
+/**
+ The mark of a name an earlier run finished writing into the folder.
+ */
+const CARRIED_WRITTEN_MARK = 'written';
+
+/**
+ The mark of a name an earlier run was writing when it was killed.
+ */
+const CARRIED_UNFINISHED_MARK = 'being-written';
+
+/**
  What one changeover did.
  */
 export type ConvertedAQueue = {
@@ -170,6 +185,40 @@ async function whatOneQueueFileHolds({ queueFile, }: { readonly queueFile: strin
 }
 
 /**
+ Says whether the folder holds an entry of one name with the array's own fields.
+
+ @param queueFolder - the folder to ask about
+
+ @param entry - the entry as the array holds it
+
+ @returns whether the folder holds that very entry
+
+ @throws QueueFileError when the entry's file is there and cannot be read
+
+ @example
+ ```ts
+ const there = await theFolderHoldsTheArrayEntry({ queueFolder: '/runs/q', entry });
+ ```
+ */
+async function theFolderHoldsTheArrayEntry({
+  queueFolder,
+  entry,
+}: {
+  readonly queueFolder: string;
+  readonly entry: QueueRecord;
+},): Promise<boolean> {
+  /**
+   The entry the folder holds under that name, or that it holds none.
+   */
+  const held = await readTheEntryNamed({
+    queueFolder,
+    name: entry.name,
+  },);
+  return (held !== NO_ENTRY_OF_THAT_NAME)
+    && (theFieldsOfAnEntry({ entry: held, },) === theFieldsOfAnEntry({ entry, },));
+}
+
+/**
  Carries one queue array file into a queue folder, and answers what it carried.
 
  The array is renamed to `<file>.converting` **first**, and the folder is built from that file. A queue that another command adds to has
@@ -241,24 +290,46 @@ export async function convertAQueueFileIntoAFolder({
    */
   const entries = await entriesOfAQueueFile({ queueFile: beingCarried, },);
   /**
-   The names an earlier run of this changeover already wrote into the folder.
+   The names an earlier run of this changeover wrote into the folder, and those it was writing when it was killed.
    */
+  const written = new Set<string>();
   /**
-   The names an earlier run of this changeover already wrote, read one line each.
+   The names an earlier run was between writing and recording, which this run cannot tell a started entry from.
    */
-  const recorded = new Set<string>();
+  const unfinished = new Set<string>();
   if (await isThere(carried,)) {
     /**
-     What the file recording the names holds.
+     What the file recording the names holds, one name and its mark per line.
      */
     const lines = await readFile(
       carried,
       'utf8',
     );
     for (const line of lines.split('\n',)) {
-      if (line !== '') {
-        recorded.add(line,);
+      if (line === '') {
+        continue;
       }
+      if (!line.includes(CARRIED_MARK_SEPARATOR,)) {
+        // A line of an earlier build's record holds a bare name, which is a name already written.
+        written.add(line,);
+        continue;
+      }
+      /**
+       The mark and the name one line holds.
+       */
+      const [mark, ...rest] = line.split(CARRIED_MARK_SEPARATOR,);
+      /**
+       The name the line holds, which may hold the separator itself once escaped.
+       */
+      const name = rest.join(CARRIED_MARK_SEPARATOR,);
+      if (name === '') {
+        continue;
+      }
+      if (mark === CARRIED_UNFINISHED_MARK) {
+        unfinished.add(name,);
+        continue;
+      }
+      written.add(name,);
     }
   }
   /**
@@ -271,7 +342,30 @@ export async function convertAQueueFileIntoAFolder({
   const alreadyThere: string[] = [];
   /* oxlint-disable eslint/no-await-in-loop -- one entry at a time, and the folder is read for each of them */
   for (const [place, entry,] of entries.entries()) {
-    if (recorded.has(entry.name,)) {
+    if (unfinished.has(entry.name,)) {
+      // An earlier run was between writing this entry and recording it, and the folder does not hold it: either it was written and a
+      // filling has started it since, or it was never written. Nothing can tell those apart, so this run neither queues it again, which
+      // could start a paid run twice, nor drops it silently: it stops and names the entry.
+      if (!(await theFolderHoldsTheArrayEntry({
+        queueFolder,
+        entry,
+      },))) {
+        throw new QueueFileError(
+          `the changeover of ${queueFile} was killed while it was writing ${JSON.stringify(entry.name,)}: the queue folder `
+            + `${queueFolder} does not hold it, and nothing here can tell whether a filling started it. Nothing more was carried over. `
+            + `Check whether a run of that name is going or has run; if it never was, remove its "${CARRIED_UNFINISHED_MARK}" line from `
+            + `${carried} and run this again, and the entry is carried.`,
+        );
+      }
+      written.add(entry.name,);
+      await appendFile(
+        carried,
+        `${CARRIED_WRITTEN_MARK}${CARRIED_MARK_SEPARATOR}${entry.name}\n`,
+      );
+      alreadyThere.push(entry.name,);
+      continue;
+    }
+    if (written.has(entry.name,)) {
       // An earlier run of this changeover wrote this entry, and a filling may have started it since: it is never queued a second time.
       alreadyThere.push(entry.name,);
       continue;
@@ -288,7 +382,7 @@ export async function convertAQueueFileIntoAFolder({
         alreadyThere.push(entry.name,);
         await appendFile(
           carried,
-          `${entry.name}\n`,
+          `${CARRIED_WRITTEN_MARK}${CARRIED_MARK_SEPARATOR}${entry.name}\n`,
         );
         continue;
       }
@@ -297,10 +391,16 @@ export async function convertAQueueFileIntoAFolder({
           + 'more was carried over: a changeover never writes over an entry somebody has been editing since',
       );
     }
+    // The mark that says this entry is being written goes first: a kill between the write and the mark below is a state this run and the
+    // next can both name, rather than a name that would be queued a second time.
+    await appendFile(
+      carried,
+      `${CARRIED_UNFINISHED_MARK}${CARRIED_MARK_SEPARATOR}${entry.name}\n`,
+    );
     /**
      Whether the entry was written, or a name was queued under it while the changeover ran.
      */
-    const written = await writeAnEntryOfAQueue({
+    const carriedOver = await writeAnEntryOfAQueue({
       queueFolder,
       entry: {
         ...entry,
@@ -309,16 +409,16 @@ export async function convertAQueueFileIntoAFolder({
       },
       replace: false,
     },);
-    if (!written) {
+    if (!carriedOver) {
       throw new QueueFileError(
         `an entry named ${entry.name} was queued in ${queueFolder} while the changeover ran, so nothing more was carried over: `
           + 'the array is still held as being carried, and running this again passes over what is already there',
       );
     }
-    // The name is recorded once the entry is in the folder, so a run after a kill at any step passes over exactly what it wrote.
+    // The name is marked written once the entry is in the folder, so a run after a kill at any step passes over exactly what it wrote.
     await appendFile(
       carried,
-      `${entry.name}\n`,
+      `${CARRIED_WRITTEN_MARK}${CARRIED_MARK_SEPARATOR}${entry.name}\n`,
     );
   }
   /* oxlint-enable eslint/no-await-in-loop */

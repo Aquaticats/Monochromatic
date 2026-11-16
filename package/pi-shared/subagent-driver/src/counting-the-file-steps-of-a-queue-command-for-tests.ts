@@ -34,6 +34,10 @@ const original = {
     .rename,
   rm: fs.promises
     .rm,
+  appendFile: fs.promises
+    .appendFile,
+  mkdir: fs.promises
+    .mkdir,
 };
 
 /**
@@ -119,6 +123,37 @@ const counted = {
       path,
       { force: true, },
     );
+  },
+
+  /**
+   Appends to a file, which is how the changeover records a name it has written.
+
+   @param path - the file's path
+
+   @param data - what it adds
+   */
+  async appendFile(
+    path: Parameters<typeof fs.promises.appendFile>[0],
+    data: Parameters<typeof fs.promises.appendFile>[1],
+  ): Promise<void> {
+    aStep();
+    await original.appendFile(
+      path,
+      data,
+    );
+  },
+
+  /**
+   Makes a folder, which is how the queue and its claims folder come to be.
+
+   @param path - the folder's path
+   */
+  async mkdir(path: PathLike,): Promise<string> {
+    aStep();
+    return (await original.mkdir(
+      path,
+      { recursive: true, },
+    )) ?? '';
   },
 };
 

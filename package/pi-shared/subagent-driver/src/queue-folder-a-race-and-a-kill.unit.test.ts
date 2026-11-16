@@ -18,7 +18,10 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { join, } from 'node:path';
+import {
+  basename,
+  join,
+} from 'node:path';
 import {
   describe,
   expect,
@@ -783,7 +786,8 @@ await describe({
         const aside = JSON.parse(await readFile(taken.asides[0] ?? '', 'utf8',),) as QueueRecord;
         expect(aside.name,).toBe('a',);
         await discardTheEntryTaken({ aside: taken.asides[0] ?? '', },);
-        expect(await readdir(queue.queueFolder,),).not.toContain(taken.asides[0]);
+        // The file the discard was given is gone from the folder, compared by its own base name rather than by its whole path.
+        expect(await readdir(queue.queueFolder,),).not.toContain(basename(taken.asides[0] ?? '',));
       },
     },),
     it({

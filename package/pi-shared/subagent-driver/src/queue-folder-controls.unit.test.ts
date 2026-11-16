@@ -525,7 +525,13 @@ await describe({
             },),);
             // Both writers of one name: one link writes the entry and the other is refused, so the name stands once and the queue's
             // base entry is untouched. One file read and written whole lost one of two insertions in the file form.
-            expect(printed.length,).toBe(2,);
+            // Each writer answered for itself: the link wrote the entry for one of them, and refused the other by name.
+            expect(printed.filter(function isSucceeded(run,) {
+              return run.status === 0;
+            },),).toHaveLength(1,);
+            expect(printed.filter(function isRefused(run,) {
+              return run.printed.includes('already in the queue',);
+            },),).toHaveLength(1,);
             expect(await namesIn(queue.queueFolder,),).toEqual(['a', 'base',],);
           },
         },),
@@ -544,7 +550,18 @@ await describe({
               runsFolder: queue.runsFolder,
               killAt: 1_000,
             },);
-            expect(taken.printed,).toContain('a',);
+            // The take answered the entry it took, as the JSON line the stand-in prints, and not merely the letter in it.
+            /**
+             What the take printed, as its own JSON.
+             */
+            const answeredTake = JSON.parse(taken.printed.trim(),) as {
+              readonly command: string;
+              readonly answer: { readonly taken: readonly { readonly name: string }[] };
+            };
+            expect(answeredTake.command,).toBe('take',);
+            expect(answeredTake.answer.taken.map(function nameOf(entry,) {
+              return entry.name;
+            },),).toEqual(['a',],);
             await putAQueueEntryIn({
               queueFolder: queue.queueFolder,
               entry: {
@@ -660,7 +677,7 @@ await describe({
                The folder this command's walk runs in, made once to count its instructions and then per round.
                */
               // oxlint-disable-next-line eslint/no-await-in-loop -- this command's own counting queue
-              const counting = await aQueueOf([held,],);
+              await using counting = await aQueueOf([held,],);
               // oxlint-disable-next-line eslint/no-await-in-loop -- the setup of the command this walk counts
               const prepared = await preparedFor({
                 command,
@@ -674,9 +691,10 @@ await describe({
                 runsFolder: counting.runsFolder,
                 killAt: 10_000,
               },);
-              // oxlint-disable-next-line eslint/no-await-in-loop -- the counting queue goes once its instructions are known
-              await counting[Symbol.asyncDispose]();
-              expect(prepared,).toBeTruthy();
+              // The counting queue goes when the block that made it ends, however this round ends, so a failing walk leaves no folder.
+              // The identity the command's entry carries, which every command of the walk needs and none may answer empty.
+              expect(typeof prepared,).toBe('string',);
+              expect(prepared,).not.toBe('undefined',);
               if (whole.status !== 0) {
                 throw new Error(`${command} could not be run whole, so its instructions cannot be walked: ${whole.printed}`,);
               }
@@ -685,7 +703,7 @@ await describe({
                 /**
                  This round's queue.
                  */
-                const queue = await aQueueOf([held,],);
+                await using queue = await aQueueOf([held,],);
                 // oxlint-disable-next-line eslint/no-await-in-loop -- the setup of this round's queue
                 await preparedFor({
                   command,
@@ -744,7 +762,6 @@ await describe({
                       },)}`,
                   );
                 }
-                await queue[Symbol.asyncDispose]();
               }
               /* oxlint-enable eslint/no-await-in-loop */
             }

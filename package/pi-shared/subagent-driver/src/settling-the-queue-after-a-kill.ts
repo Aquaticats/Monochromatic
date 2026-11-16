@@ -27,6 +27,8 @@ import {
 import { theHolderOfAClaim, } from './where-a-claims-holder-is-now.ts';
 import {
   type ANameInAFolder,
+  BEING_TAKEN_START,
+  BEING_WRITTEN_START,
   claimedFolderOf,
   NO_QUEUE_ID,
   QueueFileError,
@@ -117,18 +119,17 @@ async function recordsSettled({
     },);
     if (claimed !== undefined) {
       // The record's own entry is queued and claimed: the set-aside wrote the record and was killed before its entry left the queue, so
-      // this finishes it. The claim goes first, only while it is still that attempt, so no live filling takes the entry over between the
-      // two steps; the record stays, because it is the entry's copy.
-      await aClaimRemovedOnlyIfItSays({
-        queueFolder,
-        name: entry.name,
-        holds: function isTheClaimRead(other,) {
-          return other.claim
-            .token
-            === claimed.claim
-              .token;
-        },
-      },);
+      // this finishes it. A claim a live filling holds is never finished here: that filling is starting the entry, and taking it out from
+      // under that start would leave the entry's record saying its start failed while the entry runs.
+      /**
+       What the claim's holder is now.
+       */
+      const holder = await theHolderOfAClaim({ claim: claimed, },);
+      if (holder.kind !== 'gone') {
+        report(`${at} ${entry.name}: its set-aside wrote the record and left the entry queued, and the claim on it is ${('reason' in holder) ? holder.reason : 'a holder that may still be starting it'}, so the record and the entry are left for that holder and for a person\n`,);
+        continue;
+      }
+      // The entry goes before its claim: a kill between the two would otherwise leave a started entry queued with nothing naming it.
       await anEntryRemovedOnlyIfTheAttempt({
         queueFolder,
         name: entry.name,
@@ -198,9 +199,62 @@ async function claimsCleared({
       continue;
     }
     /**
-     Whether the claim was still the one this pass read, once it is removed only while it says so.
+     The entry the queue holds under that name now, or that it holds none.
      */
-    const removed = await aClaimRemovedOnlyIfItSays({
+    const entry = await readTheEntryNamed({
+      queueFolder,
+      name: held.name,
+    },);
+    if ((entry === NO_ENTRY_OF_THAT_NAME) || (queueIdOf({ record: entry, },) !== held.queueId)) {
+      // The entry this claim was taken on has left the queue, or the queue holds another entry of that name now: either way nothing is
+      // left to start, so only the claim is cleared.
+      await aClaimRemovedOnlyIfItSays({
+        queueFolder,
+        name: held.name,
+        holds: function isTheClaimRead(claim,) {
+          return (claim.claim
+            .token
+            === held.claim
+              .token) && (claim.queueId === held.queueId);
+        },
+      },);
+      report(`${at} ${held.name}: the queue no longer holds the entry its claim named, so the claim is cleared\n`,);
+      continue;
+    }
+    /**
+     Whether this attempt's own unit was made, which is what tells an entry that started from one that never did.
+     */
+    const started = await startOfAnAttemptTookEffect({
+      runsFolder,
+      name: held.name,
+      claim: held.claim,
+    },);
+    // The evidence is read before anything is removed, and then the entry goes before its claim: a kill between the two would otherwise
+    // leave a started entry queued with nothing left naming its attempt, which the next pass would start a second time. A claim whose
+    // entry is gone is cleared by the next pass anyway, so removing it last costs nothing.
+    if (started) {
+      await anEntryRemovedOnlyIfTheAttempt({
+        queueFolder,
+        name: held.name,
+        queueId: held.queueId,
+      },);
+      await aClaimRemovedOnlyIfItSays({
+        queueFolder,
+        name: held.name,
+        holds: function isStillThisAttempt(claim,) {
+          return claim.claim
+            .token
+            === held.claim
+              .token;
+        },
+      },);
+      report(`${at} ${held.name}: the filling that claimed it died after its start took effect, so it is taken out of the queue and never started again\n`,);
+      continue;
+    }
+    /**
+     Whether the claim this pass read was still there to give back, or another filling's claim stood under the name.
+     */
+    const givenBack = await aClaimRemovedOnlyIfItSays({
       queueFolder,
       name: held.name,
       holds: function isTheClaimRead(claim,) {
@@ -210,35 +264,8 @@ async function claimsCleared({
             .token) && (claim.queueId === held.queueId);
       },
     },);
-    if (!removed) {
-      // Another filling linked its own claim on that entry between this pass's read and this step, so the claim it holds is left alone.
+    if (!givenBack) {
       report(`${at} ${held.name}: the filling that held the claim this pass read is gone, but another filling claimed it meanwhile, so that claim stands\n`,);
-      continue;
-    }
-    /**
-     The entry the queue holds under that name now, or that it holds none.
-     */
-    const entry = await readTheEntryNamed({
-      queueFolder,
-      name: held.name,
-    },);
-    if ((entry === NO_ENTRY_OF_THAT_NAME) || (queueIdOf({ record: entry, },) !== held.queueId)) {
-      // The entry this claim was taken on has left the queue, or the queue holds another entry of that name now: either way nothing is
-      // left to start, and the claim is already gone.
-      report(`${at} ${held.name}: the queue no longer holds the entry its claim named, so the claim is cleared\n`,);
-      continue;
-    }
-    if (await startOfAnAttemptTookEffect({
-      runsFolder,
-      name: held.name,
-      claim: held.claim,
-    },)) {
-      await anEntryRemovedOnlyIfTheAttempt({
-        queueFolder,
-        name: held.name,
-        queueId: held.queueId,
-      },);
-      report(`${at} ${held.name}: the filling that claimed it died after its start took effect, so it is taken out of the queue and never started again\n`,);
       continue;
     }
     report(`${at} ${held.name}: the filling that claimed it died before its start took effect, so the claim is given back and the entry stands for the next pass\n`,);
@@ -313,8 +340,12 @@ export const HALF_WRITTEN_FILE_AGE_MILLISECONDS = 3_600_000;
 /**
  Removes the files a killed command left on its way to a name, in the queue's folder and in the folder its claims live in.
 
- A file whose name begins with a dot is never an entry and never a claim: it is a file a command wrote on its way to one, which a command
- killed at that step would otherwise leave for ever. Nothing else in the folder is touched.
+ Only a file written on its way to a name is removed, and only once it is far too old to belong to a step still running: such a file holds
+ half of a write and is never an entry.
+
+ A file a take renamed an entry to is not one of those: it holds the entry whole, and it is the only copy of it until the person's command
+ discards it. It is never removed here however old it is: the pass says where it is, so a person finds the entry, which is what the page
+ promises. Removing it for its age is how a killed take lost the entry it had set aside.
 
  @param queueFolder - the queue's folder
 
@@ -367,8 +398,20 @@ export async function halfWrittenFilesSwept({
       throw new QueueFileError(`the folder ${folder} cannot be read to sweep what a kill left: ${String(error,)}`,);
     }
     for (const name of held) {
-      if ((!name.isFile()) || (!name.name
-        .startsWith('.',))) {
+      if (!name.isFile()) {
+        continue;
+      }
+      if (name.name
+        .startsWith(BEING_TAKEN_START,)) {
+        // An entry a take renamed aside, which is the only copy of it: it is named for a person and never removed.
+        report(`${new Date(now(),).toISOString()} ${join(
+          folder,
+          name.name,
+        )} holds an entry a take renamed aside and never finished; the entry is there and a person can put it back\n`,);
+        continue;
+      }
+      if (!name.name
+        .startsWith(BEING_WRITTEN_START,)) {
         continue;
       }
       /**
