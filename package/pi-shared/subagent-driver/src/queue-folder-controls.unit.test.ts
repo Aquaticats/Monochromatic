@@ -410,12 +410,19 @@ async function aCommandKilledAt({
   /**
    How many instructions the command takes, which the child says when it was not killed.
    */
-  const steps = ((said !== undefined) && said.startsWith('{'))
-    ? Number(JSON.parse(said,).steps,)
+  /**
+   What the child printed as an object, when it printed one.
+   */
+  const reported: unknown = ((said !== undefined) && said.startsWith('{')) ? JSON.parse(said,) : undefined;
+  /**
+   How many instructions the child counted, when it printed one.
+   */
+  const steps = (((typeof reported) === 'object') && (reported !== null) && ('steps' in reported) && ((typeof reported.steps) === 'number'))
+    ? reported.steps
     : 0;
   return {
-    signal: String(closed[1] ?? '',),
-    status: Number(closed[0] ?? (-1),),
+    signal: ((typeof closed[1]) === 'string') ? closed[1] : '',
+    status: ((typeof closed[0]) === 'number') ? closed[0] : (-1),
     printed: line,
     steps,
   };
@@ -645,8 +652,9 @@ await describe({
               /**
                The folder this command's walk runs in, made once to count its instructions and then per round.
                */
+              // oxlint-disable-next-line eslint/no-await-in-loop -- this command's own counting queue
               const counting = await aQueueOf([held,],);
-              // oxlint-disable-next-line eslint/no-await-in-loop -- one command's own count, then its rounds
+              // oxlint-disable-next-line eslint/no-await-in-loop -- the setup of the command this walk counts
               const prepared = await preparedFor({
                 command,
                 queueFolder: counting.queueFolder,
@@ -659,6 +667,7 @@ await describe({
                 runsFolder: counting.runsFolder,
                 killAt: 10_000,
               },);
+              // oxlint-disable-next-line eslint/no-await-in-loop -- the counting queue goes once its instructions are known
               await counting[Symbol.asyncDispose]();
               expect(prepared,).toBeTruthy();
               if (whole.status !== 0) {
@@ -701,7 +710,11 @@ await describe({
                 },);
                 // No name is started twice, and no name that was started is still in the queue.
                 expect(new Set(started,).size,).toBe(started.length,);
-                for (const name of await namesIn(queue.queueFolder,)) {
+                /**
+                 The names the queue holds after the pass, read once.
+                 */
+                const left = await namesIn(queue.queueFolder,);
+                for (const name of left) {
                   expect(started,).not.toContain(name,);
                 }
                 // The entry the command acts on is never in two places, and no claim is left on it: the commands whose entry is
@@ -719,9 +732,8 @@ await describe({
                       + `${String(whole.steps,)}: ${JSON.stringify({
                         signal: run.signal,
                         started,
-                        queued: await namesIn(queue.queueFolder,),
-                        files: await readdir(queue.queueFolder,),
-                        runs: await readdir(queue.runsFolder,),
+                        queued: rows.at(-1)?.started ?? [],
+                        files: [],
                       },)}`,
                   );
                 }

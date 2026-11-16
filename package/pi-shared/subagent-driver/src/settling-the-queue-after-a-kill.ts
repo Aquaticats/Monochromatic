@@ -14,6 +14,7 @@
  */
 
 import { rm, } from 'node:fs/promises';
+import { errorCodeOf, } from './error-code-of.ts';
 import {
   entryFileOf,
   NO_QUEUE_ID,
@@ -22,10 +23,10 @@ import {
   queueIdOf,
 } from './queue-of-runs.ts';
 import { startOfAnAttemptTookEffect, } from './claiming-an-entry-of-a-queue.ts';
+import { readTheClaimsOnAQueue, } from './reading-the-claims-beside-a-queue.ts';
 import {
   NO_ENTRY_OF_THAT_NAME,
   readQueueOfRuns,
-  readTheClaimsOnAQueue,
   readTheEntryNamed,
 } from './reading-and-writing-the-folder-a-queue-is.ts';
 import {
@@ -61,7 +62,7 @@ function processIsThere({ pid, }: { readonly pid: number },): boolean {
   }
   catch (error) {
     // A process number this account may not signal still names a live process, so only "no such process" says the holder is gone.
-    return ((error as { readonly code?: unknown }).code) !== NO_SUCH_PROCESS_CODE;
+    return errorCodeOf(error,) !== NO_SUCH_PROCESS_CODE;
   }
 }
 

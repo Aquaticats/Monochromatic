@@ -10,6 +10,10 @@
  */
 
 import {
+  aPlaceFor,
+  aNameTakenAside,
+} from './places-and-names-of-a-queue-folder.ts';
+import {
   rename,
   rm,
 } from 'node:fs/promises';
@@ -25,8 +29,6 @@ import {
   queueIdOf,
 } from './queue-of-runs.ts';
 import {
-  aNameTakenAside,
-  aPlaceFor,
   readQueueOfRuns,
   readTheEntryAt,
   writeAnEntryOfAQueue,
@@ -261,9 +263,12 @@ export async function moveAQueueEntryTo({
     return { count: entries.length, };
   }
   /**
-   The entry itself.
+   The entry itself, which the queue holds because the index above found it.
    */
-  const entry = entries[from] as QueueRecord;
+  const entry = entries[from];
+  if (entry === undefined) {
+    return { count: entries.length, };
+  }
   /**
    The entries without it, which is the queue its new place is counted in.
    */

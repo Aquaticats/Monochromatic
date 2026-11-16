@@ -14,8 +14,28 @@
 
 import { randomUUID, } from 'node:crypto';
 import { join, } from 'node:path';
-import type { NOT_AN_ORDER} from './order-of-an-entry-in-a-queue.ts';
-import { anOrderIn } from './order-of-an-entry-in-a-queue.ts';
+import {
+  anOrderBetween,
+  anOrderIn,
+  type NOT_AN_ORDER,
+} from './order-of-an-entry-in-a-queue.ts';
+
+/**
+ One name in a folder, as reading the folder reports it: the name, and whether it is a file.
+ */
+export type ANameInAFolder = {
+  /**
+   The name inside the folder.
+   */
+  readonly name: string;
+
+  /**
+   Says whether the name is a file, which a folder and a socket are not.
+   
+   @returns whether it is a file
+   */
+  readonly isFile: () => boolean;
+};
 
 /**
  One entry of a queue, as its file holds it: a JSON object named by `name`.

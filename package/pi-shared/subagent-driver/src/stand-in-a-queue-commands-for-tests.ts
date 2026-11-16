@@ -18,13 +18,25 @@ import {
   takeAQueueEntryOut,
 } from './putting-and-taking-entries-of-a-queue.ts';
 import { putASetAsideEntryBack, } from './putting-a-set-aside-entry-back.ts';
-import type { QueueRecord, } from './queue-of-runs.ts';
+import {
+  isQueueRecord,
+  type QueueRecord,
+} from './queue-of-runs.ts';
 import {
   readQueueOfRuns,
   readTheEntryNamed,
 } from './reading-and-writing-the-folder-a-queue-is.ts';
 import { setAsideAnEntryOfAQueue, } from './set-aside-entry.ts';
 import { settleTheQueueAfterAKill, } from './settling-the-queue-after-a-kill.ts';
+
+/**
+ Says nothing, which is the report the settlement needs and a control does not read.
+
+ @returns nothing
+ */
+function reportNothing(): undefined {
+  return undefined;
+}
 
 /**
  The entry every command of this stand-in works on, which the control wrote into the queue.
@@ -38,8 +50,19 @@ const entry: QueueRecord = {
 
 /**
  Runs the one command the program was named.
- 
+
+ @param command - the command to run, by the name the control gave it
+
+ @param queueFolder - the queue's folder
+
+ @param runsFolder - the runs folder the command writes its record into
+
  @returns what the command answered
+
+ @example
+ ```ts
+ const answer = await whatTheCommandAnswered({ command: 'put', queueFolder: '/runs/q', runsFolder: '/runs' });
+ ```
  */
 export async function whatTheCommandAnswered({
   command,
@@ -78,9 +101,12 @@ export async function whatTheCommandAnswered({
       queueFolder,
       name: entry.name,
     },);
+    if (!isQueueRecord(held,)) {
+      throw new Error(`the queue holds no entry named ${entry.name}`,);
+    }
     return await claimAnEntryOfAQueue({
       queueFolder,
-      record: (held as QueueRecord),
+      record: held,
       now: Date.now,
     },);
   }
@@ -88,11 +114,14 @@ export async function whatTheCommandAnswered({
     /**
      The entry the queue holds, whose identity the claim was taken on.
      */
-    const held = (await readQueueOfRuns({ queueFolder, },))[0] as QueueRecord;
+    const [held,] = await readQueueOfRuns({ queueFolder, },);
+    if (held === undefined) {
+      throw new Error(`the queue holds no entry named ${entry.name}`,);
+    }
     return await completeTheClaim({
       queueFolder,
       name: entry.name,
-      queueId: String(held.queueId,),
+      queueId: ((typeof held.queueId) === 'string') ? held.queueId : '',
     },);
   }
   if (command === 'giveBack') {
@@ -105,12 +134,15 @@ export async function whatTheCommandAnswered({
     /**
      The entry the queue holds, which the record and the removal are written for.
      */
-    const held = (await readQueueOfRuns({ queueFolder, },))[0] as QueueRecord;
+    const [held,] = await readQueueOfRuns({ queueFolder, },);
+    if (held === undefined) {
+      throw new Error(`the queue holds no entry named ${entry.name}`,);
+    }
     return await setAsideAnEntryOfAQueue({
       queueFolder,
       runsFolder,
       record: held,
-      queueId: String(held.queueId,),
+      queueId: ((typeof held.queueId) === 'string') ? held.queueId : '',
       reason: 'the entry failed its start',
       now: Date.now,
     },);
@@ -127,9 +159,7 @@ export async function whatTheCommandAnswered({
     return await settleTheQueueAfterAKill({
       queueFolder,
       runsFolder,
-      report: function report() {
-        return undefined;
-      },
+      report: reportNothing,
     },);
   }
   if (command === 'convert') {
@@ -138,5 +168,5 @@ export async function whatTheCommandAnswered({
       queueFolder,
     },);
   }
-  throw new Error(`no command of the stand-in is named ${String(command,)}`,);
+  throw new Error(`no command of the stand-in is named ${command}`,);
 }

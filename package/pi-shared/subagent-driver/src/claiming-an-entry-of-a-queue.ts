@@ -35,11 +35,11 @@ import {
   entryFileOf,
   queueIdOf,
 } from './queue-of-runs.ts';
+import { aClaimOf, } from './places-and-names-of-a-queue-folder.ts';
+import { readTheClaimsOnAQueue, } from './reading-the-claims-beside-a-queue.ts';
 import {
   NO_ENTRY_OF_THAT_NAME,
-  aClaimOf,
   aFileLaidDown,
-  readTheClaimsOnAQueue,
   readTheEntryNamed,
 } from './reading-and-writing-the-folder-a-queue-is.ts';
 

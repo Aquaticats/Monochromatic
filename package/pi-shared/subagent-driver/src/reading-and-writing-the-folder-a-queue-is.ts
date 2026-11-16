@@ -52,11 +52,9 @@ import {
   QueueFileError,
   aFreshQueueId,
   queueIdOf,
+  type ANameInAFolder,
 } from './queue-of-runs.ts';
-import {
-  anOrderBetween,
-  ordersOfAPlace,
-} from './order-of-an-entry-in-a-queue.ts';
+import { ordersOfAPlace, } from './order-of-an-entry-in-a-queue.ts';
 
 /**
  The code the operating system gives a path that is not there.
@@ -72,23 +70,6 @@ const EXISTS_CODE = 'EEXIST';
  The ending every entry's file and every claim's file carries.
  */
 const ENTRY_FILE_ENDING = '.json';
-
-/**
- One name in a folder, as reading the folder reports it: the name, and whether it is a file.
- */
-type ANameInAFolder = {
-  /**
-   The name inside the folder.
-   */
-  readonly name: string;
-
-  /**
-   Says whether the name is a file, which a folder and a socket are not.
-   
-   @returns whether it is a file
-   */
-  readonly isFile: () => boolean;
-};
 
 /**
  Reads the queue folder's own entry files, and refuses anything in it that is neither an entry nor a name a command writes.
@@ -365,189 +346,61 @@ export async function readQueueOfRuns({ queueFolder, }: { readonly queueFolder: 
 }
 
 /**
- Reads what one claim's file holds as a claim, or refuses it by name.
+ Writes a file beside its own path and puts it into place, which is one step and refuses a path already taken unless it is told to
+ replace it.
 
- @param parsed - what the file's text parsed to
+ @param path - where the file goes
 
- @param path - the file's path, for the message
+ @param text - what it holds
 
- @returns the claim
+ @param replace - whether a file already at that path is replaced rather than refusing the write
 
- @throws QueueFileError when it holds no name, identity, token, process number and time
+ @returns whether the file was written, or a file was there already
+
+ @throws QueueFileError when the file cannot be written for any other reason
 
  @example
  ```ts
- const claim = aClaimIn({ parsed, path: '/runs/q/claimed/a.claim.json' });
+ const written = await aFileLaidDown({ path: '/runs/q/a.json', text: '{}', replace: false });
  ```
  */
-export function aClaimIn({
-  parsed,
+export async function aFileLaidDown({
   path,
+  text,
+  replace,
 }: {
-  readonly parsed: unknown;
   readonly path: string;
-},): AClaimOnAnEntry {
-  if (((typeof parsed) !== 'object') || (parsed === null)) {
-    throw new QueueFileError(`${path} holds no claim, so which filling started that entry is unknown`,);
-  }
+  readonly text: string;
+  readonly replace: boolean;
+},): Promise<boolean> {
   /**
-   The fields the claim should hold.
+   The file written beside the path and put into place.
    */
-  const name: unknown = Reflect.get(
-    parsed,
-    'name',
+  const beside = join(
+    dirname(path,),
+    `${BEING_WRITTEN_START}${basename(path,)}-${String(process.pid,)}-${randomUUID()}`,
   );
   /**
-   The identity of the entry the claim was taken on.
+   Whether the file was put into place, or a name was there already.
    */
-  const queueId: unknown = Reflect.get(
-    parsed,
-    'queueId',
+  await writeFile(
+    beside,
+    text,
   );
   /**
-   The attempt's own facts, as the file holds them.
+   Whether the file was put into place, or a name was there already.
    */
-  const claim: unknown = Reflect.get(
-    parsed,
-    'claim',
+  const laidDown = await intoItsPlace({
+    beside,
+    path,
+    replace,
+  },);
+  // The file beside the path is never an entry: it is removed whatever the step answered, so a refused write leaves nothing behind.
+  await rm(
+    beside,
+    { force: true, },
   );
-  if (
-    ((typeof name) !== 'string')
-      || (name === '')
-      || ((typeof queueId) !== 'string')
-      || (queueId === '')
-      || ((typeof claim) !== 'object')
-      || (claim === null)
-  ) {
-    throw new QueueFileError(`${path} holds no entry's name and identity with the claim on it, so which filling started that entry is unknown`,);
-  }
-  /**
-   The token naming the attempt.
-   */
-  const token: unknown = Reflect.get(
-    claim,
-    'token',
-  );
-  /**
-   The filling's process number.
-   */
-  const pid: unknown = Reflect.get(
-    claim,
-    'pid',
-  );
-  /**
-   When the claim was taken.
-   */
-  const at: unknown = Reflect.get(
-    claim,
-    'at',
-  );
-  if (
-    ((typeof token) !== 'string')
-      || (token === '')
-      || ((typeof pid) !== 'number')
-      || ((typeof at) !== 'string')
-  ) {
-    throw new QueueFileError(`${path} names no token, process number and time for the attempt, so which filling started that entry is unknown`,);
-  }
-  return {
-    name,
-    queueId,
-    claim: {
-      token,
-      pid,
-      at,
-    },
-  };
-}
-
-/**
- Reads every claim a queue folder holds: the entries fillings are starting now, or were starting when their filling was killed.
-
- @param queueFolder - the queue's folder
-
- @returns one claim per entry a filling has taken, in the order the folder lists them
-
- @throws QueueFileError when the claims folder or one of its files cannot be read, or holds no claim
-
- @example
- ```ts
- const claims = await readTheClaimsOnAQueue({ queueFolder: '/runs/q' });
- ```
- */
-export async function readTheClaimsOnAQueue({
-  queueFolder,
-}: {
-  readonly queueFolder: string;
-},): Promise<readonly AClaimOnAnEntry[]> {
-  /**
-   The folder the claims live in.
-   */
-  const claimedFolder = claimedFolderOf({ queueFolder, },);
-  /**
-   What that folder holds.
-   */
-  let held: readonly ANameInAFolder[] = [];
-  try {
-    held = await readdir(
-      claimedFolder,
-      { withFileTypes: true, },
-    );
-  }
-  catch (error) {
-    // A queue nothing has claimed an entry of holds no claims folder, which is a fact about the queue and not a failure to read it.
-    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
-      return [];
-    }
-    throw new QueueFileError(`the claims beside the queue at ${queueFolder} cannot be read: ${String(error,)}`,);
-  }
-  /**
-   The claims read so far.
-   */
-  const claims: AClaimOnAnEntry[] = [];
-  for (const file of held) {
-    if ((!file.isFile())
-      || (!file.name
-        .endsWith(ENTRY_FILE_ENDING,))
-      || file.name
-        .startsWith('.',)) {
-      if ((!file.isFile()) && (!file.name
-        .startsWith('.',))) {
-        throw new QueueFileError(
-          `${join(
-            claimedFolder,
-            file.name,
-          )} is neither a claim nor a name a killed command left, so the claims beside the queue at ${queueFolder} cannot be read`,
-        );
-      }
-      continue;
-    }
-    /**
-     The claim's path, for the message.
-     */
-    const path = join(
-      claimedFolder,
-      file.name,
-    );
-    /**
-     What the claim's file holds, as anything.
-     */
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(await readFile(
-        path,
-        'utf8',
-      ),);
-    }
-    catch (error) {
-      throw new QueueFileError(`the claim at ${path} cannot be read as one: ${String(error,)}`,);
-    }
-    claims.push(aClaimIn({
-      parsed,
-      path,
-    },),);
-  }
-  return claims;
+  return laidDown.placed;
 }
 
 /**
@@ -604,64 +457,6 @@ async function intoItsPlace({
     }
     throw new QueueFileError(`the queue file at ${path} cannot be written: ${String(error,)}`,);
   }
-}
-
-/**
- Writes a file beside its own path and puts it into place, which is one step and refuses a path already taken unless it is told to
- replace it.
-
- @param path - where the file goes
-
- @param text - what it holds
-
- @param replace - whether a file already at that path is replaced rather than refusing the write
-
- @returns whether the file was written, or a file was there already
-
- @throws QueueFileError when the file cannot be written for any other reason
-
- @example
- ```ts
- const written = await aFileLaidDown({ path: '/runs/q/a.json', text: '{}', replace: false });
- ```
- */
-export async function aFileLaidDown({
-  path,
-  text,
-  replace,
-}: {
-  readonly path: string;
-  readonly text: string;
-  readonly replace: boolean;
-},): Promise<boolean> {
-  /**
-   The file written beside the path and put into place.
-   */
-  const beside = join(
-    dirname(path,),
-    `${BEING_WRITTEN_START}${basename(path,)}-${String(process.pid,)}-${randomUUID()}`,
-  );
-  /**
-   Whether the file was put into place, or a name was there already.
-   */
-  await writeFile(
-    beside,
-    text,
-  );
-  /**
-   Whether the file was put into place, or a name was there already.
-   */
-  const laidDown = await intoItsPlace({
-    beside,
-    path,
-    replace,
-  },);
-  // The file beside the path is never an entry: it is removed whatever the step answered, so a refused write leaves nothing behind.
-  await rm(
-    beside,
-    { force: true, },
-  );
-  return laidDown.placed;
 }
 
 /**
@@ -795,159 +590,4 @@ export async function writeTheQueueOfRuns({
       throw new QueueFileError(`an entry named ${entry.name} is already in the queue at ${queueFolder}`,);
     }
   }
-}
-
-/**
- Reads a key that stands between two entries of a queue, which is what a put at a position writes.
-
- @param lower - the key the new entry must come after, or nothing when it goes at the head
-
- @param upper - the key the new entry must come before, or nothing when it goes at the tail
-
- @returns the key
-
- @example
- ```ts
- const order = anOrderForAPlace({ lower: 'i', upper: 'j' });
- ```
- */
-export function anOrderForAPlace({
-  lower,
-  upper,
-}: {
-  readonly lower?: string;
-  readonly upper?: string;
-},): string {
-  return anOrderBetween({
-    ...(lower === undefined ? {} : { lower, }),
-    ...(upper === undefined ? {} : { upper, }),
-  },);
-}
-
-/**
- Reads the order key of one entry of the queue.
-
- @param entry - the entry
-
- @returns the key
-
- @throws QueueFileError when the entry carries none
-
- @example
- ```ts
- const key = orderKeyOf({ entry });
- ```
- */
-function orderKeyOf({ entry, }: { readonly entry: QueueRecord },): string {
-  /**
-   What the entry says its order is.
-   */
-  const order: unknown = entry[ORDER_FIELD];
-  if ((typeof order) !== 'string') {
-    throw new QueueFileError(`${entry.name} carries no order, so where it stands in the queue is unknown`,);
-  }
-  return order;
-}
-
-/**
- Reads the place one entry goes to, counted from the head, which is the head of a queue shorter than the position and the tail of a
- position past its end.
-
- @param entries - the queue without the entry being placed
-
- @param position - where it goes, counted from the head, zero being the head
-
- @returns where it lands, and the key it is written at
-
- @throws QueueFileError when an entry of the queue carries no order key
-
- @example
- ```ts
- const place = aPlaceFor({ entries, position: 0 });
- ```
- */
-export function aPlaceFor({
-  entries,
-  position,
-}: {
-  readonly entries: readonly QueueRecord[];
-  readonly position: number;
-},): {
-  readonly at: number;
-  readonly order: string
-} {
-  /**
-   Where the entry lands.
-   */
-  const at = Math.min(
-    position,
-    entries.length,
-  );
-  /**
-   The key of the entry before it, when one stands there.
-   */
-  const lower = (at > 0) ? orderKeyOf({ entry: entries[at - 1] as QueueRecord, },) : undefined;
-  /**
-   The key of the entry after it, when one stands there.
-   */
-  const upper = (at < entries.length) ? orderKeyOf({ entry: entries[at] as QueueRecord, },) : undefined;
-  return {
-    at,
-    order: anOrderForAPlace({
-      ...(lower === undefined ? {} : { lower, }),
-      ...(upper === undefined ? {} : { upper, }),
-    },),
-  };
-}
-
-/**
- Reads a name inside a queue folder that no entry and no claim carries, which a command renames or writes a file to while it works.
-
- @param path - the path the command is working on
-
- @returns a path beside it that is no entry's name and no claim's
-
- @example
- ```ts
- const aside = aNameTakenAside({ path: '/runs/q/a.json' });
- ```
- */
-export function aNameTakenAside({ path, }: { readonly path: string },): string {
-  // The name begins with a dot, so no reader of the folder takes the file a command is still working on for an entry.
-  return join(
-    dirname(path,),
-    `${BEING_TAKEN_START}${basename(path,)}-${String(process.pid,)}-${randomUUID()}`,
-  );
-}
-
-/**
- Reads the claim a filling is about to write: the facts of one attempt on one entry of one name.
-
- @param claim - the attempt's token, process number and time
-
- @param name - the entry's name
-
- @param queueId - the identity of the entry the claim is taken on
-
- @returns the claim as its file holds it
-
- @example
- ```ts
- const held = aClaimOf({ claim, name: 'a', queueId: 'q1' });
- ```
- */
-export function aClaimOf({
-  claim,
-  name,
-  queueId,
-}: {
-  readonly claim: QueueClaim;
-  readonly name: string;
-  readonly queueId: string;
-},): AClaimOnAnEntry {
-  return {
-    name,
-    queueId,
-    claim,
-  };
 }

@@ -13,6 +13,9 @@
  */
 
 import {
+  aPlaceFor,
+} from './places-and-names-of-a-queue-folder.ts';
+import {
   readFile,
   rename,
   stat,
@@ -29,7 +32,6 @@ import {
 } from './attempts-of-a-review-run.ts';
 import type { QueueRecord, } from './queue-of-runs.ts';
 import {
-  aPlaceFor,
   readQueueOfRuns,
   writeAnEntryOfAQueue,
 } from './reading-and-writing-the-folder-a-queue-is.ts';
@@ -273,7 +275,19 @@ type AReviewsPutBack = {
  Each entry goes in as one file, and the queue is read again for every one of them, so a pass or another review queued meanwhile is seen and
  the place is counted from the queue as it is then. Nothing here holds the queue: a name that is taken is answered as taken.
 
- @param request - the queue, the reviews, the runs going and where the lines go
+ @param queueFolder - the queue's folder
+
+ @param runsFolder - folder the driver writes its runs into
+
+ @param candidates - the reviews to put back, each with the entry that goes on from its session
+
+ @param going - the runs going when the candidates were read
+
+ @param goingNow - how the runs going are read again just before each entry goes in
+
+ @param now - where this reads the clock
+
+ @param lines - the lines to print
 
  @returns the names of the reviews put back, in the order they were put back
 

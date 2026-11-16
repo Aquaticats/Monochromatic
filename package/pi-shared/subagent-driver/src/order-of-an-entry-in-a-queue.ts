@@ -164,7 +164,6 @@ export function anOrderBetween({
     }
     digits.before = `${digits.before}${digitAt(low,)}`;
   }
-  /* oxlint-enable no-constant-condition */
 }
 
 /**

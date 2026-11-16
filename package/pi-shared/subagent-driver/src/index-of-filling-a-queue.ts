@@ -41,14 +41,18 @@ export {
   ordersOfAPlace,
 } from './order-of-an-entry-in-a-queue.ts';
 export {
-  NO_ENTRY_OF_THAT_NAME,
-  aClaimIn,
   aClaimOf,
-  aFileLaidDown,
   aNameTakenAside,
   aPlaceFor,
-  readQueueOfRuns,
+} from './places-and-names-of-a-queue-folder.ts';
+export {
+  aClaimIn,
   readTheClaimsOnAQueue,
+} from './reading-the-claims-beside-a-queue.ts';
+export {
+  NO_ENTRY_OF_THAT_NAME,
+  aFileLaidDown,
+  readQueueOfRuns,
   readTheEntryAt,
   readTheEntryNamed,
   writeAnEntryOfAQueue,

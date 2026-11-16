@@ -15,9 +15,9 @@ import type {
 } from './queue-of-runs.ts';
 import {
   readQueueOfRuns,
-  readTheClaimsOnAQueue,
 } from './reading-and-writing-the-folder-a-queue-is.ts';
 import { shapeOfAQueueEntry, } from './entry-of-a-queue.ts';
+import { readTheClaimsOnAQueue, } from './reading-the-claims-beside-a-queue.ts';
 import {
   type QueueOptionWords,
   queueFolderIn,
