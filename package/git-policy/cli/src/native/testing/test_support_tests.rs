@@ -368,13 +368,23 @@ fn the_folder_of_a_runtime_directory_is_shortened_until_the_room_a_name_needs_is
         "a limit of {room_it_takes} bytes keeps {}, the folder that fills it to the byte",
         longest_place.display()
     );
-    let shorter: PathBuf = runtime_directory_parent(prefix, room_it_takes - 1);
+    let one_byte_less: usize = room_it_takes - 1;
+    let shorter: PathBuf = runtime_directory_parent(prefix, one_byte_less);
     assert!(shorter.is_dir(), "the shorter place is made: {}", shorter.display());
     assert!(
         shorter.as_os_str().len() < room_it_takes,
         "one byte less of room than {} has moves the runtime directory to {}, which is not shorter",
         longest_place.display(),
         shorter.display()
+    );
+    // The folder it makes stays inside the room it is asked for, which is the contract both calls rest on: the first
+    // fills its limit to the byte, and the second is held against its own limit here.
+    assert_eq!(exact.as_os_str().len(), room_it_takes, "the folder that fits a limit of {room_it_takes} bytes is that long");
+    assert!(
+        shorter.as_os_str().len() <= one_byte_less,
+        "a limit of {one_byte_less} bytes is met by {}, which is {} bytes",
+        shorter.display(),
+        shorter.as_os_str().len()
     );
     for place in [&longest_place, &shorter] {
         std::fs::remove_dir(place.as_path()).expect("the place this control made");
