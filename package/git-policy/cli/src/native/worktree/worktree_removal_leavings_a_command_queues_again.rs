@@ -39,7 +39,7 @@ use crate::diagnostic_log::debug;
 use crate::fs_beneath::{open_directory_at, open_root};
 use crate::fs_btrfs_ioctl::subvolume_id;
 use crate::plain_file::read_plain_file;
-use crate::service_work::work_directory;
+use crate::service_work::{MAX_TRIES, work_directory};
 use crate::work_item::queued_ids;
 use crate::worktree_removal_finishes_an_interrupted_destroy::owner_may_be_running;
 use crate::worktree_removal_leaving_that_outlives_its_record::{Leaving, RECORD_LIMIT, forget_the_leaving, leaving_records, queue_the_delete_again, read_the_leaving};
@@ -77,6 +77,14 @@ pub struct Leavings {
     ///   The caller wakes the service on this answer, and a record a killed command queued and never woke is exactly the
     ///  state a wake is owed for.
     pub queued: bool,
+    /// What:
+    ///  The repository and the leaving of an ask the caller is about to make,
+    ///  so the attempt that ask costs is counted after the ask and not before it.
+    /// Why:
+    ///  An attempt is counted by the act it counts:
+    ///  a command killed between this answer and the wake then costs an ask nobody counted,
+    ///  rather than spending the budget of a wake that was never made.
+    pub asked: Option<(PathBuf, String)>,
     /// What the person reads:
     /// one line per leaving this program may not delete and per queueing that could not be made.
     pub said: Vec<String>,
@@ -106,7 +114,7 @@ pub struct Leavings {
 /// return answer;
 /// ```
 pub fn queue_the_leavings_a_record_no_longer_names(common_dir: &Path) -> Leavings {
-    let mut answer: Leavings = Leavings { queued: false, said: Vec::new() };
+    let mut answer: Leavings = Leavings { queued: false, asked: None, said: Vec::new() };
     let records: Vec<(String, PathBuf)> = leaving_records(common_dir);
     let work: PathBuf = work_directory(common_dir);
     // The places the records name, so a leftover a record names stays that record's to decide and the search by name skips it.
@@ -120,6 +128,10 @@ pub fn queue_the_leavings_a_record_no_longer_names(common_dir: &Path) -> Leaving
     }
     let found: Leavings = queue_the_leavings_no_record_names(common_dir, work.as_path(), &named);
     answer.queued = answer.queued || found.queued;
+    // One command makes one wake, so one ask is counted for it, whichever of the two looks asked first.
+    if answer.asked.is_none() {
+        answer.asked = found.asked;
+    }
     answer.said.extend(found.said);
     return answer;
 }
@@ -326,7 +338,7 @@ fn queue_the_delete_of_one_standing_leaving(common_dir: &Path, leaving: &Leaving
     // Why:  A control kills one command at each of them and proves the next command still queues the delete.
     #[cfg(test)]
     crate::worktree_attempt_budget_test_support::reached(crate::worktree_attempt_budget_test_support::AFTER_THE_PROOF);
-    if crate::worktree_removal_leaving_that_outlives_its_record::consume_an_attempt(common_dir, leaving.item.id().as_str()).is_none() {
+    if crate::worktree_removal_leaving_that_outlives_its_record::attempts_taken(common_dir, leaving.item.id().as_str()) >= MAX_TRIES {
         answer.said.push(attempts_are_spent_line(common_dir, target, leaving.item.id().as_str()));
         return;
     }
@@ -339,6 +351,10 @@ fn queue_the_delete_of_one_standing_leaving(common_dir: &Path, leaving: &Leaving
         ));
         return;
     }
+    // What: The attempt is counted now, after the delete it counts was queued.
+    // Why:  A command killed between the two leaves a delete the next command finds owed, never a budget spent on a delete
+    //       that was never queued.
+    crate::worktree_removal_leaving_that_outlives_its_record::note_an_attempt_taken(common_dir, leaving.item.id().as_str());
     answer.queued = true;
 }
 
@@ -358,15 +374,17 @@ fn queue_the_delete_of_one_standing_leaving(common_dir: &Path, leaving: &Leaving
 /// noteTheAttempt(commonDir, leaving); answer.queued = true;
 /// ```
 pub(crate) fn wake_a_pending_delete(common_dir: &Path, leaving: &Leaving, target: &Path, answer: &mut Leavings) {
-    // The attempt is a file this command creates exclusively, so of any number of commands asking at once exactly one takes
-    // each of the three, and a wake is asked for only by a command that took one.
-    if crate::worktree_removal_leaving_that_outlives_its_record::consume_an_attempt(common_dir, leaving.item.id().as_str()).is_none() {
+    if crate::worktree_removal_leaving_that_outlives_its_record::attempts_taken(common_dir, leaving.item.id().as_str()) >= MAX_TRIES {
         answer.said.push(attempts_are_spent_line(common_dir, target, leaving.item.id().as_str()));
         return;
     }
     crate::worktree_removal_leaving_that_outlives_its_record::note_the_attempt(common_dir, leaving);
     debug(TAG, format!("a round of the service owes the delete of {}, so it is told again and nothing is queued", target.display()).as_str());
     answer.queued = true;
+    // What: The attempt this ask costs, counted by the caller once the wake is made.
+    // Why:  A command killed between the ask and its count costs one ask nobody counted, never a budget spent by an ask that
+    //       was never made.
+    answer.asked = Some((common_dir.to_path_buf(), String::from(leaving.item.id())));
 }
 
 /// What:
@@ -385,7 +403,7 @@ pub(crate) fn wake_a_pending_delete(common_dir: &Path, leaving: &Leaving, target
 fn attempts_are_spent_line(common_dir: &Path, target: &Path, id: &str) -> String {
     let taken: u32 = crate::worktree_removal_leaving_that_outlives_its_record::attempts_taken(common_dir, id);
     return format!(
-        "{SAID} the subvolume a removed worktree was renamed to at {named} is still there after {taken} more attempts to delete it, so nothing here deletes it; `journalctl --identifier=monochromatic-git-policy-cli` says why the commit service could not, and `btrfs subvolume delete {named}` removes it by hand and frees the space it holds.",
+        "{SAID} the subvolume a removed worktree was renamed to at {named} is still there after {taken} attempts by commands of this repository to have the commit service delete it, so this command asks for no more; `journalctl --identifier=monochromatic-git-policy-cli` holds what the service's own tries came to, and `btrfs subvolume delete {named}` removes the subvolume by hand and frees the space it holds.",
         named = target.display()
     );
 }

@@ -299,7 +299,7 @@ fn a_round_owes(owes: &HashSet<String>, item: &WorkItem) -> bool {
 /// return answer;
 /// ```
 pub(crate) fn queue_the_leavings_no_record_names(common_dir: &Path, work: &Path, named: &HashSet<PathBuf>) -> Leavings {
-    let mut answer: Leavings = Leavings { queued: false, said: Vec::new() };
+    let mut answer: Leavings = Leavings { queued: false, asked: None, said: Vec::new() };
     // One listing of each state a round owes, asked only when a place turns out to need it.
     let mut owed: Option<HashSet<String>> = None;
     for place in the_directories_a_removal_renames_inside(common_dir) {

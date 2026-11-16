@@ -432,37 +432,43 @@ fn attempt_path(common_dir: &Path, id: &str, number: u32) -> PathBuf {
 }
 
 /// What:
-///  Take one of the attempts a leaving may cost,
-///  or answer nothing when they are all spent.
+///  Count one attempt a leaving has just cost,
+///  by taking the next number a record may reach.
 /// Why:
+///   An attempt is counted by the act it counts,
+///  so this is called after the delete is queued or the service is asked,
+///  never before:
+///  a command killed between the two then leaves the delete owed rather than the budget spent,
+///  and the next command does the act and counts it
+/// (`queue_the_delete_of_one_standing_leaving`,
+/// `wake_a_pending_delete`).
 ///  The create is exclusive,
-///  so of any number of commands asking at once exactly one takes each attempt,
-///  and the attempts are spent after the number a record may cost whatever runs beside it.
-///  An attempt that cannot be created for any other reason is logged and counted as spent:
-///  the alternative is a wake on every command for ever.
+///  so of any number of commands acting at once each takes a number of its own,
+///  and the count is the number of acts rather than whichever write came last.
+///  A number that cannot be taken is logged and costs the count, not the act.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const taken = consumeAnAttempt(commonDir, id); // { number } | undefined
+/// noteAnAttemptTaken(commonDir, id); // creating the lowest free leaving-attempts/<id>.<n>
 /// ```
-pub(crate) fn consume_an_attempt(common_dir: &Path, id: &str) -> Option<u32> {
+pub(crate) fn note_an_attempt_taken(common_dir: &Path, id: &str) {
     let folder: PathBuf = common_dir.join(LEAVING_ATTEMPTS_FOLDER);
     if let Err(error) = create_private_directory_all(folder.as_path()) {
-        warn(TAG, format!("the attempts of {id} cannot be taken, because {} cannot be made ({error})", folder.display()).as_str());
-        return None;
+        warn(TAG, format!("the attempt of {id} is not counted, because {} cannot be made ({error})", folder.display()).as_str());
+        return;
     }
     for number in 1..=MAX_TRIES {
         let path: PathBuf = attempt_path(common_dir, id, number);
         match std::fs::OpenOptions::new().write(true).create_new(true).open(path.as_path()) {
-            Ok(_taken) => return Some(number),
+            Ok(_taken) => return,
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(error) => {
-                warn(TAG, format!("the attempt {number} of {id} cannot be taken ({error})", ).as_str());
-                return None;
+                warn(TAG, format!("the attempt {number} of {id} is not counted ({error})").as_str());
+                return;
             }
         }
     }
-    return None;
+    // Every number a record may reach is taken, so the count stands at its bound and this act is not counted again.
 }
 
 /// What:

@@ -16,7 +16,7 @@ use crate::work_item::{Claimed, DONE, PENDING, WorkItem, WorkKind, claim_next_of
 use crate::worktree_remove_hand_over::{delete_subvolume_of, removal_item};
 use crate::fs_beneath::open_root;
 use crate::private_storage::write_private_file_unsynced;
-use crate::worktree_removal_leaving_that_outlives_its_record::{leaving_records, mark_the_leaving, read_the_leaving, record_a_leaving_with_owner};
+use crate::worktree_removal_leaving_that_outlives_its_record::{leaving_records, mark_the_leaving, note_an_attempt_taken, read_the_leaving, record_a_leaving_with_owner};
 use crate::worktree_removal_leavings_a_command_queues_again::queue_the_leavings_a_record_no_longer_names;
 use crate::worktree_remove_hand_over::{ToldOfHandOver, hand_over_with};
 use std::sync::{Arc, Barrier};
@@ -339,6 +339,10 @@ fn a_pending_delete_found_again_is_told_and_the_wakes_are_bounded() {
         assert!(answer.said.is_empty(), "and says nothing: {:?}", answer.said);
         assert!(owed(&place, &item), "the delete is still the round's to run: {}", item.id());
         assert_eq!(leaving_records(place.common.as_path()).len(), 1, "one leaving names it, written the first time");
+        // What the command that ran the look does with the answer: it makes the wake and then counts the ask, which is
+        // the attempt a record may cost. The count is the caller's, so this control stands in for that one step.
+        assert!(answer.asked.is_some(), "round {round} asks the service for the round it owes");
+        note_an_attempt_taken(place.common.as_path(), item.id().as_str());
     }
     let spent: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
     assert!(!spent.queued, "the attempts a record may cost are spent, so the service is not woken again");
@@ -672,15 +676,19 @@ fn a_pending_record_an_earlier_release_named_by_the_older_id_is_told() {
 }
 
 /// What:
-///  Commands running at once ask for no more wakes than the attempts a record may cost,
-///  and the count is taken in the one place a race cannot lose it.
+///  Commands running at once each count the ask they make,
+///  the count reaches the attempts a record may cost and stops there,
+///  and no later command asks again.
 /// Why:
 ///  Every command that finds a pending delete reads the leaving record, decides whether the attempts are spent,
-///  and wakes the service. Commands that read the same count before any of them writes it all decide alike,
-///  so a count written back from the record each of them read lets four commands ask for four wakes while the record
-///  advances from nought to one.
-///  An attempt is therefore a file a command creates exclusively (`create_new`),
-///  which only one command of any number can do.
+///  asks the service and counts the ask. Commands that read the same count before any of them writes it all decide
+///  alike, so a count written back from the record each of them read would advance once however many asked.
+///  An attempt is therefore a file a command creates exclusively (`create_new`) after its ask,
+///  which each of them can do for a number of its own:
+///  the count is the number of asks rather than whichever write came last.
+///  What the bound is under a race is stated where it is promised:
+///  three attempts are counted, a window may ask as many times as commands in it,
+///  and a command killed between its ask and its count costs an ask nobody counted.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -711,13 +719,20 @@ fn commands_at_once_ask_for_no_more_wakes_than_the_attempts_a_record_may_cost() 
             let their_common: PathBuf = place.common.clone();
             let their_record: PathBuf = record.clone();
             let their_target: PathBuf = hidden.clone();
+            let their_leaving_id: String = item.id();
             handles.push(std::thread::spawn(move || {
                 let bytes: Vec<u8> = std::fs::read(their_record.as_path()).expect("the leaving record");
                 let leaving: crate::worktree_removal_leaving_that_outlives_its_record::Leaving = read_the_leaving(bytes.as_slice()).expect("a record a command reads");
                 // The barrier is what makes every command decide on the same count, which is the state a real overlap is in.
                 let _together: std::sync::BarrierWaitResult = shared.wait();
-                let mut answer: Leavings = Leavings { queued: false, said: Vec::new() };
+                let mut answer: Leavings = Leavings { queued: false, asked: None, said: Vec::new() };
                 crate::worktree_removal_leavings_a_command_queues_again::wake_a_pending_delete(their_common.as_path(), &leaving, their_target.as_path(), &mut answer);
+                // What the command that runs the look does after the answer: it makes the wake and then counts the ask.
+                // Why the control stands in for it: the count is the caller's, and a control that counted before the ask would
+                //     be testing an order the product no longer uses.
+                if answer.asked.is_some() {
+                    crate::worktree_removal_leaving_that_outlives_its_record::note_an_attempt_taken(their_common.as_path(), their_leaving_id.as_str());
+                }
                 return answer.queued;
             }));
         }
@@ -730,9 +745,12 @@ fn commands_at_once_ask_for_no_more_wakes_than_the_attempts_a_record_may_cost() 
         }
         return counted;
     });
-    let allowed: usize = usize::try_from(MAX_TRIES).expect("a count of attempts");
-    assert!(woke <= allowed, "{woke} commands asked for a wake, and a record may cost {allowed} attempts");
-    assert_eq!(woke, allowed, "and the attempts a record may cost are spent by the commands that asked: {woke}");
+    assert!(woke <= commands, "{woke} commands asked for a wake, and {commands} ran");
+    assert_eq!(
+        crate::worktree_removal_leaving_that_outlives_its_record::attempts_taken(place.common.as_path(), item.id().as_str()),
+        MAX_TRIES,
+        "every ask of the window is counted, and the count stands at the attempts a record may cost rather than at one",
+    );
     assert!(owed(&place, &item), "the delete is still the round's to run");
     let after: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
     assert!(!after.queued, "no later command asks for another wake");
@@ -790,7 +808,7 @@ fn a_command_killed_before_the_queued_delete_leaves_the_delete_to_be_queued() {
     // The state a round that looked before the rename leaves: the leaving record stands and no queue record owes it.
     record_a_leaving_with_owner(place.common.as_path(), &item, Some("1:ended")).expect("the leaving record of a command that ended");
     assert!(!owed(&place, &item), "no queue record owes the delete");
-    let executable: PathBuf = std::env::current_exe().expect("this test binary");
+    let executable: PathBuf = crate::test_support::this_test_binary().expect("this test binary");
     let steps: [&str; 2] = [crate::worktree_attempt_budget_test_support::AFTER_THE_PROOF, crate::worktree_attempt_budget_test_support::BEFORE_THE_DELETE_IS_QUEUED];
     for step in steps {
         // Each instruction is one experiment on the same state: nothing owed and no attempt spent.
