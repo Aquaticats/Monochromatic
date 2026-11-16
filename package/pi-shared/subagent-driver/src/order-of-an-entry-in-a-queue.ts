@@ -82,9 +82,10 @@ export function isAnOrder(value: unknown,): value is string {
   return ((typeof value) === 'string')
     && (value.length > 0)
     && (value.length <= LONGEST_ORDER)
-    && [...value,].every(function isADigit(digit,) {
-      return placeOfADigit(digit,) !== (-1);
-    },);
+    && value.split('',)
+      .every(function isADigit(digit,) {
+        return placeOfADigit(digit,) !== (-1);
+      },);
 }
 
 /**
@@ -129,7 +130,7 @@ export function anOrderBetween({
   /**
    The digits of the key so far, which are the lower bound's digits where there was no room between the two bounds.
    */
-  let before = '';
+  const digits = { before: '', };
   for (let place = 0; ; place += 1) {
     /**
      The lower bound's digit at this place, which a key that has ended reads as zero.
@@ -152,14 +153,16 @@ export function anOrderBetween({
         ),)
         : DIGITS.length);
     if ((high - low) > 1) {
-      return `${before}${digitAt(Math.floor((low + high) / 2,),)}`;
+      return `${digits.before}${digitAt(Math.floor((low + high) / 2,),)}`;
     }
-    if (before.length >= LONGEST_ORDER) {
+    if (digits.before
+      .length
+      >= LONGEST_ORDER) {
       throw new Error(
         `no order key fits between ${String(lower,)} and ${String(upper,)}: this place has been parted more times than a key may grow`,
       );
     }
-    before = `${before}${digitAt(low,)}`;
+    digits.before = `${digits.before}${digitAt(low,)}`;
   }
   /* oxlint-enable no-constant-condition */
 }

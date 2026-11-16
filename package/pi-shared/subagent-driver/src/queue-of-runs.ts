@@ -161,7 +161,7 @@ export function aFreshQueueId(): string {
 /**
  No identity, as a symbol so no identity can be mistaken for one: an entry is written by no put until it is queued.
  */
-export const NO_QUEUE_ID: unique symbol = Symbol('no put has written this entry into a queue yet',);
+export const NO_QUEUE_ID: unique symbol = Symbol('this entry has been written into a queue by no put',);
 
 /**
  Reads one entry's own identity.

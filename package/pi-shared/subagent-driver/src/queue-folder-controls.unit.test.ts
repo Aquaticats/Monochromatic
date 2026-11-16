@@ -16,6 +16,7 @@ import { once, } from 'node:events';
 import {
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rm,
   writeFile,
@@ -119,6 +120,8 @@ async function aQueueOf(entries: readonly QueueRecord[],): Promise<AQueueInAThro
    */
   const runsFolder = join(path, 'runs',);
   await mkdir(runsFolder, { recursive: true, },);
+  // An empty queue is a folder with nothing in it, which the first put makes when the folder is not there.
+  await mkdir(queueFolder, { recursive: true, },);
   await writeTheQueueOfRuns({
     queueFolder,
     entries,
@@ -350,14 +353,16 @@ async function homesOf({
 async function aCommandKilledAt({
   command,
   queueFolder,
+  runsFolder,
   killAt,
 }: {
   readonly command: string;
   readonly queueFolder: string;
+  readonly runsFolder: string;
   readonly killAt: number;
 },): Promise<{
-  readonly signal: string | null;
-  readonly status: number | null;
+  readonly signal: string;
+  readonly status: number;
   readonly printed: string;
   readonly steps: number;
 }> {
@@ -371,6 +376,7 @@ async function aCommandKilledAt({
       command,
       String(killAt,),
       queueFolder,
+      runsFolder,
     ],
     { stdio: ['ignore', 'pipe', 'pipe',], },
   );
@@ -387,10 +393,10 @@ async function aCommandKilledAt({
   /**
    How the child ended.
    */
-  const [status, signal,] = await once(
+  const closed: readonly unknown[] = await once(
     child,
     'close',
-  ) as [number | null, string | null];
+  );
   /**
    The line the child printed, when it printed one.
    */
@@ -408,8 +414,8 @@ async function aCommandKilledAt({
     ? Number(JSON.parse(said,).steps,)
     : 0;
   return {
-    signal,
-    status,
+    signal: closedSignal,
+    status: closedStatus,
     printed: line,
     steps,
   };
@@ -500,6 +506,7 @@ await describe({
               return await aCommandKilledAt({
                 command: 'put',
                 queueFolder: queue.queueFolder,
+                runsFolder: queue.runsFolder,
                 killAt: 10_000,
               },);
             },),);
@@ -521,6 +528,7 @@ await describe({
             const taken = await aCommandKilledAt({
               command: 'take',
               queueFolder: queue.queueFolder,
+              runsFolder: queue.runsFolder,
               killAt: 1_000,
             },);
             expect(taken.printed,).toContain('a',);
@@ -624,7 +632,7 @@ await describe({
             const rows: {
               readonly command: string;
               readonly killAt: number;
-              readonly signal: string | null;
+              readonly signal: string;
               readonly started: readonly string[];
               readonly homes: number;
               readonly claims: number;
@@ -648,6 +656,7 @@ await describe({
               const whole = await aCommandKilledAt({
                 command,
                 queueFolder: counting.queueFolder,
+                runsFolder: counting.runsFolder,
                 killAt: 10_000,
               },);
               await counting[Symbol.asyncDispose]();
@@ -671,6 +680,7 @@ await describe({
                 const run = await aCommandKilledAt({
                   command,
                   queueFolder: queue.queueFolder,
+                  runsFolder: queue.runsFolder,
                   killAt,
                 },);
                 // oxlint-disable-next-line eslint/no-await-in-loop -- what the next command does with what the kill left
@@ -703,8 +713,17 @@ await describe({
                 // A completion is the one step whose whole purpose is to take the entry out of the queue, so a kill after it leaves
                 // nothing to find; the walk says so rather than calling it a lost entry.
                 const removedByDesign = ['put', 'convert', 'take', 'complete',].includes(command,);
-                if ((!removedByDesign) && (!started.includes('a',))) {
-                  expect(homes.homes,).toBe(1,);
+                if ((!removedByDesign) && (!started.includes('a',)) && (homes.homes !== 1)) {
+                  throw new Error(
+                    `the entry stands in ${String(homes.homes,)} places after ${command} was killed at instruction ${String(killAt,)} of `
+                      + `${String(whole.steps,)}: ${JSON.stringify({
+                        signal: run.signal,
+                        started,
+                        queued: await namesIn(queue.queueFolder,),
+                        files: await readdir(queue.queueFolder,),
+                        runs: await readdir(queue.runsFolder,),
+                      },)}`,
+                  );
                 }
                 await queue[Symbol.asyncDispose]();
               }
@@ -744,23 +763,26 @@ await describe({
                 aCommandKilledAt({
                   command: 'put',
                   queueFolder: queue.queueFolder,
+                  runsFolder: queue.runsFolder,
                   killAt: 10_000,
                 },),
                 aCommandKilledAt({
                   command: 'put',
                   queueFolder: queue.queueFolder,
+                  runsFolder: queue.runsFolder,
                   killAt: 10_000,
                 },),
                 aCommandKilledAt({
                   command: 'take',
                   queueFolder: queue.queueFolder,
+                  runsFolder: queue.runsFolder,
                   killAt: 10_000,
                 },),
               ],);
               // Every command ends by answering, and no two of them ever write the same entry.
-              expect(answered.map(function statusOf(run,) {
+              expect(answered.map(function signalOf(run,) {
                 return run.signal;
-              },),).toEqual([null, null, null,],);
+              },),).toEqual(['', '', '',],);
               /**
                The names the queue holds after the round.
                */

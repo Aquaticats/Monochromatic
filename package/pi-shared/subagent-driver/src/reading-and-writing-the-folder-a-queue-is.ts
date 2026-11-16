@@ -74,6 +74,23 @@ const EXISTS_CODE = 'EEXIST';
 const ENTRY_FILE_ENDING = '.json';
 
 /**
+ One name in a folder, as reading the folder reports it: the name, and whether it is a file.
+ */
+type ANameInAFolder = {
+  /**
+   The name inside the folder.
+   */
+  readonly name: string;
+
+  /**
+   Says whether the name is a file, which a folder and a socket are not.
+   
+   @returns whether it is a file
+   */
+  readonly isFile: () => boolean;
+};
+
+/**
  Reads the queue folder's own entry files, and refuses anything in it that is neither an entry nor a name a command writes.
 
  @param queueFolder - the queue's folder
@@ -91,7 +108,7 @@ async function entryFilesIn({ queueFolder, }: { readonly queueFolder: string },)
   /**
    What the folder holds.
    */
-  let held;
+  let held: readonly ANameInAFolder[] = [];
   try {
     held = await readdir(
       queueFolder,
@@ -169,7 +186,7 @@ async function anEntryAt({
   /**
    What the file holds.
    */
-  let shown: string;
+  let shown = '';
   try {
     shown = await readFile(
       path,
@@ -187,7 +204,7 @@ async function anEntryAt({
   /**
    What the text parsed to.
    */
-  let parsed: unknown;
+  let parsed: unknown = undefined;
   try {
     parsed = JSON.parse(shown,);
   }
@@ -470,7 +487,7 @@ export async function readTheClaimsOnAQueue({
   /**
    What that folder holds.
    */
-  let held;
+  let held: readonly ANameInAFolder[] = [];
   try {
     held = await readdir(
       claimedFolder,
@@ -534,6 +551,62 @@ export async function readTheClaimsOnAQueue({
 }
 
 /**
+ What putting one written file into its place answered.
+ */
+type LaidDown =
+  | { readonly placed: true }
+    | { readonly placed: false };
+
+/**
+ Puts one written file into its place, which is a rename that replaces the name or a link that refuses it.
+
+ @param beside - the file made already, beside the place it goes
+
+ @param path - the name it takes
+
+ @param replace - whether a file already at that name is replaced
+
+ @returns whether it was put into place, or the name was taken
+
+ @throws QueueFileError when the step failed for any other reason
+
+ @example
+ ```ts
+ const laidDown = await intoItsPlace({ beside: '/runs/q/.being-written-a.json-1-2', path: '/runs/q/a.json', replace: false });
+ ```
+ */
+async function intoItsPlace({
+  beside,
+  path,
+  replace,
+}: {
+  readonly beside: string;
+  readonly path: string;
+  readonly replace: boolean;
+},): Promise<LaidDown> {
+  try {
+    if (replace) {
+      await rename(
+        beside,
+        path,
+      );
+      return { placed: true, };
+    }
+    await link(
+      beside,
+      path,
+    );
+    return { placed: true, };
+  }
+  catch (error) {
+    if (errorCodeOf(error,) === EXISTS_CODE) {
+      return { placed: false, };
+    }
+    throw new QueueFileError(`the queue file at ${path} cannot be written: ${String(error,)}`,);
+  }
+}
+
+/**
  Writes a file beside its own path and puts it into place, which is one step and refuses a path already taken unless it is told to
  replace it.
 
@@ -568,37 +641,27 @@ export async function aFileLaidDown({
     dirname(path,),
     `${BEING_WRITTEN_START}${basename(path,)}-${String(process.pid,)}-${randomUUID()}`,
   );
-  try {
-    await writeFile(
-      beside,
-      text,
-    );
-    if (replace) {
-      await rename(
-        beside,
-        path,
-      );
-      return true;
-    }
-    await link(
-      beside,
-      path,
-    );
-    return true;
-  }
-  catch (error) {
-    if (errorCodeOf(error,) === EXISTS_CODE) {
-      return false;
-    }
-    throw new QueueFileError(`the queue file at ${path} cannot be written: ${String(error,)}`,);
-  }
-  finally {
-    // The file beside the path is never an entry, and it is removed whatever the step answered, so a refused write leaves nothing.
-    await rm(
-      beside,
-      { force: true, },
-    );
-  }
+  /**
+   Whether the file was put into place, or a name was there already.
+   */
+  await writeFile(
+    beside,
+    text,
+  );
+  /**
+   Whether the file was put into place, or a name was there already.
+   */
+  const laidDown = await intoItsPlace({
+    beside,
+    path,
+    replace,
+  },);
+  // The file beside the path is never an entry: it is removed whatever the step answered, so a refused write leaves nothing behind.
+  await rm(
+    beside,
+    { force: true, },
+  );
+  return laidDown.placed;
 }
 
 /**
@@ -762,6 +825,31 @@ export function anOrderForAPlace({
 }
 
 /**
+ Reads the order key of one entry of the queue.
+
+ @param entry - the entry
+
+ @returns the key
+
+ @throws QueueFileError when the entry carries none
+
+ @example
+ ```ts
+ const key = orderKeyOf({ entry });
+ ```
+ */
+function orderKeyOf({ entry, }: { readonly entry: QueueRecord },): string {
+  /**
+   What the entry says its order is.
+   */
+  const order: unknown = entry[ORDER_FIELD];
+  if ((typeof order) !== 'string') {
+    throw new QueueFileError(`${entry.name} carries no order, so where it stands in the queue is unknown`,);
+  }
+  return order;
+}
+
+/**
  Reads the place one entry goes to, counted from the head, which is the head of a queue shorter than the position and the tail of a
  position past its end.
 
@@ -796,32 +884,13 @@ export function aPlaceFor({
     entries.length,
   );
   /**
-   The order key of one entry of the queue.
-
-   @param entry - the entry
-
-   @returns the key
-
-   @throws QueueFileError when the entry carries none
-   */
-  function keyOf(entry: QueueRecord,): string {
-    /**
-     What the entry says its order is.
-     */
-    const order: unknown = entry[ORDER_FIELD];
-    if ((typeof order) !== 'string') {
-      throw new QueueFileError(`${entry.name} carries no order, so where it stands in the queue is unknown`,);
-    }
-    return order;
-  }
-  /**
    The key of the entry before it, when one stands there.
    */
-  const lower = (at > 0) ? keyOf(entries[at - 1] as QueueRecord) : undefined;
+  const lower = (at > 0) ? orderKeyOf({ entry: entries[at - 1] as QueueRecord, },) : undefined;
   /**
    The key of the entry after it, when one stands there.
    */
-  const upper = (at < entries.length) ? keyOf(entries[at] as QueueRecord) : undefined;
+  const upper = (at < entries.length) ? orderKeyOf({ entry: entries[at] as QueueRecord, },) : undefined;
   return {
     at,
     order: anOrderForAPlace({

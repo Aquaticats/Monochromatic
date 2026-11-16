@@ -98,28 +98,9 @@ function theFieldsOfAnEntry({ entry, }: { readonly entry: QueueRecord },): strin
  */
 export async function entriesOfAQueueFile({ queueFile, }: { readonly queueFile: string },): Promise<readonly QueueRecord[]> {
   /**
-   What the file holds.
+   What the file holds, read as one value so no declaration is left unset.
    */
-  let shown: string;
-  try {
-    shown = await readFile(
-      queueFile,
-      'utf8',
-    );
-  }
-  catch (error) {
-    throw new QueueFileError(`the queue at ${queueFile} cannot be read: ${String(error,)}`,);
-  }
-  /**
-   What the text parsed to.
-   */
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(shown,);
-  }
-  catch (error) {
-    throw new QueueFileError(`the queue at ${queueFile} holds no JSON: ${String(error,)}`,);
-  }
+  const parsed = await whatOneQueueFileHolds({ queueFile, },);
   if (!Array.isArray(parsed,)) {
     throw new QueueFileError(`${queueFile} holds no JSON array of entries, so nothing can be carried into a queue folder`,);
   }
@@ -136,11 +117,37 @@ export async function entriesOfAQueueFile({ queueFile, }: { readonly queueFile: 
     const shape = shapeOfAQueueEntry({ record: entry, },);
     if (shape.kind === 'unreadable') {
       throw new QueueFileError(
-        `${queueFile}: extra is no entry this package reads, so it is not carried into the folder: ${entry.name} holds ${shape.reason}`,
+        `${queueFile}: ${entry.name} is no entry this package reads, so it is not carried into the folder: ${shape.reason}`,
       );
     }
     return entry;
   },);
+}
+
+/**
+ Reads what one queue array file holds, as anything.
+
+ @param queueFile - the file's path
+
+ @returns what its text parsed to
+
+ @throws QueueFileError when the file cannot be read or holds no JSON
+
+ @example
+ ```ts
+ const parsed = await whatOneQueueFileHolds({ queueFile: '/runs/queue.json' });
+ ```
+ */
+async function whatOneQueueFileHolds({ queueFile, }: { readonly queueFile: string },): Promise<unknown> {
+  try {
+    return JSON.parse(await readFile(
+      queueFile,
+      'utf8',
+    ),);
+  }
+  catch (error) {
+    throw new QueueFileError(`the queue at ${queueFile} cannot be read as JSON: ${String(error,)}`,);
+  }
 }
 
 /**
@@ -176,9 +183,9 @@ export async function convertAQueueFileIntoAFolder({
    */
   const places = ordersOfAPlace({ count: entries.length, },);
   /**
-   How many entries the folder already held with the same fields.
+   The entries the folder already held with the same fields, one name each.
    */
-  let alreadyThere = 0;
+  const alreadyThere: string[] = [];
   /* oxlint-disable eslint/no-await-in-loop -- one entry at a time, and the folder is read for each of them */
   for (const [place, entry,] of entries.entries()) {
     /**
@@ -190,7 +197,7 @@ export async function convertAQueueFileIntoAFolder({
     },);
     if (held !== NO_ENTRY_OF_THAT_NAME) {
       if (theFieldsOfAnEntry({ entry: held, },) === theFieldsOfAnEntry({ entry, },)) {
-        alreadyThere += 1;
+        alreadyThere.push(entry.name,);
         continue;
       }
       throw new QueueFileError(
@@ -229,8 +236,8 @@ export async function convertAQueueFileIntoAFolder({
     arrayKeptAt,
   );
   return {
-    entries: entries.length - alreadyThere,
-    alreadyThere,
+    entries: entries.length - alreadyThere.length,
+    alreadyThere: alreadyThere.length,
     arrayKeptAt,
   };
 }

@@ -260,28 +260,26 @@ await describe({
         /**
          Two keys with one between them, and one between those two, which is what a put at one place does again and again.
          */
-        const pairs: readonly (readonly [string | undefined, string | undefined])[] = [
+        const pairs: readonly (readonly [string, string])[] = [
           ['i', 'j',],
-          ['i', undefined,],
-          [undefined, 'i',],
           ['a', 'a1',],
-          ['zz', undefined,],
+          ['1', '2',],
+          ['zz', 'zzz',],
         ];
         for (const [lower, upper,] of pairs) {
           /**
            The key between them.
            */
           const between = anOrderBetween({
-            ...(lower === undefined ? {} : { lower, }),
-            ...(upper === undefined ? {} : { upper, }),
+            lower,
+            upper,
           },);
-          if (lower !== undefined) {
-            expect(between > lower,).toBe(true,);
-          }
-          if (upper !== undefined) {
-            expect(between < upper,).toBe(true,);
-          }
+          expect(between > lower,).toBe(true,);
+          expect(between < upper,).toBe(true,);
         }
+        // The head and the tail are the two bounds that need no other key: a key is found below the first and above the last.
+        expect(anOrderBetween({ upper: '1', },) < '1',).toBe(true,);
+        expect(anOrderBetween({ lower: 'z', },) > 'z',).toBe(true,);
       },
     },),
   ],

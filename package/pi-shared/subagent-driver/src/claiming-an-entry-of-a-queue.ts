@@ -19,7 +19,6 @@
 
 import {
   mkdir,
-  readFile,
   rm,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -38,9 +37,9 @@ import {
 } from './queue-of-runs.ts';
 import {
   NO_ENTRY_OF_THAT_NAME,
-  aClaimIn,
   aClaimOf,
   aFileLaidDown,
+  readTheClaimsOnAQueue,
   readTheEntryNamed,
 } from './reading-and-writing-the-folder-a-queue-is.ts';
 
@@ -63,6 +62,11 @@ const LIST_EXTENSION = '.json';
  The ending of the output file one attempt's unit writes both of its streams to.
  */
 const OUTPUT_EXTENSION = '.out';
+
+/**
+ No claim on that entry, as a symbol so no claim can be mistaken for none.
+ */
+export const NO_CLAIM_ON_THAT_ENTRY: unique symbol = Symbol('this entry carries the claim of no filling',);
 
 /**
  What taking a claim on one entry answered: the claim this filling holds, or why there was nothing to claim.
@@ -509,35 +513,16 @@ export async function theClaimOn({
 }: {
   readonly queueFolder: string;
   readonly name: string;
-},): Promise<AClaimOnAnEntry | undefined> {
+},): Promise<AClaimOnAnEntry | typeof NO_CLAIM_ON_THAT_ENTRY> {
   /**
-   The claim's file.
+   Every claim the queue holds, of which this asks about one name.
    */
-  const file = claimFileOf({
-    queueFolder,
-    name,
-  },);
+  const claims = await readTheClaimsOnAQueue({ queueFolder, },);
   /**
-   What the file holds, as anything.
+   The claim on that entry, when a filling holds one.
    */
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(await readFile(
-      file,
-      'utf8',
-    ),);
-  }
-  catch (error) {
-    // A claim that is not there is a claim no filling holds, which a completed start and a given-back claim both leave; one that is
-    // there and cannot be read is carried out, because a caller that cannot tell is never told none.
-    if (String(error,)
-      .includes('ENOENT',)) {
-      return undefined;
-    }
-    throw new QueueFileError(`the claim at ${file} cannot be read as one: ${String(error,)}`,);
-  }
-  return aClaimIn({
-    parsed,
-    path: file,
+  const held = claims.find(function isOnIt(claim,) {
+    return claim.name === name;
   },);
+  return held ?? NO_CLAIM_ON_THAT_ENTRY;
 }

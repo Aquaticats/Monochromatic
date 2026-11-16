@@ -100,28 +100,9 @@ export const ENTRY_LINE_CHARACTERS = 300;
  */
 export async function readABatchList({ file, }: { readonly file: string },): Promise<readonly QueueRecord[]> {
   /**
-   What the file holds.
+   What the file holds, read as one value so no declaration is left unset.
    */
-  let shown: string;
-  try {
-    shown = await readFile(
-      file,
-      'utf8',
-    );
-  }
-  catch (error) {
-    throw new QueueFileError(`the batch list at ${file} cannot be read: ${String(error,)}`,);
-  }
-  /**
-   What the text parsed to.
-   */
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(shown,);
-  }
-  catch (error) {
-    throw new QueueFileError(`the batch list at ${file} holds no JSON: ${String(error,)}`,);
-  }
+  const parsed = await whatOneBatchListHolds({ file, },);
   if (!Array.isArray(parsed,)) {
     throw new QueueFileError(`${file} holds no JSON array of entries, so nothing can be started from it`,);
   }
@@ -134,6 +115,32 @@ export async function readABatchList({ file, }: { readonly file: string },): Pro
     }
     return entry;
   },);
+}
+
+/**
+ Reads what one batch list file holds, as anything.
+
+ @param file - the list's path
+
+ @returns what its text parsed to
+
+ @throws QueueFileError when the file cannot be read or holds no JSON
+
+ @example
+ ```ts
+ const parsed = await whatOneBatchListHolds({ file: '/runs/batch-a.json' });
+ ```
+ */
+async function whatOneBatchListHolds({ file, }: { readonly file: string },): Promise<unknown> {
+  try {
+    return JSON.parse(await readFile(
+      file,
+      'utf8',
+    ),);
+  }
+  catch (error) {
+    throw new QueueFileError(`the batch list at ${file} cannot be read as JSON: ${String(error,)}`,);
+  }
 }
 
 /**
