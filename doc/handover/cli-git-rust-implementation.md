@@ -39451,6 +39451,31 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### A `worktree add` relinks by itself when no service took its request, and a Pi run is confined with its containers started by the account's manager (2026-11-16, answered through the question tool between 17:33:37-05:00 and 17:36:00-05:00)
+
+Two questions, each with its author's measurements beside it.
+
+- **The add whose relink request no commit service took**: "Relink in the add (Recommended)".
+  The add runs the relink itself before it returns, as the wake branch builds it at `a2f64e8f36`,
+  so the worktree can build on return and the printed promise is true;
+  the cost, about 5 s and up to about a minute of pnpm, falls only when no service took the request.
+  The option not taken: return at once and say the relink is queued
+  (measured: taken 4.9 s later by a running service that knows the repository,
+  0.3 s later with a service and one more command,
+  never within 30 s with a service and no later command).
+  The owner was told this is separate from "No wait on the add", which is about other programs' writes.
+- **Keeping a Pi run out of the main checkout**: "Protect, containers via manager (Recommended)".
+  The checkout stays read-only for a run through systemd's path properties;
+  a run's containers are started outside the run by the account's service manager.
+  The owner was told, and accepted by choosing it:
+  a container started that way can mount the checkout writable, one more stated hole beside the transient-service one,
+  since the protection guards against accidents and not against a run that tries to get out;
+  `link` and `rename` across the run's folders end `EXDEV` and that stays a stated limit;
+  and `podman` had not yet been run through the route when the question was asked.
+  So `EXDEV` no longer stops the driver branch as a finding it brings.
+  The options not taken: hold the branch for a protection without mounts (Landlock, unmeasured);
+  the protection with no containers in a run; no protection.
+
 ### A record that cannot be judged stops a command only where going on is unsafe (2026-11-16, answered through the question tool between 17:05:58-05:00 and 17:07:00-05:00)
 
 The decision "A: stays, command says how" leaves "stops or prints" open for each command.
@@ -40062,6 +40087,7 @@ Recovery after the hold (committed at 2026-11-16T10:25:11-05:00; an earlier word
   **The main-checkout author's ninth run ended whole at `7751ffbaca`** (228 unit tests pass; `main` merged): the three Git commands that exited 0 having recorded nothing now record; a start is refused only when the manager does not answer (21 ms where it was refused); a refusal after the worktree leaves a record; the page lists every hole. **By nine measured variants, any path property of a user unit puts it in a user namespace of its own mapping one uid, so `podman` and `newuidmap` fail inside whatever else is set, and each writable folder is its own mount, so `link` and `rename` across them end `EXDEV`.** It did not choose and laid the arrangements out.
   **A measurement of this session's at 17:29:13 widens them:** a transient service started with `systemd-run --user --wait --pipe` from inside a unit that has `ReadOnlyPaths=` reads `0 0 4294967295` in `/proc/self/uid_map`, where the unit itself reads `1000 1000 1`. That is all that was measured: the namespace of a service the account's manager starts on a run's request. `podman` itself was not run through that route, and a container started that way is outside the confinement and can mount the checkout writable, one more stated hole beside the transient-service one. Whether a run gets containers that way is the author's tenth run (started 17:31; brief `pi-run-cannot-write-into-the-main-checkout-a-run-inside-the-confinement-can-still-run-containers-through-the-accounts-manager-prompt.md`), and whether the project wants that route is put to the owner. What stays a cost of any mount-based protection is `EXDEV` (Git, pnpm and Cargo were measured working).
   The landed-removal fresh run had started before its brief was held against the decision's own lines (this file, "A shell alias and the guard on a worktree's removal": "Every `!` alias is passed to real Git as it is; all aliases keep working with no opt-out"). The brief's sentence says the same in other words and bounds the change by "both controls pass as `main` wrote them, unchanged"; its delta review checks that the diff of `invocation/forwarded_command.rs` against `main` removes only what the branch had added.
+- **The owner answered two questions between 17:33:37 and 17:36:00** (under "Owner decisions in force", "A `worktree add` relinks by itself when no service took its request, and a Pi run is confined with its containers started by the account's manager"): the wake branch's relink in the add stands, and the driver branch keeps its protection with containers started by the account's manager, `EXDEV` being a stated limit. Round checks at 17:33:38: 13 Pi units going, none silent, no launcher outliving a run, no process in an ended run's worktree, 0 of 16 runs ended since 16:02:02 without masking or with a failed driver.
 - Two authors whose last run said it was unfinished are queued again with what they themselves listed as open and nothing added: the queue of runs as a folder (its lint) and `mpm-shadow`'s removal of old versions (controls shown failing, `main` merged, the decisions of 2026-11-15, the cost).
 - Still owed from the night: the drawn-shadow-tree author's eleventh run (queued, see the entry before this one in this list) (pass 57's refusal and its Kimi review's two findings); the fresh run for the age arithmetic and the linked-worktree exemption; the Sonnet audit of the LFS path; the Sonnet pass of the pool change.
 
