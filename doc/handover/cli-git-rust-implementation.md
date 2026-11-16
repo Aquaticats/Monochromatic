@@ -39451,6 +39451,18 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### A `worktree add` does not wait on other programs' writes, and the snapshot proof's two rare losses are a stated limit (2026-11-16, answered through the question tool after 15:10:33-05:00)
+
+Asked, with the measurements beside it (16.5 ms an add on an idle drive, 86.6 ms more under another writer's 64 MiB pending, growing with others' pending data),
+whether the wrapper waits for a commit of the file system before every `worktree add` so that no snapshot of a person can be taken for its own,
+the owner answered: **"No wait on the add"**, against the session's recommendation of the wait.
+
+So the snapshot branch's mechanism stands as built (`fix/git-policy-cli-snapshot-of-a-person-is-never-proved-to-be-the-wrappers-own`, tip `8b7c98aa6e`),
+and the `SPEC.md` sentence that rules such a wait out on an add's path stands unchanged.
+A snapshot a person made in the same instant as the wrapper's record, or with the clock set back, is deleted as the wrapper's own:
+that is written as a stated limit on the package's page, which the snapshot author is given after its review.
+The sibling branch that waits (`69154a083f`) is not merged; it is kept, unreviewed, because its code is the only record of the mechanism the measurements came from.
+
 ### The opencode-go pool is open again (2026-11-16, typed between 14:40:26-05:00 and 14:46:19-05:00)
 
 The owner typed, unasked: **"My opencode-go limits have been reset."**
@@ -39939,7 +39951,8 @@ Recovery after the hold (committed at 2026-11-16T10:25:11-05:00; an earlier word
 - The last part of the no-manager review (the 22 files under `binary/`, read for what each control proves and which of the first part's findings has no control) started after that; with it all 136 files have a reader going or done.
 - **The first run started after the pool change went to `opencode-go` and is taking turns.** The queue-of-runs author's fifth run went active at 15:07:31 with `--provider=opencode-go --model=deepseek-v4.1-flash --wall-seconds=57600` (its 28,800 doubled by the pool's factor); two minutes later its feed held 67 lines and had been written two seconds before the reading. The counts then read `opencode-go 1/20, neuralwatt-flex 13/20`.
 - The snapshot author ended its sixth run at `8b7c98aa6e` (15:04:14): the review's findings answered with controls, among them a claim file judged by what it is, a clock that went back (the folder kept and named once), and a directory that could not be listed. Its review is queued eleventh.
-  **It answers the open question with a plain no: its mechanism cannot tell a person's snapshot that was already waiting when the record is read, or one made with the clock set back, from the wrapper's own, and deletes it.** Closing both needs a wait for a commit of the file system before the instant is read, which the sibling branch measured at 16.5 ms a `worktree add` when idle and 86.6 ms more with another writer's 64 MiB pending, growing with others' pending data, and which `SPEC.md` rules out on an add's path. So two of the wrapper's rules meet here (it never discards a person's data; an add does not wait on others' data), and that is the owner's to weigh: it is framed in the task list as a question for the question tool.
+  **It answers the open question with a plain no: its mechanism cannot tell a person's snapshot that was already waiting when the record is read, or one made with the clock set back, from the wrapper's own, and deletes it.** Closing both needs a wait for a commit of the file system before the instant is read, which the sibling branch measured at 16.5 ms a `worktree add` when idle and 86.6 ms more with another writer's 64 MiB pending, growing with others' pending data, and which `SPEC.md` rules out on an add's path. So two of the wrapper's rules meet here (it never discards a person's data; an add does not wait on others' data), and that was the owner's to weigh.
+  **Asked through the question tool, the owner answered "No wait on the add"** (under "Owner decisions in force"): the mechanism stands, the two rare losses become a stated limit on the package's page, and the sibling branch that waits is not merged.
 - Two authors whose last run said it was unfinished are queued again with what they themselves listed as open and nothing added: the queue of runs as a folder (its lint) and `mpm-shadow`'s removal of old versions (controls shown failing, `main` merged, the decisions of 2026-11-15, the cost).
 - Still owed from the night: the drawn-shadow-tree author's eleventh run (queued, see the entry before this one in this list) (pass 57's refusal and its Kimi review's two findings); the fresh run for the age arithmetic and the linked-worktree exemption; the Sonnet audit of the LFS path; the Sonnet pass of the pool change.
 
