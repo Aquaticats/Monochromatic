@@ -72,7 +72,7 @@ pub struct CliOptions {
     #[arg(long, conflicts_with_all = ["print_config", "init", "rules"])]
     pub fix_suggestions: bool,
     /// Apply dangerous fixes and suggestions too,
-    ///  the ones that delete authored source;
+    ///  the ones that remove authored structure;
     ///  it applies every class on its own.
     #[arg(long, conflicts_with_all = ["print_config", "init", "rules"])]
     pub fix_dangerously: bool,

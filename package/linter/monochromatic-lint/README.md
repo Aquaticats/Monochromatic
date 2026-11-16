@@ -84,7 +84,7 @@ Options:
   and applies no safe fix,
   so it is given with `--fix` to apply both.
 - `--fix-dangerously` applies every class,
-  the ones that delete authored source included,
+  the ones that remove authored structure included,
   and applies them on its own.
   Every fixing run replaces a file atomically,
   and the file keeps its mode.
@@ -202,8 +202,12 @@ and `--fix-suggestions` applies a suggestion alone.
   `markdown/no-trailing-punctuation` removes a heading's trailing punctuation,
   `markdown/fenced-code-language` adds a guessed language label,
   and `markdown/lfs-image-url` rewrites an image destination.
-- A `dangerous_fix` deletes authored source,
-  so it may break the document when the analysis behind it is wrong:
+  It may be wrong about what the author meant,
+  and it removes nothing structural.
+- A `dangerous_fix` removes authored structure,
+  whole reference-definition lines,
+  on the strength of a reference analysis that may be incomplete,
+  so it may break the document:
   `markdown/link-image-reference-definitions` deletes the definition lines it judges unused or repeated.
 - No rule of this build offers a `dangerous_suggestion`.
 

@@ -64,15 +64,18 @@ pub enum FixClass {
     ///  a fence's label,
     ///  an image's destination)
     ///  while keeping the document valid.
+    ///  It may be wrong about what the author meant,
+    /// and it removes nothing structural.
     ///  `--fix-suggestions` applies it.
     Suggestion,
     /// A dangerous fix:
-    ///  it deletes authored source,
-    ///  so it may break the document if the analysis behind it is wrong.
+    ///  it removes authored structure (whole reference-definition lines)
+    ///  on the strength of an analysis that may be incomplete,
+    ///  so it may break the document.
     ///  `--fix-dangerously` applies it.
     DangerousFix,
     /// A dangerous suggestion:
-    ///  it deletes authored source and changes what a reader sees.
+    ///  it removes authored structure and also changes what a reader sees.
     ///  `--fix-dangerously` applies it.
     DangerousSuggestion,
 }
@@ -117,6 +120,10 @@ impl FixClass {
 ///  `--fix-suggestions` allows a suggestion alone,
 ///  and `--fix-dangerously` allows every class,
 ///  so a flag combination means here what it means in Oxlint 1.93.0.
+///  A class is dangerous when it removes authored structure on an analysis that may be incomplete,
+///  not merely because its edit deletes a character:
+///  a suggestion removes characters a reader sees and can be read again,
+///  while a definition removed by a wrong analysis is gone from the file.
 ///  A finding whose fix is outside the scope is still reported.
 ///
 /// In TS you'd write (pseudocode):
