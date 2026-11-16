@@ -3,7 +3,8 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
-> `package/desktop-daemon/hall-monitor` is now `package/hall-monitor/daemon`;
+> `package/desktop-daemon/hall-monitor` is now `package-paused/hall-monitor/daemon`
+> (renamed to `package/hall-monitor/daemon` on 2026-10-29, paused 2026-11-16);
 > `package/webapp-productivity/done` is now `package/done/app`;
 > `package/webapp-productivity/rss` is now `package/rss/app`;
 > `package/dev-script/backup-path` is now `package/backup-path/cli`;

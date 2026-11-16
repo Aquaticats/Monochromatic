@@ -3,7 +3,8 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
-> `package/desktop-daemon/hall-monitor` is now `package/hall-monitor/daemon`;
+> `package/desktop-daemon/hall-monitor` is now `package-paused/hall-monitor/daemon`
+> (renamed to `package/hall-monitor/daemon` on 2026-10-29, paused 2026-11-16);
 > `package/dev-script/watch-restart` is now `package/watch-restart/cli`;
 > `package/dev-script/page-weight` is now `package/page-weight/cli`;
 > `package/dev-script/task-util` is now `package/monorepo-task/core-exec`.

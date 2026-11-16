@@ -6,7 +6,8 @@
 > `package/webapp-productivity/syllable-break-demo` is now `package/syllable-break-demo/app`;
 > `package/webapp-productivity/doodle-widget` is now `package/doodle-widget/app`;
 > `package/webapp-productivity/done-postcss` is now `package/done/variant-postcss`;
-> `package/desktop-daemon/hall-monitor` is now `package/hall-monitor/daemon`;
+> `package/desktop-daemon/hall-monitor` is now `package-paused/hall-monitor/daemon`
+> (renamed to `package/hall-monitor/daemon` on 2026-10-29, paused 2026-11-16);
 > `package/webapp-productivity/done` is now `package/done/app`;
 > `package/webapp-productivity/rss` is now `package/rss/app`;
 > `package/dev-script/page-weight` is now `package/page-weight/cli`;
