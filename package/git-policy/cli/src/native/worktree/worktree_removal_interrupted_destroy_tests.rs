@@ -478,8 +478,8 @@ fn a_destroy_record_whose_process_entry_cannot_be_read_is_named_past_the_patienc
             .set_modified(std::time::SystemTime::now() - age)
             .expect("age the record");
         let injected: std::rc::Rc<dyn Fn(i64) -> Result<Option<String>, crate::process_identity::ProcessIdentityError>> =
-            std::rc::Rc::new(|pid: i64| {
-                return Err(crate::process_identity::ProcessIdentityError::Io { pid, error: std::io::Error::from_raw_os_error(libc::EACCES) });
+            std::rc::Rc::new(|asked: i64| {
+                return Err(crate::process_identity::ProcessIdentityError::Io { pid: asked, error: std::io::Error::from_raw_os_error(libc::EACCES) });
             });
         crate::process_identity::test_birth_reader::inject(Some(injected));
         let problems: Vec<String> = finish_interrupted_destroys(common.as_path());
