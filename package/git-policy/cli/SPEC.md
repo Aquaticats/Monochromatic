@@ -7943,6 +7943,15 @@ on the commit path:
   (two commits waited 120,560 ms and 78,864 ms in the queue on 2026-11-15 while that drive stalled, and a read of the
   same drive held a commit 6,156 ms in the control that replaced the write with it,
   `doc/troubleshooting/git-policy-cli-commit-waits-for-the-services-record-write.md`).
+  A withdrawal is answered "it has not begun to land and never will" only when this service holds a place of its own in
+  its journal and every other place there is a service that is gone
+  (`service/service_journal_holders.rs`):
+  a place is written whole under a staging name, flushed and given its final name in one rename,
+  so no reader meets a torn one;
+  a staging name is never a place,
+  and a record that names no process is left while it could be being written and taken away after `LEFT_OVER_FOR`
+  (120 s), which is what lets the early withdrawal of a journal come back by itself after a kill.
+  A service that took no place promises nothing.
   A withdrawal is answered "it has not begun to land and never will" only when this service holds its journal alone:
   each service takes a place in the journal's `services` directory when it starts (an exclusive create, no lock, its
   process birth identity in the record) and removes it when it ends,
@@ -17402,7 +17411,11 @@ a job of the blocking pool awaited under a ceiling,
 so no worker of the runtime waits in a file,
 and at the ceiling the job is left behind and the loop goes on without what it held.
 A source guard fails when a synchronous file helper or a blocking receive is written in an `async` body of this crate
-outside such a job (`source_guard/blocking_code_off_the_runtime_tests.rs`, `blocking-helper-on-a-task`).
+outside such a job (`source_guard/blocking_code_off_the_runtime_tests.rs`, `blocking-helper-on-a-task`),
+and it looks through the crate's own calls as well:
+a function that reads or writes a file, or calls one that does, is a blocking function,
+and a task of the service's modules that reaches one is a finding
+(`blocking-function-on-a-task`), recorded file by file for the owners that convert them until the list is empty.
 The age is the whole life of a client of the record (`service/wait_ceilings.rs`):
 the wait for the answer,
 inside which every resend of the request happens (`ANSWER_CEILING`),

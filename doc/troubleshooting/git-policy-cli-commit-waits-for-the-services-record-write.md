@@ -511,6 +511,125 @@ the removal of old records held in every run (`held=true` in each):
 So the three answers cost a first commit after a start nothing,
 and the wait they were about is not back.
 
+## What the third review found, and what each answer is
+
+- **A service with no place of its own counted the journal's own as its own**,
+  so it promised that a request another
+  live service could land would never land.
+  The answer takes the caller's own place as an argument
+  (`holders(journal, mine)`),
+  `Alone` is reachable only when that place was found among the live ones,
+  and a board that
+  took no place promises nothing.
+- **A place written under its final name and filled afterwards** was,
+  for a moment,
+  a record nobody could read,
+  and a
+  kill made that moment last:
+  every later service read `Unknown` for good,
+  and early withdrawal never came back.
+  A place is now written whole under `<name>.service-staging`,
+  flushed,
+  and given its final name in one rename.
+  A staging name never counts as a place and is taken away once it is older than `LEFT_OVER_FOR` (120 s).
+  A place of an earlier build of this branch that names no process — zero bytes,
+  or one line of two — is left while it
+  could still be being written,
+  and taken away after the same 120 s,
+  so the journal's early withdrawal comes back by
+  itself once the dead record is gone.
+  A place whose named process is gone is taken away as it is found.
+- **The fallback after a restore that gave no answer invented empty folders** (`Path::new("")`) and no identity,
+  so the
+  after-commit loop read the empty path's "not found" as an empty store and a saved push was forgotten.
+  The folders and the identity are known before the restore is asked and stay known after it:
+  `service_file_work_off_the_workers::the_state_of_a_restore_that_gave_no_answer` keeps them and says "not restored
+  yet",
+  which the loop tries again,
+  so a saved push is late and never forgotten.
+- **The watch note's instance check resolved a path on a worker**,
+  two plain calls below an `async fn` where the guard
+  could not see it.
+  The check moved behind the door with the write,
+  and the guard looks through the crate's own calls
+  now (`blocking-function-on-a-task`).
+
+The controls,
+before and after (each fix taken out by an edit and put back):
+
+```text
+control 1, at the tip:  left: Alone   right: Unknown        (a place that is not the caller's own)
+                        and a service with no place of its own promised anything
+control 2, at the tip:  left: Unknown right: Unknown        (a place nobody can read, at each step of making one)
+control 2b, at the tip: left: Unknown right: Alone          (a torn place of an earlier build, two hours old)
+control 3, at the tip:  left: Some("") right: Some("/…/plan") (the folder a saved push waits in)
+control 4, with the check back in front of the door:
+  a task of this file reaches a wait on a file through a plain function of this crate, on the worker it is polled on:
+  landing/service_claim_watch.rs:487
+all controls at the fixes: pass
+```
+
+What the guard reads now,
+and what it found:
+it splits every release source into functions,
+drops the lines of a closure
+handed to the blocking pool (wherever its brace is,
+and a function handed to the pool by name is off the worker too),
+reads a function's signature as a signature and not as a call,
+and follows calls by name only where the crate defines that
+name once.
+A function that reads or writes a file,
+or that calls one that does,
+is blocking;
+a task of `service/` or
+`landing/` that reaches one is a finding.
+It found this path first (`remember_off_the_worker` reaching
+`refused_for_another_instance` and `instance_of`),
+which is fixed here,
+and then 35 other files whose tasks still do:
+`landing/landed_summary.rs`,
+`landing/landing_state_carried_by_its_task.rs`,
+`landing/maintenance_run.rs`,
+`landing/service_amend.rs`,
+`landing/service_branch_shows.rs`,
+`landing/service_claim_renewal_running.rs`,
+`landing/service_durable.rs`,
+`landing/service_head.rs`,
+`landing/service_land_finish_branch_questions.rs`,
+`landing/service_land_follow_index_reset.rs`,
+`landing/service_land_git_steps_and_import_stream.rs`,
+`landing/service_land_side_reference_write.rs`,
+`landing/service_message.rs`,
+`landing/service_prepare_own_git_steps.rs`,
+`landing/service_replay_capture_order.rs`,
+`landing/service_round.rs`,
+`landing/service_route.rs`,
+`landing/service_scratch_ref_of_a_dropped_batch.rs`,
+`landing/service_work.rs`,
+`landing/service_work_branch_is_gone.rs`,
+`landing/service_work_drain_pending_claims.rs`,
+`landing/service_work_drains_a_snapshot_ahead.rs`,
+`landing/service_work_drains_awaiting.rs`,
+`landing/service_work_handlers_replanning_and_acceptance.rs`,
+`landing/service_work_items_side_by_side.rs`,
+`landing/service_work_run_round.rs`,
+`landing/service_work_settling_a_verdict.rs`,
+`landing/service_work_slow_lane.rs`,
+`landing/service_work_storage_awaited.rs`,
+`service/service_reply.rs`,
+`service/service_review.rs`,
+`service/service_scratch_release_removal.rs`,
+`service/service_server_accept_connections_as_tasks.rs`,
+`service/service_server_connection_handling.rs`,
+`service/service_server_shutdown_after_a_stop.rs`,
+`service/service_server_work_loop_awaiting.rs`.
+They are recorded in `REACHED_FROM_A_TASK_KNOWN`,
+which is checked both ways:
+a task of a file not listed fails the
+guard,
+and a listed file whose tasks no longer reach a wait fails it too,
+so the list can only shrink.
+
 ## The controls that keep it from coming back
 
 - `binary/binary_commit_while_a_decision_record_is_held_tests.rs::
@@ -529,6 +648,14 @@ and the wait they were about is not back.
   a_start_step_a_commit_waits_for_names_itself`
 - `service/service_busy_tests.rs::a_second_service_of_one_journal_never_confirms_a_withdrawal_it_does_not_hold`
 - `service/service_journal_holders_tests.rs::a_journal_is_alone_until_a_second_service_takes_a_place_in_it`
+- `service/service_journal_holders_tests.rs::`
+  `a_place_that_is_being_made_is_never_a_record_a_reader_cannot_read`
+- `service/service_journal_holders_tests.rs::`
+  `a_torn_place_of_an_earlier_build_is_left_while_it_could_be_being_written_and_taken_away_after`
+- `service/service_busy_tests.rs::`
+  `a_service_with_no_place_of_its_own_never_promises_a_request_will_not_land`
+- `service/service_file_work_off_the_workers_tests.rs::`
+  `the_state_of_a_restore_that_gave_no_answer_keeps_the_real_folders`
 - `service/service_server_greets_before_the_journal_is_restored_tests.rs::`
   `a_client_is_greeted_while_the_journals_read_is_held_with_one_worker`
 - `service/service_server_greets_before_the_journal_is_restored_tests.rs::`
