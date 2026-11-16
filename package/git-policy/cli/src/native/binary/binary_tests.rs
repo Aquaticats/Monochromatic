@@ -187,6 +187,12 @@ mod discard;
 #[path = "binary_discard_in_the_way_matrix_tests.rs"]
 mod discard_in_the_way_matrix;
 
+/// The caller's global pathspec mode,
+/// crossed with every read the discarding guard makes of its own,
+/// with real Git as the oracle of what the mode changes.
+#[path = "binary_discard_pathspec_mode_axis_tests.rs"]
+mod discard_pathspec_mode_axis;
+
 /// The remote settings every worktree of a repository shares:
 /// refused from a linked worktree,
 /// unchanged in the main checkout,
