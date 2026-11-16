@@ -1632,6 +1632,41 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Three reviews end with findings and their authors are queued again; the owner's mpm-shadow and cargo-shadow answers are in three waiting briefs (2026-11-15T20:20:57-05:00)
+
+Not final and not approved; written by the coordinating session. Reviews are by Kimi K3.1 Pro while the Qwen quota is dry.
+
+- **Issue 6293** (`12a18711db`, narrow review of five fix commits, the merge's hand-made part and two commits after; 29 of 29 files).
+  The review built the package, ran eleven named modules and took each of the five fixes out to see its control fail; all held.
+  It lists five things, each by reading and none reproduced:
+  a service a manager started can be ended between the check that it is preparing and the act (`service_server_start_by_the_wrapper.rs` lines 227 to 234);
+  the base start can answer `DidNotGreet` after a claim (lines 241 to 253);
+  the note is removed before the after-commit writer has ended on the path where the worktree is gone (`service_main.rs` lines 401 to 405);
+  `*.writing` names are left by a kill or a failed write;
+  `same_place` calls `std::fs::canonicalize` twice with no bound (`service_session_of_the_runtime_directory.rs` lines 133 to 141).
+  Author's eighth run queued at 20:20:53, fourteenth in the queue: a control that produces each first, or the lines that rule it out; whether `main` has each.
+  The adopted order stands: the no-manager branch settles first, and this branch merges its tip only then.
+- **Scan for work a run left running** (`3fd0963ae7`, whole range, 12 of 12 files): three things, two reproduced with the real watch loop and the real record writer.
+  A send that resolves with `{ ending: "silence" }` lets an accepted wake end as `idle`; a record with no birth makes running work vanish from the scan;
+  a process number reused before the feed line is written binds the old answer to the new process.
+  Author's third run queued at 20:19:58, twelfth in the queue. Its brief also carries the owner's answer to the question its own report left open
+  ("A shorter limit, then end as failed"): a run kept by a scan that cannot be read ends as failed after a stated, measured span, with its worktree kept.
+- **Renamed subvolume handed over** (`2e6fe78702`, whole range, 9 of 9 files): one thing, reproduced on a real disposable Btrfs fixture.
+  An attempt file is written before the delete is queued, so a kill between the two, once per remaining attempt, spends the whole budget;
+  the next command then queues nothing and reports attempts no service made. The review found no data loss and no commit made twice.
+  Author's fourth run queued at 20:19:58, tenth in the queue; it also says whether `main` has this.
+- The owner's mpm-shadow and cargo-shadow answers of the evening were appended at 20:12 to the briefs of three authors still waiting in the queue
+  (mpm-shadow removal of old versions, mpm-shadow install that removes no version, cargo-shadow removal of old toolchain folders);
+  the appended texts are kept in `~/temp/agent/notes-to-send/` under names starting `decisions-of-2026-11-15-for-`.
+  Six decisions from those answers are in no run yet, each a task of its own:
+  the launcher refusing an unfinished version with words; a held good copy put back when its install is proven dead;
+  a control group where available with a named exception list; cargo-shadow's own non-zero status when it skipped tests;
+  images of containers exited for 24 hours removed; old-style build folders retired after seven idle days.
+- Round checks at 20:11:35: 20 Pi units going, none silent for twenty minutes, no launcher outlived a run, no process inside an ended run's worktree,
+  six changed files in the main checkout.
+- A script kept for the next rounds: `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/queue-an-author-resume-after-checking-its-session-its-last-run-and-its-prompt.ts`.
+- The agent preparing the last older questions for the owner has not reported.
+
 ##### Pass 56 is queued with the door for diagnostics; sixteen ended runs are read and routed; the firewall and three small removals are done (2026-11-15T20:04:22-05:00)
 
 Not final and not approved:
