@@ -1,31 +1,33 @@
 /**
- What a filling does with a queue after a kill: it finishes a set-aside whose record was written and whose claim never completed, drops
- a record a completed put-back left behind, and recovers the claim of a filling that died holding one. One held step of the queue's lock,
- so every decision is made on the queue and on the records as they are, and never on a snapshot another writer has since changed.
+ What a filling does with a queue folder after a kill: it finishes a set-aside whose record was written and whose entry never left the queue,
+ drops a record a completed put-back left behind, and clears the claim of a filling that died holding one. Every decision is one atomic step
+ on one file, so nothing is held and nothing waits.
 
- The records are settled first. An interrupted set-aside leaves a record and a claimed entry of one identity, and that claim's holder is
- gone with no output file, so a recovery that ran first would give the claim back and the settlement would then read the state as a
+ The records are settled first. An interrupted set-aside leaves a record and a still-queued entry of one identity whose claim's holder is
+ gone with no output file, so a recovery that ran first would give that claim back and the settlement would then read the state as a
  put-back whose record is stale and drop the record, losing the reason its start failed and the whole of what that start printed.
 
- Nothing here matches on a name alone. A record holds the identity of the entry it copied, and an entry is taken out only when both its
- identity and the token of the claim that took it are the ones written down; a name may be queued again once its earlier entry is gone,
- and a decision on the name alone once deleted the only copy of an entry (reproduced on 2026-11-15, against the sweep of that day's
- queue).
+ Nothing here matches on a name alone. A record holds the identity of the entry it copied, and a claim names the identity it was taken on,
+ so a name queued again under a later entry is another entry and its record is left with a sentence rather than deleted.
 
  @module
  */
 
-import { processIsThere, } from './queue-lock.ts';
+import { rm, } from 'node:fs/promises';
 import {
-  NO_CLAIM_ON_AN_ENTRY,
+  entryFileOf,
   NO_QUEUE_ID,
   type QueueRecord,
-  claimOnAnEntry,
+  claimFileOf,
   queueIdOf,
-  withTheQueueLock,
-  withoutTheClaim,
 } from './queue-of-runs.ts';
-import { startOfAnAttemptTookEffect, } from './claims-on-the-entries-of-a-queue.ts';
+import { startOfAnAttemptTookEffect, } from './claiming-an-entry-of-a-queue.ts';
+import {
+  NO_ENTRY_OF_THAT_NAME,
+  readQueueOfRuns,
+  readTheClaimsOnAQueue,
+  readTheEntryNamed,
+} from './reading-and-writing-the-folder-a-queue-is.ts';
 import {
   NO_SET_ASIDE_RECORD,
   removeSetAsideRecord,
@@ -33,61 +35,73 @@ import {
 } from './set-aside-entry.ts';
 
 /**
- What one settlement decided about the queue.
+ The code the operating system gives one process's number when no process of the account has it.
  */
-type SettledQueue = {
-  /**
-   The entries the queue holds after the decision.
-   */
-  readonly entries: readonly QueueRecord[];
+const NO_SUCH_PROCESS_CODE = 'ESRCH';
 
-  /**
-   Whether anything was written, which is what says the queue has to be written back.
-   */
-  readonly changed: boolean;
-};
+/**
+ Says whether the process a claim names is still there.
+
+ @param pid - the process number the claim names
+
+ @returns whether it is there, which a process this account may not signal counts as
+
+ @example
+ ```ts
+ const there = processIsThere({ pid: 1 });
+ ```
+ */
+function processIsThere({ pid, }: { readonly pid: number },): boolean {
+  try {
+    process.kill(
+      pid,
+      0,
+    );
+    return true;
+  }
+  catch (error) {
+    // A process number this account may not signal still names a live process, so only "no such process" says the holder is gone.
+    return ((error as { readonly code?: unknown }).code) !== NO_SUCH_PROCESS_CODE;
+  }
+}
 
 /**
  Settles each set-aside record whose name the queue holds, comparing identities rather than names.
 
- @param entries - the queue as it stands under the lock
+ @param queueFolder - the queue's folder
 
  @param runsFolder - folder the driver writes its runs into
 
  @param report - where the pass says what it found, one line each
 
- @returns the entries the queue holds afterwards, once a record is finished or dropped
+ @returns the entries the queue holds afterwards, one file at a time
 
  @example
  ```ts
- const settled = await recordsSettled({ entries, runsFolder: '/runs', report: () => {} });
+ const left = await recordsSettled({ queueFolder: '/runs/q', runsFolder: '/runs', report: () => {} });
  ```
  */
 async function recordsSettled({
-  entries,
+  queueFolder,
   runsFolder,
   report,
 }: {
-  readonly entries: readonly QueueRecord[];
+  readonly queueFolder: string;
   readonly runsFolder: string;
   readonly report: (line: string) => void;
-},): Promise<SettledQueue> {
+},): Promise<readonly QueueRecord[]> {
   /**
    When the lines are said.
    */
   const at = new Date().toISOString();
   /**
-   The identities of the attempts an interrupted set-aside took out of the queue, as `identity` and `token` joined.
+   Every claim the queue holds, read once, so an interrupted set-aside is told from a put-back without a read per entry.
    */
-  const finished: string[] = [];
-  /**
-   The names whose stale record was dropped, which change no entry and still have to be said.
-   */
-  const dropped: string[] = [];
+  const claims = await readTheClaimsOnAQueue({ queueFolder, },);
   /* oxlint-disable eslint/no-await-in-loop -- one entry after another, and each record is its own file */
-  for (const entry of entries) {
+  for (const entry of await readQueueOfRuns({ queueFolder, },)) {
     /**
-     The entry's identity, which every claimed entry has.
+     The entry's identity, which every put writes.
      */
     const queueId = queueIdOf({ record: entry, },);
     /**
@@ -104,263 +118,167 @@ async function recordsSettled({
      The identity the record's entry carries.
      */
     const recordId = queueIdOf({ record: record.entry, },);
-    if (
-      (queueId === NO_QUEUE_ID)
-        || (recordId === NO_QUEUE_ID)
-        || (recordId !== queueId)
-    ) {
+    if ((queueId === NO_QUEUE_ID) || (recordId === NO_QUEUE_ID)
+      || (recordId !== queueId)) {
       // The record is another entry's only copy: it holds an entry queued under this name before, and no identity joins it to the entry
       // standing there now. Deleting it on the strength of the name is how a sweep once destroyed the only copy of such an entry.
       report(`${at} ${entry.name}: the set-aside record beside the runs holds an entry other than the one the queue holds under that name, so it is left as it is; putting it back or removing it is a person's to do\n`,);
       continue;
     }
-    /**
-     The claim the queued entry carries, when a filling holds one.
-     */
-    const claim = claimOnAnEntry({ record: entry, },);
-    if (claim === NO_CLAIM_ON_AN_ENTRY) {
-      // The record's own entry is queued and unclaimed: a put-back wrote the entry and was killed before removing the record, which
-      // leaves the record as a second copy of an entry already in the queue.
-      await removeSetAsideRecord({
-        runsFolder,
-        name: entry.name,
-      },);
-      dropped.push(entry.name,);
-      report(`${at} ${entry.name}: its set-aside record was still there after its entry was put back into the queue, so the record is dropped and the entry stands\n`,);
+    if (claims.some(function isOnThisAttempt(claim,) {
+      return (claim.name === entry.name) && (claim.queueId === queueId);
+    },)) {
+      // The record's own entry is queued and claimed: the set-aside wrote the record and was killed before its entry left the queue, so
+      // this finishes it. The record stays, because it is the entry's copy.
+      await rm(
+        entryFileOf({
+          queueFolder,
+          name: entry.name,
+        },),
+        { force: true, },
+      );
+      report(`${at} ${entry.name}: its set-aside wrote the record and was killed before the entry left the queue, so the set-aside is finished and the record stands\n`,);
       continue;
     }
-    // The record's own entry is queued and claimed: the set-aside wrote the record and was killed before the claim completed, so this
-    // finishes it. The token is carried so that an entry queued under that name with another identity is never taken out here.
-    finished.push(`${queueId}|${claim.token}`,);
-    report(`${at} ${entry.name}: its set-aside wrote the record and was killed before the entry left the queue, so the set-aside is finished and the record stands\n`,);
+    // The record's own entry is queued and unclaimed: a put-back wrote the entry and was killed before removing the record, which
+    // leaves the record as a second copy of an entry already in the queue.
+    await removeSetAsideRecord({
+      runsFolder,
+      name: entry.name,
+    },);
+    report(`${at} ${entry.name}: its set-aside record was still there after its entry was put back into the queue, so the record is dropped and the entry stands\n`,);
   }
   /* oxlint-enable eslint/no-await-in-loop */
-  if ((finished.length === 0) && (dropped.length === 0)) {
-    return {
-      entries,
-      changed: false,
-    };
-  }
-  return {
-    entries: entries.filter(function isNotAFinishedSetAside(entry,) {
-      /**
-       The entry's identity, when a claim wrote one.
-       */
-      const queueId = queueIdOf({ record: entry, },);
-      if (queueId === NO_QUEUE_ID) {
-        return true;
-      }
-      /**
-       The claim the entry carries, when a filling holds one.
-       */
-      const claim = claimOnAnEntry({ record: entry, },);
-      if (claim === NO_CLAIM_ON_AN_ENTRY) {
-        return true;
-      }
-      return !finished.includes(`${queueId}|${claim.token}`,);
-    },),
-    changed: true,
-  };
+  return await readQueueOfRuns({ queueFolder, },);
 }
 
 /**
- Recovers the claim of every filling that died holding one, for each entry whose claim names a process that is gone.
+ Clears the claim of every filling that is gone, and takes out the entry of one whose start took effect.
 
- @param entries - the queue as the records left it
+ @param queueFolder - the queue's folder
 
  @param runsFolder - folder the driver writes its runs into
 
  @param report - where the pass says what it found, one line each
 
- @returns the entries the queue holds afterwards, with a claim given back or an attempt taken out
+ @returns the entries the queue holds afterwards
 
  @example
  ```ts
- const recovered = await claimsRecovered({ entries, runsFolder: '/runs', report: () => {} });
+ const left = await claimsCleared({ queueFolder: '/runs/q', runsFolder: '/runs', report: () => {} });
  ```
  */
-async function claimsRecovered({
-  entries,
+async function claimsCleared({
+  queueFolder,
   runsFolder,
   report,
 }: {
-  readonly entries: readonly QueueRecord[];
+  readonly queueFolder: string;
   readonly runsFolder: string;
   readonly report: (line: string) => void;
-},): Promise<SettledQueue> {
+},): Promise<readonly QueueRecord[]> {
   /**
    When the lines are said.
    */
   const at = new Date().toISOString();
-  /**
-   The attempts whose start took effect before their filling died, which are out of the queue and never started again.
-   */
-  const started: string[] = [];
-  /**
-   The attempts whose filling died before their start took effect, whose claims are given back.
-   */
-  const givenBack: string[] = [];
-  /* oxlint-disable eslint/no-await-in-loop -- one entry after another, and each attempt's evidence is its own file */
-  for (const entry of entries) {
-    /**
-     The claim the entry carries, when a filling holds one.
-     */
-    const claim = claimOnAnEntry({ record: entry, },);
-    if (claim === NO_CLAIM_ON_AN_ENTRY) {
-      continue;
-    }
-    if (processIsThere({ pid: claim.pid, },)) {
+  for (const held of await readTheClaimsOnAQueue({ queueFolder, },)) {
+    if (processIsThere({ pid: held.claim
+      .pid, },)) {
       continue;
     }
     /**
-     The entry's identity, which a claim always wrote.
+     The claim's file.
      */
-    const queueId = queueIdOf({ record: entry, },);
-    if (queueId === NO_QUEUE_ID) {
+    const claimFile = claimFileOf({
+      queueFolder,
+      name: held.name,
+    },);
+    /* oxlint-disable eslint/no-await-in-loop -- one claim after another, each with its own attempt's evidence */
+    /**
+     The entry the queue holds under that name now, or that it holds none.
+     */
+    const entry = await readTheEntryNamed({
+      queueFolder,
+      name: held.name,
+    },);
+    if ((entry === NO_ENTRY_OF_THAT_NAME) || (queueIdOf({ record: entry, },) !== held.queueId)) {
+      // The entry this claim was taken on has left the queue, or the queue holds another entry of that name now: either way nothing is
+      // left to start or to give back, and the claim is cleared.
+      await rm(
+        claimFile,
+        { force: true, },
+      );
+      report(`${at} ${held.name}: the queue no longer holds the entry its claim names, so the claim is cleared\n`,);
       continue;
     }
-    /**
-     The attempt, named by its identity and its token.
-     */
-    const attempt = `${queueId}|${claim.token}`;
     if (await startOfAnAttemptTookEffect({
       runsFolder,
-      name: entry.name,
-      claim,
+      name: held.name,
+      claim: held.claim,
     },)) {
-      started.push(attempt,);
-      report(`${at} ${entry.name}: the filling that claimed it died after its start took effect, so it is taken out of the queue and never started again\n`,);
+      await rm(
+        entryFileOf({
+          queueFolder,
+          name: held.name,
+        },),
+        { force: true, },
+      );
+      await rm(
+        claimFile,
+        { force: true, },
+      );
+      report(`${at} ${held.name}: the filling that claimed it died after its start took effect, so it is taken out of the queue and never started again\n`,);
+      continue;
     }
-    else {
-      givenBack.push(attempt,);
-      report(`${at} ${entry.name}: the filling that claimed it died before its start took effect, so the claim is given back and the entry stands for the next pass\n`,);
-    }
+    await rm(
+      claimFile,
+      { force: true, },
+    );
+    report(`${at} ${held.name}: the filling that claimed it died before its start took effect, so the claim is given back and the entry stands for the next pass\n`,);
+    /* oxlint-enable eslint/no-await-in-loop */
   }
-  /* oxlint-enable eslint/no-await-in-loop */
-  if ((started.length === 0) && (givenBack.length === 0)) {
-    return {
-      entries,
-      changed: false,
-    };
-  }
-  /**
-   The entries that are not attempts whose start took effect.
-   */
-  const kept = entries.filter(function isNotAnAttemptThatStarted(entry,) {
-      /**
-       The entry's identity, when a claim wrote one.
-       */
-    const queueId = queueIdOf({ record: entry, },);
-    if (queueId === NO_QUEUE_ID) {
-      return true;
-    }
-      /**
-       The claim the entry carries, when a filling holds one.
-       */
-    const claim = claimOnAnEntry({ record: entry, },);
-    if (claim === NO_CLAIM_ON_AN_ENTRY) {
-      return true;
-    }
-    return !started.includes(`${queueId}|${claim.token}`,);
-  },);
-  return {
-    entries: kept.map(function withoutTheClaimGivenBack(entry,) {
-      /**
-       The entry's identity, when a claim wrote one.
-       */
-      const queueId = queueIdOf({ record: entry, },);
-      if (queueId === NO_QUEUE_ID) {
-        return entry;
-      }
-      /**
-       The claim the entry carries, when a filling holds one.
-       */
-      const claim = claimOnAnEntry({ record: entry, },);
-      if (claim === NO_CLAIM_ON_AN_ENTRY) {
-        return entry;
-      }
-      return givenBack.includes(`${queueId}|${claim.token}`,)
-        ? withoutTheClaim({ record: entry, },)
-        : entry;
-    },),
-    changed: true,
-  };
+  return await readQueueOfRuns({ queueFolder, },);
 }
 
 /**
- Settles a queue after a kill: finishes an interrupted set-aside, drops a record a completed put-back left behind, and recovers the claims
- of fillings that died holding them. One held step, so every decision is made on the queue and the records as they are.
+ Settles a queue folder after a kill: finishes an interrupted set-aside, drops a record a completed put-back left behind, and clears the
+ claims of fillings that died holding them. Every decision is one atomic step on one file, so a pass may run beside another.
 
- @param queueFile - the queue's path
+ @param queueFolder - the queue's folder
 
  @param runsFolder - folder the driver writes its runs into
 
  @param report - where the pass says what it found, one line each
 
- @param now - the clock the lock's wait is read from
-
- @param wait - the pause between two attempts to take the lock
-
- @param waitMilliseconds - how long to keep asking for the queue's lock before refusing
-
  @returns how many entries the queue holds after the step
 
- @throws QueueFileError when the queue cannot be read or written
-
- @throws QueueLockHeldError when another writer holds the queue for the lock's whole wait
-
- @throws SetAsideRecordError when a record cannot be read as one, which changes nothing
+ @throws QueueFileError when the queue or one of its records cannot be read, which changes nothing
 
  @example
  ```ts
- const left = await settleTheQueueAfterAKill({ queueFile: '/runs/q.json', runsFolder: '/runs', report: () => {} });
+ const left = await settleTheQueueAfterAKill({ queueFolder: '/runs/q', runsFolder: '/runs', report: () => {} });
  ```
  */
 export async function settleTheQueueAfterAKill({
-  queueFile,
+  queueFolder,
   runsFolder,
   report,
-  now,
-  wait,
-  waitMilliseconds,
 }: {
-  readonly queueFile: string;
+  readonly queueFolder: string;
   readonly runsFolder: string;
   readonly report: (line: string) => void;
-  readonly now?: () => number;
-  readonly wait?: (milliseconds: number) => Promise<unknown>;
-  readonly waitMilliseconds?: number;
 },): Promise<number> {
-  return await withTheQueueLock({
-    queueFile,
-    ...(now === undefined ? {} : { now, }),
-    ...(wait === undefined ? {} : { wait, }),
-    ...(waitMilliseconds === undefined ? {} : { waitMilliseconds, }),
-    work: async function settle({
-      entries,
-      write,
-    },) {
-      /**
-       The queue once every record whose name it holds is settled.
-       */
-      const settledRecords = await recordsSettled({
-        entries,
-        runsFolder,
-        report,
-      },);
-      /**
-       The queue once the claims of fillings that are gone are recovered.
-       */
-      const settledClaims = await claimsRecovered({
-        entries: settledRecords.entries,
-        runsFolder,
-        report,
-      },);
-      if (settledRecords.changed || settledClaims.changed) {
-        await write(settledClaims.entries,);
-      }
-      return settledClaims.entries
-        .length;
-    },
+  /**
+   The queue once every record whose name it holds is settled.
+   */
+  await recordsSettled({
+    queueFolder,
+    runsFolder,
+    report,
   },);
+  return (await claimsCleared({
+    queueFolder,
+    runsFolder,
+    report,
+  },)).length;
 }

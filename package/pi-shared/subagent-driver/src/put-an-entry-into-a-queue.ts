@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- `put-an-entry-into-a-queue`: puts one entry into a queue of runs at a position counted from its head, reading the queue and
- writing it back through a rename, so the filling never reads a half-written file.
+ `put-an-entry-into-a-queue`: puts one entry into a queue of runs at a position counted from its head, which writes that one entry's
+ file and rewrites no other.
 
  See `README.md` for the entry shapes. An entry of that name is refused rather than queued twice.
 
@@ -15,16 +15,16 @@ import {
   type QueueOptionWords,
   entryIn,
   positionIn,
-  queueFileIn,
+  queueFolderIn,
   queueRefusalOf,
 } from './parse-queue-of-runs-options.ts';
-import { putAQueueEntryIn, } from './queue-of-runs.ts';
+import { putAQueueEntryIn, } from './putting-and-taking-entries-of-a-queue.ts';
 import { usageWasAsked, } from './usage-of-a-command.ts';
 
 /**
  The command's command line, for the error message.
  */
-const USAGE = 'put-an-entry-into-a-queue --queue=<file> --entry=<json> [--position=<n>]';
+const USAGE = 'put-an-entry-into-a-queue --queue=<folder> --entry=<json> [--position=<n>]';
 
 /**
  A command line the command cannot use.
@@ -102,7 +102,7 @@ try {
    Where it landed, and how many entries the queue holds.
    */
   const queued = await putAQueueEntryIn({
-    queueFile: queueFileIn({
+    queueFolder: queueFolderIn({
       commandLine,
       words,
     },),

@@ -20,9 +20,9 @@ import {
 } from './reviewer-of-a-change.ts';
 
 /**
- The option that names the queue.
+ The option that names the queue, which is a folder of one file per entry.
  */
-export const QUEUE_FILE_OPTION = '--queue=';
+export const QUEUE_OPTION = '--queue=';
 
 /**
  The option that names the folder the runs live in.
@@ -77,10 +77,10 @@ export type QueueOptionWords = {
 
  @example
  ```ts
- const queue = queueFileIn({ commandLine, words });
+ const queue = queueFolderIn({ commandLine, words });
  ```
  */
-export function queueFileIn({
+export function queueFolderIn({
   commandLine,
   words,
 }: {
@@ -90,7 +90,7 @@ export function queueFileIn({
   return requiredText({
     value: optionIn({
       commandLine,
-      option: QUEUE_FILE_OPTION,
+      option: QUEUE_OPTION,
     },),
     name: 'queue',
     usage: words.usage,

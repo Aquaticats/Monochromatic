@@ -8,10 +8,16 @@
  @module
  */
 
+import { readFile, } from 'node:fs/promises';
 import {
   isAbsolute,
   join,
 } from 'node:path';
+import {
+  isQueueRecord,
+  type QueueRecord,
+  QueueFileError,
+} from './queue-of-runs.ts';
 import {
   ENTRY_REASON_CHARACTERS,
   reasonInFailedStart,
@@ -74,6 +80,61 @@ export const ENTRY_OUTPUT_KEPT_CHARACTERS: number = KEPT_OUTPUT_KIBIBYTES * CHAR
  readable.
  */
 export const ENTRY_LINE_CHARACTERS = 300;
+
+/**
+ Reads one batch list's entries, which is one JSON array of entries as a launcher writes it.
+
+ A batch list is one file and a queue is a folder, so this is the reader a launcher's list is read with and the queue's own reading lives
+ with the folder (`reading-and-writing-the-folder-a-queue-is.ts`).
+
+ @param file - the list's path
+
+ @returns the entries, in the order the list holds them
+
+ @throws QueueFileError when the file cannot be read, holds no JSON array, or holds an entry that is no JSON object with a name
+
+ @example
+ ```ts
+ const entries = await readABatchList({ file: '/runs/batch-a.json' });
+ ```
+ */
+export async function readABatchList({ file, }: { readonly file: string },): Promise<readonly QueueRecord[]> {
+  /**
+   What the file holds.
+   */
+  let shown: string;
+  try {
+    shown = await readFile(
+      file,
+      'utf8',
+    );
+  }
+  catch (error) {
+    throw new QueueFileError(`the batch list at ${file} cannot be read: ${String(error,)}`,);
+  }
+  /**
+   What the text parsed to.
+   */
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(shown,);
+  }
+  catch (error) {
+    throw new QueueFileError(`the batch list at ${file} holds no JSON: ${String(error,)}`,);
+  }
+  if (!Array.isArray(parsed,)) {
+    throw new QueueFileError(`${file} holds no JSON array of entries, so nothing can be started from it`,);
+  }
+  return parsed.map(function asAnEntry(
+    entry: unknown,
+    index: number,
+  ) {
+    if (!isQueueRecord(entry,)) {
+      throw new QueueFileError(`${file}: entry ${String(index + 1,)} is no JSON object naming a run, so it cannot be started`,);
+    }
+    return entry;
+  },);
+}
 
 /**
  One entry of a batch list.

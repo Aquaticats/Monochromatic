@@ -34,9 +34,11 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  type QueueRecord,
   NO_SET_ASIDE_RECORD,
   readQueueOfRuns,
   setAsideRecordOf,
+  writeTheQueueOfRuns,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -91,7 +93,7 @@ type AThrowawayFolder = {
   /**
    The queue's path.
    */
-  readonly queueFile: string;
+  readonly queueFolder: string;
 
   /**
    The folder the runs live in.
@@ -184,7 +186,7 @@ async function gitIn({
 
  @returns the folder
  */
-async function makeFolder(queueEntries?: readonly Record<string, unknown>[],): Promise<AThrowawayFolder> {
+async function makeFolder(queueEntries?: readonly QueueRecord[],): Promise<AThrowawayFolder> {
   /**
    The folder's path.
    */
@@ -257,12 +259,12 @@ async function makeFolder(queueEntries?: readonly Record<string, unknown>[],): P
     words: ['rev-parse', 'main',],
   },)).trim();
   /**
-   The queue's path.
+   The queue's folder.
    */
-  const queueFile = join(path, 'queue.json',);
-  await writeFile(
-    queueFile,
-    `[\n${(queueEntries ?? [
+  const queueFolder = join(path, 'queue',);
+  await writeTheQueueOfRuns({
+    queueFolder,
+    entries: (queueEntries ?? [
       {
         name: 'review-tests-alone',
         reviewOfRange: 'main~1...main',
@@ -276,13 +278,11 @@ async function makeFolder(queueEntries?: readonly Record<string, unknown>[],): P
         base: commit,
         wall: 28_800,
       },
-    ]).map(function asALine(entry,) {
-      return `  ${JSON.stringify(entry,)}`;
-    },).join(',\n',)}\n]\n`,
-  );
+    ]),
+  },);
   return {
     path,
-    queueFile,
+    queueFolder,
     runs,
     reviews,
     checkout,
@@ -407,7 +407,7 @@ await describe({
           entry: FILLING,
           folder,
           words: [
-            `--queue=${folder.queueFile}`,
+            `--queue=${folder.queueFolder}`,
             '--level=1',
             `--runs-folder=${folder.runs}`,
             `--reviews-folder=${folder.reviews}`,
@@ -440,7 +440,7 @@ await describe({
         // A review whose change has nothing to read writes no brief, so no reviewer is ever given an empty task.
         expect(await readdir(folder.reviews,),).toEqual([],);
         // Both entries are out of the queue: one started, one set aside where a person and a session can read it.
-        expect(await readQueueOfRuns({ queueFile: folder.queueFile, },),).toEqual([],);
+        expect(await readQueueOfRuns({ queueFolder: folder.queueFolder, },),).toEqual([],);
         /**
          What the command that lists the entries set aside answered.
          */
@@ -459,7 +459,7 @@ await describe({
           entry: PUT_BACK,
           folder,
           words: [
-            `--queue=${folder.queueFile}`,
+            `--queue=${folder.queueFolder}`,
             '--name=review-tests-alone',
             `--runs-folder=${folder.runs}`,
           ],
@@ -469,17 +469,19 @@ await describe({
         /**
          The queue once the entry was put back.
          */
-        const queue = await readQueueOfRuns({ queueFile: folder.queueFile, },);
+        const queue = await readQueueOfRuns({ queueFolder: folder.queueFolder, },);
         expect(queue,).toHaveLength(1,);
-        const { queueId, ...heldEntry } = queue[0] as Record<string, unknown>;
+        const { queueId, order, ...heldEntry } = queue[0] as Record<string, unknown>;
         expect(heldEntry,).toEqual({
           name: 'review-tests-alone',
           reviewOfRange: 'main~1...main',
           commit: folder.commit,
           source: 'src',
         },);
-        // The entry goes back with the identity its record holds, which is how the settlement tells it from a namesake.
+        // The entry goes back with the identity its record holds, which is how the settlement tells it from a namesake, and with the
+        // place the position gives it.
         expect(typeof queueId,).toBe('string',);
+        expect(typeof order,).toBe('string',);
       },
     },),
     it({
@@ -514,7 +516,7 @@ await describe({
           entry: FILLING,
           folder,
           words: [
-            `--queue=${folder.queueFile}`,
+            `--queue=${folder.queueFolder}`,
             '--level=2',
             `--runs-folder=${folder.runs}`,
             `--reviews-folder=${folder.reviews}`,
@@ -529,7 +531,7 @@ await describe({
           runsFolder: folder.runs,
           name: 'a',
         },),).toBe(NO_SET_ASIDE_RECORD,);
-        expect(await readQueueOfRuns({ queueFile: folder.queueFile, },),).toHaveLength(2,);
+        expect(await readQueueOfRuns({ queueFolder: folder.queueFolder, },),).toHaveLength(2,);
         // One start was asked for, and the entry behind it was never handed to a unit.
         expect(await askedIn(folder.log,),).toHaveLength(1,);
       },

@@ -23,7 +23,7 @@ import {
   type BatchEntry,
 } from './batch-list.ts';
 import { caughtValueStack, } from '@monochromatic-dev/caught-value-core/ts';
-import { namesOfAnAttemptIn, } from './claims-on-the-entries-of-a-queue.ts';
+import { namesOfAnAttemptIn, } from './claiming-an-entry-of-a-queue.ts';
 import {
   changeOfAReviewRun,
   type ReviewOfARangeEntry,

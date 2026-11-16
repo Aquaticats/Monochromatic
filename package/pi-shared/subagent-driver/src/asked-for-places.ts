@@ -24,10 +24,8 @@ import { poolAPlaceAskedForWouldHold, } from './entry-of-a-queue.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import { isThere, } from './newest-finished-run-of-a-name.ts';
 import type { GoingRun, } from './going-runs.ts';
-import {
-  readQueueOfRuns,
-  type QueueRecord,
-} from './queue-of-runs.ts';
+import { readABatchList, } from './batch-list.ts';
+import type { QueueRecord, } from './queue-of-runs.ts';
 import type { RunCommand, } from './run-command.ts';
 import { firstWordOf, } from './text-of-an-option.ts';
 
@@ -118,7 +116,7 @@ async function entriesOfAList({
     return [];
   }
   try {
-    return await readQueueOfRuns({ queueFile: file, },);
+    return await readABatchList({ file, },);
   }
   catch (error) {
     // A list that is there and cannot be read is a problem a reader must see, because the places it names are then missing from

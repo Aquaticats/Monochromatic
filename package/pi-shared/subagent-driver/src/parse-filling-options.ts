@@ -8,7 +8,7 @@
 import { optionIn, } from './option-in.ts';
 import {
   type QueueOptionWords,
-  queueFileIn,
+  queueFolderIn,
   reviewsFolderIn,
   runsFolderIn,
   wholeNumberFromOne,
@@ -122,7 +122,7 @@ export type FillingOptions = {
   /**
    The queue it fills the free places from.
    */
-  readonly queueFile: string;
+  readonly queueFolder: string;
 
   /**
    The most agents that may be going at once.
@@ -197,7 +197,7 @@ export function parseFillingOptions({ commandLine, }: { readonly commandLine: re
   /**
    The queue to fill from.
    */
-  const queueFile = queueFileIn({
+  const queueFolder = queueFolderIn({
     commandLine,
     words,
   },);
@@ -249,7 +249,7 @@ export function parseFillingOptions({ commandLine, }: { readonly commandLine: re
     option: DEADLINE_SECONDS_OPTION,
   },);
   return {
-    queueFile,
+    queueFolder,
     level: levelOf,
     runsFolder: runsFolderIn({ commandLine, },),
     reviewsFolder: reviewsFolderIn({ commandLine, },),

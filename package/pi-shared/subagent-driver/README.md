@@ -529,151 +529,65 @@ are written before the step ends.
 Two commands at once therefore cannot both read before either writes and drop one another's entry,
 and no command can decide on one of the two files while another is writing the other.
 
-### The states of an entry, and the one step between each two
+### A folder, one file per entry
 
-An entry is known by an identity of its own and by the claim a filling takes on it.
-The identity is `queueId`, written by the first write that claims the entry:
-a name is not an identity, because a name may be queued again once its earlier entry has gone.
-The claim is `queueClaim`, holding a token that names one start attempt, the process number that took it and the time.
-The batch list of an attempt, the unit it starts in and the unit's output file are all named from that token,
-so a claim names its own evidence without naming a path.
+The queue is a folder, not one file: `<queue>/<entry>.json` is one entry, its place in the queue is the `order` key inside it, and its
+identity is the `queueId` the put that wrote it minted. There is no lock over the queue, and no command waits for another.
 
-- **queued**: in the queue file, holding no `queueClaim`. A put makes an entry queued, and a give-back returns one here.
-- **claimed**: in the queue file holding `queueClaim`. The step in from queued is one write of the queue under its lock,
-  matched on the entry's identity and on its holding no claim; that write mints the identity when the entry has none and
-  writes a fresh token. No other filling starts a claimed entry. A kill before the write leaves the entry queued; a kill
-  after it leaves the entry claimed by a process that is gone.
-- **started**: out of the queue, because the write that completes a claim removes the entry it names, matched on identity
-  and token. The step in from claimed is the start itself, outside the lock, then that write. A kill between the two
-  leaves the entry claimed, and the next filling's recovery reads from the attempt's evidence whether it started.
-- **set aside**: out of the queue, with `<runs>/<name>-set-aside.json` holding the entry whole, its identity, the reason
-  its start failed and the time. The step in from claimed is one held step that writes the record first and then removes
-  the entry matched on identity and token. A kill between the two leaves both, and the record holds the entry.
-- **given back**: the entry stands where it is in the queue and its claim is gone, in one write matched on identity and
-  token. This is what a failure of the machine leaves. A kill before that write leaves the claim, which the recovery reads
-  like any other.
+That is the project's decision of 2026-11-15 ("Folder, one file per entry"), taken under the rule that concurrency is lock-free first.
+What the folder buys, step by step:
 
-A filling's first held step does what a kill anywhere in the states above left to do, for every claim whose process is gone:
+- **a put** writes one file, by writing it beside the folder and linking it into the entry's name. The link is what refuses a name the
+  queue already holds, so two puts of one name cannot both succeed, and it is one step: a kill before it writes nothing, a kill after it
+  writes the whole entry;
+- **a take** renames the entry's file to a dot-name first and reads what it moved, so the entry answered is the one that was there and never
+  one a person queued under that name a moment later;
+- **a move** rewrites that one entry's file with its new place, and no other entry is touched;
+- **a claim** is a file linked into `<queue>/claimed/<entry>.claim.json`, holding the attempt's token, the filling's process number and the
+  time. Exactly one filling can link it, so exactly one starts the entry, and what the claim holds is one small file to read;
+- **completing a claim** unlinks the entry and then the claim; **giving one back** unlinks the claim alone, leaving the entry where it
+  stands, so a failure of the machine costs one file and the queue's order is untouched;
+- **a set-aside** writes the record beside the runs and then completes the claim, in that order, so a kill between them leaves an entry in
+  both places and the next pass finishes the set-aside from the record rather than losing it.
 
-- the attempt's output file is there, so its unit started: the entry leaves the queue, and a start after a kill is never
-  started again;
-- it is not there, so the start never took effect: the claim is given back and the entry stands for the next pass.
+The places of the queue are keys of base-36 digits read as a fraction, so any two places can be parted and a put between them is one file
+rather than a renumbering of the queue behind it. A queue written whole gets evenly spaced keys, and two entries of one key are ordered by
+their names, which is one total order every reader sees.
 
-The same held step settles each set-aside record whose name the queue holds, comparing identities rather than names:
+What a person sees: `list-the-queue-of-runs --queue=<folder>` prints every entry in the order it starts, with its place, its identity, what
+it is, and which filling holds it. `cat` of one file no longer shows a queue, which is the price of the folder.
 
-- the queued entry has the record's identity **and a claim**: the set-aside was interrupted, so the step finishes it by
-  removing the entry, and the record stays;
-- the queued entry has the record's identity **and no claim**: a put-back was killed after writing the entry, so the record
-  is stale and goes;
-- the queued entry has another identity, or the record holds none: the record is another entry's only copy, so it stands and
-  the filling says so. A record written before identities existed holds none, so it is never deleted on a guess.
+A name inside the folder is the entry's name with every character unsafe in a file name escaped, so a name reaches nothing outside the
+folder and two names are two files. A name the folder cannot hold as a file name is refused by the put, naming the name.
 
-What a filling does with an entry it may not claim: it passes over it and asks about the entry behind it,
-so one entry another filling is starting never stops the queue behind it.
-Every one of these steps waits at most the queue's lock wait and refuses naming the holder, which is what the section below
-says of the lock. Nothing waits on a claim: a claim is taken or answered, never waited for.
+### What a kill leaves, and what the next command does with it
 
-Two edges this leaves, both written here so a reader who meets one knows what it is:
+Every step above is one atomic step on one file, so a kill leaves one of two states and every state has an answer:
 
-- A claim is recovered only when the process that holds it is gone. A filling that is alive and stuck inside one start keeps that
-  entry claimed for as long as it lives, and what ends it is the filling's own unit, whose `RuntimeMaxSec` bounds the command:
-  a claim is never taken from a filling that might still be starting its entry.
-- The evidence of a start is the output file its unit was given, which the manager opens when the unit starts. A filling killed in
-  the moment between asking for the unit and that file being opened leaves a claim whose evidence is not there yet, so the next
-  pass gives the claim back and one entry can be handed over twice. The moment is the manager's, a few milliseconds, and closing it
-  needs the unit's own name to be the latch that refuses a second start, which is the launcher's to give.
+- a file beside the one being written, whose name begins with a dot: no reader takes it for an entry, and the step it was making did not
+  happen;
+- a claim whose filling is gone: the next pass reads the attempt's own evidence (its unit's output file, named from the claim's token) and
+  either takes the entry out, because the start took effect, or gives the claim back and says so in a line. A claim a *live* filling holds
+  is never taken from it;
+- a record and a still-queued entry of one identity: the set-aside was interrupted, and the settlement removes the entry and keeps the
+  record, which is the entry's copy;
+- a record and a queued entry of the same identity with no claim: a put-back wrote the entry and was killed before removing the record, so
+  the record goes;
+- a record whose entry is queued under another identity, or whose name the queue holds again: the record is left and the pass says so,
+  because deleting it on the strength of the name is how a sweep once destroyed the only copy of an entry.
 
-### One writer at a time
+The records are settled before the claims, because an interrupted set-aside's claim is a dead one with no evidence, and a recovery that ran
+first would give it back and then read the state as a stale record.
 
-The lock is one file beside the queue, `<queue>.lock`,
-taken so that exactly one caller takes it:
-the taker writes a file beside the lock naming its process number and the time,
-and links that file into the lock's place whole,
-so no reader meets a half-written lock and a lock that exists always names its holder.
-The lock is given back when the block that took it ends, answered or thrown.
-The bounds, each read against the measured cost of a change to a 51-entry queue
-(mean 0.66 ms, 95th percentile 1.7 ms, worst 2.1 ms):
+A take is a person removing an entry: a kill in the middle of one leaves the entry in the dot-file it was renamed to, where a person finds
+it, and no command restores it.
 
-- a caller keeps trying for ten seconds, then refuses and names the holder, both its process and when it took the queue.
-  Ten seconds is about five thousand times the worst measured change, so a waiter that reaches it is waiting on a holder
-  that is not doing the work;
-- it tries again every ten milliseconds;
-- a lock file is broken when the process it names is gone, and never while that process is there, however old the lock is.
+### Changing a machine over from the one-file queue
 
-Age breaks nothing, because age says nothing about whether a holder is alive:
-a live holder whose change took longer than any age still holds the queue,
-and taking the lock from it lets it write the list it read over the change that replaced it.
-Instead the lock records the start time of the holder's process, read from `/proc/<pid>/stat`,
-and a lock whose process number now belongs to a different process is broken:
-the number was reused after its holder died, and its start time is not the recorded one.
-
-A holder that was killed leaves its lock file and no live process,
-and the next caller breaks it at once: a process that is gone cannot hold a queue.
-A lock file that names no process could only have been damaged, and is broken too.
-A lock that names a live process this caller cannot read the start time of is treated as live: it is refused and named,
-never taken, and a person removes it once they know its holder is not coming back.
-
-The lock file carries a random token as well.
-A write of the queue under the lock first reads the lock and refuses if the token is not this caller's,
-and a caller gives the lock back only while it still carries that token,
-so a caller whose lock was broken and taken cannot write over the taker's change, and cannot remove the taker's lock.
-A caller that cannot take the lock changes nothing and says why,
-which is what every command answers with a failing status.
-
-Why a lock and not one file per entry in a folder:
-the queue's shape is one JSON array whose order is explicit,
-which a coordinator reads and edits by eye and which every caller of the scratch scripts already holds,
-so a folder of entry files would need its order kept somewhere as well.
-With one file per entry the order has to live in the file name or in an extra field,
-a duplicate name can only be refused atomically if the file name is the name itself,
-and a move rewrites the entry's own file;
-each of those is one atomic step, so the folder can be made to work,
-but it costs a wrapper or a second file per entry,
-a one-shot carry-over of the live queue file whose kill window is new code of its own,
-and `cat queue.json` stops showing the queue.
-The lock costs a few milliseconds per change and a lock file that a killed holder leaves behind for the next caller to break.
-
-What a kill at each step leaves:
-
-- before the lock is taken: the queue is untouched and nothing changed;
-- while the lock is held, before the write: the queue is the version it was, and the lock file names a process that is gone,
-  so the next caller breaks it;
-- after the rename that writes the queue: the change is done, and the lock file is broken the same way;
-- a file written beside the queue and renamed or linked into place is never read as anything,
-  and a killed writer leaves at most one such file, which the next writer's own name never collides with.
-
-### What one held step covers
-
-The lock is the queue's, and a queue's decisions reach two files:
-the queue itself, and the record of one entry set aside (`<runs>/<name>-set-aside.json`).
-Each operation below reads, decides and writes inside one held step:
-
-- putting, taking or moving an entry: reads the queue, decides the duplicate, the position or which entries bear the name,
-  writes the queue;
-- claiming an entry, completing its claim, giving the claim back, and recovering the claims of fillings that are gone:
-  each reads the queue, matches on the entry's identity and its token, and writes the queue, as the states above say;
-- setting an entry aside: writes the record **first**, then removes the entry matched on identity and token, both in the step,
-  so a kill between them leaves the entry claimed with its record, which the filling's recovery finishes;
-- a filling pass's recovery and settlement: reads the queue **and** the records **inside** the step, decides on identities,
-  and finishes an interrupted set-aside, drops a stale record or gives back a dead claim.
-  A decision on a snapshot read before the step is how a second filling once deleted a record a first had just written, and
-  how a sweep once deleted the only copy of an entry whose name had been queued again;
-- putting a set-aside entry back: reads the record **and** the queue in the step, and writes the queue before it removes the record.
-  An entry the queue still holds is left alone and the command says so:
-  its record is from an interrupted set-aside, and deleting it there is how an entry in flight was lost.
-  The recovery finishes or drops that record inside its own held step;
-- putting the rate-limited reviews back: decides where each goes from the queue **as it is at the instant of the insert**,
-  after every leading `integration-pass-*` entry, so a pass queued at the head meanwhile stays ahead, and reads the runs
-  going again **inside** the step, so a review started while the candidates were read is not queued a second time.
-
-A queue file, and a set-aside record, in the shapes they had before this protocol are the shapes they still have,
-so nothing is carried over by hand:
-reading a queue of today's shape answers its entries as they are,
-a claimed entry gains its `queueId` in the write that claims it,
-and a record holding no identity is never matched to a queued entry, so it is never deleted on a guess.
-The only new name in the queue's folder is the lock's own, which no change leaves behind.
-If a queue ever seems stuck, `<queue>.lock` names the process and the time it took the queue;
-the next command breaks it when that process is gone, and removing it by hand is the remedy for a live but wedged holder.
+`convert-a-queue-file-into-a-queue-folder --queue=<folder> --from=<file>` reads the array, refuses an entry no shape of this package reads
+(naming it), writes every entry into the folder, and only then renames the array to `<file>.converted`. A kill at any instruction leaves
+either the array, which running the command again passes over entry by entry, or the folder. It never writes over an entry the folder
+already holds with other fields.
 
 ### The entries a queue holds
 

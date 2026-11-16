@@ -1,6 +1,6 @@
 /**
  One queue command's own change, run as a program: it puts or takes an entry the way `put-an-entry-into-a-queue` and
- `take-an-entry-out-of-a-queue` do, so a race control can run two of them as two real processes against one queue file.
+ `take-an-entry-out-of-a-queue` do, so a race control can run two of them as two real processes against one queue folder.
 
  It prints what it did, and answers a refusal with a failing status and the reason, which is what the commands do.
 
@@ -14,7 +14,7 @@ import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
   putAQueueEntryIn,
   takeAQueueEntryOut,
-} from './queue-of-runs.ts';
+} from './putting-and-taking-entries-of-a-queue.ts';
 
 /**
  The words the program was given.
@@ -24,7 +24,7 @@ const words = argv.slice(2,);
 /**
  What to do, the queue, the entry's name and, for a put, the position.
  */
-const [what, queueFile, name, positionText,] = words;
+const [what, queueFolder, name, positionText,] = words;
 
 /**
  A command line the stand-in cannot use.
@@ -39,7 +39,7 @@ class StandInQueueWriterError extends Error {
 if (what === undefined) {
   throw new StandInQueueWriterError('usage: <put|take> <queue-file> <name> [position]',);
 }
-if (queueFile === undefined) {
+if (queueFolder === undefined) {
   throw new StandInQueueWriterError('usage: <put|take> <queue-file> <name> [position]',);
 }
 if (name === undefined) {
@@ -52,7 +52,7 @@ try {
      What queueing the entry answered.
      */
     const queued = await putAQueueEntryIn({
-      queueFile,
+      queueFolder,
       entry: { name, },
       position: Number(positionText ?? '0',),
     },);
@@ -71,7 +71,7 @@ try {
      What taking the entry out answered.
      */
     const taken = await takeAQueueEntryOut({
-      queueFile,
+      queueFolder,
       name,
     },);
     /**

@@ -70,7 +70,7 @@ export type StalledFillingLook = {
   /**
    The queue's path, which the notice names.
    */
-  readonly queueFile: string;
+  readonly queueFolder: string;
 
   /**
    Why the last pass stopped with places free, when it did.
@@ -107,7 +107,7 @@ export function stalledFillingNoticeOf({ look, }: { readonly look: StalledFillin
   const lastStarted = new Date(look.lastStartedAt,).toISOString();
   return {
     title: 'Pi runs are not being started',
-    body: `${String(look.entriesStanding,)} entries stand and ${String(look.placesFree,)} places are free, and nothing started since ${lastStarted}. Queue: ${look.queueFile}.${(look.stoppedBecause === undefined) ? '' : ` The last pass stopped because ${look.stoppedBecause}.`}`,
+    body: `${String(look.entriesStanding,)} entries stand and ${String(look.placesFree,)} places are free, and nothing started since ${lastStarted}. Queue: ${look.queueFolder}.${(look.stoppedBecause === undefined) ? '' : ` The last pass stopped because ${look.stoppedBecause}.`}`,
   };
 }
 

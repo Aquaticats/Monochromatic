@@ -1,16 +1,14 @@
 /**
- Where an entry whose start failed is taken out of the way: one JSON file per entry beside the runs, holding the entry itself, the
- reason its start failed, and when, so a person and a session both find it where every other record of a run is.
+ Where an entry whose start failed is taken out of the way: one JSON file per entry beside the runs, holding the entry itself, the reason
+ its start failed, and when, so a person and a session both find it where every other record of a run is.
 
- The record is written before the entry is taken out of the queue, both inside one held step of the queue's lock (`withTheQueueLock`),
- so no other command can see the record of an entry that is still queued unless a kill left it there. A kill between the two leaves
- the entry in both places, which loses nothing: the filling reads a record whose name the queue still holds as an unfinished
- set-aside, drops the record inside the same held step, and starts the entry again. The other order would leave a kill with the entry
- out of the queue and nowhere else.
+ The record is written before the entry leaves the queue, and each of the two is one atomic step on one file: the record is a file renamed
+ over its name, and the entry's own file is unlinked after it. A kill between the two leaves the entry in both places, which loses nothing:
+ the next pass's settlement reads a record whose identity the queue still holds under that name as an unfinished set-aside and finishes it.
+ The other order would leave a kill with the entry out of the queue and nowhere else.
 
- Two commands must therefore never touch a record outside that step: a put-back that finds the entry still queued leaves the record
- alone (removing it there, as it did before the second review, is how an entry in flight could be lost), and the filling's sweep
- makes its decision on the queue as it is inside the step, never on a snapshot.
+ A put-back that finds the entry still queued leaves the record alone, and the settlement decides it, because removing the record there is
+ how an entry in flight was lost.
 
  @module
  */
@@ -24,15 +22,14 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { completeTheClaim, } from './claiming-an-entry-of-a-queue.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import {
-  entryIsTheAttempt,
   isQueueRecord,
-  type QueueClaim,
+  QUEUE_ID_FIELD,
   type QueueRecord,
-  withTheQueueLock,
-  withoutTheClaim,
 } from './queue-of-runs.ts';
+import { readQueueOfRuns, } from './reading-and-writing-the-folder-a-queue-is.ts';
 
 /**
  The code the operating system gives a path that is not there.
@@ -426,17 +423,17 @@ export async function setAsideRecordIsThere({
 /**
  Sets one entry aside: writes its record, then completes the claim that took it out of the queue.
 
- Both happen inside one held step of the queue's lock, the record first: a kill between the two leaves the entry claimed with its
- record, and the next pass's settlement finishes the set-aside by taking the entry out. The entry is taken out by its identity and
- the claim's token, so an entry queued under the same name meanwhile, while this start was in flight, is left where it is.
+ The record is one step and the queue's copy leaving is another, in that order, so a kill between them leaves an entry in both places and
+ the next pass's settlement finishes the set-aside rather than losing it. The entry is taken out by its identity, so an entry queued under
+ the same name while this start was in flight is left where it is.
 
- @param queueFile - the queue's path
+ @param queueFolder - the queue's folder
 
  @param runsFolder - folder the driver writes its runs into
 
  @param record - the entry, as the queue held it
 
- @param claim - the claim the filling holds on it, and the entry's identity
+ @param queueId - the identity the claim was taken on
 
  @param reason - why its start failed
 
@@ -444,99 +441,67 @@ export async function setAsideRecordIsThere({
 
  @param now - the reading the record's time is written from
 
- @param waitMilliseconds - how long to keep asking for the queue's lock before refusing
-
  @returns the record's path, and how many entries the queue holds afterwards
 
- @throws SetAsideRecordError when the record cannot be written, which leaves the entry queued
+ @throws SetAsideRecordError when the record cannot be written, which leaves the entry and its claim where they are
 
  @example
  ```ts
- const { file, left } = await setAsideAnEntryOfAQueue({ queueFile: '/runs/q.json', runsFolder: '/runs', record, claim, reason: 'x', now: Date.now });
+ const { file, left } = await setAsideAnEntryOfAQueue({ queueFolder: '/runs/q', runsFolder: '/runs', record, queueId, reason: 'x', now: Date.now });
  ```
  */
 export async function setAsideAnEntryOfAQueue({
-  queueFile,
+  queueFolder,
   runsFolder,
   record,
-  claim,
+  queueId,
   reason,
   keptOutputAt,
   now,
-  waitMilliseconds,
 }: {
-  readonly queueFile: string;
+  readonly queueFolder: string;
   readonly runsFolder: string;
   readonly record: QueueRecord;
-  readonly claim: {
-    readonly queueId: string;
-    readonly claim: QueueClaim;
-  };
+  readonly queueId: string;
   readonly reason: string;
   readonly keptOutputAt?: string;
   readonly now: () => number;
-  readonly waitMilliseconds?: number;
 },): Promise<{
   readonly file: string;
   readonly left: number;
 }> {
-  return await withTheQueueLock({
-    queueFile,
-    ...(waitMilliseconds === undefined ? {} : { waitMilliseconds, }),
-    work: async function setItAside({
-      entries,
-      write,
-    },) {
-      if (((typeof claim) !== 'object') || (claim === null)
-        || ((typeof claim.queueId) !== 'string')
-        || (claim.queueId === '')) {
-        // Only an entry this filling claimed can be set aside: the queue's copy goes only when it is that very attempt, so a caller
-        // with no claim would write a record and leave the entry where it stands, which loses nothing but decides nothing.
-        throw new SetAsideRecordError(
-          `${record.name} is not set aside: only an entry a filling has claimed can be, because the record is that attempt's copy and `
-            + 'the queue holds one entry of that name, which is taken out by the identity and the token of the claim that took it. Nothing changed.',
-        );
-      }
-      // The record is written first, inside this step: a kill before the queue write leaves the entry claimed with its record, which
-      // the next pass's settlement finishes, so the entry is set aside and nothing is lost.
-      /**
-       The entry as the record holds it: whole, with its identity, and without the claim, which belongs to the queue's copy.
-       */
-      const setAside = withoutTheClaim({
-        record: {
-          ...record,
-          queueId: claim.queueId,
-        },
-      },);
-      /**
-       The record's path.
-       */
-      const file = await writeSetAsideRecord({
-        runsFolder,
-        record: {
-          name: record.name,
-          entry: setAside,
-          reason,
-          setAsideAt: new Date(now(),).toISOString(),
-          ...((keptOutputAt === undefined) ? {} : { keptOutputAt, }),
-        },
-      },);
-      /**
-       The queue without this attempt, matched on the entry's identity and the claim's token.
-       */
-      const kept = entries.filter(function isNoLongerTheAttempt(entry,) {
-        return !entryIsTheAttempt({
-          record: entry,
-          queueId: claim.queueId,
-          token: claim.claim
-            .token,
-        },);
-      },);
-      await write(kept,);
-      return {
-        file,
-        left: kept.length,
-      };
+  if (((typeof queueId) !== 'string') || (queueId === '')) {
+    // Only an entry a filling claimed has a record that says which entry of that name was set aside; without its identity the record
+    // could not be told from a namesake's, and the settlement would refuse to act on it.
+    throw new SetAsideRecordError(
+      `${record.name} is not set aside: only an entry a filling has claimed has the identity its record must carry, and the queue's copy `
+        + 'is taken out by that identity. Nothing changed.',
+    );
+  }
+  // The record first: a kill before the entry leaves the queue leaves the entry queued with its record, which the settlement finishes.
+  /**
+   The record's path.
+   */
+  const file = await writeSetAsideRecord({
+    runsFolder,
+    record: {
+      name: record.name,
+      entry: {
+        ...record,
+        [QUEUE_ID_FIELD]: queueId,
+      },
+      reason,
+      setAsideAt: new Date(now(),).toISOString(),
+      ...((keptOutputAt === undefined) ? {} : { keptOutputAt, }),
     },
   },);
+  await completeTheClaim({
+    queueFolder,
+    name: record.name,
+    queueId,
+  },);
+  return {
+    file,
+    left: (await readQueueOfRuns({ queueFolder, },)).length,
+  };
 }

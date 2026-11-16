@@ -134,3 +134,11 @@ run = "node src/put-a-set-aside-entry-back-into-a-queue.ts"
 [tasks."put-ended-reviews-back-at-the-head-of-a-queue"]
 description = "Put every review run that the reviewer's provider ended on its rate limit back at the head of the queue, to go on from its session"
 run = "node src/put-ended-reviews-back-at-the-head-of-a-queue.ts"
+
+[tasks."list-the-queue-of-runs"]
+description = "Print every entry of a queue in the order it starts, with its place, its identity, what it is and which filling holds it"
+run = "node src/list-the-queue-of-runs.ts"
+
+[tasks."convert-a-queue-file-into-a-queue-folder"]
+description = "Carry a queue kept as one JSON array into the queue folder this package keeps now, one file per entry, and rename the array aside when every entry is in the folder"
+run = "node src/convert-a-queue-file-into-a-queue-folder.ts"

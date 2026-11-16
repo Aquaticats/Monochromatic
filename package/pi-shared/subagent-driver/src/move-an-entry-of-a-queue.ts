@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- `move-an-entry-of-a-queue`: moves the entry of one name to a position counted from the queue's head, reading the queue and writing
- it back through a rename, so the filling never reads a half-written file.
+ `move-an-entry-of-a-queue`: moves the entry of one name to a position counted from the queue's head, by writing that one entry's file
+ with the place it goes to, so no other entry is rewritten.
 
  It says so and changes nothing when no entry has that name.
 
@@ -15,19 +15,17 @@ import {
   type QueueOptionWords,
   nameIn,
   positionIn,
-  queueFileIn,
+  queueFolderIn,
   queueRefusalOf,
 } from './parse-queue-of-runs-options.ts';
-import {
-  moveAQueueEntryTo,
-  readQueueOfRuns,
-} from './queue-of-runs.ts';
+import { moveAQueueEntryTo, } from './putting-and-taking-entries-of-a-queue.ts';
+import { readQueueOfRuns, } from './reading-and-writing-the-folder-a-queue-is.ts';
 import { usageWasAsked, } from './usage-of-a-command.ts';
 
 /**
  The command's command line, for the error message.
  */
-const USAGE = 'move-an-entry-of-a-queue --queue=<file> --name=<name> --position=<n>';
+const USAGE = 'move-an-entry-of-a-queue --queue=<folder> --name=<name> --position=<n>';
 
 /**
  A command line the command cannot use.
@@ -97,7 +95,7 @@ try {
   /**
    The queue the entry is moved in.
    */
-  const queueFile = queueFileIn({
+  const queueFolder = queueFolderIn({
     commandLine,
     words,
   },);
@@ -112,7 +110,7 @@ try {
    Where it was and where it went.
    */
   const moved = await moveAQueueEntryTo({
-    queueFile,
+    queueFolder,
     name,
     position: positionIn({
       commandLine,
@@ -121,7 +119,7 @@ try {
   },);
   process.stdout
     .write(((moved.from === undefined) || (moved.to === undefined))
-      ? `no entry named ${name} is in the queue of ${String((await readQueueOfRuns({ queueFile, },)).length,)}; nothing changed\n`
+      ? `no entry named ${name} is in the queue of ${String((await readQueueOfRuns({ queueFolder, },)).length,)}; nothing changed\n`
       : `moved ${name} from position ${String(moved.from,)} to ${String(moved.to,)} of ${String(moved.count,)}\n`,);
 }
 catch (error) {

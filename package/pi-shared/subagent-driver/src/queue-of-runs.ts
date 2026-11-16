@@ -1,73 +1,90 @@
 /**
- The queue of Pi runs waiting for a free place: one JSON array of entries, in the order they are to start, and the four moves a
- coordinator makes on it.
+ One entry of the queue of Pi runs waiting for a free place, and the names a queue folder gives it: the folder is one file per entry, named
+ after the entry, and a claim on one entry is one file beside the entries, named after the entry and holding the attempt's own token.
 
- The file is read and written whole, and every write goes to a file beside the queue and is renamed over it, so a reader never
- meets half a queue. Every change reads the queue, changes it and writes it while the queue's lock is held (`queue-lock.ts`), so two
- writers can never both read before either writes and drop one another's entry: that lost update was reproduced with two processes
- against the queue of 2026-11-14, 47 rounds of 200 losing an entry while both commands exited 0. The lock is one file beside the
- queue, taken by linking a file that names its holder into the lock's place, and it is released whatever the change answered.
+ A name is not an identity. An entry's name is refused while the folder holds an entry of that name, which is what makes two runs of one
+ name impossible; but a name may be queued again once its earlier entry has gone, so the entry a filling starts, sets aside or gives back
+ is told apart from a namesake by the `queueId` its own write minted.
+
+ The fields a queue's bookkeeping writes into an entry are named here, and no entry shape reads them: `order`, which is the entry's place
+ in the queue, and `queueId`, which is its identity.
 
  @module
  */
 
 import { randomUUID, } from 'node:crypto';
-import {
-  acquireTheQueueLock,
-  assertTheLockIsStillOurs,
-} from './queue-lock.ts';
-import {
-  type QueueRecord,
-  QueueFileError,
-  readQueueOfRuns,
-  writeTheQueueWhole,
-} from './reading-and-writing-the-queue-file.ts';
-
-export {
-  type QueueRecord,
-  QueueFileError,
-  isQueueRecord,
-  readQueueOfRuns,
-  writtenQueueOfRuns,
-} from './reading-and-writing-the-queue-file.ts';
+import { join, } from 'node:path';
+import type { NOT_AN_ORDER} from './order-of-an-entry-in-a-queue.ts';
+import { anOrderIn } from './order-of-an-entry-in-a-queue.ts';
 
 /**
- The field holding an entry's own identity, which the write that claims the entry mints.
+ One entry of a queue, as its file holds it: a JSON object named by `name`.
+
+ The fields a run or a review needs are read by `entry-of-a-queue.ts`, which refuses an entry it cannot take rather than dropping a
+ field; this module only knows that every entry is an object with a name.
+ */
+export type QueueRecord = Readonly<Record<string, unknown> & { readonly name: string }>;
+
+/**
+ A queue folder, or one entry in it, that cannot be read as a queue.
+ */
+export class QueueFileError extends Error {
+  /**
+   The name printed with the message.
+   */
+  override readonly name = 'QueueFileError';
+}
+
+/**
+ The field holding an entry's place in the queue, which the put that writes the entry decides and which no entry shape reads.
+ */
+export const ORDER_FIELD = 'order';
+
+/**
+ The field holding an entry's own identity, which the write that puts the entry into a queue mints.
  */
 export const QUEUE_ID_FIELD = 'queueId';
 
 /**
- The field holding the claim one filling has on an entry, which no other filling starts it under.
- */
-export const QUEUE_CLAIM_FIELD = 'queueClaim';
-
-/**
- No identity yet, as a symbol so no identity can be mistaken for one: an entry is written by no claim until a filling takes one.
- */
-export const NO_QUEUE_ID: unique symbol = Symbol('this entry has been claimed by no write',);
-
-/**
- No claim on that entry, as a symbol so no claim can be mistaken for one.
- */
-export const NO_CLAIM_ON_AN_ENTRY: unique symbol = Symbol('this entry carries the claim of no filling',);
-
-/**
  The fields a queue's own bookkeeping writes into an entry, and which no entry shape reads.
-
- A name is not an identity: a name may be queued again once its earlier entry has gone, so the state of one entry is known by
- its identity and by the token of the attempt holding it.
  */
 export const QUEUE_BOOKKEEPING_FIELDS: readonly string[] = [
+  ORDER_FIELD,
   QUEUE_ID_FIELD,
-  QUEUE_CLAIM_FIELD,
 ];
+
+/**
+ The folder inside a queue folder that holds one claim for each entry a filling is starting.
+ */
+export const CLAIMED_FOLDER = 'claimed';
+
+/**
+ The ending of the file one entry is written to, and of the file one claim is written to.
+ */
+const ENTRY_FILE_ENDING = '.json';
+
+/**
+ The ending of the file one claim is written to, after the entry's own name.
+ */
+const CLAIM_FILE_ENDING = '.claim.json';
+
+/**
+ The start of the name of a file written beside another and renamed or linked into place, which is never read as anything, and which
+ every reader of a queue folder therefore skips.
+ */
+export const BEING_WRITTEN_START = '.being-written-';
+
+/**
+ The start of the name an entry is renamed to while a command takes it out of the queue, so the entry a reader asked for is the one the
+ rename moved and not whatever was put under that name while the read ran.
+ */
+export const BEING_TAKEN_START = '.being-taken-';
 
 /**
  The claim one filling holds on one entry while it starts it.
 
- The token names the start attempt, and the batch list of that attempt, the unit it starts in and that unit's output file are
- all named from it (`namesOfAnAttemptIn` in `claims-on-the-entries-of-a-queue.ts`), so a claim names its own evidence without
- naming a path.
+ The token names the start attempt, and the batch list of that attempt, the unit it starts in and the unit's output file are all named from
+ it (`namesOfAnAttemptIn` in `claiming-an-entry-of-a-queue.ts`), so a claim names its own evidence without naming a path.
  */
 export type QueueClaim = {
   /**
@@ -87,200 +104,48 @@ export type QueueClaim = {
 };
 
 /**
- Reads the value of one field of an entry, of any shape.
-
- @param record - the entry
-
- @param field - the field's name
-
- @returns what it holds, or nothing when it names the field not at all
-
- @example
- ```ts
- const written = fieldOf({ record: { name: 'a', queueId: 'q1' }, field: 'queueId' });
- ```
+ The claim one filling holds on one entry, as the claim's file holds it: which entry it is for, which entry of that name it is, and the
+ attempt's own facts.
  */
-function fieldOf({
-  record,
-  field,
-}: {
-  readonly record: QueueRecord;
-  readonly field: string;
-},): unknown {
-  return record[field];
-}
-
-/**
- Reads one entry's own identity.
-
- @param record - the entry
-
- @returns the identity the queue wrote, or nothing when the entry has none yet
-
- @example
- ```ts
- const id = queueIdOf({ record: { name: 'a', queueId: 'q1' } });
- ```
- */
-export function queueIdOf({ record, }: { readonly record: QueueRecord },): string | typeof NO_QUEUE_ID {
+export type AClaimOnAnEntry = {
   /**
-   What the identity field holds.
+   The entry's name.
    */
-  const written = fieldOf({
-    record,
-    field: QUEUE_ID_FIELD,
-  },);
-  return ((typeof written) === 'string') && (written !== '') ? written : NO_QUEUE_ID;
-}
+  readonly name: string;
 
-/**
- Reads the claim a filling holds on one entry.
-
- @param record - the entry
-
- @returns the claim, or nothing when no filling holds one or the field holds no claim
-
- @example
- ```ts
- const claim = claimOnAnEntry({ record: { name: 'a', queueClaim: { token: 't', pid: 1, at: '2026-11-15T00:00:00.000Z' } } });
- ```
- */
-export function claimOnAnEntry({ record, }: { readonly record: QueueRecord },): QueueClaim | typeof NO_CLAIM_ON_AN_ENTRY {
   /**
-   What the claim field holds.
+   The identity of the entry the claim was taken on, which tells it from a namesake queued later.
    */
-  const written = fieldOf({
-    record,
-    field: QUEUE_CLAIM_FIELD,
-  },);
-  if (((typeof written) !== 'object') || (written === null)) {
-    return NO_CLAIM_ON_AN_ENTRY;
-  }
-  /**
-   What the field says a claim is.
-   */
-  const token: unknown = Reflect.get(
-    written,
-    'token',
-  );
-  /**
-   The process number it names.
-   */
-  const pid: unknown = Reflect.get(
-    written,
-    'pid',
-  );
-  /**
-   The time it names.
-   */
-  const at: unknown = Reflect.get(
-    written,
-    'at',
-  );
-  if (
-    ((typeof token) !== 'string')
-      || (token === '')
-      || ((typeof pid) !== 'number')
-      || ((typeof at) !== 'string')
-  ) {
-    return NO_CLAIM_ON_AN_ENTRY;
-  }
-  return {
-    token,
-    pid,
-    at,
-  };
-}
-
-/**
- Reads one entry with the claim a filling holds on it, and nothing else changed.
-
- @param record - the entry
-
- @param claim - the claim to write on it
-
- @returns the entry holding that claim
-
- @example
- ```ts
- const claimed = withTheClaim({ record: { name: 'a' }, claim });
- ```
- */
-export function withTheClaim({
-  record,
-  claim,
-}: {
-  readonly record: QueueRecord;
-  readonly claim: QueueClaim;
-},): QueueRecord {
-  return {
-    ...record,
-    [QUEUE_CLAIM_FIELD]: claim,
-  };
-}
-
-/**
- Reads one entry with its claim gone, which is the entry a give-back leaves and the entry a set-aside record holds.
-
- @param record - the entry
-
- @returns the entry without a claim
-
- @example
- ```ts
- const queued = withoutTheClaim({ record: { name: 'a', queueClaim: claim } });
- ```
- */
-export function withoutTheClaim({ record, }: { readonly record: QueueRecord },): QueueRecord {
-  /**
-   The entry's fields without the claim's.
-   */
-  const {
-    [QUEUE_CLAIM_FIELD]: _claim,
-    ...rest
-  } = record;
-  return rest;
-}
-
-/**
- Says whether one entry is the attempt named: its own identity and that attempt's token, both.
-
- A name is not an identity, so a removal or a give-back matched on a name alone would act on an entry queued under that name
- after the one read, which is how a completed start once deleted replacement user data.
-
- @param record - the entry
-
- @param queueId - the identity of the entry the attempt was claimed on
-
- @param token - the token naming the attempt
-
- @returns whether this entry is that attempt
-
- @example
- ```ts
- const mine = entryIsTheAttempt({ record, queueId: 'q1', token: 't1' });
- ```
- */
-export function entryIsTheAttempt({
-  record,
-  queueId,
-  token,
-}: {
-  readonly record: QueueRecord;
   readonly queueId: string;
-  readonly token: string;
-},): boolean {
+
   /**
-   The claim the entry carries, when a filling holds one.
+   The attempt the claim names.
    */
-  const claim = claimOnAnEntry({ record, },);
-  return (queueIdOf({ record, },) === queueId)
-    && (claim !== NO_CLAIM_ON_AN_ENTRY)
-    && (claim.token === token);
+  readonly claim: QueueClaim;
+};
+
+/**
+ Says whether a value is one entry of a queue: a JSON object named by a non-empty `name`.
+
+ @param value - the value, of any shape
+
+ @returns whether it is one entry of a queue
+
+ @example
+ ```ts
+ const isOne = isQueueRecord({ name: 'a' });
+ ```
+ */
+export function isQueueRecord(value: unknown,): value is QueueRecord {
+  return ((typeof value) === 'object')
+    && (value !== null)
+    && ('name' in value)
+    && ((typeof value.name) === 'string')
+    && (value.name !== '');
 }
 
 /**
- Mints an identity for one entry, which the write that claims it writes.
+ Mints an identity for one entry.
 
  @returns a fresh identity
 
@@ -294,449 +159,143 @@ export function aFreshQueueId(): string {
 }
 
 /**
- One change to make to a queue while it is held: the entries after the change, and what the caller is answered.
+ No identity, as a symbol so no identity can be mistaken for one: an entry is written by no put until it is queued.
  */
-export type ChangeOfAQueue<Answer> = (entries: readonly QueueRecord[]) => {
-  /**
-   The entries the queue holds after the change.
-   */
-  readonly entries: readonly QueueRecord[];
-
-  /**
-   What the caller is answered.
-   */
-  readonly answer: Answer;
-};
+export const NO_QUEUE_ID: unique symbol = Symbol('no put has written this entry into a queue yet',);
 
 /**
- The queue while one caller holds it: the entries it holds at that moment, and the one write that replaces them.
+ Reads one entry's own identity.
 
- A caller that decides anything about an entry's set-aside record must make that decision and write both files here, because the
- record and the queue are two files and a decision on one of them made outside this step is a decision on a state another writer may
- have changed: that is how a put-back deleted the record of a set-aside a filling was still committing, and how a second filling's
- sweep deleted a record a first had just written.
- */
-export type HeldQueueOfRuns = {
-  /**
-   The entries the queue holds, read under the lock.
-   */
-  readonly entries: readonly QueueRecord[];
+ @param record - the entry
 
-  /**
-   Replaces the queue's entries with these, through a file beside the queue that is renamed over it.
-   */
-  readonly write: (entries: readonly QueueRecord[]) => Promise<void>;
-};
-
-/**
- Holds a queue's lock while one caller reads it, decides on it and writes it, and writes any set-aside record that decision governs.
-
- Every decision this package acts on is made here: which entry leaves the queue when it is set aside, which record goes when its
- entry is put back or when a killed set-aside is swept up, and where a put-back review goes. The lock is the one file beside the
- queue (`queue-lock.ts`), and it is given back when this block ends, answered or thrown.
-
- @param queueFile - the queue's path
-
- @param work - the decision and its writes, asked for the entries the queue holds under the lock
-
- @param now - the clock the lock's wait and age are read from
-
- @param wait - the pause between two attempts to take the lock
-
- @param waitMilliseconds - how long to keep asking for the lock before refusing
-
- @returns what the work answered
-
- @throws QueueFileError when the queue cannot be read or written, which leaves it as it was
-
- @throws QueueLockHeldError when another writer holds the queue for the lock's whole wait
+ @returns the identity the queue wrote, or that no write has put the entry into a queue
 
  @example
  ```ts
- const answer = await withTheQueueLock({ queueFile: '/runs/queue.json', work: async ({ entries, write }) => { await write(entries); return entries.length; } });
+ const id = queueIdOf({ record: { name: 'a', queueId: 'q1' } });
  ```
  */
-export async function withTheQueueLock<Answer>({
-  queueFile,
-  work,
-  now,
-  wait,
-  waitMilliseconds,
-}: {
-  readonly queueFile: string;
-  readonly work: (held: HeldQueueOfRuns) => Promise<Answer>;
-  readonly now?: () => number;
-  readonly wait?: (milliseconds: number) => Promise<unknown>;
-  readonly waitMilliseconds?: number;
-},): Promise<Answer> {
+export function queueIdOf({ record, }: { readonly record: QueueRecord },): string | typeof NO_QUEUE_ID {
   /**
-   The queue's lock, given back when this block ends whether the work answered or threw.
+   What the identity field holds.
    */
-  await using lock = await acquireTheQueueLock({
-    queueFile,
-    ...(now === undefined ? {} : { now, }),
-    ...(wait === undefined ? {} : { wait, }),
-    ...(waitMilliseconds === undefined ? {} : { waitMilliseconds, }),
-  },);
-  /**
-   The queue as it stands under the lock.
-   */
-  const entries = await readQueueOfRuns({ queueFile, },);
-  return await work({
-    entries,
-    async write(theQueue,) {
-      // The token is checked before every write: a lock that was broken and taken by another caller while this one held the
-      // queue would otherwise let this caller write the list it read over the taker's change. See `queue-lock.ts`.
-      await assertTheLockIsStillOurs({
-        lockFile: lock.lockFile,
-        token: lock.token,
-        queueFile,
-      },);
-      await writeTheQueueWhole({
-        queueFile,
-        entries: theQueue,
-      },);
-    },
-  },);
+  const written: unknown = record[QUEUE_ID_FIELD];
+  return ((typeof written) === 'string') && (written !== '') ? written : NO_QUEUE_ID;
 }
 
 /**
- Changes a queue while no other writer can: the read, the change and the write happen under the queue's lock.
+ Reads one entry's place in the queue.
 
- The change is asked for the entries the queue holds at that moment, so no entry another session queued meanwhile is written away.
- A change that answers the very array it was given writes nothing.
+ @param record - the entry
 
- @param queueFile - the queue's path
-
- @param change - the change to make, asked for the entries the queue holds under the lock
-
- @param now - the clock the lock's wait and age are read from
-
- @param wait - the pause between two attempts to take the lock
-
- @param waitMilliseconds - how long to keep asking for the lock before refusing
-
- @returns what the change answered
-
- @throws QueueFileError when the queue cannot be read or written, which leaves it as it was
-
- @throws QueueLockHeldError when another writer holds the queue for the lock's whole wait
+ @returns the order key, or that the entry carries none this module wrote
 
  @example
  ```ts
- const answer = await changeTheQueueOfRuns({ queueFile: '/runs/queue.json', change: (entries) => ({ entries, answer: entries.length }) });
+ const order = orderOf({ record: { name: 'a', order: 'i' } });
  ```
  */
-export async function changeTheQueueOfRuns<Answer>({
-  queueFile,
-  change,
-  now,
-  wait,
-  waitMilliseconds,
-}: {
-  readonly queueFile: string;
-  readonly change: ChangeOfAQueue<Answer>;
-  readonly now?: () => number;
-  readonly wait?: (milliseconds: number) => Promise<unknown>;
-  readonly waitMilliseconds?: number;
-},): Promise<Answer> {
-  return await withTheQueueLock({
-    queueFile,
-    ...(now === undefined ? {} : { now, }),
-    ...(wait === undefined ? {} : { wait, }),
-    ...(waitMilliseconds === undefined ? {} : { waitMilliseconds, }),
-    work: async function changeIt({
-      entries,
-      write,
-    },) {
-      /**
-       What the change made of the queue.
-       */
-      const changed = await Promise.resolve(change(entries,),);
-      if (changed.entries !== entries) {
-        await write(changed.entries,);
-      }
-      return changed.answer;
-    },
-  },);
+export function orderOf({ record, }: { readonly record: QueueRecord },): string | typeof NOT_AN_ORDER {
+  return anOrderIn({ order: record[ORDER_FIELD], },);
 }
 
 /**
- Writes a queue file whole, holding the queue's lock, so no change of another writer is written away.
+ Reads the name a file gives one entry, which is the entry's name written so that it is one file's name and no other entry's.
 
- @param queueFile - the queue's path
-
- @param entries - the entries, in the order they are to start
-
- @param now - the clock the lock's wait reads
-
- @param wait - the pause between attempts to take the lock
-
- @param waitMilliseconds - how long to keep asking for the lock before refusing
-
- @throws QueueFileError when the file cannot be written, which leaves the queue as it was
-
- @throws QueueLockHeldError when another writer holds the queue for the lock's whole wait
-
- @example
- ```ts
- await writeQueueOfRuns({ queueFile: '/runs/queue.json', entries: [] });
- ```
- */
-export async function writeQueueOfRuns({
-  queueFile,
-  entries,
-  now,
-  wait,
-  waitMilliseconds,
-}: {
-  readonly queueFile: string;
-  readonly entries: readonly QueueRecord[];
-  readonly now?: () => number;
-  readonly wait?: (milliseconds: number) => Promise<unknown>;
-  readonly waitMilliseconds?: number;
-},): Promise<void> {
-  // A whole-file write reads nothing, so it makes a queue file that is not there yet, which is how every caller's queue starts.
-  /**
-   The queue's lock, given back when this block ends whether the write answered or threw.
-   */
-  await using lock = await acquireTheQueueLock({
-    queueFile,
-    ...(now === undefined ? {} : { now, }),
-    ...(wait === undefined ? {} : { wait, }),
-    ...(waitMilliseconds === undefined ? {} : { waitMilliseconds, }),
-  },);
-  await assertTheLockIsStillOurs({
-    lockFile: lock.lockFile,
-    token: lock.token,
-    queueFile,
-  },);
-  await writeTheQueueWhole({
-    queueFile,
-    entries,
-  },);
-}
-
-/**
- Takes every entry of one name out of the queue, reading the queue again at the moment of writing.
-
- @param queueFile - the queue's path
+ A name is spelled with percent escapes for every character that is not safe in a file name, which keeps two names two file names and
+ keeps a name from reaching outside the folder. The name itself is inside the file, so nothing has to be decoded to read an entry.
 
  @param name - the entry's name
 
- @returns the entries taken out, and the entries the queue holds afterwards
-
- @throws QueueFileError when the queue cannot be read or written
+ @returns the file's name, with its ending
 
  @example
  ```ts
- const { taken, entries } = await takeAQueueEntryOut({ queueFile: '/runs/queue.json', name: 'a' });
+ const file = anEntryFileName({ name: 'review-a' });
  ```
  */
-export async function takeAQueueEntryOut({
-  queueFile,
-  name,
-}: {
-  readonly queueFile: string;
-  readonly name: string;
-},): Promise<{
-  readonly taken: readonly QueueRecord[];
-  readonly entries: readonly QueueRecord[];
-}> {
-  return await changeTheQueueOfRuns({
-    queueFile,
-    change: function takeThemOut(queue,) {
-      /**
-       The entries of that name.
-       */
-      const taken = queue.filter(function isNamed(entry,) {
-        return entry.name === name;
-      },);
-      if (taken.length === 0) {
-        return {
-          entries: queue,
-          answer: {
-            taken,
-            entries: queue,
-          },
-        };
-      }
-      /**
-       The queue without them.
-       */
-      const kept = queue.filter(function isNotNamed(entry,) {
-        return entry.name !== name;
-      },);
-      return {
-        entries: kept,
-        answer: {
-          taken,
-          entries: kept,
-        },
-      };
-    },
-  },);
+export function anEntryFileName({ name, }: { readonly name: string },): string {
+  /**
+   The name as a file name, where only the characters a file name may carry unescaped stay as they are.
+   */
+  const escaped = encodeURIComponent(name,);
+  // A name that begins with a dot would be a hidden file, and `..` would escape the folder, so the first dot is escaped.
+  return `${escaped.startsWith('.' as string,) ? `%2E${escaped.slice(1,)}` : escaped}${ENTRY_FILE_ENDING}`;
 }
 
 /**
- Puts one entry into the queue at a position counted from the head.
+ Reads the path of the file one entry is written to.
 
- An entry of that name is refused rather than queued twice: two runs of one name collide in every folder, unit and worktree the
- name gives them, so the second would replace the first rather than run beside it.
-
- @param queueFile - the queue's path
-
- @param entry - the entry to queue
-
- @param position - where it goes, counted from the head, `0` being the head
-
- @returns where it landed, and how many entries the queue now holds
-
- @throws QueueFileError when the queue cannot be read or written, or already holds an entry of that name
-
- @example
- ```ts
- const { position, count } = await putAQueueEntryIn({ queueFile: '/runs/queue.json', entry: { name: 'a' }, position: 0 });
- ```
- */
-export async function putAQueueEntryIn({
-  queueFile,
-  entry,
-  position,
-}: {
-  readonly queueFile: string;
-  readonly entry: QueueRecord;
-  readonly position: number;
-},): Promise<{
-  readonly position: number;
-  readonly count: number;
-}> {
-  return await changeTheQueueOfRuns({
-    queueFile,
-    change: function putTheEntryIn(queue,) {
-      if (queue.some(function isNamed(queued,) {
-        return queued.name === entry.name;
-      },)) {
-        throw new QueueFileError(`an entry named ${entry.name} is already in the queue at ${queueFile}`,);
-      }
-      /**
-       Where the entry lands, which is the head of a queue shorter than the position.
-       */
-      const at = Math.min(
-        position,
-        queue.length,
-      );
-      /**
-       The queue with it in.
-       */
-      const next = [
-        ...queue.slice(
-          0,
-          at,
-        ),
-        entry,
-        ...queue.slice(at,),
-      ];
-      return {
-        entries: next,
-        answer: {
-          position: at,
-          count: next.length,
-        },
-      };
-    },
-  },);
-}
-
-/**
- Moves the entry of one name to a position counted from the head.
-
- @param queueFile - the queue's path
+ @param queueFolder - the queue's folder
 
  @param name - the entry's name
 
- @param position - where it goes, counted from the head, `0` being the head
-
- @returns where it was and where it landed, or that the queue holds no entry of that name
-
- @throws QueueFileError when the queue cannot be read or written
+ @returns the path
 
  @example
  ```ts
- const moved = await moveAQueueEntryTo({ queueFile: '/runs/queue.json', name: 'a', position: 0 });
+ const file = entryFileOf({ queueFolder: '/runs/q', name: 'a' });
  ```
  */
-export async function moveAQueueEntryTo({
-  queueFile,
+export function entryFileOf({
+  queueFolder,
   name,
-  position,
 }: {
-  readonly queueFile: string;
+  readonly queueFolder: string;
   readonly name: string;
-  readonly position: number;
-},): Promise<{
-  readonly from?: number;
-  readonly to?: number;
-  readonly count: number;
-}> {
-  return await changeTheQueueOfRuns<{
-    readonly from?: number;
-    readonly to?: number;
-    readonly count: number;
-  }>({
-    queueFile,
-    change: function moveTheEntry(queue,) {
-      /**
-       Where the entry stands, or minus one when the queue holds none of that name.
-       */
-      const from = queue.findIndex(function isNamed(entry,) {
-        return entry.name === name;
-      },);
-      if (from === (-1)) {
-        return {
-          entries: queue,
-          answer: { count: queue.length, },
-        };
-      }
-      /**
-       The entry itself, taken as the one-element list it is so that no absent index has to be read.
-       */
-      const moved = queue.slice(
-        from,
-        from + 1,
-      );
-      /**
-       The entries without it.
-       */
-      const rest = queue.filter(function isAnother(entry,) {
-        return entry.name !== name;
-      },);
-      /**
-       Where it lands, which is the tail of a queue shorter than the position.
-       */
-      const to = Math.min(
-        position,
-        rest.length,
-      );
-      /**
-       The queue with it moved.
-       */
-      const next = [
-        ...rest.slice(
-          0,
-          to,
-        ),
-        ...moved,
-        ...rest.slice(to,),
-      ];
-      return {
-        entries: next,
-        answer: {
-          from,
-          to,
-          count: next.length,
-        },
-      };
-    },
-  },);
+},): string {
+  return join(
+    queueFolder,
+    anEntryFileName({ name, },),
+  );
+}
+
+/**
+ Reads the folder a queue's claims are written in.
+
+ @param queueFolder - the queue's folder
+
+ @returns the path of the folder
+
+ @example
+ ```ts
+ const claimed = claimedFolderOf({ queueFolder: '/runs/q' });
+ ```
+ */
+export function claimedFolderOf({ queueFolder, }: { readonly queueFolder: string },): string {
+  return join(
+    queueFolder,
+    CLAIMED_FOLDER,
+  );
+}
+
+/**
+ Reads the path of the file one entry's claim is written to.
+
+ @param queueFolder - the queue's folder
+
+ @param name - the entry's name
+
+ @returns the path
+
+ @example
+ ```ts
+ const file = claimFileOf({ queueFolder: '/runs/q', name: 'a' });
+ ```
+ */
+export function claimFileOf({
+  queueFolder,
+  name,
+}: {
+  readonly queueFolder: string;
+  readonly name: string;
+},): string {
+  return join(
+    claimedFolderOf({ queueFolder, },),
+    `${anEntryFileName({ name, },)
+      .slice(
+        0,
+        -ENTRY_FILE_ENDING.length,
+      )}${CLAIM_FILE_ENDING}`,
+  );
 }

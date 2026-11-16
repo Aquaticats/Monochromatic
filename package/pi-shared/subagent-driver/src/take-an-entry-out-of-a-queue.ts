@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- `take-an-entry-out-of-a-queue`: takes the entry of one name out of a queue of runs and prints it, reading the queue and writing
- it back through a rename, so the filling never reads a half-written file.
+ `take-an-entry-out-of-a-queue`: takes the entry of one name out of a queue of runs and prints it. The entry's file is renamed aside
+ before it is read, so the entry printed is the one that was there and never one queued under that name while the read ran.
 
  It says so and changes nothing when no entry has that name, which happens when the filling started it meanwhile.
 
@@ -14,19 +14,17 @@ import {
 import {
   type QueueOptionWords,
   nameIn,
-  queueFileIn,
+  queueFolderIn,
   queueRefusalOf,
 } from './parse-queue-of-runs-options.ts';
-import {
-  readQueueOfRuns,
-  takeAQueueEntryOut,
-} from './queue-of-runs.ts';
+import { takeAQueueEntryOut, } from './putting-and-taking-entries-of-a-queue.ts';
+import { readQueueOfRuns, } from './reading-and-writing-the-folder-a-queue-is.ts';
 import { usageWasAsked, } from './usage-of-a-command.ts';
 
 /**
  The command's command line, for the error message.
  */
-const USAGE = 'take-an-entry-out-of-a-queue --queue=<file> --name=<name>';
+const USAGE = 'take-an-entry-out-of-a-queue --queue=<folder> --name=<name>';
 
 /**
  A command line the command cannot use.
@@ -96,7 +94,7 @@ try {
   /**
    The queue the entry is taken from.
    */
-  const queueFile = queueFileIn({
+  const queueFolder = queueFolderIn({
     commandLine,
     words,
   },);
@@ -111,7 +109,7 @@ try {
    The entries taken out, and the queue as it stands afterwards.
    */
   const taken = await takeAQueueEntryOut({
-    queueFile,
+    queueFolder,
     name,
   },);
   if (taken.taken
@@ -120,7 +118,7 @@ try {
     /**
      How many entries the queue holds, read again because the filling may have taken one out meanwhile.
      */
-    const queue = await readQueueOfRuns({ queueFile, },);
+    const queue = await readQueueOfRuns({ queueFolder, },);
     process.stdout
       .write(`no entry named ${name} is in the queue of ${String(queue.length,)}; nothing changed\n`,);
   }

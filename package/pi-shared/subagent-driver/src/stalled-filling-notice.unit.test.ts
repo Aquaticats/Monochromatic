@@ -62,7 +62,7 @@ function aLookAt({
     now,
     entriesStanding,
     placesFree,
-    queueFile: '/runs/queue.json',
+    queueFolder: '/runs/queue',
     stoppedBecause: 'no entry of the 7 left may start now: every pool one of them asks for is full',
     ...(lastNoticedAt === undefined ? {} : { lastNoticedAt, }),
     notify: function notify(notice,) {
@@ -92,7 +92,7 @@ await describe({
             const notice = stalledFillingNoticeOf({ look: aLookAt({ idleMilliseconds: 0, },), },);
             expect(notice.title,).toBe('Pi runs are not being started',);
             expect(notice.body,).toContain('7 entries stand and 3 places are free',);
-            expect(notice.body,).toContain('/runs/queue.json',);
+            expect(notice.body,).toContain('/runs/queue',);
             expect(notice.body,).toContain('every pool one of them asks for is full',);
           },
         },),

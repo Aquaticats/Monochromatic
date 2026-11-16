@@ -25,7 +25,7 @@ import {
 } from './pool-limits.ts';
 import {
   type QueueOptionWords,
-  queueFileIn,
+  queueFolderIn,
   reviewsFolderIn,
   runsFolderIn,
 } from './parse-queue-of-runs-options.ts';
@@ -40,7 +40,7 @@ import { usageWasAsked, } from './usage-of-a-command.ts';
 /**
  The command's command line, for the error message.
  */
-const USAGE = 'put-ended-reviews-back-at-the-head-of-a-queue --queue=<file> [--runs-folder=<folder>] '
+const USAGE = 'put-ended-reviews-back-at-the-head-of-a-queue --queue=<folder> [--runs-folder=<folder>] '
   + '[--reviews-folder=<folder>] [--since=<ISO 8601>]';
 
 /**
@@ -164,7 +164,7 @@ try {
    What putting the ended reviews back answered.
    */
   const putBack = await putEndedReviewsBack({
-    queueFile: queueFileIn({
+    queueFolder: queueFolderIn({
       commandLine,
       words,
     },),

@@ -15,7 +15,7 @@ import {
   type QueueOptionWords,
   nameIn,
   positionIn,
-  queueFileIn,
+  queueFolderIn,
   queueRefusalOf,
   runsFolderIn,
 } from './parse-queue-of-runs-options.ts';
@@ -27,7 +27,7 @@ import { usageWasAsked, } from './usage-of-a-command.ts';
 /**
  The command's command line, for the error message.
  */
-const USAGE = 'put-a-set-aside-entry-back-into-a-queue --queue=<file> --name=<name> [--position=<n>]';
+const USAGE = 'put-a-set-aside-entry-back-into-a-queue --queue=<folder> --name=<name> [--position=<n>]';
 
 /**
  A command line the command cannot use.
@@ -98,7 +98,7 @@ try {
    What putting the entry back answered.
    */
   const put = await putASetAsideEntryBack({
-    queueFile: queueFileIn({
+    queueFolder: queueFolderIn({
       commandLine,
       words,
     },),

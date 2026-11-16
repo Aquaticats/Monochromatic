@@ -1,67 +1,82 @@
 /**
- The library surface of the queue of runs waiting for a free place: the queue file and its moves, the shapes an entry takes, the
- set-aside record of an entry whose start failed, the start of one entry, one pass of filling, the places asked for, the filling's
- stall notice, and the reviews the rate limit ended.
+ The library surface of the queue of runs waiting for a free place: the queue folder and its moves, the order each entry carries, the
+ shapes an entry takes, the claim one filling holds on an entry, the set-aside record of an entry whose start failed, the start of one
+ entry, one pass of filling, the places asked for, the filling's stall notice, the reviews the rate limit ended, and the changeover from
+ the queue this package kept as one file.
 
  `index.ts` re-exports it, and the commands are `fill-free-places-from-a-queue.ts`, `put-an-entry-into-a-queue.ts`,
- `take-an-entry-out-of-a-queue.ts`, `move-an-entry-of-a-queue.ts`, `list-the-entries-a-queue-set-aside.ts`,
- `put-a-set-aside-entry-back-into-a-queue.ts` and `put-ended-reviews-back-at-the-head-of-a-queue.ts`.
+ `take-an-entry-out-of-a-queue.ts`, `move-an-entry-of-a-queue.ts`, `list-the-queue-of-runs.ts`, `list-the-entries-a-queue-set-aside.ts`,
+ `put-a-set-aside-entry-back-into-a-queue.ts`, `put-ended-reviews-back-at-the-head-of-a-queue.ts` and
+ `convert-a-queue-file-into-a-queue-folder.ts`.
 
  @module
  */
 
 export {
-  type ChangeOfAQueue,
-  type HeldQueueOfRuns,
+  type AClaimOnAnEntry,
   type QueueClaim,
   type QueueRecord,
-  NO_CLAIM_ON_AN_ENTRY,
+  BEING_TAKEN_START,
+  BEING_WRITTEN_START,
+  CLAIMED_FOLDER,
   NO_QUEUE_ID,
+  ORDER_FIELD,
   QUEUE_BOOKKEEPING_FIELDS,
-  QUEUE_CLAIM_FIELD,
   QUEUE_ID_FIELD,
   QueueFileError,
   aFreshQueueId,
-  changeTheQueueOfRuns,
-  claimOnAnEntry,
-  entryIsTheAttempt,
-  moveAQueueEntryTo,
-  withTheClaim,
-  withTheQueueLock,
-  putAQueueEntryIn,
+  anEntryFileName,
+  claimFileOf,
+  claimedFolderOf,
+  entryFileOf,
+  isQueueRecord,
+  orderOf,
   queueIdOf,
-  readQueueOfRuns,
-  takeAQueueEntryOut,
-  withoutTheClaim,
-  writeQueueOfRuns,
-  writtenQueueOfRuns,
 } from './queue-of-runs.ts';
+export {
+  NOT_AN_ORDER,
+  anOrderBetween,
+  anOrderIn,
+  isAnOrder,
+  ordersOfAPlace,
+} from './order-of-an-entry-in-a-queue.ts';
+export {
+  NO_ENTRY_OF_THAT_NAME,
+  aClaimIn,
+  aClaimOf,
+  aFileLaidDown,
+  aNameTakenAside,
+  aPlaceFor,
+  readQueueOfRuns,
+  readTheClaimsOnAQueue,
+  readTheEntryAt,
+  readTheEntryNamed,
+  writeAnEntryOfAQueue,
+  writeTheQueueOfRuns,
+} from './reading-and-writing-the-folder-a-queue-is.ts';
 export {
   type ClaimedAnEntry,
   claimAnEntryOfAQueue,
-  namesOfAnAttemptIn,
-  startOfAnAttemptTookEffect,
-} from './claims-on-the-entries-of-a-queue.ts';
-export {
   completeTheClaim,
   giveBackTheClaim,
-} from './ending-a-claim.ts';
+  namesOfAnAttemptIn,
+  startOfAnAttemptTookEffect,
+  theClaimOn,
+} from './claiming-an-entry-of-a-queue.ts';
+export {
+  moveAQueueEntryTo,
+  putAQueueEntryIn,
+  takeAQueueEntryOut,
+} from './putting-and-taking-entries-of-a-queue.ts';
 export {
   settleTheQueueAfterAKill,
 } from './settling-the-queue-after-a-kill.ts';
 export {
-  QUEUE_LOCK_POLL_MILLISECONDS,
-  QUEUE_LOCK_WAIT_MILLISECONDS,
-  QueueLockHeldError,
-  QueueLockLostError,
-  type TheQueueLock,
-  aPathWrittenBeside,
-  acquireTheQueueLock,
-  assertTheLockIsStillOurs,
-  lockFileOfAQueue,
-  processIsThere,
-  processStartedAtOf,
-} from './queue-lock.ts';
+  CONVERTED_QUEUE_ENDING,
+  type ConvertedAQueue,
+  convertAQueueFileIntoAFolder,
+  entriesOfAQueueFile,
+} from './converting-a-queue-file-into-a-folder.ts';
 export {
   REVIEW_OF_A_RANGE_ENTRY_FIELDS,
   type ReviewOfARangeEntry,
@@ -157,12 +172,12 @@ export {
 export {
   ENTRY_OPTION,
   POSITION_OPTION,
-  QUEUE_FILE_OPTION,
+  QUEUE_OPTION,
   type QueueOptionWords,
   entryIn,
   nameIn,
   positionIn,
-  queueFileIn,
+  queueFolderIn,
   queueRefusalOf,
   reviewsFolderIn,
   runsFolderIn,

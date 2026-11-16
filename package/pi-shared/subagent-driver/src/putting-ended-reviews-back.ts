@@ -27,10 +27,12 @@ import {
   newestAttemptThatWroteASummary,
   runFolderOf,
 } from './attempts-of-a-review-run.ts';
+import type { QueueRecord, } from './queue-of-runs.ts';
 import {
-  type QueueRecord,
-  withTheQueueLock,
-} from './queue-of-runs.ts';
+  aPlaceFor,
+  readQueueOfRuns,
+  writeAnEntryOfAQueue,
+} from './reading-and-writing-the-folder-a-queue-is.ts';
 import { summaryIn, } from './report-of-a-run.ts';
 import {
   REVIEWING_MODEL,
@@ -222,9 +224,143 @@ async function rateLimitReviewPromptIn({ runsFolder, }: { readonly runsFolder: s
 }
 
 /**
+ What one put-back reads and answers.
+ */
+type AReviewsPutBack = {
+  /**
+   The queue's folder.
+   */
+  readonly queueFolder: string;
+
+  /**
+   Folder the driver writes its runs into.
+   */
+  readonly runsFolder: string;
+
+  /**
+   The reviews to put back, each with the entry that goes on from its session.
+   */
+  readonly candidates: readonly {
+    readonly name: string;
+    readonly entry: QueueRecord;
+    readonly runFolder: string;
+  }[];
+
+  /**
+   The runs going when the candidates were read.
+   */
+  readonly going: ReadonlySet<string>;
+
+  /**
+   How the runs going are read again just before each entry goes in, when the caller can ask.
+   */
+  readonly goingNow?: () => Promise<ReadonlySet<string>>;
+
+  /**
+   Where this reads the clock.
+   */
+  readonly now: () => number;
+
+  /**
+   The lines to print.
+   */
+  readonly lines: string[];
+};
+
+/**
+ Puts the reviews that were read back into the queue, one entry at a time, after every integration pass waiting at the head.
+
+ Each entry goes in as one file, and the queue is read again for every one of them, so a pass or another review queued meanwhile is seen and
+ the place is counted from the queue as it is then. Nothing here holds the queue: a name that is taken is answered as taken.
+
+ @param request - the queue, the reviews, the runs going and where the lines go
+
+ @returns the names of the reviews put back, in the order they were put back
+
+ @throws QueueFileError when the queue cannot be read or written, or a name it holds cannot be read
+
+ @example
+ ```ts
+ const putBack = await reviewsPutBack({ queueFolder: '/runs/q', runsFolder: '/runs', candidates, going, now: Date.now, lines });
+ ```
+ */
+async function reviewsPutBack({
+  queueFolder,
+  runsFolder,
+  candidates,
+  going,
+  goingNow,
+  now,
+  lines,
+}: AReviewsPutBack,): Promise<readonly string[]> {
+  /**
+   The reviews put in, in the order they were put in.
+   */
+  const inserted: string[] = [];
+  // The prompt is one file for every review put back, written before any entry names it.
+  await rateLimitReviewPromptIn({ runsFolder, },);
+  /* oxlint-disable eslint/no-await-in-loop -- one entry at a time, each placed from the queue as it is then */
+  for (const candidate of candidates) {
+    /**
+     The runs going just before this entry goes in, read again here so a review that started while the candidates were read is not
+     queued a second time.
+     */
+    const goingAtTheInsert = (goingNow === undefined) ? going : await goingNow();
+    if (goingAtTheInsert.has(candidate.name,)) {
+      lines.push(`${new Date(now(),).toISOString()} ${candidate.name} not put back: its run started while the ended reviews were read`,);
+      continue;
+    }
+    /**
+     The queue as it stands at this insert.
+     */
+    const entries = await readQueueOfRuns({ queueFolder, },);
+    if (entries.some(function isNamed(entry,) {
+      return entry.name === candidate.name;
+    },)) {
+      lines.push(`${new Date(now(),).toISOString()} ${candidate.name} not put back: the queue holds it already`,);
+      continue;
+    }
+    /**
+     Where the review goes: after the integration passes waiting at the head.
+     */
+    const firstNotAPass = entries.findIndex(function isNoPass(entry,) {
+      return !entry.name
+        .startsWith(INTEGRATION_PASS_PREFIX,);
+    },);
+    /**
+     Where a put-back review goes, which is after every leading pass.
+     */
+    const place = aPlaceFor({
+      entries,
+      position: (firstNotAPass === (-1)) ? entries.length : firstNotAPass,
+    },);
+    /**
+     The entry as it is written, which is the candidate's own fields with the place the queue gives it.
+     */
+    const entry: QueueRecord = {
+      ...candidate.entry,
+      order: place.order,
+    };
+    // oxlint-disable-next-line eslint/no-await-in-loop -- one write per review, and a name taken meanwhile ends this one
+    if (!(await writeAnEntryOfAQueue({
+      queueFolder,
+      entry,
+      replace: false,
+    },))) {
+      lines.push(`${new Date(now(),).toISOString()} ${candidate.name} not put back: the queue holds it already`,);
+      continue;
+    }
+    inserted.push(candidate.name,);
+    lines.push(`${new Date(now(),).toISOString()} put back at the head of the queue, to go on from its session: ${candidate.runFolder}`,);
+  }
+  /* oxlint-enable eslint/no-await-in-loop */
+  return inserted;
+}
+
+/**
  Puts the review runs the rate limit ended back at the head of the queue.
 
- @param queueFile - the queue's path
+ @param queueFolder - the queue's folder
 
  @param runsFolder - folder the driver writes its runs into
 
@@ -239,33 +375,29 @@ async function rateLimitReviewPromptIn({ runsFolder, }: { readonly runsFolder: s
 
  @param now - where this reads the clock
 
- @param waitMilliseconds - how long to keep asking for the queue's lock before refusing
-
  @returns the lines to print and the reviews put back
 
  @example
  ```ts
- const putBack = await putEndedReviewsBack({ queueFile: '/runs/q.json', runsFolder: '/runs', reviewsFolder: '/reviews', since: Date.now() - 28_800_000, going: new Set() });
+ const putBack = await putEndedReviewsBack({ queueFolder: '/runs/q', runsFolder: '/runs', reviewsFolder: '/reviews', since: Date.now() - 28_800_000, going: new Set() });
  ```
  */
 export async function putEndedReviewsBack({
-  queueFile,
+  queueFolder,
   runsFolder,
   reviewsFolder,
   since,
   going,
   goingNow,
   now,
-  waitMilliseconds,
 }: {
-  readonly queueFile: string;
+  readonly queueFolder: string;
   readonly runsFolder: string;
   readonly reviewsFolder: string;
   readonly since: number;
   readonly going: ReadonlySet<string>;
   readonly goingNow?: () => Promise<ReadonlySet<string>>;
   readonly now: () => number;
-  readonly waitMilliseconds?: number;
 },): Promise<EndedReviewsPutBack> {
   /**
    The lines to print.
@@ -340,65 +472,14 @@ export async function putEndedReviewsBack({
    */
   const putBack: readonly string[] = (candidates.length === 0)
     ? []
-    // The position of every put-back review is decided from the queue as it is at the instant of the insert, inside one held step:
-    // an integration pass queued at the head meanwhile is at the head then, and the reviews go after every leading pass.
-    : await withTheQueueLock({
-      queueFile,
-      ...(waitMilliseconds === undefined ? {} : { waitMilliseconds, }),
-      work: async function insertThem({
-        entries,
-        write,
-      },) {
-        /**
-         The runs going at this instant, read again here: a review that started while the candidates were read is going now, and
-         queuing a resume of it would hand one session and one worktree on twice.
-         */
-        const goingAtTheInsert = (goingNow === undefined) ? going : await goingNow();
-        /**
-         Where a put-back review goes: after the integration passes waiting at the head.
-         */
-        const firstNotAPass = entries.findIndex(function isNoPass(entry,) {
-          return !entry.name
-            .startsWith(INTEGRATION_PASS_PREFIX,);
-        },);
-        /**
-         How many entries stay ahead of a put-back review.
-         */
-        const headLength = (firstNotAPass === (-1)) ? entries.length : firstNotAPass;
-        /**
-         The queue the reviews go into.
-         */
-        const next = [...entries,];
-        /**
-         The reviews put in, in the order they were put in.
-         */
-        const inserted: string[] = [];
-        // The prompt is one file for every review put back, written inside the step so no entry names a prompt that is not there.
-        await rateLimitReviewPromptIn({ runsFolder, },);
-        for (const candidate of candidates) {
-          if (goingAtTheInsert.has(candidate.name,)) {
-            lines.push(`${new Date(now(),).toISOString()} ${candidate.name} not put back: its run started while the ended reviews were read`,);
-            continue;
-          }
-          if (next.some(function isNamed(entry,) {
-            return entry.name === candidate.name;
-          },)) {
-            lines.push(`${new Date(now(),).toISOString()} ${candidate.name} not put back: the queue holds it already`,);
-            continue;
-          }
-          next.splice(
-            headLength + inserted.length,
-            0,
-            candidate.entry,
-          );
-          inserted.push(candidate.name,);
-          lines.push(`${new Date(now(),).toISOString()} put back at the head of the queue, to go on from its session: ${candidate.runFolder}`,);
-        }
-        if (inserted.length > 0) {
-          await write(next,);
-        }
-        return inserted;
-      },
+    : await reviewsPutBack({
+      queueFolder,
+      runsFolder,
+      candidates,
+      going,
+      ...(goingNow === undefined ? {} : { goingNow, }),
+      now,
+      lines,
     },);
   return {
     lines,
