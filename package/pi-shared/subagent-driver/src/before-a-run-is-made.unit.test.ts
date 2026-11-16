@@ -202,11 +202,12 @@ await describe({
           },
         },),
         it({
-          name: 'answers the repository of a worktree whose Git directory names no shared one, from the place Git keeps it',
+          name: 'refuses a worktree whose Git directory names no shared one, saying to name the checkout instead of guessing a folder',
           fn: async () => {
             await using folder = await makeFolder();
             /**
-             The repository the worktree was made from.
+             A folder holding a checkout's Git directory, in the shape a separate Git directory has: no `commondir` names the folder
+             the checkout is in, so no walk can say which folder holds the checkout.
              */
             const repository = join(folder.path, 'checkout',);
             /**
@@ -219,7 +220,19 @@ await describe({
               join(worktree, CHECKOUT_MARKER,),
               `gitdir: ${join(repository, '.git', 'worktrees', 'pi-b',)}\n`,
             );
-            expect(await checkoutFolderOf({ from: worktree, },),).toBe(repository,);
+            // A worktree Git made always carries a `commondir`; one that does not is a checkout whose Git directory is kept
+            // elsewhere, and the folder holding that checkout is only discoverable from its own `.git` file. Counting two folders up
+            // from the Git directory names a folder, which is a guess, so this refuses in words instead.
+            try {
+              await checkoutFolderOf({ from: worktree, },);
+            }
+            catch (error) {
+              expect(error,).toBeInstanceOf(CheckoutNotFoundError,);
+              expect(String(error,),).toContain('commondir',);
+              expect(String(error,),).toContain('--checkout-folder',);
+              return;
+            }
+            throw new Error('a Git directory naming no shared one was taken for a linked worktree',);
           },
         },),
         it({
