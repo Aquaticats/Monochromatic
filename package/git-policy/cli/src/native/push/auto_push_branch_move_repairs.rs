@@ -204,24 +204,34 @@ pub fn the_repair_owner_after_its_owner_died(
         }
     }
     let _released: std::io::Result<()> = std::fs::remove_file(claim.as_path());
-    let _aside_removed: std::io::Result<()> = std::fs::remove_file(claim.with_extension(format!("cleared-{}", owner.transaction_id)));
     return taken;
 }
 
 /// What:
 ///  This command's claim on one dead place, made after clearing a claim whose claimant is gone.
 /// Why:
-///   A claim whose claimant is gone, or whose bytes cannot be read, is no live claim, and it is cleared by a rename
-/// that exactly one command can win; a live claimant keeps its claim and this command takes nothing.
+///   A claim whose claimant is gone, or whose bytes cannot be read, is no live claim, and it is cleared so this
+/// command can claim; a live claimant keeps its claim and this command takes nothing.
+///  The claim is a wait signal and not the decider: two commands can both hold one when a stale claim was cleared,
+/// and the single rename of the dead record is what decides between them
+///  (a review of commit `4a2425a378`, its finding 5).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const taken = claimExclusively(claim, owner); if (taken) return true; const named = read(claim); if (named && alive(named)) return false; renameSync(claim, cleared); return claimExclusively(claim, owner);
+/// const taken = claimExclusively(claim, owner); if (taken) return true; const named = read(claim); if (named && alive(named)) return false; rmSync(claim, { force: true }); return claimExclusively(claim, owner);
 /// ```
 fn claim_the_take_or_clear_a_dead_one(claim: &Path, owner: &TransactionOwner) -> Option<()> {
     match claim_the_take(claim, owner) {
         Ok(()) => return Some(()),
-        Err(ClaimRefused::CannotWrite(_)) => return None,
+        // What: a claim that cannot be written at all is reported and ends this take.
+        // Why:  nothing else would say why the place stayed where it was.
+        Err(ClaimRefused::CannotWrite(error)) => {
+            crate::diagnostic_log::warn(
+                "repairClaim",
+                &format!("the claim {} could not be written: {error}", claim.display()),
+            );
+            return None;
+        }
         Err(ClaimRefused::TakenByAnother) => {}
     }
     let claimant: Option<TransactionOwner> = the_owner_named_by(claim);
@@ -235,10 +245,7 @@ fn claim_the_take_or_clear_a_dead_one(claim: &Path, owner: &TransactionOwner) ->
     if !gone {
         return None;
     }
-    #[cfg(test)]
-    play_inside_the_claim();
-    let aside: PathBuf = claim.with_extension(format!("cleared-{}", owner.transaction_id));
-    std::fs::rename(claim, aside.as_path()).ok()?;
+    let _cleared: std::io::Result<()> = std::fs::remove_file(claim);
     return claim_the_take(claim, owner).ok();
 }
 
@@ -255,6 +262,11 @@ fn claim_the_take_or_clear_a_dead_one(claim: &Path, owner: &TransactionOwner) ->
 /// try { renameSync(dead, aside) } catch { return undefined } if (read(aside).transactionId !== deadOwner.transactionId) { renameSync(aside, dead); return undefined } return aside;
 /// ```
 fn take_the_dead_record(dead_path: &Path, aside: &Path, the_dead_owner: &TransactionOwner) -> Option<()> {
+    // What: the instant a control holds two commands in, right before the step only one of them can win.
+    // Why:  the decision between them is the rename below, so a control that proves one winner has to place both
+    // commands here  (a review of commit `4a2425a378`, its finding 5).
+    #[cfg(test)]
+    play_inside_the_claim();
     std::fs::rename(dead_path, aside).ok()?;
     let it_was_the_dead_one: bool = the_owner_named_by(aside)
         .is_some_and(|found| return found.transaction_id == the_dead_owner.transaction_id);

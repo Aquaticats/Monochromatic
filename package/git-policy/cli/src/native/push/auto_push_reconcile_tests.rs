@@ -5187,16 +5187,19 @@ fn two_commands_that_read_one_dead_claim_take_the_place_once() {
     gone_claimant.owner_identity = String::from("linux:1");
     std::fs::write(claim.as_path(), format!("{}\n", the_places_record_for_a_control("repair-claim", &gone_claimant)))
         .expect("the dead claim");
-    // What: both commands are held at the claim once they read it, the first two of them until both have arrived.
-    // Why:  that is the instant the barrier of the race sits in.
-    let both_there: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::new(std::sync::Barrier::new(2));
-    let arrived: std::sync::Arc<std::sync::atomic::AtomicUsize> = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    let held_to: std::sync::Arc<std::sync::Barrier> = both_there.clone();
-    let counted: std::sync::Arc<std::sync::atomic::AtomicUsize> = arrived.clone();
+    // What: both commands are held at the claim until both have arrived, and a command that arrives alone is let go
+    // after a short bound, because the claim's own step can stop the other one earlier.
+    // Why:  that is the instant the race sits in, and a control that waited for a second command that never comes
+    // would hang for ever.
+    let arrived: std::sync::Arc<(std::sync::Mutex<usize>, std::sync::Condvar)> =
+        std::sync::Arc::new((std::sync::Mutex::new(0), std::sync::Condvar::new()));
+    let waiting: std::sync::Arc<(std::sync::Mutex<usize>, std::sync::Condvar)> = arrived.clone();
     pause_inside_the_claim_in_a_control(move || {
-        if counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst) < 2 {
-            let _waited = held_to.wait();
-        }
+        let (counted, both_there) = &*waiting;
+        let mut how_many = counted.lock().unwrap_or_else(|poisoned| return poisoned.into_inner());
+        *how_many += 1;
+        both_there.notify_all();
+        let _both = both_there.wait_timeout_while(how_many, std::time::Duration::from_secs(10), |count| return *count < 2);
     });
     let mut takers: Vec<std::thread::JoinHandle<Option<ARepairInHand>>> = Vec::new();
     for name in ["first-taker", "second-taker"] {
