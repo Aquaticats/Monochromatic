@@ -496,3 +496,48 @@ fn the_exit_lets_a_batch_waiting_for_a_place_of_the_lane_run_without_one() {
         holder.abort();
     }
 }
+
+/// What:
+///  A control's wait for the queue goes on past the bound an exit is given, and ends when the sync does.
+/// Why:
+///   `drain` is what eight controls call to see the queue empty,
+/// and a bound on it would make a control fail for the bound rather than for the queue:
+/// a control that met a sync slower than five seconds would count fewer syncs than it made
+/// (the review of `1bb658349d` names the five call sites that assert a count right after it).
+/// So the wait a control gets is the one `main` had, and this test is what says so:
+/// a sync held past the exit's own bound is still waited for.
+#[test]
+fn a_controls_drain_waits_past_the_bound_an_exit_is_given() {
+    let held: std::path::PathBuf = crate::test_support::fixture("durable-drain-held");
+    std::fs::create_dir_all(held.as_path()).expect("the directory the hold goes in");
+    crate::service_hold_a_step_for_a_control::hold_these_steps_for_a_control(&[crate::service_hold_a_step_for_a_control::INSIDE_A_SYNC], held.as_path());
+    serve_on_again_for_a_control();
+    let (root, file) = record("durable-drain-waits");
+    let before: u64 = BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let deferral = begin(false);
+        flush_file(&file, "x").expect("queued");
+        deferral.settle(true);
+    });
+    let reached: std::path::PathBuf = crate::service_hold_a_step_for_a_control::reached_file(held.as_path(), crate::service_hold_a_step_for_a_control::INSIDE_A_SYNC);
+    let waited: Instant = Instant::now();
+    while !reached.exists() {
+        assert!(waited.elapsed() < THE_CONTROLS_PATIENCE, "the batch never reached the step the control holds");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let (answered, told): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel::<()>();
+    let _draining = std::thread::spawn(move || {
+        drain();
+        let _said = answered.send(());
+    });
+    // Longer than the bound an exit gets, so a drain that had been given that bound would have answered by now.
+    let past_the_exits_bound: Duration = crate::wait_ceilings::THE_EXITS_SYNCS_ARE_MADE_WITHIN.saturating_add(Duration::from_secs(1));
+    let answered_early: bool = told.recv_timeout(past_the_exits_bound).is_ok();
+    std::fs::write(crate::service_hold_a_step_for_a_control::let_go_file(held.as_path(), crate::service_hold_a_step_for_a_control::INSIDE_A_SYNC), b"").expect("the file that lets the held sync go");
+    let answered_at_all: bool = answered_early || told.recv_timeout(THE_CONTROLS_PATIENCE).is_ok();
+    assert!(!answered_early, "drain answered before a held sync was let go, so a control could see fewer syncs than it made");
+    assert!(answered_at_all, "drain never answered after the sync was let go");
+    assert!(BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) > before, "the sync the control waited for was made");
+    remove(root.as_path());
+    remove(held.as_path());
+}
