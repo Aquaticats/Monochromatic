@@ -15,6 +15,26 @@
     "source": "- > first, second here.\n  > third, fourth here.\n"
   },
   {
+    "name": "blockquote whose markers carry no space after them",
+    "filename": "tight-quote.md",
+    "source": ">>first, second here.\n>>third, fourth here.\n"
+  },
+  {
+    "name": "blockquote holding a list and a fence",
+    "filename": "quote-list-fence.md",
+    "source": "> - first, second here.\n>\n> ```text\n> one, two. three, four.\n> ```\n"
+  },
+  {
+    "name": "blockquote continued by a lazy line",
+    "filename": "lazy-quote.md",
+    "source": "> first line, more here.\nlazy line, more here.\n"
+  },
+  {
+    "name": "blockquote with an inner marker omitted on a later line",
+    "filename": "partial-quote.md",
+    "source": "> > opening words\n> continued, further words.\n"
+  },
+  {
     "name": "code spans with break characters and URLs",
     "filename": "spans.md",
     "source": "See `https://x.example/a, b. c` for details, then more. Then `a, b. c; d` too.\n"

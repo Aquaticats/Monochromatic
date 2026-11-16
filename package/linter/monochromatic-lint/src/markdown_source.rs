@@ -514,6 +514,25 @@ pub(crate) fn verbatim_blocks(context: &MarkdownSource) -> Result<Vec<String>, M
     return Ok(found);
 }
 
+/// What:
+///  The page a document renders to,
+///  through the parser's own HTML converter.
+/// Why:
+///  A fix that only moves line breaks must leave a reader's page unchanged,
+///  and the tree comparisons that say where text sits cannot say what that text renders as;
+///  comparing the converted HTML catches an emphasis,
+///  link or container change the tree alone would let through.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function renderedHtml(context: MarkdownSource): string;
+/// ```
+#[cfg(test)]
+pub(crate) fn rendered_html(context: &MarkdownSource) -> String {
+    // The converter reads the parsed arena and owns no state, so the document stays borrowed.
+    return satteri_ast::mdast_to_html(&context.arena);
+}
+
 /// Direct native-arena guard controls,
 ///  independent of what malformed text the parser happens to emit.
 #[cfg(test)]

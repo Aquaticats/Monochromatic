@@ -14,7 +14,9 @@
 use super::semantic_line_breaks;
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::edits::{Fix, apply_fixes};
-use crate::markdown_source::{MarkdownSource, paragraph_placements};
+use crate::markdown_source::{
+    MarkdownSource, block_containers, paragraph_placements, rendered_html, verbatim_blocks,
+};
 use satteri_ast::mdast::MdastNodeType;
 
 /// Run the rule through its actual native source model.
@@ -161,43 +163,242 @@ fn placements(source: &str) -> Vec<(Vec<MdastNodeType>, Vec<String>)> {
     return paragraph_placements(&context).expect("an acyclic parse");
 }
 
-/// A break inside a quotation re-emits every `>` marker of the line the paragraph opens on,
-///  so the continuation line stays at the same quote depth in the raw text and not only
-///  through the laziness CommonMark allows,
-///  and the text stays in the containers it came from.
-#[test]
-fn a_break_in_a_quotation_keeps_the_marker_of_every_depth() {
-    for (source, expected) in [
-        ("> first, second here.\n", "> first,\n> second here.\n"),
-        (
-            "> > first, second here. And more\n> > text.\n",
-            "> > first,\n> > second here.\n> > And more\n> > text.\n",
-        ),
-        (
-            "- > first, second here.\n  > third, fourth here.\n",
-            "- > first,\n  > second here.\n  > third,\n  > fourth here.\n",
-        ),
-        (
-            "> - first, second here.\n> - third, fourth here.\n",
-            "> - first,\n>   second here.\n> - third,\n>   fourth here.\n",
-        ),
-        (
-            "1. > first, second here.\n",
-            "1. > first,\n   > second here.\n",
-        ),
-        (
-            ">>> foo, bar. Then rest\n> bar\n>>baz\n",
-            ">>> foo,\n>>> bar.\n>>> Then rest\n> bar\n>>baz\n",
-        ),
-    ] {
-        let output: String = fixed(source);
-        assert_eq!(output, expected, "{source:?}");
-        assert_eq!(
-            placements(output.as_str()),
-            placements(source),
-            "{output:?}"
-        );
+/// What:
+///  Everything about one document that a fix must leave alone,
+///  in one comparable value.
+/// Why:
+///  The rendered page says what a reader sees,
+///  while the paragraphs,
+///  block boundaries and quoted source say where the text sits and what it is;
+///  a fix that moves a line break must change none of the four,
+///  and each is compared here so one green comparison cannot hide a changed document.
+#[derive(Debug, PartialEq)]
+struct Reading {
+    /// The page a reader gets, as [`shown`] reads the converted HTML.
+    page: String,
+    /// Every paragraph's container chain and words.
+    paragraphs: Vec<(Vec<MdastNodeType>, Vec<String>)>,
+    /// Every block node in preorder with its depth.
+    blocks: Vec<(usize, MdastNodeType)>,
+    /// The exact source of every code and raw HTML block.
+    verbatim: Vec<String>,
+}
+
+/// Read one Markdown document into the comparable value.
+fn read(source: &str) -> Reading {
+    let context: MarkdownSource =
+        MarkdownSource::new(String::from("prose.md"), String::from(source), false)
+            .expect("fixture");
+    return Reading {
+        page: shown(rendered_html(&context).as_str()),
+        paragraphs: paragraph_placements(&context).expect("an acyclic parse"),
+        blocks: block_containers(&context).expect("an acyclic parse"),
+        verbatim: verbatim_blocks(&context).expect("an acyclic parse"),
+    };
+}
+
+/// What a reader sees of one converted HTML page:
+///  every run of whitespace outside a `pre` element is one space,
+///  because that is how a reader renders it,
+///  and a soft line break inside a paragraph is therefore no change to the page.
+fn shown(html: &str) -> String {
+    let mut page: String = String::new();
+    let mut rest: &str = html;
+    // A `pre` element is the one place the bytes of the source are what a reader sees.
+    while let Some(open) = rest.find("<pre") {
+        let element: &str = &rest[open..];
+        let Some(close) = element.find("</pre>") else {
+            break;
+        };
+        page.push_str(collapsed_whitespace(&rest[..open]).as_str());
+        page.push_str(&element[..close + "</pre>".len()]);
+        rest = &element[close + "</pre>".len()..];
     }
+    page.push_str(collapsed_whitespace(rest).as_str());
+    return page;
+}
+
+/// One space where `text` carries a run of whitespace,
+///  and every other character as written.
+fn collapsed_whitespace(text: &str) -> String {
+    let mut result: String = String::new();
+    let mut spaced: bool = false;
+    for character in text.chars() {
+        if character.is_whitespace() {
+            spaced = true;
+            continue;
+        }
+        if spaced && !result.is_empty() {
+            result.push(' ');
+        }
+        spaced = false;
+        result.push(character);
+    }
+    return result;
+}
+
+/// The number of `>` markers that open a line,
+///  counted only in its container prefix,
+///  which ends at the first character that is neither a marker nor its spacing.
+fn opening_markers(line: &str) -> usize {
+    let mut markers: usize = 0;
+    for character in line.chars() {
+        match character {
+            '>' => markers += 1,
+            ' ' | '\t' => {}
+            _ => break,
+        }
+    }
+    return markers;
+}
+
+/// One shape the line-break fix meets inside a quotation:
+///  the bytes it receives,
+///  the bytes it must write back,
+///  and the depth of the paragraph's own marker chain.
+struct QuotationShape {
+    /// What the shape exercises, named for the assertion message.
+    name: &'static str,
+    /// The exact bytes the fixer receives.
+    source: &'static str,
+    /// The exact bytes it must write back.
+    fixed: &'static str,
+    /// The number of `>` markers on the paragraph's opening line.
+    depth: usize,
+}
+
+/// A break inside a quotation opens every inserted line with the paragraph's own marker chain,
+///  at any depth and beside any other container,
+///  so the raw text keeps the quotation a reader already sees.
+///
+/// Each shape states the whole fixed source,
+///  compares what a reader gets before and after,
+///  and checks the marker count against the depth:
+///  every inserted line adds exactly the paragraph's chain,
+///  so a fix that drops a marker fails here even though the page still renders the same,
+///  because CommonMark reads a line without `>` as a lazy continuation of the quote it follows.
+#[test]
+fn every_quotation_shape_carries_the_marker_of_the_line_it_breaks() {
+    let shapes: [QuotationShape; 13] = [
+        QuotationShape {
+            name: "one level",
+            source: "> first, second here.\n",
+            fixed: "> first,\n> second here.\n",
+            depth: 1,
+        },
+        QuotationShape {
+            name: "two nested levels",
+            source: "> > first, second here.\n",
+            fixed: "> > first,\n> > second here.\n",
+            depth: 2,
+        },
+        QuotationShape {
+            name: "three nested levels",
+            source: "> > > first, second here.\n",
+            fixed: "> > > first,\n> > > second here.\n",
+            depth: 3,
+        },
+        QuotationShape {
+            name: "markers written without a space after them",
+            source: ">>first, second here.\n",
+            fixed: ">>first,\n>>second here.\n",
+            depth: 2,
+        },
+        QuotationShape {
+            name: "a quote inside a list item",
+            source: "- > first, second here.\n  > third, fourth here.\n",
+            fixed: "- > first,\n  > second here.\n  > third,\n  > fourth here.\n",
+            depth: 1,
+        },
+        QuotationShape {
+            name: "an ordered item holding a quote",
+            source: "1. > first, second here.\n",
+            fixed: "1. > first,\n   > second here.\n",
+            depth: 1,
+        },
+        QuotationShape {
+            name: "a list inside a quote",
+            source: "> - first, second here.\n> - third, fourth here.\n",
+            fixed: "> - first,\n>   second here.\n> - third,\n>   fourth here.\n",
+            depth: 1,
+        },
+        QuotationShape {
+            name: "a task item inside a quote",
+            source: "> - [ ] first, second here.\n",
+            fixed: "> - [ ] first,\n>       second here.\n",
+            depth: 1,
+        },
+        QuotationShape {
+            name: "a quote inside a quote inside a list item",
+            source: "- > > first, second here.\n",
+            fixed: "- > > first,\n  > > second here.\n",
+            depth: 2,
+        },
+        QuotationShape {
+            name: "a quote holding a code fence",
+            source: "> Prose before, more here.\n>\n> ```text\n> one, two. three, four.\n> ```\n",
+            fixed: "> Prose before,\n> more here.\n>\n> ```text\n> one, two. three, four.\n> ```\n",
+            depth: 1,
+        },
+        QuotationShape {
+            name: "a lazy continuation line",
+            source: "> first line, more here.\nlazy line, more here.\n",
+            fixed: "> first line,\n> more here.\nlazy line,\n> more here.\n",
+            depth: 1,
+        },
+        QuotationShape {
+            name: "a lazy line of a two-deep quote",
+            source: "> > opening words\n> continued, further words.\n",
+            fixed: "> > opening words\n> continued,\n> > further words.\n",
+            depth: 2,
+        },
+        QuotationShape {
+            name: "inner markers omitted on later lines",
+            source: ">>> foo, bar. Then rest\n> bar\n>>baz\n",
+            fixed: ">>> foo,\n>>> bar.\n>>> Then rest\n> bar\n>>baz\n",
+            depth: 3,
+        },
+    ];
+    for shape in &shapes {
+        let output: String = fixed(shape.source);
+        // What a reader gets must not depend on the fix, and this comparison is what says so.
+        assert_eq!(
+            read(output.as_str()),
+            read(shape.source),
+            "{} changed what a reader gets",
+            shape.name
+        );
+        // Only inserted lines appear and disappear, so each one adds the paragraph's own chain once.
+        let inserted: usize = output.lines().count() - shape.source.lines().count();
+        assert!(inserted > 0, "{} inserted no line", shape.name);
+        let before: usize = shape.source.lines().map(opening_markers).sum();
+        let after: usize = output.lines().map(opening_markers).sum();
+        assert_eq!(
+            after,
+            before + inserted * shape.depth,
+            "{} did not write the paragraph's marker chain on every inserted line",
+            shape.name
+        );
+        // The bytes themselves, so the prefix is not merely the right number of markers.
+        assert_eq!(output, shape.fixed, "{}", shape.name);
+        assert_eq!(fixed(output.as_str()), output, "{} is not stable", shape.name);
+    }
+}
+
+/// A code fence inside a quotation is quoted source,
+///  so the fix reports one break in the prose beside it and never one in the fence's own lines.
+#[test]
+fn a_code_fence_inside_a_quotation_is_reported_and_never_broken() {
+    let source: &str = "> Prose before, more here.\n>\n> ```text\n> one, two. three, four.\n> ```\n";
+    let findings: Vec<Diagnostic> = check(source);
+    assert_eq!(findings.len(), 1, "{findings:?}");
+    assert_eq!(findings[0].labels[0].span.line, 1);
+    let output: String = fixed(source);
+    assert!(
+        output.contains("> one, two. three, four.\n"),
+        "{output:?}"
+    );
+    assert_eq!(read(output.as_str()), read(source), "{output:?}");
 }
 
 /// Only the lines the fix inserts carry the copied prefix:
