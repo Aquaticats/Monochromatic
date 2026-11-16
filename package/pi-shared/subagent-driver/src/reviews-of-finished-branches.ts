@@ -193,12 +193,16 @@ export function retryWordsOfAReview({
   briefFile,
   runsFolder,
   checkoutFolder,
+  provider = REVIEWING_PROVIDER,
+  model = REVIEWING_MODEL,
 }: {
   readonly review: string;
   readonly commit: string;
   readonly briefFile: string;
   readonly runsFolder: string;
   readonly checkoutFolder: string;
+  readonly provider?: string;
+  readonly model?: string;
 }): readonly string[] {
   return [
     `--deadline-seconds=${String(REVIEW_START_DEADLINE_SECONDS,)}`,
@@ -215,8 +219,8 @@ export function retryWordsOfAReview({
     `--tasks=${String(BATCH_DEFAULT_TASK_COUNT,)}`,
     `--wall=${String(REVIEW_WALL_SECONDS,)}`,
     `--turn-cap=${String(REVIEW_TURN_CAP,)}`,
-    `--provider=${REVIEWING_PROVIDER}`,
-    `--model=${REVIEWING_MODEL}`,
+    `--provider=${provider}`,
+    `--model=${model}`,
   ];
 }
 

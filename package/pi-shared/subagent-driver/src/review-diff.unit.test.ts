@@ -79,6 +79,49 @@ await describe({
           },
         },),
         it({
+          name: 'reads a path holding a space and a separator as the file git names, which the header alone cannot settle (F8)',
+          fn: async () => {
+            /**
+             The diff of a file whose own name holds ` b/`.
+             */
+            const awkward = 'diff --git a/foo b/bar.ts b/foo b/bar.ts\n'
+              + '--- a/foo b/bar.ts\n'
+              + '+++ b/foo b/bar.ts\n'
+              + '@@ -1 +1 @@\n'
+              + '-old\n'
+              + '+new\n';
+            expect(filesInDiff({ diff: awkward, },).files,).toEqual(['foo b/bar.ts',],);
+            expect(diffOfOnlyFiles({
+              diff: awkward,
+              files: ['foo b/bar.ts',],
+            },),).toContain('+++ b/foo b/bar.ts',);
+          },
+        },),
+        it({
+          name: 'reads a renamed file as the path its post-image line names, and a deleted one as the path its pre-image line names',
+          fn: async () => {
+            /**
+             A rename, whose two header paths differ.
+             */
+            const renamed = 'diff --git a/old name.ts b/new name.ts\n'
+              + '--- a/old name.ts\n'
+              + '+++ b/new name.ts\n'
+              + '@@ -1 +1 @@\n'
+              + '-old\n'
+              + '+new\n';
+            expect(filesInDiff({ diff: renamed, },).files,).toEqual(['new name.ts',],);
+            /**
+             A deletion, whose post-image line names no file.
+             */
+            const deleted = 'diff --git a/gone.ts b/gone.ts\n'
+              + '--- a/gone.ts\n'
+              + '+++ /dev/null\n'
+              + '@@ -1 +0,0 @@\n'
+              + '-old\n';
+            expect(filesInDiff({ diff: deleted, },).files,).toEqual(['gone.ts',],);
+          },
+        },),
+        it({
           name: 'refuses a header git wrote with a quoted path, because the quoted text is not the path a reviewer copies',
           fn: async () => {
             try {

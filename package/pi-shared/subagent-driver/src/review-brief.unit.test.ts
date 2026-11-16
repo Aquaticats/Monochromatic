@@ -257,7 +257,7 @@ await describe({
             expect(aBrief(),).toContain('checks this section against your session, without a model',);
             expect(aBrief(),).toContain('codemode',);
             expect(aBrief(),).toContain('process start\'s exit code',);
-            expect(aBrief(),).toContain('is started again',);
+            expect(aBrief(),).toContain('one second review answers it',);
           },
         },),
         it({

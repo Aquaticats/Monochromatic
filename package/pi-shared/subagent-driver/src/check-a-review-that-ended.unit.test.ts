@@ -277,7 +277,8 @@ await describe({
             expect(ran.status,).toBe(1,);
             expect(ran.printed,).toContain(`review-${aReview()}: ran nothing`,);
             expect(ran.printed,).toContain(CHECK_LIMITS_LINE,);
-            // The restart's brief, diff, reading and batch list were written, and no run folder was made beside the earlier one.
+            // The second review's brief, diff and reading were written, with the note a harness that has the other model takes;
+            // no batch entry was written, because no Pi model here is that reviewer, and no run folder was made.
             const restarted = join(
               folder.path,
               'reviews',
@@ -285,16 +286,17 @@ await describe({
             );
             expect(await readdir(restarted,),).toContain('brief.md',);
             expect(await readdir(restarted,),).toContain('change.diff',);
+            expect(
+              await readdir(join(folder.path, 'reviews', aReview(),)),
+            ).toContain('restart-2-second-review-owed.md',);
+            expect(
+              await readdir(join(folder.path, 'reviews', aReview(),)),
+            ).not.toContain('restart-2-batch.json',);
             expect(await readdir(runsFolder,),).toEqual([`review-${aReview()}-1`,],);
             const brief = await readFile(join(restarted, 'brief.md',), 'utf8',);
             expect(brief,).toContain('This is the second run of the review',);
-            const list = await readFile(join(
-              folder.path,
-              'reviews',
-              aReview(),
-              'restart-2-batch.json',
-            ), 'utf8',);
-            expect(JSON.parse(list,),).toHaveLength(1,);
+            expect(ran.printed,).toContain('a second review of',);
+            expect(ran.printed,).toContain('nothing was started',);
           },
         },),
         it({
@@ -311,10 +313,15 @@ await describe({
             expect((await runTheCommand(words,)).status,).toBe(1,);
             const again = await runTheCommand(words,);
             expect(again.status,).toBe(1,);
-            expect(again.printed,).toContain('has not ended, so no later run was written',);
+            // The second review is written and owed; a later check says so again and writes no third.
+            expect(again.printed,).toContain('is owed on',);
+            expect(again.printed,).toContain('nothing was started',);
             expect(
               await readdir(join(folder.path, 'reviews',),),
             ).toEqual([aReview(), `${aReview()}-restart-2`,],);
+            expect(
+              await readdir(join(folder.path, 'reviews', `${aReview()}-restart-2`,),),
+            ).not.toContain('restart-2-batch.json');
           },
         },),
         it({
@@ -350,6 +357,10 @@ await describe({
                 type: 'session',
                 version: 3,
                 cwd: '/worktrees/pi-review-a',
+              },)}\n${JSON.stringify({
+                type: 'model_change',
+                provider: 'qwen-token-plan-individual',
+                modelId: 'qwen4-max-preview',
               },)}\n${JSON.stringify({
                 type: 'message',
                 message: {

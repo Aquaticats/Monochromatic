@@ -569,15 +569,20 @@ holding one JSON object in a fenced block tagged `review-statement`:
 the commit reviewed,
 the lines of `change.diff` in total and the lines read,
 each file of the diff as read `whole`, `part` or `none`,
-each command run with its exit code and, when it ran a program the review's worktree built,
+each command run with its exit code and, when it ran a program a build wrote,
 that program's path,
 and each finding as shown by `run` or by `reading`.
+A program a build wrote is one whose path lies in a build output folder,
+whether that folder is in the worktree, in the build directory every agent shares, or in the reviewer's scratch folder;
+a command that merely names such a path ran nothing.
 The brief carries the skeleton to copy and says what the package compares it with.
 The shape is documented in `doc/a-review-states-what-it-read-and-ran.md`,
 and the reader that holds a block to it is `src/review-statement-fields.ts`.
 A review that read part of the diff and says so is worth more than one that claims all of it:
 a partial reading does not make a review incomplete,
-it names the files a second review may read.
+it names the files a second review reads.
+Such a review is thin, and one second review answers it, on the other model of the pair the project reviews with,
+once.
 
 ### `start-reviews-of-finished-branches`
 
@@ -702,10 +707,10 @@ one per review to check;
 `--runs-folder`;
 `--rules-file`,
 which a restart's brief names first;
-`--focus`,
-what a restart's reviewer looks hardest at;
-and `--start`,
-without which the command writes the entry that starts a review again but starts nothing.
+and `--focus`,
+what a second reviewer looks hardest at.
+`--start` is accepted for a caller that already passes it;
+the command starts a second review by itself, once.
 
 For each review it reads the review file,
 the newest finished run's `summary.json`,
@@ -717,11 +722,12 @@ The verdicts are:
 - `complete`:
   the statement is there and well formed,
   each command it lists is one the session records with the same exit code,
-  at least one command ran a program built from the reviewed commit,
+  at least one command ran a program a build wrote,
   the files and line count match the diff,
   and the run ended on its own terms.
+  A `complete` review may still be **thin**: it did not read every file it was given whole.
 - `ran nothing`:
-  the statement and its session agree, and no command ran a program built from the commit.
+  the statement and its session agree, and no command ran a program a build wrote.
 - `statement missing or not matching its session`:
   no section, a shape the reader refuses, a command the session does not record,
   an exit code it does not record, a file or line count the diff does not match,
@@ -733,11 +739,12 @@ The verdicts are:
   or no run of the review finished at all.
 
 A verdict says what it cannot see as well:
+a build's provenance (it confirms that a program from a build folder ran, and says whether the session records a build command),
 a command run inside a `codemode` call,
 a `process` start's exit code (its result records none),
 a script that builds a built program's path from a variable,
 and anything written after the run ended.
-The command exits `0` only when every review is `complete`,
+The command exits `0` only when every review is `complete` and not thin,
 and every line about a review that needs one says what is missing.
 
 ```text
@@ -745,33 +752,37 @@ and every line about a review that needs one says what is missing.
 review-rewrite-the-gate: complete; read 3927 of the diff's 3927 lines; 12 of 12 files read whole; 3 command(s) ran a program built from commit abc1234: /repo/.../target/debug/monochromatic-git-policy-cli; the run ended idle
 ```
 
-For a review whose verdict is `ran nothing`, `no review file` or `cut`,
-the command writes the entry that starts it again,
+For a first review that is thin or incomplete, the command starts one second review by itself,
 in a folder, branch and run name of its own:
 `<change>-restart-2`, counting the review itself as the first run.
 Its worktree starts at the commit the earlier review recorded it read;
 its brief opens with what the earlier run did and did not do,
 and names the earlier review file and reproduction scripts so the second run does not repeat the reading;
-and its diff is the whole earlier diff,
-or only the files the earlier review did not read whole when its statement says it read the rest.
+its diff is the whole earlier diff,
+or only the files the earlier review did not read whole when its statement says it read the rest;
+and it runs on the other reviewer of the pair the project reviews with,
+read from the first run's session.
+A second review that is still thin is reported with what it read and ran and never started a third time.
+
 The batch list is `<reviews folder>/<change>/restart-<n>-batch.json`,
 one entry,
 which `start-a-batch-in-its-own-unit` or `start-pi-runs-from-a-batch-list` takes as any other.
 The entry carries the review's own wall clock and turn cap,
 because a restart's name has no finished run for the launcher to size a cap from,
 and a lower cap would end the second reading where the first was cut.
+Where Pi serves no model for the other reviewer, the command writes the brief, the diff, the reading and a note
+`<reviews folder>/<change>/restart-<n>-second-review-owed.md` naming the reviewer and the brief,
+and starts nothing; the note is for a harness that has that model.
 
 Nothing is ever written over:
-a brief, a diff, a reading or a batch list that already holds other text refuses the whole restart,
-and the refusal names the file;
-a file that already holds exactly the restart's own text is left alone,
-and a restart whose review file is already there is refused as one that already ran.
-A restart already written and not yet ended holds back the next one,
-so the command says which run is pending rather than writing a third;
-once that run ends, the next number is written and its brief says it is the third run.
-`--start` starts each restart it writes through the retrying start,
-one at a time, on the review pool;
-without it, nothing is started.
+each file is created with an exclusive create, never replaced,
+so a text that appeared after the refusal check is left where it is;
+a file holding the plan's own text is left,
+and a file holding its beginning, which a kill cut short, is repaired.
+A second review whose review file is already there, whose run has started, or whose start marker names a living process
+is reported and not started again.
+A plan written and never started is started by a later check,
+and the start marker, created with an exclusive create, lets exactly one check start one second review.
 
 ## Removing finished worktrees
 

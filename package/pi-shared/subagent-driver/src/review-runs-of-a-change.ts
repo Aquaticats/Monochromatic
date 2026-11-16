@@ -39,7 +39,7 @@ const RUN_WORDS: readonly string[] = [
 /**
  A review name that carries no restart number.
  */
-const NOT_A_RESTART: unique symbol = Symbol('review name holds no restart number',);
+export const NOT_A_RESTART: unique symbol = Symbol('review name holds no restart number',);
 
 /**
  Reads the number a review's own name ends with, when it is a restart's number.

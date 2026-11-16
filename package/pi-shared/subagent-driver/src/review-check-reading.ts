@@ -8,11 +8,7 @@
  @module
  */
 
-import {
-  readFile,
-  stat,
-} from 'node:fs/promises';
-import { errorCodeOf, } from './error-code-of.ts';
+import { readRegularFileAt, } from './reading-a-regular-file.ts';
 import {
   type ReviewReading,
   ReviewReadingError,
@@ -31,36 +27,16 @@ import {
   type ReviewStatement,
   ReviewStatementError,
 } from './review-statement-shape.ts';
-import { statementInReview, } from './review-statement.ts';
+import {
+  statementInReview,
+  commitIsTheSame
+} from './review-statement.ts';
 import {
   diffFileOfAReview,
   reviewFileOfAReview,
   reviewFolderOf,
 } from './reviewer-of-a-change.ts';
 import type { SessionReadings, } from './session-commands-of-a-run.ts';
-
-/**
- The code the operating system gives a path that is not there.
- */
-const MISSING_PATH_CODE = 'ENOENT';
-
-/**
- Mebibytes of one review file this reader takes: a review file, a diff or a record larger than this is not one a reviewer wrote.
-
- Measured: the diff of the review of 2026-11-12T10:21:26Z was 58,970 bytes and the review file 16,552 bytes; 64 MiB is about a
- thousand times the largest review file measured.
- */
-const REVIEW_TEXT_LIMIT_MEBIBYTES = 64;
-
-/**
- Bytes in one mebibyte.
- */
-const BYTES_PER_MEBIBYTE = 1_048_576;
-
-/**
- The most text one review file may hold for this reader to read it.
- */
-export const REVIEW_TEXT_LIMIT_BYTES: number = REVIEW_TEXT_LIMIT_MEBIBYTES * BYTES_PER_MEBIBYTE;
 
 /**
  What is at a path one review's file is read from.
@@ -74,7 +50,7 @@ export type TextAtAPath =
       readonly kind: 'no file';
     }
     | {
-      readonly kind: 'not a file this reader reads';
+      readonly kind: 'unreadable';
       readonly reason: string;
     };
 
@@ -131,16 +107,16 @@ export type ReadingAtAPath =
     };
 
 /**
- Reads one review file, or says what is at its path when it is not a file this reader reads.
+ Reads one review file, or says what is at its path when it is not a regular file this reader reads.
 
- The path's own record is read before its text: a named pipe at a review file's path would block a reader that opened it, and a
- file larger than a review file could be is refused rather than held in memory.
+ The descriptor is opened first, without waiting for a writer, and looked at second: a named pipe at a review file's path answers
+ at once, and a file larger than a review file could be is refused rather than held in memory.
 
  @param path - the file to read
 
  @param limitBytes - the most bytes the file may hold
 
- @returns the file's text, or the fact that it is no file or no file this reader reads
+ @returns the file's text, or the fact that it is no file or cannot be read
 
  @throws the error a read gave for a regular file this reader should have been able to read
 
@@ -151,43 +127,31 @@ export type ReadingAtAPath =
  */
 export async function textAtAPath({
   path,
-  limitBytes = REVIEW_TEXT_LIMIT_BYTES,
+  limitBytes,
 }: {
   readonly path: string;
   readonly limitBytes?: number;
 },): Promise<TextAtAPath> {
-  try {
-    /**
-     The path's own record, which says whether it is a regular file and how large it is.
-     */
-    const details = await stat(path,);
-    if (!details.isFile()) {
-      return {
-        kind: 'not a file this reader reads',
-        reason: `${path} is no regular file, so nothing that reads it can wait for a writer`,
-      };
-    }
-    if (details.size > limitBytes) {
-      return {
-        kind: 'not a file this reader reads',
-        reason: `${path} holds ${String(details.size,)} bytes, more than the ${String(limitBytes,)} this reader takes`,
-      };
-    }
+  /**
+   What the read answered, which is one descriptor opened without waiting and looked at after it was opened.
+   */
+  const read = await readRegularFileAt({
+    path,
+    ...((limitBytes === undefined) ? {} : { limitBytes, }),
+  },);
+  if (read.kind === 'text') {
     return {
       kind: 'the text',
-      text: await readFile(
-        path,
-        'utf8',
-      ),
+      text: read.text,
     };
   }
-  catch (error) {
-    // A file that is not there is a fact each caller turns into its own verdict.
-    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
-      return { kind: 'no file', };
-    }
-    throw error;
+  if (read.kind === 'no file') {
+    return { kind: 'no file', };
   }
+  return {
+    kind: 'unreadable',
+    reason: read.reason,
+  };
 }
 
 /**
@@ -396,7 +360,7 @@ export async function readingOfAStatement({
    What the review file holds.
    */
   const shown = await textAtAPath({ path: reviewFile, },);
-  if (shown.kind === 'not a file this reader reads') {
+  if (shown.kind === 'unreadable') {
     return {
       kind: 'unreadable',
       reasons: [`${reviewFile} cannot be read as a statement: ${shown.reason}`,],
@@ -459,4 +423,65 @@ export async function readingOfAStatement({
     }
     throw error;
   }
+}
+
+/**
+ What a statement's commit and the review's record say together.
+ */
+export type CommitReading =
+  | {
+    readonly kind: 'the same commit';
+  }
+    | {
+      readonly kind: 'another commit';
+      readonly problem: string;
+    }
+    | {
+      readonly kind: 'cannot be compared';
+      readonly uncompared: string;
+    };
+
+/**
+ Reads what a statement's commit and the review's record say together: whether they name the same commit, another one, or no
+ commit this reader can compare.
+
+ @param recorded - what the review recorded it read
+
+ @param stated - the commit the statement names
+
+ @param readingFile - the record's path, for the message
+
+ @returns which of the three it is, with the line a verdict prints
+
+ @example
+ ```ts
+ const commit = commitReadingIn({ recorded, stated: 'abc123', readingFile: '/reviews/a/what-the-review-read.json' });
+ ```
+ */
+export function commitReadingIn({
+  recorded,
+  stated,
+  readingFile,
+}: {
+  readonly recorded: ReadingAtAPath;
+  readonly stated: string;
+  readonly readingFile: string;
+},): CommitReading {
+  if (recorded.kind === 'unreadable') {
+    return {
+      kind: 'cannot be compared',
+      uncompared: `${readingFile} is not there or names no commit, so the commit the statement names cannot be compared`,
+    };
+  }
+  return commitIsTheSame({
+    stated,
+    recorded: recorded.reading
+      .commit,
+  },)
+    ? { kind: 'the same commit', }
+    : {
+      kind: 'another commit',
+      problem: `the statement names commit ${stated} and the review recorded ${recorded.reading
+        .commit}`,
+    };
 }

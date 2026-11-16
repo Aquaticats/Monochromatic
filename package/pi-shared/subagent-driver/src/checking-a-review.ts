@@ -12,14 +12,17 @@
  @module
  */
 
-import { join, } from 'node:path';
-import { endReasonIn, } from './end-of-a-run.ts';
 import { endedOnItsOwnTerms, } from './end-reasons.ts';
 import {
   NO_FINISHED_RUN_OF_THAT_NAME,
   isThere,
   newestFinishedRunOf,
 } from './newest-finished-run-of-a-name.ts';
+import {
+  type ReviewCheck,
+  type ReviewVerdict,
+  CHECK_LIMITS_LINE,
+} from './review-check-types.ts';
 import {
   type ReadingAtAPath,
   type ReviewCoverage,
@@ -28,6 +31,7 @@ import {
   fileProblemsIn,
   readingAtAPath,
   readingOfAStatement,
+  commitReadingIn
 } from './review-check-reading.ts';
 import type { ReviewStatement, } from './review-statement-shape.ts';
 import { commitIsTheSame, } from './review-statement.ts';
@@ -39,142 +43,8 @@ import {
 import {
   type SessionOfARun,
   sessionOfTheRun,
+  summaryOfTheRun,
 } from './session-of-a-finished-run.ts';
-
-/**
- What one review's check answered.
- */
-export type ReviewVerdict =
-  | 'complete'
-    | 'ran nothing'
-    | 'statement missing or not matching its session'
-    | 'no review file'
-    | 'cut';
-
-/**
- One review's verdict and the reasons for it.
- */
-export type ReviewCheck = {
-  /**
-   The change the review read.
-   */
-  readonly review: string;
-
-  /**
-   The verdict.
-   */
-  readonly verdict: ReviewVerdict;
-
-  /**
-   One line per fact that decided the verdict, and per claim the check could not confirm either way.
-   */
-  readonly reasons: readonly string[];
-
-  /**
-   The review file's path.
-   */
-  readonly reviewFile: string;
-
-  /**
-   The newest finished run of the review, when one finished.
-   */
-  readonly run?: string;
-
-  /**
-   Why that run ended, as its summary says.
-   */
-  readonly endReason?: string;
-
-  /**
-   Whether that run ended on its own terms, which is false for a run a cap, a wall clock, an abort or a model error ended.
-   */
-  readonly endedByItself: boolean;
-
-  /**
-   The statement the review wrote, when it wrote one the reader can read.
-   */
-  readonly statement?: ReviewStatement;
-
-  /**
-   What the statement says the review read, when the diff and the statement both read.
-   */
-  readonly coverage?: ReviewCoverage;
-
-  /**
-   The programs the statement names and the session confirms as ones the review's worktree built.
-   */
-  readonly builtPrograms: readonly string[];
-};
-
-/**
- The line one check's verdict prints, and the limits every verdict is read with.
- */
-export const CHECK_LIMITS_LINE: string =
-  'Compared: each statement command against the bash and process-start calls its session records, the exit code a bash result '
-    + 'holds, the statement\'s files and line count against the diff file, and the commit against what the review recorded it '
-    + 'read. Not visible: commands run inside a codemode call, a process start\'s exit code (its result records none), a script '
-    + 'that builds a built program\'s path from a variable rather than holding it, and anything written after the run ended.';
-
-/**
- What a statement's commit and the review's record say together.
- */
-type CommitReading =
-  | {
-    readonly kind: 'the same commit';
-  }
-    | {
-      readonly kind: 'another commit';
-      readonly problem: string;
-    }
-    | {
-      readonly kind: 'cannot be compared';
-      readonly uncompared: string;
-    };
-
-/**
- Reads what a statement's commit and the review's record say together: whether they name the same commit, another one, or no
- commit this reader can compare.
-
- @param recorded - what the review recorded it read
-
- @param stated - the commit the statement names
-
- @param readingFile - the record's path, for the message
-
- @returns which of the three it is, with the line a verdict prints
-
- @example
- ```ts
- const commit = commitReadingIn({ recorded, stated: 'abc123', readingFile: '/reviews/a/what-the-review-read.json' });
- ```
- */
-function commitReadingIn({
-  recorded,
-  stated,
-  readingFile,
-}: {
-  readonly recorded: ReadingAtAPath;
-  readonly stated: string;
-  readonly readingFile: string;
-},): CommitReading {
-  if (recorded.kind === 'unreadable') {
-    return {
-      kind: 'cannot be compared',
-      uncompared: `${readingFile} is not there or names no commit, so the commit the statement names cannot be compared`,
-    };
-  }
-  return commitIsTheSame({
-    stated,
-    recorded: recorded.reading
-      .commit,
-  },)
-    ? { kind: 'the same commit', }
-    : {
-      kind: 'another commit',
-      problem: `the statement names commit ${stated} and the review recorded ${recorded.reading
-        .commit}`,
-    };
-}
 
 /**
  Checks one ended review against the run and session it left.
@@ -222,14 +92,16 @@ export async function checkAReview({
    */
   const run = (newest === NO_FINISHED_RUN_OF_THAT_NAME) ? undefined : newest;
   /**
-   Why that run ended, when one finished.
+   What that run's summary says, read through one descriptor opened without waiting.
    */
-  const endReason = (run === undefined)
-    ? undefined
-    : (await endReasonIn({ folder: join(
-      runsFolder,
-      run,
-    ), },)).endReason;
+  const summary = (run === undefined) ? undefined : await summaryOfTheRun({
+    runsFolder,
+    run,
+  },);
+  /**
+   Why that run ended, when its summary could be read.
+   */
+  const endReason = (summary?.kind === 'read') ? summary.endReason : undefined;
   /**
    Whether the run ended on its own terms.
    */
@@ -251,6 +123,11 @@ export async function checkAReview({
       ...((endReason === undefined) ? {} : { endReason, }),
       endedByItself,
       builtPrograms: [],
+      thin: false,
+      reviewer: {
+        provider: '',
+        model: '',
+      },
     };
   }
   if (run === undefined) {
@@ -262,6 +139,28 @@ export async function checkAReview({
       reviewFile,
       endedByItself,
       builtPrograms: [],
+      thin: false,
+      reviewer: {
+        provider: '',
+        model: '',
+      },
+    };
+  }
+  if (summary?.kind === 'unreadable') {
+    return {
+      review,
+      verdict: 'cut',
+      reasons: [`${run} left a summary that cannot be read, so what the review read and ran cannot be compared: ${
+         summary.reason}`],
+      reviewFile,
+      run,
+      endedByItself,
+      builtPrograms: [],
+      thin: false,
+      reviewer: {
+        provider: '',
+        model: '',
+      },
     };
   }
   if (!endedByItself) {
@@ -274,15 +173,17 @@ export async function checkAReview({
       ...((endReason === undefined) ? {} : { endReason, }),
       endedByItself,
       builtPrograms: [],
+      thin: false,
+      reviewer: {
+        provider: '',
+        model: '',
+      },
     };
   }
   /**
-   What the run's session records, or why it cannot be read.
+   What the run's session records, or why it cannot be read. The summary was read above, so it names the session file.
    */
-  const session = await sessionOfTheRun({
-    runsFolder,
-    run,
-  },);
+  const session = await sessionOfTheRun({ sessionFile: (summary?.kind === 'read') ? summary.sessionFile : '', },);
   if (session.kind === 'unreadable') {
     return {
       review,
@@ -294,8 +195,17 @@ export async function checkAReview({
       ...((endReason === undefined) ? {} : { endReason, }),
       endedByItself,
       builtPrograms: [],
+      thin: false,
+      reviewer: {
+        provider: '',
+        model: '',
+      },
     };
   }
+  /**
+   The reviewer the run started on, which a second start picks another of.
+   */
+  const {reviewer} = session.session;
   /**
    The statement, the diff and the comparison with the session.
    */
@@ -314,6 +224,8 @@ export async function checkAReview({
       ...((endReason === undefined) ? {} : { endReason, }),
       endedByItself,
       builtPrograms: [],
+      thin: false,
+      reviewer,
     };
   }
   /**
@@ -397,6 +309,10 @@ export async function checkAReview({
       coverage,
       builtPrograms: reading.comparison
         .builtPrograms,
+      thin: coverage.filesNotReadWhole
+        .length
+        > 0,
+      reviewer,
     };
   }
   if (reading.comparison
@@ -407,9 +323,13 @@ export async function checkAReview({
       review,
       verdict: 'ran nothing',
       reasons: [
-        `no command it lists ran a program built from commit ${reading.statement
+        `thin: no command it lists ran a program built from commit ${reading.statement
           .commit}, and no command its session records `
           + 'does',
+        ...((reading.comparison
+          .buildCommandRan)
+          ? ['the session records a build command, but no command ran a program it wrote']
+          : ['the session records no build command either']),
         ...coverageReasonsOf(coverage,),
         ...uncompared,
       ],
@@ -420,6 +340,8 @@ export async function checkAReview({
       statement: reading.statement,
       coverage,
       builtPrograms: [],
+      thin: true,
+      reviewer,
     };
   }
   return {
@@ -435,6 +357,15 @@ export async function checkAReview({
             .builtPrograms
             .join(', ')}`,
       `the run ended ${endReason ?? 'with no reason its summary names'}`,
+      ...((reading.comparison
+        .buildCommandRan)
+        ? ['the session records a build command, so a program from that build is what ran']
+        : ['the session records no build command, so the build itself is the statement\'s own claim']),
+      ...((coverage.filesNotReadWhole
+        .length
+        === 0)
+        ? []
+        : ['thin: it did not read every file it was given whole, which a second review reads']),
       ...uncompared,
     ],
     reviewFile,
@@ -445,6 +376,10 @@ export async function checkAReview({
     coverage,
     builtPrograms: reading.comparison
       .builtPrograms,
+    thin: coverage.filesNotReadWhole
+      .length
+      > 0,
+    reviewer,
   };
 }
 

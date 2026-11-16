@@ -9,10 +9,7 @@
  @module
  */
 
-import {
-  readFile,
-  stat,
-} from 'node:fs/promises';
+import { readRegularFileAt, } from './reading-a-regular-file.ts';
 import type { PiRecord, } from './driver-types.ts';
 import {
   fieldsOf,
@@ -94,6 +91,14 @@ export type SessionReadings = {
    How many `codemode` calls the session holds, whose own commands it does not record and this reader cannot see.
    */
   readonly codemodeCalls: number;
+
+  /**
+   The provider and model the run started on, as the session's first model change records them; empty when it records none.
+   */
+  readonly reviewer: {
+    readonly provider: string;
+    readonly model: string;
+  };
 };
 
 /**
@@ -172,6 +177,12 @@ function exitCodeIn({
   if (result === undefined) {
     return NO_EXIT_CODE;
   }
+  // Pi marks a command that exited non-zero as a failed result, and the harness writes its marker into such a result. A result Pi
+  // did not mark as an error is a command that exited zero, whose own output is the whole text: a line of it that reads like the
+  // harness's marker is the command's own, so no marker is read from it.
+  if (!result.isError) {
+    return 0;
+  }
   /**
    Where the harness wrote the exit code, when it wrote one.
    */
@@ -188,11 +199,14 @@ function exitCodeIn({
       return Number(written,);
     }
   }
-  return result.isError ? NO_EXIT_CODE : 0;
+  return NO_EXIT_CODE;
 }
 
 /**
- Reads one session file's text, refusing one larger than this reader takes.
+ Reads one session file's text, refusing one that is not a regular file of the size this reader takes.
+
+ The descriptor is opened first, without waiting for a writer, and looked at second: a named pipe at a session file's path answers
+ at once instead of holding the reader for ever.
 
  @param file - the session file
 
@@ -200,8 +214,8 @@ function exitCodeIn({
 
  @returns the file's text
 
- @throws SessionRecordError when the file is larger than the limit, because a reader that held it whole would hold a machine's
- memory for a session nobody could have written by accident
+ @throws SessionRecordError when the file is not there, is no regular file, cannot be read, or holds more than the limit, because a
+ caller that cannot compare a run's commands must answer that rather than raise the operating system's own failure
 
  @example
  ```ts
@@ -210,34 +224,23 @@ function exitCodeIn({
  */
 export async function sessionTextIn({
   file,
-  limitBytes = SESSION_TEXT_LIMIT_BYTES,
+  limitBytes,
 }: {
   readonly file: string;
   readonly limitBytes?: number;
 },): Promise<string> {
   /**
-   What the file's own record says about it, which is read before its text so a huge one is refused rather than loaded and a
-   named pipe is never opened.
+   What the read answered.
    */
-  const details = await stat(file,);
-  /**
-   How many bytes the file holds.
-   */
-  const {size} = details;
-  if (!details.isFile()) {
-    throw new SessionRecordError(
-      `${file} is no regular file, so nothing that reads it can wait for a writer and what that run ran cannot be compared`,
-    );
+  const read = await readRegularFileAt({
+    path: file,
+    ...((limitBytes === undefined) ? {} : { limitBytes, }),
+  },);
+  if (read.kind === 'text') {
+    return read.text;
   }
-  if (size > limitBytes) {
-    throw new SessionRecordError(
-      `${file} holds ${String(size,)} bytes, more than the ${String(limitBytes,)} this reader takes, so what that run ran `
-        + 'cannot be compared',
-    );
-  }
-  return await readFile(
-    file,
-    'utf8',
+  throw new SessionRecordError(
+    `${(read.kind === 'no file') ? file : read.reason} means what that run ran cannot be compared`,
   );
 }
 
@@ -329,6 +332,8 @@ export function sessionReadings({
   const state = {
     workingFolder: '',
     codemodeCalls: 0,
+    provider: '',
+    model: '',
   };
   for (const [at, line] of shown.split('\n',)
     .entries()) {
@@ -345,6 +350,17 @@ export function sessionReadings({
     },);
     if (record.type === 'session') {
       state.workingFolder = textOf(record.cwd,) || state.workingFolder;
+      continue;
+    }
+    if (record.type === 'model_change') {
+      // The first model change a session records is the model the run started on; a later one is the run moving, and the review a
+      // second start was briefed against is the one this run began with.
+      if (state.provider === '') {
+        state.provider = textOf(record.provider,);
+      }
+      if (state.model === '') {
+        state.model = textOf(record.modelId,);
+      }
       continue;
     }
     if (record.type !== 'message') {
@@ -440,6 +456,10 @@ export function sessionReadings({
     workingFolder: state.workingFolder,
     commands,
     codemodeCalls: state.codemodeCalls,
+    reviewer: {
+      provider: state.provider,
+      model: state.model,
+    },
   };
 }
 

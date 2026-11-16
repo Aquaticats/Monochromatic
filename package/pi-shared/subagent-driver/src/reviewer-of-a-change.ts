@@ -310,3 +310,93 @@ export function reviewFileOfAReview({
     REVIEW_FILE_NAME,
   );
 }
+
+/**
+ A reviewer a review of a change can run on.
+ */
+export type ReviewerOfAChange = {
+  /**
+   The name a reader knows the reviewer by, which is the model's own name in the rules that name it.
+   */
+  readonly name: string;
+
+  /**
+   The Pi provider that serves it, or empty text when no Pi model on this machine is this reviewer.
+   */
+  readonly provider: string;
+
+  /**
+   The Pi model that serves it, or empty text when no Pi model on this machine is this reviewer.
+   */
+  readonly model: string;
+};
+
+/**
+ The second reviewer of the pair a change's reviews run between: Claude Sonnet, which the project's rules name for a review and for a
+ long audit, and which no Pi model on this machine serves.
+
+ Measured on 2026-11-15 at about 23:42 -05:00: `pi --list-models` lists one Claude model, `claude-haiku-5-5` on `opencode-go`, and
+ no Sonnet. So a second start of a review is owed to a harness with Sonnet rather than started through Pi here; when Pi lists that
+ model, this entry gains its provider and model and the command starts it instead of writing the owed note.
+
+ The owner, 2026-11-15: "Restart once by itself ON A DIFFERENT MODEL", and, asked which, "The other of the pair; Sonnet while Qwen is
+ dry."
+ */
+export const REVIEWING_PEER: ReviewerOfAChange = {
+  name: 'Claude Sonnet',
+  provider: '',
+  model: '',
+};
+
+/**
+ Reads the reviewer a second start of a review goes to: the other of the pair in use, whose first member is the reviewer of a change.
+
+ A run whose session names no model is read as one that ran on this package's reviewer, because that is the only model a Pi run of a
+ review starts on here; its second start therefore goes to the peer.
+
+ @param provider - the provider the first run started on, or empty text when its session names none
+
+ @param model - the model the first run started on, or empty text when its session names none
+
+ @returns the other reviewer of the pair
+
+ @example
+ ```ts
+ const peer = otherReviewerOf({ provider: REVIEWING_PROVIDER, model: REVIEWING_MODEL });
+ ```
+ */
+export function otherReviewerOf({
+  provider,
+  model,
+}: {
+  readonly provider: string;
+  readonly model: string;
+},): ReviewerOfAChange {
+  // A run whose session names no model is read as one that ran on this package's reviewer: the only model a Pi run of a review
+  // starts on here. So an empty pair, or this package's own pair, goes to the peer; only a run already on the peer goes back.
+  if (((provider === '') && (model === ''))
+    || ((provider === REVIEWING_PROVIDER) && (model === REVIEWING_MODEL))) {
+    return REVIEWING_PEER;
+  }
+  return {
+    name: REVIEWING_MODEL,
+    provider: REVIEWING_PROVIDER,
+    model: REVIEWING_MODEL,
+  };
+}
+
+/**
+ Says whether a Pi run can be started on a reviewer at all.
+
+ @param reviewer - the reviewer a start would name
+
+ @returns whether a provider and a model are both named
+
+ @example
+ ```ts
+ const reachable = reviewerIsReachableByPi({ name: 'Claude Sonnet', provider: '', model: '' });
+ ```
+ */
+export function reviewerIsReachableByPi(reviewer: ReviewerOfAChange,): boolean {
+  return (reviewer.provider !== '') && (reviewer.model !== '');
+}

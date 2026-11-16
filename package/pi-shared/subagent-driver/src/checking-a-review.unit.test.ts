@@ -168,6 +168,10 @@ function sessionText({ calls, }: { readonly calls: readonly FixtureCall[] },): s
     version: 3,
     id: 'fixture-session',
     cwd: aWorktree(),
+  },), lineOf({
+    type: 'model_change',
+    provider: 'qwen-token-plan-individual',
+    modelId: 'qwen4-max-preview',
   },),];
   for (const call of calls) {
     lines.push(lineOf({
@@ -533,9 +537,50 @@ await describe({
             expect(check.verdict,).toBe('complete',);
             expect(check.run,).toBe(`review-${aReview()}-1`,);
             expect(check.builtPrograms,).toEqual([aBuiltProgram(),],);
+            expect(check.reviewer,).toEqual({
+              provider: 'qwen-token-plan-individual',
+              model: 'qwen4-max-preview',
+            },);
+            expect(check.thin,).toBe(true,);
             expect(check.coverage?.filesNotReadWhole,).toEqual(['package/a/src/two.rs',],);
             expect(checkLineOf({ check, },),).toContain((aBuiltProgram()),);
             expect(check.reasons.join('\n',),).toContain(`read 2 of the diff's ${String(aDiffLines(),)} lines`,);
+          },
+        },),
+        it({
+          name: 'answers complete for a program a shared build directory outside the worktree holds, which the statement and session name (F6)',
+          fn: async () => {
+            await using fixture = await makeFixture();
+            await writeTheReading({ fixture, },);
+            /**
+             The program the shared build directory holds.
+             */
+            const program = '/var/mnt/encrypted/cargo-build/debug/deps/repro-abc123';
+            await writeARun({
+              fixture,
+              endReason: 'idle',
+              calls: [{
+                id: 'call-build',
+                command: program,
+              },],
+            },);
+            await writeTheReview({
+              fixture,
+              section: aSection(aStatement({
+                commands: [{
+                  command: program,
+                  exit: 0,
+                  ranBuiltProgram: program,
+                },],
+              },),),
+            },);
+            const check = await checkAReview({
+              review: aReview(),
+              reviewsFolder: fixture.reviewsFolder,
+              runsFolder: fixture.runsFolder,
+            },);
+            expect(check.verdict,).toBe('complete',);
+            expect(check.builtPrograms,).toEqual([program,],);
           },
         },),
         it({
@@ -563,7 +608,8 @@ await describe({
               runsFolder: fixture.runsFolder,
             },);
             expect(check.verdict,).toBe('ran nothing',);
-            expect(check.reasons[0],).toContain('ran a program built from commit',);
+            expect(check.thin,).toBe(true,);
+            expect(check.reasons[0],).toContain('thin: no command it lists ran a program built from commit');
             // The coverage is still named, so a second review knows what is left even when the first ran nothing.
             expect(check.coverage?.filesNotReadWhole,).toEqual(['package/a/src/two.rs',],);
           },
@@ -782,17 +828,17 @@ await describe({
             await writeARun({
               fixture,
               endReason: 'idle',
-              calls: [
-                { id: 'call-build', },
-                {
-                  id: 'call-push',
-                  command: `${aBuiltProgram()} push --dry-run`,
-                },
-              ],
+              calls: [{ id: 'call-build', },],
             },);
+            // The statement lists the command honestly and names no built program, so the session's own run is what answers.
             await writeTheReview({
               fixture,
-              section: aSection(aStatement(),),
+              section: aSection(aStatement({
+                commands: [{
+                  command: aBuiltRun(),
+                  exit: 0,
+                },],
+              },),),
             },);
             const check = await checkAReview({
               review: aReview(),

@@ -62,6 +62,10 @@ function aSessionLine(): string {
     type: 'session',
     version: 3,
     cwd: '/worktrees/pi-review-a',
+  },) + aLine({
+    type: 'model_change',
+    provider: 'qwen-token-plan-individual',
+    modelId: 'qwen4-max-preview',
   },);
 }
 
@@ -182,7 +186,43 @@ await describe({
                 },
               ],
               codemodeCalls: 0,
+              reviewer: {
+                provider: 'qwen-token-plan-individual',
+                model: 'qwen4-max-preview',
+              },
             },);
+          },
+        },),
+        it({
+          name: 'reads the provider and model the run started on from its first model change',
+          fn: async () => {
+            expect(sessionReadings({
+              shown: aSessionLine(),
+              file: aFile(),
+            },).reviewer,).toEqual({
+              provider: 'qwen-token-plan-individual',
+              model: 'qwen4-max-preview',
+            },);
+          },
+        },),
+        it({
+          name: 'reads a command that printed the harness marker and exited zero as zero, because a result Pi did not mark as an error has no harness code',
+          fn: async () => {
+            expect(sessionReadings({
+              shown: aCall({
+                call: {
+                  id: 'c1',
+                  name: 'bash',
+                  arguments: { command: "echo 'Command exited with code 5'", },
+                },
+                result: { text: 'Command exited with code 5\n', },
+              },),
+              file: aFile(),
+            },).commands,).toEqual([{
+              command: "echo 'Command exited with code 5'",
+              tool: 'bash',
+              exitCode: 0,
+            },],);
           },
         },),
         it({
@@ -273,6 +313,7 @@ await describe({
               workingFolder: '',
               commands: [],
               codemodeCalls: 1,
+              reviewer: { provider: '', model: '', },
             },);
           },
         },),
@@ -296,7 +337,7 @@ await describe({
         it({
           name: 'refuses a line that is no JSON, naming the line',
           fn: async () => {
-            expect(messageOf(`${aSessionLine()}not json\n`,),).toContain('line 2 is no JSON');
+            expect(messageOf(`${aSessionLine()}not json\n`,),).toContain('line 3 is no JSON');
           },
         },),
         it({

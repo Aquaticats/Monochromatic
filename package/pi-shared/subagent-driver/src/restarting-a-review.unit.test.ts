@@ -1,19 +1,26 @@
 /**
- Writing and starting a review again: the files one restart writes, the refusal of any path that already holds somebody's text, the
- guard that keeps a third run from being written under a second that has not ended, and the one place a start happens, handed a fake
- launcher.
+ Writing and starting the second review a thin one is owed: the once-only rule, the other reviewer of the pair, a plan written and
+ never started, a brief a kill cut short, the refusal of other text, and the start marker that keeps two checks from starting one
+ review twice.
 
- Every fixture is a folder the test makes and throws away; no run, unit or Pi is started.
+ Every fixture is a folder the test makes and throws away, and every start is a fake launcher, so no run, unit or Pi is started.
 
  @module
  */
 
+import {
+  spawn,
+} from 'node:child_process';
+import {
+  once,
+} from 'node:events';
 import {
   mkdir,
   mkdtemp,
   readFile,
   readdir,
   rm,
+  truncate,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -26,19 +33,17 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   CHANGE_DIFF_FILE_NAME,
   REVIEW_FILE_NAME,
+  REVIEW_READING_FILE_NAME,
   REVIEW_TURN_CAP,
   REVIEW_WALL_SECONDS,
-  REVIEW_READING_FILE_NAME,
+  REVIEWING_PEER,
+  type ReviewerOfAChange,
   type ReviewCheck,
-  aRestartIsPending,
-  baseReviewNameOf,
-  restartNumberIn,
+  processIsAlive,
   restartOfAReview,
   restartPlanOf,
-  restartReviewNameOf,
-  runWordOf,
   startRestarts,
-  writeRestartPlan,
+  takeTheStart,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -70,6 +75,24 @@ function aCommit(): string {
 }
 
 /**
+ A peer a Pi run can serve, which the shipped peer is not.
+
+ @returns the reviewer
+
+ @example
+ ```ts
+ const peer = aReachablePeer();
+ ```
+ */
+function aReachablePeer(): ReviewerOfAChange {
+  return {
+    name: 'Claude Sonnet',
+    provider: 'fixture-provider',
+    model: 'fixture-model',
+  };
+}
+
+/**
  The diff every fixture review was given.
 
  @returns the diff's text, touching two files
@@ -98,7 +121,7 @@ function aDiff(): string {
 }
 
 /**
- A reviews folder, a runs folder and the earlier review's own files, all under one folder the test throws away.
+ A reviews folder, a runs folder and the first review's own files, all under one folder the test throws away.
  */
 type Fixture = {
   /**
@@ -123,33 +146,30 @@ type Fixture = {
 };
 
 /**
- Makes a fixture folder with what the earlier review left.
+ Makes a fixture folder with what the first review left.
 
- @param verdict - the earlier review's verdict
-
- @param endReason - why the earlier run's summary says it ended
+ @param endReason - why the first run's summary says it ended
 
  @returns the fixture
 
  @example
  ```ts
- await using fixture = await makeFixture({ verdict: 'ran nothing', endReason: 'idle' });
+ await using fixture = await makeFixture({ endReason: 'idle' });
  ```
  */
 async function makeFixture({
-  verdict,
   endReason = 'idle',
 }: {
-  readonly verdict: ReviewCheck['verdict'];
   readonly endReason?: string;
-},): Promise<Fixture> {
-  const root = await mkdtemp(join(scratchRoot(), 'pi-review-restart-',),);
+} = {},): Promise<Fixture> {
+  const root = await mkdtemp(join(scratchRoot(), 'pi-second-review-',),);
   const reviewsFolder = join(root, 'reviews',);
   const runsFolder = join(root, 'runs',);
   const reviewFolder = join(reviewsFolder, aReview(),);
   await mkdir(join(reviewFolder, 'reproductions',), { recursive: true, },);
   await mkdir(join(runsFolder, `review-${aReview()}-1`,), { recursive: true, },);
   await writeFile(join(reviewFolder, CHANGE_DIFF_FILE_NAME,), aDiff(),);
+  await writeFile(join(reviewFolder, REVIEW_FILE_NAME,), '# Review: a change\n\nA finding.\n',);
   await writeFile(
     join(reviewFolder, REVIEW_READING_FILE_NAME,),
     `${JSON.stringify({
@@ -167,34 +187,24 @@ async function makeFixture({
       sessionStats: { sessionFile: join(root, 'session.jsonl',), },
     },),
   );
-  if (verdict !== 'no review file') {
-    await writeFile(
-      join(reviewFolder, REVIEW_FILE_NAME,),
-      '# Review: a change\n\nA finding.\n',
-    );
-  }
   return {
     root,
     reviewsFolder,
     runsFolder,
     async [Symbol.asyncDispose]() {
-      await rm(
-        root,
-        {
-          recursive: true,
-          force: true,
-        },
-      );
+      await rm(root, { recursive: true, force: true, },);
     },
   };
 }
 
 /**
- What the check says about the earlier review, as the restart's own input.
+ What the check says about a review, as the second review's own input.
 
- @param verdict - the earlier review's verdict
+ @param verdict - the review's verdict
 
  @param filesNotReadWhole - the files it did not read whole
+
+ @param review - the review's name
 
  @returns the check
 
@@ -206,16 +216,18 @@ async function makeFixture({
 function aCheck({
   verdict,
   filesNotReadWhole = ['package/a/src/two.rs',],
+  review = aReview(),
 }: {
   readonly verdict: ReviewCheck['verdict'];
   readonly filesNotReadWhole?: readonly string[];
+  readonly review?: string;
 },): ReviewCheck {
   return {
-    review: aReview(),
+    review,
     verdict,
     reasons: ['a reason',],
-    reviewFile: `/reviews/${aReview()}/review.md`,
-    run: `review-${aReview()}-1`,
+    reviewFile: `/reviews/${review}/review.md`,
+    run: `review-${review}-1`,
     endReason: 'idle',
     endedByItself: true,
     coverage: {
@@ -226,7 +238,12 @@ function aCheck({
       filesReadWhole: ['package/a/src/one.rs',],
       filesNotReadWhole,
     },
-    builtPrograms: [],
+    builtPrograms: verdict === 'complete' ? ['/w/target/debug/a',] : [],
+    thin: (verdict !== 'complete') || (filesNotReadWhole.length > 0),
+    reviewer: {
+      provider: 'qwen-token-plan-individual',
+      model: 'qwen4-max-preview',
+    },
     statement: {
       commit: aCommit(),
       diff: {
@@ -252,6 +269,33 @@ function aCheck({
 }
 
 /**
+ Reads a process number that is surely gone: a process this test starts, and waits for.
+
+ @returns the number its process had
+
+ @example
+ ```ts
+ const pid = await aPidThatIsGone();
+ ```
+ */
+async function aPidThatIsGone(): Promise<number> {
+  /**
+   The process, which exits at once.
+   */
+  const child = spawn(
+    process.execPath,
+    ['--input-type=module', '-e', '',],
+    { stdio: 'ignore', },
+  );
+  /**
+   The number the process had.
+   */
+  const pid = child.pid ?? 0;
+  await once(child, 'exit',);
+  return pid;
+}
+
+/**
  The words of a folder's entries.
 
  @param folder - the folder to list
@@ -263,8 +307,8 @@ function aCheck({
  const names = await entriesIn('/reviews');
  ```
  */
-async function entriesIn(folder: string,): Promise<readonly string[]> {
-  return await readdir(folder,);
+function entriesIn(folder: string,): Promise<readonly string[]> {
+  return readdir(folder,);
 }
 
 await describe({
@@ -273,322 +317,30 @@ await describe({
     describe({
       name: restartOfAReview.name,
       children: [
+        //region Once, on the other model
         it({
-          name: 'writes the brief, the diff, the reading and the batch list of a review that ran nothing, reading the whole diff again',
+          name: 'writes the second review of a thin first one for the other reviewer, and a start starts exactly one run on it',
           fn: async () => {
-            await using fixture = await makeFixture({ verdict: 'ran nothing', },);
+            await using fixture = await makeFixture();
+            const check = aCheck({ verdict: 'ran nothing', },);
             const outcome = await restartOfAReview({
-              check: aCheck({ verdict: 'ran nothing', },),
+              check,
               reviewsFolder: fixture.reviewsFolder,
               runsFolder: fixture.runsFolder,
               rulesFile: '/repo/rules.md',
               focus: 'data loss',
-            },);
-            expect(outcome.kind,).toBe('written',);
-            const plan = (outcome.kind === 'written') ? outcome.plan : undefined;
-            expect(plan?.restartReview,).toBe(`${aReview()}-restart-2`,);
-            expect(await entriesIn(fixture.reviewsFolder),).toEqual([(aReview()), `${aReview()}-restart-2`,],);
-            const brief = await readFile(plan?.briefFile ?? '', 'utf8',);
-            expect(brief,).toContain('This is the second run of the review',);
-            expect(brief,).toContain('Its check answered `ran nothing`.',);
-            expect(brief,).toContain('It ran 0 command(s) through a program built from commit',);
-            expect(brief,).toContain(`Its own review file is at \`${join(
-              fixture.reviewsFolder,
-              aReview(),
-              REVIEW_FILE_NAME,
-            )}\``,);
-            // The whole diff is read again, because the earlier run left no complete reading of it.
-            expect(brief,).toContain('package/a/src/one.rs',);
-            expect(brief,).toContain('package/a/src/two.rs',);
-            const list = await readFile(plan?.batchFile ?? '', 'utf8',);
-            expect(JSON.parse(list,),).toHaveLength(1,);
-          },
-        },),
-        it({
-          name: 'writes, for a review that read part of its diff, a diff of only the files it did not read whole',
-          fn: async () => {
-            await using fixture = await makeFixture({ verdict: 'complete', },);
-            const outcome = await restartOfAReview({
-              check: aCheck({ verdict: 'complete', },),
-              reviewsFolder: fixture.reviewsFolder,
-              runsFolder: fixture.runsFolder,
-              rulesFile: '/repo/rules.md',
-              focus: 'data loss',
-            },);
-            expect(outcome.kind,).toBe('written',);
-            const plan = (outcome.kind === 'written') ? outcome.plan : undefined;
-            const diff = await readFile(plan?.diffFile ?? '', 'utf8',);
-            expect(diff,).toContain('package/a/src/two.rs',);
-            expect(diff,).not.toContain('package/a/src/one.rs',);
-            const brief = await readFile(plan?.briefFile ?? '', 'utf8',);
-            expect(brief,).toContain('it did not read whole: package/a/src/two.rs',);
-            expect(brief,).not.toContain('- `package/a/src/one.rs`',);
-          },
-        },),
-        it({
-          name: 'writes nothing for a review that read every file whole, saying a restart is not needed',
-          fn: async () => {
-            await using fixture = await makeFixture({ verdict: 'complete', },);
-            const outcome = await restartOfAReview({
-              check: aCheck({
-                verdict: 'complete',
-                filesNotReadWhole: [],
-              },),
-              reviewsFolder: fixture.reviewsFolder,
-              runsFolder: fixture.runsFolder,
-              rulesFile: '/repo/rules.md',
-              focus: 'data loss',
-            },);
-            expect(outcome.kind,).toBe('not needed',);
-            expect(await entriesIn(fixture.reviewsFolder),).toEqual([(aReview()),],);
-          },
-        },),
-        it({
-          name: 'writes no later run while the run written before it is still pending, and says which one is',
-          fn: async () => {
-            await using fixture = await makeFixture({ verdict: 'ran nothing', },);
-            const first = await restartOfAReview({
-              check: aCheck({ verdict: 'ran nothing', },),
-              reviewsFolder: fixture.reviewsFolder,
-              runsFolder: fixture.runsFolder,
-              rulesFile: '/repo/rules.md',
-              focus: 'data loss',
-            },);
-            expect(first.kind,).toBe('written',);
-            const again = await restartOfAReview({
-              check: aCheck({ verdict: 'ran nothing', },),
-              reviewsFolder: fixture.reviewsFolder,
-              runsFolder: fixture.runsFolder,
-              rulesFile: '/repo/rules.md',
-              focus: 'data loss',
-            },);
-            expect(again.kind,).toBe('already written',);
-            expect((again.kind === 'already written') ? again.line : '',).toContain('has not ended, so no later run was written');
-            expect(await entriesIn(fixture.reviewsFolder),).toEqual([(aReview()), `${aReview()}-restart-2`,],);
-          },
-        },),
-        it({
-          name: 'writes the third run, saying so, once the second has ended',
-          fn: async () => {
-            await using fixture = await makeFixture({ verdict: 'ran nothing', },);
-            const first = await restartOfAReview({
-              check: aCheck({ verdict: 'ran nothing', },),
-              reviewsFolder: fixture.reviewsFolder,
-              runsFolder: fixture.runsFolder,
-              rulesFile: '/repo/rules.md',
-              focus: 'data loss',
-            },);
-            expect(first.kind,).toBe('written',);
-            // The second run ends, and its own check is the one the third is planned from.
-            const secondFolder = join(fixture.reviewsFolder, `${aReview()}-restart-2`,);
-            await writeFile(join(secondFolder, REVIEW_FILE_NAME,), '# Review: a change\n\nNothing.\n',);
-            const third = await restartOfAReview({
-              check: {
-                ...aCheck({ verdict: 'ran nothing', },),
-                review: `${aReview()}-restart-2`,
-              },
-              reviewsFolder: fixture.reviewsFolder,
-              runsFolder: fixture.runsFolder,
-              rulesFile: '/repo/rules.md',
-              focus: 'data loss',
-            },);
-            expect(third.kind,).toBe('written',);
-            expect((third.kind === 'written') ? third.plan.restartReview : '',).toBe(`${aReview()}-restart-3`,);
-            const brief = await readFile((third.kind === 'written') ? third.plan.briefFile : '', 'utf8',);
-            expect(brief,).toContain('This is the third run of the review',);
-          },
-        },),
-        it({
-          name: 'cannot be planned when the earlier review recorded nothing it read',
-          fn: async () => {
-            await using fixture = await makeFixture({ verdict: 'ran nothing', },);
-            await rm(join(
-              fixture.reviewsFolder,
-              aReview(),
-              REVIEW_READING_FILE_NAME,
-            ),);
-            const outcome = await restartOfAReview({
-              check: aCheck({ verdict: 'ran nothing', },),
-              reviewsFolder: fixture.reviewsFolder,
-              runsFolder: fixture.runsFolder,
-              rulesFile: '/repo/rules.md',
-              focus: 'data loss',
-            },);
-            expect(outcome.kind,).toBe('cannot',);
-            expect((outcome.kind === 'cannot') ? outcome.line : '',).toContain('names no commit, ranges and source folder');
-          },
-        },),
-      ],
-    },),
-    describe({
-      name: writeRestartPlan.name,
-      children: [
-        it({
-          name: 'keeps a brief that already holds other text, naming it, and writes none of the plan\'s other files',
-          fn: async () => {
-            await using fixture = await makeFixture({ verdict: 'ran nothing', },);
-            const planned = await restartPlanOf({
-              check: aCheck({ verdict: 'ran nothing', },),
-              number: 2,
-              reviewsFolder: fixture.reviewsFolder,
-              runsFolder: fixture.runsFolder,
-              rulesFile: '/repo/rules.md',
-              focus: 'data loss',
-            },);
-            const {plan} = planned;
-            if (plan === undefined) {
-              return;
-            }
-            // Somebody's brief is already at the path, as an earlier round left it, and none of the plan was written.
-            const kept = '# a brief nobody may replace\n';
-            await mkdir(join(fixture.reviewsFolder, plan.restartReview,), { recursive: true, },);
-            await writeFile(plan.briefFile, kept,);
-            const written = await writeRestartPlan({ plan, },);
-            expect(written.refused,).toContain(plan.briefFile,);
-            expect(written.refused,).toContain('already there with other text',);
-            expect(await readFile(plan.briefFile, 'utf8',),).toBe(kept,);
-            // The refusal was decided before any file was written, so the plan's other files are not there.
-            expect(
-              await entriesIn(join(fixture.reviewsFolder, plan.restartReview,),),
-            ).toEqual(['brief.md',],);
-          },
-        },),
-        it({
-          name: 'refuses the whole plan when the last file it would write already holds other text, leaving the first one unwritten',
-          fn: async () => {
-            await using fixture = await makeFixture({ verdict: 'ran nothing', },);
-            const planned = await restartPlanOf({
-              check: aCheck({ verdict: 'ran nothing', },),
-              number: 2,
-              reviewsFolder: fixture.reviewsFolder,
-              runsFolder: fixture.runsFolder,
-              rulesFile: '/repo/rules.md',
-              focus: 'data loss',
-            },);
-            const {plan} = planned;
-            if (plan === undefined) {
-              return;
-            }
-            // A batch list somebody else wrote is in the way of this plan's own.
-            const kept = '[{"name": "another run"}]\n';
-            await mkdir(join(fixture.reviewsFolder, plan.restartReview,), { recursive: true, },);
-            await writeFile(plan.batchFile, kept,);
-            const written = await writeRestartPlan({ plan, },);
-            expect(written.refused,).toContain(plan.batchFile,);
-            expect(await readFile(plan.batchFile, 'utf8',),).toBe(kept,);
-            expect(
-              await entriesIn(join(fixture.reviewsFolder, plan.restartReview,),),
-            ).toEqual([],);
-          },
-        },),
-        it({
-          name: 'refuses a restart whose review file is already there, so a run that already read the change is not restarted',
-          fn: async () => {
-            await using fixture = await makeFixture({ verdict: 'ran nothing', },);
-            const outcome = await restartOfAReview({
-              check: aCheck({ verdict: 'ran nothing', },),
-              reviewsFolder: fixture.reviewsFolder,
-              runsFolder: fixture.runsFolder,
-              rulesFile: '/repo/rules.md',
-              focus: 'data loss',
+              reviewer: aReachablePeer(),
             },);
             expect(outcome.kind,).toBe('written',);
             const plan = (outcome.kind === 'written') ? outcome.plan : undefined;
             if (plan === undefined) {
               return;
             }
-            const ran = join(
-              fixture.reviewsFolder,
-              plan.restartReview,
-              REVIEW_FILE_NAME,
-            );
-            await writeFile(ran, '# a review that ran\n',);
-            const written = await writeRestartPlan({ plan, },);
-            expect(written.refused,).toContain('already ran',);
-            expect(await readFile(ran, 'utf8',),).toBe('# a review that ran\n',);
-          },
-        },),
-        it({
-          name: 'leaves a file that already holds exactly the plan\'s own text alone, so a plan written twice says the same thing',
-          fn: async () => {
-            await using fixture = await makeFixture({ verdict: 'ran nothing', },);
-            const outcome = await restartOfAReview({
-              check: aCheck({ verdict: 'ran nothing', },),
-              reviewsFolder: fixture.reviewsFolder,
-              runsFolder: fixture.runsFolder,
-              rulesFile: '/repo/rules.md',
-              focus: 'data loss',
-            },);
-            const plan = (outcome.kind === 'written') ? outcome.plan : undefined;
-            if (plan === undefined) {
-              return;
-            }
-            const again = await writeRestartPlan({ plan, },);
-            expect(again.refused,).toBeUndefined();
-            expect(await readFile(plan.briefFile, 'utf8',),).toBe(plan.texts.find(function isTheBrief(target,) {
-              return target.path === plan.briefFile;
-            },)?.text,);
-          },
-        },),
-      ],
-    },),
-    describe({
-      name: aRestartIsPending.name,
-      children: [
-        it({
-          name: 'says a written restart is pending until its review file exists, and not after',
-          fn: async () => {
-            await using fixture = await makeFixture({ verdict: 'ran nothing', },);
-            const restartReview = `${aReview()}-restart-2`;
-            expect(await aRestartIsPending({
-              restartReview,
-              reviewsFolder: fixture.reviewsFolder,
-              runsFolder: fixture.runsFolder,
-            },),).toBe(false,);
-            await restartOfAReview({
-              check: aCheck({ verdict: 'ran nothing', },),
-              reviewsFolder: fixture.reviewsFolder,
-              runsFolder: fixture.runsFolder,
-              rulesFile: '/repo/rules.md',
-              focus: 'data loss',
-            },);
-            expect(await aRestartIsPending({
-              restartReview,
-              reviewsFolder: fixture.reviewsFolder,
-              runsFolder: fixture.runsFolder,
-            },),).toBe(true,);
-            await writeFile(
-              join(fixture.reviewsFolder, restartReview, REVIEW_FILE_NAME,),
-              '# Review\n',
-            );
-            expect(await aRestartIsPending({
-              restartReview,
-              reviewsFolder: fixture.reviewsFolder,
-              runsFolder: fixture.runsFolder,
-            },),).toBe(false,);
-          },
-        },),
-      ],
-    },),
-    describe({
-      name: startRestarts.name,
-      children: [
-        it({
-          name: 'hands each restart to the launcher it is given, once, with the words that name its run, branch, commit and brief',
-          fn: async () => {
-            await using fixture = await makeFixture({ verdict: 'ran nothing', },);
-            const outcome = await restartOfAReview({
-              check: aCheck({ verdict: 'ran nothing', },),
-              reviewsFolder: fixture.reviewsFolder,
-              runsFolder: fixture.runsFolder,
-              rulesFile: '/repo/rules.md',
-              focus: 'data loss',
-            },);
-            expect(outcome.kind,).toBe('written',);
-            const plan = (outcome.kind === 'written') ? outcome.plan : undefined;
-            if (plan === undefined) {
-              return;
-            }
+            expect(plan.restartReview,).toBe(`${aReview()}-restart-2`,);
+            expect(plan.entry?.provider,).toBe(aReachablePeer().provider,);
+            expect(plan.entry?.model,).toBe(aReachablePeer().model,);
+            expect(plan.entry?.turnCap,).toBe(REVIEW_TURN_CAP,);
+            expect(plan.entry?.wall,).toBe(REVIEW_WALL_SECONDS,);
             /**
              What the fake launcher was asked to start.
              */
@@ -605,40 +357,128 @@ await describe({
                     output: '',
                   };
                 },
-                wait: async function wait(milliseconds,) {
-                  expect(milliseconds,).toBeGreaterThan(0,);
-                },
-                report: function report(line,) {
-                  expect(line,).toContain('status 0',);
+                wait: async function wait() {
+                  // The stagger has nothing to wait for in a test whose launcher is fake.
                 },
               },
             },);
             expect(started,).toHaveLength(1,);
-            expect(started[0]?.name,).toBe(plan.entry.name,);
-            expect(started[0]?.words.join(' ',),).toContain(`--name=${plan.entry.name}`,);
-            expect(started[0]?.words.join(' ',),).toContain(`--branch=${plan.entry.branch}`,);
-            expect(started[0]?.words.join(' ',),).toContain(`--base=${aCommit()}`,);
-            expect(started[0]?.words.join(' ',),).toContain(`--prompt=${plan.briefFile}`,);
-            // A restart's own name has no finished run to size a turn cap from, and the review's own limits are what it gets.
-            expect(started[0]?.words.join(' ',),).toContain(`--turn-cap=${String(plan.entry.turnCap,)}`,);
-            expect(plan.entry.wall,).toBe(REVIEW_WALL_SECONDS,);
-            expect(plan.entry.turnCap,).toBe(REVIEW_TURN_CAP,);
+            expect(started[0]?.words.join(' ',),).toContain(`--provider=${aReachablePeer().provider}`,);
+            expect(started[0]?.words.join(' ',),).toContain(`--model=${aReachablePeer().model}`,);
+            expect(started[0]?.words.join(' ',),).toContain(`--turn-cap=${String(REVIEW_TURN_CAP,)}`,);
             expect(lines,).toHaveLength(1,);
             expect(lines[0],).toContain('status 0',);
-            // The launcher is the only thing that ran: no run folder was made beside the earlier run's own.
+            // No run folder was made beside the first review's own: the launcher is a fake.
             expect(await entriesIn(fixture.runsFolder),).toEqual([`review-${aReview()}-1`,],);
           },
         },),
         it({
-          name: 'starts nothing when no restart was written',
+          name: 'writes nothing and starts nothing for a complete review that read every file whole and ran a build program',
           fn: async () => {
+            await using fixture = await makeFixture();
+            const outcome = await restartOfAReview({
+              check: aCheck({
+                verdict: 'complete',
+                filesNotReadWhole: [],
+              },),
+              reviewsFolder: fixture.reviewsFolder,
+              runsFolder: fixture.runsFolder,
+              rulesFile: '/repo/rules.md',
+              focus: 'data loss',
+              reviewer: aReachablePeer(),
+            },);
+            expect(outcome.kind,).toBe('not needed',);
+            expect(await entriesIn(fixture.reviewsFolder),).toEqual([aReview(),],);
+          },
+        },),
+        it({
+          name: 'reports a second review that is still thin and starts no third',
+          fn: async () => {
+            await using fixture = await makeFixture();
+            const outcome = await restartOfAReview({
+              check: aCheck({
+                verdict: 'ran nothing',
+                review: `${aReview()}-restart-2`,
+              },),
+              reviewsFolder: fixture.reviewsFolder,
+              runsFolder: fixture.runsFolder,
+              rulesFile: '/repo/rules.md',
+              focus: 'data loss',
+              reviewer: aReachablePeer(),
+            },);
+            expect(outcome.kind,).toBe('left thin',);
+            expect((outcome.kind === 'left thin') ? outcome.line : '',).toContain('not started a third time');
+            expect((outcome.kind === 'left thin') ? outcome.line : '',).toContain('left for whoever coordinates');
+            expect(await entriesIn(fixture.reviewsFolder),).toEqual([aReview(),],);
+          },
+        },),
+        it({
+          name: 'starts no third review when the second one is already written, naming it instead',
+          fn: async () => {
+            await using fixture = await makeFixture();
+            const first = await restartOfAReview({
+              check: aCheck({ verdict: 'ran nothing', },),
+              reviewsFolder: fixture.reviewsFolder,
+              runsFolder: fixture.runsFolder,
+              rulesFile: '/repo/rules.md',
+              focus: 'data loss',
+              reviewer: aReachablePeer(),
+            },);
+            expect(first.kind,).toBe('written',);
+            // The second review wrote its file.
+            await writeFile(
+              join(fixture.reviewsFolder, `${aReview()}-restart-2`, REVIEW_FILE_NAME,),
+              '# Review: a change\n\nNothing.\n',
+            );
+            const again = await restartOfAReview({
+              check: aCheck({ verdict: 'ran nothing', },),
+              reviewsFolder: fixture.reviewsFolder,
+              runsFolder: fixture.runsFolder,
+              rulesFile: '/repo/rules.md',
+              focus: 'data loss',
+              reviewer: aReachablePeer(),
+            },);
+            expect(again.kind,).toBe('already written',);
+            expect((again.kind === 'already written') ? again.line : '',).toContain(`--review=${aReview()}-restart-2`);
+            expect((again.kind === 'already written') ? again.line : '',).toContain('no review is started a third time');
+          },
+        },),
+        //endregion Once, on the other model
+
+        //region A plan written and not started
+        it({
+          name: 'gives a plan written and never started back to a later check, which starts it once',
+          fn: async () => {
+            await using fixture = await makeFixture();
+            const first = await restartOfAReview({
+              check: aCheck({ verdict: 'ran nothing', },),
+              reviewsFolder: fixture.reviewsFolder,
+              runsFolder: fixture.runsFolder,
+              rulesFile: '/repo/rules.md',
+              focus: 'data loss',
+              reviewer: aReachablePeer(),
+            },);
+            expect(first.kind,).toBe('written',);
+            // The process that wrote the plan died before starting it: no run folder of the second review exists.
+            const again = await restartOfAReview({
+              check: aCheck({ verdict: 'ran nothing', },),
+              reviewsFolder: fixture.reviewsFolder,
+              runsFolder: fixture.runsFolder,
+              rulesFile: '/repo/rules.md',
+              focus: 'data loss',
+              reviewer: aReachablePeer(),
+            },);
+            expect(again.kind,).toBe('written',);
+            if (again.kind !== 'written') {
+              return;
+            }
             /**
-             How many starts a fake launcher would answer.
+             How many starts a fake launcher answered.
              */
             const started: string[] = [];
-            const lines = await startRestarts({
-              plans: [],
-              runsFolder: '/runs',
+            await startRestarts({
+              plans: [again.plan,],
+              runsFolder: fixture.runsFolder,
               checkoutFolder: '/repo',
               seams: {
                 start: async function start(request,) {
@@ -649,32 +489,240 @@ await describe({
                   };
                 },
                 wait: async function wait() {
-                  started.push('waited',);
+                  // The stagger has nothing to wait for in a test whose launcher is fake.
                 },
               },
             },);
-            expect(started,).toEqual([],);
-            expect(lines,).toEqual([],);
+            expect(started,).toEqual([`review-${aReview()}-restart-2`,],);
+          },
+        },),
+        it({
+          name: 'repairs a brief a kill cut short, and writes the plan whole again',
+          fn: async () => {
+            await using fixture = await makeFixture();
+            const first = await restartOfAReview({
+              check: aCheck({ verdict: 'ran nothing', },),
+              reviewsFolder: fixture.reviewsFolder,
+              runsFolder: fixture.runsFolder,
+              rulesFile: '/repo/rules.md',
+              focus: 'data loss',
+              reviewer: aReachablePeer(),
+            },);
+            expect(first.kind,).toBe('written',);
+            const briefFile = (first.kind === 'written') ? first.plan.briefFile : '';
+            const whole = await readFile(briefFile, 'utf8',);
+            await truncate(briefFile, Math.floor(whole.length / 2,),);
+            const again = await restartOfAReview({
+              check: aCheck({ verdict: 'ran nothing', },),
+              reviewsFolder: fixture.reviewsFolder,
+              runsFolder: fixture.runsFolder,
+              rulesFile: '/repo/rules.md',
+              focus: 'data loss',
+              reviewer: aReachablePeer(),
+            },);
+            expect(again.kind,).toBe('written',);
+            expect(await readFile(briefFile, 'utf8',),).toBe(whole,);
+          },
+        },),
+        //endregion A plan written and not started
+
+        //region The other model unreachable
+        it({
+          name: 'writes the brief and the note a harness with the other model takes, and starts nothing, when Pi serves no such model',
+          fn: async () => {
+            await using fixture = await makeFixture();
+            const outcome = await restartOfAReview({
+              check: aCheck({ verdict: 'ran nothing', },),
+              reviewsFolder: fixture.reviewsFolder,
+              runsFolder: fixture.runsFolder,
+              rulesFile: '/repo/rules.md',
+              focus: 'data loss',
+              reviewer: REVIEWING_PEER,
+            },);
+            expect(outcome.kind,).toBe('owed',);
+            const plan = (outcome.kind === 'owed') ? outcome.plan : undefined;
+            if (plan === undefined) {
+              return;
+            }
+            expect(plan.entry,).toBeUndefined();
+            expect(plan.owedNoteFile,).toBeDefined();
+            const note = await readFile(plan.owedNoteFile ?? '', 'utf8',);
+            expect(note,).toContain('A second review is owed');
+            expect(note,).toContain(REVIEWING_PEER.name,);
+            expect(note,).toContain('no Pi model on this machine is');
+            expect(note,).toContain('never a third');
+            expect(await readFile(plan.briefFile, 'utf8',),).toContain('This is the second run of the review');
+            expect(await entriesIn(fixture.reviewsFolder),).toEqual([aReview(), `${aReview()}-restart-2`,],);
+          },
+        },),
+        //endregion The other model unreachable
+
+        //region Its files
+        it({
+          name: 'writes, for a review that read part of its diff, a diff of only the files it did not read whole',
+          fn: async () => {
+            await using fixture = await makeFixture();
+            const outcome = await restartOfAReview({
+              check: aCheck({ verdict: 'complete', },),
+              reviewsFolder: fixture.reviewsFolder,
+              runsFolder: fixture.runsFolder,
+              rulesFile: '/repo/rules.md',
+              focus: 'data loss',
+              reviewer: aReachablePeer(),
+            },);
+            expect(outcome.kind,).toBe('written',);
+            if (outcome.kind !== 'written') {
+              return;
+            }
+            const {plan} = outcome;
+            const diff = await readFile(plan.diffFile, 'utf8',);
+            expect(diff,).toContain('package/a/src/two.rs',);
+            expect(diff,).not.toContain('package/a/src/one.rs',);
+            const brief = await readFile(plan.briefFile, 'utf8',);
+            expect(brief,).toContain('it did not read whole: package/a/src/two.rs',);
+            expect(brief,).not.toContain('- `package/a/src/one.rs`',);
+          },
+        },),
+        it({
+          name: 'cannot be planned when the first review recorded nothing it read',
+          fn: async () => {
+            await using fixture = await makeFixture();
+            await rm(join(
+              fixture.reviewsFolder,
+              aReview(),
+              REVIEW_READING_FILE_NAME,
+            ),);
+            const outcome = await restartOfAReview({
+              check: aCheck({ verdict: 'ran nothing', },),
+              reviewsFolder: fixture.reviewsFolder,
+              runsFolder: fixture.runsFolder,
+              rulesFile: '/repo/rules.md',
+              focus: 'data loss',
+              reviewer: aReachablePeer(),
+            },);
+            expect(outcome.kind,).toBe('cannot',);
+            expect((outcome.kind === 'cannot') ? outcome.line : '',).toContain('names no commit, ranges and source folder');
+          },
+        },),
+        //endregion Its files
+      ],
+    },),
+    describe({
+      name: 'the refusal of other text',
+      children: [
+        it({
+          name: 'keeps a brief that already holds other text, naming it, and writes none of the plan\'s other files',
+          fn: async () => {
+            await using fixture = await makeFixture();
+            const planned = await restartPlanOf({
+              check: aCheck({ verdict: 'ran nothing', },),
+              number: 2,
+              reviewsFolder: fixture.reviewsFolder,
+              runsFolder: fixture.runsFolder,
+              rulesFile: '/repo/rules.md',
+              focus: 'data loss',
+              reviewer: aReachablePeer(),
+            },);
+            const {plan} = planned;
+            if (plan === undefined) {
+              return;
+            }
+            const kept = '# a brief nobody may replace\n';
+            await mkdir(join(fixture.reviewsFolder, plan.restartReview,), { recursive: true, },);
+            await writeFile(plan.briefFile, kept,);
+            const outcome = await restartOfAReview({
+              check: aCheck({ verdict: 'ran nothing', },),
+              reviewsFolder: fixture.reviewsFolder,
+              runsFolder: fixture.runsFolder,
+              rulesFile: '/repo/rules.md',
+              focus: 'data loss',
+              reviewer: aReachablePeer(),
+            },);
+            expect(outcome.kind,).toBe('refused',);
+            expect((outcome.kind === 'refused') ? outcome.line : '',).toContain('already there with other text');
+            expect(await readFile(plan.briefFile, 'utf8',),).toBe(kept,);
+            expect(
+              await entriesIn(join(fixture.reviewsFolder, plan.restartReview,),),
+            ).toEqual(['brief.md',],);
+          },
+        },),
+        it({
+          name: 'lets one of two concurrent writers of the same restart write, and never discards the other\'s text',
+          fn: async () => {
+            await using fixture = await makeFixture();
+            /**
+             A check whose plan differs from the fixture's own inputs, so the two writers' texts differ.
+             */
+            const other = {
+              ...aCheck({ verdict: 'cut', },),
+              endReason: 'wall-clock',
+              endedByItself: false,
+            };
+            const ask = {
+              reviewsFolder: fixture.reviewsFolder,
+              runsFolder: fixture.runsFolder,
+              rulesFile: '/repo/rules.md',
+              focus: 'data loss',
+              reviewer: aReachablePeer(),
+            };
+            const [one, two,] = await Promise.all([
+              restartOfAReview({
+                check: aCheck({ verdict: 'ran nothing', },),
+                ...ask,
+              },),
+              restartOfAReview({ check: other, ...ask, },),
+            ],);
+            expect([one.kind, two.kind,].toSorted(),).toEqual(['refused', 'written',],);
+            // What the winner wrote is whole, and the loser's text is not there to replace it.
+            const briefFile = (one.kind === 'written') ? one.plan.briefFile : (two.kind === 'written') ? two.plan.briefFile : '';
+            const brief = await readFile(briefFile, 'utf8',);
+            expect(brief,).toContain('This is the second run of the review');
+            expect(brief,).toContain('nobody can read what it found');
           },
         },),
       ],
     },),
     describe({
-      name: 'the names of a review\'s runs',
+      name: 'the start marker',
       children: [
         it({
-          name: 'reads the review a restart answers, its own name, and the words its run is named by',
+          name: 'lets one of two starts of one restart take it, and says who holds it to the other',
           fn: async () => {
-            expect(baseReviewNameOf({ review: `${aReview()}-restart-2`, },),).toBe(aReview(),);
-            expect(baseReviewNameOf({ review: `${aReview()}-restart-2-restart-3`, },),).toBe(aReview(),);
-            expect(baseReviewNameOf({ review: aReview(), },),).toBe(aReview(),);
-            expect(restartReviewNameOf({
+            await using fixture = await makeFixture();
+            const first = await takeTheStart({
+              reviewsFolder: fixture.reviewsFolder,
               review: aReview(),
               number: 2,
-            },),).toBe(`${aReview()}-restart-2`,);
-            expect(restartNumberIn({ review: `${aReview()}-restart-2`, },),).toBe(2,);
-            expect(runWordOf(2,),).toBe('second',);
-            expect(runWordOf(9,),).toBe('run 9',);
+            },);
+            expect(first.kind,).toBe('mine',);
+            const second = await takeTheStart({
+              reviewsFolder: fixture.reviewsFolder,
+              review: aReview(),
+              number: 2,
+            },);
+            expect(second.kind,).toBe('somebody else',);
+            expect((second.kind === 'somebody else') ? second.line : '',).toContain(`process ${String(process.pid,)}`);
+          },
+        },),
+        it({
+          name: 'is taken over once by a later check when the process that took it is gone',
+          fn: async () => {
+            await using fixture = await makeFixture();
+            /**
+             A process number that is surely gone, from a process this test started and waited for.
+             */
+            const pid = await aPidThatIsGone();
+            await writeFile(
+              join(fixture.reviewsFolder, aReview(), 'restart-2-started.json',),
+              `${JSON.stringify({ pid, },)}\n`,
+            );
+            expect(processIsAlive(pid,),).toBe(false,);
+            const taken = await takeTheStart({
+              reviewsFolder: fixture.reviewsFolder,
+              review: aReview(),
+              number: 2,
+            },);
+            expect(taken.kind,).toBe('mine',);
           },
         },),
       ],

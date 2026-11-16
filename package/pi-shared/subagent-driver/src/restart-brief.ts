@@ -16,7 +16,8 @@ import {
   BATCH_DEFAULT_TASK_COUNT,
   type BatchEntry,
 } from './batch-list.ts';
-import type { ReviewCheck, } from './checking-a-review.ts';
+import { checkLineOf, } from './checking-a-review.ts';
+import type { ReviewCheck, } from './review-check-types.ts';
 import {
   readingAtAPath,
   textAtAPath,
@@ -27,13 +28,19 @@ import {
 } from './review-diff.ts';
 import { briefOfAReview, } from './review-brief.ts';
 import {
+  batchListOfOne,
+  earlierRunTextOf,
+  filesForARestart,
+  leftFilesUnread,
+  owedNoteTextOf,
+} from './restart-brief-text.ts';
+import {
   baseReviewNameOf,
   restartReviewNameOf,
   runWordOf,
 } from './review-runs-of-a-change.ts';
 import {
-  REVIEWING_MODEL,
-  REVIEWING_PROVIDER,
+  type ReviewerOfAChange,
   branchOfAReview,
   briefFileOfAReview,
   diffFileOfAReview,
@@ -41,6 +48,7 @@ import {
   reproductionsFolderOfAReview,
   reviewFileOfAReview,
   runNameOfAReview,
+  reviewerIsReachableByPi,
 } from './reviewer-of-a-change.ts';
 import {
   REVIEW_TURN_CAP,
@@ -55,6 +63,11 @@ export type RestartPlan = {
    The review the restart reads.
    */
   readonly review: string;
+
+  /**
+   Folder that holds one folder per review, so a caller needs no path arithmetic to find one.
+   */
+  readonly reviewsFolder: string;
 
   /**
    The review the restart is, which reads the change under a name of its own.
@@ -92,9 +105,19 @@ export type RestartPlan = {
   readonly batchFile: string;
 
   /**
-   The entry a launcher starts.
+   The entry a launcher starts, when a Pi model serves the reviewer this second review is owed to.
    */
-  readonly entry: BatchEntry;
+  readonly entry?: BatchEntry;
+
+  /**
+   The reviewer this second review is for: the other of the pair the first review did not run on.
+   */
+  readonly reviewer: ReviewerOfAChange;
+
+  /**
+   The note that says the second review is owed to a harness Pi cannot start, when there is one.
+   */
+  readonly owedNoteFile?: string;
 
   /**
    The text of each file the plan writes, by path.
@@ -109,222 +132,6 @@ export type RestartPlan = {
    */
   readonly line: string;
 };
-
-/**
- Reads the sentence a restart's brief opens with about what the earlier run's statement says.
-
- @param check - what the earlier run's check answered
-
- @returns the sentence
-
- @example
- ```ts
- const stated = statementSentenceOf({ check });
- ```
- */
-function statementSentenceOf({ check, }: { readonly check: ReviewCheck },): string {
-  if (check.statement === undefined) {
-    return 'It wrote no statement of what it read and ran.';
-  }
-  /**
-   What the earlier run's statement says it read.
-   */
-  const {coverage} = check;
-  /**
-   The lines of the diff it read.
-   */
-  const linesRead = coverage?.linesRead ?? 0;
-  /**
-   The lines the diff holds.
-   */
-  const diffLines = coverage?.diffLines ?? 0;
-  /**
-   The files it read whole.
-   */
-  const whole = coverage?.filesReadWhole
-    .length
-    ?? 0;
-  /**
-   The files it did not read whole.
-   */
-  const notWhole = coverage?.filesNotReadWhole ?? [];
-  /**
-   The sentence about the files it did not read whole, when it left any.
-   */
-  const notWholeNote = (notWhole.length === 0) ? '' : `; it did not read whole: ${notWhole.join(', ')}`;
-  return `Its statement says it read ${String(linesRead,)} of the diff's ${String(diffLines,)} lines, and `
-    + `${String(whole,)} of ${String(whole + notWhole.length,)} files whole${notWholeNote}. `
-    + `It ran ${String(check.builtPrograms
-      .length,)} command(s) through a program built from commit `
-    + `${check.statement
-      .commit}.`;
-}
-
-/**
- Reads the sentence about where the earlier run's own notes are.
-
- @param review - the review the restart answers
-
- @param reviewsFolder - folder that holds one folder per review
-
- @returns the sentence
-
- @example
- ```ts
- const notes = await notesSentenceOf({ review: 'a', reviewsFolder: '/reviews' });
- ```
- */
-async function notesSentenceOf({
-  review,
-  reviewsFolder,
-}: {
-  readonly review: string;
-  readonly reviewsFolder: string;
-},): Promise<string> {
-  /**
-   The earlier run's own review file.
-   */
-  const reviewFile = reviewFileOfAReview({
-    reviewsFolder,
-    review,
-  },);
-  /**
-   What is at the earlier run's review file's path.
-   */
-  const notes = await textAtAPath({ path: reviewFile, },);
-  if (notes.kind === 'no file') {
-    return 'It wrote no review file, so its findings were not saved.';
-  }
-  if (notes.kind === 'not a file this reader reads') {
-    return `Its review file is at \`${reviewFile}\` and cannot be read: ${notes.reason}.`;
-  }
-  return `Its own review file is at \`${reviewFile}\`; read it before you begin, and do not repeat a finding it makes unless `
-    + `what you read shows that finding is wrong. Its reproduction scripts are under `
-    + `\`${reproductionsFolderOfAReview({
-      reviewsFolder,
-      review,
-    },)}\`.`;
-}
-
-/**
- Reads the paragraph a restart's brief opens with, which says what the earlier run did and did not do.
-
- @param check - what the earlier run's check answered
-
- @param number - which run of the review the restart is
-
- @param reviewsFolder - folder that holds one folder per review
-
- @returns the paragraph, ending with a blank line
-
- @example
- ```ts
- const earlier = await earlierRunTextOf({ check, number: 2, reviewsFolder: '/reviews' });
- ```
- */
-export async function earlierRunTextOf({
-  check,
-  number,
-  reviewsFolder,
-}: {
-  readonly check: ReviewCheck;
-  readonly number: number;
-  readonly reviewsFolder: string;
-},): Promise<string> {
-  /**
-   The review the restart answers.
-   */
-  const baseReview = baseReviewNameOf({ review: check.review, },);
-  /**
-   The run whose work the restart continues.
-   */
-  const run = runNameOfAReview({ review: check.review, },);
-  /**
-   What the earlier run's ending says.
-   */
-  const ending = (check.run === undefined)
-    ? `No finished run of ${run} is in the runs folder, so the earlier run left no summary.`
-    : `${run} ended ${check.endReason ?? 'with no reason its summary names'}, `
-      + `${check.endedByItself ? 'so it ended by itself' : 'so it was cut rather than ended by itself'}.`;
-  return `This is the ${runWordOf(number,)} run of the review \`${baseReview}\`. ${ending} `
-    + `Its check answered \`${check.verdict}\`. `
-    + `${statementSentenceOf({ check, },)} `
-    + `${await notesSentenceOf({
-      review: check.review,
-      reviewsFolder,
-    },)}\n\n`;
-}
-
-/**
- Says whether the earlier review read every file of its diff whole.
-
- @param check - what the earlier run's check answered
-
- @returns whether its reading was complete and left files unread whole
-
- @example
- ```ts
- const partial = leftFilesUnread({ check });
- ```
- */
-function leftFilesUnread({ check, }: { readonly check: ReviewCheck },): boolean {
-  return (check.verdict === 'complete')
-    && ((check.coverage
-      ?.filesNotReadWhole
-      .length
-      ?? 0) > 0);
-}
-
-/**
- Reads the files a restart's reviewer should read: the files the earlier review did not read whole, when its reading was
- complete, and the whole diff when the earlier run left no complete reading.
-
- @param check - what the earlier run's check answered
-
- @param diff - the earlier review's diff
-
- @returns the files to read, from the top of the checkout
-
- @example
- ```ts
- const files = filesForARestart({ check, diff: await readFile('change.diff', 'utf8') });
- ```
- */
-export function filesForARestart({
-  check,
-  diff,
-}: {
-  readonly check: ReviewCheck;
-  readonly diff: string;
-},): readonly string[] {
-  if (leftFilesUnread({ check, },)) {
-    return check.coverage
-      ?.filesNotReadWhole
-      ?? [];
-  }
-  return filesInDiff({ diff, },)
-    .files;
-}
-
-/**
- Reads the batch list that starts one restart.
-
- @param entry - the entry the launcher takes
-
- @returns the list's text
-
- @example
- ```ts
- const shown = batchListOfOne({ entry });
- ```
- */
-export function batchListOfOne({ entry, }: { readonly entry: BatchEntry },): string {
-  return `${JSON.stringify(
-    [entry,],
-    undefined,
-    2
-  )}\n`;
-}
 
 /**
  Builds one restart's plan without writing it.
@@ -355,6 +162,7 @@ export async function restartPlanOf({
   runsFolder,
   rulesFile,
   focus,
+  reviewer,
 }: {
   readonly check: ReviewCheck;
   readonly number: number;
@@ -362,6 +170,7 @@ export async function restartPlanOf({
   readonly runsFolder: string;
   readonly rulesFile: string;
   readonly focus: string;
+  readonly reviewer: ReviewerOfAChange;
 },): Promise<{
   readonly plan?: RestartPlan;
   readonly cannot?: string
@@ -466,9 +275,13 @@ export async function restartPlanOf({
     `restart-${String(number,)}-batch.json`,
   );
   /**
-   The entry the launcher starts.
+   Whether a Pi run can be started on the reviewer this second review is owed to.
    */
-  const entry: BatchEntry = {
+  const reachable = reviewerIsReachableByPi(reviewer,);
+  /**
+   The entry the launcher starts, when Pi serves the reviewer.
+   */
+  const entry = reachable ? {
     name: runNameOfAReview({ review: restartReview, },),
     branch: branchOfAReview({ review: restartReview, },),
     base: reading.commit,
@@ -478,12 +291,41 @@ export async function restartPlanOf({
     tasks: BATCH_DEFAULT_TASK_COUNT,
     wall: REVIEW_WALL_SECONDS,
     turnCap: REVIEW_TURN_CAP,
-    provider: REVIEWING_PROVIDER,
-    model: REVIEWING_MODEL,
-  };
+    provider: reviewer.provider,
+    model: reviewer.model,
+  } : undefined;
+  /**
+   The note that a harness with the reviewer must take the second review, when no Pi model serves it.
+   */
+  const owedNoteFile = reachable
+    ? undefined
+    : join(
+      reviewsFolder,
+      review,
+      `restart-${String(number,)}-second-review-owed.md`,
+    );
+  /**
+   The brief's text, which opens with what the earlier run did and did not do.
+   */
+  const brief = briefOfAReview({
+    review: restartReview,
+    commit: reading.commit,
+    source: reading.source,
+    files,
+    focus,
+    reviewsFolder,
+    runsFolder,
+    rulesFile,
+    earlier: await earlierRunTextOf({
+      check,
+      number,
+      reviewsFolder,
+    },),
+  },);
   return {
     plan: {
       review: check.review,
+      reviewsFolder,
       restartReview,
       number,
       briefFile,
@@ -491,7 +333,9 @@ export async function restartPlanOf({
       commit: reading.commit,
       files,
       batchFile,
-      entry,
+      ...((entry === undefined) ? {} : { entry, }),
+      reviewer,
+      ...((owedNoteFile === undefined) ? {} : { owedNoteFile, }),
       texts: [
         {
           path: diffFile,
@@ -505,6 +349,11 @@ export async function restartPlanOf({
               review: restartReview,
               restartOf: review,
               files,
+              reviewer: {
+                name: reviewer.name,
+                provider: reviewer.provider,
+                model: reviewer.model,
+              },
             },
             undefined,
             2
@@ -512,29 +361,28 @@ export async function restartPlanOf({
         },
         {
           path: briefFile,
-          text: briefOfAReview({
-            review: restartReview,
-            commit: reading.commit,
-            source: reading.source,
-            files,
-            focus,
-            reviewsFolder,
-            runsFolder,
-            rulesFile,
-            earlier: await earlierRunTextOf({
-              check,
-              number,
-              reviewsFolder,
-            },),
-          },),
+          text: brief,
         },
-        {
+        ...((entry === undefined) ? [] : [{
           path: batchFile,
           text: batchListOfOne({ entry, },),
-        },
+        },]),
+        ...((owedNoteFile === undefined) ? [] : [{
+          path: owedNoteFile,
+          text: owedNoteTextOf({
+            check,
+            restartReview,
+            reviewer,
+            briefFile,
+            commit: reading.commit,
+          },),
+        },]),
       ],
-      line: `${restartReview}: the ${runWordOf(number,)} run of review ${review}, written at ${briefFile}; branch `
-        + `${branchOfAReview({ review: restartReview, },)} at ${reading.commit}; its entry is in ${batchFile}`,
+      line: reachable
+        ? `${restartReview}: the ${runWordOf(number,)} run of review ${review}, on ${reviewer.name}, written at ${briefFile}; `
+          + `branch ${branchOfAReview({ review: restartReview, },)} at ${reading.commit}; its entry is in ${batchFile}`
+        : `${restartReview}: a second review of ${review} is owed on ${reviewer.name}, which no Pi model on this machine is; `
+          + `its brief is at ${briefFile} and the note for a harness that has it is at ${owedNoteFile}; nothing was started`,
     },
   };
 }

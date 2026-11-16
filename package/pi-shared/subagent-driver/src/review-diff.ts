@@ -41,9 +41,9 @@ export type FilesInADiff = {
  */
 type DiffSection = {
   /**
-   The file's path, from the top of the checkout.
+   The file's path, from the top of the checkout, which the `+++` or `---` line settles when the header alone is ambiguous.
    */
-  readonly path: string;
+  path: string;
 
   /**
    The section's lines, from its `diff --git` header to the line before the next one.
@@ -121,20 +121,85 @@ function pathInHeader({ line, }: { readonly line: string },): string | typeof NO
     return NOT_A_PATH;
   }
   /**
-   Where the header's first path ends.
+   The header's two paths, with the words before the first one taken off.
    */
-  const middle = line.indexOf(
-    DIFF_HEADER_MIDDLE,
-    DIFF_HEADER_START.length,
-  );
-  if (middle === (-1)) {
+  const rest = line.slice(DIFF_HEADER_START.length,);
+  /**
+   Where a ` b/` separator may stand.
+   */
+  const separator = rest.indexOf(DIFF_HEADER_MIDDLE,);
+  if (separator === (-1)) {
     return NOT_A_PATH;
   }
+  // A file whose own path holds ` b/` makes the header's first separator look like a boundary. git writes both paths, and they are
+  // the same path unless the file was renamed, so the boundary is the separator that leaves the same path on both sides.
+  for (const [at, found,] of separatorPositionsIn(rest,)
+    .entries()) {
+    /**
+     The path before this separator.
+     */
+    const before = rest.slice(
+      0,
+      found,
+    );
+    /**
+     The path after it.
+     */
+    const after = rest.slice(found + DIFF_HEADER_MIDDLE.length,);
+    if ((before !== '') && (before === after)) {
+      return before;
+    }
+    // The last separator is the fallback: a rename's two paths differ, and the `---` and `+++` lines settle it afterwards.
+    if (at === 0) {
+      continue;
+    }
+  }
   /**
-   The header's second path, which is the one a reviewer copies.
+   The first path's own text, when no separator leaves the same path on both sides.
    */
-  const path = line.slice(middle + DIFF_HEADER_MIDDLE.length,);
-  return (path === '') ? NOT_A_PATH : path;
+  const first = rest.slice(
+    0,
+    separator,
+  );
+  return (first === '') ? NOT_A_PATH : first;
+}
+
+/**
+ Reads where a ` b/` may separate a header's two paths.
+
+ @param rest - a header's text after `diff --git a/`
+
+ @returns each separator's position, in order
+
+ @example
+ ```ts
+ const at = separatorPositionsIn('x b/x');
+ ```
+ */
+function separatorPositionsIn(rest: string,): readonly number[] {
+  /**
+   The positions found so far.
+   */
+  const found: number[] = [];
+  /**
+   Where the next search starts.
+   */
+  const search = { from: 0, };
+  while (search.from <= rest.length) {
+    /**
+     The next separator at or after this position.
+     */
+    const at = rest.indexOf(
+      DIFF_HEADER_MIDDLE,
+      search.from,
+    );
+    if (at === (-1)) {
+      break;
+    }
+    found.push(at,);
+    search.from = at + 1;
+  }
+  return found;
 }
 
 /**
@@ -160,16 +225,31 @@ function splitDiffIn({ diff, }: { readonly diff: string },): SplitDiff {
    One section per file, as they are read.
    */
   const sections: DiffSection[] = [];
+  /**
+   The section being read, and what its `---` line said about a deletion.
+   */
+  const state = {
+    current: [] as DiffSection[],
+    fromPath: '',
+    resolved: false,
+  };
   for (const line of diff.split('\n',)) {
     /**
      The path this line's file header names, when it is one.
      */
     const path = pathInHeader({ line, },);
     if (path !== NOT_A_PATH) {
-      sections.push({
+      /**
+       A fresh section, whose path the `---` and `+++` lines may settle.
+       */
+      const section: DiffSection = {
         path,
         lines: [line,],
-      },);
+      };
+      sections.push(section,);
+      state.current = [section,];
+      state.fromPath = '';
+      state.resolved = false;
       continue;
     }
     if (line.startsWith(DIFF_HEADER_PREFIX,)) {
@@ -178,17 +258,48 @@ function splitDiffIn({ diff, }: { readonly diff: string },): SplitDiff {
           + `know: ${line}`,
       );
     }
-    /**
-     The section this line belongs to, or the preamble before any section started.
-     */
-    const last = sections.at(-1,);
-    if (last === undefined) {
-      preamble.push(line,);
-    }
-    else {
-      last.lines
+    if (state.current
+      .length
+      > 0) {
+      // The section being read is the only one in this list; every line after a header belongs to it until the next header.
+      /**
+       The section being read, which is the only one in the list.
+       */
+      const current = state.current
+        .at(0,);
+      if (current === undefined) {
+        continue;
+      }
+      current.lines
         .push(line,);
+      // The post-image line names the file git compares as new; a deletion names no file there and keeps the pre-image's name.
+      if (line.startsWith('+++ ',)) {
+        /**
+         What the post-image line names.
+         */
+        const after = line.slice('+++ '.length,);
+        if (after === '/dev/null') {
+          if (state.fromPath !== '') {
+            current.path = state.fromPath;
+          }
+        }
+        else if (after.startsWith('b/',)) {
+          current.path = after.slice('b/'.length,);
+        }
+        state.resolved = true;
+      }
+      else if ((line.startsWith('--- ',)) && (!state.resolved)) {
+        /**
+         What the pre-image line names.
+         */
+        const before = line.slice('--- '.length,);
+        if (before.startsWith('a/',)) {
+          state.fromPath = before.slice('a/'.length,);
+        }
+      }
+      continue;
     }
+    preamble.push(line,);
   }
   return {
     preamble,

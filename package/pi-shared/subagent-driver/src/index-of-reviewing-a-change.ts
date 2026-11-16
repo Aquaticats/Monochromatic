@@ -140,13 +140,14 @@ export {
 export {
   type CommandComparison,
   type StatedCommandCheck,
-  COMMAND_IN_A_REASON_CHARACTERS,
   compareCommands,
 } from './review-command-matching.ts';
 export {
   type ReviewCheck,
   type ReviewVerdict,
   CHECK_LIMITS_LINE,
+} from './review-check-types.ts';
+export {
   checkAReview,
   checkLineOf,
 } from './checking-a-review.ts';
@@ -155,7 +156,6 @@ export {
   type ReviewCoverage,
   type StatementReading,
   type TextAtAPath,
-  REVIEW_TEXT_LIMIT_BYTES,
   coverageIn,
   coverageReasonsOf,
   fileProblemsIn,
@@ -163,6 +163,11 @@ export {
   readingOfAStatement,
   textAtAPath,
 } from './review-check-reading.ts';
+export {
+  READ_LIMIT_BYTES,
+  type RegularFileReading,
+  readRegularFileAt,
+} from './reading-a-regular-file.ts';
 export {
   FIRST_RESTART_NUMBER,
   FIRST_RUN_NUMBER,
@@ -174,19 +179,43 @@ export {
 } from './review-runs-of-a-change.ts';
 export {
   type RestartPlan,
-  batchListOfOne,
-  earlierRunTextOf,
-  filesForARestart,
   restartPlanOf,
 } from './restart-brief.ts';
 export {
+  batchListOfOne,
+  earlierRunTextOf,
+  filesForARestart,
+  owedNoteTextOf,
+} from './restart-brief-text.ts';
+export {
   type RestartOutcome,
   type RestartStartingSeams,
-  aRestartIsPending,
   restartOfAReview,
   startRestarts,
-  writeRestartPlan,
 } from './restarting-a-review.ts';
+export { writeRestartPlan, } from './writing-a-restart-plan.ts';
+export {
+  type StartOwnership,
+  processIsAlive,
+  startMarkerOf,
+  takeTheStart,
+} from './start-mark-of-a-restart.ts';
+export {
+  type ReviewerOfAChange,
+  REVIEWING_PEER,
+  otherReviewerOf,
+  reviewerIsReachableByPi,
+} from './reviewer-of-a-change.ts';
+export {
+  type ExecutedWord,
+  COMMAND_IN_A_REASON_CHARACTERS,
+  buildToolRanIn,
+  collapsed,
+  executedWordsIn,
+  quoted,
+  scriptRunsABuildTool,
+} from './command-words.ts';
+
 export {
   CHECK_REVIEW_USAGE,
   CheckReviewOptionsError,
