@@ -3262,7 +3262,9 @@ A worktree whose branch a merge landed is removed by those same routes,
  so the worktree is removed under it.
  The person would see the removal line and nothing saying that a process may be in it,
  and a shell in the worktree would read `(deleted)` in its working folder,
- with its writes there failing for a path that is not there.
+ with its writes there failing for a path that is not there,
+ while a program that held a file open there goes on writing to a file no name reaches,
+ whose bytes are freed when the last descriptor on it closes.
  The owner's decision of 2026-11-15T19:16:23-05:00 accepts that gap
  (`doc/planning/git-policy-cli-cleans-up-after-its-own-worktrees.md`,
  the amendment "Accept the gap"):
