@@ -12,6 +12,12 @@
 //! proves nothing;
 //! a start time that differs from the record is unknown,
 //! whatever the namespace numbers say.
+//! One pool of namespace numbers serves the whole host,
+//! every kind of namespace draws from it,
+//! and it hands out its lowest free number,
+//! so the recycled-number control's schedule needs its recovery to receive the writer's freed number as the very next take of that pool,
+//! and nothing the control does is worth as much as taking it at once:
+//! everything the recovery reads is in place before the writer dies.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,8 +27,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::time::Instant;
 
-use crate::cgroup_test_support::delegated_route;
+use crate::cgroup_test_support::{STATE_WAIT, delegated_route};
 use crate::control_group::{ControlGroup, Record, launcher_state, parse_record, pid_namespace_id, process_start};
 use crate::crates::LockSnapshot;
 use crate::journal_recover::survivor_note;
@@ -38,6 +45,13 @@ const FIXTURE_ROOT: &str = "CARGO_SHADOW_ROUND_FOURTEEN_FIXTURE_ROOT";
 /// The environment variable that gives the helper the recorded identity of the launcher,
 /// as `pid start pid_namespace`.
 const FIXTURE_IDENTITY: &str = "CARGO_SHADOW_ROUND_FOURTEEN_FIXTURE_IDENTITY";
+
+/// The environment variable that gives the helper the number the writer's time namespace had,
+/// so a take that received another number runs no recovery and leaves the journal as the schedule found it.
+const FIXTURE_TARGET: &str = "CARGO_SHADOW_ROUND_FOURTEEN_FIXTURE_TARGET_TIME_NAMESPACE";
+
+/// The environment variable that gives the writer the process id of the launcher whose start time it records.
+const FIXTURE_LAUNCHER: &str = "CARGO_SHADOW_ROUND_FOURTEEN_FIXTURE_LAUNCHER";
 
 /// A snapshot of the lockfile of the case.
 fn snapshot(source: &str) -> LockSnapshot {
@@ -153,6 +167,14 @@ fn time_namespace_fixture() {
         return;
     };
     let root: PathBuf = PathBuf::from(root_text);
+    let here: u64 = std::os::unix::fs::MetadataExt::ino(&fs::metadata("/proc/self/ns/time").expect("this process's time namespace"));
+    let wanted: Option<u64> = std::env::var(FIXTURE_TARGET).ok().map(|text| { return text.parse::<u64>().expect("a recorded namespace number"); });
+    if wanted.is_some_and(|target| { return here != target; }) {
+        // The host handed this take another number, so this namespace is not the writer's namespace recycled: the journal of this
+        // schedule is left as it was, and the caller reads the number this take received.
+        fs::write(root.join("fixture-result"), format!("time namespace here {here}\n")).expect("write the result");
+        return;
+    }
     let identity: String = std::env::var(FIXTURE_IDENTITY).expect("an identity");
     let numbers: Vec<u64> = identity.split(' ').map(|part| { return part.parse::<u64>().expect("a number"); }).collect();
     let (pid, start, pid_namespace): (i32, u64, u64) = (i32::try_from(numbers[0]).expect("a pid"), numbers[1], numbers[2]);
@@ -174,12 +196,7 @@ fn time_namespace_fixture() {
     );
     fs::write(
         root.join("fixture-result"),
-        format!(
-            "{held}own start {own_start}\ntime namespace here {}\nquestion {:?}\nrecovery {}\n",
-            fs::metadata("/proc/self/ns/time").map_or_else(|error| { return format!("err {error}"); }, |found| { return std::os::unix::fs::MetadataExt::ino(&found).to_string(); }),
-            launcher_state(pid, start, pid_namespace),
-            note.lines().next().unwrap_or("")
-        ),
+        format!("{held}own start {own_start}\ntime namespace here {here}\nquestion {:?}\nrecovery {}\n", launcher_state(pid, start, pid_namespace), note.lines().next().unwrap_or("")),
     )
     .expect("write the result");
 }
@@ -274,41 +291,44 @@ fn a_recovery_in_another_time_namespace_never_reads_a_live_launcher_as_gone() {
     assert_entry_points_held(&shifted);
 }
 
-/// The helper that stands for the wrapper in the review's schedule (14 section 2):
-/// it runs in a time namespace T0 of its own and starts its launcher in another one,
-/// T1,
-/// so T0 is held by nothing but the wrapper and
-/// the helper process that waits for the launcher;
-/// it reads the launcher's start time on its own (T0) basis and writes the identity.
+/// The launcher of the review's schedule (14 section 2):
+/// a process in a time namespace T1 of its own,
+/// inside a user namespace U0 of its own,
+/// which writes its process id and then waits to be killed.
 /// Run on its own it does nothing.
 #[test]
 #[ignore = "the helper process of a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone"]
-fn wrapper_in_its_own_time_namespace_fixture() {
+fn launcher_fixture() {
     let Ok(root_text) = std::env::var(FIXTURE_ROOT) else {
         return;
     };
     let root: PathBuf = PathBuf::from(root_text);
-    let pid_file: PathBuf = root.join("launcher-pid");
-    let script: String = format!("echo $$ > {file}.part; mv {file}.part {file}; exec sleep 600", file = pid_file.display());
-    // The launcher is started in a time namespace of its own (the children of `unshare --time` are in it), so it does not keep this
-    // helper's time namespace alive.
-    let mut helper: Child = Command::new("unshare")
-        .args(["--time", "--boottime", "7200", "--fork", "--", "sh", "-c", &script])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("starts the launcher in another time namespace");
-    crate::cgroup_test_support::wait_until("the launcher's process id", &|| { return fs::read_to_string(&pid_file).is_ok_and(|text| { return text.trim().parse::<i32>().is_ok(); }); });
-    let pid: i32 = fs::read_to_string(&pid_file).expect("the id").trim().parse::<i32>().expect("a process id");
-    let start: u64 = process_start(pid).expect("the start time on this time namespace's basis");
-    // The time namespace of this helper, written beside the identity only so that the test can wait for its destruction.
+    fs::write(root.join("launcher-pid"), std::process::id().to_string()).expect("write the launcher's process id");
+    std::thread::sleep(std::time::Duration::from_secs(300));
+}
+
+/// The writer of the review's schedule (14 section 2),
+/// in its own time namespace T0:
+/// it reads the launcher's start time on T0's basis and writes the identity it records,
+/// with T0's number beside the launcher's process id,
+/// then waits to be killed,
+/// so T0 is held by nothing but the writer.
+/// Run on its own it does nothing.
+#[test]
+#[ignore = "the helper process of a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone"]
+fn writer_fixture() {
+    let Ok(root_text) = std::env::var(FIXTURE_ROOT) else {
+        return;
+    };
+    let root: PathBuf = PathBuf::from(root_text);
+    let launcher: i32 = std::env::var(FIXTURE_LAUNCHER).expect("the launcher's process id").parse().expect("a process id");
+    let start: u64 = process_start(launcher).expect("the launcher's start time on this time namespace's basis");
+    // The time namespace of this writer, written beside the identity so that the test can wait for its destruction.
     let time_namespace: u64 = std::os::unix::fs::MetadataExt::ino(&fs::metadata("/proc/self/ns/time").expect("the time namespace"));
-    let identity: String = format!("{pid} {start} {} {time_namespace}", pid_namespace_id().expect("pid namespace"));
+    let identity: String = format!("{launcher} {start} {} {time_namespace}", pid_namespace_id().expect("pid namespace"));
     fs::write(root.join("identity.part"), identity).expect("write the identity");
     fs::rename(root.join("identity.part"), root.join("identity")).expect("publish the identity");
     std::thread::sleep(std::time::Duration::from_secs(300));
-    let _ = helper.wait();
 }
 
 /// Every process of the user that is in the time namespace with this inode number.
@@ -324,6 +344,19 @@ fn processes_in_time_namespace(inode: u64) -> Vec<i32> {
         }
     }
     return found;
+}
+
+/// What one round of the recycled-number schedule is made from:
+/// the folder its helpers share,
+/// the scope planned for its record,
+/// and the journal planted before the writer's time namespace exists.
+struct Schedule<'a> {
+    /// The folder the helpers write into and the recovery reads.
+    root: &'a Path,
+    /// The scope the record names, planned once for every round.
+    planned: &'a ControlGroup,
+    /// The planted journal, rewritten per round and otherwise left as it is by a take that received another number.
+    journal: &'a Path,
 }
 
 /// Acceptance rows A1,
@@ -345,19 +378,23 @@ fn processes_in_time_namespace(inode: u64) -> Vec<i32> {
 #[test]
 fn a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone() {
     let route = delegated_route();
-    // The namespace numbers are handed out by one allocator for the whole host, so another session that creates a namespace between the
-    // writer's death and the recovery's creation takes the freed number (which the first full gate of round 16 met). The schedule is
-    // therefore tried again, a bounded number of times, until the freed number is reused; the test fails if it never is.
-    let mut last: Option<Attempt> = None;
-    for _attempt in 0..8 {
-        let made: Attempt = recycled_attempt(&route);
-        let reused: bool = made.reused();
-        last = Some(made);
-        if reused {
-            break;
-        }
+    // The host's namespace numbers come from one pool, shared by every kind of namespace, and a take receives the lowest free number
+    // (measured on this host, and `proc_alloc_inum`/`__ns_common_init` in the kernel say the same). So the recovery receives the writer's
+    // freed number only when nothing below it is free at its take: the number is free once the writer's processes are gone, and a namespace
+    // that dies anywhere else below it while the schedule is being made leaves a lower number for the next take to receive instead. A round
+    // of the schedule starts packed, because its writer's namespace takes the lowest free number when it is made, so a round that loses the
+    // number is followed by a fresh round, each of which makes its writer's time namespace the pool's lowest free number; the wait for the
+    // state is the package's wait for a state that has to appear.
+    let root = scratch();
+    fs::create_dir_all(root.path().join(CRATE_DIR)).expect("dir");
+    let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
+    let journal: PathBuf = plant(root.path(), &[snapshot("original")], &[]);
+    let schedule: Schedule<'_> = Schedule { root: root.path(), planned: &planned, journal: &journal };
+    let deadline: Instant = Instant::now() + STATE_WAIT;
+    let mut made: Attempt = recycled_attempt(&schedule);
+    while !made.reused() && Instant::now() < deadline {
+        made = recycled_attempt(&schedule);
     }
-    let made: Attempt = last.expect("an attempt");
     assert!(made.still_alive, "the launcher did not outlive its writer's time namespace, so the schedule was not made");
     assert!(made.reused(), "the freed time namespace number was not reused by the recovery's namespace in any attempt, so the schedule was not made: {}", made.result);
     let result: &str = &made.result;
@@ -390,43 +427,82 @@ impl Attempt {
     }
 }
 
-/// One attempt:
-/// a writer in a time namespace of its own with its launcher in another,
+/// One round of the schedule:
+/// a launcher in a time namespace of its own inside a user namespace of its own,
+/// a writer in another time namespace that records the launcher's start time on that namespace's basis,
 /// the writer's processes killed,
-/// and a recovery
-/// in a new time namespace created right after.
-fn recycled_attempt(route: &crate::control_group::Route) -> Attempt {
-    let root = scratch();
-    let mut outer: Child = Command::new("unshare")
-        .args(["--user", "--map-root-user", "--time", "--boottime", "3600", "--fork", "--"])
+/// and the recovery's take of a new time namespace at once after that.
+fn recycled_attempt(schedule: &Schedule<'_>) -> Attempt {
+    let root: &Path = schedule.root;
+    let mut launcher: Child = Command::new("unshare")
+        .args(["--user", "--map-root-user", "--time", "--boottime", "7200", "--fork", "--"])
         .arg(std::env::current_exe().expect("this test executable"))
-        .args(["--ignored", "--exact", "round_fourteen_tests::wrapper_in_its_own_time_namespace_fixture", "--nocapture"])
-        .env(FIXTURE_ROOT, root.path())
+        .args(["--ignored", "--exact", "round_fourteen_tests::launcher_fixture", "--nocapture"])
+        .env(FIXTURE_ROOT, root)
         .stdin(Stdio::null())
         .spawn()
-        .expect("the wrapper helper (it needs unshare with permission for a user and time namespace)");
-    crate::cgroup_test_support::wait_until("the writer's identity", &|| { return root.path().join("identity").exists(); });
-    let identity: String = fs::read_to_string(root.path().join("identity")).expect("the identity");
+        .expect("the launcher helper (it needs unshare with permission for a user and time namespace)");
+    crate::cgroup_test_support::wait_until("the launcher's process id", &|| { return root.join("launcher-pid").exists(); });
+    let launcher_pid: i32 = fs::read_to_string(root.join("launcher-pid")).expect("the launcher's process id").trim().parse().expect("a process id");
+    let _stop_launcher: StopOnDrop = StopOnDrop(launcher_pid);
+
+    // The writer, in a time namespace of its own: it records the launcher's start time as that namespace reads it, and the namespace's
+    // number. It is made after everything the recovery reads exists, so the journal's fsyncs are not inside the wait for the freed number.
+    let mut writer: Child = Command::new("nsenter")
+        .arg("--preserve-credentials")
+        .arg(format!("--user=/proc/{launcher_pid}/ns/user"))
+        .args(["unshare", "--time", "--boottime", "3600", "--fork", "--"])
+        .arg(std::env::current_exe().expect("this test executable"))
+        .args(["--ignored", "--exact", "round_fourteen_tests::writer_fixture", "--nocapture"])
+        .env(FIXTURE_ROOT, root)
+        .env(FIXTURE_LAUNCHER, launcher_pid.to_string())
+        .stdin(Stdio::null())
+        .spawn()
+        .expect("the writer helper (it joins the launcher's user namespace and makes a time namespace of its own)");
+    crate::cgroup_test_support::wait_until("the writer's identity", &|| { return root.join("identity").exists(); });
+    let identity: String = fs::read_to_string(root.join("identity")).expect("the identity");
     let numbers: Vec<u64> = identity.split(' ').map(|part| { return part.parse::<u64>().expect("a number"); }).collect();
     let (pid, start, pid_namespace, time_namespace): (i32, u64, u64, u64) = (i32::try_from(numbers[0]).expect("a pid"), numbers[1], numbers[2], numbers[3]);
-    let _stop_launcher: StopOnDrop = StopOnDrop(pid);
+    let record: Record = Record::Launcher { pid, start, pid_namespace, path: schedule.planned.directory().to_path_buf() };
+    fs::write(schedule.journal.join("groups"), format!("{}\n{record}\n", schedule.planned.record())).expect("records");
+    fs::write(root.join(CRATE_DIR).join("Cargo.lock"), LEFT_BY_THE_KILLED_RUN).expect("the output of the killed run");
 
     // The writer's time namespace loses its last reference: its processes are killed (the launcher is in another namespace and lives).
-    for member in processes_in_time_namespace(time_namespace) {
-        let _ = Command::new("kill").args(["-KILL", &member.to_string()]).status();
+    let members: Vec<i32> = processes_in_time_namespace(time_namespace);
+    for member in &members {
+        crate::contain_counterexample_tests::stop_quietly(*member);
     }
-    crate::cgroup_test_support::wait_until("the writer's time namespace to have no process", &|| { return processes_in_time_namespace(time_namespace).is_empty(); });
-    let _ = outer.wait();
-    let still_alive: bool = crate::contain_counterexample_tests::is_running(pid);
-
-    let planned: ControlGroup = ControlGroup::plan(route).expect("a scope name");
-    let record: Record = Record::Launcher { pid, start, pid_namespace, path: planned.directory().to_path_buf() };
-    fs::create_dir_all(root.path().join(CRATE_DIR)).expect("dir");
-    let journal: PathBuf = plant(root.path(), &[snapshot("original")], &[]);
-    fs::write(journal.join("groups"), format!("{}\n{record}\n", planned.record())).expect("records");
-    // The recovery joins the user namespace that the launcher is still in, so its new time namespace is the only namespace it creates
-    // (a new user namespace would take the freed number first).
-    let result: String = run_time_fixture_in(root.path(), &format!("{pid} {start} {pid_namespace}"), true, Some(pid));
-    crate::contain_counterexample_tests::stop_quietly(pid);
+    // Wait for those processes to have released their namespaces: a killed process keeps its `/proc` entry as a zombie, where the namespace
+    // links are already gone, so the number is free before the take and the take is not spent on a namespace the host still holds.
+    crate::cgroup_test_support::wait_until("the writer's processes to release their time namespace", &|| {
+        return members.iter().all(|member| { return fs::metadata(format!("/proc/{member}/ns/time")).map_or(true, |found| { return std::os::unix::fs::MetadataExt::ino(&found) != time_namespace; }); });
+    });
+    // The take that has to receive the freed number, at once: the recovery joins the user namespace that the launcher is still in, so its new
+    // time namespace is the only namespace it creates (a new user namespace would take the freed number first).
+    let result: String = take_the_writer_number(root, &format!("{pid} {start} {pid_namespace}"), time_namespace, launcher_pid);
+    let _ = writer.wait();
+    // The launcher outlived the writer's time namespace, which is what makes the schedule the review's; only then is it stopped.
+    let still_alive: bool = crate::contain_counterexample_tests::is_running(launcher_pid);
+    crate::contain_counterexample_tests::stop_quietly(launcher_pid);
+    let _ = launcher.wait();
     return Attempt { still_alive, time_namespace, start, result };
+}
+
+/// One take of a new time namespace, through the launcher's user namespace,
+/// which runs the recovery only when the host handed it the writer's number.
+fn take_the_writer_number(root: &Path, identity: &str, target: u64, user_namespace_of: i32) -> String {
+    let executable = std::env::current_exe().expect("this test executable");
+    let status = Command::new("nsenter")
+        .arg("--preserve-credentials")
+        .arg(format!("--user=/proc/{user_namespace_of}/ns/user"))
+        .args(["unshare", "--time", "--boottime", "7200", "--fork", "--"])
+        .arg(&executable)
+        .args(["--ignored", "--exact", "round_fourteen_tests::time_namespace_fixture", "--nocapture"])
+        .env(FIXTURE_ROOT, root)
+        .env(FIXTURE_IDENTITY, identity)
+        .env(FIXTURE_TARGET, target.to_string())
+        .status()
+        .expect("the helper (a shifted reader needs unshare with permission for a time namespace)");
+    assert!(status.success(), "the helper failed: {status:?}");
+    return fs::read_to_string(root.join("fixture-result")).expect("the helper's result");
 }

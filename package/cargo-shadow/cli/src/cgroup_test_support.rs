@@ -38,7 +38,9 @@ use crate::control_group::{ControlGroup, Record, Route, RouteSettings, detect_ro
 const TEST_STOP: Duration = Duration::from_secs(10);
 
 /// How long a test waits for a state it is looking for.
-const STATE_WAIT: Duration = Duration::from_secs(20);
+/// It is also the wait of a test that drives a schedule of the host's shared pools and has to give the host's other work time to let its
+/// state appear (the recycled time namespace number of `round_fourteen_tests`).
+pub(crate) const STATE_WAIT: Duration = Duration::from_secs(20);
 
 /// The prefix of the line a test that cannot run prints,
 /// which names the test between brackets.
