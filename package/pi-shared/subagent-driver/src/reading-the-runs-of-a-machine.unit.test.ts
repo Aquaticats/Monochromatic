@@ -145,13 +145,26 @@ await describe({
           name: 'counts the turn starts a feed records, and nothing else it holds',
           fn: async () => {
             expect(turnsInFeed({ feedShown: '', },),).toBe(0,);
+            // The feed's own lines, each ended by its line feed, as the driver writes them.
             expect(turnsInFeed({
-              feedShown: [
+              feedShown: `${[
                 JSON.stringify({ kind: 'state', },),
                 JSON.stringify({ kind: 'turn_start', n: 1, },),
                 JSON.stringify({ kind: 'assistant', text: 'hi', },),
                 JSON.stringify({ kind: 'turn_start', n: 2, },),
-              ].join('\n',),
+              ].join('\n',)}\n`,
+            },),).toBe(2,);
+          },
+        },),
+        it({
+          name: 'counts the turns of a feed its driver is still writing, where the last line is not a record yet',
+          fn: async () => {
+            // The driver has written two whole lines and part of a third, which is what a reader of a running run's feed sees:
+            // parsing that fragment throws `Unterminated string in JSON`, and the two turns it counts are not in doubt.
+            expect(turnsInFeed({
+              feedShown: `${JSON.stringify({ kind: 'turn_start', n: 1, },)}\n${
+                JSON.stringify({ kind: 'turn_start', n: 2, },)
+              }\n{"kind":"assistant","text":"a reply the driver is still wri`,
             },),).toBe(2,);
           },
         },),

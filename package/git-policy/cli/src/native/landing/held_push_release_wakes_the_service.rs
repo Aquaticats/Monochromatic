@@ -33,7 +33,6 @@
 use crate::service_client::{Activation, ClientConfig, manager_watch_for, wake};
 use crate::service_protocol::HEARTBEAT_SILENCE;
 use crate::service_provision::provision;
-use crate::service_provision_host_and_manager::units_record_dir_of;
 use crate::service_route::{Route, route_from_environment};
 use crate::transaction_git::GitContext;
 use crate::wait_ceilings::{ANSWER_CEILING, HAND_OVER_GREETING_WAIT, SHORT_EXTRA_WAIT, WITHDRAW_CEILING, waiting_notice_after};
@@ -98,7 +97,6 @@ impl WakeTheService for AskTheService<'_> {
             waiting_notice_after: waiting_notice_after(),
             extra_wait: SHORT_EXTRA_WAIT,
             start_ceiling: HAND_OVER_GREETING_WAIT,
-            units_record_dir: host.as_ref().map(units_record_dir_of),
         };
         // The wake's own lines are not the command's report, and a service that cannot be reached is not its failure.
         let mut silent: std::io::Sink = std::io::sink();

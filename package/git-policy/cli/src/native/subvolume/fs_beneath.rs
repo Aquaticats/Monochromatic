@@ -204,6 +204,24 @@ pub fn open_directory_at(parent: &File, name: &OsStr) -> std::io::Result<File> {
     return open_beneath(parent, name, libc::O_RDONLY | libc::O_DIRECTORY, 0);
 }
 
+/// What:
+///  A handle naming the subdirectory `name` of `parent`,
+///  which asks what the entry is without following a link,
+///  crossing a mount or needing any permission on the entry itself.
+/// Why:
+///  A caller that must not change what it judges needs the entry's kind before it opens the entry for reading,
+/// and reading a directory needs access that widening would give by changing its mode.
+/// A mount point is refused with `EXDEV` here exactly as a reading open refuses it,
+/// because the resolution refuses to cross a mount whatever the access asked for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const handle = handleDirectoryAt(parent, name); // throws EXDEV at a mount point
+/// ```
+pub fn handle_directory_at(parent: &File, name: &OsStr) -> std::io::Result<File> {
+    return open_beneath(parent, name, libc::O_PATH | libc::O_DIRECTORY, 0);
+}
+
 /// Open the directory at `names` below `root`,
 /// one component at a time,
 /// refusing a link,
@@ -468,6 +486,33 @@ pub fn widen_directory(directory: &File) -> std::io::Result<()> {
     return directory.set_permissions(std::fs::Permissions::from_mode(mode | 0o700));
 }
 
+/// What:
+///  Give the owner read,
+///  write and search permission on the directory a handle names,
+///  through that handle and never through the name it was opened at.
+/// Why:
+///   A handle opened without read access (`O_PATH`) cannot be changed with `fchmod`,
+/// and the mode has to be given to the
+///  object that was judged:
+/// a name the kernel resolves again may lead to another directory,
+///  and a removal that widened
+/// through the name would change the mode of whatever stands there by then.
+///  A directory this user does not own keeps the mode the kernel gives it, and the caller reads the refusal where its
+///  own opening fails.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// widenThroughAHandle(handle); // chmod /proc/self/fd/<n> 0700 for the owner
+/// ```
+pub fn widen_through_a_handle(handle: &File) -> std::io::Result<()> {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    let mode: u32 = handle.metadata()?.mode();
+    if mode & 0o700 == 0o700 {
+        return Ok(());
+    }
+    return std::fs::set_permissions(handle_path(handle), std::fs::Permissions::from_mode(mode | 0o700));
+}
+
 /// Open the subdirectory `name` of `parent` as `open_directory_at` does,
 /// giving the owner access to a directory whose mode
 ///  forbids opening it.
@@ -477,15 +522,25 @@ pub fn widen_directory(directory: &File) -> std::io::Result<()> {
 /// so a swapped name cannot
 /// redirect the change of mode.
 pub fn open_directory_widening(parent: &File, name: &OsStr) -> std::io::Result<File> {
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::os::unix::fs::MetadataExt;
     match open_directory_at(parent, name) {
         Err(error) if error.raw_os_error() == Some(libc::EACCES) => {
             let handle: File = open_beneath(parent, name, libc::O_PATH | libc::O_DIRECTORY, 0)?;
-            let mode: u32 = handle.metadata()?.mode();
-            if std::fs::set_permissions(handle_path(&handle), std::fs::Permissions::from_mode(mode | 0o700)).is_err() {
+            let judged: std::fs::Metadata = handle.metadata()?;
+            if widen_through_a_handle(&handle).is_err() {
                 return Err(error);
             }
-            return open_directory_at(parent, name);
+            let reached: File = open_directory_at(parent, name)?;
+            // The name is resolved again here, so it is proved to lead to the directory whose mode was given: another
+            // object at that name is not this command's to read.
+            let now: std::fs::Metadata = reached.metadata()?;
+            if now.dev() != judged.dev() || now.ino() != judged.ino() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!("{} is not the directory that was opened here any more", handle_path(&handle).display()),
+                ));
+            }
+            return Ok(reached);
         }
         other => return other,
     }

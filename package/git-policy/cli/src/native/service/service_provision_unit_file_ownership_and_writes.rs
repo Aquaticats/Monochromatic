@@ -39,6 +39,28 @@ pub(crate) fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
 
 pub(crate) static TEMPORARY_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
+/// What:
+///  Makes `path` a link to `target` through a temporary link and a rename,
+/// so a reader sees the old link or the new one whole.
+/// Why:
+///  The service unit runs whatever this link names at the moment the manager starts it,
+/// so a half-written link
+///  would make a start run no program at all.
+/// A rename replaces the entry atomically,
+/// which a link to a link would not
+///  (`symlink` refuses a name that exists).
+pub(crate) fn link_atomically(path: &Path, target: &Path) -> std::io::Result<()> {
+    let number: u64 = TEMPORARY_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let temporary: PathBuf = path.with_extension(format!("linktmp-{}-{number}", std::process::id()));
+    let _stale = std::fs::remove_file(&temporary);
+    std::os::unix::fs::symlink(target, &temporary)?;
+    let renamed: std::io::Result<()> = std::fs::rename(&temporary, path);
+    if renamed.is_err() {
+        let _removed = std::fs::remove_file(&temporary);
+    }
+    return renamed;
+}
+
 /// Whether the unit file at `path` carries a marker of this wrapper's units.
 pub(crate) fn is_own_unit_file(path: &Path) -> bool {
     return match std::fs::read_to_string(path) {

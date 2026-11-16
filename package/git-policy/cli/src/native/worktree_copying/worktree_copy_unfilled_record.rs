@@ -339,7 +339,7 @@ pub fn forget_unfilled(journal: &Path) -> Result<(), WorktreeCopyError> {
 /// ```ts
 /// const unfilledNames = (root) => readdir(root).filter((name) => name.endsWith(UNFILLED_SUFFIX)).sort(jsOrder);
 /// ```
-fn unfilled_names(root: &Path) -> Result<Vec<String>, WorktreeCopyError> {
+pub(crate) fn unfilled_names(root: &Path) -> Result<Vec<String>, WorktreeCopyError> {
     // `match` treats an absent root as having no records, and every other failure as fatal.
     let listing = match std::fs::read_dir(root) {
         Ok(listing) => listing,
@@ -384,21 +384,45 @@ pub fn unfilled_records_exist(common_dir: &Path) -> Result<bool, WorktreeCopyErr
 }
 
 /// What:
-///  The record one file in the journal root holds,
-/// nothing when the file is gone,
-/// and the failure that keeps it when its lines are not this release's.
+///  One record of a worktree a copy gave up on,
+/// or the reason its lines are not one this release writes.
 /// Why:
-///   Recovery never acts on a record it cannot read.
+///   The sweep that settles an unreadable record needs that reason for its one line,
+/// and every other reader needs only the records it may act on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const readUnfilled = async (path) => { const text = await readFile(path, 'utf8').catch(absent => undefined); return text === undefined ? undefined : decodeUnfilled(text); };
+/// type UnfilledFile = { kind: 'record'; copy: UnfilledCopy } | { kind: 'unreadable'; reason: string };
 /// ```
-fn read_unfilled(path: &Path) -> Result<Option<UnfilledCopy>, WorktreeCopyError> {
+pub enum UnfilledFile {
+    /// A record this release reads.
+    Record(UnfilledCopy),
+    /// A file at a record's name whose lines are not the record this release writes.
+    Unreadable {
+        /// What one line says about why it does not read.
+        reason: String,
+    },
+}
+
+/// What:
+///  The record one file in the journal root holds,
+/// nothing when the file is gone,
+/// with the damage a crash leaves named instead of refused.
+/// Why:
+///   A record is published whole by one rename,
+/// so a file at its name that does not decode is the mark of a write a crash cut short;
+/// the command that found it moves it aside and goes on
+/// (`worktree_copy_unreadable_records`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reading = await unfilledFileReading(path); // undefined when the file is gone
+/// ```
+pub(crate) fn unfilled_file_reading(path: &Path) -> Result<Option<UnfilledFile>, WorktreeCopyError> {
     assert_private_path(path, Role::JournalFile)?;
     // `match` on the read: a record another command settled while this one looked is nobody's fault.
-    let text: String = match std::fs::read_to_string(path) {
-        Ok(text) => text,
+    let bytes: Vec<u8> = match std::fs::read(path) {
+        Ok(read) => read,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => {
             let message: String = format!(
@@ -408,17 +432,32 @@ fn read_unfilled(path: &Path) -> Result<Option<UnfilledCopy>, WorktreeCopyError>
             return Err(failure_with_cause(message.as_str(), Some(&error)));
         }
     };
-    // `match` on the decode keeps a record this release does not write, and names the file the person must check.
+    let Ok(text) = String::from_utf8(bytes) else {
+        return Ok(Some(UnfilledFile::Unreadable { reason: String::from("its bytes are not text") }));
+    };
     return match decode_unfilled(text.as_str()) {
-        Ok(copy) => Ok(Some(copy)),
-        Err(reason) => Err(failure_with_cause(
-            format!(
-                "monochromatic-git-policy-cli: the record {} of a worktree whose ignored-state copy did not finish is not one this release writes ({reason}); nothing it names was changed, so check it and remove the file.",
-                quote(path.to_string_lossy().as_ref())
-            )
-            .as_str(),
-            None,
-        )),
+        Ok(copy) => Ok(Some(UnfilledFile::Record(copy))),
+        Err(reason) => Ok(Some(UnfilledFile::Unreadable { reason: reason.to_string() })),
+    };
+}
+
+/// What:
+///  The record one file in the journal root holds,
+/// nothing when the file is gone or its lines are not this release's,
+/// and the failure that keeps a file it may not read.
+/// Why:
+///   A record that does not decode names no worktree,
+/// so a sweep has nothing to act on there;
+/// the command that found it settles it first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const copy = await readUnfilled(path); // undefined when gone or unreadable
+/// ```
+fn read_unfilled(path: &Path) -> Result<Option<UnfilledCopy>, WorktreeCopyError> {
+    return match unfilled_file_reading(path)? {
+        Some(UnfilledFile::Record(copy)) => Ok(Some(copy)),
+        Some(UnfilledFile::Unreadable { .. }) | None => Ok(None),
     };
 }
 

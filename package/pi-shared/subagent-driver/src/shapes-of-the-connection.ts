@@ -9,6 +9,7 @@ import type {
   PiExit,
   PiRecord,
 } from './driver-types.ts';
+import type { TextMasking, } from './secret-value-masking.ts';
 
 /**
  What the connection tells the run about.
@@ -37,7 +38,29 @@ export type ConnectionRequest = {
    */
   readonly environment: NodeJS.ProcessEnv;
   readonly standardErrorFile: string;
+
+  /**
+   Whether Pi's standard error is added to what the file already holds, which is how a run whose Pi is started again keeps the
+   whole of what each Pi printed in one file. It is off by default, so a file a run is given starts empty.
+   */
+  readonly standardErrorAppends?: boolean;
   readonly listeners: ConnectionListeners;
+
+  /**
+   The secret values this run masks, as the text the extension Pi loads reads from its own descriptor.
+
+   Passing it opens that descriptor in the process: the driver writes the values once and closes its end, and Pi's extension reads
+   them while it loads. A caller that passes none starts Pi with three descriptors, as every run did before the masking existed, and
+   a Pi whose extension reports no values in place refuses to work (`take-the-first-prompt.ts`).
+   */
+  readonly secretValuesHandover?: string;
+
+  /**
+   The masking Pi's standard error goes through as it is kept, which is the one place that text passes before the file holds it.
+
+   A caller that passes none keeps it as Pi wrote it, which is what a test of this seam alone wants.
+   */
+  readonly mask?: TextMasking;
 
   /**
    How long Pi gets at each stage of ending; tests shorten it.

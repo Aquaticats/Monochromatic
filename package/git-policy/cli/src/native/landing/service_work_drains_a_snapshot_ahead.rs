@@ -65,6 +65,9 @@ pub(crate) async fn drain_a_snapshot_ahead<H: WorkHandlers + Sync + ?Sized>(held
         let verdict: crate::service_work::Verdict = handlers.snapshot_ahead_awaiting(&item.item).await;
         let settle_as: Option<&'static str> = match &verdict {
             crate::service_work::Verdict::Done | crate::service_work::Verdict::Skipped(_) => Some(DONE),
+            // Only a push answers this, and the upkeep of this kind settles nothing a push said; a record of a snapshot ahead
+            //  that landed is the state it asks for.
+            crate::service_work::Verdict::Delivered { .. } => Some(DONE),
             crate::service_work::Verdict::Failed(reason) => {
                 crate::service_warn!("the snapshot ahead of {} could not be made: {reason}", item.item.repository.display());
                 Some(FAILED)

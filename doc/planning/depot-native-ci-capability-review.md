@@ -14,10 +14,12 @@ without activating production workflows or changing subscriptions.
 The parent read 18 complete pages,
 verified their 156,769 captured bytes against individual SHA-256 identities,
 and recorded 95 claim-level findings.
-The [source review receipt](../audit/depot-native-ci-document-source-review-2026-10-18.evidence.json.gz)
+The source review receipt (`../audit/depot-native-ci-document-source-review-2026-10-18.evidence.json.gz`)
 joins those findings to the deployed source identities.
 The [platform ledger](depot-platform-surface-ledger.json)
 keeps retrieval separate from substantive review and preserves the independently reviewed split-tests guide.
+`depot-native-ci-document-source-review-2026-10-18.evidence.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 These are first-party descriptions of supported behavior,
 not demonstrations that every feature works for this repository.

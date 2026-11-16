@@ -66,7 +66,7 @@ const DEADLINE_MILLISECONDS: libc::c_int = 20_000;
 
 /// A pipe that every process started under the command inherits,
 /// and the end that reports when all have exited.
-struct Tripwire {
+pub(super) struct Tripwire {
     /// The end the control polls.
     read_end: File,
     /// The end the command's tree holds;
@@ -77,7 +77,7 @@ struct Tripwire {
 impl Tripwire {
     /// A new pipe,
     /// both ends closed on `exec` so that only the copy handed to a command is inherited.
-    fn new() -> Tripwire {
+    pub(super) fn new() -> Tripwire {
         let ends: [libc::c_int; 2] = close_on_exec_pipe();
         // SAFETY: both descriptors were just created here and are owned by nothing else.
         let (read_end, write_end): (OwnedFd, OwnedFd) = unsafe { (OwnedFd::from_raw_fd(ends[0]), OwnedFd::from_raw_fd(ends[1])) };
@@ -85,7 +85,7 @@ impl Tripwire {
     }
 
     /// Hand the write end to the command as descriptor nine.
-    fn arm(&self, command: &mut Command) {
+    pub(super) fn arm(&self, command: &mut Command) {
         let held: RawFd = self.write_end.as_ref().expect("the write end is open").as_raw_fd();
         // SAFETY: between fork and exec only `dup2`, an async-signal-safe call, runs; it clears the close-on-exec flag.
         unsafe {
@@ -99,7 +99,7 @@ impl Tripwire {
     }
 
     /// Close this process's copy and report whether every other holder has exited within the deadline.
-    fn released(mut self) -> bool {
+    pub(super) fn released(mut self) -> bool {
         self.write_end = None;
         let mut watched: libc::pollfd = libc::pollfd { fd: self.read_end.as_raw_fd(), events: libc::POLLIN, revents: 0 };
         // SAFETY: `poll` reads and writes the one `pollfd` it is given.

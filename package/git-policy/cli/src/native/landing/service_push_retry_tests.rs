@@ -1878,7 +1878,8 @@ fn push_item(repo: &Path, landed: &str) -> WorkItem {
 }
 
 /// The handlers' push answers the same verdict whether a task or a plain thread asks it,
-/// and both deliver the commit.
+/// both deliver the commit,
+/// and each names the commit it sent for the record of what the push said.
 #[test]
 fn the_awaited_push_of_the_handlers_answers_what_the_synchronous_one_answers() {
     let root: PathBuf = fixture("handlers-awaiting-push");
@@ -1890,8 +1891,15 @@ fn the_awaited_push_of_the_handlers_answers_what_the_synchronous_one_answers() {
     let from_a_task: Verdict = crate::merge_second_pass::tests::await_it(
         handlers.push_awaiting(std::slice::from_ref(&push_item(task_repo.as_path(), task_landed.as_str()))),
     );
-    assert_eq!(from_a_task, from_a_thread, "the two faces answer one push the same way");
-    assert_eq!(from_a_task, Verdict::Done, "the push landed");
+    // Each answer names the commit of its own fixture, so the two are compared by what they say a push came to and by the
+    //  commit each names.
+    let Verdict::Delivered { commit, said } = from_a_task else { panic!("the push landed, so its answer says so: {from_a_task:?}") };
+    let Verdict::Delivered { commit: thread_commit, said: thread_said } = from_a_thread else {
+        panic!("the push landed, so its answer says so: {from_a_thread:?}");
+    };
+    assert_eq!(commit, task_landed, "the task's answer names the commit its push sent");
+    assert_eq!(thread_commit, thread_landed, "the thread's answer names the commit its push sent");
+    assert_eq!((said.as_str(), thread_said.as_str()), ("", ""), "a clean push with no hook had nothing to say");
     assert_eq!(tip_of(thread_remote.as_path()), thread_landed, "the commit reached the remote");
     assert_eq!(tip_of(task_remote.as_path()), task_landed, "the task's push reached its remote");
     remove(root.as_path());
@@ -1993,4 +2001,227 @@ fn start_the_loop_with<'scope>(
         work_loop(&mut receiver, handlers, busy, retries, ClaimWatch::in_memory());
     });
     return (sender, running);
+}
+
+/// What:
+///  A hook that says a different thing each time it is run,
+///  so a push that sends a later commit can be told from the one before it.
+/// Why:
+///   A `post-receive` hook is the server speaking,
+/// and a control that told two pushes apart by a line they share could not
+///  say which account was kept.
+fn a_hook_that_numbered_its_words(stage: &Stage, first: &str, second: &str) -> PathBuf {
+    let hook: PathBuf = stage.remote.join("hooks").join("post-receive");
+    let counted: PathBuf = stage.root.join("hook-count");
+    std::fs::write(
+        hook.as_path(),
+        format!(
+            "#!/bin/sh\ncounted=0\nif [ -e '{counted}' ]; then counted=$(cat '{counted}'); fi\ncounted=$((counted + 1))\nprintf '%s' \"$counted\" > '{counted}'\nif [ \"$counted\" = 1 ]; then echo '{first}' >&2; else echo '{second}' >&2; fi\nexit 0\n",
+            counted = counted.display()
+        ),
+    )
+    .expect("hook");
+    std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook is executable");
+    return counted;
+}
+
+/// What:
+///  A push that sends a commit which landed after the drain's own record keeps the account of both commits,
+///  and names each for the commit it is about.
+/// Why:
+///  The drain claims records and reads the branch at its own moments,
+/// and a commit that lands between them is what the push sends:
+/// a record named for the claimed commit would overwrite an unread account of that commit with words about another one,
+/// and the person would read that other push's words as the first commit's,
+/// while the commit whose account was destroyed never says it again (a push of what the remote holds is up to date).
+#[test]
+fn a_push_of_a_commit_that_landed_after_its_record_keeps_the_earlier_commits_account() {
+    const EARLIER: &str = "THE ACCOUNT OF THE COMMIT PUSHED BEFORE, WHICH NOBODY HAS READ";
+    const LATER: &str = "THE ACCOUNT OF THE COMMIT THIS PUSH SENT";
+    let stage: Stage = stage_without_a_hook("push-report-sent-commit");
+    a_hook_that_numbered_its_words(&stage, EARLIER, LATER);
+    let git_dir: PathBuf = stage.repo.join(".git");
+    // The accepted push of the claimed commit, made by a service that was killed before it settled its record: its account is
+    //  written and nobody has read it.
+    git(stage.repo.as_path(), &["push", "--quiet", "origin", "main"]);
+    crate::push_failure_notice::record_push_report(git_dir.as_path(), "refs/heads/main", stage.landed.as_str(), EARLIER).expect("the account of the earlier push");
+    // A commit that lands after the drain claimed its record, which is what this push sends.
+    std::fs::write(stage.repo.join("a.txt"), b"three\n").expect("file");
+    git(stage.repo.as_path(), &["commit", "--quiet", "--all", "--message=three"]);
+    let later: String = git_text(stage.repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
+    assert_ne!(later, stage.landed, "the branch moved past the commit the record names");
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let _ran: Option<Duration> = round_with_real_git(&stage, &mut retries);
+    assert_eq!(remote_tip(&stage), later, "the push sent the commit the branch named, not the one its record named");
+    let shown: Vec<String> = crate::test_support::shown_notices(push_failures(git_dir.as_path()));
+    let of_earlier: Option<&String> = shown.iter().find(|text| { return text.contains(stage.landed.as_str()); });
+    let of_later: Option<&String> = shown.iter().find(|text| { return text.contains(later.as_str()); });
+    let earlier: &String = of_earlier.unwrap_or_else(|| panic!("no record is named for the commit pushed before: {shown:?}"));
+    let sent: &String = of_later.unwrap_or_else(|| panic!("no record is named for the commit this push sent: {shown:?}"));
+    assert!(earlier.contains(EARLIER), "the account nobody had read was destroyed, or is labelled with another push's words: {earlier}");
+    assert!(sent.contains(LATER), "this push's account is missing or is labelled for another commit: {sent}");
+    remove(stage.root.as_path());
+}
+
+/// What:
+///  The words of an accepted push whose record the storage refused are said in the journal,
+///  and the push is not settled as done.
+/// Why:
+///  The account of an accepted push is the only copy of what the server said,
+/// and nothing makes the push say it again.
+/// A settlement that claims the push is done when no record exists tells the person nothing and leaves nothing that could
+///  be told later,
+/// so the words go where a person can read them and the record is not called settled.
+#[test]
+fn the_words_of_an_accepted_push_whose_record_was_refused_are_said_and_it_is_not_settled_as_done() {
+    const SERVER_LINE: &str = "THE LINE NOTHING CAN MAKE THE SERVER SAY AGAIN";
+    let stage: Stage = stage_without_a_hook("push-report-unwritable");
+    let hook: PathBuf = stage.remote.join("hooks").join("post-receive");
+    std::fs::write(hook.as_path(), format!("#!/bin/sh\necho '{SERVER_LINE}' >&2\nexit 0\n")).expect("hook");
+    std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook is executable");
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let work: PathBuf = work_directory(git_dir.as_path());
+    // A file stands where the notice directory must be, so no record can be created there and the fault is the storage's.
+    let directory: PathBuf = crate::push_failure_notice::notice_directory(git_dir.as_path());
+    std::fs::create_dir_all(directory.parent().expect("the notice directory has a parent")).expect("the data folder");
+    std::fs::write(directory.as_path(), b"not a directory\n").expect("the blocker");
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let _ran: Option<Duration> = round_with_real_git(&stage, &mut retries);
+    assert_eq!(remote_tip(&stage), stage.landed, "the push was accepted, so its words exist");
+    assert!(names_in(work.as_path(), crate::work_item::DONE).is_empty(), "an item is done although no record of it exists");
+    // The words the record refused are in the service journal, which this process writes on the round's worker thread and cannot
+    //  read back; the run's stderr holds them. What the work item says is asserted here: it is not done.
+    let failed: Vec<String> = names_in(work.as_path(), crate::work_item::FAILED);
+    assert_eq!(failed.len(), 1, "the item that could not tell the person is not marked as one that did not: {failed:?}");
+    remove(stage.root.as_path());
+}
+
+/// What:
+///  A push Git refused whose record the storage refused is not settled, so its refusal is not the last thing said to nobody.
+/// Why:
+///  Nothing scans the `failed` records,
+/// so an item there is the end of it:
+/// a refusal that could not be written would leave the person no reason for a backup that does not exist,
+/// and no later try would say it.
+/// The claim is the durable record that this push still needs saying,
+/// and its lease running out is what makes the service ask the server again.
+#[test]
+fn a_refused_push_whose_record_was_refused_is_not_settled_and_its_words_are_said() {
+    const SERVER_LINE: &str = "THE REFUSAL THE PERSON MUST STILL BE TOLD";
+    let stage: Stage = stage_without_a_hook("push-refusal-unwritable");
+    let hook: PathBuf = stage.remote.join("hooks").join("pre-receive");
+    std::fs::write(hook.as_path(), format!("#!/bin/sh\necho '{SERVER_LINE}' >&2\nexit 1\n")).expect("hook");
+    std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook is executable");
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let work: PathBuf = work_directory(git_dir.as_path());
+    let directory: PathBuf = crate::push_failure_notice::notice_directory(git_dir.as_path());
+    std::fs::create_dir_all(directory.parent().expect("the notice directory has a parent")).expect("the data folder");
+    std::fs::write(directory.as_path(), b"not a directory\n").expect("the blocker");
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let _ran: Option<Duration> = round_with_real_git(&stage, &mut retries);
+    assert_ne!(remote_tip(&stage), stage.landed, "the server refused the push, so its words exist");
+    assert!(names_in(work.as_path(), crate::work_item::DONE).is_empty(), "a refused push is settled as done");
+    assert!(
+        names_in(work.as_path(), crate::work_item::FAILED).is_empty(),
+        "a refusal nothing recorded is settled as failed, and nothing tries it again"
+    );
+    let claimed: Vec<String> = names_in(work.as_path(), crate::work_item::CLAIMED);
+    assert!(claimed.iter().any(|name| { return name.contains(&stage.landed); }), "no claim is left, so nothing tries the push again: {claimed:?}");
+    // The fault is mended and the work is tried again, as the look after that lease does: the refusal the service could not
+    //  write the first time is written now, and the person reads it on the next command.
+    for name in &claimed {
+        std::fs::remove_file(work.join("claimed").join(name)).expect("the claim goes, as an expired one does when it is taken back");
+    }
+    std::fs::remove_file(directory.as_path()).expect("the fault is mended");
+    enqueue(
+        work.as_path(),
+        &WorkItem {
+            kind: WorkKind::Push,
+            repository: stage.repo.clone(),
+            git_dir: git_dir.clone(),
+            branch_ref: String::from("refs/heads/main"),
+            oid: stage.landed.clone(),
+            parent: String::new(),
+            created: String::from("2026-11-11T23:00:00.000Z"),
+            tries: 1,
+        },
+    )
+    .expect("the work is recorded again");
+    let _again: Option<Duration> = round_with_real_git(&stage, &mut retries);
+    let shown: String = crate::test_support::shown_notices(push_failures(git_dir.as_path())).join("\n");
+    assert!(shown.contains(SERVER_LINE), "the refusal the service could not write reached nobody on the next try: {shown:?}");
+    remove(stage.root.as_path());
+}
+
+/// What:
+///  A terminal refusal whose notice could not be written keeps the plan that waits for the person,
+///  and says the refusal in the journal.
+/// Why:
+///  The plan is the only durable record that the branch is waiting for a person,
+/// so a plan removed before its refusal is written leaves neither the plan nor the notice:
+/// nothing tries the branch again,
+/// and the server's refusal is said to nobody.
+/// A look that finds the record refused keeps the plan and comes back after a pause.
+#[test]
+fn a_terminal_refusal_whose_record_was_refused_keeps_the_plan_and_says_its_words() {
+    const SERVER_LINE: &str = "error: GH006: Protected branch update failed for refs/heads/main.";
+    let root: PathBuf = fixture("push-terminal-unwritable");
+    let (repo, remote, landed) = repository_with_a_landed_commit(root.as_path(), "repo");
+    let hook: PathBuf = remote.join("hooks").join("pre-receive");
+    std::fs::create_dir_all(hook.parent().expect("the hooks directory")).expect("hooks");
+    std::fs::write(hook.as_path(), format!("#!/bin/sh\necho '{SERVER_LINE}' >&2\nexit 1\n")).expect("hook");
+    std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook is executable");
+    let git_dir: PathBuf = repo.join(".git");
+    let directory: PathBuf = crate::push_failure_notice::notice_directory(git_dir.as_path());
+    std::fs::create_dir_all(directory.parent().expect("the notice directory has a parent")).expect("the data folder");
+    std::fs::write(directory.as_path(), b"not a directory\n").expect("the blocker");
+    let plans: PathBuf = root.join("journal").join(PLAN_DIRECTORY);
+    // The plan of a protected-branch refusal whose last try has just been refused.
+    let item: WorkItem = push_item(repo.as_path(), landed.as_str());
+    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: git_dir.clone(), item: item.clone(), attempt: PROTECTED_BRANCH_TRIES - 1 })
+        .expect("the plan of the last try");
+    // The plan is due at once, which is the state of one whose pause has passed.
+    let mut retries: PushRetries = PushRetries::restored(Duration::ZERO, plans.as_path());
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT));
+    let _ran: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    assert_ne!(tip_of(remote.as_path()), landed, "the server refused the push, so its words exist");
+    let kept: Vec<crate::push_retry_store::StoredPlan> = crate::push_retry_store::load(plans.as_path());
+    assert_eq!(kept.len(), 1, "the plan that waits for the person is gone although no notice was written: {kept:?}");
+    assert_eq!(kept[0].item.branch_ref, item.branch_ref, "the plan still names the branch that waits: {kept:?}");
+    // The fault is mended, and the plan's next look records the refusal it could not write: the person reads it then.
+    std::fs::remove_file(directory.as_path()).expect("the fault is mended");
+    let mut after: PushRetries = PushRetries::restored(Duration::ZERO, plans.as_path());
+    let _again: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut after);
+    let shown: String = crate::test_support::shown_notices(push_failures(git_dir.as_path())).join("\n");
+    assert!(shown.contains("GH006"), "the refusal the plan kept reached nobody on its next look: {shown:?}");
+    assert!(crate::push_retry_store::load(plans.as_path()).is_empty(), "the plan is gone once its refusal is written");
+    remove(root.as_path());
+}
+
+/// What:
+///  A push the retry plan makes, which lands and has something to say, leaves the same record a round's push does.
+/// Why:
+///  A server's line about a push the service made after a failure reaches the person only through that record:
+///  the command that would have printed it returned long before,
+/// and nothing makes the accepted push say it again.
+#[test]
+fn a_push_the_retry_plan_lands_keeps_what_the_server_said() {
+    const SERVER_LINE: &str = "THE SERVER SPOKE ON A PUSH THE PLAN TRIED AGAIN";
+    let root: PathBuf = fixture("push-plan-landed-said");
+    let (repo, remote, landed) = repository_with_a_landed_commit(root.as_path(), "repo");
+    let hook: PathBuf = remote.join("hooks").join("post-receive");
+    std::fs::create_dir_all(hook.parent().expect("the hooks directory")).expect("hooks");
+    std::fs::write(hook.as_path(), format!("#!/bin/sh\necho '{SERVER_LINE}' >&2\nexit 0\n")).expect("hook");
+    std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook is executable");
+    let git_dir: PathBuf = repo.join(".git");
+    let plans: PathBuf = root.join("journal").join(PLAN_DIRECTORY);
+    let item: WorkItem = push_item(repo.as_path(), landed.as_str());
+    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: git_dir.clone(), item, attempt: 1 }).expect("the plan");
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT));
+    let mut retries: PushRetries = PushRetries::restored(Duration::ZERO, plans.as_path());
+    let _ran: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    assert_eq!(tip_of(remote.as_path()), landed, "the plan's push landed the commit");
+    let shown: String = crate::test_support::shown_notices(push_failures(git_dir.as_path())).join("\n");
+    assert!(shown.contains(SERVER_LINE), "what the server said about the landed push reached nobody; the person was shown {shown:?}");
+    remove(root.as_path());
 }

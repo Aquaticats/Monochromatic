@@ -20,6 +20,12 @@
 #![cfg(unix)]
 
 use super::*;
+/// What a look at a tree reads of `/proc`,
+/// and the identities it keeps,
+/// which live in `push_progress_meter.rs`.
+use crate::push_progress_meter::{bytes_moved_by, is_working, parse_activity, system_measures};
+use crate::push_progress_signs::Signs;
+use crate::process_tree::{TreeMember, member_of};
 use crate::test_support::{fixture, remove, spawn_owned};
 use std::process::{Child, Command, Stdio};
 /// The name the control gives the probe test in order to run it as a process of its own.
@@ -841,20 +847,20 @@ fn each_sign_of_work_counts_alone_and_nothing_counts_for_nothing() {
     let idle: Signs = Signs::default();
     assert_eq!(meter.observe(key, 0, 0, false), idle, "a process that has done nothing is idle at its first look");
     assert_eq!(meter.observe(key, 0, 0, false), idle);
-    assert_eq!(meter.observe(key, 10, 0, false), Signs { moved: true, busy: false }, "bytes");
+    assert_eq!(meter.observe(key, 10, 0, false), Signs { moved: true, moved_bytes: 10, busy: false }, "bytes");
     assert_eq!(meter.moved(), 10);
     assert_eq!(meter.observe(key, 10, 0, false), idle, "the same bytes are not new work");
-    assert_eq!(meter.observe(key, 10, 1, false), Signs { moved: false, busy: true }, "one processor tick");
+    assert_eq!(meter.observe(key, 10, 1, false), Signs { moved: false, moved_bytes: 0, busy: true }, "one processor tick");
     assert_eq!(meter.observe(key, 10, 1, false), idle);
     assert_eq!(
         meter.observe(key, 10, 1, true),
-        Signs { moved: false, busy: true },
+        Signs { moved: false, moved_bytes: 0, busy: true },
         "a task able to run or waiting for the disk, at every look it is found"
     );
-    assert_eq!(meter.observe(key, 10, 1, true), Signs { moved: false, busy: true });
+    assert_eq!(meter.observe(key, 10, 1, true), Signs { moved: false, moved_bytes: 0, busy: true });
     assert_eq!(meter.observe(key, 10, 1, false), idle, "and idle when it is not");
     assert_eq!(meter.moved(), 10, "processor time and states are not bytes");
-    assert_eq!(meter.observe((200, 1), 0, 3, false), Signs { moved: false, busy: true }, "a new process that has already used time");
+    assert_eq!(meter.observe((200, 1), 0, 3, false), Signs { moved: false, moved_bytes: 0, busy: true }, "a new process that has already used time");
     assert_eq!(meter.observe(key, 5, 1, false), idle, "a counter that fell (a number reused) is not work");
 }
 

@@ -166,20 +166,35 @@ after free slots had been filled with other packages' issues
 A tool that slows down with dozens of agents running has a defect to fix;
 the number of agents is never the explanation and never a reason to start fewer.
 Audits and reviews sit outside that limit and use other models.
-Reviews of a change run on `qwen4-max-preview` alone,
-and long audits on Claude Sonnet and Kimi K3.1 Pro side by side:
+Reviews of a change and long audits run on Claude Sonnet alone,
+by whatever route the harness offers:
 rules `KRV` and `LHZ` in `AGENTS.md`,
-from the owner's "qwen4 alone, read-checked" of 2026-11-12
-(the section dated `2026-11-12T12:26:24-05:00` in `doc/handover/cli-git-rust-implementation.md`)
-and "Both side by side (Recommended)"
+from the owner's words of 2026-11-15 at about 23:27 -05:00:
+"I just checked my bills and found that Kimi K3.1 Pro is almost prohibitively expensive.
+Please use Sonnet for reviews and audits from now on.
+Close the Kimi pool for now, but let the already running runs finish."
+Pi on this machine lists no Claude Sonnet model
+(`pi --list-models`,
+read at about 23:42 -05:00 that day:
+ninety-nine lines,
+Neuralwatt's models among them,
+and one Claude model,
+`claude-haiku-5-5` on `opencode-go`),
+so a review is handed to a harness that has Sonnet,
+and no Pi run reviews or audits until Pi lists one.
+The rest of this paragraph is what held until then,
+kept because the Kimi pool's numbers return with it when the owner reopens it.
+Reviews of a change ran on Kimi K3.1 Pro alone,
+and long audits on Claude Sonnet and Kimi K3.1 Pro side by side,
+from the owner's "Kimi alone" and "Both side by side (Recommended)"
 after the trial in `doc/planning/kimi-as-auditor-and-reviewer-trial.md`.
 A review of a change is written and checked by
 `package/pi-shared/subagent-driver`'s `write-a-brief-for-a-review` and `check-a-review-that-ended`:
-the brief demands a statement of what the review read and what it ran through a program built from the
-reviewed commit,
+the brief demands a statement of what the review read and what it ran through a program a build wrote,
+wherever its build folder stands,
 and the check reads the ended review's file, run and session and says whether it is complete, ran nothing,
 is missing its statement or a match with its session, wrote no review file, or was cut,
-then writes the entry that starts it again
+then starts one second review on the other model of the pair, once, or writes the note that owes it
 (see `package/pi-shared/subagent-driver/doc/a-review-states-what-it-read-and-ran.md`).
 Kimi runs through Pi on Synthetic,
 under the owner's "Kimi trials don't count within 20 slots because 20 is neuralwatt's effective concurrency and kimi runs on Synthetic."

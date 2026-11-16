@@ -51,7 +51,7 @@ use std::ffi::{OsStr, OsString};
 /// ```ts
 /// async function treePaths(facts: GitFacts, revision: string): Promise<Buffer[] | undefined>;
 /// ```
-fn tree_paths(facts: &mut GitFacts, revision: &OsStr) -> Result<Option<Vec<Vec<u8>>>, String> {
+pub(super) fn tree_paths(facts: &mut GitFacts, revision: &OsStr) -> Result<Option<Vec<Vec<u8>>>, String> {
     // `-` is the previous branch only to `switch` and `checkout`, so it is read as the expression Git does
     //  resolve wherever an object name is read.
     let named: OsString = match previous_branch_expression(revision.as_encoded_bytes()) {

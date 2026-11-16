@@ -2,16 +2,15 @@
 //!  The one line a commit prints when the service manager has not answered the provisioning of its worktree's commit
 //!  service within a moment.
 //! Why:
-//!   Provisioning asks the manager to read its units again after a template changed,
-//! and that read takes every unit the manager
-//!  holds:
-//! on 2026-11-11 it took 13.3 seconds on this host with its load average at 120,
-//! and the commit that asked said nothing at all
+//!   Provisioning asks the manager about this worktree's own units and waits for a retiring service to leave,
+//! and those waits take as long as whatever the manager is doing:
+//! on 2026-11-11 a commit's provisioning took 17.6 seconds on this host with its load average at 120,
+//! and the commit that waited said nothing at all
 //!  until it was over.
 //! A wait nobody can see is indistinguishable from a hang,
 // and the owner's rules are that nothing waits without saying
 //  so and that a wait says what it waits for and on whom.
-//! The line is written from a thread of its own because the ask itself blocks the commit's thread;
+//! The line is written from a thread of its own because the manager's calls block the commit's thread;
 //! the thread is ended as soon
 //!  as the manager answered,
 //! so a commit that waited no time prints nothing.
@@ -31,7 +30,7 @@ use std::time::Duration;
 
 /// How long the manager may take to answer one provisioning step before the commit says so.
 ///  Measured:
-/// the manager reloaded its units in 50 to 300 ms on an idle machine,
+/// the manager's own unit calls answered in 50 to 300 ms on an idle machine,
 /// and the slowest of 52 cold service starts took 1,041 ms
 ///  (`startWaitMs` of this repository's commit timing log),
 /// so one second is the wait the other notices use (`START_NOTICE_GRACE`)
@@ -56,7 +55,7 @@ pub const SLOW_MANAGER_NOTICE_AFTER: Duration = Duration::from_secs(1);
 /// ```
 pub fn slow_manager_notice(unit: &str, waited: Duration) -> String {
     return format!(
-        "monochromatic-git-policy-cli: the service manager has not answered for {} seconds while the commit service of this worktree is set up ({unit}); a busy machine reads every unit again after a release moves, and this commit goes on as soon as it answers.",
+        "monochromatic-git-policy-cli: the service manager has not answered for {} seconds while the commit service of this worktree is set up ({unit}); a busy machine takes that long over this worktree's own units, and this commit goes on as soon as it answers.",
         waited.as_secs()
     );
 }

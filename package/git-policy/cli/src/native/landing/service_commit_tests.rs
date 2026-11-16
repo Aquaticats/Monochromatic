@@ -2,23 +2,47 @@
 
 use super::arguments_after_subcommand;
 use crate::service_commit_input_notes_and_embedded_commit::switched_branch_name;
-use crate::service_provision::{OWN_MARKERS, SERVICE_UNIT, SOCKET_UNIT};
+use crate::service_address_of_a_worktree::listen_stream_of;
+use crate::service_provision::{OWN_MARKERS, ProvisionHost, SERVICE_UNIT, SOCKET_UNIT, unit_texts};
 use std::ffi::OsString;
-use crate::service_instance::SOCKET_DIRECTORY;
+use std::path::PathBuf;
 
+/// A host whose runtime directory carries a socket path,
+/// so the unit is the one every ordinary account gets.
+fn a_host(runtime_dir: &str) -> ProvisionHost {
+    return ProvisionHost {
+        runtime_dir: PathBuf::from(runtime_dir),
+        user_unit_dir: None,
+        bus: PathBuf::from("/run/user/1000/bus"),
+        service_binary: PathBuf::from("/opt/monochromatic-git-policy-cli/monochromatic-git-policy-cli"),
+        git: PathBuf::from("/usr/bin/git"),
+        instance: String::from("0123456789abcdef0123456789abcdef"),
+        git_dir: PathBuf::from("/work/repo/.git"),
+        retirement_wait: std::time::Duration::from_millis(400),
+    };
+}
 
-/// The socket template listens where the wrapper looks,
-/// one socket per instance and privately,
-/// and the service template is
-///  ordered after its own instance's socket and told which worktree it serves.
+/// What:
+///  The socket template listens where the wrapper looks,
+///  one socket per instance and privately,
+///  and the service template is
+///   ordered after its own instance's socket and told which worktree it serves.
+/// Why:
+///   The template is what the manager binds,
+/// and the line it binds is filled in from the runtime directory the account has,
+///  so the control reads the text the wrapper would write and not the placeholder it starts as.
 #[test]
 fn the_activation_units_match_the_wrapper() {
-    assert!(SOCKET_UNIT.lines().any(|line| { return line == format!("ListenStream=%t/{SOCKET_DIRECTORY}/%i.sock"); }), "{SOCKET_UNIT}");
-    assert!(SOCKET_UNIT.contains("SocketMode=0600") && SOCKET_UNIT.contains("DirectoryMode=0700"));
+    let host: ProvisionHost = a_host("/run/user/1000");
+    let socket: String = unit_texts(&host).into_iter().find(|(name, _text)| { return *name == crate::service_provision::SOCKET_UNIT_NAME; }).map(|(_name, text)| { return text; }).expect("the socket unit");
+    assert!(socket.lines().any(|line| { return line == format!("ListenStream={}", listen_stream_of(host.runtime_dir.as_path(), host.instance.as_str())); }), "{socket}");
+    assert_eq!(listen_stream_of(host.runtime_dir.as_path(), host.instance.as_str()), format!("%t/{}/%i.sock", crate::service_instance::SOCKET_DIRECTORY), "a short runtime directory keeps the file form");
+    assert!(socket.contains("SocketMode=0600") && socket.contains("DirectoryMode=0700"));
     assert!(SERVICE_UNIT.contains("Requires=monochromatic-git-policy-cli@%i.socket") && SERVICE_UNIT.contains("After=monochromatic-git-policy-cli@%i.socket"));
     assert!(SERVICE_UNIT.contains("--instance %i"), "the service learns which worktree it is for");
     assert!(SERVICE_UNIT.contains("--journal %S/monochromatic-git-policy-cli/service/%i"), "each instance keeps its own journal");
     assert!(SERVICE_UNIT.contains("@SERVICE_BINARY@") && SERVICE_UNIT.contains("@GIT@"), "the installer fills these in");
+    assert!(!socket.contains("@LISTEN_STREAM@"), "nothing a manager reads carries the placeholder");
 }
 
 /// What:

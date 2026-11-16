@@ -48,6 +48,11 @@ mod support_resource_limits;
 #[path = "binary_support_fixture_service.rs"]
 mod support_fixture_service;
 
+/// The folder a binary control's sockets stand in,
+/// and the short runtime directory one of them holds.
+#[path = "binary_support_socket_folders.rs"]
+mod support_socket_folders;
+
 /// How a fixture tells that its service is at work and that it is ready.
 #[path = "binary_support_fixture_service_readiness.rs"]
 mod support_fixture_service_readiness;
@@ -66,10 +71,27 @@ mod support_fixture_directories;
 #[path = "binary_support_observation.rs"]
 mod support_observation;
 
+/// The bound one observed command is given,
+/// who ended it,
+/// and the two pipes its output came through.
+#[path = "binary_support_observation_bound.rs"]
+mod support_observation_bound;
+
 /// The one place a control says that it needs a btrfs fixture root,
 /// and what it does where there is none.
 #[path = "binary_support_btrfs_controls.rs"]
 mod support_btrfs_controls;
+
+/// The clock ticks one process used, summed over every thread of it,
+/// and the two moments a listing and its reading are.
+#[path = "binary_support_process_cpu_counters.rs"]
+mod support_process_cpu_counters;
+
+/// The filling of a new worktree's copied build state,
+/// what became of it,
+/// and the ending a control may give its clean.
+#[path = "binary_support_package_filling.rs"]
+mod support_package_filling;
 
 /// The hang guard:
 /// a thread that ends a wrapped command whose process tree shows no progress or burns too much processor time.
@@ -111,6 +133,17 @@ mod wrapper_store_guard;
 /// Where fixtures live and that they go away however their test ends.
 #[path = "binary_fixture_tests.rs"]
 mod fixture_guard;
+
+/// The reader of one process's processor time:
+/// a thread that ends between the listing and its own read is no process that ended.
+#[path = "binary_support_process_cpu_counters_tests.rs"]
+mod process_cpu_counters_guard;
+
+/// The ending a run gives a filling's clean:
+/// it is the signal the runner words as one it did not send,
+/// and every other run reaches the real Cargo.
+#[path = "binary_support_package_filling_tests.rs"]
+mod package_filling_guard;
 
 /// Exact forwarding of arguments,
 ///  streams,
@@ -243,6 +276,13 @@ mod external_hooks;
 #[path = "binary_dependent_version_tests.rs"]
 mod dependent_version;
 
+/// A merge over a file whose mode the person set:
+/// the merge writes the mode real Git writes for the entry,
+/// a path the merge leaves alone keeps the mode they set,
+/// and a path the merge deletes while their file stays keeps every bit the capture read.
+#[path = "binary_merge_mode_tests.rs"]
+mod merge_mode;
+
 /// A true merge in a checkout whose index holds another session's staged work:
 /// equal to native Git's merge on a
 /// clean copy,
@@ -271,6 +311,12 @@ mod merge_carries_edits_kill;
 /// and the person's work is merged onto the branch as it is now.
 #[path = "binary_merge_carries_edits_moved_tests.rs"]
 mod merge_carries_edits_moved;
+
+/// A lock another program takes in the window between a merge's look at the index and its last step:
+/// the merge saved behind a live holder,
+/// and a lock a killed Git left cleared so the merge lands.
+#[path = "binary_merge_lock_after_the_clear_tests.rs"]
+mod merge_lock_after_the_clear;
 
 /// The word-level second merge pass after a merge,
 /// rebase,
@@ -322,6 +368,11 @@ mod merge_notice;
 #[path = "binary_commit_tests.rs"]
 mod commit;
 
+/// The commit forms real Git refuses,
+/// each refused with Git's own status and words.
+#[path = "binary_commit_form_refusal_tests.rs"]
+mod commit_form_refusal;
+
 /// The Git version text a commit records in the user's cache directory,
 /// and when it trusts it.
 #[path = "binary_version_cache_tests.rs"]
@@ -372,6 +423,20 @@ mod catalog_specifiers;
 #[path = "binary_worktree_copy_tests.rs"]
 mod worktree_copy;
 
+/// What a record of an interrupted copy does to the next command when a crash left it empty or cut short:
+/// it is moved aside,
+/// and the command runs.
+#[path = "binary_worktree_copy_unreadable_record_tests.rs"]
+mod worktree_copy_unreadable_record;
+
+/// A measurement for the handover,
+/// not a control:
+/// what one flush of each record costs on this host,
+/// with the same arm measured twice as the control,
+/// and what an add of 2,000 ignored files costs beside it.
+#[path = "binary_worktree_copy_flush_measurement_tests.rs"]
+mod worktree_copy_flush_measurement;
+
 /// Worktree commands beside an add whose real Git still runs:
 /// none waits,
 /// and each new worktree gets exactly its own copy.
@@ -389,6 +454,12 @@ mod worktree_copy_forms;
 /// other forms stay Git's.
 #[path = "binary_worktree_ladder_tests.rs"]
 mod worktree_ladder;
+
+/// A removal goes around a subvolume or a mount point it did not make:
+/// the worktree and its registration go, what was not the removal's stays as it stood,
+/// and the person is told what frees the path.
+#[path = "binary_worktree_removal_around_a_volume_tests.rs"]
+mod worktree_removal_around_a_volume;
 
 /// Rung 1 of the cheap-worktree ladder:
 /// a snapshot of a clean subvolume worktree equals Git's own checkout.
@@ -530,6 +601,15 @@ mod fault_stream;
 #[path = "binary_fault_remote_tests.rs"]
 mod fault_remote;
 
+/// Controls for the least traffic a push's connection must carry and still count as progress:
+/// a hung hook kept alive by keepalives,
+/// a dripped answer,
+/// a slowly read upload,
+/// an honest slow push,
+/// and a silent phase after the upload.
+#[path = "binary_push_minimum_rate_tests.rs"]
+mod push_minimum_rate;
+
 /// The experiments behind the hang verdict for the post-commit auto-push with a Git LFS upload.
 #[path = "binary_lfs_hang_tests.rs"]
 mod lfs_hang;
@@ -538,6 +618,11 @@ mod lfs_hang;
 /// compared with native Git.
 #[path = "binary_service_commit_tests.rs"]
 mod service_commit;
+
+/// A commit made through the service where the runtime directory's path is long,
+/// and the short one it is compared with.
+#[path = "binary_long_runtime_directory_tests.rs"]
+mod long_runtime_directory;
 
 /// A commit whose command line names the repository:
 /// `--git-dir` with `--work-tree`,
@@ -579,6 +664,12 @@ mod service_pruned;
 #[path = "binary_service_replay_tests.rs"]
 mod service_replay;
 
+/// How long the service remembers a finished request:
+/// a request sent again after more landings than the journal keeps,
+/// and the age and the count a record must both pass before it goes.
+#[path = "binary_service_finished_record_retention_tests.rs"]
+mod service_finished_record_retention;
+
 /// A commit whose branch write meets a reference lock:
 /// the wait for a live holder,
 /// and the lock that nothing proves gone,
@@ -596,6 +687,13 @@ mod push_failure;
 /// and a service that starts pushes it with no further commit.
 #[path = "binary_push_queued_after_a_killed_wrapper_tests.rs"]
 mod push_queued_after_a_killed_wrapper;
+
+/// A record that waits and nothing announced it:
+/// a running service finds every kind of record by itself,
+/// acts on it once,
+/// and does nothing while there is nothing to do.
+#[path = "binary_a_record_nothing_announced_is_found_tests.rs"]
+mod a_record_nothing_announced_is_found;
 
 /// A held push whose commit a later push of the branch carried to the remote:
 /// the record is settled on Git's proof,
@@ -635,6 +733,11 @@ mod push_trigger;
 #[path = "binary_stale_ref_lock_tests.rs"]
 mod stale_ref_lock;
 
+/// The lock files a killed wrapper command leaves:
+/// cleared when the wrapper's own record proves the holder gone,
+/// kept when it does not.
+#[path = "binary_killed_holder_lock_tests.rs"]
+mod killed_holder_lock;
 
 /// The message and identity options through the service,
 /// compared with native Git field by field.
@@ -796,6 +899,15 @@ mod service_provision;
 #[path = "binary_service_no_manager_tests.rs"]
 mod service_no_manager;
 
+/// A commit whose service stopped reading,
+/// stopped answering,
+/// or stopped altogether:
+/// the bound each step ends at,
+/// the words a person reads,
+/// and that nothing is left half done.
+#[path = "binary_commit_when_the_service_stops_tests.rs"]
+mod commit_when_the_service_stops;
+
 /// The upgrade from the 0.5.4 release,
 /// run with that release's own service program.
 #[path = "binary_service_upgrade_tests.rs"]
@@ -833,7 +945,14 @@ mod service_stop_ends_its_gits;
 #[path = "binary_package_repair_tests.rs"]
 mod package_repair;
 
+/// The references the wrapper keeps commits on,
+/// listed by `git monochromatic-git-policy-cli kept-references`
+/// and pruned by the pass that follows them.
+#[path = "binary_kept_references_tests.rs"]
+mod kept_references;
+
 /// A commit and its push made while the service is inside a batch of the repository's own housekeeping records:
-/// how long each waited, measured for the record and not asserted as a control.
+/// how long each waited,
+/// measured for the record and not asserted as a control.
 #[path = "binary_housekeeping_beside_a_commit_tests.rs"]
 mod housekeeping_beside_a_commit;

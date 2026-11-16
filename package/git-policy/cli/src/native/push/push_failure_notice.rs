@@ -42,7 +42,7 @@ use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::auto_push_branch_key::encode_branch_key;
 use crate::lfs_output_mask::mask_url_secrets_text;
 pub use crate::push_failure_notice_machine_output::is_machine_read;
-use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced, write_private_file_unsynced};
 /// One record as a command holds it before it shows it,
 /// with the claim it was taken under and the step that removes that claim.
 pub use crate::push_failure_notice_shown_then_removed::Notice;
@@ -95,7 +95,7 @@ pub(crate) const NAME_SEPARATOR: char = '+';
 /// open to the owner's veto.
 pub(crate) const LONGEST_KEY: usize = 100;
 
-/// The most bytes of Git's own words a record keeps.
+/// The most bytes of Git's own words a notice of a push that did not land keeps.
 ///  Exempt from a citation under `LQM` (class:
 /// display cap):
 /// it limits how much text a message,
@@ -107,7 +107,10 @@ pub(crate) const LONGEST_KEY: usize = 100;
 /// "Exempt limits";
 /// the coordinator's pick under the owner's delegation,
 /// open to the owner's veto.
-const LONGEST_REASON: usize = 4000;
+/// It bounds no account of a push that landed,
+/// which nothing can make say the same thing again
+/// (`clean_words`).
+pub(crate) const LONGEST_REASON: usize = 4000;
 
 /// First line of a record that holds its parts as fields;
 /// a file without it is the finished text an earlier release wrote.
@@ -181,12 +184,43 @@ pub fn record_name(branch_ref: &str, commit: &str) -> String {
 /// never the line around them,
 ///  because the line often says why the push failed (the wrapper's own Git LFS failure line names the endpoint setting and
 ///  carries the exit status).
+/// The bound is the notice's own display cap and belongs to a push that will say the same thing again on its next try;
+/// the account of a push that landed keeps every line (`clean_words`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// cleanReason(said)
 /// ```
 pub fn clean_reason(said: &str) -> String {
+    return bounded(clean_words(said));
+}
+
+/// What:
+///  Git's words for the person with nothing cut:
+/// every URL credential masked,
+/// control characters dropped,
+/// and every line kept.
+/// Why:
+///   The account of a push that landed is the only copy of what a server and the reconcile said,
+/// and nothing can make an
+///  accepted push say it again:
+/// a push of what the remote already holds prints `Everything up-to-date` and runs no hook
+///  (`SPEC.md`,
+/// "Reconcile and bounds").
+/// That account therefore keeps every line the push chose to show,
+/// while a failure record
+///  keeps the display cap,
+/// because a failure is tried again and says the same thing then.
+/// Only the credentials are masked,
+/// never the line around them,
+/// as `clean_reason`
+///  says.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// cleanWords(said)
+/// ```
+pub fn clean_words(said: &str) -> String {
     let masked: String = mask_url_secrets_text(said);
     let mut kept: Vec<String> = Vec::new();
     for line in masked.lines() {
@@ -201,7 +235,26 @@ pub fn clean_reason(said: &str) -> String {
             kept.push(trimmed.to_string());
         }
     }
-    let mut text: String = kept.join("\n");
+    return kept.join("\n");
+}
+
+/// What:
+///  The words cut to the most bytes a notice of a push that did not land keeps,
+/// with a line that says so.
+/// Why:
+///   `LONGEST_REASON` is a display cap of the person's notice,
+/// and a push Git refused can print any
+///  amount of text;
+/// a person reads the start of the refusal,
+/// which names what to repair,
+/// and the retry that follows
+///  says the same thing again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// bounded(words)
+/// ```
+fn bounded(mut text: String) -> String {
     if text.len() > LONGEST_REASON {
         let mut cut: usize = LONGEST_REASON;
         while !text.is_char_boundary(cut) {
@@ -223,6 +276,9 @@ pub fn clean_reason(said: &str) -> String {
 /// The name is the failure record's,
 /// so a later successful push of the branch removes
 ///  it with the failures.
+/// The record is replaced in one rename,
+/// so a kill between one try and the next leaves the record that was there
+///  rather than none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -234,9 +290,8 @@ pub fn record_push_skip(git_dir: &Path, branch_ref: &str, commit: &str, said: &s
         return Err(format!("creating the notice directory failed: {error}"));
     }
     let path: PathBuf = directory.join(record_name(branch_ref, commit));
-    let _removed = std::fs::remove_file(path.as_path());
     let text: String = format!("{SKIPPED_MAGIC}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}", clean_reason(said));
-    return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
+    return match replace_private_file_unsynced(path.as_path(), text.as_bytes()) {
         Ok(()) => Ok(()),
         Err(error) => Err(format!("writing the notice failed: {error}")),
     };
@@ -250,6 +305,9 @@ pub fn record_push_skip(git_dir: &Path, branch_ref: &str, commit: &str, said: &s
 /// so a push that is tried again and fails again leaves one record.
 ///  The reason is cleaned before it is written,
 /// so no credential reaches the disk.
+/// The record is replaced in one rename,
+/// so a kill while a second try writes its record leaves the first record whole
+///  rather than none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -261,15 +319,13 @@ pub fn record_push_failure(git_dir: &Path, branch_ref: &str, commit: &str, outco
         return Err(format!("creating the notice directory failed: {error}"));
     }
     let path: PathBuf = directory.join(record_name(branch_ref, commit));
-    // A repeat of the same failure replaces its record.
-    let _removed = std::fs::remove_file(path.as_path());
     let magic: &str = match outcome {
         PushOutcome::Refused => RECORD_MAGIC,
         PushOutcome::Unfinished => UNFINISHED_MAGIC,
         PushOutcome::UnfinishedWithNoRetry => UNFINISHED_NO_RETRY_MAGIC,
     };
     let text: String = format!("{magic}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}", clean_reason(said));
-    return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
+    return match replace_private_file_unsynced(path.as_path(), text.as_bytes()) {
         Ok(()) => Ok(()),
         Err(error) => Err(format!("writing the notice failed: {error}")),
     };

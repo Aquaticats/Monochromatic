@@ -42,9 +42,9 @@ use crate::service_commit_input_notes_and_embedded_commit::{Embedded, print_note
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const requestForGitBuilt = (ready, inputs, id, builtCommit, amend) => ({ id, ...identity(ready, inputs), changes: [], commit: builtCommit, amend, cleanup: ready.cleanup });
+/// const requestForGitBuilt = (ready, inputs, id, builtCommit, amend, drawn) => ({ id, ...identity(ready, inputs), changes: [], commit: builtCommit, amend, cleanup: ready.cleanup, shadow: drawn });
 /// ```
-pub(crate) fn request_for_git_built(ready: &Ready, native_inputs: &NativeInputs, id: &str, built_commit: String, amend: bool) -> CommitRequest {
+pub(crate) fn request_for_git_built(ready: &Ready, native_inputs: &NativeInputs, id: &str, built_commit: String, amend: bool, drawn: Option<std::path::PathBuf>) -> CommitRequest {
     return CommitRequest {
         id: id.to_string(),
         repository: ready.repository.clone(),
@@ -64,6 +64,7 @@ pub(crate) fn request_for_git_built(ready: &Ready, native_inputs: &NativeInputs,
         cleanup: ready.cleanup.clone(),
         index: native_inputs.capture.layout.real_index_path.clone(),
         scratch: ready.scratch.0.clone(),
+        shadow: drawn,
         captured: ready.captured_at,
         // The command that will run this commit's post-commit gate, named so the push record the service holds for the commit
         //  can be settled by a later command when this one is gone (`held_push_holder_and_verdict.rs`).
@@ -100,6 +101,7 @@ pub(crate) fn request_for_embedded(ready: &Ready, native_inputs: &NativeInputs, 
         cleanup: None,
         index: native_inputs.capture.layout.real_index_path.clone(),
         scratch: ready.scratch.0.clone(),
+        shadow: None,
         captured: ready.captured_at,
         // The command that will run this commit's post-commit gate, named so the push record the service holds for the commit
         //  can be settled by a later command when this one is gone (`held_push_holder_and_verdict.rs`).

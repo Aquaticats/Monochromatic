@@ -20,6 +20,7 @@
 
 use crate::push_deadline_advice::extend_clause;
 use crate::push_deadline_and_patience_settings::PUSH_DEADLINE_VARIABLE;
+use crate::push_minimum_rate::PUSH_MINIMUM_RATE_VARIABLE;
 use std::time::Duration;
 
 /// What a person is told when a push is ended for showing no progress:
@@ -50,7 +51,10 @@ pub const STOPPED_EXIT_CODE: i64 = 124;
 /// What a stop reports:
 /// which quiet window ended the run,
 /// the limit that was hit,
-/// what the push had moved and how long it had run.
+/// what the push had moved and how long it had run,
+/// and,
+/// for a run whose connection carried too little,
+/// the bytes it carried and the floor they were judged on.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct StopReport {
     /// The window that was hit:
@@ -64,6 +68,13 @@ pub struct StopReport {
     pub moved: u64,
     /// How long the push had run.
     pub elapsed: Duration,
+    /// The bytes the connection carried in the stretch that was judged,
+    /// both directions;
+    /// what was weighed against the floor.
+    pub carried: u64,
+    /// The least traffic the connection had to carry in one connected window to count as progress,
+    /// and zero for a run whose transport bytes count by themselves.
+    pub minimum: u64,
 }
 
 /// Which quiet window a stopped run was ended by.
@@ -97,6 +108,58 @@ pub enum StopCause {
 }
 
 /// What:
+///  What a stop says the connection did while it was open:
+///  nothing,
+///  or too few bytes to count as progress,
+///  with the least traffic the wrapper requires.
+/// Why:
+///   A silent remote and one that only sends keepalive packets look the same in a window that is judged on
+///  bytes,
+///  and a person reading a stop must be able to tell which they met,
+///  and to change the floor that decided it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// carried === 0 ? 'with nothing moving' : `carrying only ${carried} bytes, less than the ${minimum} bytes ...`
+/// ```
+pub(crate) fn traffic_clause(report: &StopReport) -> String {
+    if report.carried == 0 {
+        return String::from("with nothing moving");
+    }
+    let seconds: u64 = report.limit.as_secs().max(1);
+    return format!(
+        "carrying only {} bytes in that time, fewer than the {} bytes the wrapper requires in it (about {} bytes per second, where \
+         it saw about {}), and a server's own keepalive packets are that kind of traffic",
+        report.carried,
+        report.minimum,
+        report.minimum / seconds,
+        report.carried / seconds
+    );
+}
+
+/// What:
+///  The clause that names the floor a stop by the connected window was judged on,
+///  and how a slower line is allowed.
+/// Why:
+///   The floor is a setting and the window is not,
+/// so a person on a line slower than the floor is told which of the two to change.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `set ${PUSH_MINIMUM_RATE_VARIABLE} to a smaller number to let a slower line through`
+/// ```
+pub(crate) fn floor_clause(report: &StopReport) -> String {
+    if report.minimum == 0 {
+        return String::new();
+    }
+    return format!(
+        " Hint: {PUSH_MINIMUM_RATE_VARIABLE} sets the least traffic a connection must carry in one window of {} seconds to count \
+         as progress, and a smaller number lets a line slower than this one through.",
+        report.limit.as_secs()
+    );
+}
+
+/// What:
 ///  The line that ends a run the clock stopped as stalled,
 /// in the words of the window that was hit,
 /// naming the run and the server it waited for when the run knew it.
@@ -107,6 +170,10 @@ pub enum StopCause {
 /// and the connected window is fixed for every run,
 /// so advice to set the variable after a connected stop
 ///  would name a limit that setting cannot move.
+///  A connected stop also says what the connection carried,
+///  because a remote that trickles a byte now and then
+///  reaches it as a silent one does,
+///  and only the floor is a setting there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -129,15 +196,19 @@ pub(crate) fn stalled_reason(label: &str, report: &StopReport, named: Option<&st
             extend_clause()
         ),
         StopWindow::Connected => format!(
-            "monochromatic-git-policy-cli: {label} held its connection to {other_end} open with nothing moving for {} seconds and was \
-             stopped (limit=connected, bytes_moved={}, elapsed_seconds={}); {} does not change this window, which is fixed at {} \
-             seconds. {PUSH_QUEUED_LINE} {STOPPED_DELIVERY_IS_NOT_KNOWN}. Hint: a remote that keeps the connection open for longer \
-             than this stops every attempt, and the retry settles whether the push landed; your commit is already saved.",
+            "monochromatic-git-policy-cli: {label} held its connection to {other_end} open for {} seconds {} and was stopped \
+             (limit=connected, carried_bytes={}, minimum_bytes_per_window={}, elapsed_seconds={}); {} does not change this window, \
+             which is fixed at {} seconds.{} {PUSH_QUEUED_LINE} {STOPPED_DELIVERY_IS_NOT_KNOWN}. Hint: a remote that keeps the \
+             connection open for longer than this stops every attempt, and the retry settles whether the push landed; your commit is \
+             already saved.",
             report.limit.as_secs(),
-            report.moved,
+            traffic_clause(report),
+            report.carried,
+            report.minimum,
             report.elapsed.as_secs(),
             PUSH_DEADLINE_VARIABLE,
-            report.limit.as_secs()
+            report.limit.as_secs(),
+            floor_clause(report)
         ),
     };
 }

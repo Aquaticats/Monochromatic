@@ -88,6 +88,10 @@ pub fn replace_private_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 pub fn replace_private_file_unsynced(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let mut staged: tempfile::NamedTempFile = staging_beside(path)?;
     staged.as_file_mut().write_all(bytes)?;
+    // The same point `write_then_publish` lets a control fail at: the bytes are staged and the name still holds what it held,
+    //  which is where a full disk ends a rewrite.
+    #[cfg(test)]
+    super::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { return hook.borrow().as_ref().map_or(Ok(()), |fail| { return fail(); }); })?;
     staged.persist(path).map_err(without_the_staged_file)?;
     return Ok(());
 }

@@ -1821,6 +1821,24 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   those two belong to the pick on service
   waits.
 
+- After the owner's answer of 2026-11-12T12:11:18-05:00,
+  "Age and count together (Recommended)"
+  (`doc/handover/cli-git-rust-implementation.md`,
+  "How long the commit service remembers a finished request"):
+  a finished record now goes only when it is both past `A_FINISHED_RECORD_IS_READ`
+  and beyond `DONE_RETAINED`.
+  The age is the whole life of a client of the record,
+  `ANSWER_CEILING` plus `SHORT_EXTRA_WAIT` plus `WITHDRAW_CEILING` plus `LOOKING_FOR_A_LANDED_COMMIT`,
+  30 minutes 17 seconds,
+  and it is what decides whether a request sent again is recognised,
+  so the count above is no longer the width of that window.
+  The count is what a repository that lands rarely keeps for ever,
+  and so what bounds the journal of one that lands rarely;
+  the measurement above is what shows a burst past 1024 batches is ordinary for a busy unit,
+  which is why the count alone took a record a client of it still had.
+  A journal a service is still writing is bounded by the age only,
+  because the removal runs at a start.
+
 ### Stale temporary and scratch ages
 
 - Where:
@@ -2098,6 +2116,110 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   `LOW_SPEED_LIMIT` and `LOW_SPEED_TIME` are gone),
   shown by `the_reconcile_fetch_sets_no_low_speed_abort`.
   A value the person sets in the environment or in `http.lowSpeedLimit` and `http.lowSpeedTime` still reaches Git.
+
+### Push minimum rate, 1024 bytes per connected window
+
+Added 2026-11-12 by the owner's answer "Minimum rate (Recommended)"
+(`doc/handover/cli-git-rust-implementation.md`,
+"A slow server and a typed push"),
+after the audits of `0.6.1-alpha.12` (F14:
+a server that drips its answer holds a push for
+ever) and of `0.6.1-alpha.14` (F3:
+a hook that never answers is held alive by Git's keepalive,
+five bytes every five seconds).
+
+- Where:
+  `src/native/push/push_minimum_rate.rs` (`DEFAULT_PUSH_MINIMUM_RATE_BYTES`,
+  `PUSH_MINIMUM_RATE_VARIABLE`),
+  judged by `src/native/push/push_progress.rs` (`Clock::check`,
+  `with_minimum_rate`),
+  read by `src/native/push/bounded_push.rs` (`run_bounded_push_awaiting`) and
+  `src/native/lfs/lfs_upload.rs` (`await_upload`),
+  `SPEC.md`,
+  "The least traffic that counts as progress".
+- Value:
+  1024 bytes in one window:
+  `CONNECTED_PUSH_QUIET_WINDOW`,
+  150 seconds,
+  while a connection is open,
+  which is about 7 bytes per second,
+  and `CLI_GIT_PUSH_DEADLINE_SECONDS`,
+  30 seconds by default,
+  for a remote that is a path,
+  which is about 34 bytes per second;
+  variable `CLI_GIT_PUSH_MINIMUM_RATE_BYTES`,
+  a positive whole number of bytes,
+  per run.
+- What counts:
+  the bytes the transport carried in either direction:
+  `tcpi_bytes_acked` plus `tcpi_bytes_received` of the sockets a process of the run holds,
+  and,
+  for a remote that is a path,
+  the bytes the run's own processes read and wrote on the pipe to `receive-pack`,
+  which is where a path push's keepalive and sideband arrive.
+  Never the holder's own output,
+  and never Git's progress lines.
+- Bounds:
+  the push,
+  the reconcile fetch and the Git LFS upload.
+  Every other wait keeps the floor at zero.
+- When a window carries less than the floor:
+  it is not progress,
+  so the run is judged as silent and the existing window ends it
+  (`limit=connected`,
+  150 seconds;
+  or `limit=stall` for a run with no connection),
+  and the stop says how many bytes the connection carried,
+  names the floor,
+  and names `CLI_GIT_PUSH_MINIMUM_RATE_BYTES` as the setting that lets a slower line through.
+  Exit code 124,
+  the service plans a new try.
+- Citation:
+  measured on 2026-11-12,
+  and the F3 shape of it measured the same day through the built wrapper:
+  a push to a path whose hook never answers ends at the stall window with
+  `receive.keepAlive` at 1,
+  as it did with the keepalive at 0,
+  and is held for ever without the floor.
+  The timing records of this repository's Git directory carry durations and no byte counts,
+  so the bytes came from real pushes of this repository's own sizes to loopback servers serving Git's own
+  `git http-backend`,
+  shaped by the pace the relay reads and writes at:
+  a push of 100 KiB read at 256 bytes every 100 ms carried 105,287 bytes in 41.4 seconds
+  (2.5 KB/s) and landed,
+  and a push of 4 MiB read at 64 KiB every 100 ms carried 4,195,988 bytes in 77.3 seconds
+  (54 KB/s) and landed.
+  One push of this repository's commits packs to 0.35 MB (one commit),
+  0.72 MB (ten) and 5.5 MB (a hundred),
+  measured with `git pack-objects` on this checkout.
+  The commit service's journal records `push_ms` per landed push
+  (bounded read of one unit,
+  2026-11-12):
+  3,524 ms,
+  3,715 ms,
+  3,527 ms and 17,081 ms in the hour read,
+  with the 794-push population in `SPEC.md` at p50 3.5 s,
+  p99 26.4 s and 72.4 s at most.
+  Git's own keepalive is five bytes every five seconds by default
+  (`receive.keepAlive`,
+  `builtin/receive-pack.c`),
+  that is 150 bytes in the window,
+  and never more than 750 bytes at the chattiest setting the option allows (one second).
+  A drip of one byte every three seconds (F14) is 50 bytes in the window.
+  So 1024 is seven times above the chattiest keepalive a server can be configured to send,
+  twenty times above the audit's drip,
+  and four hundred times below the slowest honest push measured here.
+- Conflict:
+  it replaces the pause in the rule "Stop only on no progress" where a trickle was progress,
+  by the owner's later decision.
+  The former low-speed abort (1000 bytes per second over 60 seconds) is not restored:
+  the floor is judged over the connected window,
+  which is what bounds a server's silent phase,
+  so no honest server check is cut sooner than it was.
+- Cost:
+  a transfer below the floor is stopped and retried,
+  where it would have finished sooner or later;
+  the slowest line the default lets through is 1024 bytes per 150 seconds.
 
 ### Push output cap, 4 MiB
 

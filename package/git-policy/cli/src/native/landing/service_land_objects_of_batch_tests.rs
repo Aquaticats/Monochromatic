@@ -90,6 +90,7 @@ fn a_repository_with_a_built_commit(name: &str) -> (PathBuf, String, String, Com
         cleanup: None,
         index: common.join("index"),
         scratch: common.join("monochromatic-git-policy-cli-service-a-control"),
+        shadow: None,
         captured: 0,
         holder: String::new(),
     };

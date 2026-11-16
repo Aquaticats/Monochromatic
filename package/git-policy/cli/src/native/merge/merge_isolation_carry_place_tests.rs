@@ -111,7 +111,7 @@ fn a_file_a_process_holds_open_is_kept_when_a_carry_replaces_it() {
             repo.as_path(),
             b"f.txt",
             &judged,
-            &FileWrite::Bytes(MERGED.as_bytes().to_vec(), String::from(MODE)),
+            &FileWrite::Bytes { bytes: MERGED.as_bytes().to_vec(), mode: String::from(MODE), the_persons_bits: None },
             A_MERGES_ID,
             &mut set_asides,
         )

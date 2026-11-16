@@ -547,11 +547,8 @@ impl Sink {
     /// if (pending.length) flush(pending); if (!pending.length) write(note + line) else lost++
     /// ```
     fn fall_back(&self, priority: Priority, line: &str, stderr: &mut dyn Write) -> Delivery {
-        if !self.stream {
-            // The result is dropped on purpose: a closed standard error is no reason to fail the work the entry describes.
-            let _written = stderr.write_all(line.as_bytes());
-            return Delivery::Stderr;
-        }
+        // Only the journal's stream carries a `<priority>` prefix; any other standard error gets its plain line, and the rest of
+        //  it is kept for the next line like the stream's, because a writer that never waits may take a line only in part.
         let mut pending = self.pending.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         if !pending.is_empty() {
             let finished: usize = write_what_fits(stderr, pending.as_slice());
@@ -566,7 +563,11 @@ impl Sink {
         if lost > 0 {
             bytes.extend_from_slice(format!("<{}>{LOST_NOTICE_HEAD}{lost}{LOST_NOTICE_TAIL}\n", Priority::Warning.number()).as_bytes());
         }
-        bytes.extend_from_slice(format!("<{}>{line}", priority.number()).as_bytes());
+        if self.stream {
+            bytes.extend_from_slice(format!("<{}>{line}", priority.number()).as_bytes());
+        } else {
+            bytes.extend_from_slice(line.as_bytes());
+        }
         let written: usize = write_what_fits(stderr, bytes.as_slice());
         if written == 0 {
             self.lost.fetch_add(1, Ordering::Relaxed);

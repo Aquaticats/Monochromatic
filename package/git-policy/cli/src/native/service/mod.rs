@@ -30,6 +30,12 @@ pub mod service_scratch_trees_of_queued_requests;
 /// beside the landing loop.
 pub mod service_shadow_pool_fill;
 
+/// The service's stock of finished shadows drawn ahead of the commits that ask for one.
+pub mod service_shadow_draw;
+
+/// The question a commit asks its service for the finished shadow drawn ahead of it.
+pub mod service_client_shadow_hand_out;
+
 /// Whether a socket of an earlier release's unit listens,
 /// read from the table of unix sockets.
 pub mod earlier_unix_sockets_that_listen;
@@ -86,6 +92,10 @@ pub mod journald_native;
 /// The address native journal entries are sent to.
 pub mod journald_native_socket_target;
 
+/// The service's log lines on standard error,
+/// written by a thread of their own so no landing waits for the stream.
+pub mod service_log_lines_off_the_calling_thread;
+
 /// The lines the commit service writes about its life and about the time each request took.
 pub mod service_timing;
 
@@ -104,6 +114,9 @@ pub mod service_journal_restored_at_start;
 
 /// The commit service's loop.
 pub mod service_server;
+
+/// The question the serving loop asks about the worktree whose units are its own.
+pub mod service_server_own_worktree_question;
 
 /// The loop of the commit service's after-commit work asked by a thread outside the runtime.
 pub mod service_server_work_loop;
@@ -160,6 +173,8 @@ pub mod service_client_waiting_words;
 
 /// The client's one-way request to a running service to compile a repository's rules.
 pub mod service_warm_request;
+/// The same re-export for the request's control point.
+pub use service_warm_request::the_controls_window as service_warm_request_control_window;
 
 /// The signals a waiting commit answers by withdrawing its request,
 /// and the flag they set for the wait.
@@ -171,8 +186,14 @@ pub mod service_client_why_withdrawn;
 
 /// Connecting to the service,
 /// reading one line from it,
+/// writing a request within a bound,
 /// and asking an older service to retire.
 pub mod service_client_listen_and_ask_to_retire;
+
+/// The connect itself,
+/// waited for with a bound because a socket whose queue of unaccepted connections is full takes no connection
+/// until something accepts.
+pub mod service_client_connect_within_a_bound;
 
 /// The settings of one client run and the watch on the service manager's answer.
 pub mod service_client_settings_and_watches;
@@ -191,17 +212,20 @@ pub mod service_provision_earlier_service_retirement;
 /// The wrapper's own provisioning of the commit service's socket activation.
 pub mod service_provision;
 
+/// The socket a service stops when it was retired before it served anything.
+pub mod service_own_socket_of_a_retire_that_served_nothing;
+
+/// Dropping the service manager's copy of one worktree's units,
+/// so the next start reads the unit files as they are.
+pub mod service_provision_instance_unloaded;
+
 /// The states in which provisioning already knows no service can answer this command,
 /// so the command says why instead of waiting out the start ceiling.
 pub mod service_provision_refusals_before_the_wait;
 
-/// The record of the unit texts the service manager was last told about,
+/// The record of the unit texts the service manager last read for one instance,
 /// which tells an installation it runs from files a kill left behind.
 pub mod service_provision_loaded_unit_texts;
-
-/// The link the units start the commit service's program through,
-/// which is the same in every release and every build of one.
-pub mod service_provision_program_pointer;
 
 /// The line a commit prints when the service manager has not answered its provisioning within a moment.
 pub mod service_provision_slow_manager_notice;
@@ -222,6 +246,11 @@ pub mod systemd_dbus_wire_format;
 /// its name,
 /// socket and unit instances.
 pub mod service_instance;
+
+/// The address one worktree's service listens at:
+/// a socket file under the runtime directory when that path fits one socket address,
+/// and an abstract name when it does not.
+pub mod service_address_of_a_worktree;
 
 /// The files an instance of the commit service keeps between runs:
 /// the note beside its socket,

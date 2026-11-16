@@ -20,6 +20,10 @@
 /// // process.argv / process.env, but byte-preserving.
 /// ```
 use std::ffi::OsString;
+/// The wait at the end of this process for the log lines it handed to their own thread.
+use git_policy_cli::service_log_lines_off_the_calling_thread::{WAIT_BEFORE_AN_EXIT, write_what_waits};
+/// The wait at the end of this process for the diagnostic lines it handed to their own thread.
+use git_policy_cli::diagnostic_lines_off_the_calling_thread::write_what_waits as write_every_diagnostic_line_that_waits;
 
 /// What:
 ///  The program entry point:
@@ -34,7 +38,7 @@ use std::ffi::OsString;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function main(): never { process.exit(runProcess(argv, env)); }
+/// function main(): never { const code = runProcess(argv, env); writeWhatWaits(WAIT_BEFORE_AN_EXIT); process.exit(code); }
 /// ```
 fn main() {
     // What: `.skip(1)` drops the program name; `.collect()` gathers the rest into an
@@ -57,7 +61,7 @@ fn main() {
                 git_policy_cli::service_main::EXIT_REFUSED
             }
         };
-        std::process::exit(code);
+        end_after_the_log(code);
     }
     // The linked scanner's catch boundaries run after the panic hook, so a hook that never
     // prints a panic's message is installed before anything can scan.
@@ -66,5 +70,35 @@ fn main() {
     let environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
     // `i32` is the signed 32-bit type of process exit codes.
     let code: i32 = git_policy_cli::entry::run_process(arguments.as_slice(), environment.as_slice());
+    end_after_the_log(code);
+}
+
+/// What:
+///  Waits,
+///  bounded,
+///  for the lines this process handed to its log thread,
+///  then ends it.
+/// Why:
+///   A line written by a thread of its own is not written yet when the exit arrives,
+/// and `std::process::exit` ends that thread where it stands:
+/// the refusals of 2026-11-14 printed no byte at all in most runs,
+/// so a person saw a status and no reason (`service_log_lines_off_the_calling_thread.rs`).
+/// The bound keeps the promise a stream nobody drains was given in the first place:
+/// no caller waits for the reader,
+/// and the end of the process waits at most this once.
+/// Nothing is started or waited for when no line was ever handed over,
+/// which is every ordinary wrapper command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function endAfterTheLog(code: number): never { writeWhatWaits(WAIT_BEFORE_AN_EXIT); process.exit(code); }
+/// ```
+fn end_after_the_log(code: i32) -> ! {
+    // What: whatever each writer thread has not reached its stream yet, waited for once each.
+    // Why:  a diagnostic and a service log line are both written by a thread of their own, and a process that ends at once
+    //       would lose the last of them; each wait is bounded by the same figure, and a process that said no line starts no
+    //       thread and waits for nothing.
+    let _diagnosed: bool = write_every_diagnostic_line_that_waits(WAIT_BEFORE_AN_EXIT);
+    let _written: bool = write_what_waits(WAIT_BEFORE_AN_EXIT);
     std::process::exit(code);
 }

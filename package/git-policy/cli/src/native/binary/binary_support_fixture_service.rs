@@ -12,6 +12,7 @@
 //! const fixture = fixture(); const service = startFixtureService(fixture);
 //! ```
 
+use git_policy_cli::service_server::Bind;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -34,6 +35,26 @@ pub struct Fixture {
     pub service_environment: std::sync::Mutex<Vec<(OsString, OsString)>>,
     /// How the fixture's services are started when a fault control needs more than the plain program.
     pub service_launch: std::sync::Mutex<ServiceLaunch>,
+    /// The folders this fixture's sockets stand in,
+    /// named and owned here,
+    /// removed when the fixture goes.
+    pub socket_folders: std::sync::Mutex<crate::support_socket_folders::SocketFolders>,
+}
+
+/// How a fixture's service ended,
+/// or that it did not.
+/// Why an event and not a line:
+///  the state a control names is that this process ended, by itself, with this status;
+/// a line the service wrote about it arrives through a copy thread of its own and says only what the service claimed.
+pub enum ServiceEnd {
+    /// It ended by itself,
+    /// with this status.
+    Ended(std::process::ExitStatus),
+    /// It still ran when the bound passed.
+    StillRunning,
+    /// The fixture held no service for this worktree,
+    /// so nothing could end.
+    NotServed,
 }
 
 /// The process groups the helper processes of one test thread lead,
@@ -72,22 +93,158 @@ thread_local! {
 /// The child must lead a group of its own already (`process_group(0)`
 ///  before the start),
 /// so what it starts is killed with it.
+///  A child that does not lead one is a defect of its control, not a helper:
+/// the number registered here would name no group,
+/// the kill below would send its signal nowhere,
+/// and what the helper started would outlive the test.
+/// So the group is read back and a control that got this wrong fails here,
+/// naming the child and the group it is in.
 pub fn own_group(child: &Child) {
-    let group: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a pid fits the pid type");
+    let group: libc::pid_t = group_of(child);
+    assert_eq!(
+        group, libc::pid_t::try_from(child.id()).expect("a pid fits the pid type"),
+        "the helper {} was registered as a process group but is in group {group}: it must be started with `process_group(0)` (spawn_owned does that), or nothing it starts dies with the test",
+        child.id()
+    );
     OWNED_GROUPS.with(|owned| { owned.groups.borrow_mut().push(group); });
 }
 
 /// What:
-///  Start a helper process in a group of its own that dies with the test thread that started it.
+///  Start a helper process in a group of its own that dies with the test thread that started it,
+///  and with this process however this process ends.
 /// Why:
 ///   The same reason as `own_group`,
-/// for a child started here.
+/// for a child started here,
+/// and one more: a test binary killed outright runs no guard at all,
+/// so the child carries `PR_SET_PDEATHSIG` and the kernel kills it when the thread that started it is gone
+/// (which is the thread's end, or every thread's at once when the process is killed).
 pub fn spawn_owned(command: &mut Command) -> std::io::Result<Child> {
     use std::os::unix::process::CommandExt as _;
     command.process_group(0);
+    // SAFETY: between fork and exec only `prctl`, an async-signal-safe call, runs, and it touches no memory of this process.
+    unsafe {
+        command.pre_exec(|| {
+            libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
+            return Ok(());
+        });
+    }
     let child: Child = command.spawn()?;
     own_group(&child);
     return Ok(child);
+}
+
+/// What:
+///  The process group `child` is in, asked while the child is still there.
+/// Why:
+///   A helper a control started right leads its own group,
+///  and one it started wrong is in its parent's;
+///  the number has to be read before the child is ended and reaped,
+///  or the question cannot be answered at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const group = getpgid(child.pid)
+/// ```
+pub fn group_of(child: &Child) -> libc::pid_t {
+    let pid: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a pid fits the pid type");
+    // SAFETY: `getpgid` answers for a child of this process and touches no memory.
+    let group: libc::pid_t = unsafe { libc::getpgid(pid) };
+    assert!(group > 0, "the group of the helper {pid} is asked while it is there: {}", std::io::Error::last_os_error());
+    return group;
+}
+
+/// What:
+///  Every process still in `group`,
+///  except this process and the programs that started it,
+///  each with the command line that names it.
+/// Why:
+///   A helper that a control started in a group of its own takes its children into that group,
+///  and a child keeps its group even when it is reparented to the manager,
+///  so the group is where a stand-in that outlived its test is still visible
+///  (integration pass 31,
+///  2026-11-14,
+///  its report's first finding).
+///  A helper started outside a group of its own shares the group of the test,
+///  so that group's other members are this process and its own starters,
+///  which are not what a control is looking for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const left = procTable().filter((p) => p.pgrp === group && !ours.has(p.pid)); left.map((p) => [p.pid, p.cmdline]);
+/// ```
+pub fn processes_in_group(group: libc::pid_t) -> Vec<(u32, String)> {
+    let ours: Vec<u32> = this_process_and_its_starters();
+    let mut found: Vec<(u32, String)> = Vec::new();
+    let Ok(table) = std::fs::read_dir("/proc") else { return found };
+    for entry in table.flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        if name.is_empty() || !name.bytes().all(|byte| { return byte.is_ascii_digit(); }) {
+            continue;
+        }
+        let Ok(pid) = name.parse::<u32>() else { continue };
+        if ours.contains(&pid) {
+            continue;
+        }
+        let Ok(stat) = std::fs::read_to_string(entry.path().join("stat")) else { continue };
+        // The group is the fifth field of `stat`, after the program's name, which may hold spaces and brackets.
+        let Some((_before, after_name)) = stat.rsplit_once(')') else { continue };
+        let fields: Vec<&str> = after_name.split_whitespace().collect();
+        let Some(in_group) = fields.get(2).and_then(|text| { return text.parse::<libc::pid_t>().ok(); }) else { continue };
+        if in_group != group {
+            continue;
+        }
+        let Ok(bytes) = std::fs::read(entry.path().join("cmdline")) else { continue };
+        let said: String = String::from_utf8_lossy(bytes.as_slice()).replace('\0', " ");
+        found.push((pid, said.trim_end().to_owned()));
+    }
+    return found;
+}
+
+/// What:
+///  This process and the programs that started it, by process number,
+///  up to the first one whose parent is outside them.
+/// Why:
+///   A helper started outside a group of its own shares the group of this process,
+///  and a check that listed that group's members would answer with the test binary, the test runner and the shell.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ours = [pid, ...ancestors(pid)]
+/// ```
+fn this_process_and_its_starters() -> Vec<u32> {
+    let mut ours: Vec<u32> = vec![std::process::id()];
+    let mut parent: u32 = parent_of(std::process::id());
+    while parent != 0 && !ours.contains(&parent) {
+        ours.push(parent);
+        parent = parent_of(parent);
+    }
+    return ours;
+}
+
+/// The process number that started `pid`,
+/// or 0 when it cannot be read.
+fn parent_of(pid: u32) -> u32 {
+    let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else { return 0 };
+    let Some((_before, after_name)) = stat.rsplit_once(')') else { return 0 };
+    let fields: Vec<&str> = after_name.split_whitespace().collect();
+    return fields.get(1).and_then(|text| { return text.parse::<u32>().ok(); }).unwrap_or(0);
+}
+
+/// What:
+///  Fails the control when any process of `group` is still there after the control ended its helper.
+/// Why:
+///  A helper that outlives its control keeps the `systemd-run` scope of the test alive,
+///  and holds a process nothing will ever read;
+///  a control that started one asserts this before it ends,
+///  so such a leak fails a test instead of waiting for someone to notice it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(processesInGroup(group)).toEqual([])
+/// ```
+pub fn assert_nothing_in_group(group: libc::pid_t) {
+    let left: Vec<(u32, String)> = processes_in_group(group);
+    assert!(left.is_empty(), "processes of the group this control's helper was in are still there after the control ended it: {left:?}");
 }
 
 /// The commit services of one fixture,
@@ -97,6 +254,9 @@ pub struct FixtureService {
     /// The running service of each worktree,
     /// by the worktree's own Git directory.
     children: std::sync::Mutex<std::collections::HashMap<PathBuf, Child>>,
+    /// The end of the channel of every copy of a service's stream this fixture started,
+    /// so a read of the log can wait for the copy instead of the clock.
+    log_copies: std::sync::Mutex<Vec<std::sync::mpsc::Receiver<()>>>,
     /// The runtime directory the wrapper finds the services' sockets in.
     pub runtime: PathBuf,
 }
@@ -187,12 +347,30 @@ pub static RUNTIME_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::
 /// which the fixture tree's depth does not allow,
 /// so the runtime directory is
 ///  in the short agent scratch directory under the home.
+/// A control of the address a long runtime directory takes gives its own instead
+///  (`start_fixture_service_in`).
 /// Each service gets the parent-death signal,
 /// so a control that panics
 ///  or is killed leaves no service behind.
 pub fn start_fixture_service(fixture: &Fixture) -> FixtureService {
-    let runtime: PathBuf = short_runtime_directory(fixture);
-    return FixtureService { children: std::sync::Mutex::new(std::collections::HashMap::new()), runtime };
+    return start_fixture_service_in(short_runtime_directory(fixture));
+}
+
+/// What:
+///  Makes the runtime directory `runtime` the one a fixture's services listen in.
+/// Why:
+///   A runtime directory too long for a socket path is the case this package's address form exists for,
+///  and only a control that chooses the directory can make one that long.
+///  The service is started at whatever address `socket_address_of` gives that directory,
+///  which is the address the wrapper's own client computes.
+pub fn start_fixture_service_in(runtime: PathBuf) -> FixtureService {
+    // The socket file stands in a folder of its own, which a socket unit's `DirectoryMode=` makes in production.
+    std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli")).expect("the folder of the sockets");
+    return FixtureService {
+        children: std::sync::Mutex::new(std::collections::HashMap::new()),
+        log_copies: std::sync::Mutex::new(Vec::new()),
+        runtime,
+    };
 }
 
 /// What:
@@ -204,23 +382,30 @@ pub fn start_fixture_service(fixture: &Fixture) -> FixtureService {
 /// and a fixture root under a deep checkout does not.
 /// A control that bound its socket beside the fixture failed with "path must be shorter than SUN_LEN"
 ///  on a long checkout and passed on a short one (2026-11-08),
-///  so a test depended on how deep the repository sat.
+///  so a test depended on how deep the repository sat;
+/// and it then depended on the length of the home directory as well (2026-11-15),
+///  so the folder now comes from `socket_folder`,
+/// which asks every place this account offers and names them when none
+///  is short enough.
 /// The service's own socket already lives in such a directory,
 /// and this is the one place that makes it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const runtime = shortRuntimeDirectory(fixture); // `${HOME}/temp/agent/rt-${pid}-${n}`
+/// const runtime = shortRuntimeDirectory(fixture); // `${HOME}/temp/agent/rt3f9a1c/rt-0`
 /// ```
 pub fn short_runtime_directory(fixture: &Fixture) -> PathBuf {
-    let _ = fixture;
-    let home: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory for the service's runtime directory"));
     let number: usize = RUNTIME_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let runtime: PathBuf = home.join("temp/agent").join(format!("rt-{}-{number}", std::process::id()));
+    let name: String = format!("rt-{number}");
+    // The runtime directory is one socket path less its name and the socket's own suffix, and every instance of this
+    //  package is `INSTANCE_LENGTH` hexadecimal digits, so the suffix is the same whatever the worktree is.
+    let instance: String = "0".repeat(git_policy_cli::service_instance::INSTANCE_LENGTH);
+    let longest_folder: usize = git_policy_cli::service_instance::longest_runtime_directory(instance.as_str()).saturating_sub(1 + name.len());
+    let folder: PathBuf = fixture.socket_folders.lock().expect("the fixture's socket folders").folder("rt", longest_folder);
+    let runtime: PathBuf = folder.join(name.as_str());
     std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli")).expect("runtime directory");
     return runtime;
 }
-
 /// What:
 ///  Starts `command` from a thread that lives as long as this test process,
 /// and returns the child.
@@ -252,17 +437,19 @@ pub fn spawn_for_the_process_lifetime(command: Command) -> std::io::Result<Child
     return answer.recv().expect("the spawner thread answers");
 }
 
-
 impl FixtureService {
     /// What:
     ///  Starts the service of the worktree whose own Git directory is `git_dir`,
-    /// listening at the socket the wrapper looks for,
+    /// listening at the address the wrapper looks for,
     ///  unless it already runs.
     /// Why:
     ///   In production the manager starts one instance per worktree on its first connection;
     /// the fixture has no manager,
     /// so
     ///  it starts the instance itself and waits until it listens.
+    /// The address is the one `socket_address_of` gives this runtime directory,
+    /// which is a socket file where a path fits one socket address and an abstract name where it does not,
+    ///  and the service is given the one or the other on its command line.
     pub fn serve(&self, fixture: &Fixture, git_dir: &Path) {
         use std::os::unix::process::CommandExt;
         let key: PathBuf = std::fs::canonicalize(git_dir).unwrap_or_else(|_| { return git_dir.to_path_buf(); });
@@ -270,10 +457,11 @@ impl FixtureService {
         if children.contains_key(&key) {
             return;
         }
-        let socket: PathBuf = git_policy_cli::service_instance::socket_for(self.runtime.as_path(), key.as_path());
+        let instance: String = git_policy_cli::service_instance::instance_of(key.as_path());
+        let address: Bind = git_policy_cli::service_address_of_a_worktree::socket_address_of(self.runtime.as_path(), instance.as_str());
         // A service ended a moment ago may still hold the socket; the new one would end with its address in use while the poll below
         //  connected to the old one and called the new one ready.
-        wait_until_nothing_listens(&socket);
+        wait_until_nothing_listens(&address);
         let launch: ServiceLaunch = fixture.service_launch.lock().expect("the service launch").clone();
         // A helper that an older program started has the earlier command word in its unit file.
         let words: [&str; 3] = if launch.earlier_command_word {
@@ -295,11 +483,23 @@ impl FixtureService {
         };
         command
             .args(["--journal"])
-            .arg(fixture.root.join("journal"))
-            .arg("--path")
-            .arg(&socket)
+            .arg(fixture.root.join("journal"));
+        match &address {
+            Bind::Path(path) => {
+                command.arg("--path").arg(path);
+            }
+            Bind::Abstract(name) => {
+                command.arg("--abstract").arg(name);
+            }
+            Bind::Inherited => panic!("the fixture's service names the address it listens at"),
+        }
+        let (kept_log, when_the_copy_ends): (std::os::fd::OwnedFd, std::sync::mpsc::Receiver<()>) =
+            crate::support_fixture_service_log::kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log");
+        command.stderr(Stdio::from(kept_log));
+        self.log_copies.lock().expect("the fixture's log copies").push(when_the_copy_ends);
+        command
             .arg("--instance")
-            .arg(git_policy_cli::service_instance::instance_of(key.as_path()))
+            .arg(instance.as_str())
             .env_clear()
             .env("PATH", format!("{}:/usr/bin:/bin", fixture.root.join("bin").display()))
             .env("HOME", fixture.root.join("home"))
@@ -311,8 +511,7 @@ impl FixtureService {
             .env("GIT_COMMITTER_NAME", "Fixture")
             .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
             .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::from(crate::support_fixture_service_log::kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log")));
+            .stdout(Stdio::null());
         for (name, value) in fixture.service_environment.lock().expect("the service environment").iter() {
             command.env(name, value);
         }
@@ -343,7 +542,7 @@ impl FixtureService {
         let mut signs: SignsOfWork = SignsOfWork::of(service_pid);
         let began: std::time::Instant = std::time::Instant::now();
         let mut last_change: std::time::Instant = std::time::Instant::now();
-        while !service_is_serving(&socket) {
+        while !service_is_serving(&address) {
             // A service that has ended will never listen, so waiting out the patience for it only hides how it ended. A
             //  control whose fault may keep the service from starting (a disk that is full from its first write) goes on
             //  once the service has ended or a short wait has passed: what the client then says is the control's to check.
@@ -354,7 +553,7 @@ impl FixtureService {
                 }
             } else if let Some(status) = ended {
                 children.remove(&key);
-                panic!("the fixture's commit service ended ({status}) before it listened at {}; what it wrote to its log is in this test's output", socket.display());
+                panic!("the fixture's commit service ended ({status}) before it listened at {}; what it wrote to its log is in this test's output", git_policy_cli::service_server::address_text(&address));
             }
             // A service that is starting on a loaded host is working: it reads its configuration, opens its log and binds
             //  its socket. The fixture ends the wait on the service's own silence, never on the clock, because six
@@ -366,7 +565,7 @@ impl FixtureService {
             assert!(
                 last_change.elapsed() < SERVICE_QUIET_WINDOW,
                 "the fixture's commit service at {} showed no sign of work for {:?} while it was starting",
-                socket.display(),
+                git_policy_cli::service_server::address_text(&address),
                 SERVICE_QUIET_WINDOW
             );
             std::thread::sleep(std::time::Duration::from_millis(5));
@@ -388,9 +587,69 @@ impl FixtureService {
         for (key, child) in children.iter_mut() {
             kill_with_everything_it_started(child);
             // Reaping the child is not the service's end when a tracer is the child: the socket answers until the service is gone.
-            wait_until_nothing_listens(git_policy_cli::service_instance::socket_for(self.runtime.as_path(), key.as_path()).as_path());
+            let instance: String = git_policy_cli::service_instance::instance_of(key.as_path());
+            wait_until_nothing_listens(&git_policy_cli::service_address_of_a_worktree::socket_address_of(self.runtime.as_path(), instance.as_str()));
         }
         children.clear();
+    }
+
+    /// What:
+    ///  Waits, bounded, for every copy of a service's stream this fixture started to end,
+    ///  and answers whether they all did.
+    /// Why:
+    ///   A copy runs on a thread of its own, and the file holds what a service wrote only once that thread has written it.
+    /// The pipe closes when the last service holding it ends,
+    /// so a copy whose service ended always ends,
+    /// and the wait is the event a deciding read needs rather than a sleep of a guessed length.
+    ///  The answer is the whole meaning of the call:
+    /// `true` says every copy of the service's words has ended, so a read that decides anything may trust the file.
+    /// A copy that has not ended before the bound stays here for the next wait,
+    /// and so does one whose copier is gone without a word,
+    /// because "nothing left to wait for" is not "everything ended";
+    /// only a copy whose end was received is forgotten.
+    ///  One wait runs at a time,
+    /// so a second caller cannot find the copies taken out and answer for them.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const settled = service.awaitCopies(10_000); // every copyEnded arrived; a give-up leaves the rest queued
+    /// ```
+    /// What:
+    ///  Records the end of a copy of a service's stream that a control started itself,
+    ///  so that one wait sees every copy of this fixture's words.
+    /// Why:
+    ///   A control that judges this wait holds a copy open on purpose,
+    /// so it starts the pipe itself,
+    /// and a wait that saw only the copies the fixture started would not be waiting for the one the control made.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// service.recordACopy(copyEnded); // the wait now sees the copy the control holds open
+    /// ```
+    pub fn record_a_log_copy(&self, when_the_copy_ends: std::sync::mpsc::Receiver<()>) {
+        self.log_copies.lock().expect("the fixture's log copies").push(when_the_copy_ends);
+    }
+
+    pub fn settle_the_service_log(&self, bound: std::time::Duration) -> bool {
+        // The lock is held for the whole wait: a caller that found the copies taken out would answer that every copy
+        // ended while this one is still waiting for it.
+        let mut copies = self.log_copies.lock().expect("the fixture's log copies");
+        let began: std::time::Instant = std::time::Instant::now();
+        loop {
+            let reached: Result<(), std::sync::mpsc::RecvTimeoutError> = {
+                let Some(ended) = copies.first() else { return true };
+                ended.recv_timeout(bound.saturating_sub(began.elapsed()))
+            };
+            match reached {
+                // This copy ended, and its end is the only thing a wait may forget.
+                Ok(()) => {
+                    let _ended = copies.remove(0);
+                }
+                // A copy that has not ended, or whose copier is gone without a word, is not an end: it stays for the
+                // next wait, and the answer is that not every copy ended.
+                Err(_) => return false,
+            }
+        }
     }
 
     /// What:
@@ -448,6 +707,65 @@ pub fn worktree_git_dirs(directory: &Path, depth: usize) -> Vec<PathBuf> {
         }
     }
     return found;
+}
+
+/// How long a copy of a service's stream may take to end once the services holding it have ended:
+/// the pipe closes with the last of them,
+/// so a copy that has not ended by this bound means something still holds the stream,
+/// and the read that waited says the log it sees may be incomplete.
+pub(crate) const SERVICE_LOG_END_BOUND: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// What:
+///  Waits, bounded, for every copy of a service's stream this fixture started to end,
+///  and answers whether they all did.
+/// Why:
+///  A copy runs on a thread of its own, so `SERVICE_LOG_FILE` holds what a service wrote only once that thread has
+/// written it;
+/// a read that decides anything calls this first,
+/// which is the event and not a sleep of a guessed length.
+/// The services whose streams are waited for must have ended:
+/// the copy of a running service's stream ends only when it does.
+pub fn settle_the_service_log(fixture: &Fixture, bound: std::time::Duration) -> bool {
+    let service = fixture.service.lock().expect("the fixture's service lock");
+    return service.as_ref().is_none_or(|services| { return services.settle_the_service_log(bound); });
+}
+
+/// What:
+///  Waits, bounded, for the service of a worktree or of its own Git directory to end, and answers how it ended.
+/// Why:
+///   A control whose subject is a service that ends reads that end as the event it is:
+///  the child's own exit status,
+/// never a line the service wrote about itself,
+/// which arrives through a copy thread and says only what the service claimed.
+///  The bound is the control's, and a service still running when it passes is one that did not end.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const end = await serviceEndOf(fixture, repo, 10_000); // { kind: 'ended', status } | 'still-running' | 'not-served'
+/// ```
+pub fn wait_for_the_service_to_end(fixture: &Fixture, worktree_or_its_git_dir: &Path, bound: std::time::Duration) -> ServiceEnd {
+    // The services are recorded by the worktree's own Git directory, which is what `serve` keys them by.
+    let named_git_dir: PathBuf = worktree_or_its_git_dir.join(".git");
+    let own_git_dir: PathBuf = if named_git_dir.exists() { named_git_dir } else { worktree_or_its_git_dir.to_path_buf() };
+    let key: PathBuf = std::fs::canonicalize(own_git_dir.as_path()).unwrap_or(own_git_dir);
+    let began: std::time::Instant = std::time::Instant::now();
+    loop {
+        let reached: Option<Option<std::process::ExitStatus>> = {
+            let service = fixture.service.lock().expect("the fixture's service lock");
+            let Some(services) = service.as_ref() else { return ServiceEnd::NotServed };
+            let mut children = services.children.lock().expect("the fixture's services");
+            children.get_mut(&key).map(|child| { return child.try_wait().ok().flatten(); })
+        };
+        match reached {
+            None => return ServiceEnd::NotServed,
+            Some(Some(status)) => return ServiceEnd::Ended(status),
+            Some(None) => {}
+        }
+        if began.elapsed() > bound {
+            return ServiceEnd::StillRunning;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
 }
 
 /// What:
@@ -519,6 +837,12 @@ impl Drop for Fixture {
         // Then whatever product code started here and a failed control never ended (a hook that waits with one `sleep`).
         end_processes_working_in(self.root.as_path());
         settle_fixture(self.root.as_path(), std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some());
+        // Then the folders this control's sockets stood in, which are this fixture's own and nobody else's.
+        if let Ok(folders) = self.socket_folders.lock() {
+            for folder in folders.made_folders() {
+                settle_fixture(folder.as_path(), std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some());
+            }
+        }
     }
 }
 

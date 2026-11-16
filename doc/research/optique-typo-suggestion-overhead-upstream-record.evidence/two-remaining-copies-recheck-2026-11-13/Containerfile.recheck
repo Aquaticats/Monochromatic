@@ -1,0 +1,24 @@
+# Recheck image for the prototype that removes the two per-token array copies left after the input-trace patch.
+# Every source arm, probe and timing script is baked in, so each run is mount-free and has no network.
+# The arms are source checkouts of packages/core/src, which Deno runs through an import map with no build step.
+#
+#   podman build --tag localhost/optique-two-remaining-copies-recheck:2026-11-13 --file Containerfile.recheck .
+
+FROM localhost/optique-upstream-arms:2026-11-13
+
+COPY arms /arms
+COPY image/mixed-scaling.ts /repo/mixed-scaling.ts
+COPY image/run-timing.ts /run-timing.ts
+COPY image/view-facts.ts /view-facts.ts
+COPY probe /probe
+
+RUN set -eux; \
+    cd /repo; \
+    for arm in main base multiple buffer both views-always concat slice-push; do \
+      sed "s#/path/to/optique#/arms/$arm#g" /repo/maps/src-checkout.json > "/maps/recheck-$arm.json"; \
+      deno cache --no-config --import-map "/maps/recheck-$arm.json" token-scaling.ts commit-paths.ts mixed-scaling.ts /probe/behaviour-probe.ts /probe/long-input-probe.ts; \
+    done; \
+    cat /maps/recheck-both.json; \
+    node --version; deno --version | head --lines=1; bun --version
+
+ENTRYPOINT ["node", "/run-timing.ts"]

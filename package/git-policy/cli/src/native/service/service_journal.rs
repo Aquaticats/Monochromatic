@@ -20,7 +20,9 @@
 //! await writeIntent(dir, intent); // file fsync, rename, directory fsync: the batch's only synchronous write
 //! ```
 
+use crate::claim_time::ClaimTime;
 pub use crate::service_journal_intent_text_and_parse::{Intent, intent_text, parse_intent};
+use crate::service_journal_record_age::a_client_may_still_read_finished_batch;
 use crate::service_land_start::{IndexWitness, decode, encode};
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -259,6 +261,11 @@ pub fn mark_indexed(dir: &Path, seq: u64, new: &str) -> std::io::Result<()> {
 
 /// The extension of the record of the live index file a batch started from.
 pub const START_EXTENSION: &str = "start";
+
+/// The extension of the folder that holds one batch's copy of the conclusion state it removes
+/// (`conclusion_state_copy.rs`),
+/// which is a copy of what the landing compares and never the state itself.
+pub const CONCLUSION_COPY_EXTENSION: &str = "cleanup";
 
 /// What:
 ///  Records the witness of the live index file as the landing found it under the index lock.
@@ -526,48 +533,67 @@ fn list_intents_removing_abandoned(dir: &Path, extension: &str, remove_abandoned
     return found;
 }
 
-/// How many finished batches a journal keeps.
-/// A request is answered as already landed only when its own client sends it again
-///  after a broken connection:
-/// at most `RECONNECTS` times,
-/// each after a pause of milliseconds and a wait for a service to
-///  start of at most `START_WAIT` (`service_client.rs`),
-/// so the resend of a landed request arrives within seconds of the
-///  landing.
-/// A service lands a batch in the time of a few Git processes,
-/// so this many batches reach back past any such resend.
-///  Measured:
+/// How many finished batches a journal keeps whatever their age.
+/// What:
+///  The count a finished record must be beyond before its age can remove it,
+///  and the number of records a repository that lands rarely keeps for ever.
+/// Why:
+///   A request is answered as already landed only by the record its batch left,
+/// so the record must outlive the client that may send the request again.
+/// That client's whole life is `A_FINISHED_RECORD_IS_READ` (`wait_ceilings.rs`),
+/// which decides most removals;
+/// this count decides the others:
+///  a client that was stalled for hours
+/// (a host suspended under it,
+/// a command held at a debugger,
+/// an agent's turn that resumed the next day)
+/// outlives any age a service may state,
+/// and its record stays while fewer than this many batches have landed since it.
+/// It is also what a quiet repository keeps without end,
+/// which bounds the state folder and the read a service makes at its start.
+/// Measured:
 /// in the service journal (1,085 landings of the `cli-git@` units,
 /// 2026-11-02T09:01:38Z to 2026-11-03T15:11:58Z) the busiest
-///  unit landed 4 batches in its busiest 10 seconds,
+/// unit landed 4 batches in its busiest 10 seconds,
 /// 4 in its busiest minute and 15 in its busiest ten minutes,
 /// and 349 in all,
-/// so
-///  this many reach back over sixty times the busiest ten minutes.
-/// Kept as the coordinator's pick under the owner's delegation,
-///  open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`,
-/// "Sizes and ages of the service's own housekeeping").
+/// so this many batches are a busy hour of that unit's traffic.
+/// Kept at the coordinator's pick under the owner's delegation,
+/// open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Journal retention and capture memory").
 pub const DONE_RETAINED: usize = 1024;
 
 /// What:
-///  Removes the files of the oldest finished batches,
-/// keeping the newest `retained`,
-/// and gives how many it removed.
+///  Removes the files of the finished batches that no client of them can still read,
+///  keeping the newest `retained` whatever their age,
+///  and gives how many it removed.
 /// Why:
 ///   A finished batch's file is only memory of the request identities it landed.
 /// Nothing else removed them,
 /// so a journal grew by
 ///  a file per batch for as long as the worktree lived.
 /// Batch numbers increase with time,
-/// so the oldest are the smallest.
+/// so the newest are the largest,
+/// and this rule is load-bearing here:
+/// a batch number is taken as the first free one above every number the journal holds,
+/// and so is never taken again while its record stays.
+///  A record is removed only when both hold:
+/// it is beyond the newest `retained`,
+/// and no client of it may still read it (`A_FINISHED_RECORD_IS_READ` of the clock that client waits on,
+/// `service_journal_record_age.rs`).
+/// A burst of landings pushes a record past the count while its client is still inside its wait,
+/// and a repository that lands rarely keeps an old record past the age,
+/// so neither takes the memory of a request a client may still send again.
+/// A removal that fails leaves its record.
 ///  Only files named as a batch number with the finished extension are touched,
-/// and a file that cannot be removed is left.
+/// and this runs at a service's start,
+/// never on the path a commit waits on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await pruneDone(dir, DONE_RETAINED) // 3: removed the three oldest
+/// await pruneDone(dir, DONE_RETAINED, now) // 3: removed the three oldest no client can still read
 /// ```
-pub fn prune_done(dir: &Path, retained: usize) -> usize {
+pub fn prune_done(dir: &Path, retained: usize, now: &ClaimTime) -> usize {
     let Ok(entries) = fs::read_dir(dir) else {
         return 0;
     };
@@ -576,9 +602,12 @@ pub fn prune_done(dir: &Path, retained: usize) -> usize {
         .filter_map(finished_batch_of_entry)
         .collect();
     finished.sort_by_key(newest_first_key);
-    // Each removal is tried in turn, and only the ones that worked are counted.
+    // Each record past the count is asked about once, and only the removals that worked are counted.
     let mut removed: usize = 0;
     for (_, path) in finished.into_iter().skip(retained) {
+        if a_client_may_still_read_finished_batch(path.as_path(), now) {
+            continue;
+        }
         if fs::remove_file(path).is_ok() {
             removed += 1;
         }

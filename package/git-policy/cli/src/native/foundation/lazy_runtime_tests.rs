@@ -193,6 +193,29 @@ const A_STATED_WAIT: Duration = Duration::from_millis(200);
 const A_WAIT_NOTHING_ANSWERS: Duration = Duration::from_secs(5);
 
 /// What:
+///  Whether a control holds one read of the late runtime at the moment before the arrival.
+/// Why:
+///   The race of `the_late_runtime` is a build that arrived between two reads of the cell,
+///  which is one stale answer followed by the truth,
+/// and no scheduling pressure can order that moment from outside.
+/// A control sets the flag just before the call that reads,
+/// and the read that takes it lets it go,
+/// so the answer is stale exactly once.
+/// Nextest gives every control its own process,
+/// so the flag cannot reach another.
+static THE_ARRIVAL_IS_HELD_BACK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Takes the control's hold on one read of the late runtime.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const heldBack = takeTheHold(); // true once, while a control stands in for the moment before the arrival
+/// ```
+pub(super) fn this_read_of_the_late_runtime_is_held_back() -> bool {
+    return THE_ARRIVAL_IS_HELD_BACK.swap(false, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// What:
 ///  A caller that must have a worker waits for a build that outlasted its deadline and is still coming.
 /// Why:
 ///   The positive control of the pair below:
@@ -240,6 +263,115 @@ fn a_task_that_needs_a_worker_does_not_wait_for_a_runtime_that_nothing_brings() 
     assert!(
         waited < A_WAIT_NOTHING_ANSWERS / 2,
         "nothing was coming, so the caller did not wait the bound it was given: {waited:?} of {A_WAIT_NOTHING_ANSWERS:?}"
+    );
+}
+
+/// What:
+///  A caller that must have a worker starts the task when the build that outlasted its deadline arrives
+///  while the caller is asking whether anything is coming.
+/// Why:
+///   The review of 2026-11-12T09:34-05:00 found the caller reading the late runtime twice:
+/// a build that arrived between the two reads made the first answer "no worker yet" and the second "no build coming",
+/// and the service ended with status 4 although a worker was there.
+/// The state here is the real one,
+/// a process that serves from the stand-in of a build that missed its deadline and keeps that build,
+/// and only the moment of the first answer is the control's,
+/// so the caller is under exactly the interleaving the review described.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// serveFromTheStandInAndKeepTheLateBuild(); holdOneReadBack(); expect(spawnOnRuntimeWithin(200, async () => {})).not.toBeUndefined()
+/// ```
+#[test]
+fn a_task_that_needs_a_worker_starts_when_the_build_arrives_as_the_caller_asks_about_it() {
+    let stand_in: Runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a stand-in runtime");
+    assert!(
+        RUNTIME.set(Ok(BuiltRuntime { runtime: stand_in, flavor: BuiltFlavor::CurrentThreadAfterDeadline })).is_ok(),
+        "this control is the first need of a runtime in its own process"
+    );
+    let arrived: Runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("the runtime the late build kept");
+    assert!(LATE_RUNTIME.set(arrived).is_ok(), "this control owns the late runtime of its own process");
+    // The build has arrived, and the first question the caller asks about it answers as the moment before.
+    THE_ARRIVAL_IS_HELD_BACK.store(true, std::sync::atomic::Ordering::SeqCst);
+    let started: Option<tokio::task::JoinHandle<()>> = spawn_on_runtime_within(A_STATED_WAIT, async {});
+    assert!(
+        started.is_some(),
+        "the build arrived, so a caller that must have a worker starts its task instead of ending for want of one"
+    );
+}
+
+/// How long a control that holds one of the build's own moments waits for that moment to be reached:
+/// a bound on a signal between two of the control's threads,
+/// never on the ordering it stands for,
+/// so a moment that never comes fails the control instead of holding it.
+const A_MOMENT_REACHED: Duration = Duration::from_secs(30);
+
+/// What:
+///  A build that finishes while the caller is between its last read of the channel and its closing of it is kept.
+/// Why:
+///   The review of 2026-11-12T09:34-05:00 found a runtime sent into that gap dropped with the channel:
+/// the process then believed for the rest of its life that a build was still coming,
+///  spent the whole patience on every later task,
+/// and ended the service with status 4.
+/// The control releases the build from the caller's own moment and holds the build at its own moment,
+/// which are the two seams of the hand-over,
+/// so the build's send finds the channel closed at every run and the keep is the build's to do;
+/// nothing here is ordered by how long a step takes.
+/// A keep is never ordered with the caller's answer:
+/// the runtime is in the build's hand after the caller has already returned,
+/// so the control waits for the keep instead of looking once,
+/// and it proves the runtime that was kept is the one the build finished with by running a task the build started on it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// atTheCallersMoment(() => releaseTheBuild()); atTheBuildsMomentBeforeKeeping(() => hold()); const built = buildWithDeadlineAnd(plan, 50ms, buildThread, currentThread); expect(awaitKept()).toBe(true); expect(taskOfThatRuntimeRan()).toBe(true)
+/// ```
+#[test]
+fn a_build_that_finishes_while_the_caller_gives_up_is_kept() {
+    let (release_sender, release) = std::sync::mpsc::channel::<()>();
+    let (built_sender, built) = std::sync::mpsc::channel::<()>();
+    // A task of the very runtime the build finishes with, so the control can tell that runtime from any other.
+    let (ran_sender, ran) = std::sync::mpsc::channel::<u8>();
+    // The build's own moment: the runtime it finished with is in its hand, the caller has closed the channel on it, and it is not kept yet.
+    let (holding_sender, holding) = std::sync::mpsc::channel::<()>();
+    let (may_keep_sender, may_keep) = std::sync::mpsc::channel::<()>();
+    *THE_CALLER_STOPS_WAITING.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Box::new(move || {
+        release_sender.send(()).expect("the build is released into the caller's last moment of waiting");
+        built.recv().expect("the build finished inside the caller's last moment of waiting");
+    }));
+    *THE_BUILD_STOPS_BEFORE_KEEPING.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Box::new(move || {
+        holding_sender.send(()).expect("the build says it holds the runtime it finished with");
+        may_keep.recv().expect("the control lets the build keep the runtime");
+    }));
+    let built_runtime: BuiltRuntime = build_with_deadline(
+        RuntimePlan::MultiThread { workers: ONE_WORKER, blocking_threads: ONE_WORKER },
+        BEFORE_THE_DEADLINE,
+        move |workers: usize, blocking: usize| -> std::io::Result<Runtime> {
+            release.recv().expect("the control releases the build from the caller's moment");
+            let runtime: Runtime = real_multi_thread(workers, blocking)?;
+            runtime.spawn(async move { let _sent = ran_sender.send(7); });
+            built_sender.send(()).expect("the build says it finished");
+            return Ok(runtime);
+        },
+    )
+    .expect("a runtime stands in");
+    assert_eq!(built_runtime.flavor, BuiltFlavor::CurrentThreadAfterDeadline, "the deadline passed before the build was released");
+    // The hand-over failed before this answer, so the runtime is in the build's hand and the build is the only one that can keep it.
+    holding.recv_timeout(A_MOMENT_REACHED).expect("the build reached the moment before it keeps the runtime it finished with");
+    assert!(
+        !late_build_arrived(),
+        "the build kept the runtime before the control let it, so the caller's answer here cannot be taken for the keep of a build it was too late for"
+    );
+    may_keep_sender.send(()).expect("the control lets the build keep the runtime");
+    let arrived: bool = crate::test_support::wait_until(&|| { return late_build_arrived(); });
+    assert!(
+        arrived,
+        "the runtime the build finished with was dropped with the channel the caller closed after its last read"
+    );
+    assert_eq!(
+        ran.recv_timeout(A_MOMENT_REACHED).expect("a task the build started on the runtime it finished with runs"),
+        7,
+        "the runtime that was kept is the one the build finished with, and its worker runs the task the build started on it"
     );
 }
 

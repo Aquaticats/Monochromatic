@@ -25,11 +25,17 @@ fn entries_under(root: &Path) -> BTreeSet<(String, bool)> {
     return found;
 }
 
-/// The skeleton holds every entry real Git creates for an empty bare repository except `config`,
-///  which the shadow writes itself,
-/// and nothing real Git does not create.
+/// What:
+///  The skeleton holds every directory a creation needs and nothing real Git does not make,
+///  and `objects/pack`, `refs/heads` and `refs/tags` are left to Git.
+/// Why:
+///   Leaving those three out is only worth it if every entry the creation makes is one real Git would have made:
+///  a directory Git has no shape for would be one the claim's own check could never see.
+///  What Git makes of the three on its own is the other control here and the commit in
+///  `shadow_pool_tests.rs`
+///  ("the commit a member builds is the commit a creation builds").
 #[test]
-fn skeleton_matches_the_entries_real_git_init_creates_except_config() {
+fn the_skeleton_holds_what_a_creation_needs_and_leaves_pack_and_the_ref_folders_to_git() {
     let root: PathBuf = fixture("shadow-skeleton-differential");
     let made: PathBuf = root.join("made");
     let reference: PathBuf = root.join("reference");
@@ -41,7 +47,18 @@ fn skeleton_matches_the_entries_real_git_init_creates_except_config() {
     let ours: BTreeSet<(String, bool)> = entries_under(made.as_path());
     let mut theirs: BTreeSet<(String, bool)> = entries_under(reference.as_path());
     assert!(theirs.remove(&(String::from("config"), false)), "real Git writes a config file");
-    assert_eq!(ours, theirs);
+    for entry in &ours {
+        assert!(theirs.contains(entry), "the creation makes {}, which real Git does not", entry.0);
+    }
+    for left_to_git in ["objects/pack", "refs/heads", "refs/tags"] {
+        assert!(!ours.contains(&(String::from(left_to_git), true)), "the creation leaves {left_to_git} to Git");
+    }
+    assert_eq!(ours, BTreeSet::from([
+        (String::from("HEAD"), false),
+        (String::from("objects"), true),
+        (String::from("objects/info"), true),
+        (String::from("refs"), true),
+    ]));
     remove(root.as_path());
 }
 

@@ -1,50 +1,42 @@
 //! What:
-//!  The linked-worktree policy's carve-out for conflicted files:
-//! judge a `git checkout` or `git restore` command line
-//!  during a merge,
-//! rebase,
-//! cherry-pick or revert,
-//! and save the files it would replace.
+//!  The linked-worktree policy's reading of a `git checkout` or `git restore` command line
+//!  that would replace a conflicted file while a merge,
+//!  a rebase,
+//!  a cherry-pick or a revert waits,
+//!  and the refusal that names every file it would replace.
 //! Why:
-//!  The owner decided (2026-11-02,
-//! "save,
-//! then allow") that taking a side of a conflicted file is allowed once the
-//!  current file is copied beside the audit log,
-//! and that every path that is not conflicted keeps the rejection.
-//! This
-//!  file joins the pieces that decide and save (`conflict_sides.rs`,
-//! `command_conflict_side.rs`) to the repository:
-//! it
-//!  finds the layout and the index in process,
-//! starts no Git,
-//! and returns what the policy should do.
-//! The copy is made
-//!  here,
-//! before the policy lets the command run,
-//! so Git never starts before the copy is on disk.
+//!  A conflicted path is where the person's own resolution of it lives,
+//!  and nothing else holds it:
+//!  the index holds the three sides,
+//!  and this program keeps no copy.
+//!  The policy already rejects these forms,
+//!  so the reading is here to name what the rejection would destroy:
+//!  the guard finds the operation and the unmerged entries in process,
+//!  starts no Git,
+//!  and answers with the repository-relative paths the line names that the index marks as unmerged.
+//!  A line whose paths cannot be read as single files (`--patch`,
+//!  a wildcard,
+//!  pathspec magic,
+//!  a directory)
+//!  names nothing,
+//!  and the usual rejection stands without an extra sentence.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const verdict = judgeConflictSides({ context, arguments }); // 'not-applicable' | allowed | refused | copy-failed
+//! const verdict = judgeConflictSides({ context, arguments }); // 'not-applicable' | { kind: 'would-replace', paths }
 //! ```
 
 use crate::command_conflict_side::{SideRequest, conflict_side_request};
-use crate::conflict_side_decision::magic_on_conflicted;
-use crate::conflict_side_modes::{MODE_OPTIONS, MODE_VARIABLES, magic_note, mode_note, modes_in_effect};
-use crate::conflict_sides::{
-    FailureKind, Operation, SAVED_DIRECTORY, SaveFailure, SavedCopy, SideDecision, clean_paths_note, conflicted_paths, decide_sides, operation_in_progress,
-    save_copies, saved_notice,
-};
+use crate::conflict_side_state::{Operation, conflicted_paths, operation_in_progress};
 use crate::diagnostic_log::debug;
-use crate::discarded_prune::{Limits, Problem, directory_name_of, prune};
 use crate::global_arguments::command_tokens;
 use crate::private_storage::read_regular_file;
-use crate::repo_read_index::{IndexEntry, parse_index};
+use crate::repo_read_index::parse_index;
 use crate::repo_read_layout::{RepoLayout, read_layout};
-use crate::repo_read_layout_without::read_layout_without;
 use crate::transaction_git::GitContext;
-use std::ffi::OsString;
-/// `Path` is a borrowed filesystem path.
+use std::collections::BTreeSet;
+use std::ffi::{OsStr, OsString};
+use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 
 /// Module tag for diagnostics.
@@ -53,178 +45,154 @@ const TAG: &str = "judgeConflictSides";
 /// The largest index file this reads.
 const INDEX_LIMIT_BYTES: u64 = 1 << 30;
 
-/// What the policy does with a command line during an operation in progress.
+/// What the reading of one command line came to.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SideVerdict {
-    /// Not a conflict-side form,
+    /// Not a form this reads,
     /// no operation in progress,
-    /// or a layout this reader declines:
-    /// the usual rules decide.
+    /// or no path of the line is unmerged:
+    /// the usual rejection stands as it is.
     NotApplicable,
-    /// Every path is conflicted and its copy is saved:
-    /// the command runs.
-    Allowed {
-        /// The notice to show the person before Git runs.
-        notice: String,
-        /// What was saved,
-        /// for the audit record.
-        copies: Vec<SavedCopy>,
+    /// The command would replace these repository-relative paths,
+    /// each of which the index marks as unmerged,
+    /// in the order named,
+    /// while this operation waits for its conflicts.
+    WouldReplace {
+        /// The operation whose resolution the command would replace.
+        operation: Operation,
+        /// The repository-relative paths it would replace.
+        paths: Vec<String>,
     },
-    /// Some path is not conflicted,
-    /// or the index cannot be read in process:
-    /// the usual rejection stays,
-    /// with this sentence added.
-    Refused(String),
-    /// A copy could not be written:
-    /// the command is rejected with this text,
-    /// because it would discard unsaved work.
-    CopyFailed(String),
 }
 
-/// The sentence for a copy that could not be written,
-/// with the advice that fits what went wrong.
-fn copy_failed_text(failure: &SaveFailure) -> String {
-    return match failure.kind {
-        FailureKind::Io => format!(
-            "monochromatic-git-policy-cli: this command would replace a conflicted file, and your copy of it could not be saved first ({}: {}), so it is \
-             rejected and nothing was changed. Free the space or fix the permissions of the Git directory and run it again, or \
-             save the file yourself and pass `--no-enforce-worktree` directly after the subcommand.",
-            failure.subject, failure.reason
-        ),
-        FailureKind::Ancestor => format!(
-            "monochromatic-git-policy-cli: this command would replace a conflicted file, but `{}` in front of it {}. Git would replace `{}` with a real \
-             directory to write the file, and nothing of it would be saved first, so the command is rejected and nothing was \
-             changed. Move `{}` out of the way or save it yourself and run the command again, or pass `--no-enforce-worktree` \
-             directly after the subcommand to go ahead without a copy.",
-            failure.subject, failure.reason, failure.subject, failure.subject
-        ),
-        FailureKind::Changed => format!(
-            "monochromatic-git-policy-cli: the conflicted file `{}` {}, so the copy that was being made may be stale or cut short and was not kept. The \
-             command is rejected and nothing was changed. Run it again once nothing is writing to the file (an editor or a build may \
-             be), or save the file yourself and pass `--no-enforce-worktree` directly after the subcommand.",
-            failure.subject, failure.reason
-        ),
-    };
-}
-
-/// The sentence for an index that cannot be read in process.
-fn index_declined() -> String {
-    return String::from(
-        " The index could not be read in process (it is split, sparse, unreadable, or chosen by `GIT_INDEX_FILE`), so no \
-         file can be shown to be conflicted.",
-    );
-}
-
-/// The conflicted paths of the index at `layout`,
-/// or the sentence that says why they cannot be read in process.
-fn read_conflicts(layout: &RepoLayout) -> Result<std::collections::BTreeSet<Vec<u8>>, String> {
+/// What:
+///  The operation that waits and the paths it left unmerged,
+///  or why the line cannot be judged.
+/// Why:
+///   Both are read in process from the Git directory,
+///  so the refusal and the command it refuses see the same moment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function waiting(layout: RepoLayout): { operation: Operation; conflicted: Set<string> } | undefined;
+/// ```
+fn waiting(layout: &RepoLayout) -> Option<(Operation, BTreeSet<Vec<u8>>)> {
+    let operation: Operation = operation_in_progress(layout.git_dir.as_path())?;
     if std::env::var_os("GIT_INDEX_FILE").is_some() {
-        return Err(index_declined());
+        debug(TAG, "declined: GIT_INDEX_FILE names another index, so no path can be shown to be unmerged");
+        return None;
     }
     let Ok(bytes) = read_regular_file(layout.git_dir.join("index").as_path(), INDEX_LIMIT_BYTES) else {
-        return Err(index_declined());
+        debug(TAG, "declined: the index cannot be read in process, so no path can be shown to be unmerged");
+        return None;
     };
-    let entries: Vec<IndexEntry> = parse_index(bytes.as_slice(), layout.object_format).ok_or_else(index_declined)?;
-    return Ok(conflicted_paths(entries.as_slice()));
+    let Some(entries) = parse_index(bytes.as_slice(), layout.object_format) else {
+        debug(TAG, "declined: the index is split, sparse or carries an extension the reader cannot vouch for");
+        return None;
+    };
+    return Some((operation, conflicted_paths(entries.as_slice())));
 }
 
 /// What:
-///  Applies the age and size limits to the folder of saved copies,
-/// now that a new save is complete and durable,
-/// and gives
-///  the sentences for whatever the pass could not do (empty when it did all it should).
+///  The repository-relative path a pathspec token names,
+///  when it names exactly one file by its literal spelling.
 /// Why:
-///   Pruning after the save,
-/// never before,
-/// means a kill while copying costs no older copy;
-/// the directory just written is
-///  never chosen,
-/// whatever its name says.
-/// Nothing waits on the pass (another pass holding the folder makes this one do
-///  nothing),
-/// and a failure of it never changes the verdict;
-/// it is said in the notice,
-/// so the person sees that the limits
-///  did not apply and why.
+///   Git resolves a pathspec below the directory the command runs in.
+///  Magic (`:(glob)`,
+///  `:/`),
+///  wildcards,
+///  a trailing slash and a directory are not a single file,
+///  so they resolve to nothing and add no name to the refusal.
+///  `.` and `..` segments are folded;
+///  a path that leaves the worktree resolves to nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await pruneAfterSave(commonDir, copies, milliseconds)
+/// function literalPath(prefix: string, root: string, token: string): string | undefined;
 /// ```
-pub(crate) fn prune_after_save(common_dir: &Path, copies: &[SavedCopy], milliseconds: i64, limits: Limits) -> String {
-    let saved_root: std::path::PathBuf = common_dir.join(SAVED_DIRECTORY);
-    let mut keep: Option<String> = None;
-    for copy in copies {
-        if let Some(place) = copy.saved_to.as_deref() {
-            keep = directory_name_of(saved_root.as_path(), place);
-            if keep.is_some() {
-                break;
+fn literal_path(prefix: &[u8], root: &Path, token: &OsStr) -> Option<Vec<u8>> {
+    let bytes: &[u8] = token.as_bytes();
+    if bytes.is_empty() || bytes[0] == b':' || bytes.ends_with(b"/") || bytes.iter().any(is_wildcard) {
+        return None;
+    }
+    let joined: Vec<u8> = if bytes[0] == b'/' {
+        let below: &Path = Path::new(token).strip_prefix(root).ok()?;
+        below.as_os_str().as_bytes().to_vec()
+    } else {
+        [prefix, bytes].concat()
+    };
+    let mut kept: Vec<&[u8]> = Vec::new();
+    for segment in joined.split(is_slash) {
+        match segment {
+            b"" | b"." => {}
+            b".." => {
+                kept.pop()?;
             }
+            other => kept.push(other),
         }
     }
-    if keep.is_none() {
-        return String::new();
+    if kept.is_empty() {
+        return None;
     }
-    let outcome = prune(common_dir, milliseconds, limits, keep.as_deref());
-    return outcome.problems.iter().map(Problem::message).collect();
+    return Some(kept.join(&b'/'));
+}
+
+/// Whether a byte makes a pathspec token more than a literal name.
+fn is_wildcard(byte: &u8) -> bool {
+    return matches!(byte, b'*' | b'?' | b'[' | b'\\');
+}
+
+/// Whether a byte separates the segments of a path.
+fn is_slash(byte: &u8) -> bool {
+    return *byte == b'/';
 }
 
 /// What:
-///  The verdict for a conflict-side line whose layout the reader declined:
-/// nothing,
-/// unless a pathspec mode is the only reason
-///  and the same line without it would be allowed,
-/// when it is the sentence that says so.
+///  The paths of `tokens` that the index marks as unmerged,
+///  each once and in the order named.
 /// Why:
-///   The rejection stays either way.
-/// The reader is asked again without the mode only here,
-/// only for a line that qualifies,
-///  and the line must name only conflicted files under an operation in progress,
-/// so the sentence never promises what the
-///  carve-out would refuse.
+///   Only a token that names exactly one file below the working directory can be shown to be one of them,
+///  so every other token adds no name:
+///  the rejection stays either way,
+///  and it never claims a path the command would not replace.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function verdictForDeclinedLayout(context: GitContext, request: SideRequest): SideVerdict;
+/// function unmergedAmong(tokens, prefix, root, conflicted): string[];
 /// ```
-fn verdict_for_declined_layout(context: &GitContext, request: &SideRequest) -> SideVerdict {
-    let modes: Vec<String> = modes_in_effect(context.global_prefix.as_slice(), context.overlay.as_slice());
-    if modes.is_empty() {
-        return SideVerdict::NotApplicable;
+fn unmerged_among(tokens: &[OsString], prefix: &[u8], root: &Path, conflicted: &BTreeSet<Vec<u8>>) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    for token in tokens {
+        let Some(path) = literal_path(prefix, root, token.as_os_str()) else {
+            continue;
+        };
+        if !conflicted.contains(&path) {
+            continue;
+        }
+        let shown: String = String::from_utf8_lossy(path.as_slice()).into_owned();
+        if !found.contains(&shown) {
+            found.push(shown);
+        }
     }
-    let Some(layout) = read_layout_without(context.global_prefix.as_slice(), context.overlay.as_slice(), &MODE_OPTIONS, &MODE_VARIABLES) else {
-        debug(TAG, &format!("not applicable: the layout reader declines this invocation even without {modes:?}"));
-        return SideVerdict::NotApplicable;
-    };
-    let Some(operation): Option<Operation> = operation_in_progress(layout.git_dir.as_path()) else {
-        return SideVerdict::NotApplicable;
-    };
-    let Ok(conflicted) = read_conflicts(&layout) else {
-        return SideVerdict::NotApplicable;
-    };
-    if let SideDecision::Allow(_) = decide_sides(request.paths.as_slice(), layout.prefix.as_slice(), layout.worktree_root.as_path(), &conflicted) {
-        debug(TAG, &format!("refused during {operation:?}: only {modes:?} stands between this line and the carve-out"));
-        return SideVerdict::Refused(mode_note(modes.as_slice(), operation));
-    }
-    return SideVerdict::NotApplicable;
+    return found;
 }
 
 /// What:
-///  Judge a command line against the operation in progress,
-/// saving the copies when it is allowed.
+///  Judge a command line against the operation that waits and the unmerged entries of the index.
 /// Why:
-///   The order is the owner's:
-/// the form must qualify,
-/// an operation must be in progress,
-/// every named path must be
-///  conflicted,
-/// and the copies must be on disk before the command runs.
+///   The form must be one of the `checkout` and `restore` shapes that write a worktree file
+///  (`command_conflict_side.rs`),
+///  an operation must be waiting,
+///  the index must be readable in process,
+///  and at least one named path must be unmerged.
+///  An answer this reader cannot vouch for names nothing,
+///  so the refusal never claims a file it cannot prove.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function judgeConflictSides(context: GitContext, arguments: string[], milliseconds: number): SideVerdict;
+/// function judgeConflictSides(context, arguments): SideVerdict;
 /// ```
-pub fn judge_conflict_sides(context: &GitContext, arguments: &[OsString], milliseconds: i64, limits: Limits) -> SideVerdict {
+pub fn judge_conflict_sides(context: &GitContext, arguments: &[OsString]) -> SideVerdict {
     let Some((word, region)) = command_tokens(arguments) else {
         return SideVerdict::NotApplicable;
     };
@@ -232,47 +200,24 @@ pub fn judge_conflict_sides(context: &GitContext, arguments: &[OsString], millis
         return SideVerdict::NotApplicable;
     };
     let Some(layout) = read_layout(context.global_prefix.as_slice(), context.overlay.as_slice()) else {
-        // A global option other than `-C` (a pathspec mode such as `--icase-pathspecs` among them) or a `GIT_` variable the
-        // layout reader does not tolerate (such as `GIT_ICASE_PATHSPECS`) lands here: what a pathspec names is then not known.
-        debug(TAG, "the layout reader declined this invocation (a global option other than -C, a GIT_ variable it does not tolerate, or a layout it does not read), so the usual rejection stands");
-        return verdict_for_declined_layout(context, &request);
-    };
-    let Some(operation): Option<Operation> = operation_in_progress(layout.git_dir.as_path()) else {
+        // A global option other than `-C` or a `GIT_` variable the layout reader does not tolerate lands here:
+        //  a pathspec mode such as `--icase-pathspecs` among them, whose paths cannot be read as named.
+        debug(TAG, "declined: the layout reader does not read this invocation, so its paths cannot be named");
         return SideVerdict::NotApplicable;
     };
-    let conflicted = match read_conflicts(&layout) {
-        Ok(found) => found,
-        Err(note) => {
-            debug(TAG, &format!("refused during {operation:?}: the conflicted paths cannot be read in process:{note}"));
-            return SideVerdict::Refused(note);
-        }
+    let Some((operation, conflicted)) = waiting(&layout) else {
+        return SideVerdict::NotApplicable;
     };
-    match decide_sides(request.paths.as_slice(), layout.prefix.as_slice(), layout.worktree_root.as_path(), &conflicted) {
-        SideDecision::Refuse(others) => {
-            debug(TAG, &format!("refused during {operation:?}: {others:?} are not conflicted files among {} conflicted", conflicted.len()));
-            let magic = magic_on_conflicted(others.as_slice(), layout.prefix.as_slice(), layout.worktree_root.as_path(), &conflicted);
-            if let Some(names) = magic {
-                debug(TAG, &format!("the only reason is pathspec magic on conflicted files: {names:?}"));
-                return SideVerdict::Refused(magic_note(names.as_slice(), operation));
-            }
-            return SideVerdict::Refused(clean_paths_note(others.as_slice(), operation));
-        }
-        SideDecision::Allow(paths) => {
-            match save_copies(layout.worktree_root.as_path(), layout.common_dir.as_path(), paths.as_slice(), milliseconds) {
-                Ok(copies) => {
-                    let unpruned: String = prune_after_save(layout.common_dir.as_path(), copies.as_slice(), milliseconds, limits);
-                    return SideVerdict::Allowed { notice: format!("{}{unpruned}", saved_notice(copies.as_slice())), copies };
-                }
-                Err(failure) => {
-                    debug(TAG, &format!("copy failed during {operation:?}, command rejected: {failure:?}"));
-                    return SideVerdict::CopyFailed(copy_failed_text(&failure));
-                }
-            }
-        }
+    let paths: Vec<String> = unmerged_among(request.paths.as_slice(), layout.prefix.as_slice(), layout.worktree_root.as_path(), &conflicted);
+    if paths.is_empty() {
+        debug(TAG, &format!("{operation:?} waits, but no path this line names is unmerged among {} conflicted", conflicted.len()));
+        return SideVerdict::NotApplicable;
     }
+    debug(TAG, &format!("{operation:?} waits and this line would replace {paths:?}"));
+    return SideVerdict::WouldReplace { operation, paths };
 }
 
-/// The sentences for a copy that could not be made.
+/// The reading and the paths, over a directory of fixtures and a real index.
 #[cfg(test)]
 #[path = "conflict_side_guard_tests.rs"]
 mod tests;

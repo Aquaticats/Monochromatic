@@ -49,7 +49,6 @@ use crate::auto_push::AutoPushOutcome;
 use crate::claim_time::ClaimTime;
 use crate::push_retry::Retrying;
 use crate::push_retry_failure::{final_failure, plain_words, unrecognised_rejection};
-use crate::push_failure_notice::record_push_report;
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_review::{options_for, review_item, review_item_awaiting, review_variables};
 use crate::service_review_key::ReviewKey;
@@ -496,18 +495,12 @@ impl WorkHandlers for GitHandlers {
                 // A push that exits 0 still holds words the person needs: the server's own `remote:` lines, the account of a
                 //  reconcile it made, and the refusal of a remote-tracking reference it could not update, which is the only sign
                 //  that the local view stayed behind. The command that ran the push returned long before it ended, so those words
-                //  go to a record the next command shows once. A push that simply landed says nothing and leaves no record.
-                let report: String = result.shown;
-                if !report.is_empty()
-                    && let Err(reason) = record_push_report(newest.git_dir.as_path(), newest.branch_ref.as_str(), newest.oid.as_str(), report.as_str())
-                {
-                    crate::service_error!(
-                        "what the push of {} {} did could not be recorded for the person: {reason}",
-                        newest.oid,
-                        crate::service_timing::in_the_repository_at(newest.repository.as_path())
-                    );
-                }
-                Verdict::Done
+                //  go to a record the next command shows once, which the step that settles this verdict writes. A push that simply
+                //  landed says nothing and leaves no record.
+                // The record is named for the commit this push sent, never for the newest record the drain claimed: a commit that
+                //  landed after that claim is what the push sends (`sent_up_to`, read from the branch), so naming the record for the
+                //  claimed commit would overwrite an unread record of that commit with words about another one, and label them as its.
+                Verdict::Delivered { commit: sent_up_to, said: result.shown }
             }
             // A branch the person deleted is not there to push, now or ever: nothing was sent, so nothing can pass by waiting, and
             //  the commit is named for the person with wherever it still lives. The repository is asked, never the words of the
@@ -710,11 +703,16 @@ impl WorkHandlers for GitHandlers {
 
     fn maintenance_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(async move {
-            return match run_auto_maintenance_with_awaiting(&self.context, item.repository.as_path(), None).await {
+            let answer: Verdict = match run_auto_maintenance_with_awaiting(&self.context, item.repository.as_path(), None).await {
                 Ok(AutoMaintenanceOutcome::Exited(code)) if code != 0 => Verdict::Failed(format!("it exited with status {code}")),
                 Ok(_) => Verdict::Done,
                 Err(error) => Verdict::Failed(format!("{error:?}")),
             };
+            // The upkeep is where the wrapper prunes the references it keeps built commits on, by age and by size: the
+            //  person's commit has returned, and nothing a command waits for is behind this step
+            //  (`kept_reference_pass.rs`).
+            crate::kept_reference_pass::prune_after_a_commit(&self.context, item.git_dir.as_path()).await;
+            return answer;
         });
     }
 

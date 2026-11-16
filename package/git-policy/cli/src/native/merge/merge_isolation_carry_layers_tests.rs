@@ -57,21 +57,27 @@ fn agreeing_sides_need_no_object_read() {
 }
 
 /// What:
-///  A mode the person set at a path the merge deletes keeps their side whole,
-/// where an entry equal to the base's
-///  leaves the merger's deletion to stand.
+///  A mode the person set at a path the merge deletes is no work of theirs,
+///  so the merge's deletion stands,
+///  exactly as an entry equal to the base's leaves it.
 /// Why:
-///  The equality rules read a mode changed alone as no change at all,
-/// so a deletion took the only part of the
-///  person's entry there and the merge reported itself made
-/// (owner's rule "never discard user data").
+///  Real Git compares the executable bit of a worktree file against the index and nothing else,
+///  so a mode it does not record is no change at all to its own update,
+///  and the merge deletes the file with the mode on it.
+///  This command writes the mode real Git writes
+///  (owner's decision of 2026-11-12T12:26:24-05:00,
+///  "As real Git,
+///  both cases";
+///  `SPEC.md`,
+///  "Merges and commits never fail"),
+///  so it takes the merge's side here too,
+///  where an earlier release kept the file and named it.
 #[test]
-fn a_mode_changed_alone_at_a_path_the_merge_deletes_is_kept() {
+fn a_mode_changed_alone_at_a_path_the_merge_deletes_is_the_merges_to_delete() {
     let base: Option<Side> = Some(Side { mode: String::from("100644"), oid: "a".repeat(40) });
     let person: Option<Side> = Some(Side { mode: String::from("100755"), oid: "a".repeat(40) });
     let decided: Decision = decide_without_the_pass(&Layer { base: base.clone(), ours: person, theirs: None }).expect("a mode alone is decided without reading an object");
-    assert_eq!(decided.outcome, Outcome::Kept(MODIFY_DELETE), "the person's side is kept whole");
-    assert_eq!(decided.mode.as_deref(), Some("100755"), "the index and the file end with the mode they set");
+    assert_eq!(decided.outcome, Outcome::Merges, "the deletion is the merge's, as it is with real Git");
     let untouched: Decision = decide_without_the_pass(&Layer { base: base.clone(), ours: base.clone(), theirs: None }).expect("an unchanged side is decided without reading an object");
     assert_eq!(untouched.outcome, Outcome::Merges, "nothing of theirs stands at a path whose entry is still the base's");
 }

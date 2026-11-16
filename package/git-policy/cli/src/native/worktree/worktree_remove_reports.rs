@@ -215,9 +215,10 @@ pub(crate) fn registration_volume_report(target: &Path, admin: &Path, found: &Bo
         "monochromatic-git-policy-cli: the Git directory {admin} of the worktree {target} holds {inner}, which is {what}, \
          and a registration that holds one cannot be emptied, so the removal of {target} could never finish. Nothing was \
          removed, and nothing of {inner} was deleted.\n\
-         Move {inner} out of {admin}, or delete it yourself (`btrfs subvolume delete {inner}`, or `umount {inner}` for a \
-         mount point), and then run this removal again; to keep it, leave it there and remove the worktree by hand, one \
-         file at a time.",
+         Move {inner} out of {admin} and run this removal again: a move keeps every file of it. A mount point of it goes \
+         with `umount {inner}`, which keeps its contents. `btrfs subvolume delete {inner}` destroys everything inside \
+         that subvolume, so use it only for one you know holds nothing of yours. To keep it where it is, remove the \
+         worktree by hand, one file at a time.",
         target = target.display(),
         admin = admin.display(),
         inner = found.path.display(),
@@ -249,6 +250,34 @@ pub(crate) fn unwalkable_registration_report(target: &Path, admin: &Path, reason
 }
 
 /// What:
+///  The report of a removal refused because a subvolume this program left for its commit service to delete cannot be
+///  moved out of the worktree.
+/// Why:
+///   The leftover is this program's own and holds nothing a person still owns:
+/// the removal that renamed it
+///  proved the worktree clean and unlocked,
+/// and the record of its delete outlives that command.
+/// So the person is told what stands in the way of taking it,
+/// and that nothing of the worktree was removed,
+///  rather than being sent to delete it by hand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function pendingDeletionReport(target: string, reason: string): string;
+/// ```
+pub(crate) fn pending_deletion_report(target: &Path, reason: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: the worktree {target} holds a subvolume this program already renamed for its \
+         commit service to delete, and it cannot be moved out of the tree: {reason}.\n\
+         Nothing was removed, and nothing of {target} changed. The subvolume holds no work of yours: the removal that \
+         renamed it proved the worktree it came from clean and unlocked, and its delete is recorded. Fix what the reason \
+         names and run this removal again.",
+        target = target.display(),
+        reason = reason
+    );
+}
+
+/// What:
 ///  The report of a removal refused because the snapshots the wrapper made ahead of an add cannot be taken.
 /// Why:
 ///   A worktree that was the source of one `git worktree add` keeps those snapshots in its administrative
@@ -262,6 +291,9 @@ pub(crate) fn unwalkable_registration_report(target: &Path, admin: &Path, reason
 ///  The pool is the wrapper's own,
 /// so the person is told which folder holds it and the one command that takes each member,
 ///  and that nothing of the worktree was removed.
+/// What stands there is said as well:
+///   an entry of that pool is a copy of this worktree the wrapper took for a later add,
+///   so deleting one loses nothing the worktree does not still hold.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -274,8 +306,10 @@ pub(crate) fn snapshots_ahead_report(target: &Path, admin: &Path, reason: &str) 
          {pool}, and they cannot be removed: {reason}.\n\
          Removing the worktree now would leave them behind with no registration that names them, so nothing was removed \
          and nothing of the worktree changed.\n\
-         Fix what the reason names and run the removal again; to take the snapshots yourself, delete every entry of {pool} \
-         (`btrfs subvolume delete <entry>`), and then run the removal again.",
+         Fix what the reason names and run the removal again. Each entry of {pool} is a copy of this worktree this \
+         program took for a later add, so deleting one takes no work of yours that the worktree does not still hold: \
+         `btrfs subvolume delete <entry>` for one that is a subvolume, and remove any other entry as the file or folder \
+         it is.",
         target = target.display(),
         pool = pool.display(),
         reason = reason

@@ -574,7 +574,9 @@ pub(crate) fn the_amendment_lands_as_new(
     let site: BuildSite<'_> = BuildSite { context: invocation.context, cwd: invocation.cwd, scratch: ready.scratch.0.as_path(), signing: signing_option(arguments) };
     let made: String = rebuilt_onto(fields, &site, settled.as_str(), ready.base.as_str())?;
     let subject: String = fields.subject();
-    let sent: CommitRequest = crate::service_commit_requests_and_landing_report::request_for_git_built(ready, native_inputs, id, made, false);
+    let sent: CommitRequest = // The amendment is built from the replay of this command's own change, never in a shadow the service drew, so it names
+    //  no drawn tree.
+    crate::service_commit_requests_and_landing_report::request_for_git_built(ready, native_inputs, id, made, false, None);
     return Ok((sent, ready.base.clone(), subject));
 }
 

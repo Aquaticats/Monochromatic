@@ -10,7 +10,8 @@ use crate::process_tree::{TreeMember, member_of};
 use std::time::Instant;
 use crate::stop_of_a_push_and_sweep_of_its_locks::grace_remains;
 use crate::test_support::scratch_environment;
-// The window a connected run is stopped by, which the wait line names.
+// The floor a connected stop is judged on, and the window a connected run is stopped by, which the wait line names.
+use crate::push_minimum_rate::PUSH_MINIMUM_RATE_VARIABLE;
 use crate::wait_ceilings::CONNECTED_PUSH_QUIET_WINDOW;
 
 /// An environment holding the given pairs.
@@ -479,7 +480,7 @@ fn the_wait_line_names_the_connected_window_that_ends_the_wait() {
 #[test]
 fn a_connected_stop_says_its_window_is_fixed_and_a_stall_stop_offers_the_setting() {
     let window: Duration = CONNECTED_PUSH_QUIET_WINDOW;
-    let connected: String = stalled_reason("git push", &StopReport { window: StopWindow::Connected, limit: window, moved: 12, elapsed: window }, None);
+    let connected: String = stalled_reason("git push", &StopReport { window: StopWindow::Connected, limit: window, moved: 12, elapsed: window, carried: 0, minimum: 0 }, None);
     assert!(connected.contains("limit=connected"), "the window that fired is named: {connected}");
     assert!(
         connected.contains(&format!("{PUSH_DEADLINE_VARIABLE} does not change this window")),
@@ -488,18 +489,55 @@ fn a_connected_stop_says_its_window_is_fixed_and_a_stall_stop_offers_the_setting
     assert!(!connected.contains("to allow longer"), "no remedy that cannot work is offered: {connected}");
     assert!(connected.contains(PUSH_QUEUED_LINE), "the retry that does settle it is named: {connected}");
     assert!(connected.contains("held its connection to the remote open"), "a stop that knew no server says the remote: {connected}");
-    let named: String = stalled_reason("git push", &StopReport { window: StopWindow::Connected, limit: window, moved: 12, elapsed: window }, Some("127.0.0.1:8080"));
+    let named: String = stalled_reason("git push", &StopReport { window: StopWindow::Connected, limit: window, moved: 12, elapsed: window, carried: 0, minimum: 0 }, Some("127.0.0.1:8080"));
     // The run that held the connection is the one the stop names, so an upload is not reported as a plain push.
-    let upload: String = stalled_reason("git-lfs push", &StopReport { window: StopWindow::Connected, limit: window, moved: 12, elapsed: window }, None);
+    let upload: String = stalled_reason("git-lfs push", &StopReport { window: StopWindow::Connected, limit: window, moved: 12, elapsed: window, carried: 0, minimum: 0 }, None);
     assert!(upload.contains("git-lfs push held its connection"), "the stop names the run that held the connection: {upload}");
     assert!(!upload.contains("git push held its connection"), "the stop does not pass an upload for a push: {upload}");
     assert!(
         named.contains("held its connection to the server `127.0.0.1:8080` open"),
         "a stop names the server the run waited for: {named}"
     );
-    let stalled: String = stalled_reason("git push", &StopReport { window: StopWindow::Stall, limit: window, moved: 12, elapsed: window }, None);
+    let stalled: String = stalled_reason("git push", &StopReport { window: StopWindow::Stall, limit: window, moved: 12, elapsed: window, carried: 0, minimum: 0 }, None);
     assert!(stalled.contains("limit=stall"), "the window that fired is named: {stalled}");
     assert!(stalled.contains("to allow longer"), "the setting that moves this window is offered: {stalled}");
+}
+
+/// What:
+///  A connected stop in which the connection did carry bytes says how many,
+///  against the floor they were judged on,
+///  and names the floor as the setting that lets a slower line through.
+/// Why:
+///   A keepalive keeps a connection alive and a trickle moves a byte now and then;
+/// a stop that said "nothing moving" there would be
+///  untrue,
+/// and a person on a line below the floor needs the variable that moves it,
+///  not the window that is fixed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const line = stalledReason('git push', { window: 'connected', carried: 150, minimum: 1024, limit: 150s });
+/// expect(line).toContain('carried_bytes=150'); expect(line).toContain(PUSH_MINIMUM_RATE_VARIABLE);
+/// ```
+#[test]
+fn a_connected_stop_that_carried_bytes_names_them_and_the_floor_that_judged_them() {
+    let window: Duration = CONNECTED_PUSH_QUIET_WINDOW;
+    let trickled: String = stalled_reason(
+        "git push",
+        &StopReport { window: StopWindow::Connected, limit: window, moved: 900, elapsed: window, carried: 150, minimum: 1024 },
+        None,
+    );
+    assert!(trickled.contains("carried_bytes=150"), "the bytes carried are named: {trickled}");
+    assert!(trickled.contains("minimum_bytes_per_window=1024"), "the floor is named: {trickled}");
+    assert!(trickled.contains("keepalive"), "a keepalive is named as that kind of traffic: {trickled}");
+    assert!(!trickled.contains("with nothing moving"), "the line does not say nothing moved where bytes did: {trickled}");
+    assert!(trickled.contains(PUSH_MINIMUM_RATE_VARIABLE), "the setting that lets a slower line through is named: {trickled}");
+    let silent: String = stalled_reason(
+        "git push",
+        &StopReport { window: StopWindow::Connected, limit: window, moved: 900, elapsed: window, carried: 0, minimum: 1024 },
+        None,
+    );
+    assert!(silent.contains("with nothing moving"), "a connection that carried nothing says so: {silent}");
 }
 
 //endregion

@@ -393,7 +393,8 @@ pub fn reach_service_phase(phase: Phase) -> Result<(), PhaseMarkerError> {
         | Phase::MergeCarryIndex
         | Phase::MergeCarryFile
         | Phase::MergeCarriedBack
-        | Phase::ServicePrepared => &PREPARED_REACHED,
+        | Phase::ServicePrepared
+        | Phase::KeptReferencesListed => &PREPARED_REACHED,
     };
     let number: u64 = counter.fetch_add(1, Ordering::SeqCst) + 1;
     return reach_transaction_phase(phase, Some(number));

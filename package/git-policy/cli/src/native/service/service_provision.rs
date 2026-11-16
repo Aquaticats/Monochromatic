@@ -1,9 +1,10 @@
 //! What:
 //!  The wrapper makes socket activation for a worktree's commit service exist the first time a commit needs it:
-//! it writes
-//!  the two template unit files into the user's runtime unit directory,
-//! asks the user manager (through the session bus) to
-//!  reload and to start the worktree's socket instance,
+//! it points a
+//!  per-user link at the release it is running,
+//! writes the two template unit files into the user's runtime unit directory,
+//! asks the
+//!  user manager (through the session bus) to start the worktree's socket instance,
 //! and returns.
 //! The manager,
 //! not the wrapper,
@@ -29,20 +30,33 @@
 //! only when its content differs),
 //! so several commits racing to provision agree without any
 //!  lock.
-//! Every commit that goes to the service compares the two installed templates with what this wrapper would write
-//!  (two small reads) before it touches the bus,
-//! so an upgrade or a downgrade,
-//! which moves the program the template starts,
-//! is repaired by the first commit that follows it:
-//! the link the template names pointed at the new program,
-//! and templates,
-//! manager and socket left alone.
-//! The template names a link of the wrapper's own
-//!  (`service_provision_program_pointer.rs`) rather than the executable it runs,
-//! so its text is the same in every release and every build,
-//! and the manager is told nothing when a release changes:
-//! reading every unit again took 1 to 13 seconds on this host,
-//!  and a manager that answered past the exchange's bound failed the first commit of a release.
+//! What:
+//!  The service template names a link (`service_instance.rs`,
+//! `program_link`) instead of the absolute path of the
+//!  release that wrote it,
+//! so its text is the same in every release,
+//! in every build of a release and in a build made in a
+//!  worktree:
+//! an upgrade,
+//! a downgrade and two releases used in turn write nothing the manager has to read again.
+//! Every commit that reaches the service compares the two installed templates with what this wrapper would
+//!  write (two small reads) and points the link before it touches the bus,
+//! so a release change costs one read and,
+//!  when the program moved,
+//! one rename.
+//! Why:
+//!  A manager told about a new text re-reads every unit it holds,
+//! which stalls every other client of it for a
+//!  time that grows with everything else it runs;
+//! on 2026-11-12 one of those stalls ended a desktop session
+//!  (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
+//! Reading every unit again took 1 to 13 seconds on this host,
+//! and a manager that answered past the
+//!  exchange's bound failed the first commit of a release.
+//! The one thing left to do when the manager
+//!  may hold a unit at an older text is to let that unit go and start it again,
+//! which touches this worktree's units
+//!  alone (`service_provision_instance_unloaded.rs`).
 //! The single service of the earlier releases (`cli-git.socket` and `cli-git.service`,
 //! one
 //!  socket for every worktree) is asked to retire and stopped,
@@ -74,23 +88,27 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await provision({ runtimeDir, configHome, busPath, serviceBinary, git, instance }) // writes templates, reloads, starts the socket
+//! await provision({ runtimeDir, configHome, busPath, serviceBinary, git, instance }) // points the link, writes templates, starts the socket
 //! ```
 
 pub use crate::service_provision_unit_file_ownership_and_writes::OWN_MARKERS;
-use crate::service_provision_unit_file_ownership_and_writes::{own_unit_file_in_runtime_or_user_directory, write_atomically};
+use crate::service_provision_unit_file_ownership_and_writes::{link_atomically, own_unit_file_in_runtime_or_user_directory, write_atomically};
 use crate::service_messages::ClientFailure;
 pub use crate::service_provision_host_and_manager::{LEGACY_SERVICE_UNIT_NAME, LEGACY_SOCKET_UNIT_NAME, Manager, ProvisionHost, RETIREMENT_WAIT, STOP_TIMEOUT_SECONDS, platform_without_manager, runtime_unit_dir};
 use crate::service_provision_host_and_manager::refusal;
 use crate::service_provision_earlier_service_retirement::{clear_earlier_units, retire_earlier_service};
-use crate::service_provision_program_pointer::{point_at, points_at, program_of};
+use crate::service_provision_instance_unloaded::{Unloaded, describe, is_at_rest, unload_instance};
 use crate::service_provision_slow_manager_notice::SlowManagerNotice;
 use crate::service_provision_refusals_before_the_wait::{
     in_plain_words, refuse_a_path_no_socket_address_can_carry, refuse_a_service_that_listens_elsewhere,
 };
 use crate::service_provision_loaded_unit_texts::{record as record_loaded_texts, remembers as manager_was_told};
 use crate::earlier_unix_sockets_that_listen::earlier_socket_of_instance_listens;
-use crate::service_instance::{LEGACY_SOCKET_RELATIVE, earlier_service_unit_instance, earlier_socket_path, earlier_socket_unit_instance, service_unit_instance, socket_path, socket_unit_instance};
+use crate::service_address_of_a_worktree::{listen_stream_of, socket_address_of, the_address_is_in, the_address_is_there};
+use crate::service_instance::{
+    LEGACY_SOCKET_RELATIVE, earlier_releases_program_pointer, earlier_service_unit_instance, earlier_socket_path, earlier_socket_unit_instance, program_link, service_unit_instance,
+    socket_unit_instance,
+};
 use crate::service_units_of_removed_worktrees::note_worktree;
 use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, NO_SUCH_UNIT};
 use std::path::{Path, PathBuf};
@@ -98,6 +116,11 @@ use std::path::{Path, PathBuf};
 /// The socket template's text,
 /// with the marker on its first line.
 pub const SOCKET_UNIT: &str = include_str!("service_units/monochromatic-git-policy-cli@.socket");
+
+/// The socket template's placeholder for the value of its `ListenStream=`,
+/// which `listen_stream_of` fills in with the address form this runtime directory takes
+/// (`service_address_of_a_worktree.rs`).
+const LISTEN_STREAM_PLACEHOLDER: &str = "@LISTEN_STREAM@";
 
 /// The service template's text,
 /// with `@SERVICE_BINARY@` and `@GIT@` still to fill in.
@@ -113,15 +136,178 @@ const BINARY_PLACEHOLDER: &str = "@SERVICE_BINARY@";
 const GIT_PLACEHOLDER: &str = "@GIT@";
 const STOP_TIMEOUT_PLACEHOLDER: &str = "@STOP_TIMEOUT_SECONDS@";
 
-/// The two unit files for a host,
+/// What:
+///  The two unit files for a host,
 /// as written.
+/// Why:
+///   The socket unit's `ListenStream=` is the address this runtime directory's service listens at,
+/// whether that is a file under the runtime directory or an abstract name,
+/// and the instance is left to the unit's own `%i`.
+/// The service unit's text is the same whatever the address is,
+/// and its program is the per-user link and never the absolute path of the release that happens to be running,
+/// so
+/// the text is the same in every release (`program_link`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// unitTexts(host) // [['…@.socket', '…ListenStream=%t/…/%i.sock…'], ['…@.service', '…']]
+/// ```
 pub fn unit_texts(host: &ProvisionHost) -> [(&'static str, String); 2] {
-    let program: PathBuf = program_of(host.runtime_dir.as_path(), host.service_binary.as_path());
+    let program: PathBuf = program_link(host.runtime_dir.as_path());
+    let socket: String = SOCKET_UNIT.replace(LISTEN_STREAM_PLACEHOLDER, listen_stream_of(host.runtime_dir.as_path(), host.instance.as_str()).as_str());
     let service: String = SERVICE_UNIT
         .replace(BINARY_PLACEHOLDER, program.to_string_lossy().as_ref())
         .replace(GIT_PLACEHOLDER, host.git.to_string_lossy().as_ref())
         .replace(STOP_TIMEOUT_PLACEHOLDER, STOP_TIMEOUT_SECONDS.to_string().as_str());
-    return [(SOCKET_UNIT_NAME, SOCKET_UNIT.to_string()), (SERVICE_UNIT_NAME, service)];
+    return [(SOCKET_UNIT_NAME, socket), (SERVICE_UNIT_NAME, service)];
+}
+
+/// What:
+///  Points the per-user link the service unit runs at `host.service_binary`,
+/// unless it already names it.
+/// Why:
+///   The manager starts whatever the link names at the moment of the start,
+/// so a commit that provisions after an upgrade makes
+///  the next start run its own release,
+/// and it does so by writing one link,
+/// not by changing the text the manager holds.
+/// Every
+///  commit that reaches the service points it,
+/// the fast path included,
+/// because a service the manager starts later
+///  (after its idle exit,
+/// or after a restart) must run the release of the commit that needed it.
+/// A link that cannot
+///  be written does not end the commit by itself:
+/// the unit files are still written,
+/// the commit goes on,
+/// one line
+///  names the link,
+/// and the next commit points it again.
+/// Whether the commit lands is then decided by whatever the link
+///  still names,
+/// because the unit starts the link and nothing else.
+/// A program of this release
+///  (which a link a build of the same release left at another path is)
+/// greets as this release,
+/// and the
+///  commit lands through it.
+/// A program of another release answers as that release,
+/// and the client's own repair for it
+///  (`service_client_reach_service.rs`) ends the commit with its message when it will not step aside.
+/// A path that cannot
+///  be executed at all (a directory,
+/// an executable an upgrade removed) starts nothing,
+/// and the commit ends with "The
+///  commit service did not start".
+/// Nothing smaller is safe:
+/// the commit service is the only writer of a commit,
+/// this release will not
+///  hand one to another release's service,
+/// and the manager reads the link from the text it holds,
+/// which this release cannot
+///  change without writing that text.
+/// The remedy when it repeats is the runtime directory:
+/// the link must sit where this account can
+///  write,
+/// which is what the line and the failure that follows both name.
+/// The link the releases before this one named is pointed too
+///  (`service_instance.rs`,
+/// `EARLIER_RELEASES_PROGRAM_POINTER`),
+/// at the same cost:
+/// an instance whose loaded text is
+///  theirs starts this release from it,
+/// instead of failing at the EXEC step because the install removed the release that
+///  program belonged to.
+/// An older command that meets this release's service still asks it to retire,
+/// and the service stops
+///  its own socket when it is retired before it has served anything
+/// (`service_server.rs`),
+/// so that cannot burn the manager's
+///  start limit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pointProgramLink(host) // the link names host.serviceBinary, or a line says what it still names
+/// ```
+fn point_program_link(host: &ProvisionHost) {
+    point_a_link(program_link(host.runtime_dir.as_path()).as_path(), host, true);
+}
+
+/// What:
+///  Points the path the releases before this release named in every unit text they wrote at this release's executable,
+///  making the notes folder when it is not there yet.
+/// Why:
+///   The manager keeps starting such an instance from the text it loaded,
+/// and the install that replaced that release removed
+///  the directory the link named,
+/// so without this its next start fails at the EXEC step,
+/// is retried to the manager's start limit,
+///  and leaves the unit failed until a command in that worktree repairs it
+/// (`doc/troubleshooting/`,
+/// the install of
+///  `0.6.1-alpha.20`).
+/// It is pointed after every refusal of this provisioning,
+/// because a refused one writes nothing,
+/// and
+///  the folder it sits in is made here for the same reason:
+/// it is the folder the worktree note and the record are written
+///  into just after.
+/// A link that cannot be written only warns:
+/// no commit waits on the instance it serves,
+/// and the
+///  next commit points it again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pointEarlierReleasesPointer(host) // <notes>/service-program -> host.serviceBinary
+/// ```
+fn point_earlier_releases_pointer(host: &ProvisionHost) {
+    let pointer: PathBuf = earlier_releases_program_pointer(host.runtime_dir.as_path());
+    let Some(folder) = pointer.parent() else { return };
+    if let Err(error) = crate::private_storage::create_private_directory_all(folder) {
+        crate::service_warn!(
+            "{} cannot be made ({}), so a service the manager loaded under an earlier release cannot be started until the next commit makes it; this commit goes on",
+            folder.display(),
+            in_plain_words(&error)
+        );
+        return;
+    }
+    point_a_link(pointer.as_path(), host, false);
+}
+
+/// What:
+///  Points one link at the running executable,
+/// unless it already names it,
+/// and says in the log when it cannot.
+/// Why:
+///   Both links cost one read and,
+/// when the program moved,
+/// one rename;
+/// neither asks the manager anything,
+/// and neither
+///  ends a commit,
+/// which is why the failure is a line and not a `ClientFailure`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pointALink(link, host, namesThisRelease) // link -> host.serviceBinary, or one line
+/// ```
+fn point_a_link(link: &Path, host: &ProvisionHost, names_this_release: bool) {
+    if matches!(std::fs::read_link(link), Ok(current) if current == host.service_binary) {
+        return;
+    }
+    let Err(error) = link_atomically(link, host.service_binary.as_path()) else { return };
+    // What: The consequence named depends on which link it is.
+    // Why:  The link this release's own units name decides what this commit's service runs; the one an earlier release's
+    //       loaded texts name decides whether such an instance can start at all, and this release's next commit is what
+    //       points it again.
+    let consequence: &str = if names_this_release {
+        "so this commit's service is started from whatever the link still names; the units are still written and this commit goes on, and it lands if that program is this release, and ends with that program's own message if it is another release or none at all; set XDG_RUNTIME_DIR to a runtime directory this account can write, and the next commit points the link again"
+    } else {
+        "so another worktree's service the manager loaded under an earlier release cannot start until the next commit points it; this commit goes on, and set XDG_RUNTIME_DIR to a runtime directory this account can write"
+    };
+    crate::service_warn!("{} cannot be pointed at {} ({}), {consequence}", link.display(), host.service_binary.display(), in_plain_words(&error));
 }
 
 /// What:
@@ -141,7 +327,7 @@ pub fn unit_texts(host: &ProvisionHost) -> [(&'static str, String); 2] {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// inPlace(host) // false: write, reload, start
+/// inPlace(host) // false: write, unload, start
 /// ```
 pub fn in_place(host: &ProvisionHost) -> bool {
     return in_place_with(host, Path::new("/proc"));
@@ -149,13 +335,6 @@ pub fn in_place(host: &ProvisionHost) -> bool {
 
 /// `in_place` with the process table to read the listening sockets from.
 pub fn in_place_with(host: &ProvisionHost, proc_root: &Path) -> bool {
-    // What: The program the units start is the executable this commit runs.
-    // Why:  A release change, and a second build of one release, move only this link, so it is the one question a commit of
-    //       a freshly installed release answers with a write, and the one that keeps this command from meeting a service the
-    //       manager would start from another release's executable (`service_provision_program_pointer.rs`). It is one read.
-    if !points_at(host.runtime_dir.as_path(), host.service_binary.as_path()) {
-        return false;
-    }
     let directory: PathBuf = runtime_unit_dir(host.runtime_dir.as_path());
     let texts: [(&'static str, String); 2] = unit_texts(host);
     // Every unit file holds exactly the text the wrapper would write.
@@ -166,12 +345,14 @@ pub fn in_place_with(host: &ProvisionHost, proc_root: &Path) -> bool {
             break;
         }
     }
-    // What: The manager was told about these very texts.
+    // What: The manager last read these very texts for this instance.
     // Why:  A file that matches says what this release would write, not what the manager loaded. A process killed between
-    //       writing a template and asking for the reload leaves exactly that, and every later commit would then keep reaching
-    //       the service of the release that was replaced (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
-    //       the interrupted upgrade). One small read of the record beside the notes decides it.
-    let manager_holds: bool = manager_was_told(host.runtime_dir.as_path(), texts.as_slice());
+    //       writing a template and making the manager read it leaves exactly that, and every later commit would then keep
+    //       reaching the service of the release that was replaced
+    //       (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`, the interrupted upgrade). One
+    //       small read of the record beside the notes decides it. The record is per instance, because the manager holds one
+    //       instance at a time: another worktree's freshly read units say nothing about this one's.
+    let manager_holds: bool = manager_was_told(host.runtime_dir.as_path(), host.instance.as_str(), texts.as_slice());
     // A file of an earlier name that something else wrote is not the wrapper's to retire, and does not keep it from being in place.
     let mut earlier_left: bool = false;
     for name in [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME] {
@@ -181,7 +362,7 @@ pub fn in_place_with(host: &ProvisionHost, proc_root: &Path) -> bool {
         }
     }
     earlier_left = earlier_left || host.runtime_dir.join(LEGACY_SOCKET_RELATIVE).exists();
-    if !all_current || !manager_holds || earlier_left || !socket_path(host.runtime_dir.as_path(), host.instance.as_str()).exists() {
+    if !all_current || !manager_holds || earlier_left || !the_address_is_in(proc_root, &socket_address_of(host.runtime_dir.as_path(), host.instance.as_str())) {
         return false;
     }
     // The earlier release's socket of this worktree: a listener there starts the earlier helper on a connection, so the stop
@@ -194,14 +375,15 @@ pub fn in_place_with(host: &ProvisionHost, proc_root: &Path) -> bool {
 /// What:
 ///  Makes socket activation exist:
 /// the earlier single service retired,
-/// the link the units start pointed at this executable,
 /// current templates written where they differ,
 /// the
-///  manager reloaded when a unit it may hold changed or went away,
+///  manager's copy of a unit it may hold at an older text let go,
 /// and the worktree's socket instance started.
 /// Why:
 ///   Idempotent by construction:
-/// a second call with nothing to change but the program link writes that link and asks nobody;
+/// a second call with nothing to change only starts the socket,
+/// which is a no-op when it is
+///  already listening;
 /// two calls at once write identical content through renames and both succeed.
 ///
 /// In TS you'd write (pseudocode):
@@ -213,24 +395,13 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
     // Why:  The manager would bind the unit's address and fail, and the client would then wait out the start ceiling for a
     //       service that can never answer (`service_provision_refusals_before_the_wait.rs`).
     refuse_a_path_no_socket_address_can_carry(host)?;
-    // A reload makes the manager re-read every unit and interrupts its other clients for a while, so it is asked for only
-    //  when a unit it may already hold changed or went away. A file that is new is found by the manager when the unit is
-    //  first started.
-    let mut reload: bool = retire_earlier_service(host, manager)?;
-    reload |= clear_earlier_units(host)?;
-    // What: The link the units start the program through names this executable before anything is written or started.
-    // Why:  A release change, and a second build of one release, move this link and nothing else, so this is the whole cost a
-    //       first commit after an install pays: one read, and one rename when the program moved. Writing it first also keeps a
-    //       start that follows from running a program an upgrade removed (`service_provision_program_pointer.rs`).
-    let program: PathBuf = program_of(host.runtime_dir.as_path(), host.service_binary.as_path());
-    if let Err(error) = point_at(host.runtime_dir.as_path(), host.service_binary.as_path()) {
-        return Err(ClientFailure::CouldNotStart(format!(
-            "{} cannot be written ({}), and the commit service starts the program through it, so set XDG_RUNTIME_DIR to a runtime \
-             directory this account can write or make that one writable",
-            program.display(),
-            in_plain_words(&error)
-        )));
-    }
+    // The manager starts whatever the link names, so it names this release before any unit can be started.
+    point_program_link(host);
+    // The earlier single service and the units of the earliest releases are stopped and removed here; neither needs the
+    //  manager to re-read anything, because a unit that is gone from memory is read from its file the next time it is
+    //  started.
+    let _retired: bool = retire_earlier_service(host, manager)?;
+    let _earlier_cleared: bool = clear_earlier_units(host)?;
     let directory: PathBuf = runtime_unit_dir(host.runtime_dir.as_path());
     if let Err(error) = std::fs::create_dir_all(&directory) {
         return Err(ClientFailure::CouldNotStart(format!(
@@ -260,15 +431,7 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
             )));
         }
         written.push(path);
-        reload |= existed;
     }
-    // What: A unit file the manager may hold and was never told about is reloaded for, even though this call wrote nothing.
-    // Why:  The upgrade a kill interrupted had already written the template that now matches, so the loop above finds nothing
-    //       to write and would leave the manager holding the text it loaded before; the record of what it was told is what
-    //       tells the two apart (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`, the interrupted
-    //       upgrade). The next commit asks for the reload the killed one never made, and the commits after it find the record
-    //       and take the fast path again.
-    reload |= known && !manager_was_told(host.runtime_dir.as_path(), texts.as_slice());
     // What: The note names the worktree before the manager is asked to start the units.
     // Why:  The service reads the note to learn whose units it runs, and a service that finds none answers `Unmapped`, never asks
     //       whether its worktree is still there, and cannot be named by the sweep that stops the units of a removed worktree. A
@@ -277,17 +440,32 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
     //       that exists and needs no manager, so writing it first costs nothing; a refused provisioning leaves a note whose units
     //       never started, which no service reads and the next provisioning writes again.
     note_worktree(host.runtime_dir.as_path(), host.instance.as_str(), host.git_dir.as_path());
-    // What: A provisioning that found the units and the record as it would write them, the socket file there and no earlier
+    // What: The link the earlier releases named is pointed before this call asks the manager to start anything.
+    // Why:  An instance the manager loaded under one of them is started from that path, and a start of it before this line
+    //       fails at the EXEC step; every refusal of this call has already happened, so a refused provisioning still writes
+    //       nothing but the folders it makes here and below.
+    point_earlier_releases_pointer(host);
+    // What: The record of the texts the manager was told about, read once: it says whether the manager holds this instance at
+    //       what is on disk, which is the one question both the fast path and the repairing path turn on.
+    // Why:  A file that matches says what this release would write, not what the manager loaded. A process killed between
+    //       writing a template and making the manager read it leaves exactly that, and every later commit would then keep
+    //       reaching the service of the release that was replaced
+    //       (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`, the interrupted upgrade).
+    let told: bool = manager_was_told(host.runtime_dir.as_path(), host.instance.as_str(), texts.as_slice());
+    // What: A provisioning that found the units and the record as it would write them, the address there and no earlier
     //       socket of this worktree listening asks the manager nothing at all.
     // Why:  Everything such a call would ask is either already true or is repaired by the client's own wait for the service:
     //       a unit the manager reports `inactive` is started there, and a service of another release is asked to retire there.
     //       Asking anyway cost three manager round trips on a commit whose only change was the program link, and a manager that
-    //       is reading every unit again answers those round trips only after that read (`service_client_reach_service.rs`).
-    let socket: PathBuf = socket_path(host.runtime_dir.as_path(), host.instance.as_str());
-    let earlier_socket_listens: bool = earlier_socket_of_instance_listens(Path::new("/proc"), host.instance.as_str());
-    if !reload && known && written.is_empty() && socket.exists() && !earlier_socket_listens {
+    //       is busy answers those round trips only after whatever it is doing (`service_client_reach_service.rs`).
+    //       An address is there when its socket file is, or when the table of unix sockets lists the abstract name this runtime
+    //       directory's services take (`service_address_of_a_worktree.rs`).
+    if written.is_empty() && told && the_address_is_there(&socket_address_of(host.runtime_dir.as_path(), host.instance.as_str())) && !earlier_socket_of_instance_listens(Path::new("/proc"), host.instance.as_str()) {
         return Ok(());
     }
+    // What: A commit that is about to wait for the manager says so while it waits.
+    // Why:  Provisioning can spend the retirement wait of this worktree's own service and a whole exchange with the manager,
+    //       and a wait nobody can see is indistinguishable from a hang.
     let notice: SlowManagerNotice = SlowManagerNotice::arm(socket_unit_instance(host.instance.as_str()).as_str());
     // Whatever the retirement of the earlier service took, the question about the address a held unit listens at and the
     //  start have the time of a whole exchange.
@@ -299,14 +477,38 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
     //       listening for a worktree nothing reaches (`service_provision_refusals_before_the_wait.rs`). A manager that holds no
     //       such unit yet proves nothing, so a first provision goes on and the same question is asked once more after the start.
     refuse_a_service_that_listens_elsewhere(host, manager)?;
-    let asked: Result<(), CallError> = ask_manager(manager, reload, known, host.instance.as_str());
+    // What: What this call wrote, or a record that is missing, may leave the manager holding this worktree's units at an older
+    //       text: those units are let go, so that the next start reads the files as they are now.
+    // Why:  A unit is only re-read when the manager does not hold it, and this is the one operation that makes the manager drop
+    //       this worktree's units alone, at a cost that is this worktree's own
+    //       (`service_provision_instance_unloaded.rs`). Nothing on this path makes the manager read every unit it holds, which
+    //       no Git command may ask for (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`). The
+    //       upgrade a kill interrupted had already written the template that now matches, so the loop above finds nothing to
+    //       write and the manager still holds the text it read before; the record of what it read is what tells the two apart
+    //       (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`, the interrupted upgrade).
+    let stale: bool = !written.is_empty() || !told;
+    // What: Whether the manager may be taken to hold these very texts once this call is done with it.
+    // Why:  The record is rewritten only by a call that proved it: the record said so already, or the manager was watched
+    //       dropping this worktree's units, so its next start reads the files as they are now. A unit is re-read only when the
+    //       manager does not hold it, so anything a manager that could not be asked leaves behind is a text the record must
+    //       not claim it read.
+    let mut holds_these_texts: bool = told;
+    // What: A repair that could not be finished leaves the record unwritten and the commit going.
+    // Why:  Nothing it asks the manager for is needed for the commit to land, so nothing it fails to get may end one
+    //       (`unload_instance` answers what it found and never a failure).
+    if stale {
+        let unloaded: Unloaded = unload_instance(host, manager);
+        holds_these_texts = unloaded == Unloaded::Dropped;
+    }
+    manager.within(EXCHANGE_WAIT);
+    let asked: Result<(), CallError> = ask_manager(manager, known, host.instance.as_str());
     match asked {
         Ok(()) => {}
         // What: A manager that did not answer within the exchange's time leaves the commit to go on and the next commit to ask
         //       again, and never fails this one.
-        // Why:  The manager is reading every unit again, or is not there at all, and neither is about the commit's own change:
-        //       the units are written, a service of this release may already be running and answer the request, and the record
-        //       of what the manager was told stays unwritten, which is what makes the next commit ask again. A commit that
+        // Why:  The manager is busy or is not there at all, and neither is about the commit's own change: the units are
+        //       written, a service of this release may already be running and answer the request, and the record of what the
+        //       manager was told stays unwritten, which is what makes the next commit unload and start again. A commit that
         //       ended here told the person this account has no user services, which was false, and left the change uncommitted
         //       (two commits of 2026-11-11T20:11-05:00, twenty seconds of provisioning each).
         Err(CallError::TimedOut) => {
@@ -319,11 +521,10 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
             return Ok(());
         }
         Err(error) => {
-            // A file the manager never heard about must not look installed to the next commit, which would then skip the
-            //  reload that this one did not complete.
-            for path in &written {
-                let _removed = std::fs::remove_file(path);
-            }
+            // What: A start the manager refused leaves the files and no record of a manager that read them.
+            // Why:  Only the record says the manager holds these texts, so the next commit unloads and starts again instead of
+            //       taking a file the manager never read for an installed unit. Withdrawing the file is not needed, and
+            //       withdrawing it would leave a machine whose manager refuses every start with no unit file at all.
             drop(notice);
             return Err(refusal(error));
         }
@@ -333,12 +534,17 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
     //       the whole start ceiling for a service that is running, healthy and out of reach
     //       (`service_provision_refusals_before_the_wait.rs`).
     refuse_a_service_that_listens_elsewhere(host, manager)?;
-    // What: The manager now holds exactly these texts.
-    // Why:  The record is written after the manager accepted the reload and never before, so it is the manager's own answer and
-    //       the next commit can take the fast path. A record that cannot be written costs one reload per commit and never a
-    //       commit.
-    if let Err(error) = record_loaded_texts(host.runtime_dir.as_path(), texts.as_slice()) {
-        crate::service_warn!("the units this program wrote cannot be recorded as the ones the service manager was told about ({error}), so the next commit provisions again and asks for a reload it does not need");
+    // What: The manager read these texts for this instance, whether this call unloaded it or found the record that says so.
+    // Why:  A start that loaded the socket from a text the record does not hold is repaired by the next commit instead of being
+    //       taken as installed. A start on its own is no proof of what the manager read: a manager that could not say what it
+    //       holds may have started the unit from a text an upgrade left behind, so the record stays unwritten and the next
+    //       commit asks again.
+    if holds_these_texts
+        && let Err(error) = record_loaded_texts(host.runtime_dir.as_path(), host.instance.as_str(), texts.as_slice())
+    {
+        crate::service_warn!(
+            "the unit texts this program wrote cannot be recorded as the ones the service manager reads ({error}), so the next commit unloads this worktree's units again and starts them, and no commit is lost"
+        );
     }
     stop_earlier_instance_socket(host, manager);
     drop(notice);
@@ -346,15 +552,10 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
 }
 
 /// The calls provisioning makes:
-/// a reload when a held unit changed,
-/// a reset of failed state when a unit may have failed
-///  under the manager (the reset is best effort:
+/// a reset of failed state when a unit may have failed under the manager (the reset is best effort:
 /// a unit the manager does not hold has nothing to reset),
 /// and the start.
-fn ask_manager(manager: &mut dyn Manager, reload: bool, known: bool, instance: &str) -> Result<(), CallError> {
-    if reload {
-        manager.reload()?;
-    }
+fn ask_manager(manager: &mut dyn Manager, known: bool, instance: &str) -> Result<(), CallError> {
     if known {
         // A start that failed under an old unit leaves the service failed and its start counter full, and the socket
         //  failed with it; the new unit would be refused as "repeated too quickly" until the interval passed.
@@ -365,23 +566,6 @@ fn ask_manager(manager: &mut dyn Manager, reload: bool, known: bool, instance: &
     return manager.start(socket_unit_instance(instance).as_str());
 }
 
-/// Whether a unit's state says it runs no process and listens on nothing:
-/// `inactive` or `failed`.
-fn is_at_rest(state: &str) -> bool {
-    return matches!(state, "inactive" | "failed");
-}
-
-/// The manager's failure in words for a log line.
-fn describe(error: &CallError) -> String {
-    return match error {
-        CallError::Connection(reason) => format!("the session bus could not be reached ({reason})"),
-        CallError::Authentication(reason) => format!("the session bus refused the connection ({reason})"),
-        CallError::TimedOut => String::from("the session bus did not answer in time"),
-        CallError::Manager { text, name } if text.is_empty() => format!("the service manager refused the request ({name})"),
-        CallError::Manager { text, .. } => format!("the service manager refused the request ({text})"),
-        CallError::Malformed(reason) => format!("the service manager's answer could not be read ({reason})"),
-    };
-}
 
 /// Say in the service's log that the earlier release's unit for this worktree was not stopped,
 /// and why.
@@ -463,27 +647,40 @@ pub fn provision(host: &ProvisionHost) -> Result<(), ClientFailure> {
     // What: An address no socket can carry ends the provision before the fast path reads anything.
     // Why:  An installation that looks current can stand behind a spelling the file system still walks and no connect can
     //       carry, because a socket name is copied into the address as written; the fast path would then return as
-    //       provisioned and the commit would spend the start ceiling and the reload's second one connecting to an address
-    //       the kernel refuses, and end with "The commit service did not start" and nothing about the setting that made it
+    //       provisioned and the commit would spend the start ceiling connecting to an address the kernel refuses, and end
+    //       with "The commit service did not start" and nothing about the setting that made it
     //       (`service_provision_refusals_before_the_wait.rs`).
     refuse_a_path_no_socket_address_can_carry(host)?;
+    // What: The link the service unit runs names this release before the fast path returns.
+    // Why:  The manager starts whatever the link names at the moment a start is needed, which after this commit may be hours
+    //       away (the service exits after three idle hours). A commit whose fast path skipped this would let the next start
+    //       run another release, and the whole reason the unit text no longer names a release is that this link does.
+    point_program_link(host);
     if in_place(host) {
         // Units set up before this release have no note of their worktree yet.
         note_worktree(host.runtime_dir.as_path(), host.instance.as_str(), host.git_dir.as_path());
+        // What: A command that finds everything in place still keeps the link the earlier releases named pointed at this
+        //       release.
+        // Why:  An install whose unit text did not change (two releases of this design name the same link) leaves every
+        //       instance the manager loaded under the release before it naming that path, and only a command keeps it alive;
+        //       the first command of any worktree does it here, before any start can need it.
+        point_earlier_releases_pointer(host);
         return Ok(());
     }
     let mut bus: Bus = match Bus::connect(host.bus.as_path(), EXCHANGE_WAIT) {
         Ok(connected) => connected,
-        Err(_refused) => return Err(ClientFailure::NoActivation(platform_without_manager())),
+        // A bus that never answered the connection answers nothing an exchange with it would reach, so the commit names that
+        //  exchange rather than a platform without a manager it never asked; a bus that refused the connection is the
+        //  platform's own answer and says so.
+        Err(refused) => return Err(refusal(refused)),
     };
     return provision_with(host, &mut bus);
 }
 
-/// Provisioning controls stay out of the release executable,
-/// and the fixture a sibling's controls provision against is theirs to share.
+/// Provisioning controls stay out of the release executable.
 #[cfg(test)]
 #[path = "service_provision_tests.rs"]
-pub(crate) mod tests;
+mod tests;
 
 /// The owner's rule that nothing of the wrapper starts at system startup or at login,
 /// held by guards that fail when a unit,
@@ -521,7 +718,7 @@ pub(crate) fn provision_when_needed(named: Option<&ProvisionHost>, provisioned: 
     let provided = provision(host);
     *timing += began.elapsed();
     if let Err(failure) = provided {
-        return Err(crate::commit_transaction::TransactionStop::Message(crate::service_messages::render(&failure)));
+        return Err(crate::commit_transaction::client_stop(failure));
     }
     return Ok(true);
 }

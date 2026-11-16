@@ -1,6 +1,6 @@
 //! What:
 //!  The one place that says how the service's own runtime was built,
-//! the words a task that cannot get a worker ends the service with,
+//! the status and the words a task that cannot get a worker ends the service with,
 //! and the way a task the service cannot serve without waits for that build and says so.
 //! Why:
 //!  Three tasks of a service cannot be left out:
@@ -18,11 +18,25 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const task = startWhatTheServiceCannotServeWithout('the acceptor of connections', accept(listener, shared));
-//! if (task === undefined) { console.error(noWorkerWords('the acceptor of connections')); process.exit(4); }
+//! if (task === undefined) { console.error(noWorkerWords('the acceptor of connections')); process.exit(EXIT_NO_WORKER); }
 //! ```
 
-use crate::lazy_runtime::{BUILD_DEADLINE, BuiltFlavor, RuntimeBuild, a_build_is_still_on_its_way, flavor_words, runtime_build, spawn_on_runtime_within, tasks_can_run};
+use crate::lazy_runtime::{BUILD_DEADLINE, BuiltFlavor, RuntimeBuild, flavor_words, runtime_build, spawn_on_runtime_within, the_worker_answers};
 use crate::wait_ceilings::RUNTIME_BUILD_PATIENCE;
+
+/// The exit status of a service that has no worker thread to run a task it cannot serve without:
+/// its acceptor of connections,
+/// its after-commit work,
+/// or its shutdown after a stop.
+/// It stands beside the words such a task ends the service with,
+/// because one end says both,
+/// and in the module the three tasks share,
+/// so the setup that only the dispatch reaches is not what they take their status from.
+/// It ends there instead of holding a socket it never answers on,
+/// and the manager starts it again.
+/// A control whose subject is that end reads this status from the process itself,
+/// never the line the service writes about it.
+pub const EXIT_NO_WORKER: i32 = 4;
 
 /// What:
 ///  The line that says the runtime this process serves from is a stand-in rather than the multi-thread one,
@@ -97,6 +111,9 @@ fn waiting_words(what: &str) -> String {
 /// so the three tasks a service cannot be without reach both the same way;
 /// a build the system refused has nothing coming and is never waited for,
 /// and the caller is answered at once instead.
+/// The line is said when a build that outlasted its deadline is on its way,
+/// which is one reading of the one state the wait itself reads,
+/// so the line and the wait describe the same moment.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -107,7 +124,7 @@ where
     F: std::future::Future + Send + 'static,
     F::Output: Send + 'static,
 {
-    if !tasks_can_run() && a_build_is_still_on_its_way() {
+    if the_worker_answers().a_build_is_coming {
         crate::service_warn!("{}", waiting_words(what));
     }
     return spawn_on_runtime_within(RUNTIME_BUILD_PATIENCE, future);

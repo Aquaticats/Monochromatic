@@ -48,6 +48,10 @@ pub mod js_text;
 /// Line-oriented debug and warning diagnostics on standard error.
 pub mod diagnostic_log;
 
+/// The diagnostic lines themselves, written by a thread of their own,
+/// so a reader that stopped draining never holds the command that said them.
+pub mod diagnostic_lines_off_the_calling_thread;
+
 /// The two costs a command pays outside the phases of its timing record,
 /// and the writer that measures what it prints.
 pub mod time_spent_outside_the_phases;
@@ -230,3 +234,7 @@ pub mod standard_error_descriptor;
 /// A stream of a command's notices written by a thread of its own,
 /// so a reader that stopped draining never holds the command.
 pub mod notice_stream_that_does_not_hold_its_writer;
+
+/// A connection to a unix socket that is made within one deadline,
+///  so a socket whose program stopped costs its caller a bounded wait.
+pub mod unix_socket_connect_within_a_deadline;

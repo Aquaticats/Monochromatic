@@ -58,7 +58,7 @@ pub const DEFAULT_PUSH_DEADLINE: Duration = Duration::from_secs(30);
 pub const CONNECTED_WINDOW_VARIABLE: &str = "CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS";
 
 /// What:
-///  Read a positive whole number of seconds from one environment value.
+///  Read a positive whole number from one environment value.
 /// Why:
 ///   A zero,
 /// negative,
@@ -66,18 +66,22 @@ pub const CONNECTED_WINDOW_VARIABLE: &str = "CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_
 /// empty or non-text value is no setting at all,
 ///  never "no limit",
 ///  so a typo cannot remove a bound.
+/// Every bounded value of this crate that a person may set is read through here,
+/// so none of them can be
+///  removed by a typo,
+/// and a variable that sets bytes is read the same way as one that sets seconds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const seconds = Number(value); return Number.isInteger(seconds) && seconds > 0 ? seconds * 1000 : undefined;
+/// const count = Number(value); return Number.isInteger(count) && count > 0 ? count : undefined;
 /// ```
-pub fn positive_seconds(name: &str, value: &OsStr) -> Option<Duration> {
+pub fn positive_count(name: &str, value: &OsStr) -> Option<u64> {
     let parsed: Option<u64> = match value.to_str() {
         Some(text) => text.trim().parse::<u64>().ok(),
         None => None,
     };
     return match parsed {
-        Some(count) if count > 0 => Some(Duration::from_secs(count)),
+        Some(count) if count > 0 => Some(count),
         Some(_) | None => {
             debug(
                 TAG,
@@ -86,6 +90,21 @@ pub fn positive_seconds(name: &str, value: &OsStr) -> Option<Duration> {
             None
         }
     };
+}
+
+/// What:
+///  Read a positive whole number of seconds from one environment value.
+/// Why:
+///   A window a person sets is whole seconds;
+/// the reading of the number itself is shared with the values measured in
+///  bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const seconds = positiveCount(value); return seconds === undefined ? undefined : seconds * 1000;
+/// ```
+pub fn positive_seconds(name: &str, value: &OsStr) -> Option<Duration> {
+    return positive_count(name, value).map(Duration::from_secs);
 }
 
 /// What:

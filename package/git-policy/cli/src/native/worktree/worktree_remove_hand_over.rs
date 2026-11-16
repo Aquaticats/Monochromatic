@@ -38,18 +38,21 @@ use crate::service_messages::render;
 use crate::service_protocol::HEARTBEAT_SILENCE;
 use crate::service_provision::provision;
 use crate::real_git::{ResolutionInputs, ResolvedGit, process_resolution_inputs, resolve_real_git};
-use crate::service_provision_host_and_manager::units_record_dir_of;
 use crate::service_route::{Route, route_from_environment};
 use crate::service_work::work_directory;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::wait_ceilings::{ANSWER_CEILING, HAND_OVER_GREETING_WAIT, SHORT_EXTRA_WAIT, WITHDRAW_CEILING, waiting_notice_after};
 use crate::work_item::{FAILED, PENDING, WorkItem, WorkKind, enqueue, state_directory};
+use crate::worktree_removal_interrupted_destroy::record_leaving;
+use crate::worktree_removal_leaving_that_outlives_its_record::{Leaving, forget_the_leaving, queue_the_delete_again, record_a_leaving};
 use crate::service_work::Verdict;
 use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
 use crate::worktree_kept_notices::record_kept_worktree;
 use crate::worktree_landed_registrations::branch_of_registration;
 use crate::worktree_removal_held_commits::{KeptCommits, keep_held_commits};
 use crate::worktree_removal_second_look::{SecondLook, why_the_worktree_stays};
+use crate::worktree_remove::{RemoveOutcome, RemoveRequest};
+use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_remove_registry::{Registration, registered_worktree};
 use crate::worktree_registration_proof::read_record_here;
 use crate::private_storage::write_private_file_unsynced;
@@ -58,14 +61,29 @@ use std::fs::File;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
 
+/// What:
+///  The name a subvolume this program leaves for the service takes,
+///  and the record that names its delete,
+///  re-exported where every reader of them already names them.
+/// Why:
+///   The shape of a leaving name and of its record is one subject
+/// (`worktree_removal_leaves_a_subvolume_for_the_service.rs`),
+/// and a caller names them by this module,
+/// so the subject moved and the names did not.
+pub use crate::worktree_removal_leaves_a_subvolume_for_the_service::{DELETE_REFERENCE, DELETING_PREFIX, deleting_name, removal_item};
+
+/// What:
+///  The move that leaves one subvolume for the service,
+///  re-exported so every caller keeps naming it by this module.
+/// Why:
+///   A caller names the move and the record together,
+/// and the two moved to the file that owns them
+/// (`worktree_removal_leaves_a_subvolume_for_the_service.rs`),
+/// so the names stay where the callers already read them.
+pub(crate) use crate::worktree_removal_leaves_a_subvolume_for_the_service::leave_a_subvolume_for_the_service;
+
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeRemoveHandOver";
-
-/// What a renamed subvolume's name starts with while the service deletes it:
-/// a name no person gives a worktree,
-/// so it is never mistaken for one,
-/// and one the next commands report when it stays.
-pub const DELETING_PREFIX: &str = "cli-git-deleting-";
 
 /// The process table a removal reads to see whether anything works in the worktree.
 const PROCESS_TABLE: &str = "/proc";
@@ -81,13 +99,6 @@ pub const COMPARED_WITH_RECORD_NAME: &str = "monochromatic-git-policy-cli-remova
 /// It holds the device and the inode of each, which is what tells the worktree the proof was made for from one a person
 /// added at the same path while the record waited.
 pub const IDENTITY_RECORD_NAME: &str = "monochromatic-git-policy-cli-removal-identity";
-
-/// The reference an item of this kind names,
-/// which is no branch:
-/// an item carries a reference-shaped field so that every reader of a record keeps one shape,
-/// and no push is ever made for this kind.
-pub const DELETE_REFERENCE: &str = "refs/worktree/cli-git-service/subvolume-delete";
-
 /// What:
 ///  The reference an item of this kind names when what waits for the service is a whole worktree Git removes file by file,
 ///  and not a subvolume a removal already renamed out of the way.
@@ -99,49 +110,6 @@ pub const DELETE_REFERENCE: &str = "refs/worktree/cli-git-service/subvolume-dele
 ///  Git's own refuse-or-remove of the tracked files it finds is the whole proof of the removal,
 ///  and a path renamed away first would leave a registration naming nothing.
 pub const WORKTREE_REMOVAL_REFERENCE: &str = "refs/worktree/cli-git-service/worktree-remove";
-
-/// What:
-///  The name a removed worktree's subvolume takes while it waits for the service's delete.
-/// Why:
-///   The subvolume id names one subvolume for good,
-/// while a name names whatever is there when the call runs,
-/// so a name built
-///  from the id can never stand for another person's directory.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const deletingName = (id: bigint) => `cli-git-deleting-${id.toString(16).padStart(16, '0')}`;
-/// ```
-pub fn deleting_name(id: u64) -> OsString {
-    return OsString::from(format!("{DELETING_PREFIX}{id:016x}"));
-}
-
-/// What:
-///  The item that names one renamed subvolume for the service.
-/// Why:
-///   The record is the only thing that outlives the command,
-/// so it names the exact path the rename made and the subvolume id it
-///  holds:
-/// a delete acts on that path alone,
-/// and a path that is gone is nothing to delete.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const removalItem = ({ commonDir, parentPath, id, deleting }) => ({ kind: 'subvolume-delete', repository: parentPath, gitDir: commonDir, ref: DELETE_REFERENCE, oid: hex40(id), parent: join(parentPath, deleting), created: now, tries: 0 });
-/// ```
-pub fn removal_item(common_dir: &Path, parent_path: &Path, id: u64) -> WorkItem {
-    let deleting: PathBuf = parent_path.join(deleting_name(id));
-    return WorkItem {
-        kind: WorkKind::SubvolumeDelete,
-        repository: parent_path.to_path_buf(),
-        git_dir: common_dir.to_path_buf(),
-        branch_ref: String::from(DELETE_REFERENCE),
-        oid: format!("{id:040x}"),
-        parent: deleting.display().to_string(),
-        created: now_iso(),
-        tries: 0,
-    };
-}
 
 /// What:
 ///  The item that names one landed worktree for the commit service to remove with Git,
@@ -183,14 +151,16 @@ pub fn worktree_removal_item(git_dir: &Path, target: &Path, registration: &Path)
 }
 
 /// What:
-///  Write the item that will delete the renamed subvolume,
-/// so that a kill after this point leaves it named.
+///  The item that will delete the renamed subvolume,
+///  built and refused before anything of the removal moves,
+///  and the queueing of it that a later round reads.
 /// Why:
 ///   The record is written before the rename,
 /// so the two orders a kill can leave are both safe:
 /// a record whose path
 ///  does not exist deletes nothing,
-/// and a rename whose record is missing would leave a directory nothing names.
+/// and a rename whose record is missing is named by the leaving record written beside it
+///  (`worktree_removal_leaving_that_outlives_its_record.rs`).
 /// Writing
 ///  it twice is one record:
 /// the queue's id is the subvolume's and the directory that holds it,
@@ -202,9 +172,10 @@ pub fn worktree_removal_item(git_dir: &Path, target: &Path, registration: &Path)
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// enqueue(join(workDir(commonDir), 'pending'), removalItem({ commonDir, parentPath, id }))
+/// const item = theRemovalOf(commonDir, parentPath, id); // throws when the parent path is not text
+/// await queueTheRemoval(commonDir, item);
 /// ```
-fn record_the_removal(common_dir: &Path, parent_path: &Path, id: u64) -> Result<WorkItem, String> {
+fn the_removal_of(common_dir: &Path, parent_path: &Path, id: u64) -> Result<WorkItem, String> {
     if parent_path.to_str().is_none() {
         return Err(format!(
             "the directory that holds {} is not named by text, so no work record can name the directory the removal would rename it to ({} is not valid UTF-8)",
@@ -212,9 +183,22 @@ fn record_the_removal(common_dir: &Path, parent_path: &Path, id: u64) -> Result<
             parent_path.display()
         ));
     }
-    let item: WorkItem = removal_item(common_dir, parent_path, id);
-    return match enqueue(work_directory(common_dir).as_path(), &item) {
-        Ok(_added) => Ok(item),
+    return Ok(removal_item(common_dir, parent_path, id));
+}
+
+/// What:
+///  Put one removal's delete in the queue a round of the commit service reads.
+/// Why:
+///   A record whose id the queue already holds is the same work and is left as it stands,
+/// so a hand-over that ran twice writes one record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// enqueue(join(workDir(commonDir), 'pending'), item)
+/// ```
+fn queue_the_removal(common_dir: &Path, item: &WorkItem) -> Result<(), String> {
+    return match enqueue(work_directory(common_dir).as_path(), item) {
+        Ok(_added) => Ok(()),
         Err(reason) => Err(reason),
     };
 }
@@ -263,7 +247,6 @@ pub fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), Stri
         waiting_notice_after: waiting_notice_after(),
         extra_wait: SHORT_EXTRA_WAIT,
         start_ceiling: HAND_OVER_GREETING_WAIT,
-        units_record_dir: host.as_ref().map(units_record_dir_of),
     };
     let mut silent: std::io::Sink = std::io::sink();
     return match wake(&config, git_dir, None, &mut silent) {
@@ -302,10 +285,10 @@ pub fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), Stri
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await handOverRemoval({ context, commonDir, parent, parentPath, name, id });
+/// await handOverRemoval({ context, commonDir, parent, parentPath, name, id, target, registration });
 /// ```
-pub fn hand_over_removal(context: &GitContext, common_dir: &Path, parent: &File, parent_path: &Path, name: &OsStr, id: u64, target: &Path) -> Result<(), String> {
-    return hand_over_with(common_dir, parent, parent_path, name, id, target, &ThroughTheService { context });
+pub fn hand_over_removal(context: &GitContext, common_dir: &Path, parent: &File, parent_path: &Path, name: &OsStr, id: u64, target: &Path, registration: &OsStr) -> Result<(), String> {
+    return hand_over_with(common_dir, parent, parent_path, name, id, target, registration, &ThroughTheService { context });
 }
 
 /// What:
@@ -347,39 +330,71 @@ impl ToldOfHandOver for ThroughTheService<'_> {
 ///  `hand_over_removal` with the wake injected,
 /// so a control reaches no service and no session bus.
 /// Why:
-///   The record is written and the directory renamed before the service is told,
-/// so a control can assert both without a
-///  service,
-/// and a wake that fails is never the removal's failure:
+///   The leaving record is written first,
+///  the delete's own queue record second,
+///  and the directory renamed third,
+///  so a kill in the moments between leaves a state the next command finishes:
+///  the leaving record is settled by nothing,
+///  so it names the place the directory takes before it takes it,
+///  and a control can assert that without a service.
+///   A wake that fails is never the removal's failure:
 /// the record stays for the next command of the
 ///  repository.
+///   A delete the queue settled before the rename is deleted here,
+///  and when the kernel refuses that destroy,
+///  the delete is queued once more for a round to run and the leaving record names the directory until a command proves it
+///  gone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// handOverWith({ commonDir, parent, parentPath, name, id, target, told });
+/// handOverWith({ commonDir, parent, parentPath, name, id, target, registration, told });
 /// ```
-pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name: &OsStr, id: u64, target: &Path, told: &dyn ToldOfHandOver) -> Result<(), String> {
-    let item: WorkItem = record_the_removal(common_dir, parent_path, id)?;
+pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name: &OsStr, id: u64, target: &Path, registration: &OsStr, told: &dyn ToldOfHandOver) -> Result<(), String> {
+    let item: WorkItem = the_removal_of(common_dir, parent_path, id)?;
+    // The leaving is the one record of these three that nothing settles, so it is written first: a command killed after the
+    // rename, and a delete the queue settles before the rename, both leave a place a later command finds
+    // (`worktree_removal_leavings_a_command_queues_again.rs`).
+    let leaving: Leaving = record_a_leaving(common_dir, &item)?;
+    if let Err(reason) = queue_the_removal(common_dir, &item) {
+        // Nothing has moved: the leaving record would name a directory the rename never makes.
+        forget_the_leaving(common_dir, item.id().as_str());
+        return Err(reason);
+    }
     let deleting: OsString = deleting_name(id);
+    // Where the files will stand is written before the rename, so a command killed between the two leaves a record whose
+    // worktree path is gone and whose place is named, which is a state the next command finishes the registration by
+    // (a review finding, F4).
+    record_leaving(common_dir, registration, parent_path.join(deleting.as_os_str()).as_path());
     if let Err(error) = rename_at(parent, name, parent, deleting.as_os_str(), false) {
-        // Nothing was renamed, so the record names a path that does not exist and the service will find nothing to delete.
+        // Nothing was renamed, so the record names a path that does not exist and the service will find nothing to delete; the
+        // leaving names the same place and goes with it.
+        forget_the_leaving(common_dir, item.id().as_str());
         return Err(format!("the subvolume of {} cannot be renamed out of the way ({error})", target.display()));
     }
     debug(TAG, format!("the subvolume of {} waits for the service's delete at {}", target.display(), Path::new(&item.parent).display()).as_str());
     if !a_record_is_queued(common_dir, &item) {
-        // A service settled the record, or claimed it and looked while the directory still stood at its old name, so nothing names the directory now:
+        // A service settled the record, or claimed it and looked while the directory still stood at its old name, so nothing in
+        //  the queue names the directory now:
         //  this command deletes it rather than leave the person's files under a name no record names.
         let verdict: Verdict = delete_subvolume_of(&item);
-        if verdict != Verdict::Done {
-            warn(
-                TAG,
-                format!(
-                    "the record of {} was settled before the removal renamed it, and the renamed directory cannot be deleted ({verdict:?}), so it was left at {}",
-                    target.display(),
-                    Path::new(&item.parent).display()
-                )
-                .as_str(),
-            );
+        if verdict == Verdict::Done {
+            // Nothing stands where the leaving named, so its record is finished with it.
+            forget_the_leaving(common_dir, item.id().as_str());
+            return Ok(());
+        }
+        warn(
+            TAG,
+            format!(
+                "the record of {} was settled before the removal renamed it, and the renamed directory cannot be deleted ({verdict:?}), so it was left at {}",
+                target.display(),
+                Path::new(&item.parent).display()
+            )
+            .as_str(),
+        );
+        // The destroy here could not take it, for a reason that may last, so the delete goes back where a round finds it: the
+        // leaving record above names the directory until a command proves it gone.
+        if let Err(reason) = queue_the_delete_again(common_dir, &leaving) {
+            warn(TAG, format!("the delete of {} cannot be queued again ({reason}); the leaving record still names it", target.display()).as_str());
         }
         return Ok(());
     }
@@ -426,7 +441,7 @@ fn a_record_is_queued(common_dir: &Path, item: &WorkItem) -> bool {
 /// ```ts
 /// const recorded = (oid) => /^[0-9a-fA-F]{40}$/.test(oid) ? BigInt('0x' + oid) : undefined;
 /// ```
-fn recorded_subvolume(oid: &str) -> Option<u64> {
+pub(crate) fn recorded_subvolume(oid: &str) -> Option<u64> {
     if oid.len() != 40 || !oid.as_bytes().iter().all(u8::is_ascii_hexdigit) {
         return None;
     }
@@ -852,45 +867,6 @@ fn begun_identity(common_dir: &Path, id: &str) -> Option<String> {
 }
 
 /// What:
-///  Whether everything Git reports about this worktree is a deletion,
-///  which is the state a removal that died in the middle leaves.
-/// Why:
-///  A removal that began and was cut short may be finished with `--force`,
-///  and `--force` deletes every file Git would keep:
-///  a modified file or an untracked one makes this answer false,
-///  so nothing of the person's goes with a half-deleted tree.
-///  A staged deletion and a working-tree deletion are both deletions;
-///  anything else Git names is not.
-///  A Git that cannot answer proves nothing, and the answer is false.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const onlyDeletions = gitStatusIsOnlyDeletions(context, worktree, admin);
-/// ```
-fn only_deletions(context: &GitContext, worktree: &Path, admin: &Path) -> bool {
-    let request: GitRequest = GitRequest {
-        cwd: worktree.to_path_buf(),
-        arguments: ["status", "--porcelain", "-z", "--untracked-files=normal"].map(OsString::from).to_vec(),
-        without_prefix: true,
-        environment: crate::worktree_ladder_target::checkout_environment(admin, worktree),
-        ..GitRequest::default()
-    };
-    let Ok(output) = run_git(context, &request) else { return false };
-    if output.code != Some(0) {
-        return false;
-    }
-    for entry in output.stdout.split(|byte: &u8| return *byte == 0).filter(|entry: &&[u8]| return !entry.is_empty()) {
-        // `XY path`: a removal deletes from the working tree, so ` D` is what it leaves, and `D ` is the same
-        // deletion staged by somebody.
-        let deleted: bool = entry.len() >= 2 && (&entry[..2] == b" D" || &entry[..2] == b"D ");
-        if !deleted {
-            return false;
-        }
-    }
-    return true;
-}
-
-/// What:
 ///  The service's own removal of one landed worktree a command handed over,
 ///  with Git's own words as the verdict.
 /// Why:
@@ -986,6 +962,13 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
     if let Some(why) = why_the_worktree_stays(&look, target.as_path(), registration.admin.as_path()) {
         return keep_the_worktree(item, target.as_path(), registration.admin.as_path(), why.as_str(), kept.said.as_slice());
     }
+    // A subvolume or mount point that is not this removal's is removed around on this route too, and for the same reason as on
+    // the person's: Git's own removal would delete what is mounted at a mount point and unlink the files of a nested worktree,
+    // and the proofs above were made before such a volume may have appeared. The volume and the directories that lead to it
+    // stay, what is left is recorded for the person, and the same check decides it on both routes.
+    if !crate::worktree_removal_goes_around_a_foreign_volume::volumes_below(target.as_path()).is_empty() {
+        return remove_around_what_is_not_this_removals(item, target.as_path(), &registration);
+    }
     // What Git is about to delete, and that the proofs held for it, is recorded first: a service killed in the middle of
     // the deletion leaves a tree Git refuses, and the next attempt finishes this program's own half-done work from here.
     let identity: String = identity_standing_there(target.as_path(), registration.admin.as_path());
@@ -996,7 +979,7 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
         if before != identity {
             return keep_the_worktree(item, target.as_path(), registration.admin.as_path(), "a removal of another worktree at this path began and was cut short, so nothing here is this record's to finish", kept.said.as_slice());
         }
-        if !only_deletions(&context, target.as_path(), registration.admin.as_path()) {
+        if !crate::worktree_removal_only_deletions::only_deletions(&context, target.as_path(), registration.admin.as_path()) {
             return keep_the_worktree(
                 item,
                 target.as_path(),
@@ -1030,6 +1013,82 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
         crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree(common.as_path(), admin.as_path());
     }
     return Verdict::Done;
+}
+
+/// What:
+///  Remove the worktree around what someone else put inside it,
+///  in this service's own process,
+///  and say what was left where a person finds it.
+/// Why:
+///   The record this service acts on was written before the volume may have appeared,
+/// and Git must not see a tree
+///  holding one:
+/// its removal deletes what is mounted at a mount point and unlinks the files of a nested worktree.
+/// The steps are
+///  the person's own removal, made here with the checks that removal makes,
+/// so the service and the command cannot disagree about
+///  which tree may go.
+/// A removal that refuses keeps the worktree and says why,
+/// and a removal that removed what it could and stopped keeps
+///  it too,
+///  with the words for a tree that is partly gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// removeAroundWhatIsNotThisRemovals(item, target, registration): Verdict
+/// ```
+fn remove_around_what_is_not_this_removals(item: &WorkItem, target: &Path, registration: &Registration) -> Verdict {
+    let context: GitContext = match the_service_git(item) {
+        Ok(found) => found,
+        Err(reason) => return Verdict::Retry(reason),
+    };
+    let plan: RemovePlan = RemovePlan { target: target.to_path_buf(), operand: target.as_os_str().to_os_string(), force: false };
+    let request: RemoveRequest<'_> = RemoveRequest { context: &context, plan: &plan, common_dir: item.git_dir.as_path(), last_look: None };
+    match crate::worktree_remove::remove_with(&crate::worktree_remove::LinuxOperations, &request) {
+        RemoveOutcome::Removed => {
+            // The record that says which worktree a half-done removal of this id was belongs to that removal, and the
+            // worktree is gone: a later attempt for the name must not read it as its own.
+            forget_begun(item.git_dir.as_path(), item.id().as_str());
+            return Verdict::Done;
+        }
+        RemoveOutcome::RemovedAroundNothingLeft => {
+            for line in crate::worktree_removal_goes_around_a_foreign_volume::emptied_around_report(target).lines() {
+                crate::service_log!("{line}");
+            }
+            forget_begun(item.git_dir.as_path(), item.id().as_str());
+            return Verdict::Done;
+        }
+        RemoveOutcome::DestroyedInPlace => {
+            // The files are gone and nothing waits here; the record that names which worktree a half-done removal of this id
+            // was belongs to that removal, so it goes with the worktree.
+            forget_begun(item.git_dir.as_path(), item.id().as_str());
+            return Verdict::Done;
+        }
+        RemoveOutcome::RemovedAround(left) => {
+            let branch: String = branch_of_registration(registration.admin.as_path()).unwrap_or_else(|| return String::from("a head with no branch"));
+            if let Err(reason) = crate::worktree_removal_goes_around_a_foreign_volume::record_left_in_place(item.git_dir.as_path(), target, branch.as_str(), left.as_slice()) {
+                crate::service_warn!("the worktree {} was removed around what was left in it, and the record of that could not be written: {reason}", target.display());
+            }
+            for line in crate::worktree_removal_goes_around_a_foreign_volume::around_removal_report(target, left.as_slice()).lines() {
+                crate::service_log!("{line}");
+            }
+            forget_begun(item.git_dir.as_path(), item.id().as_str());
+            return Verdict::Done;
+        }
+        RemoveOutcome::Refused(report) => return keep_the_worktree(item, target, registration.admin.as_path(), report.as_str(), &[]),
+        RemoveOutcome::Incomplete(report) => return keep_the_worktree(item, target, registration.admin.as_path(), report.as_str(), &[]),
+        // Nothing here was changed and Git's own removal is not this tree's to take, so the worktree stays and the person reads
+        //  why. A record that names no removal this program can make must not be read as one that happened.
+        RemoveOutcome::LeftToGit => {
+            return keep_the_worktree(
+                item,
+                target,
+                registration.admin.as_path(),
+                "a subvolume or mount point that is not this removal's stands inside it, and the removal could not prove it may take the rest",
+                &[],
+            );
+        }
+    }
 }
 
 /// What:

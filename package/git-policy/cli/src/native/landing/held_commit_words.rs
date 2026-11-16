@@ -136,23 +136,28 @@ pub fn heading(count: usize) -> String {
 }
 
 /// What:
-///  The line every command prints while a held commit waits for its lock.
+///  The line every command prints while a held commit waits for its lock,
+///  naming the locks that stand now.
 /// Why:
 ///   The record is the only place the state exists,
 ///  so the line cannot disagree with it,
 ///  and a held commit that nobody removes the lock for keeps being said.
+///  A message names what really stops the command at the moment it is printed:
+///  the record names the locks that stood when the commit was held,
+///  and one of those is gone by the time the next command prints the line,
+///  so the locks the settlement found standing are what the line gives.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `the commit ${commit} for ${branch} is held: the branch has not moved yet, and it waits for ${locks}`
+/// `the commit ${commit} for ${branch} is held: the branch has not moved yet, and it waits for ${standingLocks}`
 /// ```
-pub fn waiting(held: &Held, commit: &str) -> String {
+pub fn waiting(held: &Held, commit: &str, standing: &[PathBuf]) -> String {
     return format!(
         "the commit {commit} for {} is held: the branch has not moved yet, and it waits for {}. The next command that finds the lock gone \
 moves the branch; if no Git process is using this repository, remove it with `{}`.",
         branch_of(&held.reference),
-        locks_named(held.locks.as_slice()),
-        removal(held.locks.as_slice())
+        locks_named(standing),
+        removal(standing)
     );
 }
 

@@ -1,0 +1,719 @@
+diff --git a/changes.d/core/positional-argument-write-cost.md b/changes.d/core/positional-argument-write-cost.md
+new file mode 100644
+index 00000000..9a8b5749
+--- /dev/null
++++ b/changes.d/core/positional-argument-write-cost.md
+@@ -0,0 +1,5 @@
++ -  Removed the largest of the per-argument copies that make a successful
++    parse with many positional arguments take quadratic time.  Every recorded
++    input copied the entire input trace, so a parse of a few thousand
++    positional arguments spent most of its time copying; a parse of 8,000
++    positional arguments is now about eight times faster.
+diff --git a/packages/core/src/input-trace.test.ts b/packages/core/src/input-trace.test.ts
+index 48a212f2..1a890daa 100644
+--- a/packages/core/src/input-trace.test.ts
++++ b/packages/core/src/input-trace.test.ts
+@@ -5,7 +5,11 @@
+  */
+ import { describe, test } from "node:test";
+ import * as assert from "node:assert/strict";
+-import { createInputTrace, type TraceEntry } from "#src/input-trace.ts";
++import {
++  createInputTrace,
++  type InputTrace,
++  type TraceEntry,
++} from "#src/input-trace.ts";
+ 
+ // =============================================================================
+ // Helpers
+@@ -170,6 +174,89 @@ describe("InputTrace", () => {
+     assert.deepStrictEqual(trace.get([local]), entry2);
+   });
+ 
++  test("a trace captured mid-chain never observes later writes", () => {
++    const writeCount = 1_000;
++    let trace = createInputTrace();
++    let captured: InputTrace | undefined;
++    for (let index = 0; index < writeCount; index += 1) {
++      trace = trace.set(
++        ["paths", index],
++        makeEntry("argument-value", `p${index}`),
++      );
++      if (index === writeCount / 2 - 1) captured = trace;
++    }
++    assert.ok(captured != null);
++    const halfway = writeCount / 2;
++    assert.deepStrictEqual(
++      captured.get(["paths", 0]),
++      makeEntry(
++        "argument-value",
++        "p0",
++      ),
++    );
++    assert.equal(
++      captured.get(["paths", halfway - 1])?.rawInput,
++      `p${halfway - 1}`,
++    );
++    assert.equal(captured.get(["paths", halfway]), undefined);
++    assert.equal(captured.get(["paths", writeCount - 1]), undefined);
++    assert.equal(
++      trace.get(["paths", writeCount - 1])?.rawInput,
++      `p${writeCount - 1}`,
++    );
++  });
++
++  test("overwriting a path keeps earlier traces on the earlier value", () => {
++    const overwriteCount = 500;
++    const first = createInputTrace();
++    let trace: InputTrace = first;
++    for (let index = 0; index < overwriteCount; index += 1) {
++      trace = trace.set(["env"], makeEntry("option-value", `value-${index}`));
++    }
++    assert.equal(first.get(["env"]), undefined);
++    assert.equal(trace.get(["env"])?.rawInput, `value-${overwriteCount - 1}`);
++  });
++
++  test("deleting through a long chain keeps the earlier trace intact", () => {
++    const writeCount = 500;
++    let trace = createInputTrace();
++    for (let index = 0; index < writeCount; index += 1) {
++      trace = trace.set(
++        ["paths", index],
++        makeEntry("argument-value", `p${index}`),
++      );
++    }
++    const before = trace;
++    for (let index = 0; index < writeCount; index += 2) {
++      trace = trace.delete(["paths", index]);
++    }
++    for (let index = 0; index < writeCount; index += 1) {
++      const expected = `p${index}`;
++      assert.equal(before.get(["paths", index])?.rawInput, expected);
++      assert.equal(
++        trace.get(["paths", index])?.rawInput,
++        index % 2 === 0 ? undefined : expected,
++      );
++    }
++  });
++
++  test("a long chain of writes then reads returns every entry", () => {
++    const writeCount = 10_000;
++    let trace = createInputTrace();
++    for (let index = 0; index < writeCount; index += 1) {
++      trace = trace.set(
++        ["paths", index],
++        makeEntry("argument-value", `p${index}`),
++      );
++    }
++    for (let index = writeCount - 1; index >= 0; index -= 1) {
++      assert.equal(trace.get(["paths", index])?.rawInput, `p${index}`);
++    }
++    // A path that shares a prefix with the stored ones must stay absent.
++    assert.equal(trace.get(["paths"]), undefined);
++    assert.equal(trace.get(["paths", writeCount]), undefined);
++  });
++
+   test("keys containing NUL do not collide with multi-segment paths", () => {
+     const entry1 = makeEntry("option-value", "single");
+     const entry2 = makeEntry("option-value", "multi");
+diff --git a/packages/core/src/input-trace.ts b/packages/core/src/input-trace.ts
+index 916e57ef..c3c74764 100644
+--- a/packages/core/src/input-trace.ts
++++ b/packages/core/src/input-trace.ts
+@@ -6,10 +6,18 @@
+  * later.  The trace is path-keyed and immutable—every mutation returns a
+  * new instance.
+  *
++ * Entries live in an immutable hash trie rather than a map copied on every
++ * write: a parse records one entry per consumed token, so copying the stored
++ * entries on each write would make recording N tokens cost O(N²).
++ *
+  * @internal
+  * @since 1.0.0
+  * @module
+  */
++import {
++  createImmutableStringMap,
++  type ImmutableStringMap,
++} from "./internal/immutable-string-map.ts";
+ import type { ValueParserResult } from "./valueparser.ts";
+ 
+ /**
+@@ -127,10 +135,10 @@ function serializePath(path: readonly PropertyKey[]): string {
+ // ---------------------------------------------------------------------------
+ 
+ class InputTraceImpl implements InputTrace {
+-  readonly #entries: ReadonlyMap<string, TraceEntry>;
++  readonly #entries: ImmutableStringMap<TraceEntry>;
+ 
+-  constructor(entries?: ReadonlyMap<string, TraceEntry>) {
+-    this.#entries = entries ?? new Map();
++  constructor(entries?: ImmutableStringMap<TraceEntry>) {
++    this.#entries = entries ?? createImmutableStringMap();
+   }
+ 
+   get(path: readonly PropertyKey[]): TraceEntry | undefined {
+@@ -138,15 +146,11 @@ class InputTraceImpl implements InputTrace {
+   }
+ 
+   set(path: readonly PropertyKey[], entry: TraceEntry): InputTrace {
+-    const copy = new Map(this.#entries);
+-    copy.set(serializePath(path), entry);
+-    return new InputTraceImpl(copy);
++    return new InputTraceImpl(this.#entries.set(serializePath(path), entry));
+   }
+ 
+   delete(path: readonly PropertyKey[]): InputTrace {
+-    const copy = new Map(this.#entries);
+-    copy.delete(serializePath(path));
+-    return new InputTraceImpl(copy);
++    return new InputTraceImpl(this.#entries.delete(serializePath(path)));
+   }
+ }
+ 
+diff --git a/packages/core/src/internal/immutable-string-map.test.ts b/packages/core/src/internal/immutable-string-map.test.ts
+new file mode 100644
+index 00000000..dad128cb
+--- /dev/null
++++ b/packages/core/src/internal/immutable-string-map.test.ts
+@@ -0,0 +1,184 @@
++/**
++ * Unit tests for the immutable string-keyed map the input trace stores its
++ * entries in.
++ */
++import { describe, test } from "node:test";
++import * as assert from "node:assert/strict";
++import * as fc from "fast-check";
++import {
++  createImmutableStringMap,
++  hashStringKey,
++  type ImmutableStringMap,
++} from "./immutable-string-map.ts";
++
++// =============================================================================
++// Helpers
++// =============================================================================
++
++// Overwrites and deletes only ever meet each other when the keys repeat, so
++// the random-operation test draws from a pool much smaller than its sequences.
++const KEY_POOL = [
++  "",
++  "a",
++  "b",
++  "aa",
++  "ab",
++  "ba",
++  "paths",
++  "paths0",
++  "paths1",
++  "a\u0000sb",
++];
++
++const COLLISION_SEARCH_LIMIT = 300_000;
++
++/**
++ * Finds two keys that hash to the same 32-bit value.
++ *
++ * Real keys almost never collide, so the shared-leaf path is only reachable
++ * on purpose.  The search is a birthday attack over a fixed key sequence, so
++ * it finds the same pair on every run.
++ */
++function findCollidingKeys(): readonly [string, string] | undefined {
++  const seen = new Map<number, string>();
++  for (let index = 0; index < COLLISION_SEARCH_LIMIT; index += 1) {
++    const key = `k${index}`;
++    const hash = hashStringKey(key);
++    const earlier = seen.get(hash);
++    if (earlier !== undefined) return [earlier, key];
++    seen.set(hash, key);
++  }
++  return undefined;
++}
++
++function assertMatches<V>(
++  map: ImmutableStringMap<V>,
++  expected: ReadonlyMap<string, V>,
++): void {
++  for (const key of KEY_POOL) {
++    assert.equal(map.get(key), expected.get(key), `key ${JSON.stringify(key)}`);
++  }
++}
++
++// =============================================================================
++// Tests
++// =============================================================================
++
++describe("immutable string map", () => {
++  test("set and get roundtrip", () => {
++    const map = createImmutableStringMap<number>().set("a", 1).set("b", 2);
++    assert.equal(map.get("a"), 1);
++    assert.equal(map.get("b"), 2);
++    assert.equal(map.get("c"), undefined);
++  });
++
++  test("an earlier map never observes a later write", () => {
++    const empty = createImmutableStringMap<number>();
++    const first = empty.set("a", 1);
++    const second = first.set("b", 2);
++    assert.equal(empty.get("a"), undefined);
++    assert.equal(first.get("a"), 1);
++    assert.equal(first.get("b"), undefined);
++    assert.equal(second.get("a"), 1);
++    assert.equal(second.get("b"), 2);
++  });
++
++  test("overwriting a key keeps the earlier map on the earlier value", () => {
++    const first = createImmutableStringMap<number>().set("a", 1);
++    const second = first.set("a", 2);
++    assert.equal(first.get("a"), 1);
++    assert.equal(second.get("a"), 2);
++  });
++
++  test("delete removes the key from the new map only", () => {
++    const first = createImmutableStringMap<number>().set("a", 1).set("b", 2);
++    const second = first.delete("a");
++    assert.equal(second.get("a"), undefined);
++    assert.equal(second.get("b"), 2);
++    assert.equal(first.get("a"), 1);
++  });
++
++  test("delete of a missing key leaves every other key readable", () => {
++    const first = createImmutableStringMap<number>().set("a", 1);
++    const second = first.delete("missing");
++    assert.equal(second.get("a"), 1);
++    assert.equal(second.get("missing"), undefined);
++    assert.equal(first.get("a"), 1);
++  });
++
++  test("every key of a long chain stays readable", () => {
++    const count = 5_000;
++    let map = createImmutableStringMap<number>();
++    for (let index = 0; index < count; index += 1) {
++      map = map.set(`k${index}`, index);
++    }
++    for (let index = count - 1; index >= 0; index -= 1) {
++      assert.equal(map.get(`k${index}`), index);
++    }
++    assert.equal(map.get("k"), undefined);
++    assert.equal(map.get(`k${count}`), undefined);
++  });
++
++  test("keys with the same hash are all retrievable", () => {
++    const colliding = findCollidingKeys();
++    assert.ok(
++      colliding != null,
++      `no two of the first ${COLLISION_SEARCH_LIMIT} keys share a hash, so the shared-leaf case lost its coverage.`,
++    );
++    const [first, second] = colliding;
++    const map = createImmutableStringMap<number>()
++      .set(first, 1)
++      .set(second, 2);
++    assert.equal(map.get(first), 1);
++    assert.equal(map.get(second), 2);
++
++    const afterDelete = map.delete(first);
++    assert.equal(afterDelete.get(first), undefined);
++    assert.equal(afterDelete.get(second), 2);
++    assert.equal(map.get(first), 1);
++
++    const overwritten = map.set(second, 3);
++    assert.equal(overwritten.get(first), 1);
++    assert.equal(overwritten.get(second), 3);
++  });
++
++  test("random operation sequences agree with a plain map", () => {
++    const setOperation = fc
++      .tuple(fc.constantFrom(...KEY_POOL), fc.integer({ min: 0, max: 1_000 }))
++      .map(([key, value]) => ({ kind: "set" as const, key, value }));
++    const deleteOperation = fc
++      .constantFrom(...KEY_POOL)
++      .map((key) => ({ kind: "delete" as const, key }));
++
++    fc.assert(
++      fc.property(
++        fc.array(fc.oneof(setOperation, deleteOperation), { maxLength: 60 }),
++        (operations) => {
++          let map = createImmutableStringMap<number>();
++          const expected = new Map<string, number>();
++          // Every intermediate map has to keep matching the plain map it was
++          // built beside, which is what a parser relying on an earlier trace
++          // needs from this structure.
++          const snapshots: {
++            readonly map: ImmutableStringMap<number>;
++            readonly expected: ReadonlyMap<string, number>;
++          }[] = [];
++          for (const current of operations) {
++            if (current.kind === "set") {
++              map = map.set(current.key, current.value);
++              expected.set(current.key, current.value);
++            } else {
++              map = map.delete(current.key);
++              expected.delete(current.key);
++            }
++            snapshots.push({ map, expected: new Map(expected) });
++          }
++          for (const snapshot of snapshots) {
++            assertMatches(snapshot.map, snapshot.expected);
++          }
++        },
++      ),
++      { numRuns: 200 },
++    );
++  });
++});
+diff --git a/packages/core/src/internal/immutable-string-map.ts b/packages/core/src/internal/immutable-string-map.ts
+new file mode 100644
+index 00000000..5f2fe79d
+--- /dev/null
++++ b/packages/core/src/internal/immutable-string-map.ts
+@@ -0,0 +1,350 @@
++/**
++ * An immutable map keyed by string, backed by a hash-array-mapped trie.
++ *
++ * The input trace records one entry per consumed input token, and every
++ * earlier trace version has to stay readable and unchanged, so a plain map
++ * copied on each write makes recording N tokens cost O(N²).  This map copies
++ * only the nodes on the path to the written key: a write and a read both
++ * touch O(log32 N) nodes, and earlier versions keep working because no node,
++ * child array or entry list is modified after it is created.
++ *
++ * @internal
++ * @since 1.4.0
++ * @module
++ */
++
++/** Bits of the key hash consumed per trie level, i.e. slots per branch. */
++const BITS_PER_LEVEL = 5;
++
++/** Number of child slots a branch node has, and the mask of one slot. */
++const SLOT_MASK = (1 << BITS_PER_LEVEL) - 1;
++
++/** Width of the hash returned by {@link hashStringKey}. */
++const HASH_BITS = 32;
++
++/**
++ * Computes the 32-bit hash that routes a key through the trie.
++ *
++ * Exported so tests can search for two keys whose hashes collide and thereby
++ * cover the shared-leaf case; nothing outside this module needs it.
++ *
++ * @param key The key to hash.
++ * @returns An unsigned 32-bit hash of the key.
++ * @internal
++ */
++export function hashStringKey(key: string): number {
++  // FNV-1a over the key's code units, then the murmur3 32-bit finalizer:
++  // FNV-1a alone avalanches poorly in the low bits, and the trie reads the
++  // low bits first.
++  let hash = 0x811c9dc5;
++  for (let index = 0; index < key.length; index += 1) {
++    hash ^= key.charCodeAt(index);
++    hash = Math.imul(hash, 0x01000193);
++  }
++  hash ^= hash >>> 16;
++  hash = Math.imul(hash, 0x85ebca6b);
++  hash ^= hash >>> 13;
++  hash = Math.imul(hash, 0xc2b2ae35);
++  hash ^= hash >>> 16;
++  return hash >>> 0;
++}
++
++/**
++ * One key-value pair in a leaf, with the hash that routed it there.
++ */
++interface LeafEntry<V> {
++  readonly hash: number;
++  readonly key: string;
++  readonly value: V;
++}
++
++/**
++ * A terminal node holding one entry, or several entries whose keys hash to
++ * the same 32-bit value.
++ */
++interface Leaf<V> {
++  readonly kind: "leaf";
++  readonly entries: readonly LeafEntry<V>[];
++}
++
++/**
++ * An interior node whose `bitmap` marks the slots that hold a child, each
++ * child sitting at the rank of its slot among the set bits.
++ */
++interface Branch<V> {
++  readonly kind: "branch";
++  readonly bitmap: number;
++  readonly children: readonly TrieNode<V>[];
++}
++
++type TrieNode<V> = Branch<V> | Leaf<V>;
++
++function branchOf<V>(
++  bitmap: number,
++  children: readonly TrieNode<V>[],
++): Branch<V> {
++  return { kind: "branch", bitmap, children };
++}
++
++function leafOf<V>(entry: LeafEntry<V>): Leaf<V> {
++  return { kind: "leaf", entries: [entry] };
++}
++
++/** Returns the slot of a hash at one trie level. */
++function slotAt(hash: number, shift: number): number {
++  return (hash >>> shift) & SLOT_MASK;
++}
++
++/** Returns the index of a slot in a branch's children array. */
++function rankOf(bitmap: number, bit: number): number {
++  let remaining = bitmap & (bit - 1);
++  let rank = 0;
++  while (remaining !== 0) {
++    remaining &= remaining - 1;
++    rank += 1;
++  }
++  return rank;
++}
++
++/**
++ * Returns the shallowest level at which two hashes occupy different slots, or
++ * `undefined` when they occupy the same slot at every level.
++ */
++function firstDifferingShift(
++  left: number,
++  right: number,
++  fromShift: number,
++): number | undefined {
++  for (
++    let shift = fromShift;
++    shift < HASH_BITS;
++    shift += BITS_PER_LEVEL
++  ) {
++    if (slotAt(left, shift) !== slotAt(right, shift)) return shift;
++  }
++  return undefined;
++}
++
++function getEntry<V>(
++  node: TrieNode<V> | undefined,
++  hash: number,
++  key: string,
++): V | undefined {
++  let current = node;
++  let shift = 0;
++  while (current !== undefined) {
++    if (current.kind === "leaf") {
++      // A leaf holds more than one entry only on a full 32-bit hash
++      // collision, so the key comparison decides, not the hash.
++      for (const entry of current.entries) {
++        if (entry.key === key) return entry.value;
++      }
++      return undefined;
++    }
++    const bit = 1 << slotAt(hash, shift);
++    if ((current.bitmap & bit) === 0) return undefined;
++    current = current.children[rankOf(current.bitmap, bit)];
++    shift += BITS_PER_LEVEL;
++  }
++  return undefined;
++}
++
++/**
++ * Builds the subtree that separates two single-entry leaves whose hashes
++ * first differ at `splitAt`, hanging it under the level `fromShift` that the
++ * caller's parent branch routes at.
++ */
++function branchSeparating<V>(
++  existingHash: number,
++  existing: Leaf<V>,
++  hash: number,
++  replacement: Leaf<V>,
++  splitAt: number,
++  fromShift: number,
++): Branch<V> {
++  const existingSlot = slotAt(existingHash, splitAt);
++  const slot = slotAt(hash, splitAt);
++  let node = branchOf(
++    (1 << existingSlot) | (1 << slot),
++    existingSlot < slot ? [existing, replacement] : [replacement, existing],
++  );
++  for (
++    let shift = splitAt - BITS_PER_LEVEL;
++    shift >= fromShift;
++    shift -= BITS_PER_LEVEL
++  ) {
++    node = branchOf(1 << slotAt(hash, shift), [node]);
++  }
++  return node;
++}
++
++function setInLeaf<V>(
++  leaf: Leaf<V>,
++  hash: number,
++  key: string,
++  value: V,
++  shift: number,
++): TrieNode<V> {
++  const written: LeafEntry<V> = { hash, key, value };
++  const writtenIndex = leaf.entries.findIndex((entry) => entry.key === key);
++  if (writtenIndex !== -1) {
++    const entries = leaf.entries.slice();
++    entries[writtenIndex] = written;
++    return { kind: "leaf", entries };
++  }
++  // Leaves are never empty, so the first entry stands for the whole leaf's
++  // routing: all its entries share one hash, or they would have been split.
++  const existing = leaf.entries[0];
++  const splitAt = firstDifferingShift(existing.hash, hash, shift);
++  if (splitAt === undefined) {
++    return { kind: "leaf", entries: [...leaf.entries, written] };
++  }
++  return branchSeparating(
++    existing.hash,
++    leaf,
++    hash,
++    leafOf(written),
++    splitAt,
++    shift,
++  );
++}
++
++function setEntry<V>(
++  node: TrieNode<V> | undefined,
++  hash: number,
++  key: string,
++  value: V,
++  shift: number,
++): TrieNode<V> {
++  if (node === undefined) return leafOf({ hash, key, value });
++  if (node.kind === "leaf") return setInLeaf(node, hash, key, value, shift);
++  const bit = 1 << slotAt(hash, shift);
++  const rank = rankOf(node.bitmap, bit);
++  const children = node.children.slice();
++  if ((node.bitmap & bit) === 0) {
++    children.splice(rank, 0, leafOf({ hash, key, value }));
++    return branchOf(node.bitmap | bit, children);
++  }
++  children[rank] = setEntry(
++    children[rank],
++    hash,
++    key,
++    value,
++    shift + BITS_PER_LEVEL,
++  );
++  return branchOf(node.bitmap, children);
++}
++
++function deleteEntry<V>(
++  node: TrieNode<V> | undefined,
++  hash: number,
++  key: string,
++  shift: number,
++): TrieNode<V> | undefined {
++  if (node === undefined) return undefined;
++  if (node.kind === "leaf") {
++    const index = node.entries.findIndex((entry) => entry.key === key);
++    if (index === -1) return node;
++    if (node.entries.length === 1) return undefined;
++    const entries = node.entries.slice();
++    entries.splice(index, 1);
++    return { kind: "leaf", entries };
++  }
++  const bit = 1 << slotAt(hash, shift);
++  if ((node.bitmap & bit) === 0) return node;
++  const rank = rankOf(node.bitmap, bit);
++  const child = deleteEntry(
++    node.children[rank],
++    hash,
++    key,
++    shift + BITS_PER_LEVEL,
++  );
++  if (child === node.children[rank]) return node;
++  const children = node.children.slice();
++  if (child === undefined) {
++    children.splice(rank, 1);
++    if (children.length === 0) return undefined;
++    return branchOf(node.bitmap & ~bit, children);
++  }
++  children[rank] = child;
++  // A branch left with one leaf routes nothing: a lookup reaches the leaf by
++  // its own slot at every level below.
++  if (children.length === 1 && child.kind === "leaf") return child;
++  return branchOf(node.bitmap, children);
++}
++
++/**
++ * An immutable map from strings to values.
++ *
++ * @template V The type of the stored values.
++ * @internal
++ * @since 1.4.0
++ */
++export interface ImmutableStringMap<V> {
++  /**
++   * Retrieves the value stored under a key.
++   *
++   * @param key The key to look up.
++   * @returns The stored value, or `undefined` if the key is absent.
++   */
++  get(key: string): V | undefined;
++
++  /**
++   * Returns a map holding a value under a key.
++   *
++   * The receiver is never modified, so a map obtained earlier keeps the
++   * values it had.
++   *
++   * @param key The key to store the value under.
++   * @param value The value to store.
++   * @returns A map with the value stored.
++   */
++  set(key: string, value: V): ImmutableStringMap<V>;
++
++  /**
++   * Returns a map without a key.
++   *
++   * The receiver is never modified, so a map obtained earlier keeps the
++   * entry.
++   *
++   * @param key The key to remove.
++   * @returns A map without the key.
++   */
++  delete(key: string): ImmutableStringMap<V>;
++}
++
++class ImmutableStringMapImpl<V> implements ImmutableStringMap<V> {
++  readonly #root: TrieNode<V> | undefined;
++
++  constructor(root: TrieNode<V> | undefined) {
++    this.#root = root;
++  }
++
++  get(key: string): V | undefined {
++    return getEntry(this.#root, hashStringKey(key), key);
++  }
++
++  set(key: string, value: V): ImmutableStringMap<V> {
++    return new ImmutableStringMapImpl(
++      setEntry(this.#root, hashStringKey(key), key, value, 0),
++    );
++  }
++
++  delete(key: string): ImmutableStringMap<V> {
++    return new ImmutableStringMapImpl(
++      deleteEntry(this.#root, hashStringKey(key), key, 0),
++    );
++  }
++}
++
++/**
++ * Creates an empty immutable string-keyed map.
++ *
++ * @template V The type of the stored values.
++ * @returns An empty map.
++ * @internal
++ * @since 1.4.0
++ */
++export function createImmutableStringMap<V>(): ImmutableStringMap<V> {
++  return new ImmutableStringMapImpl(undefined);
++}

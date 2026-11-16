@@ -80,6 +80,10 @@ pub use crate::push_deadline_and_patience_settings::{DEFAULT_PUSH_DEADLINE, PUSH
 /// The window a run whose connection is open may stay silent for,
 /// which `lfs_upload` reads for the upload it waits on itself.
 pub use crate::push_deadline_and_patience_settings::connected_window;
+/// The least traffic a push's connection must carry in one window to count as progress,
+/// which the push,
+/// the fetch it runs and the upload are judged on.
+pub use crate::push_minimum_rate::{DEFAULT_PUSH_MINIMUM_RATE_BYTES, PUSH_MINIMUM_RATE_VARIABLE, push_minimum_rate_bytes};
 /// The server a wait and a stop name,
 /// and the word a command gave as its destination.
 pub use crate::push_server_naming::{ServerNaming, first_word};
@@ -276,8 +280,9 @@ pub async fn wait_until_done_noting(
     waits: &mut Vec<WaitReport>,
     stop: Option<&StopArm>,
     window: Duration,
+    minimum_rate: u64,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
-    let clock: Clock = Clock::start(child.id(), patience).with_connected_window(window);
+    let clock: Clock = Clock::start(child.id(), patience).with_connected_window(window).with_minimum_rate(minimum_rate);
     let mut unused: Option<Duration> = None;
     return wait_with_clock(child, outputs, clock, MAX_PUSH_OUTPUT, label, waits, &mut unused, stop).await;
 }
@@ -375,9 +380,13 @@ fn shortened_output_line() -> String {
 ///   The person or the journal reads that the run is not stuck:
 /// the connection to the remote is open,
 /// and what ends the wait.
-///  A wait that shows no sign of work ends at the connected window,
+///  A wait that shows nothing the wrapper counts as progress ends at the connected window,
 /// which the report carries,
 /// so the line names the same limit the run will be stopped by.
+///  "Nothing this wrapper counts" and not "nothing":
+/// a server that keeps the connection alive sends a keepalive packet now and then,
+/// and a trickle below the minimum rate
+///  (`push_minimum_rate.rs`) moves bytes that are not progress either.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -385,9 +394,10 @@ fn shortened_output_line() -> String {
 /// ```
 fn wait_line(label: &str, report: &WaitReport) -> String {
     return format!(
-        "monochromatic-git-policy-cli: {label} {WAIT_NOTE_PHRASE}: the connection to the remote is open, and nothing has moved for {} seconds \
-         (elapsed_seconds={}); the remote may be checking the push or preparing its answer. It is waited for until it answers or \
-         the connection closes, and a connection that stays open with nothing moving for {} seconds is stopped as a stall.",
+        "monochromatic-git-policy-cli: {label} {WAIT_NOTE_PHRASE}: the connection to the remote is open, and nothing the wrapper counts as \
+         progress has moved for {} seconds (elapsed_seconds={}); the remote may be checking the push or preparing its answer. It is waited \
+         for until it answers or the connection closes, and a connection that stays open with nothing the wrapper counts as progress for \
+         {} seconds is stopped as a stall.",
         report.silent.as_secs(),
         report.elapsed.as_secs(),
         report.window.as_secs(),
@@ -490,9 +500,17 @@ pub async fn run_bounded_push_awaiting(
     drop(command);
     let mut child: OwnedChild = adopt(started);
     let mut waits: Vec<WaitReport> = Vec::new();
-    let ended: Result<ExitStatus, StopCause> =
-        wait_until_done_noting(&mut child, &[&output], patience, label.as_str(), &mut waits, stop.as_ref(), connected_window(environment))
-            .await?;
+    let ended: Result<ExitStatus, StopCause> = wait_until_done_noting(
+        &mut child,
+        &[&output],
+        patience,
+        label.as_str(),
+        &mut waits,
+        stop.as_ref(),
+        connected_window(environment),
+        push_minimum_rate_bytes(environment),
+    )
+    .await?;
     if ended.is_err() {
         stop_push(child, grace, locks).await;
     }

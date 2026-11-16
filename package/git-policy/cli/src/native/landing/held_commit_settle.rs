@@ -76,38 +76,43 @@ fn lock_roots(held: &Held) -> Vec<PathBuf> {
     return roots;
 }
 
-/// The locks that stand in the given directories.
-fn standing_locks(roots: &[PathBuf]) -> Vec<PathBuf> {
+/// The locks of `candidates` that stand now.
+fn standing_locks(candidates: &[crate::stale_ref_lock_walk::Candidate]) -> Vec<PathBuf> {
     let mut locks: Vec<PathBuf> = Vec::new();
-    for candidate in crate::stale_ref_lock_walk::ref_lock_candidates(roots) {
-        locks.push(candidate.lock);
+    for candidate in candidates {
+        if candidate.lock.symlink_metadata().is_ok() {
+            locks.push(candidate.lock.clone());
+        }
     }
     return locks;
 }
 
 /// What:
 ///  Whether the branch write may be tried now,
-///  and the locks that stand when it may not.
+///  and the locks in its way when it may not.
 /// Why:
 ///   A live holder lets go within its step,
 ///  so a landing waits for one and lands;
 ///  a command that merely resumes a held commit does not wait at all,
 ///  it looks once and says what stands.
 ///  Under `Clearing::Proved` this is the landing's own wait with no time left in it,
-///  which judges every standing lock once and clears the ones the proof reaches.
+///  which judges every lock in its way once and clears the ones the proof reaches.
+///  Only the locks that can refuse this write are asked for (`locks_that_can_refuse`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const locks = standingLocks(roots); if (locks.length === 0) return { ready: true }; ... { ready: false, locks }
+/// const locks = standingLocks(candidates); if (locks.length === 0) return { ready: true }; ... { ready: false, locks }
 /// ```
-fn readiness(roots: &[PathBuf], clearing: Clearing) -> Result<(), Vec<PathBuf>> {
+fn readiness(held: &Held, clearing: Clearing) -> Result<(), Vec<PathBuf>> {
+    let candidates: Vec<crate::stale_ref_lock_walk::Candidate> =
+        crate::stale_ref_lock_walk::locks_that_can_refuse_a_write(lock_roots(held).as_slice(), held.reference.bytes(), kept_reference(held.seq).as_bytes());
     if matches!(clearing, Clearing::Proved) {
-        let waiting = crate::service_land_reference_lock::wait_out_the_reference_locks(roots, &crate::stale_ref_locks::Judge::here(), Instant::now());
+        let waiting = crate::service_land_reference_lock::wait_out_the_reference_locks_of(candidates.as_slice(), &crate::stale_ref_locks::Judge::here(), Instant::now());
         if matches!(waiting, crate::service_land_reference_lock::Waiting::Gone) {
             return Ok(());
         }
     }
-    let locks: Vec<PathBuf> = standing_locks(roots);
+    let locks: Vec<PathBuf> = standing_locks(candidates.as_slice());
     return if locks.is_empty() { Ok(()) } else { Err(locks) };
 }
 
@@ -445,7 +450,7 @@ fn context_of(git: &GitContext, held: &Held) -> GitContext {
 /// oneFor(acting, held, clearing)
 /// ```
 fn one_for(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
-    if let Err(locks) = readiness(lock_roots(held).as_slice(), clearing) {
+    if let Err(locks) = readiness(held, clearing) {
         return Settled::WaitsForLocks(locks);
     }
     let mut intent: Intent = match intent_of(held) {

@@ -68,7 +68,7 @@ fn a_longer_installed_target_name_is_not_the_declared_target() {
     assert_eq!(added.len(), 1, "{added:?}");
     assert!(added[0].contains("added the declared target wasm32-wasip1,"), "{added:?}");
     assert!(
-        rig.runner.lines().contains(&"rustup target add wasm32-wasip1 --toolchain nightly-2026-10-30".to_string()),
+        rig.runner.lines().iter().any(|line| return line == "rustup target add wasm32-wasip1 --toolchain nightly-2026-10-30"),
         "{:?}",
         rig.runner.lines()
     );
@@ -206,7 +206,7 @@ fn a_bare_declaration_added_first_covers_the_qualified_declaration_after_it() {
 fn the_installed_parts_listings_ask_rustup_not_to_install_a_missing_toolchain() {
     let rig = Rig::new();
     reconcile_with(&rig, &rust_tool(&rig), "x86_64-unknown-linux-gnu\n", "rust-src\n").expect("listed");
-    let listings: Vec<RunRequest> = rig.runner.calls().into_iter().filter(|call| return call.args.contains(&"list".to_string())).collect();
+    let listings: Vec<RunRequest> = rig.runner.calls().into_iter().filter(|call| return call.args.iter().any(|argument| return argument == "list")).collect();
     assert!(!listings.is_empty(), "the reconcile asks rustup what it holds: {listings:?}");
     for listing in listings {
         let env = listing.env.as_ref().expect("an explicit environment");

@@ -90,11 +90,6 @@ impl Manager for Recorder {
         self.calls.borrow_mut().push(format!("within {}", wait.as_secs()));
     }
 
-    fn reload(&mut self) -> Result<(), CallError> {
-        self.calls.borrow_mut().push(String::from("reload"));
-        return Ok(());
-    }
-
     fn reset_failed(&mut self, unit: &str) -> Result<(), CallError> {
         self.calls.borrow_mut().push(format!("reset-failed {unit}"));
         return Ok(());

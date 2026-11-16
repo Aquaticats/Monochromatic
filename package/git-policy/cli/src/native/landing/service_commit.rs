@@ -66,7 +66,7 @@ use crate::service_branch_shows::refused_when_the_branch_switched;
 /// The result of a commit that landed,
 /// and the work after it.
 use crate::service_landed_aftermath::{LandedAftermath, the_landed_commit};
-use crate::service_messages::{ClientFailure, render};
+use crate::service_messages::ClientFailure;
 /// Which end of the commit's scratch tree a submitted request leaves it to.
 use crate::service_commit_tree_ownership::the_service_never_took;
 use crate::service_prepare::{HandedBackTree, NativeInputs, PrepareInputs, Prepared, Ready, prepare};
@@ -128,7 +128,8 @@ pub fn service_commit<F: RepositoryFacts>(
     // Whether this line asks for the one fixup whose commit Git makes from the branch and not from the index: such a commit
     //  is empty by design, and the commit a moved branch makes of it is written from the fields Git stored.
     let rewords: bool = crate::service_commit_line_reissued::rewords_a_commit(invocation.arguments, invocation.subcommand_index);
-    let config: ClientConfig = managed_client_config(address, provisioning.as_ref());
+    // The address is kept for the build, which asks the service for a finished shadow before anything is created.
+    let config: ClientConfig = managed_client_config(address.clone(), provisioning.as_ref());
     // The name carries the request's identity and, per attempt, that attempt's number: the service removes the tree of the attempt
     //  whose landing is over, and the next attempt's tree must be another directory, or that removal would take it.
     // The service builds the commits it can from the command line; real Git builds the rest in a scratch repository. Which
@@ -193,7 +194,7 @@ pub fn service_commit<F: RepositoryFacts>(
                 // The policies could not read an object this commit had just written: something removed it meanwhile.
                 //  The captured bytes are gone, and the worktree is not read again to replace them.
                 if content_was_removed(result.events.as_slice()) {
-                    return Err(TransactionStop::Message(render(&ClientFailure::ContentPruned)));
+                    return Err(crate::commit_transaction::client_stop(ClientFailure::ContentPruned));
                 }
                 return Ok(ServiceCommit { result, handoff: None });
             }
@@ -251,6 +252,9 @@ pub fn service_commit<F: RepositoryFacts>(
         // The request reads the preparation's values and, when Git builds the commit, creates the shadow repository and runs
         //  Git in it; those stretches name themselves under this clock.
         clock.next("request");
+        // The finished shadow this attempt was handed, when the service drew one: the arm that answers the service decides
+        //  whether the service removes it, and every other way out of this attempt releases it beside the command.
+        let mut handed: Option<crate::shadow_drawn::HandedShadow> = None;
         let (sent, first_parent, typed): (CommitRequest, String, Option<String>) = the_request_of(RequestOf {
             amendment,
             embedded_in_use,
@@ -263,6 +267,8 @@ pub fn service_commit<F: RepositoryFacts>(
             reissued: reissued_line.as_ref(),
             id: id.as_str(),
             clock: &mut clock,
+            service: &address,
+            handed: &mut handed,
         })?;
         // What an amend carries into the commit a moved branch makes of it, kept once from the attempt that prepared it.
         if amended.is_none() && sent.amend {
@@ -293,6 +299,16 @@ pub fn service_commit<F: RepositoryFacts>(
         //  it as it ends. A request the service answered without landing it is released by the arm that answers it, beside this
         //  command, once that arm has read the change it captured from the tree's private index.
         ready.scratch.held_by_the_service(!the_service_never_took(&submitted));
+        // The drawn tree's removal follows the same rule, with one difference: a request the service answered as not landed
+        //  hands its trees back to this command, so the commit removes them itself once that answer's arm has read what it needs.
+        //  A request the service took, answered or not, leaves both trees to the service.
+        let handed_back_to_this_command: bool = matches!(submitted, Ok(Submitted::PrepareAgain { .. } | Submitted::Moved));
+        if let Some(held) = handed.as_mut()
+            && !handed_back_to_this_command
+            && !the_service_never_took(&submitted)
+        {
+            held.the_service_removes_it();
+        }
         // The service answered that this attempt did not land the commit: the rebuild below captures the change from this
         //  attempt's private index, so this is the instant a control holds to prove that index is still there to be read.
         if matches!(submitted, Ok(Submitted::PrepareAgain { .. } | Submitted::Moved)) {
@@ -385,7 +401,7 @@ pub fn service_commit<F: RepositoryFacts>(
             }
         }
     }
-    return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch: String::from("the branch"), times: timing.attempts })));
+    return Err(crate::commit_transaction::client_stop(ClientFailure::BranchKeepsChanging { branch: String::from("the branch"), times: timing.attempts }));
 }
 
 /// Service commit controls stay out of the release executable.

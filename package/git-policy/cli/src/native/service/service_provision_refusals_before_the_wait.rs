@@ -8,43 +8,53 @@
 //! and a start it asked the manager for once is asked again after a reload,
 //! so a case that can never come right spent two minutes before the command said
 //!  "The commit service did not start" and nothing about the cause.
-//! Each fact below is known before anything is waited for:
-//! the address the kernel must bind is longer than any address can be,
+//!  Each fact below is known before anything is waited for:
+//! a socket address this system can only name as a path is longer than any path address can be,
 //! and the manager's answer about the address it made says whether it is the one this command looks
 //!  for,
-//! because the unit names its address with `%t` and `%t` is the manager's runtime directory.
+//! because a socket unit names its address from the manager's own runtime directory (`%t`).
+//! A runtime directory too long for a path is served at an abstract name instead,
+//! so the first state is reachable only where this system has no abstract namespace
+//! (`service_address_of_a_worktree.rs`).
 //! Two addresses are the same when the file system walks them to one place,
 //! never by their text alone:
 //! a person may spell `XDG_RUNTIME_DIR` through a link or a `..` part,
 //! and the manager answers with its own spelling of the folder it made the socket in.
+//! An abstract name is one text and is compared as one.
 //! Every refusal names the input that has to change and every way to change it,
 //! and every check has a control that proves it lets a working arrangement through.
 //! A session bus with no user service manager behind it is the third such state,
 //! and its words live beside the mapping that chooses them (`service_provision_host_and_manager.rs`).
 
-use crate::service_instance::{LONGEST_SOCKET_PATH, longest_runtime_directory, socket_path, socket_unit_instance};
+use crate::service_address_of_a_worktree::{abstract_name_column, socket_address_of};
+use crate::service_instance::{LONGEST_SOCKET_PATH, longest_runtime_directory, socket_unit_instance};
 use crate::service_messages::ClientFailure;
 use crate::service_provision_host_and_manager::{Manager, ProvisionHost};
+use crate::service_server::{Bind, address_text};
 use crate::systemd_dbus::CallError;
+use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
 /// What:
-///  Refuses a runtime directory whose socket path is longer than one socket address can be.
+///  Refuses a socket address that cannot exist.
 /// Why:
-///   The address is the runtime directory,
-/// the folder of the sockets,
-/// the instance name and `.sock`,
-/// and the kernel refuses a name of `SOCKET_ADDRESS_BYTES` bytes or more when the manager binds it,
-/// which leaves the unit failed and nothing listening under any path this command could use.
+///   A runtime directory whose socket path does not fit one socket address is served at an abstract name
+/// (`service_address_of_a_worktree.rs`),
+/// so the path form is named here only where this system has no abstract namespace to fall back on.
+/// The kernel refuses such a name when the manager binds it,
+/// which leaves the unit failed and nothing listening under any path this command could use,
+/// so the command says why instead of waiting out a start that cannot come.
 /// The count is made here because the runtime directory is the only part a person can shorten,
 /// so the remedy names how long it may be.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// refuseAPathNoSocketAddressCanCarry(host) // throws when XDG_RUNTIME_DIR is too long
+/// refuseAPathNoSocketAddressCanCarry(host) // throws when only a path can be named and it is too long
 /// ```
 pub(crate) fn refuse_a_path_no_socket_address_can_carry(host: &ProvisionHost) -> Result<(), ClientFailure> {
-    let path: PathBuf = socket_path(host.runtime_dir.as_path(), host.instance.as_str());
+    let Bind::Path(path) = socket_address_of(host.runtime_dir.as_path(), host.instance.as_str()) else {
+        return Ok(());
+    };
     let length: usize = path.as_os_str().len();
     if length <= LONGEST_SOCKET_PATH {
         return Ok(());
@@ -76,16 +86,23 @@ pub(crate) fn refuse_a_path_no_socket_address_can_carry(host: &ProvisionHost) ->
 /// An address whose folder cannot be resolved stands in no folder that exists,
 /// so its text is all there is to compare there,
 /// and a different text stays a service out of reach.
+/// An abstract name is compared as the one text it is,
+/// which is what the manager answers for a socket unit that listens at one (`@` and the name,
+/// `service_address_of_a_worktree.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// namesOneSocket('/run/user/1000/monochromatic-git-policy-cli/3f9a.sock', '/var/run/user/1000/monochromatic-git-policy-cli/3f9a.sock') // true
+/// namesOneSocket('/run/user/1000/monochromatic-git-policy-cli/3f9a.sock', { path: '/var/run/user/1000/monochromatic-git-policy-cli/3f9a.sock' }) // true
 /// ```
-fn names_one_socket(one: &Path, other: &Path) -> bool {
-    if one == other {
+fn names_one_socket(one: &Path, other: &Bind) -> bool {
+    let Bind::Path(wanted) = other else {
+        let Bind::Abstract(name) = other else { return false };
+        return one.as_os_str().as_bytes() == abstract_name_column(name).as_slice();
+    };
+    if one == wanted {
         return true;
     }
-    return match (the_place_an_address_reaches(one), the_place_an_address_reaches(other)) {
+    return match (the_place_an_address_reaches(one), the_place_an_address_reaches(wanted)) {
         (Some(here), Some(there)) => here == there,
         _one_stands_in_no_folder => false,
     };
@@ -137,7 +154,7 @@ fn the_place_an_address_reaches(address: &Path) -> Option<PathBuf> {
 /// refuseAServiceThatListensElsewhere(host, manager) // throws with both addresses named
 /// ```
 pub(crate) fn refuse_a_service_that_listens_elsewhere(host: &ProvisionHost, manager: &mut dyn Manager) -> Result<(), ClientFailure> {
-    let looked_for: PathBuf = socket_path(host.runtime_dir.as_path(), host.instance.as_str());
+    let looked_for: Bind = socket_address_of(host.runtime_dir.as_path(), host.instance.as_str());
     let asked: Result<Option<Vec<String>>, CallError> = manager.listen(socket_unit_instance(host.instance.as_str()).as_str());
     let addresses: Vec<String> = match asked {
         Ok(Some(addresses)) => addresses,
@@ -147,7 +164,7 @@ pub(crate) fn refuse_a_service_that_listens_elsewhere(host: &ProvisionHost, mana
     // One of the addresses the manager made is the one this command waits at, which is the arrangement every healthy commit
     //  has; the walk is written out because the closure the linter refuses would capture `looked_for` for nothing.
     for address in &addresses {
-        if names_one_socket(Path::new(address.as_str()), looked_for.as_path()) {
+        if names_one_socket(Path::new(address.as_str()), &looked_for) {
             return Ok(());
         }
     }
@@ -155,7 +172,7 @@ pub(crate) fn refuse_a_service_that_listens_elsewhere(host: &ProvisionHost, mana
     let manager_runtime: PathBuf = runtime_directory_of_an_address(Path::new(made.as_str()));
     return Err(ClientFailure::ServiceElsewhere {
         made: made.clone(),
-        looked_for: looked_for.display().to_string(),
+        looked_for: address_text(&looked_for),
         manager_runtime: manager_runtime.display().to_string(),
         client_runtime: host.runtime_dir.display().to_string(),
     });

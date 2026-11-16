@@ -64,10 +64,11 @@ fn each_stretch_keeps_its_name_and_the_open_one_is_kept() {
     assert!(last(&parts).took >= Duration::from_millis(2), "{parts:?}");
 }
 
-/// A Git step that ran inside a stretch is taken out of it,
-/// and a stretch with no step keeps its whole span.
+/// A Git step that ran inside a stretch is taken out of it and kept under the
+/// stretch's own name, and a stretch with no step keeps its whole span and says
+/// it held no child.
 #[test]
-fn a_git_step_inside_a_stretch_is_taken_out_of_it() {
+fn a_git_step_inside_a_stretch_is_taken_out_of_it_and_named_beside_it() {
     let _held: MutexGuard<'static, ()> = exclusive();
     let mut clock: BuildPartClock = BuildPartClock::begin("client build");
     note_step("git commit", Instant::now(), Duration::from_millis(500));
@@ -79,18 +80,23 @@ fn a_git_step_inside_a_stretch_is_taken_out_of_it() {
     assert_eq!(lasts(parts.as_slice(), 2), vec!["client build", "commit read back"]);
     let named: &[PreparePart] = &parts[parts.len() - 2..];
     assert!(named[0].took < Duration::from_millis(1), "the step's half second is taken out: {:?}", named[0]);
+    assert!(named[0].children >= Duration::from_millis(2), "the child's time is clipped to the stretch and kept under it: {:?}", named[0]);
     assert!(named[1].took >= Duration::from_millis(2), "no step ran in this stretch: {:?}", named[1]);
+    assert_eq!(named[1].children, Duration::ZERO, "no child ran in this stretch: {:?}", named[1]);
 }
 
 /// A name marked more than once is added together and says how many stretches it is made of.
 #[test]
 fn a_name_marked_twice_adds_up_and_says_how_many_calls() {
     let _held: MutexGuard<'static, ()> = exclusive();
-    note_build_part("shadow links", Duration::from_millis(11));
-    note_build_part("client build", Duration::from_millis(13));
-    note_build_part("shadow links", Duration::from_millis(17));
+    note_build_part("shadow links", Duration::from_millis(11), Duration::from_millis(2));
+    note_build_part("client build", Duration::from_millis(13), Duration::ZERO);
+    note_build_part("shadow links", Duration::from_millis(17), Duration::from_millis(200));
     let (parts, _dropped) = drain_build_parts();
-    assert_eq!(build_parts_json(parts.as_slice()), String::from("{\"shadow links\":{\"ms\":28,\"calls\":2},\"client build\":{\"ms\":13,\"calls\":1}}"));
+    assert_eq!(
+        build_parts_json(parts.as_slice()),
+        String::from("{\"shadow links\":{\"ms\":28,\"calls\":2,\"childrenMs\":202},\"client build\":{\"ms\":13,\"calls\":1,\"childrenMs\":0}}")
+    );
 }
 
 /// The record carries at most `MAX_BUILD_PARTS` stretches and says how many it dropped.
@@ -99,7 +105,7 @@ fn the_list_stops_at_its_bound_and_counts_the_rest() {
     let _held: MutexGuard<'static, ()> = exclusive();
     let over: usize = MAX_BUILD_PARTS + 3;
     for at in 0..over {
-        note_build_part("shadow skeleton", Duration::from_millis(u64::try_from(at).expect("fits")));
+        note_build_part("shadow skeleton", Duration::from_millis(u64::try_from(at).expect("fits")), Duration::ZERO);
     }
     let (parts, dropped) = drain_build_parts();
     assert_eq!(parts.len(), MAX_BUILD_PARTS);
@@ -112,9 +118,9 @@ fn the_list_stops_at_its_bound_and_counts_the_rest() {
 #[test]
 fn a_name_with_delimiters_stays_one_member() {
     let _held: MutexGuard<'static, ()> = exclusive();
-    note_build_part("a\"b\\c\nd", Duration::from_millis(1));
+    note_build_part("a\"b\\c\nd", Duration::from_millis(1), Duration::ZERO);
     let (parts, _dropped) = drain_build_parts();
     let json: String = build_parts_json(parts.as_slice());
-    assert_eq!(json, String::from("{\"a\\\"b\\\\c\\nd\":{\"ms\":1,\"calls\":1}}"));
+    assert_eq!(json, String::from("{\"a\\\"b\\\\c\\nd\":{\"ms\":1,\"calls\":1,\"childrenMs\":0}}"));
     assert!(!json.contains('\n'));
 }
