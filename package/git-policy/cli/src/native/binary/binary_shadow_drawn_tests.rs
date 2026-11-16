@@ -1368,3 +1368,418 @@ fn every_entry_of_the_scratch_tree_can_go_before_the_first_capture_and_a_commit_
         }
     }
 }
+
+/// What one cell of the table holds:
+///  the state the repository is in,
+///  the form of the commit,
+///  and what the wrapper did and what real Git did for the same line in the same state.
+/// Why:
+///  The expectation a built commit is held to is what real Git builds for that command in that state,
+///  and a table of cells is the only way to see a cell where the wrapper and Git differ.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CellResult = { cell: string; wrapper: Outcome; git: Outcome }
+/// ```
+#[derive(Debug, PartialEq)]
+struct Outcome {
+    /// The status the command ended with.
+    exit: Option<i32>,
+    /// Whether `HEAD` is a commit the command made.
+    moved: bool,
+    /// The files of the landed commit.
+    files: Vec<String>,
+    /// The landed commit's parents.
+    parents: Vec<String>,
+    /// The bytes of the tracked file the state's work touches.
+    content: String,
+    /// Whether the merge, revert or cherry-pick the state began is still unfinished.
+    conclusion_open: bool,
+    /// Whether a refusal was the wrapper's own policy answering before any build
+    ///  (its findings are JSON with `core-finding`), rather than a commit it would not land.
+    policy_refusal: bool,
+    /// The last words the command printed, so a cell that differs says why.
+    words: String,
+}
+
+/// Runs real Git in a fixture and answers what it did,
+/// whether or not it succeeded.
+/// Why:
+///  A state that stops on a conflict ends with a nonzero status and is still the state the cell is about.
+fn git_may_fail<S: AsRef<std::ffi::OsStr>>(fixture: &Fixture, directory: &Path, arguments: &[S]) -> std::process::Output {
+    return crate::support_native_git_command::native_git_within(fixture, directory, arguments, crate::support_program_names_and_time_bound::NATIVE_GIT_BOUND_SECONDS);
+}
+
+/// Recursively copies a directory tree, so the oracle arm runs on the same state.
+/// Why:
+///  Two commands cannot run on one repository; the oracle's fixture is a copy of the wrapper's, taken after the state
+///  was made and the work staged.
+fn copy_tree(from: &Path, to: &Path) {
+    std::fs::create_dir_all(to).expect("the copy's directory");
+    for entry in std::fs::read_dir(from).expect("the directory listing").flatten() {
+        let target: PathBuf = to.join(entry.file_name());
+        let metadata: std::fs::Metadata = entry.metadata().expect("the entry's metadata");
+        if metadata.is_dir() {
+            copy_tree(entry.path().as_path(), target.as_path());
+        } else if metadata.file_type().is_symlink() {
+            let pointed: PathBuf = std::fs::read_link(entry.path()).expect("the link's target");
+            std::os::unix::fs::symlink(pointed, target).expect("the copied link");
+        } else {
+            std::fs::copy(entry.path(), target).expect("the copied file");
+        }
+    }
+}
+
+/// What a repository in one of the table's states looks like, made on a fixture that already has a base commit.
+/// Why:
+///  Each state is what Git does to a repository, and the table needs every one of them.
+fn prepare_state(name: &str, case: &Case) {
+    let repo: &Path = case.repo.as_path();
+    git(&case.fixture, repo, &["config", "commit.verbose", "false"]);
+    match name {
+        "plain" => {}
+        "merge" => {
+            git(&case.fixture, repo, &["checkout", "--quiet", "-b", "side"]);
+            std::fs::write(repo.join("side.txt"), b"side\n").expect("the side file");
+            git(&case.fixture, repo, &["add", "--", "side.txt"]);
+            git(&case.fixture, repo, &["commit", "--quiet", "--message=side"]);
+            git(&case.fixture, repo, &["checkout", "--quiet", "main"]);
+            std::fs::write(repo.join("main.txt"), b"main\n").expect("the main file");
+            git(&case.fixture, repo, &["add", "--", "main.txt"]);
+            git(&case.fixture, repo, &["commit", "--quiet", "--message=main"]);
+            let _stopped: std::process::Output = git_may_fail(&case.fixture, repo, &["merge", "--no-commit", "--no-ff", "side"]);
+        }
+        "revert" => {
+            std::fs::write(repo.join("a.txt"), b"second\n").expect("the second version");
+            git(&case.fixture, repo, &["commit", "--quiet", "--all", "--message=second"]);
+            std::fs::write(repo.join("a.txt"), b"third\n").expect("the third version");
+            git(&case.fixture, repo, &["commit", "--quiet", "--all", "--message=third"]);
+            // A revert that stops before committing, which is the state this cell is about.
+            let _stopped: std::process::Output = git_may_fail(&case.fixture, repo, &["revert", "--no-commit", "HEAD"]);
+        }
+        "cherry-pick" => {
+            git(&case.fixture, repo, &["checkout", "--quiet", "-b", "side"]);
+            std::fs::write(repo.join("a.txt"), b"side\n").expect("the side version");
+            git(&case.fixture, repo, &["commit", "--quiet", "--all", "--message=side"]);
+            git(&case.fixture, repo, &["checkout", "--quiet", "main"]);
+            std::fs::write(repo.join("a.txt"), b"main\n").expect("the main version");
+            git(&case.fixture, repo, &["commit", "--quiet", "--all", "--message=main"]);
+            // A cherry-pick that stops on the conflict, which is the state this cell is about.
+            let _conflicted: std::process::Output = git_may_fail(&case.fixture, repo, &["cherry-pick", "--no-commit", "side"]);
+        }
+        "rebase" => {
+            git(&case.fixture, repo, &["checkout", "--quiet", "-b", "side"]);
+            std::fs::write(repo.join("a.txt"), b"side\n").expect("the side version");
+            git(&case.fixture, repo, &["commit", "--quiet", "--all", "--message=side"]);
+            git(&case.fixture, repo, &["checkout", "--quiet", "main"]);
+            std::fs::write(repo.join("a.txt"), b"main\n").expect("the main version");
+            git(&case.fixture, repo, &["commit", "--quiet", "--all", "--message=main"]);
+            git(&case.fixture, repo, &["checkout", "--quiet", "side"]);
+            // A rebase step that stopped on the conflict.
+            let _conflicted: std::process::Output = git_may_fail(&case.fixture, repo, &["rebase", "main"]);
+        }
+        "detached" => {
+            git(&case.fixture, repo, &["checkout", "--quiet", "--detach", "HEAD"]);
+        }
+        "unborn" => {
+            git(&case.fixture, repo, &["checkout", "--quiet", "--orphan", "fresh"]);
+            let _emptied: std::process::Output = git_may_fail(&case.fixture, repo, &["rm", "--quiet", "--cached", "-r", "--force", "."]);
+        }
+        other => panic!("the table has no state {other}"),
+    }
+}
+
+/// What the commands of one cell are, for the state it runs in.
+/// Why:
+///  The forms are the ones the wrapper's reader knows, and each is given with and without `--allow-empty`.
+fn form_arguments(form: &str, allow_empty: bool) -> Vec<&'static str> {
+    let mut line: Vec<&'static str> = vec!["commit", "--quiet", "--message=cell"];
+    match form {
+        "no-paths" => {}
+        "paths" => line.extend(["--", "a.txt"]),
+        "include" => line.extend(["--include", "--", "a.txt"]),
+        "all" => line.push("--all"),
+        "amend" => line.push("--amend"),
+        other => panic!("the table has no form {other}"),
+    }
+    if allow_empty {
+        line.push("--allow-empty");
+    }
+    return line;
+}
+
+/// The text real Git gives for an argument list,
+/// or nothing when it refuses.
+/// Why:
+///  An unborn branch has no `HEAD` to name, and that is a state of the table, not a failure.
+fn git_text_or_empty<S: AsRef<std::ffi::OsStr>>(fixture: &Fixture, repo: &Path, arguments: &[S]) -> String {
+    let output: std::process::Output = git_may_fail(fixture, repo, arguments);
+    if !output.status.success() {
+        return String::new();
+    }
+    return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
+}
+
+/// What one command did, read from the repository it ran in.
+fn outcome_of(case: &Case, repo: &Path, code: Option<i32>, base: &str) -> Outcome {
+    return outcome_with_words(case, repo, code, base, "");
+}
+
+/// What one command did, with the words a refusal printed.
+fn outcome_with_words(case: &Case, repo: &Path, code: Option<i32>, base: &str, words: &str) -> Outcome {
+    let fixture: &Fixture = &case.fixture;
+    let head: String = git_text_or_empty(fixture, repo, &["rev-parse", "HEAD"]);
+    let moved: bool = head != base;
+    let files: Vec<String> = match moved {
+        true => git_text_or_empty(fixture, repo, &["ls-tree", "-r", "--name-only", "HEAD"])
+            .lines()
+            .map(str::trim)
+            .filter(|line| { return !line.is_empty(); })
+            .map(String::from)
+            .collect(),
+        false => Vec::new(),
+    };
+    let parents: Vec<String> = match moved {
+        true => git_text_or_empty(fixture, repo, &["rev-list", "--parents", "-n", "1", "HEAD"])
+            .split_whitespace()
+            .skip(1)
+            .map(String::from)
+            .collect(),
+        false => Vec::new(),
+    };
+    let content: String = std::fs::read_to_string(repo.join("a.txt")).unwrap_or_default();
+    let conclusion_open: bool = ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"]
+        .iter()
+        .any(|name| { return repo.join(".git").join(name).exists(); })
+        || repo.join(".git").join("rebase-merge").exists();
+    let policy_refusal: bool = !words.is_empty() && words.contains("\"core-finding\"");
+    let tail: String = words.lines().filter(|line| { return !line.trim().is_empty(); }).last().unwrap_or("").trim().to_string();
+    let tail: String = tail.chars().take(400).collect();
+    return Outcome { exit: code, moved, files, parents, content, conclusion_open, policy_refusal, words: tail };
+}
+
+/// What:
+///  Every state Git can be in when a commit is made, against every form of commit the wrapper's reader knows:
+///  the wrapper must end as real Git ends, land the tree and the parents real Git lands, and leave the same state
+///  unfinished.
+/// Why:
+///  The expectation a built commit is held to is what real Git builds for that command in that state
+///  (`service_native.rs`, `the_commit_that_was_asked_for`), never a shape the wrapper assumed.
+///  The thirteen of `main`'s own binary controls that a merge makes fail here are cells of this table.
+///  Real Git is the control arm: the same line, in a copy of the same state.
+#[test]
+fn a_table_of_commit_states_and_forms_matches_what_git_builds() {
+    let states: [&str; 7] = ["plain", "merge", "revert", "cherry-pick", "rebase", "detached", "unborn"];
+    let forms: [&str; 5] = ["no-paths", "paths", "include", "all", "amend"];
+    let mut rows: Vec<(String, String, Outcome, Outcome)> = Vec::new();
+    for state in states {
+        for form in forms {
+            for allow_empty in [false, true] {
+                let cell: String = format!("{state}:{form}{}", if allow_empty { "+allow-empty" } else { "" });
+                let case: Case = case(&format!("cell-{}-{}-{}", state, form, allow_empty));
+                prepare_state(state, &case);
+                // The work the cell commits: a tracked edit, and a staged addition beside it.
+                std::fs::write(case.repo.join("a.txt"), b"edited\n").expect("the tracked edit");
+                std::fs::write(case.repo.join("added.txt"), b"added\n").expect("the addition");
+                git(&case.fixture, case.repo.as_path(), &["add", "--", "added.txt"]);
+                let base: String = git_text_or_empty(&case.fixture, case.repo.as_path(), &["rev-parse", "HEAD"]);
+                // The oracle's copy of this exact state.
+                let oracle: PathBuf = case.fixture.root.join(format!("oracle-{state}-{form}-{allow_empty}"));
+                copy_tree(case.repo.as_path(), oracle.as_path());
+                let line: Vec<&str> = form_arguments(form, allow_empty);
+                let mut command: Command = wrapped_commit(&case.fixture, case.repo.as_path(), line.as_slice());
+                command.env("XDG_RUNTIME_DIR", &case.service.runtime);
+                command.env("GIT_EDITOR", "true");
+                let seen: Observed = observe(&mut command, b"");
+                let wrapped: Outcome = outcome_with_words(&case, case.repo.as_path(), seen.code, base.as_str(), stderr_of(&seen).as_str());
+                let oracle_git: std::process::Output = std::process::Command::new("/usr/bin/git")
+                    .args(line.as_slice())
+                    .env("GIT_EDITOR", "true")
+                    .env("PATH", "/usr/bin:/bin")
+                    .current_dir(oracle.as_path())
+                    .stdin(std::process::Stdio::null())
+                    .output()
+                    .expect("real Git runs");
+                let native: Outcome = outcome_with_words(
+                    &case,
+                    oracle.as_path(),
+                    oracle_git.status.code(),
+                    base.as_str(),
+                    String::from_utf8_lossy(oracle_git.stderr.as_slice()).as_ref(),
+                );
+                println!("cell={} wrapper={:?} git={:?}", cell, wrapped, native);
+                rows.push((cell, base.clone(), wrapped, native));
+                remove_settled(&case.fixture);
+            }
+        }
+    }
+    assert!(!rows.is_empty(), "the table has rows");
+    // What: The wrapper must end as Git ends: the commit Git makes is made with the tree and the parents Git gives it, and
+    //       where Git refuses, nothing lands.
+    // Why:  The expectation a built commit is held to is what real Git builds for that command in that state
+    //       (`service_native.rs`, `the_commit_that_was_asked_for`), never a shape the wrapper assumed.
+    //       Two kinds of cell are not a difference of outcome:
+    //       a cell where the wrapper's own policy refuses before any build (its findings are JSON with `core-finding`),
+    //       which is `main`'s answer too and is compared by the failing-name list rather than here;
+    //       and a commit that names paths while a merge is unfinished, which real Git refuses as a partial commit and the
+    //       wrapper makes as an ordinary commit, leaving the merge open
+    //       (`service_native.rs`, the conclusion state such a commit does not carry).
+    // What: The cells whose wrapper answer is a divergence that stands with its reason beside it.
+    // Why:  A cell not on this list must end as Git ends; a cell on it is one this branch knows about and says so,
+    //       rather than one the control cannot see.
+    const RECORDED: [(&str, &str); 4] = [
+        ("revert:paths", "a partial commit during a stopped revert: Git concludes the revert and commits, the wrapper refuses it; open"),
+        ("unborn:no-paths+allow-empty", "an empty commit on an unborn branch: Git commits the staged addition, the wrapper refuses it; open"),
+        ("unborn:paths", "a named path on an unborn branch: Git refuses the partial commit and the wrapper makes one; open"),
+        ("unborn:include", "`--include` on an unborn branch: Git refuses and the wrapper makes the commit; open"),
+    ];
+    let mut differed: Vec<String> = Vec::new();
+    let mut recorded: usize = 0;
+    let mut same: usize = 0;
+    let mut policy: usize = 0;
+    let mut deliberate: usize = 0;
+    let mut refused: usize = 0;
+    for (cell, base, wrapped, native) in &rows {
+        // What: A cell whose command the wrapper's own policy answered is recorded and not compared here.
+        // Why:  The commit-only policy refuses a pathless commit whose index differs from HEAD on `main` too,
+        //       and the failing-name list is what compares that answer between the two.
+        let words: String = wrapped.words.clone();
+        if wrapped.policy_refusal {
+            policy += 1;
+            println!("verdict=the wrapper's own policy answered cell={cell} wrapper_words={words}");
+            continue;
+        }
+        // What: A commit that names paths while a merge is unfinished is the one cell the wrapper answers differently on
+        //       purpose: real Git refuses it as a partial commit, and the wrapper makes an ordinary commit whose only
+        //       parent is the captured base, leaving the merge open (`service_native.rs`, the conclusion state such a
+        //       commit does not carry). That answer is the cell's expectation, and any other answer fails it.
+        if cell.starts_with("merge:paths") {
+            let as_intended: bool = wrapped.exit == Some(0)
+                && wrapped.moved
+                && wrapped.parents.len() == 1
+                && wrapped.parents.first() == Some(&base)
+                && wrapped.conclusion_open;
+            if as_intended {
+                deliberate += 1;
+                println!("verdict=the documented divergence cell={cell}");
+                continue;
+            }
+            differed.push(format!("{cell}: wrapper {wrapped:?} where the wrapper's own answer is an ordinary commit with the captured base alone and the merge still open"));
+            println!("verdict=differs cell={cell} wrapper_words={words}");
+            continue;
+        }
+        if RECORDED.iter().any(|(name, _reason)| { return name == cell; }) && wrapped != native {
+            recorded += 1;
+            println!("verdict=recorded cell={cell} wrapper_words={words}");
+            continue;
+        }
+        let verdict: &str = match (wrapped.exit, native.exit) {
+            (Some(0), Some(0)) if wrapped.moved == native.moved && wrapped.files == native.files && wrapped.parents == native.parents && wrapped.content == native.content && wrapped.conclusion_open == native.conclusion_open => {
+                same += 1;
+                "the same"
+            }
+            (Some(0), Some(0)) => {
+                differed.push(format!("{cell}: wrapper {wrapped:?} where Git {native:?}"));
+                "differs"
+            }
+            // Both refused, and nothing landed here: the status a wrapper reports is its own.
+            (Some(_), Some(_)) if !wrapped.moved && !native.moved && wrapped.files.is_empty() && native.files.is_empty() => {
+                refused += 1;
+                "both refused"
+            }
+            _ => {
+                differed.push(format!("{cell}: wrapper {wrapped:?} where Git {native:?}"));
+                "differs"
+            }
+        };
+        println!("verdict={verdict} cell={cell} wrapper_words={words}");
+    }
+    println!(
+        "table: {} cells, {same} the same, {policy} refused by the wrapper's own policy, {refused} refused by both, {deliberate} the documented divergence, {recorded} recorded with their reasons, {} differ",
+        rows.len(),
+        differed.len()
+    );
+    assert!(
+        differed.is_empty(),
+        "every cell ends as Git ends, apart from the wrapper's own policy and its one documented divergence:\n{}",
+        differed.join("\n")
+    );
+}
+
+/// What:
+///  A commit that names one path, whose private index goes at the point the recovery meets, lands that path's change
+///  alone, and leaves every other staged and unstaged piece of work exactly where it was.
+/// Why:
+///  The recovery rebuilt the private index from the policies' capture, which for a commit that names paths is the whole
+///  real index: the landed commit then carried work the command did not name
+///  (the tenth review's first finding: `a.txt`, `added.txt` and `unrelated.txt` where `a.txt` was named).
+///  What the person asked for is the named paths' change and nothing else, and their other staged and unstaged work stays
+///  staged or in the worktree, byte for byte.
+#[test]
+fn a_commit_that_names_paths_whose_index_goes_lands_those_paths_alone() {
+    let case: Case = case("named-paths-index-goes");
+    // The named path: tracked, edited in the worktree only.
+    std::fs::write(case.repo.join("a.txt"), b"base\nedited\n").expect("the named path's edit");
+    // Another tracked path, edited and not staged.
+    std::fs::write(case.repo.join("unstaged.txt"), b"one\n").expect("the other path");
+    git(&case.fixture, case.repo.as_path(), &["add", "--", "unstaged.txt"]);
+    git(&case.fixture, case.repo.as_path(), &["commit", "--quiet", "--message=other"]);
+    std::fs::write(case.repo.join("unstaged.txt"), b"one\nedited\n").expect("the unstaged edit");
+    // Another path, staged and not named by the commit.
+    std::fs::write(case.repo.join("added.txt"), b"added\n").expect("the staged addition");
+    git(&case.fixture, case.repo.as_path(), &["add", "--", "added.txt"]);
+    let staged_before: String = git_text_or_empty(&case.fixture, case.repo.as_path(), &["diff", "--cached", "--name-only"]);
+    let base: String = git_text_or_empty(&case.fixture, case.repo.as_path(), &["rev-parse", "HEAD"]);
+    arm_the_later_arrivals(case.markers.as_path(), "service-staged");
+    let mut command: Command = a_commit_built_by_git_paused_at(&case, "service-staged", &["commit", "--quiet", "--message=named", "--", "a.txt"]);
+    let markers: PathBuf = case.markers.clone();
+    let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
+    let reached: PathBuf = markers.join("service-staged-1.reached");
+    let began: Instant = Instant::now();
+    while !reached.exists() {
+        assert!(began.elapsed() < PATIENCE, "the wrapper reached the instant its content is staged");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let index: PathBuf = the_scratch_tree_of_the_commit(case.repo.as_path()).join("commit.index");
+    assert!(index.is_file(), "the private index is there before the loss");
+    std::fs::remove_file(index.as_path()).expect("the private index goes");
+    std::fs::write(markers.join("service-staged-1.release"), b"").expect("release the held commit");
+    let seen: Observed = waiting.join().expect("the commit");
+    let words: String = stderr_of(&seen);
+    assert_eq!(seen.code, Some(0), "the commit lands although its private index went: {words}");
+    let landed: Vec<String> = git_text_or_empty(&case.fixture, case.repo.as_path(), &["ls-tree", "-r", "--name-only", "HEAD"])
+        .lines()
+        .map(str::trim)
+        .filter(|line| { return !line.is_empty(); })
+        .map(String::from)
+        .collect();
+    assert_eq!(landed, vec![String::from("a.txt"), String::from("unstaged.txt")], "the landed commit carries the named path's change alone");
+    assert_eq!(
+        git_text_or_empty(&case.fixture, case.repo.as_path(), &["show", "HEAD:a.txt"]),
+        "base\nedited",
+        "with the named path's worktree bytes"
+    );
+    assert_eq!(
+        git_text_or_empty(&case.fixture, case.repo.as_path(), &["show", "HEAD:unstaged.txt"]),
+        "one",
+        "and the other path's committed bytes, not its unstaged edit"
+    );
+    assert_eq!(head_and_its_parents(&case), vec![base], "on the captured base");
+    // The other work is exactly where it was.
+    assert_eq!(
+        git_text_or_empty(&case.fixture, case.repo.as_path(), &["diff", "--cached", "--name-only"]),
+        staged_before,
+        "the other staged work is still staged"
+    );
+    assert_eq!(
+        std::fs::read(case.repo.join("unstaged.txt")).expect("the unstaged file"),
+        b"one\nedited\n",
+        "and the unstaged edit is still in the worktree"
+    );
+    assert_eq!(
+        std::fs::read(case.repo.join("added.txt")).expect("the staged file"),
+        b"added\n",
+        "and the staged addition's bytes are untouched"
+    );
+    remove_settled(&case.fixture);
+}
