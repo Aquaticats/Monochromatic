@@ -25,22 +25,23 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
 
 /// Imports the module under test.
-use crate::toolchain::store_path_holders::{OpaqueProcess, StoreHolders, held_reason, holders_of};
 use crate::toolchain::store_trim::{
     DEFAULT_SIZE_BOUND_BYTES, TrimBounds, TrimCandidate, TrimPlan, TrimRun, TrimStep, apply_trim, candidates_of,
     DEFAULT_AGE_FLOOR_SECONDS, TrimOutcome, finish_removals, format_age, has_unfinished_removal, parse_duration,
     parse_size, plan_trim, read_named_versions, settle_markers, unfinished_marker,
 };
-use crate::toolchain::context::{Context, Host};
-use crate::toolchain::fakes::FakeRunner;
-use crate::toolchain::fixtures::sample_scope_on_disk;
 use crate::toolchain::http::NoNetwork;
 use crate::toolchain::published_archive::is_finished;
-use crate::toolchain::scope::EnvMap;
-use crate::toolchain::store_trim::{finish_removals_with, trim_after_install_with};
-use crate::toolchain::store_trim::{MAX_AGE_FLOOR, MAX_WORK_LIMIT, format_span};
-use crate::toolchain::runner::Ceiling;
+use crate::toolchain::store_trim::{MAX_AGE_FLOOR, MAX_WORK_LIMIT, format_span, trim_after_install_with};
+use crate::toolchain::store_path_holders::OpaqueProcess;
+use crate::toolchain::store_trim::finish_removals_with;
 use crate::toolchain::store_versions::{TOMBSTONE_PREFIX, judged_of_tree, record_of, removal_markers, tombstone_of, write_judged};
+use crate::toolchain::context::{Context, Host};
+use crate::toolchain::fakes::{FakeHttp, FakeRunner};
+use crate::toolchain::fixtures::{sample_lock, sample_scope_on_disk};
+use crate::toolchain::runner::{Ceiling, ProcessRunner, RunOutcome, RunRequest, Runner};
+use crate::toolchain::scope::{EnvMap, Scope, global_scope};
+use crate::toolchain::store_path_holders::{StoreHolders, held_reason, holders_of};
 use crate::test_scratch::scratch;
 
 /// What the process table says about this fixture, without the machine's undescribed processes.
@@ -2407,14 +2408,6 @@ fn keeps_the_only_complete_archive_while_a_replacement_downloads() {
 }
 
 //endregion the ninth review: the names on disk, the locks read before recovery, and the archives in flight
-use crate::toolchain::context::{Context, Host};
-use crate::toolchain::fakes::{FakeHttp, FakeRunner};
-use crate::toolchain::fixtures::{sample_lock, sample_scope_on_disk};
-use crate::toolchain::runner::{Ceiling, ProcessRunner, RunOutcome, RunRequest, Runner};
-use crate::toolchain::scope::{EnvMap, Scope, global_scope};
-use crate::toolchain::store_path_holders::StoreHolders;
-use crate::toolchain::store_trim::trim_after_install_with;
-use crate::test_scratch::scratch;
 
 fn immediate_trim_env(env: &EnvMap) -> EnvMap {
     return env
@@ -2489,5 +2482,3 @@ fn reproduction_disappearing_current_lock_keeps_the_loaded_pin() {
         user_data.display()
     );
 }
-
-#[test]
