@@ -77,9 +77,13 @@ fn assert_banner_follows_git_line(fixture: &Fixture, stdout: &[u8]) {
 
 /// A Git that never answers ends the version query at its bound,
 ///  and the verdict names the query and the bound:
-/// `observe` lists the whole command line, which carries the bound (`1`) and the query (`--version`),
-/// and the directory it ran in.
-///  The script sleeps five seconds, past the bound of one,
+/// the shared wait says the bound ended the command (`binary_support_observation_bound.rs`,
+/// `Answer::refuse_a_second_ending`),
+/// lists the whole command line,
+///  which carries the bound (`1`) and the query (`--version`),
+/// and names the directory it ran in.
+///  The script sleeps five seconds,
+/// past the bound of one,
 /// so the control against a query without a bound fails with a verdict of its own instead of hanging.
 #[test]
 fn a_version_query_that_never_answers_ends_at_its_bound() {
@@ -94,9 +98,14 @@ fn a_version_query_that_never_answers_ends_at_its_bound() {
         Some(text) => text.clone(),
         None => String::from("<the verdict was not text>"),
     };
-    assert!(message.contains("the command hit its wall-clock bound"), "{message}");
+    // The wait that says the bound ended the command words that ending itself, so the verdict names the bound in
+    //  the wait's own sentence (`1s wall-clock bound`) rather than in a quoted argument list: the sentence that read
+    //  "the command hit its wall-clock bound" over `{:?}` of the arguments was the shared wait's before
+    //  `binary_support_observation_bound.rs` kept the bound and the ending itself. Both the wait of `main` before it
+    //  and the wait after it carry these three, which is what this control states.
+    assert!(message.contains("wall-clock bound"), "{message}");
     assert!(message.contains("--version"), "{message}");
-    assert!(message.contains("\"1\""), "{message}");
+    assert!(message.contains("1s wall-clock bound"), "{message}");
     remove(&fixture);
 }
 
