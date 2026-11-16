@@ -314,10 +314,14 @@ pub enum TheSyncsOfTheLastLandings {
 ///  The service is said to be leaving before the wait begins,
 /// so a batch already waiting for a place of that lane stops waiting for it and is synced now
 /// (`blocking_jobs_within_the_budget.rs`).
+///  The ceiling bounds this wait and not the process:
+/// a sync already inside the kernel is not ended by an exit,
+/// so a stalled device holds the process past the ceiling,
+/// and a push the exit cut off is taken up again when its claim's lease runs out, about 120 s later.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// leaving = true; leaveAnnounced.notifyOne(); return await drainTheSyncsWithin(ceiling) ? 'made' : 'leftToTheWriteBack';
+/// leaving = true; leaveAnnounced.notifyWaiters(); return await drainTheSyncsWithin(ceiling) ? 'made' : 'leftToTheWriteBack';
 /// ```
 pub fn drain_at_the_exit_within(ceiling: Duration) -> TheSyncsOfTheLastLandings {
     THE_SERVICE_IS_LEAVING.store(true, std::sync::atomic::Ordering::SeqCst);
