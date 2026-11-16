@@ -87,8 +87,8 @@ fn a_move_that_finds_a_take_in_flight_names_the_recovery_before_the_queue() {
     a_record_in(work_dir.as_path(), PENDING, id.as_str());
     a_record_in(work_dir.as_path(), RECOVERING, id.as_str());
     let said: String = words_for_a_move_that_found_nothing(work_dir.as_path(), id.as_str(), token.as_str());
-    assert!(said.contains(RECOVERING), "the recovery's directory is named: {said}");
-    assert!(!said.contains(&format!("{PENDING}/{id}")), "a record a recovery is moving is not reported as one the queue holds: {said}");
+    assert!(said.contains(&format!("{RECOVERING}/{id}")), "the recovery's own file is named: {said}");
+    assert!(!said.contains("left it queued as"), "a record a recovery is moving is not reported as one the queue already holds: {said}");
     remove(root.as_path());
 }
 
@@ -119,4 +119,70 @@ fn a_move_that_finds_the_claim_still_there_says_nothing_of_the_record_moved() {
     assert!(said.contains("nothing of the record moved here"), "the words say what happened: {said}");
     assert!(said.contains("when its lease runs out"), "the words say when its work is run again: {said}");
     remove(root.as_path());
+}
+
+/// What:
+///  A state directory made reachable by name but not listable,
+///  put back when this value ends.
+/// Why:
+///  The accident the words must not read as an absence is a directory the filesystem refuses,
+/// and the mode has to be given back however the control ends.
+struct Unlistable<'directory>(&'directory Path);
+
+impl Unlistable<'_> {
+    /// Take the read permission away, keeping search, or all of it for a single name probe.
+    fn of(directory: &Path, mode: u32) -> Unlistable<'_> {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(directory, std::fs::Permissions::from_mode(mode)).expect("the directory's mode");
+        return Unlistable(directory);
+    }
+}
+
+impl Drop for Unlistable<'_> {
+    /// Give the read permission back.
+    fn drop(&mut self) {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(self.0, std::fs::Permissions::from_mode(0o755)).expect("the directory can be listed again");
+    }
+}
+
+/// A `claimed` directory that could not be listed is said as that,
+/// with the error the filesystem gave and the permission to look at,
+/// and never as a record that is in none of its places:
+/// the claim is still there.
+#[test]
+fn a_move_that_finds_an_unlistable_claimed_directory_says_the_look_failed() {
+    let (root, work_dir, claimed) = a_claim("words-unlistable-claimed");
+    let claimed_directory: PathBuf = state_directory(work_dir.as_path(), CLAIMED);
+    let said: String;
+    {
+        let _unlistable: Unlistable<'_> = Unlistable::of(claimed_directory.as_path(), 0o111);
+        said = words_for_a_move_that_found_nothing(work_dir.as_path(), claimed.id.as_str(), generation_of(claimed.name.as_str()).as_str());
+    }
+    let still_there: bool = claimed_directory.join(claimed.name.as_str()).exists();
+    remove(root.as_path());
+    assert!(still_there, "the look removed the claim it could not read");
+    assert!(said.contains(CLAIMED) && said.contains("could not be read"), "the words name the directory and that it could not be read: {said}");
+    assert!(said.contains("Permission denied"), "the words keep the error the listing gave: {said}");
+    assert!(said.contains("could not be found out"), "the words say what could not be found out: {said}");
+    assert!(!said.contains("no file of"), "the claim was there, but the words said it is in no place: {said}");
+}
+
+/// A place of one record that could not be looked at is said as that,
+/// and never as the record being absent from it:
+/// `done` is there and refuses every look into it.
+#[test]
+fn a_move_that_finds_an_unreadable_done_says_the_look_failed() {
+    let (root, work_dir, id, token) = a_record_whose_move_found_nothing("words-unreadable-done");
+    a_record_in(work_dir.as_path(), DONE, id.as_str());
+    let done: PathBuf = state_directory(work_dir.as_path(), DONE);
+    let said: String;
+    {
+        let _unreadable: Unlistable<'_> = Unlistable::of(done.as_path(), 0o000);
+        said = words_for_a_move_that_found_nothing(work_dir.as_path(), id.as_str(), token.as_str());
+    }
+    remove(root.as_path());
+    assert!(said.contains(DONE) && said.contains("could not be looked at"), "the words name the state and that it could not be looked at: {said}");
+    assert!(said.contains("Permission denied"), "the words keep the error the look gave: {said}");
+    assert!(!said.contains("no file of"), "the record was there, but the words said it is in no place: {said}");
 }

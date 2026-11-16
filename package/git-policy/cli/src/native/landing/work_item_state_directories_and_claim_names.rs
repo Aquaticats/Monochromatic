@@ -156,24 +156,48 @@ pub(crate) fn new_generation() -> Result<String, String> {
     };
 }
 
-/// The names in a state directory with their modification times,
-/// oldest first.
-pub(crate) fn entries_oldest_first(work_dir: &Path, state: &str) -> Vec<(String, SystemTime)> {
+/// What:
+///  The names in a state directory with their modification times, oldest first,
+///  or the error that kept the directory from being listed.
+/// Why:
+///   A queue that is empty and a directory that could not be listed are two different answers,
+/// and a sentence that says a record is nowhere must not be written from the second:
+/// "could not tell" is never "none".
+/// The count of listings a control reads is made here, where the reading is,
+/// so the two faces of a listing count once per pass.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// entriesOldestFirstOrTheError(workDir, state) // Result<[name, modified][], Error>
+/// ```
+pub(crate) fn entries_oldest_first_or_the_error(work_dir: &Path, state: &str) -> std::io::Result<Vec<(String, SystemTime)>> {
     #[cfg(test)]
     count_listing();
     let mut found: Vec<(String, SystemTime)> = Vec::new();
-    if let Ok(listing) = std::fs::read_dir(state_directory(work_dir, state)) {
-        for entry in listing.flatten() {
-            // An entry whose time cannot be read counts as the oldest.
-            let modified: SystemTime = match entry.metadata() {
-                Ok(meta) => meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
-                Err(_unreadable) => SystemTime::UNIX_EPOCH,
-            };
-            found.push((entry.file_name().to_string_lossy().into_owned(), modified));
-        }
+    for entry in std::fs::read_dir(state_directory(work_dir, state))? {
+        // An entry the directory refused is a listing that failed, not one that holds fewer names.
+        let entry: std::fs::DirEntry = entry?;
+        // An entry whose time cannot be read counts as the oldest.
+        let modified: SystemTime = match entry.metadata() {
+            Ok(meta) => meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
+            Err(_unreadable) => SystemTime::UNIX_EPOCH,
+        };
+        found.push((entry.file_name().to_string_lossy().into_owned(), modified));
     }
     found.sort_by(oldest_first);
-    return found;
+    return Ok(found);
+}
+
+/// What:
+///  The names in a state directory with their modification times, oldest first,
+///  and nothing when the directory cannot be listed.
+/// Why:
+///  The callers that read a queue to work on it have nothing to do with a directory they cannot list,
+/// and each of them says nothing about it;
+/// a caller that *says* where a record is must take the error itself
+///  (`entries_oldest_first_or_the_error`).
+pub(crate) fn entries_oldest_first(work_dir: &Path, state: &str) -> Vec<(String, SystemTime)> {
+    return entries_oldest_first_or_the_error(work_dir, state).unwrap_or_default();
 }
 
 #[cfg(test)]

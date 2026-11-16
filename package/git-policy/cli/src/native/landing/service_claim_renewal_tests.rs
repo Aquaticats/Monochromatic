@@ -599,7 +599,8 @@ fn a_move_that_finds_a_take_in_flight_says_the_item_is_queued_again() {
     std::fs::rename(state_directory(work_dir.as_path(), CLAIMED).join(claimed.name.as_str()), recovering.join(claimed.name.as_str()))
         .expect("the claim is in recovering");
     let said: String = held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("a claim a recovery holds settles nothing");
-    assert_the_words_say(said.as_str(), &["taking", "queue it again", "recovering/", "run again"]);
+    assert_the_words_say(said.as_str(), &["taking the claim", "into recovering/", "two endings", "tries"]);
+    assert!(!said.contains("left it queued as"), "a record a recovery is moving is not reported as one the queue already holds: {said}");
     remove(root.as_path());
 }
 
@@ -650,7 +651,7 @@ fn a_move_that_finds_no_done_directory_says_the_record_stays_claimed() {
     remove(root.as_path());
 }
 
-/// A settlement that finds no file of the record anywhere says something other than the queue moved it,
+/// A settlement that finds no file of the record anywhere says that every place was looked at and the record is in none of them,
 /// which is the one way a record leaves every state directory:
 /// a removal nothing of the claim protocol made.
 #[test]
@@ -660,7 +661,7 @@ fn a_move_that_finds_no_file_of_the_record_says_something_else_removed_it() {
     held.hold(&claimed);
     std::fs::remove_file(state_directory(work_dir.as_path(), CLAIMED).join(claimed.name.as_str())).expect("the claim's file is removed");
     let said: String = held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("a claim whose file is gone settles nothing");
-    assert_the_words_say(said.as_str(), &["no file of", "something other than the queue", "no claim of it is left"]);
+    assert_the_words_say(said.as_str(), &["no file of", "something other than a move of this queue", "every one of those places was looked at"]);
     remove(root.as_path());
 }
 

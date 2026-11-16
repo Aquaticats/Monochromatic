@@ -17978,6 +17978,15 @@ run again by the instance that holds the record now,
 recorded as finished,
 recorded nowhere,
 or due again when the claim's lease runs out.
+A take in flight says both endings that recovery has,
+queued again or given up on,
+and that where the record stands afterwards is which of the two happened:
+a recovery gives a record up on its last try, so a settlement cannot promise a run.
+A directory or a state that could not be read is a third answer and is never told as an absence:
+the words name it,
+keep the error the filesystem gave,
+say that whether a record is there could not be found out,
+and name the permission to look at.
 The claim's absence alone is never read as a lease that ran out,
 which named the wrong cause for every record whose repository was removed under the service
 (2026-11-14 gate of this package: of 106 such lines, 100 were written by a service instance no older than its claim's lease,

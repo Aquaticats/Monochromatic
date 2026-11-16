@@ -55,7 +55,8 @@
 //! ```
 
 use crate::claim_time::ClaimTime;
-use crate::work_item::{CLAIMED, Claimed, entries_oldest_first, id_of_entry, names_claim, parse_claim_name, renew_claim, settle_named};
+use crate::work_item::{CLAIMED, Claimed, entries_oldest_first_or_the_error, id_of_entry, names_claim, parse_claim_name, renew_claim, settle_named};
+use crate::work_record_where_it_went::the_claim_directory_could_not_be_read;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::cell::RefCell;
@@ -182,23 +183,26 @@ struct ClaimNames {
 
 impl ClaimNames {
     /// What:
-    ///  Lists `claimed` once.
+    ///  Lists `claimed` once,
+    ///  or answers the error that kept it from being listed.
     /// Why:
     ///   The names are kept whole,
     /// so a claim is found by its id and generation alone,
     /// and the listing is the one
     ///  directory read the round makes.
+    /// A directory that could not be listed is an error and never an empty listing:
+    /// a settlement that read it as empty would say a claim is gone that nobody moved.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// new ClaimNames(Object.groupBy(await readdir(claimed), idOfEntry))
+    /// new ClaimNames(Object.groupBy(await readdirOrTheError(claimed), idOfEntry))
     /// ```
-    fn listed(work_dir: &Path) -> ClaimNames {
+    fn listed(work_dir: &Path) -> std::io::Result<ClaimNames> {
         let mut by_id: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
-        for (name, _modified) in entries_oldest_first(work_dir, CLAIMED) {
+        for (name, _modified) in entries_oldest_first_or_the_error(work_dir, CLAIMED)? {
             by_id.entry(id_of_entry(name.as_str()).to_owned()).or_default().push(name);
         }
-        return ClaimNames { by_id };
+        return Ok(ClaimNames { by_id });
     }
 
     /// What:
@@ -334,25 +338,27 @@ impl HeldClaims {
     /// a name it does not hold is looked for in a fresh listing,
     /// because a renewal may have renamed the file since.
     ///
+    /// A fresh listing that fails is the third answer and not a miss:
+    /// the error goes to the caller, which says that the look failed.
+    ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// for (let look = 0; look < LOOKS; look += 1) { const name = this.listed.nameOf(claim); if (name) return name; this.listed = ClaimNames.listed(workDir) }
+    /// for (let look = 0; look < LOOKS; look += 1) { const name = this.listed.nameOf(claim); if (name) return name; this.listed = await ClaimNames.listed(workDir) }
     /// ```
-    fn current_name(&self, work_dir: &Path, claim: &Claim) -> Option<String> {
+    fn current_name(&self, work_dir: &Path, claim: &Claim) -> std::io::Result<Option<String>> {
         for _ in 0..LOOKS {
             let found: Option<String> = match self.listed.borrow().as_ref() {
                 Some(names) => names.name_of(claim).map(str::to_owned),
                 None => None,
             };
             if let Some(name) = found {
-                return Some(name);
+                return Ok(Some(name));
             }
-            // Nothing in the listing: a renewal may have renamed the file since it was taken, so `claimed` is listed again;
-            //  a directory that cannot be listed holds nothing, and the next look tries again.
-            let fresh: ClaimNames = ClaimNames::listed(work_dir);
+            // Nothing in the listing: a renewal may have renamed the file since it was taken, so `claimed` is listed again.
+            let fresh: ClaimNames = ClaimNames::listed(work_dir)?;
             *self.listed.borrow_mut() = Some(fresh);
         }
-        return None;
+        return Ok(None);
     }
 
     /// What:
@@ -372,7 +378,16 @@ impl HeldClaims {
     /// ```ts
     /// held.has(id) && !held.lost(id) && currentName(workDir, claim) !== undefined
     /// ```
-    pub fn is_held_on_disk(&self, work_dir: &Path, id: &str) -> bool {
+    ///  A directory that could not be listed is not a claim that is gone:
+    /// this face answers what was found out,
+    /// and the drain says so instead of naming a takeover.
+    /// `is_held_on_disk` keeps the plain answer for a caller that cannot say a look failed.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// held.has(id) && !held.lost(id) && currentName(workDir, claim).ok()?.value !== undefined
+    /// ```
+    pub fn is_held_on_disk_or_the_error(&self, work_dir: &Path, id: &str) -> Result<bool, String> {
         // The claim is cloned out of the list, so the look at the directory happens with no lock held.
         let found: Option<Arc<Claim>> = {
             let claims = self.claims.borrow();
@@ -385,15 +400,30 @@ impl HeldClaims {
             }
             found
         };
-        let Some(claim) = found else { return false };
+        let Some(claim) = found else { return Ok(false) };
         if claim.lost.load(Ordering::SeqCst) {
-            return false;
+            return Ok(false);
         }
-        if self.current_name(work_dir, claim.as_ref()).is_none() {
-            claim.lost.store(true, Ordering::SeqCst);
-            return false;
-        }
-        return true;
+        return match self.current_name(work_dir, claim.as_ref()) {
+            Ok(Some(_name)) => Ok(true),
+            Ok(None) => {
+                claim.lost.store(true, Ordering::SeqCst);
+                Ok(false)
+            }
+            // The look failed, so nothing is known about the claim: it is neither taken over nor let go.
+            Err(error) => Err(the_claim_directory_could_not_be_read(&crate::work_item::state_directory(work_dir, CLAIMED), id, &error)),
+        };
+    }
+
+    /// The same question with two answers,
+    /// for a caller that has no way to say that the look failed.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// held.has(id) && !held.lost(id) && currentName(workDir, claim) !== undefined
+    /// ```
+    pub fn is_held_on_disk(&self, work_dir: &Path, id: &str) -> bool {
+        return self.is_held_on_disk_or_the_error(work_dir, id).unwrap_or(false);
     }
 
     /// What:
@@ -414,11 +444,13 @@ impl HeldClaims {
     /// read from the record's own directories (`work_record_where_it_went.rs`):
     /// another instance's claim,
     /// the item queued again,
-    /// a take in flight,
+    /// a take in flight and the two endings it can have,
     /// a record given up on,
     /// or a work directory that went with a repository removed under the service.
     /// The claim's absence alone says none of those,
     /// so it is never read as a lease that ran out.
+    ///  A listing that failed says only that nothing could be found out about the claim,
+    /// and never that the claim was absent.
     pub fn settle(&self, work_dir: &Path, id: &str, state: &str) -> Result<(), String> {
         let claim: Arc<Claim> = {
             let mut claims = self.claims.borrow_mut();
@@ -439,8 +471,16 @@ impl HeldClaims {
             return Err(format!("{id} was taken over by another instance"));
         }
         let mut last: String = String::new();
+        let mut unread: Option<std::io::Error> = None;
         for _ in 0..LOOKS {
-            let Some(name) = self.current_name(work_dir, &claim) else { break };
+            let found: Option<String> = match self.current_name(work_dir, &claim) {
+                Ok(found) => found,
+                Err(error) => {
+                    unread = Some(error);
+                    break;
+                }
+            };
+            let Some(name) = found else { break };
             match settle_named(work_dir, name.as_str(), state) {
                 Ok(()) => return Ok(()),
                 Err(reason) => {
@@ -450,7 +490,13 @@ impl HeldClaims {
                 }
             }
         }
-        let reason: String = if last.is_empty() { format!("moving {id} to {state} failed: the claim is not in {CLAIMED}") } else { last };
+        // A move that failed and then a listing that failed say nothing about the claim being absent,
+        // so the move is named without that clause and the words below say what was found out.
+        let reason: String = match (last.is_empty(), unread.is_some()) {
+            (true, true) => format!("moving {id} to {state} failed"),
+            (true, false) => format!("moving {id} to {state} failed: the claim is not in {CLAIMED}"),
+            (false, _) => last,
+        };
         let where_it_went: String = crate::work_record_where_it_went::words_for_a_move_that_found_nothing(work_dir, id, claim.token.as_str());
         return Err(format!("{reason}; {where_it_went}"));
     }

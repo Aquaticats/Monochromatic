@@ -334,19 +334,25 @@ pub(crate) fn settle_all(work_dir: &Path, held: &HeldClaims, claimed: &[Claimed]
 ///  do it twice.
 /// The claim is forgotten and the loss said,
 /// and nothing else is done for it.
+///  A claim whose directory could not be listed is neither of those:
+/// nothing was found out about it,
+/// so its work is not run here,
+/// the claim is kept (nothing marks it taken over),
+///  and the words say that the look failed and what its error was.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// claimed.filter((c) => held.isHeld(c.id))
+/// for (const item of claimed) { const answer = held.isHeldOnDiskOrTheError(item.id); if (answer.ok) answer.value ? mine.push(item) : lost.push(item); else unread.push([item, answer.error]) }
 /// ```
 pub(crate) fn still_held(held: &HeldClaims, work_dir: &Path, claimed: Vec<Claimed>) -> Vec<Claimed> {
     let mut mine: Vec<Claimed> = Vec::new();
     let mut lost: Vec<Claimed> = Vec::new();
+    let mut unread: Vec<(Claimed, String)> = Vec::new();
     for item in claimed {
-        if held.is_held_on_disk(work_dir, item.id.as_str()) {
-            mine.push(item);
-        } else {
-            lost.push(item);
+        match held.is_held_on_disk_or_the_error(work_dir, item.id.as_str()) {
+            Ok(true) => mine.push(item),
+            Ok(false) => lost.push(item),
+            Err(said) => unread.push((item, said)),
         }
     }
     for item in lost {
@@ -354,6 +360,9 @@ pub(crate) fn still_held(held: &HeldClaims, work_dir: &Path, claimed: Vec<Claime
             item.id
         );
         held.release(item.id.as_str());
+    }
+    for (item, said) in unread {
+        crate::service_warn!("{said}, so {} is not run here and its claim is kept for the next look", item.id);
     }
     return mine;
 }
