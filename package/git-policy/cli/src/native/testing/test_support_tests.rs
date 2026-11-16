@@ -496,3 +496,40 @@ fn the_folder_a_runtime_directory_stands_in_goes_when_its_test_thread_ends() {
         assert!(!folder.exists(), "{} was left behind in a place this machine shares", folder.display());
     }
 }
+
+/// What:
+///  A cleanup entry whose folder another run has since replaced leaves that folder alone.
+/// Why:
+///   A folder a control makes is named for a process number or a token,
+/// and both come round:
+/// about 549 processes start a second on this machine,
+/// so the folder standing at a path a thread made can be another run's,
+///  and a cleanup that removed by the path alone would delete another run's folder,
+/// and the files, sockets and links in it,
+///  in the middle of that run.
+/// The whole risk was open by reading before this control:
+/// the thread's list held a path,
+/// and nothing asked whose entry stood there when the thread ended.
+#[test]
+fn a_cleanup_entry_leaves_a_folder_another_run_made_at_the_same_name() {
+    let (sender, receiver) = std::sync::mpsc::channel::<PathBuf>();
+    std::thread::spawn(move || {
+        let folder: PathBuf = runtime_directory_parent("zh", usize::MAX);
+        // Another run's folder takes the very name this thread made, which a rename does with the identity of the folder
+        //  it moves: the one standing there afterwards is never the one this thread made.
+        let another: PathBuf = folder.parent().expect("a folder stands in a folder").join("zh-another-run");
+        let _stale = std::fs::remove_dir_all(another.as_path());
+        std::fs::create_dir(another.as_path()).expect("another run's folder");
+        std::fs::rename(another.as_path(), folder.as_path()).expect("another run's folder takes the name");
+        sender.send(folder).expect("the folder another run made");
+    })
+    .join()
+    .expect("the thread ends");
+    let taken: PathBuf = receiver.recv().expect("the folder another run made");
+    assert!(
+        taken.is_dir(),
+        "{} was removed although another run made the folder standing there",
+        taken.display()
+    );
+    std::fs::remove_dir(taken.as_path()).expect("the folder this control made for another run");
+}

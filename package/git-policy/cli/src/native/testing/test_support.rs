@@ -15,6 +15,10 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
+/// The device and inode an entry had when a control made it,
+/// and what stands at that path now.
+use crate::testing::folder_identity::{self, FolderIdentity, FolderStanding};
+
 /// The real Git 2.56.0 executable installed in the verification image.
 pub(crate) const REAL_GIT: &str = "/usr/bin/git";
 
@@ -215,11 +219,33 @@ pub(crate) fn settle_fixture(root: &Path, keep: bool) {
     }
 }
 
+/// What:
+///  One entry a test thread made:
+/// the path,
+/// and the identity that path had when the thread took it.
+/// Why:
+///   A fixture root and a runtime directory are both named for a process number,
+/// and a process number comes round:
+///  about 549 processes start a second on this machine,
+/// so a folder this thread made and a folder another run made can carry one name.
+///  The identity is what tells the two apart, so the cleanup removes its own folder and never the other run's.
+/// The identity is nothing where nothing stood at the path when it was taken,
+///  which no caller here does:
+/// every one of them makes its entry first.
+struct TrackedRoot {
+    /// The path this thread made.
+    path: PathBuf,
+    /// The device and the inode it had then,
+    /// or nothing where nothing stood there.
+    identity: Option<FolderIdentity>,
+}
+
 /// The fixtures one test thread created,
 /// removed when the thread ends however the test ended.
 struct ThreadFixtures {
-    /// Roots to remove.
-    roots: std::cell::RefCell<Vec<PathBuf>>,
+    /// Roots to remove,
+    /// each with the identity it had when this thread made it.
+    roots: std::cell::RefCell<Vec<TrackedRoot>>,
     /// Process groups of the helper processes the thread started with `spawn_owned`,
     /// killed when the thread ends.
     groups: std::cell::RefCell<Vec<libc::pid_t>>,
@@ -235,9 +261,32 @@ impl Drop for ThreadFixtures {
             unsafe { libc::killpg(*group, libc::SIGKILL) };
         }
         let keep: bool = std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some();
-        for root in self.roots.borrow().iter() {
-            end_processes_working_in(root.as_path());
-            settle_fixture(root.as_path(), keep);
+        for tracked in self.roots.borrow().iter() {
+            let rooted: &Path = tracked.path.as_path();
+            let standing: Option<FolderStanding> = tracked.identity.map(|identity| { return identity.standing(rooted); });
+            match standing {
+                // The folder another run made at this name is that run's, so nothing here touches it.
+                Some(FolderStanding::AnotherEntryNow) => {
+                    eprintln!(
+                        "test support: {} is another run's folder now, so it is left as it is; this thread made a folder of that name and it is gone",
+                        rooted.display()
+                    );
+                }
+                // Nothing stood there when this thread took it, so nothing at that path is provably this thread's.
+                None => {
+                    eprintln!("test support: nothing stood at {} when this thread took it, so it is left as it is", rooted.display());
+                }
+                Some(FolderStanding::StillTheOne | FolderStanding::Gone) => {
+                    if keep {
+                        eprintln!(
+                            "test support: {KEEP_FIXTURES_VARIABLE} is set, so {} is kept where it is until a person removes it",
+                            rooted.display()
+                        );
+                    }
+                    end_processes_working_in(rooted);
+                    settle_fixture(rooted, keep);
+                }
+            }
         }
     }
 }
@@ -307,7 +356,7 @@ pub(crate) fn fixture_with_prefix(prefix: &str, name: &str) -> PathBuf {
     std::fs::create_dir(&root).expect("fresh fixture");
     // Canonical form so comparisons with Git's canonical output are exact.
     let canonical: PathBuf = std::fs::canonicalize(&root).expect("canonical fixture");
-    THREAD_FIXTURES.with(|fixtures| { fixtures.roots.borrow_mut().push(canonical.clone()); });
+    take_for_this_thread(canonical.as_path());
     return canonical;
 }
 
@@ -329,7 +378,18 @@ pub(crate) fn fixture(name: &str) -> PathBuf {
 /// trackForThisThread(runtimeDirectory) // removed with the thread's fixtures
 /// ```
 pub(crate) fn track_for_this_thread(root: &Path) {
-    THREAD_FIXTURES.with(|fixtures| { fixtures.roots.borrow_mut().push(root.to_path_buf()); });
+    take_for_this_thread(root);
+}
+
+/// What:
+///  Put `root` in this thread's cleanup together with the identity it has now.
+/// Why:
+///   The identity is read once, when the thread makes the entry,
+/// so a cleanup at the thread's end can ask whether the entry at that path is still its own.
+fn take_for_this_thread(root: &Path) {
+    let identity: Option<FolderIdentity> = folder_identity::identity_of(root);
+    let tracked: TrackedRoot = TrackedRoot { path: root.to_path_buf(), identity };
+    THREAD_FIXTURES.with(|fixtures| { fixtures.roots.borrow_mut().push(tracked); });
 }
 
 /// The folder chooser and the runtime directory built to a length inside it,

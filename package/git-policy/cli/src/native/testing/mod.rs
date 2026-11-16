@@ -22,6 +22,12 @@ pub(crate) mod smart_http_support;
 #[cfg(test)]
 pub(crate) mod run_progress;
 
+/// The device and inode an entry had when a control made it,
+/// and what stands at that path now;
+///  never part of the release executable.
+#[cfg(test)]
+pub(crate) mod folder_identity;
+
 /// Disposable fixtures shared by unit tests;
 ///  never part of the release executable.
 #[cfg(test)]

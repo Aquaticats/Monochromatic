@@ -407,22 +407,29 @@ const SERVICE_ENVIRONMENT_PATIENCE: Duration = Duration::from_secs(60);
 ///  `give_service_environment` at the service lock,
 /// 3 of 3 runs of the two-worktree LFS control when it passed an environment).
 ///  The threads are the two worktrees' commits of that control.
+///  The fixture is shared rather than leaked:
+/// a leaked fixture is a folder no control removes,
+/// and the control needs the two threads alive only until each has sent.
 #[test]
 fn two_threads_that_give_the_service_a_variable_and_start_it_do_not_wait_for_each_other_for_ever() {
-    let fixture: Fixture = fixture("service-environment-order");
+    let fixture: std::sync::Arc<Fixture> = std::sync::Arc::new(fixture("service-environment-order"));
     let repo: PathBuf = repository(&fixture, std::ffi::OsStr::new("repo"));
     let (sender, receiver) = std::sync::mpsc::channel::<()>();
-    let fixture_ref: &'static Fixture = Box::leak(Box::new(fixture));
+    let mut threads: Vec<std::thread::JoinHandle<()>> = Vec::new();
     for _ in 0..2 {
         let done = sender.clone();
-        std::thread::spawn(move || {
-            give_service_environment(fixture_ref, "CLI_GIT_WAIT_NOTICE_SECONDS", "1");
-            let _runtime = service_runtime(fixture_ref);
+        let shared: std::sync::Arc<Fixture> = std::sync::Arc::clone(&fixture);
+        threads.push(std::thread::spawn(move || {
+            give_service_environment(&shared, "CLI_GIT_WAIT_NOTICE_SECONDS", "1");
+            let _runtime = service_runtime(&shared);
             let _sent = done.send(());
-        });
+        }));
     }
     for _ in 0..2 {
         receiver.recv_timeout(SERVICE_ENVIRONMENT_PATIENCE).expect("the thread ended: the service's two locks are taken in one order");
+    }
+    for thread in threads {
+        thread.join().expect("the thread that gave a variable and started the service ended");
     }
     assert!(repo.exists());
 }

@@ -5,7 +5,9 @@
 //!  A socket path holds 107 bytes,
 //! so a runtime directory of a fixed length leaves whatever is past its folder for its own name,
 //! and that room depends on the account and on the process;
-//! the folder is chosen from the places this account offers and owned by the test thread that made it.
+//! the folder is chosen from the places this account offers and owned by the test thread that made it,
+//! and the removal is held to the device and inode the thread made it with rather than to its name,
+//! so a folder another run made at the same name is left as it is.
 //! It moved out of `test_support.rs` when that file passed the code-line limit.
 
 /// The folder and runtime directory types.
@@ -113,8 +115,17 @@ fn this_thread_made(folder: &Path) -> bool {
 /// Why:
 ///   The folder is the one owner of everything the helper puts in it,
 /// so the runtime directories and their own files and links go when the thread ends,
-/// whether its test passed,
-/// failed or was killed.
+/// whether its test passed or failed.
+///  A test process that is killed runs no cleanup at all,
+/// so its folder stays where it is,
+/// and nothing removes it later:
+/// a person does,
+/// or the sweep the owner runs over folders older than a day.
+///  The token is six hexadecimal digits,
+/// so two runs draw one token in about one try in sixteen million,
+/// and the folder a thread removes is held to the device and inode it had when the thread made it:
+/// a folder another run made at the same name is that run's and is left as it is
+/// (`folder_identity`).
 fn this_thread_made_folder(folder: &Path) {
     THREAD_FOLDERS.with(|folders| { folders.borrow_mut().made.push(folder.to_path_buf()); });
     track_for_this_thread(folder);
@@ -241,6 +252,7 @@ pub(crate) fn runtime_directory_under(parent: &Path, length: usize, tag: &str) -
     let runtime: PathBuf = parent.join(name);
     std::fs::create_dir_all(&runtime).expect("the runtime directory");
     assert_eq!(runtime.as_os_str().len(), length, "the directory is exactly as long as the control asks");
+    // The folder above is the owner of this one, so it goes with the folder the thread removes.
     track_for_this_thread(runtime.as_path());
     return runtime;
 }

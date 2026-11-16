@@ -173,19 +173,18 @@ fn a_root_commit_and_a_detached_head_are_worded_as_git_words_them() {
     remove_settled(&fixture);
 }
 
-/// A service process that is stopped,
-/// with its runtime directory removed,
-/// when the control ends.
+/// A service process that is stopped when the control ends.
+/// The runtime directory it listens in is the making test thread's,
+/// which removes it when it ends.
 pub(super) struct Held {
     pub(super) child: Child,
-    runtime: PathBuf,
 }
 
 impl Drop for Held {
     fn drop(&mut self) {
         let _killed = self.child.kill();
         let _waited = self.child.wait();
-        let _removed = std::fs::remove_dir_all(&self.runtime);
+        // The runtime folder is the making test thread's: that thread removes it when it ends.
     }
 }
 
@@ -215,7 +214,7 @@ pub(super) fn service_with_git(fixture: &Fixture, name: &str, git_dir: &Path, gi
         .stderr(Stdio::inherit())
         .spawn()
         .expect("the service starts");
-    let held: Held = Held { child, runtime };
+    let held: Held = Held { child };
     let began: Instant = Instant::now();
     while std::os::unix::net::UnixStream::connect(&socket).is_err() {
         assert!(began.elapsed() < PATIENCE, "the service never listened");

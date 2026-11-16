@@ -30,42 +30,23 @@ pub(super) fn query(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Strin
 /// A socket path must fit in a few dozen characters,
 /// which the
 ///  fixture tree's depth does not allow,
-/// so it lives in the short agent scratch directory.
+/// so it lives in the short agent scratch directory,
+/// made and owned by this test thread
+///  (`support_runtime_folders`).
 pub(super) fn runtime_for(name: &str) -> PathBuf {
-    let scratch: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join("temp/agent");
-    return scratch.join(format!("rn-{}-{}", std::process::id(), runtime_number(name)));
-}
-
-/// The names given to `runtime_for` so far in this process,
-/// in the order they were first given.
-///  A mutex guards the list because tests of one process may name runtimes from several threads;
-/// a test-only list,
-/// so no
-///  production code waits on it.
-static RUNTIME_NAMES: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
-
-/// A small number for a runtime name:
-///  the socket path is the runtime directory,
-/// the program's folder name and a 32-digit instance name,
-/// and the whole must
-///  fit in a socket address (107 bytes),
-/// so the directory name is a number and not the test's name.
-fn runtime_number(name: &str) -> usize {
-    let mut names = RUNTIME_NAMES.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    if let Some(position) = names.iter().position(|known| { return known == name; }) {
-        return position;
-    }
-    names.push(name.to_owned());
-    return names.len() - 1;
+    return crate::support_runtime_folders::runtime_folder_for(name);
 }
 
 /// The services under test,
 /// one per worktree as in production,
-/// stopped (and their runtime directory removed) when they go out
-///  of scope.
+/// stopped when they go out of scope.
+/// The runtime directory they listen in is not this handle's:
+///  the test thread that named it made it,
+/// and that thread removes it when it ends
+///  (`support_runtime_folders`),
+/// so a handle that ends while another one still serves the same folder cannot take it away.
 pub(super) struct Running {
     children: Vec<Child>,
-    runtime: PathBuf,
 }
 
 /// Methods over running services.
@@ -104,7 +85,6 @@ impl Running {
         }
         self.children.clear();
     }
-
     /// Waits for the first service to exit by itself for at most `limit`;
     /// nothing when it is still running then.
     pub(super) fn exited_within(&mut self, limit: Duration) -> Option<std::process::ExitStatus> {
@@ -128,7 +108,6 @@ impl Drop for Running {
             let _killed = child.kill();
             let _waited = child.wait();
         }
-        let _removed = std::fs::remove_dir_all(&self.runtime);
     }
 }
 
@@ -146,7 +125,7 @@ pub(super) fn start_in(root: &Path, runtime: &Path) -> Running {
 ///  service of another release where the manager would have left one from before an upgrade.
 pub(super) fn start_in_release(root: &Path, runtime: &Path, release: Option<&str>) -> Running {
     let git_dirs: Vec<PathBuf> = super::support::worktree_git_dirs(root, 4);
-    let mut running: Running = Running { children: Vec::new(), runtime: runtime.to_path_buf() };
+    let mut running: Running = Running { children: Vec::new() };
     serve_into(&mut running, root, runtime, git_dirs.as_slice(), release);
     return running;
 }
@@ -191,11 +170,11 @@ fn serve_into(running: &mut Running, root: &Path, runtime: &Path, git_dirs: &[Pa
 }
 
 /// Starts the service of one worktree made after the others were,
-/// in the runtime directory another handle owns:
-/// the handle
-///  returned stops this service and leaves the runtime directory to its owner.
+/// in the runtime directory another handle and the making test thread own:
+/// the handle returned stops this service,
+/// and the test thread that named the runtime directory removes it when it ends.
 pub(super) fn start_worktree(root: &Path, runtime: &Path, repo: &Path) -> Running {
-    let mut running: Running = Running { children: Vec::new(), runtime: PathBuf::new() };
+    let mut running: Running = Running { children: Vec::new() };
     serve_into(&mut running, root, runtime, &[repo.join(".git")], None);
     return running;
 }

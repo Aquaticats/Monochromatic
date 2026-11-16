@@ -53,6 +53,18 @@ mod support_fixture_service;
 #[path = "binary_support_socket_folders.rs"]
 mod support_socket_folders;
 
+/// The runtime directories the commit-service controls listen in:
+/// who makes one, who names it, and who removes it.
+#[path = "binary_support_runtime_folders.rs"]
+mod support_runtime_folders;
+
+/// The runtime folders themselves:
+/// they go when the thread that named them ends,
+/// a folder another run made is left as it is,
+/// and one a service still answers in waits for that service.
+#[path = "binary_runtime_folder_tests.rs"]
+mod runtime_folder_guard;
+
 /// How a fixture tells that its service is at work and that it is ready.
 #[path = "binary_support_fixture_service_readiness.rs"]
 mod support_fixture_service_readiness;
