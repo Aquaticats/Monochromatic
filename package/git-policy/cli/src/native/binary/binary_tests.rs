@@ -237,6 +237,11 @@ mod discard_option_axis;
 #[path = "binary_discard_submodule_axis_tests.rs"]
 mod discard_submodule_axis;
 
+/// Every kind of difference Git reports for a path (bytes, the executable bit, the type),
+/// hidden by each mark and not hidden, against every guarded form that writes it.
+#[path = "binary_discard_difference_axis_tests.rs"]
+mod discard_difference_axis;
+
 /// The remote settings every worktree of a repository shares:
 /// refused from a linked worktree,
 /// unchanged in the main checkout,

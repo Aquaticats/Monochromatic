@@ -52,6 +52,12 @@ mod blocking_code_off_the_runtime_tests;
 #[path = "a_storage_step_of_the_guard_is_bounded_tests.rs"]
 mod a_storage_step_of_the_guard_is_bounded_tests;
 
+/// The scan that keeps every argument the guard hands to Git in its own bytes,
+///  because a lossy conversion is another name for the same path or revision.
+#[cfg(test)]
+#[path = "a_query_argument_keeps_its_bytes_tests.rs"]
+mod a_query_argument_keeps_its_bytes_tests;
+
 /// The structural check that the review's network client is reachable only from the service run;
 /// never in the release build.
 #[cfg(test)]
