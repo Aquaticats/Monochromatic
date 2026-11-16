@@ -157,6 +157,11 @@ fn the_wake_message_carries_the_key_to_the_service() {
             let _written = writeln!(stream, "{welcome}");
             let mut line: String = String::new();
             let _read = std::io::BufReader::new(&stream).read_line(&mut line);
+            // What: A service of this release says it took the work line, which is the confirmation the client waits for.
+            // Why:  A stand-in that only closed was a service of the release before the `taken` line, and the client of this
+            //       release read that close as a hand-over it could not tell about (the review of `04b80a66cb`, B2).
+            let took: String = crate::service_protocol::encode_service(&crate::service_protocol::ServiceMessage::Taken);
+            let _said = writeln!(stream, "{took}");
             sink.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(line);
         }
     });

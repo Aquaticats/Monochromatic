@@ -699,3 +699,47 @@ fn a_wake_whose_work_could_not_be_queued_is_not_answered_taken() {
     })
     .expect("the runtime");
 }
+
+/// What:
+///  A wake the service really queued is answered `taken`, so a missing `taken` line is a failing answer and not silence.
+/// Why:
+///   The control beside this one asserts only that an unqueueable wake is not answered `taken`, which a service that
+///   never sends the line at all satisfies: nothing then told "refused to say taken" from "never says taken"
+///   (the review of `04b80a66cb`, half one B, finding 3). This one holds the other side, so removing the line fails here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { shared, wakes } = sharedIn('with-a-receiver'); sendWork(shared); expect(answer).toBe('taken'); expect(wakes.recv()).toBe(the work)
+/// ```
+#[test]
+fn a_wake_the_service_queued_is_answered_taken() {
+    // A receiver that stays alive, so the work goes into the channel and the answer may say so.
+    let journal: PathBuf = crate::test_support::fixture("connection-work-queued");
+    let (queue, _jobs) = unbounded_channel::<Job>();
+    let (work, mut wakes) = unbounded_channel::<Wake>();
+    let board: Arc<LandingBoard> = LandingBoard::new(journal, Duration::from_secs(60));
+    let shared: ConnectionShared = ConnectionShared {
+        queue,
+        work,
+        drawn: crate::service_shadow_draw::DrawnShadows::none_yet(),
+        board,
+        release: String::from("test"),
+        instance: Some(String::from(INSTANCE)),
+        own_git_dir: Some(PathBuf::from("/srv/repo/.git")),
+    };
+    let line: String = encode_client(&ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None });
+    crate::lazy_runtime::run_on_runtime(async {
+        let (_read_half, mut write_half, mut client) = connection();
+        answer_request(line.as_str(), &mut write_half, &shared, Instant::now()).await;
+        drop(write_half);
+        let mut answer: String = String::new();
+        client.read_line(&mut answer).await.expect("an answer arrives");
+        assert_eq!(
+            decode_service(answer.trim_end_matches('\n')),
+            Ok(ServiceMessage::Taken),
+            "a wake the service queued was not answered that it was taken: {answer:?}"
+        );
+    })
+    .expect("the runtime");
+    assert!(wakes.try_recv().is_ok(), "the work did not go into the lane's channel at all");
+}

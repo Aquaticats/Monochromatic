@@ -29,6 +29,13 @@ use std::path::{Path, PathBuf};
 /// which the client reads as no tree and answers by taking the pool's or the creation's path:
 /// the ask is an offer,
 /// so an old service costs a commit today's path and never its commit.
+/// It is 13 because a wake is answered by a `taken` line once the work is queued,
+/// and a client of this release reads a connection that ends before that line as a hand-over it could not
+/// tell about:
+/// a service of version 12 would queue the work and never say so, and every commit and add would tell the person
+/// its hand-over failed while the service had taken it
+/// (the review of `04b80a66cb`, half one B, finding 1).
+/// It was 12 because an answer names the figures a landing spent and held.
 /// It was 11 because a commit request carries the drawn shadow it was built in,
 /// and a service of version 10 removes only the trees a request names in its scratch field,
 /// so the tree of a landed commit would stay for the sweep.
@@ -45,7 +52,7 @@ use std::path::{Path, PathBuf};
 /// so the version a service announces in its welcome is what is compared,
 /// and a service of another version is asked to retire before any request is sent
 /// (`service_client_reach_service.rs`).
-pub const PROTOCOL_VERSION: u32 = 12;
+pub const PROTOCOL_VERSION: u32 = 13;
 
 /// The release of this build:
 /// the crate version,

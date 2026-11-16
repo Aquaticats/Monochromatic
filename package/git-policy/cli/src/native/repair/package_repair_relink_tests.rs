@@ -357,6 +357,11 @@ fn serve_this_release(name: &str) -> FixtureService {
             let _sent = std::io::Write::write_all(&mut &stream, greeting.as_bytes());
             let mut raw: String = String::new();
             let _read = std::io::BufReader::new(&stream).read_line(&mut raw);
+            // What: A service of this release says it took the work line, which is the confirmation the client waits for.
+            // Why:  A stand-in that only closed was a service of the release before the `taken` line, and the client of
+            //       this release read that close as a hand-over it could not tell about (the review of `04b80a66cb`, B2).
+            let answer: String = crate::service_protocol::encode_service(&crate::service_protocol::ServiceMessage::Taken);
+            let _said = std::io::Write::write_all(&mut &stream, format!("{answer}\n").as_bytes());
             let line: String = raw.trim_end().to_string();
             if !line.is_empty() {
                 heard.push(line);

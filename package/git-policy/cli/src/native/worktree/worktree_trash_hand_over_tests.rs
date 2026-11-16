@@ -367,6 +367,11 @@ fn serve_this_release(name: &str) -> FixtureService {
             let _sent = std::io::Write::write_all(&mut &stream, greeting.as_bytes());
             let mut raw: String = String::new();
             let _read = std::io::BufReader::new(&stream).read_line(&mut raw);
+            // What: A service of this release says it took the work line, which is the confirmation the client waits for.
+            // Why:  A stand-in that only closed was a service of the release before the `taken` line, and the client of
+            //       this release read that close as a hand-over it could not tell about (the review of `04b80a66cb`, B2).
+            let answer: String = encode_service(&ServiceMessage::Taken);
+            let _said = std::io::Write::write_all(&mut &stream, format!("{answer}\n").as_bytes());
             let line: String = raw.trim_end().to_string();
             if !line.is_empty() {
                 heard.push(line);
@@ -480,6 +485,15 @@ fn serve_heartbeats(name: &str) -> ChattyService {
             }
             let mut raw: String = String::new();
             if std::io::BufReader::new(&stream).read_line(&mut raw).is_err() {
+                continue;
+            }
+            // What: The service says it took the line before it goes on talking.
+            // Why:  A close is not the confirmation any more, and a service that only kept talking was one of the release
+            //       before the `taken` line: the hand-over was then reported as one it could not tell about
+            //       (the review of `04b80a66cb`, B2).
+            let mut took: String = encode_service(&ServiceMessage::Taken);
+            took.push('\n');
+            if std::io::Write::write_all(&mut &stream, took.as_bytes()).is_err() {
                 continue;
             }
             let mut beat: String = encode_service(&ServiceMessage::Heartbeat);

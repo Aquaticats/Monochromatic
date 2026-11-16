@@ -82,3 +82,39 @@ fn a_held_commit_ends_the_command_with_success_and_no_landed_commit() {
     assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim(), held.old, "the branch has not moved");
     remove(root.as_path());
 }
+
+/// What:
+///  Every ending the client can report is classified as one that may have left a commit on the branch or one that cannot have,
+///  and the two `ServiceGone` endings are classified by what they say.
+/// Why:
+///  The list decides whether a person is told "the commit may still land" or "the commit was not made", and nothing called it
+///  from a control: an ending moved from one side to the other would change those words alone
+///  (the review of `04b80a66cb`, half one B, finding 4).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(itMayHaveLanded(ServiceSilent)).toBe(true); expect(itMayHaveLanded(ServiceGoneUnconfirmed)).toBe(true); expect(itMayHaveLanded(ServiceGoneNotLanded)).toBe(false)
+/// ```
+#[test]
+fn the_endings_that_may_have_left_a_commit_are_the_two_silent_ones_and_the_unconfirmed_withdrawal() {
+    use crate::service_messages::ClientFailure;
+    let may: Vec<ClientFailure> = vec![
+        ClientFailure::ServiceSilent,
+        ClientFailure::MayNotHaveLanded,
+        ClientFailure::ServiceGoneUnconfirmed { blocker: None },
+    ];
+    for failure in may {
+        assert!(super::it_may_have_landed(&failure), "an ending whose answer was lost is not read as one that may have landed: {failure:?}");
+    }
+    let cannot: Vec<ClientFailure> = vec![
+        // The service confirmed that the request will never land.
+        ClientFailure::ServiceGoneNotLanded { blocker: None },
+        ClientFailure::StillWithService { minutes: 1, blocker: None },
+        // The command never got a request into the service.
+        ClientFailure::NoActivation(crate::service_messages::Platform::LinuxWithoutUserServices),
+        ClientFailure::NothingAnswered { address: String::from("a"), waited: std::time::Duration::from_secs(1) },
+    ];
+    for failure in cannot {
+        assert!(!super::it_may_have_landed(&failure), "an ending that decides the request is read as one that may have landed: {failure:?}");
+    }
+}

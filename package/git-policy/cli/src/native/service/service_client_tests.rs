@@ -445,3 +445,54 @@ fn a_wake_the_service_closed_without_reading_is_not_a_hand_over_made() {
     let _joined = serving.join();
     assert!(answer.is_err(), "a wake whose line the service never read was reported as a hand-over made: {answer:?}");
 }
+
+/// A service that greets, reads the request, and then says nothing for the rest of the connection,
+/// on every connection it serves,
+/// so the client meets the silence bound on every try.
+fn serve_silence_after_the_request(service: UnixListener) {
+    let began: std::time::Instant = std::time::Instant::now();
+    // Each connection is served by a thread of its own, so the accept loop is ready for the client's next try at once and a
+    // connection that is being kept silent never holds the one behind it.
+    while began.elapsed() < STAND_IN_PATIENCE {
+        let Ok((stream, _address)) = service.accept() else { return };
+        let _serving: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+            let _greeted = (&stream).write_all(the_line(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) }).as_slice());
+            let mut read: std::io::BufReader<&UnixStream> = std::io::BufReader::new(&stream);
+            let mut line: String = String::new();
+            let _asked = std::io::BufRead::read_line(&mut read, &mut line);
+            // Nothing is answered and the connection stays open past the client's silence bound, so every try ends on silence
+            // rather than on a close, which is the state the service-going-silent ending is for.
+            std::thread::sleep(Duration::from_millis(400));
+        });
+    }
+}
+
+/// What:
+///  A service that went silent on every try is withdrawn from, and the command says the result is not known.
+/// Why:
+///   Giving up without asking left the person with "the service may still land it", and the ask is what the branch added:
+///   no control drove the silent-then-withdraw ending through `submit`, so putting the old `ServiceSilent` back would fail
+///   nothing (the review of `04b80a66cb`, half one B, finding 4).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// serveSilence(); const failure = submit(shortCeilings(), request); expect(failure.kind).toBe('ServiceGoneUnconfirmed')
+/// ```
+#[test]
+fn a_service_silent_on_every_try_is_withdrawn_from_and_the_result_is_not_known() {
+    let name: String = an_address("silent-on-every-try");
+    let service: UnixListener = a_listener_on(name.as_str());
+    let serving = std::thread::spawn(move || return serve_silence_after_the_request(service));
+    // Ceilings a control reaches in a moment: the silence bound, the answer ceiling and the withdrawal's own.
+    let mut settings: ClientConfig = reach_settings(name.as_str());
+    settings.heartbeat_silence = Duration::from_millis(100);
+    settings.answer_ceiling = Duration::from_secs(3);
+    settings.withdraw_ceiling = Duration::from_millis(250);
+    let failure: ClientFailure = submit(&settings, &a_request("silent-on-every-try"), &mut std::io::sink())
+        .expect_err("a service that answers nothing cannot land a request this command hears about");
+    drop(serving);
+    assert!(
+        matches!(failure, ClientFailure::ServiceGoneUnconfirmed { .. }),
+        "the command gave up without asking the service to drop the request, so it cannot say whether the commit was made: {failure:?}"
+    );
+}
