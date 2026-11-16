@@ -80,18 +80,27 @@ use std::time::Duration;
 /// so a landing that stalled for
 ///  119.8 s (the longest `total_ms` in the service journal) does not stop renewals;
 /// a stall of the whole process longer than the
-///  80 s a renewal may be late would.
-/// It is the lane's look ceiling (`LANE_LOOK_CEILING`, 150 s) plus the 90 s a renewal may be late,
+///  margin a renewal may keep would.
+/// The lease is the lane's look ceiling (`LANE_LOOK_CEILING`, 150 s) plus that margin,
 /// because a record a look claimed must keep its lease for as long as the look may run:
 /// a lease that ended under a running look let a second look claim the same record
-/// (the review of `4a2a3b8a49`, finding 1). It still covers the 119.8 s stall above.
+/// (the reviews of `4a2a3b8a49` and of `04b80a66cb`, half one, finding 4).
+///  The 120 s it was for the same famine is spent on that margin, so the cost of a kill is the lease: the three kills
+///  of 2026-11-03 made the push again 119.57, 119.56 and 119.55 s after the kill, and the same measurement at the
+///  larger lease would be about 240 s; no measurement of a kill at this lease is recorded yet,
+/// and it is the owner's to veto (`doc/planning/cli-git-shipped-limits-audit.md`).
 /// Kept as the coordinator's pick under the owner's delegation,
 /// open to the owner's veto
 ///  (`doc/planning/cli-git-shipped-limits-audit.md`,
 /// "Picked for these follow-ups",
 /// batch size and claim lease,
 /// option B).
-pub const CLAIM_LEASE: Duration = Duration::from_secs(240);
+pub const CLAIM_LEASE: Duration = crate::wait_ceilings::LANE_LOOK_CEILING.saturating_add(THE_MARGIN_A_RENEWAL_MAY_KEEP);
+
+/// How late a renewal may be and still keep the claim it renews:
+/// ninety seconds, which is more than two of the renewal intervals the lease is split into
+/// (`RENEWALS_PER_LEASE`), and the difference the lease keeps over the look's ceiling.
+pub const THE_MARGIN_A_RENEWAL_MAY_KEEP: Duration = Duration::from_secs(90);
 
 /// The thread name one removal of a whole worktree carries in a process listing,
 /// so a removal that gave no answer is recognisable.

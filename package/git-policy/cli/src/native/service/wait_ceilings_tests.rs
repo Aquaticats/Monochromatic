@@ -323,4 +323,15 @@ fn the_lanes_look_outlasts_one_item_and_the_lease_outlasts_the_look() {
         TRASH_ITEM_CEILING + A_SETTLE_WITHIN_A_LOOK,
         "the look's ceiling is one item's bound plus the settle that puts its record back"
     );
+    assert_eq!(
+        crate::service_work::CLAIM_LEASE,
+        LANE_LOOK_CEILING + crate::service_work::THE_MARGIN_A_RENEWAL_MAY_KEEP,
+        "the lease is the look's ceiling plus the margin a renewal may keep, so a lease of any other length fails here"
+    );
+    // What: A stated item bound can never be one the look cannot carry.
+    // Why:  The variable exists for controls, and a value above the look's ceiling would cut every trash round.
+    crate::wait_ceilings::state_the_trash_item_ceiling_for_a_control(Some(Duration::from_secs(9_000)));
+    assert_eq!(trash_item_ceiling(), LANE_LOOK_CEILING - A_SETTLE_WITHIN_A_LOOK, "a stated item bound above what the relation allows was taken as it was");
+    crate::wait_ceilings::state_the_trash_item_ceiling_for_a_control(None);
+    assert_eq!(trash_item_ceiling(), TRASH_ITEM_CEILING, "the ceiling did not come back when the state was cleared");
 }

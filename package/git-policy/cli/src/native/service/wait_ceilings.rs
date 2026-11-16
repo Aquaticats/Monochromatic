@@ -1289,6 +1289,18 @@ pub(crate) fn hold_the_routing_look_to(ceiling: Duration) {
 /// Each ask is granted its own `LANDING_STATE_CEILING`, so the pause only keeps the retries from crowding the places.
 pub const ROUTING_LOOK_RETRY_PAUSE: Duration = Duration::from_secs(5);
 
+#[cfg(test)]
+thread_local! {
+    /// The one trash item's bound a control states, so the control need not change the process's environment.
+    static A_TRASH_ITEM_CEILING_A_CONTROL_STATES: std::cell::RefCell<Option<Duration>> = const { std::cell::RefCell::new(None) };
+}
+
+/// State one trash item's bound for a control, or nothing to clear it.
+#[cfg(test)]
+pub(crate) fn state_the_trash_item_ceiling_for_a_control(bound: Option<Duration>) {
+    A_TRASH_ITEM_CEILING_A_CONTROL_STATES.with(|stated: &std::cell::RefCell<Option<Duration>>| { *stated.borrow_mut() = bound; });
+}
+
 /// The environment variable that sets one trash item's bound in whole seconds,
 /// so a control reaches the bound in a moment instead of waiting it out.
 /// Why:
@@ -1305,9 +1317,18 @@ pub const TRASH_ITEM_CEILING_VARIABLE: &str = "CLI_GIT_TRASH_ITEM_SECONDS";
 /// trashItemCeiling() // Duration
 /// ```
 pub fn trash_item_ceiling() -> Duration {
+    #[cfg(test)]
+    if let Some(stated) = A_TRASH_ITEM_CEILING_A_CONTROL_STATES.with(|stated: &std::cell::RefCell<Option<Duration>>| return *stated.borrow()) {
+        return stated.min(LANE_LOOK_CEILING.saturating_sub(A_SETTLE_WITHIN_A_LOOK));
+    }
     let named: Option<u64> = std::env::var(TRASH_ITEM_CEILING_VARIABLE).ok().and_then(|text| { return text.trim().parse::<u64>().ok(); });
+    // What: A stated bound is held to what the look and the lease can carry.
+    // Why:  The relation between one item, one look and one lease is what keeps an item inside its own bound from being cut:
+    //       a stated value above the look's ceiling would make every trash longer than the look and cut every round
+    //       (the review of `04b80a66cb`, half one, finding 5).
+    let the_most_the_relation_allows: Duration = LANE_LOOK_CEILING.saturating_sub(A_SETTLE_WITHIN_A_LOOK);
     return match named {
-        Some(seconds) if seconds > 0 => Duration::from_secs(seconds),
+        Some(seconds) if seconds > 0 => Duration::from_secs(seconds).min(the_most_the_relation_allows),
         _ => TRASH_ITEM_CEILING,
     };
 }
