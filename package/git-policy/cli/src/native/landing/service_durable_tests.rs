@@ -369,3 +369,130 @@ fn a_published_landing_whose_queue_no_task_takes_waits_for_nothing() {
         remove(root.as_path());
     });
 }
+
+/// The most a control of the exit's wait lets it take, when the ceiling it states is not what the control asserts:
+/// far beyond the ceiling, so only a wait without an end reaches it.
+const THE_CONTROLS_PATIENCE: Duration = Duration::from_secs(30);
+
+/// The ceiling a control of the exit's wait states when it expects the queue to empty:
+/// five seconds, which is far more than the sync of one record takes on this host and less than the patience above.
+const A_CEILING_THAT_IS_NOT_REACHED: Duration = Duration::from_secs(5);
+
+/// What:
+///  A queue that empties before the ceiling is answered `Made`,
+///  and the sync of the record is made.
+/// Why:
+///   This is the end every ordinary exit reaches:
+/// the batch of a landing's records is synced, and the wait answers at once rather than at its ceiling,
+/// so the ceiling costs an exit nothing when nothing is slow.
+#[test]
+fn the_exit_answers_made_for_a_queue_that_emptied() {
+    serve_on_again_for_a_control();
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let (root, file) = record("durable-exit-made");
+        let before: u64 = BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
+        let deferral = begin(false);
+        flush_file(&file, "x").expect("queued");
+        deferral.settle(true);
+        let began: Instant = Instant::now();
+        let came_to: TheSyncsOfTheLastLandings = drain_at_the_exit_within(A_CEILING_THAT_IS_NOT_REACHED);
+        let took: Duration = began.elapsed();
+        assert_eq!(came_to, TheSyncsOfTheLastLandings::Made, "the batch of a landing's records was synced, so the exit waited for nothing it could not have");
+        assert!(BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) > before, "the queued sync was made");
+        assert!(took < A_CEILING_THAT_IS_NOT_REACHED, "an exit whose records are synced does not spend its ceiling: {took:?}");
+        remove(root.as_path());
+    });
+}
+
+/// What:
+///  A sync held inside the background task is given up at the ceiling, and the exit says so.
+/// Why:
+///   This is the end the bound exists for:
+/// a sync that does not end cannot hold the exit past the ceiling,
+/// and the records it leaves are what a kill at that instruction leaves (the module doc says what that is).
+/// The hold is the service's own named step, so the state is a state and not a slow disk:
+/// `hold_blocking` sits inside the batch, before its syncs, and the barrier behind it is answered only after it.
+#[test]
+fn the_exit_gives_up_at_its_ceiling_when_a_sync_does_not_end() {
+    let held: std::path::PathBuf = crate::test_support::fixture("durable-exit-held");
+    std::fs::create_dir_all(held.as_path()).expect("the directory the hold goes in");
+    crate::service_hold_a_step_for_a_control::hold_these_steps_for_a_control(&[crate::service_hold_a_step_for_a_control::INSIDE_A_SYNC], held.as_path());
+    serve_on_again_for_a_control();
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let (root, file) = record("durable-exit-gave-up");
+        let deferral = begin(false);
+        flush_file(&file, "x").expect("queued");
+        deferral.settle(true);
+        let reached: std::path::PathBuf = crate::service_hold_a_step_for_a_control::reached_file(held.as_path(), crate::service_hold_a_step_for_a_control::INSIDE_A_SYNC);
+        let waited: Instant = Instant::now();
+        while !reached.exists() {
+            assert!(waited.elapsed() < THE_CONTROLS_PATIENCE, "the batch never reached the step the control holds");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let ceiling: Duration = Duration::from_millis(300);
+        let began: Instant = Instant::now();
+        let came_to: TheSyncsOfTheLastLandings = drain_at_the_exit_within(ceiling);
+        let took: Duration = began.elapsed();
+        // The hold is let go before the assertions, so a failing control leaves no thread of this process sleeping.
+        std::fs::write(crate::service_hold_a_step_for_a_control::let_go_file(held.as_path(), crate::service_hold_a_step_for_a_control::INSIDE_A_SYNC), b"").expect("the file that lets the held sync go");
+        assert_eq!(came_to, TheSyncsOfTheLastLandings::LeftToTheWriteBack, "a sync that did not end within the ceiling is left to the write-back, and the exit says so");
+        assert!(took >= ceiling, "the exit waited at least its ceiling for a sync that had not ended: {took:?}");
+        assert!(took < THE_CONTROLS_PATIENCE, "the exit gave up at its ceiling: {took:?}");
+        remove(root.as_path());
+    });
+    remove(held.as_path());
+}
+
+/// What:
+///  A batch that waits for a place of the lane of slow work is synced at once once the service says it is leaving,
+///  and the exit is answered `Made` rather than at its ceiling.
+/// Why:
+///   This is the half of the fix that the bound alone does not give:
+/// the places of the lane are kept free for the work a person waits for,
+/// and at an exit there is none left to keep them for,
+/// so a batch that was waiting for one is let past it instead of being spent as a write-back.
+/// Every place is held the way a trash's entries hold them (`run_a_slow_job_within_the_budget`), and the batch is queued
+///  after them, so a batch that ran would have had to wait.
+#[test]
+fn the_exit_lets_a_batch_waiting_for_a_place_of_the_lane_run_without_one() {
+    serve_on_again_for_a_control();
+    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(4);
+    let places: usize = crate::blocking_jobs_within_the_budget::places_a_round_may_take();
+    let (took_a_place, has_taken) = std::sync::mpsc::channel::<()>();
+    let (let_go, held) = std::sync::mpsc::channel::<()>();
+    let waiting: std::sync::Arc<std::sync::Mutex<std::sync::mpsc::Receiver<()>>> = std::sync::Arc::new(std::sync::Mutex::new(held));
+    let mut holders: Vec<tokio::task::JoinHandle<()>> = Vec::new();
+    for _ in 0..places {
+        let told = took_a_place.clone();
+        let release = std::sync::Arc::clone(&waiting);
+        let holder = crate::lazy_runtime::spawn_on_runtime(async move {
+            let _held: Result<(), crate::blocking_job::BlockingJobError> = crate::blocking_jobs_within_the_budget::run_a_slow_job_within_the_budget(move || {
+                let _said = told.send(());
+                let _ = release.lock().expect("the control's release").recv();
+            })
+            .await;
+        });
+        holders.push(holder.expect("the runtime has a worker, so slow work can take its place"));
+    }
+    for _ in 0..places {
+        assert!(has_taken.recv_timeout(THE_CONTROLS_PATIENCE).is_ok(), "a slow job never took its place, so the lane was not held");
+    }
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let (root, file) = record("durable-exit-past-the-lane");
+        let before: u64 = BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
+        let deferral = begin(false);
+        flush_file(&file, "x").expect("queued");
+        deferral.settle(true);
+        // Every place of the lane is held, so the batch asks for one and waits for it.
+        std::thread::sleep(Duration::from_millis(100));
+        assert_eq!(BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst), before, "the lane was held, so the batch of records was still waiting for a place of it");
+        let came_to: TheSyncsOfTheLastLandings = drain_at_the_exit_within(A_CEILING_THAT_IS_NOT_REACHED);
+        assert!(BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) > before, "the batch waiting for a place of the lane was synced once the service said it was leaving");
+        assert_eq!(came_to, TheSyncsOfTheLastLandings::Made, "the exit waited for a batch it had let past the lane, and the batch ended before the ceiling");
+        remove(root.as_path());
+    });
+    let _let_go = let_go.send(());
+    for holder in holders {
+        holder.abort();
+    }
+}

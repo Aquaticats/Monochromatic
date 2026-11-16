@@ -98,8 +98,11 @@ static BACKGROUND: OnceLock<UnboundedSender<Job>> = OnceLock::new();
 static THE_SERVICE_IS_LEAVING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// The wake the exit gives a task that is already waiting for a place of the lane of slow work.
-/// A permit is stored and not only handed over,
-/// so a batch that reaches that wait after the exit announced it stops waiting too.
+///  One wake and not a permit kept:
+/// `notify_waiters` wakes the batches that are waiting now and stores nothing,
+/// so a later batch is judged by `THE_SERVICE_IS_LEAVING` alone and never by a wake left over from an earlier one.
+/// At most one batch waits here at once, because the background task runs its jobs one after another,
+/// so one wake is the whole wait.
 static THE_LEAVE_ANNOUNCED: tokio::sync::Notify = tokio::sync::Notify::const_new();
 
 /// How many syncs the background task has made,
@@ -265,13 +268,19 @@ fn start_background() -> UnboundedSender<Job> {
 }
 
 /// Waits until every sync handed to the background task so far is done.
-///  A control uses it to see the queue empty;
-/// the service does not wait for it on a commit's path.
-/// It waits no longer than the patience of a control (`PHASE_PATIENCE`), because nothing in this program waits without an
-///  end:
-/// the service's own exits wait through `drain_at_the_exit_within`, which also says the service is leaving.
+///  A control's entry and nothing else:
+/// it exists in a test build alone (`#[cfg(test)]`),
+/// and no path of the shipped service calls it.
+///  It waits with no end, as it always has,
+/// because a control that checks the queue empty must not be given the answer of a bound instead:
+/// a control that met a sync slower than such a bound would fail for the bound and not for the queue.
+/// The ways out of the service are the one wait with a bound, and they call `drain_at_the_exit_within`.
+#[cfg(test)]
 pub fn drain() {
-    let _made: bool = drain_within(crate::wait_ceilings::PHASE_PATIENCE);
+    let (done, answered) = channel::<()>();
+    if sender().send(Job::Barrier(done)).is_ok() {
+        let _waited = answered.recv();
+    }
 }
 
 /// What became of the syncs of the landings a leaving service answered.
@@ -312,8 +321,20 @@ pub enum TheSyncsOfTheLastLandings {
 /// ```
 pub fn drain_at_the_exit_within(ceiling: Duration) -> TheSyncsOfTheLastLandings {
     THE_SERVICE_IS_LEAVING.store(true, std::sync::atomic::Ordering::SeqCst);
-    THE_LEAVE_ANNOUNCED.notify_one();
+    THE_LEAVE_ANNOUNCED.notify_waiters();
     return if drain_within(ceiling) { TheSyncsOfTheLastLandings::Made } else { TheSyncsOfTheLastLandings::LeftToTheWriteBack };
+}
+
+/// What:
+///  Puts the statics of the exit back to serving,
+///  for a control that needs the state before one.
+/// Why:
+///   A test binary shares its statics between the controls of one process,
+/// so a control that ran an exit would leave the next one with a service that is already leaving.
+/// A shipped process never resets them: it leaves once.
+#[cfg(test)]
+pub(crate) fn serve_on_again_for_a_control() {
+    THE_SERVICE_IS_LEAVING.store(false, std::sync::atomic::Ordering::SeqCst);
 }
 
 /// What:

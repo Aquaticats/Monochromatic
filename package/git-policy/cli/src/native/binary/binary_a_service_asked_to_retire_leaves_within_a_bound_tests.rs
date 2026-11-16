@@ -202,19 +202,15 @@ fn wait_until(what: &str, condition: &dyn Fn() -> bool) {
 
 /// What:
 ///  Make commits until one of them queues a batch of records that the lane of slow work holds out,
-///  then ask the service to retire while that batch waits,
-///  and answer how long the service took to end,
-///  or nothing when it was still there after the wait a newer release gives it.
+///  and answer how many batches the service had written a line for when that happened.
 /// Why:
-///   This is the sequence a read of the change under review describes and nobody had run:
-/// a landing queues a batch of its records,
-/// the lane of slow work holds every place that batch waits for,
-/// and a client asks the service to retire.
+///   This is the state every control of this file needs before it asks for the retire:
+/// a landing has queued a batch of its records,
+/// and the lane of slow work holds every place that batch waits for.
 /// A batch says whether a place was free by writing a line of its own, so commits are made until one's line does not appear,
 /// and that commit's records are the ones waiting.
-/// Each commit is answered before the next is made and before the retire is asked, so no landing is in flight when the
-/// retire arrives and the waiting batch is the last thing the service queued.
-fn retire_with_a_batch_waiting_behind_the_lane(setup: &Setup) -> Option<Duration> {
+/// Each commit is answered before the next is made, so no landing is in flight when a control asks for the retire.
+fn commits_until_a_batch_waits(setup: &Setup) -> usize {
     let mut attempts: usize = 0;
     loop {
         attempts += 1;
@@ -238,11 +234,19 @@ fn retire_with_a_batch_waiting_behind_the_lane(setup: &Setup) -> Option<Duration
         );
         if synced_after == synced_before {
             // No place of the lane was free, so this commit's batch of records is waiting for one.
-            break;
+            return synced_after;
         }
     }
-    // A newer release's client asks the service of this one to retire, and that ask waits for no bound of its own:
-    // the greeting, the one line, and the client is gone.
+}
+
+/// What:
+///  Ask the service to retire, as a newer release's client does,
+///  and answer how long it took to end, or nothing when it was still there after the wait that client gives it.
+/// Why:
+///   The ask waits for no bound of its own: the greeting, the one line, and the client is gone.
+/// The wait that follows is `RETIREMENT_WAIT` and not one moment more,
+/// because that is what a newer release spends before it stops the unit and fails its commit.
+fn ask_to_retire_and_wait(setup: &Setup) -> Option<Duration> {
     let ask_began: Instant = Instant::now();
     ask_to_retire(&setup.address());
     eprintln!("MEASURE the_ask_itself_ms={}", ask_began.elapsed().as_millis());
@@ -275,7 +279,8 @@ fn retire_with_a_batch_waiting_behind_the_lane(setup: &Setup) -> Option<Duration
 #[test]
 fn a_service_asked_to_retire_leaves_within_a_bound_while_slow_work_holds_its_lane() {
     let setup: Setup = setup("a-service-asked-to-retire-with-a-batch-waiting", &[INSIDE_A_SCRATCH_REMOVAL]);
-    let ended: Option<Duration> = retire_with_a_batch_waiting_behind_the_lane(&setup);
+    let _waiting: usize = commits_until_a_batch_waits(&setup);
+    let ended: Option<Duration> = ask_to_retire_and_wait(&setup);
     let landed: String = head(&setup);
     eprintln!("MEASURE the_service_ended_within={ended:?} of {RETIREMENT_WAIT:?}");
     // A kill of everything: what the commit is left as when the process dies at that instruction is what the exit leaves.
@@ -358,4 +363,44 @@ fn a_service_asked_to_retire_leaves_at_its_bound_when_a_sync_itself_does_not_end
     let took: Duration = ended.unwrap_or_default();
     assert!(took < RETIREMENT_WAIT, "the service ended {took:?} after it was asked to retire, which is past the {RETIREMENT_WAIT:?} a newer release waits for it");
     remove_settled(&setup.fixture);
+}
+
+/// What:
+///  A service asked to retire makes the syncs of the batch it left waiting, rather than only outwaiting them:
+///  the batches it wrote a line for after the ask outnumber those before it,
+///  and its exit says nothing about a write-back.
+/// Why:
+///   The bound alone would pass every other control of this file, and the review of `1bb658349d` showed it:
+/// a build with the bound and without the release of a waiting batch ends within it too, and passes both
+///  (`reproductions/` of that review).
+/// What this control adds is the other half of the fix:
+/// at a service's exit the waiting batch takes no place of the lane of slow work,
+/// because no work a person waits for is left to keep those places for,
+/// so its records are synced and not given up on.
+/// The two facts it asserts are the two halves of the leaves:
+/// a batch line appears that was not there when the ask was made, and the exit never says it left the records to the
+///  write-back.
+#[test]
+fn a_service_asked_to_retire_makes_the_syncs_of_the_batch_it_left_waiting() {
+    let setup: Setup = setup("a-service-asked-to-retire-makes-the-syncs-it-left", &[INSIDE_A_SCRATCH_REMOVAL]);
+    let waiting: usize = commits_until_a_batch_waits(&setup);
+    let ended: Option<Duration> = ask_to_retire_and_wait(&setup);
+    let after: usize = setup.batches_synced();
+    let said: String = setup.log();
+    let left: bool = said.contains(A_SYNC_LEFT_TO_THE_WRITE_BACK);
+    eprintln!("MEASURE batches_before_the_ask={waiting} batches_after={after} ended={ended:?} left_to_the_write_back={left}");
+    setup.let_go(INSIDE_A_SCRATCH_REMOVAL);
+    remove_settled(&setup.fixture);
+    assert!(
+        ended.is_some(),
+        "the service was still there {RETIREMENT_WAIT:?} after it was asked to retire while the lane of slow work held its records, so this control cannot say what the exit did with them"
+    );
+    assert!(
+        after > waiting,
+        "the batch the ask found waiting was never synced: {waiting} batches were written before the ask and {after} after it, so the exit outwaited the lane without letting the batch past it. The service logged:\n{said}"
+    );
+    assert!(
+        !left,
+        "the exit gave up on the syncs of its last landings although the batch had been let past the lane, so the bound ended a wait that the release should have ended: The service logged:\n{said}"
+    );
 }

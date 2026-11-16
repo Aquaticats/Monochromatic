@@ -685,6 +685,12 @@ mod tests;
 #[path = "service_server_own_worktree_tests.rs"]
 mod own_worktree_tests;
 
+/// Controls for each way out of the serving loop, and the bound on the syncs it waits for, stay out of the release
+/// executable.
+#[cfg(test)]
+#[path = "service_server_leaving_tests.rs"]
+mod leaving_tests;
+
 /// Controls for a service that is still recovering the batch an earlier service left open stay out of the release executable.
 #[cfg(test)]
 #[path = "service_server_beats_while_recovering_tests.rs"]

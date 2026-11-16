@@ -87,6 +87,23 @@ static NAMED: OnceLock<Vec<String>> = OnceLock::new();
 /// read once for the life of the process.
 static DIRECTORY: OnceLock<Option<PathBuf>> = OnceLock::new();
 
+/// What:
+///  Names the steps a control of one process holds,
+///  and the directory their reached and let-go files go in,
+///  for a control that runs the step in this process and not in a service of its own.
+/// Why:
+///   The service is a child in every end-to-end control, so the holds reach it as two variables;
+/// a unit test of a step runs in the same process as the step,
+/// and changing a variable of a process whose threads are running is what the language forbids a program to do,
+/// so the same two values are given here instead of through the environment.
+/// They are read once for the life of the process, as the variables are,
+/// so a second call changes nothing.
+#[cfg(test)]
+pub(crate) fn hold_these_steps_for_a_control(steps: &[&str], directory: &std::path::Path) {
+    let _named = NAMED.set(steps.iter().map(|step| { return (*step).to_string(); }).collect());
+    let _directory = DIRECTORY.set(Some(directory.to_path_buf()));
+}
+
 /// The steps a control named,
 /// which is nothing in every run that sets no such variable.
 fn the_steps_a_control_named() -> &'static [String] {
