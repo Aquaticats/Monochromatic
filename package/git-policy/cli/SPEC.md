@@ -3231,6 +3231,26 @@ A worktree whose branch a merge landed is removed by those same routes,
  taking one for that destroyed a worktree a live process was working in
  (`src/native/worktree/worktree_process_inside.rs`,
  found by reading and reproduced through the removal).
+ A table read to its end is no proof either when it is not this machine's own view of its processes:
+ a table of another PID namespace,
+ and one under a mount whose `hidepid` hides other accounts' processes,
+ both list a part of the machine's processes,
+ so both answer that the look could not be made,
+ and a review of 2026-11-16 removed a landed worktree through the built wrapper with a shell outside its namespace
+ working in it.
+ A process whose first thread has ended answers `NotFound` for its working folder while its other threads work in it,
+ so that answer is settled by the threads the kernel still lists,
+ and a process whose every thread has ended is the one taken to have gone.
+ A file mapped into memory outlives the descriptor it was made from,
+ so the map table is read as well as the descriptor table,
+ and a bind mount is a second name for one folder that no canonical path resolves,
+ so the folder is compared by every path this machine's mount table reaches it by.
+ Two readings of a start and of a birth closer than the granularity they were read with cannot be ordered,
+ and a pair the readings cannot order keeps the worktree.
+ A `stat` that cannot establish which account owns a process proves nothing about it,
+ so such a process is judged like this account's and its reason says that it is.
+ A bisect check that could not list the worktree's own Git directory answers that the marks could not be looked for,
+ and the worktree stays.
  A worktree the service keeps is named in a record under the common Git directory,
  `monochromatic-git-policy-cli/kept-worktree-notices`,
  which the next wrapper command in any worktree of that repository shows once,

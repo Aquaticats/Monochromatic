@@ -507,6 +507,50 @@ against the commit it started from,
 both arms interleaved over one walk of this machine's own table,
 with the spread of each arm stated beside it.
 
+Amendment, 2026-11-16T14:27:12-05:00 (a live process is never read as absent, seven ways):
+an independent review of 2026-11-16 reproduced seven ways the same read answered that nothing works there
+while a live process worked in the worktree,
+and each has a control that failed before the answer was written:
+
+- a process table of another PID namespace was read to its end and answered nothing works there,
+  and the review removed a landed worktree through the built wrapper with a shell outside the namespace working in it;
+  a table of a nested PID namespace lists only that namespace's processes,
+  so it is not this machine's view of its processes and the read answers that the look could not be made
+  (`a_table_that_is_not_this_processes_own_view_is_never_nothing_works_there`,
+  `a_table_of_another_pid_namespace_is_never_nothing_works_there`,
+  and `03-e2e-pidns` of the review's own reproductions keeps the worktree now);
+- a mount under which `hidepid` hides other accounts' processes is the same case,
+  and it answers the same way;
+- a process whose first thread has ended answers `NotFound` for its working folder while its other threads work in it,
+  so that answer is settled by the threads the kernel still lists
+  (`a_process_whose_first_thread_ended_may_still_work_there`);
+- a process entry whose account the `stat` cannot establish was taken for another account's and skipped,
+  and it is now judged like this account's and says so
+  (`a_process_entry_whose_account_cannot_be_read_may_be_working_there`);
+- two readings of a start and of a birth closer than the granularity they were read with were ordered against each other,
+  so a process that started just after the folder was taken as older than it
+  (three of a hundred at no delay and thirteen of a hundred at four milliseconds, measured on this host);
+  a pair the readings cannot order keeps the worktree
+  (`a_process_within_the_readings_of_the_folder_is_never_taken_as_older`);
+- a worktree reached through a bind mount was read as elsewhere, though the mount table says which paths reach one folder,
+  and the folder is now compared by every path this machine's mount table gives it
+  (`a_process_that_works_in_the_worktree_through_a_bind_mount_is_found`);
+- a file mapped into memory and then closed has no descriptor, and the map table is now read as well
+  (`a_process_that_mapped_a_file_in_the_worktree_and_closed_it_is_found`).
+
+A bisect check that could not list the worktree's Git directory read the refusal as "no bisect is unfinished"
+and the removal was recorded; it now answers that the marks could not be looked for
+(`a_landed_worktree_whose_marks_could_not_be_listed_stays`,
+and `05-e2e-admin-directory-not-listable` keeps the worktree now).
+The cost of a removal with nothing in its way, measured against the commit this round started from with both arms
+interleaved: the walk of the process table is 4.2 to 4.7 times longer (median 4.5),
+from 63 to 98 milliseconds to 274 to 377 over thirty walks each,
+which is the map table of every process on this machine.
+A worktree the merge's own sweep keeps is still named once on standard error and never recorded or reconsidered
+(`worktree_landed_after_a_merge.rs`, `worktree_landed_removal.rs`):
+the owner answered on 2026-11-16 that a kept worktree is recorded and tried again by each later sweep,
+and that is a run of its own.
+
 Cleanliness,
 that Git would remove the worktree without `--force`,
 is Git's own to decide.
@@ -669,31 +713,6 @@ The four runs below were made against the committed code with
    Those need retention numbers nobody has picked yet.
 - It does not remove any worktree that already existed when it landed,
    because none of them carries the record.
-- It does not see a process that works in the worktree through a bind mount.
-   The read compares the text of the folder a process works in with the text of the worktree,
-   a bind mount is a second spelling of one folder that no canonical path resolves,
-   and a removal that named the worktree would take it with the process's files in it.
-   A symbolic link does not reach the read:
-   the registration it names is canonicalized,
-   and `/proc/<pid>/cwd` is the kernel's answer with every link resolved
-   (both controlled:
-   `a_worktree_added_through_a_link_is_registered_under_the_folders_own_path`,
-   `a_process_that_entered_the_worktree_through_a_link_is_found`).
-   The fix is to compare the device and inode of the folder with the worktree's own,
-   as `landing/earlier_service_look_paths.rs` already compares a journal's,
-   and neither record says whether a removal may pay that stat per process.
-   Listed for the owner; not decided here
-   (`a_process_that_works_in_the_worktree_through_a_bind_mount_is_not_found`,
-   a control in a private user namespace that fails when this is fixed).
-- It does not see a process that mapped a file of the worktree and closed its descriptor.
-   The read looks at what a process holds open,
-   a mapping outlives the descriptor it was made from,
-   and the removal takes the directory the file was in while the program still uses it.
-   The fix is a read of `/proc/<pid>/maps`,
-   which is a second long read of every process on every removal,
-   and no record names what that may cost.
-   Listed for the owner; not decided here
-   (`a_process_that_mapped_a_file_in_the_worktree_and_closed_it_is_not_found`).
 
 ## The merge of main, and the final run
 

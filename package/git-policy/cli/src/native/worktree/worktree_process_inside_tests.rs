@@ -685,6 +685,23 @@ fn describe(look: &ProcessLook) -> String {
 }
 
 /// What:
+///  The word a probe printed after `marker`,
+///  which libtest may print on the same line as the test's own name.
+/// Why:
+///  A probe answers on its standard output,
+///  and the harness writes the test's name and the first line of that output as one line,
+///  so an answer is found by its marker and not at the start of a line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// wordAfter(said, 'answer ') // 'nothing'
+/// ```
+fn word_after(said: &str, marker: &str) -> Option<String> {
+    let rest: &str = said.split_once(marker)?.1;
+    return Some(rest.split_whitespace().next().unwrap_or_default().to_string());
+}
+
+/// What:
 ///  The harness name of one control in this module,
 ///  as the parent that starts this same test binary on it names it.
 /// Why:
@@ -762,7 +779,13 @@ fn a_bind_mount_probe() {
         return std::fs::read_link(format!("/proc/{}/cwd", helper.id())).is_ok_and(|there| { return there == alias; });
     });
     let through: PathBuf = std::fs::read_link(format!("/proc/{}/cwd", helper.id())).unwrap_or_default();
-    let answered: ProcessLook = process_working_inside(bound.as_path(), &bound.join(".git"), Path::new("/proc"), Some(Duration::ZERO));
+    // The table names the helper alone, through the kernel's own entries: this process namespace holds no other process
+    // the answer may be about, and a table of the machine's would name processes of the machine's parent namespace.
+    let table: PathBuf = bound.parent().expect("the folder the worktree was made in").join(format!("table-of-process-{}", helper.id()));
+    let _removed = std::fs::remove_dir_all(table.as_path());
+    std::fs::create_dir_all(table.as_path()).expect("a table of the probe's own");
+    std::os::unix::fs::symlink(format!("/proc/{}", helper.id()), table.join(helper.id().to_string())).expect("the helper's own entry");
+    let answered: ProcessLook = process_working_inside(bound.as_path(), &bound.join(".git"), table.as_path(), Some(Duration::ZERO));
     let _ended = helper.kill();
     let _waited = helper.wait();
     println!("bind-mount-named {}", if named { "yes" } else { "no" });
@@ -830,10 +853,10 @@ fn run_the_probe_in_a_private_namespace(name: &str, variables: &[(&str, &std::ff
 ///  The same probe run with the namespaces the control names,
 ///  and the words a failure printed.
 /// Why:
-///  One control needs a process file system of its own and a mount of its own (the bind-mount probes),
-///  and another needs only a process namespace of its own,
-///  keeping the machine's process file system on purpose (the table from another PID namespace),
-///  so the namespaces are the control's to choose.
+///  A probe of what a process's files and mappings say needs a mount namespace of its own to bind a folder at another
+///  spelling,
+///  and a process namespace of its own so that a process it started is the only one its table can name:
+///  the table itself is the probe's own, made of links to the real entries of that one process (see each probe).
 ///  A refusal is told from a probe that failed by the harness line a process prints when it starts.
 fn run_the_probe_in_namespaces(name: &str, variables: &[(&str, &std::ffi::OsStr)], namespaces: &[&str]) -> Option<String> {
     let mut command: std::process::Command = std::process::Command::new("unshare");
@@ -887,7 +910,13 @@ fn a_mapped_and_closed_file_probe() {
     let descriptors: std::fs::ReadDir = std::fs::read_dir("/proc/self/fd").expect("this process's own descriptors");
     let named: bool = descriptors.flatten().any(|one| { return std::fs::read_link(one.path()).is_ok_and(|target| { return target == held; }); });
     let maps: String = std::fs::read_to_string("/proc/self/maps").expect("this process's own mappings");
-    let answered: ProcessLook = process_working_inside(holding.as_path(), &holding.join(".git"), Path::new("/proc"), Some(Duration::ZERO));
+    // The table names this process alone, through the kernel's own entry: this process namespace holds no other process
+    // the answer may be about.
+    let table: PathBuf = holding.parent().expect("the folder the worktree was made in").join(format!("table-of-process-{}", std::process::id()));
+    let _removed = std::fs::remove_dir_all(table.as_path());
+    std::fs::create_dir_all(table.as_path()).expect("a table of the probe's own");
+    std::os::unix::fs::symlink(format!("/proc/{}", std::process::id()), table.join(std::process::id().to_string())).expect("this process's own entry");
+    let answered: ProcessLook = process_working_inside(holding.as_path(), &holding.join(".git"), table.as_path(), Some(Duration::ZERO));
     println!("mapped-file {}", if maps.contains(held.display().to_string().as_str()) { "yes" } else { "no" });
     println!("descriptor-names-it {}", if named { "yes" } else { "no" });
     println!("mapped-answer {}", describe(&answered));
@@ -1022,16 +1051,15 @@ fn a_table_that_is_not_this_processes_own_view_is_never_nothing_works_there() {
     let worktree: PathBuf = root.join("worktree");
     std::fs::create_dir(worktree.as_path()).expect("a folder a process may work in");
     let table: PathBuf = root.join("proc");
-    let self_entry: PathBuf = table.join("self");
-    std::fs::create_dir_all(self_entry.as_path()).expect("the entry a process table makes for its reader");
-    let numbered: u32 = std::process::id() + 1;
-    std::fs::write(self_entry.join("stat"), format!("{numbered} (a shell) S 0 0 0 0 0\n")).expect("a record that numbers this process as another namespace does");
+    let namespace: PathBuf = table.join("self").join("ns");
+    std::fs::create_dir_all(namespace.as_path()).expect("the entry a process table makes for its reader");
+    std::os::unix::fs::symlink("pid:[4026533987]", namespace.join("pid")).expect("a namespace that is not this machine's own");
     let answered: ProcessLook = process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None);
     let ProcessLook::CannotLook(reason) = answered else {
-        panic!("a table that numbers this process {numbered} where the operating system numbers it {} answered {answered:?}", std::process::id());
+        panic!("a table of another PID namespace answered {answered:?}");
     };
     assert!(reason.contains(table.display().to_string().as_str()), "the reason names the table: {reason}");
-    assert!(reason.contains("own view"), "the reason says the table is not this machine's view of its processes: {reason}");
+    assert!(reason.contains("PID namespace"), "the reason names the namespace this process runs in: {reason}");
 }
 
 /// The variable that names the worktree a probe of another view of the process table reads for.
@@ -1050,10 +1078,10 @@ fn an_other_view_probe() {
     let Some(worktree) = std::env::var_os(OTHER_VIEW_WORKTREE_VARIABLE) else {
         return;
     };
-    let worktree: PathBuf = PathBuf::from(worktree);
+    let watched: PathBuf = PathBuf::from(worktree);
     let own: u32 = std::process::id();
     let named: String = std::fs::read_to_string("/proc/self/stat").map(|stat| { return stat.split(' ').next().unwrap_or_default().to_string(); }).unwrap_or_default();
-    let answered: ProcessLook = process_working_inside(worktree.as_path(), &worktree.join(".git"), Path::new("/proc"), Some(Duration::ZERO));
+    let answered: ProcessLook = process_working_inside(watched.as_path(), &watched.join(".git"), Path::new("/proc"), Some(Duration::ZERO));
     println!("other-view-own {own}");
     println!("other-view-named {named}");
     println!("other-view-answer {}", describe(&answered));
@@ -1080,8 +1108,8 @@ fn a_table_of_another_pid_namespace_is_never_nothing_works_there() {
     ) else {
         return;
     };
-    let own: String = said.lines().find_map(|line| { return line.strip_prefix("other-view-own ").map(str::to_string); }).expect("the probe said its own number");
-    let named: String = said.lines().find_map(|line| { return line.strip_prefix("other-view-named ").map(str::to_string); }).expect("the probe said the number the table gives it");
+    let own: String = word_after(said.as_str(), "other-view-own ").expect("the probe said its own number");
+    let named: String = word_after(said.as_str(), "other-view-named ").expect("the probe said the number the table gives it");
     assert_ne!(own, named, "the machine's process file system numbers the probe differently from its own namespace:\n{said}");
     assert!(
         said.contains("other-view-answer cannot look"),

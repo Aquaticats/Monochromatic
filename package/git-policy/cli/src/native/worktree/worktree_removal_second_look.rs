@@ -132,8 +132,13 @@ pub(crate) fn why_the_worktree_stays(look: &SecondLook<'_>, worktree: &Path, adm
             return Some(format!("a {marker} stands in it, so an operation there is unfinished"));
         }
     }
-    if let Some(mark) = bisect_mark_in(admin) {
-        return Some(format!("a bisect is unfinished there, and its {mark} is still in the worktree"));
+    match bisect_mark_in(admin) {
+        Ok(Some(mark)) => return Some(format!("a bisect is unfinished there, and its {mark} is still in the worktree")),
+        Ok(None) => {}
+        // A directory that could not be listed hides the marks of an unfinished operation, and reading that refusal as
+        // "no bisect" let the removal of a worktree holding `BISECT_START` be recorded (an independent review of
+        // 2026-11-16, reproduced to the hand-over).
+        Err(reason) => return Some(format!("nothing proves no bisect is unfinished there, so nothing is removed: {reason}")),
     }
     // How long the worktree has existed, which is what tells a process that hides its working folder whether it could be
     // inside at all: a process older than the directory cannot have changed into it.
@@ -253,7 +258,8 @@ pub(crate) fn nested_worktree_reason(inside: &[&Registration]) -> String {
 
 /// What:
 ///  The name of a file an unfinished bisect left in `admin`,
-///  or nothing when no bisect is in progress there.
+///  or nothing when no bisect is in progress there,
+///  or why the directory could not be read.
 /// Why:
 ///   The file is Git's own record that a bisect is unfinished,
 ///  and its name is what tells a person where Git kept the bisect,
@@ -261,14 +267,27 @@ pub(crate) fn nested_worktree_reason(inside: &[&Registration]) -> String {
 ///  The smallest name is taken,
 /// not the one the filesystem listed first,
 ///  so the reason reads the same every time.
+///  A listing this account may not make hides every mark in the directory,
+///  so it is never the answer that none is there;
+///  a directory that is not there holds no mark of an unfinished operation,
+///  which is what the other records of an unfinished operation answer the same way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// bisectMarkIn(admin) // 'BISECT_NAMES'
+/// bisectMarkIn(admin) // 'BISECT_NAMES', nothing, or the reason the directory could not be read
 /// ```
-fn bisect_mark_in(admin: &Path) -> Option<String> {
+fn bisect_mark_in(admin: &Path) -> Result<Option<String>, String> {
+    let listing: std::fs::ReadDir = match std::fs::read_dir(admin) {
+        Ok(found) => found,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(refused) => return Err(format!("the worktree's own Git directory {} could not be listed ({refused})", admin.display())),
+    };
     let mut marks: Vec<String> = Vec::new();
-    for entry in std::fs::read_dir(admin).ok()?.flatten() {
+    for listed in listing {
+        let entry: std::fs::DirEntry = match listed {
+            Ok(one) => one,
+            Err(_unread) => return Err(format!("the worktree's own Git directory {} could not be read to its end", admin.display())),
+        };
         let Ok(name) = entry.file_name().into_string() else {
             continue;
         };
@@ -277,7 +296,7 @@ fn bisect_mark_in(admin: &Path) -> Option<String> {
         }
     }
     marks.sort();
-    return marks.into_iter().next();
+    return Ok(marks.into_iter().next());
 }
 
 /// What:
