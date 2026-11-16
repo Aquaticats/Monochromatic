@@ -64,7 +64,8 @@ fn inline_value(token: &[u8], spelling: &str) -> Option<OsString> {
 }
 
 /// What:
-///  Where a command line selects its repository, read from the directory it starts in:
+///  Where a command line selects its repository,
+///  read from the directory it starts in:
 ///  the directory its `-C` chain ends in,
 ///  the Git directory its own options or the environment name,
 ///  and which of the two named it.
@@ -180,8 +181,14 @@ pub fn selected_repository(directory: &Path, global_prefix: &[OsString], environ
         let git_directory: PathBuf = ends.join(named);
         return SelectedRepository { directory: ends, git_directory: Some(git_directory), named_by_option: true };
     }
-    let named: Option<&OsString> = environment.iter().rev().find(|(name, _value)| { return name == "GIT_DIR"; }).map(|(_name, value)| { return value; });
-    let git_directory: Option<PathBuf> = named.map(|value| { return ends.join(value); });
+    // The last `GIT_DIR` of the environment is the one Git reads, and a relative one is read from the directory the chain ended in.
+    let mut git_directory: Option<PathBuf> = None;
+    for (name, value) in environment.iter().rev() {
+        if name == "GIT_DIR" {
+            git_directory = Some(ends.join(value));
+            break;
+        }
+    }
     return SelectedRepository { directory: ends, git_directory, named_by_option: false };
 }
 

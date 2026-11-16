@@ -30,15 +30,20 @@
 //! const gitDir = gitDirectoryOfThisCommand(args, env); // GIT_DIR, else the -C target's repository, else the cwd's
 //! ```
 
-/// The repository a command line selects, read from its global options and its environment.
+/// The repository a command line selects,
+///  read from its global options and its environment.
 use crate::repository_selection::{SelectedRepository, selected_repository};
 /// The global prefix of the command Git will receive.
 use crate::global_arguments::{GlobalLayout, global_layout};
-/// The wrapper's own controls, removed before the prefix is read, so none is read as a path.
+/// The wrapper's own controls,
+///  removed before the prefix is read,
+///  so none is read as a path.
 use crate::wrapper_controls::{Controls, no_controls, strip_global_controls};
-/// The Git directory a directory is in, found by reading `.git` and walking up.
+/// The Git directory a directory is in,
+///  found by reading `.git` and walking up.
 use crate::git_directory_roots::git_directory_of;
-/// The repository's own configuration, read as plain text with the reader's bound.
+/// The repository's own configuration,
+///  read as plain text with the reader's bound.
 use crate::private_storage::read_regular_file;
 use crate::repo_read_config_text::{CONFIG_TEXT_LIMIT, ConfigEntry, last_entry, parse_bool, parse_config_text};
 /// The name of the file beside a Git directory that names its common directory.
@@ -55,8 +60,9 @@ const DOT_GIT: &str = ".git";
 /// Why:
 ///  One function answers the pass's question for the command Git is about to receive,
 ///  and `current` is a parameter so a control drives it without changing its own directory.
-///  A route this pass did not search before (`-C`, `--git-dir`) is searched only when the directory is one a
-///  command may enter and is a work tree's Git directory,
+///  A route this pass did not search before,
+///  such as `-C` or `--git-dir`,
+///  is searched only when the directory is one a command may enter and is a work tree's Git directory,
 ///  so a bare repository,
 ///  a path this account cannot read and a path that is no repository keep the lock they kept before.
 ///
