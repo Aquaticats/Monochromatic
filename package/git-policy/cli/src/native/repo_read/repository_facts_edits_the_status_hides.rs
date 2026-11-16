@@ -91,20 +91,32 @@ pub(super) fn edits_the_status_hides(
     let mut edited: Vec<String> = Vec::<String>::new();
     let mut to_compare: Vec<MarkedEntry> = Vec::<MarkedEntry>::new();
     for entry in marked_entries(facts, marked.as_slice())? {
-        match what_the_worktree_holds(worktree_root, &entry)? {
-            Held::NotThere => {}
-            Held::NotAFile => edited.push(String::from_utf8_lossy(entry.path.as_slice()).into_owned()),
-            Held::AFile { executable } => {
-                // A change of mode is the person's data like a change of bytes, so a worktree bit that
-                //  differs from the index's is an edit the form would take
-                //  (`chmod 0755 script.sh` with an `assume-unchanged` mark left Git's status empty and
-                //  `git restore --source=HEAD` removed the bit, the tenth review's third finding).
-                //  A repository that records no file mode keeps the worktree's own bits, so the
-                //  question is asked only where a bit differs and only of a repository that reads them
-                //  (measured on this host with native Git 2.56.0: with `core.fileMode=false` the bit
-                //  survived both a restore and a hard reset).
-                if executable != entry.executable && file_mode_is_recorded(facts)? {
-                    edited.push(String::from_utf8_lossy(entry.path.as_slice()).into_owned());
+        let named = |entry: &MarkedEntry| return String::from_utf8_lossy(entry.path.as_slice()).into_owned();
+        match (entry.kind, what_the_worktree_holds(worktree_root, &entry)?) {
+            // A path that is gone is no edit of the person's: Git writes it back.
+            (_, Held::NotThere) => {}
+            // The index holds a link and the worktree a file, or the other way round: a change of type is
+            //  the person's row, whatever the bytes of either entry are
+            //  (a link replaced by a file holding the link's target text hashes to the same object as the
+            //  link, and the comparison of content alone read it as unchanged: the eleventh review's sixth
+            //  finding).
+            (IndexKind::Link, Held::Regular { .. })
+            | (IndexKind::File { .. }, Held::Link)
+            | (_, Held::Other) => edited.push(named(&entry)),
+            (IndexKind::Link, Held::Link) => to_compare.push(entry),
+            (IndexKind::File { executable }, Held::Regular { executable: now }) => {
+                // A change of mode is the person's data like a change of bytes, and Git records an
+                //  executable file by the owner's bit alone, so that bit is the one compared: `chmod 0655`
+                //  on a `0755` file leaves Git's mode at `100644`, and a reading that counted group and
+                //  other too read it as executable like the index and lost the change
+                //  (the eleventh review's fourth finding, measured on this host with native Git 2.56.0,
+                //  2026-11-16).
+                //  A repository that records no file mode keeps the worktree's own bits, so the question is
+                //  asked only where the bit differs and only of a repository that reads it
+                //  (with `core.fileMode=false` the bit survived both a restore and a hard reset in the same
+                //  measurement).
+                if executable != now && file_mode_is_recorded(facts)? {
+                    edited.push(named(&entry));
                     continue;
                 }
                 to_compare.push(entry);
@@ -128,6 +140,29 @@ pub(super) fn edits_the_status_hides(
 }
 
 /// What:
+///  What the index records a marked path as.
+///  An `enum` is a closed set of named alternatives.
+/// Why:
+///  Git's comparison of a worktree entry with the index is by kind as well as by bytes:
+///  a link replaced by a regular file is a change of type even when the file's bytes are the link's own
+///  text, which hashes to the same object.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type IndexKind = { kind: 'file'; executable: boolean } | { kind: 'link' };
+/// ```
+#[derive(Clone, Copy, Debug)]
+enum IndexKind {
+    /// A regular file, executable by Git's owner bit or not.
+    File {
+        /// Whether the index's mode is `100755`, which is the owner's execute bit set.
+        executable: bool,
+    },
+    /// A symbolic link, mode `120000`.
+    Link,
+}
+
+/// What:
 ///  What the worktree holds at one marked entry's path.
 ///  An `enum` is a closed set of named alternatives.
 /// Why:
@@ -144,13 +179,15 @@ pub(super) fn edits_the_status_hides(
 enum Held {
     /// Nothing stands there.
     NotThere,
-    /// A link, a directory or another entry no comparison reads.
-    NotAFile,
-    /// A regular file whose bytes and executable bit are compared with the index's entry.
-    AFile {
-        /// Whether the worktree file carries an executable bit, as Git records it.
+    /// A regular file.
+    Regular {
+        /// Whether the file carries Git's executable bit, which is the owner's.
         executable: bool,
     },
+    /// A symbolic link.
+    Link,
+    /// A directory or another entry the index never records.
+    Other,
 }
 
 /// What:
@@ -169,8 +206,11 @@ enum Held {
 fn what_the_worktree_holds(root: &Path, entry: &MarkedEntry) -> Result<Held, String> {
     let Some(relative) = relative_path(entry.path.as_slice()) else {
         // A name this process cannot spell is no name to read bytes from, so it is compared and fails;
-        //  its mode is the index's own, so the mode question finds nothing there.
-        return Ok(Held::AFile { executable: entry.executable });
+        //  its kind and mode are the index's own, so neither question finds anything there.
+        return Ok(match entry.kind {
+            IndexKind::Link => Held::Link,
+            IndexKind::File { executable } => Held::Regular { executable },
+        });
     };
     let location: PathBuf = root.join(relative.as_path());
     let Some(read) = crate::metadata_of_a_path_within_a_ceiling::symlink_metadata_within(crate::wait_ceilings::WORKTREE_LOOKUP_CEILING, location.as_path()) else {
@@ -190,10 +230,13 @@ fn what_the_worktree_holds(root: &Path, entry: &MarkedEntry) -> Result<Held, Str
             ));
         }
     };
-    if !metadata.file_type().is_file() {
-        return Ok(Held::NotAFile);
+    if metadata.file_type().is_symlink() {
+        return Ok(Held::Link);
     }
-    return Ok(Held::AFile { executable: carries_an_executable_bit(&metadata) });
+    if !metadata.file_type().is_file() {
+        return Ok(Held::Other);
+    }
+    return Ok(Held::Regular { executable: carries_an_executable_bit(&metadata) });
 }
 
 /// What:
@@ -206,13 +249,15 @@ fn what_the_worktree_holds(root: &Path, entry: &MarkedEntry) -> Result<Held, Str
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // carriesAnExecutableBit(metadata) === (metadata.mode & 0o111) !== 0
+/// // carriesAnExecutableBit(metadata) === (metadata.mode & 0o100) !== 0
 /// ```
 fn carries_an_executable_bit(metadata: &std::fs::Metadata) -> bool {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        return metadata.permissions().mode() & 0o111 != 0;
+        // Git's `ce_mode_from_stat` looks at the owner's execute bit alone (`S_IXUSR`):
+        //  a `0655` file is no executable to Git even though its group and other bits are set.
+        return metadata.permissions().mode() & 0o100 != 0;
     }
     #[cfg(not(unix))]
     {
@@ -305,9 +350,10 @@ fn marked_paths(facts: &mut GitFacts, skip_worktree_too: bool) -> Result<Vec<Vec
 struct MarkedEntry {
     /// The object the index holds for the path.
     object: String,
-    /// Whether the index records the path as an executable file,
-    ///  which a worktree file without that bit, or with it, is an edit of.
-    executable: bool,
+    /// What the index records the path as:
+    ///  a regular file with an executable bit or without one,
+    ///  or a link.
+    kind: IndexKind,
     /// The path,
     ///  as the index holds it.
     path: Vec<u8>,
@@ -430,8 +476,14 @@ fn entry_of(chunk: &[u8]) -> Option<MarkedEntry> {
     }
     return Some(MarkedEntry {
         object: String::from_utf8_lossy(object).into_owned(),
-        // Git writes the mode Git keeps: `100755` is an executable file and `100644` is not.
-        executable: *mode == b"100755",
+        // Git writes the mode it keeps: `100755` is an executable file, `100644` is not one, and `120000`
+        //  is a link. A gitlink (`160000`) is no entry of this comparison, and is read as a file whose
+        //  content can never match, which is a refusal rather than a silence.
+        kind: if *mode == b"120000" {
+            IndexKind::Link
+        } else {
+            IndexKind::File { executable: *mode == b"100755" }
+        },
         path: chunk[tab + 1..].to_vec(),
     });
 }

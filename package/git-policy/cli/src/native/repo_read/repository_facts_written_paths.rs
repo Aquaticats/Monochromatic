@@ -76,25 +76,48 @@ use std::path::{Path, PathBuf};
 /// ```
 pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths, run_in: &Path) -> Result<Vec<WrittenPlace>, String> {
     return match written {
-        WrittenPaths::Tree { revision, guesses_a_remote_branch, .. } => {
-            Ok(inside_places(tree_paths(facts, revision.as_deref(), &[], *guesses_a_remote_branch, run_in)?))
+        WrittenPaths::Tree { revision, guesses_a_remote_branch, prefers_a_local_branch, .. } => {
+            let how: Resolution = Resolution {
+                guesses_a_remote_branch: *guesses_a_remote_branch,
+                prefers_a_local_branch: *prefers_a_local_branch,
+            };
+            Ok(inside_places(tree_paths(facts, revision.as_deref(), &[], how, run_in)?))
         }
-        WrittenPaths::MatchingTree { revision, pathspecs } => {
+        WrittenPaths::MatchingTree { revision, pathspecs, prefers_a_local_branch } => {
             // A form that names paths writes the tree of the word before them, and Git resolves that word as a
             //  revision alone: `checkout -f topic -- b.txt` answers `invalid reference: topic` for a remote-only name.
-            Ok(inside_places(tree_paths(facts, revision.as_deref(), pathspecs.as_slice(), false, run_in)?))
+            let how: Resolution = Resolution {
+                guesses_a_remote_branch: false,
+                prefers_a_local_branch: *prefers_a_local_branch,
+            };
+            Ok(inside_places(tree_paths(facts, revision.as_deref(), pathspecs.as_slice(), how, run_in)?))
         }
         WrittenPaths::Index { pathspecs } => Ok(inside_places(index_paths(facts, pathspecs.as_slice(), run_in)?)),
         WrittenPaths::IndexUnderPrefix { pathspecs, prefix } => index_under_prefix_paths(facts, pathspecs, prefix, run_in),
         WrittenPaths::MoveInto { sources, destination } => move_paths(facts, sources.as_slice(), destination, run_in),
         WrittenPaths::ReadTree { revisions, prefix, .. } => read_tree_paths(facts, revisions.as_slice(), prefix.as_deref(), run_in),
-        WrittenPaths::PathspecFile { target, file, nul_separated, entries: _, guesses_a_remote_branch } => {
+        WrittenPaths::PathspecFile {
+            target,
+            file,
+            nul_separated,
+            entries: _,
+            guesses_a_remote_branch,
+            prefers_a_local_branch,
+        } => {
+            let how: Resolution = Resolution {
+                guesses_a_remote_branch: *guesses_a_remote_branch,
+                prefers_a_local_branch: *prefers_a_local_branch,
+            };
             let pathspecs: Vec<OsString> = pathspecs_in_the_file(facts, file, *nul_separated, run_in)?;
             if !pathspecs.is_empty() {
                 return match target {
-                    PathspecTarget::Tree(revision) => {
-                        Ok(inside_places(tree_paths(facts, revision.as_deref(), pathspecs.as_slice(), false, run_in)?))
-                    }
+                    PathspecTarget::Tree(revision) => Ok(inside_places(tree_paths(
+                        facts,
+                        revision.as_deref(),
+                        pathspecs.as_slice(),
+                        Resolution { guesses_a_remote_branch: false, prefers_a_local_branch: how.prefers_a_local_branch },
+                        run_in,
+                    )?)),
                     PathspecTarget::Index => Ok(inside_places(index_paths(facts, pathspecs.as_slice(), run_in)?)),
                 };
             }
@@ -103,7 +126,7 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
             //  branch its name stands for, and a `restore` is Git's own refusal, which writes nothing.
             return match target {
                 PathspecTarget::Tree(Some(revision)) => {
-                    Ok(inside_places(tree_paths(facts, Some(revision.as_os_str()), &[], *guesses_a_remote_branch, run_in)?))
+                    Ok(inside_places(tree_paths(facts, Some(revision.as_os_str()), &[], how, run_in)?))
                 }
                 PathspecTarget::Tree(None) | PathspecTarget::Index => Ok(Vec::<WrittenPlace>::new()),
             };
@@ -999,7 +1022,7 @@ fn tree_paths(
     facts: &mut GitFacts,
     revision: Option<&OsStr>,
     pathspecs: &[OsString],
-    guesses_a_remote_branch: bool,
+    how: Resolution,
     run_in: &Path,
 ) -> Result<Vec<Vec<u8>>, String> {
     // `-` is the previous branch only to `switch` and `checkout`, so it is read as the expression Git resolves
@@ -1011,10 +1034,196 @@ fn tree_paths(
         },
         None => OsString::from("HEAD"),
     };
-    let Some(paths) = listed_paths_of(facts, named.as_os_str(), pathspecs, run_in)? else {
-        return tree_of_a_name_git_may_still_reach(facts, named.as_os_str(), pathspecs, guesses_a_remote_branch, run_in);
+    // What:
+    //  The tree object id the form's own revision resolves to, asked of Git.
+    // Why:
+    //  A revision is Git's own grammar, and a reading of it by hand met a new spelling in each review:
+    //  `A...B` is the merge base to `checkout` while `ls-tree A...B` refuses it, and a name that is both a
+    //  tag and a branch is the branch to `checkout` while `ls-tree` takes the tag.
+    //  So the word is resolved by Git, and the listing and the `--with-tree` query are given the object id,
+    //  which no spelling and no ambiguity can move.
+    let Some(tree): Option<OsString> = resolve_the_tree(facts, named.as_os_str(), how, run_in)? else {
+        return tree_of_a_name_git_may_still_reach(facts, named.as_os_str(), pathspecs, how, run_in);
     };
-    return Ok(paths);
+    return match listed_paths_of(facts, tree.as_os_str(), pathspecs, run_in)? {
+        Some(paths) => Ok(paths),
+        None => Err(tree_reading_failure(named.as_os_str(), "Git named that tree and did not list it")),
+    };
+}
+
+/// What:
+///  How one form resolves the revision it names.
+///  A `struct` is a record with named fields.
+/// Why:
+///  Two facts decide it, and both are the form's own words:
+///  whether a short name may become a local branch from a remote-tracking branch of that name,
+///  and whether a local branch wins over a tag of the same name, as it does for `checkout`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Resolution = { guesses_a_remote_branch: boolean; prefers_a_local_branch: boolean };
+/// ```
+#[derive(Clone, Copy, Debug)]
+struct Resolution {
+    /// Whether a short name may create the branch a remote-tracking branch of that name stands for.
+    guesses_a_remote_branch: bool,
+    /// Whether `refs/heads/<name>` wins over any other ref of that name.
+    prefers_a_local_branch: bool,
+}
+
+/// What:
+///  The tree object id one revision name denotes to the form that wrote it,
+///  asked of Git in the order the form itself resolves it,
+///  or nothing when Git reads the word as no revision at all,
+///  or a refusal when Git reads it as several objects.
+///  `&Resolution` borrows the form's own two facts.
+/// Why:
+///  Where Git can be asked what a word means, asking it is what keeps the guard equal to the command:
+///  `checkout -f A...B` writes the merge base's tree, and every query that resolves a single object
+///  refuses that spelling (`ls-tree`, `cat-file -t`, `rev-parse --verify`), so a guard that asked one of
+///  them read "this form writes nothing" (the eleventh review's first finding).
+///  And `checkout -f <name>` writes the tip of `refs/heads/<name>` when that ref exists while
+///  `rev-parse <name>` takes a tag of that name first (its second finding),
+///  so a form that prefers its local branch asks about `refs/heads/<name>` first.
+///  A word Git reads as several objects (a range, a set, a blob) is a revision this reading cannot turn
+///  into one tree, and the refusal names it and prints the opt-out.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // resolveTheTree(facts, 'other', { prefers_a_local_branch: true }) === 'f27119e…'
+/// // resolveTheTree(facts, 'work...other', …) throws a refusal that names the word
+/// ```
+fn resolve_the_tree(facts: &mut GitFacts, named: &OsStr, how: Resolution, run_in: &Path) -> Result<Option<OsString>, String> {
+    // `HEAD` is no name a person typed, and needs no resolution.
+    if named == "HEAD" {
+        return Ok(Some(named.to_os_string()));
+    }
+    if how.prefers_a_local_branch {
+        let branch: OsString = OsString::from(format!("refs/heads/{}", bytes_of(named)));
+        if let Some(tree) = tree_of_the_expression(facts, branch.as_os_str(), run_in)? {
+            return Ok(Some(tree));
+        }
+    }
+    if let Some(tree) = tree_of_the_expression(facts, named, run_in)? {
+        return Ok(Some(tree));
+    }
+    // Git reads the word as no single object. If it reads it as a revspec at all, the guard cannot say
+    //  which one tree it writes, and it refuses rather than guessing.
+    let reads_it: bool = word_is_a_revspec(facts, named, run_in)?;
+    if reads_it {
+        return Err(tree_reading_failure(
+            named,
+            "Git reads that word as more than one object (a range, a set or an object that is no tree), so the guard cannot tell which tree this form writes",
+        ));
+    }
+    return Ok(None);
+}
+
+/// What:
+///  The `OsStr` one name is, as the text a message can carry.
+///  `&OsStr` borrows the name; `String` owns the lossy reading of it for a sentence.
+/// Why:
+///  A branch name is appended to `refs/heads/` as text, and the name may hold bytes that are not UTF-8;
+///  the sentence a refusal prints reads them lossily, and nothing else does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const bytesOf = (name) => name.toString();
+/// ```
+fn bytes_of(named: &OsStr) -> String {
+    return named.to_string_lossy().into_owned();
+}
+
+/// What:
+///  The tree object id Git resolves one expression to,
+///  or nothing when it resolves to no tree.
+/// Why:
+///  `^{tree}` makes Git peel the expression as far as a tree, which is what a form that writes a tree
+///  needs: a tag, a commit, a `^{}` peel, a `@{…}` reflog entry and a `:/text` search all answer it,
+///  and the answer is an object id that a listing cannot mistake for another name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const tree = (await git(['rev-parse', '--verify', '--quiet', '--end-of-options', `${name}^{tree}`])).stdout.trim();
+/// ```
+fn tree_of_the_expression(facts: &mut GitFacts, expression: &OsStr, run_in: &Path) -> Result<Option<OsString>, String> {
+    let mut one: Vec<u8> = expression.as_encoded_bytes().to_vec();
+    one.extend_from_slice(b"^{tree}");
+    let mut arguments: Vec<OsString> = without_directory_changes(facts.global_prefix.as_slice());
+    for token in ["--no-optional-locks", "rev-parse", "--verify", "--quiet", "--end-of-options"] {
+        arguments.push(OsString::from(token));
+    }
+    arguments.push(path_from_bytes(one.as_slice()));
+    let output: MetadataOutput = facts.query_in(run_in, arguments, "the tree this command writes")?;
+    if !output.success {
+        // A child a signal ended answered nothing at all; only a nonzero exit is an answer about the name.
+        if output.code.is_none() {
+            return Err(String::from(
+                "Git was ended by a signal while the guard asked which tree this command writes, so it cannot tell what would be overwritten",
+            ));
+        }
+        return Ok(None);
+    }
+    let resolved: Vec<u8> = output.stdout.iter().copied().take_while(|byte| return *byte != b'\n').collect();
+    let text: &[u8] = trimmed(resolved.as_slice());
+    if text.is_empty() || text.len() != 40 || !text.iter().all(|byte| return byte.is_ascii_hexdigit()) {
+        return Err(format!(
+            "Git answered `{}` when the guard asked which tree this command writes, which is no object id, so the guard cannot tell what would be overwritten",
+            String::from_utf8_lossy(resolved.as_slice())
+        ));
+    }
+    return Ok(Some(path_from_bytes(text)));
+}
+
+/// What:
+///  Whether Git reads a word as a revision of any kind, one object or several.
+/// Why:
+///  The two answers a failed resolution can mean are opposite, and Git alone tells them apart:
+///  a word it reads as no revision is a path to the command (Git writes nothing to a tree for it and
+///  refuses a path it does not know),
+///  while a word it reads as several objects is a form whose tree the guard cannot name.
+///  `rev-parse --revs-only` prints what it parsed and nothing for a word it does not read, and its exit
+///  status is 0 either way, so the answer is the text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const parsed = (await git(['rev-parse', '--revs-only', '--end-of-options', name])).stdout.trim();
+/// ```
+fn word_is_a_revspec(facts: &mut GitFacts, named: &OsStr, run_in: &Path) -> Result<bool, String> {
+    let mut arguments: Vec<OsString> = without_directory_changes(facts.global_prefix.as_slice());
+    for token in ["--no-optional-locks", "rev-parse", "--revs-only", "--end-of-options"] {
+        arguments.push(OsString::from(token));
+    }
+    arguments.push(named.to_os_string());
+    let output: MetadataOutput = facts.query_in(run_in, arguments, "whether Git reads this word as a revision")?;
+    if output.code.is_none() {
+        return Err(String::from(
+            "Git was ended by a signal while the guard asked what a word of this command names, so it cannot tell what would be overwritten",
+        ));
+    }
+    return Ok(!trimmed(output.stdout.as_slice()).is_empty());
+}
+
+/// What:
+///  The same bytes without leading or trailing whitespace.
+///  `&[u8]` borrows them; `&[u8]` is the same slice without the whitespace.
+/// Why:
+///  `rev-parse` ends its answers with a newline, and a trailing one would make every comparison unequal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const trimmed = (bytes) => bytes.replace(/^\s+|\s+$/g, '');
+/// ```
+fn trimmed(bytes: &[u8]) -> &[u8] {
+    let mut start: usize = 0;
+    let mut end: usize = bytes.len();
+    while start < end && bytes[start].is_ascii_whitespace() {
+        start += 1;
+    }
+    while end > start && bytes[end - 1].is_ascii_whitespace() {
+        end -= 1;
+    }
+    return &bytes[start..end];
 }
 
 /// What:
@@ -1042,21 +1251,21 @@ fn tree_of_a_name_git_may_still_reach(
     facts: &mut GitFacts,
     named: &OsStr,
     pathspecs: &[OsString],
-    guesses_a_remote_branch: bool,
+    how: Resolution,
     run_in: &Path,
 ) -> Result<Vec<Vec<u8>>, String> {
-    if git_holds_an_object_named(facts, named)? {
-        return Err(tree_reading_failure(named, "Git knows an object by that name and did not list its tree"));
-    }
     // A form that names paths, a reset, and a restore never guess: Git refuses the name itself
     //  (`invalid reference`, `ambiguous argument`, `could not resolve`), so there is nothing to write.
-    if !guesses_a_remote_branch || !pathspecs.is_empty() || !guessing_is_left_on_in_this_repository(facts)? {
+    if !how.guesses_a_remote_branch || !pathspecs.is_empty() || !guessing_is_left_on_in_this_repository(facts)? {
         return Ok(Vec::<Vec<u8>>::new());
     }
     let Some(remote_branch) = remote_branch_a_checkout_would_create_from(facts, named)? else {
         return Ok(Vec::<Vec<u8>>::new());
     };
-    return match listed_paths_of(facts, remote_branch.as_os_str(), &[], run_in)? {
+    let Some(tree): Option<OsString> = tree_of_the_expression(facts, remote_branch.as_os_str(), run_in)? else {
+        return Ok(Vec::<Vec<u8>>::new());
+    };
+    return match listed_paths_of(facts, tree.as_os_str(), &[], run_in)? {
         Some(paths) => Ok(paths),
         None => Err(tree_reading_failure(
             remote_branch.as_os_str(),
@@ -1420,9 +1629,33 @@ fn read_tree_paths(
     let root: PathBuf = worktree_root_of(facts)?;
     let mut paths: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
     for revision in revisions {
-        paths.extend(tree_paths(facts, Some(revision.as_os_str()), &[], false, run_in)?);
+        // `read-tree` resolves its trees the general way: a tag of a name wins, as `ls-tree` reads it.
+        let how: Resolution = Resolution { guesses_a_remote_branch: false, prefers_a_local_branch: false };
+        paths.extend(tree_paths(facts, Some(revision.as_os_str()), &[], how, run_in)?);
     }
-    return the_places_under_a_prefix(root.as_path(), prefix, paths);
+    // What:
+    //  A `read-tree` prefix is a directory, whether or not the person ended it with a separator.
+    // Why:
+    //  `git read-tree --prefix=ignored-dir -u other` writes `ignored-dir/a.txt`, the same as
+    //  `--prefix=ignored-dir/`, while `checkout-index` glues its prefix to the path as text
+    //  (`--prefix=out` writes `outa.txt`) (both measured on this host with native Git 2.56.0,
+    //  2026-11-16).
+    //  A reading that used `checkout-index`'s rule here computed `ignored-dira.txt`, found nothing
+    //  there, and let the form write over the ignored file the eleventh review planted (its third
+    //  finding).
+    //  The person's own text is kept and a separator is added when it has none.
+    let as_a_folder: Option<OsString> = prefix.map(|written| {
+        let bytes: &[u8] = written.as_encoded_bytes();
+        return if bytes.is_empty() || bytes.ends_with(b"/") {
+            written.to_os_string()
+        } else {
+            let mut with_separator: Vec<u8> = Vec::<u8>::with_capacity(bytes.len() + 1);
+            with_separator.extend_from_slice(bytes);
+            with_separator.push(b'/');
+            path_from_bytes(with_separator.as_slice())
+        };
+    });
+    return the_places_under_a_prefix(root.as_path(), as_a_folder.as_deref(), paths);
 }
 
 /// What:

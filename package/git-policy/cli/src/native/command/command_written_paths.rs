@@ -157,6 +157,18 @@ pub enum WrittenPaths {
         ///  `fatal: Not a valid object name topic`),
         ///  so they keep the flag false.
         guesses_a_remote_branch: bool,
+        /// What:
+        ///  Whether the form resolves a short name to a local branch before Git's general order
+        ///  between a tag, a branch and a remote branch.
+        /// Why:
+        ///  `checkout`, `switch` and `restore --source` write the tip of `refs/heads/<name>` when that
+        ///  ref exists, while `git rev-parse <name>` and `git ls-tree <name>` take a tag of that name
+        ///  first, so a guard that asked the general question listed another tree than the one the
+        ///  command wrote (the eleventh review's second finding, measured on this host with native Git
+        ///  2.56.0, 2026-11-16: a tag `other` on `main` and a branch `other` holding `new-in-other.txt`;
+        ///  `git checkout -f other` wrote the branch's tree while `ls-tree other` listed main's).
+        ///  `reset` and `read-tree` resolve the general way and keep the flag false.
+        prefers_a_local_branch: bool,
     },
     /// The paths of the revision's tree that the form's own pathspecs match.
     MatchingTree {
@@ -166,6 +178,9 @@ pub enum WrittenPaths {
         /// The paths the form names,
         ///  which Git matches against the tree.
         pathspecs: Vec<OsString>,
+        /// Whether the form resolves a short name to a local branch first,
+        ///  as `checkout` does.
+        prefers_a_local_branch: bool,
     },
     /// The paths the index holds,
     ///  which a restore without a source writes over.
@@ -228,6 +243,9 @@ pub enum WrittenPaths {
         ///  Whether the command line leaves `checkout` free to guess the remote branch the name stands
         ///  for, which it does for the whole-tree form an empty file leaves behind.
         guesses_a_remote_branch: bool,
+        /// Whether the form resolves a short name to a local branch first,
+        ///  as `checkout` and `restore --source` do.
+        prefers_a_local_branch: bool,
     },
     /// The paths of every tree a `git read-tree -u` names,
     ///  each below the prefix the form writes them under.
@@ -307,11 +325,14 @@ pub fn written_paths(command: GuardedCommand, region: &[OsString]) -> Option<Wri
                     entries: WrittenEntries::EveryEntry,
                     // A reset resolves a revision and never the remote branch a short name stands for.
                     guesses_a_remote_branch: false,
+                    // Nor does it prefer a branch over a tag of the same name: `get_oid` does not.
+                    prefers_a_local_branch: false,
                 }),
                 Some(ResetMode::Merge) | Some(ResetMode::Keep) => Some(WrittenPaths::Tree {
                     revision,
                     entries: WrittenEntries::OnlyIgnored,
                     guesses_a_remote_branch: false,
+                    prefers_a_local_branch: false,
                 }),
                 _ => None,
             };
@@ -324,6 +345,8 @@ pub fn written_paths(command: GuardedCommand, region: &[OsString]) -> Option<Wri
                 revision: target,
                 entries: WrittenEntries::EveryEntry,
                 guesses_a_remote_branch: guess_is_not_switched_off(&parsed),
+                // `switch` writes the branch's tip when a branch of that name exists, as `checkout` does.
+                prefers_a_local_branch: true,
             });
         }
         GuardedCommand::RestoreWorktree => return restore_written_paths(region),
@@ -597,13 +620,14 @@ fn checkout_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
                 break;
             }
         }
-        return Some(WrittenPaths::MatchingTree { revision, pathspecs });
+        return Some(WrittenPaths::MatchingTree { revision, pathspecs, prefers_a_local_branch: true });
     }
     if names.len() > 1 {
         let revision: Option<OsString> = Some(names[0].clone());
         return Some(WrittenPaths::MatchingTree {
             revision,
             pathspecs: names[1..].iter().map(|name| return (*name).clone()).collect(),
+            prefers_a_local_branch: true,
         });
     }
     if !is_enabled(&parsed, FORCE) {
@@ -613,6 +637,7 @@ fn checkout_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
         revision: names.first().map(|name| return (*name).clone()),
         entries: WrittenEntries::EveryEntry,
         guesses_a_remote_branch: guess_is_not_switched_off(&parsed),
+        prefers_a_local_branch: true,
     });
 }
 
@@ -682,6 +707,8 @@ fn restore_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
             //  (measured on this host with native Git 2.56.0, 2026-11-13), so only the refusal follows an empty file.
             entries: WrittenEntries::EveryEntry,
             guesses_a_remote_branch: false,
+            // `restore --source=<name>` writes the branch's tip when a branch of that name exists.
+            prefers_a_local_branch: true,
         });
     }
     let mut pathspecs: Vec<OsString> = Vec::<OsString>::new();
@@ -691,7 +718,7 @@ fn restore_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
         }
     }
     return Some(match source {
-        Some(revision) => WrittenPaths::MatchingTree { revision: Some(revision), pathspecs },
+        Some(revision) => WrittenPaths::MatchingTree { revision: Some(revision), pathspecs, prefers_a_local_branch: true },
         None => WrittenPaths::Index { pathspecs },
     });
 }
@@ -768,6 +795,7 @@ fn pathspec_file_written_paths(
         nul_separated,
         entries: if forced { WrittenEntries::EveryEntry } else { WrittenEntries::OnlyIgnored },
         guesses_a_remote_branch: guess_is_not_switched_off(parsed),
+        prefers_a_local_branch: true,
     };
 }
 

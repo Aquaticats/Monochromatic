@@ -47,7 +47,7 @@ use crate::command_discard::{
     remove_reading, restore_reading, skip_discard, switch_discard,
 };
 use crate::command_checkout_index_table::{CHECKOUT_INDEX_IGNORE_SKIP_WORKTREE_BITS, CHECKOUT_INDEX_TABLE};
-use crate::command_checkout_table::{CHECKOUT_TABLE, IGNORE_SKIP_WORKTREE_BITS};
+use crate::command_checkout_table::{CHECKOUT_TABLE, IGNORE_SKIP_WORKTREE_BITS, SWITCH_TABLE};
 use crate::command_options::{DEFAULT_MODE, OptionError, OptionErrorKind, parse_options};
 use crate::command_options_query::is_enabled;
 use crate::command_restore_table::{RESTORE_IGNORE_SKIP_WORKTREE_BITS, RESTORE_TABLE};
@@ -429,7 +429,26 @@ pub fn dirty_question(command: GuardedCommand, region: &[OsString]) -> Option<Di
                 DirtyScope::Tracked
             }));
         }
-        _ => return Some(DirtyQuestion::Worktree(DirtyScope::Tracked)),
+        // What:
+        //  A `checkout` or a `switch` that carries `--ignore-skip-worktree-bits`.
+        // Why:
+        //  The option tells Git to write the entries the marks hide, whichever form carries it,
+        //  and one such form is a `checkout` whose single word is a path rather than a revision:
+        //  `git checkout --ignore-skip-worktree-bits a.txt` with one name and no `--` reads as a branch
+        //  move to the guard, while Git reads the name as a path and writes the index's copy over the
+        //  edit the mark hides
+        //  (the eleventh review's fifth finding, measured on this host with native Git 2.56.0, 2026-11-16:
+        //  `Updated 1 path from the index` and the edit gone, while the same words with `--`, with two
+        //  names or with a tree were refused).
+        //  Asking the marked edits for every such form costs a listing of the marked paths and nothing
+        //  when the worktree holds none.
+        _ => {
+            return Some(DirtyQuestion::Worktree(if ignores_skip_worktree_bits(command, region) {
+                DirtyScope::TrackedAndSkipWorktreeEdits
+            } else {
+                DirtyScope::Tracked
+            }));
+        }
     }
 }
 
@@ -478,6 +497,11 @@ fn ignores_skip_worktree_bits(command: GuardedCommand, region: &[OsString]) -> b
         }
         GuardedCommand::CheckoutIndex => {
             parse_options(region, CHECKOUT_INDEX_TABLE, DEFAULT_MODE, &[]).ok().map(|parsed| return is_enabled(&parsed, CHECKOUT_INDEX_IGNORE_SKIP_WORKTREE_BITS))
+        }
+        // `switch` has no such option of its own, and reading its region by `checkout`'s table could take a
+        //  switch word for an option this command never reads.
+        GuardedCommand::SwitchForce | GuardedCommand::SwitchMove => {
+            parse_options(region, SWITCH_TABLE, DEFAULT_MODE, &[]).ok().map(|parsed| return is_enabled(&parsed, IGNORE_SKIP_WORKTREE_BITS))
         }
         _ => {
             parse_options(region, CHECKOUT_TABLE, DEFAULT_MODE, &[]).ok().map(|parsed| return is_enabled(&parsed, IGNORE_SKIP_WORKTREE_BITS))
