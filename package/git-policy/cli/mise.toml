@@ -7,7 +7,7 @@ run = ["cargo-shadow lean records target/verification", "node bin/test-native-co
 [tasks."test:service-manager"]
 description = "Prove against a real user manager in a disposable container that a Git command never makes it read every unit it holds, and that an unrelated `Type=dbus` service bound to a target survives first provisioning, an upgrade, a downgrade, two releases used in turn from two worktrees, several callers at once, and a machine that has the earlier release's template installed; `-- --image <tag> --main-wrapper <path>` names the gate image and the executable of the release from `main`, which this task copies into both arms' containers (the candidate is this worktree's build, made first here). The arm from `main` has to end the unrelated service and its target, and the arm from this worktree has to keep them and ask for no reload, so a run that proves neither fails"
 # Mechanism D: this task writes a verification record, so it sweeps this package's run records first.
-run = ["cargo-shadow lean records target/verification", "cargo build --locked --offline --bin monochromatic-git-policy-cli", "node bin/service-manager-proof.ts"]
+run = ["cargo-shadow lean records target/verification", "node bin/native-build-fresh.ts", "node bin/service-manager-proof.ts"]
 
 [tasks."native:mutation"]
 description = "Run the gate, plant guard removals, then run cargo-mutants over the native wrapper in bounded containers; mise passes `-- <options>` to the mutation step only, so the gate runs at its own default bounds (run native:test:container with its own options first to change them)"
@@ -95,12 +95,15 @@ description = "Ask cargo whether every manifest the gate builds still resolves a
 run = "node bin/native-lock-check.ts"
 
 [tasks."native:build"]
-description = "Build the native wrapper executable on the host, for differential runs that start it by path"
-run = "cargo build --locked --offline --bin monochromatic-git-policy-cli"
+description = "Build the native wrapper executable on the host from this checkout's own sources, for differential runs that start it by path: `target/debug/monochromatic-git-policy-cli` is the program this build compiled, or the task fails saying why and leaves no older program there"
+# bin/native-build-fresh.ts removes this crate's units from whatever build directory Cargo resolves and the program at the
+# path before it builds, because a worktree is a snapshot of the checkout it came from and Cargo calls a unit fresh by
+# modification time alone (doc/troubleshooting/cargo-fresh-build-leaves-another-checkouts-program.md).
+run = "node bin/native-build-fresh.ts"
 
 [tasks."native:build:release"]
-description = "Build the optimised native wrapper executable on the host, for timing runs that start it by path (`target/release/monochromatic-git-policy-cli`); nothing is installed"
-run = "cargo build --locked --offline --release --bin monochromatic-git-policy-cli"
+description = "Build the optimised native wrapper executable on the host from this checkout's own sources, for timing runs that start it by path (`target/release/monochromatic-git-policy-cli`); the program at that path is the one this build compiled or the task fails saying why, and nothing is installed"
+run = "node bin/native-build-fresh.ts --release"
 
 [tasks."native:check"]
 description = "Type-check the native wrapper library, executable and test targets without running them"
@@ -141,8 +144,8 @@ description = "Lint the native wrapper with Clippy, warnings denied; matches the
 run = "cargo clippy --locked --offline --all-targets -- -D warnings"
 
 [tasks.build]
-description = "Build the native wrapper executable `monochromatic-git-policy-cli` in release mode, the artifact the cargo-installed `git` runs"
-run = "cargo build --release --locked --offline --bins"
+description = "Build the native wrapper executable `monochromatic-git-policy-cli` in release mode, the artifact the cargo-installed `git` runs, from this checkout's own sources"
+run = "node bin/native-build-fresh.ts --release"
 
 [tasks."native:perf"]
 description = "Measure the latency the release wrapper adds to forwarded Git commands (added p95 under 2,000 ms) and commits (every paired delta under 5,000 ms) against paired direct Git; `-- --output perf/native-latency-<date>.json` stores the raw samples"
