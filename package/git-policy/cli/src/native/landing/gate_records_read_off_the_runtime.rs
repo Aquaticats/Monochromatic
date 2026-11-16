@@ -37,31 +37,15 @@
 
 use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_once_awaited_no_longer_than};
 use crate::wait_ceilings::AFTER_COMMIT_STATE_CEILING;
+use crate::work_item::WorkItem;
 use crate::work_item_holding::{BlockedVerdict, blocked_verdicts, undecided_commits};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// What:
-///  Every verdict a post-commit gate of this worktree kept,
-/// read off the runtime's worker and within the after-commit work's state ceiling.
-/// Why:
-///   A verdict that could not be read is not the same as no verdict:
-/// it may be the refusal that keeps this very commit local,
-///  and a push decided from an empty list would publish that commit.
-/// The answer is then the words of the step that failed,
-///  which the push hands to its retry plan rather than to a push.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const blocked = await blockedVerdictsAwaiting(workDir); // throws when the records did not answer
-/// ```
-pub(crate) async fn blocked_verdicts_awaiting(work_dir: &Path) -> Result<Vec<BlockedVerdict>, String> {
-    return blocked_verdicts_within_awaiting(the_gate_records_ceiling(), work_dir).await;
-}
-
-/// What:
-///  `blocked_verdicts_awaiting` with the ceiling its place and its job are given,
-///  so a control reaches the bound this step keeps in a moment (`service_push_retry_tests.rs`).
+///  The read of the verdicts a gate kept,
+///  with the ceiling its place and its job are given,
+///  so a control reaches the bound this step keeps in a moment.
 /// Why:
 ///   The shipped ceiling is sixty seconds,
 /// and only a control wants to wait past a read that does not answer in a moment.
@@ -80,26 +64,8 @@ pub(crate) async fn blocked_verdicts_within_awaiting(ceiling: Duration, work_dir
 }
 
 /// What:
-///  The commits of one branch whose held record says its gate has not decided,
-/// read off the runtime's worker and within the after-commit work's state ceiling.
-/// Why:
-///   A push of the branch sends every commit up to the tip,
-/// so a commit whose own gate still runs may not be published.
-/// A record that could not be read leaves that question open,
-///  and the words of the step that failed are answered so the push is tried again
-///  rather than sent past a gate nobody read
-/// (`work_item_holding.rs`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const undecided = await undecidedCommitsAwaiting(workDir, branchRef); // throws when the records did not answer
-/// ```
-pub(crate) async fn undecided_commits_awaiting(work_dir: &Path, branch_ref: &str) -> Result<Vec<String>, String> {
-    return undecided_commits_within_awaiting(the_gate_records_ceiling(), work_dir, branch_ref).await;
-}
-
-/// What:
-///  `undecided_commits_awaiting` with the ceiling its place and its job are given,
+///  The read of the commits whose gate still runs,
+///  with the ceiling its place and its job are given,
 ///  so a control reaches the bound this step keeps in a moment.
 /// Why:
 ///   The shipped ceiling is sixty seconds,
@@ -117,6 +83,88 @@ pub(crate) async fn undecided_commits_within_awaiting(ceiling: Duration, work_di
         TheAnswerOfAJobAwaited::NotRun => Err(format!("the held records of this branch could not be read, because no place of the process's blocking pool came within {ceiling:?}")),
         TheAnswerOfAJobAwaited::NoAnswer => Err(format!("the held records of this branch gave no answer within {ceiling:?}, so no push can tell which commits of it a gate still holds")),
     };
+}
+
+/// What:
+///  What a push must know before it sends anything:
+/// every verdict a post-commit gate kept,
+/// and the commits of the branch whose own gate still runs.
+/// Why:
+///   The two are read together on the path of every push,
+/// and a push that sends past either publishes a commit a gate may keep local.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type GateRecords = { blocked: BlockedVerdict[]; undecided: string[] };
+/// ```
+pub(crate) struct GateRecords {
+    /// Every verdict a post-commit gate of this worktree kept.
+    pub(crate) blocked: Vec<BlockedVerdict>,
+    /// The commits of the pushed branch whose held record says its gate has not decided.
+    pub(crate) undecided: Vec<String>,
+}
+
+/// What:
+///  Both reads a push makes before it sends anything,
+///  each a job of the process's blocking pool awaited within the after-commit work's state ceiling,
+///  or the words the push answers with when one of them did not answer.
+/// Why:
+///   The push's round answers `Retry` with these words (`service_work.rs`, `push_awaiting`):
+/// nothing of the branch was sent,
+///  so the commit is neither lost nor reported as made,
+/// the item keeps its place for the next round,
+///  and the service's retry plan names the pause to the person
+/// (`service_work_settling_a_verdict.rs`).
+/// A record that cannot be read is a verdict nobody knows,
+/// which is not the same as no verdict,
+///  so the words say which of the two readings did not answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { blocked, undecided } = await gateRecordsAwaiting(workDir, item); // throws the words a push answers with
+/// ```
+pub(crate) async fn gate_records_awaiting(work_dir: &Path, item: &WorkItem) -> Result<GateRecords, String> {
+    return gate_records_within_awaiting(the_gate_records_ceiling(), work_dir, item).await;
+}
+
+/// What:
+///  `gate_records_awaiting` with the ceiling its two places and jobs are given,
+///  so a control reaches the bound this step keeps in a moment.
+/// Why:
+///   The shipped ceiling is sixty seconds,
+/// and only a control wants to wait past a record that does not answer in a moment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const records = await gateRecordsWithinAwaiting(200, workDir, item);
+/// ```
+pub(crate) async fn gate_records_within_awaiting(ceiling: Duration, work_dir: &Path, item: &WorkItem) -> Result<GateRecords, String> {
+    let blocked: Vec<BlockedVerdict> = match blocked_verdicts_within_awaiting(ceiling, work_dir).await {
+        Ok(verdicts) => verdicts,
+        Err(said) => return Err(unread(item, said.as_str())),
+    };
+    let undecided: Vec<String> = match undecided_commits_within_awaiting(ceiling, work_dir, item.branch_ref.as_str()).await {
+        Ok(commits) => commits,
+        Err(said) => return Err(unread(item, said.as_str())),
+    };
+    return Ok(GateRecords { blocked, undecided });
+}
+
+/// What:
+///  The words a push answers with when a gate record it must read before it sends anything did not answer.
+/// Why:
+///   They name the commit, so the person's record says which commit is still only here,
+///  what did not answer and within which ceiling,
+/// and that the push is tried again,
+///  which the retry plan the service keeps then dates
+/// (`service_work_handlers_replanning_and_acceptance.rs`, `planned_retry`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const words = unread(item, 'the gate records of this branch gave no answer within 60s, ...');
+/// ```
+fn unread(item: &WorkItem, said: &str) -> String {
+    return format!("the commit {} was not pushed: {said}. Nothing of this branch was sent, and the push is tried again", item.oid);
 }
 
 /// The ceiling a control stated for these reads of this process,

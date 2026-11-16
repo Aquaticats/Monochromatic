@@ -540,6 +540,31 @@ fn a_push_with_readable_gate_records_is_sent_or_held_back_as_it_was() {
 
 //region What the two reads cost a push, measured against the reads made on the worker
 
+// What:
+//  What the two reads of a push's gate records cost on this path,
+//  as the ratio of the arm that awaits them on the pool to the arm that makes them in the push's task.
+// Why:
+//   `wait_ceilings.rs`'s `AFTER_COMMIT_STATE_CEILING` and this module's own ceiling cite the wait they grant,
+// and the change that bounded these reads cites the ratio below:
+// the ceiling buys a free worker for the cost of a place of the process's bound and the hop to it.
+// Run:
+// `mise run //package/git-policy/cli:native:test:host -- --run-ignored only --no-capture the_two_reads_a_push_makes_cost_this_on_this_machine`.
+//
+//  Measured on 2026-11-16 on this host,
+// three runs, 400 rounds each, the two arms interleaved round by round,
+// reading a work tree that holds ten gate records:
+// five verdicts, and five commits of the pushed branch whose gate still runs.
+// - in the push's own task: 712 to 722 us at the middle, 957 to 1,094 us at the 99th percentile,
+//   and 1,097 to 1,128 us at the slowest;
+// - awaited as jobs of the pool: 768 to 787 us at the middle, 1,113 to 1,166 us at the 99th percentile,
+//   and 1,417 to 1,844 us at the slowest;
+// - the ratio of the two middles: 1.08 to 1.09,
+//   and of the two 99th percentiles 1.07 to 1.17.
+// The control arm's own middle moved 1.4% between runs,
+// so the difference is the change and not the host's load.
+// The middle is what a reader compares:
+// the largest samples of both arms move with this host's load and say nothing about the change.
+
 /// How many rounds of the measurement,
 /// each reading the same handful of records once per arm,
 /// so each middle is worth comparing.
