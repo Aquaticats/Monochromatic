@@ -2566,40 +2566,58 @@ the name is compared with the held identity again before the old tree is deleted
 and a
 difference keeps the old tree,
 names both identities and changes nothing.
-`--remove-old` carries into the checkout what was written to the old tree after the catch-up,
-and that carry leaves out an entry the checkout lacks whose modification time is older than the catch-up,
-because that is also the shape of a file the person deleted from the checkout on purpose.
-A path where the checkout holds another kind of entry than the old tree does is not carried either:
-the pass keeps
-the checkout's entry as the newer one and records the path,
-so the old tree's directory there,
-and the only copy of what it holds,
-holds back the deletion the same way,
-and the refusal names it.
-The command counts those entries,
-writes their relative paths to `<parent>/.cli-git-migrate-<name>.left-out.txt` beside the checkout
+The migration records what every non-directory entry of the old tree read like when the catch-up pass last read it
+(the device,
+the inode,
+the kind,
+the size,
+the modification time and the change time),
+in `<parent>/.cli-git-migrate-<name>.old-tree.txt` beside the checkout,
+written before the step that records the catch-up as finished,
+so a kill in between repeats the catch-up rather than leaving an old tree nothing has a reading of.
+The change time is the field a writer cannot set,
+so an entry that still reads the same was carried when the migration read it and nothing has been written into it since;
+`--remove-old` decides by that record and not by the checkout,
+which the person's own work has moved on,
+and deletes such an entry with the old tree whatever the checkout holds now.
+An entry that reads differently,
+and one the record does not name,
+was written into the old tree after the migration:
+the late-write carry puts it into the checkout when the checkout lacks it or holds an older copy,
+parking what it replaced at `.cli-git-migrate-parked-<digest of the path>` and naming it,
+and an entry it could not place is moved beside the checkout into `<parent>/.cli-git-migrate-<name>.kept`,
+whose record `<parent>/.cli-git-migrate-<name>.kept.txt` names each entry with the path it held;
+nothing deletes that folder,
+and the run says where it is.
+The entries the carry could not place are still counted,
+written to `<parent>/.cli-git-migrate-<name>.left-out.txt` beside the checkout
 (through a sibling created exclusively and renamed over the name,
 so a link planted there is replaced rather than followed;
 the unreadable-file list is written the same way),
-and deletes nothing while the list is not empty:
+and the deletion of the old tree stops while that list is not empty:
 the refusal names the entries of both kinds (up to ten each,
 then how many more)
 and stops with exit status 1 until the person passes `--discard-left-out`
 beside `--remove-old`,
 or deletes the old tree themselves.
-The flag applies to both deleting modes.
-A rollback's carry-back leaves the same kind of entry out when the original tree holds another kind of entry at its
-path,
-and the new subvolume's directory there,
-and the only copy of what it holds,
-would go with the subvolume the rollback deletes;
-the rollback therefore counts those entries,
-names them,
-and deletes nothing until the person passes `--discard-left-out` beside `--rollback`,
+That flag applies to both deleting modes.
+A checkout an earlier release migrated has no record,
+and `--remove-old` refuses with both ways on:
+`--accept-the-unrecorded-old-tree` deletes the old tree as it stands on the person's word,
+and deleting it by hand is the other.
+A rollback's carry back puts the new subvolume's newer bytes at every path where the two trees differ,
+parking what it replaced at the parked name and naming it,
+so an edit or a commit made in the checkout after the migration reaches the restored directory;
+what the pass cannot place is counted,
+named,
+and holds the deletion of the new subvolume back until the person passes `--discard-left-out` beside `--rollback`,
 or deletes the new subvolume themselves.
-A rollback writes no list file for them:
-the paths are relative to the new subvolume,
-and the run refuses before it exchanges anything.
+A rollback's deletion of the new subvolume keeps what it cannot prove the same way,
+in the folder beside the checkout.
+Two windows cannot be closed and are named in the command's help:
+a program that holds a file of the old tree open keeps writing into it,
+and a write that lands after the deletion's last reading of that entry goes with the entry;
+and a program that replaces an entry while the command reads it can name a path the command is not looking at.
 The mutation campaign's evidence directories and the host-wide gate slots (`package/mutation-test/cli-cargo-mutants`) are owned
 by claim files:
 a second run on a directory is refused,

@@ -2017,7 +2017,8 @@ a directory or any other name beside the journal is left alone.
 git monochromatic-git-policy-cli migrate-to-subvolume --dry-run   # preflight and plan; nothing is created
 git monochromatic-git-policy-cli migrate-to-subvolume             # migrate; run it again after any stop and it resumes
 git monochromatic-git-policy-cli migrate-to-subvolume --rollback [--discard-unreadable] [--discard-left-out]  # undo, finished or not
-git monochromatic-git-policy-cli migrate-to-subvolume --remove-old [--discard-unreadable] [--discard-left-out]  # delete the original tree
+git monochromatic-git-policy-cli migrate-to-subvolume --remove-old [--discard-unreadable] [--discard-left-out] \
+                                                     [--accept-the-unrecorded-old-tree]   # delete the original tree
 ```
 
 The steps,
@@ -2162,26 +2163,37 @@ Before it deletes the new subvolume,
  reaches the deletion,
  so a run resumed after the exchange was recorded keeps a subvolume another process put there
  and names both identities.
-`--remove-old` first carries into the checkout what was written to the original after the catch-up (files newer than
- their copy,
-and files the checkout lacks that are no older than the catch-up;
-older ones were deleted on purpose),
-then
- deletes the original.
-An entry it left out that way is either a file deleted from the checkout on purpose or a file restored into the original
- tree after the migration (an unpacked backup carries old timestamps),
-and no check can tell the two apart:
-the command counts them,
-writes their relative paths to `.cli-git-migrate-<name>.left-out.txt` beside the checkout,
-names them,
-and deletes nothing until `--discard-left-out` is given with `--remove-old`
- (or you delete the original tree yourself).
-A rollback's carry back leaves an entry out the same way when the original tree holds another kind of entry at its
-path,
-and the new subvolume's directory there is the only copy of what it holds:
-the rollback names those entries and
- deletes nothing until `--discard-left-out` is given with `--rollback`
+The migration records what every entry of the original tree read like when its catch-up pass last read it,
+ in `.cli-git-migrate-<name>.old-tree.txt` beside the checkout,
+ and `--remove-old` deletes that tree by asking the record and not the checkout:
+a person who has worked in the checkout since the migration has moved every file the migration copied,
+ and comparing the two trees would refuse every one of them.
+An entry that still reads the same is the migration's own copy and was carried,
+so it is deleted with the original whatever the checkout holds now;
+the reading includes the change time,
+which no writer can set,
+so a write in place is never mistaken for no write.
+An entry that reads differently was written into the original after the migration:
+the carry puts it into the checkout where the checkout lacks it or holds an older copy,
+ parking what it replaced at a name it gives,
+and an entry it cannot place is moved beside the checkout into `.cli-git-migrate-<name>.kept`,
+whose record names each entry with the path it held:
+nothing deletes that folder,
+ and the command says where it is.
+A checkout migrated by an earlier release has no record,
+ and `--remove-old` refuses with both ways on:
+`--accept-the-unrecorded-old-tree` to delete the original as it stands on your word,
+ or you look at it and delete it yourself.
+A rollback's carry back puts the new subvolume's newer bytes at every path where the two trees differ and parks what it
+replaced at a name it gives,
+so an edit or a commit made in the checkout after the migration reaches the restored directory;
+what it cannot place is counted, named,
+ and holds the deletion of the new subvolume back until `--discard-left-out` is given with `--rollback`
  (or you delete the new subvolume yourself).
+Two windows cannot be closed and are said before every run that changes anything:
+a program that holds a file of the original tree open keeps writing into it,
+ and a write that lands after the deletion's last reading of that entry goes with the entry;
+and a program that replaces an entry while the command reads it can name a path the command is not looking at.
 Both deletions make the directories this user owns writable on the way down,
 so a mode-555 directory does not stop them.
 Both refuse,
