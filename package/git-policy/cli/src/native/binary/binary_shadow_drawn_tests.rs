@@ -728,6 +728,10 @@ fn a_reftable_shadow_that_loses_its_tables_is_built_again() {
 struct LossRow {
     /// The entry's name under the scratch tree.
     entry: String,
+    /// Whether a commit was due at this instant:
+    ///  a loss the wrapper can answer with the commit the person asked for,
+    ///  or one that leaves nothing to ask about.
+    due: bool,
     /// What the command exited with.
     exit: Option<i32>,
     /// The files the commit it made holds,
@@ -748,7 +752,7 @@ struct LossRow {
 /// ```ts
 /// const oneLoss = async (name, phase, entry) => { ...; unlink(join(scratch, entry)); release(); return row }
 /// ```
-fn one_loss(name: &str, phase: &str, entry: &str) -> LossRow {
+fn one_loss(name: &str, phase: &str, entry: &str, due: bool) -> LossRow {
     let case: Case = case(name);
     git(&case.fixture, case.repo.as_path(), &["config", "commit.verbose", "false"]);
     std::fs::write(case.repo.join("base.txt"), b"base\n").expect("base");
@@ -757,7 +761,7 @@ fn one_loss(name: &str, phase: &str, entry: &str) -> LossRow {
     std::fs::write(case.repo.join("base.txt"), b"base\nmore\n").expect("the edit");
     std::fs::write(case.repo.join("added.txt"), b"added\n").expect("the addition");
     git(&case.fixture, case.repo.as_path(), &["add", "--", "base.txt", "added.txt"]);
-    std::fs::write(case.markers.join(format!("{phase}-2.release")), b"").expect("a second attempt may go on");
+    arm_the_later_arrivals(case.markers.as_path(), phase);
     let mut command: Command = a_commit_built_by_git_paused_at(&case, phase, &["commit", "--quiet", "--message=two", "--", "base.txt", "added.txt"]);
     let markers: PathBuf = case.markers.clone();
     let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
@@ -806,7 +810,7 @@ fn one_loss(name: &str, phase: &str, entry: &str) -> LossRow {
             return None;
         });
     remove_settled(&case.fixture);
-    return LossRow { entry: String::from(entry), exit: seen.code, files, rebuilt };
+    return LossRow { entry: String::from(entry), due, exit: seen.code, files, rebuilt };
 }
 
 /// What:
@@ -834,7 +838,7 @@ fn the_loss_table(name: &str, phase: &str) -> Vec<LossRow> {
     git(&probe.fixture, probe.repo.as_path(), &["commit", "--quiet", "--message=base"]);
     std::fs::write(probe.repo.join("added.txt"), b"added\n").expect("the addition");
     git(&probe.fixture, probe.repo.as_path(), &["add", "--", "added.txt"]);
-    std::fs::write(probe.markers.join(format!("{phase}-2.release")), b"").expect("a second attempt may go on");
+    arm_the_later_arrivals(probe.markers.as_path(), phase);
     let mut command: Command = a_commit_built_by_git_paused_at(&probe, phase, &["commit", "--quiet", "--message=probe", "--", "added.txt"]);
     let markers: PathBuf = probe.markers.clone();
     let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
@@ -849,8 +853,11 @@ fn the_loss_table(name: &str, phase: &str) -> Vec<LossRow> {
     for entry in std::fs::read_dir(scratch.as_path()).expect("the scratch tree").flatten() {
         entries.push(entry.file_name().to_string_lossy().into_owned());
     }
-    for entry in std::fs::read_dir(scratch.join("shadow").as_path()).expect("the shadow").flatten() {
-        entries.push(format!("shadow/{}", entry.file_name().to_string_lossy()));
+    // The shadow is made after the first capture, so a table of the instants before it has none to list.
+    if scratch.join("shadow").is_dir() {
+        for entry in std::fs::read_dir(scratch.join("shadow").as_path()).expect("the shadow").flatten() {
+            entries.push(format!("shadow/{}", entry.file_name().to_string_lossy()));
+        }
     }
     entries.sort();
     std::fs::write(markers.join(format!("{phase}-1.release")), b"").expect("release the probe");
@@ -858,7 +865,13 @@ fn the_loss_table(name: &str, phase: &str) -> Vec<LossRow> {
     remove_settled(&probe.fixture);
     let mut rows: Vec<LossRow> = Vec::new();
     for entry in entries {
-        rows.push(one_loss(&format!("{name}-{}", entry.replace('/', "-")), phase, entry.as_str()));
+        // What: A commit is due at every entry but the whole scratch tree before the first capture.
+        // Why:  A row that refuses where a commit was due is a failure of the row
+        //       (the ninth review's fourth finding: the tables asserted a refused commit's files vacuously).
+        //       The whole tree gone before the capture leaves nothing that names the person's staged content, and that is the
+        //       one row where no commit can be due.
+        let due: bool = !(phase == "service-staged" && entry.as_str() == ".");
+        rows.push(one_loss(&format!("{name}-{}", entry.replace('/', "-")), phase, entry.as_str(), due));
     }
     return rows;
 }
@@ -876,9 +889,8 @@ fn every_entry_of_the_scratch_tree_can_go_before_git_and_the_commit_is_the_one_a
     // The tree the command asked for: the fixture's own file, the one it changed and the one it added.
     let asked: Vec<String> = vec![String::from("a.txt"), String::from("added.txt"), String::from("base.txt")];
     for row in &rows {
-        if row.exit == Some(0) {
-            assert_eq!(row.files, asked, "the row {} landed the commit that was asked for", row.entry);
-        }
+        assert_eq!(row.exit, Some(0), "the row {} lands the commit that was asked for: a commit was due", row.entry);
+        assert_eq!(row.files, asked, "the row {} landed the commit that was asked for", row.entry);
     }
 }
 
@@ -895,9 +907,8 @@ fn every_entry_of_the_scratch_tree_can_go_after_git_and_the_commit_is_the_one_as
     // The tree the command asked for: the fixture's own file, the one it changed and the one it added.
     let asked: Vec<String> = vec![String::from("a.txt"), String::from("added.txt"), String::from("base.txt")];
     for row in &rows {
-        if row.exit == Some(0) {
-            assert_eq!(row.files, asked, "the row {} landed the commit that was asked for", row.entry);
-        }
+        assert_eq!(row.exit, Some(0), "the row {} lands the commit that was asked for: a commit was due", row.entry);
+        assert_eq!(row.files, asked, "the row {} landed the commit that was asked for", row.entry);
     }
 }
 
@@ -940,7 +951,7 @@ struct PropertyRow {
 /// for (const phase of PAD) for (const n of [2, 3]) writeFileSync(join(markers, `${phase}-${n}.release`), '')
 /// ```
 fn arm_the_later_arrivals(markers: &Path, phase: &str) {
-    for later in ["2", "3"] {
+    for later in ["2", "3", "4"] {
         let _armed: std::io::Result<()> = std::fs::write(markers.join(format!("{phase}-{later}.release")), b"");
         for other in ["commit-capture-taken", "commit-captured", "shadow-built", "shadow-readable"] {
             let _also: std::io::Result<()> = std::fs::write(markers.join(format!("{other}-{later}.release")), b"");
@@ -1221,4 +1232,133 @@ fn a_fixup_amend_whose_private_index_goes_is_still_the_commit_that_was_asked_for
     let parents: Vec<String> = head_and_its_parents(&case);
     assert_eq!(parents, vec![base], "and the captured base is its only parent");
     remove_settled(&case.fixture);
+}
+
+/// What:
+///  A unique prefix of `--amend`, which Git takes as `--amend`, is the amend this wrapper reads for its own checks.
+/// Why:
+///  `gitcli(7)`, "Abbreviating long options": `git commit --amen` behaves as if `--amend` were typed.
+///  The scanner this replaces compared the argument to the exact text, so it read the line as an ordinary commit,
+///  asked for the captured base as the only parent, and refused the commit Git built — a valid commit, refused, with the
+///  index intact (measured at the previous tip: exit 1, `the commit Git built is not the one this command asked for: its
+///  parents are  where the command began with …`; `main` lands it).
+#[test]
+fn a_unique_prefix_of_an_amend_is_an_amend() {
+    let case: Case = case("prefix-of-an-amend");
+    std::fs::write(case.repo.join("a.txt"), b"base\nstaged\n").expect("the staged edit");
+    git(&case.fixture, case.repo.as_path(), &["add", "--", "a.txt"]);
+    let mut command: Command = a_commit_built_by_git_paused_at(&case, "shadow-built", &["commit", "--quiet", "--no-only", "--amen"]);
+    // An amend asks for a message, and Git's editor is the fixture's `true`.
+    command.env("GIT_EDITOR", "true");
+    // Nothing is held and nothing is removed: the commit is the one Git makes, and the wrapper must not refuse it.
+    // The later arrivals are armed too, so a build made again is not held at a pause nothing releases.
+    arm_the_later_arrivals(case.markers.as_path(), "shadow-built");
+    std::fs::write(case.markers.join("shadow-built-1.release"), b"").expect("the pause goes on at once");
+    let seen: Observed = observe(&mut command, b"");
+    let words: String = stderr_of(&seen);
+    assert_eq!(seen.code, Some(0), "the commit Git makes with an abbreviated option must land: {words}");
+    let landed: Vec<String> = super::commit::git_text(&case.fixture, case.repo.as_path(), &["ls-tree", "-r", "--name-only", "HEAD"])
+        .lines()
+        .map(str::trim)
+        .filter(|line| { return !line.is_empty(); })
+        .map(String::from)
+        .collect();
+    assert_eq!(landed, vec![String::from("a.txt")], "the amended commit keeps the file and carries the staged edit");
+    assert_eq!(super::commit::git_text(&case.fixture, case.repo.as_path(), &["show", "HEAD:a.txt"]), "base\nstaged", "the staged edit is in it");
+    assert_eq!(head_and_its_parents(&case), Vec::<String>::new(), "and it amends the only commit there was, which had no parent");
+    remove_settled(&case.fixture);
+}
+
+/// What:
+///  A unique prefix of `--fixup`, which Git takes as `--fixup`, is read with its own value.
+/// Why:
+///  `--fix=reword:HEAD` is a reword fixup to Git, whose commit holds the reworded commit's tree.
+///  The scanner this replaces read it as an ordinary commit, held it to the index's tree, and refused it
+///  (measured at the previous tip: exit 1 with the two trees named; `main` lands it).
+#[test]
+fn a_unique_prefix_of_a_reword_fixup_is_a_reword_fixup() {
+    let case: Case = case("prefix-of-a-reword-fixup");
+    std::fs::write(case.repo.join("a.txt"), b"base\nstaged\n").expect("the staged edit");
+    git(&case.fixture, case.repo.as_path(), &["add", "--", "a.txt"]);
+    let base: String = super::commit::git_text(&case.fixture, case.repo.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
+    let mut command: Command = a_commit_built_by_git_paused_at(&case, "shadow-built", &["commit", "--quiet", "--fix=reword:HEAD"]);
+    command.env("GIT_EDITOR", "true");
+    arm_the_later_arrivals(case.markers.as_path(), "shadow-built");
+    std::fs::write(case.markers.join("shadow-built-1.release"), b"").expect("the pause goes on at once");
+    let seen: Observed = observe(&mut command, b"");
+    let words: String = stderr_of(&seen);
+    assert_eq!(seen.code, Some(0), "the commit Git makes with an abbreviated option must land: {words}");
+    assert_eq!(super::commit::git_text(&case.fixture, case.repo.as_path(), &["show", "HEAD:a.txt"]), "base", "a reword fixup keeps the reworded commit's tree");
+    assert_eq!(head_and_its_parents(&case), vec![base], "and its only parent is the commit it rewords");
+    remove_settled(&case.fixture);
+}
+
+/// What:
+///  A private index that is gone before the first capture is prepared again from what the command was given.
+/// Why:
+///  The private index is the wrapper's own product: the policies' capture of the person's index sits beside it, and the
+///  branch already rebuilds a private index from a tree when a branch moves
+///  (`commit_index.rs`, `initialize_retry_index`).
+///  Before this, every attempt read the same missing file and the commit failed after three tries
+///  (the ninth review's second finding), where the person's commit was one a rebuild could make.
+#[test]
+fn a_commit_whose_private_index_goes_before_the_capture_is_still_the_commit_that_was_asked_for() {
+    let case: Case = case("private-index-goes-before-the-capture");
+    std::fs::write(case.repo.join("added.txt"), b"added\n").expect("the addition");
+    std::fs::write(case.repo.join("a.txt"), b"base\nmore\n").expect("the edit");
+    git(&case.fixture, case.repo.as_path(), &["add", "--", "a.txt", "added.txt"]);
+    let base: String = super::commit::git_text(&case.fixture, case.repo.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
+    arm_the_later_arrivals(case.markers.as_path(), "service-staged");
+    let mut command: Command = a_commit_built_by_git_paused_at(&case, "service-staged", &["commit", "--quiet", "--message=two", "--", "a.txt", "added.txt"]);
+    let markers: PathBuf = case.markers.clone();
+    let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
+    let reached: PathBuf = markers.join("service-staged-1.reached");
+    let began: Instant = Instant::now();
+    while !reached.exists() {
+        assert!(began.elapsed() < PATIENCE, "the wrapper reached the instant its content is staged");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let index: PathBuf = the_scratch_tree_of_the_commit(case.repo.as_path()).join("commit.index");
+    assert!(index.is_file(), "the private index is there before the loss");
+    std::fs::remove_file(index.as_path()).expect("the private index goes");
+    std::fs::write(markers.join("service-staged-1.release"), b"").expect("release the held commit");
+    let seen: Observed = waiting.join().expect("the commit");
+    let words: String = stderr_of(&seen);
+    assert_eq!(seen.code, Some(0), "the commit must land although its private index went: {words}");
+    let landed: Vec<String> = super::commit::git_text(&case.fixture, case.repo.as_path(), &["ls-tree", "-r", "--name-only", "HEAD"])
+        .lines()
+        .map(str::trim)
+        .filter(|line| { return !line.is_empty(); })
+        .map(String::from)
+        .collect();
+    assert_eq!(landed, vec![String::from("a.txt"), String::from("added.txt")], "and carry the files the person staged");
+    assert_eq!(head_and_its_parents(&case), vec![base], "on the captured base");
+    remove_settled(&case.fixture);
+}
+
+/// What:
+///  Every entry of the commit's scratch tree can go before the first capture, and a commit due still lands.
+/// Why:
+///  The private index and the policies' capture are the wrapper's own products:
+///  a private index that goes is rebuilt from the capture of the person's index (`service_native.rs`, `build_with_git`),
+///  and a capture that goes leaves the private index to be read.
+///  The whole scratch tree gone before the capture leaves nothing that names the person's staged content, so no commit is due
+///  there, and the row says so rather than passing because nothing landed.
+#[test]
+fn every_entry_of_the_scratch_tree_can_go_before_the_first_capture_and_a_commit_due_still_lands() {
+    let rows: Vec<LossRow> = the_loss_table("loss-table-before-capture", "service-staged");
+    for row in &rows {
+        println!("row={} due={} exit={:?} files={:?} rebuilt={:?}", row.entry, row.due, row.exit, row.files, row.rebuilt);
+    }
+    assert!(!rows.is_empty(), "the table has rows");
+    let asked: Vec<String> = vec![String::from("a.txt"), String::from("added.txt"), String::from("base.txt")];
+    for row in &rows {
+        if row.due {
+            assert_eq!(row.exit, Some(0), "the row {} lands the commit that was asked for: a commit was due", row.entry);
+            assert_eq!(row.files, asked, "the row {} landed the commit that was asked for", row.entry);
+        } else {
+            assert_ne!(row.exit, Some(0), "the row {} has nothing left that names the staged content, so no commit is due", row.entry);
+            assert!(!row.files.is_empty(), "and nothing lands");
+        }
+    }
 }

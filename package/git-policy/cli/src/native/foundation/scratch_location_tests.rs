@@ -949,3 +949,34 @@ fn a_path_whose_removal_has_not_finished_is_never_handed_to_the_next_attempt() {
     );
     remove(root.as_path());
 }
+
+/// What:
+///  A commit's tree that a finished sweep removed before the maker's claim is made again, and the path answered is one
+///  the commit can write into.
+/// Why:
+///  The maker claims the tree it just made, and a claim on a path that is gone answers `NotFound`;
+///  the claim reads `NotFound` as "the volume cannot be asked" and handed the removed path back as if the tree were a
+///  command's to build in, so the first private-index write failed with `ENOENT`
+///  (the ninth review's third finding).
+///  A `NotFound` for a directory this maker just made means it is gone, and another is made.
+#[test]
+fn a_tree_a_finished_sweep_removed_before_the_claim_is_made_again() {
+    let root: PathBuf = fixture("scratch-tree-swept-before-the-claim");
+    let common: PathBuf = root.join("repo").join(".git");
+    std::fs::create_dir_all(common.as_path()).expect("the common directory");
+    // The sweep's removal finished between the making and the claim, which is the instant the seam holds.
+    test_targets::set_before_claim(|path: &Path| {
+        std::fs::remove_dir_all(path).expect("the sweep's removal finished before the maker's claim");
+    });
+    let (tree, claim): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = prepare_commit_scratch(
+        common.as_path(),
+        common.as_path(),
+        "monochromatic-git-policy-cli-service-0a1b2c3f-0",
+        SCRATCH_REMOVAL_CEILING,
+    )
+    .expect("a tree to build in, or the words of a reason there is none");
+    let written: std::io::Result<()> = std::fs::write(tree.join("commit.index"), b"the commit's staged bytes");
+    assert!(written.is_ok(), "the tree the preparation answered is there to write in: {written:?}");
+    assert!(claim.is_some(), "and it is the maker's, not a volume nobody could ask");
+    remove(root.as_path());
+}

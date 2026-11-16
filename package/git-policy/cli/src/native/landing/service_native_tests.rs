@@ -92,3 +92,94 @@ fn a_message_that_is_not_text_reaches_git_with_its_own_bytes() {
     assert!(globals.is_empty());
     assert_eq!(commit, vec![OsString::from("-m"), message]);
 }
+
+/// What:
+///  The form is read from the words Git itself reads:
+///  a value an option takes is never a form,
+///  a unique prefix of a form option is that option,
+///  and a token after `--` is a path.
+/// Why:
+///  The scanner this replaces looked at every argument alone, so
+///  `--message --fixup=reword:HEAD` was read as a reword fixup and the tree check was switched off for a commit that carried
+///  the index's tree (the ninth review's first finding, reproduced at the tip),
+///  and `--amen` was read as an ordinary commit, so a commit Git makes was refused (measured, `keep/abbreviated-options-measured.md`).
+///  The rows are generated from the options the installed Git lists,
+///  so an option a later Git adds appears as a row nobody answered.
+#[test]
+fn the_form_follows_git_option_grammar() {
+    let root: PathBuf = crate::test_support::fixture("form-grammar");
+    // Git answers its own option list only inside a repository, which is also where a commit is read.
+    let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
+    let listed: String = crate::test_support::git_text(repo.as_path(), &["commit", "--git-completion-helper"]);
+    let mut valued: Vec<String> = Vec::new();
+    let mut longs: Vec<String> = Vec::new();
+    for word in listed.split_whitespace() {
+        match word.strip_suffix('=') {
+            Some(name) => {
+                valued.push(String::from(name));
+                longs.push(String::from(name));
+            }
+            None if word.starts_with("--") => longs.push(String::from(word)),
+            None => {}
+        }
+    }
+    assert!(!valued.is_empty(), "the installed Git lists the options of git commit that take a value: {listed}");
+    // Every option that takes a value, given a value spelled like a form: the form must not change.
+    let spellings: [&str; 3] = ["--amend", "--fixup=reword:HEAD", "--fixup=amend:HEAD"];
+    for option in &valued {
+        for value in spellings {
+            let line: Vec<OsString> = vec![OsString::from(option.as_str()), OsString::from(value)];
+            assert_eq!(
+                the_form_of_the_commit(&line),
+                TheFormOfTheCommit::CarriesTheIndex,
+                "the value {value} of {option} is a value, not a form"
+            );
+        }
+    }
+    // A short option's value, joined and separate.
+    for line in [arguments(&["-m--amend"]), arguments(&["-m", "--fixup=reword:HEAD"])] {
+        assert_eq!(the_form_of_the_commit(&line), TheFormOfTheCommit::CarriesTheIndex, "a short option's value is no form: {line:?}");
+    }
+    // Every prefix of --amend and --fixup that Git would take as the whole option.
+    for (name, shortest) in [("--amend", 3_usize), ("--fixup", 4_usize)] {
+        let mut shared: usize = name.len();
+        for other in &longs {
+            if other != name {
+                let common: usize = other.chars().zip(name.chars()).take_while(|(left, right)| { return left == right; }).count();
+                if common == name.len() && other.len() > name.len() {
+                    // A longer name that this one prefixes makes every prefix ambiguous.
+                    shared = 0;
+                }
+            }
+        }
+        assert!(shared > 0, "{name} has no longer option sharing its whole spelling");
+        for length in shortest..=name.len() {
+            let prefix: &str = &name[..length];
+            let unique: usize = longs.iter().filter(|other| { return other.starts_with(prefix); }).count();
+            if unique != 1 {
+                continue;
+            }
+            let alone: Vec<OsString> = vec![OsString::from(prefix)];
+            let expected: TheFormOfTheCommit = if name == "--amend" {
+                TheFormOfTheCommit::AmendsTheLastCommit
+            } else {
+                let with_value: Vec<OsString> = vec![OsString::from(format!("{prefix}=reword:HEAD"))];
+                assert_eq!(
+                    the_form_of_the_commit(&with_value),
+                    TheFormOfTheCommit::CarriesTheRewordedTree,
+                    "{prefix}=reword:HEAD is a reword fixup"
+                );
+                continue;
+            };
+            assert_eq!(the_form_of_the_commit(&alone), expected, "{prefix} is {name} to Git");
+        }
+    }
+    // After the end-of-options delimiter every token is a path.
+    let after_delimiter: Vec<OsString> = vec![
+        OsString::from("--"),
+        OsString::from("--amend"),
+        OsString::from("--fixup=reword:HEAD"),
+    ];
+    assert_eq!(the_form_of_the_commit(&after_delimiter), TheFormOfTheCommit::CarriesTheIndex, "a path is no form");
+    crate::test_support::remove(root.as_path());
+}
