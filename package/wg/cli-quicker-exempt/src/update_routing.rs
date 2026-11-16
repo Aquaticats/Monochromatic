@@ -12,7 +12,7 @@
 
 /// Slice and cgroup names,
 /// and the cgroups that carry the mark themselves.
-use crate::application_targets::{is_socket_marked_cgroup, TOOLCHAIN_UPDATES_SLICE};
+use crate::application_targets::{is_in_updates_slice, is_unconditionally_marked_cgroup, TOOLCHAIN_UPDATES_SLICE};
 /// The limits the scope carries.
 use crate::inherited_limits::read_inherited_limits;
 /// Process facts.
@@ -23,7 +23,9 @@ mod routing_group;
 /// The functions of that module the engine calls.
 use routing_group::{collect_group, recheck_group};
 /// The seam to the service manager.
-use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter};
+use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter, ADOPTION_DEFERRED};
+/// When this pass may spend another move.
+use crate::pass_gate::{PassGate, BLOCK_AFTER_TIMEOUT};
 /// The scope of each origin.
 use crate::scope_naming::{origin_scope_name, scope_cgroup_path};
 /// What is known about the scopes in use.
@@ -44,24 +46,15 @@ use crate::update_report::Outcome;
 use std::collections::{HashMap, HashSet};
 /// Fake procfs roots in tests.
 use std::path::PathBuf;
-/// Retry timing.
-use std::time::{Duration, Instant};
+/// Instants of the pass and of retries.
+use std::time::Instant;
 
-/// Failed moves one pass may spend before it postpones the rest,
-/// so a manager that fails slowly cannot stall the watcher for long.
-const FAILED_ATTEMPTS_PER_PASS: u32 = 2;
 /// Refusals of "No such process" for a living process,
 /// in a row,
 /// before the policy reports them.
 /// A group member that exits makes the manager refuse once;
 /// a run of them is not a race any more.
 pub const MEMBER_VANISH_LIMIT: u32 = 3;
-/// Time one pass may spend on moves before it postpones the rest.
-/// A pass can overrun it by the one attempt in progress,
-/// which the client timeout bounds.
-const PASS_MOVE_BUDGET: Duration = Duration::from_secs(2);
-/// How long no move is attempted after the manager did not answer in time.
-const BLOCK_AFTER_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Does nothing,
 /// the default step between collecting a group and checking it again.
@@ -71,8 +64,6 @@ fn nothing() {}
 pub struct RoutingSetup {
     /// Watched user.
     pub uid: u32,
-    /// Primary group of the watched user.
-    pub gid: u32,
     /// Toolchain install roots of that user.
     pub install_roots: Vec<PathBuf>,
     /// Procfs root.
@@ -110,12 +101,16 @@ pub struct UpdateRouting {
     /// in a row,
     /// by pid and start time.
     member_vanishes: HashMap<(i32, u64), u32>,
-    /// Failed moves spent in the current pass.
-    failed_attempts_this_pass: u32,
-    /// No move is attempted before this time.
-    blocked_until: Option<Instant>,
-    /// When the current pass began.
-    pass_started: Option<Instant>,
+    /// What the current pass has spent,
+    /// and when moves may go ahead again.
+    gate: PassGate,
+    /// Cgroups the watcher attached the socket mark to,
+    /// as its last scan found them.
+    /// A process in one of them,
+    /// or in a cgroup below one,
+    /// needs no move:
+    /// its sockets already leave the tunnel.
+    marked: Vec<PathBuf>,
 }
 
 /// Behavior of the policy engine.
@@ -130,10 +125,28 @@ impl UpdateRouting {
             scopes: ScopeRegistry::new(),
             failures: HashMap::new(),
             member_vanishes: HashMap::new(),
-            failed_attempts_this_pass: 0,
-            blocked_until: None,
-            pass_started: None,
+            gate: PassGate::new(),
+            marked: Vec::new(),
         };
+    }
+
+    /// Records the cgroups the watcher holds the mark on,
+    /// which is what the process watch treats as covered.
+    pub fn note_marked(&mut self, marked: &[PathBuf]) {
+        self.marked = marked.to_vec();
+    }
+
+    /// Reports whether a process's cgroup carries the socket mark:
+    /// one of the marks the watcher holds,
+    /// or a cgroup below one,
+    /// or a name that needs no evidence,
+    /// because a Pi agent's unit and the updates slice are marked whoever filled them.
+    fn is_covered(&self, cgroup: &str) -> bool {
+        if is_unconditionally_marked_cgroup(cgroup, self.setup.uid) {
+            return true;
+        }
+        let full = self.setup.cgroup_root.join(cgroup.trim_start_matches('/'));
+        return self.marked.iter().any(|mark| return full.starts_with(mark));
     }
 
     /// Reports whether the watcher could read its own pid namespace.
@@ -145,12 +158,7 @@ impl UpdateRouting {
     /// Makes sure the updates slice exists below the user's `app.slice`,
     /// so the watcher can attach the mark to it before any process is moved.
     pub fn ensure_slice(&self, app_slice: &std::path::Path) -> std::io::Result<()> {
-        return self.setup.adopter.ensure_slice(
-            self.setup.uid,
-            self.setup.gid,
-            TOOLCHAIN_UPDATES_SLICE,
-            &app_slice.join(TOOLCHAIN_UPDATES_SLICE),
-        );
+        return self.setup.adopter.ensure_slice(self.setup.uid, TOOLCHAIN_UPDATES_SLICE, &app_slice.join(TOOLCHAIN_UPDATES_SLICE));
     }
 
     /// Starts a pass now:
@@ -161,33 +169,7 @@ impl UpdateRouting {
 
     /// Starts a pass at `now`.
     pub fn begin_pass_at(&mut self, now: Instant) {
-        self.failed_attempts_this_pass = 0;
-        self.pass_started = Some(now);
-    }
-
-    /// Why a move must wait now,
-    /// or `None` when it may go ahead.
-    fn postponement(&self, now: Instant) -> Option<&'static str> {
-        if self.is_blocked(now) {
-            return Some("the user's service manager did not answer in time, so moves are paused for a few seconds");
-        }
-        if self.failed_attempts_this_pass >= FAILED_ATTEMPTS_PER_PASS {
-            return Some("earlier moves in this pass failed, and a pass spends at most two failed attempts");
-        }
-        if let Some(started) = self.pass_started
-            && now.duration_since(started) >= PASS_MOVE_BUDGET
-        {
-            return Some("this pass used its time budget for moves");
-        }
-        return None;
-    }
-
-    /// Reports whether moves are paused after a client timeout.
-    fn is_blocked(&self, now: Instant) -> bool {
-        return match self.blocked_until {
-            Some(until) => now < until,
-            None => false,
-        };
+        self.gate.begin(now);
     }
 
     /// Records the report of a process that could not be inspected,
@@ -204,7 +186,7 @@ impl UpdateRouting {
 
     /// Records a failed move and builds its outcome.
     fn register_failure(&mut self, key: (i32, u64), now: Instant, error: String) -> Outcome {
-        self.failed_attempts_this_pass += 1;
+        self.gate.note_failed_attempt();
         let earlier = match self.failures.get(&key) {
             Some(failure) => failure.attempts,
             None => 0,
@@ -246,7 +228,7 @@ impl UpdateRouting {
         {
             return Outcome::Ignored;
         }
-        if info.cgroup.contains(TOOLCHAIN_UPDATES_SLICE) {
+        if is_in_updates_slice(&info.cgroup, self.setup.uid) {
             self.handled.insert(key);
             return Outcome::AlreadyInSlice;
         }
@@ -267,9 +249,9 @@ impl UpdateRouting {
             }
             _ => {}
         }
-        // A cgroup the watcher attaches the mark to itself needs no move,
+        // A cgroup the watcher attached the mark to needs no move,
         // which is how a service's main process, and every Pi process in its unit, is covered.
-        if is_socket_marked_cgroup(&info.cgroup, self.setup.uid) {
+        if self.is_covered(&info.cgroup) {
             self.handled.insert(key);
             return Outcome::Covered { pid };
         }
@@ -277,7 +259,7 @@ impl UpdateRouting {
             self.handled.insert(key);
             return Outcome::Skipped { pid, why };
         }
-        if let Some(why) = self.postponement(now) {
+        if let Some(why) = self.gate.postponement(now) {
             return Outcome::Deferred { pid, why };
         }
         let (group, unreadable) = match collect_group(&self.setup, &info) {
@@ -290,7 +272,12 @@ impl UpdateRouting {
         if pids.first() != Some(&pid) {
             return Outcome::Ignored;
         }
-        let scope_name = origin_scope_name(&info.cgroup, self.setup.uid);
+        // The origin's scope may be running under an earlier spelling of its name,
+        // and its later processes join it there instead of one more scope with the same cap.
+        let scope_name = match self.setup.adopter.existing_scope_name(self.setup.uid, TOOLCHAIN_UPDATES_SLICE, &info.cgroup) {
+            Some(name) => name,
+            None => origin_scope_name(&info.cgroup, self.setup.uid),
+        };
         let destination = scope_cgroup_path(self.setup.uid, TOOLCHAIN_UPDATES_SLICE, &scope_name);
         let limits = match read_inherited_limits(&self.setup.cgroup_root, &info.cgroup, &destination) {
             Ok(limits) => limits,
@@ -302,10 +289,11 @@ impl UpdateRouting {
         let request = AdoptRequest {
             pids: &pids,
             uid: self.setup.uid,
-            gid: self.setup.gid,
             slice: TOOLCHAIN_UPDATES_SLICE,
             limits: &limits,
             scope_name: &scope_name,
+            origin: &info.cgroup,
+            reason,
             first_start_time: Some(info.start_time),
         };
         return match self.setup.adopter.adopt(&request) {
@@ -315,10 +303,11 @@ impl UpdateRouting {
                 self.member_vanishes.remove(&key);
                 // A join that finds the manager hung pauses the moves like a hung move does.
                 if self.scopes.note_joined(&self.setup, TOOLCHAIN_UPDATES_SLICE, &info.cgroup, &scope_name, &joined, &limits, now) {
-                    self.blocked_until = Some(now + BLOCK_AFTER_TIMEOUT);
+                    self.gate.block(now);
                 }
                 Outcome::Adopted { pid, reason, count: pids.len(), left_behind: unreadable + dropped }
             }
+            Err(AdoptError::Deferred) => Outcome::Deferred { pid, why: ADOPTION_DEFERRED },
             Err(AdoptError::Vanished | AdoptError::ScopeGone) => {
                 self.failures.remove(&key);
                 self.member_vanishes.remove(&key);
@@ -340,7 +329,7 @@ impl UpdateRouting {
             }
             Err(AdoptError::Failed(error)) => self.register_failure(key, now, error),
             Err(AdoptError::TimedOut(error)) => {
-                self.blocked_until = Some(now + BLOCK_AFTER_TIMEOUT);
+                self.gate.block(now);
                 let text = format!("{error}; no move is attempted for {BLOCK_AFTER_TIMEOUT:?}");
                 self.register_failure(key, now, text)
             }
@@ -403,10 +392,10 @@ impl UpdateRouting {
         self.forget_exited(&pids);
         // Following the origins asks the manager too: not while its calls are paused,
         // for at most a budget, and a call that times out pauses the moves.
-        if !self.is_blocked(clock.now()) {
+        if !self.gate.is_blocked(clock.now()) {
             let followed = self.scopes.follow_origins(&self.setup, TOOLCHAIN_UPDATES_SLICE, clock);
             if followed.timed_out {
-                self.blocked_until = Some(clock.now() + BLOCK_AFTER_TIMEOUT);
+                self.gate.block(clock.now());
             }
             outcomes.extend(followed.outcomes);
         }

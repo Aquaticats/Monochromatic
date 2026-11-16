@@ -10,9 +10,11 @@
 
 /// Import the actual parser and native argument/process types.
 use super::{GlobalLayout, GlobalOutcome, command_tokens, global_layout};
+use crate::git_version::{MINIMUM_GIT_VERSION, parse_git_version};
 use crate::global_arguments_pathspec_modes::without_pathspec_mode_options;
+use crate::test_support::{FIXTURE_GIT_BOUND, QueryAnswer, QueryEnding, REAL_GIT, real_git_within};
 use std::ffi::OsString;
-use std::process::Command;
+use std::path::Path;
 
 /// Own a fixture vector without changing any supplied argument's spelling.
 fn arguments(values: &[&str]) -> Vec<OsString> {
@@ -142,25 +144,32 @@ fn unsupported_globals_do_not_gain_a_wrapper_interpretation() {
     }
 }
 
+/// The output of one real-Git query of this control,
+///  run under `bound` seconds so a Git that never answers fails this control
+///  with a verdict that names the query and the bound.
+fn git_output_within(arguments: &[&str], bound: std::time::Duration) -> std::process::Output {
+    let words: Vec<OsString> = arguments.iter().map(|argument| { return OsString::from(*argument); }).collect();
+    let answer: QueryAnswer = real_git_within(Path::new(REAL_GIT), None, &[], words.as_slice(), None, bound);
+    assert_eq!(answer.ending, QueryEnding::Itself, "the Git query {arguments:?} did not answer within {} s: the bound ended it", bound.as_secs());
+    assert!(!answer.held_open, "the Git query {arguments:?} ended, and a descendant of it still holds its output");
+    return answer.output;
+}
+
 /// The selected native Git executable confirms representative query and error forms.
+///  The name records the release the boundary was measured against;
+/// the control states no release of its own:
+///  it reads the line the Git under test prints and asks whether that release is one the wrapper is tested with,
+/// so a newer Git in the gate's image passes here or says the wrapper has fallen behind it.
 #[test]
 fn native_git_256_controls_confirm_the_option_boundary() {
-    let version = Command::new("/usr/bin/git")
-        .arg("--version")
-        .output()
-        .expect("Git fixture");
+    let version = git_output_within(&["--version"], FIXTURE_GIT_BOUND);
     assert!(version.status.success());
-    assert_eq!(version.stdout, b"git version 2.56.0\n");
-    let query = Command::new("/usr/bin/git")
-        .arg("--exec-path-extra")
-        .output()
-        .expect("native prefix query");
+    let release = parse_git_version(&version.stdout).expect("the Git under test names its release");
+    assert!(release >= MINIMUM_GIT_VERSION, "{:?}", String::from_utf8_lossy(&version.stdout));
+    let query = git_output_within(&["--exec-path-extra"], FIXTURE_GIT_BOUND);
     assert!(query.status.success());
     for flag in ["-C/fixture", "--super-prefix", "--shallow-file=unused"] {
-        let rejected = Command::new("/usr/bin/git")
-            .args([flag, "status"])
-            .output()
-            .expect("native option error");
+        let rejected = git_output_within(&[flag, "status"], FIXTURE_GIT_BOUND);
         assert!(!rejected.status.success(), "{flag}");
         assert!(
             String::from_utf8_lossy(&rejected.stderr).contains("unknown option"),
