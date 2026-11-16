@@ -39451,6 +39451,18 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### A record that cannot be judged stops a command only where going on is unsafe (2026-11-16, answered through the question tool between 17:05:58-05:00 and 17:07:00-05:00)
+
+The decision "A: stays, command says how" leaves "stops or prints" open for each command.
+Asked which, with the copy-owner review's finding beside it (`git status`, `git add`, `git commit` and `git worktree add` all exit 2 at `a303cb638f` where the released wrapper exits 0),
+the owner answered: **"Per command (Recommended)"**.
+
+A command stops only where going on beside the record could lose or mix a person's work;
+every other command prints the words (the record, its owner, its age, the exact `rm -- <path>`) and continues with the exit status real Git would give.
+Which command is which, for each kind of record, is the author's to establish and state, and a case it cannot settle keeps the stop and is named.
+The two options not taken: every command prints and none stops; every command stops.
+The copy-owner author's fourth-run brief already carries this reading; the held-push holder author's brief asks for the words and is to be held to the same rule at its next review.
+
 ### A `worktree add` does not wait on other programs' writes, and the snapshot proof's two rare losses are a stated limit (2026-11-16, answered through the question tool between 15:09:57-05:00 and 15:11:23-05:00)
 
 Asked, with the measurements beside it (16.5 ms an add on an idle drive, 86.6 ms more under another writer's 64 MiB pending, growing with others' pending data),
@@ -40027,6 +40039,10 @@ Recovery after the hold (committed at 2026-11-16T10:25:11-05:00; an earlier word
   **Its own worktree, made by a unit, could not import Pi for want of `proper-lockfile`: so the link defect is not only this session's shell.** That and the one worktree whose link resolved (made by the prepare script) are added to the brief of the run that looks for the writer of that link, which is told not to take the home folder's spelling as the cause before its reproduction shows it.
 - **Second timing of the two pools, now with eight runs on `opencode-go` (window 16:35:00 to 17:05:33, feeds of the going runs, numbers alone): `opencode-go` medians 4,232 ms to 7,306 ms an answer over eight runs (23 to 172 answers each; 47 to 89 output tokens a second), flex medians 39,811 ms to 62,554 ms over six runs.** The first reading had one and two runs there (3,034 ms and 5,492 ms), so the pool's time for an answer did not grow with eight going. On these two readings the pool needs no doubled wall; its factor goes from 2 to 1, with both readings written beside the value, as a follow-up on top of the pool-limits answer once that is reviewed and in `main`, since both change `pool-limits.ts`. Output: `~/temp/agent/opencode-go-pool-reopened-on-the-owners-word-2026-11-16/keep/model-time-per-answer-of-the-going-runs-second-reading-with-eight-runs-on-the-pool.txt`.
   At 17:05:32, 13 Pi units were active: eight on `opencode-go` and, by the counts line, six on flex, one of which had just ended.
+- **The owner confirmed the reading of "stops or prints": "Per command (Recommended)"** (under "Owner decisions in force", "A record that cannot be judged stops a command only where going on is unsafe"). The copy-owner author's brief already carries it.
+- **Part one of the review of the queue of runs as a folder is back (`3d66e76ff0`; the folder's mechanics; 24 of 24 files; independent; real processes against queue folders of its own; no Pi run, unit or filling started).** What holds: exactly one claimer in 900 rounds with two to four processes; puts at a position with three and four processes at once lost, doubled, reordered and misplaced nothing in 350 rounds; 25,600 order keys in sequence; no write outside the queue's folder and no wait without end; names are escaped in all 24 files. Of the sixteen earlier findings in this part, most are answered: a move no longer resurrects a started entry (0 of 200, where it was 53), a take refuses a claimed entry, "gone" has the start moment.
+  **New, by what it costs:** the sweep deletes aside files by the entry's old modification time, so an entry a killed take set aside is lost at the next pass (4 of 600 with a take in flight); a settlement killed at two of its four steps leaves a started entry queued, and a filling then starts it again; the rename back after a rename aside writes over whatever took the free name (a claim doubled, a put lost; placed by a hook, not found without); one empty claim file stops every pass, and claim reads threw 981 of 95,025 times under churn; the changeover from the one-file queue can still start an entry twice or lose one whose name holds a newline; two names that differ only in an emoji escape to one file name; a name ending `.service` breaks the unit-name round trip, so a place is not counted and one run too many starts; a second set-aside record nothing can reach; wrong words.
+  The author is held for the other two parts (the filling and the starting, going; the tests, not started), then one brief.
 - Two authors whose last run said it was unfinished are queued again with what they themselves listed as open and nothing added: the queue of runs as a folder (its lint) and `mpm-shadow`'s removal of old versions (controls shown failing, `main` merged, the decisions of 2026-11-15, the cost).
 - Still owed from the night: the drawn-shadow-tree author's eleventh run (queued, see the entry before this one in this list) (pass 57's refusal and its Kimi review's two findings); the fresh run for the age arithmetic and the linked-worktree exemption; the Sonnet audit of the LFS path; the Sonnet pass of the pool change.
 
