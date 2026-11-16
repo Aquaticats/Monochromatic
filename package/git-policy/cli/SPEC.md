@@ -19436,6 +19436,12 @@ while `reset --hard`,
 `checkout-index -f`,
 `stash` and a bare `checkout -- <path>` keep it (the last refuses the path itself),
 and a plain `git rm -f s.txt` is Git's own refusal of a path outside the sparse definition.
+One shape of that kind is refused before Git's own pathspec match declines it: a `skip-worktree` entry
+whose only change is the owner's execute bit, under `git restore --source=HEAD --worktree -- <path>`,
+where Git exits 1 with `pathspec '<path>' did not match any file(s) known to git` and writes nothing
+while the guard refuses first and names the file (the twelfth review's seventh finding, measured on this
+host with native Git 2.56.0, 2026-11-16).
+The file is kept either way, and the command's own opt-out runs it as Git runs it.
 The scope `DirtyScope::TrackedAndSkipWorktreeEdits` is asked by exactly those readings,
 and a form that answers the question itself keeps the mark out of it:
 `git rm --cached` removes the index entry and leaves the worktree file, so it asks the plain question.
