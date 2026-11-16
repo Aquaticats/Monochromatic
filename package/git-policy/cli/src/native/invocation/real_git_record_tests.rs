@@ -76,6 +76,8 @@ fn a_git_whose_path_is_not_text_is_remembered_as_itself() {
     std::fs::write(&git, "# a program").expect("a program");
     super::remember(root.as_path(), git.as_path()).expect("the note is written");
     assert_eq!(read_recorded_git(record_file(root.as_path()).as_path()), Some(git.clone()), "the path is read back as the bytes it has");
+    remove(root.as_path());
+}
 
 ///  Two starts that remember different Gits in one runtime directory both succeed,
 ///  and the record names one of them.
