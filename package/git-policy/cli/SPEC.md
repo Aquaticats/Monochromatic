@@ -19464,6 +19464,15 @@ same place).
 The stat still answers what kind of entry stands there: a file is compared, a link or a directory is
 an edit whatever its bytes, and a path that is gone is no edit of the person's because Git writes it
 back.
+The executable bit is compared as well:
+a file holding the branch's bytes and the person's bit compared equal to a reading that looked at the
+content object alone, and `git restore --source=HEAD` and `git reset --hard` then removed the bit
+(the tenth review's third finding, measured on this host with native Git 2.56.0, 2026-11-16).
+The index's mode travels with the entry, and a bit that differs is an edit.
+A repository that records no file mode keeps the worktree's own bits,
+so the question is asked only where a bit differs and only of a repository that reads them:
+with `core.fileMode=false` the bit survived both forms in the same measurement,
+and the guard refuses nothing there.
 What that costs, measured on this host, 2026-11-15:
 one `hash-object` call hashes 100 marked paths in 2.4 ms, 1,000 in 8.5 ms and 5,000 in 36 ms,
 while one call per entry costs 181 ms, 1,787 ms and 9,258 ms;
@@ -19513,6 +19522,15 @@ because `ls-tree` matches a pathspec literally and refuses its magic:
 `pathspec magic not supported by this command`
 (measured on this host with native Git 2.56.0, 2026-11-16).
 Both readings print the worktree root's own names, so no directory prefix is written before an answer.
+The revision handed to `--with-tree` keeps its own bytes,
+because Git resolves the name it is given and a lossy conversion is another name:
+`topic` followed by raw `0xff` became `topic` followed by U+FFFD in that argument,
+which was a ref of its own pointing at `main`, so the tree listed no `victim.txt` and a forced checkout
+wrote it out of the raw-byte ref (the tenth review's second finding, measured on this host with native
+Git 2.56.0, 2026-11-16).
+A scan of the guard's own query builders (`no_query_argument_the_guard_hands_to_git_is_a_lossy_conversion`)
+fails on any argument built out of `to_string_lossy` or `String::from_utf8_lossy`,
+while a refusal's sentence may still name bytes that way for a reader.
 Three more readings complete the table,
 each measured on this host with native Git 2.56.0:
 a forced `git mv` writes what Git writes for its shape
@@ -19868,16 +19886,24 @@ the `ls-tree` of a path form starts in the run directory, so its pathspecs mean 
 the command, and its answers are rooted with that directory's prefix;
 `ls-files --cached` starts there too, with `:(top)` when the form names no path,
 and its `--full-name` answers are already the worktree root's own, so no prefix is written before them;
-`checkout-index --prefix` is joined to the index path as text and resolved once for the whole set from
-the worktree root
+`checkout-index --prefix` is joined to the index path as the text it is, from the worktree root
 (`setup_work_tree` moves there before any entry is written),
-so a relative prefix is a root-relative name,
-its trailing separator is kept as the person wrote it,
-and a pair that lands outside the worktree is a place there,
-guarded where that file lies (`the_places_under_a_prefix`)
-(`git checkout-index -f --prefix=out/ -- b.txt` run in `sub/` writes `out/sub/b.txt`,
-and `--prefix=out2` writes `out2sub/b.txt`, measured on this host with native Git 2.56.0,
-2026-11-14);
+so a relative prefix is a root-relative name and a pair that lands outside the worktree is a place
+there, guarded where that file lies (`the_places_under_a_prefix`)
+(`git checkout-index -f --prefix=out/ -- b.txt` run in `sub/` writes `out/sub/b.txt`).
+The prefix is the text Git glues, and its last name continues a path's own name unless the text ends
+with a separator, measured on this host with native Git 2.56.0 on 2026-11-16:
+`checkout-index -f --prefix=. -a` writes `.a.txt`,
+`--prefix=out -a` writes `outa.txt` and leaves `out/a.txt` alone,
+`--prefix=.. -a` writes `..a.txt`,
+`--prefix=link -a` writes `linka.txt` beside an untouched `link`,
+and `--prefix=link/ -a` writes through the link into the directory it reaches.
+A reading that resolved the prefix as a folder checked `a.txt`, `out/a.txt`, `link/a.txt` and the
+directory above the worktree, and let Git write over the files it had not looked at
+(the tenth review's first finding).
+So the part of the prefix before its last name is resolved the way the kernel reads it,
+the last name is kept as text,
+and a prefix that ends with a separator names a folder whose whole resolution is the way.
 `mv`'s sources and destination are read from the filesystem there,
 and a source's trailing separators are dropped before the lookup because Git reads `a.txt/` as
 `a.txt` and renames it;

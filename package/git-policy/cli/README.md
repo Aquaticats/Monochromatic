@@ -2777,6 +2777,16 @@ The rule is:
   A file outside the worktree is guarded where it lies,
   and a link standing at a name the form writes is the entry it replaces: Git writes the name and
   never through it.
+  `git checkout-index --prefix=<text>` glues that text to each path as written, so a prefix that does
+  not end with `/` continues the path's own name: `--prefix=.` writes `.a.txt`, `--prefix=out` writes
+  `outa.txt`, and `--prefix=link` writes `linka.txt` beside an untouched `link`.
+  The wrapper reads the prefix that way, so a file at the name Git writes is guarded.
+  A revision keeps its own bytes wherever the wrapper hands it to Git,
+  so a branch whose name is not UTF-8 is read as the branch it is and not as another one.
+  A change of mode is your data like a change of bytes: a file whose executable bit differs from the
+  index's is an edit even when an `assume-unchanged` or `skip-worktree` mark keeps it out of
+  `git status`,
+  unless the repository records no file mode (`core.fileMode=false`), where Git keeps your bits.
   A subtree a form names is read with Git's own pathspec engine, so a pattern reaches what your command
   reaches,
   and the reads the wrapper makes of its own say how their pathspecs are read, so a global
