@@ -351,6 +351,10 @@ enum Required {
 /// the number of the process that wrote the record,
 /// and the number of a later process,
 /// which is a live number with a birth the record says belongs to an earlier process.
+///  Where the number is live, an answer of unknown says only that this reader cannot compare the birth it read with the
+/// process that has the number,
+/// which is the same answer whether that process is the one the record names or a later one:
+/// a respelled birth of an earlier process is no more comparable than a respelled birth of the record's own.
 #[test]
 fn every_pairing_of_a_number_state_and_a_birth_state_gives_the_answer_the_rule_requires() {
     let boot: &str = current_boot_id();
@@ -375,7 +379,7 @@ fn every_pairing_of_a_number_state_and_a_birth_state_gives_the_answer_the_rule_r
         ("the writer's own number and an empty birth", own, empty, Required::Unknown),
         ("the writer's own number and an unparseable birth", own, unparseable.as_str(), Required::Unknown),
         ("a later process's number and an earlier birth as the writer writes it", own, earlier_birth.as_str(), Required::Gone),
-        ("a later process's number and that earlier birth in another spelling", own, earlier_birth_respelled.as_str(), Required::Gone),
+        ("a later process's number and that earlier birth in another spelling", own, earlier_birth_respelled.as_str(), Required::Unknown),
         ("a later process's number and a blank birth", own, blank, Required::Unknown),
         ("a later process's number and an empty birth", own, empty, Required::Unknown),
         ("a later process's number and an unparseable birth", own, unparseable.as_str(), Required::Unknown),

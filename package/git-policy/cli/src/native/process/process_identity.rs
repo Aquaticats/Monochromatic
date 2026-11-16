@@ -186,7 +186,7 @@ fn is_kernel_tick(text: &str) -> bool {
 ///  on Linux,
 ///  `linux:` and the kernel's start tick;
 ///  on the platforms whose inspector prints its own words,
-///  any text but the empty one.
+///  any text with something in it.
 /// Why:
 ///   A reader compares a recorded birth with the identity of the process that has the number now,
 ///  and a text that is not one spelling of one tick reads as another process,
@@ -196,9 +196,12 @@ fn is_kernel_tick(text: &str) -> bool {
 ///  a text that names something else is compared as the text it is,
 ///  as this reader always did,
 ///  because macOS and Windows have no grammar here that this reader could respell.
-///  The empty text is no identity on any platform:
+///  A text with nothing in it is no identity on any platform:
 ///  it names no process,
 ///  and a reader that compared it would read every live holder as another process.
+///  Nothing in it means no character but whitespace,
+///  which is a field a program or a person padded and left empty,
+/// and not a value with one spelling and another.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -207,16 +210,18 @@ fn is_kernel_tick(text: &str) -> bool {
 /// isBirthIdentity(' linux:8423337') // false, the same tick behind a space
 /// isBirthIdentity('Linux:8423337') // false, the same tick behind its tag in capitals
 /// isBirthIdentity('') // false, no identity at all
+/// isBirthIdentity(' ') // false, nor is a field of nothing but whitespace
 /// isBirthIdentity('gone') // true, a text this reader has no grammar for
 /// ```
 pub(crate) fn is_birth_identity(birth: &str) -> bool {
-    if birth.is_empty() {
+    // The text with the padding a field may carry taken off, which is what a reader asks for when it compares the value.
+    let content: &str = birth.trim_start();
+    if content.is_empty() {
         return false;
     }
     #[cfg(target_os = "linux")]
     {
-        let after_a_space_or_none: &str = birth.trim_start();
-        let tag: &[u8] = &after_a_space_or_none.as_bytes()[..after_a_space_or_none.len().min(LINUX_IDENTITY_PREFIX.len())];
+        let tag: &[u8] = &content.as_bytes()[..content.len().min(LINUX_IDENTITY_PREFIX.len())];
         if !tag.eq_ignore_ascii_case(LINUX_IDENTITY_PREFIX.as_bytes()) {
             // A text whose grammar this reader does not know is compared as the text it is.
             return true;

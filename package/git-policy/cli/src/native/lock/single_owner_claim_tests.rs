@@ -417,8 +417,25 @@ enum Required {
     Gone,
     /// The owner is the process that has the number now: the claimant is told who it is.
     Alive,
-    /// The reader cannot tell: the claimant stops and names the file without taking anything.
-    Unknown,
+    /// The reader cannot tell: the claimant stops without taking anything, and the words say what it could not read.
+    Unknown(UnknownNames),
+}
+
+/// What the words of a refusal must name,
+/// for the rows whose answer is unknown.
+/// Why:
+///   There are two ways this caller cannot tell,
+/// and both keep the item:
+/// a birth it cannot compare with the process that has the number,
+/// and a file whose birth field is empty,
+/// which is no claim of this program at all,
+/// so that question never reaches a birth.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum UnknownNames {
+    /// The birth the reader could not compare.
+    TheBirth,
+    /// The file, whose empty birth field makes it no claim this command wrote.
+    TheFile,
 }
 
 /// The birth `birth` with a leading zero on its start tick,
@@ -430,6 +447,21 @@ fn birth_with_a_leading_zero(birth: &str) -> String {
         panic!("the birth {birth} is no start tick this control can pad");
     };
     return format!("{prefix}:0{tick}");
+}
+
+/// Whether the refusal of a row says what the reader could not read.
+/// Why:
+///   The two ways this caller cannot tell are told apart by their words,
+/// so the control asks each row for the words that belong to it:
+/// a refusal for another reason does not pass as this row's answer.
+fn names_the_unreadable(names: UnknownNames, birth: &str, directory: &Path, refusal: &MigrateError) -> bool {
+    let said: String = format!("{refusal:?}");
+    return match names {
+        UnknownNames::TheBirth => said.contains(birth),
+        // An empty birth is no text a sentence can quote, and the record is then no claim of this program at all, so this
+        //  row asks that the words name the file.
+        UnknownNames::TheFile => said.contains(directory.display().to_string().as_str()),
+    };
 }
 
 /// Refused:
@@ -469,18 +501,18 @@ fn every_pairing_of_a_number_state_and_a_birth_state_gives_the_answer_the_rule_r
         ("a free number and the birth as the writer writes it", free, live_birth.as_str(), Required::Gone),
         ("a free number and the birth in another spelling", free, live_birth_respelled.as_str(), Required::Gone),
         ("a free number and a blank birth", free, blank, Required::Gone),
-        ("a free number and an empty birth", free, empty, Required::Gone),
+        ("a free number and an empty birth", free, empty, Required::Unknown(UnknownNames::TheFile)),
         ("a free number and an unparseable birth", free, unparseable.as_str(), Required::Gone),
         ("the writer's own number and the birth as the writer writes it", own, live_birth.as_str(), Required::Alive),
-        ("the writer's own number and the birth in another spelling", own, live_birth_respelled.as_str(), Required::Unknown),
-        ("the writer's own number and a blank birth", own, blank, Required::Unknown),
-        ("the writer's own number and an empty birth", own, empty, Required::Unknown),
-        ("the writer's own number and an unparseable birth", own, unparseable.as_str(), Required::Unknown),
+        ("the writer's own number and the birth in another spelling", own, live_birth_respelled.as_str(), Required::Unknown(UnknownNames::TheBirth)),
+        ("the writer's own number and a blank birth", own, blank, Required::Unknown(UnknownNames::TheBirth)),
+        ("the writer's own number and an empty birth", own, empty, Required::Unknown(UnknownNames::TheFile)),
+        ("the writer's own number and an unparseable birth", own, unparseable.as_str(), Required::Unknown(UnknownNames::TheBirth)),
         ("a later process's number and an earlier birth as the writer writes it", own, earlier_birth.as_str(), Required::Gone),
-        ("a later process's number and that earlier birth in another spelling", own, earlier_birth_respelled.as_str(), Required::Gone),
-        ("a later process's number and a blank birth", own, blank, Required::Unknown),
-        ("a later process's number and an empty birth", own, empty, Required::Unknown),
-        ("a later process's number and an unparseable birth", own, unparseable.as_str(), Required::Unknown),
+        ("a later process's number and that earlier birth in another spelling", own, earlier_birth_respelled.as_str(), Required::Unknown(UnknownNames::TheBirth)),
+        ("a later process's number and a blank birth", own, blank, Required::Unknown(UnknownNames::TheBirth)),
+        ("a later process's number and an empty birth", own, empty, Required::Unknown(UnknownNames::TheFile)),
+        ("a later process's number and an unparseable birth", own, unparseable.as_str(), Required::Unknown(UnknownNames::TheBirth)),
     ];
     // Every row is asked in a fixture of its own, and every wrong answer is kept, so one run of this table names each
     //  pairing that broke a rule.
@@ -493,7 +525,7 @@ fn every_pairing_of_a_number_state_and_a_birth_state_gives_the_answer_the_rule_r
         remove(directory.as_path());
         let expected_generations: Vec<u64> = match required {
             Required::Gone => vec![FIRST + 1],
-            Required::Alive | Required::Unknown => vec![FIRST],
+            Required::Alive | Required::Unknown(_) => vec![FIRST],
         };
         match (outcome, required) {
             (Ok(ClaimOutcome::Held(_claim)), Required::Gone) => {}
@@ -507,9 +539,11 @@ fn every_pairing_of_a_number_state_and_a_birth_state_gives_the_answer_the_rule_r
             (Ok(ClaimOutcome::Busy(_owner)), _) => {
                 wrong.push(format!("{what}: the claimant answered with a live owner, and the rule requires {required:?}"));
             }
-            (Err(refusal), Required::Unknown) if format!("{refusal:?}").contains(birth) => {}
-            (Err(refusal), Required::Unknown) => {
-                wrong.push(format!("{what}: the refusal does not name the birth {birth:?}: {refusal:?}"));
+            // The words name the thing the reader could not read, and a refusal that named nothing this row planted would
+            //  pass for the wrong reason: an empty birth is no text a refusal could quote, so that row asks for the file.
+            (Err(refusal), Required::Unknown(names)) if names_the_unreadable(names, birth, directory.as_path(), &refusal) => {}
+            (Err(refusal), Required::Unknown(_names)) => {
+                wrong.push(format!("{what}: the refusal does not name what the reader could not read: {refusal:?}"));
             }
             (Err(_refusal), _) => {
                 wrong.push(format!("{what}: the claimant refused, and the rule requires {required:?}"));

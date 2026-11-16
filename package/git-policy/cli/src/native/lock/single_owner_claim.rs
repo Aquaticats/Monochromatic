@@ -307,6 +307,13 @@ const SMALL_RECORD_LIMIT: u64 = 4096;
 /// it is compared with the identity the process table reports now,
 /// so two spellings of one start tick read as two processes,
 /// and the item would be taken from a command that runs.
+///  What each fact can decide on its own decides first,
+/// because the rules pull against each other:
+/// nothing may take an item from a live owner,
+/// and an owner that can never run must not refuse every later claimant.
+/// A number no process has is the owner's own end,
+/// whatever its birth says,
+/// so the birth is asked about only beside a process that has the number.
 fn live_owner(record: &ClaimRecord, path: &Path) -> Result<Option<i64>, MigrateError> {
     let ClaimRecord::Owned { pid, birth, namespace } = record else { return Ok(None) };
     match foreign_owner_standing(namespace.as_deref(), path) {
@@ -318,15 +325,16 @@ fn live_owner(record: &ClaimRecord, path: &Path) -> Result<Option<i64>, MigrateE
         Some(ForeignStanding::Refused(refused)) => return Err(MigrateError::Journal(refused.describe(*pid))),
         None => {}
     }
-    if !is_birth_identity(birth.as_str()) {
-        return Err(MigrateError::Journal(format!(
+    return match process_birth_identity(*pid) {
+        // No process has this number now, so the owner this record names has ended whatever its birth says.
+        Ok(None) => Ok(None),
+        // The number names a process, so the birth decides: one this reader cannot compare is a question it cannot answer,
+        //  and the item stays where it is.
+        Ok(Some(_current)) if !is_birth_identity(birth.as_str()) => Err(MigrateError::Journal(format!(
             "{} names process {pid}, and its birth identity {birth} is not one this program writes, so whether that process still runs cannot be decided; nothing was changed. Look at the file: if no monochromatic-git-policy-cli command is running on this item, remove it and run the command again",
             path.display()
-        )));
-    }
-    return match process_birth_identity(*pid) {
+        ))),
         Ok(Some(current)) => Ok((&current == birth).then_some(*pid)),
-        Ok(None) => Ok(None),
         Err(error) => Err(MigrateError::Journal(format!(
             "{} names process {pid}, and whether it still runs cannot be decided ({error}); nothing was changed. If it does not, remove the file and run the command again",
             path.display()

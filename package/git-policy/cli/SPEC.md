@@ -13239,7 +13239,13 @@ and recovery holds them for a batch it finds landed;
 every path on which a batch does not land forgets them.
 Nothing drains a held item,
 so no round can publish a commit whose post-commit gate has not decided.
-Nothing releases a held record by judging a process:
+A held record is ended by its own verdict,
+or by a proof that its holder is gone beside that verdict,
+and never by a question the reader could not finish:
+a proof it cannot complete,
+which is a part of the holder text written another way,
+keeps the record exactly where it is.
+A record whose own words state no verdict is not ended by a dead holder either:
 a push whose command died before its checks ran stays
 held,
 and the question of whether it should ever be pushed is open with the owner

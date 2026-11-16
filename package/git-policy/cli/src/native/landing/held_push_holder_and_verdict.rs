@@ -257,19 +257,25 @@ pub fn pid_of(holder: &str) -> Option<i64> {
 /// `is_boot_id`) and a birth part is a birth identity (`process_identity`,
 /// `is_birth_identity`),
 /// and a part in any other shape is no part this reader can compare.
-/// A record written on a host that could not read its own boot names none,
-/// and its process decides.
-/// A process of an earlier boot cannot be running now;
-/// a PID that names a process
-///  with another birth identity was reused;
-/// and a PID that names no process is the command's own end,
+///  What each part can decide on its own decides first,
+/// because the rules pull against each other:
+/// nothing may prove a live holder gone,
+/// and a holder that can never run must not keep a record that no command can settle.
+/// A boot that has ended ends every process in it,
+/// whatever the birth says;
+/// a PID that names no process is the command's own end,
 /// whether
 ///  it finished,
-/// crashed or was killed.
+/// crashed or was killed,
+/// whatever the birth says;
+/// and only where a process has the number does the birth decide,
+///  because that is the one place a birth is compared with anything.
+///  A record written on a host that could not read its own boot names none,
+/// and its process decides.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const gone = (boot === '' || (isBootId(boot) && boot === bootId())) && isBirthIdentity(birth) && (pidIsFree(pid) || birthIdentityOf(pid) !== birth);
+/// const gone = bootEnded(boot) || pidIsFree(pid) || (isBirthIdentity(birth) && birthIdentityOf(pid) !== birth);
 /// ```
 pub fn proven_gone(holder: &str) -> bool {
     if holder.is_empty() {
@@ -291,11 +297,8 @@ pub fn proven_gone(holder: &str) -> bool {
             return true;
         }
     }
-    // The birth part stands for one birth in one spelling, and it is compared with the identity the process table reports;
-    //  a part in any other shape names no process this reader can compare, and a record that states none names none either.
-    if !is_birth_identity(birth) {
-        return false;
-    }
+    // The birth part stands for one birth in one spelling, and it is compared with the identity of the process that has the
+    //  number now, so only a process that has it is asked about the birth at all.
     let Ok(number) = pid.parse::<i64>() else {
         return false;
     };
@@ -304,10 +307,11 @@ pub fn proven_gone(holder: &str) -> bool {
         return false;
     }
     return match process_birth_identity(number) {
-        // No process has this number now.
+        // No process has this number now, so the command that wrote the record has ended whatever its birth says.
         Ok(None) => true,
-        // The number names a process born at another instant: this one reused it.
-        Ok(Some(now)) => now != birth,
+        // The number names a process, so the birth decides: one born at another instant is a reused number, and a birth this
+        //  reader cannot compare proves nothing.
+        Ok(Some(now)) => is_birth_identity(birth) && now != birth,
         // The process table could not be read, so nothing is proven.
         Err(_unreadable) => false,
     };
