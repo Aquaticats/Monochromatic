@@ -1119,15 +1119,31 @@ fn listed_paths_of(
     run_in: &Path,
 ) -> Result<Option<Vec<Vec<u8>>>, String> {
     let mut arguments: Vec<OsString> = without_directory_changes(facts.global_prefix.as_slice());
-    for token in ["--no-optional-locks", "ls-tree", "-r", "-z", "--name-only"] {
-        arguments.push(OsString::from(token));
-    }
     if pathspecs.is_empty() {
-        // `--full-tree` prints every path of the tree, whatever directory Git runs in.
-        arguments.push(OsString::from("--full-tree"));
-    }
-    arguments.push(named.to_os_string());
-    if !pathspecs.is_empty() {
+        // The whole tree is `git ls-tree`'s own question, and `--full-tree` prints every path of it whatever
+        //  directory Git runs in.
+        for token in ["--no-optional-locks", "ls-tree", "-r", "-z", "--name-only", "--full-tree"] {
+            arguments.push(OsString::from(token));
+        }
+        arguments.push(named.to_os_string());
+    } else {
+        // What:
+        //  The paths of the tree the form's own pathspecs select.
+        // Why:
+        //  `git ls-tree` matches a pathspec literally and supports none of its magic,
+        //  so a word Git reads as a pattern answered nothing there:
+        //  `git checkout -f other -- 'a*'` wrote over an untracked `ab.txt` while
+        //  `git ls-tree -r --name-only other -- 'a*'` printed no path at all
+        //  (measured on this host with native Git 2.56.0, 2026-11-16;
+        //  `:(glob)a*` is refused outright with `pathspec magic not supported by this command`).
+        //  `git ls-files --with-tree=<name>` puts the tree beside the index and reads the pathspecs with Git's
+        //  own engine, so every magic, pattern and mode the command honours is honoured here too.
+        //  The paths it adds from the index are tracked paths, which the entry question never names,
+        //  so the wider list names no file the command would keep.
+        for token in ["--no-optional-locks", "ls-files", "-z", "--full-name"] {
+            arguments.push(OsString::from(token));
+        }
+        arguments.push(OsString::from(format!("--with-tree={}", named.to_string_lossy())));
         arguments.push(OsString::from("--"));
         arguments.extend(pathspecs.iter().cloned());
     }
@@ -1143,34 +1159,10 @@ fn listed_paths_of(
         }
         return Ok(None);
     }
-    let mut paths: Vec<Vec<u8>> = nul_separated_paths(output.stdout.as_slice());
-    if pathspecs.is_empty() || paths.is_empty() {
-        return Ok(Some(paths));
-    }
-    // A path form's answers are relative to the directory Git runs in, and the entries in the way are named from the
-    //  worktree root, so that directory's own prefix is written before each of them.
-    //  An answer that cannot be spelled below the root is no entry of the worktree this reading can compare, and
-    //  dropping it would be the empty answer the place type exists to make impossible.
-    let location: crate::repository_location::RepositoryLocation = facts.location()?;
-    let Some(root) = worktree_root(&location.identity) else {
-        return Err(String::from(
-            "the guard could not place the paths Git answered for this command: the repository has no worktree of its own",
-        ));
-    };
-    let prefix: Vec<u8> = crate::command_run_directory::run_directory_prefix(root, run_in, location.prefix.as_slice());
-    let mut rooted: Vec<Vec<u8>> = Vec::<Vec<u8>>::with_capacity(paths.len());
-    for path in paths.drain(..) {
-        match as_the_worktree_listing_spells_it(prefix.as_slice(), path.as_slice()) {
-            Some(spelled) => rooted.push(spelled),
-            None => {
-                return Err(format!(
-                    "the guard could not place the path `{}` Git answered for this command, which stands outside the worktree this reading compares entries with",
-                    String::from_utf8_lossy(path.as_slice())
-                ));
-            }
-        }
-    }
-    return Ok(Some(rooted));
+    // Both readings print what the worktree root holds: `ls-tree --full-tree` and `ls-files --full-name`
+    //  answer the paths the entries in the way carry, whatever directory the command runs in,
+    //  so a pathspec of the form's own means that directory and nothing is written before an answer.
+    return Ok(Some(nul_separated_paths(output.stdout.as_slice())));
 }
 
 /// What:
@@ -1588,15 +1580,28 @@ fn index_under_prefix_paths(
 /// ```
 fn index_paths(facts: &mut GitFacts, pathspecs: &[OsString], run_in: &Path) -> Result<Vec<Vec<u8>>, String> {
     let mut arguments: Vec<OsString> = without_directory_changes(facts.global_prefix.as_slice());
-    for token in ["--no-optional-locks", "ls-files", "-z", "--cached", "--full-name"] {
+    // A listing without a pathspec is scoped to the directory Git runs in, and the paths it prints are the
+    //  worktree's own, so the whole index is asked for from the top (`:(top)`).
+    //  That magic is this reading's own, so a caller's `--literal-pathspecs` or `GIT_LITERAL_PATHSPECS` is
+    //  turned off for it:
+    //  under it the magic is a file name matching nothing, the answer is empty, and every path the form writes
+    //  becomes unwatched
+    //  (`git --literal-pathspecs checkout-index -f --prefix=out/ -a` wrote over an untracked `out/a.txt`,
+    //  the ninth review's third finding).
+    arguments.push(OsString::from("--no-optional-locks"));
+    if pathspecs.is_empty() {
+        arguments.push(OsString::from("--no-literal-pathspecs"));
+    }
+    for token in ["ls-files", "-z", "--cached", "--full-name"] {
         arguments.push(OsString::from(token));
     }
-    arguments.push(OsString::from("--"));
     if pathspecs.is_empty() {
-        // A listing without a pathspec is scoped to the directory Git runs in, and the paths it prints are the
-        //  worktree's own, so the whole index is asked for from the top (`:(top)`).
+        arguments.push(OsString::from("--"));
         arguments.push(OsString::from(":(top)"));
     } else {
+        // The pathspecs are the person's own, so they are read exactly as the command reads them, under
+        //  whatever mode the caller chose.
+        arguments.push(OsString::from("--"));
         arguments.extend(pathspecs.iter().cloned());
     }
     let output: MetadataOutput = facts.query_in(run_in, arguments, "the paths the index holds")?;

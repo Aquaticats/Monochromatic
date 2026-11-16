@@ -113,8 +113,8 @@ enum Scenario {
     ResetUntracked,
     /// The same listing for the entries the ignore rules cover.
     ResetIgnored,
-    /// The index listing a glob pathspec reaches, shifted by a prefix.
-    GlobAtAPrefix,
+    /// The tree listing a glob pathspec reaches.
+    GlobOverATree,
     /// The index listing whose answer a case-insensitive pathspec widens.
     EditUnderAnotherCase,
 }
@@ -127,7 +127,7 @@ impl Scenario {
         Scenario::PrefixDestinations,
         Scenario::ResetUntracked,
         Scenario::ResetIgnored,
-        Scenario::GlobAtAPrefix,
+        Scenario::GlobOverATree,
         Scenario::EditUnderAnotherCase,
     ];
 
@@ -139,7 +139,7 @@ impl Scenario {
             Scenario::PrefixDestinations => "checkout-index destinations below a prefix",
             Scenario::ResetUntracked => "an untracked entry a hard reset writes over",
             Scenario::ResetIgnored => "an ignored entry a hard reset writes over",
-            Scenario::GlobAtAPrefix => "a glob pathspec shifted by a prefix",
+            Scenario::GlobOverATree => "a glob pathspec over a tree",
             Scenario::EditUnderAnotherCase => "an edit another spelling of the name reaches",
         };
     }
@@ -151,7 +151,7 @@ impl Scenario {
             Scenario::SkippedEdit => vec!["restore", "--source=other", "--", "a.txt"],
             Scenario::PrefixDestinations => vec!["checkout-index", "-f", "--prefix=out/", "-a"],
             Scenario::ResetUntracked | Scenario::ResetIgnored => vec!["reset", "--hard", "other"],
-            Scenario::GlobAtAPrefix => vec!["checkout-index", "-f", "--prefix=out/", "--", "a*"],
+            Scenario::GlobOverATree => vec!["checkout", "-f", "other", "--", "a*"],
             Scenario::EditUnderAnotherCase => vec!["restore", "--", "a.txt"],
         };
     }
@@ -204,11 +204,16 @@ impl Scenario {
                 git(fixture, linked.as_path(), &["checkout", "--quiet", "--force", "side"]);
                 precious(linked.join("b.txt"));
             }
-            Scenario::GlobAtAPrefix => {
-                precious(linked.join("out/a.txt"));
-                std::fs::write(linked.join("ab.txt"), format!("{USER_DATA} beside it\n")).expect("another tracked name");
-                git(fixture, linked.as_path(), &["add", "--", "ab.txt"]);
-                git(fixture, linked.as_path(), &["commit", "--quiet", "--message=ab"]);
+            Scenario::GlobOverATree => {
+                // `other` tracks `ab.txt`, and a file of that name stands in the worktree holding the person's data:
+                //  a glob reaches it, and the same word under `--literal-pathspecs` names nothing at all.
+                git(fixture, repo.as_path(), &["checkout", "--quiet", "other"]);
+                std::fs::write(repo.join("ab.txt"), b"other ab\n").expect("a name a glob reaches");
+                git(fixture, repo.as_path(), &["add", "--", "ab.txt"]);
+                git(fixture, repo.as_path(), &["commit", "--quiet", "--message=other-ab"]);
+                git(fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+                git(fixture, linked.as_path(), &["checkout", "--quiet", "--force", "-B", "side", "main"]);
+                precious(linked.join("ab.txt"));
             }
             Scenario::EditUnderAnotherCase => {
                 // The index holds `A.TXT`, and the person reaches it with the other case.
@@ -251,6 +256,8 @@ const MODES: &[Mode] = &[
 ///  whether the wrapper refused,
 ///  and which entries the person no longer holds.
 struct Arm {
+    /// What Git exited with, as the caller saw it.
+    code: Option<i32>,
     /// Whether a policy refusal is what the caller saw.
     refused: bool,
     /// The entries lost, each as the worktree names it.
@@ -287,7 +294,7 @@ fn run(scenario: &Scenario, mode: Option<&Mode>, wrapped_arm: bool, label: &str)
         observe(&mut command, b"")
     };
     let after: BTreeMap<PathBuf, Vec<u8>> = snapshot(directory.as_path());
-    let arm: Arm = Arm { refused: refused(&observed), lost: lost(&before, &after) };
+    let arm: Arm = Arm { code: observed.code, refused: refused(&observed), lost: lost(&before, &after) };
     remove(&fixture);
     return arm;
 }
@@ -318,15 +325,19 @@ fn every_read_of_the_guard_answers_the_same_under_every_global_pathspec_mode() {
     for scenario in Scenario::ALL {
         let baseline: Arm = run(scenario, None, true, "pathspec-mode-baseline");
         println!("{}: without a mode the wrapper {} and the person lost {:?}", scenario.name(), if baseline.refused { "refused" } else { "allowed it" }, baseline.lost);
+        if !baseline.lost.is_empty() {
+            failures.push(format!("{}: without a mode the person lost {:?}", scenario.name(), baseline.lost));
+        }
         rows += 1;
         for mode in MODES {
             let wrapped_arm: Arm = run(scenario, Some(mode), true, "pathspec-mode-wrapped");
             let native_arm: Arm = run(scenario, Some(mode), false, "pathspec-mode-native");
             rows += 1;
             println!(
-                "{} under {}: Git alone lost {:?}; the wrapper {} and the person lost {:?}",
+                "{} under {}: Git alone exited {:?} and lost {:?}; the wrapper {} and the person lost {:?}",
                 scenario.name(),
                 mode.name,
+                native_arm.code,
                 native_arm.lost,
                 if wrapped_arm.refused { "refused" } else { "allowed it" },
                 wrapped_arm.lost
@@ -340,7 +351,7 @@ fn every_read_of_the_guard_answers_the_same_under_every_global_pathspec_mode() {
                     native_arm.lost
                 ));
             }
-            if wrapped_arm.refused && native_arm.lost.is_empty() && !native_arm.refused {
+            if wrapped_arm.refused && native_arm.lost.is_empty() && native_arm.code == Some(0) && !native_arm.refused {
                 failures.push(format!(
                     "{} under {}: the wrapper refused a command Git runs without losing an entry the person holds",
                     scenario.name(),

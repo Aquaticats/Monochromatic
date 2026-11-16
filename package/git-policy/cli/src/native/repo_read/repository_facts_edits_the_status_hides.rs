@@ -262,7 +262,12 @@ struct MarkedEntry {
 /// ```
 fn marked_entries(facts: &mut GitFacts, marked: &[Vec<u8>]) -> Result<Vec<MarkedEntry>, String> {
     let mut arguments: Vec<OsString> = facts.global_prefix.clone();
-    for token in ["--no-optional-locks", "ls-files", "-v", "--stage", "-z", "--full-name", "--"] {
+    // The pathspecs below are the guard's own `:(top,literal)` magic, and a caller's
+    //  `--literal-pathspecs`, or `GIT_LITERAL_PATHSPECS`, would turn that magic into a file name that
+    //  matches nothing:
+    //  the answer would be empty, the edit the mark hides would go unseen, and a restore would write
+    //  over it (the ninth review's second finding).
+    for token in ["--no-optional-locks", "--no-literal-pathspecs", "ls-files", "-v", "--stage", "-z", "--full-name", "--"] {
         arguments.push(OsString::from(token));
     }
     for path in marked {
