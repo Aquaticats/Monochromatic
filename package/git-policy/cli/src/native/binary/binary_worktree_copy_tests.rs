@@ -404,6 +404,14 @@ fn a_stage_abandoned_before_its_journal_is_removed_by_the_next_command() {
     std::fs::set_permissions(stage.as_path(), std::fs::Permissions::from_mode(0o700)).expect("private");
     std::fs::create_dir(stage.join("payload")).expect("payload");
     std::fs::write(stage.join("payload/partial"), b"copied so far").expect("partial copy");
+    // A copy writes down what its payload will hold before its first byte, and that record is what proves the entry is
+    // the wrapper's own.
+    let staged: git_policy_cli::worktree_copy_manifest::WorktreeCopyEntry = git_policy_cli::worktree_copy_manifest::WorktreeCopyEntry {
+        kind: git_policy_cli::worktree_copy_manifest::EntryKind::File,
+        mode: 0o644,
+        relative_path: b"partial".to_vec(),
+    };
+    git_policy_cli::worktree_copy_stage_intended_entries::record_intended_entries(stage.as_path(), [staged].as_slice()).expect("the record of what the payload holds");
     let status: Observed = run_wrapped(&fixture, one.as_path(), &["rev-parse", "--is-inside-work-tree"]);
     assert_eq!(status.code, Some(0), "{}", stderr_of(&status));
     assert_eq!(status.stdout, b"true\n");
