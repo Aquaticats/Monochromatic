@@ -53,10 +53,10 @@ use std::path::Path;
 #[path = "blocking_code_off_the_runtime_rules_tests.rs"]
 mod rules;
 use rules::{ALLOWED, Allowed, Place, RULES, Rule};
-/// The storage calls and the text test of the rules above,
+/// The text test of the rules above,
 /// for the scan that keeps the repository location read inside its ceiling
 /// (`storage_reads_within_a_ceiling_tests.rs`).
-pub(crate) use rules::{STORAGE_CALLS, holds_any};
+pub(crate) use rules::holds_any;
 
 use crate::source_scan_tests::{CrateRoot, classified_sources, real_roots, source_root};
 
