@@ -95,9 +95,11 @@ const A_BOOT_WITH_THE_KERNEL_DASHES: &str = "e044d6c2-e7f5-41bd-aff8-9ac57532f7f
 /// a text whose parts are not the kinds a writer of this release leaves is never read as a boot that ended.
 /// A writer that cannot read the boot ID of its host leaves that part out,
 /// so the number of its PID namespace stands where the boot belongs,
-/// and a boot as the kernel prints it carries the dashes a stored identity never has.
-/// Read as a boot that ended,
-/// either text proves every process of it gone,
+/// and then nothing says which namespace its process number belongs to.
+/// A machine part with nothing in it names no machine,
+/// so a reader cannot tell this machine from another.
+/// Read as ours,
+/// either text would end a holder that runs,
 /// and a lock of a writer that runs is removed.
 #[test]
 fn a_text_whose_parts_are_not_the_kinds_a_writer_leaves_is_never_gone() {
@@ -106,9 +108,11 @@ fn a_text_whose_parts_are_not_the_kinds_a_writer_leaves_is_never_gone() {
         asked.set(asked.get() + 1);
         return Ok(None);
     };
-    let texts: [(&str, String); 3] = [
+    // The boot with the kernel's dashes is no longer one of these: where the marker names this PID namespace, an absent
+    //  number ends the maker whatever its boot part says (finding E of the third review,
+    //  `a_marker_whose_boot_or_namespace_is_written_another_way_is_still_gone_by_its_free_number`).
+    let texts: [(&str, String); 2] = [
         ("a boot the writer could not read is left out, so its PID namespace stands in the boot's place", format!("linux:777#{SCOPE}")),
-        ("a boot with the dashes the kernel prints", format!("linux:777#{A_BOOT_WITH_THE_KERNEL_DASHES}#{SCOPE}")),
         ("a machine part with nothing in it", format!("linux:777#{BOOT_A}#{SCOPE}#")),
     ];
     for (what, text) in texts {
@@ -518,6 +522,74 @@ fn a_marker_whose_birth_is_blank_is_still_proven_gone_by_its_free_number() {
             wrong.push(format!("{what}: the lock of a maker whose number no process has was {outcome:?}, and it exists afterwards: {}", lock.exists()));
         }
         remove(root.as_path());
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// Refused:
+///  a marker whose boot or PID namespace part is written another way,
+///  and whose number no process has,
+///  is still proven gone by the number.
+/// Why:
+///  Finding E of the third review: the boot part was checked for readability before the number was asked about,
+/// so a dead service whose marker spells its boot with the kernel's dashes, in capitals, as garbage or with a
+/// trailing space was `UNKNOWN` for ever and its index lock was never reclaimed by the marker's own proof.
+/// The number is the proof that stands apart from the boot:
+/// the marker names this machine and this PID namespace, so a number no process has on this machine is the maker's
+/// own end whatever its boot part says.
+///  The padded PID namespace arm is the same rule for the other part: a namespace written with a leading zero is the
+/// same namespace, so the number is still ours to read.
+/// A marker that names another machine or another PID namespace keeps its `UNKNOWN`,
+/// which is the control of this control: that number is not this machine's to read.
+#[test]
+fn a_marker_whose_boot_or_namespace_is_written_another_way_is_still_gone_by_its_free_number() {
+    // The marker text is read by this host's own reader, so its identity names this host's boot, namespace and machine.
+    let boot: &str = crate::claim_time::current_boot_id();
+    let scope: &str = crate::service_index_marker::current_pid_scope().expect("a PID namespace");
+    let machine: &str = crate::claim_time::current_machine_id();
+    let free: i64 = crate::single_owner_claim::unused_pid_for_tests();
+    let pid_field: String = free.to_string();
+    let view = ReaderView { boot, scope: Some(scope), machine: Some(machine), procfs_agrees: true };
+    let arms: [(&str, String, HolderState); 5] = [
+        ("the boot with the kernel's dashes", format!("linux:1#{}#{scope}#{machine}", A_BOOT_WITH_THE_KERNEL_DASHES), HolderState::Gone),
+        ("the boot in capitals", format!("linux:1#{}#{scope}#{machine}", BOOT_A.to_uppercase()), HolderState::Gone),
+        ("the boot as garbage", format!("linux:1#a boot no kernel writes#{scope}#{machine}"), HolderState::Gone),
+        ("the boot with a trailing space", format!("linux:1#{BOOT_A} #{scope}#{machine}"), HolderState::Gone),
+        // The number of another PID namespace is not this machine's to read, so nothing is proven about its maker,
+        //  even though the marker names this boot: the number after it belongs to another numbering.
+        ("another PID namespace", format!("linux:1#{boot}#{}#{machine}", "4026532999"), HolderState::Unknown),
+    ];
+    let mut wrong: Vec<String> = Vec::new();
+    for (what, identity, expected) in arms {
+        let asked = std::cell::Cell::new(0_usize);
+        let nothing = |_: i64| -> Result<Option<String>, ProcessIdentityError> {
+            asked.set(asked.get() + 1);
+            return Ok(None);
+        };
+        let holder = (free, identity.clone());
+        let state: HolderState = holder_state_in(Some(&holder), &view, &nothing);
+        if state != expected {
+            wrong.push(format!("{what}: the reader answered {state:?} for {identity}, and {expected:?} is what a free number gives"));
+        }
+        if expected == HolderState::Gone && asked.get() == 0 {
+            wrong.push(format!("{what}: the reader never asked the process table about a number it could have settled"));
+        }
+        // And the real marker text, so the words a marker carries are the ones judged here.
+        let (_root, _index, lock) = index_in(format!("written-another-way-{}", what.replace(' ', "-")).as_str());
+        let text: String = marker_naming(pid_field.as_str(), identity.as_str());
+        std::fs::write(&lock, text.as_bytes()).expect("a marker whose number no process has");
+        let marked_holder = crate::service_index_marker::marker_of(lock.as_path()).expect("a marker").holder;
+        let read: HolderState = holder_state(marked_holder.as_ref());
+        if read != expected {
+            wrong.push(format!("{what}: the marker text {text:?} was answered {read:?}, and {expected:?} is what a free number gives"));
+        }
+        let outcome: Reclaimed = reclaim(&SYSTEM, &lock);
+        if expected == HolderState::Gone {
+            if outcome != Reclaimed::Removed || lock.exists() {
+                wrong.push(format!("{what}: the lock of a maker whose number no process has was {outcome:?}, and it exists afterwards: {}", lock.exists()));
+            }
+        }
+        remove(_root.as_path());
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }

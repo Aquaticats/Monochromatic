@@ -358,22 +358,16 @@ pub fn holder_state_in(
     let (identity, boot, scope, machine) = split_birth(birth.as_str());
     // A part of an identity stands for one value in one spelling, so a part written another way is no part this reader
     //  can compare: two spellings of one boot read as two boots, and a text read as another boot or another process is
-    //  proof that the holder is gone and loses the lock of a Git that runs. A part that is not the kind of text it stands
-    //  for was written by another shape of writer: one that cannot read the boot ID of its host leaves that part out and
-    //  its PID namespace stands where the boot belongs, a boot keeps the dashes the kernel prints where a writer copied
-    //  it as it is, and a machine part with nothing in it names no machine.
-    if let Some(recorded) = boot
-        && !is_boot_id(recorded)
-    {
-        return HolderState::Unknown;
-    }
+    //  proof that the holder is gone and loses the lock of a Git that runs.
+    //  What is asked first is what decides whether this marker is one this reader may judge at all.
+    //  A PID namespace that is not a number stands where nothing can be read, so the number after it means nothing here.
     if let Some(recorded) = scope
         && !is_pid_scope(recorded)
     {
         return HolderState::Unknown;
     }
-    // A service on another machine, or one whose machine ID is not valid, is never gone: a different boot ID there says
-    //  nothing about it.
+    // A service on another machine, or one whose machine ID is not valid, is never judged by this machine's process
+    //  table: a different machine's numbers mean something else, and half a machine ID names no machine.
     if let Some(recorded) = machine
         && (!is_machine_id(recorded) || view.machine != Some(recorded))
     {
@@ -384,36 +378,56 @@ pub fn holder_state_in(
     //  has nothing better and keeps the earlier reading.
     if machine.is_none()
         && view.machine.is_some()
-        && matches!(boot, Some(recorded) if !view.boot.is_empty() && recorded != view.boot)
+        && matches!(boot, Some(recorded) if is_boot_id(recorded) && !view.boot.is_empty() && recorded != view.boot)
     {
         return HolderState::Unknown;
     }
+    // A boot ID that has ended ends every process in it, and that proof stands on its own.
     if let Some(recorded) = boot
+        && is_boot_id(recorded)
         && !view.boot.is_empty()
         && recorded != view.boot
     {
         return HolderState::Gone;
     }
-    if !view.procfs_agrees || (boot.is_some() && view.boot.is_empty()) {
+    // A `/proc` that is another PID namespace's describes no process this reader can place.
+    if !view.procfs_agrees {
         return HolderState::Unknown;
     }
-    if let Some(recorded) = scope
-        && view.scope != Some(recorded)
-    {
+    // Nothing else about the boot part can decide: a part this reader cannot read is no boot of this host, and it is no
+    //  hiding place for a proof either. Two questions follow, and they differ in what they need.
+    //  Where the marker names this PID namespace, the number it names is one this machine's process table can read, so
+    //  its silence is the maker's own end whatever the boot part says (finding E of the third review; the same order the
+    //  held push's reader uses). Where the marker names no namespace at all, only a boot it places on this boot with us
+    //  says the number is ours: a text whose boot slot holds something that is no boot ID may have that namespace in it.
+    let boot_places_us: bool = match boot {
+        None => true,
+        Some(recorded) => is_boot_id(recorded) && !view.boot.is_empty() && recorded == view.boot,
+    };
+    let scope_places_us: Option<bool> = match scope {
+        Some(recorded) if is_pid_scope(recorded) => Some(view.scope == Some(recorded)),
+        _ => None,
+    };
+    let number_is_ours: bool = match scope_places_us {
+        Some(ours) => ours,
+        None => boot_places_us,
+    };
+    if !number_is_ours {
         return HolderState::Unknown;
     }
     return match ask(*pid) {
         // No process of this namespace has the number now, so the maker is gone whatever the rest of the marker says:
-        // the number's own proof stands apart from a birth the reader cannot compare.
+        // the number's own proof stands apart from a boot or a birth the reader cannot compare.
         Ok(None) => HolderState::Gone,
-        // The birth is compared only with the identity of the process that has the number,
-        // so a birth in another spelling proves neither that this process is the marker's nor that it is not.
-        Ok(Some(_now)) if !birth_text(identity).can_be_compared() => HolderState::Unknown,
+        // A process has the number, so saying it is this marker's maker needs the boot placed too:
+        // a marker whose boot part is no boot of this host may name a process of another one.
+        Ok(Some(_now)) if !boot_places_us || !birth_text(identity).can_be_compared() => HolderState::Unknown,
         Ok(Some(now)) if now == identity => HolderState::Running,
         Ok(Some(_)) => HolderState::Gone,
         Err(_) => HolderState::Unknown,
     };
 }
+
 
 /// Whether the marker's holder cannot be proven to be on this machine,
 /// so that no boot ID can say it is gone:

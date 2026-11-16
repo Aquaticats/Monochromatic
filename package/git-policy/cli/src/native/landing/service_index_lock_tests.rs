@@ -1322,7 +1322,11 @@ fn a_reader_that_cannot_compare_like_with_like_says_unknown_not_gone() {
     assert_eq!(asked.get(), 0, "the process is not asked about in the wrong namespace");
     assert_eq!(holder_state_in(Some(&holder), &view(boot_now, None, true), &missing), HolderState::Unknown, "no namespace to compare");
     assert_eq!(holder_state_in(Some(&holder), &view(boot_now, Some("4026532000"), false), &missing), HolderState::Unknown, "a /proc that disagrees");
-    assert_eq!(holder_state_in(Some(&holder), &view("", Some("4026532000"), true), &missing), HolderState::Unknown, "no boot ID to compare");
+    // A reader with no boot ID of its own still has the number: the marker names this PID namespace, so a number no
+    //  process has is the maker's end whether or not this reader can place the boot (finding E of the third review).
+    assert_eq!(holder_state_in(Some(&holder), &view("", Some("4026532000"), true), &missing), HolderState::Gone, "no boot ID to compare, and the number is absent");
+    // A process that has the number cannot be said to be the marker's maker without the boot placed, so that stays unknown.
+    assert_eq!(holder_state_in(Some(&holder), &view("", Some("4026532000"), true), &same), HolderState::Unknown, "no boot ID to compare, and a process has the number");
     let other_boot = view("fedcba9876543210fedcba9876543210", Some("4026531836"), false);
     assert_eq!(holder_state_in(Some(&holder), &other_boot, &same), HolderState::Gone, "another boot ends every process, whatever the numbering");
     assert_eq!(holder_state_in(None, &host, &same), HolderState::Unknown, "a marker without a holder says nothing about any process");
