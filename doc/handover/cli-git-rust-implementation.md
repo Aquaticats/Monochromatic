@@ -1289,6 +1289,17 @@ Not final and not approved; written by the coordinating session. Reviews are by 
   Add-never-skips (`85a9f8523f`, 14 of 14 files): four reproduced, each a check on a name followed by an act on that name:
   Cargo given a `/proc/self/fd` path that names Cargo's own process; the mirror fallback cleaning a replacement before finding its claim gone; a directory swapped after its claim is read and removed whole; a marker swapped after its identity check and unlinked.
   Thirteenth run queued at 22:38:55 with a suggestion of this session's, labelled as such: one object checked and acted on (a held descriptor), and a source guard for these files.
+- **After the masking merge (22:45 to 22:49):** the rehearsal worktree is removed and the two canaries' branches, which held no commit of their own, are deleted;
+  the filling unit is back at level 20 (`fill-free-places-and-put-ended-reviews-back-at-level-20-20261115T224712`, eight hours from 22:47:12); no launcher outlived a run and no going run was silent for twenty minutes.
+- **The push of a branch that is not checked out** (`986a82bbab`, 23 of 23 files): four reproduced with the built executable.
+  A repair takes bytes equal to a recorded tip for proof that the move wrote a checkout, and writes a person's staged edit away in a worktree the move never touched;
+  with the branch attached in two worktrees only the first found is advanced or recorded, so the other's next commit can record the old tree over the published merge;
+  a takeover claim is written as `repair-claim` and read by a reader that takes only `repair-owner`, so a crash after it blocks every later repair;
+  the startup sweep builds its Git from the overlay alone, with no `HOME`, so a branch-move record makes every ordinary command end with status 2.
+  `main` holds one of the files named (`auto_push_reconcile_branch_advance.rs`); the author is asked to show per finding whether `main` has it. Twelfth run queued at 22:48:47.
+- **The review brief's template** (author's sixth run, `cc2e91e8d8`): review queued at 22:48:55 (23 code files).
+  Its two open points are adopted as built, open to veto: a plain line after a sentence saying the review stopped counts by the grammar; a header inside a code fence is refused.
+  Whether that refusal names the fence in its words is left with the author's next change, since a diagnostic names its cause.
 - **Done on the owner's ticked answers:** the install folder of 0.5.34 (`~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/`, two programs of the old name, 18 MiB, no process inside) is deleted with the link that pointed at it;
   three old-name launcher files of the global store that led into it are moved to the scratch folder that holds the checkout's;
   no unit of the old name `cli-git@` exists in the user manager any more (all 68 wrapper units carry the new name), so there was none to remove.
@@ -39503,6 +39514,15 @@ Round nineteen (asked and answered at about 22:24, written here at 2026-11-15T22
   a session file that Pi itself reports is masked without a proof that this run made it.
   The other three become stated limits in the package's docs: a tool result whose `details` throws when read keeps its text;
   a result with a cycle is withheld while its full-output file keeps the value; a full-output file in a folder that cannot be written stays as it was.
+
+Round twenty (asked and answered at about 22:47, written here at 2026-11-15T22:50-05:00), on when the credentials are rotated now that the masking is in `main`:
+
+- Seventeen Pi runs that started before the merge go on unmasked until they end, and a value rotated while they run can be printed by them.
+  Asked when the rotation is done, the owner chose **"When the last old run ends (Recommended)"**: this session watches those runs and tells the owner the moment the last of them has ended; the owner then rotates all 38 once.
+  The watch is the unit `wait-until-every-pi-unit-started-before-the-masking-merge-has-ended-…` (at most eighteen hours; the units' names are kept in
+  `~/temp/agent/rehearsal-of-the-masking-merge-2026-11-15/keep/units-that-became-active-before-the-masking-merge.txt`).
+  Until the owner says the values are rotated, the sessions the scan names stay untouched and are not resumed.
+- The owner then wrote: "I'm going to be away for a few hours. Don't block on me." No question is put while the owner is away; what needs the owner goes into the kept list.
 
 Adopted from the same prepared batch without asking, each because a recorded rule or an earlier answer decides it, each open to veto:
 
