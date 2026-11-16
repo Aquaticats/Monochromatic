@@ -1686,6 +1686,10 @@ Not final and not approved; written by the coordinating session. Reviews are by 
   after `git gc --prune=now` the commit object is gone (`worktree/worktree_removal_keeps_git_work.rs`, lines 682 to 698 and 904 to 925).
   That file is absent from `main` (`git show main:<path>` answers that the path does not exist), so this is on the unmerged branch only.
   Author's eighteenth run queued at 21:45:59, tenth in the queue: a generated control over every file under `logs` and `refs` that is not a name, and the same question put to its other proofs.
+- **The launcher that ends when its run has ended** (`35d724bdbe`, whole range): six things, each reproduced.
+  Concurrent queue writes discard an entry; a concurrent settler deletes the only recovery record of a start in progress; an entry name escapes the runs folder and overwrites a file;
+  the timeout's forced kill is lost when the caller exits; a launcher is left out of the going set while its wake path still resumes that run; a finished batch entry keeps its place and stalls the queue.
+  The first belongs to the queue-as-a-folder branch by the owner's answer, so the author keeps its control and builds no second answer; the other five are its own. Fourth run queued at 21:53:05, seventeenth in the queue.
 - **Done on the owner's ticked answers:** the install folder of 0.5.34 (`~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/`, two programs of the old name, 18 MiB, no process inside) is deleted with the link that pointed at it;
   three old-name launcher files of the global store that led into it are moved to the scratch folder that holds the checkout's;
   no unit of the old name `cli-git@` exists in the user manager any more (all 68 wrapper units carry the new name), so there was none to remove.
