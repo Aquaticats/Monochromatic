@@ -480,6 +480,15 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
 /// under the commit's own scratch tree and beside the index Git reads.
 pub const CAPTURED_INDEX: &str = "captured.captured-index";
 
+/// The index a commit that takes only the named paths is held against,
+/// under the commit's own scratch tree.
+/// Why:
+///  Git builds such a commit from the base's tree and the named paths alone,
+///  so the tree it must hold is the one that index names,
+///  and the commit's own private index holds the whole staged result Git reads for its conclusion
+///  (`the_tree_the_named_paths_take`).
+pub const NAMED_PATHS_INDEX: &str = "the-named-paths.index";
+
 /// The name a commit's own timing record carries when Git's commit was not the one the command asked for and it built again:
 ///  a fixed name and never a path,
 ///  because a build part holds a name a person can read and nothing of a machine's own.
@@ -805,7 +814,19 @@ fn the_commit_that_was_asked_for(
             };
         }
     };
-    return AskedForCommit { parents, tree: the_tree_the_captured_index_names(input, bytes) };
+    // What: A commit that takes only the named paths is held against the tree those paths make, and every other form
+    //       against the whole index's tree.
+    // Why:  Git builds a partial commit from the base's tree and the paths it names, and from nothing else: the worktree's
+    //       bytes at those paths land, and every other entry stays as the base holds it and stays staged (measured with
+    //       Git 2.56.0). So the whole index's tree is a tree such a commit can never have where the index holds more than
+    //       the command named, which a stopped revert's staged result always does: holding the commit that concludes it
+    //       against the whole index refused commits real Git makes (`SPEC.md`, "A pathspec commit during a revert or a
+    //       cherry-pick ... behaves as real Git does").
+    let tree: Asked<String> = match the_tree_the_named_paths_take(input, commit_args) {
+        Some(tree) => tree,
+        None => the_tree_the_captured_index_names(input, bytes),
+    };
+    return AskedForCommit { parents, tree };
 }
 
 /// What:
@@ -929,6 +950,116 @@ fn rebuild_the_private_index(input: &BuildInput<'_>) -> Result<(), String> {
             return Ok(());
         }
     }
+}
+
+/// What:
+///  Whether this command commits the named paths alone,
+///  as a partial commit,
+///  so its tree is the base's with those paths and nothing else.
+/// Why:
+///  Git's own condition (`builtin/commit.c`,
+/// `prepare_index`):
+///  `-o` asks for it,
+///  and so do paths named without `-a`,
+///  `--include`,
+///  `--patch` or
+///  `--interactive`,
+///  while those three put the whole index in the commit.
+///  A command the wrapper's reading cannot place names nothing,
+///  and Git refuses it,
+///  so no tree is guessed for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const takesOnlyTheNamedPaths = (region) => region.only !== false && !region.amend && !region.all && !readOnly(region) && (region.only === true || namesPaths(region));
+/// ```
+fn takes_only_the_named_paths(region: &crate::command_commit::CommitRegion) -> bool {
+    let names_paths: bool = !region.pathspecs.is_empty() || region.pathspec_from_file.is_some();
+    let whole_index_named: bool = region.include || region.interactive || region.patch || region.amend || region.all;
+    return region.only != Some(false) && !whole_index_named && (region.only == Some(true) || names_paths);
+}
+
+/// What:
+///  The tree a commit that takes only the named paths must hold,
+///  or nothing when this command commits the whole index.
+/// Why:
+///  Git builds such a commit from the base's tree and the paths the command names,
+///  whose worktree bytes it takes (measured with Git 2.56.0:
+///  a path staged as one content and edited to another lands the worktree's,
+///  and a path left out of a partial commit stays staged),
+///  so the tree is made here the way the preparation makes a commit of named paths:
+///  the base's tree,
+///  then those paths staged from the worktree
+///  (`commit_index.rs`,
+/// `initialize_retry_index`;
+/// `commit_selection_staging.rs`,
+/// `add_selected_paths`).
+///  A pathless `-o` stages nothing and its tree is the base's alone,
+///  which is the commit real Git makes for it (measured:
+/// `commit -o --fixup=amend:HEAD` lands the base's tree and leaves the staged change staged).
+///  This index is the command's own scratch product and never the one Git reads,
+///  which holds the whole staged result the conclusion is written from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const asked = takesOnlyTheNamedPaths(region) ? treeOf(base + namedPathsFromTheWorktree) : undefined;
+/// ```
+fn the_tree_the_named_paths_take(input: &BuildInput<'_>, commit_args: &[OsString]) -> Option<Asked<String>> {
+    // What: The region is read again here, so the tree is asked for exactly when the command is a partial commit.
+    // Why:  The form of the commit and the tree it carries are two questions, and a line this reading cannot place is one
+    //       Git refuses: no commit is built from it, so nothing is held against one.
+    let Ok(region) = crate::command_commit::parse_commit_region(commit_args, &[]) else { return None };
+    if !takes_only_the_named_paths(&region) {
+        return None;
+    }
+    let base_revision: String = crate::capture_invocation::base_revision(input.capture);
+    let pathspecs: Vec<OsString> = region.pathspecs.iter().map(|at| { return commit_args[*at].clone(); }).collect();
+    // A pathspec file is read where the preparation read it, and is never written here: its snapshot of standard input
+    //  was taken once, and writing it again would replace the person's list with nothing.
+    let pathspec_file: Option<PathBuf> = region.pathspec_from_file.map(|value| {
+        let named: PathBuf =
+            PathBuf::from(crate::path_bytes::os_from_path_bytes(crate::command_options_query::value_bytes(commit_args, value)));
+        return crate::service_prepare_changes_config_and_pathspec_steps::the_pathspec_file_at(input.scratch, input.cwd, named.as_path());
+    });
+    let indexes: crate::private_index_request::CaptureIndexes = crate::private_index_request::CaptureIndexes {
+        captured_index: input.scratch.join(crate::service_prepare::THE_POLICIES_CAPTURE),
+        commit_index: input.scratch.join(NAMED_PATHS_INDEX),
+        object_directory: input.capture.layout.object_directory.clone(),
+    };
+    let selection: crate::commit_index::IndexSelection<'_> = crate::commit_index::IndexSelection {
+        mode: input.mode,
+        pathspecs: pathspecs.as_slice(),
+        pathspec_file: pathspec_file.as_deref(),
+        pathspec_file_nul: region.pathspec_file_nul,
+        // A partial commit is neither `-a` nor a selection the policies made: the paths it names are staged here, and
+        //  nothing else is.
+        stage_into_index: false,
+        stage_tracked_changes: false,
+        base_revision: base_revision.as_str(),
+    };
+    if let Err(error) = crate::commit_index::initialize_retry_index(
+        input.context,
+        input.cwd,
+        input.capture.layout.real_index_path.as_path(),
+        &indexes,
+        base_revision.as_str(),
+    ) {
+        return Some(Asked::CouldNotTell(format!("the index a commit of the named paths is judged by cannot be made ({error})")));
+    }
+    if let Err(failure) =
+        crate::commit_selection_staging::add_selected_paths(input.context, input.cwd, input.capture.layout.repository_root.as_path(), &indexes, &selection)
+    {
+        return Some(Asked::CouldNotTell(format!("the named paths cannot be staged into the index a commit of them is judged by ({failure:?})")));
+    }
+    return match crate::commit_index::write_private_tree(
+        input.context,
+        input.cwd,
+        indexes.commit_index.as_path(),
+        input.capture.layout.object_directory.as_path(),
+    ) {
+        Ok(tree) => Some(Asked::Known(tree)),
+        Err(error) => Some(Asked::CouldNotTell(format!("the tree the named paths take cannot be read ({error})"))),
+    };
 }
 
 /// What:

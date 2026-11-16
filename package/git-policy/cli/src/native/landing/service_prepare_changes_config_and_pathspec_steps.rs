@@ -157,12 +157,32 @@ pub fn config_needs_native(snapshot: Option<&ConfigSnapshot>) -> bool {
 /// ```
 pub(crate) fn pathspec_file_for(scratch: &Path, cwd: &Path, source: Option<&Path>, standard_input: Option<&[u8]>) -> std::io::Result<Option<PathBuf>> {
     let Some(named) = source else { return Ok(None) };
-    if named.as_os_str() != "-" {
-        return Ok(Some(if named.is_absolute() { named.to_path_buf() } else { cwd.join(named) }));
+    let path: PathBuf = the_pathspec_file_at(scratch, cwd, named);
+    if named.as_os_str() == "-" {
+        write_private_file(path.as_path(), standard_input.unwrap_or_default())?;
     }
-    let snapshot: PathBuf = scratch.join(crate::commit_index::PATHSPEC_INPUT_NAME);
-    write_private_file(snapshot.as_path(), standard_input.unwrap_or_default())?;
-    return Ok(Some(snapshot));
+    return Ok(Some(path));
+}
+
+/// What:
+///  Where the file a `--pathspec-from-file` option names is read,
+///  written nowhere.
+/// Why:
+///   A build that has to read the same selection again
+///  must find the file the preparation read and must not write it:
+///  the snapshot of standard input is taken once,
+///  before the first preparation,
+///  and a second write would replace what the person's list held with nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const thePathspecFileAt = (scratch, cwd, named) => named === '-' ? join(scratch, PATHSPEC_INPUT_NAME) : isAbsolute(named) ? named : join(cwd, named);
+/// ```
+pub(crate) fn the_pathspec_file_at(scratch: &Path, cwd: &Path, named: &Path) -> PathBuf {
+    if named.as_os_str() != "-" {
+        return if named.is_absolute() { named.to_path_buf() } else { cwd.join(named) };
+    }
+    return scratch.join(crate::commit_index::PATHSPEC_INPUT_NAME);
 }
 
 /// The file a `--pathspec-from-file` option names,

@@ -11,6 +11,42 @@ fn strings(words: &[&str]) -> Vec<OsString> {
     return words.iter().map(OsString::from).collect();
 }
 
+/// What:
+///  The forms whose commit holds only the paths it names,
+///  and the forms that hold the whole index.
+/// Why:
+///  The tree a commit is held against follows this answer
+///  (`the_tree_the_named_paths_take`),
+///  and every row here is a form real Git builds differently:
+///  a path it names lands,
+///  a path it does not name stays staged,
+///  and a commit of the whole index takes all of it.
+#[test]
+fn the_forms_that_take_only_the_named_paths_are_the_partial_commits() {
+    let partial = |words: &[&str]| -> bool {
+        let region = crate::command_commit::parse_commit_region(arguments(words).as_slice(), &[]).expect("a region Git accepts");
+        return takes_only_the_named_paths(&region);
+    };
+    for words in [
+        vec!["--message=undo", "--", "a.txt"],
+        vec!["--only", "--message=undo"],
+        vec!["--message=undo", "--pathspec-from-file=list"],
+        vec!["-o", "--fixup=amend:HEAD"],
+    ] {
+        assert!(partial(&words), "{words:?} is a partial commit");
+    }
+    for words in [
+        vec!["--message=undo"],
+        vec!["--all", "--message=undo"],
+        vec!["--no-only", "--message=undo", "--", "a.txt"],
+        vec!["--include", "--message=undo", "--", "a.txt"],
+        vec!["--patch", "--message=undo", "--", "a.txt"],
+        vec!["--amend", "--message=undo", "--", "a.txt"],
+    ] {
+        assert!(!partial(&words), "{words:?} takes the whole index");
+    }
+}
+
 /// The parents come from the header block only,
 /// in order;
 /// a line in the message that looks like a parent is not one.
