@@ -180,6 +180,9 @@ pub(crate) struct WhatTheWalkReached {
 
 impl WhatTheWalkReached {
     /// Whether the walk reached the directory's end.
+    ///  Nothing in the release asks this: the callers that only work read the names a walk reached whatever ended it,
+    /// and the words read the error itself. A control asks it of the walk it hands in.
+    #[cfg(test)]
     pub(crate) fn reached_the_end(&self) -> bool {
         return self.stopped_by.is_none();
     }

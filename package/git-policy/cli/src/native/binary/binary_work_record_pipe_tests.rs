@@ -22,7 +22,7 @@
 //! const taken = mkfifo(`${work}/failed/subvolume-delete-0…`); const began = Date.now(); const added = git(['add', 'a-file']); expect(Date.now() - began).toBeLessThan(20_000); expect(added.status).toBe(0);
 //! ```
 
-use super::support::{Fixture, bounded_for, fixture, repository, wrapper_first_path};
+use super::support::{Fixture, bounded_for, fixture, wrapper_first_path};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
