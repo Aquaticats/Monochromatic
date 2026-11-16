@@ -381,7 +381,12 @@ fn every_quotation_shape_carries_the_marker_of_the_line_it_breaks() {
         );
         // The bytes themselves, so the prefix is not merely the right number of markers.
         assert_eq!(output, shape.fixed, "{}", shape.name);
-        assert_eq!(fixed(output.as_str()), output, "{} is not stable", shape.name);
+        assert_eq!(
+            fixed(output.as_str()),
+            output,
+            "{} is not stable",
+            shape.name
+        );
     }
 }
 
@@ -389,15 +394,13 @@ fn every_quotation_shape_carries_the_marker_of_the_line_it_breaks() {
 ///  so the fix reports one break in the prose beside it and never one in the fence's own lines.
 #[test]
 fn a_code_fence_inside_a_quotation_is_reported_and_never_broken() {
-    let source: &str = "> Prose before, more here.\n>\n> ```text\n> one, two. three, four.\n> ```\n";
+    let source: &str =
+        "> Prose before, more here.\n>\n> ```text\n> one, two. three, four.\n> ```\n";
     let findings: Vec<Diagnostic> = check(source);
     assert_eq!(findings.len(), 1, "{findings:?}");
     assert_eq!(findings[0].labels[0].span.line, 1);
     let output: String = fixed(source);
-    assert!(
-        output.contains("> one, two. three, four.\n"),
-        "{output:?}"
-    );
+    assert!(output.contains("> one, two. three, four.\n"), "{output:?}");
     assert_eq!(read(output.as_str()), read(source), "{output:?}");
 }
 
