@@ -322,7 +322,7 @@ function recordKinds(): readonly ARecordKind[] {
       replace: async function tooLong({ recordPath, recordText, },) {
         await rm(recordPath,);
         await writeFile(recordPath, `${recordText}${
-          ' '.repeat(THE_LARGEST_RECORD_A_REVIEW_GETS_BYTES,)
+          ' '.repeat(THE_LARGEST_RECORD_A_REVIEW_GETS_BYTES + 1,)
         }`, 'utf8',);
       },
       expectation: 'does-not-cover',
