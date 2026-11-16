@@ -262,8 +262,8 @@ fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, 
     };
     // A commit that landed while its command returned failure fails this case whatever else it showed, and the failure
     //  carries the service log this case has just read whole, since nothing writes to that file now.
-    let judged: Result<(), String> = a_landed_commit_returns_success(&case).map_err(|reason| { return format!("{label}: {reason}"); }).and(judged);
-    case.verdict = super::fault_run::keeping_the_service_log(&fixture, judged);
+    let with_the_landing: Result<(), String> = a_landed_commit_returns_success(&case).map_err(|reason| { return format!("{label}: {reason}"); }).and(judged);
+    case.verdict = super::fault_run::keeping_the_service_log(&fixture, with_the_landing);
     remove_settled(&fixture);
     return case;
 }
@@ -1492,8 +1492,8 @@ fn run_case_lowered(label: &str, step: u64) -> Case {
     };
     // A commit that landed while its command returned failure fails this case whatever else it showed, and the failure
     //  carries the service log this case has just read whole, since nothing writes to that file now.
-    let judged: Result<(), String> = a_landed_commit_returns_success(&case).map_err(|reason| { return format!("{label}: {reason}"); }).and(judged);
-    case.verdict = super::fault_run::keeping_the_service_log(&fixture, judged);
+    let with_the_landing: Result<(), String> = a_landed_commit_returns_success(&case).map_err(|reason| { return format!("{label}: {reason}"); }).and(judged);
+    case.verdict = super::fault_run::keeping_the_service_log(&fixture, with_the_landing);
     remove_settled(&fixture);
     return case;
 }
