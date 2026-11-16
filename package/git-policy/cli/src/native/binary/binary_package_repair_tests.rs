@@ -166,10 +166,9 @@ fn a_launcher_record_the_lock_declares_nowhere_is_removed_and_never_fails_the_re
 /// The lines of a record file,
 /// empty when nothing was recorded.
 /// The commit service runs the tools of a new worktree,
-/// so a record read here is read after every observed wrapped command waited for the service's after-commit work to settle
-/// (`supervised_wait`),
-/// or after the bounded wait a control of one attempt takes (`wait_for_pnpm_runs`):
-/// an add returns after the record and the wake,
+/// so a record read here is read after the bounded wait for the tool's own record (`wait_for_pnpm_runs`),
+/// or after a command that waited for the service's after-commit work to settle (`supervised_wait`):
+/// the add returns after the record and the wake,
 /// and the line the tool wrote is there once that wait ends.
 fn recorded(record: &Path) -> Vec<String> {
     return std::fs::read_to_string(record).map(|text: String| { return text.lines().map(str::to_owned).collect(); }).unwrap_or_default();
@@ -245,13 +244,20 @@ fn add_without_waiting_for_the_after_commit_work(fixture: &Fixture, repo: &Path,
 /// the source is not a
 ///  directory it runs in.
 /// The commit service starts it once the add has returned,
-/// so the record below is read after this harness waited for that work to settle.
+/// so this control waits for pnpm's own record and not for a queue:
+/// a reading of a repository's queue says nothing about a step the service has not reached yet
+/// (`wait_for_pnpm_runs`).
+/// What it proves: pnpm ran once,
+/// in the new worktree,
+/// with those two switches,
+/// and the add's line says the tool was handed over.
 #[test]
 fn pnpm_runs_in_the_new_worktree_only() {
     let fixture: Fixture = fixture("repair-pnpm-runs");
     let repo: PathBuf = repository_with_node_modules(&fixture);
     let record: PathBuf = fake_pnpm(&fixture, 0);
-    let created: Observed = add(&fixture, repo.as_path(), &[], "one", "../one");
+    let created: Observed = add_without_waiting_for_the_after_commit_work(&fixture, repo.as_path(), &[], "one", "../one");
+    wait_for_pnpm_runs(record.as_path(), 1);
     let lines: Vec<String> = recorded(record.as_path());
     assert_eq!(lines.len(), 1, "{lines:?} {}", stderr_of(&created));
     let one: PathBuf = fixture.root.join("one");
@@ -264,6 +270,9 @@ fn pnpm_runs_in_the_new_worktree_only() {
 /// The same add through the snapshot rung,
 /// which carries the ignored state itself,
 /// still starts pnpm in the new worktree.
+/// What it proves: as the control above,
+/// through the rung that copies the tree as a subvolume,
+/// and the dependency the snapshot carried is in the new worktree.
 #[test]
 fn pnpm_runs_after_the_snapshot_rung() {
     let fixture: Fixture = fixture("repair-pnpm-snapshot");
@@ -278,7 +287,8 @@ fn pnpm_runs_after_the_snapshot_rung() {
     std::fs::create_dir_all(repo.join("node_modules/dep")).expect("node_modules");
     std::fs::write(repo.join("node_modules/dep/index.js"), b"module.exports = 1;\n").expect("dependency");
     let record: PathBuf = fake_pnpm(&fixture, 0);
-    add(&fixture, repo.as_path(), &[], "one", "../one");
+    add_without_waiting_for_the_after_commit_work(&fixture, repo.as_path(), &[], "one", "../one");
+    wait_for_pnpm_runs(record.as_path(), 1);
     let lines: Vec<String> = recorded(record.as_path());
     assert_eq!(lines.len(), 1, "{lines:?}");
     assert!(lines[0].ends_with(format!("| {}", fixture.root.join("one").display()).as_str()), "{lines:?}");
@@ -302,14 +312,92 @@ fn no_checkout_and_the_opt_out_start_nothing() {
 }
 
 /// `--quiet` silences the report of a repair that worked and still runs it.
+/// The commit service runs pnpm after the add returns,
+/// so this control waits for pnpm's own record (`wait_for_pnpm_runs`),
+/// as the two controls above do.
+/// What it proves: pnpm ran once,
+/// and the add said nothing about the repair having worked,
+/// although the work its line handed over was done.
 #[test]
 fn quiet_runs_the_repair_and_says_nothing_about_success() {
     let fixture: Fixture = fixture("repair-pnpm-quiet");
     let repo: PathBuf = repository_with_node_modules(&fixture);
     let record: PathBuf = fake_pnpm(&fixture, 0);
-    let created: Observed = add(&fixture, repo.as_path(), &["--quiet"], "one", "../one");
-    assert_eq!(recorded(record.as_path()).len(), 1);
+    let created: Observed = add_without_waiting_for_the_after_commit_work(&fixture, repo.as_path(), &["--quiet"], "one", "../one");
+    wait_for_pnpm_runs(record.as_path(), 1);
+    assert_eq!(recorded(record.as_path()).len(), 1, "pnpm ran once: {:?}", recorded(record.as_path()));
     assert!(!stderr_of(&created).contains(REPAIRED_WORDS), "{}", stderr_of(&created));
+    remove(&fixture);
+}
+
+/// Every state a work record is filed in,
+/// for a control that reads a queue without waiting for the service.
+const WORK_STATES: [&str; 7] = ["pending", "recovering", "claimed", "held", "blocked", "done", "failed"];
+
+/// What:
+///  Every record of a repository's work directory,
+///  each as the state that holds it and the path it is filed at.
+/// Why:
+///   A control that reads the queue at one moment must name every state,
+/// including the ones the shared wait does not count,
+/// or a record it means could sit in a state the listing never asked about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const queueAt = (work) => STATES.flatMap((state) => entries(work, state).map((name) => ({ state, path: join(work, state, name) })));
+/// ```
+fn queue_at(work: &Path) -> Vec<(String, PathBuf)> {
+    let mut found: Vec<(String, PathBuf)> = Vec::new();
+    for state in WORK_STATES {
+        let Ok(listing) = std::fs::read_dir(work.join(state)) else { continue };
+        for entry in listing.flatten() {
+            found.push((String::from(state), entry.path()));
+        }
+    }
+    return found;
+}
+
+/// What:
+///  The add has written the record of the work it hands over before it returns,
+/// and the record is the one for this worktree.
+/// Why:
+///   A control that read the service's work right after an add found none of it,
+/// so the question was whether the add returns before its record exists,
+/// which would be a window every person's command after the add shares:
+/// a command asking then whether the work is done would be told yes with nothing written down.
+/// The record, the wake and the return are one path in that order
+/// (`repair::package_repair_relink::hand_over_with` writes the record and then wakes the service),
+/// and this control reads the queue at the moment the add returns,
+/// waiting for nothing.
+/// What it proves: something a person runs cannot be told that work the add handed over is done while no record of it exists,
+/// because the record is there before the add's own answer.
+/// A record's modification time is no measure of when it was written:
+/// a claim stamps it again,
+/// and one run measured that stamp 6.28 µs after the add had answered,
+/// so what this control reads is the record's presence and not its time.
+#[test]
+fn the_add_writes_the_record_it_hands_over_before_it_returns() {
+    let fixture: Fixture = fixture("repair-record-at-return");
+    let repo: PathBuf = repository_with_node_modules(&fixture);
+    let record: PathBuf = fake_pnpm(&fixture, 0);
+    let work: PathBuf = repo.join(".git/monochromatic-git-policy-cli/work");
+    add_without_waiting_for_the_after_commit_work(&fixture, repo.as_path(), &[], "one", "../one");
+    // No wait of any kind stands between the add's return and this reading.
+    let queued: Vec<(String, PathBuf)> = queue_at(work.as_path());
+    let one: PathBuf = fixture.root.join("one");
+    let handed: Vec<&(String, PathBuf)> = queued
+        .iter()
+        .filter(|(_state, path)| { return std::fs::read_to_string(path).is_ok_and(|text: String| { return text.contains(one.to_str().expect("utf8")); }); })
+        .collect();
+    assert_eq!(
+        handed.len(),
+        1,
+        "the add returned with no record of the relink it handed over for {} in {}: {queued:?}",
+        one.display(),
+        work.display()
+    );
+    // The work itself is the service's from here, so the fixture is left only once the tool has run.
+    wait_for_pnpm_runs(record.as_path(), 1);
     remove(&fixture);
 }
 
