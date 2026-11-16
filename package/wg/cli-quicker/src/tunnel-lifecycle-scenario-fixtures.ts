@@ -89,12 +89,16 @@ import { spawn } from 'node:child_process';
 import { access, writeFile } from 'node:fs/promises';
 const words = process.argv.slice(2);
 const mode = process.env.WG_SHIM_IP ?? 'none';
+const startedParent = process.ppid;
 async function held() {
   await writeFile(process.env.WG_SHIM_WAITING_FILE, '1');
   const deadline = Date.now() + ${String(WAIT_BOUND_MILLISECONDS,)};
   for (;;) {
     try { await access(process.env.WG_SHIM_GO_FILE); return; } catch {}
     if (Date.now() >= deadline) return;
+    // The start this stand-in belongs to was killed: it goes too, instead of running the real command later
+    // in a namespace that only stays alive while one of its processes does.
+    if (process.ppid !== startedParent) process.exit(3);
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4,),), 0, 0, 25,);
   }
 }
