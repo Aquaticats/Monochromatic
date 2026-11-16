@@ -1008,6 +1008,8 @@ the launcher that builds the session's environment asks it, once, before it make
   so a summary naming `pi-not-stopped` omits it and claims nothing about Pi having gone.
   `feedProblem` names why the feed is incomplete when it is,
   `workProblem` says what the driver could not read when it asked what the run left running,
+  `workNotRead` names the work the driver knew of when those reads stopped answering,
+  which is what a run ended `work-unreadable` kept its worktree for,
   `modelError` carries what the model said when the run ended on it,
   `piRetryGaveUp` carries what Pi's own automatic retry reported when it gave up on that error,
   `compactionProblem` carries what Pi reported of a compaction that kept the prompt waiting,
@@ -1280,9 +1282,11 @@ so the two ends are never one word.
 What the driver asks is in `work-the-run-left-running.ts`:
 the run's own `process` tool, whose every answer that names processes is a `processes` line of the feed,
 carrying the process number,
+the start the kernel gave that process in clock ticks since the boot,
 the folder it started in and the command it runs;
 the machine's process table, for a process working in the run's worktree or run folder whose control group is not the run's own unit,
-which is how a `systemd-run --scope` the agent made is found;
+which is how a `systemd-run --scope` the agent made is found,
+by the folder's resolved spelling as well as the given one;
 and the unit a command names with `--unit=`,
 asked of the manager,
 for work whose number has gone.
@@ -1333,22 +1337,36 @@ as a read the scan could not finish.
 
 A process number is no name for one process.
 The kernel gives a freed number to the next process,
-so a `processes` record carries the start time the process tool itself gave each process it names,
-and the scan counts recorded work as running only when the process at that number started then and has not ended.
-The kernel's start time counts clock ticks from the machine's boot,
-so the scan places it on the wall clock with the boot time the process folder reports,
-and a process that started more than two seconds after the tool's own start is a later one at the same number.
+so a `processes` record carries the start the kernel gave that process,
+in clock ticks since the boot,
+beside the start time the `process` tool itself gave it.
+Ticks are kept only when they agree with the tool's own start time within `BIRTH_TOLERANCE_MILLISECONDS`,
+which has two sides:
+a line whose start is clearly earlier than the tool's is another process's as surely as one whose start is clearly later.
+The scan then compares those ticks with the ticks the kernel gives the process at that number now,
+and no later process at that number shares them.
+Ticks counted from the boot do not move when the wall clock does,
+which is why they are kept rather than an instant worked out from `/proc/stat`'s boot time:
+that boot time is the current wall clock minus uptime,
+so a clock step moves every instant worked out from it.
+A number that holds nothing holds nothing whatever the record kept,
+so that is `ended`;
+a number whose process has ended, and one whose ticks differ, are `ended` too.
 Nothing else is evidence that the work ended:
-a record with no start time,
-a boot time that cannot be read,
-and a start time within the tolerance all mean work that may still run,
+a record with no number,
+a record whose ticks were never kept,
+and a line this account may not read all mean work that may still run,
 and the run is kept for it.
+What this cannot tell:
+a record whose ticks were never kept names no process this can prove,
+and a record whose number is held by a process in another PID namespace would be compared with that namespace's process,
+though the tool names a number in the namespace the driver and Pi share.
 A zombie counts as gone,
-because it has done no work since it ended,
-and so does a process whose read says it has gone.
+because it has done no work since it ended.
 Two reviews of this package found the defects this closes:
 on 2026-11-14 a build that had ended was reported as still running from the number a later process held,
-and on 2026-11-15 a record whose start time could not be taken hid a live child from the scan.
+and on 2026-11-15 a record whose start could not be taken hid a live child from the scan,
+while a record without one kept a run to its wall clock for a process that was gone.
 
 A zombie is left out by both readings of the process table:
 the recorded one reads its state,
@@ -1379,13 +1397,16 @@ so a failure that comes back after a good scan is news again.
 A run whose work cannot be read does not hold its place in the pool until its wall clock either.
 The owner decided on 2026-11-15: "A shorter limit, then end as failed".
 `UNREADABLE_WORK_MILLISECONDS` is thirty seconds,
-a hundred looks of the scan at `POLL_MILLISECONDS`,
-with a measurement beside it in `src/kept-while-work-runs.ts`:
+counted by the clock from the first read that failed and asked again on every look of the watch (`POLL_MILLISECONDS`),
+so the run's own `--idle-seconds` cannot stretch it.
+The constant cites the measurement beside it in `src/kept-while-work-runs.ts`:
 one scan of this machine's process table took 42 to 102 ms,
-and every failed read in this machine's recorded runs lasted one look.
+and every failure this machine's record holds was one failed read followed by an end.
 A run that reaches it ends as `work-unreadable`,
 marked as one whose leftover work could not be read,
-with `workProblem` naming the failure and its worktree kept.
+with `workProblem` naming the failure,
+`workNotRead` naming the work the driver knew of,
+and its worktree kept.
 It never ends as finished.
 
 `driver-failed` means the driver itself hit an error before it knew how the run ended,
@@ -1394,14 +1415,15 @@ or that the feed could not be written:
 or `feedProblem` does.
 A run that settled is never reported that way for a read that failed after its work was done:
 that failure is `workProblem`,
-and the run is kept until its own wall clock ends it.
+and the run is kept until the span above ends it as `work-unreadable`.
 
 `work-unreadable` means the reads of what the run left running failed for longer than `UNREADABLE_WORK_MILLISECONDS`,
 thirty seconds,
 so the driver ended the run instead of holding its place in the pool until its wall clock:
 `workProblem` names the last failure,
-a `problem` line on the feed says the run ended on it,
-the worktree is kept,
+`workNotRead` names the work the driver knew of when the reads stopped answering,
+a `problem` line on the feed says the same,
+the ending line names that work and says the worktree is kept and it may still run,
 and the run is never counted as one that finished.
 A read that answers clears the span,
 so a failure that passes changes nothing.

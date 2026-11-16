@@ -21,14 +21,17 @@
  nothing names ends as it ended before this existed.
 
  A number recorded by the tool names no process on its own: the kernel gives a freed number to the next process, which may work in
- another folder and another control group. So the record keeps the start time read when it was written, and a scan counts the recorded
- work as running only when the process at that number has the same start time and has not ended.
+ another folder and another control group. So the record keeps the start the kernel gave the process, in ticks since the boot, and a
+ scan counts the recorded work as running only when the process at that number has those ticks and has not ended.
+
+ A number that holds nothing holds nothing, whatever the record kept: a process that is not there is gone.
 
  @module
  */
 
 import {
   readFile,
+  realpath,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { isTheCommitServiceIn, } from './commit-service-of-the-git-wrapper.ts';
@@ -42,14 +45,10 @@ import {
 } from './processes-a-tool-answer-names.ts';
 import { isRecord, } from './read-pi-fields.ts';
 import {
-  type BootTimeInAProcessFolder,
   type ProcessFolderReads,
   ProcessFileUnreadableError,
-  aLineOfAProcess,
-  bootTimeIn,
   processHasGone,
   readsOfTheProcessFolder,
-  theNumberGivesNoLine,
 } from './reads-of-the-process-folder.ts';
 import { recordedWorkStands, } from './recorded-work-of-a-run.ts';
 import {
@@ -339,11 +338,14 @@ export async function workOutlivingTheTurnIn({
     reads,
   },);
   /**
-   What the process folder says about when the machine booted, which places a process's start time on the wall clock.
+   The run's own folders as the kernel spells them, and as this was given them: a process's working folder is a link the kernel has
+   already resolved, so a run given a symlinked spelling of its worktree is still found there.
    */
-  const booted = await bootTimeOfTheMachine({
-    processFolder,
-    reads,
+  const ownFolders = await resolvedAndGiven({
+    folders: [
+      workingFolder,
+      runFolder,
+    ],
   },);
   /**
    The lines that name the work still going.
@@ -361,7 +363,6 @@ export async function workOutlivingTheTurnIn({
     const stands = await recordedWorkStands({
       processFolder,
       work,
-      booted,
       reads,
     },);
     /**
@@ -410,10 +411,7 @@ export async function workOutlivingTheTurnIn({
     /**
      Whether it works in one of the run's own folders, which is the run's work however it was started.
      */
-    const worksInOwnFolder = [
-      workingFolder,
-      runFolder,
-    ].some(function isTheFolder(own,) {
+    const worksInOwnFolder = ownFolders.some(function isTheFolder(own,) {
       return (own !== '') && ((process.folder === own)
         || process.folder
           .startsWith(`${own}/`,));
@@ -447,58 +445,52 @@ export async function workOutlivingTheTurnIn({
 }
 
 /**
- Reads what the process folder says about when the machine booted.
+ The folders a run works in, each as it was given and as the kernel spells it.
 
- A process's start time counts clock ticks since that instant, so this is what puts the tool's own start time and the kernel's on one
- clock.
+ A process's working folder is a link the kernel has already resolved, so a run given a symlinked spelling of its own worktree is
+ still found: on this machine `/home/user/temp` is a link to `/var/mnt/encrypted/temp`, and a folder compare on the given spelling
+ alone matched nothing.
 
- @param processFolder - the folder holding one entry per process, `/proc` here
+ @param folders - the run's own folders, as this was given them
 
- @param reads - the reads of one process, which a test replaces
-
- @returns what the folder's own line says about the boot
-
- @throws ProcessFileUnreadableError when the folder's own line cannot be read for a reason that is no folder having gone
+ @returns each folder once as given and once resolved, and the resolved one where a folder does not resolve
 
  @example
  ```ts
- const booted = await bootTimeOfTheMachine({ processFolder: '/proc', reads, },);
+ const own = await resolvedAndGiven({ folders: ['/repo/.claude/worktrees/pi-a'], },);
  ```
  */
-async function bootTimeOfTheMachine({
-  processFolder,
-  reads,
-}: {
-  readonly processFolder: string;
-  readonly reads: ProcessFolderReads;
-},): Promise<BootTimeInAProcessFolder> {
+async function resolvedAndGiven({ folders, }: { readonly folders: readonly string[] },): Promise<readonly string[]> {
   /**
-   The folder's own line, which names the boot.
+   Each folder, as given and as resolved, in that order.
    */
-  const path = join(
-    processFolder,
-    'stat',
-  );
+  const spellings = await Promise.all(folders.flatMap(function bothSpellings(folder,) {
+    return [
+      Promise.resolve(folder,),
+      resolvedOrGiven({ folder, },),
+    ];
+  },));
+  return [...new Set(spellings,),];
+}
+
+/**
+ Resolves one folder, answering it as it was given when it cannot be resolved.
+
+ @param folder - the folder to resolve
+
+ @returns the resolved folder, or the folder as given
+
+ @example
+ ```ts
+ const folder = await resolvedOrGiven({ folder: '/home/user/temp', },);
+ ```
+ */
+async function resolvedOrGiven({ folder, }: { readonly folder: string },): Promise<string> {
   /**
-   What that line says, which a folder with none says nothing about.
+   What resolving it answered, of which a folder that cannot be resolved is no answer at all.
    */
-  const line = await aLineOfAProcess({
-    path,
-    reads,
-  },);
-  if (line.read) {
-    return bootTimeIn({ statText: line.text, },);
-  }
-  // A folder that holds no line of its own gives no boot time, and a start time that cannot be placed on the wall clock leaves the
-  // recorded work as work that may still run. Any other failure is a folder this scan cannot read, which is reported like every other
-  // failed read.
-  if (theNumberGivesNoLine({ code: line.code, },)) {
-    return { found: false, };
-  }
-  throw (line.error instanceof ProcessFileUnreadableError) ? line.error : new ProcessFileUnreadableError({
-    path,
-    error: line.error,
-  },);
+  const [resolved] = await Promise.allSettled([realpath(folder,),],);
+  return (resolved.status === 'fulfilled') ? resolved.value : folder;
 }
 
 /**

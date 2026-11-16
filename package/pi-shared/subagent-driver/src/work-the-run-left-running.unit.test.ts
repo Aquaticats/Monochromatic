@@ -95,57 +95,9 @@ function aScopeOfItsOwn(): string {
 }
 
 /**
- The instant the fixture says the machine booted, in seconds since the epoch.
+ The start the kernel gave the fixture's process, in clock ticks since the boot.
 
- A process's start time in `/proc/<pid>/stat` is counted from the boot, so a test places a process on the wall clock by writing this
- and counting from it.
- */
-const THE_MACHINES_BOOT_TIME_SECONDS = 1_700_000_000;
-
-/**
- How many clock ticks `/proc/<pid>/stat` counts a second in, which the kernel reports in hundreds.
- */
-const CLOCK_TICKS_PER_SECOND = 100;
-
-/**
- How long one clock tick of that file lasts.
- */
-const MILLISECONDS_PER_CLOCK_TICK = 1_000 / CLOCK_TICKS_PER_SECOND;
-
-/**
- The instant a fixture's process started, in milliseconds since the epoch, an hour after the machine it says it booted on.
-
- @returns the instant
-
- @example
- ```ts
- const startedAt = anInstant();
- ```
- */
-function anInstant(): number {
-  return (THE_MACHINES_BOOT_TIME_SECONDS * 1_000) + 3_600_000;
-}
-
-/**
- The start time `/proc/<pid>/stat` holds for a process that started at a wall-clock instant.
-
- @param startedAt - the instant, in milliseconds since the epoch
-
- @returns the start time the kernel gives it, in clock ticks since boot
-
- @example
- ```ts
- const birth = birthOfAProcessStartingAt({ startedAt: anInstant(), },);
- ```
- */
-function birthOfAProcessStartingAt({ startedAt, }: { readonly startedAt: number },): string {
-  return String(Math.round((startedAt - (THE_MACHINES_BOOT_TIME_SECONDS * 1_000)) / MILLISECONDS_PER_CLOCK_TICK,),);
-}
-
-/**
- The start time a fixture gives both a recorded process and the process at its number, in clock ticks since boot.
-
- @returns the start time
+ @returns the start
 
  @example
  ```ts
@@ -153,27 +105,13 @@ function birthOfAProcessStartingAt({ startedAt, }: { readonly startedAt: number 
  ```
  */
 function aBirth(): string {
-  return birthOfAProcessStartingAt({ startedAt: anInstant(), },);
+  return '20004601';
 }
 
 /**
- The instant a later process at the same number started, in milliseconds since the epoch.
+ The start a later process at the same number has, which no record of the first process repeats.
 
- @returns the instant
-
- @example
- ```ts
- const startedAt = aLaterInstant();
- ```
- */
-function aLaterInstant(): number {
-  return anInstant() + 60_000;
-}
-
-/**
- The start time a later process at the same number has, which no record of the first process repeats.
-
- @returns the start time
+ @returns the start
 
  @example
  ```ts
@@ -181,34 +119,7 @@ function aLaterInstant(): number {
  ```
  */
 function aLaterBirth(): string {
-  return birthOfAProcessStartingAt({ startedAt: aLaterInstant(), },);
-}
-
-/**
- Writes the boot time a process folder reports, which is what places a process's start time on the wall clock.
-
- @param folder - the process folder
-
- @param bootedAt - the instant the machine booted, in seconds since the epoch
-
- @returns nothing
-
- @example
- ```ts
- await writeBootTime({ folder: '/proc', bootedAt: THE_MACHINES_BOOT_TIME_SECONDS, },);
- ```
- */
-async function writeBootTime({
-  folder,
-  bootedAt = THE_MACHINES_BOOT_TIME_SECONDS,
-}: {
-  readonly folder: string;
-  readonly bootedAt?: number;
-},): Promise<void> {
-  await writeFile(
-    join(folder, 'stat',),
-    `cpu  0 0 0 0 0 0 0 0 0 0\nbtime ${String(bootedAt,)}\n`,
-  );
+  return '21000000';
 }
 
 /**
@@ -903,7 +814,6 @@ await describe({
               folder: processes,
               cgroup: theRunsUnit(),
             },);
-            await writeBootTime({ folder: processes, },);
             await writeProcess({
               folder: processes,
               pid: 101,
@@ -918,7 +828,7 @@ await describe({
                 action: 'list',
                 processes: [aProcess({
                   pid: 101,
-                  startTime: anInstant(),
+                  birth: aBirth(),
                 },),],
               },)}\n`,
             );
@@ -948,7 +858,6 @@ await describe({
               folder: processes,
               cgroup: theRunsUnit(),
             },);
-            await writeBootTime({ folder: processes, },);
             // The very process the record named, which has ended and whose parent has not reaped it: a zombie does no work.
             await writeProcess({
               folder: processes,
@@ -965,7 +874,7 @@ await describe({
                 action: 'start',
                 process: aProcess({
                   pid: 101,
-                  startTime: anInstant(),
+                  birth: aBirth(),
                 },),
               },)}\n`,
             );
@@ -1005,7 +914,7 @@ await describe({
                 action: 'start',
                 process: aProcess({
                   pid: 101,
-                  startTime: anInstant(),
+                  birth: aBirth(),
                 },),
               },)}\n`,
             );
@@ -1052,18 +961,17 @@ await describe({
           },
         },),
         it({
-          name: 'counts recorded work as running when the process at its number started when the tool said',
+          name: 'counts recorded work as running when the process at its number began at the start the record kept',
           fn: async () => {
             await using folder = await makeFolder();
             /**
-             The process folder a test writes, with the boot time that places a start time on the wall clock.
+             The process folder a test writes, whose process at that number began at the start the record kept.
              */
             const processes = join(folder.path, 'proc',);
             await writeSelf({
               folder: processes,
               cgroup: theRunsUnit(),
             },);
-            await writeBootTime({ folder: processes, },);
             await writeProcess({
               folder: processes,
               pid: 101,
@@ -1078,7 +986,7 @@ await describe({
                 action: 'start',
                 process: aProcess({
                   pid: 101,
-                  startTime: anInstant(),
+                  birth: aBirth(),
                 },),
               },)}\n`,
             );
@@ -1097,14 +1005,13 @@ await describe({
           fn: async () => {
             await using folder = await makeFolder();
             /**
-             The process folder a test writes, whose process at that number started a minute after the tool's answer.
+             The process folder a test writes, whose process at that number began a minute after the one the record kept.
              */
             const processes = join(folder.path, 'proc',);
             await writeSelf({
               folder: processes,
               cgroup: theRunsUnit(),
             },);
-            await writeBootTime({ folder: processes, },);
             await writeProcess({
               folder: processes,
               pid: 101,
@@ -1119,7 +1026,7 @@ await describe({
                 action: 'start',
                 process: aProcess({
                   pid: 101,
-                  startTime: anInstant(),
+                  birth: aBirth(),
                 },),
               },)}\n`,
             );
@@ -1134,18 +1041,17 @@ await describe({
           },
         },),
         it({
-          name: 'counts recorded work whose record kept no start time as work that may still run',
+          name: 'counts recorded work as work that may still run when the record kept no start',
           fn: async () => {
             await using folder = await makeFolder();
             /**
-             The process folder a test writes, holding the process a record without a start time names.
+             The process folder a test writes, holding the process a record without a start names.
              */
             const processes = join(folder.path, 'proc',);
             await writeSelf({
               folder: processes,
               cgroup: theRunsUnit(),
             },);
-            await writeBootTime({ folder: processes, },);
             await writeProcess({
               folder: processes,
               pid: 101,
@@ -1154,7 +1060,7 @@ await describe({
               command: 'bash',
               birth: aBirth(),
             },);
-            // A record written without the tool's start time, which cannot say which process it named: the process is there and has
+            // A record written without a start of any kind, which cannot say which process it named: the process is there and has
             // not ended, so the work may still run.
             await writeFile(
               join(folder.path, 'feed.jsonl',),
@@ -1174,7 +1080,7 @@ await describe({
           },
         },),
         it({
-          name: 'counts recorded work whose number holds nothing, and whose record kept no start time, as work that may still run',
+          name: 'counts recorded work as gone when its number holds nothing, whatever the record kept',
           fn: async () => {
             await using folder = await makeFolder();
             /**
@@ -1185,7 +1091,8 @@ await describe({
               folder: processes,
               cgroup: theRunsUnit(),
             },);
-            await writeBootTime({ folder: processes, },);
+            // A record with a number, and with no start of any kind: a number that holds nothing is a process that has gone, and no
+            // start is needed to know that.
             await writeFile(
               join(folder.path, 'feed.jsonl',),
               `${aToolAnswer({
@@ -1200,15 +1107,47 @@ await describe({
               run: async function answered() {
                 throw new Error('no manager is asked about work that names no unit',);
               },
-            },),).toEqual([theRecordedLineFor(424_242,),],);
+            },),).toEqual([],);
           },
         },),
         it({
-          name: 'counts recorded work as work that may still run when the machine\'s boot time cannot be read',
+          name: 'counts recorded work as gone when its number holds nothing although the record kept a start',
           fn: async () => {
             await using folder = await makeFolder();
             /**
-             The process folder a test writes, which reports no boot time.
+             The process folder a test writes, which holds no process of the run.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeSelf({
+              folder: processes,
+              cgroup: theRunsUnit(),
+            },);
+            await writeFile(
+              join(folder.path, 'feed.jsonl',),
+              `${aToolAnswer({
+                action: 'start',
+                process: aProcess({
+                  pid: 424_242,
+                  birth: aBirth(),
+                },),
+              },)}\n`,
+            );
+            expect(await workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder: aWorktree(),
+              processFolder: processes,
+              run: async function answered() {
+                throw new Error('no manager is asked about work that names no unit',);
+              },
+            },),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'counts recorded work as work that may still run when the process\'s own line holds no start',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, whose process line says nothing about a start.
              */
             const processes = join(folder.path, 'proc',);
             await writeSelf({
@@ -1223,13 +1162,18 @@ await describe({
               command: 'bash',
               birth: aBirth(),
             },);
+            await writeFile(join(
+              processes,
+              '101',
+              'stat',
+            ), '',);
             await writeFile(
               join(folder.path, 'feed.jsonl',),
               `${aToolAnswer({
                 action: 'start',
                 process: aProcess({
                   pid: 101,
-                  startTime: anInstant(),
+                  birth: aBirth(),
                 },),
               },)}\n`,
             );
@@ -1306,7 +1250,7 @@ await describe({
                 process: aProcess({
                   command: 'systemd-run --user --unit=pi-build-2 -- mise run build',
                   pid: 999_999,
-                  startTime: anInstant(),
+                  birth: aBirth(),
                 },),
               },)}\n`,
             );

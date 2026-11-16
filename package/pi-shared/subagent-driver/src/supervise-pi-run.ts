@@ -198,8 +198,9 @@ export async function supervisePiRun(
     'inbox',
   );
   /**
-   The folder holding one entry per process, which the scan that asks what the run left running reads. A test points this at its own
-   entries, so no test reads this machine's process table.
+   The folder holding one entry per process: the record takes the start the kernel gave each process a tool answer names from it, and
+   the scan that asks what the run left running reads the same entries again. A test points this at its own entries, so no test reads
+   this machine's process table.
    */
   const processFolder = environment.PI_RUNS_PROCESS_FOLDER ?? '/proc';
   await mkdir(
@@ -219,6 +220,7 @@ export async function supervisePiRun(
       options.runFolder,
       'feed.jsonl',
     ),
+    processFolder,
     mask: {
       /**
        The longest form of any armed value, which is what a writer of Pi's standard error holds back between two writes.

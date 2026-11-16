@@ -38,4 +38,10 @@ export type WatchRequest = {
    that cannot look passes none, and the run ends as it always did.
    */
   readonly workLeftRunning?: () => Promise<readonly string[]>;
+
+  /**
+   How long reads of what the run left running may fail before the run ends as one whose leftover work could not be read, which a
+   test shortens so a span is measured rather than waited out. A caller that says nothing gets `UNREADABLE_WORK_MILLISECONDS`.
+   */
+  readonly unreadableWorkMilliseconds?: number;
 };

@@ -48,6 +48,7 @@ function aWatchWith({
   send,
   noted = [],
   problems = [],
+  notRead = [],
   feedFailed = false,
 }: {
   readonly read: () => Promise<readonly string[]>;
@@ -60,6 +61,7 @@ function aWatchWith({
   },) => Promise<CommandAnswer>;
   readonly noted?: Record<string, unknown>[];
   readonly problems?: string[];
+  readonly notRead?: (readonly string[])[];
   readonly feedFailed?: boolean;
 },): WatchRequest {
   return {
@@ -77,6 +79,9 @@ function aWatchWith({
       },
       noteWorkProblem: function noteWorkProblem(problem: string,) {
         problems.push(problem,);
+      },
+      noteWorkNotRead: function noteWorkNotRead(work: readonly string[],) {
+        notRead.push(work,);
       },
       feedProblem: function feedProblem() {
         return { failed: feedFailed, };
@@ -279,6 +284,83 @@ await describe({
               waited,
               now,
             },),).toBe('work-unreadable',);
+          },
+        },),
+        it({
+          name: 'names the work it knew of in the summary and the feed when it ends as one whose leftover work could not be read',
+          fn: async () => {
+            /**
+             The instant the test's clock stands at.
+             */
+            let clock = 1_000_000;
+            /**
+             How many times the work was read, of which the first answered with work.
+             */
+            let reads = 0;
+            /**
+             The feed lines the driver wrote.
+             */
+            const noted: Record<string, unknown>[] = [];
+            /**
+             The work the driver kept for the summary.
+             */
+            const notRead: (readonly string[])[] = [];
+            /**
+             A watch whose first read names a build and whose reads then fail.
+             */
+            const watch = aWatchWith({
+              read: async function read() {
+                reads += 1;
+                if (reads === 1) {
+                  return ['proc_build 4242 cargo build',];
+                }
+                throw anUnreadableProcessTable();
+              },
+              send: async function send() {
+                throw new Error('no message is sent in this test',);
+              },
+              noted,
+              notRead,
+            },);
+            /**
+             Where the driver stands with the work.
+             */
+            const waited: WorkWaitedFor = {};
+            /**
+             Where the test's clock is read from.
+             */
+            function now(): number {
+              return clock;
+            }
+            expect(await askAboutItsWorkOrReportAFailure({
+              watch,
+              waited,
+              now,
+            },),).toBe('kept',);
+            // The span is counted from the first read that failed, which is this one.
+            clock += UNREADABLE_WORK_MILLISECONDS;
+            expect(await askAboutItsWorkOrReportAFailure({
+              watch,
+              waited,
+              now,
+            },),).toBe('kept',);
+            clock += UNREADABLE_WORK_MILLISECONDS;
+            expect(await askAboutItsWorkOrReportAFailure({
+              watch,
+              waited,
+              now,
+            },),).toBe('work-unreadable',);
+            // The summary is what a reader of the run sees, so the work the driver knew of is kept there.
+            expect(notRead,).toEqual([['proc_build 4242 cargo build',],],);
+            /**
+             The feed's closing line.
+             */
+            const closing = noted.find(function isTheEnding(entry,) {
+              return (entry.kind === 'problem') && String(entry.problem,).includes('worktree is kept',);
+            },);
+            expect(String(closing?.problem,),).toContain('proc_build 4242 cargo build',);
+            expect(String(closing?.problem,),).toContain('its worktree is kept',);
+            expect(String(closing?.problem,),).toContain('may still run',);
           },
         },),
         it({

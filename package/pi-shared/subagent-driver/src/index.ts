@@ -220,26 +220,6 @@ export {
 } from './work-the-run-left-running.ts';
 
 /**
- Reads of one process's own files from the process folder, the codes a process that has ended answers to them, and the start time
- that tells a process from a later one at its number.
- */
-export {
-  CLOCK_TICKS_PER_SECOND,
-  GONE_PROCESS_CODES,
-  type BootTimeInAProcessFolder,
-  type LifeOfAProcess,
-  type ProcessFolderReads,
-  ProcessFileUnreadableError,
-  type StartInstantOfAProcess,
-  bootTimeIn,
-  lifeIn,
-  processHasEnded,
-  processHasGone,
-  readsOfTheProcessFolder,
-  startInstantIn,
-} from './reads-of-the-process-folder.ts';
-
-/**
  The git wrapper's commit service, which works inside a worktree by design and is no work a run left running.
  */
 export { isTheCommitServiceIn, } from './commit-service-of-the-git-wrapper.ts';

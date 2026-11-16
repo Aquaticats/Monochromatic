@@ -13,6 +13,7 @@ import type {
   PiStartFailure,
   RunSummary,
 } from './driver-types.ts';
+import { UNREADABLE_WORK_MILLISECONDS, } from './kept-while-work-runs.ts';
 
 /**
  Says how many attempts a run made at the model error it ended on.
@@ -165,6 +166,32 @@ function compactionNoteOf(summary: RunSummary,): string {
 }
 
 /**
+ Says what a run whose work could not be read left behind, so a reader knows what its kept worktree is for.
+
+ @param summary - what the caller reads
+
+ @returns the note, in words, or nothing when that is not why the run ended
+ */
+function workNotReadNoteOf(summary: RunSummary,): string {
+  if (summary.endReason !== 'work-unreadable') {
+    return '';
+  }
+  /**
+   The work the driver knew of, as the wait named it.
+   */
+  const known = summary.workNotRead ?? [];
+  /**
+   What it knew of, in words.
+   */
+  const left = (known.length === 0)
+    ? 'it knew of no work when its reads stopped answering'
+    : `it knew of this work, which may still run: ${known.join(', ',)}`;
+  return `, because the reads of what it left running failed for longer than ${String(
+    UNREADABLE_WORK_MILLISECONDS,
+  )} ms: ${left}, and its worktree is kept for it`;
+}
+
+/**
  Says what the run was waiting for when Pi never reported the masking of secret values in place, so a reader knows the run refused
  to work rather than failed at something else.
 
@@ -204,7 +231,7 @@ export function endingLineOf({
   /**
    What the line says before the files it names, ending where the reason it quotes already ended a sentence.
    */
-  const sentence = `The Pi run ended with "${summary.endReason}"${maskingNoteOf(summary,)}${attemptsOf(summary,)}${startsNoteOf(summary,)}${piRetryNoteOf(summary,)}${compactionNoteOf(summary,)}`;
+  const sentence = `The Pi run ended with "${summary.endReason}"${maskingNoteOf(summary,)}${attemptsOf(summary,)}${startsNoteOf(summary,)}${piRetryNoteOf(summary,)}${compactionNoteOf(summary,)}${workNotReadNoteOf(summary,)}`;
   return `${sentence}${sentence.endsWith('.') ? '' : '.'} The summary is in ${
     join(
       runFolder,

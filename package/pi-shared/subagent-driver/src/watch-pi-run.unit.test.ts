@@ -64,6 +64,23 @@ const HOLD_MILLISECONDS = 3 * POLL_MILLISECONDS;
 const IDLE_SECONDS = 0;
 
 /**
+ Milliseconds the reads of a run's work may fail before it ends as one whose leftover work could not be read, in the tests that
+ measure that span: short enough that the span is measured rather than waited out, and the same for both idle silences below.
+ */
+const A_SHORT_SPAN_MILLISECONDS = 3 * POLL_MILLISECONDS;
+
+/**
+ Seconds of idle silence shorter than that span, and longer than it: the span is counted by the clock, so neither changes when the
+ run ends.
+ */
+const A_SILENCE_UNDER_THE_SPAN_SECONDS = (POLL_MILLISECONDS / 2) / MILLISECONDS_PER_SECOND;
+
+/**
+ Seconds of idle silence far longer than the span, so a span that waited for it would be many times its own length.
+ */
+const A_SILENCE_OVER_THE_SPAN_SECONDS = (10 * POLL_MILLISECONDS) / MILLISECONDS_PER_SECOND;
+
+/**
  Text of the message a test drops in the inbox.
  */
 const MESSAGE_TEXT = 'a message nothing answers';
@@ -977,6 +994,51 @@ await describe({
          */
         const feed = await feedOf(run.runFolder,);
         expect(feed.some((entry,) => (entry.kind === 'wake') && (entry.acceptance === 'taken')),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'ends a run whose reads keep failing within the span plus one look, whatever the idle silence is',
+      fn: async () => {
+        /**
+         What each idle silence made of the same failing read, each run in a folder of its own.
+         */
+        const endings = await Promise.all([
+          A_SILENCE_UNDER_THE_SPAN_SECONDS,
+          A_SILENCE_OVER_THE_SPAN_SECONDS,
+        ].map(async function oneRun(idleSeconds,) {
+          await using run = await startRunThatSettled();
+          /**
+           When the first look that failed happened.
+           */
+          const firstFailure: { at?: number } = {};
+          const endReason = await watchUntilEnded({
+            unreadableWorkMilliseconds: A_SHORT_SPAN_MILLISECONDS,
+            connection: answeringConnection({},),
+            record: run.record,
+            options: optionsOf({
+              runFolder: run.runFolder,
+              milliseconds: A_SHORT_SPAN_MILLISECONDS * 8,
+              idleSeconds,
+            },),
+            inbox: run.inbox,
+            deadline: Date.now() + (A_SHORT_SPAN_MILLISECONDS * 8),
+            workLeftRunning: async function alwaysUnreadable() {
+              firstFailure.at ??= Date.now();
+              throw new Error('EIO while reading the process table',);
+            },
+          },);
+          expect(endReason,).toBe('work-unreadable',);
+          return {
+            idleSeconds,
+            milliseconds: Date.now() - (firstFailure.at ?? Date.now()),
+          };
+        },));
+        // The span is counted by the clock from the first failed read, so neither silence makes it longer than the span plus the
+        // look that sees it passed: a wait for the idle silence would have made the long one end at four looks, well past this.
+        for (const ending of endings) {
+          expect(ending.milliseconds,).toBeLessThan(A_SHORT_SPAN_MILLISECONDS + (2 * POLL_MILLISECONDS),);
+          expect(ending.milliseconds,).toBeGreaterThanOrEqual(A_SHORT_SPAN_MILLISECONDS,);
+        }
       },
     },),
     it({

@@ -10,6 +10,12 @@
  @module
  */
 
+import type { PiRecord, } from './driver-types.ts';
+import {
+  lifeOfOneProcessNow,
+  type LifeOfAProcess,
+  startInstantIn,
+} from './reads-of-the-process-folder.ts';
 import {
   isRecord,
   recordsIn,
@@ -63,13 +69,14 @@ export type WorkOfARun = {
   readonly status?: string;
 
   /**
-   The instant the process started, in milliseconds since the epoch, as the tool's own answer reports it.
+   The start the kernel gave the process, in clock ticks since boot, kept when it agrees with the tool's own start time.
 
-   The tool times the process it started, so this is the answer's evidence and not a sample taken later: a number the tool held can be
-   a later process's by the time anyone looks, and the start time is what tells the two apart. A record written before the driver kept
-   it, and an answer that named none, carries none, and a scan then treats the work as work that may still run.
+   Ticks counted from the boot say which process this is, and no later process at the same number shares them; unlike a wall-clock
+   instant worked out from the folder's boot time, they do not move when the wall clock does. A record written before the driver kept
+   them, one whose line could not be read, and one whose ticks disagree with the tool's start by more than the tolerance carry none,
+   and a scan then counts the work as work that may still run.
    */
-  readonly startTime?: number;
+  readonly birth?: string;
 };
 
 /**
@@ -100,6 +107,7 @@ function processesInOne({ value, }: { readonly value: unknown },): readonly Work
     cwd: ((typeof value.cwd) === 'string') ? value.cwd : '',
     ...((typeof value.status) === 'string' ? { status: value.status, } : {}),
     ...((typeof value.startTime) === 'number' ? { startTime: value.startTime, } : {}),
+    ...((typeof value.birth) === 'string' ? { birth: value.birth, } : {}),
   },];
 }
 
@@ -148,4 +156,105 @@ export function processesNamedIn({ value, }: { readonly value: unknown },): read
   ].flatMap(function processNamed(named,) {
     return processesInOne({ value: named, },);
   },);
+}
+
+/**
+ How far the start a process's own line gives may be from the start time the tool gave before that line is taken to be another
+ process's.
+
+ The tool stamps the process it started, and the kernel's ticks say when that process started; two readings of one start differ by
+ the tick's hundredth of a second and by how long the tool took to stamp. The folder's own boot time is whole seconds, which is why
+ the tolerance covers a second as well. Measured here on 2026-11-15, the boot time and `/proc/uptime` placed one start 678, 682 and
+ 685 ms apart. The tolerance has two sides: a line whose start is clearly earlier than the tool's is another process's as surely as
+ one whose start is clearly later.
+ */
+export const BIRTH_TOLERANCE_MILLISECONDS = 2_000;
+
+/**
+ A feed line with the start the kernel gave each process a `processes` record names.
+
+ The record keeps what the tool said, and adds this one field per process, which the tool did not say. It is kept only when the line
+ it was read from agrees with the start time the tool itself gave, within `BIRTH_TOLERANCE_MILLISECONDS`: a number the tool held can
+ have been given to a later process before this read, and that process's start is not this answer's. A line this instant cannot read,
+ a record the tool gave no start time for, and a disagreement all leave the field out, and a scan reading such a record treats the
+ work as work that may still run.
+
+ @param entry - a feed line, of any kind
+
+ @param processFolder - the folder holding one entry per process, `/proc` here
+
+ @param now - where the driver reads the time, which a test replaces
+
+ @param lifeOf - how one process's line is read now, which a test replaces
+
+ @returns the line, with a start under every process of a `processes` record whose line agrees with the tool's start time
+
+ @example
+ ```ts
+ const line = withBirthsOfRecordedWork({ entry: { kind: 'processes', processes: [{ id: 'proc_7adb', pid: 486667, startTime }] }, processFolder: '/proc', },);
+ ```
+ */
+export function withBirthsOfRecordedWork({
+  entry,
+  processFolder,
+  now = Date.now,
+  lifeOf = lifeOfOneProcessNow,
+}: {
+  readonly entry: PiRecord;
+  readonly processFolder: string;
+  readonly now?: () => number;
+  readonly lifeOf?: (request: {
+    readonly processFolder: string;
+    readonly pid: number;
+  }) => LifeOfAProcess;
+},): PiRecord {
+  if (entry.kind !== PROCESSES_RECORD_KIND) {
+    return entry;
+  }
+  /**
+   The processes the record names, each with the start the kernel gave it where that start is this answer's.
+   */
+  const processes = recordsIn(entry.processes,)
+    .map(function withItsBirth(process,) {
+      /**
+       The fields of the process the tool named, of which the number and the start time are read here.
+       */
+      const {
+        pid,
+        startTime,
+      } = process;
+      if (((typeof pid) !== 'number') || ((typeof startTime) !== 'number')) {
+        return process;
+      }
+      /**
+       What the line of that process's own record says now.
+       */
+      const life = lifeOf({
+        processFolder,
+        pid,
+      },);
+      if (!life.found) {
+        return process;
+      }
+      /**
+       Where the kernel says that process started, at this instant.
+       */
+      const started = startInstantIn({
+        birth: life.birth,
+        now: now(),
+      },);
+      // Only a start that agrees with the tool's own start names this answer's process: a later process at that number, and a
+      // tool whose clock differs from this machine's by more than the tolerance, leave the record without one.
+      if ((!started.found) || (Math.abs(started.instant - startTime) > BIRTH_TOLERANCE_MILLISECONDS)) {
+        return process;
+      }
+      return {
+        ...process,
+        birth: life.birth,
+      };
+    },);
+  return {
+    ...entry,
+    processes,
+  };
 }

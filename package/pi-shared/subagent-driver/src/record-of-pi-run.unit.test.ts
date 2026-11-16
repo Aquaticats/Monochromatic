@@ -5,9 +5,11 @@
  */
 
 import {
+  mkdir,
   mkdtemp,
   readFile,
   rm,
+  writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { setTimeout as wait, } from 'node:timers/promises';
@@ -28,6 +30,47 @@ import {
   MASKING_NOTHING,
 } from '../dist/final/node/index.mjs';
 
+/**
+ Milliseconds in a second, so a fixture's start and its clock are written in the unit the file counts them in.
+ */
+const MILLISECONDS_PER_SECOND = 1_000;
+
+/**
+ How many clock ticks `/proc/<pid>/stat` counts a second in, which is what a fixture's start is written in.
+ */
+const CLOCK_TICKS_PER_SECOND = 100;
+
+/**
+ The start a fixture's process began at, in clock ticks since the boot.
+ */
+const A_BIRTH = '20004601';
+
+/**
+ The instant that start is, in milliseconds since the boot.
+ */
+const A_BIRTH_IN_MILLISECONDS = (Number(A_BIRTH,) / CLOCK_TICKS_PER_SECOND) * MILLISECONDS_PER_SECOND;
+
+/**
+ How long after that start the fixture's clock reads.
+ */
+const A_HUNDRED_SECONDS = 100 * MILLISECONDS_PER_SECOND;
+
+/**
+ The instant a fixture's clock reads, which is a hundred seconds after the process at its number began.
+ */
+const THE_CLOCKS_INSTANT = A_BIRTH_IN_MILLISECONDS + A_HUNDRED_SECONDS;
+
+/**
+ The start time the tool gives a process that began when the line says it did: the instant that process began, which is the clock
+ minus the age its ticks give it.
+ */
+const THE_TOOLS_START_TIME = THE_CLOCKS_INSTANT - A_BIRTH_IN_MILLISECONDS;
+
+/**
+ A minute of milliseconds.
+ */
+const A_MINUTE_OF_MILLISECONDS = 60_000;
+
 /** Milliseconds a record's clock is moved by, so a silence is measured on a clock the test owns. */
 const SILENCE_MILLISECONDS = 30;
 /** Milliseconds between looks at what a test waits for. */
@@ -39,6 +82,52 @@ type DisposableFolder = {
   readonly path: string;
   readonly [Symbol.asyncDispose]: () => Promise<void>;
 };
+
+/**
+ Writes a process folder holding one process's own line, so a test sees the start the kernel gave it without this machine's table.
+
+ @param folder - the folder the test owns
+
+ @param pid - the process number
+
+ @param birth - its start, in clock ticks since the boot
+
+ @returns the process folder
+
+ @example
+ ```ts
+ const processFolder = await aProcessFolderWith({ folder: '/fixture', pid: 4242, birth: A_BIRTH, },);
+ ```
+ */
+async function aProcessFolderWith({
+  folder,
+  pid,
+  birth,
+}: {
+  readonly folder: string;
+  readonly pid: number;
+  readonly birth: string;
+},): Promise<string> {
+  /**
+   The process folder, inside the folder the test owns.
+   */
+  const processFolder = join(folder, 'proc',);
+  await mkdir(join(
+    processFolder,
+    String(pid,),
+  ), { recursive: true, },);
+  await writeFile(
+    join(
+      processFolder,
+      String(pid,),
+      'stat',
+    ),
+    `${String(pid,)} (a-program) S 1 ${String(pid,)} ${String(pid,)} 0 -1 4194560 91 0 0 0 0 0 0 0 20 0 1 0 ${
+      birth
+    } 2797568 185 18446744073709551615\n`,
+  );
+  return processFolder;
+}
 
 async function makeFolder(): Promise<DisposableFolder> {
   const path = await mkdtemp(join(scratchRoot(), 'pi-record-',),);
@@ -126,28 +215,41 @@ await describe({
       },
     },),
     it({
-      name: 'keeps the start time the process tool gave, and reads no start time of its own',
+      name: 'keeps the start the kernel gave the process the tool named, when it agrees with the tool\'s own start time',
       fn: async () => {
         await using folder = await makeFolder();
         /**
          The feed a test writes.
          */
         const feedFile = join(folder.path, 'feed.jsonl',);
-        const { record, } = recordOnOwnClock(feedFile,);
         /**
-         The start time the tool gave, as the answer reports it.
+         The process folder a test writes, whose one process began a hundred seconds before the record's clock.
          */
-        const startTime = 1_700_000_000_000;
-        // The number is this test's own process, which is certainly alive: a driver that read the birth itself would keep one.
+        const processFolder = await aProcessFolderWith({
+          folder: folder.path,
+          pid: 4_242,
+          birth: '20004601',
+        },);
+        /**
+         The record, reading a clock a hundred seconds after that process began.
+         */
+        const record = startRecordOfPiRun({
+          feedFile,
+          processFolder,
+          mask: MASKING_NOTHING,
+          now: function now() {
+            return THE_CLOCKS_INSTANT;
+          },
+        },);
         record.note({
           kind: 'processes',
           processes: [{
             id: 'proc_build',
-            pid: process.pid,
+            pid: 4_242,
             command: 'cargo build',
             cwd: '/w',
             status: 'running',
-            startTime,
+            startTime: THE_TOOLS_START_TIME,
           },],
         },);
         await record.close();
@@ -161,9 +263,59 @@ await describe({
          The process the line names, as the feed kept it.
          */
         const [written] = isRecord(line,) ? recordsIn(line.processes,) : [];
-        expect(written?.startTime,).toBe(startTime,);
-        // The answer's own start time is the only one kept: a birth sampled here would be a later process's whenever the number had
-        // already been given to one.
+        expect(written?.startTime,).toBe(THE_TOOLS_START_TIME,);
+        // The start the kernel gave it, in ticks since the boot, which a later scan compares: ticks do not move with the wall clock.
+        expect(written?.birth,).toBe('20004601',);
+      },
+    },),
+    it({
+      name: 'leaves the start out of a record whose line names another process\'s start than the tool did',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The feed a test writes.
+         */
+        const feedFile = join(folder.path, 'feed.jsonl',);
+        /**
+         The process folder a test writes, whose process at that number began long before the tool's answer: a number given to a
+         later process before this line was written.
+         */
+        const processFolder = await aProcessFolderWith({
+          folder: folder.path,
+          pid: 4_242,
+          birth: '20004601',
+        },);
+        const record = startRecordOfPiRun({
+          feedFile,
+          processFolder,
+          mask: MASKING_NOTHING,
+          now: function now() {
+            return THE_CLOCKS_INSTANT;
+          },
+        },);
+        record.note({
+          kind: 'processes',
+          processes: [{
+            id: 'proc_build',
+            pid: 4_242,
+            command: 'cargo build',
+            cwd: '/w',
+            status: 'running',
+            startTime: THE_TOOLS_START_TIME - A_MINUTE_OF_MILLISECONDS,
+          },],
+        },);
+        await record.close();
+        /**
+         The line as the feed kept it, of any shape.
+         */
+        const line: unknown = JSON.parse(
+          (await readFile(feedFile, 'utf8',)).trim(),
+        );
+        /**
+         The process the line names, as the feed kept it.
+         */
+        const [written] = isRecord(line,) ? recordsIn(line.processes,) : [];
+        // A start this line cannot vouch for is no identity, and the scan then counts the work as work that may still run.
         expect(written?.birth,).toBeUndefined();
       },
     },),

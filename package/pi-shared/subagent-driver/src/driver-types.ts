@@ -37,6 +37,10 @@ export type PiExit = {
  `pi-exited` is Pi leaving a run that had taken its prompt, so work may have been done. `pi-exited-before-prompt` is Pi leaving
  every start the driver made before any of them took the prompt: nothing of the run's work happened, and the summary names what Pi
  printed instead.
+
+ `work-unreadable` means the driver could not read what the run left running for longer than `UNREADABLE_WORK_MILLISECONDS`, so it
+ ended the run rather than hold its place until its wall clock: the summary names the failure and the work that was known, the
+ worktree is kept, and that work may still run.
  */
 export type EndReason =
   | 'idle'
@@ -291,9 +295,16 @@ export type RunSummary = {
   /**
    What the driver failed to read when it asked what the run left running, which is why it cannot say whether anything of the
    run's still runs. It sits beside the end reason rather than in its place: the agent had ended its turn and Pi had exited by the
-   time it was asked, so the run did its work whether or not the answer could be read.
+   time it was asked, so the run did its work whether or not the answer could be read. A read that keeps failing ends the run as
+   `work-unreadable` after `UNREADABLE_WORK_MILLISECONDS`, and the failure is still this field.
    */
   readonly workProblem?: string;
+
+  /**
+   The work the driver knew of when it last read what the run left running, named as the wait named it, when a read then stopped
+   answering: a run ended `work-unreadable` kept its worktree for this work, which may still run.
+   */
+  readonly workNotRead?: readonly string[];
 
   /**
    What Pi reported of the compaction it could not finish while the run waited for its prompt: the failure, or the compaction
@@ -484,6 +495,12 @@ export type RecordOfPiRun = {
    summary carries beside the end reason.
    */
   readonly noteWorkProblem: (failure: string,) => void;
+
+  /**
+   Keeps the work the driver knew of when it stopped being able to read what the run left running, which the summary carries so a
+   reader of the run knows what it kept its worktree for.
+   */
+  readonly noteWorkNotRead: (work: readonly string[],) => void;
 
   /**
    Why the feed is incomplete, when writing it failed. A run whose feed failed did not end clean.

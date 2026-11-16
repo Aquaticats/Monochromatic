@@ -26,6 +26,7 @@ import {
   startObservingPiRun,
 } from './observe-pi-events.ts';
 import { preview, } from './previews-of-pi-messages.ts';
+import { withBirthsOfRecordedWork, } from './processes-a-tool-answer-names.ts';
 import {
   isRateLimit,
   kindOfModelError,
@@ -130,6 +131,12 @@ export type RecordOfPiRunRequest = {
   readonly now?: () => number;
 
   /**
+   The folder holding one entry per process, which a `processes` record is given the start the kernel gave each process it names
+   from. A test points this at its own entries, so no test reads this machine's process table.
+   */
+  readonly processFolder?: string;
+
+  /**
    The masking every feed line goes through, which is one boundary for every record a run writes: a tool's arguments, a tool's
    result, an inbox preview, a problem, and Pi's own event detail all pass it.
 
@@ -158,6 +165,7 @@ export type RecordOfPiRunRequest = {
 export function startRecordOfPiRun({
   feedFile,
   now = Date.now,
+  processFolder = '/proc',
   mask,
 }: RecordOfPiRunRequest,): RecordOfPiRun {
   /**
@@ -182,6 +190,11 @@ export function startRecordOfPiRun({
      What the driver failed to read when it asked what the run left running.
      */
     workProblem?: string;
+
+    /**
+     The work the driver knew of when it stopped being able to read what the run left running.
+     */
+    workNotRead?: readonly string[];
 
     /**
      How many attempts after a model error the run made.
@@ -232,16 +245,27 @@ export function startRecordOfPiRun({
   /**
    Writes one feed line, which also counts as activity.
 
+   A `processes` record is given the start the kernel gave each process it names here, at the moment the line is written: a number
+   names a later process once this one has ended, and ticks counted from the boot are what a later scan tells the two apart by.
+
    @param entry - fields of the line
    */
   function note(entry: PiRecord,): void {
     activity.at = now();
+    /**
+     The line, with the start each process a `processes` record names began at.
+     */
+    const described = withBirthsOfRecordedWork({
+      entry,
+      processFolder,
+      now,
+    },);
     // One boundary for every line: the entry is masked as the data it serialises to, so a field nobody thought of, a key, and a
     // method an object carries are all covered by the same answer.
     /**
      The entry as data, or why it could not be masked.
      */
-    const masked = mask.maskData(entry,);
+    const masked = mask.maskData(described,);
     feed.note(
       ('value' in masked)
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the line's own fields are what the round trip proved.
@@ -326,6 +350,13 @@ export function startRecordOfPiRun({
         failure,
       },);
     },
+    noteWorkNotRead: function noteWorkNotRead(work,) {
+      state.workNotRead = work;
+      note({
+        kind: 'work-not-read',
+        work,
+      },);
+    },
     observe: function observe(observation,) {
       activity.at = now();
       observed.observe(observation,);
@@ -365,6 +396,7 @@ export function startRecordOfPiRun({
         ...feedProblemOf(feed,),
         ...(state.driverError === undefined ? {} : { driverError: state.driverError, }),
         ...(state.workProblem === undefined ? {} : { workProblem: state.workProblem, }),
+        ...(state.workNotRead === undefined ? {} : { workNotRead: state.workNotRead, }),
         ...compactionProblemOf(observed,),
       };
     },

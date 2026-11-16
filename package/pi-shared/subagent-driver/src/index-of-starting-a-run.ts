@@ -116,6 +116,7 @@ export {
   answeredItsWake,
   askAboutItsWork,
   askAboutItsWorkOrReportAFailure,
+  theReadsHaveFailedForTooLong,
   type WorkAsked,
   type WorkWaitedFor,
 } from './kept-while-work-runs.ts';

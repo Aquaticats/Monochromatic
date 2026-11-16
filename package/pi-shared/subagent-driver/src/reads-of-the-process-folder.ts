@@ -28,13 +28,22 @@
  started and ended: a gone process answers `ENOENT` before the open and `ESRCH` after it, and a process that has ended but whose
  parent has not reaped it still answers, with the state `Z`.
 
+ Those ticks are counted from the boot and do not move when the wall clock does, which is why a record keeps the ticks rather than a
+ wall-clock instant: `/proc/stat`'s own boot time is the current wall clock minus uptime, so a step of the clock moves every instant
+ worked out from it.
+
  @module
  */
 
 import {
+  readFileSync,
+  statSync,
+} from 'node:fs';
+import {
   readFile,
   readlink,
 } from 'node:fs/promises';
+import { join, } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
 
 /**
@@ -264,6 +273,68 @@ export function processHasEnded({ state, }: { readonly state: string },): boolea
 }
 
 /**
+ Reads the line of one process now, so a feed line can keep the start the kernel gave it.
+
+ The line that records a run's work is written while Pi's events arrive, in the order they arrived, so this read cannot be awaited
+ without letting the next event's line be written first. It opens nothing that can block: the path's kind is asked first, and only a
+ regular file is opened for reading, so a named pipe written where a process's own line belongs answers nothing rather than waiting
+ for a writer.
+
+ @param processFolder - the folder holding one entry per process, `/proc` here
+
+ @param pid - the process number
+
+ @returns what the line says, or that this instant could not read one for that number
+
+ @example
+ ```ts
+ const life = lifeOfOneProcessNow({ processFolder: '/proc', pid: 486667, },);
+ ```
+ */
+export function lifeOfOneProcessNow({
+  processFolder,
+  pid,
+}: {
+  readonly processFolder: string;
+  readonly pid: number;
+},): LifeOfAProcess {
+  /**
+   The line of that process's own record, which holds its state and its start time.
+   */
+  const path = join(
+    processFolder,
+    String(pid,),
+    'stat',
+  );
+  try {
+    /* oxlint-disable no-restricted-syntax/no-sync -- the feed line this birth belongs to is written in the order Pi's events
+       arrive, so this read cannot be awaited; it opens only a regular file, so it cannot wait on a writer.
+       See doc/lint/sync-read-of-one-process-line.md. */
+    /**
+     What the path is, asked without opening it: a named pipe must never be opened here.
+     */
+    const kind = statSync(path,);
+    /**
+     The line, when the path holds a file this can read.
+     */
+    const statText = kind.isFile() ? readFileSync(
+      path,
+      'utf8',
+    ) : '';
+    /* oxlint-enable no-restricted-syntax/no-sync */
+    return (statText === '') ? { found: false, } : lifeIn({ statText, },);
+  }
+  catch (error) {
+    // A process that has gone, one this account may not read, and a path that is no file at all all leave this without a start, which
+    // the caller answers by keeping no birth: a record without one leaves its work as work that may still run.
+    if (errorCodeOf(error,) !== '') {
+      return { found: false, };
+    }
+    throw error;
+  }
+}
+
+/**
  How many clock ticks `/proc/<pid>/stat` counts a second in, which the kernel reports in hundreds (`USER_HZ`).
 
  Measured here on 2026-11-15: `/proc/self/stat`'s start time divided by `/proc/uptime`'s seconds was 99.99998 over three rounds.
@@ -271,69 +342,12 @@ export function processHasEnded({ state, }: { readonly state: string },): boolea
 export const CLOCK_TICKS_PER_SECOND = 100;
 
 /**
- What the boot time a process folder reports looks like.
- */
-export type BootTimeInAProcessFolder =
-  | {
-    /**
-     The instant the machine booted, in seconds since the epoch.
-     */
-    readonly found: true;
-    readonly seconds: number;
-  }
-    | {
-    /**
-     The folder reported no boot time, so no start time it gives can be placed on the wall clock.
-     */
-      readonly found: false;
-    };
-
-/**
- Reads the instant the machine booted from the line of the process folder that reports it (`btime` in `/proc/stat`).
-
- A process's own start time counts clock ticks since that instant, so this is what puts it on the wall clock a tool's answer is timed
- by.
-
- @param statText - the process folder's own line, whose `btime` names the instant
-
- @returns the instant, or that the line names none
-
- @example
- ```ts
- const bootedAt = bootTimeIn({ statText: 'cpu  0 0 0 0 0 0 0 0 0 0\nbtime 1700000000\n', },);
- ```
- */
-export function bootTimeIn({ statText, }: { readonly statText: string },): BootTimeInAProcessFolder {
-  for (const line of statText.split('\n',)) {
-    /**
-     The words of one line, of which the second is the boot time when the first says so.
-     */
-    const words = line.trim()
-      .split(' ',);
-    if ((words[0] !== 'btime') || (words[1] === undefined)) {
-      continue;
-    }
-    /**
-     The instant the line names, in seconds since the epoch.
-     */
-    const seconds = Number(words[1],);
-    if (Number.isFinite(seconds,)) {
-      return {
-        found: true,
-        seconds,
-      };
-    }
-  }
-  return { found: false, };
-}
-
-/**
- Milliseconds in a second, so a start time counted in ticks and a boot time in seconds meet on one clock.
+ Milliseconds in a second, so a start time counted in ticks and one kept in milliseconds meet on one clock.
  */
 const MILLISECONDS_PER_SECOND = 1_000;
 
 /**
- What placing a process's kernel start time on the wall clock answered.
+ What placing a process's kernel start on the wall clock answered.
  */
 export type StartInstantOfAProcess =
   | {
@@ -345,46 +359,46 @@ export type StartInstantOfAProcess =
   }
     | {
     /**
-     The process's start time and the machine's boot time cannot be put together, so nothing is placed.
+     The line holds no start time this can count, so nothing is placed.
      */
       readonly found: false;
     };
 
 /**
- Places the start time the kernel gave a process on the wall clock, in milliseconds since the epoch.
+ Places the start the kernel gave a process on the wall clock, from the age its ticks give it at one instant.
 
- @param life - the state and start time the process folder gave for the process
+ The start is `now` minus the age the ticks say, so no boot time is read and nothing is read twice: the kernel's own boot time in
+ `/proc/stat` is the current wall clock minus uptime, so a step of the wall clock moves every instant worked out from it, while the
+ ticks themselves do not move.
 
- @param booted - the instant the machine booted, as the process folder reports it
+ @param birth - the start time `/proc/<pid>/stat` gave, in clock ticks since boot
 
- @returns the instant the process started, or that the two cannot be put together
+ @param now - the instant this is read, in milliseconds since the epoch
+
+ @returns the instant the process started, or that the line's start cannot be counted
 
  @example
  ```ts
- const started = startInstantIn({ life, booted, },);
+ const started = startInstantIn({ birth: '20004601', now: Date.now(), },);
  ```
  */
 export function startInstantIn({
-  life,
-  booted,
+  birth,
+  now,
 }: {
-  readonly life: LifeOfAProcess;
-  readonly booted: BootTimeInAProcessFolder;
+  readonly birth: string;
+  readonly now: number;
 },): StartInstantOfAProcess {
-  if ((!life.found) || (!booted.found)) {
-    return { found: false, };
-  }
   /**
    The start time as a number of ticks, which the file writes as digits.
    */
-  const ticks = Number(life.birth,);
+  const ticks = Number(birth,);
   if (!Number.isFinite(ticks,)) {
     return { found: false, };
   }
   return {
     found: true,
-    instant: (booted.seconds * MILLISECONDS_PER_SECOND)
-      + ((ticks / CLOCK_TICKS_PER_SECOND) * MILLISECONDS_PER_SECOND),
+    instant: now - ((ticks / CLOCK_TICKS_PER_SECOND) * MILLISECONDS_PER_SECOND),
   };
 }
 

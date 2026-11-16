@@ -23,10 +23,13 @@ import { wakeMessageOf, } from './work-the-run-left-running.ts';
  the long sitting"): "A shorter limit, then end as failed". Such a run ends marked as one whose leftover work could not be read, with
  its worktree kept, and is never ended as finished.
 
- Measured here on 2026-11-15: a look of the scan comes every 300 ms (`POLL_MILLISECONDS`) and one scan of this machine's process
- table, 1 176 entries of which 474 could be read, took 42, 102 and 96 ms over three rounds. Thirty seconds is a hundred looks, and
- every failed read this machine's record holds lasted one look: eight runs, each with a single `work-unreadable` line, each ended
- within 50 ms of it (`${HOME}/temp/agent/pi-runs`, read on 2026-11-15).
+ The span is counted by the clock, from the first read that failed to the instant the span is asked again, and the watch asks it on
+ every look of its own (`POLL_MILLISECONDS`), whatever the idle silence is: a wait for the idle silence would make the span as long as
+ the run's `--idle-seconds`, which is 120 s in production. Measured here on 2026-11-15, one scan of this machine's process table, 1 176
+ entries of which 474 could be read, took 42, 102 and 96 ms over three rounds, so a hundred looks of the scan cost a few seconds of the
+ span. Every failure this machine's record holds was a single failed read followed by an end, so thirty seconds is far past any
+ passing failure: eight runs, each with one `work-unreadable` line, each ended within 50 ms of it (`${HOME}/temp/agent/pi-runs`, read
+ on 2026-11-15).
  */
 export const UNREADABLE_WORK_MILLISECONDS = 30_000;
 
@@ -443,6 +446,41 @@ async function workTheRunStillHasRunningOrReportAFailure({
 }
 
 /**
+ Asks whether the run's reads of what it left running have failed for longer than the span.
+
+ The span is counted by the clock, from the first look that failed since the last one that answered, so a run's idle silence cannot
+ stretch it. The watch asks this on every look of its own while a failure stands.
+
+ @param waited - where the driver stands with the work, which keeps when its reads began to fail
+
+ @param now - where the driver reads the time
+
+ @param spanMilliseconds - how long reads may fail before the run ends, which a test shortens
+
+ @returns whether the failed reads have lasted past the span
+
+ @example
+ ```ts
+ const over = theReadsHaveFailedForTooLong({ waited, now: Date.now, spanMilliseconds: UNREADABLE_WORK_MILLISECONDS, },);
+ ```
+ */
+export function theReadsHaveFailedForTooLong({
+  waited,
+  now = Date.now,
+  spanMilliseconds = UNREADABLE_WORK_MILLISECONDS,
+}: {
+  readonly waited: WorkWaitedFor;
+  readonly now?: () => number;
+  readonly spanMilliseconds?: number;
+},): boolean {
+  /**
+   How long the reads now standing have failed for, or nothing while none has failed since a read that answered.
+   */
+  const since = waited.unreadableSince;
+  return (since !== undefined) && ((now() - since) >= spanMilliseconds);
+}
+
+/**
  Asks what the run left running, and keeps a run whose work cannot be read rather than ending it as one that finished.
 
  By the time this is asked the agent has ended its turn and the run is only waiting out its own idle time, so a read that fails
@@ -464,6 +502,10 @@ async function workTheRunStillHasRunningOrReportAFailure({
 
  @param waited - where the driver stands with the work, which this fills and clears
 
+ @param now - where the driver reads the time, which a test replaces so a span is measured rather than waited out
+
+ @param spanMilliseconds - how long reads may fail before the run ends, which a test shortens
+
  @returns what stands between the run and its end, which is work that is not known to have ended
 
  @example
@@ -475,10 +517,12 @@ export async function askAboutItsWorkOrReportAFailure({
   watch,
   waited,
   now = Date.now,
+  spanMilliseconds = UNREADABLE_WORK_MILLISECONDS,
 }: {
   readonly watch: WatchRequest;
   readonly waited: WorkWaitedFor;
   readonly now?: () => number;
+  readonly spanMilliseconds?: number;
 },): Promise<WorkAsked> {
   /**
    What the read of the run's work found.
@@ -501,22 +545,31 @@ export async function askAboutItsWorkOrReportAFailure({
     if (feedFailed) {
       return 'nothing';
     }
-    /**
-     How long the reads now standing have failed for, or nothing while none has failed since a read that answered.
-     */
-    const since = waited.unreadableSince;
-    if ((since !== undefined) && ((now() - since) >= UNREADABLE_WORK_MILLISECONDS)) {
-      // A run whose work cannot be read for that long ends as one whose leftover work could not be read, with its worktree kept: it is
-      // never ended as finished, and it does not hold a place in the pool until its wall clock either.
-      watch.record
-        .note({
-          kind: 'problem',
-          problem: `the run ended after ${String(UNREADABLE_WORK_MILLISECONDS,)} ms of reads that could not say what work it left `
-            + `running; its worktree is kept, and its work may still run: ${String(waited.unreadable,)}`,
-        },);
-      return 'work-unreadable';
+    if (!theReadsHaveFailedForTooLong({
+      waited,
+      now,
+      spanMilliseconds,
+    },)) {
+      return 'kept';
     }
-    return 'kept';
+    // A run whose work cannot be read for that long ends as one whose leftover work could not be read, with its worktree kept: it is
+    // never ended as finished, and it does not hold a place in the pool until its wall clock either. The work the driver knew of goes
+    // into the summary, because the summary is what a reader of the run sees, and into one feed line beside the failure.
+    /**
+     The work the driver knew of, which it keeps the worktree for, or nothing when it knew of none.
+     */
+    const known = waited.work ?? [];
+    watch.record
+      .noteWorkNotRead(known,);
+    watch.record
+      .note({
+        kind: 'problem',
+        problem: `the run ended after ${String(spanMilliseconds,)} ms of reads that could not say what work it left running; its `
+          + `worktree is kept, and that work may still run: ${
+            (known.length === 0) ? 'the driver knew of none' : known.join(', ',)
+          }. The last read failed with: ${String(waited.unreadable,)}`,
+      },);
+    return 'work-unreadable';
   }
   // A read that succeeded is what a later failure is a change from: a failure that repeats one the driver has already reported is
   // news again once a good read has stood between them, so the note of the last failure is cleared by every good read, and so is the
