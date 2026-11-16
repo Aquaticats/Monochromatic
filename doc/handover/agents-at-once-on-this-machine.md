@@ -7,12 +7,118 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-At most **32** agents run on this machine at once,
+At most **20** agents run on this machine at once since 2026-11-15T10:50:46-05:00,
+by the owner's answer of that morning
+("Step to 20 with the probe (Recommended)",
+asked whether the cap stays at 17 until the new drive,
+steps to 20 under the probe,
+or goes back to 24 at once;
+`doc/handover/cli-git-rust-implementation.md`,
+"Answers on waking").
+The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-20-20261115T105046`
+(eight hours)
+and the probe `disk-ceiling-probe-level-20-20261115T105110`
+(eight hours).
+Should twenty fail on two slow readings in a row,
+the rule under "What counts as the ceiling" gives eighteen and then seventeen,
+the level that held from 01:00:44 to 10:50:46
+(at seventeen,
+from the end of the snapshot cleanup at 01:45:02 to 09:02,
+27 of 434 readings took a second or more and none twice in a row).
+No run that is going is stopped when a level ends.
+What follows is the state before that answer,
+kept as it was written.
+At most 17 agents ran at once from 2026-11-15T01:00:44-05:00
+(18 from 00:50:55;
+level eighteen failed at 00:57:33 on 109,241 ms and then 59,474 ms,
+under "Level 18 fails on stalls of 109 and 59 seconds, 2026-11-15T00:44:53-05:00 to 01:00:46-05:00").
+The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-17-20261115T010044`
+and the probe `disk-ceiling-probe-level-17-20261115T010046`.
+Should seventeen fail,
+the cap is sixteen,
+the probe then runs with `readings-only` and ends on no reading,
+and the cap goes no lower without the owner.
+**None of tonight's levels was tested at its own number**:
+19 to 23 agents were going at every failing reading,
+because no run is stopped when a level ends.
+What follows in this paragraph is the state of 00:50:55,
+kept as it was written.
+At most 18 agents ran at once from 2026-11-15T00:50:55-05:00.
+Level twenty-four failed its criterion at 00:31:09
+(the home drive's write-and-sync took 14,892 ms and then 7,722 ms,
+with 23 agents going and `snapper-cleanup.service` running since 00:00:11),
+and the rule under "What counts as the ceiling" gave twenty;
+level twenty failed at 00:44:03
+(6,277 ms and then 21,599 ms,
+20 agents going,
+the cleanup still running),
+and the same rule gives eighteen.
+No run that was going is stopped;
+nothing new starts until fewer than eighteen are going.
+The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-18-20261115T005055`
+(eight hours)
+and the probe `disk-ceiling-probe-level-18-20261115T004453`.
+Should eighteen fail,
+the same rule gives seventeen and then sixteen,
+the last level that held,
+and the cap goes no lower than sixteen without the owner.
+Not final and not approved;
+the readings are under
+"Level 24 fails forty minutes into the nightly snapshot cleanup, 2026-11-14T16:54:54-05:00 to 2026-11-15T00:31:09-05:00" and
+"Level 20 fails twelve minutes after it began, the cleanup still running, 2026-11-15T00:32:17-05:00 to 00:50:55-05:00".
+What stood before:
+at most 24 agents ran at once from 2026-11-14T08:54:33-05:00,
+by the owner's answer of that morning
+("Resume at 24":
+halve the gap between 16, which held, and 32 again,
+with the probe ending the level on two slow readings in a row as before;
+`doc/handover/cli-git-rust-implementation.md`,
+"Answers on the owner's return").
+Should twenty-four fail,
+the rule gives twenty.
+The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-24-20261114T085433`
+(eight hours,
+no successor)
+and the probe a unit named `disk-ceiling-probe-level-24-` with the second it was started in.
+What stood before,
+and why:
+at most 16 agents ran at once,
 counted across every session
 (raised from 4 to 8 on 2026-11-13 at 11:57,
 from 8 to 16 at 12:58:50
 and from 16 to 32 at 17:12,
-each time when the level before had held its hour).
+each time when the level before had held its hour;
+lowered from 32 to 24 on 2026-11-14 at 01:16:46,
+from 24 to 20 at 01:21:35,
+from 20 to 18 at 01:42:18,
+from 18 to 17 at 02:03:15
+and from 17 to 16 at 02:48:16,
+each time when the level before failed its criterion,
+by the rule under "What counts as the ceiling":
+halve the gap between the last level that held, sixteen, and the one that failed).
+Twenty-four stopped no start:
+the provider pools take about twenty-five at most,
+and twenty to twenty-two agents were going at both failures.
+The levels from twenty down do:
+nothing new starts until fewer are going,
+and no run that is going is stopped.
+**The search has ended at sixteen**,
+the last level that held,
+and goes no lower without the owner.
+Level seventeen failed at 02:47:00 on 2026-11-14;
+the probe runs on for readings only and ends on none of them.
+**The search stopped measuring the count before it ended.**
+The failing pairs at eighteen and seventeen came with sixteen and seventeen agents going,
+at or one above the count of the level that held,
+and after the daily update had ended.
+Whether sixteen is right,
+or the number goes back up once the stalls are explained,
+is a question kept for the owner in `doc/handover/cli-git-rust-implementation.md`.
+The readings and what is not established about their cause are under
+"Levels 32 and 24 fail on the home drive, 2026-11-14T00:59:04-05:00 to 01:18:45-05:00",
+"Level 20 fails on the home drive, 2026-11-14T01:37:37-05:00 to 01:41:00-05:00",
+"Level 18 fails after the daily update ended; a snapshot cleanup has run since midnight, 2026-11-14T01:42:20-05:00 to 01:54:55-05:00" and
+"Level 17 fails and the search ends at sixteen, 2026-11-14T02:03:18-05:00 to 02:47:00-05:00".
 The branch `feat/pi-shared-subagent-driver-start-gate-holds-a-machine-wide-cap-on-agents-and-a-floor-for-the-runs-folder-drive`,
 not in `main`,
 carries the number in a file of its own that still reads sixteen;
@@ -84,7 +190,9 @@ no load is made for the search.
 Levels go four,
 then double until one fails,
 then halve the gap between the last that held and the one that failed.
-The search is done again after the new drive is in (expected 2026-11-15).
+The search is done again after the new drive is in
+(expected 2026-11-17;
+the owner said on 2026-11-14 at about 14:39 that the arrival slipped from 2026-11-15).
 
 ## Readings
 
@@ -484,3 +592,705 @@ one line a minute:
   The deletion takes its own write-and-sync reading of both drives before each shard,
   recorded in the same readings file with a `during` field and no agent count.
   **The hour that judges this level starts when the deletion has ended.**
+
+#### The hour that judges, 2026-11-13T18:51:10-05:00 to 19:49:23-05:00
+
+Not final and not approved:
+read by the coordinating session from the probe's own file
+(`~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/probe-readings.jsonl`,
+summarised by `summarise-the-probe-readings-between-two-times.ts` beside it).
+Neither the sizing walk nor the deletion ran in this hour.
+
+- **What was going was twenty to twenty-two agent units,
+  not thirty-two.**
+  59 readings,
+  one a minute;
+  the count of `pi-*.service` units at each:
+  least 20,
+  median 21,
+  most 22.
+  That count holds every session's Pi runs on this machine and no agent of another kind.
+  The cap of thirty-two was never reached,
+  because one author pool of twenty and the reviews held to five bound it,
+  which the owner chose to keep at 17:56.
+- Home drive write-and-sync:
+  median 1 ms,
+  slowest 91 ms.
+- Build volume write-and-sync:
+  median 7 ms,
+  slowest 3,361 ms;
+  the five slowest 1,288,
+  1,461,
+  2,395,
+  2,572 and 3,361 ms.
+  No reading over five seconds,
+  so never two in a row.
+- Load average over one minute:
+  least 5.27,
+  median 11.11,
+  most 20.27.
+- Runs started in the hour:
+  twelve,
+  each with a first answer;
+  the slowest first answer 75,032 ms,
+  none over 120 s
+  (`time-to-first-answer-of-each-pi-run-started-since.ts`).
+- Runs that ended in the hour:
+  ten;
+  none on a disk error.
+  Two ended `driver-failed` by the defect of issue 6299,
+  each with its work done,
+  before its fix reached `main` at 19:36:16.
+- **By the criterion,
+  twenty to twenty-two agents held for an hour on this disk.**
+  That is the highest count this file holds an undisturbed hour for.
+  The ceiling is not found:
+  no count above twenty-five can be reached while the pools stay as they are,
+  so the search rests here until the owner changes a pool or the new disk arrives,
+  when it is found again from four.
+- The cap in "The cap now" stays thirty-two:
+  it is a bound never to pass,
+  and nothing measured says it is too high or too low.
+
+#### A later hour at the same count, 2026-11-14T00:15:00-05:00 to 00:58:17-05:00
+
+Not final and not approved;
+measured by the coordinating session.
+No probe of the drives ran in this hour:
+the last reading before it is of 2026-11-13T19:49:23-05:00.
+
+- **Agents**: 22 agent units going at 00:59,
+  the count of the judged hour.
+- **First answers**
+  (`time-to-first-answer-of-each-pi-run-started-since.ts`,
+  runs started since 23:15):
+  seventeen runs,
+  all answered,
+  the slowest in 98,843 ms,
+  six of them in over a minute,
+  none over the 120 s that fails a level.
+  In the judged hour the slowest was under 75 s.
+- **The user service manager**
+  (`~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/slow-answers-of-the-user-service-manager.jsonl`):
+  29 slow answers asked between 00:16 and 00:56,
+  from 7,600 ms to 73,292 ms;
+  the nine hours and twenty minutes before hold 41.
+  In its samples the load average runs from 35 to 96 on eight threads
+  (13.8 at the judged hour's last reading),
+  the kernel's full I/O stall over ten seconds from 3 to 40 percent,
+  and the journal daemon is in uninterruptible sleep in most.
+  These figures fail no level.
+- **What it did to work**:
+  five of 49 commits through the wrapper took over five seconds
+  (`doc/handover/cli-git-rust-implementation.md`,
+  the section of 2026-11-14T00:58:17-05:00),
+  one of them 19.8 s between the manager logging a unit started and the program's first line.
+  By the owner's answer under "What counts as the ceiling" a slow commit is no symptom.
+- **By the criterion the level still holds**
+  (no longer so:
+  the probe started at 01:00 failed the level at 01:10:30,
+  see "Levels 32 and 24 fail on the home drive, 2026-11-14T00:59:04-05:00 to 01:18:45-05:00"):
+  no first answer over 120 s,
+  no run ended on a disk error.
+  The second half of the criterion had no reading,
+  so the probe runs again since 01:00
+  (unit `disk-ceiling-probe-level-32-while-reviews-and-four-passes-build-20261114T0100`,
+  eight hours;
+  it ends with status 3 when a drive's write-and-sync takes over five seconds twice in a row).
+- What differs from the judged hour at the same count is not measured.
+  Not ruled out:
+  reviews that build the wrapper's crate cold,
+  four integration passes building at once,
+  a `cargo-shadow-lean.service` that ran 56 minutes until 00:31,
+  and `toolchain-daily-update.service`,
+  whose timer fired at 00:16:25,
+  two seconds before the first slow answer of the service manager in this hour was asked
+  (found at 01:18, after this section was written).
+
+#### Levels 32 and 24 fail on the home drive, 2026-11-14T00:59:04-05:00 to 01:18:45-05:00
+
+Not final and not approved;
+measured by the coordinating session.
+The cause is not established and none is claimed.
+
+- **The readings**
+  (`keep/probe-readings.jsonl`;
+  home drive write-and-sync in ms,
+  agents going beside each):
+  00:59:04 111,136 (22);
+  01:01:55 1 (20);
+  01:02:55 128 (20);
+  01:04:17 1 (20);
+  01:05:17 1 (21);
+  01:06:17 3 (21);
+  01:07:17 132,701 (21);
+  01:10:30 10,339 (20);
+  01:12:25 29,020 (21);
+  01:13:54 7 (21);
+  01:14:54 102,109 (21);
+  01:17:36 37,279 (21);
+  01:18:45 40,119 (22);
+  01:20:25 52 (21).
+  The build volume in the same readings:
+  2 to 178 ms,
+  once 2,553 ms.
+- **Level thirty-two fails at 01:10:30**:
+  two readings in a row over five seconds
+  (132,701 ms and 10,339 ms)
+  with twenty and twenty-one agents going.
+  The rule gives twenty-four.
+  The filling unit that had run since 17:12 ended at 01:12:16;
+  one at level twenty-four was started at 01:16:46.
+- **Level twenty-four fails at 01:18:45**:
+  37,279 ms at 01:17:36 and 40,119 ms at 01:18:45,
+  two readings in a row,
+  both after the filling unit was at twenty-four,
+  with twenty-one and twenty-two agents going.
+  They are the last reading of one probe process and the first of the next
+  (the first had ended with status 3 on 102,109 ms and 37,279 ms,
+  of which only the second falls after 01:16:46),
+  so no single process printed this failure;
+  the criterion asks for two readings in a row and these are.
+  The rule gives twenty.
+  The filling unit at twenty-four was stopped between two rounds
+  and one at twenty started at 01:21:35
+  (`fill-free-places-and-put-ended-reviews-back-at-level-20-20261114T0123`,
+  eight hours,
+  no successor;
+  the stamp in its name is two minutes late).
+  The probe runs again since 01:21:42
+  (`disk-ceiling-probe-level-20-since-the-filler-is-at-20-20261114T0122`,
+  eight hours).
+- **The count did not change between the level that held and the two that failed**:
+  the judged hour of level thirty-two
+  (2026-11-13 18:51 to 19:49)
+  had twenty to twenty-two agents and no slow reading twice in a row;
+  both failures have twenty to twenty-two.
+  So the label on the level discriminates nothing here,
+  and what does is not known.
+- **Running in the failing hour and not in the judged one**:
+  `toolchain-daily-update.service`
+  (its timer fired 00:16:25,
+  the service started 00:16:48 and was still in its start step at 01:20:49;
+  `mise run toolchain:update:daily`,
+  which checks the packages before it updates;
+  `CPUQuota` 200%,
+  `MemoryMax` 8G,
+  `IOWeight` 1,
+  `Nice` 10).
+  By 01:18 its cgroup had read 7.83 GB and written 5.24 GB on the home device.
+  Other timers of the hour:
+  `snapper-cleanup` 00:00:07,
+  `logrotate` 00:22:41,
+  `btrfs-qgroup-rescan-home` 00:37:12
+  (answered "already consistent, nothing to do";
+  the kernel logged a quota scan of the home filesystem completed at 00:14:49 and at 00:53:37),
+  `kopia-snapshot-all` 00:40:36
+  (in `auto-restart` at 01:19),
+  `rclone-bisync-garage` 01:00:36.
+  None of these is shown to be the cause.
+- **Who used the home device in one minute of it**
+  (01:17:21 to 01:18:21,
+  from each unit's `io.stat` under the user manager's `app.slice`;
+  `keep/home-drive-bytes-by-unit-over-one-minute-2026-11-14T0617.txt`;
+  system units are not in the sample):
+  all 99 units and scopes together wrote about 2 MiB and read about 1.4 GiB.
+  The largest readers:
+  the JetBrains toolbox 490 MiB,
+  the daily update 233 MiB,
+  sixteen command scopes 298 MiB together,
+  twenty-one Pi units 173 MiB together.
+  A stall of 37 s falls in that minute,
+  so the writes of the user's units do not explain it;
+  reads,
+  system units and the filesystem's own work are not told apart by this sample.
+- **Against the other half of the criterion**:
+  no Pi run went without a first answer for 120 s,
+  and none ended on a disk error.
+- **Not done yet**:
+  the control reading,
+  the same count with the daily update ended,
+  to see whether the stalls go with it.
+  The question whether an hour that holds the daily update may judge a level is kept for the owner
+  (`doc/handover/cli-git-rust-implementation.md`,
+  "Questions kept for the owner's return").
+
+#### Level 20 fails on the home drive, 2026-11-14T01:37:37-05:00 to 01:41:00-05:00
+
+Not final and not approved;
+measured by the coordinating session.
+The cause is not established and none is claimed.
+
+- **The readings at level twenty**
+  (home drive write-and-sync in ms,
+  agents going beside each;
+  the filling unit was at twenty from 01:21:35):
+  01:25:57 2 (21);
+  01:26:57 540 (21);
+  01:28:06 1 (19);
+  01:29:06 70,462 (18);
+  01:31:16 233 (19);
+  01:32:18 33 (20);
+  01:33:18 87 (19);
+  01:34:19 1 (20);
+  01:35:19 11 (20);
+  01:36:19 187 (20);
+  01:37:37 143,475 (20);
+  01:41:00 57,262 (18).
+  The build volume in the same readings:
+  6 to 47 ms.
+- **Level twenty fails at 01:41:00**:
+  143,475 ms and 57,262 ms,
+  two readings in a row,
+  with twenty and eighteen agents going.
+  The probe ended with status 3.
+  The rule gives eighteen.
+  The filling unit at twenty was stopped and one at eighteen started at 01:42:18
+  (`fill-free-places-and-put-ended-reviews-back-at-level-18-20261114T0142`,
+  eight hours,
+  no successor);
+  the probe runs again since then
+  (`disk-ceiling-probe-level-18-since-the-filler-is-at-18-20261114T0142`,
+  eight hours).
+- **What else ran in those minutes**:
+  `toolchain-daily-update.service` until 01:40:01,
+  so the first of the two readings falls wholly inside it
+  and the second began about three seconds after it ended;
+  and this session's own work in the main checkout:
+  one run of `package/mpm-shadow/cli`'s Clippy task from 01:36
+  (in a scope with `IOWeight=1`,
+  its build folder on the build volume),
+  and the merge of integration pass 28 at 01:38:12 with its push
+  (26 files,
+  4,112 lines).
+  None of these is shown to be the cause.
+- **The control hour starts here**:
+  the daily update has ended,
+  so readings from 01:42 on are the same machine without it.
+  If the stalls stop while eighteen to twenty agents go,
+  that is evidence about the daily update and none about the count,
+  and the level is still the one the criterion gave;
+  raising it again is the owner's question already kept.
+  (They did not stop:
+  the section that follows has the readings.)
+
+#### Level 18 fails after the daily update ended; a snapshot cleanup has run since midnight, 2026-11-14T01:42:20-05:00 to 01:54:55-05:00
+
+Not final and not approved;
+measured by the coordinating session.
+No cause is claimed.
+
+- **The readings at level eighteen**
+  (home drive write-and-sync in ms,
+  agents going beside each;
+  the daily update ended at 01:40:01):
+  01:42:20 45,431 (18);
+  01:44:06 4 (18);
+  01:45:06 59,278 (18);
+  01:47:05 27 (17);
+  01:48:09 47,148 (17);
+  01:49:56 63 (count not read);
+  01:51:33 141,638 (17);
+  01:54:55 24,317 (16).
+  The build volume in the same readings:
+  6 to 62 ms.
+- **Level eighteen fails at 01:54:55**:
+  141,638 ms and 24,317 ms,
+  two readings in a row,
+  with seventeen and sixteen agents going.
+  The rule gives seventeen.
+  A filling unit at seventeen runs since 02:03:15
+  (`fill-free-places-and-put-ended-reviews-back-at-level-17-20261114T0204`,
+  eight hours,
+  no successor),
+  and the probe since 02:04
+  (`disk-ceiling-probe-level-17-readings-20261114T0204`).
+  Between 01:54:52 and 02:03:15 no filling unit ran,
+  for a reason of its own
+  (`doc/handover/cli-git-rust-implementation.md`,
+  the section of 2026-11-14T02:05:16-05:00:
+  a lock left in Pi's folder stopped every new start).
+- **What the control showed**:
+  five stalls of 24 to 142 s came after the daily update had ended.
+  So the stalls do not go with the daily update,
+  and the question kept for the owner about hours that hold it is withdrawn.
+- **The count**:
+  every other reading at this level is a stall,
+  with sixteen to eighteen agents going.
+  The level that held its hour on 2026-11-13 from 18:51 to 19:49 had twenty to twenty-two.
+  Fewer agents and more stalls:
+  the criterion keeps failing and the count does not explain it.
+- **A lead, read from the system's journal and not tested**:
+  `snapper-cleanup.service` started at 00:00:07 and was still running at 01:55:53.
+  At 00:14:49 it logged the deletion of a batch of snapshots of the root configuration in one second
+  (numbers 11 to 22 among them;
+  the whole count was not read),
+  and the kernel logged in the same second a quota scan of the home filesystem completed
+  (`BTRFS info (device dm-1): qgroup scan completed`),
+  after `qgroup marked inconsistent` at 00:00:20.
+  The first slow answer of the user service manager that night was asked at 00:16:27,
+  98 s after those deletions.
+  `snapper-timeline.service` started at 01:00:55 and had not ended at 01:55:53.
+  `btrfs-zstd-policy.service` showed 977 restarts.
+  The cleanup did not run in the hour that held:
+  its only start since noon of 2026-11-13 is the one at 00:00:07.
+  The home folder is the `home` subvolume of a btrfs filesystem on `dm-1`,
+  mounted with `discard=async`;
+  the kernel's qgroup lines for `dm-1` show quota groups in use there.
+  These are system units:
+  this session stops none of them and cannot read their I/O
+  (the per-unit sample of 01:17 covers the user's units only).
+- **What would test the lead**:
+  readings after the cleanup has ended;
+  and whether a night without it stalls.
+  Both are readings the probe gives if it is left running.
+
+#### Level 17 fails and the search ends at sixteen, 2026-11-14T02:03:18-05:00 to 02:47:00-05:00
+
+Not final and not approved;
+measured by the coordinating session.
+No cause is claimed.
+
+- **The readings at level seventeen**:
+  forty,
+  one a minute where the minute before did not stall,
+  from 02:03:18 to 02:47:00,
+  with fifteen to seventeen agents going
+  (four readings could not count them:
+  `systemctl` gave no answer in twenty seconds).
+  The home drive's write-and-sync took a median of 43 ms,
+  and over the bound of 5,000 ms seven times
+  (ms, agents going beside each):
+  02:03:18 33,165 (16);
+  02:07:01 13,765 (17);
+  02:10:21 20,942 (17);
+  02:21:27 14,272 (16);
+  02:28:50 11,826 (17);
+  02:45:53 6,462 (17);
+  02:47:00 7,204 (17).
+  The build volume in the same readings:
+  a median of 10 ms,
+  and over one second three times
+  (02:11:42 1,408; 02:12:43 3,172; 02:24:41 2,271).
+- **Level seventeen fails at 02:47:00**:
+  6,462 ms and 7,204 ms,
+  two readings in a row.
+  It had stood for forty-four minutes,
+  short of its hour.
+  The stalls are shorter and further apart than at eighteen
+  (seven in forty readings against four in eight,
+  the longest 33 s against 142 s);
+  one level's readings do not say whether that is the count or the night moving on.
+- **What was done**:
+  the filling unit at seventeen was stopped at 02:48:16 and one at sixteen started in the same second
+  (`fill-free-places-and-put-ended-reviews-back-at-level-16-20261114T024816`,
+  eight hours,
+  no successor);
+  no run that was going was stopped.
+  The probe runs on at sixteen for readings only
+  (`disk-probe-for-readings-only-at-level-16-20261114T024816`,
+  eight hours;
+  the probe script takes `readings-only` as a third argument and then never ends on slow readings),
+  into the same log,
+  `keep/probe-readings.jsonl` of the search's scratch folder.
+- **The lead still stands untested**:
+  at 02:48:37 `snapper-cleanup.service` was still running
+  (since 00:00:07),
+  and `snapper-timeline.service` too
+  (since 01:00:55).
+  So no reading yet comes from after the cleanup's end.
+
+#### The stalls end within seven minutes of the snapshot cleanup's end, 2026-11-14T02:48:16-05:00 to 08:38:18-05:00
+
+Not final and not approved;
+measured by the coordinating session.
+No cause is claimed:
+two things changed in the same hours.
+
+- **The readings at level sixteen**,
+  one a minute,
+  340 of them from 02:48:16 to 08:38:18.
+  Slow ones
+  (home drive write-and-sync over 5,000 ms)
+  by hour:
+  02:48 to 03:00 one of twelve (13,843 ms);
+  03:00 to 04:00 eight of 54 (the longest 49,518 ms);
+  04:00 to 05:00 ten of 56 (33,815 ms);
+  05:00 to 06:00 one of 59,
+  the last of all at 05:08:45 (10,608 ms);
+  06:00 to 08:38 none of 159,
+  the longest 106 ms.
+- **`snapper-cleanup.service` ended at 05:15:35**,
+  five hours and fifteen minutes after its start at 00:00:07
+  (`systemctl show`, `InactiveEnterTimestamp`).
+  The last slow reading is six minutes and fifty seconds before that.
+- **What also changed**:
+  no Pi run was started from 04:00:14 on
+  (a queue entry that failed every start;
+  `doc/handover/cli-git-rust-implementation.md`,
+  the section of 2026-11-14T08:50:39-05:00),
+  so the count of agents fell through those hours and was nothing from 05:59:02.
+  The hour from 04:00 to 05:00 had the most slow readings of the night's last three with the count already falling,
+  which speaks for the cleanup and against the count;
+  it does not separate them.
+- **What would separate them**:
+  sixteen agents going with no cleanup running,
+  which the day gives once the places are full again;
+  and the next cleanup,
+  which the system starts by its timer.
+  The probe records until 10:48 and is started again then.
+  (It was stopped at 08:54:33 instead,
+  when the level went to twenty-four and a probe that ends on slow readings took its place.)
+
+#### Level 24, started 2026-11-14T08:54:35-05:00
+
+Not final and not approved;
+measured by the coordinating session.
+
+- **To 09:22:48**:
+  twenty-nine readings,
+  the agents going rising from five to seventeen as the places filled.
+  One slow reading of the home drive:
+  7,754 ms at 08:55:36,
+  with eight agents going,
+  the kernel's `some` I/O pressure at 22 percent over ten seconds,
+  and neither `snapper-cleanup.service` nor `snapper-timeline.service` running.
+  The build volume took 2,958 ms once,
+  at 09:03:44.
+  Never two slow readings in a row,
+  so the level stands.
+- **A reading above the level: twenty-eight agents from 09:43 to 09:45**
+  (the probe's last four readings to 09:45:58,
+  and `systemctl` at 09:44:26 and 09:45:50),
+  four over twenty-four,
+  because the loop that fills the places does not count a review it has asked for until its launcher starts it.
+  From 09:23:48 to 09:45:58:
+  twenty-three readings,
+  none slow,
+  the home drive 204 ms at most.
+  Nothing was stopped.
+- **What that reading says about the lead**:
+  a stall of the same kind,
+  shorter,
+  with no snapshot cleanup running and fewer agents than any level that failed.
+  So the cleanup is not the only thing that stalls this drive.
+  In the minutes before it this session installed a wrapper release and made several commits in the main checkout;
+  nothing was measured that ties the reading to either.
+
+#### Level 24 fails forty minutes into the nightly snapshot cleanup, 2026-11-14T16:54:54-05:00 to 2026-11-15T00:31:09-05:00
+
+Not final and not approved:
+readings of the probe's second eight hours at twenty-four,
+taken by the coordinating session from `keep/probe-readings.jsonl`
+of `~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/`.
+
+- **Level twenty-four fails at 00:31:09**:
+  the home drive's write-and-sync took 14,892 ms at 00:29:54 and 7,722 ms at 00:31:09,
+  with 23 agents going at both,
+  load average 25 over one minute,
+  the kernel's `some` I/O pressure 5 percent over a minute.
+  The reading before the pair,
+  at 00:27:39,
+  took 1,563 ms.
+  `snapper-cleanup.service` had been running since 00:00:11
+  (`systemctl show`,
+  read at 00:31)
+  and had last ended at 05:15:35 the morning before.
+- **The seven and a half hours before it held, with single long stalls**:
+  450 readings at this level from 16:54:54,
+  47 of them a second or more on either drive,
+  eight of those after the cleanup began.
+  The three slowest were all on the home drive and all before the cleanup:
+  24,101 ms at 17:42:07 with 22 agents,
+  16,289 ms at 22:37:11 with 23,
+  15,519 ms at 19:33:43 with 24.
+  None was followed by a second slow reading,
+  so none ended the level.
+- **What this does and does not show**:
+  the one failing pair of this level's sixteen hours came with the cleanup running,
+  as the failing pairs of the night before did;
+  single stalls of fifteen to twenty-four seconds came without it.
+  One night's pair does not separate the cleanup from the count:
+  the probe counted 18 to 24 agents across the 450 readings
+  (24 at 126 of them,
+  23 at 89,
+  22 at 55,
+  21 at 74,
+  20 at 57,
+  19 at 37,
+  18 at ten;
+  at two the count timed out),
+  and 23 at the failing pair.
+- **What was done**:
+  the filling unit was stopped between two of its rounds and started at level twenty at 00:32:16,
+  the probe with it.
+  22 agents were going at 00:32:29;
+  none was stopped.
+  The owner's rule of 2026-11-14 covers this step
+  ("Resume at 24",
+  with the probe ending the level on two slow readings in a row);
+  whether the cap returns to twenty-four once the cleanup has ended is the owner's to say
+  and is kept in `doc/handover/cli-git-rust-implementation.md`,
+  "Questions kept for the owner's return".
+
+#### Level 20 fails twelve minutes after it began, the cleanup still running, 2026-11-15T00:32:17-05:00 to 00:50:55-05:00
+
+Not final and not approved:
+the twelve readings of level twenty,
+taken by the coordinating session from the same file.
+
+- **Level twenty fails at 00:44:03**:
+  the home drive took 2,198 ms at 00:41:54,
+  6,277 ms at 00:42:57
+  and 21,599 ms at 00:44:03,
+  with 20 agents going at all three.
+  Earlier in the same twelve minutes it took 8,480 ms at 00:33:17 and 21,214 ms at 00:35:25,
+  with 22 going,
+  each followed by a reading of one millisecond.
+  The build drive took 6 to 13 ms throughout.
+  `snapper-cleanup.service` was still running at 00:44:34.
+- **The stalls came with low I/O pressure, not high**:
+  the kernel's `some` pressure over ten seconds read 0.27 to 0.45 percent at the three last readings
+  and 2 to 3 percent at the two earlier slow ones,
+  against 5 to 12 percent at the fast readings between.
+  An earlier wording here read that as little waiting on the drive during a stall.
+  **That reading is withdrawn**
+  (2026-11-15T01:02:00-05:00):
+  the probe samples `/proc/pressure/io` before it writes
+  (`probe-write-and-sync-on-both-drives-every-minute.ts`,
+  the reading is built before the loop over the drives),
+  so the figure describes the ten seconds before a stall and says nothing of the stall;
+  and the 59,474 ms reading of 00:57:33 began at 25 percent,
+  the highest of the night.
+- **What was done**:
+  the probe was started at level eighteen at 00:44:53.
+  The filling unit was restarted at eighteen at 00:50:55,
+  six minutes later than the probe:
+  the restart script looks for the moment between two of the unit's rounds by the age of its last journal line,
+  and a unit with no free place to fill writes none,
+  so its first try gave up after six minutes with nothing stopped.
+  The script now reads the unit's control group when the journal is silent
+  (one process there is the unit asleep).
+  In those six minutes the unit at level twenty started nothing,
+  since twenty were going.
+  20 agents were going at 00:45:45;
+  none was stopped.
+
+#### Level 18 fails on stalls of 109 and 59 seconds, 2026-11-15T00:44:53-05:00 to 01:00:46-05:00
+
+Not final and not approved:
+the eleven readings of level eighteen and what was read beside them,
+by the coordinating session.
+
+- **Level eighteen fails at 00:57:33**:
+  the home drive's write-and-sync begun at 00:54:43 took 109,241 ms,
+  and the next,
+  begun at 00:57:33,
+  took 59,474 ms.
+  20 and 19 agents were going.
+  Before them at this level:
+  3,367 ms at 00:46:53 and nine readings of 2 to 369 ms.
+  The build drive took 6 to 151 ms throughout.
+- **The level was never at eighteen**:
+  19 or 20 agents were going at every one of its readings,
+  as 20 to 22 were at level twenty's.
+  So tonight's three failures are readings at 19 to 23 agents during the cleanup,
+  and say nothing of whether 18,
+  20 or 24 agents can be carried.
+- **Two commits waited on the commit service across those readings**:
+  in the main checkout,
+  under `0.6.1-alpha.37`,
+  `fd002ed513` (landed 00:54:32) and `5a7c6c0d03` (landed 00:57:12) each printed that the service had not answered in ten seconds,
+  then landed.
+  `origin` held `5a7c6c0d03` at 01:00:59.
+  The repository is on the build drive,
+  which answered in 10 ms and 78 ms at those readings.
+- **What the snapshot cleanup logged**
+  (`journalctl --unit=snapper-cleanup.service`,
+  read at 01:01):
+  started 00:00:11;
+  "Running number cleanup for 'root'" at 00:00:15;
+  at 00:23:27 the deletion of twenty snapshots of root in one second
+  (numbers up to 43)
+  and "Running timeline cleanup for 'root'";
+  no line since,
+  the unit still active at 01:01.
+  The first reading over a second after that came at 00:27:39,
+  four minutes later,
+  and the first failing pair at 00:29:54.
+  The night before,
+  by this record,
+  a batch was deleted at 00:14:49 and the first level failed at 01:10:30.
+- **Quota groups are on for the home filesystem and off for the build one**:
+  `/sys/fs/btrfs/1bb3d23e-ec16-473a-b932-0deb3c450b94/qgroups` exists and holds 39 entries
+  (the filesystem of `/var/home`,
+  `/dev/dm-1`);
+  `/sys/fs/btrfs/01c308e7-06fa-4737-8a7b-3bb5fcba871d/qgroups` does not exist
+  (`/dev/mapper/crypt_sda`,
+  the repository's).
+- **The kernel logged no drive or filesystem error**:
+  `journalctl --dmesg` since 00:00 holds 31 lines,
+  none naming `nvme`,
+  `ata`,
+  `btrfs`,
+  an I/O error,
+  a reset or a blocked task
+  (the six newest are SELinux mount notices).
+- **What this is and is not**:
+  evidence for the owner's question about the cap,
+  each line read once tonight.
+  The stalls follow a batch deletion of snapshots on a filesystem that keeps quota groups,
+  on two nights;
+  no measurement here separates that from the count of agents or from the drive itself,
+  and single stalls of fifteen to twenty-four seconds came the evening before with no cleanup running.
+- **What was done**:
+  the filling unit was restarted at seventeen at 01:00:44 and the probe at 01:00:46.
+  19 agents were going;
+  none was stopped.
+
+#### The stalls end with the snapshot cleanup, again: level 17 from 2026-11-15T01:00:46-05:00 to 02:23:05-05:00
+
+Not final and not approved:
+the readings of level seventeen so far,
+taken by the coordinating session from the same file.
+
+- **`snapper-cleanup.service` ended at 01:45:02**
+  (`systemctl show`;
+  its last journal lines are "Running empty-pre-post cleanup for 'root'" and "Running 'btrfs qgroup clear-stale /var/home/.snapshots'").
+  It had run since 00:00:11,
+  an hour and three quarters.
+- **Until it ended**:
+  43 readings at this level from 01:00:46,
+  ten of them a second or more on either drive,
+  none twice in a row on one drive over five seconds,
+  so the level stood.
+  The home drive:
+  29,005 ms at 01:02:46,
+  8,211 ms at 01:28:21,
+  5,232 ms at 01:38:51,
+  2,917 ms at 01:36:45.
+  The build drive took 1.5 to 7.1 s at seven readings between 01:24 and 01:44,
+  the minutes in which the wrapper's whole suites and a container gate ran there.
+  16 to 19 agents were going.
+- **After it ended**:
+  39 readings from 01:45:04 to 02:23:05,
+  none a second or more,
+  the slowest 116 ms.
+  12 to 17 agents were going,
+  a container gate ran from 02:00 to 02:17,
+  and the machine's daily toolchain update ran throughout.
+- **What this does and does not show**:
+  on two nights running the long stalls of the home drive stopped within minutes of the cleanup's end
+  (this section,
+  and "The stalls end within seven minutes of the snapshot cleanup's end" for the night before).
+  The count of agents fell in the same window tonight,
+  from 17 to 12,
+  because this session's queue stood still from 02:12 to 02:21,
+  so tonight's after-window is not the same load as its before-window;
+  the first 27 minutes after the cleanup's end,
+  28 readings at 15 to 17 agents before the queue stood still,
+  had no slow reading either
+  (the slowest 116 ms).
+  The single stalls of the evening before,
+  with no cleanup running,
+  are not explained by any of this.

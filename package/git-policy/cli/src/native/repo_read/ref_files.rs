@@ -89,7 +89,7 @@ pub struct RefFilesLayout<'a> {
 /// ```ts
 /// ({ sha1: 40, sha256: 64 } as const)[objectFormat]
 /// ```
-fn hex_length(object_format: &str) -> Option<usize> {
+pub(crate) fn hex_length(object_format: &str) -> Option<usize> {
     return match object_format {
         "sha1" => Some(40),
         "sha256" => Some(64),

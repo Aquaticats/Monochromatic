@@ -363,7 +363,50 @@ impl Refs {
         for (name, object) in self.packed()? {
             found.insert(name, RefValue::Direct(object));
         }
-        let mut pending: Vec<String> = vec![String::from("refs")];
+        self.walk("refs", &mut found)?;
+        return Some(found.into_iter().collect());
+    }
+
+    /// What:
+    ///  Every ref stored loose under one namespace of this directory's `refs` tree,
+    /// sorted by name;
+    ///  `None` when a name is one Git refuses or one this reader keeps declining on.
+    /// Why:
+    ///  Git keeps three namespaces in a linked worktree's own Git directory rather than in the shared one
+    ///  (`refs/bisect`,
+    /// `refs/worktree` and `refs/rewritten`,
+    /// `refs.c` `parse_worktree_ref`),
+    ///  and a listing that has to be what Git prints from that worktree must include them.
+    ///  They are never packed:
+    ///  `git pack-refs` leaves them out,
+    /// so no `packed-refs` is read here.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// looseNamespace('refs/bisect'): [name, value][] | undefined;
+    /// ```
+    pub fn loose_namespace(&self, namespace: &str) -> Option<Vec<(String, RefValue)>> {
+        if !namespace.starts_with("refs/") {
+            return None;
+        }
+        let mut found: std::collections::BTreeMap<String, RefValue> = std::collections::BTreeMap::new();
+        self.walk(namespace, &mut found)?;
+        return Some(found.into_iter().collect());
+    }
+
+    /// What:
+    ///  Adds every loose ref under `start` to `found`,
+    ///  descending into directories,
+    ///  or `None` when something under it is not a layout this reader can prove.
+    /// Why:
+    ///   The walk of a whole repository and the walk of one of its namespaces are the same walk.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// walk(start, found): boolean;
+    /// ```
+    fn walk(&self, start: &str, found: &mut std::collections::BTreeMap<String, RefValue>) -> Option<()> {
+        let mut pending: Vec<String> = vec![start.to_string()];
         while let Some(directory) = pending.pop() {
             let listing = match std::fs::read_dir(self.directory.join(&directory)) {
                 Ok(listing) => listing,
@@ -376,19 +419,25 @@ impl Refs {
                 let kind = entry.file_type().ok()?;
                 if kind.is_dir() {
                     pending.push(name);
-                } else if kind.is_file() && !name.ends_with(".lock") {
-                    match self.lookup(name.as_str()) {
-                        Lookup::Found(value) => {
-                            found.insert(name, value);
-                        }
-                        Lookup::Missing | Lookup::Unsure => return None,
-                    }
-                } else {
+                    continue;
+                }
+                // A lock beside a ref is no ref at all: Git refuses `.lock` as the end of a name, so the file the
+                //  writer holds says nothing about the listing and is passed over rather than declining the whole read.
+                if kind.is_file() && name.ends_with(".lock") {
+                    continue;
+                }
+                if !kind.is_file() {
                     return None;
+                }
+                match self.lookup(name.as_str()) {
+                    Lookup::Found(value) => {
+                        found.insert(name, value);
+                    }
+                    Lookup::Missing | Lookup::Unsure => return None,
                 }
             }
         }
-        return Some(found.into_iter().collect());
+        return Some(());
     }
 }
 

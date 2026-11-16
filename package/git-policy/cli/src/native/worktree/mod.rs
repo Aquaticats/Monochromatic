@@ -107,6 +107,18 @@ pub mod worktree_removal_holds_the_worktree;
 /// and the plan of the `git worktree remove` it serves.
 #[cfg(target_os = "linux")]
 pub mod worktree_remove;
+
+/// How one attempt to remove a worktree ended,
+/// and what each ending needs of the caller.
+pub mod worktree_remove_outcome;
+
+/// The four lines a removal that destroyed a subvolume prints,
+/// and the one place that chooses between them.
+pub mod worktree_remove_notices;
+
+/// The half of a removal that goes around a volume it did not make:
+/// the record a killed pass leaves, the continuation that record proves, and the pass.
+pub mod worktree_remove_around;
 pub mod worktree_remove_hand_over;
 
 pub mod worktree_remove_registry;
@@ -142,6 +154,16 @@ pub mod worktree_removal_finishes_an_interrupted_destroy;
 /// moved out of a tree that is being removed with one rename and a record.
 pub mod worktree_removal_leaves_a_subvolume_for_the_service;
 
+/// The record of one subvolume a removal renamed aside,
+/// written before the rename and settled by nothing,
+/// and the queueing of its delete that outlives the queue record's own state.
+pub mod worktree_removal_leaving_that_outlives_its_record;
+
+/// The look every command makes at those records:
+/// the delete of a leaving no queue record owes is queued again,
+/// and a place this program may not act on is named for the person.
+pub mod worktree_removal_leavings_a_command_queues_again;
+
 /// The stop of a removed worktree's commit service units,
 /// named from the registration before the removal and stopped after it.
 pub mod worktree_removal_stops_units;
@@ -154,9 +176,17 @@ pub mod worktree_removal_clears_the_pool;
 /// taken out of a worktree's administrative directory before that worktree is removed.
 pub mod worktree_removal_clears_the_ahead_pool;
 
-/// The refusal of a removal for a worktree that holds a subvolume or a mount point of its own,
-/// which the kernel can never destroy in one step.
-pub mod worktree_removal_refuses_a_nested_volume;
+/// The removal that goes around a subvolume or a mount point it did not make,
+/// and the words it says about what it left.
+pub mod worktree_removal_goes_around_a_foreign_volume;
+
+/// The record a removal writes before its pass empties a worktree around a volume,
+/// so a command killed in that pass leaves a state the same command finishes.
+pub mod worktree_removal_around_begun;
+
+/// Whether everything Git reports about a worktree is an entry missing from it,
+/// which is the state a removal that was killed in the middle leaves.
+pub mod worktree_removal_only_deletions;
 
 /// The subvolumes this program left inside a worktree for its commit service to delete,
 /// moved out of that tree before its removal hands anything to the kernel or to Git.

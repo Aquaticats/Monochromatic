@@ -38,7 +38,7 @@ use std::path::{Path, PathBuf};
 /// The inode number btrfs gives the empty directory that stands for a nested subvolume in a snapshot (`BTRFS_EMPTY_SUBVOL_DIR_OBJECTID`):
 ///  it reports a device of its own,
 /// yet holds nothing and belongs to the snapshot being removed.
-const EMPTY_SUBVOLUME_PLACEHOLDER_INODE: u64 = 2;
+pub(crate) const EMPTY_SUBVOLUME_PLACEHOLDER_INODE: u64 = 2;
 
 /// What:
 ///  One boundary below a directory that a removal may not cross,
@@ -63,10 +63,10 @@ pub struct Boundary {
 }
 
 /// The words for a directory that holds another subvolume or another filesystem.
-const ANOTHER_FILESYSTEM: &str = "a nested subvolume or another filesystem";
+pub(crate) const ANOTHER_FILESYSTEM: &str = "a nested subvolume or another filesystem";
 
 /// The words for an entry this device cannot be crossed into.
-const A_MOUNT_POINT: &str = "a mount point";
+pub(crate) const A_MOUNT_POINT: &str = "a mount point";
 
 /// Which of the two passes is running.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -100,7 +100,7 @@ struct Frame {
 /// The entries of an open directory,
 /// each with whether it is a directory;
 /// only the directories when `directories_only`.
-fn list(directory: &File, directories_only: bool) -> std::io::Result<Vec<(OsString, bool)>> {
+pub(crate) fn list(directory: &File, directories_only: bool) -> std::io::Result<Vec<(OsString, bool)>> {
     let mut entries: Vec<(OsString, bool)> = Vec::new();
     for found in std::fs::read_dir(handle_path(directory))? {
         let item: std::fs::DirEntry = found?;
@@ -281,7 +281,7 @@ pub(crate) fn refused_because_not_empty(directory: &File, listed: &Path, top: &P
 /// ```ts
 /// const refusal = whatIsThereNow(dir, listed, top); // the entries that appeared, or the name that no longer leads to it
 /// ```
-fn what_is_there_now(directory: &File, listed: &Path, top: &Path) -> std::io::Error {
+pub(crate) fn what_is_there_now(directory: &File, listed: &Path, top: &Path) -> std::io::Error {
     let mut appeared: Vec<String> = Vec::new();
     match std::fs::read_dir(handle_path(directory)) {
         Ok(listing) => {

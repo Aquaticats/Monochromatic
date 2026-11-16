@@ -1,0 +1,33 @@
+# The earlier Node-and-Bun timing image plus one more built arm, upstream main just before pull request 1121 was
+# merged, and the published 1.3.6 laid out the same way as the built arms. Mount-free, no network at run time.
+#
+#   podman build --tag localhost/optique-pull-request-1121-on-node-and-bun:2026-11-13 --file Containerfile .
+
+FROM localhost/optique-two-remaining-copies-recheck-node-and-bun:2026-11-13
+
+COPY arm-packages/main-before-1121 /arm-packages/main-before-1121
+COPY image-context-run-timing-inside.ts /run-timing-inside.ts
+
+# Every arm gets the same layout: a folder with the script and a node_modules that resolves @optique/core.
+# main-again links the very package main links, for the same-code control.
+RUN set -eux; \
+    rm --recursive --force /timing-1121; \
+    link_arm() { \
+      arm="$1"; package="$2"; \
+      mkdir --parents "/timing-1121/$arm/node_modules/@optique"; \
+      ln --symbolic "$package" "/timing-1121/$arm/node_modules/@optique/core"; \
+      cp /repo/commit-paths.ts "/timing-1121/$arm/"; \
+    }; \
+    link_arm npm-1.3.6 /arm/1.3.6/node_modules/@optique/core; \
+    link_arm main-before-1121 /arm-packages/main-before-1121; \
+    link_arm main /arm-packages/main; \
+    link_arm main-again /arm-packages/main; \
+    link_arm base /arm-packages/base; \
+    ls /arm/1.3.6/node_modules/@optique/core/package.json; \
+    for arm in npm-1.3.6 main-before-1121 main main-again base; do \
+      cd "/timing-1121/$arm"; \
+      node commit-paths.ts --paths 10 --runs 1 --warmup 0 --separator; \
+      bun commit-paths.ts --paths 10 --runs 1 --warmup 0 --separator; \
+    done
+
+ENTRYPOINT ["node", "/run-timing-inside.ts"]

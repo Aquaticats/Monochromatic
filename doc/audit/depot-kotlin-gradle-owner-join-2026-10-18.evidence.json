@@ -23,7 +23,19 @@
   },
   "evidence": {
     "path": "doc/audit/depot-reuse-strategy-2026-10-18.evidence.json",
-    "sha256": "953c19261abc6502610dd3bb5388eb2bc9282e5e6b095d0028e926fd3c3a7d85"
+    "sha256": "953c19261abc6502610dd3bb5388eb2bc9282e5e6b095d0028e926fd3c3a7d85",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 2144758,
+        "sha256": "33161a116b042c1559f3df1a46fb766e6fcbab72415fa04fc69ee553d9bb0d25",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "rows": [
     {

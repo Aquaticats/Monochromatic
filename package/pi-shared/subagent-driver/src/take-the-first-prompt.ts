@@ -18,10 +18,12 @@ import type {
 import { millisecondsLeftUntil, } from './deadline.ts';
 import { endReasonOfPromptWait, } from './end-reasons.ts';
 import { preview, } from './previews-of-pi-messages.ts';
+import { maskingIsArmedIn, } from './secret-values-handed-to-pi.ts';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
 import {
   fieldsOf,
   recordsIn,
+  textOf,
 } from './read-pi-fields.ts';
 import type { WatchRequest, } from './watch-request.ts';
 import { watchUntilEnded, } from './watch-pi-run.ts';
@@ -68,12 +70,22 @@ function answeredDataOf(answer: CommandAnswer,): PiRecord {
  @param connection - running Pi
 
  @param record - run's record
+
+ @returns the command list Pi answered with, of any shape, which is what says whether the masking extension is loaded
  */
 async function noteStartingState({
   connection,
   record,
   deadline,
-}: WatchRequest,): Promise<void> {
+}: WatchRequest,): Promise<{
+  readonly commands: unknown;
+  readonly answer: CommandAnswer;
+
+  /**
+   The session file Pi named in its own state, when it named one, which is where Pi keeps what this run writes.
+   */
+  readonly sessionFile?: string;
+}> {
   /**
    Pi's state, waited for only as long as the run has left.
    */
@@ -82,20 +94,30 @@ async function noteStartingState({
     answerMilliseconds: START_UP_ANSWER_MILLISECONDS,
     deadline,
   },),);
+  /**
+   The session file Pi says it is keeping, which is what the run masks once it is over.
+   */
+  const sessionFile = textOf(state.sessionFile,);
   record.note({
     kind: 'state',
     model: fieldsOf(state.model,)
       .id,
     thinkingLevel: state.thinkingLevel,
+    ...((sessionFile === '') ? {} : { sessionFile, }),
+  },);
+  /**
+   How waiting for Pi's commands ended: a command list that came back is what says whether the masking of secret values is in
+   place, and a wait that gave nothing is a start whose ending the run's own bounds name.
+   */
+  const answer = await connection.send({
+    command: { type: 'get_commands', },
+    answerMilliseconds: START_UP_ANSWER_MILLISECONDS,
+    deadline,
   },);
   /**
    Pi's commands.
    */
-  const { commands, } = answeredDataOf(await connection.send({
-    command: { type: 'get_commands', },
-    answerMilliseconds: START_UP_ANSWER_MILLISECONDS,
-    deadline,
-  },),);
+  const { commands, } = answeredDataOf(answer,);
   record.note({
     kind: 'commands',
     names: recordsIn(commands,)
@@ -103,6 +125,45 @@ async function noteStartingState({
         return command.name;
       },),
   },);
+  return {
+    commands,
+    answer,
+    ...((sessionFile === '') ? {} : { sessionFile, }),
+  };
+}
+
+/**
+ Notes that the masking could not be confirmed, which is a run that sends no prompt.
+
+ @param watch - what the run needs
+
+ @param handedOver - how many values the driver handed Pi
+
+ @param commands - the command list Pi answered with, of any shape, which is empty when it answered none
+
+ @param answered - whether Pi answered its command list at all
+ */
+function noteMaskingNotArmed({
+  watch,
+  handedOver,
+  commands,
+  answered,
+}: {
+  readonly watch: WatchRequest;
+  readonly handedOver: number;
+  readonly commands: unknown;
+  readonly answered: boolean;
+},): void {
+  watch.record
+    .note({
+      kind: 'masking_not_armed',
+      handedOver,
+      answered,
+      commands: recordsIn(commands,)
+        .map(function nameOf(command,) {
+          return command.name;
+        },),
+    },);
 }
 
 /**
@@ -157,6 +218,8 @@ async function sendFirstPrompt({
     record.countHandledPrompt();
   }
   if ((answer.ending === 'answered') && (!answeredRefusal(answer,))) {
+    // Pi took the prompt, which is where work may begin: a Pi that leaves after this is never started again.
+    record.countPromptTaken();
     return { endReason: 'still-running', };
   }
   return {
@@ -222,6 +285,11 @@ function notePromptAnswer({
  */
 export type Ending = {
   readonly endReason: EndReason;
+
+  /**
+   The session file Pi named, when the run got as far as asking it, which is what the run masks once it is over.
+   */
+  readonly sessionFile?: string;
 };
 
 /**
@@ -241,15 +309,66 @@ export async function endReasonOfRun(watch: WatchRequest,): Promise<Ending> {
     if (millisecondsLeftUntil(watch.deadline,) === 0) {
       return { endReason: 'wall-clock', };
     }
-    await noteStartingState(watch,);
+    /**
+     Pi's own state and command list, and whether the masking of secret values is in place before any work begins.
+     */
+    const starting = await noteStartingState(watch,);
+    /**
+     The session file Pi named, which is what the run masks once it is over.
+     */
+    const namedSession = starting.sessionFile;
+    /**
+     How many values the driver handed Pi, when this run handed any.
+     */
+    const handedOver = watch.secretValuesHandedOver;
+    if ((handedOver !== undefined) && (starting.answer
+      .ending
+      !== 'answered')) {
+      // No prompt without the answer that says the masking is in place. The run ends for the reason that kept the answer from
+      // coming, which is what a reader has to fix.
+      noteMaskingNotArmed({
+        watch,
+        handedOver,
+        commands: starting.commands,
+        answered: false,
+      },);
+      return {
+        endReason: endReasonOfPromptWait({
+          answer: starting.answer,
+          passedDeadline: millisecondsLeftUntil(watch.deadline,) === 0,
+        },),
+        ...(namedSession === undefined ? {} : { sessionFile: namedSession, }),
+      };
+    }
+    if ((handedOver !== undefined) && (!maskingIsArmedIn({
+      commands: starting.commands,
+      count: handedOver,
+    },))) {
+      noteMaskingNotArmed({
+        watch,
+        handedOver,
+        commands: starting.commands,
+        answered: true,
+      },);
+      return {
+        endReason: 'masking-not-armed',
+        ...(namedSession === undefined ? {} : { sessionFile: namedSession, }),
+      };
+    }
     /**
      Where the run stands once the prompt is sent, which may already be its end.
      */
     const { endReason, } = await sendFirstPrompt(watch,);
     if (endReason !== 'still-running') {
-      return { endReason, };
+      return {
+        endReason,
+        ...(namedSession === undefined ? {} : { sessionFile: namedSession, }),
+      };
     }
-    return { endReason: await watchUntilEnded(watch,), };
+    return {
+      endReason: await watchUntilEnded(watch,),
+      ...(namedSession === undefined ? {} : { sessionFile: namedSession, }),
+    };
   }
   catch (error) {
     watch.record

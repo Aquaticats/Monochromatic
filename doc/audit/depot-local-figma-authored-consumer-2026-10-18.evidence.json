@@ -168,7 +168,19 @@
     "gzipSha256": "e2eb57e29c36e4785c360132f5659260ef74d7a39d41327909852be507ed1b7c",
     "uncompressedBytes": 3176,
     "uncompressedSha256": "74afe0290704ea679daac2b69cc9e1b36514da6c5ac2f7289ed15f1afebe825b",
-    "bodies": 4
+    "bodies": 4,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 5a52544d1e65e8f29de9ce315e0698965b532c26:doc/audit/depot-local-figma-authored-consumer-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "cleanup": [
     {

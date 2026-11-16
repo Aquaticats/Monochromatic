@@ -59,6 +59,29 @@ function configWith({ table, interfaceName = 'wgtest', }: { readonly table?: str
 const MANUAL_STEPS: readonly string[] = ['to look at what could not be read:', '  sudo cat /run/wg-quicker/state.json',];
 
 /**
+ Reads what a call throws.
+
+ @param call - Call expected to throw.
+
+ @returns The thrown value,
+ or nothing when it did not throw.
+
+ @example
+ ```ts
+ await thrownBy({ call: () => Promise.reject(new Error('x')) });
+ ```
+ */
+async function thrownBy({ call, }: { readonly call: () => unknown; },): Promise<unknown> {
+  try {
+    await call();
+    return undefined;
+  }
+  catch (error) {
+    return error;
+  }
+}
+
+/**
  Runs the sequence with recording steps,
  where the named steps fail.
 
@@ -146,10 +169,12 @@ async function run(
    What the sequence threw,
    absent when it did not.
    */
-  const thrown = await teardownKeepingTunnelOnFailure({ config: configWith(table === undefined ? {} : { table, },), steps, },).then(
-    (): undefined => undefined,
-    (error: unknown) => error,
-  );
+  const thrown = await thrownBy({
+    call: () => teardownKeepingTunnelOnFailure({
+      config: configWith(table === undefined ? {} : { table, },),
+      steps,
+    },),
+  },);
   return { events, thrown, };
 }
 
@@ -419,11 +444,10 @@ await describe({
         /**
          What the delete of the loopback led to.
          */
-        const refusal = await deleteLinkVerified({ config: configWith({ interfaceName: 'lo', },), },).then(
-          (): string => 'resolved',
-          String,
-        );
-        expect(refusal,).toContain('the interface lo still exists after `ip link delete`',);
+        const refusal = await thrownBy({
+          call: () => deleteLinkVerified({ config: configWith({ interfaceName: 'lo', },), },),
+        },);
+        expect(String(refusal,),).toContain('the interface lo still exists after `ip link delete`',);
       },
     },),
   ],

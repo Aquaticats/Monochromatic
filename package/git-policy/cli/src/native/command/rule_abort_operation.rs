@@ -54,26 +54,85 @@ pub fn operation_name(operation: AbortOperation) -> &'static str {
 }
 
 /// What:
+///  What a guarded form does to the operation whose state it finds waiting.
+/// Why:
+///   `--abort` ends the operation and restores the state before it,
+///  while `--skip` drops the commit or patch the operation stopped at and goes on with the next one;
+///  both discard the hand resolution of that conflict,
+///  and a notice or refusal that named the wrong one would tell the person the wrong thing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type OperationEnd = 'abort' | 'skip';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OperationEnd {
+    /// `--abort`: the operation goes,
+    ///  and the state before it comes back.
+    Abort,
+    /// `--skip`: the operation goes on with the next commit or patch,
+    ///  and what its reset discards is copied first.
+    Skip,
+}
+
+/// What:
+///  The operation a guarded form ends and what it does to it,
+///  or nothing for every form that ends none.
+/// Why:
+///   Only the abort forms and the skip forms carry an operation,
+///  and the command word tells the two apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function endedOperation(command: GuardedCommand): [AbortOperation, OperationEnd] | undefined;
+/// ```
+pub fn ended_operation(command: GuardedCommand) -> Option<(AbortOperation, OperationEnd)> {
+    return match command {
+        GuardedCommand::AbortMerge => Some((AbortOperation::Merge, OperationEnd::Abort)),
+        GuardedCommand::AbortRebase => Some((AbortOperation::Rebase, OperationEnd::Abort)),
+        GuardedCommand::AbortPick => Some((AbortOperation::Pick, OperationEnd::Abort)),
+        GuardedCommand::AbortAm => Some((AbortOperation::Am, OperationEnd::Abort)),
+        GuardedCommand::SkipRebase => Some((AbortOperation::Rebase, OperationEnd::Skip)),
+        GuardedCommand::SkipPick => Some((AbortOperation::Pick, OperationEnd::Skip)),
+        GuardedCommand::SkipAm => Some((AbortOperation::Am, OperationEnd::Skip)),
+        // Every other guarded form deletes or overwrites by itself; none of them ends an operation.
+        _ => None,
+    };
+}
+
+/// What:
 ///  The operation a guarded form aborts,
 ///  or nothing for every form that aborts none.
 /// Why:
-///   The guard decides on the form,
-///  and only the five abort forms carry an operation.
+///   The reading of a skip is the reading of the abort of the same operation,
+///  and only the wording of the notice and the command it names differ.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function abortedOperation(command: GuardedCommand): AbortOperation | undefined;
 /// ```
 pub fn aborted_operation(command: GuardedCommand) -> Option<AbortOperation> {
-    return match command {
-        GuardedCommand::AbortMerge => Some(AbortOperation::Merge),
-        GuardedCommand::AbortRebase => Some(AbortOperation::Rebase),
-        GuardedCommand::AbortPick => Some(AbortOperation::Pick),
-        GuardedCommand::AbortAm => Some(AbortOperation::Am),
-        // Every other guarded form deletes or overwrites by itself; none of them undoes an operation.
+    return match ended_operation(command) {
+        Some((operation, OperationEnd::Abort)) => Some(operation),
         _ => None,
     };
 }
+
+/// What:
+///  The commit whose tree a `--skip` writes back over the worktree.
+/// Why:
+///   A skip throws away the partial state of the conflict and goes on from the commit the operation stopped at,
+///  so the tree it writes is `HEAD`'s.
+///  Measured with Git 2.56.0:
+///  an ignored file at a path `HEAD` tracks is replaced by the tree's content,
+///  and one at a path only the operation's original head tracks survives the skip,
+///  which is why `HEAD` is the record to ask about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SKIP_RESTORES = 'HEAD';
+/// ```
+pub const SKIP_RESTORES: &str = "HEAD";
 
 /// What:
 ///  Which of the state files and directories an operation keeps while it waits.

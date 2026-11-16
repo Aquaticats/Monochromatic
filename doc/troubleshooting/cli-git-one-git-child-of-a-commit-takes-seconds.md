@@ -140,3 +140,76 @@ Nothing to file against Git: a Git process that takes seconds while its siblings
 the host starving that process, not a Git behaviour, and no reproduction exists without the host.
 The part of this that was the wrapper's own was the record's stretch hiding its child, and that is
 fixed here (`fix(git-policy-cli): a build stretch says how much of it a Git child took`).
+
+## 2026-11-12, later: the seconds are the wrapper's own file work, not one child
+
+The child named above is real, and it was not the whole of the problem. Two
+readings of the same day moved the centre:
+
+- A read-only diagnosis of the six slowest commits of `0.6.1-alpha.15`
+  (56 to 199 seconds, 12:35 to 13:23 local,
+  `/var/home/user/temp/agent/diagnose-slow-commit-answers-2026-11-12T1330/report.md`)
+  found no queue (`queued_behind=0` in all six) and almost no child `git` time.
+  The seconds sat in the wrapper's own file work with no child running:
+  in the service `index_update_ms` of 95 and 82 seconds and `ref_ms` of 22.8
+  seconds between two `update-ref` calls of 4 and 9 ms, and in the client
+  `shadow refs` 35 seconds, `index copy` 15.7 seconds, `scratch` 21 seconds,
+  `index` 30 seconds, `unmergedFiles` 12.6 seconds.
+  `index_update_ms` is the write of the landed index (`service_index_wait.rs`
+  already recorded 13 landings of 715 holding it 58 to 120 seconds on
+  2026-11-03), and it is work the commit needs.
+- The same day's audit of `0.6.1-alpha.14` held a landing 7.35 seconds longer
+  than real Git took by giving the service a full FIFO as its standard error
+  (`pi-runs/kimi-audit-alpha-14-commit-path-1`).
+
+### Where the files of the commit path live
+
+- The transaction's scratch, shadow, index copies and the timing record are under
+  the repository's common Git directory, on the repository's disk.
+- The service's journal is `$XDG_STATE_HOME/monochromatic-git-policy-cli/service/<instance>`
+  (`service_journal_folder_of_an_instance.rs`), by default under the home
+  directory, and the unit's own log is the journald journal: both on the disk
+  that holds `/var/home`.
+  While the commits of 2026-11-12 were slow, that disk was the busy one
+  (`dm-0`, 51% util, 33.5 ms average write) and the repository's was nearly idle
+  when sampled later.
+- The service's standard error is the journal when it runs as a unit, so a write
+  to it is a wait of unknowable length on the home disk.
+
+### What became of it
+
+- The service's log lines on any stream that is not the journal's own are handed
+  to a queue of bounded length drained by a thread of its own
+  (`service_log_lines_off_the_calling_thread.rs`), so a full stream, a stalled
+  journal or a reader that never reads cannot hold a landing. A dropped line is
+  counted and the next one that gets through says how many were.
+- The shadow's ref snapshot no longer starts `git for-each-ref` at all
+  (`shadow_refs.rs`), for the reasons below.
+
+### The ref snapshot, measured
+
+The child's own work was never the seconds:
+
+- `strace --follow-forks --relative-timestamps --syscall-times` over one
+  `git for-each-ref --format=%(refname)%00%(objectname)%00%(symref)` in a clone
+  of this repository: 220 system calls, 1.18 ms of syscall time in all of them,
+  0.29 ms of it `execve`.
+- Twenty runs of the same command in this repository (1,982 packed and 40 loose
+  refs, 199,212 bytes of answer) at load average 94: 4 to 5 ms, median 4.0 ms.
+- The same command with its output taken by a reader that reads 1,024 bytes every
+  25 ms: 3.34, 3.33 and 3.39 seconds, because the child waits at its every write
+  for the reader. With an eager reader: 0 to 30 ms.
+
+So a `for-each-ref` of this repository cannot spend 26 seconds in its own work;
+it can spend them only waiting for a reader or for the disk, and the record's
+own quiet ledger settles which: its longest gap in the 13.9 second child was
+853 ms, and a child blocked on a full pipe would show one gap of the whole wait,
+so the child was moving bytes or waiting for the disk the whole time.
+
+The snapshot now reads `packed-refs` and the loose ref files with the package's
+own reader, including a linked worktree's `refs/bisect`, `refs/worktree` and
+`refs/rewritten`, and falls back to one `git for-each-ref` when the reader cannot
+prove the answer. Controls: a repository of 700 more refs than its fixture starts
+no child and still holds every ref Git lists, a linked worktree keeps its own
+namespaces with no child, and a ref name the reader declines asks Git for the
+whole listing.

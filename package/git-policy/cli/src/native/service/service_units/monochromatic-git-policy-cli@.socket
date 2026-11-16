@@ -4,7 +4,9 @@
 Description=Commit service socket of one worktree for the git wrapper
 
 [Socket]
-# The wrapper looks for the socket at the same place under the user's runtime directory (service_instance.rs).
-ListenStream=%t/monochromatic-git-policy-cli/%i.sock
+# The wrapper looks for the socket at the same place under the user's runtime directory (service_instance.rs); a runtime
+# directory too long for one socket address is listened at under an abstract name instead, and the line below is written
+# in one form or the other before this file is put here (service_address_of_a_worktree.rs).
+ListenStream=@LISTEN_STREAM@
 SocketMode=0600
 DirectoryMode=0700

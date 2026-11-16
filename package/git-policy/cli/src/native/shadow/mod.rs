@@ -60,11 +60,16 @@ pub mod shadow_config;
 /// The shadow repository links to the real shared entries.
 pub mod shadow_links;
 
+/// The real refs the shadow's ref store is written from:
+/// the ref files when they can be read,
+/// and one `git for-each-ref` otherwise.
+pub mod shadow_refs;
+
 /// The shadow ref store:
 /// snapshot,
 /// private target,
 /// symbolic refs and `HEAD`.
-pub mod shadow_refs;
+pub mod shadow_ref_write;
 
 /// Creation of the shadow repository of one transaction.
 pub mod shadow_create;

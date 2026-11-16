@@ -217,9 +217,7 @@ fn wrapper_held_between_launcher_spawn_and_record_fixture() {
 /// so the refusal was that uncertainty.
 #[test]
 fn a_wrapper_killed_between_the_launcher_spawn_and_its_record_is_recovered_conservatively() {
-    if crate::cgroup_test_support::delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let root = scratch();
     fs::create_dir_all(root.path().join(CRATE_DIR)).expect("dir");
     fs::write(root.path().join(CRATE_DIR).join("Cargo.lock"), LEFT_BY_THE_KILLED_RUN).expect("lock");
@@ -335,9 +333,7 @@ fn shim_with_a_scope_that_cannot_be_stopped_fixture() {
 /// and the journal is kept.
 #[test]
 fn a_run_that_cannot_show_quiescence_stops_the_shim_before_the_users_command() {
-    if crate::cgroup_test_support::delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let root = scratch();
     let crate_root: PathBuf = root.path().join("repository").join(CRATE_DIR);
     let fake_directory: PathBuf = root.path().join("fake");

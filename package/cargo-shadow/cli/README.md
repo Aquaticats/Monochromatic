@@ -1604,9 +1604,70 @@ two of them failed that window once (`the judged run ended after 15.294850135s, 
 and the same controls passed in a later run of the whole suite;
 the stop is bounded every time,
 a few seconds past the window.
-`mise run //package/cargo-shadow/cli:test -- --no-fail-fast` runs the whole suite instead of cancelling the tests beside a
-failed one,
-so one such window does not hide the other 800 results.
+The task runs the whole suite (`--no-fail-fast`),
+so one such window does not hide the other 800 results,
+and it takes no arguments:
+`cargo nextest run --release <filter>` runs a subset.
+
+Most of these tests need a delegated control group,
+which every run of the shadow makes for its child with
+`systemd-run --user --scope --unit=<name> --property=Delegate=yes --collect`.
+A test that needs one **never passes without it**:
+it asks the route first,
+and where the host has none it panics with a line that names the test,
+so a run outside this task,
+by name,
+on such a host fails instead of passing quietly:
+
+```text
+cargo-shadow tests: not run [bounded_contain_tests::nested_transactions_keep_their_own_records]: this host cannot give it a delegated control group (...)
+```
+
+Before it starts the suite,
+the task asks that question alone,
+through `cgroup_probe_tests::probe_0_the_host_can_give_the_tests_a_delegated_scope`,
+and reads the answer from the exit status.
+Where the answer is yes,
+the suite runs as the gate always did,
+and every test runs.
+
+Where it is no,
+the answer a container or a check without a user manager gives,
+a run that let those tests in would count them as passed,
+because a test runner has no status for a test that did not run.
+So the task runs the suite **twice**:
+the first run finds them by their own `not run [<name>]` lines and its output is not reported,
+and the second run leaves them out by nextest's own filter,
+so its total is of the tests that ran,
+and the task prints the reason,
+every name,
+and this closing line:
+
+```text
+cargo-shadow tests: 805 tests ran here (805 passed, 0 failed), and nextest counted the 67 that did not run as skipped, not as passed.
+cargo-shadow tests: this run is a degraded run: it is no evidence for the tests named above.
+```
+
+The task then checks that accounting before it exits:
+no per-test line may name a test that did not run,
+and every count in the report run's summary must be the first run's summary minus the tests left out.
+A run that fails that check exits non-zero rather than reporting a pass nobody earned.
+`cargo nextest list` cannot be asked which tests need a scope,
+so there is nothing cheaper than the first run,
+and the cost is one more pass over the suite on a host that cannot delegate.
+The tests run where this account has a user manager on a cgroup v2 mount:
+
+```sh
+# package/cargo-shadow/cli/README.md
+systemd-run --user --scope --property=Delegate=yes -- mise run //package/cargo-shadow/cli:test
+```
+
+Measured 2026-11-14 in a scope without `Delegate=yes` and with `$DBUS_SESSION_BUS_ADDRESS` and `$XDG_RUNTIME_DIR` unset:
+exit status 0,
+`Summary [  20.375s] 805 tests run: 805 passed, 88 skipped`,
+67 names listed,
+and no per-test line naming any of them.
+Before this change that host reported `872 tests run: 872 passed` with the same 67 tests never executed.
 
 [pnpm-build]: https://pnpm.io/settings/build
 [pnpm-store]: https://pnpm.io/settings/store

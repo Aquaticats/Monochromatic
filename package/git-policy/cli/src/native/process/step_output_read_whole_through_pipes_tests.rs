@@ -158,3 +158,78 @@ fn only_a_watch_that_can_end_the_step_puts_the_backstop_behind_its_ceiling() {
     );
     assert!(carried_for(None, TheWatchOfAStep::WatchedAndProven).is_none(), "a step with no ceiling carries none");
 }
+
+/// How many times what one pipe holds the step of the control below writes.
+///
+/// The pipe's own capacity is asked of the kernel in the control,
+/// so this multiplier is the whole of the number:
+/// above one,
+/// the step cannot finish its writes before something reads.
+const PIPES_WORTH_THE_STEP_WRITES: usize = 4;
+
+/// How long the control gives the step to write and end.
+///
+/// A read that keeps up with the step finishes in the time the step needs to write a few pipes' worth;
+/// a reader that waits for the step to end first never finishes at all,
+/// and the control must end instead of waiting.
+const PIPE_CONTROL_CEILING: Duration = Duration::from_secs(30);
+
+/// What:
+///  The capacity of one pipe this process makes,
+///  as the kernel reports it.
+/// Why:
+///   The control's step must write more than a pipe holds,
+/// and how much that is belongs to the kernel rather than to a number in this file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const capacity = fcntlGetPipeSize(pipe);
+/// ```
+#[cfg(target_os = "linux")]
+fn one_pipe_s_holding() -> usize {
+    let (reader, writer) = std::io::pipe().expect("a pipe");
+    // SAFETY: `fcntl` takes a descriptor this process owns and an integer command, and writes no memory here.
+    let capacity: std::ffi::c_int = unsafe { libc::fcntl(std::os::fd::AsRawFd::as_raw_fd(&reader), libc::F_GETPIPE_SZ) };
+    drop(writer);
+    drop(reader);
+    assert!(capacity > 0, "the kernel did not report what one pipe holds: {capacity}");
+    return usize::try_from(capacity).expect("a positive capacity");
+}
+
+/// What:
+///  A step that writes more than a pipe holds is read while it writes,
+///  so it is never left blocked on a full pipe.
+/// Why:
+///  A pipe holds one fixed amount,
+///  and a step that writes more waits at its next write until something reads.
+/// A wait that took the step's end before reading
+///  its output would never see that end,
+/// and the command would stand still for as long as the step's own ceiling allows:
+///  the watched steps read the pipes on the runtime beside the wait for the child for exactly this reason.
+///  The amount is the pipe's own capacity as the kernel reports it,
+/// so a machine whose pipes are larger makes the step write more rather than making the control weaker.
+///  The step prints a line after its last byte,
+/// so the whole answer is a thing this control recognises rather than a length it hopes for.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_step_that_writes_more_than_a_pipe_holds_is_read_while_it_writes() {
+    let count: usize = one_pipe_s_holding().saturating_mul(PIPES_WORTH_THE_STEP_WRITES);
+    let runtime: tokio::runtime::Runtime =
+        tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this control");
+    let output: Output = runtime.block_on(async {
+        let mut command: Command = Command::new("sh");
+        command.arg("-c").arg(format!("head -c {count} /dev/zero | tr '\\0' 'x'; printf '\\nwhole\\n'"));
+        command.stdin(Stdio::null());
+        let pipes: StepPipes = attach_pipes_awaiting(&mut command).await.expect("the pipes of the step");
+        let child: Child = command.spawn().expect("the step starts");
+        release_write_ends(&mut command);
+        let carried: CarriedCeiling = carried_by(PIPE_CONTROL_CEILING, CeilingWhy::TheQueryIsBounded);
+        return read_until_the_child_ends_awaiting(pipes, child, "a step that writes more than a pipe holds", Some(carried))
+            .await
+            .expect("the step wrote its whole answer and ended");
+    });
+    assert!(output.status.success(), "{:?}", output.status);
+    let text: String = String::from_utf8(output.stdout).expect("the step wrote text");
+    assert_eq!(text.len(), count + "\nwhole\n".len(), "every byte the step wrote was read: {count} bytes, then its last line");
+    assert!(text.ends_with("\nwhole\n"), "the step reached its last write, so it was never left standing at a full pipe");
+}
