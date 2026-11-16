@@ -4,8 +4,6 @@
 > Each entry gives the value that identifier has now:
 > `package/desktop-app/ide/README.md` is now `package/ide/app/README.md`
 > (2026-10-29 `592d78b143`).
-> `package/desktop-daemon/hall-monitor` is now `package-paused/hall-monitor/daemon`
-> (renamed to `package/hall-monitor/daemon` on 2026-10-29 and paused 2026-11-16).
 > `package/git-policy/cli.fuzz/bin/container.mjs` is now
 > `package/git-policy/cli.fuzz/bin/container.ts` (2026-10-29 `418c4dcc54`).
 
@@ -26,7 +24,8 @@ the driver `old-format-fixtures` is `old-format-driver`.
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
-> `package/desktop-daemon/hall-monitor` is now `package/hall-monitor/daemon`;
+> `package/desktop-daemon/hall-monitor` is now `package-paused/hall-monitor/daemon`
+> (renamed to `package/hall-monitor/daemon` on 2026-10-29 and paused 2026-11-16);
 > `package/dev-script/page-weight` is now `package/page-weight/cli`;
 > `package/desktop-app/ide` is now `package/ide/app`.
 
