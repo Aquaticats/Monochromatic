@@ -28,7 +28,7 @@ import {
 const MISSING_PATH_CODE = 'ENOENT';
 
 /**
- The largest record this package writes, beyond which nothing readable is kept there: the largest of the 336 records under
+ The largest record this package writes, beyond which nothing readable is kept there: the largest of the 358 records under
  `$HOME/temp/agent/change-reviews`, measured 2026-11-16, is 802 bytes, and a record of this size is not one this package wrote. The
  read stops here, so a record that grows while it is read cannot hold the save.
  */

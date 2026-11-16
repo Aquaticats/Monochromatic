@@ -1581,6 +1581,12 @@ and the command exits `1`.
 The status is `0` only when every review it was asked about covers its change,
 so a save that already succeeded is answered `0` again when it is repeated,
 and a review whose coverage cannot be told is answered `1` rather than `0`.
+A record is read only where its path is a regular file:
+it is opened without waiting for a writer of it and read up to 65,536 bytes,
+so a named pipe with no writer, a directory, a link to one and a file that grows while it is read
+are each answered as a record that cannot be told, within the command's own time,
+and the answer says which it was, either `its path is no regular file` or the code the failure carried.
+One review's record never ends the command: every later review is judged.
 The lines name the ranges the review stated and the ranges it was given,
 so a review of a part of a change is read as one rather than taken for the whole.
 
