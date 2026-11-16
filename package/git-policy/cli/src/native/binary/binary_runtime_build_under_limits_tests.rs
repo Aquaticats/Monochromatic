@@ -213,14 +213,35 @@ fn smallest_address_space_that_runs_the_job(fixture: &Fixture) -> u64 {
     .expect("the ceiling above was just proven to run the job, so the search answers a size at which it runs");
 }
 
-/// At every address-space size where Git completes and the wrapper can run a thread,
-/// the probe finishes by its bound
-///  with a runtime and a blocking job.
+/// What:
+///  At every address-space size where Git completes and the wrapper can run a thread,
+///  the probe finishes by its bound with a runtime and a blocking job.
+/// Why:
+///  The search answers a whole mebibyte, so its answer is at most one mebibyte above the size at which the wrapper and a
+///  blocking thread first fit,
+///  and the sampled sizes are whole mebibytes too:
+///  when the answer is one of them, the first sampled size judged is the size the search rounded to,
+///  and a probe there is a coin flip on a build whose threshold sits a few kilobytes lower.
+///  Measured on this host at 2026-11-14T23:10-05:00 in a scope held to `CPUQuota=400%`, by halving over one mebibyte:
+///  the search answered 51 MiB while a blocking job first ran at 50 MiB + 936 KiB,
+///  so the nearest sampled size above the answer was 52 MiB, 1.1 MiB above the threshold,
+///  and a build whose threshold fell in the mebibyte under a sampled size would have been judged at it.
+///  This control therefore judges from `mebibytes_of_the_search_step_and_one_thread_pair` above the search's answer,
+///  which is above the size at which a blocking thread fits whatever the build's mapped size is
+///  (`runtime_plan::workers_by_address_space`),
+///  and it proves that floor with a probe before it judges a single size from it.
+///  What it no longer proves is the sizes within that room of the boundary: at those the wrapper may or may not fit a
+///  thread, and the probe's outcome there is the search's rounding rather than a fact about this build.
 #[test]
 fn at_every_address_space_size_the_runtime_is_built_by_the_deadline_and_the_job_runs() {
     let fixture: Fixture = fixture("runtime-probe-address-space");
     let smallest: u64 = smallest_address_space_that_runs_the_job(&fixture);
-    for mebibytes in ADDRESS_SPACE_SIZES_MEBIBYTES.iter().copied().filter(|mebibytes| { return *mebibytes >= smallest; }) {
+    let floor: u64 = smallest.saturating_add(super::fault_limits::mebibytes_of_the_search_step_and_one_thread_pair());
+    assert!(
+        runs_the_job_in_address_space(&fixture, floor),
+        "the probe must run its blocking job in {floor} MiB, one search step and one thread pair above the smallest size that does ({smallest} MiB), or this control has no floor it can judge from"
+    );
+    for mebibytes in ADDRESS_SPACE_SIZES_MEBIBYTES.iter().copied().filter(|mebibytes| { return *mebibytes >= floor; }) {
         let limit: Option<(LimitKind, u64)> = Some((LimitKind::AddressSpace, mebibytes * MEBIBYTE));
         if !git_completes_under(&fixture, limit) {
             continue;
