@@ -252,16 +252,19 @@ pub fn take_removal_right(root: &Path, tool: &str, version: &str) -> Result<Remo
             // so a file read in that instant looks empty; a younger claim than the wait an install gives it is
             // therefore a writer in progress, and one older than that is a kill's leftover nobody finished.
             None if claim_is_young(&claim) => return Ok(RemovalRight::Taken),
-            // The maker has ended, or the claim never got a readable maker and is old: a kill's leftover, which goes
-            // before the right is taken again.
+            // The maker has ended, or the claim never got a readable maker and is old: a kill's leftover, which this
+            // call takes for itself.
             _ => {
                 if attempts > CLAIM_ATTEMPTS {
                     return Ok(RemovalRight::Taken);
                 }
-                // What: the leftover is taken by removing exactly the claim that was read.
-                // Why: the review of this change replaced the claim with a live one between the read and the unlink,
-                // and the unlink removed the live claim, so two removers then held one downloads directory.
-                let _ = take_the_claim_it_read(&claim, &reading);
+                // What: the leftover is taken by writing this process's identity into exactly the claim that was read.
+                // Why: the review of this change showed a take that moved the claim aside and back: between the two
+                // renames the name was free, so a third remover could take the right and the put back then overwrote
+                // its claim, and two removers held one downloads directory. A claim is never moved now.
+                if take_the_claim(&claim, &reading) {
+                    return Ok(RemovalRight::Held { claim: RemovalClaim { path: claim } });
+                }
             }
         }
     }
@@ -304,9 +307,9 @@ fn claim_is_held(claim: &Path) -> bool {
         // The maker has ended, or the claim never got a readable maker and is old: a kill's leftover, which goes.
         _ => {}
     }
-    // What: the leftover goes only as exactly the claim that was read.
+    // What: the leftover goes only as exactly the claim that was read, and only while this call holds its lock.
     // Why: a live claim another remover put there in the meantime is not this one's to remove.
-    let _ = take_the_claim_it_read(claim, &reading);
+    let _ = clear_the_stale_claim(claim, &reading);
     return false;
 }
 
@@ -315,7 +318,7 @@ fn claim_is_held(claim: &Path) -> bool {
 /// Why:
 /// The take below must remove exactly the claim whose text was judged,
 /// so the numbers of the file read travel with the answer.
-struct ClaimReading {
+pub(crate) struct ClaimReading {
     /// Who the claim says holds it, when it says anything.
     maker: Option<ProcessIdentity>,
     /// The file that was read, for the take's comparison.
@@ -327,56 +330,159 @@ struct ClaimReading {
 /// Why:
 /// A claim is created empty and given its maker's number immediately after,
 /// so a reading can say nothing about its maker and still come from a file whose identity the take needs.
-fn read_claim(claim: &Path) -> Option<ClaimReading> {
+pub(crate) fn read_claim(claim: &Path) -> Option<ClaimReading> {
     let metadata: fs::Metadata = fs::symlink_metadata(claim).ok()?;
     let maker: Option<ProcessIdentity> = claim_holder(claim);
     return Some(ClaimReading { maker, metadata });
 }
 
 /// What:
-/// Removes the claim at `claim` only if it is still the file `read` described, and puts back a claim that is not.
+/// The claim at `claim`, opened, locked and proved to be the file `read` described,
+/// with what its text says now.
 /// Why:
-/// A stale claim is read, judged, and then removed, and another remover can replace it in between:
-/// unlinking the name as it stands removes a live claim, and two removers then hold one archives directory.
-/// The claim is moved aside to a name no later claim can have, what was moved is compared with what was read by
-/// device and inode, and a claim that is not the one read is put back where it was.
-/// Returns whether the claim read was the one removed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function takeTheClaimItRead(claim: string, read: Stat): boolean
-/// ```
-#[cfg(unix)]
-fn take_the_claim_it_read(claim: &Path, read: &ClaimReading) -> bool {
+/// A claim is a name one command owns, and the name can be replaced between a reading and an act on it.
+/// So the act is made only while this call holds the claim file's own lock and has re-read the name to be that same
+/// file:
+/// every taker of this file waits on the lock, so none of them can replace the name in between,
+/// and a name that is not the file read is left alone.
+/// The lock is held for the microseconds of one rewrite or one unlink and is never held for the length of a removal,
+/// so it covers one claim file and nothing else.
+struct LockedClaim {
+    /// The claim file, locked by this call until the value is dropped.
+    file: fs::File,
+    /// What the file says now, read through the descriptor rather than the name.
+    maker: Option<ProcessIdentity>,
+}
+
+/// What:
+/// Opens the claim at `claim` for the act,
+/// or answers nothing when the name is not the file `read` described, is not a regular file, or is locked by another
+/// call.
+/// Why:
+/// The three checks together are what make the act safe:
+/// the file opened must be the one judged (device and inode),
+/// the name must still be that file after the lock is taken,
+/// and only one call may be inside this window at a time.
+fn lock_the_claim_it_read(claim: &Path, read: &ClaimReading) -> Option<LockedClaim> {
     use std::os::unix::fs::MetadataExt;
 
-    static ATTEMPT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let attempt: u64 = ATTEMPT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let aside: PathBuf = claim.with_file_name(format!(
-        ".taken-{}-{attempt}-{}",
-        std::process::id(),
-        claim.file_name().map(|name| return name.to_string_lossy().to_string()).unwrap_or_default()
-    ));
-    if fs::rename(claim, &aside).is_err() {
-        // Another remover took it first, or the name is not there any more: nothing of this one's to remove.
-        return false;
+    let mut file: fs::File = OpenOptions::new().read(true).write(true).open(claim).ok()?;
+    let opened: fs::Metadata = file.metadata().ok()?;
+    // What: a link, a directory or a pipe where a claim belongs is not a claim.
+    // Why: the act on a claim is a rewrite or an unlink of a regular file, and anything else there is another
+    // command's or a person's.
+    if !opened.is_file() || opened.dev() != read.metadata.dev() || opened.ino() != read.metadata.ino() {
+        return None;
     }
-    let moved: fs::Metadata = match fs::symlink_metadata(&aside) {
-        Ok(found) => found,
-        Err(_) => return false,
+    // What: the claim's own lock is taken without waiting.
+    // Why: a call that cannot have it at once is asking about a claim another call is acting on, and its own attempt
+    // is better spent re-reading the name.
+    if file.try_lock().is_err() {
+        return None;
+    }
+    // What: the name must still be the file that was opened.
+    // Why: a taker that replaced the name did so before this lock was taken, and rewriting the name now would take
+    // that taker's claim.
+    let named: fs::Metadata = fs::symlink_metadata(claim).ok()?;
+    if named.dev() != opened.dev() || named.ino() != opened.ino() {
+        return None;
+    }
+    let maker: Option<ProcessIdentity> = holder_of_the_file(&mut file);
+    return Some(LockedClaim { file, maker });
+}
+
+/// What:
+/// Takes the claim at `claim` for this process by writing its identity into the file that was read,
+/// or answers false when the name is no longer that file or a live command holds it.
+/// Why:
+/// The name never leaves its file, so there is no instant in which the name is free for a third remover,
+/// which is what the review of this change found in a take that moved the claim aside and back.
+/// The write is one truncate and one small write, inside the claim's own lock.
+pub(crate) fn take_the_claim(claim: &Path, read: &ClaimReading) -> bool {
+    let Some(mut locked): Option<LockedClaim> = lock_the_claim_it_read(claim, read) else {
+        return false;
     };
-    if moved.dev() == read.metadata.dev() && moved.ino() == read.metadata.ino() {
-        let _ = fs::remove_file(&aside);
-        return true;
-    }
-    // What: a claim that is not the one read goes back where it was.
-    // Why: it is a live claim another remover wrote, and removing it would give two removers one archives directory.
-    if fs::rename(&aside, claim).is_err() {
-        // The name is taken again, so the claim that was moved aside is not the current one: it stays under its aside
-        // name, where no remover looks, and the pass that finds it names it.
+    if locked.maker.as_ref().is_some_and(|maker| return !process_has_ended(maker)) {
+        // A live command holds it: this call yields.
         return false;
     }
-    return false;
+    let maker: ProcessIdentity = this_process().unwrap_or(ProcessIdentity { pid: std::process::id(), started: 0 });
+    return write_identity(&mut locked.file, maker);
+}
+
+/// What:
+/// Clears the stale claim at `claim`,
+/// or answers false when the name is no longer the file that was read or a live command holds it.
+/// Why:
+/// This is the answer to "does a live removal hold this version's downloads": the stale leftover is removed so the
+/// next pass can finish the tombstone beside it,
+/// and it is removed by name only while this call holds the claim's lock and has proved the name is that file.
+fn clear_the_stale_claim(claim: &Path, read: &ClaimReading) -> bool {
+    let Some(locked): Option<LockedClaim> = lock_the_claim_it_read(claim, read) else {
+        return false;
+    };
+    if locked.maker.as_ref().is_some_and(|maker| return !process_has_ended(maker)) {
+        return false;
+    }
+    drop(locked);
+    return fs::remove_file(claim).is_ok();
+}
+
+/// What:
+/// Writes this process's identity into an already-open claim file,
+/// emptying it first, and answers whether the write landed.
+/// Why:
+/// A claim that says which process holds it is what a later process checks,
+/// and the identity is two numbers and a newline, so the file is truncated and written in place.
+fn write_identity(file: &mut fs::File, maker: ProcessIdentity) -> bool {
+    use std::io::{Seek, SeekFrom, Write};
+
+    if file.set_len(0).is_err() {
+        return false;
+    }
+    if file.seek(SeekFrom::Start(0)).is_err() {
+        return false;
+    }
+    if file.write_all(format!("{}.{}\n", maker.pid, maker.started).as_bytes()).is_err() {
+        return false;
+    }
+    return file.sync_data().is_ok();
+}
+
+/// What:
+/// The process an open claim file says holds it,
+/// read through the descriptor,
+/// or `None` when it says nothing this call can read.
+/// Why:
+/// Reading the name again would judge a file this call has not locked;
+/// the descriptor is the file the lock is on.
+fn holder_of_the_file(file: &mut fs::File) -> Option<ProcessIdentity> {
+    use std::io::{Read, Seek, SeekFrom};
+
+    if !file.metadata().ok()?.is_file() {
+        return None;
+    }
+    if file.seek(SeekFrom::Start(0)).is_err() {
+        return None;
+    }
+    let mut text: String = String::new();
+    if file.take(64).read_to_string(&mut text).is_err() {
+        return None;
+    }
+    return parse_identity(&text);
+}
+
+/// What:
+/// The process a claim's text names,
+/// or `None` when the text does not name one.
+/// Why:
+/// A claim is created empty and given its holder's number immediately after,
+/// so an empty or partial text is a writer in progress, not a claim without a holder.
+fn parse_identity(text: &str) -> Option<ProcessIdentity> {
+    let mut fields = text.trim().splitn(2, '.');
+    let pid: u32 = fields.next()?.parse().ok()?;
+    let started: u64 = fields.next()?.trim().parse().ok()?;
+    return Some(ProcessIdentity { pid, started });
 }
 
 /// Whether the removal claim was written less than `OWNERSHIP_WAIT` ago.

@@ -171,3 +171,86 @@ fn a_stale_claim_is_taken_by_removing_exactly_the_claim_it_read() {
     drop(right);
     assert_eq!(after_inode, live_inode, "stale cleanup removed the live replacement claim");
 }
+
+/// What:
+/// Removers asking for one version's downloads at the same instant never all get the right,
+/// and at most one of them ever does.
+/// Why:
+/// Part two of the review of this change held the claim take at its renames and showed a third remover taking the
+/// right while the live claim was moved aside, and the put back then overwriting that remover's claim: two removers
+/// held one downloads directory.
+/// The fix writes this process's identity into the claim that was read, so the name never leaves its file.
+/// The round starts both removers at one barrier over a claim a kill left, and no round may end with two of them
+/// holding it; each round drops both rights, so the claim goes with whichever held it.
+#[cfg(unix)]
+#[test]
+fn removers_asking_at_once_never_all_get_the_right() {
+    use std::sync::{Arc, Barrier};
+    use std::time::{Duration, SystemTime};
+
+    let directory = scratch();
+    let root: PathBuf = directory.path().join("store");
+    let downloads: PathBuf = downloads_of(&root, "bin", "0.29.4");
+    fs::create_dir_all(&downloads).expect("make the downloads directory");
+    let claim: PathBuf = downloads.with_file_name(".0.29.4.download-removal");
+    let rounds: u32 = 50;
+    let mut held_together: u32 = 0;
+    for _round in 0..rounds {
+        // A claim naming a process that has ended, as a kill between the create and the drop leaves it.
+        fs::write(&claim, format!("{}.12345\n", u32::MAX - 1)).expect("write the stale claim");
+        let aged: SystemTime = SystemTime::now() - Duration::from_secs(60);
+        fs::File::options()
+            .write(true)
+            .open(&claim)
+            .expect("open the claim to age it")
+            .set_times(fs::FileTimes::new().set_modified(aged))
+            .expect("age the claim");
+        let gate: Arc<Barrier> = Arc::new(Barrier::new(2));
+        let mut askers: Vec<std::thread::JoinHandle<_>> = Vec::new();
+        for _asker in 0..2 {
+            let root_for_asker: PathBuf = root.clone();
+            let gate_for_asker: Arc<Barrier> = Arc::clone(&gate);
+            askers.push(std::thread::spawn(move || {
+                gate_for_asker.wait();
+                return take_removal_right(&root_for_asker, "bin", "0.29.4");
+            }));
+        }
+        let rights: Vec<RemovalRight> =
+            askers.into_iter().map(|asker| return asker.join().expect("the asker ended").expect("the removal right")).collect();
+        let holding: usize = rights.iter().filter(|right| return matches!(right, RemovalRight::Held { .. })).count();
+        if holding > 1 {
+            held_together += 1;
+        }
+    }
+    assert_eq!(
+        held_together, 0,
+        "two removers held the right to one downloads directory in {held_together} of {rounds} rounds"
+    );
+}
+
+/// What:
+/// A claim that is no longer the file that was read is left exactly as it is:
+/// not rewritten, not removed, and its text still names its own holder.
+/// Why:
+/// This is the act that made two removers hold one directory:
+/// a take that trusted its reading rewrote a live claim another remover had put there.
+#[cfg(unix)]
+#[test]
+fn a_claim_that_is_no_longer_the_one_read_is_left_alone() {
+    let directory = scratch();
+    let root: PathBuf = directory.path().join("store");
+    let downloads: PathBuf = downloads_of(&root, "bin", "0.29.4");
+    fs::create_dir_all(&downloads).expect("make the downloads directory");
+    let claim: PathBuf = downloads.with_file_name(".0.29.4.download-removal");
+    fs::write(&claim, format!("{}.12345\n", u32::MAX - 1)).expect("write the stale claim");
+    let reading = super::download_ownership::read_claim(&claim).expect("read the claim");
+    // A live claim replaces the name after the reading, as another remover's take does.
+    let live: PathBuf = downloads.with_file_name("live-replacement-claim");
+    fs::write(&live, "1.0\n").expect("write the live claim");
+    fs::rename(&live, &claim).expect("replace the stale claim with the live one");
+
+    let taken: bool = super::download_ownership::take_the_claim(&claim, &reading);
+
+    assert!(!taken, "the take wrote itself into a claim that was not the one it read");
+    assert_eq!(fs::read_to_string(&claim).expect("read the claim"), "1.0\n", "the live claim's text was rewritten");
+}
