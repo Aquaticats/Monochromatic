@@ -4692,13 +4692,17 @@ fn the_gate_brings_a_path_at_the_old_tip_forward_and_admits_no_reversal() {
     //  (a review of commit `777c491325`, its finding 3).
     let lock: PathBuf = git_dir.join("index.lock");
     std::fs::write(lock.as_path(), b"held by another program").expect("the index lock");
-    let held = recover_for_command_with_home(&context, &identity, None);
+    // What: the environment a fixture's own commands run in, which every wrapped command passes to the gate.
+    // Why:  the sweep's Git needs the caller's home as much as any other command's
+    //       (a review of commit `986a82bbab`, its finding 4).
+    let named = fixture_environment();
+    let held = recover_for_command_with_home(&context, &identity, None, named.as_slice());
     assert!(
         !matches!(held, crate::invocation::startup_gate::Gate::Clear),
         "the gate does not clear a command over a path that still holds the old tip: {held:?}"
     );
     std::fs::remove_file(lock.as_path()).expect("the lock goes");
-    let gate = recover_for_command_with_home(&context, &identity, None);
+    let gate = recover_for_command_with_home(&context, &identity, None, named.as_slice());
     drop(context);
     let added: String = std::fs::read_to_string(taker.join("added.txt")).unwrap_or_default();
     assert_eq!(

@@ -57,6 +57,14 @@ pub const REPAIR_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
 /// inside `REPAIR_WAIT` and each of them is a real question rather than a busy loop.
 pub const REPAIR_PAUSE: std::time::Duration = std::time::Duration::from_millis(250);
 
+/// The states a repair place's records are written with: the place's owner, and the claim on a dead owner's place.
+/// Why:
+///   One reader answers for both, so the list is one value the writer and the reader share and cannot drift:
+///  a claim written here and read by a reader that accepts only the owner's state was never cleared, and every
+///  later command waited and stopped for good
+///  (a review of commit `986a82bbab`, its finding 3).
+pub const REPAIR_PLACE_STATES: [&str; 2] = ["repair-owner", "repair-claim"];
+
 /// Suffix of the name of the one record that says which command is repairing this worktree's checkout.
 /// Why:
 ///   One checkout is repaired by one command at a time, and a command about to commit must not fail on
@@ -137,15 +145,7 @@ impl Drop for ARepairInHand {
 /// ```
 pub fn the_repair_owner(git_dir: &Path, owner: &TransactionOwner) -> Option<ARepairInHand> {
     let path: PathBuf = git_dir.join(REPAIR_OWNER_FILE);
-    let mut writer: ObjectWriter = ObjectWriter::new();
-    writer
-        .integer("schemaVersion", BRANCH_MOVE_SCHEMA_VERSION)
-        .string("state", "repair-owner")
-        .string("transactionId", owner.transaction_id.as_str())
-        .integer("ownerPid", owner.owner_pid)
-        .string("ownerIdentity", owner.owner_identity.as_str())
-        .string("createdAt", owner.created_at.as_str());
-    let text: String = format!("{}\n", writer.finish());
+    let text: String = the_places_record(REPAIR_PLACE_STATES[0], owner);
     write_exclusive_synced(path.as_path(), text.as_bytes()).ok()?;
     return Some(ARepairInHand {
         path,
@@ -240,15 +240,7 @@ enum ClaimRefused {
 /// writeExclusiveSynced(claim, encode(owner)) // exactly one of two commands succeeds
 /// ```
 fn claim_the_take(claim: &Path, owner: &TransactionOwner) -> Result<(), ClaimRefused> {
-    let mut writer: ObjectWriter = ObjectWriter::new();
-    writer
-        .integer("schemaVersion", BRANCH_MOVE_SCHEMA_VERSION)
-        .string("state", "repair-claim")
-        .string("transactionId", owner.transaction_id.as_str())
-        .integer("ownerPid", owner.owner_pid)
-        .string("ownerIdentity", owner.owner_identity.as_str())
-        .string("createdAt", owner.created_at.as_str());
-    let text: String = format!("{}\n", writer.finish());
+    let text: String = the_places_record(REPAIR_PLACE_STATES[1], owner);
     return match write_exclusive_synced(claim, text.as_bytes()) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Err(ClaimRefused::TakenByAnother),
@@ -454,10 +446,41 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
 /// for (const end of [old, new]) for (const path of diff(end, HEAD)) if (indexHolds(end, path) || fileHolds(end, path)) return true
 /// ```
 async fn this_worktree_holds_what_the_move_wrote(git: &PushGit, movement: &BranchMove) -> Result<bool, String> {
+    return holds_what_a_move_wrote(git, movement.old_oid.as_str(), movement.new_oid.as_str()).await;
+}
+
+/// What:
+///  Whether this worktree holds an entry a move wrote, on a path where the tree its HEAD names does not.
+/// Why:
+///   The question is the same for a record's move and for the move a push just made in a worktree that could not
+/// follow it, so it is asked once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdsWhatAMoveWrote({ git, old, merge }) // HEAD contains merge && (index or file holds old or merge on a differing path)
+/// ```
+pub(crate) async fn holds_what_a_move_wrote(git: &PushGit, old_oid: &str, new_oid: &str) -> Result<bool, String> {
     let target: String = crate::auto_push_reconcile_branch_checkout_files::the_head_commit_awaiting(git)
         .await
         .map_err(|error| format!("this worktree's HEAD could not be read: {error}"))?;
-    for end in [movement.old_oid.as_str(), movement.new_oid.as_str()] {
+    // What: the commit this worktree's HEAD names must hold the move's own new tip in its history.
+    // Why:  bytes equal to a tip are not proof that the move wrote this checkout: a person's staged edit in a
+    // worktree that never showed the pushed branch can hold the merge's own bytes, and the repair read that as
+    // the move's debris and wrote the old bytes back over it
+    //  (a review of commit `986a82bbab`, its finding 1).
+    // A checkout the move wrote shows the moved branch at the merge, or a branch made from it after the move,
+    // so the merge is in its history; a worktree that never showed the branch does not have it at all.
+    let carries_the_move: bool = match crate::auto_push_reconcile_basics_and_limits::is_ancestor_awaiting(git, new_oid, target.as_str()).await {
+        Ok(Some(false)) => {
+            return Ok(false);
+        }
+        Ok(Some(true)) => true,
+        _ => return Err(String::from("the tip this worktree shows could not be related to the move")),
+    };
+    if !carries_the_move {
+        return Ok(false);
+    }
+    for end in [old_oid, new_oid] {
         let paths: Vec<Vec<u8>> = crate::auto_push_reconcile_branch_checkout::the_moves_paths_awaiting(git, end, target.as_str())
             .await
             .map_err(|error| format!("the paths of the move could not be read: {error}"))?;
@@ -573,6 +596,27 @@ fn this_commands_repair_of_the_checkout<W: Write + ?Sized>(git_dir: &Path, out: 
 }
 
 /// What:
+///  The bytes of one repair place record, in the state its writer chose.
+/// Why:
+///   One writer's shape is what one reader reads, so both are made here and nowhere else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const record = (state, owner) => JSON.stringify({ schemaVersion, state, transactionId, ownerPid, ownerIdentity, createdAt }) + '\n'
+/// ```
+fn the_places_record(state: &str, owner: &TransactionOwner) -> String {
+    let mut writer: ObjectWriter = ObjectWriter::new();
+    writer
+        .integer("schemaVersion", BRANCH_MOVE_SCHEMA_VERSION)
+        .string("state", state)
+        .string("transactionId", owner.transaction_id.as_str())
+        .integer("ownerPid", owner.owner_pid)
+        .string("ownerIdentity", owner.owner_identity.as_str())
+        .string("createdAt", owner.created_at.as_str());
+    return format!("{}\n", writer.finish());
+}
+
+/// What:
 ///  The owner a repair's record names,
 /// or nothing when the record is not one this release reads.
 /// Why:
@@ -585,7 +629,13 @@ fn this_commands_repair_of_the_checkout<W: Write + ?Sized>(git_dir: &Path, out: 
 fn the_owner_named_by(place: &Path) -> Option<TransactionOwner> {
     let text: String = std::fs::read_to_string(place).ok()?;
     let map: serde_json::Map<String, serde_json::Value> = parse_object(text.as_str())?;
-    if safe_integer_field(&map, "schemaVersion")? != BRANCH_MOVE_SCHEMA_VERSION || string_field(&map, "state")? != "repair-owner" {
+    // What: every state a repair place's writer emits, asked of the one list both of them use.
+    // Why: a reader that accepted only the owner's state read every claim as unreadable, so a dead claimant was
+    // never cleared and every later command waited and stopped
+    //  (a review of commit `986a82bbab`, its finding 3).
+    if safe_integer_field(&map, "schemaVersion")? != BRANCH_MOVE_SCHEMA_VERSION
+        || !REPAIR_PLACE_STATES.contains(&string_field(&map, "state")?)
+    {
         return None;
     }
     return Some(TransactionOwner {

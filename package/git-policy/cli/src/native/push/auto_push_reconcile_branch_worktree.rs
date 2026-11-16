@@ -50,6 +50,22 @@ const TAG: &str = "monochromatic-git-policy-cli";
 /// const holder = liveHolder((await git(['worktree','list','--porcelain','-z'])).split('\0'), branchRef);
 /// ```
 pub(crate) async fn live_holder_awaiting(git: &PushGit, branch_ref: &str) -> Result<Option<PathBuf>, SingleFlightError> {
+    return Ok(live_holders_awaiting(git, branch_ref).await?.into_iter().next());
+}
+
+/// What:
+///  Every worktree that has `branch_ref` checked out and still has its folder.
+/// Why:
+///   Git allows the same branch in two worktrees with `--force`, and each of them shows it:
+///  advancing only the first left the second at the old tip with no merge intent and no branch-move record,
+/// so its next commit could record the old tree over the published merge
+///  (a review of commit `986a82bbab`, its finding 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holders = worktreesHolding((await git(['worktree','list','--porcelain','-z'])).split('\0'), branchRef).filter((path) => isDirectory(path))
+/// ```
+pub(crate) async fn live_holders_awaiting(git: &PushGit, branch_ref: &str) -> Result<Vec<PathBuf>, SingleFlightError> {
     let listed = run_query_awaiting(git, &argv(&["worktree", "list", "--porcelain", "-z"])).await?;
     if listed.code != Some(0) {
         // What: a listing that failed is not the answer "no worktree holds it".
@@ -62,20 +78,21 @@ pub(crate) async fn live_holder_awaiting(git: &PushGit, branch_ref: &str) -> Res
             stderr: String::from_utf8_lossy(&listed.stderr).into_owned(),
         });
     }
-    let Some(place) = worktree_holding(&listed.stdout, branch_ref) else {
-        return Ok(None);
-    };
-    if !place.is_dir() {
-        debug(
-            TAG,
-            &format!(
-                "the worktree at {} still lists {branch_ref} but has no folder, so it holds no files and the branch moves as a ref",
-                place.display()
-            ),
-        );
-        return Ok(None);
+    let mut holders: Vec<PathBuf> = Vec::new();
+    for place in worktrees_holding(&listed.stdout, branch_ref) {
+        if !place.is_dir() {
+            debug(
+                TAG,
+                &format!(
+                    "the worktree at {} still lists {branch_ref} but has no folder, so it holds no files and the branch moves as a ref",
+                    place.display()
+                ),
+            );
+            continue;
+        }
+        holders.push(place);
     }
-    return Ok(Some(place));
+    return Ok(holders);
 }
 
 /// What:
@@ -88,7 +105,22 @@ pub(crate) async fn live_holder_awaiting(git: &PushGit, branch_ref: &str) -> Res
 /// ```ts
 /// function worktreeHolding(fields, branchRef) { let path; for (const field of fields) { if (field.startsWith('worktree ')) path = field.slice(9); else if (field === `branch ${branchRef}`) return path; } return undefined; }
 /// ```
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn worktree_holding(listing: &[u8], branch_ref: &str) -> Option<PathBuf> {
+    return worktrees_holding(listing, branch_ref).into_iter().next();
+}
+
+/// What:
+///  Every worktree a `worktree list --porcelain -z` listing says has `branch_ref` checked out.
+/// Why:
+///   A branch can be attached in more than one worktree, and the move must reach every one of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function worktreesHolding(fields, branchRef) { const found = []; let path; for (const field of fields) { if (field.startsWith('worktree ')) path = field.slice(9); else if (field === `branch ${branchRef}`) found.push(path); } return found; }
+/// ```
+pub(crate) fn worktrees_holding(listing: &[u8], branch_ref: &str) -> Vec<PathBuf> {
+    let mut found: Vec<PathBuf> = Vec::new();
     let mut current: Option<PathBuf> = None;
     for field in listing.split(|byte| return *byte == 0) {
         if field.is_empty() {
@@ -101,11 +133,12 @@ pub(crate) fn worktree_holding(listing: &[u8], branch_ref: &str) -> Option<PathB
         let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(field);
         if let Some(named) = text.strip_prefix("branch ")
             && named == branch_ref
+            && let Some(place) = current.as_ref()
         {
-            return current;
+            found.push(place.clone());
         }
     }
-    return None;
+    return found;
 }
 
 /// Whether this worktree is the one at `place`,

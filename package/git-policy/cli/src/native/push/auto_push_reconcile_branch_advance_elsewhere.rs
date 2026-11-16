@@ -30,12 +30,12 @@ use crate::auto_push_reconcile_branch_advance::{
     fast_forward_recorded, status_differs,
 };
 /// Which worktree holds the branch, whether it is this one, and how to run Git in it.
-use crate::auto_push_reconcile_branch_worktree::{git_at, is_this_worktree, live_holder_awaiting};
+use crate::auto_push_reconcile_branch_worktree::{git_at, is_this_worktree, live_holders_awaiting};
 /// The move of a branch no live worktree holds.
 use crate::auto_push_reconcile_branch_advance_without_a_checkout::{NowhereMove, move_the_ref_only_awaiting};
 use crate::auto_push_reconcile_basics_and_limits::{TAG, argv};
-use crate::diagnostic_log::warn;
-use std::path::Path;
+use crate::diagnostic_log::{debug, warn};
+use std::path::{Path, PathBuf};
 
 /// What:
 ///  Move the branch and the worktree that has it checked out,
@@ -195,26 +195,150 @@ pub(crate) async fn advance_pushed_branch_awaiting(
     local: &str,
     merge_oid: &str,
 ) -> Result<Advanced, SingleFlightError> {
-    let Some(place) = live_holder_awaiting(git, branch_ref).await? else {
+    let holders: Vec<PathBuf> = live_holders_awaiting(git, branch_ref).await?;
+    if holders.is_empty() {
         return match move_the_ref_only_awaiting(git, branch_ref, local, merge_oid).await? {
             NowhereMove::Answered(advanced) => Ok(advanced),
-            // A worktree took the branch between the two looks, so its files are written there and by its own move.
+            // Worktrees took the branch between the two looks, so their files are written by their own moves.
             NowhereMove::Held(taken) => {
-                let there: PushGit = git_at(git, taken.as_path());
-                advance_in_another_worktree(&there, taken.as_path(), branch_ref, local, merge_oid).await
+                let mut answers: Vec<(PathBuf, Advanced)> = Vec::new();
+                for place in taken {
+                    let there: PushGit = git_at(git, place.as_path());
+                    let answer: Advanced = advance_in_another_worktree(&there, place.as_path(), branch_ref, local, merge_oid).await?;
+                    answers.push((place, answer));
+                }
+                return Ok(the_one_answer(answers));
             }
         };
+    }
+    // What: every worktree that shows the branch is advanced, not only the first one Git lists.
+    // Why:  Git allows the same branch in more than one worktree with `--force`, and advancing one of them left the
+    // others at the old tip with no merge intent and no branch-move record, so a commit there could record the old
+    // tree over the published merge
+    //  (a review of commit `986a82bbab`, its finding 2).
+    let mut answers: Vec<(PathBuf, Advanced)> = Vec::new();
+    for place in holders {
+        if is_this_worktree(git, place.as_path()).await? {
+            let moved: Advanced = match advance_local_branch_awaiting(git, branch_ref, local, merge_oid).await? {
+                Ok(Moved { checkout: Checkout::Followed, kept }) => Advanced::Here { kept },
+                Ok(Moved { checkout, kept }) => answered_about(place.as_path(), checkout, kept),
+                Err(reason) => Advanced::Not {
+                    reason,
+                    advice: advice_to_move(merge_oid, "in this worktree"),
+                },
+            };
+            answers.push((place, moved));
+            continue;
+        }
+        let there: PushGit = git_at(git, place.as_path());
+        let answer: Advanced = advance_in_another_worktree(&there, place.as_path(), branch_ref, local, merge_oid).await?;
+        // What: a worktree that shows the branch but could not follow it leaves a record, so its next command
+        // finishes the checkout.
+        // Why:  its checkout may be behind the branch by commits the push never sent, and a commit there would
+        // record the older tree; the owner's decision is that no checkout showing the pushed branch stays at an
+        // older tip without a record saying so
+        //  (a review of commit `986a82bbab`, its finding 2).
+        if matches!(answer, Advanced::Not { .. } | Advanced::WorktreeHolding { .. }) {
+            let _left: bool = leave_a_record_for(&there, branch_ref, local, merge_oid, place.as_path()).await?;
+        }
+        answers.push((place, answer));
+    }
+    return Ok(the_one_answer(answers));
+}
+
+/// What:
+///  Leave a branch-move record for a worktree whose checkout could not follow the branch,
+/// naming the tip that worktree's HEAD has as the move's old tip.
+/// Why:
+///   The record is what a later command in that worktree reads, and its old tip is that worktree's own HEAD:
+///  the generic sweep then brings its checkout to the branch and ends the record on its proof.
+///  A worktree that already holds the merge needs nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const head = await there(['rev-parse','--verify','HEAD^{commit}']); if (contains(merge, head)) return false; return recordBranchMove(commonDir, branchRef, head, merge) !== undefined;
+/// ```
+async fn leave_a_record_for(there: &PushGit, branch_ref: &str, local: &str, merge_oid: &str, place: &Path) -> Result<bool, SingleFlightError> {
+    // What: a record only when this worktree's checkout still holds what the move wrote.
+    // Why:  a worktree that already holds the merge's tree on those paths needs nothing, and a record for it would
+    // be finished by the next command there with nothing to write
+    //  (a review of commit `986a82bbab`, its finding 2).
+    let holds: bool = match crate::auto_push_branch_move_repairs::holds_what_a_move_wrote(there, local, merge_oid).await {
+        Ok(holds) => holds,
+        // A worktree whose questions fail leaves nothing: the report names it, and a record keyed on a failed read
+        // would be answered wrongly later.
+        Err(_) => return Ok(false),
     };
-    if is_this_worktree(git, place.as_path()).await? {
-        return match advance_local_branch_awaiting(git, branch_ref, local, merge_oid).await? {
-            Ok(Moved { checkout: Checkout::Followed, kept }) => Ok(Advanced::Here { kept }),
-            Ok(Moved { checkout, kept }) => Ok(answered_about(place.as_path(), checkout, kept)),
-            Err(reason) => Ok(Advanced::Not {
-                reason,
-                advice: advice_to_move(merge_oid, "in this worktree"),
-            }),
+    if !holds {
+        return Ok(false);
+    }
+    let common_dir: PathBuf = crate::auto_push_branch_move_record::common_git_dir_awaiting(there).await?;
+    // What: the record names the tip the push sent as its old tip, which is the tip this worktree's checkout holds.
+    // Why:  the generic sweep then brings that checkout to the merge and ends the record on its proof.
+    let left: bool = crate::auto_push_branch_move_record::record_branch_move(common_dir.as_path(), branch_ref, local, merge_oid).is_some();
+    if left {
+        debug(TAG, &format!("the worktree at {} did not follow the branch, so a record for its next command was left", place.display()));
+    }
+    return Ok(left);
+}
+
+/// What:
+///  The one answer the report words, out of every worktree's answer.
+/// Why:
+///   The report prints one line and names one place, so a failure of any worktree is the answer
+/// (it is what a person must act on), and otherwise the worktree this command is in, or the first followed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const failed = answers.filter(([, answer]) => answer.kind === 'not' || answer.kind === 'worktree-holding');
+/// return failed.length ? { kind: 'not', reason: failed.map(describe).join('; '), advice } : (answers.find(([, a]) => a.kind === 'here') ?? answers[0])[1];
+/// ```
+fn the_one_answer(answers: Vec<(PathBuf, Advanced)>) -> Advanced {
+    let mut failed: Vec<String> = Vec::new();
+    let mut advices: Vec<String> = Vec::new();
+    for (place, answer) in answers.iter() {
+        match answer {
+            Advanced::Not { reason, advice } => {
+                failed.push(format!("the worktree at {}: {reason}", place.display()));
+                advices.push(advice.clone());
+            }
+            Advanced::WorktreeHolding { paths, reason, .. } => {
+                failed.push(format!("the worktree at {} still differs on {}: {reason}", place.display(), listed(paths)))
+            }
+            _ => {}
+        }
+    }
+    if failed.len() == 1 {
+        // One worktree failed, and its own words are what the report has always printed for it.
+        if let Some((_, Advanced::Not { reason, advice })) = answers.iter().find(|(_, answer)| return matches!(answer, Advanced::Not { .. })) {
+            return Advanced::Not {
+                reason: reason.clone(),
+                advice: advice.clone(),
+            };
+        }
+        return Advanced::Not {
+            reason: failed.join("; "),
+            advice: String::from("in the worktree named here, commit what is left or check it out again, then push again"),
         };
     }
-    let there: PushGit = git_at(git, place.as_path());
-    return advance_in_another_worktree(&there, place.as_path(), branch_ref, local, merge_oid).await;
+    if !failed.is_empty() {
+        return Advanced::Not {
+            reason: failed.join("; "),
+            advice: if advices.is_empty() {
+                String::from("in each worktree named here, commit what is left or check it out again, then push again")
+            } else {
+                advices.join("; ")
+            },
+        };
+    }
+    let mut followed: Option<Advanced> = None;
+    for (_, answer) in answers {
+        if matches!(answer, Advanced::Here { .. }) {
+            return answer;
+        }
+        if followed.is_none() {
+            followed = Some(answer);
+        }
+    }
+    return followed.unwrap_or(Advanced::Nowhere);
 }

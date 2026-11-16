@@ -215,7 +215,14 @@ fn worktree_directories(identity: &WorktreeIdentity) -> Option<(&Path, &Path, &P
 /// ```ts
 /// if (await mergeIntentsToRecover(gitDir)) await recoverInterruptedMerges({ place, gitDir, stderr });
 /// ```
-fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, worktree_root: &Path, out: &mut dyn Write) -> Result<(), RecoveryError> {
+fn settle_merges(
+    context: &GitContext,
+    git_dir: &Path,
+    common_dir: &Path,
+    worktree_root: &Path,
+    environment: &[(OsString, OsString)],
+    out: &mut dyn Write,
+) -> Result<(), RecoveryError> {
     // A copy a merge kept beside a path is decided here too: it is the one thing a worktree with no merge record still has to
     //  look at, and a copy no later merge touches would otherwise be a file no command ever ends.
     // A repository that moved no branch without its checkout pays one failed directory read for this too.
@@ -231,10 +238,15 @@ fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, worktr
         // What: the sweep's own Git starts run in the worktree the identity names, never in the process's directory.
         // Why: the repair reads and writes that worktree's index and files, and a command started elsewhere writes
         // another repository's.
+        // What: the sweep's Git runs with the caller's environment plus the overlay, which is what every other
+        // command's Git here gets.
+        // Why: the overlay alone names no home, so the sweep's own queries could not make the scratch file they need
+        //      and every command stopped before running
+        //      (a review of commit `986a82bbab`, its finding 4).
         let git: PushGit = PushGit {
             real_git: context.real_git.clone(),
             cwd: worktree_root.to_path_buf(),
-            environment: context.overlay.clone(),
+            environment: crate::child_environment::environment_with_overlay(environment, context.overlay.as_slice()),
             lfs: false,
         };
         // What: a command is cleared only when no path of a move this checkout would commit over still holds
@@ -319,7 +331,29 @@ fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, worktr
 /// ```
 pub fn recover_for_command(context: &GitContext, identity: &WorktreeIdentity, environment: &[(OsString, OsString)]) -> Gate {
     let home: Option<PathBuf> = environment_home(environment);
-    return recover_for_command_with_home(context, identity, home.as_deref());
+    return recover_for_command_in_environment(context, identity, home.as_deref(), environment);
+}
+
+/// What:
+///  The startup step with the home directory and the caller's environment named.
+/// Why:
+///   The sweep's own Git starts need the caller's ordinary environment as much as any other command's:
+/// with the overlay alone there is no `HOME` and no absolute `XDG_STATE_HOME`, so the query that reads the
+/// branch's tip cannot make its own scratch file, and every ordinary command stopped with
+///  "the tip of refs/heads/topic could not be read" while the record it was meant to finish sat there
+///  (a review of commit `986a82bbab`, its finding 4).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recoverForCommandInEnvironment({ context, identity, home, environment })
+/// ```
+pub fn recover_for_command_in_environment(
+    context: &GitContext,
+    identity: &WorktreeIdentity,
+    home: Option<&Path>,
+    environment: &[(OsString, OsString)],
+) -> Gate {
+    return recover_for_command_with_home(context, identity, home, environment);
 }
 
 /// What:
@@ -332,7 +366,12 @@ pub fn recover_for_command(context: &GitContext, identity: &WorktreeIdentity, en
 /// ```ts
 /// recoverForCommand({ context, identity, home })
 /// ```
-pub fn recover_for_command_with_home(context: &GitContext, identity: &WorktreeIdentity, home: Option<&Path>) -> Gate {
+pub fn recover_for_command_with_home(
+    context: &GitContext,
+    identity: &WorktreeIdentity,
+    home: Option<&Path>,
+    environment: &[(OsString, OsString)],
+) -> Gate {
     let Some((git_dir, common_dir, worktree_root)) = worktree_directories(identity) else {
         return Gate::Clear;
     };
@@ -347,7 +386,7 @@ pub fn recover_for_command_with_home(context: &GitContext, identity: &WorktreeId
         Ok(false) => {}
         Err(error) => return stopped(&error),
     }
-    if let Err(error) = settle_merges(context, git_dir, common_dir, worktree_root, &mut std::io::stderr()) {
+    if let Err(error) = settle_merges(context, git_dir, common_dir, worktree_root, environment, &mut std::io::stderr()) {
         return stopped(&error);
     }
     if let Some(note) = registry_note(git_dir.join(REGISTRY_DIRECTORY_NAME).as_path()) {

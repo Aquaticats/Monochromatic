@@ -57,8 +57,8 @@ use std::path::{Path, PathBuf};
 pub(crate) enum NowhereMove {
     /// The branch moved, was refused, or was repaired with the worktree that raced it.
     Answered(Advanced),
-    /// A worktree took the branch before the write, so the branch is moved there.
-    Held(PathBuf),
+    /// Worktrees took the branch before the write, so the branch is moved in each of them.
+    Held(Vec<PathBuf>),
 }
 
 /// What:
@@ -110,7 +110,7 @@ pub(crate) async fn move_the_ref_only_awaiting(
             TAG,
             &format!("a worktree at {} took {branch_ref} before its reference moved, so the branch is moved there", holder.display()),
         );
-        return Ok(NowhereMove::Held(holder));
+        return Ok(NowhereMove::Held(vec![holder]));
     }
     // What: the branch's tip and the common Git directory in one call.
     // Why: the record's directory is asked for only when the branch is about to move, and one Git spawn is the whole of
