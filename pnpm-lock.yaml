@@ -4340,7 +4340,17 @@ importers:
         version: 26.6.6
 
   package/pi-shared/subagent-driver:
+    dependencies:
+      '@monochromatic-dev/env-local-json-core':
+        specifier: workspace:*
+        version: link:../../env-local-json/core
+      '@monochromatic-dev/ownership-marker-foreign-borrowed':
+        specifier: workspace:*
+        version: link:../../ownership-marker/foreign-borrowed
     devDependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: 'catalog:'
+        version: 1.5.2(zod@4.6.7)
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown

@@ -43,6 +43,15 @@ import {
   putTheRunAway,
 } from './put-the-run-away.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
+import type {
+  TextMasking,
+  SecretValue
+} from './secret-value-masking.ts';
+import {
+  SECRET_VALUES_DESCRIPTOR_VARIABLE,
+  SECRET_VALUES_FD,
+  secretValuesHandover,
+} from './secret-values-handed-to-pi.ts';
 import { endReasonOfRun, } from './take-the-first-prompt.ts';
 import { workOutlivingTheTurnIn, } from './work-the-run-left-running.ts';
 
@@ -80,26 +89,45 @@ export type StartsOfARun = {
    Why no further start followed, when every start ended before the prompt was taken.
    */
   readonly startStoppedBy?: NoFurtherStart;
+
+  /**
+   The session file Pi named in its own state, when it named one, which is what the run masks once it is over.
+   */
+  readonly sessionFile?: string;
 };
 
 /**
  Builds Pi's command line. `--session` is its own word, so a path holding spaces stays one argument.
 
+ The masking extension's words come first, so an operator's own arguments are read after them: Pi loads an explicitly named
+ extension even with `--no-extensions`, so a run cannot be started with the masking left out by the arguments a caller adds.
+
  @param options - options of this run
+
+ @param maskingArguments - the words that load the extension masking this run's secret values
 
  @returns the arguments for Pi
  */
-function piCommandLine(options: DriverOptions,): readonly string[] {
+function piCommandLine({
+  options,
+  maskingArguments,
+  sessionFile,
+}: {
+  readonly options: DriverOptions;
+  readonly maskingArguments: readonly string[];
+  readonly sessionFile?: string;
+},): readonly string[] {
   return [
     '--mode',
     'rpc',
+    ...maskingArguments,
     '--provider',
     options.provider,
     '--model',
     options.model,
-    ...(options.session === undefined ? [] : [
+    ...(sessionFile === undefined ? [] : [
       '--session',
-      options.session,
+      sessionFile,
     ]),
     ...options.piArguments,
   ];
@@ -152,7 +180,13 @@ function stopReasonOf({
 
  @param environment - the environment Pi inherits, without the credentials the caller removed
 
+ @param secretValues - the values of this machine's secret environment, which Pi's extension masks in every tool result
+
+ @param maskingArguments - the words that load the extension masking those values
+
  @param standardErrorFile - the file Pi's standard error is kept in, for every start
+
+ @param mask - the masking Pi's standard error goes through as it is kept
 
  @returns the last Pi, why the run ended, and every start that failed before it took the prompt
 
@@ -167,14 +201,26 @@ export async function startsOfARun({
   inbox,
   deadline,
   environment,
+  secretValues,
+  maskingArguments,
   standardErrorFile,
+  sessionFile,
+  mask,
 }: {
   readonly options: DriverOptions;
   readonly record: RecordOfPiRun;
   readonly inbox: string;
   readonly deadline: number;
   readonly environment: NodeJS.ProcessEnv;
+  readonly secretValues: readonly SecretValue[];
+  readonly maskingArguments: readonly string[];
   readonly standardErrorFile: string;
+
+  /**
+   The session Pi resumes, which is a masked copy of the one the run was given when it resumes one.
+   */
+  readonly sessionFile?: string;
+  readonly mask: TextMasking;
 },): Promise<StartsOfARun> {
   /**
    When the driver's whole sequence of starts must be over: one start-up bound from now, and never past the run's own wall clock.
@@ -229,13 +275,20 @@ export async function startsOfARun({
      The running Pi of this start.
      */
     const connection: ConnectionToPi = startConnectionToPi({
-      piArguments: piCommandLine(options,),
+      piArguments: piCommandLine({
+        options,
+        maskingArguments,
+        ...(sessionFile === undefined ? {} : { sessionFile, }),
+      },),
       workingFolder: options.workingFolder,
       environment: {
         ...environment,
         [NESTED_RUN_VARIABLE]: '1',
+        [SECRET_VALUES_DESCRIPTOR_VARIABLE]: String(SECRET_VALUES_FD,),
       },
+      secretValuesHandover: secretValuesHandover({ values: secretValues, },),
       standardErrorFile,
+      mask,
       standardErrorAppends: attempt > 1,
       listeners: {
         onEvent: function onEvent(event,) {
@@ -271,12 +324,16 @@ export async function startsOfARun({
     /**
      Why this start left the run.
      */
-    const { endReason, } = await endReasonOfRun({
+    const {
+      endReason,
+      sessionFile: namedSession,
+    } = await endReasonOfRun({
       connection,
       record,
       options,
       inbox,
       deadline,
+      secretValuesHandedOver: secretValues.length,
       workLeftRunning: async function workLeftRunning() {
         return await workOutlivingTheTurnIn({
           runFolder: options.runFolder,
@@ -303,6 +360,7 @@ export async function startsOfARun({
         endReason,
         startsTaken: attempt,
         startFailures,
+        ...(namedSession === undefined ? {} : { sessionFile: namedSession, }),
       };
     }
     /**
@@ -372,6 +430,7 @@ export async function startsOfARun({
         endReason: 'pi-exited-before-prompt',
         startsTaken: attempt,
         startFailures,
+        ...(namedSession === undefined ? {} : { sessionFile: namedSession }),
         startStoppedBy: stopReasonOf({
           another,
           now: Date.now(),
