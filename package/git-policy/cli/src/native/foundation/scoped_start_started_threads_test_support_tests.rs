@@ -42,3 +42,19 @@ fn a_start_that_never_ran_leaves_no_count() {
     drop(never_ran);
     assert_eq!(running(), before, "a count dropped without a thread is given back");
 }
+
+/// What:
+///  A job that panics is counted no more once its stack has unwound.
+/// Why:
+///   The value is held by a named binding in the thread's body,
+///  which an unwind drops,
+///  so a job that dies leaves no count that would keep every later fixture removal waiting for 60 seconds
+///  and then fail.
+#[test]
+fn a_job_that_panics_is_counted_no_more() {
+    let before: usize = running();
+    let panicking = crate::scoped_start::spawn_named("panicking-thread-control", || { panic!("the job fails, which is what the control measures"); })
+        .expect("a thread for the control");
+    assert!(panicking.join().is_err(), "the job panics on purpose");
+    assert_eq!(running(), before, "a job that unwound is counted no more");
+}

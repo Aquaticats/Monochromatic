@@ -359,6 +359,9 @@ pub(crate) fn age(path: &Path) {
 /// Remove only the fixture directory a test created,
 /// giving this user back the permission on any directory of it that a test closed,
 /// and waiting for every thread this process started to end first.
+/// A thread `spawn_named` started cannot call this:
+/// it would wait for itself until the run shows nothing,
+/// and then fail.
 pub(crate) fn remove(root: &Path) {
     restore_owner_access(root);
     // What: the threads this process started through `spawn_named` have ended before the tree goes.
@@ -373,7 +376,7 @@ pub(crate) fn remove(root: &Path) {
     let writers_ended: bool = wait_until(&|| { return crate::scoped_start::started_threads::running() == 0; });
     assert!(
         writers_ended,
-        "the threads this process started still work in {}: a fixture is removed only once they have ended, because a job that writes into it after the removal is called leaves the directory it writes in non-empty ({} entries)",
+        "{} was not removed: {} thread(s) this process started through `spawn_named` are still running, and one of them may be writing into the tree (a job started that way belongs to no caller); wait for those jobs to end, or take the wait out of `remove` for the test that holds one on purpose",
         root.display(),
         crate::scoped_start::started_threads::running()
     );

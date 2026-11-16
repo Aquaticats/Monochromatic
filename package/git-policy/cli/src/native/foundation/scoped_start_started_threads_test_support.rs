@@ -15,7 +15,20 @@
 //!  the gate of 2026-11-14).
 //!  The count is what a fixture removal waits on (`remove` in `testing/test_support.rs`),
 //!  and a thread lowers it after its last write,
-//!  so a removal that has seen the count reach zero cannot meet one.
+//!  so a removal that has seen the count reach zero meets no job started through `spawn_named`
+//!  that was still running when it looked.
+//!  What the count does not cover,
+//! and no fixture removal waits for:
+//!  work a job hands to a task of the runtime,
+//!  the note a landing writes on a thread of its own
+//!  (`service_claim_watch_note_within_a_ceiling.rs`,
+//!  which may still write when its ceiling passed),
+//!  a child process a control starts,
+//!  and a new job started while the removal is under way.
+//!  It counts one process's threads,
+//! so it is the count of one test only while one test runs in the process:
+//!  this repository's suite runs one test per process (`cargo nextest`),
+//!  and a threaded run of the same tests in one process would have one test wait for another's jobs.
 //!  Kept in a file of its own so the shipped `scoped_start.rs` holds no inline test module (`rust/tests-in-sidecars`),
 //!  and it exists only in a test build.
 //!

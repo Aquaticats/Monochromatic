@@ -56,8 +56,10 @@ fn settling_keeps_removes_and_accepts_a_tree_that_is_gone() {
 ///   A removal that waits at all cannot return before that thread is let go,
 /// however slowly the host runs;
 /// a removal that does not wait returns in microseconds.
-/// Four of the looks its wait makes is far above the microseconds and far below a second (`WAIT_LOOK_EVERY`).
-const WHILE_A_WRITER_IS_HELD: std::time::Duration = std::time::Duration::from_millis(200);
+/// The window is a second,
+/// far above the microseconds and below a control's own patience,
+/// and it is paid on every run of the control because a removal that waits uses all of it.
+const WHILE_A_WRITER_IS_HELD: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// How long a control waits for its own pieces to settle once it has let them go.
 const SETTLING: std::time::Duration = std::time::Duration::from_secs(30);
@@ -75,7 +77,9 @@ const SETTLING: std::time::Duration = std::time::Duration::from_secs(30);
 ///  `a_landed_commit_holds_its_push_where_no_round_runs_it` panicking at
 ///  `remove only the fixture: Os { code: 39, kind: DirectoryNotEmpty }` in the gate of 2026-11-14.
 ///  The writer here is held,
-/// so "while a thread this process started runs" is a state and not a duration.
+/// so "while a thread this process started runs" is a state and not a duration;
+/// the removal is given the window below to return inside,
+/// which it cannot use while that thread is held.
 #[test]
 fn a_fixture_is_removed_after_the_threads_this_process_started_have_ended() {
     let root: PathBuf = fixture("guard-writer");
@@ -93,12 +97,16 @@ fn a_fixture_is_removed_after_the_threads_this_process_started_have_ended() {
     })
     .expect("a thread for the writer");
     reached.recv().expect("the writer has started and waits for the control");
+    let (calling_sent, calling): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel::<()>();
     let (removed_sent, removed): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel::<()>();
     let removing: PathBuf = root.clone();
     let remover = std::thread::spawn(move || {
+        // Said before the call, so the window below opens where the removal begins and not where its thread does.
+        let _said = calling_sent.send(());
         remove(removing.as_path());
         let _told = removed_sent.send(());
     });
+    calling.recv().expect("the removal is about to run");
     let returned_while_writing: bool = removed.recv_timeout(WHILE_A_WRITER_IS_HELD).is_ok();
     let _let_go = let_go.send(());
     let the_write_found_its_fixture: bool = wrote.recv_timeout(SETTLING).unwrap_or(false);

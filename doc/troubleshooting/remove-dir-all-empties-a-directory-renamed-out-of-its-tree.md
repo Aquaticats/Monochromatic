@@ -153,9 +153,15 @@ before it hands the tree to `remove_dir_all`:
 which reads the count `foundation/scoped_start_started_threads_test_support.rs` keeps.
 A started thread lowers that count after its last write,
 and a start the system refuses lowers it on the spot,
-so a removal that has seen zero cannot meet a writer.
+so a removal that has seen the count reach zero meets no `spawn_named` job that was still running when it looked.
+The count covers no job started while the removal is under way,
+no work a job hands to a task of the runtime,
+not the landing's note,
+which may still write once its ceiling passed,
+and not a child process a control started;
+the wait is one process's threads.
 After that wait the same control passed 10 of 10 runs in the container and 10 of 10 runs on the host,
-which is the order of the control's own test,
+which is the order the control's own test proves,
 `testing::test_support::tests::a_fixture_is_removed_after_the_threads_this_process_started_have_ended`.
 `settle_fixture`,
 the teardown that runs when the test thread ends,
