@@ -68,14 +68,17 @@ which the
 wait never listed.
 
 A third reading is closed by the same change:
-a claim moves a record out of `pending` and into
-`claimed` through `recovering`
+a record moves between the three states
 (`package/git-policy/cli/src/native/landing/work_item.rs`,
-`take_entry`),
+`take_entry` for a claim,
+`requeue_with` for the return of an expired claim),
 so one pass over the three
 states,
 listed one after another,
 can see none of them while the service holds the record.
+The states are listed in the order a claim carries a record through them,
+so a claim cannot be missed by one pass at all,
+and a record an expired claim returns to `pending` is caught by a second reading in a row.
 
 The two failures were not reproduced.
 What is established is that these were the only ways this wait
@@ -134,14 +137,17 @@ so the module was not where it came from.
 The wait now reads the folder by the wrapper's own rule,
 refuses to answer from a listing it could not
 make,
-and takes two readings at once before calling the work settled
+lists the three states in the order an item moves through them
+(`open_records`),
+and calls the work settled only on two readings in a row, a pause apart,
+with the reading passed in so a control can stand in for it
 (`package/git-policy/cli/src/native/binary/binary_support_observation.rs`,
-`open_records` and
-`settled_by_one_reading`).
+`settle_service_work_read_with`).
 Tradeoff:
 a repository whose queue genuinely cannot be listed now fails the
 control with the directory named,
-instead of passing on a state it never saw.
+instead of passing on a state it never saw;
+and a call that finds nothing reads the queue twice, one pause apart.
 
 ## What does not work
 

@@ -367,10 +367,15 @@ const OPEN_STATES: [&str; 3] = [PENDING, RECOVERING, CLAIMED];
 /// and a claim moves it between two of them between two listings,
 /// so one listing is one instant and three listings are three:
 /// the states are read in the order an item moves through them (`OPEN_STATES`),
-/// which sees a claim's transit.
+/// so a record the wait is asked about while a claim carries it is seen in one pass,
+/// whichever gap between two listings the claim's two renames fall in.
+/// A settled answer can therefore not turn on how fast the machine carried a claim,
+/// which is what the failing sighting did:
+/// one control read the queue as settled and the service ran the relink it held three milliseconds later
+/// (`package_repair::quiet_runs_the_repair_and_says_nothing_about_success`, 2026-11-14).
 /// A record an expired claim is returning to `pending` runs the other way (`requeue_with`),
-/// and a pass misses it only where its whole transit falls between two of the listings,
-///  which the second reading of `settle_service_work_read_with` covers.
+/// and a pass misses it only where one of its two renames falls between two of the listings,
+///  which the second reading of `settle_service_work_read_with` makes a coincidence twice over.
 ///  A listing the wait could not make is its answer to report and never a record's absence:
 /// a wait that read one as "no record there" answered "settled" without evidence,
 /// while the commit service kept the record and ran the tool after the control had already read its result
@@ -453,7 +458,7 @@ pub fn settle_service_work(directory: &Path) {
 /// the two renames of `pending` to `recovering` to `claimed` sit microseconds apart.
 /// Work is settled only when two readings in a row find none,
 /// `SETTLE_PAUSE` apart,
-/// because one pass over the three states can see none of them while a claim moves a record between two of them,
+/// because a record an expired claim returns to `pending` can pass between two of a pass's listings,
 /// and because the second reading is taken at a different moment:
 /// a record the service put back into `pending` after the first reading is there for the second.
 ///

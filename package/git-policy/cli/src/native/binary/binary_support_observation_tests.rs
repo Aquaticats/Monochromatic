@@ -4,15 +4,18 @@
 //! Why:
 //!  The wait lists three state directories,
 //!  and three listings are three different moments:
-//!  a record a claim moves from `pending` to `recovering` to `claimed`
-//!  is in none of them when it leaves `recovering` between the second listing and the third,
-//!  although it is in the queue at every moment.
+//!  the states are listed in the order an item moves through them,
+//!  so a record a claim carries is seen,
+//!  but a record an expired claim returns from `claimed` to `pending` through `recovering`
+//!  runs the other way,
+//!  and one of its two renames can fall between two of the listings,
+//!  although the record is in the queue at every moment.
 //!  On 2026-11-14 a control of the package repair then read a queue as settled
 //!  and the service ran the relink it held three milliseconds later
 //!  (`package_repair::quiet_runs_the_repair_and_says_nothing_about_success`,
 //!  `/home/user/temp/agent/integration-pass-45-scratch/keep/logs/binary-package-repair-tests-tip.log`).
-//!  No control can make a claim straddle a listing on a real filesystem,
-//!  because the two renames of a claim sit microseconds apart,
+//!  No control can make a rename straddle a listing on a real filesystem,
+//!  because the renames of a claim sit microseconds apart,
 //!  so this control gives the reading the wait asks
 //!  and proves that one reading of nothing does not end the wait.
 //!
