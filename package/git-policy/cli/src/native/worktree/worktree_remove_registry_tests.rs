@@ -5,7 +5,7 @@
 //! and the pointers that must name each other.
 
 use super::*;
-use crate::test_support::{fixture, git, remove, repository};
+use crate::test_support::{fixture, git, git_context, remove, repository};
 
 /// The match that picks the worktree to remove starts at a directory boundary,
 /// compares the bytes,
@@ -263,5 +263,63 @@ fn another_registrations_named_pipe_does_not_block_the_removal() {
     worker.join().expect("join the read");
     assert!(answered_before_release, "the removal waited for another registration's named pipe");
     assert_eq!(found.expect("the target's own registration is still the answer").id, OsString::from("topic"));
+    remove(root.as_path());
+}
+
+/// What:
+///  The answer `git_worktree_for_operand` gives separates three things:
+///  the worktree Git's own resolution names,
+///  a name Git's own resolution names no worktree for,
+///  and a name two worktrees resolve to.
+/// Why:
+///  The typed removal decides from this answer, and the three are not one thing:
+///  a name Git's resolution names no worktree for is a name Git refuses,
+///  so it removes nothing and the command stays Git's
+///  (measured on this system on real Git, on the build of `main` and on this build:
+///  `fatal: 'TOPIC' is not a working tree` and `fatal: 'topic' is not a working tree`, status 128,
+///  no worktree removed, the ignored file with no other copy still there),
+///  while a name two worktrees resolve to is a removal Git makes of whichever its list puts first,
+///  which nothing here can name and no guard can judge.
+#[test]
+fn the_operand_answer_separates_the_worktree_git_picks_from_the_names_git_refuses() {
+    let root: PathBuf = fixture("registry-operand-answers");
+    let context: crate::transaction_git::GitContext = git_context();
+    // One registration, so the name its bytes spell is the worktree Git picks.
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common");
+    let topic: PathBuf = std::fs::canonicalize(root.join("topic")).expect("canonical");
+    assert_eq!(
+        git_worktree_for_operand(&context, common.as_path(), OsStr::new("topic"), repo.as_path(), false, &[]),
+        Ok(OperandWorktree::Linked(topic)),
+        "the name one registration ends in is the worktree Git picks"
+    );
+    // Git's suffix match compares bytes here, so this name matches no registration, and the path its own resolution
+    // would try is not there.
+    let upper: OperandUnresolved = git_worktree_for_operand(&context, common.as_path(), OsStr::new("TOPIC"), repo.as_path(), false, &[]).expect_err("a name that differs only by case under no folding");
+    assert!(matches!(upper, OperandUnresolved::NoWorktree(_)), "{upper:?}");
+    // A worktree another repository registered is no worktree of this one.
+    let other: PathBuf = repository(root.as_path(), "other");
+    git(other.as_path(), &["worktree", "add", "--quiet", "-b", "foreign", "../foreign"]);
+    let foreign: OperandUnresolved = git_worktree_for_operand(&context, common.as_path(), OsStr::new("../foreign"), repo.as_path(), false, &[]).expect_err("another repository's worktree");
+    assert!(matches!(foreign, OperandUnresolved::NoWorktree(_)), "{foreign:?}");
+    // Two registrations that reach one directory: the second worktree moves and a link is left at its old name.
+    let shared: PathBuf = repository(root.as_path(), "shared");
+    git(shared.as_path(), &["worktree", "add", "--quiet", "-b", "one", "../one/topic"]);
+    git(shared.as_path(), &["worktree", "add", "--quiet", "-b", "two", "../two/TOPIC"]);
+    std::fs::rename(root.join("two/TOPIC"), root.join("two/upper-kept")).expect("move the second worktree");
+    std::os::unix::fs::symlink(root.join("one/topic"), root.join("two/TOPIC")).expect("leave a link at the old name");
+    let shared_common: PathBuf = std::fs::canonicalize(shared.join(".git")).expect("common");
+    // Two registrations end in the name once the case folds, so Git falls to the resolved path, which is not there.
+    let two_match: OperandUnresolved = git_worktree_for_operand(&context, shared_common.as_path(), OsStr::new("topic"), shared.as_path(), true, &[]).expect_err("a name two registrations match");
+    let OperandUnresolved::NoWorktree(two_match_reason) = &two_match else { panic!("a name Git refuses: {two_match:?}") };
+    assert!(two_match_reason.contains("no worktree of this repository resolves"), "{two_match_reason}");
+    // The suffix match finds no registration in this spelling, and the path Git resolves it to is a directory both
+    // registrations name, so Git removes the first of them.
+    let one: PathBuf = std::fs::canonicalize(root.join("one/topic")).expect("canonical");
+    let through_a_dot: PathBuf = root.join("one").join(".").join("topic");
+    let ambiguous: OperandUnresolved = git_worktree_for_operand(&context, shared_common.as_path(), through_a_dot.as_os_str(), shared.as_path(), true, &[]).expect_err("a name two registrations resolve to");
+    let OperandUnresolved::Ambiguous(ambiguous_reason) = &ambiguous else { panic!("a name Git removes by its list order: {ambiguous:?}") };
+    assert!(ambiguous_reason.contains(one.to_str().expect("UTF-8")), "{ambiguous_reason}");
     remove(root.as_path());
 }
