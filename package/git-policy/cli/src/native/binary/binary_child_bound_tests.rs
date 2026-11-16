@@ -8,9 +8,9 @@
 //! so a stalled step held a commit for as long as a stalled repack.
 //!  Each control starts a real wrapped commit under `strace` with a delay on the return of every `execve`
 //!  (the start of the wrapper's own Git children),
-//! and a bound shorter than that delay,
+//! and a bound several sample intervals shorter than that delay,
 //! so the first step the wrapper
-//!  watches outlasts it;
+//!  watches outlasts it and the watch's own sampling reaches a moment inside its silence at any speed a machine runs at;
 //! the invariants are those of the fault tables (`binary_fault_support.rs`).
 //!
 //! In TS you'd write (pseudocode):
@@ -33,7 +33,20 @@ const BOUND_SECONDS: u64 = 1;
 
 /// How long the start of each Git child is delayed beyond the bound,
 /// in seconds.
-const MARGIN_SECONDS: u64 = 1;
+/// Why it is this much and not one bound:
+///  the watch ends a step only when a sample of its signs of work finds none across the bound,
+/// and the wait is sampled every
+///  `SAMPLE_INTERVAL` (500 ms),
+/// while the step is held quiet by the delay;
+/// a margin of one bound left the sample that would have judged the step no earlier than the step's own end,
+/// so on a scope of a quarter of one CPU the delay's last moments fell in the same sample and the commit landed
+///  (`doc/troubleshooting/native-binary-child-bound-control-assumes-its-own-sampler-runs.md`).
+///  The margin is ten sample intervals,
+/// measured against the worst slip of the sampler seen at that cap (1 s),
+///  so no sample moment can reach the step's end;
+/// the run costs the delay twice,
+/// because the step that may be run twice is redone.
+const MARGIN_SECONDS: u64 = 5;
 
 /// The commit with the bound set and the notice interval at its smallest,
 /// so a notice precedes the stop.

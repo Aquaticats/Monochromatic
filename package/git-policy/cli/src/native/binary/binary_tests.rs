@@ -933,3 +933,9 @@ mod kept_references;
 /// measured for the record and not asserted as a control.
 #[path = "binary_housekeeping_beside_a_commit_tests.rs"]
 mod housekeeping_beside_a_commit;
+
+/// The wait a control makes for the after-commit work the commit service runs:
+/// it waits for a queue kept under either spelling of the data folder,
+/// and it never answers settled from a listing it could not make.
+#[path = "binary_settle_the_after_commit_work_tests.rs"]
+mod settle_the_after_commit_work;
