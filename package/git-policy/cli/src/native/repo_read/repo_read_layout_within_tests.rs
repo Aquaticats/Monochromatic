@@ -4,10 +4,10 @@
 //! so no entry point can reach the file system on its caller's thread.
 
 use super::*;
+use crate::work_awaited_within_a_ceiling::a_control_refuses_every_thread;
 use crate::repo_read_layout::{ObjectFormat, git_path, read_layout, read_layout_after_success, read_layout_after_success_for, read_layout_after_success_with, read_layout_in, read_layout_with};
 use crate::repo_read_layout_without::read_layout_without;
 use crate::test_support::{fixture, repository};
-use crate::work_awaited_within_a_ceiling::a_control_refuses_every_thread;
 
 /// The variables Git would see for a repository no file of this machine describes:
 /// no system file,
@@ -140,4 +140,42 @@ fn git_path_leaves_a_name_to_git_when_its_thread_is_refused() {
     let refused_answer: Option<std::path::PathBuf> = git_path(&layout, "index");
     drop(refused);
     assert_eq!(refused_answer, None, "the name was answered without the ceiling's thread");
+}
+
+/// A job that never answers,
+/// the stand-in of a storage call the kernel does not return.
+fn a_lookup_that_never_answers() {
+    loop {
+        std::thread::park();
+    }
+}
+
+/// A second read after one that gave no answer is not waited for again:
+/// the whole process pays one ceiling and not one per asker.
+#[test]
+fn a_read_after_a_no_answer_is_not_waited_for_again() {
+    let ceiling: Duration = Duration::from_millis(50);
+    let first: Option<()> = within_the_ceiling(ceiling, a_lookup_that_never_answers);
+    assert_eq!(first, None, "the job answered, so the control proves nothing");
+    // The same ceiling over a job that answers at once: an answer no wait can give is skipped, not waited for.
+    let started: std::time::Instant = std::time::Instant::now();
+    let second: Option<u8> = within_the_ceiling(ceiling, || return 7_u8);
+    assert_eq!(second, None, "a read after a no answer answered {second:?}");
+    assert!(started.elapsed() < ceiling, "the read after a no answer waited {:?}", started.elapsed());
+    a_control_forgets_the_no_answer();
+    let third: Option<u8> = within_the_ceiling(ceiling, || return 7_u8);
+    assert_eq!(third, Some(7), "the read did not answer once the no answer was forgotten");
+}
+
+/// A thread the system refuses says nothing about the storage,
+/// so the read after it still waits for its own answer.
+#[test]
+fn a_refused_thread_leaves_the_next_read_its_own_ceiling() {
+    let ceiling: Duration = Duration::from_secs(5);
+    let refused = a_control_refuses_every_thread();
+    let first: Option<u8> = within_the_ceiling(ceiling, || return 7_u8);
+    drop(refused);
+    assert_eq!(first, None);
+    let second: Option<u8> = within_the_ceiling(ceiling, || return 7_u8);
+    assert_eq!(second, Some(7), "a refused thread stopped the next read from answering");
 }
