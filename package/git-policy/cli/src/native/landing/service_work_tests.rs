@@ -1033,10 +1033,10 @@ fn upkeep_and_review_that_ran_leave_entries() {
 /// so a change of either shows here.
 #[test]
 fn the_production_lease_leaves_a_starved_holder_two_intervals_of_margin() {
-    assert_eq!(CLAIM_LEASE, Duration::from_secs(120));
+    // The lease outlasts the lane's look, so a record a look claimed keeps its lease for as long as the look may run.
+    assert_eq!(CLAIM_LEASE, crate::wait_ceilings::LANE_LOOK_CEILING + Duration::from_secs(90));
     assert_eq!(renewal_interval(CLAIM_LEASE), CLAIM_LEASE / RENEWALS_PER_LEASE);
     let margin: Duration = CLAIM_LEASE - renewal_interval(CLAIM_LEASE);
-    assert_eq!(margin, Duration::from_secs(80));
     assert!(margin >= renewal_interval(CLAIM_LEASE) * 2, "a renewal late by two intervals still beats the lease");
 }
 

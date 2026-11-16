@@ -405,8 +405,16 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
         Ok(ClientMessage::Work { git_dir, review_key }) => match is_foreign(shared, git_dir.clone()).await {
             Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
             Some(false) => {
-                let _queued = shared.work.send((git_dir, review_key));
+                let queued: Result<(), _> = shared.work.send((git_dir, review_key));
                 let _touched = shared.queue.send(Job::Activity);
+                // What: The hand-over is answered only when the work really went into the lane's channel.
+                // Why:  The receiving end belongs to the after-commit task, and a task that ended (it panicked, or the
+                //       service is going away) leaves nothing to queue into: a `taken` line then told the client the
+                //       service would act on work no one holds (the review of `4a2a3b8a49`, finding 5).
+                if queued.is_err() {
+                    tell_unavailable(write_half).await;
+                    return;
+                }
                 // What: The line the client needs is written only here, after the work is queued.
                 // Why:  A client that stopped at the close of the connection took a service that died before its read for one
                 //       that took the work, and reported a hand-over made while the record it named stayed owed

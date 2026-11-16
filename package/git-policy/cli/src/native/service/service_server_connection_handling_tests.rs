@@ -665,3 +665,37 @@ fn a_client_is_greeted_and_beaten_while_every_place_of_the_pool_is_held() {
     .expect("the process runtime runs this control");
     assert_eq!(outcome, ServiceMessage::Landed { id: String::from("held-pool"), commit: String::from("c"), already: false, landing: None }, "the answer is written while every place is held");
 }
+
+/// What:
+///  A wake whose work could not be queued is never answered `taken`.
+/// Why:
+///   The receiving end of the work channel belongs to the after-commit task; a task that ended (it panicked, or the service
+///   is going away) leaves nothing to queue into, and a `taken` line then told the client the service would act on work no
+///   one holds. The record stays owed either way, so what is wrong is the untrue hand-over line
+///   (the review of `4a2a3b8a49`, finding 5).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { shared } = sharedIn('no-receiver'); sendWork(shared, '/srv/repo/.git'); expect(answer).not.toBe('taken')
+/// ```
+#[test]
+fn a_wake_whose_work_could_not_be_queued_is_not_answered_taken() {
+    // The receiver of the work channel is dropped when `shared_in` returns, which is the state a task that ended leaves.
+    let (mut shared, _jobs) = shared_in("connection-work-nobody-holds");
+    // This instance serves that directory, so the work line reaches the channel whose receiver is gone.
+    shared.own_git_dir = Some(PathBuf::from("/srv/repo/.git"));
+    let line: String = encode_client(&ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None });
+    crate::lazy_runtime::run_on_runtime(async {
+        let (_read_half, mut write_half, mut client) = connection();
+        answer_request(line.as_str(), &mut write_half, &shared, Instant::now()).await;
+        drop(write_half);
+        let mut answer: String = String::new();
+        client.read_line(&mut answer).await.expect("an answer arrives");
+        assert_ne!(
+            decode_service(answer.trim_end_matches('\n')),
+            Ok(ServiceMessage::Taken),
+            "the service answered that it took work it could not queue: {answer:?}"
+        );
+    })
+    .expect("the runtime");
+}

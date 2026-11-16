@@ -1169,3 +1169,89 @@ fn a_staged_state_without_a_mark_finishes_its_record_and_is_left() {
     assert_eq!(std::fs::read(artifact.as_path()).expect("the state is still there"), b"a copied artifact an earlier release moved aside", "the state the wrapper cannot prove is its own was removed");
     remove(root.as_path());
 }
+
+/// What:
+///  A mark beside a staged name is removed like any other file.
+/// Why:
+///   The mark is a regular file, and the removal it went through was `remove_dir_all`, which answers `ENOTDIR` on a file:
+///   every removal of a mark failed and left it inside the worktree, where `git status` showed it as the person's untracked
+///   file (the review of `4a2a3b8a49`, finding 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeFile(marker); expect(removeIfAny(marker)).toBe(undefined); expect(exists(marker)).toBe(false)
+/// ```
+#[test]
+fn a_mark_beside_a_staged_name_is_removed_like_any_other_file() {
+    let root: PathBuf = fixture("prewarm-mark-removal");
+    let usual: PathBuf = root.join("worktree-build.monochromatic-prewarm");
+    let staged: PathBuf = PathBuf::from(format!("{}.1~linux:1~.1", usual.display()));
+    std::fs::create_dir_all(staged.as_path()).expect("a staged name");
+    let mark: PathBuf = super::marker_of_the_staging(staged.as_path());
+    std::fs::write(mark.as_path(), super::STAGED_MARKER_TEXT).expect("the mark a filling writes");
+    super::remove_if_any(mark.as_path()).expect("a mark is a file, and removing a file is what this is");
+    assert!(!mark.exists(), "the mark a filling wrote was left where the person's `git status` shows it");
+    remove(root.as_path());
+}
+
+/// What:
+///  The names the clone path fills are marked before anything is written into them.
+/// Why:
+///   A filling that is killed before it publishes leaves its name behind, and only a name this wrapper marked is the
+///   sweep's to remove: a clone path that wrote no mark left a full copy of the build directory beside it for ever
+///   (the review of `4a2a3b8a49`, finding 3).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const names = namesFor(destination); expect(markerClaims(markerOf(names.staging))).toBe(true)
+/// ```
+#[test]
+fn the_clone_paths_names_are_marked_before_they_are_filled() {
+    let root: PathBuf = fixture("prewarm-clone-path-marked");
+    let destination: PathBuf = root.join("worktree-build");
+    std::fs::create_dir_all(destination.as_path()).expect("a build directory");
+    let names: super::TheNames = super::names_for(destination.as_path()).expect("the names one filling of this workspace works in");
+    assert!(super::a_filling_made_this(names.staging.as_path()), "the clone path hands out a name with no mark, so a killed filling of it leaves a copy no sweep removes");
+    assert!(
+        super::EXCLUDED_STAGING_PATTERNS.iter().any(|pattern: &&str| return pattern.starts_with("*.monochromatic-prewarm.*.") && pattern.ends_with(".made")),
+        "the mark's name is not one the exclude file names, so the person's `git status` shows it: {:?}",
+        super::EXCLUDED_STAGING_PATTERNS
+    );
+    let _ = super::remove_if_any(names.staging.as_path());
+    let _ = super::remove_if_any(super::marker_of_the_staging(names.staging.as_path()).as_path());
+    remove(root.as_path());
+}
+
+/// What:
+///  A kill between the move and the record leaves the copied state staged and marked, and nothing finishes it.
+/// Why:
+///   The step the person's command starts writes the mark, moves the build directory aside, and only then hands over the
+///   record; a kill between the last two leaves the worktree without a build directory and a marked copy beside it that
+///   no record names, so no filling reads it and the sweep of the next stage step does not run (the destination is absent).
+///   This is the review's fourth finding, which it found on `main` as well: the control is kept as the follow-up's record
+///   and is not run, because it pins the defect and not a wanted behaviour
+///   (the review of `4a2a3b8a49`, finding 4; follow-up on `main`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// killBetweenTheMoveAndTheRecord(); expect(exists(staged) && !exists(destination)).toBe(true) // the leak this names
+/// ```
+#[test]
+#[ignore = "fails on main and on this tip: a kill between the move and the record leaves the copied state staged and marked for ever (the review of 4a2a3b8a49, finding 4; follow-up on main)"]
+fn a_kill_between_the_move_and_the_record_leaves_the_state_staged_for_ever() {
+    let root: PathBuf = fixture("prewarm-kill-between-move-and-record");
+    let destination: PathBuf = root.join("worktree-build");
+    std::fs::create_dir_all(destination.join("copied").as_path()).expect("a build directory");
+    std::fs::write(destination.join("copied/an-artifact"), b"the worktree's own copied state").expect("a copied artifact");
+    let staged: super::Staged = super::stage_the_worktrees_own_state(destination.as_path(), None).expect("the move");
+    // The kill: no record is written for the name the move made.
+    let Some(staging) = (match staged { super::Staged::Staged(path) => Some(path), super::Staged::Nothing => None }) else {
+        panic!("the move made no name");
+    };
+    let _later: super::Staged = super::stage_the_worktrees_own_state(destination.as_path(), None).expect("a later command's step");
+    assert!(!destination.exists(), "the worktree's build directory is absent, as a kill between the two leaves it");
+    assert!(staging.exists() && super::a_filling_made_this(staging.as_path()), "the copied state stays staged and marked, and nothing finishes or undoes it");
+    let _ = super::remove_if_any(staging.as_path());
+    let _ = super::remove_if_any(super::marker_of_the_staging(staging.as_path()).as_path());
+    remove(root.as_path());
+}

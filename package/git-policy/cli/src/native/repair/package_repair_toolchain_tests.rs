@@ -695,13 +695,26 @@ fn a_take_never_replaces_a_name_another_pass_reserved() {
     std::fs::write(legacy.as_path(), kept.as_bytes()).expect("the name a killed pass of an earlier release left");
     let own_birth: String = crate::process_identity::current_birth_identity().expect("this process's birth");
     let reserved: String = format!(
-        "{{\"toolId\":\"cargo:own\",\"lockFile\":\"{}\",\"real\":\"/tools/reserved\",\"scope\":\"repo\"}}\n",
+        "{{\"toolId\":\"cargo:zzz\",\"lockFile\":\"{}\",\"real\":\"/tools/reserved\",\"scope\":\"repo\"}}\n",
         own_lock.display()
     );
-    let reserved_path: PathBuf = launchers.join(format!("own.launch.removing-{}-born-{}-0", std::process::id(), spelled_birth(own_birth.as_str())));
+    // The exact name this pass computes for the record it takes aside: the record's own name, this process's number and
+    // birth, and the first token its counter hands out. A control that planted a name the pass never computes proved nothing.
+    let reserved_path: PathBuf = launchers.join(format!("zzz.launch.removing-{}-born-{}-0", std::process::id(), spelled_birth(own_birth.as_str())));
     std::fs::write(reserved_path.as_path(), reserved.as_bytes()).expect("the name this pass's own counter would compute");
     let _pass: Option<Finding> = repair_toolchain(destination.as_path(), &environment);
     assert_eq!(std::fs::read_to_string(legacy.as_path()).unwrap_or_default(), kept, "a pass replaced the record a killed pass of an earlier release left aside");
-    assert_eq!(std::fs::read_to_string(reserved_path.as_path()).unwrap_or_default(), reserved, "a pass replaced a name another pass reserved");
+    assert_eq!(
+        std::fs::read_to_string(reserved_path.as_path()).unwrap_or_default(),
+        reserved,
+        "a pass replaced the exact name it computes, which only an exclusive create keeps free"
+    );
+    // And the record it took aside is somewhere else under a name of this pass's own, so the take happened.
+    let asides: usize = std::fs::read_dir(launchers.as_path())
+        .expect("the launcher directory")
+        .flatten()
+        .filter(|entry| return entry.file_name().to_string_lossy().starts_with("zzz.launch.removing-"))
+        .count();
+    assert_eq!(asides, 2, "the pass did not take the record under a name of its own beside the one this control reserved");
     remove(&root);
 }

@@ -290,3 +290,37 @@ fn a_repair_tool_start_is_bounded_by_the_service_start_wait() {
     let start: &str = include_str!("../repair/package_repair_start.rs");
     assert!(start.contains("async fn start_within("), "the start of a tool is the bounded one");
 }
+
+/// What:
+///  A look outlasts one slow item, and the lease outlasts the look.
+/// Why:
+///   A look that ends at an item's own bound cuts every round that uses its bound: the round's record spends a try it did
+///   not earn, and the trash of a removed worktree is `failed` after `MAX_TRIES` looks with its directory still there
+///   (the review of `4a2a3b8a49`, finding 1). A lease that ends under a running look lets a second look claim the same
+///   record. The three numbers are one decision, so a change to one of them alone fails here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(TRASH_ITEM_CEILING < LANE_LOOK_CEILING && LANE_LOOK_CEILING < CLAIM_LEASE).toBe(true)
+/// ```
+#[test]
+fn the_lanes_look_outlasts_one_item_and_the_lease_outlasts_the_look() {
+    assert!(
+        TRASH_ITEM_CEILING < LANE_LOOK_CEILING,
+        "the look's ceiling {LANE_LOOK_CEILING:?} does not outlast one slow item's {TRASH_ITEM_CEILING:?}, so every item that uses its own bound is cut and spends a try"
+    );
+    assert!(
+        A_SETTLE_WITHIN_A_LOOK < LANE_LOOK_CEILING,
+        "the settle is inside the look's ceiling: {A_SETTLE_WITHIN_A_LOOK:?}"
+    );
+    assert!(
+        LANE_LOOK_CEILING < crate::service_work::CLAIM_LEASE,
+        "the lease {:?} does not outlast the look's ceiling {LANE_LOOK_CEILING:?}, so a second look may claim a record the first still holds",
+        crate::service_work::CLAIM_LEASE
+    );
+    assert_eq!(
+        LANE_LOOK_CEILING,
+        TRASH_ITEM_CEILING + A_SETTLE_WITHIN_A_LOOK,
+        "the look's ceiling is one item's bound plus the settle that puts its record back"
+    );
+}

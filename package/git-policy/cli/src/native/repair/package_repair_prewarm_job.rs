@@ -316,6 +316,11 @@ fn names_for(destination: &Path) -> Result<TheNames, String> {
     let usual: PathBuf = staging_of(destination);
     remove_the_leftovers_of_makers_that_are_gone(usual.as_path());
     let staging: PathBuf = a_staging_name_of_this_runs_own(usual.as_path())?;
+    // What: The clone path marks the name before it clones into it, as the move path does before it moves.
+    // Why:  A filling that is killed between the mark and its work leaves a name the sweep removes; a name with no mark is
+    //       nobody's to remove, so a killed clone left a full copy beside the build directory for ever
+    //       (the review of `4a2a3b8a49`, finding 3).
+    note_that_a_filling_made(staging.as_path())?;
     return Ok(TheNames { staging: staging.clone(), target: target_of(staging.as_path()) });
 }
 
@@ -476,7 +481,20 @@ fn staged_state_is_ours(to: &Path, staged: &Path) -> bool {
 /// removeIfAny(path); // absent is fine
 /// ```
 fn remove_if_any(path: &Path) -> Result<(), String> {
-    return match std::fs::remove_dir_all(path) {
+    // What: A directory is removed with its contents, and any other entry with a refusal to remove a directory at all.
+    // Why:  The marker beside a staged name is a file, and `remove_dir_all` on it answers `ENOTDIR`: every removal of a
+    //       marker failed and left it, where the person's `git status` showed it (the review of `4a2a3b8a49`, finding 2).
+    let kind: std::fs::FileType = match std::fs::symlink_metadata(path) {
+        Ok(found) => found.file_type(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(format!("{} could not be looked at ({error})", path.display())),
+    };
+    let removed: std::io::Result<()> = if kind.is_dir() && !kind.is_symlink() {
+        std::fs::remove_dir_all(path)
+    } else {
+        std::fs::remove_file(path)
+    };
+    return match removed {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(format!("{} could not be removed ({error})", path.display())),
@@ -794,13 +812,15 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
 ///
 /// They are written into the repository's own exclude file (`<git-dir>/info/exclude`), which applies to every worktree of it,
 /// because the names stand beside the build directory they take, inside the worktree.
-pub(crate) const EXCLUDED_STAGING_PATTERNS: [&str; 4] = [
+pub(crate) const EXCLUDED_STAGING_PATTERNS: [&str; 5] = [
     // The names of this release: a staging name, its clean's target, and the same names carrying a filling's maker.
     "*.monochromatic-prewarm.*/",
     // The names of earlier releases: the usual name and its target, and the marker a marker-based release wrote.
     "*.monochromatic-prewarm/",
     "*.monochromatic-prewarm.target/",
     "*.monochromatic-prewarm.owner",
+    // The mark this release writes beside a staged name: a file, so it needs its own pattern.
+    "*.monochromatic-prewarm.*.made",
 ];
 
 /// What:
@@ -943,7 +963,7 @@ async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -
             what_to_do_next(entry, reason.as_str()),
         ));
     }
-    return match publish(names.staging.as_path(), entry.to.as_path()) {
+    let filled: Result<Filled, String> = match publish(names.staging.as_path(), entry.to.as_path()) {
         Ok(true) => Ok(Filled::Published),
         Ok(false) => {
             let _removed = remove_if_any(names.staging.as_path());
@@ -954,6 +974,13 @@ async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -
             Err(reason)
         }
     };
+    // What: The mark goes with the name it stood for, whatever the filling came to.
+    // Why:  A mark left beside a published or removed staging name is the wrapper's own file in the person's worktree, where
+    //       `git status` showed it (the review of `4a2a3b8a49`, finding 2).
+    if let Err(reason) = remove_if_any(marker_of_the_staging(names.staging.as_path()).as_path()) {
+        debug(TAG, format!("{reason}; the mark of the staging name stays for the next filling").as_str());
+    }
+    return filled;
 }
 
 /// What:

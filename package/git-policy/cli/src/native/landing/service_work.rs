@@ -81,13 +81,17 @@ use std::time::Duration;
 ///  119.8 s (the longest `total_ms` in the service journal) does not stop renewals;
 /// a stall of the whole process longer than the
 ///  80 s a renewal may be late would.
-/// Kept at 120 s as the coordinator's pick under the owner's delegation,
+/// It is the lane's look ceiling (`LANE_LOOK_CEILING`, 150 s) plus the 90 s a renewal may be late,
+/// because a record a look claimed must keep its lease for as long as the look may run:
+/// a lease that ended under a running look let a second look claim the same record
+/// (the review of `4a2a3b8a49`, finding 1). It still covers the 119.8 s stall above.
+/// Kept as the coordinator's pick under the owner's delegation,
 /// open to the owner's veto
 ///  (`doc/planning/cli-git-shipped-limits-audit.md`,
 /// "Picked for these follow-ups",
 /// batch size and claim lease,
 /// option B).
-pub const CLAIM_LEASE: Duration = Duration::from_secs(120);
+pub const CLAIM_LEASE: Duration = Duration::from_secs(240);
 
 /// The thread name one removal of a whole worktree carries in a process listing,
 /// so a removal that gave no answer is recognisable.

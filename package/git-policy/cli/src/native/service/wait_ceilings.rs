@@ -1153,11 +1153,24 @@ pub const TRASH_ITEM_CEILING: Duration = Duration::from_secs(120);
 pub const CLIENT_ANSWER_PLACE_CEILING: Duration = crate::service_protocol_messages_and_name_checks::HEARTBEAT_SILENCE;
 
 /// The longest one look of the slow lane spends on one repository:
-/// two minutes, which is the bound of one trash item (`TRASH_ITEM_CEILING`).
-/// A look serves one repository and each of its items has its own bound,
-/// so a look that outlasts the longest item bound is one whose storage stopped answering:
-/// the look is left behind, the lane goes on to the next repository, and the records it claimed keep their lease.
-pub const LANE_LOOK_CEILING: Duration = Duration::from_secs(120);
+/// one trash item's bound (`TRASH_ITEM_CEILING`, two minutes) plus the settle that puts the item's record back
+/// for the next round (`A_SETTLE_WITHIN_A_LOOK`, thirty seconds),
+/// so a look never cuts an item that is still inside its own bound.
+/// The relation is the point: a look that ended at the item's own bound cut every trash round that used its bound,
+/// each cut round spent one of the record's `MAX_TRIES`, and the fourth round's trash was `failed` with its directory still
+/// on the disk (the review of `4a2a3b8a49`, finding 1). A look that outlasts its own bound is one whose storage stopped
+/// answering: it is left behind, the lane goes on to the next repository, and the records it claimed keep their lease.
+/// It is held against `TRASH_ITEM_CEILING` and `CLAIM_LEASE` by
+/// `the_lanes_look_outlasts_one_item_and_the_lease_outlasts_the_look` (`wait_ceilings_tests.rs`), so changing one alone
+/// fails the build.
+pub const LANE_LOOK_CEILING: Duration = Duration::from_secs(150);
+
+/// How long a slow item's settle may take inside a look:
+/// the part of the look's ceiling that is past the longest item's own bound.
+/// A settle writes one record back and returns; what is counted here is the pause a busy storage adds to it, and it is
+/// the difference the look's ceiling must keep over the item's, so the two are one decision
+/// (`doc/planning/cli-git-shipped-limits-audit.md`, the trash item's bound and the look's).
+pub const A_SETTLE_WITHIN_A_LOOK: Duration = Duration::from_secs(30);
 
 /// The lane look's ceiling as this process uses it:
 /// the one a control stated, or `LANE_LOOK_CEILING`.
