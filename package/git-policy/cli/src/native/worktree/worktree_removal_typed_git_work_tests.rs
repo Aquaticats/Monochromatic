@@ -91,7 +91,6 @@ fn every_shell_alias_is_forwarded_as_it_is() {
             subcommand: Some(std::ffi::OsString::from("rmwt")),
             route: Route::ShellAlias,
             shell_command: shell.clone(),
-            shell_value: Some(b"git worktree remove".to_vec()),
         };
         assert!(
             matches!(the_removal_it_judges(&command, &crate::test_support::git_context()), Ok(None)),
