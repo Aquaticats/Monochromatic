@@ -3695,8 +3695,20 @@ which is `refs`, `worktrees` and the sequencer's three folders.
 Nothing is opened or unlinked in a folder Git itself does not accept as a Git directory,
 and every folder of it is reached by a path with no link in any component,
 so a `--git-dir` naming an ordinary folder, or a link at `refs` or `worktrees`, is no place the pass touches.
+Whether a folder is one is answered on the files Git reads,
+and a `HEAD` this package cannot parse whole,
+or a detached `HEAD` whose object is not in the store,
+is no repository here,
+because Git refuses such a folder itself.
 A record the wrapper cannot write is a warning, never a failed command:
 a file standing where the record folder would be is left exactly as it is.
+The folder itself is opened once and every record is opened, read and unlinked relative to it,
+so a link at the folder's name is followed by nothing.
+A record is read again just before it is unlinked,
+and goes only while it is still the same file with the same length,
+so a line a live Git appends after the reading is never removed with it.
+A root the walk refuses is a root it could not see into,
+so the walk says it is incomplete and no record is removed on it.
 A file of a person's named `something.lock` beside an alternate index, or in a Git directory, is never opened or
 unlinked.
 A lock in the per-user or system config, a `--file` config, the credential store, a bundle or a marks file

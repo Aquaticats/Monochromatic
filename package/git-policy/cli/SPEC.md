@@ -10289,13 +10289,30 @@ proved once for the whole invocation
 (`src/native/repo_read/git_directory_proof.rs`,
 `prove_git_directory`):
 the Git and common directories the one answer resolved, resolved again to real paths,
-a `HEAD` that names a reference or an object,
+a `HEAD` this package reads whole,
 and an object store with a reference folder,
 or the `commondir` file a linked worktree's Git directory carries.
 A folder an option names that Git would refuse is no place the pass opens or unlinks,
 and no place a record is written
 (a review of `551084db3c`,
 finding 3).
+
+The `HEAD` reading is not a loose match (`head_of`,
+`is_a_full_refname`,
+`object_exists`).
+It takes exactly one line with an optional final newline and refuses a carriage return,
+a second line or a NUL;
+a `ref: ` line must name a full reference (a `refs/` name of printable bytes, no empty component,
+none beginning with a dot or ending in `.lock`, no `..` or `@{`, none of ``~^:?*[\``);
+and a lone object name must be lowercase hexadecimal of this repository's length whose object the store really holds,
+because Git refuses a folder whose detached `HEAD` names an object it does not have.
+A spelling Git accepts and this refuses costs the pass in that repository and nothing else,
+so the reading errs towards refusing.
+The control that holds it to Git is a comparison over generated `HEAD` contents, bytes below 0x20 and 0x7f among them:
+no `HEAD` the proof accepts is one real Git refuses as no repository
+(`src/native/repo_read/git_directory_proof_tests.rs`;
+a review of `b0ea691cc1`,
+finding 1).
 And each root below those two folders is reached by one walk that opens every component as the folder it is named as
 (`src/native/lock/abandoned_locks.rs`,
 `folder_below_proven`),
@@ -10307,6 +10324,13 @@ a review of `3ac1254a73`,
 finding 1;
 a review of `551084db3c`,
 finding 2).
+A component that is there and is no real folder,
+like one that cannot be read,
+makes the walk incomplete,
+so no record is removed on it:
+a root refused as a link is a place a lock may stand unseen
+(a review of `b0ea691cc1`,
+finding 4).
 The directory of an alternate index or a shallow file is read by no walk at all: the one lock there is the selected
 file's own.
 The table of every locked file, with the exact candidate that names it and Git's own file and line, is the doc comment
@@ -10360,6 +10384,19 @@ it cannot wait,
 follows no link,
 and refuses a pipe, a device or a folder at the name,
 so a named pipe at a record's path cannot hold a Git start.
+The folder itself is opened once,
+without following a link at its own name,
+and every record below it is opened,
+read and unlinked relative to that opened folder
+(`open_plain_directory`,
+`create_plain_file_in`,
+`open_plain_file_to_append_in`,
+`read_plain_file_in`,
+`unlink_in`):
+a link planted at the folder's name was followed after the check that it was a directory,
+and a child's line landed in a person's file outside the repository
+(a review of `b0ea691cc1`,
+finding 2).
 The two together are the whole proof:
 a removal decided on a reading of the records but on an older sight of the locks loses the record of a lock made in
 between (a review of `2af2ecb879`,
@@ -10369,6 +10406,15 @@ and a removal that does not show the writer gone can unlink a line a live Git's 
 finding 3).
 A record that is left a little longer costs a file;
 a record removed too early turns a lock that could be proved abandoned into a commit that fails.
+A record the sweep decided about is read again immediately before it is unlinked,
+and only while it is the same file with the same length
+(`PlainFileIdentity`,
+device and inode and length):
+a writer's child can append its line between the reading and the removal,
+and the older reading then names no process the standing lock needs,
+so the file went with the only proof of a lock nobody could clear afterwards
+(a review of `b0ea691cc1`,
+finding 3).
 
 The folder goes with the last record it held.
 A folder that reads as present can therefore go before a record is made in it,

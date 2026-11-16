@@ -602,3 +602,57 @@ fn a_root_refused_as_a_link_leaves_the_walk_incomplete_so_its_record_stays() {
     assert!(record.exists(), "and the record of the process that left the lock beyond it is not called litter");
     remove(root.as_path());
 }
+
+/// What:
+///  A folder whose `HEAD` real Git refuses gets no pass,
+///  even when its `objects` and `refs` folders,
+///  a record of a gone process,
+///  and a lock that record explains are all there.
+/// Why:
+///  The proof read the `HEAD` text loosely,
+///  so `ref: \0\n` passed as a symbolic reference while Git refused the folder as no repository,
+///  and this pass unlinked `refs/heads/user-data.lock` there first
+///  (a review of `b0ea691cc1`,
+/// finding 1;
+/// the comparison over generated `HEAD` contents is `repo_read/git_directory_proof_tests.rs`).
+///  The positive control is the `refs` row of
+///  `a_root_is_cleared_when_it_is_really_there_and_never_reached_through_a_link`:
+///  the same lock in a folder with a `HEAD` Git accepts is cleared.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeFileSync(join(ordinary, 'HEAD'), 'ref: \u0000\n'); writeFileSync(join(ordinary, 'refs/heads/user-data.lock'), bytes); writePidCompanion(gone);
+/// meetTheLocks({ gitDir: ordinary, commonDir: ordinary, … }); expect(existsSync(lock)).toBe(true)
+/// ```
+#[test]
+fn a_folder_whose_head_real_git_refuses_gets_no_pass() {
+    let root: PathBuf = fixture("lock-roots-a-head-git-refuses");
+    let ordinary: PathBuf = root.join("not-a-repository");
+    std::fs::create_dir_all(ordinary.join("objects").as_path()).expect("an object store");
+    std::fs::create_dir_all(ordinary.join("refs/heads").as_path()).expect("a references folder");
+    std::fs::write(ordinary.join("HEAD"), b"ref: \0\n").expect("the HEAD real Git refuses");
+    // The record of a gone process and the lock its number explains, so a pass that ran would clear it.
+    let (gone, identity): (i64, String) = a_dead_process();
+    let folder: PathBuf = folder_of(ordinary.as_path());
+    std::fs::create_dir_all(folder.as_path()).expect("the record folder");
+    std::fs::write(
+        folder.join("record-of-the-gone-holder"),
+        record_text(&[(SELF_KIND, gone, identity.clone()), (CHILD_KIND, gone, identity)]).as_bytes(),
+    )
+    .expect("the record");
+    let lock: PathBuf = ordinary.join("refs/heads/user-data.lock");
+    std::fs::write(lock.as_path(), b"a person's data\n").expect("the person's file");
+    make_pid_file_after_the_lock(lock.as_path(), gone);
+    let repository: CommandRepository = CommandRepository {
+        start: root.clone(),
+        git_dir: Some(ordinary.clone()),
+        common_dir: Some(ordinary.clone()),
+        index_file: Some(ordinary.join("index")),
+        shallow_file: Some(ordinary.join("shallow")),
+        object_dir: Some(ordinary.join("objects")),
+    };
+    meet_the_locks_of_the_repository_the_command_works_on(&repository);
+    assert!(lock.exists(), "a folder Git refuses is no place this pass opens or unlinks");
+    assert!(ordinary.join("refs/heads/user-data~pid.lock").exists(), "and the PID companion beside it is untouched");
+    remove(root.as_path());
+}

@@ -61,7 +61,7 @@ use crate::lock_holder_records::{CHILD_KIND, SELF_KIND, folder_of};
 use crate::process_identity::process_birth_identity;
 use crate::service_index_identity::{HolderState, holder_state};
 /// Reading a small file without following a link and without waiting on a pipe.
-use crate::plain_file::{read_plain_file, SMALL_FILE_LIMIT};
+use crate::plain_file::SMALL_FILE_LIMIT;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -140,6 +140,9 @@ fn lines_of(text: &str) -> Vec<(bool, i64, String)> {
 pub struct Record {
     /// The record file.
     pub path: PathBuf,
+    /// Which file the lines below were read from,
+    ///  and how long it was then.
+    pub identity: crate::plain_file::PlainFileIdentity,
     /// The writer's own line,
     ///  or nothing for a record an earlier release wrote without one.
     pub writer: Option<(i64, String)>,
@@ -270,25 +273,45 @@ fn records_that_can_name(common_dir: &Path, _pid: i64) -> Option<Vec<Record>> {
 /// recordAt(path) // { path, writer, holders } or undefined
 /// ```
 fn record_at(path: &Path) -> Option<Record> {
-    let Ok(bytes) = read_plain_file(path, RECORD_LIMIT) else {
+    let Ok((bytes, identity)) = crate::plain_file::read_plain_file_with_identity(path, RECORD_LIMIT) else {
         return None;
     };
-    let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(bytes.as_slice());
-    let lines: Vec<(bool, i64, String)> = lines_of(text.as_ref());
-    let holders: Vec<(i64, String)> = lines
-        .iter()
-        .map(|(_, pid, identity)| { return (*pid, identity.clone()); })
-        .collect();
-    if holders.is_empty() {
-        return None;
+    return Record::of(path.to_path_buf(), identity, bytes.as_slice());
+}
+
+/// What:
+///  The record `bytes` are,
+///  read from the file `identity` names at `path`,
+///  or nothing when they name no process.
+/// Why:
+///   Two readings share one parse:
+///  the caller's sweep, which decides about a record,
+///  and the removal, which reads the file again before it acts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Record.of(path, identity, bytes) // { path, identity, writer, holders } or undefined
+/// ```
+impl Record {
+    /// The record these bytes are, when they name a process.
+    fn of(path: PathBuf, identity: crate::plain_file::PlainFileIdentity, bytes: &[u8]) -> Option<Record> {
+        let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(bytes);
+        let lines: Vec<(bool, i64, String)> = lines_of(text.as_ref());
+        let holders: Vec<(i64, String)> = lines
+            .iter()
+            .map(|(_, pid, named)| { return (*pid, named.clone()); })
+            .collect();
+        if holders.is_empty() {
+            return None;
+        }
+        // The first own line is the writer's: a record has one, and one written by a release that named its writer twice named
+        //  the same process both times.
+        let writer: Option<(i64, String)> = lines
+            .iter()
+            .find(|(own, _, _)| { return *own; })
+            .map(|(_, pid, named)| { return (*pid, named.clone()); });
+        return Some(Record { path, identity, writer, holders });
     }
-    // The first own line is the writer's: a record has one, and one written by a release that named its writer twice named
-    //  the same process both times.
-    let writer: Option<(i64, String)> = lines
-        .iter()
-        .find(|(own, _, _)| { return *own; })
-        .map(|(_, pid, identity)| { return (*pid, identity.clone()); });
-    return Some(Record { path: path.to_path_buf(), writer, holders });
 }
 
 /// What:
@@ -411,13 +434,39 @@ pub fn proved_gone_writer(common_dir: &Path, pid: i64) -> Option<String> {
 /// for (const record of records) if (nothingCanNeed(record, pidsInUse)) rm(record.path); try { rmdir(folder) } catch {}
 /// ```
 pub fn remove_records_no_one_needs(common_dir: &Path, records: &[Record], pids_in_use: &[i64]) {
+    // What: A record a caller decided about is read again, and removed only while it is the same file with the same
+    //       length, under a folder this call opened itself.
+    // Why:  A writer's child can append a line between the caller's reading and this removal, and the older reading then
+    //       names no process the standing lock needs:
+    //       the file went, and with it the only proof of a lock nobody could clear afterwards
+    //       (a review of `b0ea691cc1`,
+    // finding 3).
+    let folder: PathBuf = folder_of(common_dir);
+    let Ok(directory) = crate::plain_file::open_plain_directory(folder.as_path()) else {
+        return;
+    };
     for record in records {
         if !nothing_can_need(record, pids_in_use, false) {
             continue;
         }
-        let _removed = std::fs::remove_file(record.path.as_path());
+        let Some(name) = record.path.file_name() else {
+            continue;
+        };
+        let Ok((bytes, identity)) = crate::plain_file::read_plain_file_in_with_identity(&directory, name, RECORD_LIMIT) else {
+            continue;
+        };
+        if !record.identity.agrees_with(&identity) {
+            continue;
+        }
+        let Some(current) = Record::of(record.path.clone(), identity, bytes.as_slice()) else {
+            continue;
+        };
+        if !nothing_can_need(&current, pids_in_use, false) {
+            continue;
+        }
+        let _removed = crate::plain_file::unlink_in(&directory, name);
     }
-    let _removed_folder = std::fs::remove_dir(folder_of(common_dir).as_path());
+    let _removed_folder = std::fs::remove_dir(folder.as_path());
 }
 
 /// What:
@@ -447,8 +496,16 @@ pub fn remove_this_process_record_if_no_lock_needs_it(common_dir: &Path, pids_in
     if !nothing_can_need(&record, pids_in_use, true) {
         return;
     }
-    let _removed = std::fs::remove_file(path.as_path());
-    let _removed_folder = std::fs::remove_dir(folder_of(common_dir).as_path());
+    // What: The file goes under a folder this call opened itself, by the record's own name.
+    // Why:  The writer appends nothing more, so its own record cannot change;
+    //       a link at the folder's name could still send a removal by path into another folder
+    //       (a review of `b0ea691cc1`,
+    // finding 2, for the same traversal).
+    let folder: PathBuf = folder_of(common_dir);
+    if let (Ok(directory), Some(name)) = (crate::plain_file::open_plain_directory(folder.as_path()), path.file_name()) {
+        let _removed = crate::plain_file::unlink_in(&directory, name);
+    }
+    let _removed_folder = std::fs::remove_dir(folder.as_path());
 }
 
 /// What:

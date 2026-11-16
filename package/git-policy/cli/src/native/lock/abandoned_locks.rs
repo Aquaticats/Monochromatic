@@ -420,7 +420,10 @@ pub fn walked(candidates: &[LockCandidate], proven: &ProvenGitDirectory) -> Walk
 /// a review of `551084db3c`,
 /// finding 2).
 ///  A component that is absent proves nothing missed;
-///  one that exists and cannot be read makes the walk incomplete.
+///  one that exists and is no real folder,
+///  and one that cannot be read,
+///  both make the walk incomplete,
+///  because a lock may stand inside either and the walk did not see it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -440,6 +443,13 @@ fn folder_below_proven(proven: &ProvenGitDirectory, base: ProvenFolder, componen
                     TAG,
                     format!("{} is no folder of this repository, so the pass did not search it", resolved.display()).as_str(),
                 );
+                // What: Something is at this name and the walk could not see inside it, so the walk is not complete.
+                // Why:  A root refused as a link was read as a complete walk, and the record of the lock beyond it was
+                //       removed as litter, so after the person replaced the link with the real folder no pass could ever
+                //       clear that lock
+                //       (a review of `b0ea691cc1`,
+                // finding 4).
+                *complete = false;
                 return None;
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return None,

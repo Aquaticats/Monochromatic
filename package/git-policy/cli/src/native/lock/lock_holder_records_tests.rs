@@ -276,19 +276,25 @@ fn the_writer_removes_its_own_record_only_when_no_lock_names_what_it_recorded() 
 }
 
 /// What:
-///  The one attempt at writing a record reports a file it cannot make,
-///  which is what `note` answers with a second attempt.
+///  The one attempt at writing a record refuses a file name that is not in the record folder,
+///  and makes nothing,
+///  which is the shape a second attempt of `note` never retries.
 /// Why:
 ///  The second attempt exists because a sweep can remove the folder between the look at it and the file made in it,
 ///  and a retry that did not end would hold the command;
 ///  a first attempt that fails for any other reason reaches the caller at once.
+///  A record's name is one name in the folder this attempt opened,
+///  so a path below a folder nobody made is refused rather than opened,
+///  which is also why a link at the folder's own name cannot redirect the write
+///  (a review of `b0ea691cc1`,
+/// finding 2).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(() => writeOnce(folder, join(folder, 'missing', 'file'), ...)).toThrow(/NotFound/);
+/// expect(() => writeOnce(folder, join(folder, 'missing', 'file'), ...)).toThrow(/InvalidInput/);
 /// ```
 #[test]
-fn an_attempt_whose_folder_is_not_under_the_file_reports_it_and_makes_nothing() {
+fn an_attempt_whose_file_is_not_in_the_record_folder_reports_it_and_makes_nothing() {
     let root: PathBuf = fixture("record-attempt-fails");
     let folder: PathBuf = folder_of(root.as_path());
     let unreachable: PathBuf = folder.join("a-directory-nobody-made").join("record");
@@ -300,8 +306,8 @@ fn an_attempt_whose_folder_is_not_under_the_file_reports_it_and_makes_nothing() 
         identity_of_birth("linux:4242").as_str(),
         identity_of_birth("linux:4243").as_str(),
     )
-    .expect_err("a file whose directory is not there cannot be made");
-    assert_eq!(failed.kind(), std::io::ErrorKind::NotFound, "the failure says the folder or the file is not there: {failed}");
+    .expect_err("a record's name is one name in the record folder, and this one is below a folder nobody made");
+    assert_eq!(failed.kind(), std::io::ErrorKind::InvalidInput, "the failure says the name is not the folder's own: {failed}");
     assert!(!unreachable.exists(), "nothing was written");
     remove(root.as_path());
 }
@@ -550,9 +556,25 @@ fn a_record_folder_that_is_a_link_is_never_written_through_by_the_child() {
         .file_name()
         .expect("a record file name")
         .to_os_string();
-    let persons_file: PathBuf = outside.join(record_name);
+    let persons_file: PathBuf = outside.join(record_name.clone());
     let persons_bytes: &[u8] = b"a person's own bytes at the record's name\n";
     std::fs::write(persons_file.as_path(), persons_bytes).expect("the person's file");
+    // What: The parent's own attempt at the record refuses the same folder, and writes nothing through it.
+    // Why:  The check that the folder was a directory and the open of the file were two steps, and a link at the
+    //       folder's name was followed between them
+    //       (a review of `b0ea691cc1`,
+    // finding 2).
+    let refused: std::io::Error = crate::lock_holder_records::write_a_record_line_once(
+        folder.as_path(),
+        folder.join(record_name.as_os_str()).as_path(),
+        SELF_KIND,
+        std::process::id(),
+        identity_of_birth("linux:4242").as_str(),
+        identity_of_birth("linux:4243").as_str(),
+    )
+    .expect_err("the parent refuses a record folder that is a link");
+    assert_eq!(refused.kind(), std::io::ErrorKind::InvalidInput, "the parent says the folder is not a directory: {refused}");
+    assert_eq!(std::fs::read(persons_file.as_path()).expect("the person's file is still there"), persons_bytes, "and the parent wrote nothing through it");
     crate::lock_holder_records::remember_repository(common.as_path());
     let mut command: std::process::Command = std::process::Command::new("/bin/sh");
     command.arg("-c").arg("exit 0");

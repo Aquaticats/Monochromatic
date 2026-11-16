@@ -50,10 +50,10 @@ use std::path::{Path, PathBuf};
 /// ```
 #[cfg(unix)]
 pub struct OwnLineBeforeBecomingGit {
-    /// The record folder, NUL-terminated for `mkdir`.
+    /// The record folder, NUL-terminated for `mkdir` and for the open of the folder itself.
     folder: std::ffi::CString,
-    /// The record file, NUL-terminated for `open`.
-    file: std::ffi::CString,
+    /// The record file's own name inside that folder, NUL-terminated for `openat`.
+    name: std::ffi::CString,
     /// The header a new file starts with, newline included.
     header: Vec<u8>,
 }
@@ -73,11 +73,19 @@ pub struct OwnLineBeforeBecomingGit {
 #[cfg(unix)]
 pub fn prepare_own_line(folder: &Path, path: &Path) -> Option<OwnLineBeforeBecomingGit> {
     use std::os::unix::ffi::OsStrExt as _;
+    // What: The folder and the record's own name, and nothing else: the child opens the folder once, without following a
+    //       link, and every name below it is relative to that.
+    // Why:  A record's full path could be redirected by a link at the folder's name, and a child has no way to refuse it
+    //       (a review of `b0ea691cc1`,
+    // finding 2).
+    if path.parent() != Some(folder) {
+        return None;
+    }
     let folder_text: std::ffi::CString = std::ffi::CString::new(folder.as_os_str().as_bytes()).ok()?;
-    let file_text: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
+    let name_text: std::ffi::CString = std::ffi::CString::new(path.file_name()?.as_bytes()).ok()?;
     let mut header: Vec<u8> = RECORD_HEADER.as_bytes().to_vec();
     header.push(b'\n');
-    return Some(OwnLineBeforeBecomingGit { folder: folder_text, file: file_text, header });
+    return Some(OwnLineBeforeBecomingGit { folder: folder_text, name: name_text, header });
 }
 
 /// What:
@@ -230,6 +238,18 @@ impl OwnLineBeforeBecomingGit {
                 return Err(error);
             }
         }
+        // What: The folder is opened once, as the folder it is named as, and every name below it is opened relative to
+        //       that descriptor.
+        // Why:  `mkdir` answering `AlreadyExists` says nothing about what stands there: a link at the folder's name sent
+        //       this child's line into a person's file outside the repository
+        //       (a review of `b0ea691cc1`,
+        // finding 2).
+        //       `O_DIRECTORY` refuses anything but a folder and `O_NOFOLLOW` refuses a link at that name.
+        let folder: libc::c_int =
+            unsafe { libc::open(self.folder.as_ptr(), libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK) };
+        if folder < 0 {
+            return Err(std::io::Error::from_raw_os_error(errno()));
+        }
         let mut stat: [u8; 1024] = [0; 1024];
         let read: usize = read_bounded(c"/proc/self/stat".as_ptr(), &mut stat)?;
         let Some(tick) = start_tick_of(stat.get(..read).unwrap_or(&[])) else {
@@ -245,15 +265,18 @@ impl OwnLineBeforeBecomingGit {
         };
         let filled_line: &[u8] = line.get(..line_len).unwrap_or(&[]);
         // The file is made once and appended to afterwards, so the header goes only with the creation.
-        let created: libc::c_int = unsafe { libc::open(self.file.as_ptr(), libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_CLOEXEC, 0o600) };
+        let created: libc::c_int =
+            unsafe { libc::openat(folder, self.name.as_ptr(), libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_CLOEXEC | libc::O_NOFOLLOW, 0o600) };
         if created >= 0 {
             let wrote_header: std::io::Result<()> = write_all(created, self.header.as_slice());
             let wrote_line: std::io::Result<()> = wrote_header.and_then(|()| { return write_all(created, filled_line); });
             close(created);
+            close(folder);
             return wrote_line;
         }
         let error: std::io::Error = std::io::Error::last_os_error();
         if error.kind() != std::io::ErrorKind::AlreadyExists {
+            close(folder);
             return Err(error);
         }
         // What: The record file is opened with the one set of flags every plain-file open uses: no link is followed, a pipe
@@ -263,7 +286,8 @@ impl OwnLineBeforeBecomingGit {
         //       (a review of `58cd4d9f7c`,
         // findings 3 and 4).
         let appended: libc::c_int =
-            unsafe { libc::open(self.file.as_ptr(), libc::O_WRONLY | libc::O_APPEND | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC) };
+            unsafe { libc::openat(folder, self.name.as_ptr(), libc::O_WRONLY | libc::O_APPEND | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC) };
+        close(folder);
         if appended < 0 {
             return Err(std::io::Error::from_raw_os_error(errno()));
         }

@@ -483,17 +483,29 @@ pub(crate) fn write_a_record_line_once(folder: &Path, path: &Path, kind: &str, p
     use std::io::Write as _;
     // The writer's own line, written when the file is made: it names the one process that appends to this file.
     let own: (i64, String) = (i64::from(std::process::id()), writer.to_owned());
-    // The folder the wrapper writes in is its own name inside the Git directory, and a person may have put a file, a link
-    //  or a pipe there: a folder that is not a directory is refused rather than followed.
+    // What: The folder is made and then opened once, without following a link, and every open of the record is relative
+    //       to that opened folder.
+    // Why:  The folder the wrapper writes in is its own name inside the Git directory, and a person may have put a file,
+    //       a link or a pipe there: a link at the folder's own name was followed after the check that it was a directory,
+    //       which wrote a record line through it
+    //       (a review of `b0ea691cc1`,
+    // finding 2).
     std::fs::create_dir_all(folder)?;
-    if !std::fs::symlink_metadata(folder)?.file_type().is_dir() {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "the record folder is not a directory"));
+    let record_folder: std::fs::File = match crate::plain_file::open_plain_directory(folder) {
+        Ok(opened) => opened,
+        Err(_not_a_directory) => return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "the record folder is not a directory")),
+    };
+    let Some(name) = path.file_name() else {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "the record's name is not a file name"));
+    };
+    if path.parent() != Some(folder) {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "the record's name is not in the record folder"));
     }
     // What: Every open of a record is the plain-file open: it cannot wait, follows no link, and refuses a pipe, a device
     //       or a folder at the name.
     // Why:  A named pipe at the record's path held a Git start for good, before the ceiling of the command it served had
     //       even begun (a review of `429503238b`, finding 4).
-    let mut made: std::fs::File = match crate::plain_file::create_plain_file(path) {
+    let mut made: std::fs::File = match crate::plain_file::create_plain_file_in(&record_folder, name) {
         Ok(file) => file,
         // Another thread of this process made it, or it is this process's own record already: the append below is enough.
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
@@ -502,10 +514,10 @@ pub(crate) fn write_a_record_line_once(folder: &Path, path: &Path, kind: &str, p
             //       named pipe there was accepted here and the child then followed it or waited on it
             //       (a review of `58cd4d9f7c`,
             // findings 3 and 4).
-            let mut existing: std::fs::File = crate::plain_file::open_plain_file_to_append(path)?;
+            let mut existing: std::fs::File = crate::plain_file::open_plain_file_to_append_in(&record_folder, name)?;
             if kind == SELF_KIND {
                 // The writer's own line is written once: it is skipped only when the file that was read names this process.
-                let named: Vec<u8> = crate::plain_file::read_plain_file(path, crate::plain_file::SMALL_FILE_LIMIT)?;
+                let named: Vec<u8> = crate::plain_file::read_plain_file_in(&record_folder, name, crate::plain_file::SMALL_FILE_LIMIT)?;
                 let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(named.as_slice());
                 let own_line: String = format!("{SELF_KIND} {} ", own.0);
                 if text.lines().any(|line| { return line.starts_with(own_line.as_str()); }) {

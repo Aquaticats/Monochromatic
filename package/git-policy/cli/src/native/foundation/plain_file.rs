@@ -320,6 +320,258 @@ pub fn create_plain_file(path: &Path) -> std::io::Result<std::fs::File> {
 }
 
 /// What:
+///  Which file a plain-file open really reached:
+///  the device it lives on,
+///  its inode,
+///  and its length.
+/// Why:
+///  A record read a moment ago is not the record that stands now:
+///  a writer's child may append a line after the reading,
+///  and a removal that acted on the older text unlinked the proof of a lock nobody could then explain
+///  (a review of `b0ea691cc1`,
+/// finding 3).
+///  The device and inode say it is the same file,
+///  and the length says no byte has been added or taken away since.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PlainFileIdentity = { device: number; inode: number; length: number };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PlainFileIdentity {
+    /// The device the file lives on.
+    device: u64,
+    /// Its inode on that device.
+    inode: u64,
+    /// Its length in bytes when it was read.
+    length: u64,
+}
+
+/// What:
+///  Whether two readings are of one unchanged file.
+/// Why:
+///  Only then may a decision made on the first be acted on with the second:
+///  a replacement on one device,
+///  a different inode,
+///  or another length is another file or another text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const agrees = (a, b) => a.device === b.device && a.inode === b.inode && a.length === b.length;
+/// ```
+impl PlainFileIdentity {
+    /// The identity of an open file's own metadata.
+    pub fn of(metadata: &std::fs::Metadata) -> Self {
+        use std::os::unix::fs::MetadataExt as _;
+        return PlainFileIdentity { device: metadata.dev(), inode: metadata.ino(), length: metadata.len() };
+    }
+
+    /// Whether `other` is this same file with the same length.
+    pub fn agrees_with(&self, other: &PlainFileIdentity) -> bool {
+        return self.device == other.device && self.inode == other.inode && self.length == other.length;
+    }
+}
+
+/// What:
+///  The folder at `path` itself,
+///  opened without following a link at its own last component,
+///  and refused when what was opened is not a directory.
+/// Why:
+///  A folder the wrapper writes records in is one a person may write:
+///  a link planted at its name sent a child's record line into a folder outside the repository,
+///  and the check-then-open order left that window open
+///  (a review of `b0ea691cc1`,
+/// finding 2).
+///  Every open below this descriptor is then relative to the folder that was really opened,
+///  so no name between here and there can be a link.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const folder = openSync(path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC); if (!fstatSync(folder).isDirectory()) refuse();
+/// ```
+pub fn open_plain_directory(path: &Path) -> std::io::Result<std::fs::File> {
+    let flags: rustix::fs::OFlags =
+        rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::DIRECTORY | rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::CLOEXEC | rustix::fs::OFlags::NONBLOCK;
+    let descriptor: rustix::fd::OwnedFd = rustix::fs::open(path, flags, rustix::fs::Mode::empty()).map_err(std::io::Error::from)?;
+    let folder: std::fs::File = std::fs::File::from(descriptor);
+    if !folder.metadata()?.file_type().is_dir() {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, NOT_A_PLAIN_FILE));
+    }
+    return Ok(folder);
+}
+
+/// What:
+///  The bytes of the plain file at `path`,
+///  with the identity of the file they were read from.
+/// Why:
+///  A removal that decides on a reading must act only while the file is still the one it read,
+///  and the identity is what says so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [bytes, identity] = readPlainFileWithIdentity(path, limit);
+/// ```
+pub fn read_plain_file_with_identity(path: &Path, limit: u64) -> std::io::Result<(Vec<u8>, PlainFileIdentity)> {
+    let file: std::fs::File = opened_plain(path, Links::NotFollowed)?;
+    let identity: PlainFileIdentity = PlainFileIdentity::of(&file.metadata()?);
+    let mut bytes: Vec<u8> = Vec::new();
+    std::io::Read::read_to_end(&mut std::io::Read::take(&file, limit + 1), &mut bytes)?;
+    if bytes.len() as u64 > limit {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "it is larger than this command reads"));
+    }
+    return Ok((bytes, identity));
+}
+
+/// What:
+///  The bytes of the plain file `name` in the open folder `directory`,
+///  with the identity of the file they were read from.
+/// Why:
+///  A record is read beside the removal that decides about it,
+///  and the file the decision acts on must be the one this reading saw.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [bytes, identity] = readPlainFileInWithIdentity(folder, name, limit);
+/// ```
+pub fn read_plain_file_in_with_identity(directory: &std::fs::File, name: &std::ffi::OsStr, limit: u64) -> std::io::Result<(Vec<u8>, PlainFileIdentity)> {
+    #[cfg(test)]
+    note_a_read(directory_name_and(directory, name).as_path());
+    let flags: rustix::fs::OFlags = rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::NONBLOCK | rustix::fs::OFlags::CLOEXEC;
+    let file: std::fs::File = opened_in(directory, name, flags)?;
+    let identity: PlainFileIdentity = PlainFileIdentity::of(&file.metadata()?);
+    let mut bytes: Vec<u8> = Vec::new();
+    std::io::Read::read_to_end(&mut std::io::Read::take(&file, limit + 1), &mut bytes)?;
+    if bytes.len() as u64 > limit {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "it is larger than this command reads"));
+    }
+    return Ok((bytes, identity));
+}
+
+/// What:
+///  Remove the plain file `name` from the open folder `directory`.
+/// Why:
+///  The removal is relative to the folder this process opened itself,
+///  so a link at the folder's name cannot send it to another folder's file of the same name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// unlinkatSync(folder, name, 0);
+/// ```
+pub fn unlink_in(directory: &std::fs::File, name: &std::ffi::OsStr) -> std::io::Result<()> {
+    return rustix::fs::unlinkat(directory, name, rustix::fs::AtFlags::empty()).map_err(std::io::Error::from);
+}
+
+/// What:
+///  The plain file `name` in the open folder `directory`,
+///  created when it is not there,
+///  and refused when the name holds a link,
+///  a pipe,
+///  a device or a folder.
+/// Why:
+///  The record file is made once and appended to afterwards,
+///  and the folder is the one this process opened itself,
+///  so a link at the folder's name cannot redirect this:
+///  a link at the name itself is still refused,
+///  and a pipe is opened without waiting.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const file = openatSync(folder, name, O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC, 0o600); if (!fstatSync(file).isFile()) refuse();
+/// ```
+pub fn open_plain_file_to_append_in(directory: &std::fs::File, name: &std::ffi::OsStr) -> std::io::Result<std::fs::File> {
+    let flags: rustix::fs::OFlags =
+        rustix::fs::OFlags::WRONLY | rustix::fs::OFlags::APPEND | rustix::fs::OFlags::CREATE | rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::NONBLOCK | rustix::fs::OFlags::CLOEXEC;
+    return opened_in(directory, name, flags);
+}
+
+/// What:
+///  The plain file `name` in the open folder `directory`,
+///  made for the first time,
+///  refusing a name that already holds anything.
+/// Why:
+///  See `open_plain_file_to_append_in`: the folder is one this process opened,
+///  and the name is refused rather than followed or truncated.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const file = openatSync(folder, name, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC, 0o600); if (!fstatSync(file).isFile()) refuse();
+/// ```
+pub fn create_plain_file_in(directory: &std::fs::File, name: &std::ffi::OsStr) -> std::io::Result<std::fs::File> {
+    let flags: rustix::fs::OFlags =
+        rustix::fs::OFlags::WRONLY | rustix::fs::OFlags::CREATE | rustix::fs::OFlags::EXCL | rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::NONBLOCK | rustix::fs::OFlags::CLOEXEC;
+    return opened_in(directory, name, flags);
+}
+
+/// What:
+///  The bytes of the plain file `name` in the open folder `directory`,
+///  read without following a link and refused when it is larger than `limit`.
+/// Why:
+///  A record is read beside the removal that decides about it,
+///  and both reads must be of the one folder this process opened.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const file = openatSync(folder, name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC); if (!fstatSync(file).isFile()) refuse(); readSync(file, limit)
+/// ```
+pub fn read_plain_file_in(directory: &std::fs::File, name: &std::ffi::OsStr, limit: u64) -> std::io::Result<Vec<u8>> {
+    #[cfg(test)]
+    note_a_read(directory_name_and(directory, name).as_path());
+    let flags: rustix::fs::OFlags = rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::NONBLOCK | rustix::fs::OFlags::CLOEXEC;
+    let file: std::fs::File = opened_in(directory, name, flags)?;
+    let mut bytes: Vec<u8> = Vec::new();
+    std::io::Read::read_to_end(&mut std::io::Read::take(&file, limit + 1), &mut bytes)?;
+    if bytes.len() as u64 > limit {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "it is larger than this command reads"));
+    }
+    return Ok(bytes);
+}
+
+/// What:
+///  The plain file `name` of the open folder `directory`,
+///  opened with `flags`,
+///  and refused when what was opened is anything but a plain file.
+/// Why:
+///  One body decides the type check for every relative open,
+///  so a pipe, a device or a folder at a name is refused the same way wherever it is opened.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const file = openatSync(folder, name, flags, 0o600); if (!fstatSync(file).isFile()) refuse(file);
+/// ```
+fn opened_in(directory: &std::fs::File, name: &std::ffi::OsStr, flags: rustix::fs::OFlags) -> std::io::Result<std::fs::File> {
+    let descriptor: rustix::fd::OwnedFd = match rustix::fs::openat(directory, name, flags, rustix::fs::Mode::RUSR | rustix::fs::Mode::WUSR) {
+        Ok(opened) => opened,
+        // A named pipe opened for writing without a reader answers this at once, so the caller's message says what the name
+        //  holds rather than what the kernel calls it.
+        Err(rustix::io::Errno::NXIO) => return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, NOT_A_PLAIN_FILE)),
+        Err(error) => return Err(std::io::Error::from(error)),
+    };
+    let file: std::fs::File = std::fs::File::from(descriptor);
+    if !file.metadata()?.file_type().is_file() {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, NOT_A_PLAIN_FILE));
+    }
+    return Ok(file);
+}
+
+/// What:
+///  A path for the test-only read note,
+///  which records what was read by path.
+/// Why:
+///   The note exists for controls that ask which files a pass read,
+///  and a relative open has no path of its own;
+///  the join is only a name for the note and is never opened.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const name = join(describe(folder), nameOf(name));
+/// ```
+#[cfg(test)]
+fn directory_name_and(directory: &std::fs::File, name: &std::ffi::OsStr) -> std::path::PathBuf {
+    use std::os::fd::AsRawFd as _;
+    return std::path::PathBuf::from("/proc/self/fd").join(directory.as_raw_fd().to_string()).join(name);
+}
+
+/// What:
 ///  Write `bytes` to the plain file at `path`,
 /// created when it is not there,
 /// opened without blocking and without following a link,
