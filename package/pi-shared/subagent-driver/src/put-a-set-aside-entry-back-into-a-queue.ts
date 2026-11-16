@@ -21,7 +21,7 @@ import {
 } from './parse-queue-of-runs-options.ts';
 import {
   putASetAsideEntryBack,
-} from './set-aside-entry.ts';
+} from './putting-a-set-aside-entry-back.ts';
 import { usageWasAsked, } from './usage-of-a-command.ts';
 
 /**

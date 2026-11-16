@@ -436,7 +436,8 @@ async function batchListOf({
     runsFolder: request.runsFolder,
     name,
     claim: attempt,
-  },).batchFile;
+  },)
+    .batchFile;
   try {
     await writeFile(
       file,
@@ -518,7 +519,8 @@ export async function startAnEntryOfAQueue({
    */
   const list = await batchListOf({
     request,
-    name: request.record.name,
+    name: request.record
+      .name,
     attempt: request.attempt,
     entry: handedOn.entry,
   },);

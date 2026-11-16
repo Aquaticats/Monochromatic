@@ -21,9 +21,9 @@ import {
   membershipOf,
   poolNamed,
 } from './pool-limits.ts';
-import type { QueueRecord, } from './queue-of-runs.ts';
 import {
   QUEUE_BOOKKEEPING_FIELDS,
+  type QueueRecord,
 } from './queue-of-runs.ts';
 import {
   REVIEWING_MODEL,
@@ -169,7 +169,7 @@ function fieldsTheShapeDoesNotHold({
 },): readonly string[] {
   return Object.keys(record,)
     .filter(function isUnread(field,) {
-      return !known.includes(field,) && !QUEUE_BOOKKEEPING_FIELDS.includes(field,);
+      return (!known.includes(field,)) && (!QUEUE_BOOKKEEPING_FIELDS.includes(field,));
     },);
 }
 

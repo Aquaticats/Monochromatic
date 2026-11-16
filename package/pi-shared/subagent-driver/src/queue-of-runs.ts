@@ -11,25 +11,25 @@
  @module
  */
 
-import {
-  readFile,
-  rename,
-  writeFile,
-} from 'node:fs/promises';
 import { randomUUID, } from 'node:crypto';
 import {
-  aPathWrittenBeside,
   acquireTheQueueLock,
   assertTheLockIsStillOurs,
 } from './queue-lock.ts';
+import {
+  type QueueRecord,
+  QueueFileError,
+  readQueueOfRuns,
+  writeTheQueueWhole,
+} from './reading-and-writing-the-queue-file.ts';
 
-/**
- One entry of a queue, as the queue file holds it: a JSON object named by `name`.
-
- The fields a run or a review needs are read by `entry-of-a-queue.ts`, which refuses an entry it cannot take rather than dropping a
- field; this module only knows that every entry is an object with a name.
- */
-export type QueueRecord = Readonly<Record<string, unknown> & { readonly name: string }>;
+export {
+  type QueueRecord,
+  QueueFileError,
+  isQueueRecord,
+  readQueueOfRuns,
+  writtenQueueOfRuns,
+} from './reading-and-writing-the-queue-file.ts';
 
 /**
  The field holding an entry's own identity, which the write that claims the entry mints.
@@ -40,6 +40,16 @@ export const QUEUE_ID_FIELD = 'queueId';
  The field holding the claim one filling has on an entry, which no other filling starts it under.
  */
 export const QUEUE_CLAIM_FIELD = 'queueClaim';
+
+/**
+ No identity yet, as a symbol so no identity can be mistaken for one: an entry is written by no claim until a filling takes one.
+ */
+export const NO_QUEUE_ID: unique symbol = Symbol('this entry has been claimed by no write',);
+
+/**
+ No claim on that entry, as a symbol so no claim can be mistaken for one.
+ */
+export const NO_CLAIM_ON_AN_ENTRY: unique symbol = Symbol('this entry carries the claim of no filling',);
 
 /**
  The fields a queue's own bookkeeping writes into an entry, and which no entry shape reads.
@@ -112,7 +122,7 @@ function fieldOf({
  const id = queueIdOf({ record: { name: 'a', queueId: 'q1' } });
  ```
  */
-export function queueIdOf({ record, }: { readonly record: QueueRecord },): string | undefined {
+export function queueIdOf({ record, }: { readonly record: QueueRecord },): string | typeof NO_QUEUE_ID {
   /**
    What the identity field holds.
    */
@@ -120,7 +130,7 @@ export function queueIdOf({ record, }: { readonly record: QueueRecord },): strin
     record,
     field: QUEUE_ID_FIELD,
   },);
-  return ((typeof written) === 'string') && (written !== '') ? written : undefined;
+  return ((typeof written) === 'string') && (written !== '') ? written : NO_QUEUE_ID;
 }
 
 /**
@@ -135,7 +145,7 @@ export function queueIdOf({ record, }: { readonly record: QueueRecord },): strin
  const claim = claimOnAnEntry({ record: { name: 'a', queueClaim: { token: 't', pid: 1, at: '2026-11-15T00:00:00.000Z' } } });
  ```
  */
-export function claimOnAnEntry({ record, }: { readonly record: QueueRecord },): QueueClaim | undefined {
+export function claimOnAnEntry({ record, }: { readonly record: QueueRecord },): QueueClaim | typeof NO_CLAIM_ON_AN_ENTRY {
   /**
    What the claim field holds.
    */
@@ -144,7 +154,7 @@ export function claimOnAnEntry({ record, }: { readonly record: QueueRecord },): 
     field: QUEUE_CLAIM_FIELD,
   },);
   if (((typeof written) !== 'object') || (written === null)) {
-    return undefined;
+    return NO_CLAIM_ON_AN_ENTRY;
   }
   /**
    What the field says a claim is.
@@ -173,7 +183,7 @@ export function claimOnAnEntry({ record, }: { readonly record: QueueRecord },): 
       || ((typeof pid) !== 'number')
       || ((typeof at) !== 'string')
   ) {
-    return undefined;
+    return NO_CLAIM_ON_AN_ENTRY;
   }
   return {
     token,
@@ -225,7 +235,10 @@ export function withoutTheClaim({ record, }: { readonly record: QueueRecord },):
   /**
    The entry's fields without the claim's.
    */
-  const { [QUEUE_CLAIM_FIELD]: _claim, ...rest } = record;
+  const {
+    [QUEUE_CLAIM_FIELD]: _claim,
+    ...rest
+  } = record;
   return rest;
 }
 
@@ -257,8 +270,13 @@ export function entryIsTheAttempt({
   readonly queueId: string;
   readonly token: string;
 },): boolean {
+  /**
+   The claim the entry carries, when a filling holds one.
+   */
+  const claim = claimOnAnEntry({ record, },);
   return (queueIdOf({ record, },) === queueId)
-    && (claimOnAnEntry({ record, },)?.token === token);
+    && (claim !== NO_CLAIM_ON_AN_ENTRY)
+    && (claim.token === token);
 }
 
 /**
@@ -273,230 +291,6 @@ export function entryIsTheAttempt({
  */
 export function aFreshQueueId(): string {
   return randomUUID();
-}
-
-/**
- Says whether a value is one entry of a queue: a JSON object named by a non-empty `name`.
-
- @param value - the value, of any shape
-
- @returns whether it is one entry of a queue
-
- @example
- ```ts
- const isOne = isQueueRecord({ name: 'a' });
- ```
- */
-export function isQueueRecord(value: unknown,): value is QueueRecord {
-  return ((typeof value) === 'object')
-    && (value !== null)
-    && ('name' in value)
-    && ((typeof value.name) === 'string')
-    && (value.name !== '');
-}
-
-/**
- A queue file that cannot be read as a queue.
- */
-export class QueueFileError extends Error {
-  /**
-   The name printed with the message.
-   */
-  override readonly name = 'QueueFileError';
-}
-
-/**
- Reads a queue file's entries.
-
- @param queueFile - the queue's path
-
- @returns the entries, in the order the file holds them
-
- @throws QueueFileError when the file cannot be read, holds no JSON array, or holds an entry that is no JSON object with a name
-
- @example
- ```ts
- const entries = await readQueueOfRuns({ queueFile: '/runs/queue.json' });
- ```
- */
-export async function readQueueOfRuns({
-  queueFile,
-}: {
-  readonly queueFile: string;
-}): Promise<readonly QueueRecord[]> {
-  /**
-   The file's text.
-   */
-  const shown = await textOfQueue({ queueFile, },);
-  return recordsInQueue({
-    parsed: parseQueue({
-      shown,
-      queueFile
-    },),
-    queueFile,
-  },);
-}
-
-/**
- Reads a queue file's text.
-
- @param queueFile - the queue's path
-
- @returns what the file holds
-
- @throws QueueFileError when the file cannot be read
-
- @example
- ```ts
- const shown = await textOfQueue({ queueFile: '/runs/queue.json' });
- ```
- */
-async function textOfQueue({ queueFile, }: { readonly queueFile: string },): Promise<string> {
-  try {
-    return await readFile(
-      queueFile,
-      'utf8',
-    );
-  }
-  catch (error) {
-    throw new QueueFileError(`the queue at ${queueFile} cannot be read: ${String(error,)}`,);
-  }
-}
-
-/**
- Reads a queue file's text as JSON.
-
- @param shown - the file's text
-
- @param queueFile - the queue's path, for the message
-
- @returns what the text holds, as anything
-
- @throws QueueFileError when the text is no JSON
-
- @example
- ```ts
- const parsed = parseQueue({ shown: '[]', queueFile: '/runs/queue.json' });
- ```
- */
-function parseQueue({
-  shown,
-  queueFile,
-}: {
-  readonly shown: string;
-  readonly queueFile: string;
-}): unknown {
-  try {
-    /**
-     What the text parsed to.
-     */
-    const parsed: unknown = JSON.parse(shown,);
-    return parsed;
-  }
-  catch (error) {
-    throw new QueueFileError(`the queue at ${queueFile} holds no JSON: ${String(error,)}`,);
-  }
-}
-
-/**
- Reads the entries a parsed queue file holds.
-
- @param parsed - what the file's text parsed to
-
- @param queueFile - the queue's path, for the message
-
- @returns the entries, in the order the file holds them
-
- @throws QueueFileError when it is no JSON array, or holds an entry that is no object with a string name
-
- @example
- ```ts
- const entries = recordsInQueue({ parsed: [], queueFile: '/runs/queue.json' });
- ```
- */
-function recordsInQueue({
-  parsed,
-  queueFile,
-}: {
-  readonly parsed: unknown;
-  readonly queueFile: string;
-}): readonly QueueRecord[] {
-  if (!Array.isArray(parsed,)) {
-    throw new QueueFileError(`${queueFile} holds no JSON array of entries, so nothing can be started from it`,);
-  }
-  return parsed.map(function asARecord(
-    entry: unknown,
-    index: number,
-  ) {
-    if (!isQueueRecord(entry,)) {
-      throw new QueueFileError(
-        `${queueFile}: entry ${String(index + 1,)} is no JSON object naming a run, so it cannot be started`,
-      );
-    }
-    return entry;
-  },);
-}
-
-/**
- Writes a queue's entries as the file's text.
-
- @param entries - the entries, in the order they are to start
-
- @returns the text to write
-
- @example
- ```ts
- const text = writtenQueueOfRuns({ entries: [{ name: 'a' }] });
- ```
- */
-export function writtenQueueOfRuns({ entries }: { readonly entries: readonly QueueRecord[] },): string {
-  /**
-   One line per entry, which keeps a queue's diff readable.
-   */
-  const lines = entries.map(function asALine(entry,) {
-    return `  ${JSON.stringify(entry,)}`;
-  },);
-  return `[\n${lines.join(',\n',)}\n]\n`;
-}
-
-/**
- Writes a queue file whole, through a file beside it that is renamed over it, and writes nothing else: callers hold the queue's lock.
-
- @param queueFile - the queue's path
-
- @param entries - the entries, in the order they are to start
-
- @throws QueueFileError when the file cannot be written, which leaves the queue as it was
-
- @example
- ```ts
- await writeTheQueueWhole({ queueFile: '/runs/queue.json', entries: [] });
- ```
- */
-async function writeTheQueueWhole({
-  queueFile,
-  entries,
-}: {
-  readonly queueFile: string;
-  readonly entries: readonly QueueRecord[];
-},): Promise<void> {
-  /**
-   The file written beside the queue and renamed over it.
-   */
-  const beside = aPathWrittenBeside({ path: queueFile, },);
-  try {
-    await writeFile(
-      beside,
-      writtenQueueOfRuns({ entries, },),
-    );
-    await rename(
-      beside,
-      queueFile,
-    );
-  }
-  catch (error) {
-    throw new QueueFileError(`the queue at ${queueFile} cannot be written: ${String(error,)}`,);
-  }
 }
 
 /**

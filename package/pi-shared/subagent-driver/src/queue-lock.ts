@@ -99,6 +99,12 @@ const PROCESS_START_TIME_FIELD = 22;
 const PROCESS_STAT_NAME_END = ')';
 
 /**
+ The number of the first field of a process's statistics after its name, which is the field the kernel counts its state in: the third
+ of the statistics itself, so a field's own number counts from it.
+ */
+const FIRST_FIELD_AFTER_THE_NAME = 3;
+
+/**
  The queue is held by another writer, and this caller's wait ran out, so nothing was changed.
  */
 export class QueueLockHeldError extends Error {
@@ -430,54 +436,73 @@ export function processIsThere({ pid, }: { readonly pid: number },): boolean {
 }
 
 /**
+ No start time read, as a symbol so no start time can be mistaken for one.
+ */
+const NO_PROCESS_START_TIME: unique symbol = Symbol('that process start time could not be read',);
+
+/**
+ Reads the start time out of one process's own statistics.
+
+ @param shown - the text `/proc/<pid>/stat` holds
+
+ @returns the start time the kernel counted, or that the text holds none
+
+ @example
+ ```ts
+ const startedAt = startedAtIn({ shown: '4242 (bash) S 1 4242 ...' });
+ ```
+ */
+function startedAtIn({ shown, }: { readonly shown: string },): string | typeof NO_PROCESS_START_TIME {
+  /**
+   Where the process's name ends, which is the last closing bracket: the name itself may hold brackets and spaces, and the fields
+   after it are separated by one space each.
+   */
+  const nameEnd = shown.lastIndexOf(PROCESS_STAT_NAME_END,);
+  if (nameEnd === (-1)) {
+    return NO_PROCESS_START_TIME;
+  }
+  /**
+   The fields after the name, the first of which is the third field of the statistics and the twenty-second is the start time.
+   */
+  const afterName = shown.slice(nameEnd + 1,)
+    .trim()
+    .split(' ',);
+  /**
+   The start time, which is at the field the kernel counts it in.
+   */
+  const startedAt = afterName[PROCESS_START_TIME_FIELD - FIRST_FIELD_AFTER_THE_NAME];
+  return ((startedAt === undefined) || (startedAt === '')) ? NO_PROCESS_START_TIME : startedAt;
+}
+
+/**
  Reads when one process started, which tells a process from a process number reused after its holder died.
 
  @param pid - the process number
 
- @returns the start time the kernel counted, or nothing when no process of that number is there or its statistics cannot be read
+ @returns the start time the kernel counted, or that no process of that number is there or its statistics cannot be read
 
  @example
  ```ts
  const startedAt = await processStartedAtOf({ pid: process.pid });
  ```
  */
-export async function processStartedAtOf({ pid, }: { readonly pid: number },): Promise<string | undefined> {
-  /**
-   The process's statistics.
-   */
-  let shown: string;
+export async function processStartedAtOf({ pid, }: { readonly pid: number },): Promise<string | typeof NO_PROCESS_START_TIME> {
   try {
-    shown = await readFile(
-      `${PROCESS_FOLDER}/${String(pid,)}/stat`,
-      'utf8',
-    );
+    return startedAtIn({
+      shown: await readFile(
+        `${PROCESS_FOLDER}/${String(pid,)}/stat`,
+        'utf8',
+      ),
+    },);
   }
   catch (error) {
     // A process that is gone, or one this account may not read, answers nothing: the caller treats an unknown start time as a
     // holder it cannot judge, which is a lock it must not take.
     if ((errorCodeOf(error,) === MISSING_PATH_CODE) || (errorCodeOf(error,) === 'EACCES')) {
-      return undefined;
+      return NO_PROCESS_START_TIME;
     }
     throw error;
   }
-  /**
-   Where the process's name ends, which is the last closing bracket: the name itself may hold brackets and spaces.
-   */
-  const nameEnd = shown.lastIndexOf(PROCESS_STAT_NAME_END,);
-  if (nameEnd === (-1)) {
-    return undefined;
-  }
-  /**
-   The fields after the name, of which the first is the state and the twenty-second from one is the start time.
-   */
-  const afterName = shown.slice(nameEnd + 1,)
-    .trim()
-    .split(/\s+/u,);
-  /**
-   The start time, which is at the field the kernel counts it in.
-   */
-  const startedAt = afterName[PROCESS_START_TIME_FIELD - 3];
-  return ((startedAt === undefined) || (startedAt === '')) ? undefined : startedAt;
 }
 
 /**
@@ -514,7 +539,7 @@ async function lockMayBeBroken({ holder, }: { readonly holder: HolderOfAQueue },
    When the process now holding that number started.
    */
   const startedAt = await processStartedAtOf({ pid: holder.pid, },);
-  if ((startedAt !== undefined) && (startedAt !== holder.startedAt)) {
+  if ((startedAt !== NO_PROCESS_START_TIME) && (startedAt !== holder.startedAt)) {
     return {
       broken: true,
       reason: `the number of its process ${String(holder.pid,)} now belongs to a process started at ${startedAt}, not at the ${holder.startedAt} it names`,
@@ -683,8 +708,6 @@ export async function acquireTheQueueLock({
    The moment this caller stops asking.
    */
   const deadline = now() + waitMilliseconds;
-  /* oxlint-disable eslint/no-unused-expressions -- one attempt, then a pause, then the next attempt: taking a lock is a sequence
-     of attempts by definition, and each reads what the attempt before it left. See doc/lint/sequential-awaits.md. */
   /* oxlint-disable eslint/no-await-in-loop -- one attempt, then a pause, then the next attempt: taking a lock is a sequence of
      attempts by definition, and each reads what the attempt before it left. See doc/lint/sequential-awaits.md. */
   for (;;) {
@@ -692,7 +715,7 @@ export async function acquireTheQueueLock({
       lockFile,
       content: `${JSON.stringify({
         pid: process.pid,
-        ...((startedAt === undefined) ? {} : { startedAt, }),
+        ...((startedAt === NO_PROCESS_START_TIME) ? {} : { startedAt, }),
         at: new Date(now(),).toISOString(),
         token,
       },)}\n`,

@@ -487,6 +487,16 @@ export async function setAsideAnEntryOfAQueue({
       entries,
       write,
     },) {
+      if (((typeof claim) !== 'object') || (claim === null)
+        || ((typeof claim.queueId) !== 'string')
+        || (claim.queueId === '')) {
+        // Only an entry this filling claimed can be set aside: the queue's copy goes only when it is that very attempt, so a caller
+        // with no claim would write a record and leave the entry where it stands, which loses nothing but decides nothing.
+        throw new SetAsideRecordError(
+          `${record.name} is not set aside: only an entry a filling has claimed can be, because the record is that attempt's copy and `
+            + 'the queue holds one entry of that name, which is taken out by the identity and the token of the claim that took it. Nothing changed.',
+        );
+      }
       // The record is written first, inside this step: a kill before the queue write leaves the entry claimed with its record, which
       // the next pass's settlement finishes, so the entry is set aside and nothing is lost.
       /**
@@ -518,117 +528,14 @@ export async function setAsideAnEntryOfAQueue({
         return !entryIsTheAttempt({
           record: entry,
           queueId: claim.queueId,
-          token: claim.claim.token,
+          token: claim.claim
+            .token,
         },);
       },);
       await write(kept,);
       return {
         file,
         left: kept.length,
-      };
-    },
-  },);
-}
-
-/**
- Puts a set-aside entry back into the queue, at a position counted from the head.
-
- The entry goes into the queue before its record goes away, both inside one held step of the queue's lock. A kill between the two
- leaves both, and the filling's sweep drops the record because the queue holds the entry, so nothing is lost either way. An entry the
- queue still holds is left alone: its record is from an interrupted set-aside, and the sweep decides inside the same held step.
-
- @param queueFile - the queue's path
-
- @param runsFolder - folder the driver writes its runs into
-
- @param name - the entry's name
-
- @param position - where it goes, counted from the head, `0` being the head
-
- @param waitMilliseconds - how long to keep asking for the queue's lock before refusing
-
- @returns the line to print
-
- @throws SetAsideRecordError when the record cannot be read or deleted, or the queue cannot be written
-
- @example
- ```ts
- const line = await putASetAsideEntryBack({ queueFile: '/runs/q.json', runsFolder: '/runs', name: 'a', position: 0 });
- ```
- */
-export async function putASetAsideEntryBack({
-  queueFile,
-  runsFolder,
-  name,
-  position,
-  waitMilliseconds,
-}: {
-  readonly queueFile: string;
-  readonly runsFolder: string;
-  readonly name: string;
-  readonly position: number;
-  readonly waitMilliseconds?: number;
-},): Promise<{ readonly line: string }> {
-  return await withTheQueueLock({
-    queueFile,
-    ...(waitMilliseconds === undefined ? {} : { waitMilliseconds, }),
-    work: async function putItBack({
-      entries,
-      write,
-    },) {
-      /**
-       The record the entry would be put back from, read inside this step.
-       */
-      const record = await setAsideRecordOf({
-        runsFolder,
-        name,
-      },);
-      if (record === NO_SET_ASIDE_RECORD) {
-        return { line: `no entry named ${name} is set aside beside the runs in ${runsFolder}; nothing changed`, };
-      }
-      if (entries.some(function isNamed(entry,) {
-        return entry.name === name;
-      },)) {
-        // The entry is still queued, which only a kill between a record and the claim it completes leaves. The record is left for the
-        // next pass's settlement, which decides inside the same held step; removing it here is how an entry in flight was lost.
-        return {
-          line: `${name} is still in the queue, so it is not set aside: its record is from an interrupted set-aside, and the next `
-            + `filling's settlement finishes or drops it (${record.reason}). Nothing changed.`,
-        };
-      }
-      /**
-       The entry as the record holds it, without any claim a record of an older shape may have carried.
-       */
-      const putBack = withoutTheClaim({ record: record.entry, },);
-      // An entry of a name the queue no longer holds goes back with the identity its record holds, so the settlement can tell it from
-      // an entry queued under the same name later. A record written before identities existed goes back as it is.
-      /**
-       Where the entry lands, which is the tail of a queue shorter than the position.
-       */
-      const at = Math.min(
-        position,
-        entries.length,
-      );
-      /**
-       The queue with the entry in it.
-       */
-      const next = [
-        ...entries.slice(
-          0,
-          at,
-        ),
-        putBack,
-        ...entries.slice(at,),
-      ];
-      // The entry goes in before its record goes away: a kill between the two leaves both, and the settlement drops the record
-      // because the queue holds an entry of the record's identity, so nothing is lost.
-      await write(next,);
-      await removeSetAsideRecord({
-        runsFolder,
-        name,
-      },);
-      return {
-        line: `put ${name} back at position ${String(at,)} of ${String(next.length,)}; it was set aside at ${record.setAsideAt} for: ${record.reason}`,
       };
     },
   },);

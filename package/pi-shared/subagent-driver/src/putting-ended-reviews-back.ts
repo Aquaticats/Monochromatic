@@ -20,14 +20,13 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
+import { isThere, } from './newest-finished-run-of-a-name.ts';
 import {
-  entriesOrNothingIn,
-  isThere,
-  SUMMARY_FILE_NAME,
-} from './newest-finished-run-of-a-name.ts';
-import {
-  isDigitsOnly,
-} from './text-of-an-option.ts';
+  NO_ATTEMPT_WROTE_A_SUMMARY,
+  attemptsOfEachReview,
+  newestAttemptThatWroteASummary,
+  runFolderOf,
+} from './attempts-of-a-review-run.ts';
 import {
   type QueueRecord,
   withTheQueueLock,
@@ -82,11 +81,6 @@ export const REVIEWS_PUT_BACK_LOOKBACK_SECONDS = 28_800;
 export const RATE_LIMIT_REVIEW_PROMPT_FILE_NAME = 'go-on-with-a-review-after-the-rate-limit-prompt.md';
 
 /**
- A folder with no closing record yet, as a symbol so no record can be mistaken for none.
- */
-const NOT_FINISHED_YET: unique symbol = Symbol('the folder checked holds no closing record, so that work has not stopped',);
-
-/**
  What a review put back after the rate limit is told.
 
  The text is the package's own, so a queue file needs no prompt a person wrote, and it names what the run must know: the ending was
@@ -126,242 +120,6 @@ export type EndedReviewsPutBack = {
    */
   readonly putBack: readonly string[];
 };
-
-/**
- Reads one run's summary and when it was written.
-
- @param file - the summary's path
-
- @returns what it says and when it was last written, or nothing when it is not there
-
- @throws the error a read gave, other than a summary that is not there
-
- @example
- ```ts
- const summary = await summaryOfARunIn({ file: '/runs/a-1/summary.json' });
- ```
- */
-async function summaryOfARunIn({ file, }: { readonly file: string },): Promise<{
-  readonly shown: string;
-  readonly endedAt: number;
-} | typeof NOT_FINISHED_YET> {
-  try {
-    /**
-     What the summary says, and when it was written.
-     */
-    const [shown, written,] = await Promise.all([
-      readFile(
-        file,
-        'utf8',
-      ),
-      stat(file,),
-    ],);
-    return {
-      shown,
-      endedAt: written.mtimeMs,
-    };
-  }
-  catch (error) {
-    // A run still going has no summary, which is the answer that puts nothing back for it.
-    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
-      return NOT_FINISHED_YET;
-    }
-    throw error;
-  }
-}
-
-/**
- One review's newest attempt: its name, and the folder that attempt wrote.
- */
-type NewestAttemptOfAReview = {
-  /**
-   The review run's name.
-   */
-  readonly name: string;
-
-  /**
-   The folder the attempt wrote.
-   */
-  readonly runFolder: string;
-};
-
-/**
- Reads the folder one attempt of one review run wrote.
-
- @param name - the review run's name
-
- @param attempt - the attempt's number
-
- @returns the folder's name, below the runs folder
-
- @example
- ```ts
- const folder = runFolderOf({ name: 'review-a', attempt: 2 });
- ```
- */
-function runFolderOf({
-  name,
-  attempt,
-}: {
-  readonly name: string;
-  readonly attempt: number;
-},): string {
-  return `${name}-${String(attempt,)}`;
-}
-
-/**
- Reads every attempt of every review run in the runs folder, newest first, one list per review name.
-
- The attempts matter and not only the newest, because an attempt can be killed before it writes a summary: the newest attempt then
- holds no record of stopping, and the attempt a review goes on from is the newest one that does.
-
- @param runsFolder - folder the driver writes one run folder per run into
-
- @returns one list per review name, its attempts newest first
-
- @example
- ```ts
- const attempts = await attemptsOfEachReview({ runsFolder: '/runs' });
- ```
- */
-export async function attemptsOfEachReview({ runsFolder, }: { readonly runsFolder: string },): Promise<ReadonlyMap<string, readonly number[]>> {
-  /**
-   The attempts of each review name found so far, in the order the folder listed them.
-   */
-  const attempts = new Map<string, number[]>();
-  for (const entry of await entriesOrNothingIn(runsFolder,)) {
-    if (!entry.startsWith(REVIEW_RUN_PREFIX,)) {
-      continue;
-    }
-    /**
-     Where the attempt's number begins.
-     */
-    const separator = entry.lastIndexOf('-',);
-    if (separator <= 0) {
-      continue;
-    }
-    /**
-     The attempt's number, as the folder writes it.
-     */
-    const written = entry.slice(separator + 1,);
-    if (!isDigitsOnly(written,)) {
-      continue;
-    }
-    /**
-     The review's name.
-     */
-    const name = entry.slice(
-      0,
-      separator,
-    );
-    /**
-     The attempt's number.
-     */
-    const attempt = Number(written,);
-    /**
-     The attempts of that name read so far.
-     */
-    const known = attempts.get(name,);
-    if (known === undefined) {
-      attempts.set(name, [attempt,],);
-    }
-    else {
-      known.push(attempt,);
-    }
-  }
-  /**
-   The attempts of each name, newest first.
-   */
-  const newestFirst = new Map<string, readonly number[]>();
-  for (const [name, numbers,] of attempts) {
-    newestFirst.set(
-      name,
-      [...numbers,].sort(function newestOf(a, b,) {
-        return b - a;
-      },),
-    );
-  }
-  return newestFirst;
-}
-
-/**
- Reads the newest attempt of every review run in the runs folder.
-
- @param runsFolder - folder the driver writes one run folder per run into
-
- @returns one entry per review name, the folder of its newest attempt
-
- @example
- ```ts
- const newest = await newestAttemptOfEachReview({ runsFolder: '/runs' });
- ```
- */
-export async function newestAttemptOfEachReview({ runsFolder, }: { readonly runsFolder: string },): Promise<readonly {
-  readonly name: string;
-  readonly runFolder: string;
-}[]> {
-  /**
-   The newest attempt of each review name found so far.
-   */
-  const newest = new Map<string, {
-    readonly attempt: number;
-    readonly runFolder: string;
-  }>();
-  for (const entry of await entriesOrNothingIn(runsFolder,)) {
-    if (!entry.startsWith(REVIEW_RUN_PREFIX,)) {
-      continue;
-    }
-    /**
-     Where the attempt's number begins.
-     */
-    const separator = entry.lastIndexOf('-',);
-    if (separator <= 0) {
-      continue;
-    }
-    /**
-     The attempt's number, as the folder writes it.
-     */
-    const written = entry.slice(separator + 1,);
-    if (!isDigitsOnly(written,)) {
-      continue;
-    }
-    /**
-     The review's name.
-     */
-    const name = entry.slice(
-      0,
-      separator,
-    );
-    /**
-     The attempt's number.
-     */
-    const attempt = Number(written,);
-    /**
-     The newest attempt of that name read so far.
-     */
-    const known = newest.get(name,);
-    if ((known === undefined) || (attempt > known.attempt)) {
-      newest.set(
-        name,
-        {
-          attempt,
-          runFolder: entry,
-        },
-      );
-    }
-  }
-  /**
-   The newest attempt of each review name, as a list.
-   */
-  const newestAttempts: NewestAttemptOfAReview[] = [];
-  for (const [name, attempt,] of newest) {
-    newestAttempts.push({
-      name,
-      runFolder: attempt.runFolder,
-    },);
-  }
-  return newestAttempts;
-}
 
 /**
  Says whether a review is marked final, which is a review a run must not be started again for.
@@ -532,40 +290,13 @@ export async function putEndedReviewsBack({
     /**
      The newest attempt of that name which wrote a summary, and what it says.
      */
-    let found: {
-      readonly attempt: number;
-      readonly shown: string;
-      readonly endedAt: number;
-    } | undefined;
-    for (const attempt of attempts) {
-      /**
-       What this attempt's summary says, or that it wrote none.
-       */
-      // oxlint-disable-next-line eslint/no-await-in-loop -- one attempt of the name after another, newest first
-      const summary = await summaryOfARunIn({
-        file: join(
-          runsFolder,
-          runFolderOf({
-            name,
-            attempt,
-          },),
-          SUMMARY_FILE_NAME,
-        ),
-      },);
-      if (summary === NOT_FINISHED_YET) {
-        // An attempt that wrote no summary did not stop on its own terms. While its run is going the name is skipped above; when
-        // nothing of that name is going it was killed, and the attempt a review goes on from is an older one that did write one.
-        // Reading that silence as work still going left a review unresumed for as long as its folders stood.
-        continue;
-      }
-      found = {
-        attempt,
-        shown: summary.shown,
-        endedAt: summary.endedAt,
-      };
-      break;
-    }
-    if ((found === undefined) || (found.endedAt < since)) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- one review's attempts after another, each reading its own summary
+    const found = await newestAttemptThatWroteASummary({
+      runsFolder,
+      name,
+      attempts,
+    },);
+    if ((found === NO_ATTEMPT_WROTE_A_SUMMARY) || (found.endedAt < since)) {
       continue;
     }
     if ((summaryIn({ shown: found.shown, },)

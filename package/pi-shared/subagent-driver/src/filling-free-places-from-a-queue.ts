@@ -17,10 +17,12 @@ import type { GoingRun, } from './going-runs.ts';
 import {
   type ClaimedAnEntry,
   claimAnEntryOfAQueue,
+} from './claims-on-the-entries-of-a-queue.ts';
+import {
   completeTheClaim,
   giveBackTheClaim,
-  settleTheQueueAfterAKill,
-} from './claims-on-the-entries-of-a-queue.ts';
+} from './ending-a-claim.ts';
+import { settleTheQueueAfterAKill, } from './settling-the-queue-after-a-kill.ts';
 import {
   poolOfAQueueEntry,
   resumesAQueueEntry,
@@ -269,6 +271,137 @@ function setAsideLineOf({
 }
 
 /**
+ Nothing claimed by this pass, as a symbol so no claim can be mistaken for none.
+ */
+const NOTHING_TO_CLAIM: unique symbol = Symbol('every entry that may start now belongs to another filling',);
+
+/**
+ The claim this pass holds on one entry, with the entry as the queue held it.
+ */
+type AClaimedEntry = {
+  /**
+   The entry as this pass read it.
+   */
+  readonly record: QueueRecord;
+
+  /**
+   The entry's own identity, minted by the claim when it had none.
+   */
+  readonly queueId: string;
+
+  /**
+   The claim this pass holds, whose token names the attempt.
+   */
+  readonly claim: QueueClaim;
+};
+
+/**
+ Claims the first entry of the queue that may start now and that no other filling holds, so two passes never start one entry.
+
+ @param queueFile - the queue's path
+
+ @param candidates - every entry of the queue that may start now, in the queue's order
+
+ @param say - where the pass says which entry another filling already holds
+
+ @param waitMilliseconds - how long to keep asking for the queue's lock before refusing
+
+ @returns the claim this pass holds, or that every candidate belongs to another filling
+
+ @example
+ ```ts
+ const mine = await claimOneOf({ queueFile: '/runs/q.json', candidates, say, waitMilliseconds: 1_000 });
+ ```
+ */
+async function claimOneOf({
+  queueFile,
+  candidates,
+  say,
+  waitMilliseconds,
+}: {
+  readonly queueFile: string;
+  readonly candidates: readonly QueueRecord[];
+  readonly say: (line: string) => void;
+  readonly waitMilliseconds?: number;
+},): Promise<AClaimedEntry | typeof NOTHING_TO_CLAIM> {
+  /* oxlint-disable eslint/no-await-in-loop -- each candidate is its own write under the queue's lock */
+  for (const candidate of candidates) {
+    /**
+     What taking a claim on this candidate answered.
+     */
+    const taken: ClaimedAnEntry = await claimAnEntryOfAQueue({
+      queueFile,
+      record: candidate,
+      now: Date.now,
+      ...(waitMilliseconds === undefined ? {} : { waitMilliseconds, }),
+    },);
+    if (taken.kind === 'claimed') {
+      return {
+        record: candidate,
+        queueId: taken.queueId,
+        claim: taken.claim,
+      };
+    }
+    // Another filling claimed it, or it left the queue, between this pass's read and its claim: the entry behind it is asked about
+    // rather than the pass stopping, because an entry another filling is starting is being started.
+    say(`${new Date().toISOString()} ${candidate.name}: ${taken.kind === 'claimed-by-another' ? 'another filling claimed it first' : 'it left the queue before this pass claimed it'}, so this pass asks about the entry behind it\n`,);
+  }
+  /* oxlint-enable eslint/no-await-in-loop */
+  return NOTHING_TO_CLAIM;
+}
+
+/**
+ Starts one claimed entry, and gives its claim back when the start threw rather than answering.
+
+ A claim whose holder is alive is never recovered by another filling, so a claim left behind here would keep its entry where no pass
+ starts it; giving it back is what a kill would leave too.
+
+ @param queueFile - the queue's path
+
+ @param mine - the claim this pass holds, with the entry as it read it
+
+ @param record - the entry as the queue holds it, without the claim
+
+ @param start - how one entry is started
+
+ @returns what starting the entry answered
+
+ @throws the error the start threw, after the claim is given back
+
+ @example
+ ```ts
+ const outcome = await startedWithTheClaimGivenBack({ queueFile, mine, record, start: seams.start });
+ ```
+ */
+async function startedWithTheClaimGivenBack({
+  queueFile,
+  mine,
+  record,
+  start,
+}: {
+  readonly queueFile: string;
+  readonly mine: AClaimedEntry;
+  readonly record: QueueRecord;
+  readonly start: FillingSeams['start'];
+},): Promise<StartOfAnEntry> {
+  try {
+    return await start({
+      record,
+      claim: mine.claim,
+    },);
+  }
+  catch (error) {
+    await giveBackTheClaim({
+      queueFile,
+      queueId: mine.queueId,
+      token: mine.claim
+        .token,
+    },);
+    throw error;
+  }
+}
+
+/**
  Fills the free places from a queue, once.
 
  A pass first settles what a kill left behind (see `settleTheQueueAfterAKill`), then counts the agents going, then starts entries in
@@ -429,37 +562,15 @@ export async function fillFreePlacesFromAQueue({
       },);
     }
     /**
-     The entry this pass claimed, or nothing when every entry that may start is being started by another filling.
+     The entry this pass claimed, or that every entry that may start is another filling's.
      */
-    let mine: {
-      readonly record: QueueRecord;
-      readonly queueId: string;
-      readonly claim: QueueClaim;
-    } | undefined;
-    for (const candidate of candidates) {
-      /**
-       What taking a claim on this candidate answered.
-       */
-      // oxlint-disable-next-line eslint/no-await-in-loop -- each candidate is its own write under the queue's lock
-      const taken: ClaimedAnEntry = await claimAnEntryOfAQueue({
-        queueFile: request.queueFile,
-        record: candidate,
-        now: Date.now,
-        ...(request.lockWaitMilliseconds === undefined ? {} : { waitMilliseconds: request.lockWaitMilliseconds, }),
-      },);
-      if (taken.kind === 'claimed') {
-        mine = {
-          record: candidate,
-          queueId: taken.queueId,
-          claim: taken.claim,
-        };
-        break;
-      }
-      // Another filling claimed it, or it left the queue, between this pass's read and its claim: the entry behind it is asked
-      // about rather than the pass stopping, because an entry another filling is starting is being started.
-      say(`${new Date().toISOString()} ${candidate.name}: ${taken.kind === 'claimed-by-another' ? 'another filling claimed it first' : 'it left the queue before this pass claimed it'}, so this pass asks about the entry behind it\n`,);
-    }
-    if (mine === undefined) {
+    const mine = await claimOneOf({
+      queueFile: request.queueFile,
+      candidates,
+      say,
+      ...(request.lockWaitMilliseconds === undefined ? {} : { waitMilliseconds: request.lockWaitMilliseconds, }),
+    },);
+    if (mine === NOTHING_TO_CLAIM) {
       /**
        Why the pass starts nothing more.
        */
@@ -476,23 +587,12 @@ export async function fillFreePlacesFromAQueue({
     /**
      What starting the claimed entry answered.
      */
-    let outcome: StartOfAnEntry;
-    try {
-      outcome = await seams.start({
-        record,
-        claim: mine.claim,
-      },);
-    }
-    catch (error) {
-      // A start that threw before it answered leaves the claim to be given back here: a claim whose holder is alive is not recovered
-      // by another filling, so leaving it would keep the entry where no pass starts it.
-      await giveBackTheClaim({
-        queueFile: request.queueFile,
-        queueId: mine.queueId,
-        token: mine.claim.token,
-      },);
-      throw error;
-    }
+    const outcome = await startedWithTheClaimGivenBack({
+      queueFile: request.queueFile,
+      mine,
+      record,
+      start: seams.start,
+    },);
     if (!outcome.started) {
       /**
        Why the entry's start failed.
@@ -509,7 +609,8 @@ export async function fillFreePlacesFromAQueue({
         const givenBack = await giveBackTheClaim({
           queueFile: request.queueFile,
           queueId: mine.queueId,
-          token: mine.claim.token,
+          token: mine.claim
+            .token,
         },);
         say(`${new Date().toISOString()} left ${record.name} in place at position ${String(entries.indexOf(mine.record,),)} of ${String(entries.length,)} and gave its claim back; the filling stops this pass and starts nothing behind it: ${failure.reason}\n`,);
         return outcomeOf({
@@ -543,7 +644,8 @@ export async function fillFreePlacesFromAQueue({
     const completed = await completeTheClaim({
       queueFile: request.queueFile,
       queueId: mine.queueId,
-      token: mine.claim.token,
+      token: mine.claim
+        .token,
     },);
     if (completed.taken !== 1) {
       say(`${new Date().toISOString()} ${record.name}: the start took effect but the queue no longer held this filling's attempt, so nothing was removed for it; ${String(completed.left,)} entries left\n`,);

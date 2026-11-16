@@ -15,6 +15,8 @@ export {
   type HeldQueueOfRuns,
   type QueueClaim,
   type QueueRecord,
+  NO_CLAIM_ON_AN_ENTRY,
+  NO_QUEUE_ID,
   QUEUE_BOOKKEEPING_FIELDS,
   QUEUE_CLAIM_FIELD,
   QUEUE_ID_FIELD,
@@ -37,12 +39,16 @@ export {
 export {
   type ClaimedAnEntry,
   claimAnEntryOfAQueue,
-  completeTheClaim,
-  giveBackTheClaim,
   namesOfAnAttemptIn,
-  settleTheQueueAfterAKill,
   startOfAnAttemptTookEffect,
 } from './claims-on-the-entries-of-a-queue.ts';
+export {
+  completeTheClaim,
+  giveBackTheClaim,
+} from './ending-a-claim.ts';
+export {
+  settleTheQueueAfterAKill,
+} from './settling-the-queue-after-a-kill.ts';
 export {
   QUEUE_LOCK_POLL_MILLISECONDS,
   QUEUE_LOCK_WAIT_MILLISECONDS,
@@ -71,19 +77,19 @@ export {
   RATE_LIMIT_REVIEW_PROMPT_FILE_NAME,
   REVIEWS_PUT_BACK_LOOKBACK_SECONDS,
   type EndedReviewsPutBack,
-  attemptsOfEachReview,
-  newestAttemptOfEachReview,
   rateLimitReviewPromptFileIn,
   putBackSince,
   putEndedReviewsBack,
 } from './putting-ended-reviews-back.ts';
+export {
+  putASetAsideEntryBack,
+} from './putting-a-set-aside-entry-back.ts';
 export {
   NO_SET_ASIDE_RECORD,
   SET_ASIDE_FILE_SUFFIX,
   type SetAsideRecord,
   SetAsideRecordError,
   isASetAsideRecordFile,
-  putASetAsideEntryBack,
   removeSetAsideRecord,
   setAsideAnEntryOfAQueue,
   setAsideFileOf,
@@ -103,6 +109,10 @@ export {
   reviewRunEntryOf,
   startAnEntryOfAQueue,
 } from './starting-an-entry-of-a-queue.ts';
+export {
+  attemptsOfEachReview,
+  newestAttemptOfEachReview,
+} from './attempts-of-a-review-run.ts';
 export {
   type BatchUnitStart,
   type BatchUnitStartRequest,
