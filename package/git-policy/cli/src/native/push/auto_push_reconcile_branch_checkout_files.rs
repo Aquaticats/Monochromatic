@@ -154,13 +154,17 @@ pub(crate) async fn the_paths_the_move_wrote_awaiting(
     an_absent_entry_counts: bool,
 ) -> Result<Vec<Vec<u8>>, SingleFlightError> {
     // What: a path an end of the move really wrote: the index holds that end's entry, or the file is there and
-    // holds its bytes; an entry the tree does not have counts only in the checkout the move is for.
+    // holds its bytes; an entry the tree does not have counts only in the checkout the move is for, and a file the
+    // index does not track is the person's whatever it holds.
     // Why:  an absent file is not an entry: a file the merge added and a person then deleted, or untracked with
     // `git rm --cached`, holds nothing the move wrote, while a file still holding the moved-from bytes is the
     // move's own leftover and is brought forward
     //  (a review of commit `4a2425a378`, its findings 2 and 3; commit `cae78e1d7e`, its finding 3).
+    // A file the index does not track is one the person untracked on purpose (`git rm --cached` keeps it), and its
+    // bytes being the moved-from tip's is exactly what untracking a moved-from file leaves.
     let in_the_index: Vec<Vec<u8>> = the_paths_whose_index_holds_awaiting(git, tree, paths).await?;
     let in_the_file: Vec<Vec<u8>> = the_paths_still_holding_the_old_tip_awaiting(git, tree, paths).await?;
+    let tracked: Vec<Vec<u8>> = the_paths_the_index_tracks_awaiting(git, paths).await?;
     let with_an_entry: Option<Vec<Vec<u8>>> = match an_absent_entry_counts {
         true => None,
         false => Some(the_paths_with_an_entry_in_the_tree_awaiting(git, tree, paths).await?),
@@ -176,11 +180,38 @@ pub(crate) async fn the_paths_the_move_wrote_awaiting(
             continue;
         }
         let present: bool = std::fs::symlink_metadata(git.cwd.join(crate::path_bytes::os_from_path_bytes(path.as_slice()))).is_ok();
-        if present && in_the_file.contains(path) {
+        if present && tracked.contains(path) && in_the_file.contains(path) {
             wrote.push(path.clone());
         }
     }
     return Ok(wrote);
+}
+
+/// What:
+///  The paths of `paths` the index tracks at all.
+/// Why:
+///  A file the index does not track is one a person took out of the index (`git rm --cached` keeps it), and the
+/// move never writes an untracked file: its bytes being the moved-from tip's is what untracking such a file leaves
+///  (a review of commit `4a2425a378`, its finding 3).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// diffPaths((await git(['ls-files','-z','--',...paths])).stdout)
+/// ```
+pub(crate) async fn the_paths_the_index_tracks_awaiting(
+    git: &PushGit,
+    paths: &[Vec<u8>],
+) -> Result<Vec<Vec<u8>>, SingleFlightError> {
+    let arguments: Vec<OsString> = naming(paths, argv(&["--no-optional-locks", "ls-files", "-z", "--"]));
+    let listed = run_query_awaiting(git, &arguments).await?;
+    if listed.code != Some(0) {
+        return Err(SingleFlightError::Git {
+            arguments: String::from("ls-files -z"),
+            code: listed.code,
+            stderr: String::from_utf8_lossy(&listed.stderr).into_owned(),
+        });
+    }
+    return Ok(diff_paths(&listed.stdout));
 }
 
 /// What:

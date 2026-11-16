@@ -25,6 +25,7 @@
 //! const pushed = await wrapped(['push', 'origin', 'refs/heads/feat/topic:refs/heads/feat/topic']); // the merge names feat/topic
 //! ```
 
+use super::commit::{remove_settled, run_commit};
 use super::support::{Fixture, Observed, fixture, git, remove, repository, run_wrapped, stderr_of};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -686,3 +687,183 @@ fn a_pushed_branch_whose_worktree_folder_is_gone_follows_its_merge() {
     assert_eq!(changes(fixture, world.repo.as_path()), "");
     remove(fixture);
 }
+
+//region What the move may do to a person's work: a removal, an untracked file, and the staged shapes beside them.
+
+/// Whether a path is there at all,
+/// which a deletion makes false.
+fn there(path: &Path) -> bool {
+    return std::fs::symlink_metadata(path).is_ok();
+}
+
+/// What one file holds,
+/// as the bytes a person wrote.
+fn bytes_of(path: &Path) -> String {
+    return std::fs::read_to_string(path).unwrap_or_else(|error| panic!("{} could not be read: {error}", path.display()));
+}
+
+/// What:
+///  A file the merge added, removed by the person in each of the three places the review made the removal in,
+///  stays removed and stays as they left it.
+/// Why:
+///  The sweep wrote the merge's entry back over the path, because an absent path equals the moved-from tip's absent
+///  path and that read as the move's own leftover; the person's removal was gone without a word
+///  (a review of commit `4a2425a378`,
+///  its finding 2).
+#[test]
+fn a_persons_removal_of_a_file_the_merge_added_stays_removed_in_every_place_it_is_made_in() {
+    let world: World = diverged("push-not-checked-out-a-removal-stays");
+    let fixture: &Fixture = &world.fixture;
+    git(fixture, world.repo.as_path(), &["switch", "--quiet", "main"]);
+    let pushed: Observed = run_wrapped(fixture, world.repo.as_path(), &["push", "origin", "feat/topic"]);
+    assert_eq!(pushed.code, Some(0), "the push of a branch nobody holds lands: {}", stderr_of(&pushed));
+    let merge: String = tip(fixture, world.repo.as_path(), "refs/heads/feat/topic");
+    assert_ne!(merge, world.local_tip, "the branch followed the published merge");
+    assert!(!there(world.repo.join("rival.txt").as_path()), "the merge's file is not in a checkout the move never wrote");
+    // The person moves `main` to the merge themselves, as one does after a topic is pushed.
+    git(fixture, world.repo.as_path(), &["merge", "--quiet", "--ff-only", "refs/heads/feat/topic"]);
+    assert_eq!(tip(fixture, world.repo.as_path(), "refs/heads/main"), merge, "the person's fast-forward is the merge");
+
+    // A: an unstaged removal.
+    std::fs::remove_file(world.repo.join("rival.txt")).expect("the person removes the merge's file");
+    let observed: Observed = run_wrapped(fixture, world.repo.as_path(), &["status", "--short"]);
+    assert_eq!(observed.code, Some(0), "the command runs: {}", stderr_of(&observed));
+    assert!(!there(world.repo.join("rival.txt").as_path()), "the merge's file is not written back");
+    assert_eq!(changes(fixture, world.repo.as_path()), "D rival.txt", "and the removal is still the checkout's");
+
+    // B: a staged removal.
+    git(fixture, world.repo.as_path(), &["reset", "--quiet", "--hard"]);
+    git(fixture, world.repo.as_path(), &["rm", "--quiet", "rival.txt"]);
+    let observed: Observed = run_wrapped(fixture, world.repo.as_path(), &["status", "--short"]);
+    assert_eq!(observed.code, Some(0), "the command runs: {}", stderr_of(&observed));
+    assert!(!there(world.repo.join("rival.txt").as_path()), "the merge's file is not written back");
+    assert_eq!(changes(fixture, world.repo.as_path()), "D  rival.txt", "and it stays staged as removed");
+
+    // C: a staged removal in a linked worktree of a branch made from the merge, which the move never touched.
+    git(fixture, world.repo.as_path(), &["reset", "--quiet", "--hard"]);
+    let linked: PathBuf = fixture.root.join("feature");
+    git(
+        fixture,
+        world.repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "feature", linked.to_str().expect("utf-8"), "feat/topic"],
+    );
+    assert_eq!(checked_out(fixture, linked.as_path()), String::from("refs/heads/feature"));
+    git(fixture, linked.as_path(), &["rm", "--quiet", "rival.txt"]);
+    let observed: Observed = run_wrapped(fixture, linked.as_path(), &["status", "--short"]);
+    assert_eq!(observed.code, Some(0), "the command runs in the linked worktree: {}", stderr_of(&observed));
+    assert!(!there(linked.join("rival.txt").as_path()), "the merge's file is not written back there either");
+    assert_eq!(changes(fixture, linked.as_path()), "D  rival.txt", "and it stays staged as removed there");
+    remove(fixture);
+}
+
+/// What:
+///  After `git rm --cached` of a file the merge added, with the person's own bytes kept on disk,
+///  `git status`, `git add`, `git commit` and `git log` each run and exit as real Git does.
+/// Why:
+///  The write refused the path because the file exists, the refusal was read as the move's leftover, and every
+///  command in that worktree stopped with exit 2 and a remedy that would have overwritten the person's file
+///  (a review of commit `4a2425a378`,
+///  its finding 3).
+#[test]
+fn after_untracking_a_file_the_merge_added_every_command_runs_and_exits_as_real_git() {
+    let world: World = diverged("push-not-checked-out-untracked-file");
+    let fixture: &Fixture = &world.fixture;
+    git(fixture, world.repo.as_path(), &["switch", "--quiet", "main"]);
+    let pushed: Observed = run_wrapped(fixture, world.repo.as_path(), &["push", "origin", "feat/topic"]);
+    assert_eq!(pushed.code, Some(0), "the push of a branch nobody holds lands: {}", stderr_of(&pushed));
+    git(fixture, world.repo.as_path(), &["merge", "--quiet", "--ff-only", "refs/heads/feat/topic"]);
+    // The person moves the file out of the index and keeps it, with bytes of their own.
+    git(fixture, world.repo.as_path(), &["rm", "--quiet", "--cached", "rival.txt"]);
+    std::fs::write(world.repo.join("rival.txt"), "my own newer content\n").expect("the person's own bytes");
+    assert_eq!(
+        changes(fixture, world.repo.as_path()),
+        "D  rival.txt\n?? rival.txt",
+        "the person's state before any command"
+    );
+    let status: Observed = run_wrapped(fixture, world.repo.as_path(), &["status", "--short"]);
+    assert_eq!(status.code, Some(0), "git status runs and exits as real Git does: {}", stderr_of(&status));
+    let added: Observed = run_wrapped(fixture, world.repo.as_path(), &["add", "rival.txt"]);
+    assert_eq!(added.code, Some(0), "git add runs and exits as real Git does: {}", stderr_of(&added));
+    // A commit's work happens in the fixture's commit service, outside the command's own process tree, so it runs
+    // under the commit bound.
+    let committed: Observed = run_commit(fixture, world.repo.as_path(), &["commit", "--quiet", "--message=the person's own file", "rival.txt"]);
+    assert_eq!(committed.code, Some(0), "git commit runs and exits as real Git does: {}", stderr_of(&committed));
+    let logged: Observed = run_wrapped(fixture, world.repo.as_path(), &["log", "--oneline", "--max-count=1"]);
+    assert_eq!(logged.code, Some(0), "git log runs and exits as real Git does: {}", stderr_of(&logged));
+    assert_eq!(bytes_of(world.repo.join("rival.txt").as_path()), "my own newer content\n", "the person's file is untouched");
+    assert_eq!(changes(fixture, world.repo.as_path()), "", "and the commit recorded it");
+    assert_eq!(
+        String::from_utf8_lossy(&git(fixture, world.repo.as_path(), &["ls-tree", "--name-only", "HEAD", "--", "rival.txt"]).stdout).trim(),
+        "rival.txt",
+        "the commit holds the person's file"
+    );
+    remove_settled(fixture);
+}
+
+/// What:
+///  A person's staged removal, staged rename, staged new file, staged edit, staged mode change and a file both staged
+///  and edited again, in the checkout that shows the pushed branch, are all still there byte for byte once a push
+///  brings that checkout to the merge.
+/// Why:
+///  That checkout is the one the move writes, so every shape is a change the write passes over, and the push must
+///  bring the merge's own files without taking any of them
+///  (a review of commit `4ca7aebcdb`, its finding 1, and the owner's rule that a person's removal, staged or not, is
+///  their work).
+#[test]
+fn a_persons_staged_shapes_in_the_checkout_that_follows_stay_byte_for_byte() {
+    let world: World = diverged("push-not-checked-out-staged-shapes");
+    let fixture: &Fixture = &world.fixture;
+    git(fixture, world.repo.as_path(), &["switch", "--quiet", "main"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(
+        fixture,
+        world.repo.as_path(),
+        &["worktree", "add", "--quiet", linked.to_str().expect("utf-8"), "feat/topic"],
+    );
+    assert_eq!(checked_out(fixture, linked.as_path()), String::from("refs/heads/feat/topic"));
+    // Every shape is on a path the merge does not change: it adds rival.txt and nothing else.
+    git(fixture, linked.as_path(), &["rm", "--quiet", "base.txt"]);
+    git(fixture, linked.as_path(), &["mv", "feature.txt", "feature-renamed.txt"]);
+    std::fs::write(linked.join("brand-new.txt"), "the person's new file\n").expect("a new file");
+    git(fixture, linked.as_path(), &["add", "brand-new.txt"]);
+    std::fs::write(linked.join("shared.txt"), "the person's staged edit\n").expect("a staged edit");
+    git(fixture, linked.as_path(), &["add", "shared.txt"]);
+    std::fs::write(linked.join("local.txt"), "staged with the mode\n").expect("a staged edit with a mode");
+    let mut mode: std::fs::Permissions = std::fs::metadata(linked.join("local.txt")).expect("local.txt").permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut mode, 0o755);
+    std::fs::set_permissions(linked.join("local.txt"), mode).expect("the executable bit");
+    git(fixture, linked.as_path(), &["add", "local.txt"]);
+    std::fs::write(linked.join("local.txt"), "edited again after the stage\n").expect("a later edit");
+    let before: String = changes(fixture, linked.as_path());
+    assert_eq!(
+        before,
+        "D  base.txt\nA  brand-new.txt\nR  feature.txt -> feature-renamed.txt\nMM local.txt\nM  shared.txt",
+        "the person's six shapes before the push"
+    );
+    let observed: Observed = run_wrapped(fixture, world.repo.as_path(), &["push", "origin", "feat/topic"]);
+    assert_eq!(observed.code, Some(0), "the push lands: {}", stderr_of(&observed));
+    assert_eq!(changes(fixture, linked.as_path()), before, "every shape is exactly as it was");
+    assert_eq!(bytes_of(linked.join("shared.txt").as_path()), "the person's staged edit\n", "the staged edit's bytes");
+    assert_eq!(bytes_of(linked.join("brand-new.txt").as_path()), "the person's new file\n", "the new file's bytes");
+    assert_eq!(
+        bytes_of(linked.join("local.txt").as_path()),
+        "edited again after the stage\n",
+        "the edit made after the stage is the file's"
+    );
+    let staged: String = String::from_utf8_lossy(&git(fixture, linked.as_path(), &["show", ":local.txt"]).stdout).into_owned();
+    assert_eq!(staged, "staged with the mode\n", "the stage still holds the earlier bytes");
+    let entry: String = String::from_utf8_lossy(&git(fixture, linked.as_path(), &["ls-files", "--stage", "--", "local.txt"]).stdout).into_owned();
+    assert!(entry.starts_with("100755 "), "the mode change is staged: {entry}");
+    assert!(!there(linked.join("base.txt").as_path()), "the removal is still a removal");
+    assert!(!there(linked.join("feature.txt").as_path()), "the rename's old name is gone");
+    assert!(there(linked.join("feature-renamed.txt").as_path()), "and its new name is there");
+    assert_eq!(bytes_of(linked.join("rival.txt").as_path()), "rival line\n", "the merge's own file was written");
+    assert_eq!(
+        tip(fixture, world.repo.as_path(), "refs/heads/feat/topic"),
+        tip(fixture, world.origin.as_path(), "refs/heads/feat/topic"),
+        "the branch followed its merge"
+    );
+    remove(fixture);
+}
+
+//endregion

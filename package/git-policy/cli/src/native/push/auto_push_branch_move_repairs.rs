@@ -179,55 +179,90 @@ pub fn the_repair_owner_after_its_owner_died(
     the_dead_owner: &TransactionOwner,
 ) -> Option<ARepairInHand> {
     // What: a claim made only once, under a name made from the dead owner's own identity.
-    // Why:  the claim is the whole of the mutual exclusion for taking this dead record: only the command that
-    // created it may remove the dead record, and no live record can appear at that path while the dead one
-    // stands there, because creating a record there is exclusive. So the removal below never takes a live
-    // record, and nothing is moved aside and put back
-    //  (a review of commit `7aef6368e7`, its finding 4).
+    // Why:  a claim is what stops a second command from working the same dead record, and a claim whose claimant is
+    // gone is cleared by a rename only one command can win
+    //  (a review of commit `7aef6368e7`, its finding 4; commit `4a2425a378`, its finding 5).
     let claim: PathBuf = dead_path.with_extension(format!("claim-{}", the_dead_owner.transaction_id));
-    match claim_the_take(claim.as_path(), owner) {
-        Ok(()) => {}
-        Err(ClaimRefused::TakenByAnother) => {
-            // What: a claim whose claimant is gone, or whose bytes cannot be read, is set aside by renaming it, and
-            // exactly one command wins that rename.
-            // Why:  removing it and claiming again let two commands that both read the same dead claim each remove the
-            // other's live claim and each take the dead place, so two repairs wrote one index
-            //  (a review of commit `4a2425a378`, its finding 5); a rename is the step only one of them can win, and a
-            // claim that names nobody is no live claim at all  (its finding 4).
-            let claimant: Option<TransactionOwner> = the_owner_named_by(claim.as_path());
-            let gone: bool = match claimant.as_ref().map(|named| return crate::transaction_owner::classify_transaction_owner_record(named, claim.as_path())) {
-                Some(Ok(crate::transaction_owner::OwnerLiveness::Dead)) => true,
-                // A claim whose bytes cannot be read names no live command either.
-                None => true,
-                // A live claimant, or one that cannot be judged, keeps its claim.
-                _ => false,
-            };
-            if !gone {
-                return None;
-            }
-            let aside: PathBuf = claim.with_extension(format!("cleared-{}", owner.transaction_id));
-            std::fs::rename(claim.as_path(), aside.as_path()).ok()?;
-            claim_the_take(claim.as_path(), owner).ok()?;
+    // What: the dead record leaves by one rename, which exactly one command can win, and that is what decides which
+    // command takes the place.
+    // Why:  a content check followed by an unconditional removal let two commands that had both read the dead record
+    // each remove what the other had just published, so both held the place and two repairs wrote one index
+    //  (a review of commit `4a2425a378`, its finding 5).
+    //  The claim is not the decider: a command that read a dead claim before another cleared it can still reach this
+    // instant, and only one of them can rename the record that both of them found.
+    let aside: PathBuf = dead_path.with_extension(format!("taken-{}", owner.transaction_id));
+    claim_the_take_or_clear_a_dead_one(claim.as_path(), owner)?;
+    take_the_dead_record(dead_path, aside.as_path(), the_dead_owner)?;
+    let taken: Option<ARepairInHand> = the_repair_owner(git_dir, owner);
+    // What: a record taken aside goes back when this command could not name itself, so the place never stands free.
+    match taken.is_some() {
+        true => {
+            let _removed: std::io::Result<()> = std::fs::remove_file(aside.as_path());
         }
-        Err(ClaimRefused::CannotWrite(error)) => {
-            let _why = error;
-            return None;
+        false => {
+            let _put_back: std::io::Result<()> = std::fs::rename(aside.as_path(), dead_path);
         }
     }
-    // What: the dead record goes only while this command holds the claim, and only if it is still the dead one.
-    // Why:  no live record can stand here while the dead one does, so the content check is the second witness and
-    // not the only one.
-    let still_the_dead_one: bool = the_owner_named_by(dead_path)
-        .is_some_and(|found| return found.transaction_id == the_dead_owner.transaction_id);
-    let taken: Option<ARepairInHand> = if still_the_dead_one {
-        let _removed: std::io::Result<()> = std::fs::remove_file(dead_path);
-        the_repair_owner(git_dir, owner)
-    } else {
-        None
-    };
     let _released: std::io::Result<()> = std::fs::remove_file(claim.as_path());
     let _aside_removed: std::io::Result<()> = std::fs::remove_file(claim.with_extension(format!("cleared-{}", owner.transaction_id)));
     return taken;
+}
+
+/// What:
+///  This command's claim on one dead place, made after clearing a claim whose claimant is gone.
+/// Why:
+///   A claim whose claimant is gone, or whose bytes cannot be read, is no live claim, and it is cleared by a rename
+/// that exactly one command can win; a live claimant keeps its claim and this command takes nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const taken = claimExclusively(claim, owner); if (taken) return true; const named = read(claim); if (named && alive(named)) return false; renameSync(claim, cleared); return claimExclusively(claim, owner);
+/// ```
+fn claim_the_take_or_clear_a_dead_one(claim: &Path, owner: &TransactionOwner) -> Option<()> {
+    match claim_the_take(claim, owner) {
+        Ok(()) => return Some(()),
+        Err(ClaimRefused::CannotWrite(_)) => return None,
+        Err(ClaimRefused::TakenByAnother) => {}
+    }
+    let claimant: Option<TransactionOwner> = the_owner_named_by(claim);
+    let gone: bool = match claimant.as_ref().map(|named| return crate::transaction_owner::classify_transaction_owner_record(named, claim)) {
+        Some(Ok(crate::transaction_owner::OwnerLiveness::Dead)) => true,
+        // A claim whose bytes cannot be read names no live command either.
+        None => true,
+        // A live claimant, or one that cannot be judged, keeps its claim.
+        _ => false,
+    };
+    if !gone {
+        return None;
+    }
+    #[cfg(test)]
+    play_inside_the_claim();
+    let aside: PathBuf = claim.with_extension(format!("cleared-{}", owner.transaction_id));
+    std::fs::rename(claim, aside.as_path()).ok()?;
+    return claim_the_take(claim, owner).ok();
+}
+
+/// What:
+///  Take the dead record out of the place by one rename, which exactly one of two commands wins.
+/// Why:
+///   The rename is the step two commands that both read the dead record cannot both win; the one that loses finds the
+/// record gone and takes nothing, and the one that wins has the record in its hand and checks it is the one it was
+/// told is dead before it puts its own place there
+///  (a review of commit `4a2425a378`, its finding 5).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { renameSync(dead, aside) } catch { return undefined } if (read(aside).transactionId !== deadOwner.transactionId) { renameSync(aside, dead); return undefined } return aside;
+/// ```
+fn take_the_dead_record(dead_path: &Path, aside: &Path, the_dead_owner: &TransactionOwner) -> Option<()> {
+    std::fs::rename(dead_path, aside).ok()?;
+    let it_was_the_dead_one: bool = the_owner_named_by(aside)
+        .is_some_and(|found| return found.transaction_id == the_dead_owner.transaction_id);
+    if !it_was_the_dead_one {
+        let _put_back: std::io::Result<()> = std::fs::rename(aside, dead_path);
+        return None;
+    }
+    return Some(());
 }
 
 /// Why a claim on one dead repair record was not made.
@@ -236,6 +271,51 @@ enum ClaimRefused {
     TakenByAnother,
     /// The claim could not be written at all.
     CannotWrite(std::io::Error),
+}
+
+/// The step a control plays at the claim, once a claim whose claimant is gone has been read and before it is
+/// cleared.
+/// Why:
+///  That is the instant two commands that both read one dead claim meet, and a control that proves exactly one of
+/// them wins has to hold both there by its own hand  (a review of commit `4a2425a378`, its finding 5).
+///  The claim starts no Git, so a stand-in `git` cannot hold a command in it.
+#[cfg(test)]
+static INSIDE_THE_CLAIM: std::sync::Mutex<Option<std::sync::Arc<dyn Fn() + Send + Sync>>> = std::sync::Mutex::new(None);
+
+/// What:
+///  Have every command that reaches the claim run `step` there, until the control clears it.
+/// Why:
+///   A control cannot otherwise place two commands in one instant; the step itself decides which callers wait.
+#[cfg(test)]
+pub(crate) fn pause_inside_the_claim_in_a_control(step: impl Fn() + Send + Sync + 'static) {
+    let mut held = INSIDE_THE_CLAIM.lock().unwrap_or_else(|poisoned| return poisoned.into_inner());
+    *held = Some(std::sync::Arc::new(step));
+}
+
+/// What:
+///  Stop holding commands at the claim.
+/// Why:
+///   A control that finished while the step still waited for two callers would hold every later command in the same
+/// process, which is every other control of this binary.
+#[cfg(test)]
+pub(crate) fn stop_holding_commands_at_the_claim() {
+    let mut held = INSIDE_THE_CLAIM.lock().unwrap_or_else(|poisoned| return poisoned.into_inner());
+    *held = None;
+}
+
+/// What:
+///  Play the control's step for the claim, if one is set.
+/// Why:
+///   The step is shared, so both commands the control places meet in it.
+#[cfg(test)]
+fn play_inside_the_claim() {
+    let step: Option<std::sync::Arc<dyn Fn() + Send + Sync>> = {
+        let held = INSIDE_THE_CLAIM.lock().unwrap_or_else(|poisoned| return poisoned.into_inner());
+        held.as_ref().map(std::sync::Arc::clone)
+    };
+    if let Some(step) = step {
+        step();
+    }
 }
 
 /// What:

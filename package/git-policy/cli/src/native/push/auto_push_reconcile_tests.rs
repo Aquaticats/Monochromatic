@@ -5155,3 +5155,75 @@ fn one_dead_claim_is_cleared_by_one_command() {
     drop(first);
     remove(root.as_path());
 }
+
+/// What:
+///  Two commands that read one dead claim at the same instant take the dead place once: both are held at the claim
+///  until both have read it, and then exactly one of them takes the place.
+/// Why:
+///  Clearing the dead claim with an unconditional removal let each command remove what the other had just published,
+///  so both passed their content check and both took the dead place, and two repairs wrote one index
+///  (a review of commit `4a2425a378`, its finding 5).
+///  The clear is now a rename and the dead record leaves by a rename, and exactly one of two commands can win each;
+///  the sequential control beside this one cannot place the two commands in that instant.
+#[test]
+fn two_commands_that_read_one_dead_claim_take_the_place_once() {
+    use crate::auto_push_branch_move_repairs::{
+        ARepairInHand, pause_inside_the_claim_in_a_control, stop_holding_commands_at_the_claim,
+        the_places_record_for_a_control, the_repair_owner, the_repair_owner_after_its_owner_died,
+    };
+    let root: PathBuf = fixture("ar-two-takers-of-one-dead-claim");
+    let git_dir: PathBuf = root.join(".git");
+    std::fs::create_dir(git_dir.as_path()).expect("Git directory");
+    let dead_owner: crate::transaction_owner::TransactionOwner = current_owner();
+    let dead: ARepairInHand = the_repair_owner(git_dir.as_path(), &dead_owner).expect("the dead place");
+    let dead_path: PathBuf = dead.record_path().to_path_buf();
+    std::mem::forget(dead);
+    // What: a claim whose claimant is gone, left beside the dead record, as a command killed inside the take leaves it.
+    // Why: that is the claim both commands read before either of them clears it.
+    let claim: PathBuf = dead_path.with_extension(format!("claim-{}", dead_owner.transaction_id));
+    let mut gone_claimant: crate::transaction_owner::TransactionOwner = dead_owner.clone();
+    gone_claimant.transaction_id = String::from("gone-claimant");
+    gone_claimant.owner_pid = 2147483647;
+    gone_claimant.owner_identity = String::from("linux:1");
+    std::fs::write(claim.as_path(), format!("{}\n", the_places_record_for_a_control("repair-claim", &gone_claimant)))
+        .expect("the dead claim");
+    // What: both commands are held at the claim once they read it, the first two of them until both have arrived.
+    // Why:  that is the instant the barrier of the race sits in.
+    let both_there: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let arrived: std::sync::Arc<std::sync::atomic::AtomicUsize> = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let held_to: std::sync::Arc<std::sync::Barrier> = both_there.clone();
+    let counted: std::sync::Arc<std::sync::atomic::AtomicUsize> = arrived.clone();
+    pause_inside_the_claim_in_a_control(move || {
+        if counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst) < 2 {
+            let _waited = held_to.wait();
+        }
+    });
+    let mut takers: Vec<std::thread::JoinHandle<Option<ARepairInHand>>> = Vec::new();
+    for name in ["first-taker", "second-taker"] {
+        let mut owner: crate::transaction_owner::TransactionOwner = current_owner();
+        owner.transaction_id = String::from(name);
+        let handed: (PathBuf, PathBuf, crate::transaction_owner::TransactionOwner, crate::transaction_owner::TransactionOwner) =
+            (git_dir.clone(), dead_path.clone(), owner, dead_owner.clone());
+        takers.push(std::thread::spawn(move || {
+            let (git_dir, dead_path, owner, the_dead_owner) = handed;
+            return the_repair_owner_after_its_owner_died(git_dir.as_path(), &owner, dead_path.as_path(), &the_dead_owner);
+        }));
+    }
+    let took: Vec<Option<ARepairInHand>> = takers.into_iter().map(|taker| return taker.join().expect("a command ended")).collect();
+    stop_holding_commands_at_the_claim();
+    let winners: Vec<&Option<ARepairInHand>> = took.iter().filter(|held| return held.is_some()).collect();
+    assert_eq!(winners.len(), 1, "exactly one command takes the dead place, and the other takes nothing");
+    let winner: &ARepairInHand = winners[0].as_ref().expect("the winner holds the place");
+    let held: String = std::fs::read_to_string(winner.record_path()).expect("the place's record");
+    let at_the_place: String = std::fs::read_to_string(dead_path.as_path()).expect("the place's record");
+    assert_eq!(at_the_place, held, "the place names the one command that took it: {at_the_place}");
+    assert!(!at_the_place.contains(&dead_owner.transaction_id), "and the command that died names nothing there: {at_the_place}");
+    let leftovers: Vec<String> = std::fs::read_dir(git_dir.as_path())
+        .expect("the Git directory")
+        .map(|entry| return entry.expect("an entry").file_name().to_string_lossy().into_owned())
+        .filter(|name| return name.contains("claim") || name.contains("cleared") || name.contains("taken-"))
+        .collect();
+    assert!(leftovers.is_empty(), "no claim and no set-aside record is left behind: {leftovers:?}");
+    drop(took);
+    remove(root.as_path());
+}
