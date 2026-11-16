@@ -1675,6 +1675,9 @@ The wake waits `HAND_OVER_GREETING_WAIT` for the service's greeting and never th
 the record is written before the wake and the add needs no answer to it,
 so a service that greets nothing costs the record one look or one later wake and never the add's work
 (`src/native/worktree/worktree_trash_hand_over.rs`).
+A service that greets and reads none of the wake is the same answer:
+the record stays,
+and the add says so instead of saying the trash was handed over.
 A path that is not valid UTF-8 cannot be named by a work item,
 so the hand-over writes none,
 says so,
@@ -2958,7 +2961,8 @@ and the worktree was proven clean and unlocked before either step.
 The wake waits `HAND_OVER_GREETING_WAIT` for the service's greeting and never the commit's `START_WAIT`:
 the record is written before the wake,
 and a person removing a worktree waits for none of what the service does with it,
-so a service that greets nothing costs the record one look or one later wake and never the removal.
+so a service that greets nothing costs the record one look or one later wake and never the removal,
+and a service that greets and reads none of the wake is the same answer.
 
 The snapshots the wrapper made ahead of an add are taken before that hand-over,
 with everything else this program keeps in that registration
@@ -4757,6 +4761,10 @@ of which the two that rewrite link layouts in place are the service's work whene
   which runs it after the add returns,
   and runs it here when no service took the record,
   because a worktree whose copied links were never relinked resolves the source's packages without an error.
+  A record is taken when a service read the wake that names it
+  (the answers a wake gives are in "Every wait has a bound");
+  a wake the service did not read is the same work for this add as a service that could not be reached,
+  and the add relinks the worktree itself rather than tell the person a service holds what it never read.
   A hand-over no service took keeps its record queued until the add's own run has finished,
   and takes it back then:
   a record removed first would leave nothing to recover the repair from after a kill,
@@ -8398,6 +8406,29 @@ now inside these bounds:
   not queued,
   and refused in the service's log
   (`service/service_server_connection_handling.rs`).
+- A wake is one line that names a repository whose work directory holds records,
+  and what it answers is whether the commit service read that line,
+  never that the write returned
+  (`service/service_client_what_became_of_a_wake.rs`,
+  `Woken`):
+  the service took the line,
+  it answered that it will not act on it,
+  it took no byte of it for the silence window of a write,
+  it took part of it and the rest did not go in within the write's ceiling,
+  or the whole line went into the connection and is still there unread.
+  The last two are told apart from a service that read the line by asking the connection:
+  the kernel charges this end for the bytes the other end has not consumed,
+  so a connection holding none of the line is a service that took it,
+  and one still holding bytes of it is a service that has not read it.
+  A wake line is a few hundred bytes,
+  which fits one connection's buffers,
+  so the write goes in whole even where the service reads nothing,
+  and the write's own return says nothing about the service.
+  Every command that hands work over answers from this:
+  a wake no service read leaves the record in the queue for the next command of the repository,
+  and a command that owes a person the work itself does it
+  (a new worktree's relink,
+  `src/native/repair/package_repair_relink.rs`).
   The two ends agree on one meaning of "taken",
   and neither carries the proof alone:
   the client's chunked write can leave every byte of the object and only the newline unsent,

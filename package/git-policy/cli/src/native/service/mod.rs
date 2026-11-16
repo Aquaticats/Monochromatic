@@ -168,7 +168,8 @@ pub mod service_main;
 /// The wrapper's side of a commit through the commit service.
 pub mod service_client;
 
-/// What a wake came to: whether the commit service read the line that told it work waits.
+/// What a wake came to:
+/// whether the commit service read the line that told it work waits.
 pub mod service_client_what_became_of_a_wake;
 
 /// The words a waiting command is told about its own wait.

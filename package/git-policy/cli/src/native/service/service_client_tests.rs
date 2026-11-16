@@ -487,16 +487,19 @@ enum AfterGreeting {
     Nothing,
     /// Reads the client's one line and closes the connection silently.
     ReadingTheLine,
-    /// Reads the client's one line and holds the connection open, sending nothing and closing nothing.
+    /// Reads the client's one line,
+    /// and holds the connection open,
+    /// sending nothing and closing nothing.
     ReadingTheLineAndTalking,
-    /// Drains everything the connection holds every pause, and never finishes the line.
+    /// Drains everything the connection holds every pause,
+    /// and never finishes the line.
     Draining,
     /// Reads the client's one line and answers it with a refusal.
     RefusingTheLine(crate::service_protocol::FailureCode),
 }
 
 /// What:
-///  A wake of a few hundred bytes into a service that greets and reads nothing answers that nothing witnessed the read,
+///  A wake of a few hundred bytes into a service that greets and reads nothing answers that the service has not read it,
 ///  within the bound a wake has today.
 /// Why:
 ///   This is the claim of the review of 2026-11-13 ("Out-of-scope observation"),
@@ -504,7 +507,10 @@ enum AfterGreeting {
 ///  a wake line fits one connection's buffers,
 ///  so its write goes in whole even where the service reads nothing,
 ///  and the write's own return said nothing about the service.
-///  The answer a command must not hand work over on is therefore the close, not the write.
+///  What the answer rests on is the connection:
+/// a service that read the line took its bytes out of it.
+///  The answer a command must not hand work over on is therefore the close,
+/// not the write.
 ///  The bound is the two the wake already had:
 ///  the write's silence window and the client's silence bound for the close
 ///  (`wait_ceilings.rs`).
@@ -567,7 +573,8 @@ fn a_wake_the_service_reads_and_closes_is_work_it_holds() {
 /// Why:
 ///  The service refuses a work line for another instance's repository or when it cannot tell whose it is,
 ///  and nothing of this wake reaches a queue in either case
-///  (`service_server_connection_handling.rs`, `answer_request`).
+///  (`service_server_connection_handling.rs`,
+/// `answer_request`).
 #[test]
 fn a_wake_the_service_refuses_is_not_work_it_holds() {
     let name: String = an_address("wake-refused");
@@ -599,7 +606,8 @@ fn a_wake_line_too_large_for_the_buffers_is_no_byte_taken() {
 }
 
 /// What:
-///  A wake line a service reads slowly, without ever letting the silence window pass,
+///  A wake line a service reads slowly,
+/// without ever letting the silence window pass,
 ///  answers that part of it was taken.
 /// Why:
 ///  The ceiling of a write is what ends that one,
@@ -619,8 +627,10 @@ fn a_wake_line_read_too_slowly_is_partly_taken() {
 
 /// The path a wake's line is made larger than both buffers of one connection with.
 /// Why:
-///  Both buffers of a local stream socket hold about 233,152 bytes (measured on this host, 2026-11-12,
-///  `wait_ceilings.rs`), so a directory path of this many characters fills them and the rest waits in the kernel.
+///  Both buffers of a local stream socket hold about 233,152 bytes (measured on this host,
+/// 2026-11-12,
+///  `wait_ceilings.rs`),
+/// so a directory path of this many characters fills them and the rest waits in the kernel.
 const A_WAKE_LINE_LARGER_THAN_THE_BUFFERS: usize = 400_000;
 
 /// The path a wake's line is made many buffers long with,
@@ -631,7 +641,10 @@ const A_WAKE_LINE_LARGER_THAN_THE_BUFFERS: usize = 400_000;
 ///  and the ceiling is the only bound that can end such a write.
 const A_WAKE_LINE_MANY_BUFFERS_LONG: usize = 1_600_000;
 
-/// How much of the connection a draining stand-in reads at a time, and how long it pauses between drains:
-/// inside the silence window, so the write sees progress, and too few drains to finish many buffers within the ceiling.
+/// How much of the connection a draining stand-in reads at a time,
+/// and how long it pauses between drains:
+/// inside the silence window,
+/// so the write sees progress,
+/// and too few drains to finish many buffers within the ceiling.
 const A_DRAINED_CHUNK: usize = 65_536;
 const A_DRAIN_PAUSE: Duration = Duration::from_secs(2);

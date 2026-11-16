@@ -1,5 +1,6 @@
 //! What:
-//!  A wake no service read, through the built executable:
+//!  A wake no service read,
+//! through the built executable:
 //!  the `git worktree add` that hands a relink over,
 //!  and what the add does when the service at its socket greets and reads nothing of the wake.
 //! Why:
@@ -62,7 +63,8 @@ fn fake_pnpm(fixture: &Fixture) -> PathBuf {
     return record;
 }
 
-/// The lines the fixture's pnpm recorded, empty when it never ran.
+/// The lines the fixture's pnpm recorded,
+/// empty when it never ran.
 fn recorded(record: &Path) -> Vec<String> {
     return std::fs::read_to_string(record).map(|text: String| { return text.lines().map(str::to_owned).collect(); }).unwrap_or_default();
 }
@@ -98,7 +100,8 @@ fn a_service_that_greets_and_reads_nothing(address: &Bind) -> std::thread::JoinH
     });
 }
 
-/// How long the stand-in holds each connection it greeted, and how long it serves at all.
+/// How long the stand-in holds each connection it greeted,
+/// and how long it serves at all.
 const HELD_OPEN: Duration = Duration::from_secs(20);
 const STAND_IN_PATIENCE: Duration = Duration::from_secs(25);
 

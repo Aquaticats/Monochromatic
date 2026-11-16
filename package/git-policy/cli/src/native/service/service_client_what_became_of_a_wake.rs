@@ -35,7 +35,8 @@ use crate::service_protocol::FailureCode;
 ///  and the failures of the write tell the other cases apart.
 ///  A line the service answered is one it refused:
 ///  no work line is answered any other way
-///  (`service_server_connection_handling.rs`, `answer_request`).
+///  (`service_server_connection_handling.rs`,
+/// `answer_request`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,7 +56,8 @@ pub enum Woken {
     /// The service took no byte of the line for the whole silence window of a write:
     /// it stopped reading.
     NothingTaken,
-    /// The service took part of the line, and the whole of it did not go in within the ceiling of a write.
+    /// The service took part of the line,
+    /// and the whole of it did not go in within the ceiling of a write.
     PartTaken,
     /// Every byte of the line went into the connection,
     ///  the service closed nothing within the time this command waits for a service's silence,
