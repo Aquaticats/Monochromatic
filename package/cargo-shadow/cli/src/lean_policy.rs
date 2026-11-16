@@ -168,9 +168,15 @@ pub const RUN_DEADLINE_SECONDS: u64 = 5 * 3_600;
 /// `HOST_PROFILE_CAP_BYTES`) has to fit after the removal,
 /// rounded up to 16 GiB.
 /// 100 + 180 + 16 = 296.
-/// A proposal,
-/// sized from other rules' measurements rather than from one of its own,
-/// and settable on the command line (`cargo-shadow lean run --toolchain-folder-free-gib`).
+/// Sized from other rules' measurements rather than from one of its own.
+/// Approved by the owner on 2026-11-15,
+/// "Approve as proposed (Recommended)",
+/// beside the six hours and the thirty minutes
+/// (`doc/handover/cli-git-rust-implementation.md`,
+/// `Owner decisions in force`,
+/// `Answers of the evening, the long sitting`,
+/// `cargo-shadow's cleanup limits (296 GiB free, six hours, thirty minutes, pinned toolchains included when old)`).
+/// Settable on the command line (`cargo-shadow lean run --toolchain-folder-free-gib`).
 pub const TOOLCHAIN_FOLDER_FREE_SPACE_BOUND_BYTES: u64 = 100 * GIB + 36 * GIB * (RUN_DEADLINE_SECONDS / 3_600) + 16 * GIB;
 
 /// The age a toolchain folder has to reach before it may be removed:
@@ -181,9 +187,14 @@ pub const TOOLCHAIN_FOLDER_FREE_SPACE_BOUND_BYTES: u64 = 100 * GIB + 36 * GIB * 
 /// (`lean_keyed_folder.rs`),
 /// so a folder a build touched since the previous pass is never a candidate,
 /// and one hour is the margin for a pass that started just before that build did.
-/// A proposal:
-/// no measurement of a build's length settles it,
+/// No measurement of a build's length settles it,
 /// and the process scan is what keeps a running build's folder whatever its age.
+/// Approved by the owner on 2026-11-15,
+/// "Approve as proposed (Recommended)",
+/// beside the 296 GiB free and the thirty minutes
+/// (`doc/handover/cli-git-rust-implementation.md`,
+/// `Owner decisions in force`,
+/// `Answers of the evening, the long sitting`).
 pub const TOOLCHAIN_FOLDER_AGE_SECONDS: i64 = 6 * 3_600;
 
 /// The longest one pass of the toolchain-folder removal may take:
@@ -195,9 +206,14 @@ pub const TOOLCHAIN_FOLDER_AGE_SECONDS: i64 = 6 * 3_600;
 /// so half an hour is about 790 shards,
 /// which is three toolchain folders of a full shard set,
 /// and the pass stops between two shards and the next one continues.
-/// A proposal,
-/// and the removal is off every build's waiting path:
+/// The removal is off every build's waiting path:
 /// it runs in the service's own pass.
+/// Approved by the owner on 2026-11-15,
+/// "Approve as proposed (Recommended)",
+/// beside the 296 GiB free and the six hours
+/// (`doc/handover/cli-git-rust-implementation.md`,
+/// `Owner decisions in force`,
+/// `Answers of the evening, the long sitting`).
 pub const TOOLCHAIN_FOLDER_PASS_SECONDS: u64 = 30 * 60;
 
 /// A drive reading over this is slow:

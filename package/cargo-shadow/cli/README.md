@@ -1272,7 +1272,13 @@ Seven mechanisms
   and when any process of the machine has its working directory,
   program,
   open file or mapped file under it.
-  The names a checkout pins are deliberately not a reason to keep a folder:
+  The names a checkout pins are deliberately not a reason to keep a folder
+  (the owner approved that a pinned toolchain's folder goes too when it is old enough,
+  at the price of a rebuild,
+  2026-11-15,
+  `doc/handover/cli-git-rust-implementation.md`,
+  `Owner decisions in force`,
+  `Answers of the evening, the long sitting`):
   on 2026-11-13 fifty-three of this machine's worktrees still pinned `nightly-2026-11-10` while none of them built,
   and that is what kept its 1.17 TB of build folders through every pass of the day.
   The removal is gentle and can be taken up again:
@@ -1289,6 +1295,21 @@ Seven mechanisms
   is a build folder this tool made:
   anything else under `toolchain/` is left alone and named,
   and so is anything in the retiring directory whose name is not a claim.
+  The reading is the one write a removal makes into the base:
+  a file of its own at `.cargo-shadow-drive-reading-<process>`,
+  created only when nothing stands at that name,
+  carrying a signature,
+  and removed at the end of the pass that made it.
+  A dry run takes no reading at all,
+  so it writes nothing,
+  and an entry of anyone else's at that name,
+  a regular file,
+  a hard link,
+  a directory or a pipe,
+  is left byte for byte as it is and stops the pass with a line naming it.
+  A pass that was killed leaves its own file behind;
+  a later pass that draws the same process number removes it,
+  because the signature says it is the tool's own.
   A folder half removed is recognisable as being removed,
   is finished whole by the next pass before that pass judges anything new,
   and is never built into again:
@@ -1298,7 +1319,7 @@ Seven mechanisms
   builds into a fresh one,
   which costs that build a rebuild and never a write into what is being removed.
   The bounds are in `src/lean_policy.rs`,
-  each beside the measurement it was sized from,
+  each beside the measurement it was sized from and beside the owner's approval of 2026-11-15,
   and each can be set for a pass:
   `lean run --toolchain-folder-free-gib`,
   `--toolchain-folder-age-hours` and

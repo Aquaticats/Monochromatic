@@ -7,7 +7,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::fs;
 use std::io;
-use std::os::unix::fs::MetadataExt;
+use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::time::Duration;
@@ -389,7 +389,7 @@ fn a_drive_reading_refuses_a_link_at_its_own_name_and_leaves_what_the_link_names
     fs::write(&target, b"the user's bytes\n").expect("a file");
     let probe: PathBuf = crate::lean_toolchain_folder_pieces::reading_file(root.path());
     std::os::unix::fs::symlink(&target, &probe).expect("a link where the reading would write");
-    let drive: crate::lean_toolchain_folder_pieces::RealVolume = crate::lean_toolchain_folder_pieces::RealVolume;
+    let drive: crate::lean_toolchain_folder_pieces::RealVolume = crate::lean_toolchain_folder_pieces::RealVolume::default();
     let reading = drive.reading(root.path());
     assert!(reading.is_err(), "a reading does not write through a link: {reading:?}");
     assert_eq!(fs::read(&target).expect("the user's file is still readable"), b"the user's bytes\n", "the file the link names is untouched");
@@ -427,4 +427,167 @@ fn identity_of_candidate(path: &Path) -> Option<Candidate> {
         modified_nanos: metadata.mtime().saturating_mul(1_000_000_000).saturating_add(metadata.mtime_nsec()),
         identity: crate::lean_identity::Identity { device: metadata.dev(), inode: metadata.ino() },
     });
+}
+
+/// The names of everything at a base's top level,
+/// sorted.
+/// Why:
+/// "A dry run writes nothing" is a statement about the whole directory,
+/// not about one name.
+fn base_entries(base: &Path) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for entry in fs::read_dir(base).expect("the base can be listed").flatten() {
+        names.push(entry.file_name().to_string_lossy().to_string());
+    }
+    names.sort();
+    return names;
+}
+
+/// A claim an earlier pass left:
+/// three numbers and a name,
+/// one shard,
+/// one built file.
+fn make_claim(base: &Path) -> PathBuf {
+    let claim: PathBuf = retiring_directory(base).join("1-2-3-oldtoolchain");
+    let shard: PathBuf = claim.join("ab").join("0123456789abcdef");
+    fs::create_dir_all(&shard).expect("a claim's shard");
+    fs::write(shard.join("unit.o"), b"build artifact\n").expect("a built file in the claim");
+    return claim;
+}
+
+/// The name this process's drive reading would use.
+fn reading_name(base: &Path) -> PathBuf {
+    return crate::lean_toolchain_folder_pieces::reading_file(base);
+}
+
+/// Two mebibytes of one byte,
+/// which a reading would zero the first mebibyte of.
+fn two_mebibytes_of(byte: u8) -> Vec<u8> {
+    return vec![byte; 2 * 1024 * 1024];
+}
+
+/// One pass over a fixture base with the real volume and the real clock.
+fn real_pass(base: &Path, dry_run: bool) -> Vec<String> {
+    return crate::lean_toolchain_folders::run_toolchain_folders(base, dry_run, &limits(), &deadline(), &environment());
+}
+
+/// The machine's own volume,
+/// with a count of the readings asked of it.
+/// Why:
+/// The reading is the one write a pass makes into the base,
+/// so a control of "a dry run writes nothing" has to see the reading itself,
+/// and the reading it delegates to is the real one,
+/// which really writes.
+struct CountingVolume {
+    /// The real volume.
+    inner: crate::lean_toolchain_folder_pieces::RealVolume,
+    /// How many readings were asked of it.
+    readings: std::cell::Cell<usize>,
+}
+
+/// Counting what the pass asks for,
+/// and doing it for real.
+impl crate::lean_toolchain_folder_pieces::Volume for CountingVolume {
+    fn free_bytes(&self, base: &Path) -> io::Result<u64> {
+        return self.inner.free_bytes(base);
+    }
+
+    fn reading(&self, base: &Path) -> io::Result<Duration> {
+        self.readings.set(self.readings.get() + 1);
+        return self.inner.reading(base);
+    }
+}
+
+#[test]
+fn a_dry_run_writes_nothing_into_the_base() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let claim: PathBuf = make_claim(&base);
+    let before: Vec<String> = base_entries(&base);
+    let quiet: CountingVolume = CountingVolume { inner: crate::lean_toolchain_folder_pieces::RealVolume::default(), readings: std::cell::Cell::new(0) };
+    let mut log: Vec<String> = Vec::new();
+    let outcome = retire_toolchain_folders(&base, None, &limits(), &quiet, &environment(), now_seconds(), true, &deadline(), &mut log);
+    assert_eq!(quiet.readings.get(), 0, "a dry run takes no drive reading, because the reading is a write into the base: {:?}", outcome.lines);
+    assert_eq!(base_entries(&base), before, "a dry run leaves the base's entries exactly as they were: {:?}", outcome.lines);
+    assert!(!reading_name(&base).exists(), "and no reading's file is left behind");
+    assert!(claim.join("ab").join("0123456789abcdef").join("unit.o").exists(), "a dry run removes nothing: {:?}", outcome.lines);
+
+    // The positive control: the same base and the same volume do ask for a reading when the pass is not a dry run,
+    // so the zero above is the dry run's doing and not a volume that never reads.
+    let loud: CountingVolume = CountingVolume { inner: crate::lean_toolchain_folder_pieces::RealVolume::default(), readings: std::cell::Cell::new(0) };
+    let mut second_log: Vec<String> = Vec::new();
+    let _second = retire_toolchain_folders(&base, None, &limits(), &loud, &environment(), now_seconds(), false, &deadline(), &mut second_log);
+    assert!(loud.readings.get() >= 1, "a pass that is not a dry run reads the drive: {second_log:?}");
+}
+
+#[test]
+fn a_regular_file_at_the_readings_name_is_left_byte_for_byte_and_the_pass_ends() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    make_claim(&base);
+    let name: PathBuf = reading_name(&base);
+    let bytes: Vec<u8> = two_mebibytes_of(b'A');
+    fs::write(&name, &bytes).expect("a user's file at the reading's name");
+    let lines: Vec<String> = real_pass(&base, false);
+    assert_eq!(fs::read(&name).expect("the file is still there"), bytes, "a regular file at the reading's name is written through by nothing: {lines:?}");
+    assert!(lines.iter().any(|line| { return line.contains("the drive could not be read") && line.contains(&name.display().to_string()); }), "the pass says which entry stopped it: {lines:?}");
+}
+
+#[test]
+fn a_hard_link_at_the_readings_name_leaves_what_it_names_alone() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    make_claim(&base);
+    let user: PathBuf = root.path().join("a-file-of-the-users.bin");
+    let bytes: Vec<u8> = two_mebibytes_of(b'U');
+    fs::write(&user, &bytes).expect("a user's file");
+    let name: PathBuf = reading_name(&base);
+    fs::hard_link(&user, &name).expect("a hard link to it at the reading's name");
+    let lines: Vec<String> = real_pass(&base, false);
+    assert_eq!(fs::read(&user).expect("the user's file is still there"), bytes, "a hard link at the reading's name does not carry a write to what it names: {lines:?}");
+    assert!(fs::symlink_metadata(&name).is_ok(), "the link itself is left where it is: {lines:?}");
+}
+
+#[test]
+fn a_directory_at_the_readings_name_is_left_alone() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    make_claim(&base);
+    let name: PathBuf = reading_name(&base);
+    fs::create_dir_all(&name).expect("a directory at the reading's name");
+    fs::write(name.join("inside.txt"), b"a user's file\n").expect("a file in it");
+    let lines: Vec<String> = real_pass(&base, false);
+    assert_eq!(fs::read(name.join("inside.txt")).expect("the file is still there"), b"a user's file\n", "a directory at the reading's name is not removed: {lines:?}");
+    assert!(name.is_dir(), "and it is still a directory: {lines:?}");
+}
+
+#[test]
+fn a_pipe_at_the_readings_name_is_left_and_the_pass_ends() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    make_claim(&base);
+    let name: PathBuf = reading_name(&base);
+    crate::lean_test_support::make_pipe(&name);
+    let probe_base: PathBuf = base.clone();
+    // A reading that waited on the pipe would never answer, so the pass runs with a bound of its own here.
+    let lines: Vec<String> = crate::lean_test_support::within(move || { return real_pass(&probe_base, false); });
+    assert!(lines.iter().any(|line| { return line.contains("the drive could not be read"); }), "the pass says the drive could not be read: {lines:?}");
+    let found = fs::symlink_metadata(&name).expect("the pipe is still there");
+    assert!(found.file_type().is_fifo(), "a pipe at the reading's name is left as it is: {lines:?}");
+}
+
+#[test]
+fn a_reading_file_a_killed_pass_left_is_removed_by_the_later_pass() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let claim: PathBuf = make_claim(&base);
+    let name: PathBuf = reading_name(&base);
+    // The file a pass that was killed between its first reading and its end leaves:
+    // this process's own name, carrying the reading's signature.
+    let mut leftover: Vec<u8> = crate::lean_toolchain_folder_pieces::READING_SIGNATURE.to_vec();
+    leftover.resize(1 << 20, 0);
+    fs::write(&name, &leftover).expect("the reading's file of a pass that was killed");
+    let lines: Vec<String> = real_pass(&base, false);
+    assert!(!name.exists(), "the next pass removes the file its own earlier pass left: {lines:?}");
+    assert!(!claim.exists(), "and it finished the removal the killed pass left: {lines:?}");
 }

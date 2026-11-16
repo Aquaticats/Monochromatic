@@ -13,6 +13,16 @@
 //! so a pass removes one piece,
 //! measures the drive,
 //! and stops when the drive says to.
+//! The reading is one write into the base,
+//! so a dry run takes none at all;
+//! it is made under a name this process alone owns,
+//! created only when nothing stands there (`O_EXCL`),
+//! and its first bytes are a signature,
+//! which is how a later pass tells its own file,
+//! left by a pass that was killed,
+//! from an entry of anyone else's at that name:
+//! only the first is removed,
+//! and the second is named and stops the pass.
 //! Everything here is one folder's business:
 //! which folder is chosen and when is `lean_toolchain_folders.rs`'s.
 //!
@@ -33,7 +43,7 @@ use crate::lean_identity::Deadline;
 /// The one way these tools remove an entry.
 use crate::lean_removal::{Refusal, delete_claimed, item_of, modes_named};
 /// The open that refuses a link and creates nothing it was not asked to.
-use rustix::fs::{Mode, OFlags, open};
+use rustix::fs::{FileType, Mode, OFlags, fstat, open};
 /// The descriptor the open hands back.
 use std::os::fd::OwnedFd;
 /// The reading of the volume's free space the rest of a lean run already takes,
@@ -81,6 +91,16 @@ pub const READING_FILE_PREFIX: &str = ".cargo-shadow-drive-reading-";
 /// and no figure here is read from their count.
 const READING_BYTES: usize = 1 << 20;
 
+/// The first bytes of a drive reading's own file,
+/// which are what tells this tool's own file from anyone else's,
+/// and the padding that fills the reading to `READING_BYTES`.
+/// Why:
+/// A pass killed between its first reading and its end leaves the file behind,
+/// and a later pass that draws the same process number meets it at the same name:
+/// it may replace only a file that carries these bytes,
+/// so a file of someone else's at that name is left and named instead of being written through.
+pub const READING_SIGNATURE: &[u8] = b"cargo-shadow drive reading 1\n";
+
 /// How long one `ionice` call may take.
 /// Why:
 /// It sets a priority and reads nothing,
@@ -103,11 +123,32 @@ pub trait Volume {
     /// The free bytes an unprivileged user can still write on the volume that holds this path.
     fn free_bytes(&self, base: &Path) -> io::Result<u64>;
     /// One write-and-sync reading on the volume that holds this base.
+    /// Why the caller decides when:
+    /// the reading is a write into the base at a name this process owns,
+    /// so a pass that may not write takes no reading.
     fn reading(&self, base: &Path) -> io::Result<Duration>;
 }
 
 /// The volume of the machine the pass runs on.
-pub struct RealVolume;
+#[derive(Debug, Default)]
+pub struct RealVolume {
+    /// Whether this volume drew a reading in this pass.
+    /// Why:
+    /// The reading's file is removed at the end of a pass that made one,
+    /// and a pass that made none,
+    /// a dry run or one with nothing to remove,
+    /// removes nothing:
+    /// a file of someone else's at that name is never deleted.
+    drew: std::cell::Cell<bool>,
+}
+
+/// Reading what this pass did.
+impl RealVolume {
+    /// Whether this pass drew a reading.
+    pub fn drew(&self) -> bool {
+        return self.drew.get();
+    }
+}
 
 /// What:
 /// `impl Volume for RealVolume` measures the real volume.
@@ -131,22 +172,113 @@ impl Volume for RealVolume {
 
     /// One write and one barrier on the drive.
     fn reading(&self, base: &Path) -> io::Result<Duration> {
+        let probe: PathBuf = reading_file(base);
+        let drawn: io::Result<Duration> = match self.one_reading(&probe) {
+            Ok(duration) => Ok(duration),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => self.replace_leftover(&probe),
+            Err(error) => Err(error),
+        };
+        if drawn.is_ok() {
+            self.drew.set(true);
+        }
+        return drawn;
+    }
+}
+
+/// What:
+/// `impl RealVolume`'s two readings.
+/// Why:
+/// The first needs the name free;
+/// the second is what a pass does when its own file from a pass that was killed already stands there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class RealVolume { oneReading(probe): number; replaceLeftover(probe): number }
+/// ```
+impl RealVolume {
+    /// What:
+    /// `fn one_reading(&self, probe: &Path) -> io::Result<Duration>` creates this pass's file and writes the reading,
+    /// answering the error when anything at all stands at the name.
+    /// Why:
+    /// `O_EXCL` refuses every kind of entry that can stand at a name:
+    /// a regular file,
+    /// a hard link,
+    /// a directory,
+    /// a symbolic link and a pipe,
+    /// so nothing is written through and nothing is truncated,
+    /// which is the guarantee the reading's name rests on.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const oneReading = (probe: string): number => { const fd = openSync(probe, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600); const start = performance.now(); writeSync(fd, READING_SIGNATURE); writeSync(fd, Buffer.alloc(READING_BYTES - READING_SIGNATURE.length)); fsyncSync(fd); closeSync(fd); return performance.now() - start; };
+    /// ```
+    fn one_reading(&self, probe: &Path) -> io::Result<Duration> {
         /// Writes the reading's bytes.
         use std::io::Write;
-        let probe: PathBuf = reading_file(base);
-        // A link at the name is refused and nothing is truncated:
-        // the reading is a write at the start of this run's own file.
-        let flags: OFlags = OFlags::WRONLY | OFlags::CREATE | OFlags::NOFOLLOW | OFlags::CLOEXEC;
-        let opened: OwnedFd = match open(&probe, flags, Mode::from_raw_mode(0o600)) {
-            Ok(found) => found,
-            Err(error) => return Err(io::Error::from(error)),
-        };
+        let flags: OFlags = OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC;
+        let opened: OwnedFd = open(probe, flags, Mode::from_raw_mode(0o600)).map_err(io::Error::from)?;
         let started: Instant = Instant::now();
         let mut file: fs::File = fs::File::from(opened);
-        file.write_all(&vec![0_u8; READING_BYTES])?;
+        file.write_all(READING_SIGNATURE)?;
+        file.write_all(&vec![0_u8; READING_BYTES - READING_SIGNATURE.len()])?;
         file.sync_all()?;
         return Ok(started.elapsed());
     }
+
+    /// What:
+    /// `fn replace_leftover(&self, probe: &Path) -> io::Result<Duration>` removes the file a killed pass of
+    /// this same process number left and draws the reading again,
+    /// and answers an error that names the entry when the file at the name is not this tool's.
+    /// Why:
+    /// The name carries the process number,
+    /// so the only file this tool can meet there uninvited is its own from a pass that was killed;
+    /// a file that does not carry the reading's signature is someone else's and is left where it is.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const replaceLeftover = (probe: string): number => { if (!isOwnReading(probe)) throw new Error(`${probe} holds an entry that is not this tool's, so the drive was not read`); unlinkSync(probe); return oneReading(probe); };
+    /// ```
+    fn replace_leftover(&self, probe: &Path) -> io::Result<Duration> {
+        if !is_own_reading(probe) {
+            return Err(io::Error::other(format!("{} holds an entry that is not this tool's, so the drive was not read", probe.display())));
+        }
+        // What stands there is this tool's own file from a pass that was killed, and it has to go.
+        fs::remove_file(probe)?;
+        return self.one_reading(probe);
+    }
+}
+
+/// What:
+/// `pub fn is_own_reading(probe: &Path) -> bool` says whether the entry at a reading's name is this tool's own file.
+/// Why:
+/// The answer is the signature the reading writes first:
+/// a regular file that starts with it is this tool's,
+/// and every other kind of entry,
+/// and a regular file that does not,
+/// is not.
+/// The read waits on nothing,
+/// follows no link and takes a regular file only,
+/// so a pipe at the name cannot hold the pass.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const isOwnReading = (probe: string): boolean => { const fd = openSync(probe, O_RDONLY | O_NOFOLLOW | O_NONBLOCK); if (!fstatSync(fd).isFile()) return false; const found = Buffer.alloc(READING_SIGNATURE.length); readSync(fd, found, 0, found.length, 0); closeSync(fd); return found.equals(READING_SIGNATURE); };
+/// ```
+pub fn is_own_reading(probe: &Path) -> bool {
+    /// Reads the signature's bytes and no more.
+    use std::io::Read;
+    let flags: OFlags = OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC | OFlags::NONBLOCK;
+    let Ok(opened) = open(probe, flags, Mode::empty()) else { return false };
+    let Ok(stat) = fstat(&opened) else { return false };
+    if FileType::from_raw_mode(stat.st_mode) != FileType::RegularFile {
+        return false;
+    }
+    let mut found: [u8; READING_SIGNATURE.len()] = [0; READING_SIGNATURE.len()];
+    let file: fs::File = fs::File::from(opened);
+    if file.take(u64::try_from(READING_SIGNATURE.len()).unwrap_or(0)).read_exact(&mut found).is_err() {
+        return false;
+    }
+    return found.as_slice() == READING_SIGNATURE;
 }
 
 /// What stopped the removal of one folder's pieces.
@@ -179,6 +311,9 @@ pub struct Pieces {
     pub bytes: u64,
     /// Why the removal of pieces stopped.
     pub stopped: Option<Stop>,
+    /// What went wrong when the drive could not be read,
+    /// which names the entry at the reading's name when that entry is not this tool's.
+    pub reading_failure: Option<String>,
     /// One reason for each part that stayed after a piece was not removed whole.
     pub notes: Vec<String>,
     /// The directories whose owner access a removal widened,
@@ -328,7 +463,7 @@ pub fn children_of(directory: &Path) -> Vec<PathBuf> {
 
 
 /// What:
-/// `fn slow_reading(policy: &PiecePolicy, volume: &dyn Volume, probe: &Path, slow: &mut u32) -> Option<Stop>` takes one drive
+/// `fn slow_reading(policy: &PiecePolicy, volume: &dyn Volume, probe: &Path, slow: &mut u32, failure: &mut Option<String>) -> Option<Stop>` takes one drive
 /// reading and says whether the pass must stop.
 /// Why:
 /// A drive that answers slowly is the machine telling the pass to wait,
@@ -337,12 +472,15 @@ pub fn children_of(directory: &Path) -> Vec<PathBuf> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function slowReading(policy: PiecePolicy, volume: Volume, probe: string, slow: {count: number}): Stop | undefined
+/// function slowReading(policy: PiecePolicy, volume: Volume, base: string, slow: {count: number}, failure: {reason?: string}): Stop | undefined
 /// ```
-fn slow_reading(policy: &PiecePolicy, volume: &dyn Volume, probe: &Path, slow: &mut u32) -> Option<Stop> {
+fn slow_reading(policy: &PiecePolicy, volume: &dyn Volume, probe: &Path, slow: &mut u32, failure: &mut Option<String>) -> Option<Stop> {
     let reading: Duration = match volume.reading(probe) {
         Ok(found) => found,
-        Err(_error) => return Some(Stop::ReadingFailed),
+        Err(error) => {
+            *failure = Some(error.to_string());
+            return Some(Stop::ReadingFailed);
+        }
     };
     if reading <= policy.slow_reading {
         *slow = 0;
@@ -378,14 +516,19 @@ pub(crate) fn remove_pieces(entry: &Path, policy: &PiecePolicy, volume: &dyn Vol
     let pieces: Vec<PathBuf> = children_of(entry);
     let mut removed: Pieces = Pieces { total: pieces.len(), ..Pieces::default() };
     let mut slow: u32 = 0;
+    let mut failure: Option<String> = None;
     for (index, piece) in pieces.iter().enumerate() {
         if deadline.passed() {
             removed.stopped = Some(Stop::Deadline);
             return removed;
         }
-        if index == 0
-            && let Some(stopped) = slow_reading(policy, volume, probe, &mut slow)
+        // A dry run removes nothing and writes nothing, so it takes no drive reading either:
+        // the reading's file is a write into the base.
+        if !dry_run
+            && index == 0
+            && let Some(stopped) = slow_reading(policy, volume, probe, &mut slow, &mut failure)
         {
+            removed.reading_failure = failure.clone();
             removed.stopped = Some(stopped);
             return removed;
         }
@@ -415,7 +558,8 @@ pub(crate) fn remove_pieces(entry: &Path, policy: &PiecePolicy, volume: &dyn Vol
                     continue;
                 }
             }
-            if let Some(stopped) = slow_reading(policy, volume, probe, &mut slow) {
+            if let Some(stopped) = slow_reading(policy, volume, probe, &mut slow, &mut failure) {
+                removed.reading_failure = failure.clone();
                 removed.stopped = Some(stopped);
                 return removed;
             }
@@ -478,16 +622,19 @@ pub(crate) fn piece_line(what: &str, removed: &Pieces, entry: &Path) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function stopLine(stopped: Stop | undefined, policy: PiecePolicy): string | undefined
+/// function stopLine(stopped: Stop | undefined, policy: PiecePolicy, failure: string | undefined): string | undefined
 /// ```
-pub(crate) fn stop_line(stopped: Option<Stop>, policy: &PiecePolicy) -> Option<String> {
+pub(crate) fn stop_line(stopped: Option<Stop>, policy: &PiecePolicy, failure: Option<&str>) -> Option<String> {
     return match stopped {
         Some(Stop::SlowDrive) => Some(format!(
             "the toolchain-folder removal stopped: the drive answered over {} ms {} times in a row; the next pass continues",
             policy.slow_reading.as_millis(),
             policy.slow_readings_in_a_row
         )),
-        Some(Stop::ReadingFailed) => Some(String::from("the toolchain-folder removal stopped: the drive could not be read, so the pass cannot tell whether it is slow")),
+        Some(Stop::ReadingFailed) => Some(format!(
+            "the toolchain-folder removal stopped: the drive could not be read ({}), so the pass cannot tell whether it is slow",
+            failure.unwrap_or("no reason was given")
+        )),
         Some(Stop::Deadline) => Some(format!("the toolchain-folder removal stopped at its own bound of {} s; the next pass continues", policy.pass_limit.as_secs())),
         Some(Stop::Interrupted) => Some(String::from("the toolchain-folder removal stopped on a fault point; the next pass continues")),
         Some(Stop::Finished) | Some(Stop::UnderBound) | None => None,

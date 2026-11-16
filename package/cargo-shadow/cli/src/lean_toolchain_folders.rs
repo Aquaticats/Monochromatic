@@ -145,6 +145,13 @@ impl Default for ToolchainFolderLimits {
 /// The names a checkout pins are deliberately not a reason:
 /// 53 of this machine's worktrees still pinned `nightly-2026-11-10` on 2026-11-13 while none of them built,
 /// and that pin is what kept its 1.17 TB of build folders.
+/// The owner approved that a pinned toolchain's folder goes too when it is old enough,
+/// at the price of a rebuild
+/// (`doc/handover/cli-git-rust-implementation.md`,
+/// `Owner decisions in force`,
+/// `Answers of the evening, the long sitting`,
+/// 2026-11-15:
+/// `pinned toolchains included when old`).
 /// The scan of the processes comes from the caller because it is the whole cost of a pass that finds work:
 /// one scan covers every folder the pass judges,
 /// so the proof costs one scan however many folders it covers
@@ -296,7 +303,7 @@ pub fn retire_toolchain_folders(
         } else {
             outcome.stopped_in = Some(claimed.clone());
         }
-        if let Some(text) = stop_line(removable.stopped, &policy) {
+        if let Some(text) = stop_line(removable.stopped, &policy, removable.reading_failure.as_deref()) {
             outcome.lines.push(text.clone());
             emit(log, text);
         }
@@ -384,7 +391,7 @@ pub fn retire_toolchain_folders(
         } else {
             outcome.stopped_in = Some(claimed.clone());
         }
-        if let Some(text) = stop_line(removable.stopped, &policy) {
+        if let Some(text) = stop_line(removable.stopped, &policy, removable.reading_failure.as_deref()) {
             outcome.lines.push(text.clone());
             emit(log, text);
         }
@@ -427,16 +434,18 @@ pub fn run_toolchain_folders(base: &Path, dry_run: bool, limits: &ToolchainFolde
         _other => None,
     };
     let mut log: Vec<String> = Vec::new();
+    let volume: RealVolume = RealVolume::default();
     if !dry_run
-        && let Ok(free) = RealVolume.free_bytes(base)
+        && let Ok(free) = volume.free_bytes(base)
         && free < limits.free_space_bound_bytes
     {
         let text: String = ask_for_idle_disk_priority(environment.own_pid);
         emit(&mut log, text);
     }
-    let outcome: Outcome = retire_toolchain_folders(base, keep.as_deref(), limits, &RealVolume, environment, now_seconds(), dry_run, deadline, &mut log);
-    if !dry_run {
-        // The reading's file is this pass's own and holds nothing.
+    let outcome: Outcome = retire_toolchain_folders(base, keep.as_deref(), limits, &volume, environment, now_seconds(), dry_run, deadline, &mut log);
+    // Only a pass that drew a reading made that file, so only a pass that drew one removes it:
+    // a file of someone else's at that name is never deleted, and a dry run writes nothing at all.
+    if volume.drew() {
         let _ = fs::remove_file(reading_file(base));
     }
     return outcome.lines;
