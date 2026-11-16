@@ -27,6 +27,28 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 const SCENARIO_BOUND_MILLISECONDS = 120_000;
 
 /**
+ What the timeout scenario observed, as it printed it.
+ */
+type TimeoutObserved = {
+  /**
+   Whether the start accepted the watcher it started.
+   */
+  readonly accepted: boolean;
+  /**
+   How long the start took, in milliseconds.
+   */
+  readonly elapsedMilliseconds: number;
+  /**
+   What the start threw, absent when it accepted the watcher.
+   */
+  readonly failure?: string;
+  /**
+   Whether a watcher record was left behind.
+   */
+  readonly recordLeft: boolean;
+};
+
+/**
  What the scenario observed, as it printed it.
  */
 type Observed = {
@@ -85,4 +107,47 @@ assert.equal(
   observed.registered,
   true,
   `a healthy watcher whose startup took ${String(observed.elapsedMilliseconds,)} ms was killed before it registered: ${String(observed.failure,)}`,
+);
+
+/**
+ What the timeout scenario printed on its last line.
+ */
+const timeoutStdout = execFileSync(
+  process.execPath,
+  [
+    new URL('tunnel-lifecycle-watcher-timeout.scenario.ts', import.meta.url,).pathname,
+    join(directory, 'timeout',),
+  ],
+  {
+    timeout: SCENARIO_BOUND_MILLISECONDS,
+    encoding: 'utf8',
+  },
+);
+/**
+ The observation, parsed from the timeout scenario's verdict line.
+ */
+const timedOut = JSON.parse(
+  timeoutStdout.trim()
+    .split('\n',)
+    .at(-1,) ?? '{}',
+) as TimeoutObserved;
+assert.equal(
+  timedOut.accepted,
+  false,
+  `a watcher that never registered was accepted after ${String(timedOut.elapsedMilliseconds,)} ms`,
+);
+// The deadline is what ends the wait, so the refusal comes at about ten seconds and not when the watcher finally starts.
+assert.ok(
+  timedOut.elapsedMilliseconds < 20_000,
+  `the start waited ${String(timedOut.elapsedMilliseconds,)} ms for a watcher that never registered`,
+);
+assert.ok(
+  timedOut.failure?.includes('did not register process identity',) === true,
+  `the refusal does not say the watcher never registered: ${String(timedOut.failure,)}`,
+);
+// A group whose members have all exited is gone for every purpose the program has, so the failure may not claim it survived a kill.
+assert.ok(
+  !
+    timedOut.failure?.includes('survived SIGKILL',),
+  `the refusal claims a group survived SIGKILL: ${String(timedOut.failure,)}`,
 );
