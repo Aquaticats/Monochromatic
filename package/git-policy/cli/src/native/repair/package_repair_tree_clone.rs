@@ -312,8 +312,31 @@ fn place_a_slice_of((entries, positions, source, destination): ASliceToPlace) ->
 /// ```ts
 /// const walkAndMake = ([source, destination]) => walkAndMakeDirectories(source, destination);
 /// ```
-fn walk_and_make_of((source, destination): (PathBuf, PathBuf)) -> Result<TheWalk, String> {
-    return walk_and_make_directories(source.as_path(), destination.as_path());
+fn walk_and_make_of((source, destination, the_destination_is_the_callers): (PathBuf, PathBuf, bool)) -> Result<TheWalk, String> {
+    return walk_and_make_directories(source.as_path(), destination.as_path(), the_destination_is_the_callers);
+}
+
+/// What:
+///  Whether the clone makes the destination itself or fills one its caller made and claimed,
+///  which is what lets the caller write a claim inside the directory before anything of the source is
+///  copied into it.
+/// Why:
+///   A claim written after the clone returns leaves the whole clone's length in which a kill strands a
+/// directory nothing can prove is the job's,
+/// so the caller makes the directory (an exclusive create, which refuses a name another command holds),
+/// writes the claim inside it,
+/// and the clone fills that directory rather than refusing the name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TheDestination = 'made by the clone' | 'made and claimed by the caller';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum TheDestination {
+    /// The clone makes the destination with an exclusive create, so a name it finds is refused.
+    MadeHere,
+    /// The caller made the destination and wrote its claim inside, so the clone fills it.
+    MadeAndClaimedByTheCaller,
 }
 
 /// What:
@@ -469,14 +492,17 @@ struct TheWalk {
 /// ```ts
 /// function walkAndMakeDirectories(source: string, destination: string): TheWalk;
 /// ```
-fn walk_and_make_directories(source: &Path, destination: &Path) -> Result<TheWalk, String> {
+fn walk_and_make_directories(source: &Path, destination: &Path, the_destination_is_the_callers: bool) -> Result<TheWalk, String> {
     let (entries, left_out): (Vec<Entry>, Vec<PathBuf>) = walk(source)?;
     let root: Metadata = say_where(std::fs::metadata(source), source, "cannot be read")?;
     if let Some(parent) = destination.parent() {
         say_where(std::fs::create_dir_all(parent), parent, "cannot be made")?;
     }
-    // Exclusive creation: an existing destination is refused and left as it was.
-    say_where(std::fs::create_dir(destination), destination, "cannot be made")?;
+    // Exclusive creation: an existing destination is refused and left as it was, unless the caller made
+    //  it and claimed it, which it can only have done with an exclusive create of its own.
+    if !the_destination_is_the_callers {
+        say_where(std::fs::create_dir(destination), destination, "cannot be made")?;
+    }
     let mut directories: Vec<usize> = Vec::new();
     for (index, entry) in entries.iter().enumerate() {
         if entry.kind == Kind::Directory {
@@ -530,8 +556,8 @@ fn set_the_modes(source: &Path, destination: &Path, entries: &[Entry], directori
 /// ```ts
 /// async function cloneTreeAwaiting(source: string, destination: string, workers: number): Promise<Cloned>;
 /// ```
-pub(crate) async fn clone_tree_awaiting(source: &Path, destination: &Path, workers: usize) -> Result<Cloned, String> {
-    return clone_tree_within(source, destination, workers, PlacesOfAClone::SlowWork).await;
+pub(crate) async fn clone_tree_awaiting(source: &Path, destination: &Path, workers: usize, the_destination: TheDestination) -> Result<Cloned, String> {
+    return clone_tree_within(source, destination, workers, PlacesOfAClone::SlowWork, the_destination).await;
 }
 
 /// What:
@@ -545,8 +571,8 @@ pub(crate) async fn clone_tree_awaiting(source: &Path, destination: &Path, worke
 /// ```ts
 /// async function cloneTreeWithin(source, destination, workers, places): Promise<Cloned>;
 /// ```
-async fn clone_tree_within(source: &Path, destination: &Path, workers: usize, places: PlacesOfAClone) -> Result<Cloned, String> {
-    let walked = run_a_clone_step(places, (source.to_path_buf(), destination.to_path_buf()), walk_and_make_of).await;
+async fn clone_tree_within(source: &Path, destination: &Path, workers: usize, places: PlacesOfAClone, the_destination: TheDestination) -> Result<Cloned, String> {
+    let walked = run_a_clone_step(places, (source.to_path_buf(), destination.to_path_buf(), the_destination == TheDestination::MadeAndClaimedByTheCaller), walk_and_make_of).await;
     let TheWalk { entries, mut left_out, directories, root_mode }: TheWalk = match walked {
         Ok(Ok(found)) => found,
         // The walk itself failed and named the entry it could not read; nothing of the clone was made.
@@ -612,7 +638,7 @@ async fn clone_tree_within(source: &Path, destination: &Path, workers: usize, pl
 /// function cloneTree(args: { source: string; destination: string; workers: number }): Cloned;
 /// ```
 pub fn clone_tree(source: &Path, destination: &Path, workers: usize) -> Result<Cloned, String> {
-    return match run_on_runtime(clone_tree_within(source, destination, workers, PlacesOfAClone::EveryJob)) {
+    return match run_on_runtime(clone_tree_within(source, destination, workers, PlacesOfAClone::EveryJob, TheDestination::MadeHere)) {
         Ok(cloned) => cloned,
         // Nothing of the clone was made, and the runtime's own reason is why.
         Err(refusal) => Err(format!("{} could not be cloned ({refusal})", source.display())),

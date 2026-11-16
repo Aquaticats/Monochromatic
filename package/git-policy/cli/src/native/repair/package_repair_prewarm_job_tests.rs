@@ -14,7 +14,27 @@ const NO_CARGO: &str = "/nonexistent/monochromatic-prewarm-control/cargo";
 /// The names one filling of a control works in, taken in the directory they live in.
 fn names_in(staging: &Path) -> TheNames {
     let parent: &Path = staging.parent().expect("a directory the names live in");
-    return TheNames { directory: super::TheDirectory::of(parent).expect("the directory"), staging: staging.to_path_buf(), target: target_of(staging), marker: None, lease: None };
+    return TheNames {
+        directory: super::TheDirectory::of(parent).expect("the directory"),
+        to: parent.join("build"),
+        begun_by: String::from("a-controls-run"),
+        marker_made: None,
+        staging: staging.to_path_buf(),
+        target: target_of(staging),
+        marker: None,
+        lease: None,
+    };
+}
+
+/// What:
+///  A directory a filling of this job made, with the claim inside it that says so.
+/// Why:
+///   A killed filling's leftovers are removed on the claim the entry carries,
+/// so a control that makes such leftovers by hand writes the same claim the code writes.
+fn a_claimed_directory(directory: &Path, to: &Path, begun_by: &str) {
+    std::fs::create_dir_all(directory).expect("the directory a filling made");
+    let claim: PathBuf = directory.join(super::a_claim_inside());
+    std::fs::write(claim.as_path(), super::the_claim_text(to, begun_by).expect("the claim")).expect("the claim inside the directory");
 }
 
 /// Join one name onto a directory, for a closure that must not capture the fixture root twice.
@@ -106,7 +126,8 @@ fn a_failed_clean_leaves_no_staging_directory_and_no_destination() {
     std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
     let staged: PathBuf = staging_of(entry.to.as_path());
     std::fs::create_dir_all(staged.join("left-by-a-killed-run")).expect("a staging directory an earlier run left");
-    super::write_marker(super::marker_of(staged.as_path()).as_path(), entry.to.as_path(), super::WhatTheMarkerRecords::TheStaging).expect("the marker an earlier run left");
+    a_claimed_directory(staged.as_path(), entry.to.as_path(), "a-controls-run");
+    super::write_marker(super::marker_of(staged.as_path()).as_path(), entry.to.as_path(), super::WhatTheMarkerRecords::TheStaging, "a-controls-run").expect("the marker an earlier run left");
     let failed: Result<Filled, String> = super::fill_one_in_a_control(&fill_of_nowhere(), &entry);
     assert!(failed.is_err(), "a clean that could not run is reported: {failed:?}");
     assert!(!staged.exists(), "the staging directory this job's marker claims is removed");
@@ -137,8 +158,8 @@ fn a_filling_killed_after_it_published_leaves_nothing_of_its_own() {
     std::fs::create_dir_all(entry.to.as_path()).expect("the build directory the killed filling published");
     std::fs::write(entry.to.join("kept"), b"a build's own artifact").expect("the file");
     let staged: PathBuf = staging_of(entry.to.as_path());
-    std::fs::create_dir_all(staged.as_path()).expect("the staging directory the publish left empty");
-    super::write_marker(super::marker_of(staged.as_path()).as_path(), entry.to.as_path(), super::WhatTheMarkerRecords::TheStaging).expect("the marker the killed filling wrote first");
+    a_claimed_directory(staged.as_path(), entry.to.as_path(), "a-controls-run");
+    super::write_marker(super::marker_of(staged.as_path()).as_path(), entry.to.as_path(), super::WhatTheMarkerRecords::TheStaging, "a-controls-run").expect("the marker the killed filling wrote first");
     let filled: Filled = super::fill_one_in_a_control(&fill_of_nowhere(), &entry).expect("a filled destination is kept");
     assert_eq!(filled, Filled::Kept, "the worktree keeps what the build made");
     assert_eq!(std::fs::read(entry.to.join("kept")).expect("the file"), b"a build's own artifact");
@@ -295,7 +316,7 @@ fn a_marker_a_copy_carried_from_another_worktree_never_skips_the_repair() {
     std::fs::write(entry.to.join("debug/copied"), b"the source's state\n").expect("a file of the copy");
     let staging: PathBuf = staging_of(entry.to.as_path());
     let marker: PathBuf = super::marker_of(staging.as_path());
-    super::write_marker(marker.as_path(), &root.join("another-worktree/worktree-build"), super::WhatTheMarkerRecords::TheStaging).expect("the marker the source worktree's killed add left");
+    super::write_marker(marker.as_path(), &root.join("another-worktree/worktree-build"), super::WhatTheMarkerRecords::TheStaging, "a-controls-run").expect("the marker the source worktree's killed add left");
     assert!(!staging.exists(), "the copy carried the marker and the build state, and no staging directory");
     let git_directory: PathBuf = root.join("git-directory");
     let staged: Staged = super::stage_the_worktrees_own_state(entry.to.as_path(), Some(git_directory.as_path())).expect("the carried marker is placed and the repair runs");
@@ -334,7 +355,7 @@ fn a_staged_copy_a_copy_carried_is_left_and_the_add_says_what_to_run() {
     std::fs::create_dir_all(staging.join("debug")).expect("the staging copy the source worktree's add made");
     std::fs::write(staging.join("debug/copied"), b"the older state of the same tree\n").expect("a file of the carried staging copy");
     let marker: PathBuf = super::marker_of(staging.as_path());
-    super::write_marker(marker.as_path(), &root.join("another-worktree/worktree-build"), super::WhatTheMarkerRecords::TheStaging).expect("the source worktree's marker, carried here by the copy");
+    super::write_marker(marker.as_path(), &root.join("another-worktree/worktree-build"), super::WhatTheMarkerRecords::TheStaging, "a-controls-run").expect("the source worktree's marker, carried here by the copy");
     let git_directory: PathBuf = root.join("git-directory");
     let staged: Result<Staged, String> = super::stage_the_worktrees_own_state(entry.to.as_path(), Some(git_directory.as_path()));
     assert!(staged.is_err(), "the add refuses a name it did not make: {staged:?}");
@@ -363,7 +384,7 @@ fn a_marker_whose_rename_never_happened_stages_the_state_again() {
     std::fs::write(entry.to.join("debug/copied"), b"the source's state\n").expect("a file of the copy");
     let staging: PathBuf = staging_of(entry.to.as_path());
     let marker: PathBuf = super::marker_of(staging.as_path());
-    super::write_marker(marker.as_path(), entry.to.as_path(), super::WhatTheMarkerRecords::TheStaging).expect("the marker this worktree's killed add wrote before its rename");
+    super::write_marker(marker.as_path(), entry.to.as_path(), super::WhatTheMarkerRecords::TheStaging, "a-controls-run").expect("the marker this worktree's killed add wrote before its rename");
     assert!(!staging.exists(), "the kill left the marker and no staging directory");
     let git_directory: PathBuf = root.join("git-directory");
     let staged: Staged = super::stage_the_worktrees_own_state(entry.to.as_path(), Some(git_directory.as_path())).expect("the state is staged again");
@@ -687,7 +708,7 @@ fn a_filling_that_is_alive_keeps_its_names_from_the_next_one() {
     };
     std::fs::create_dir_all(usual.join("debug")).expect("the live filling's staging copy");
     std::fs::write(usual.join("debug/the-live-fillings-state"), b"held\n").expect("a file of the live filling's copy");
-    super::write_marker(marker.as_path(), entry.to.as_path(), super::WhatTheMarkerRecords::TheStaging).expect("the live filling's marker");
+    super::write_marker(marker.as_path(), entry.to.as_path(), super::WhatTheMarkerRecords::TheStaging, "a-controls-run").expect("the live filling's marker");
     let fill: Fill = Fill {
         cargo: cargo_that_succeeds(root.as_path()),
         limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE },
@@ -727,7 +748,8 @@ fn a_filling_a_kill_left_has_its_names_taken_and_its_leftovers_removed() {
     let marker: PathBuf = super::marker_of(usual.as_path());
     std::fs::create_dir_all(usual.join("debug")).expect("a killed filling's staging copy");
     std::fs::write(usual.join("debug/the-killed-fillings-state"), b"left behind\n").expect("a file of the killed filling's copy");
-    super::write_marker(marker.as_path(), entry.to.as_path(), super::WhatTheMarkerRecords::TheStaging).expect("the killed filling's marker");
+    a_claimed_directory(usual.as_path(), entry.to.as_path(), "a-controls-run");
+    super::write_marker(marker.as_path(), entry.to.as_path(), super::WhatTheMarkerRecords::TheStaging, "a-controls-run").expect("the killed filling's marker");
     let fill: Fill = Fill {
         cargo: cargo_that_succeeds(root.as_path()),
         limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE },
@@ -768,7 +790,7 @@ fn an_add_never_takes_the_names_of_a_filling_that_is_alive() {
         super::TheClaim::Held(lease) => lease,
         other => panic!("the filling takes the lease: {other:?}"),
     };
-    super::write_marker(marker.as_path(), entry.to.as_path(), super::WhatTheMarkerRecords::TheStaging).expect("the live filling's marker");
+    super::write_marker(marker.as_path(), entry.to.as_path(), super::WhatTheMarkerRecords::TheStaging, "a-controls-run").expect("the live filling's marker");
     let git_directory: PathBuf = root.join("git-directory");
     let staged: Result<Staged, String> = super::stage_the_worktrees_own_state(entry.to.as_path(), Some(git_directory.as_path()));
     assert!(staged.is_err(), "the add gives way rather than take a live filling's names: {staged:?}");
@@ -1106,7 +1128,16 @@ fn a_lease_a_filling_gives_back_is_not_taken_twice() {
         .write(true)
         .open(crate::package_repair_prewarm_claim::lease_of(staging.as_path()))
         .expect("the lease file is there to open");
-    super::give_back(&super::TheNames { directory: super::TheDirectory::of(staging.parent().expect("a parent")).expect("the directory"), staging: staging.clone(), target: super::target_of(staging.as_path()), marker: None, lease: Some(lease) });
+    super::give_back(&super::TheNames {
+        directory: super::TheDirectory::of(staging.parent().expect("a parent")).expect("the directory"),
+        to: staging.parent().expect("a parent").join("build"),
+        begun_by: String::from("a-controls-run"),
+        marker_made: None,
+        staging: staging.clone(),
+        target: super::target_of(staging.as_path()),
+        marker: None,
+        lease: Some(lease),
+    });
     use std::os::unix::io::AsRawFd as _;
     // SAFETY: the descriptor belongs to `opened`, which outlives the call.
     let locked: libc::c_int = unsafe { libc::flock(opened.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
@@ -1439,4 +1470,234 @@ fn a_filling_that_ends_after_its_worktree_was_replaced_removes_nothing_of_the_ne
     assert!(their_target_file.exists(), "and the files in its target directory: {}", their_target_file.display());
     assert!(marker.exists(), "and its marker: {}", marker.display());
     std::fs::remove_dir_all(root.as_path()).expect("the fixture goes");
+}
+
+/// What another command can put at a boundary of a filling,
+/// each of them replacing the entry that is there so the row is about an entry and not about a file inside one.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum APlant {
+    /// A directory with a file in it, at the staging name.
+    AStagingDirectory,
+    /// A directory with a file in it, at the clean's target name.
+    ATargetDirectory,
+    /// A file renamed over the marker's name.
+    AFileOverTheMarker,
+    /// The whole worktree removed and another made at the same path, with a file of its own.
+    TheWorktreeReplaced,
+    /// Nothing at all, which is the arm that asks whether a filling's own leftovers are cleared.
+    NothingIsPutThere,
+}
+
+impl APlant {
+    /// Every plant, so the rows come from the plants as well as from the steps.
+    const EVERY: [APlant; 5] = [
+        APlant::AStagingDirectory,
+        APlant::ATargetDirectory,
+        APlant::AFileOverTheMarker,
+        APlant::TheWorktreeReplaced,
+        APlant::NothingIsPutThere,
+    ];
+}
+
+/// One row of the control: a boundary, what is put there, and whether the filling before it was killed there.
+#[derive(Clone, Copy, Debug)]
+struct ARow {
+    /// The boundary.
+    step: AStep,
+    /// What another command puts there.
+    plant: APlant,
+    /// Whether the filling stops at the boundary, as a kill stops it.
+    killed: bool,
+}
+
+/// What:
+///  The rows of the control, one for every boundary, every plant and both arms,
+///  generated from the list of the filling's steps rather than written out.
+/// Why:
+///   A step added to the filling later gets its rows without anyone remembering to write them,
+/// and a plant added later gets its rows for every step.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const rows = AStep.EVERY.flatMap((step) => APlant.EVERY.flatMap((plant) => [false, true].map((killed) => ({ step, plant, killed }))));
+/// ```
+fn the_rows() -> Vec<ARow> {
+    let mut rows: Vec<ARow> = Vec::new();
+    for step in AStep::EVERY {
+        for plant in APlant::EVERY {
+            for killed in [false, true] {
+                rows.push(ARow { step, plant, killed });
+            }
+        }
+    }
+    return rows;
+}
+
+/// What one plant leaves behind, and where its file stands.
+struct APlanted {
+    /// The file the other command wrote, which must still stand afterwards,
+    /// and nothing when the row put nothing there.
+    its_file: Option<PathBuf>,
+    /// What its file holds.
+    its_bytes: &'static [u8],
+    /// The worktree that must hold nothing of this filling's, when the worktree was replaced.
+    replaced_worktree: Option<PathBuf>,
+    /// What the replacement worktree's own file holds.
+    worktree_bytes: &'static [u8],
+}
+
+/// What:
+///  Put another command's entry at one boundary,
+///  replacing whatever this filling has at that name,
+///  and answer where its file stands.
+/// Why:
+///   The row is about an entry under a name:
+/// a file written *inside* a directory of this filling's would be this filling's to remove,
+/// so the plants replace the entry itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const plantAt = (plant, root, worktree) => { ... };
+/// ```
+fn plant_at(plant: APlant, root: &Path, worktree: &Path, staging: &Path, target: &Path, marker: &Path) -> APlanted {
+    let its_bytes: &'static [u8] = b"another command's data";
+    match plant {
+        APlant::AStagingDirectory => {
+            let _replaced = std::fs::remove_dir_all(staging);
+            std::fs::create_dir_all(staging).expect("the other command's directory");
+            let its_file: PathBuf = staging.join("another-commands-file");
+            std::fs::write(its_file.as_path(), its_bytes).expect("the other command's file");
+            return APlanted { its_file: Some(its_file), its_bytes, replaced_worktree: None, worktree_bytes: b"" };
+        }
+        APlant::ATargetDirectory => {
+            let _replaced = std::fs::remove_dir_all(target);
+            std::fs::create_dir_all(target).expect("the other command's directory");
+            let its_file: PathBuf = target.join("another-commands-file");
+            std::fs::write(its_file.as_path(), its_bytes).expect("the other command's file");
+            return APlanted { its_file: Some(its_file), its_bytes, replaced_worktree: None, worktree_bytes: b"" };
+        }
+        APlant::AFileOverTheMarker => {
+            let note: PathBuf = root.join("another-commands-note");
+            std::fs::write(note.as_path(), its_bytes).expect("the other command's note");
+            std::fs::rename(note.as_path(), marker).expect("the other command's file is renamed over the marker");
+            return APlanted { its_file: Some(marker.to_path_buf()), its_bytes, replaced_worktree: None, worktree_bytes: b"" };
+        }
+        APlant::TheWorktreeReplaced => {
+            let theirs: &'static [u8] = b"the new worktree's own file";
+            let _removed = std::fs::remove_dir_all(worktree);
+            std::fs::create_dir_all(worktree).expect("the replacement worktree");
+            let its_file: PathBuf = worktree.join("the-new-worktrees-file");
+            std::fs::write(its_file.as_path(), theirs).expect("the new worktree's file");
+            return APlanted { its_file: Some(its_file), its_bytes: theirs, replaced_worktree: Some(worktree.to_path_buf()), worktree_bytes: theirs };
+        }
+        // Nothing is put there: the row asks whether the filling's own leftovers are cleared.
+        APlant::NothingIsPutThere => return APlanted { its_file: None, its_bytes: b"", replaced_worktree: None, worktree_bytes: b"" },
+    }
+}
+
+/// What:
+///  Every boundary of a filling, every entry another command can put there, and both arms:
+/// the filling running on, and the filling killed there with the next one running on.
+/// Why:
+///   Four reviews in a row found an entry removed on the strength of a name, each at a seam the review before had
+/// not looked at, so this is one control over every seam instead of four more tests.
+///   A row plants the entry, lets the filling (and after a kill, the next filling) run, and asks one question:
+/// the other command's file still stands, byte for byte, and nothing of the old filling was written into a
+/// replacement worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const row of theRows()) { plant at row.step, kill or not; run the filling, then the next; expect(thePlantedFileStands()) }
+/// ```
+#[test]
+fn no_seam_leaves_another_commands_entry_removed_or_written_into() {
+    let rows: Vec<ARow> = the_rows();
+    assert_eq!(rows.len(), AStep::EVERY.len() * APlant::EVERY.len() * 2, "one row per boundary, plant and arm");
+    for (index, row) in rows.iter().enumerate() {
+        let root: PathBuf = fixture(format!("prewarm-every-seam-{index:03}").as_str());
+        let worktree: PathBuf = root.join("worktree");
+        let destination: PathBuf = worktree.join("build");
+        std::fs::create_dir_all(worktree.as_path()).expect("the worktree");
+        let entry: PrewarmEntry = PrewarmEntry {
+            root: worktree.join("package/own"),
+            from: Some(root.join("source-build")),
+            to: destination.clone(),
+            members: vec![String::from("own")],
+            staged_in: None,
+        };
+        std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
+        let source: &Path = entry.from.as_ref().expect("the source build directory");
+        std::fs::create_dir_all(source.join("debug/deps")).expect("the source's directories");
+        std::fs::write(source.join("debug/deps/libserde.rlib"), b"the source's artifact").expect("the source's artifact");
+        let fill: Fill = Fill {
+            cargo: cargo_that_succeeds(root.as_path()),
+            limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE },
+            kept_in: None,
+            worktree: worktree.clone(),
+            filling: String::from("a-step-control"),
+        };
+        let staging: PathBuf = staging_of(destination.as_path());
+        let target: PathBuf = super::target_of(staging.as_path());
+        let marker: PathBuf = super::marker_of(staging.as_path());
+        let at: AStep = row.step;
+        let plant: APlant = row.plant;
+        let killed: bool = row.killed;
+        let planted_root: PathBuf = root.clone();
+        let planted_worktree: PathBuf = worktree.clone();
+        let planted_staging: PathBuf = staging.clone();
+        let planted_target: PathBuf = target.clone();
+        let planted_marker: PathBuf = marker.clone();
+        let planted: std::rc::Rc<std::cell::RefCell<Option<APlanted>>> = std::rc::Rc::new(std::cell::RefCell::new(None));
+        let into_the_hook: std::rc::Rc<std::cell::RefCell<Option<APlanted>>> = std::rc::Rc::clone(&planted);
+        super::THE_STEP_HOOK.with(|hook| {
+            *hook.borrow_mut() = Some(Box::new(move |reached: AStep| {
+                if reached != at {
+                    return false;
+                }
+                let done: APlanted = plant_at(plant, planted_root.as_path(), planted_worktree.as_path(), planted_staging.as_path(), planted_target.as_path(), planted_marker.as_path());
+                *into_the_hook.borrow_mut() = Some(done);
+                return killed;
+            }));
+        });
+        let first: Result<Filled, String> = super::fill_one_in_a_control(&fill, &entry);
+        super::THE_STEP_HOOK.with(|hook| { *hook.borrow_mut() = None; });
+        // What the filling that was running did to a replacement worktree is settled by the time it comes back,
+        //  whether it ran on or stopped at the boundary; the next filling then works on that worktree as its own.
+        let Some(placed) = planted.borrow_mut().take() else {
+            panic!("row {index} ({at:?}, {plant:?}, killed: {killed}) never reached its boundary, so it proved nothing: {first:?}");
+        };
+        let theirs: APlanted = placed;
+        if let Some(replaced) = theirs.replaced_worktree.as_ref() {
+            let mut left: Vec<std::ffi::OsString> = std::fs::read_dir(replaced.as_path())
+                .expect("the replacement worktree")
+                .flatten()
+                .map(|found| return found.file_name())
+                .collect();
+            left.sort();
+            assert_eq!(
+                left,
+                vec![std::ffi::OsString::from("the-new-worktrees-file")],
+                "row {index} ({at:?}, {plant:?}, killed: {killed}): nothing of this filling is written into a replacement worktree"
+            );
+            assert_eq!(std::fs::read(replaced.join("the-new-worktrees-file").as_path()).expect("its file"), theirs.worktree_bytes.to_vec(), "row {index}: the new worktree's own file keeps its bytes");
+        }
+        if killed {
+            let _second: Result<Filled, String> = super::fill_one_in_a_control(&fill, &entry);
+        }
+        if let Some(its_file) = theirs.its_file.as_ref() {
+            assert_eq!(
+                std::fs::read(its_file.as_path()).ok(),
+                Some(theirs.its_bytes.to_vec()),
+                "row {index} ({at:?}, {plant:?}, killed: {killed}): the other command's file must still stand at {}",
+                its_file.display()
+            );
+        } else {
+            // The arm where no other command touched the names: a kill at this boundary leaves nothing of the filling's
+            //  own behind, which is the branch's first purpose.
+            for leftover in [staging.as_path(), target.as_path(), marker.as_path()] {
+                assert!(!leftover.exists(), "row {index} ({at:?}, killed: {killed}): the filling's own leftover is cleared: {}", leftover.display());
+            }
+        }
+        remove(root.as_path());
+    }
 }

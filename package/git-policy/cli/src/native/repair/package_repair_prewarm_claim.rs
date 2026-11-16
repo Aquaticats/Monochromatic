@@ -98,10 +98,25 @@ pub(crate) enum TheClaim {
 /// const claimTheNames = (staging) => { const file = open(leaseOf(staging), 'a+'); return flock(file, LOCK_EX | LOCK_NB) ? held(file) : errno === EWOULDBLOCK ? taken() : refused(errno); };
 /// ```
 pub(crate) fn claim_the_names(staging: &Path) -> TheClaim {
-    let path: PathBuf = lease_of(staging);
+    return claim_the_names_at(lease_of(staging).as_path());
+}
+
+/// What:
+///  Take the lease at one path,
+///  which a caller reaches through the directory it took the names in,
+///  so a worktree made again at the same path is never written into.
+/// Why:
+///   The lease file is created beside the names,
+///  and creating it by a path would put it in whatever worktree stands there now.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claimTheNamesAt = (lease) => { const file = open(lease, 'a+'); return flock(file, LOCK_EX | LOCK_NB) ? held(file) : ...; };
+/// ```
+pub(crate) fn claim_the_names_at(path: &Path) -> TheClaim {
     let opened: std::io::Result<std::fs::File> = {
         use std::os::unix::fs::OpenOptionsExt as _;
-        std::fs::OpenOptions::new().read(true).write(true).create(true).truncate(false).mode(0o600).open(path.as_path())
+        std::fs::OpenOptions::new().read(true).write(true).create(true).truncate(false).mode(0o600).open(path)
     };
     let held: std::fs::File = match opened {
         Ok(file) => file,

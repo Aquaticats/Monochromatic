@@ -244,7 +244,7 @@ fn a_clone_takes_the_places_slow_work_may_take_and_leaves_one_free_for_a_person(
             .await;
         });
         held.await.expect("the job that holds the place slow work may take started");
-        let mut cloning = tokio::spawn(async move { return clone_tree_awaiting(source.as_path(), destination.as_path(), 1).await; });
+        let mut cloning = tokio::spawn(async move { return clone_tree_awaiting(source.as_path(), destination.as_path(), 1, crate::package_repair_tree_clone::TheDestination::MadeHere).await; });
         // The only place slow work may take is held, so a clone that takes slow places cannot answer yet.
         assert!(
             tokio::time::timeout(A_MOMENT, &mut cloning).await.is_err(),

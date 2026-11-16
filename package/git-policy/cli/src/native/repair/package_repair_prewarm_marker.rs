@@ -26,6 +26,118 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// What:
+///  Which entry stood at a name when this job read it or made it,
+/// as the device and the inode the file system answers with.
+/// Why:
+///   A name is not proof of having made what stands under it:
+/// another command can replace the entry while this job works on the name,
+/// so a removal is made only when the entry found at the act is the entry this job made or read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TheEntry = { device: bigint; inode: bigint };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct TheEntry {
+    /// The device the entry stands on.
+    pub(crate) device: u64,
+    /// The inode that names it on that device.
+    pub(crate) inode: u64,
+}
+
+impl TheEntry {
+    /// What:
+    ///  The entry at this name now,
+    ///  read without following a link,
+    ///  or nothing when no name is there.
+    /// Why:
+    ///   The removal's proof is the identity found at the act,
+    /// so it is read by the same call that then removes.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const theEntryAt = (path) => { try { const s = lstatSync(path, { bigint: true }); return { device: s.dev, inode: s.ino }; } catch { return undefined; } };
+    /// ```
+    pub(crate) fn at(the_name: &Path) -> Option<TheEntry> {
+        use std::os::unix::fs::MetadataExt as _;
+        let metadata: std::fs::Metadata = std::fs::symlink_metadata(the_name).ok()?;
+        return Some(TheEntry { device: metadata.dev(), inode: metadata.ino() });
+    }
+}
+
+/// What the file this job writes inside a directory it makes is called:
+/// the claim that travels with the entry itself, so a directory found there is this job's only when it
+/// carries one naming this very build directory.
+/// Why:
+///   A marker beside the directory is a name another command can take;
+/// the file inside it was written by the same call that made the directory,
+/// so the entry carries its own ownership.
+const A_CLAIM_INSIDE: &str = ".monochromatic-prewarm-of";
+
+/// What:
+///  The name of the claim file a directory of this job's carries.
+/// Why:
+///   The clone and the clean never look inside,
+/// and a person who finds it reads the same lead the marker carries.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const aClaimInside = () => '.monochromatic-prewarm-of';
+/// ```
+pub(crate) fn a_claim_inside() -> &'static str {
+    return A_CLAIM_INSIDE;
+}
+
+/// What:
+///  This run's name for itself,
+///  as its process and the moment it asked.
+/// Why:
+///   The marker and every claim this run writes name the same run,
+///  so a claim inside a directory and the marker beside it are one run's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const aNameForThisRun = () => `${process.pid}-${nanos().toString(16)}`;
+/// ```
+pub(crate) fn a_name_for_this_run() -> String {
+    return this_adds_name_for_itself();
+}
+
+/// What:
+///  The claim that says the directory this file stands in was made by this run for this build directory.
+/// Why:
+///   It is written by the call that made the directory,
+///  inside it,
+///  so a directory that carries one is this job's even after a kill,
+///  and a directory a person or another command made carries none.
+///
+/// # Errors
+///
+/// A build directory whose path is not UTF-8.
+pub(crate) fn the_claim_text(to: &Path, begun_by: &str) -> Result<Vec<u8>, String> {
+    return marker_text(to, begun_by, WhatTheMarkerRecords::TheStaging);
+}
+
+/// What:
+///  What the claim file says a directory is,
+///  when that file is this job's.
+/// Why:
+///   A removal of a directory is made only on a claim found inside it naming this very build directory,
+/// so a directory whose claim is absent,
+/// somebody else's,
+/// or about another build directory is left where it is.
+pub(crate) fn the_claim_a_directory_carries(directory: &Path) -> Option<TheMarker> {
+    let found: Vec<u8> = match read_bounded(directory.join(A_CLAIM_INSIDE).as_path()) {
+        Some((bytes, _)) => bytes,
+        None => return None,
+    };
+    return match place_the_text(found.as_slice()) {
+        TheMarkerThere::ThisJobs(claim) => Some(claim),
+        _ => None,
+    };
+}
+
+/// What:
 ///  The marker that says the staging copy and the clean's target beside it are this job's own.
 /// Why:
 ///   The two names are this job's by convention,
@@ -96,6 +208,9 @@ pub(crate) struct TheMarker {
     pub(crate) to: PathBuf,
     /// The add that began the filling, as its process and the moment it asked.
     pub(crate) begun_by: String,
+    /// The entry that was read, when the claim was made by reading a file,
+    /// so a removal of the name is made only while that very entry stands there.
+    pub(crate) read: Option<TheEntry>,
     /// Whether the run that wrote the marker also made the clean's target directory beside the staging
     /// name, which is what lets a later run remove that directory.
     /// A marker that does not say so proves nothing about a directory at the target name,
@@ -203,12 +318,60 @@ fn marker_text(to: &Path, begun_by: &str, records: WhatTheMarkerRecords) -> Resu
 /// const theMarkerThere = (marker) => placeThisJobsClaim(readRegularFile(marker, MARKER_LIMIT));
 /// ```
 pub(crate) fn the_marker_there(marker: &Path) -> TheMarkerThere {
-    let text: Vec<u8> = match crate::private_storage::read_regular_file(marker, MARKER_LIMIT) {
-        Ok(text) => text,
-        Err(crate::private_storage::ReadRefusal::Missing) => return TheMarkerThere::Nothing,
-        // A link, a pipe, a directory, or a file larger than any marker of this job: somebody's, and never removed.
-        Err(_) => return TheMarkerThere::SomebodyElses,
+    let (text, read): (Vec<u8>, TheEntry) = match read_bounded(marker) {
+        Some(found) => found,
+        None => match entry_at(marker) {
+            None => return TheMarkerThere::Nothing,
+            // A link, a pipe, a directory, or a file larger than any marker of this job: somebody's, and never removed.
+            Some(_) => return TheMarkerThere::SomebodyElses,
+        },
     };
+    return match place_the_text(text.as_slice()) {
+        TheMarkerThere::ThisJobs(claim) => TheMarkerThere::ThisJobs(TheMarker { read: Some(read), ..claim }),
+        other => other,
+    };
+}
+
+/// What:
+///  Whether a name is there at all, without following a link.
+/// Why:
+///   The read's refusals are told apart by what stands at the name afterwards,
+///  and a name that no longer holds anything is the missing case.
+fn entry_at(the_name: &Path) -> Option<TheEntry> {
+    return TheEntry::at(the_name);
+}
+
+/// What:
+///  One bounded read of a file this job expects to be its own,
+///  with the identity of the file that was read,
+///  or nothing when the read was refused.
+/// Why:
+///   The identity is what binds a later removal of the name to the file this job read,
+/// so another command's file renamed over the name afterwards is not unlinked.
+fn read_bounded(the_name: &Path) -> Option<(Vec<u8>, TheEntry)> {
+    use std::io::Read as _;
+    use std::os::unix::fs::MetadataExt as _;
+    let file: std::fs::File = crate::private_storage::open_regular_file(the_name).ok()?;
+    // The handle's own metadata, so the identity and the size are the file that is read.
+    let metadata: std::fs::Metadata = file.metadata().ok()?;
+    if metadata.len() > MARKER_LIMIT {
+        return None;
+    }
+    let mut text: Vec<u8> = Vec::new();
+    file.take(MARKER_LIMIT + 1).read_to_end(&mut text).ok()?;
+    if text.len() as u64 > MARKER_LIMIT {
+        return None;
+    }
+    return Some((text, TheEntry { device: metadata.dev(), inode: metadata.ino() }));
+}
+
+/// What:
+///  The claim some text makes,
+///  or that it is not this job's.
+/// Why:
+///   A marker and a claim inside a directory are the same text,
+/// so one reader places both.
+fn place_the_text(text: &[u8]) -> TheMarkerThere {
     let Some(claimed) = text.strip_prefix(MARKER_LEAD.as_bytes()) else { return TheMarkerThere::SomebodyElses };
     let Ok(parsed) = serde_json::from_slice::<serde_json::Value>(claimed) else { return TheMarkerThere::SomebodyElses };
     let (Some(repair), Some(to), Some(begun_by)) = (
@@ -228,7 +391,7 @@ pub(crate) fn the_marker_there(marker: &Path) -> TheMarkerThere {
         Some(serde_json::Value::Bool(true)) => true,
         Some(_) => return TheMarkerThere::SomebodyElses,
     };
-    return TheMarkerThere::ThisJobs(TheMarker { to: PathBuf::from(to), begun_by: String::from(begun_by), made_target });
+    return TheMarkerThere::ThisJobs(TheMarker { read: None, to: PathBuf::from(to), begun_by: String::from(begun_by), made_target });
 }
 
 /// What:
@@ -276,15 +439,39 @@ fn this_adds_name_for_itself() -> String {
 /// # Errors
 ///
 /// A marker that cannot be removed.
-pub(crate) fn take_the_marker_back(marker: &Path) -> Result<(), String> {
+pub(crate) fn take_the_marker_back(marker: &Path, read: Option<TheEntry>) -> Result<TheRemoval, String> {
+    // The name is bound to the file this job read: an entry another command renamed over the name after that
+    //  read is not this job's file, and it stays where its writer put it.
+    if let Some(was) = read
+        && TheEntry::at(marker) != Some(was)
+    {
+        return Ok(TheRemoval::Left);
+    }
     return match std::fs::remove_file(marker) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Ok(()) => Ok(TheRemoval::Removed),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(TheRemoval::Left),
         Err(error) => Err(format!(
             "{} could not be taken back ({error}), so the copied build state is left where it is; run `cargo clean --offline --package <member>` in the worktree instead",
             marker.display()
         )),
     };
+}
+
+/// What a removal came to.
+/// Why:
+///   An entry this job cannot prove is its own is left, and the filling says so:
+/// a directory left behind costs disk, and a person's file removed is what the rules forbid.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TheRemoval = 'removed' | 'left';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum TheRemoval {
+    /// The entry was this job's and is gone.
+    Removed,
+    /// The entry is not provably this job's, and it stays.
+    Left,
 }
 
 /// What a run's exclusive write of one marker came to.
@@ -322,8 +509,8 @@ pub(crate) enum TheMarkersAnswer {
 ///
 /// A marker that cannot be written,
 /// and a build directory whose path no marker can name.
-pub(crate) fn write_marker(marker: &Path, destination: &Path, records: WhatTheMarkerRecords) -> Result<TheMarkersAnswer, String> {
-    let text: Vec<u8> = marker_text(destination, this_adds_name_for_itself().as_str(), records)?;
+pub(crate) fn write_marker(marker: &Path, destination: &Path, records: WhatTheMarkerRecords, begun_by: &str) -> Result<TheMarkersAnswer, String> {
+    let text: Vec<u8> = marker_text(destination, begun_by, records)?;
     return match crate::private_storage::write_private_file_unsynced(marker, text.as_slice()) {
         Ok(()) => Ok(TheMarkersAnswer::WrittenByThisRun),
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(TheMarkersAnswer::WrittenByAnother),
