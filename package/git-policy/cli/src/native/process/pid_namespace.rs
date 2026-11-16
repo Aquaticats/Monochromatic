@@ -440,8 +440,6 @@ impl RefusedForeignRecord {
 /// isOtherNamespace(recorded, current) ? standingOf(ageOf(recordPath)) : undefined
 /// ```
 pub fn foreign_owner_standing(recorded: Option<&str>, record_path: &Path) -> Option<ForeignStanding> {
-    #[cfg(test)]
-    STANDING_LOOKUPS.with(|count| { count.set(count.get() + 1); });
     if !is_other_namespace(recorded, current_pid_namespace().as_deref()) {
         return None;
     }

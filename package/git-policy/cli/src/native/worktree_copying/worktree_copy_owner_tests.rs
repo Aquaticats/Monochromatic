@@ -60,10 +60,23 @@ fn the_running_process_is_alive_and_a_killed_one_is_dead() {
     let reused: CopyOwner = CopyOwner { birth_identity: String::from("linux:1"), ..here.clone() };
     assert!(!reused.is_alive(anchor).expect("answer"), "a reused process id is not the owner");
     let unreadable: CopyOwner = CopyOwner { birth_identity: String::from("linux:not-this-process"), ..here };
+    // An item that has stood past the patience names both the record and the command that removes it, because a birth in
+    //  no spelling proves nothing either way and the age is the only bound there is.
+    let refused: WorktreeCopyError = unreadable.is_alive(anchor).expect_err("an old item of a record of no value is refused");
     assert!(
-        unreadable.is_alive(anchor).expect("answer"),
+        refused.0.contains("linux:not-this-process") && refused.0.contains("rm -- ") && refused.0.contains("birth identity"),
+        "{}",
+        refused.0
+    );
+    // The same record of an item written now stands for an owner that may run.
+    let root: PathBuf = crate::test_support::fixture("copy-owner-unreadable-birth");
+    let fresh: PathBuf = root.join("item");
+    std::fs::write(fresh.as_path(), b"x").expect("item");
+    assert!(
+        unreadable.is_alive(fresh.as_path()).expect("a young item"),
         "a birth in no spelling this reader can compare proves nothing about the process that has the number"
     );
+    crate::test_support::remove(root.as_path());
 }
 
 /// An id no process has is dead.

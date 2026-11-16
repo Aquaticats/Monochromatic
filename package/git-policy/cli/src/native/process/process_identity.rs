@@ -229,9 +229,7 @@ pub(crate) fn birth_identity_value(birth: &str) -> Option<String> {
         return Some(String::from(birth));
     };
     if tag.eq_ignore_ascii_case(LINUX_PLATFORM_TAG) {
-        let Some(tick) = kernel_decimal(rest) else {
-            return None;
-        };
+        let tick: String = kernel_decimal(rest)?;
         return Some(format!("{LINUX_IDENTITY_PREFIX}{tick}"));
     }
     // Another platform's tag names a platform the same way in either case, and what follows it is that inspector's own
