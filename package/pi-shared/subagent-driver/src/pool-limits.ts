@@ -6,8 +6,8 @@
  The pools are not the work a run does: they are how many runs a provider account answers at once. A run on another account, or
  on a provider nobody pools, is outside all of them.
 
- A pool whose limit is {@link CLOSED_POOL_LIMIT} takes no new run at all: the runs already on it are still counted where they
- are, and a run that names it is still read as a run naming it.
+ A pool whose limit is {@link CLOSED_POOL_LIMIT}, and one carrying a `closed` reason, takes no new run at all: the runs already
+ on it are still counted where they are, and a run that names it is still read as a run naming it.
 
  @module
  */
@@ -33,7 +33,8 @@ export type ProviderPool = {
   readonly model: string;
 
   /**
-   How many runs of this pool may be going at once, or {@link CLOSED_POOL_LIMIT} while it takes no new run.
+   How many runs of this pool may be going at once. A pool the owner took out of use carries {@link CLOSED_POOL_LIMIT}, and one
+   closed by its `closed` reason keeps the number above zero that it returns to.
    */
   readonly limit: number;
 
@@ -48,7 +49,7 @@ export type ProviderPool = {
   readonly takesDefaultRuns: boolean;
 
   /**
-   Why this pool takes no run now, when the owner has set it aside: a weekly or monthly quota nearly spent, a provider
+   Why this pool takes no new run now, on the owner's word: a cost, a weekly or monthly quota nearly spent, a provider
    refusing. A closed pool keeps the room it has, so the reason and the number it returns to are both still readable, and a
    caller reopens it by naming its limit again (`PI_RUNS_POOL_LIMITS`).
    */
@@ -58,8 +59,9 @@ export type ProviderPool = {
 };
 
 /**
- The limit a pool carries while it takes no new run, which those the owner took out of use do: one the owner replaced, and the
- one that replaced it and was then taken out. A pool with a weekly limit carried it too while its week was spent.
+ The limit a pool carries while it takes no new run, which is how a pool the owner took out of use is written: one the owner
+ replaced, and the one that replaced it and was then taken out. A pool with a weekly limit carried it too while its week was
+ spent. A pool closed by a `closed` reason instead of its limit keeps the number above zero that it returns to.
 
  A closed pool keeps its place in the table because its runs are still counted where they are, and because a run that names the
  launcher's default provider and model is still read as a default run, which the first pool with room then takes.
@@ -121,7 +123,8 @@ export const NEURALWATT_STANDARD: ProviderPool = {
 
 /**
  Neuralwatt's DeepSeek flex pool, which a run that names no model of its own takes when `opencode-go` has no room or is
- closed: the owner prefers that pool since 2026-11-16, and the other pools before this one in the table are closed.
+ closed: the owner prefers that pool since 2026-11-16, and the pools the table puts before it, `qwen-plan-deepseek` and
+ `neuralwatt`, are closed.
 
  The owner, 2026-11-10: "You can use -flex postfix on neuralwatt models. They have their own separate pool of 22 slots. They're
  around 100% slower than standard in practice." A flex run therefore gets twice the wall clock, which is what `wallFactor` is
@@ -145,20 +148,29 @@ export const NEURALWATT_DEEPSEEK_FLEX: ProviderPool = {
  The `opencode-go` pool, which a run that names no model of its own takes first.
 
  Its account has a weekly limit. The owner, 2026-11-11T17:1x-05:00: "Be careful with opencode go as it has a weekly limit and
- I'm 99% through the weekly limit." The pool was closed from then until the owner, 2026-11-16 between 14:40 and 14:46 (-05:00),
- wrote: "My opencode-go limits have been reset." So it is open again at 20, the limit it had before it was closed.
+ I'm 99% through the weekly limit." The pool was closed from then until the owner, 2026-11-16 between 14:40:26 and 14:46:19
+ (-05:00), wrote: "My opencode-go limits have been reset." So it is open again at 20.
+
+ That 20 is the number the first table gave this pool on 2026-11-11, in commit `ff2c70c106`, with no word and no measurement
+ beside it. The owner's sentence of 2026-11-16 is about the weekly limit being reset, not about how many runs go at once, and
+ nothing on record measures the concurrency this account takes, so the number stands as the first table had it until a word or
+ a measured refusal sets another.
 
  Its place is the owner's. On 2026-11-11 the owner ranked it below Neuralwatt's flex: "In practice, opencode-go may have worse
- inference quality and worse speed than neuralwatt's flex, so prefer neuralwatt." On 2026-11-16, shortly before 14:54 (-05:00),
- the owner reversed that: "Prefer opencode-go over neuralwatt because opencode-go uses my less versatile sub." So it stands
- before both Neuralwatt pools in {@link PROVIDER_POOLS}, and Neuralwatt's flex pool takes what this one has no room for.
+ inference quality and worse speed than neuralwatt's flex, so prefer neuralwatt." On 2026-11-16, between 14:51:30 and 14:54:17
+ (-05:00), the owner reversed that: "Prefer opencode-go over neuralwatt because opencode-go uses my less versatile sub." So it
+ stands before both Neuralwatt pools in {@link PROVIDER_POOLS}, and Neuralwatt's flex pool takes what this one has no room for.
 
- Its wall factor is the flex pool's, 2, on the owner's words that its speed may be worse than flex's: a run moved here from a
- caller that asked for a standard pool's wall clock is given no less time than flex would give it. No timing of this pool has
- been taken since it reopened, so the factor is a floor read from those words and is measured from this pool's own runs.
+ Its wall factor is the flex pool's, 2. One reading of this pool exists: on 2026-11-16, over 15:07:31 to 15:22:55 (-05:00), the
+ model's time for one answer, read from the going runs' feeds, had medians of 3,034 ms and 5,492 ms over the two runs here, and
+ 57,612 ms to 71,746 ms over the eleven runs on `neuralwatt-flex`, so it puts this pool faster than flex rather than slower.
+ That reading has one and then two runs on a pool of twenty places, and says nothing of this pool's speed with thirteen going or
+ near its weekly limit, so it is not a measurement of this pool's speed under its load: the factor stays at 2 by the project's
+ choice after that reading, and is set from a reading taken with more runs going.
 
- When its week is spent again it is closed for one command, or for a unit's whole life, with
- `PI_RUNS_POOL_LIMITS=opencode-go=0`, and here once the owner says so.
+ When its week is spent again it is closed for one command, or for the whole life of a batch's unit, with
+ `PI_RUNS_POOL_LIMITS=opencode-go=0`: `start-a-batch-in-its-own-unit` gives the unit the setting the shell that asked for it
+ holds, and the pool gate inside the batch reads it there. Here in the table it is closed once the owner says so.
  */
 export const OPENCODE_GO: ProviderPool = {
   name: 'opencode-go',

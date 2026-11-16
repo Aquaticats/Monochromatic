@@ -62,9 +62,10 @@ export function wallSecondsOn({
  Says what the launcher is given: the caller's words, with the pool the run took written into the ones that name it, and the
  options the caller left out appended.
 
- A run that took the first pool with room gets that pool's provider and model, and its wall clock multiplied by how much slower
- that pool answers. A run that resumes a session, or that names a model only one pool takes, keeps what its caller wrote and no
- wall factor is applied: it stays on the pool it named.
+ A run that took the first pool with room gets that pool's provider and model, and its wall clock multiplied by how much longer
+ that pool may take for the same work. A run the gate left on the pool its own words named, which is one that resumes a session
+ there or one that names a model only one pool takes, keeps what its caller wrote and gets no wall factor. A resume whose own
+ words name no pool is moved like every other run: it gets the pool's provider, the pool's model and that pool's wall factor.
 
  @param commandLine - the words the caller wrote
 

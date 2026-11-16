@@ -38,7 +38,7 @@ export type PoolTallies = {
 /**
  Reads the room a pool has for another run now: none at all while it is closed, however much room it has when it is open.
 
- A pool the owner set aside keeps the room it returns to, so the reason it is closed and the number it comes back at stay readable,
+ A pool the owner closed keeps the room it returns to, so the reason it is closed and the number it comes back at stay readable,
  and every count and every question about room goes through this one reading. It lives here, beside the counts that ask it, because
  a reader of a count and a reader of a pool's room must not be able to disagree.
 
@@ -177,7 +177,8 @@ export function poolHasRoom({
 
 /**
  Reads the first pool with room for a run that named no model of its own, in the owner's order of {@link PROVIDER_POOLS}: the
- qwen plan's DeepSeek pool, then Neuralwatt's flex pool, since the pools before it are closed or take only their own model.
+ qwen plan's DeepSeek pool, then `opencode-go`, then Neuralwatt's flex pool, skipping every pool that is closed or takes only
+ its own model.
 
  @param tallies - how many runs each pool holds, and the pools that were counted
 

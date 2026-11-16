@@ -25,6 +25,7 @@ import {
   startedLineOf,
 } from './batch-run-as-a-unit.ts';
 import { optionIn, } from './option-in.ts';
+import { POOL_LIMITS_VARIABLE, } from './pool-limits.ts';
 import {
   requiredOutputOf,
 } from './required-output-of-a-command.ts';
@@ -134,6 +135,11 @@ const outputGiven = optionIn({
 const unit = batchUnitNameOf({ batchFile, },);
 
 /**
+ The pool limits the shell that asks for the batch holds, which the unit does not inherit and the gate inside the batch reads.
+ */
+const poolLimits = env[POOL_LIMITS_VARIABLE] ?? '';
+
+/**
  The command that starts the batch's unit.
  */
 const command = batchUnitCommandOf({
@@ -164,6 +170,7 @@ const command = batchUnitCommandOf({
     command: 'start-pi-runs-from-a-batch-list',
   },),
   checkoutFolder: await checkoutFolderOf({ from: process.cwd(), },),
+  ...((poolLimits === '') ? {} : { poolLimits, }),
 },);
 
 /**

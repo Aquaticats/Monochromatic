@@ -26,6 +26,7 @@ import {
   ALREADY_RUNNING_EXIT_STATUS,
   BUILD_VOLUME,
   BYTES_IN_A_GIBIBYTE,
+  CLOSED_POOL_LIMIT,
   FREE_SPACE_FLOOR_BYTES,
   LAUNCHER_ENTRY_NAMES,
   NEURALWATT_DEEPSEEK_FLEX,
@@ -37,13 +38,43 @@ import {
   POOL_LIMITS_VARIABLE,
   PROVIDER_POOLS,
   type ProviderPool,
+  batchUnitCommandOf,
   firstDefaultPoolWithRoom,
   freeSpaceFloorTextOf,
   freeSpaceTextOf,
+  limitsIn,
   poolTakesNoNewRun,
+  poolsWithTheseLimits,
   roomIn,
   talliesOf,
 } from '../dist/final/node/index.mjs';
+
+/**
+ The option a batch's unit command gives the unit a variable in.
+ */
+const SETENV_OPTION = '--setenv=';
+
+/**
+ The one word a batch's unit command gives the unit's limits variable.
+
+ @param words - the unit's command words
+
+ @returns the value the unit gets, or nothing when the caller set no limits
+
+ @example
+ ```ts
+ const limits = limitsTheBatchUnitCarries(['--setenv=PI_RUNS_POOL_LIMITS=opencode-go=0']);
+ ```
+ */
+function limitsTheBatchUnitCarries(words: readonly string[],): string | undefined {
+  /**
+   The word that sets the variable, when the command carries one.
+   */
+  const word = words.find(function setsTheLimits(candidate,) {
+    return candidate.startsWith(`${SETENV_OPTION}${POOL_LIMITS_VARIABLE}=`,);
+  },);
+  return (word === undefined) ? undefined : word.slice(`${SETENV_OPTION}${POOL_LIMITS_VARIABLE}=`.length,);
+}
 
 /**
  Specialized promisified `execFile`, typed through Node's own adapter contract.
@@ -734,6 +765,10 @@ await describe({
         },);
         expect(closed.stdout.trim(),).toContain(`${NEURALWATT_KIMI_FLEX.name} 0/0`,);
         expect(closed.stdout.trim(),).toContain(`${OPENCODE_GO.name} 0/${String(OPENCODE_GO.limit,)}`,);
+        // The pool the owner reopened has room, and all of the room its own limit gives it: were the table to close it again, the
+        // counts above would read `0/0` and pass as though the pool were open.
+        expect(roomIn(OPENCODE_GO,),).toBeGreaterThan(CLOSED_POOL_LIMIT,);
+        expect(roomIn(OPENCODE_GO,),).toBe(OPENCODE_GO.limit,);
         /**
          The room a caller gives the closed pool, which is another open pool's own limit rather than a number of the test's.
          */
@@ -760,6 +795,128 @@ await describe({
         },);
         expect(refused.status,).not.toBe(0,);
         expect(refused.stderr,).toContain('no-such-pool',);
+      },
+    },),
+    it({
+      name: 'takes no run of a batch on the pool the batch\'s unit closed, the limits the caller set reaching the unit and the gate reading them there',
+      fn: async () => {
+        await using folder = await makeBareFolder();
+        await writeStandIns({
+          folder: folder.bins,
+          units: '',
+          execStart: '',
+        },);
+        /**
+         The setting a coordinator holds when it asks for the batch because a pool's week is spent.
+         */
+        const closesThePool = `${OPENCODE_GO.name}=${String(CLOSED_POOL_LIMIT,)}`;
+        /**
+         The limits the batch's unit carries, read from the command that starts it, which is the only way they reach the gate
+         inside the batch.
+         */
+        const carried = limitsTheBatchUnitCarries(batchUnitCommandOf({
+          batchFile: join(folder.path, 'list.json',),
+          deadlineSeconds: 7_200,
+          outputFile: join(folder.path, 'list.out',),
+          pathOfMiseEnvironment: '/bin',
+          home: folder.path,
+          node: process.execPath,
+          batchEntry: join(folder.path, 'start-pi-runs-from-a-batch-list.ts',),
+          checkoutFolder: folder.path,
+          poolLimits: closesThePool,
+        },).words,);
+        expect(carried,).toBe(closesThePool,);
+        if (carried === undefined) {
+          throw new Error('the batch\'s unit carries no limits, so no run of that batch could be closed by the caller\'s setting',);
+        }
+        /**
+         The pool a run that names no model of its own takes with those limits, read through the same functions the gate reads
+         them with.
+         */
+        const nextPool = firstDefaultPoolWithRoom({
+          tallies: talliesOf({
+            runs: [],
+            pools: poolsWithTheseLimits({ limits: limitsIn({ listed: carried, },), },),
+          },),
+        },);
+        expect(nextPool,).not.toBe(NO_POOL_HAS_ROOM,);
+        expect(nextPool,).not.toEqual(OPENCODE_GO,);
+        /**
+         A finished run of the same name, so the turn cap is sized instead of refused.
+         */
+        await mkdir(join(folder.runs, 'copy-route-1',), { recursive: true, },);
+        await writeFile(join(folder.runs, 'copy-route-1', 'summary.json',), JSON.stringify({
+          endReason: 'idle',
+          turns: 40,
+        },),);
+        /**
+         The prompt file a start needs before it makes anything.
+         */
+        await writeFile(join(folder.path, 'prompt.md',), 'Answer with one line.\n',);
+        /**
+         What the gate answered for a run of that batch, given the limits the batch's unit carries.
+         */
+        const ran = await runTheGate({
+          folder,
+          words: [
+            '--name=copy-route',
+            `--runs-folder=${folder.runs}`,
+            '--branch=feat/copy-route',
+            `--prompt=${join(folder.path, 'prompt.md',)}`,
+            '--cpu=800',
+            '--memory=1G',
+            '--tasks=100',
+            '--wall=600',
+            `--checkout-folder=${folder.path}`,
+          ],
+          poolLimits: carried,
+        },);
+        expect(ran.status,).toBe(0,);
+        expect(ran.stdout,).toContain(`copy-route goes on ${(nextPool === NO_POOL_HAS_ROOM) ? '' : nextPool.name}`,);
+        /**
+         The unit command the launcher ran.
+         */
+        const unit = (await programsAsked(folder,)).find(function isTheUnit(line,) {
+          return line.startsWith('systemd-run --user --wait',);
+        },);
+        expect(unit,).toContain(`--unit=pi-copy-route.service`,);
+        expect(unit,).not.toContain(`--provider=${OPENCODE_GO.provider}`,);
+        expect(unit,).toContain(`--provider=${(nextPool === NO_POOL_HAS_ROOM) ? '' : nextPool.provider}`,);
+      },
+    },),
+    it({
+      name: 'tells a run refused room because the pool it names is closed why, on standard error, and starts nothing',
+      fn: async () => {
+        await using folder = await makeBareFolder();
+        await writeStandIns({
+          folder: folder.bins,
+          units: '',
+          execStart: '',
+        },);
+        /**
+         What the owner gave as the reason this pool takes no new run.
+         */
+        const reason = NEURALWATT_KIMI_FLEX.closed?.reason ?? '';
+        expect(reason,).not.toBe('',);
+        /**
+         What the gate answered for a run naming that pool's own model.
+         */
+        const ran = await runTheGate({
+          folder,
+          words: [
+            '--name=kimi-review-round-9',
+            `--provider=${NEURALWATT_KIMI_FLEX.provider}`,
+            `--model=${NEURALWATT_KIMI_FLEX.model}`,
+            '--runs-folder=/nowhere',
+          ],
+        },);
+        expect(ran.status,).toBe(NO_SLOT_EXIT_STATUS,);
+        expect(ran.stdout,).toContain('NO SLOT:',);
+        expect(ran.stderr,).toContain(reason,);
+        expect(ran.stderr,).toContain(NEURALWATT_KIMI_FLEX.name,);
+        expect((await programsAsked(folder,)).some(function ranTheLauncher(line,) {
+          return line.startsWith('systemd-run',);
+        },),).toBe(false,);
       },
     },),
     it({

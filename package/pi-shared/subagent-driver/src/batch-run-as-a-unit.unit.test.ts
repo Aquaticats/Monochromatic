@@ -30,12 +30,81 @@ import {
   BATCH_UNIT_MEMORY,
   BATCH_UNIT_SECONDS,
   BATCH_UNIT_TASK_COUNT,
-  checkoutFolderOf,
+  type BatchUnitRequest,
+  CLOSED_POOL_LIMIT,
+  NEURALWATT_DEEPSEEK_FLEX,
+  NEURALWATT_KIMI_FLEX,
+  OPENCODE_GO,
+  POOL_LIMITS_VARIABLE,
   batchOutputFileOf,
   batchUnitCommandOf,
   batchUnitNameOf,
+  checkoutFolderOf,
+  limitsIn,
   startedLineOf,
 } from '../dist/final/node/index.mjs';
+
+/**
+ The option that gives the unit a variable, which is how the caller's pool limits reach it.
+ */
+const SETENV_OPTION = '--setenv=';
+
+/**
+ The one word a command gives the unit's limits variable, when it gives one.
+
+ @param words - the unit's command words
+
+ @returns the words that set the limits variable
+
+ @example
+ ```ts
+ const carried = limitsWordsIn(['--setenv=PATH=/bin', '--setenv=PI_RUNS_POOL_LIMITS=opencode-go=0']);
+ ```
+ */
+function limitsWordsIn(words: readonly string[],): readonly string[] {
+  return words.filter(function setsTheLimits(word,) {
+    return word.startsWith(`${SETENV_OPTION}${POOL_LIMITS_VARIABLE}=`,);
+  },);
+}
+
+/**
+ The value one of those words carries.
+
+ @param word - the `--setenv=PI_RUNS_POOL_LIMITS=<value>` word
+
+ @returns the value the unit gets
+
+ @example
+ ```ts
+ const limits = limitsInTheWord('--setenv=PI_RUNS_POOL_LIMITS=opencode-go=0');
+ ```
+ */
+function limitsInTheWord(word: string,): string {
+  return word.slice(`${SETENV_OPTION}${POOL_LIMITS_VARIABLE}=`.length,);
+}
+
+/**
+ A batch as the tests here ask for it, since only its never-changing parts matter to them.
+
+ @returns the request, with no limits value and no folder of a real machine
+
+ @example
+ ```ts
+ const request = aBatchRequest();
+ ```
+ */
+function aBatchRequest(): BatchUnitRequest {
+  return {
+    batchFile: '/runs/agents-batch-round-231.json',
+    deadlineSeconds: 7_200,
+    outputFile: '/runs/agents-batch-round-231.out',
+    pathOfMiseEnvironment: '/bin',
+    home: '/home/a',
+    node: '/bin/node',
+    batchEntry: '/pkg/src/start-pi-runs-from-a-batch-list.ts',
+    checkoutFolder: '/repo',
+  };
+}
 
 /**
  Specialized promisified `execFile`, typed through Node's own adapter contract.
@@ -111,7 +180,8 @@ async function writeProgram({
 /**
  Runs the batch-unit command as a program, with the test's programs ahead of node.
 
- @param request - the folder whose programs it uses, its words, and the log its stand-ins write to
+ @param request - the folder whose programs it uses, its words, the log its stand-ins write to, and the pool limits the command
+ is started with
 
  @returns the status and both streams
 
@@ -124,6 +194,7 @@ async function runTheCommand({
   folder,
   words,
   log,
+  poolLimits,
 }: {
   readonly folder: {
     readonly path: string;
@@ -131,6 +202,7 @@ async function runTheCommand({
   };
   readonly words: readonly string[];
   readonly log: string;
+  readonly poolLimits?: string;
 }): Promise<{
   readonly status: number;
   readonly stdout: string;
@@ -156,6 +228,7 @@ async function runTheCommand({
         PATH: path,
         HOME: folder.path,
         FAKE_LOG: log,
+        ...(poolLimits === undefined ? {} : { [POOL_LIMITS_VARIABLE]: poolLimits, }),
       },
       encoding: 'utf8',
       timeout: 60_000,
@@ -181,6 +254,57 @@ async function runTheCommand({
       stderr: ((typeof failure.stderr) === 'string') ? failure.stderr : '',
     };
   }
+}
+
+/**
+ Reads what one stand-in program was asked, which is nothing when it never ran.
+
+ @param log - the file the stand-ins append to
+
+ @returns one line per run of a stand-in
+
+ @example
+ ```ts
+ const asked = await askedPrograms(join(folder.path, 'asked.log'));
+ ```
+ */
+async function askedPrograms(log: string,): Promise<readonly string[]> {
+  try {
+    return (await readFile(log, 'utf8',)).split('\n',)
+      .filter(function isALine(line,) {
+        return line !== '';
+      },);
+  }
+  catch (error) {
+    // Nothing ran, which is a line of no runs rather than a failure of the test.
+    if ((error as { readonly code?: string }).code === 'ENOENT') {
+      return [];
+    }
+    throw error;
+  }
+}
+
+/**
+ Writes the stand-ins a batch command asks for, each of which records what it was asked.
+
+ @param bins - the folder the programs live in
+
+ @example
+ ```ts
+ await writeStandIns(folder.bins);
+ ```
+ */
+async function writeStandIns(bins: string,): Promise<void> {
+  await writeProgram({
+    folder: bins,
+    name: 'systemd-run',
+    body: `printf '%s\\n' "systemd-run $*" >> "$FAKE_LOG"`,
+  },);
+  await writeProgram({
+    folder: bins,
+    name: 'mise',
+    body: `printf '%s\\n' '/bin:/usr/bin'`,
+  },);
 }
 
 await describe({
@@ -250,6 +374,92 @@ await describe({
             ],);
           },
         },),
+        it({
+          name: 'carries the caller\'s limits variable into the unit when the caller set one, and carries none when the caller set none',
+          fn: async () => {
+            /**
+             The limits a caller sets to close the pool whose week is spent, which is how the runbook closes a pool.
+             */
+            const spent = `${OPENCODE_GO.name}=${String(CLOSED_POOL_LIMIT,)}`;
+            expect(limitsWordsIn(batchUnitCommandOf(aBatchRequest(),).words,),).toEqual([],);
+            expect(limitsWordsIn(batchUnitCommandOf({
+              ...aBatchRequest(),
+              poolLimits: spent,
+            },).words,),).toEqual([`${SETENV_OPTION}${POOL_LIMITS_VARIABLE}=${spent}`,],);
+          },
+        },),
+        it({
+          name: 'gives the limits to systemd as one word, so the comma between two pools and the space after it are neither split into another option nor read as two settings',
+          fn: async () => {
+            /**
+             A limits setting as a caller writes it: two pools, a comma between them, and a space after the comma.
+             */
+            const written = `${OPENCODE_GO.name}=${String(CLOSED_POOL_LIMIT,)}, ${NEURALWATT_KIMI_FLEX.name}=${String(NEURALWATT_KIMI_FLEX.limit,)}`;
+            /**
+             The words the unit's command carries.
+             */
+            const carried = limitsWordsIn(batchUnitCommandOf({
+              ...aBatchRequest(),
+              poolLimits: written,
+            },).words,);
+            expect(carried.length,).toBe(1,);
+            /**
+             The value the unit gets, which is what the gate inside the batch reads.
+             */
+            const value = limitsInTheWord(carried[0] ?? '',);
+            expect(value,).not.toContain(' ',);
+            // The value the unit gets is the same setting the caller wrote, read the way the gate inside the batch reads it.
+            expect(limitsIn({ listed: value, },),).toEqual(limitsIn({ listed: written, },),);
+            expect(limitsIn({ listed: value, },).get(OPENCODE_GO.name,),).toBe(CLOSED_POOL_LIMIT,);
+            expect(limitsIn({ listed: value, },).get(NEURALWATT_KIMI_FLEX.name,),).toBe(NEURALWATT_KIMI_FLEX.limit,);
+          },
+        },),
+        it({
+          name: 'refuses a limits value it cannot read before any unit is made, naming the variable, so a mistyped setting closes nothing',
+          fn: async () => {
+            /**
+             Settings the gate could not read either, each with a character that must never reach systemd as it stands: a dollar
+             sign, a quote, a newline that would glue two settings into one, and a leading dash.
+             */
+            const unreadable: readonly string[] = [
+              `${OPENCODE_GO.name}=$${String(OPENCODE_GO.limit,)}`,
+              `${OPENCODE_GO.name}="${String(OPENCODE_GO.limit,)}"`,
+              `${OPENCODE_GO.name}=${String(OPENCODE_GO.limit,)}\n${NEURALWATT_DEEPSEEK_FLEX.name}=${String(CLOSED_POOL_LIMIT,)}`,
+              `-${OPENCODE_GO.name}=${String(OPENCODE_GO.limit,)}`,
+            ];
+            for (const setting of unreadable) {
+              await using folder = await makeFolderWithPrograms();
+              /**
+               What the stand-in programs were asked.
+               */
+              const log = join(folder.path, 'asked.log',);
+              await writeProgram({
+                folder: folder.bins,
+                name: 'systemd-run',
+                body: `printf '%s\\n' "systemd-run $*" >> "$FAKE_LOG"`,
+              },);
+              await writeProgram({
+                folder: folder.bins,
+                name: 'mise',
+                body: `printf '%s\\n' '/bin:/usr/bin'`,
+              },);
+              /**
+               What the command answered.
+               */
+              // oxlint-disable-next-line eslint/no-await-in-loop -- one unreadable setting after another, each its own program run; see doc/lint/sequential-awaits.md
+              const refused = await runTheCommand({
+                folder,
+                words: [`--batch-file=${join(folder.path, 'list.json',)}`,],
+                log,
+                poolLimits: setting,
+              },);
+              expect(refused.status,).not.toBe(0,);
+              expect(refused.stderr,).toContain(POOL_LIMITS_VARIABLE,);
+              // No unit was made: the stand-in systemd-run was never run.
+              expect(await askedPrograms(log,),).toEqual([],);
+            }
+          },
+        },),
       ],
     },),
     describe({
@@ -277,6 +487,45 @@ await describe({
     describe({
       name: 'start-a-batch-in-its-own-unit',
       children: [
+        it({
+          name: 'gives the unit the caller\'s limits, so a batch started from a shell with its pool closed makes no run on that pool',
+          fn: async () => {
+            await using folder = await makeFolderWithPrograms();
+            /**
+             What the stand-in programs were asked.
+             */
+            const log = join(folder.path, 'asked.log',);
+            await writeStandIns(folder.bins,);
+            /**
+             The setting the shell holds when it asks for the batch.
+             */
+            const spent = `${OPENCODE_GO.name}=${String(CLOSED_POOL_LIMIT,)}, ${NEURALWATT_KIMI_FLEX.name}=${String(NEURALWATT_KIMI_FLEX.limit,)}`;
+            /**
+             What the command printed.
+             */
+            const ran = await runTheCommand({
+              folder,
+              words: [`--batch-file=${join(folder.path, 'list.json',)}`,],
+              log,
+              poolLimits: spent,
+            },);
+            expect(ran.status,).toBe(0,);
+            /**
+             What systemd-run was asked, as the words it was given.
+             */
+            const asked = (await askedPrograms(log,)).join('\n',)
+              .split(' ',);
+            /**
+             The single word the unit's limits variable is given in.
+             */
+            const carried = limitsWordsIn(asked,);
+            expect(carried.length,).toBe(1,);
+            expect(carried[0],).not.toContain(' ',);
+            // The unit gets the same setting the shell held, which is what the gate inside the batch reads.
+            expect(limitsIn({ listed: limitsInTheWord(carried[0] ?? '',), },).get(OPENCODE_GO.name,),).toBe(CLOSED_POOL_LIMIT,);
+            expect(limitsIn({ listed: limitsInTheWord(carried[0] ?? '',), },).get(NEURALWATT_KIMI_FLEX.name,),).toBe(NEURALWATT_KIMI_FLEX.limit,);
+          },
+        },),
         it({
           name: 'starts the unit through systemd-run and says where its output goes',
           fn: async () => {

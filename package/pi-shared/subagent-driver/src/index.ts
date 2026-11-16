@@ -232,6 +232,7 @@ export {
   batchOutputFileOf,
   batchUnitCommandOf,
   batchUnitNameOf,
+  limitsTheBatchUnitGets,
   startedLineOf,
 } from './batch-run-as-a-unit.ts';
 

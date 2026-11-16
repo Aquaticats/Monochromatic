@@ -38,6 +38,7 @@ import {
   type ProviderPool,
   QWEN_PLAN_DEEPSEEK,
   QWEN_PLAN_QWEN4_MAX_PREVIEW,
+  WALL_OPTION,
   firstDefaultPoolWithRoom,
   freeSpaceFloorTextOf,
   freeSpaceTextOf,
@@ -196,6 +197,9 @@ function runsFilling(pools: readonly ProviderPool[],): readonly GoingRun[] {
  ```
  */
 function reopenedKimiPool(): readonly ProviderPool[] {
+  // The shipped table closes this pool, which is what makes reopening it a caller's act: were it open, no test here could tell a
+  // caller's room from the pool's own, and the closure could be taken out without one of them failing.
+  expect(poolTakesNoNewRun({ pool: NEURALWATT_KIMI_FLEX, },),).toBe(true,);
   return poolsWithTheseLimits({
     limits: limitsIn({ listed: `${NEURALWATT_KIMI_FLEX.name}=${String(NEURALWATT_KIMI_FLEX.limit,)}`, },),
   },);
@@ -716,6 +720,32 @@ await describe({
             expect(untouched,).toEqual(NEURALWATT_DEEPSEEK_FLEX,);
           },
         },),
+        it({
+          name: 'gives a pool the caller\'s own number, which is no limit the table ships, so a caller\'s room is never read as the shipped one',
+          fn: async () => {
+            /**
+             A room above every limit the table ships, so no pool's own number can be mistaken for it, and a table whose limits
+             change moves it with them.
+             */
+            const roomAboveEveryShippedLimit = Math.max(...PROVIDER_POOLS.map(function limitOf(pool,) {
+              return pool.limit;
+            },),) + 1;
+            expect(PROVIDER_POOLS.some(function shipsIt(pool,) {
+              return pool.limit === roomAboveEveryShippedLimit;
+            },),).toBe(false,);
+            for (const pool of PROVIDER_POOLS) {
+              /**
+               The same pool with the caller's number, which is a room whether the pool ships open or closed.
+               */
+              const given = poolsWithTheseLimits({ limits: new Map([[pool.name, roomAboveEveryShippedLimit],]), },)
+                .find(function isThatPool(candidate,) {
+                  return candidate.name === pool.name;
+                },) ?? pool;
+              expect(roomIn(given,),).toBe(roomAboveEveryShippedLimit,);
+              expect(poolTakesNoNewRun({ pool: given, },),).toBe(false,);
+            }
+          },
+        },),
       ],
     },),
     describe({
@@ -977,6 +1007,35 @@ await describe({
               '--session=/sessions/4.jsonl',
               '--runs-folder=/elsewhere',
             ],);
+          },
+        },),
+        it({
+          name: 'gives a run moved to the first pool with room the wall clock it asked for times that pool\'s own factor, and leaves the wall of a run it keeps',
+          fn: async () => {
+            /**
+             The pool the gate moves a run that names no model of its own to while nothing is going.
+             */
+            const pool = theFirstDefaultPool();
+            /**
+             The wall clock the caller asked for, in seconds, which is the caller's own number and no limit of the table.
+             */
+            const askedFor = 600;
+            expect(launcherArgumentsOf({
+              commandLine: ['--name=copy-route', `${WALL_OPTION}${String(askedFor,)}`,],
+              pool,
+              movesTheRun: true,
+              wallSeconds: askedFor,
+              runsFolder: '/runs',
+            },).words,).toContain(`${WALL_OPTION}${String(askedFor * pool.wallFactor,)}`,);
+            // A run the gate leaves on its own pool keeps the wall clock it asked for, which is what makes the product above the
+            // factor the pool adds rather than a second number of the gate's.
+            expect(launcherArgumentsOf({
+              commandLine: ['--name=copy-route', `${WALL_OPTION}${String(askedFor,)}`,],
+              pool,
+              movesTheRun: false,
+              wallSeconds: askedFor,
+              runsFolder: '/runs',
+            },).words,).toContain(`${WALL_OPTION}${String(askedFor,)}`,);
           },
         },),
       ],
@@ -1257,6 +1316,180 @@ await describe({
             expect(outcome.action === 'start' ? outcome.arguments.words : [],).toContain(
               `${MODEL_OPTION}${theFirstDefaultPool().model}`,
             );
+          },
+        },),
+        it({
+          name: 'moves a resumed session that names no provider and no model to the first pool with room, and gives it that pool\'s wall factor',
+          fn: async () => {
+            /**
+             The pool the gate moves a run that names nothing to while nothing is going, which is the pool a resumed session that
+             names nothing lands on.
+             */
+            const pool = theFirstDefaultPool();
+            /**
+             The wall clock the caller asked for, in seconds.
+             */
+            const askedFor = 600;
+            /**
+             What the gate answered for a session resumed with no provider and no model of its own named.
+             */
+            const outcome = await gateOutcomeOf({
+              options: gateOptions({
+                name: 'copy-route-2',
+                sessionOfRunFolder: 'copy-route-1',
+                wallSeconds: askedFor,
+                commandLine: [
+                  '--name=copy-route-2',
+                  '--session-of=copy-route-1',
+                  `${WALL_OPTION}${String(askedFor,)}`,
+                ],
+              },),
+              runs: [],
+              tallies: talliesOf({ runs: [], },),
+              sessionFileOf: aSessionFile,
+              freeSpace: roomToSpare(),
+            },);
+            expect(outcome.action,).toBe('start',);
+            expect(outcome.lines[0],).toContain(`goes on ${pool.name}`,);
+            /**
+             The words the launcher is given.
+             */
+            const words = (outcome.action === 'start') ? outcome.arguments.words : [];
+            expect(words,).toContain(`${PROVIDER_OPTION}${pool.provider}`,);
+            expect(words,).toContain(`${MODEL_OPTION}${pool.model}`,);
+            expect(words,).toContain(`${WALL_OPTION}${String(askedFor * pool.wallFactor,)}`,);
+          },
+        },),
+        it({
+          name: 'keeps a resumed session that names the flex pool on it, with the wall clock its caller asked for and no second factor',
+          fn: async () => {
+            /**
+             The wall clock the caller asked for, in seconds.
+             */
+            const askedFor = 600;
+            /**
+             What the gate answered for a session resumed with the flex pool named.
+             */
+            const outcome = await gateOutcomeOf({
+              options: gateOptions({
+                name: 'copy-route-2',
+                provider: NEURALWATT_DEEPSEEK_FLEX.provider,
+                model: NEURALWATT_DEEPSEEK_FLEX.model,
+                sessionOfRunFolder: 'copy-route-1',
+                wallSeconds: askedFor,
+                commandLine: [
+                  '--name=copy-route-2',
+                  `${PROVIDER_OPTION}${NEURALWATT_DEEPSEEK_FLEX.provider}`,
+                  `${MODEL_OPTION}${NEURALWATT_DEEPSEEK_FLEX.model}`,
+                  '--session-of=copy-route-1',
+                  `${WALL_OPTION}${String(askedFor,)}`,
+                ],
+              },),
+              runs: [],
+              tallies: talliesOf({ runs: [], },),
+              sessionFileOf: aSessionFile,
+              freeSpace: roomToSpare(),
+            },);
+            expect(outcome.action,).toBe('start',);
+            expect(outcome.lines[0],).toContain(`goes on ${NEURALWATT_DEEPSEEK_FLEX.name}`,);
+            /**
+             The words the launcher is given.
+             */
+            const words = (outcome.action === 'start') ? outcome.arguments.words : [];
+            expect(words,).toContain(`${PROVIDER_OPTION}${NEURALWATT_DEEPSEEK_FLEX.provider}`,);
+            expect(words,).toContain(`${MODEL_OPTION}${NEURALWATT_DEEPSEEK_FLEX.model}`,);
+            expect(words,).toContain(`${WALL_OPTION}${String(askedFor,)}`,);
+          },
+        },),
+        it({
+          name: 'moves a fresh run that names the flex pool to the first pool with room, because a pool that takes default runs is taken in the owner\'s order whoever names it',
+          fn: async () => {
+            /**
+             The pool the gate moves a run whose own words name a default pool to.
+             */
+            const pool = theFirstDefaultPool();
+            /**
+             The wall clock the caller asked for, in seconds.
+             */
+            const askedFor = 600;
+            /**
+             What the gate answered for a fresh run that names the flex pool.
+             */
+            const outcome = await gateOutcomeOf({
+              options: gateOptions({
+                name: 'copy-route',
+                provider: NEURALWATT_DEEPSEEK_FLEX.provider,
+                model: NEURALWATT_DEEPSEEK_FLEX.model,
+                wallSeconds: askedFor,
+                commandLine: [
+                  '--name=copy-route',
+                  `${PROVIDER_OPTION}${NEURALWATT_DEEPSEEK_FLEX.provider}`,
+                  `${MODEL_OPTION}${NEURALWATT_DEEPSEEK_FLEX.model}`,
+                  `${WALL_OPTION}${String(askedFor,)}`,
+                ],
+              },),
+              runs: [],
+              tallies: talliesOf({ runs: [], },),
+              sessionFileOf: aSessionFile,
+              freeSpace: roomToSpare(),
+            },);
+            expect(outcome.action,).toBe('start',);
+            expect(outcome.lines[0],).toContain(`goes on ${pool.name}`,);
+            /**
+             The words the launcher is given.
+             */
+            const words = (outcome.action === 'start') ? outcome.arguments.words : [];
+            expect(words,).toContain(`${PROVIDER_OPTION}${pool.provider}`,);
+            expect(words,).toContain(`${MODEL_OPTION}${pool.model}`,);
+            expect(words,).toContain(`${WALL_OPTION}${String(askedFor * pool.wallFactor,)}`,);
+          },
+        },),
+        it({
+          name: 'tells a run refused room because the pool it names is closed why, in that pool\'s own words',
+          fn: async () => {
+            /**
+             What the gate answered for a run naming the model of the pool the owner closed.
+             */
+            const outcome = await gateOutcomeOf({
+              options: gateOptions({
+                name: 'kimi-review-round-9',
+                provider: NEURALWATT_KIMI_FLEX.provider,
+                model: NEURALWATT_KIMI_FLEX.model,
+              },),
+              runs: [],
+              tallies: talliesOf({ runs: [], },),
+              sessionFileOf: aSessionFile,
+              freeSpace: roomToSpare(),
+            },);
+            expect(outcome.action,).toBe('no-room',);
+            /**
+             The line the gate tells a reader with, on its own standard error.
+             */
+            const told = (outcome.action === 'no-room') ? outcome.closedPoolLine ?? '' : '';
+            expect(told,).toContain(NEURALWATT_KIMI_FLEX.closed?.reason ?? '',);
+            expect(told,).toContain(NEURALWATT_KIMI_FLEX.name,);
+            expect(told,).toContain(POOL_LIMITS_VARIABLE,);
+          },
+        },),
+        it({
+          name: 'says nothing of a closed pool when the run names none of its own and every pool with room is full, since that run named no pool to be closed',
+          fn: async () => {
+            /**
+             Every pool a run that names no model of its own may take, filled.
+             */
+            const filled = runsFilling(openDefaultPools(),);
+            /**
+             What the gate answered for a run that names no provider and no model while those pools are full.
+             */
+            const outcome = await gateOutcomeOf({
+              options: gateOptions({ name: 'copy-route', }),
+              runs: filled,
+              tallies: talliesOf({ runs: filled, },),
+              sessionFileOf: aSessionFile,
+              freeSpace: roomToSpare(),
+            },);
+            expect(outcome.action,).toBe('no-room',);
+            expect('closedPoolLine' in outcome,).toBe(false,);
           },
         },),
       ],

@@ -139,6 +139,13 @@ for (const line of outcome.lines) {
   console.log(line,);
 }
 
+// A run refused room because the pool it names is closed waits with no word of why otherwise: the counts print the pool at no
+// room and nothing says who closed it or what would reopen it. The gate says so once, on its standard error, and the answer
+// above stands as it was.
+if ((outcome.action === 'no-room') && (outcome.closedPoolLine !== undefined)) {
+  process.stderr.write(`${outcome.closedPoolLine}\n`,);
+}
+
 if (outcome.action !== 'start') {
   process.exit((outcome.action === 'counts') ? 0 : outcome.status,);
 }

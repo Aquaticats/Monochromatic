@@ -15,10 +15,15 @@ import {
   extname,
   join,
 } from 'node:path';
+import {
+  limitsIn,
+  POOL_LIMITS_VARIABLE,
+} from './pool-limits.ts';
 
 /**
- How long the batch's own unit may last, in seconds. The longest wall a launcher gives a run is 43,500 seconds, a flex pool doubles
- it, and a wake may resume it again; two days bounds that whole tree with room to spare.
+ How long the batch's own unit may last, in seconds. The longest wall a launcher gives a run is 43,500 seconds, a pool that
+ doubles the wall clock (`neuralwatt-flex` and `opencode-go`) makes it 87,000, and a wake may resume it again; two days bounds
+ that whole tree with room to spare.
  */
 export const BATCH_UNIT_SECONDS = 172_800;
 
@@ -98,7 +103,47 @@ export type BatchUnitRequest = {
    checkout cannot read which repository a run's worktree belongs to, and the folder a batch list lives in is outside it.
    */
   readonly checkoutFolder: string;
+
+  /**
+   The pool limits the caller set, as the value of {@link POOL_LIMITS_VARIABLE}, or nothing when it set none. A unit inherits
+   nothing from the shell that asked for it, so these are the only limits the gate inside the batch can read.
+   */
+  readonly poolLimits?: string;
 };
+
+/**
+ Reads the limits a batch's unit gets, in a form no part of which can be read as another option or expanded.
+
+ Every pair is read here, before any unit is made, so a setting the gate could not read stops the batch in the command that
+ asked for it, naming the variable, rather than inside a unit whose output a reader would have to go and find. What the unit is
+ given is those same pairs written again with no space and no other character: a pool name and a whole number are the only
+ things a setting holds, so what systemd is handed is letters, digits, dashes, equals signs and the commas between settings.
+
+ @param poolLimits - the value the caller's environment holds, as a caller writes it
+
+ @returns the value the unit gets
+
+ @throws PoolLimitsError when a pair is not `name=<whole number>` or names no pool
+
+ @example
+ ```ts
+ const value = limitsTheBatchUnitGets('opencode-go=0, neuralwatt-kimi-flex=20');
+ ```
+ */
+export function limitsTheBatchUnitGets(poolLimits: string,): string {
+  /**
+   The settings, as the gate inside the batch reads them.
+   */
+  const limits = limitsIn({ listed: poolLimits, },);
+  /**
+   Each setting written again, in the order the caller wrote them.
+   */
+  const settings: string[] = [];
+  for (const [name, limit,] of limits) {
+    settings.push(`${name}=${String(limit,)}`,);
+  }
+  return settings.join(',',);
+}
 
 /**
  Reads the name of one batch's unit.
@@ -176,6 +221,9 @@ export function batchUnitCommandOf(request: BatchUnitRequest,): {
       `--property=StandardError=append:${request.outputFile}`,
       `--setenv=PATH=${request.pathOfMiseEnvironment}`,
       `--setenv=HOME=${request.home}`,
+      ...((request.poolLimits === undefined)
+        ? []
+        : [`--setenv=${POOL_LIMITS_VARIABLE}=${limitsTheBatchUnitGets(request.poolLimits,)}`]),
       `--working-directory=${request.checkoutFolder}`,
       request.node,
       request.batchEntry,

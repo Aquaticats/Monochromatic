@@ -22,6 +22,7 @@ import {
   AUDIT_RUN_PREFIX,
   MODEL_OF_A_RUN_NAMING_NONE,
   type PoolMembership,
+  POOL_LIMITS_VARIABLE,
   PROVIDER_OF_A_RUN_NAMING_NONE,
   type ProviderPool,
   poolNamed,
@@ -69,7 +70,8 @@ export type PoolChoice =
  A run that names a model only one pool takes stays on that pool, and a run that resumes a session stays on the pool it named
  while that pool takes new runs. A resume whose pool is closed takes the first pool of the owner's order with room instead,
  because staying on a pool that takes no new run would refuse it for ever. Every other run takes that first pool with room, and
- gets its provider, model and wall clock.
+ gets its provider, model and wall clock; a resume whose own words name no pool is one of those, since the gate reads the words
+ the caller wrote and not the provider the session ran on.
 
  @param requested - the pool the run's own options name, or that it names none
 
@@ -166,6 +168,74 @@ function countedPool({
 }
 
 /**
+ Says why the pool a run's own words name takes no new run, when it is closed and gives its reason.
+
+ A run that names a pool only its own model takes is refused room for as long as that pool is closed, and the counts alone say
+ nothing a reader can act on: the pool prints at no room and no line says who closed it, or why. A run that names no pool of
+ its own is not answered this way, because the pool it reaches is the one with room rather than the one it named.
+
+ @param requested - the pool the run's own options name, or that it names none
+
+ @param tallies - how many runs each pool holds, and the pools that were counted
+
+ @returns the pool's name and the reason written beside it, or nothing when the run names no pool, its pool takes new runs, or
+ no reason is written
+
+ @example
+ ```ts
+ const closed = closedPoolOf({ requested: poolNamed({ provider: 'neuralwatt', model: 'kimi-k3.1-pro-flex' }), tallies },);
+ ```
+ */
+function closedPoolOf({
+  requested,
+  tallies,
+}: {
+  readonly requested: PoolMembership;
+  readonly tallies: PoolTallies;
+},): { readonly name: string; readonly reason: string } | undefined {
+  if (requested.holds !== 'a-pool') {
+    return undefined;
+  }
+  /**
+   The pool the run names, as the table being counted holds it.
+   */
+  const pool = countedPool({
+    pool: requested.pool,
+    tallies,
+  },);
+  return ((pool.closed === undefined) || (!poolTakesNoNewRun({ pool, },)))
+    ? undefined
+    : {
+      name: pool.name,
+      reason: pool.closed.reason,
+    };
+}
+
+/**
+ Builds the line that tells a run why the pool it named takes no new run.
+
+ @param run - the run's name, as the gate's answer names it
+
+ @param pool - the pool the run named, with the reason it takes no new run
+
+ @returns the line, without its newline
+
+ @example
+ ```ts
+ const line = closedPoolLineOf({ run: 'kimi-review-round-9', pool: { name: 'neuralwatt-kimi-flex', reason: 'the owner closed it' }, });
+ ```
+ */
+function closedPoolLineOf({
+  run,
+  pool,
+}: {
+  readonly run: string;
+  readonly pool: { readonly name: string; readonly reason: string };
+},): string {
+  return `not started: ${run}; the pool ${pool.name} takes no new run: ${pool.reason}. ${POOL_LIMITS_VARIABLE}=${pool.name}=<whole number> reopens it for one command.`;
+}
+
+/**
  What the gate answers with.
  */
 export type GateOutcome =
@@ -182,6 +252,11 @@ export type GateOutcome =
       readonly action: 'no-room';
       readonly status: number;
       readonly lines: readonly string[];
+
+      /**
+       The line that tells a reader why the pool the run's own words name takes no new run, when it is closed and says why.
+       */
+      readonly closedPoolLine?: string;
     }
     | {
       readonly action: 'start';
@@ -282,10 +357,25 @@ export async function gateOutcomeOf({
     resumes: options.sessionOfRunFolder !== undefined,
   },);
   if (choice.destination === 'no-room') {
+    /**
+     Why the pool the run named takes no new run, when it is closed and says why.
+     */
+    const closed = closedPoolOf({
+      requested,
+      tallies,
+    },);
     return {
       action: 'no-room',
       status: NO_SLOT_EXIT_STATUS,
       lines: [`NO SLOT: ${summary}, not started: ${runName}`,],
+      ...((closed === undefined)
+        ? {}
+        : {
+          closedPoolLine: closedPoolLineOf({
+            run: runName,
+            pool: closed,
+          },),
+        }),
     };
   }
   /**
