@@ -408,6 +408,47 @@ fn note_the_freed_name(path: &Path) {
 }
 //endregion
 
+//region A test-only seam: one callback just before the entry a pass parked is judged
+#[cfg(test)]
+thread_local! {
+    // The callback a control installs to act on the parked entry after the pass created its copy there and before it
+    // judges what it parked; nothing in a release build reads or sets it.
+    static BEFORE_THE_JUDGEMENT_WATCH: std::cell::RefCell<Option<Box<dyn FnMut(&Path)>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// What:
+///  Install `watch` to run with the parked path after a pass has created its copy at the freed name and before it judges
+///  what it parked,
+///  or clear the callback with `None`.
+/// Why:
+///   The window between the parking and the judgement is where a writer can still change the entry the pass is about to
+///  remove, and a control of that window has to stand in it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// watchBeforeTheJudgement((parked) => { ... });
+/// ```
+#[cfg(test)]
+pub(crate) fn watch_before_the_judgement(watch: Option<Box<dyn FnMut(&Path)>>) {
+    BEFORE_THE_JUDGEMENT_WATCH.with(|slot| {
+        *slot.borrow_mut() = watch;
+    });
+}
+
+/// Run the installed callback for the parked path,
+/// if a control installed one.
+#[cfg(test)]
+fn note_before_the_judgement(path: &Path) {
+    BEFORE_THE_JUDGEMENT_WATCH.with(|slot| {
+        // The borrow ends before the callback runs nothing of this module's, so it cannot re-enter the slot.
+        let mut installed = slot.borrow_mut();
+        if let Some(watch) = installed.as_mut() {
+            watch(path);
+        }
+    });
+}
+//endregion
+
 impl Pass<'_> {
     /// Note one entry the pass does not carry,
     /// and count it where the report and the deletion read it.

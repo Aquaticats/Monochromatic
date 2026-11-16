@@ -18,7 +18,7 @@ use crate::subvolume_error::Interrupt;
 use crate::subvolume_preflight::layout_of;
 use crate::subvolume_anchor::Anchor;
 use crate::subvolume_sync::{SyncOptions, SyncStats, sync_tree, watch_entries};
-use crate::subvolume_sync_pass_state_and_checks::{Directory, PARKED_SUFFIX, PARTIAL_NAME, Pass, Published, watch_the_freed_name};
+use crate::subvolume_sync_pass_state_and_checks::{Directory, PARKED_SUFFIX, PARTIAL_NAME, Pass, Published, watch_before_the_judgement, watch_the_freed_name};
 use crate::subvolume_wrapper_bookkeeping::{OwnBookkeeping, notice_kinds, own_bookkeeping_of};
 use crate::subvolume_test_support::{PlainPlatform, checkout_with_worktree, migrate_arguments, run_command};
 use crate::test_support::{fixture, remove};
@@ -880,5 +880,232 @@ fn a_source_path_replaced_during_the_copy_is_counted_as_another_kind() {
     assert!(!destination.join("person-notes.txt").exists(), "the copy of the inode that no longer stands there is not placed: {stats:#?}");
     assert_eq!(std::fs::read(note.as_path()).expect("the replacement at the source path"), b"the replacement written during the copy\n");
     remove(parent.as_path());
+}
+//endregion
+
+//region The three reproductions of the review of 28254ad188, as they were written
+// They were run first against that tip in a disposable clone and failed there, as the review reports.
+
+/// The review, finding 1:
+/// a source write after the last source check is not in the published copy.
+#[test]
+fn review_repro_source_write_after_the_last_source_check_is_not_in_the_published_copy() {
+    let (parent, source, destination) = trees("review-source-write-after-check");
+    let source_file: PathBuf = source.join("file.txt");
+    let destination_file: PathBuf = destination.join("file.txt");
+    std::fs::write(source_file.as_path(), b"old source\n").expect("source");
+    std::fs::write(destination_file.as_path(), b"old dest\n").expect("destination");
+    set_mtime(source_file.as_path(), 2_000_000_000);
+    set_mtime(destination_file.as_path(), 1_000_000_000);
+    let during_freed_name: PathBuf = source_file.clone();
+    watch_the_freed_name(Some(Box::new(move |_freed: &Path| {
+        std::fs::write(during_freed_name.as_path(), b"new source written after the source check\n").expect("concurrent source write");
+    })));
+    let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: true, excluded: &[], created_since: None };
+    let stats: SyncStats = sync_tree(&PlainPlatform::new(), source.as_path(), destination.as_path(), options, &Interrupt::never(), None).expect("a pass");
+    watch_the_freed_name(None);
+    println!("source={:?} destination={:?} stats={stats:?}", std::fs::read(source_file.as_path()), std::fs::read(destination_file.as_path()));
+    assert_eq!(std::fs::read(destination_file.as_path()).expect("destination"), b"new source written after the source check\n");
+    remove(parent.as_path());
+}
+
+/// The review, finding 2:
+/// a destination write of the same size and timestamp is not deleted as superseded.
+#[test]
+fn review_repro_same_size_and_timestamp_destination_write_is_not_deleted() {
+    let (parent, source, destination) = trees("review-destination-same-metadata");
+    let source_file: PathBuf = source.join("file.txt");
+    let destination_file: PathBuf = destination.join("file.txt");
+    std::fs::write(source_file.as_path(), b"source\n").expect("source");
+    std::fs::write(destination_file.as_path(), b"old words\n").expect("destination");
+    set_mtime(source_file.as_path(), 2_000_000_000);
+    set_mtime(destination_file.as_path(), 1_000_000_000);
+    let parked: PathBuf = destination_file.with_file_name(format!("file.txt{PARKED_SUFFIX}"));
+    let during_freed_name: PathBuf = parked.clone();
+    watch_the_freed_name(Some(Box::new(move |_freed: &Path| {
+        std::fs::write(during_freed_name.as_path(), b"new words\n").expect("same-size concurrent write");
+        set_mtime(during_freed_name.as_path(), 1_000_000_000);
+    })));
+    let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: true, excluded: &[], created_since: None };
+    let stats: SyncStats = sync_tree(&PlainPlatform::new(), source.as_path(), destination.as_path(), options, &Interrupt::never(), None).expect("a pass");
+    watch_the_freed_name(None);
+    println!("destination={:?} parked_exists={} stats={stats:?}", std::fs::read(destination_file.as_path()), parked.exists());
+    assert_eq!(std::fs::read(destination_file.as_path()).expect("destination"), b"new words\n");
+    remove(parent.as_path());
+}
+
+/// The review, finding 3:
+/// an interrupted second pass keeps the first pass's left-out record.
+#[test]
+fn review_repro_an_interrupted_second_pass_keeps_the_first_pass_left_out_record() {
+    let (parent, root, old_tree) = trees("review-record-overwrite");
+    let other_source: PathBuf = parent.join("other-source");
+    std::fs::create_dir(other_source.as_path()).expect("other source");
+    let first: PathBuf = old_tree.join("first-left-out.txt");
+    std::fs::write(first.as_path(), b"only in the first old tree\n").expect("first entry");
+    set_mtime(first.as_path(), 1_000_000_000);
+    let interrupt: Interrupt = Interrupt::at("copy-partial", 0);
+    let platform: PlainPlatform = PlainPlatform::new();
+    let layout = layout_of(root.as_path()).expect("layout");
+    let mut output: String = String::new();
+    let mut say = |line: &str| output.push_str(line);
+    let mut run: crate::subvolume_run::Run<'_> = crate::subvolume_run::Run::open(&platform, &layout, &interrupt, &mut say).expect("run");
+    run.pass_late("first", old_tree.as_path(), root.as_path(), 2_000_000_000).expect("first pass");
+    assert_eq!(std::fs::read_to_string(layout.left_out_path.as_path()).expect("first record"), "first-left-out.txt\n");
+    let second_left_out: PathBuf = other_source.join("second-left-out.txt");
+    let second_copied: PathBuf = other_source.join("second-copied.txt");
+    std::fs::write(second_left_out.as_path(), b"left out in the interrupted pass\n").expect("second left-out entry");
+    std::fs::write(second_copied.as_path(), b"copy stops here\n").expect("second copied entry");
+    let first_in_listing: PathBuf = std::fs::read_dir(other_source.as_path()).expect("read order").next().expect("first directory entry").expect("first entry").path();
+    let (old_entry, new_entry) = if first_in_listing == second_left_out { (second_left_out.clone(), second_copied.clone()) } else { (second_copied.clone(), second_left_out.clone()) };
+    set_mtime(old_entry.as_path(), 1_000_000_000);
+    set_mtime(new_entry.as_path(), 3_000_000_000);
+    let error: crate::subvolume_error::MigrateError = run.pass_late("second", other_source.as_path(), root.as_path(), 2_000_000_000).expect_err("interrupt");
+    println!("interrupt={error:?} record={:?}", std::fs::read_to_string(layout.left_out_path.as_path()));
+    assert_eq!(std::fs::read_to_string(layout.left_out_path.as_path()).expect("record after interrupt"), "first-left-out.txt\nsecond-left-out.txt\n");
+    remove(parent.as_path());
+}
+//endregion
+
+//region The walk of what the other party writes, at every instruction a control can stand in
+
+/// What:
+///  The seams a control can stand in while one file is copied and placed,
+///  named as the instruction they stand at.
+/// Why:
+///   A look and an act are two steps,
+///  so what a control can prove is that no write of the other party is lost without a record,
+///  and that has to hold at every instruction a control can reach.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const seams = ['after-the-listing', 'while-the-copy-runs', 'while-the-name-is-freed', 'before-the-judgement'];
+/// ```
+const SEAMS_WHILE_ONE_ENTRY_IS_PLACED: [&str; 3] = ["after-the-listing", "while-the-copy-runs", "while-the-name-is-freed"];
+
+/// Install a writer at one named seam that changes `path` to `text`, once.
+fn write_at(seam: &str, path: PathBuf, text: &'static [u8], platform: &mut crate::subvolume_test_support::Hooked) {
+    let once: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    match seam {
+        "after-the-listing" => {
+            let only_once = once.clone();
+            let target: PathBuf = path.clone();
+            watch_entries(Some(Box::new(move |examined: &Path| {
+                if examined != target.as_path() || only_once.swap(true, Ordering::SeqCst) {
+                    return;
+                }
+                std::fs::write(target.as_path(), text).expect("a write after the listing");
+            })));
+        }
+        "while-the-copy-runs" => {
+            let only_once = once.clone();
+            let target: PathBuf = path.clone();
+            platform.on_clone = Box::new(move |_calls: u32| {
+                if only_once.swap(true, Ordering::SeqCst) {
+                    return;
+                }
+                std::fs::write(target.as_path(), text).expect("a write while the copy runs");
+            });
+        }
+        "while-the-name-is-freed" => {
+            let only_once = once.clone();
+            let target: PathBuf = path.clone();
+            watch_the_freed_name(Some(Box::new(move |_freed: &Path| {
+                if only_once.swap(true, Ordering::SeqCst) {
+                    return;
+                }
+                std::fs::write(target.as_path(), text).expect("a write while the name is freed");
+            })));
+        }
+        other => panic!("no seam named {other}"),
+    }
+}
+
+/// Clear every seam a walk may have installed.
+fn clear_the_seams() {
+    watch_entries(None);
+    watch_the_freed_name(None);
+    watch_before_the_judgement(None);
+}
+
+/// The review, finding 1, walked:
+/// a source write at each instruction a control can stand in is either in the published copy or recorded,
+/// so no byte the other party wrote is lost without a record.
+#[test]
+fn review_walk_a_source_write_at_every_instruction_is_carried_or_recorded() {
+    let written: &[u8] = b"the other party's newer bytes\n";
+    for seam in SEAMS_WHILE_ONE_ENTRY_IS_PLACED {
+        let (parent, source, destination) = trees(format!("walk-source-{seam}").as_str());
+        let source_file: PathBuf = source.join("file.txt");
+        let destination_file: PathBuf = destination.join("file.txt");
+        std::fs::write(source_file.as_path(), b"old source\n").expect("source");
+        std::fs::write(destination_file.as_path(), b"old dest\n").expect("destination");
+        set_mtime(source_file.as_path(), 2_000_000_000);
+        set_mtime(destination_file.as_path(), 1_000_000_000);
+        let mut platform: crate::subvolume_test_support::Hooked = crate::subvolume_test_support::Hooked::new(Box::new(|_calls| {}));
+        write_at(seam, source_file.clone(), written, &mut platform);
+        let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: true, excluded: &[], created_since: None };
+        let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never(), None).expect("a pass");
+        clear_the_seams();
+        let at_the_destination: Vec<u8> = std::fs::read(destination_file.as_path()).unwrap_or_default();
+        let recorded: bool = stats.changed_while_passing.iter().any(|path| return path == Path::new("file.txt"))
+            || stats.left_out.iter().any(|path| return path == Path::new("file.txt"))
+            || stats.kept_at_the_destination.iter().any(|path| return path == Path::new("file.txt"));
+        println!("seam {seam}: destination={:?} recorded={recorded} stats={stats:?}", at_the_destination);
+        assert!(at_the_destination == written || recorded, "at the seam {seam} the source's newer bytes are neither at the destination nor recorded: {stats:#?}");
+        remove(parent.as_path());
+    }
+}
+
+/// The review, finding 2, walked:
+/// a write to the entry the pass parked, at each instruction a control can stand in, is kept or recorded,
+/// so no byte the other party wrote is deleted unseen.
+#[test]
+fn review_walk_a_write_to_the_parked_entry_at_every_instruction_is_kept_or_recorded() {
+    let written: &[u8] = b"new words\n";
+    for seam in ["while-the-name-is-freed", "before-the-judgement"] {
+        let (parent, source, destination) = trees(format!("walk-parked-{seam}").as_str());
+        let source_file: PathBuf = source.join("file.txt");
+        let destination_file: PathBuf = destination.join("file.txt");
+        std::fs::write(source_file.as_path(), b"source\n").expect("source");
+        std::fs::write(destination_file.as_path(), b"old words\n").expect("destination");
+        set_mtime(source_file.as_path(), 2_000_000_000);
+        set_mtime(destination_file.as_path(), 1_000_000_000);
+        let parked: PathBuf = destination_file.with_file_name(format!("file.txt{PARKED_SUFFIX}"));
+        let mut platform: crate::subvolume_test_support::Hooked = crate::subvolume_test_support::Hooked::new(Box::new(|_calls| {}));
+        let once: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+        if seam == "while-the-name-is-freed" {
+            write_at(seam, parked.clone(), written, &mut platform);
+            let settled: PathBuf = parked.clone();
+            watch_the_freed_name(Some(Box::new(move |_freed: &Path| {
+                // Keep the size and the time the examination saw, which is what makes the write hard to tell.
+                std::fs::write(settled.as_path(), written).expect("the same-size write");
+                set_mtime(settled.as_path(), 1_000_000_000);
+            })));
+        } else {
+            let only_once = once.clone();
+            let target: PathBuf = parked.clone();
+            watch_before_the_judgement(Some(Box::new(move |_parked: &Path| {
+                if only_once.swap(true, Ordering::SeqCst) {
+                    return;
+                }
+                std::fs::write(target.as_path(), written).expect("the same-size write");
+                set_mtime(target.as_path(), 1_000_000_000);
+            })));
+        }
+        let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: true, excluded: &[], created_since: None };
+        let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never(), None).expect("a pass");
+        clear_the_seams();
+        let at_the_destination: Vec<u8> = std::fs::read(destination_file.as_path()).unwrap_or_default();
+        let at_the_parked_name: Vec<u8> = std::fs::read(parked.as_path()).unwrap_or_default();
+        let recorded: bool = stats.kept_at_the_destination.iter().any(|path| return path == Path::new("file.txt") || path == &PathBuf::from(format!("file.txt{PARKED_SUFFIX}")))
+            || stats.changed_while_passing.iter().any(|path| return path == Path::new("file.txt"));
+        println!("seam {seam}: destination={:?} parked={:?} recorded={recorded} stats={stats:?}", at_the_destination, at_the_parked_name);
+        assert!(
+            at_the_destination == written || (at_the_parked_name == written && recorded),
+            "at the seam {seam} the other party's bytes are neither at the destination nor parked and recorded: {stats:#?}"
+        );
+        remove(parent.as_path());
+    }
 }
 //endregion
