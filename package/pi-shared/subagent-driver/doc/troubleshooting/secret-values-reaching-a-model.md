@@ -227,10 +227,19 @@ makes.
 - A value shorter than eight characters, because such a string appears in ordinary text by chance.
   Every value the store declares today is at least ten characters
   (`keep/measure-store-value-lengths.ts` in the report's scratch folder).
-- A steer message's preview on the run's feed, which is a driver-written line
-  (`src/watch-pi-run.ts`), is not masked: the message itself reaches the model masked.
-- Pi's output files for a *greater* output than it shows are rewritten by the extension only when the
-  details name a file Pi named `pi-output-*`.
+- Pi's output files for a *greater* output than it shows are masked only when Pi names one that is in the operating
+  system's temporary folder and whose name is exactly `pi-output-` and sixteen hexadecimal digits, with an optional
+  extension (`src/pi-output-file-of-a-tool-result.ts`). A file named any other way is left as Pi wrote it.
+- **A tool result whose `details` cannot be read.** The masking reads `details` to mask it. When reading it throws, the
+  result is withheld, and withholding it also has to read `details` to find the full-output file a peer may have named.
+  Both reads fail, so Pi keeps the tool's own result: the model sees the original content, a value in it included.
+- **A result with a cycle that names a full-output file.** A result that cannot be serialised whole is withheld, which
+  is right, but the withheld text only points at the full-output file: that file keeps the value Pi wrote into it.
+- **A full-output file in a folder that cannot be written.** The masked replacement is written beside the file and
+  renamed over it. When the folder refuses the new file, the result the model sees is masked and the file Pi wrote
+  keeps the value; the run records the failure on its feed.
+- **A value split across two parts of one tool result.** Each part is masked on its own, and a value whose text is
+  divided between two parts matches nothing in either; reading the two parts together gives the value back.
 - **The rename window, exactly.** A file this package masks at rest is read, checked again, and renamed over.
   Between that last check and the rename, a program this package did not start, holding the path of a file
   this run made, can append to it, and what it appended is replaced with the snapshot that was read. No check
@@ -238,9 +247,12 @@ makes.
   only moves. What bounds it is ownership, and after the fourth review that bound holds: the only files this
   path replaces are the session file this run's own Pi wrote or the copy this run made for it, both written only
   by a Pi this run reaped, and Pi's own output file of a tool result, written only by the tool that finished
-  before the result existed. The run's summary, its checked-runs file and its Pi start check are written beside
-  and renamed the same way, and hold counts and names rather than entries or values, so a lost concurrent write
-  of one of them loses a count and no entry.
+  before the result existed. A session file Pi names that this run cannot show to be its own is not rewritten at
+  all: a run that made a copy rewrites only that copy, and a run that made none rewrites only a file that did not
+  exist before it started, so no file of another run is written. The window therefore reaches only a file this
+  run made. The run's summary, its checked-runs file and its Pi start check are written beside and renamed the
+  same way, and hold counts and names rather than entries or values, so a lost concurrent write of one of them
+  loses a count and no entry.
 - **A store that is there and is not what the store reader reads.** Because the store is now read even when the
   environment supplies every name it declares, a `.env.local.json` that is not the sops envelope the reader
   expects stops the run instead of being skipped. That is the same rule as a store that cannot be read, and it
@@ -256,9 +268,10 @@ makes.
 Read this before deciding to rotate a credential: it is what the masking does and does not catch, without the machinery.
 
 What it catches: a value the checkout's store declares, printed as it is, is taken out of a tool result, a request Pi
-builds, the run's feed, its summary, its kept standard error, and any file the run writes, including the session it
-keeps. The values are read once at the start of a run, from the store, Pi's own credential files, the shell start-up
-files, the age identity and the driver's own environment, and nothing of them is written down anywhere.
+builds, the run's feed, its summary, its kept standard error, and the files the run writes, its own session among
+them, except for the places named further down. The values are read once at the start of a run, from the store,
+Pi's own credential files, the shell start-up files, the age identity and the driver's own environment, and nothing of
+them is written down anywhere.
 
 The three limits the owner accepted in so many words:
 
@@ -287,9 +300,20 @@ Further limits, each one a way through or a way a run stops:
   and is not masked.
 - A session a run resumes keeps whatever it holds: the run reads it, masks a copy, and Pi resumes the copy. The
   original is never rewritten, so a value an earlier run left in it stays there on disk.
-- Pi's output files are masked only when Pi names one that matches the run folder and the `pi-output-*` name.
 - A value that is in neither the store, Pi's files, the start-up files, the identity nor the driver's environment is
   not known to this code and is not masked.
+- A tool result whose `details` cannot be read keeps the tool's own content, a value in it included, because the
+  withheld result cannot be built either. What a person would see is the tool's own output, unmasked.
+- A tool result that cannot be serialised whole is withheld, and the full-output file it names still holds the value.
+  What a person would see is a withheld result and a file beside Pi's session folder holding the printed value.
+- A full-output file in a folder that refuses a new file stays as Pi wrote it while the result the model sees is
+  masked. What a person would see is the masked result and the value still in that file.
+- A value split across two parts of one tool result is not masked, because each part is masked on its own. What a
+  person would see is two halves that read as the value when put together.
+- **A value changed while a run is going.** The values are read once, when a run starts, and a going run has no way to
+  learn a new one. A value written into a file all runs share (`~/.pi/agent/auth.json`, `models.json`, a shell start-up
+  file) or into a store a working tree just merged goes through that run unmasked until it ends. Rotate while no run is
+  going, or accept that the runs which started before the change carry the old value armed and the new one plain.
 
 Nothing on this page is a promise about a way through that is not on it. Masking is one boundary, and the review
 that follows this package keeps finding roads; the owner's decision is to keep the masking narrow, accept the
