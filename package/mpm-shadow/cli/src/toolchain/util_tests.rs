@@ -241,4 +241,64 @@ fn the_next_write_clears_a_temporary_of_a_process_that_is_gone_and_keeps_a_live_
     assert_eq!(std::fs::read_to_string(&target).expect("read the lock"), "the new lock\n");
 }
 
+/// What:
+/// One write clears what a gone process left beside any file of its folder,
+/// not only beside the file it is writing,
+/// because one look at the folder serves every write into it.
+/// Why:
+/// The look is what an install cannot afford per file:
+/// it writes one launch record per declared bin into one folder,
+/// and it lists that folder once for the whole install
+/// (the count the end-to-end control checks);
+/// a look that judged only its own target's name would leave every other record's leftover for a later run that never
+/// comes, so the look judges the folder.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// it('clears what a dead run left beside another file of the folder', () => { ... })
+/// ```
+#[test]
+#[cfg(target_os = "linux")]
+fn one_write_clears_what_a_gone_process_left_beside_another_file_of_the_same_folder() {
+    let directory = crate::test_scratch::scratch();
+    let written = directory.path().join("toolchain.lock.json");
+    std::fs::write(&written, "the old lock\n").expect("write the lock");
+    let beside_another = directory.path().join("declared-bin-0.launch");
+    std::fs::write(&beside_another, "a launch record\n").expect("write the record");
+    let leftover = directory.path().join(format!(
+        ".{}.{}.tmp",
+        file_name_text(&beside_another),
+        super::fixtures::pid_of_a_process_that_ended()
+    ));
+    std::fs::write(&leftover, "what a killed run left beside the record\n").expect("write the leftover");
+    super::util::write_atomically(&written, b"the new lock\n").expect("the write lands");
+    assert!(!leftover.exists(), "the leftover beside another file of the folder is removed");
+    assert_eq!(std::fs::read_to_string(&beside_another).expect("read the record"), "a launch record\n");
+    assert_eq!(std::fs::read_to_string(&written).expect("read the lock"), "the new lock\n");
+}
+
+/// What:
+/// A name of the shape this crate's temporaries have is read for the process id it ends with,
+/// and no other name is.
+/// Why:
+/// The look at a folder decides which files there are leftovers from the name alone,
+/// so the reader that decides is checked on its own:
+/// a name without a dot before the id,
+/// without an id,
+/// or with something after the id is no temporary of this crate.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// it('reads the pid of a temporary name and nothing else', () => { ... })
+/// ```
+#[test]
+fn a_temporary_name_says_the_process_it_belongs_to_and_no_other_name_does() {
+    assert_eq!(super::util::pid_of_a_temporary(".toolchain.plan.jsonc.4242.tmp"), Some(4242));
+    assert_eq!(super::util::pid_of_a_temporary(".declared-bin-0.launch.7.tmp"), Some(7));
+    assert_eq!(super::util::pid_of_a_temporary("toolchain.plan.jsonc.4242.tmp"), None, "a name without the leading dot");
+    assert_eq!(super::util::pid_of_a_temporary(".toolchain.plan.jsonc.tmp"), None, "a name without a process");
+    assert_eq!(super::util::pid_of_a_temporary(".toolchain.plan.jsonc.4242.tmp.keep"), None, "a name that ends with more");
+    assert_eq!(super::util::pid_of_a_temporary(".toolchain.plan.jsonc.twelve.tmp"), None, "a name whose id is not a number");
+}
+
 //endregion The mode of the temporary an atomic write builds
