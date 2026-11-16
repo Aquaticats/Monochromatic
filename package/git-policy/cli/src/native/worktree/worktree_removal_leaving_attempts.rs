@@ -144,13 +144,15 @@ pub struct Slot {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Attempt = { kind: 'took'; slot } | { kind: 'spent' } | { kind: 'unreadable'; reason };
+/// type Attempt = { kind: 'took'; slot } | { kind: 'spent' } | { kind: 'held' } | { kind: 'unreadable'; reason };
 /// ```
 pub(crate) enum Attempt {
     /// An attempt this command may make, which it must mark or give back.
     Took(Slot),
-    /// Every attempt this leaving may cost is taken or made.
+    /// Every attempt this leaving may cost was made.
     Spent,
+    /// Every number is taken, and at least one of them is another command's attempt that command may still make.
+    Held,
     /// The slots cannot be read or written, with the reason a person reads.
     Unreadable(String),
 }
@@ -386,15 +388,13 @@ fn take_over_by_rename(folder: &Path, from: &Path, to: &Path) -> Result<bool, St
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const taken = readdir(folder).some((slot) => slot.number === n && slot.path !== ours && slot.kind !== 'reserved-from-an-earlier-look');
+/// const taken = readdir(folder).find((slot) => slot.number === n && slot.path !== ours && slot.kind !== 'claimed');
 /// ```
-fn another_command_says_taken(slots: &[FoundSlot], number: u32, ours: &Path) -> bool {
-    return slots.iter().any(|slot| {
-        if slot.number != number || slot.path == ours {
-            return false;
-        }
-        return matches!(slot.kind, SlotKind::Made | SlotKind::Taking);
-    });
+fn another_command_says_taken(slots: &[FoundSlot], number: u32, ours: &Path) -> Option<SlotKind> {
+    return slots
+        .iter()
+        .find(|slot| { return slot.number == number && slot.path != ours && matches!(slot.kind, SlotKind::Made | SlotKind::Taking) })
+        .map(|slot| { return slot.kind; });
 }
 
 /// What:
@@ -424,13 +424,17 @@ pub(crate) fn take_an_attempt(common_dir: &Path, id: &str, owner: &str) -> Attem
         Ok(found) => found,
         Err(reason) => return Attempt::Unreadable(reason),
     };
+    // What: Whether some number of this leaving is another command's attempt that command may still make.
+    // Why:  The words that say the attempts ran out are about attempts that were made, and a number another command is
+    //       making right now is not one of those.
+    let mut another_command_may_act: bool = false;
     for number in 1..=THE_BUDGET {
         if slots.iter().any(|slot| { return slot.kind == SlotKind::Made && slot.number == number }) {
             continue;
         }
         let holding: Vec<&FoundSlot> = slots.iter().filter(|slot| { return slot.kind != SlotKind::Made && slot.number == number }).collect();
         if !holding.is_empty() {
-            // What: One name of this number that this command may take over, or nothing when each is a live command's.
+            // What: One name of this number that this command may take over, or nothing when each is another command's.
             // Why:  A slot whose owner may still be running is another command's attempt and is never touched.
             let mut taken_over: Option<PathBuf> = None;
             for slot in holding {
@@ -439,6 +443,7 @@ pub(crate) fn take_an_attempt(common_dir: &Path, id: &str, owner: &str) -> Attem
                     Err(reason) => return Attempt::Unreadable(reason),
                 };
                 if owner_may_be_running(Some(&slot_owner)) {
+                    another_command_may_act = true;
                     continue;
                 }
                 let to: PathBuf = folder.join(taking_name(id, number, owner));
@@ -447,7 +452,11 @@ pub(crate) fn take_an_attempt(common_dir: &Path, id: &str, owner: &str) -> Attem
                         taken_over = Some(to);
                         break;
                     }
-                    Ok(false) => continue,
+                    // Another command took this slot over between the look and this rename, so it is making the attempt.
+                    Ok(false) => {
+                        another_command_may_act = true;
+                        continue;
+                    }
                     Err(reason) => return Attempt::Unreadable(reason),
                 }
             }
@@ -461,9 +470,17 @@ pub(crate) fn take_an_attempt(common_dir: &Path, id: &str, owner: &str) -> Attem
                     return Attempt::Unreadable(reason);
                 }
             };
-            if another_command_says_taken(after.as_slice(), number, holding_name.as_path()) {
-                let _given_back = std::fs::remove_file(&holding_name);
-                continue;
+            match another_command_says_taken(after.as_slice(), number, holding_name.as_path()) {
+                Some(SlotKind::Made) => {
+                    let _given_back = std::fs::remove_file(&holding_name);
+                    continue;
+                }
+                Some(_other) => {
+                    let _given_back = std::fs::remove_file(&holding_name);
+                    another_command_may_act = true;
+                    continue;
+                }
+                None => {}
             }
             debug(TAG, format!("the attempt {number} of {id} was left by a command that is gone, so it is taken over").as_str());
             return Attempt::Took(Slot { folder, id: id.to_owned(), number, holding: holding_name, taken_over: true });
@@ -481,18 +498,31 @@ pub(crate) fn take_an_attempt(common_dir: &Path, id: &str, owner: &str) -> Attem
                         return Attempt::Unreadable(reason);
                     }
                 };
-                if another_command_says_taken(after.as_slice(), number, reserved.as_path()) {
-                    let _given_back = std::fs::remove_file(&reserved);
-                    continue;
+                match another_command_says_taken(after.as_slice(), number, reserved.as_path()) {
+                    Some(SlotKind::Made) => {
+                        let _given_back = std::fs::remove_file(&reserved);
+                        continue;
+                    }
+                    Some(_other) => {
+                        let _given_back = std::fs::remove_file(&reserved);
+                        another_command_may_act = true;
+                        continue;
+                    }
+                    None => {}
                 }
                 return Attempt::Took(Slot { folder, id: id.to_owned(), number, holding: reserved, taken_over: false });
             }
             // Another command took this number between the look and the publish, so the next one is asked for.
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                another_command_may_act = true;
+            }
             Err(error) => {
                 return Attempt::Unreadable(format!("the attempt {number} of {id} cannot be taken in {} ({error})", folder.display()));
             }
         }
+    }
+    if another_command_may_act {
+        return Attempt::Held;
     }
     return Attempt::Spent;
 }

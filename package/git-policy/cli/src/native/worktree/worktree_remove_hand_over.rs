@@ -412,6 +412,9 @@ pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name
             crate::worktree_removal_leavings_a_command_queues_again::Attempted::QueuedWithoutACount(reason) => {
                 warn(TAG, format!("the delete of {} is queued again and nothing counts it ({reason})", target.display()).as_str());
             }
+            // Another command holds every attempt this leaving may cost and may still queue the delete itself, so this
+            // removal says nothing: the command that holds the attempt speaks for it.
+            crate::worktree_removal_leavings_a_command_queues_again::Attempted::HeldByAnother => {}
             crate::worktree_removal_leavings_a_command_queues_again::Attempted::Spent => {
                 warn(
                     TAG,

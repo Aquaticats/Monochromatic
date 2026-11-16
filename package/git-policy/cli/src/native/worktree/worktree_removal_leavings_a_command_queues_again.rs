@@ -315,14 +315,17 @@ fn queue_one_leaving(common_dir: &Path, record: &Path, id: &str, owed: &HashSet<
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Attempted = { kind: 'queued' } | { kind: 'spent' } | { kind: 'uncounted'; reason: string } | { kind: 'failed'; reason: string };
+/// type Attempted = { kind: 'queued' } | { kind: 'spent' } | { kind: 'held' } | { kind: 'uncounted'; reason: string } | { kind: 'failed'; reason: string };
 /// ```
 pub(crate) enum Attempted {
     /// The delete was queued, and its attempt counted.
     Queued,
     /// The delete was queued, and the attempts could not be counted, with the reason a person reads.
     QueuedWithoutACount(String),
-    /// Every attempt this leaving may cost is taken or made.
+    /// Every number is another command's attempt that command may still make, so this command queues nothing and says
+    /// nothing: the command that holds the attempt is about to queue the delete or ask for it.
+    HeldByAnother,
+    /// Every attempt this leaving may cost was made.
     Spent,
     /// The delete could not be queued, and the attempt it would have cost was given back.
     Failed(String),
@@ -357,6 +360,7 @@ pub(crate) fn queue_the_delete_as_the_next_attempt(common_dir: &Path, leaving: &
     };
     let slot: Slot = match crate::worktree_removal_leaving_attempts::take_an_attempt(common_dir, id.as_str(), owner.as_str()) {
         Attempt::Took(slot) => slot,
+        Attempt::Held => return Attempted::HeldByAnother,
         Attempt::Spent => return Attempted::Spent,
         Attempt::Unreadable(reason) => {
             return match queue_the_delete_again(common_dir, leaving) {
@@ -427,6 +431,10 @@ fn queue_the_delete_of_one_standing_leaving(common_dir: &Path, leaving: &Leaving
                 &mut answer.said,
             );
         }
+        // What: Nothing at all, and no words about attempts.
+        // Why:  A command that holds an attempt is about to queue the delete or ask for it, and the words about attempts
+        //       that ran out are about attempts that were made.
+        Attempted::HeldByAnother => {}
         Attempted::Spent => answer.said.push(attempts_are_spent_line(common_dir, target, leaving.item.id().as_str())),
         Attempted::Failed(reason) => answer.said.push(format!(
             "{SAID} the subvolume a removed worktree was renamed to at {named} still stands there, and the delete that would remove it cannot be queued ({reason}), so `btrfs subvolume delete {named}` removes it by hand and frees the space it holds.",
@@ -475,6 +483,9 @@ pub(crate) fn wake_a_pending_delete(common_dir: &Path, leaving: &Leaving, target
             // Why:  A command killed between the slot and the wake leaves the slot to the next command, which takes it over.
             answer.asks.push(slot);
         }
+        // What: Nothing at all: the delete is queued, and the command that holds the attempt is asking for it.
+        // Why:  The words about attempts that ran out are about attempts that were made, and none of these was.
+        Attempt::Held => {}
         Attempt::Spent => answer.said.push(attempts_are_spent_line(common_dir, target, id.as_str())),
         Attempt::Unreadable(reason) => {
             answer.queued = true;

@@ -1178,6 +1178,96 @@ fn the_memory_of_a_line_said_about_an_unproved_name_goes_when_the_place_does() {
 }
 
 /// What:
+///  The record of the place a removal renames in is not dropped by a look that runs between that removal's leaving record
+///  and its rename, so a leftover that appears afterwards is still found even if its leaving record is lost.
+/// Why:
+///  A removal writes its leaving record, then the place, then renames.
+///  In that window nothing of the leaving shape stands in the place,
+///  and the only thing that keeps the place worth reading is the leaving record naming a path inside it.
+///  A look that dropped the place there would leave the mark on the subvolume as the one proof,
+///  and nothing that could read it after the leaving record went.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const place = aPlaceARemovalRenamesInto('place-between-record-and-rename');
+/// const item = removalItem(place.common, place.place, id);
+/// await recordALeavingWithOwner(place.common, item, '1:ended');
+/// expect(queueTheLeavings(place.common).said).toEqual([]);            // the look runs in the window
+/// expect(theRecordedPlaces(place.common)).toContain(place.place);     // and the place survives it
+/// forgetTheLeaving(place.common, item.id());                          // the record is lost
+/// await markTheLeaving(held, id); mkdir(`${place.place}/cli-git-deleting-${nameOfTheId(id)}`);
+/// expect(queueTheLeavings(place.common).queued).toBe(true);           // the mark is still found
+/// ```
+#[test]
+fn the_place_of_a_removal_between_its_record_and_its_rename_survives_the_look() {
+    let Some(place): Option<Place> = a_place_a_removal_renames_into("scan-place-in-the-window") else { return };
+    // What: The subvolume a removal holds, marked as it marks one, and standing under the name the worktree had.
+    // Why:  The look this control runs comes before the removal's rename, so nothing of the leaving shape stands yet.
+    let made: PathBuf = place.place.join("made");
+    subvolume_create_at(made.as_path()).expect("the subvolume of the worktree");
+    let id: u64 = subvolume_id(&File::open(made.as_path()).expect("the subvolume"), made.as_path()).expect("its own id");
+    mark_the_leaving(&File::open(made.as_path()).expect("the subvolume"), id).expect("the mark this program sets before it renames");
+    let item: WorkItem = removal_item(place.common.as_path(), place.place.as_path(), id);
+    record_a_leaving_with_owner(place.common.as_path(), &item, Some("1:ended")).expect("the leaving record written before the rename");
+    let during: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
+    assert!(during.said.is_empty(), "nothing of the shape stands yet, so nothing is said: {:?}", during.said);
+    assert!(!during.queued, "and nothing is queued for a directory that is not there yet");
+    let recorded: Vec<PathBuf> = crate::worktree_removal_leaving_that_outlives_its_record::the_recorded_places(place.common.as_path());
+    assert!(recorded.iter().any(|seen| { return seen == &place.place }), "the place the removal recorded survives the look: {recorded:?}");
+    // The person's leaving record goes, as a disaster or a mistaken cleanup takes it, and then the rename happens.
+    crate::worktree_removal_leaving_that_outlives_its_record::forget_the_leaving(place.common.as_path(), item.id().as_str());
+    let hidden: PathBuf = place.place.join(format!("{A_LEAVING_SHAPE}{}", name_of_the_id(id)));
+    std::fs::rename(made.as_path(), hidden.as_path()).expect("the rename a removal makes");
+    std::fs::write(hidden.join("kept.txt").as_path(), b"held\n").expect("a file of the person's");
+    let after: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
+    assert!(after.queued, "the mark in the place the removal recorded is still found and its delete queued: {:?}", after.said);
+    assert!(owed(&place, &item), "a round finds the delete: {}", item.id());
+    assert_eq!(delete_subvolume_of(&item), Verdict::Done, "the control takes the subvolume it made");
+    remove(place.root.as_path());
+}
+
+/// What:
+///  A budget held by commands that may still make their attempts is not a budget that ran out:
+///  the look queues nothing and says nothing about attempts that were never made.
+/// Why:
+///   Three commands that took an attempt each and have not made it are three attempts in flight,
+///  and the words about attempts that ran out are the person's signal that nothing more will be tried
+///  (`attempts_are_spent_line`).
+///  Reading a held slot as a made one says the delete was given up while three commands are asking for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const place = aPlaceARemovalRenamesInto('hold-at-once');
+/// const [id, hidden] = aSubvolumeUnderItsOwnLeavingName(place.place, 'kept.txt', b'held\n');
+/// const item = removalItem(place.common, place.place, id);
+/// await recordALeavingWithOwner(place.common, item, '1:ended');
+/// for (const _ of range(MAX_TRIES)) takeAnAttempt(place.common, item.id(), mine);   // held, not made
+/// const answer = queueTheLeavingsARecordNoLongerNames(place.common);
+/// expect(answer.queued).toBe(false); expect(answer.said).toEqual([]);
+/// ```
+#[test]
+fn a_budget_held_by_commands_that_may_still_act_says_nothing_about_attempts() {
+    let Some(place): Option<Place> = a_place_a_removal_renames_into("scan-held-budget") else { return };
+    let (id, hidden): (u64, PathBuf) = a_subvolume_under_its_own_leaving_name(place.place.as_path(), "kept.txt", b"held
+");
+    let item: WorkItem = removal_item(place.common.as_path(), place.place.as_path(), id);
+    record_a_leaving_with_owner(place.common.as_path(), &item, Some("1:ended")).expect("the leaving record of a removal that ended");
+    assert!(!owed(&place, &item), "no queue record owes the delete");
+    let mine: String = format!("{}:{}", std::process::id(), crate::process_identity::current_birth_identity().expect("the identity of this command"));
+    for _number in 1..=MAX_TRIES {
+        let taken: crate::worktree_removal_leaving_attempts::Attempt = crate::worktree_removal_leaving_attempts::take_an_attempt(place.common.as_path(), item.id().as_str(), mine.as_str());
+        assert!(matches!(taken, crate::worktree_removal_leaving_attempts::Attempt::Took(_)), "the control holds one attempt per number");
+    }
+    let answer: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
+    assert!(!answer.queued, "a command that holds no attempt queues no delete, because the holders are about to: {:?}", answer.said);
+    assert!(answer.said.is_empty(), "and nothing is said about attempts that were never made: {:?}", answer.said);
+    assert!(!owed(&place, &item), "the delete stays unqueued until a command that holds an attempt queues it");
+    assert!(hidden.is_dir(), "and the control's own subvolume stands");
+    assert_eq!(delete_subvolume_of(&item), Verdict::Done, "the control takes the subvolume it made");
+    remove(place.root.as_path());
+}
+
+/// What:
 ///  How many memories of said lines the folder holds,
 ///  which is nothing when no command has said a line about a place that still stands.
 /// Why:

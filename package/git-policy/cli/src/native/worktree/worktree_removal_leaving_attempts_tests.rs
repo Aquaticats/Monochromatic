@@ -67,6 +67,7 @@ fn number_of(attempt: &Attempt) -> String {
     return match attempt {
         Attempt::Took(slot) => slot.number.to_string(),
         Attempt::Spent => String::from("spent"),
+        Attempt::Held => String::from("held"),
         Attempt::Unreadable(reason) => format!("unreadable ({reason})"),
     };
 }
@@ -85,7 +86,8 @@ fn number_of(attempt: &Attempt) -> String {
 fn the_slot_of(attempt: Attempt) -> Slot {
     return match attempt {
         Attempt::Took(slot) => slot,
-        Attempt::Spent => panic!("the control expected a slot and the budget was spent"),
+        Attempt::Spent => panic!("the control expected a slot and every attempt was made"),
+        Attempt::Held => panic!("the control expected a slot and every number is another command's attempt"),
         Attempt::Unreadable(reason) => panic!("the control expected a slot and nothing could be read: {reason}"),
     };
 }
@@ -258,18 +260,31 @@ fn a_released_slot_is_free_and_a_made_slot_is_spent() {
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// for (const n of [1, 2, 3]) expect(numberOf(takeAnAttempt(common, id, mine))).toBe(`${n}`);
-/// expect(numberOf(takeAnAttempt(common, id, mine))).toBe('spent'); forgetTheAttempts(common, id);
-/// expect(numberOf(takeAnAttempt(common, id, mine))).toBe('1');
+/// expect(numberOf(takeAnAttempt(common, id, mine))).toBe('held');       // every slot is a live command's attempt
+/// for (const slot of slots) markTheAttemptMade(slot);
+/// expect(numberOf(takeAnAttempt(common, id, mine))).toBe('spent');      // every attempt was made
+/// forgetTheAttempts(common, id); expect(numberOf(takeAnAttempt(common, id, mine))).toBe('1');
 /// ```
 #[test]
-fn every_number_taken_answers_spent_until_the_leaving_is_forgotten() {
+fn every_number_taken_answers_held_and_every_number_made_answers_spent() {
     let (root, common): (PathBuf, PathBuf) = a_common_directory("attempts-budget");
     let mine: String = the_owner_of_this_command();
+    let mut slots: Vec<Slot> = Vec::new();
     for number in 1..=THE_BUDGET {
-        assert_eq!(number_of(&take_an_attempt(common.as_path(), "the-leaving", mine.as_str())), number.to_string(), "the budget is taken number by number");
+        let slot: Slot = the_slot_of(take_an_attempt(common.as_path(), "the-leaving", mine.as_str()));
+        assert_eq!(slot.number, number, "the budget is taken number by number");
+        slots.push(slot);
     }
-    assert_eq!(number_of(&take_an_attempt(common.as_path(), "the-leaving", mine.as_str())), "spent", "a command that finds every number taken acts no more");
+    assert_eq!(
+        number_of(&take_an_attempt(common.as_path(), "the-leaving", mine.as_str())),
+        "held",
+        "every slot is another command's attempt that command may still make, so nothing says the attempts ran out",
+    );
     assert_eq!(attempts_taken(common.as_path(), "the-leaving"), THE_BUDGET, "and the budget stands at its bound");
+    for slot in &slots {
+        mark_the_attempt_made(slot);
+    }
+    assert_eq!(number_of(&take_an_attempt(common.as_path(), "the-leaving", mine.as_str())), "spent", "every attempt was made, so the budget is spent");
     forget_the_attempts(common.as_path(), "the-leaving");
     assert_eq!(attempts_taken(common.as_path(), "the-leaving"), 0, "forgetting the leaving frees every number");
     assert_eq!(number_of(&take_an_attempt(common.as_path(), "the-leaving", mine.as_str())), "1", "and the first is free again");

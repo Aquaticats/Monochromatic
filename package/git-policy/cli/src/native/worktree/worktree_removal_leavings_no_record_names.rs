@@ -465,6 +465,9 @@ fn queue_the_leaving_found(common_dir: &Path, work: &Path, place: &Path, path: &
                 &mut answer.said,
             );
         }
+        // What: Nothing at all: the command that holds the attempt is about to queue the delete or ask for it.
+        // Why:  The words about attempts that ran out are about attempts that were made, and none of these was.
+        Attempted::HeldByAnother => {}
         Attempted::Spent => report_once(common_dir, path, attempts_are_spent_line(common_dir, path, item.id().as_str()), &mut answer.said),
         Attempted::Failed(reason) => say_not_queued(common_dir, path, id, format!("the delete that would remove it cannot be queued ({reason})"), answer),
     }
