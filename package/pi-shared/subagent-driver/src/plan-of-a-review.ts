@@ -167,6 +167,12 @@ export type ReviewPlan = {
   readonly filesRemoved: readonly string[];
 
   /**
+   The tests among `files`, in the order git named them: a brief asks a break under each of these, because the reviewed commit
+   holds them. A test in `filesRemoved` is not here: nothing is left to break or run.
+   */
+  readonly filesOfTests: readonly string[];
+
+  /**
    The code among all the files this review reads, the removed ones included, in the order given, a file of a kind no list names
    being code wherever it is read. This is what decides the requirements the brief asks: the project's own for the code whenever it
    is not empty, and for a change to tests the tests-and-code sentence rather than the tests-alone one.
@@ -333,6 +339,7 @@ export function planOfAChange({
         'a-unlisted-kind',
       ],),
       filesOfAnUnlistedKind: readPathsOf(['a-unlisted-kind',],),
+      filesOfTests: pathsOf(['a-test',],),
       filesLeftOut: leftOutOf(['a-note',],),
     };
   }
@@ -357,6 +364,7 @@ export function planOfAChange({
         'a-unlisted-kind',
       ],),
       filesOfAnUnlistedKind: readPathsOf(['a-unlisted-kind',],),
+      filesOfTests: [],
       filesLeftOut: leftOutOf([
         'material-a-test-may-read',
         'a-note',
@@ -367,6 +375,7 @@ export function planOfAChange({
     kind: 'nothing-a-review-reads',
     files: [],
     filesRemoved: [],
+    filesOfTests: [],
     filesOfCode: [],
     filesOfAnUnlistedKind: [],
     filesLeftOut: [],

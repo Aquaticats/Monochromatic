@@ -21,6 +21,8 @@ import {
   WHAT_TESTS_AND_THEIR_CODE_MUST_MEET,
   briefOfAChangeToTests,
   briefOfAReview,
+  THE_REMOVED_TESTS_TO_READ,
+  breaksParagraphOf,
   filesToListItems,
   leftOutParagraphOf,
   removedParagraphOf,
@@ -162,6 +164,7 @@ function aBriefRequest(): {
   readonly files: readonly string[];
   readonly filesLeftOut: readonly LeftOutFile[];
   readonly filesRemoved: readonly string[];
+  readonly filesOfTests: readonly string[];
   readonly focus: string;
   readonly reviewsFolder: string;
   readonly runsFolder: string;
@@ -174,6 +177,7 @@ function aBriefRequest(): {
     files: [aReviewedFile(),],
     filesLeftOut: [],
     filesRemoved: [],
+    filesOfTests: [],
     focus: FOCUS_OF_A_CHANGE_REVIEW,
     reviewsFolder: aReviewsFolder(),
     runsFolder: aRunsFolder(),
@@ -210,6 +214,7 @@ function aBriefOfAChangeToTests(): string {
     ...aBriefRequest(),
     files: theChangedTests(),
     filesOfCode: [],
+    filesOfTests: theChangedTests(),
   },);
 }
 
@@ -230,6 +235,21 @@ await describe({
             const escaped = `${aSourceFolder()}/\\xe9.unit.test.ts`;
             expect(filesToListItems({ files: [escaped,], },),).toContain(`- \`${escaped}\``,);
             expect(filesToListItems({ files: [escaped,], },),).toContain("a shell reads as a `$'...'` word",);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: breaksParagraphOf.name,
+      children: [
+        it({
+          name: 'asks for a break under each test the reviewed commit holds, and asks instead that a removed test be read in the diff when the change removed them all, because nothing is left to run',
+          fn: async () => {
+            expect(breaksParagraphOf({ filesOfTests: [`${aSourceFolder()}/gate_tests.rs`,], },),).toContain(
+              'For each changed test above, plant a break under it',
+            );
+            expect(breaksParagraphOf({ filesOfTests: [], },),).toContain(THE_REMOVED_TESTS_TO_READ,);
+            expect([breaksParagraphOf({ filesOfTests: [], },).includes('plant a break',),],).toEqual([false,],);
           },
         },),
       ],
@@ -285,6 +305,7 @@ await describe({
               reviewBriefValues({
                 ...aBriefRequest(),
                 requirements: WHAT_TESTS_AND_THEIR_CODE_MUST_MEET,
+                breaks: '',
               },),
             );
             expect(filledNames,).toEqual([...REVIEW_BRIEF_PLACEHOLDERS,],);
@@ -458,6 +479,7 @@ await describe({
               ...aBriefRequest(),
               files: [...theChangedTests(), aReviewedFile(),],
               filesOfCode: [aReviewedFile(),],
+              filesOfTests: theChangedTests(),
             },);
             expect(brief,).toContain(WHAT_TESTS_AND_THEIR_CODE_MUST_MEET,);
             expect(brief,).toContain('For each changed test above, plant a break under it',);
@@ -479,6 +501,7 @@ await describe({
               files: theChangedTests(),
               filesOfCode: [],
               filesLeftOut: [note,],
+              filesOfTests: theChangedTests(),
             },);
             expect(brief,).toContain(`- \`${note.path}\` is left out: a note, which no test reads.`,);
             expect(brief,).toContain('For each changed test above, plant a break under it',);

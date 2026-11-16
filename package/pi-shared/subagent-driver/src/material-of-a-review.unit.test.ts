@@ -1157,6 +1157,8 @@ await describe({
                     kind,
                     asksTheCode: (reads.includes('C',) || reads.includes('U',)),
                     namesAnUnlistedKind: reads.includes('U',),
+                    // Only a test the reviewed commit holds can be broken: a row whose tests were all removed cannot ask for one.
+                    hasATestToBreak: reads.includes('T',),
                   };
               /**
                The paths of the kinds the row holds.
@@ -1252,9 +1254,13 @@ await describe({
                     expect([present, brief.includes('the change is to them alone',),],).toEqual([present, true,],);
                     expect([present, brief.includes('The code must meet these requirements:',),],).toEqual([present, false,],);
                   }
-              // The breaks are asked for exactly when the row is a change to tests.
+              // The breaks are asked for exactly when the row reads a test the reviewed commit holds, and a change to tests whose
+              // tests were all removed is asked to read them in the diff instead.
                   expect([present, brief.includes('For each changed test above, plant a break under it',),],)
-                    .toEqual([present, (row.kind === 'tests-and-fixtures'),],);
+                    .toEqual([present, (row.kind === 'tests-and-fixtures') && row.hasATestToBreak,],);
+                  if ((row.kind === 'tests-and-fixtures') && (!row.hasATestToBreak)) {
+                    expect([present, brief.includes('there is no test left to break',),],).toEqual([present, true,],);
+                  }
               // The line names an unlisted kind wherever the review reads one, and says nothing of it otherwise.
                   expect([present, briefed.line.includes('no list of this writer names are read as code',),],)
                     .toEqual([present, row.namesAnUnlistedKind,],);
@@ -1321,7 +1327,7 @@ await describe({
                   `${aSourceFolder()}/tests.rs.bak`,
                   `${aSourceFolder()}/a-tests.rs`,
                 ]) {
-                  expect([notATest, kindOfAFileAReviewReads({ path: notATest, },),],).toEqual([notATest, 'code',],);
+                  expect([notATest, kindOfAFileAReviewReads({ path: notATest, },) === 'a-test',],).toEqual([notATest, false,],);
                 }
               },
             },),

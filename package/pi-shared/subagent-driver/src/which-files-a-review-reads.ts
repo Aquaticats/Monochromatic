@@ -295,6 +295,19 @@ export const TEST_FILE_NAME_SUFFIXES: readonly string[] = [
 ];
 
 /**
+ The names of the files whose own name says they are a test whatever their extension: `tests.rs`, which is the module a Rust crate
+ keeps its tests in beside the code they test. This repository tracks one such file on 2026-11-16,
+ `package/ide/app/src/native/tests.rs`, and it holds `#[test]` tests at line 19, while no other tracked name ends with `tests.rs`
+ beside the `_tests.rs` files the suffix list already names.
+
+ A name is asked whole and not by its ending: a file named `mytests.rs` only ends with those letters, and one named `tests.rs.bak`
+ only holds them.
+ */
+export const TEST_FILE_NAMES: readonly string[] = [
+  'tests.rs',
+];
+
+/**
  The folder names at any depth whose files are tests whatever their extension: `tests` (178 files, cargo's integration tests
  among them), `test` (147, the Kotlin and Android `src/test` layout and one browser harness's folder), and `androidTest` (7). A
  folder's own name marks its files because cargo puts a package's integration tests under `tests/`, beside the crate rather than
@@ -433,9 +446,14 @@ export function isATestOrAFixture({ path, }: { readonly path: string },): boolea
  ```
  */
 export function isATest({ path, }: { readonly path: string },): boolean {
+  /**
+   The file's own name, which the name list is about.
+   */
+  const name = path.slice(path.lastIndexOf('/',) + 1,);
   return TEST_FILE_NAME_SUFFIXES.some(function isATestName(suffix,) {
     return path.endsWith(suffix,);
   },)
+    || TEST_FILE_NAMES.includes(name,)
     || foldersOf(path,)
       .some(function sitsInATestFolder(folder,) {
         return TEST_FOLDER_NAMES.has(folder,);

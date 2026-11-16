@@ -71,14 +71,11 @@ const HOW_A_DEFECT_IS_REPORTED: string =
     + 'Leave out style, naming, and anything you cannot state as a sequence and a wrong result. Finding nothing is a good result.';
 
 /**
- The demand only a change to tests alone carries: the breaks a reviewer plants, the runs that show whether each test catches
- one, and the report of both.
+ The demand a change to tests carries, which `review-brief.ts` fills: the breaks a reviewer plants under the tests the reviewed
+ commit holds, the runs that show whether each catches one, and the report of both. A change whose tests were all removed asks for
+ no break, because there is no test left to break, so this paragraph is a placeholder and empty in a brief of code.
  */
-const THE_BREAKS_TO_PLANT_UNDER_CHANGED_TESTS: string =
-  'For each changed test above, plant a break under it, in a copy of the code it tests or in the value it expects, run that '
-    + 'test by name, and say whether it fails: a test that still passes with the break in is a finding. For a changed fixture, '
-    + 'name the tests that use it, plant a break in a copy of the fixture, run those tests by name, and say whether one fails. '
-    + 'Say what you read and what you ran, because a review that ran nothing has shown nothing.';
+const THE_BREAKS: string = `@BREAKS@`;
 
 /**
  The closing line that names what the reviewer looks hardest at, in every brief.
@@ -100,6 +97,7 @@ ${THE_FILES_LEFT_OUT}
 ${THE_FILES_REMOVED}
 ${WHAT_THE_CHANGE_MUST_MEET}
 ${HOW_A_DEFECT_IS_REPORTED}
+${THE_BREAKS}
 ${WHAT_TO_LOOK_HARDEST_AT}
 
 ${THE_REVIEW_FILE}`;
@@ -115,7 +113,7 @@ ${THE_FILES_LEFT_OUT}
 ${THE_FILES_REMOVED}
 ${WHAT_THE_CHANGE_MUST_MEET}
 ${HOW_A_DEFECT_IS_REPORTED}
-${THE_BREAKS_TO_PLANT_UNDER_CHANGED_TESTS}
+${THE_BREAKS}
 ${WHAT_TO_LOOK_HARDEST_AT}
 
 ${THE_REVIEW_FILE}`;

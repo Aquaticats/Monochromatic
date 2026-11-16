@@ -171,6 +171,12 @@ export type AReviewReads = {
   readonly filesRemoved: readonly string[];
 
   /**
+   The tests among the files this review reads in full, in the order given. A brief asks a break under each of them, because the
+   reviewed commit holds them; a test the change removed is in `filesRemoved` and is read in the diff instead.
+   */
+  readonly filesOfTests: readonly string[];
+
+  /**
    The code among the files this review reads, in the order given, a removed file and a file of a kind no list names being code
    wherever they are read. Its presence is what makes a change to tests ask the project's requirements as well as the breaks under
    the tests.
@@ -620,6 +626,9 @@ export async function materialOfAReview({
       checkoutFolder,
       words: [
         'diff',
+        // A rename is asked for as the deletion and the addition it is, like the name listing below, so the diff a reviewer reads
+        // holds the old side's contents instead of a similarity index and two names.
+        '--no-renames',
         range,
         '--',
         source,
@@ -696,6 +705,7 @@ export async function materialOfAReview({
       kind: 'code-and-build-decisions',
       files: plan.files,
       filesRemoved: plan.filesRemoved,
+      filesOfTests: plan.filesOfTests,
       filesOfCode: plan.filesOfCode,
       filesOfAnUnlistedKind: plan.filesOfAnUnlistedKind,
       filesLeftOut: plan.filesLeftOut,
@@ -707,6 +717,7 @@ export async function materialOfAReview({
       kind: 'tests-and-fixtures',
       files: plan.files,
       filesRemoved: plan.filesRemoved,
+      filesOfTests: plan.filesOfTests,
       filesOfCode: plan.filesOfCode,
       filesOfAnUnlistedKind: plan.filesOfAnUnlistedKind,
       filesLeftOut: plan.filesLeftOut,

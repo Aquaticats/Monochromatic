@@ -42,9 +42,20 @@ export const REVIEW_BRIEF_PLACEHOLDERS: readonly string[] = [
   'REMOVED',
   'REQUIREMENTS',
   'REPRODUCTIONS_FOLDER',
+  'BREAKS',
   'FOCUS',
   'REVIEW_FILE',
 ];
+
+/**
+ The code point of the backslash, which every escape the brief writes in a name holds, and which a name shown as it is never does.
+ */
+const BACKSLASH_CODE_POINT = 92;
+
+/**
+ The character that code point is, which is what a name's escapes are looked for.
+ */
+const BACKSLASH = String.fromCodePoint(BACKSLASH_CODE_POINT,);
 
 /**
  The requirements a change of code is judged by, which are the project's own.
@@ -61,6 +72,43 @@ export const WHAT_A_CHANGE_TO_TESTS_MUST_PROVE: string =
   'These files are tests and the fixtures tests use, and the change is to them alone. It must meet this requirement: a test '
     + 'proves what it proved before, so it still fails when the code it checks does the wrong thing, and still passes only when '
     + 'that code does what it must.';
+
+/**
+ The demand a change to tests carries for the tests the reviewed commit holds: the break a reviewer plants under each, the run that
+ shows whether it catches one, and the report of both.
+ */
+export const THE_BREAKS_TO_PLANT_UNDER_CHANGED_TESTS: string =
+  'For each changed test above, plant a break under it, in a copy of the code it tests or in the value it expects, run that '
+    + 'test by name, and say whether it fails: a test that still passes with the break in is a finding. For a changed fixture, '
+    + 'name the tests that use it, plant a break in a copy of the fixture, run those tests by name, and say whether one fails. '
+    + 'Say what you read and what you ran, because a review that ran nothing has shown nothing.';
+
+/**
+ The demand a change to tests carries when every test it touched was removed: there is no test left to break, so the one thing a
+ reviewer can show is whether removing each leaves what it checked untested.
+ */
+export const THE_REMOVED_TESTS_TO_READ: string =
+  'Every test this change touched was removed, so there is no test left to break: read each removed test in the change diff, name '
+    + 'the code it checked, and say whether that code is left untested now.';
+
+/**
+ Reads the paragraph a brief gives the demand it carries for the tests of the change: a break under each test the reviewed commit
+ holds, or, when the change removed them all, what a reviewer can show about a removed test instead.
+
+ @param filesOfTests - the tests the reviewed commit holds, in the order git named them
+
+ @returns the paragraph, which is empty when the change touched no test at all
+
+ @example
+ ```ts
+ const paragraph = breaksParagraphOf({ filesOfTests: ['package/a/src/gate.unit.test.ts'], },);
+ ```
+ */
+export function breaksParagraphOf({ filesOfTests }: {
+  readonly filesOfTests: readonly string[];
+},): string {
+  return (filesOfTests.length > 0) ? THE_BREAKS_TO_PLANT_UNDER_CHANGED_TESTS : THE_REMOVED_TESTS_TO_READ;
+}
 
 /**
  The requirements a change is judged by when it holds a test and the code that test checks: both, because a reviewer reads the
@@ -115,9 +163,11 @@ export function subjectOfAChangeToTests({ source, }: { readonly source: string }
 /**
  Reads the file list a brief gives its reviewer, and says what an escape means when a name needs one.
 
- Git's names are bytes, and a brief is text: a name whose bytes are not UTF-8, or that holds a newline, a tab, a backslash or a
- backtick, is shown with `\x` escapes, which are the file's own bytes. A shell takes those bytes as a `$'...'` word, so the
- reviewer can still reach the file.
+ Git's names are bytes, and a brief is text: a name whose bytes are not UTF-8, or that holds a newline, a tab, a backslash, an
+ apostrophe or a backtick, is shown escaped, and every escape is the file's own bytes: `\xNN` for a byte the brief cannot print, a
+ doubled backslash, and an apostrophe with a backslash before it. A shell takes those bytes as a `$'...'` word, so the reviewer can
+ still reach the file. The sentence is printed whenever any name in the list holds an escape of any kind, and never for a list of
+ names shown as they are.
 
  @param files - the files the reviewer reads, as the material shows each name
 
@@ -140,13 +190,14 @@ export function filesToListItems({ files }: { readonly files: readonly string[] 
   },)
     .join('\n',);
   /**
-   Whether any name needed an escape, which is what the sentence is for.
+   Whether any name was escaped, which is what the sentence is for: a name shown as it is holds no backslash, and every escape the
+   brief writes holds one.
    */
   const escaped = files.some(function holdsAnEscape(path,) {
-    return path.includes(String.raw`\x`,);
+    return path.includes(BACKSLASH,);
   },);
   return escaped
-    ? `${listed}\nA path shown with \`\\x\` escapes is that file's own bytes, which a shell reads as a \`$'...'\` word.`
+    ? `${listed}\nA path shown with \`\\x\`, \`\\\\\` or \`\\'\` escapes is that file's own bytes, which a shell reads as a \`$'...'\` word.`
     : listed;
 }
 
@@ -219,6 +270,8 @@ export function removedParagraphOf({ filesRemoved }: {
 
  @param requirements - the requirements the change is judged by, as the brief reads them
 
+ @param breaks - the demand the brief carries for the tests of the change, which is empty in a brief of code
+
  @param focus - what the reviewer looks hardest at
 
  @param reviewsFolder - folder that holds one folder per review
@@ -242,6 +295,7 @@ export function reviewBriefValues({
   filesLeftOut,
   filesRemoved,
   requirements,
+  breaks,
   focus,
   reviewsFolder,
   runsFolder,
@@ -254,6 +308,7 @@ export function reviewBriefValues({
   readonly filesLeftOut: readonly LeftOutFile[];
   readonly filesRemoved: readonly string[];
   readonly requirements: string;
+  readonly breaks: string;
   readonly focus: string;
   readonly reviewsFolder: string;
   readonly runsFolder: string;
@@ -277,6 +332,7 @@ export function reviewBriefValues({
       reviewsFolder,
       review,
     },),
+    BREAKS: breaks,
     FOCUS: focus,
     REVIEW_FILE: reviewFileOfAReview({
       reviewsFolder,
@@ -350,6 +406,7 @@ export function briefOfAReview({
       filesLeftOut,
       filesRemoved,
       requirements: WHAT_A_CHANGE_TO_CODE_MUST_MEET,
+      breaks: '',
       focus,
       reviewsFolder,
       runsFolder,
@@ -377,6 +434,8 @@ export function briefOfAReview({
 
  @param filesRemoved - the files the change removed, which the review reads in its diff
 
+ @param filesOfTests - the tests the reviewed commit holds, which the brief asks a break under
+
  @param focus - what the reviewer looks hardest at
 
  @param reviewsFolder - folder that holds one folder per review
@@ -402,6 +461,7 @@ export function briefOfAChangeToTests({
   filesOfCode,
   filesLeftOut,
   filesRemoved,
+  filesOfTests,
   focus,
   reviewsFolder,
   runsFolder,
@@ -414,6 +474,7 @@ export function briefOfAChangeToTests({
   readonly filesOfCode: readonly string[];
   readonly filesLeftOut: readonly LeftOutFile[];
   readonly filesRemoved: readonly string[];
+  readonly filesOfTests: readonly string[];
   readonly focus: string;
   readonly reviewsFolder: string;
   readonly runsFolder: string;
@@ -430,6 +491,7 @@ export function briefOfAChangeToTests({
         filesLeftOut,
         filesRemoved,
         requirements: (filesOfCode.length > 0) ? WHAT_TESTS_AND_THEIR_CODE_MUST_MEET : WHAT_A_CHANGE_TO_TESTS_MUST_PROVE,
+        breaks: breaksParagraphOf({ filesOfTests, },),
         focus,
         reviewsFolder,
         runsFolder,

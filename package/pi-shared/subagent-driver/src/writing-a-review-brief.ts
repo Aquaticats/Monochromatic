@@ -157,6 +157,7 @@ export async function writeReviewBrief({
         filesOfCode: material.filesOfCode,
         filesLeftOut: material.filesLeftOut,
         filesRemoved: material.filesRemoved,
+        filesOfTests: material.filesOfTests,
         focus,
         reviewsFolder,
         runsFolder,
