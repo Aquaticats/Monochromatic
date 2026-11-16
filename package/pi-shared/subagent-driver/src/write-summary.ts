@@ -20,6 +20,39 @@ import {
   isThere,
 } from './newest-finished-run-of-a-name.ts';
 import type { RunSummary, } from './driver-types.ts';
+import {
+  MASKING_NOTHING,
+  type TextMasking,
+} from './secret-value-masking.ts';
+
+/**
+ A run's summary as the data it is written as, masked, or the little that is written when it could not be masked.
+
+ @param summary - what to write
+
+ @param mask - the masking
+
+ @returns the summary as masked data, or the reason it was withheld and nothing of it
+ */
+function summaryAsData({
+  summary,
+  mask,
+}: {
+  readonly summary: RunSummary;
+  readonly mask: TextMasking;
+},): unknown {
+  /**
+   The summary as data.
+   */
+  const masked = mask.maskData(summary,);
+  if ('value' in masked) {
+    return masked.value;
+  }
+  return {
+    endReason: summary.endReason,
+    withheld: masked.cause,
+  };
+}
 
 /**
  The code the operating system gives a name that is already taken.
@@ -93,6 +126,8 @@ export async function refuseWhenTheFolderHoldsASummary({ runFolder, }: { readonl
 
  @param summary - what to write
 
+ @param mask - the masking every string of it goes through
+
  @throws SummaryAlreadyThereError when the folder already holds a summary, which is left exactly as it was
 
  @example
@@ -103,9 +138,11 @@ export async function refuseWhenTheFolderHoldsASummary({ runFolder, }: { readonl
 export async function writeSummary({
   runFolder,
   summary,
+  mask = MASKING_NOTHING,
 }: {
   readonly runFolder: string;
-  readonly summary: RunSummary
+  readonly summary: RunSummary;
+  readonly mask?: TextMasking;
 },): Promise<void> {
   /**
    Where the summary is written first, under a name of this run's own.
@@ -130,7 +167,12 @@ export async function writeSummary({
   await writeFile(
     unfinishedFile,
     `${JSON.stringify(
-      summary,
+      // The summary carries what a tool error said, what the last reply said, and what Pi printed when a start failed, so it goes
+      // through the same masking as every other file a run writes.
+      summaryAsData({
+        summary,
+        mask,
+      },),
       null,
       2,
     )}\n`,

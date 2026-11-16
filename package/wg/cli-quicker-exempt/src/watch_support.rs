@@ -31,11 +31,6 @@ fn app_slice_contains_nul(_error: std::ffi::NulError) -> io::Error {
     return io::Error::new(io::ErrorKind::InvalidInput, "app.slice path contains NUL");
 }
 
-/// Reports whether an attachment's cgroup directory still exists.
-pub fn attachment_directory_exists(attachment: &ActiveAttachment) -> bool {
-    return attachment.path.is_dir();
-}
-
 /// Reports whether `target` already has an attachment.
 pub fn is_attached(active: &[ActiveAttachment], target: &Path) -> bool {
     for attachment in active {
@@ -66,7 +61,7 @@ pub fn create_inotify(app_slice: &Path) -> io::Result<OwnedFd> {
 pub fn attach_target(path: &Path, mark: u32) -> io::Result<Option<ActiveAttachment>> {
     let cgroup = match std::fs::File::open(path) {
         Ok(file) => file,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) if crate::process_info::means_vanished(&error) => return Ok(None),
         Err(error) => return Err(error),
     };
     let links = attach_marker_unpinned(cgroup.as_raw_fd(), mark)?;

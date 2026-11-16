@@ -21,8 +21,6 @@ use crate::iso_time::now_iso;
 /// Replaces the userinfo of every URL in a message,
 /// as the relays of Git's and `git-lfs` words do.
 use crate::lfs_output_mask::mask_url_secrets_text;
-/// The trait that gives output streams `.write_all(..)`.
-use std::io::Write;
 
 /// What:
 ///  Whether debug diagnostics are on:
@@ -119,9 +117,15 @@ pub fn diagnostic_line(level: &str, time: &str, tag: &str, message: &str) -> Str
 
 /// What:
 ///  Write one complete line to standard error,
-///  ignoring a closed stream.
+///  ignoring a closed stream,
+///  and never waiting for a reader that has stopped draining.
 /// Why:
-///   A diagnostic must never turn into a failure of the command it describes.
+///   A diagnostic must never turn into a failure of the command it describes,
+///  and it must never hold what the command holds:
+///  a line is said at whatever moment the code reaches it,
+///  inside a landing that holds the index lock or a push that holds its claim included,
+///  so the wait for the person's reader is the writer thread's and not the caller's
+///  (`diagnostic_lines_off_the_calling_thread.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -130,8 +134,9 @@ pub fn diagnostic_line(level: &str, time: &str, tag: &str, message: &str) -> Str
 fn write_line(line: &str) {
     #[cfg(test)]
     remember_the_line(line);
-    // `let _ =` discards the write result: there is nowhere left to report it.
-    let _ = std::io::stderr().write_all(line.as_bytes());
+    // The line is handed over and the caller goes on: a reader that stopped taking lines must not be able to hold whatever
+    //  this command holds at this moment.
+    crate::diagnostic_lines_off_the_calling_thread::write(line);
 }
 
 #[cfg(test)]

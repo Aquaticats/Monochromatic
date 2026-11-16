@@ -22,7 +22,7 @@
 //! ```
 
 use crate::journald_native::send_without_waiting;
-use crate::service_runtime_build_report::{no_worker_words, start_what_the_service_cannot_serve_without};
+use crate::service_runtime_build_report::{EXIT_NO_WORKER, no_worker_words, start_what_the_service_cannot_serve_without};
 use crate::service_timing::LOG_PREFIX;
 use crate::stop_of_the_service_noticed_by_its_children::{SETTLE_CEILING, Settled, end_by_the_signal, is_noticing, stopping_signal, tell_the_stop_and_wait_for_the_work, unfinished_work};
 
@@ -48,7 +48,7 @@ pub(crate) fn start_shutdown_after_a_stop_or_exit() {
     }
     if start_what_the_service_cannot_serve_without("the shutdown after a stop", shut_down_after_a_stop()).is_none() {
         crate::service_error!("{}", no_worker_words("the shutdown after a stop"));
-        std::process::exit(4);
+        std::process::exit(EXIT_NO_WORKER);
     }
 }
 

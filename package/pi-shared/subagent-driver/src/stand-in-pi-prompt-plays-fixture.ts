@@ -8,6 +8,10 @@
 import { stdout, } from 'node:process';
 import { setTimeout as wait, } from 'node:timers/promises';
 import { compactionPlays, } from './stand-in-pi-compaction-plays-fixture.ts';
+import {
+  PRINTS_A_VALUE_SCENARIO,
+  printOneSecretValue,
+} from './stand-in-pi-masking-fixture.ts';
 import { scenario, } from './stand-in-pi-log-fixture.ts';
 import { modelErrorPlays, } from './stand-in-pi-model-error-plays-fixture.ts';
 import { rateLimitPlays, } from './stand-in-pi-rate-limit-plays-fixture.ts';
@@ -126,6 +130,10 @@ export async function playPrompt(id: unknown,): Promise<void> {
   const workPlay = workPlays.get(scenario,);
   if (workPlay !== undefined) {
     workPlay(id,);
+    return;
+  }
+  if (scenario === PRINTS_A_VALUE_SCENARIO) {
+    await printOneSecretValue({ id, },);
     return;
   }
   /**
