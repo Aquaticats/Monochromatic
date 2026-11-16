@@ -395,7 +395,8 @@ const SETTLE_PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
 
 /// The states a work directory holds a record in until the work it names is settled,
 /// in the order an item moves through them when the service claims it
-/// (`work_item_state_directories_and_claim_names.rs`, `take_entry`).
+/// (`work_item_state_directories_and_claim_names.rs`,
+/// `take_entry`).
 /// Why this order:
 ///  a claim moves a record `pending` to `recovering` to `claimed` by two renames with a stamp between them,
 /// so the listings are taken in that order:
@@ -419,7 +420,8 @@ const OPEN_STATES: [&str; 3] = [PENDING, RECOVERING, CLAIMED];
 /// A settled answer can therefore not turn on how fast the machine carried a claim,
 /// which is what the failing sighting did:
 /// one control read the queue as settled and the service ran the relink it held three milliseconds later
-/// (`package_repair::quiet_runs_the_repair_and_says_nothing_about_success`, 2026-11-14).
+/// (`package_repair::quiet_runs_the_repair_and_says_nothing_about_success`,
+/// 2026-11-14).
 /// A record an expired claim is returning to `pending` runs the other way (`requeue_with`),
 /// and a pass misses it only where one of its two renames falls between two of the listings,
 ///  which the second reading of `settle_service_work_read_with` makes a coincidence twice over.

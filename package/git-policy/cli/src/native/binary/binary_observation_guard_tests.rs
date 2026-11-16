@@ -24,7 +24,8 @@
 //! settleServiceWorkReadWith(repo, (work) => [0, 1, 0, 0][readings++]); // the wait must not stop at the first 0
 //! ```
 
-/// Import the fixture, the repository maker and the wait under test.
+/// Import the fixture,
+/// the repository maker and the wait under test.
 use super::support::{Fixture, fixture, remove, repository, settle_service_work_read_with};
 use git_policy_cli::work_item::WORK_DIRECTORY;
 use std::cell::{Cell, RefCell};
@@ -39,8 +40,10 @@ use std::path::{Path, PathBuf};
 /// (`repair::package_repair_relink::hand_over_with` writes it and wakes the service),
 /// and a claim moves it between the states the wait counts,
 /// so a reading can miss it although the work is queued.
-/// What this control proves: the wait asks again after a reading that found nothing,
-/// and it answers only two readings with nothing in the queue, a pause apart.
+/// What this control proves:
+/// the wait asks again after a reading that found nothing,
+/// and it answers only two readings with nothing in the queue,
+/// a pause apart.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

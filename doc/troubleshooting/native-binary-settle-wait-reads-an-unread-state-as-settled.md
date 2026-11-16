@@ -139,7 +139,8 @@ refuses to answer from a listing it could not
 make,
 lists the three states in the order an item moves through them
 (`open_records`),
-and calls the work settled only on two readings in a row, a pause apart,
+and calls the work settled only on two readings in a row,
+a pause apart,
 with the reading passed in so a control can stand in for it
 (`package/git-policy/cli/src/native/binary/binary_support_observation.rs`,
 `settle_service_work_read_with`).
@@ -147,7 +148,8 @@ Tradeoff:
 a repository whose queue genuinely cannot be listed now fails the
 control with the directory named,
 instead of passing on a state it never saw;
-and a call that finds nothing reads the queue twice, one pause apart.
+and a call that finds nothing reads the queue twice,
+one pause apart.
 
 ## What does not work
 
