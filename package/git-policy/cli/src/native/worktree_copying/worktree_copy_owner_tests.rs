@@ -44,15 +44,26 @@ fn text_that_is_not_a_token_names_nobody() {
 
 /// The running process is alive;
 /// a killed and reaped process is dead,
-/// and so is a live pid with another birth.
+/// and so is a live pid with another birth in the kernel's one spelling.
+/// Why:
+///   A birth this reader cannot compare is no proof that the number was reused:
+///  an older release,
+///  another tool or a damaged file writes one,
+///  and taking it for a dead owner would take the item of a command that runs
+///  (`a_live_owners_record_in_another_spelling_is_never_a_dead_owner`).
 #[test]
 fn the_running_process_is_alive_and_a_killed_one_is_dead() {
     let here: CopyOwner = current_copy_owner().expect("current owner");
     let anchor: &Path = Path::new("/");
     assert!(here.is_alive(anchor).expect("answer"));
     assert!(!crate::test_support::dead_copy_owner().is_alive(anchor).expect("answer"));
-    let reused: CopyOwner = CopyOwner { birth_identity: String::from("linux:not-this-process"), ..here };
+    let reused: CopyOwner = CopyOwner { birth_identity: String::from("linux:1"), ..here.clone() };
     assert!(!reused.is_alive(anchor).expect("answer"), "a reused process id is not the owner");
+    let unreadable: CopyOwner = CopyOwner { birth_identity: String::from("linux:not-this-process"), ..here };
+    assert!(
+        unreadable.is_alive(anchor).expect("answer"),
+        "a birth in no spelling this reader can compare proves nothing about the process that has the number"
+    );
 }
 
 /// An id no process has is dead.
