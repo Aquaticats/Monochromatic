@@ -165,3 +165,20 @@ fn words_every_hold() {
     assert_eq!(HoldKind::WorksInside.words(), "works inside");
     assert_eq!(HoldKind::HasOpen.words(), "has open");
 }
+
+/// What:
+/// A process table of a PID namespace is a table the scan says it cannot trust, and one that sees the whole machine is
+/// not.
+/// Why:
+/// The review of 82531265a7 ran the same install in the machine's namespace (the version was kept) and inside
+/// `unshare --pid` (the version was removed while its holder still ran): `/proc` there lists only that namespace.
+#[test]
+fn a_nested_pid_namespace_is_a_table_the_scan_cannot_trust() {
+    let machine: &str = "Name:\tmpm-shadow\nNSpid:\t4242\nPid:\t4242\n";
+    let nested: &str = "Name:\tmpm-shadow\nNSpid:\t4242\t7\nPid:\t7\n";
+    let without: &str = "Name:\tmpm-shadow\nPid:\t4242\n";
+
+    assert!(!crate::toolchain::store_path_holders::in_a_pid_namespace(machine), "the machine's own namespace is the whole machine");
+    assert!(crate::toolchain::store_path_holders::in_a_pid_namespace(nested), "a nested PID namespace holds only its own processes");
+    assert!(!crate::toolchain::store_path_holders::in_a_pid_namespace(without), "a kernel that prints no NSpid line is this namespace");
+}

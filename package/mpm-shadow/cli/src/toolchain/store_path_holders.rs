@@ -118,6 +118,41 @@ pub fn mapped_path(line: &str) -> Option<&str> {
     return Some(path.strip_suffix(" (deleted)").unwrap_or(path));
 }
 
+/// What:
+/// Whether the `NSpid:` line of `/proc/self/status` names more than one process id,
+/// which is what a command running inside a PID namespace sees.
+/// Why:
+/// `/proc` of a PID namespace lists only the processes of that namespace,
+/// so a process outside it that runs a version of the store is invisible,
+/// and a scan that reported "nothing holds this" would be answering about a part of the machine.
+/// The review of 82531265a7 ran the same install in this namespace (kept: "pid ... works inside") and inside
+/// `unshare --pid` (removed: the holder still running).
+pub(crate) fn in_a_pid_namespace(status: &str) -> bool {
+    for line in status.lines() {
+        let Some(rest) = line.strip_prefix("NSpid:") else {
+            continue;
+        };
+        return rest.split_whitespace().count() > 1;
+    }
+    return false;
+}
+
+/// What:
+/// Why this command cannot see every process of the account, or `None` when it can.
+/// Why:
+/// A PID namespace, or a `/proc` that cannot be read, is a scan that would answer "nothing holds this" about a part of
+/// the machine, and the cleanup's answer to that is to keep every version.
+fn what_the_scan_cannot_see() -> Option<String> {
+    let status: String = std::fs::read_to_string("/proc/self/status").ok()?;
+    if in_a_pid_namespace(&status) {
+        return Some(
+            "this command runs in a PID namespace, so the process table it can read holds only that namespace's processes and one outside it may run a version"
+                .to_string(),
+        );
+    }
+    return None;
+}
+
 /// How many processes are read between two reads of the clock.
 const DEADLINE_CHECK_EVERY: usize = 64;
 
@@ -171,6 +206,13 @@ pub fn holders_of(store_roots: &[PathBuf], deadline: Instant) -> StoreHolders {
         holders.incomplete = Some("the user id of this process cannot be read from /proc/self".to_string());
         return holders;
     };
+    // What: a process table that is only this PID namespace's is a scan that cannot tell, and it says so.
+    // Why: a container or a sandbox with a private `/proc` that mounts the store would otherwise have its versions
+    // removed under a process the scan cannot see.
+    if let Some(reason) = what_the_scan_cannot_see() {
+        holders.incomplete = Some(reason);
+        return holders;
+    }
     let self_uid: u32 = self_metadata.uid();
     let mut pids: Vec<u32> = Vec::new();
     for entry in entries.flatten() {
