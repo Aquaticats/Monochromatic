@@ -16,7 +16,8 @@ use crate::work_item::{Claimed, DONE, PENDING, WorkItem, WorkKind, claim_next_of
 use crate::worktree_remove_hand_over::{delete_subvolume_of, removal_item};
 use crate::fs_beneath::open_root;
 use crate::private_storage::write_private_file_unsynced;
-use crate::worktree_removal_leaving_that_outlives_its_record::{leaving_records, mark_the_leaving, note_an_attempt_taken, read_the_leaving, record_a_leaving_with_owner};
+use crate::worktree_removal_leaving_that_outlives_its_record::{leaving_records, mark_the_leaving, read_the_leaving, record_a_leaving_with_owner};
+use crate::worktree_removal_leaving_attempts::{attempts_taken, forget_the_attempts, mark_the_attempt_made};
 use crate::worktree_removal_leavings_a_command_queues_again::queue_the_leavings_a_record_no_longer_names;
 use crate::worktree_remove_hand_over::{ToldOfHandOver, hand_over_with};
 use std::sync::{Arc, Barrier};
@@ -339,10 +340,12 @@ fn a_pending_delete_found_again_is_told_and_the_wakes_are_bounded() {
         assert!(answer.said.is_empty(), "and says nothing: {:?}", answer.said);
         assert!(owed(&place, &item), "the delete is still the round's to run: {}", item.id());
         assert_eq!(leaving_records(place.common.as_path()).len(), 1, "one leaving names it, written the first time");
-        // What the command that ran the look does with the answer: it makes the wake and then counts the ask, which is
-        // the attempt a record may cost. The count is the caller's, so this control stands in for that one step.
-        assert!(answer.asked.is_some(), "round {round} asks the service for the round it owes");
-        note_an_attempt_taken(place.common.as_path(), item.id().as_str());
+        // What the command that ran the look does with the answer: it makes the wake and then marks the ask it was given
+        // made. The count is the caller's, so this control stands in for that one step.
+        assert!(!answer.asks.is_empty(), "round {round} asks the service for the round it owes");
+        for (asked_of, asked_for, number) in &answer.asks {
+            mark_the_attempt_made(asked_of.as_path(), asked_for.as_str(), *number);
+        }
     }
     let spent: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
     assert!(!spent.queued, "the attempts a record may cost are spent, so the service is not woken again");
@@ -725,14 +728,14 @@ fn commands_at_once_ask_for_no_more_wakes_than_the_attempts_a_record_may_cost() 
                 let leaving: crate::worktree_removal_leaving_that_outlives_its_record::Leaving = read_the_leaving(bytes.as_slice()).expect("a record a command reads");
                 // The barrier is what makes every command decide on the same count, which is the state a real overlap is in.
                 let _together: std::sync::BarrierWaitResult = shared.wait();
-                let mut answer: Leavings = Leavings { queued: false, asked: None, said: Vec::new() };
+                let mut answer: Leavings = Leavings { queued: false, asks: Vec::new(), said: Vec::new() };
                 crate::worktree_removal_leavings_a_command_queues_again::wake_a_pending_delete(their_common.as_path(), &leaving, their_target.as_path(), &mut answer);
-                // What the command that runs the look does after the answer: it makes the wake and then counts the ask.
-                // Why the control stands in for it: the count is the caller's, and a control that counted before the ask would
-                //     be testing an order the product no longer uses.
-                if answer.asked.is_some() {
-                    crate::worktree_removal_leaving_that_outlives_its_record::note_an_attempt_taken(their_common.as_path(), their_leaving_id.as_str());
+                // What the command that runs the look does after the answer: it makes the wake and then marks every ask it
+                // was given made. The control stands in for that one step.
+                for (asked_of, asked_for, number) in &answer.asks {
+                    mark_the_attempt_made(asked_of.as_path(), asked_for.as_str(), *number);
                 }
+                let _named: bool = !their_leaving_id.is_empty() && their_common.is_dir();
                 return answer.queued;
             }));
         }
@@ -747,7 +750,7 @@ fn commands_at_once_ask_for_no_more_wakes_than_the_attempts_a_record_may_cost() 
     });
     assert!(woke <= commands, "{woke} commands asked for a wake, and {commands} ran");
     assert_eq!(
-        crate::worktree_removal_leaving_that_outlives_its_record::attempts_taken(place.common.as_path(), item.id().as_str()),
+        attempts_taken(place.common.as_path(), item.id().as_str()),
         MAX_TRIES,
         "every ask of the window is counted, and the count stands at the attempts a record may cost rather than at one",
     );
@@ -852,10 +855,7 @@ fn clear_the_queue_and_the_attempts(place: &Place, item: &WorkItem) {
             let _removed: std::io::Result<()> = std::fs::remove_file(state_directory(work_of(place).as_path(), state).join(id));
         }
     }
-    for number in 1..=MAX_TRIES {
-        let attempt: PathBuf = place.common.join(crate::worktree_removal_leaving_that_outlives_its_record::LEAVING_ATTEMPTS_FOLDER).join(format!("{}.{number}", item.id()));
-        let _removed: std::io::Result<()> = std::fs::remove_file(attempt);
-    }
+    forget_the_attempts(place.common.as_path(), item.id().as_str());
 }
 
 /// What:
@@ -888,7 +888,7 @@ fn acts_of(answers: &[Leavings]) -> usize {
 /// ```
 fn callers_at_once(common: &Path, callers: usize) -> Vec<Leavings> {
     let start: Arc<Barrier> = Arc::new(Barrier::new(callers + 1));
-    let answers: Vec<Leavings> = std::thread::scope(|scope| {
+    let answers: Vec<Leavings> = std::thread::scope(|_scope| {
         let mut handles: Vec<std::thread::JoinHandle<Leavings>> = Vec::new();
         for _caller in 0..callers {
             let shared: Arc<Barrier> = Arc::clone(&start);
@@ -1000,7 +1000,7 @@ fn every_path_that_acts_on_a_leaving_stays_inside_the_attempt_budget() {
     // § 2. Two pending leavings, one command at a time: one wake serves both, so the asks must stop at the budget.
     let Some(two): Option<Place> = a_place_a_removal_renames_into("budget-two-leavings") else { return };
     let (first_id, first_hidden): (u64, PathBuf) = a_subvolume_under_its_own_leaving_name(two.place.as_path(), "first.txt", b"first\n");
-    let (second_id, second_hidden): (u64, PathBuf) = a_subvolume_under_its_own_leaving_name(two.place.as_path(), "second.txt", b"second\n");
+    let (second_id, _second_hidden): (u64, PathBuf) = a_subvolume_under_its_own_leaving_name(two.place.as_path(), "second.txt", b"second\n");
     let first: WorkItem = removal_item(two.common.as_path(), two.place.as_path(), first_id);
     let second: WorkItem = removal_item(two.common.as_path(), two.place.as_path(), second_id);
     enqueue(work_of(&two).as_path(), &first).expect("the first pending record");

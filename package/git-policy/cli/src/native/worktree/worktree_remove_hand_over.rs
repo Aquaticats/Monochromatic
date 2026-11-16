@@ -44,7 +44,7 @@ use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::wait_ceilings::{ANSWER_CEILING, HAND_OVER_GREETING_WAIT, SHORT_EXTRA_WAIT, WITHDRAW_CEILING, waiting_notice_after};
 use crate::work_item::{FAILED, PENDING, WorkItem, WorkKind, enqueue, state_directory};
 use crate::worktree_removal_interrupted_destroy::record_leaving;
-use crate::worktree_removal_leaving_that_outlives_its_record::{Leaving, forget_the_leaving, mark_the_leaving, queue_the_delete_again, record_a_leaving, record_the_place};
+use crate::worktree_removal_leaving_that_outlives_its_record::{Leaving, forget_the_leaving, mark_the_leaving, record_a_leaving, record_the_place};
 use crate::service_work::Verdict;
 use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
 use crate::worktree_kept_notices::record_kept_worktree;
@@ -405,8 +405,17 @@ pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name
         );
         // The destroy here could not take it, for a reason that may last, so the delete goes back where a round finds it: the
         // leaving record above names the directory until a command proves it gone.
-        if let Err(reason) = queue_the_delete_again(common_dir, &leaving) {
-            warn(TAG, format!("the delete of {} cannot be queued again ({reason}); the leaving record still names it", target.display()).as_str());
+        match crate::worktree_removal_leavings_a_command_queues_again::queue_the_delete_as_the_next_attempt(common_dir, &leaving) {
+            crate::worktree_removal_leavings_a_command_queues_again::Attempted::Queued => {}
+            crate::worktree_removal_leavings_a_command_queues_again::Attempted::Spent => {
+                warn(
+                    TAG,
+                    format!("the attempts a record may cost for {} are spent, so its delete is not queued again; the leaving record still names the directory and the next command says so", target.display()).as_str(),
+                );
+            }
+            crate::worktree_removal_leavings_a_command_queues_again::Attempted::Failed(reason) => {
+                warn(TAG, format!("the delete of {} cannot be queued again ({reason}); the leaving record still names it", target.display()).as_str());
+            }
         }
         return Ok(());
     }

@@ -184,11 +184,11 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         // The wake is the hand-over's own: a record this command queued must not wait for a command nobody runs.
         let _woken: Result<(), String> = crate::worktree_remove_hand_over::wake_the_service(&context, common_dir.as_path());
     }
-    // What: The attempt a pending delete's ask costs is counted now, after the ask.
-    // Why:  A command killed between the two costs an ask nobody counted, and never spends an attempt on an ask it did not
-    //       make, so the next command still asks.
-    if let Some((asked_of, asked_for)) = leavings.asked.as_ref() {
-        crate::worktree_removal_leaving_that_outlives_its_record::note_an_attempt_taken(asked_of.as_path(), asked_for.as_str());
+    // What: Every ask this command made a slot for is marked made, now that the wake it is part of has been made.
+    // Why:  A command killed between a slot and its wake leaves that slot to the next command, which takes it over,
+    //       so a leaving cannot ask for ever and no ask is counted that was never made.
+    for (asked_of, asked_for, number) in &leavings.asks {
+        crate::worktree_removal_leaving_attempts::mark_the_attempt_made(asked_of.as_path(), asked_for.as_str(), *number);
     }
     for line in leavings.said {
         // A closed terminal is not a reason to stop the command the person asked for.

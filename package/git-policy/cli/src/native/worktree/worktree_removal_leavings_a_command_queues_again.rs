@@ -39,7 +39,7 @@ use crate::diagnostic_log::debug;
 use crate::fs_beneath::{open_directory_at, open_root};
 use crate::fs_btrfs_ioctl::subvolume_id;
 use crate::plain_file::read_plain_file;
-use crate::service_work::{MAX_TRIES, work_directory};
+use crate::service_work::work_directory;
 use crate::work_item::queued_ids;
 use crate::worktree_removal_finishes_an_interrupted_destroy::owner_may_be_running;
 use crate::worktree_removal_leaving_that_outlives_its_record::{Leaving, RECORD_LIMIT, forget_the_leaving, leaving_records, queue_the_delete_again, read_the_leaving};
@@ -78,13 +78,13 @@ pub struct Leavings {
     ///  state a wake is owed for.
     pub queued: bool,
     /// What:
-    ///  The repository and the leaving of an ask the caller is about to make,
-    ///  so the attempt that ask costs is counted after the ask and not before it.
+    ///  Every ask this command took an attempt slot for,
+    ///  as the repository and the leaving and the number of the attempt,
+    ///  so each is marked once the wake it is part of is made.
     /// Why:
-    ///  An attempt is counted by the act it counts:
-    ///  a command killed between this answer and the wake then costs an ask nobody counted,
-    ///  rather than spending the budget of a wake that was never made.
-    pub asked: Option<(PathBuf, String)>,
+    ///  One command wakes the service once for every pending leaving it found,
+    ///  so a single slot would count one leaving's ask and let an earlier one ask for ever.
+    pub asks: Vec<(PathBuf, String, u32)>,
     /// What the person reads:
     /// one line per leaving this program may not delete and per queueing that could not be made.
     pub said: Vec<String>,
@@ -114,7 +114,7 @@ pub struct Leavings {
 /// return answer;
 /// ```
 pub fn queue_the_leavings_a_record_no_longer_names(common_dir: &Path) -> Leavings {
-    let mut answer: Leavings = Leavings { queued: false, asked: None, said: Vec::new() };
+    let mut answer: Leavings = Leavings { queued: false, asks: Vec::new(), said: Vec::new() };
     let records: Vec<(String, PathBuf)> = leaving_records(common_dir);
     let work: PathBuf = work_directory(common_dir);
     // The places the records name, so a leftover a record names stays that record's to decide and the search by name skips it.
@@ -128,10 +128,7 @@ pub fn queue_the_leavings_a_record_no_longer_names(common_dir: &Path) -> Leaving
     }
     let found: Leavings = queue_the_leavings_no_record_names(common_dir, work.as_path(), &named);
     answer.queued = answer.queued || found.queued;
-    // One command makes one wake, so one ask is counted for it, whichever of the two looks asked first.
-    if answer.asked.is_none() {
-        answer.asked = found.asked;
-    }
+    answer.asks.extend(found.asks);
     answer.said.extend(found.said);
     return answer;
 }
@@ -304,6 +301,63 @@ fn queue_one_leaving(common_dir: &Path, record: &Path, id: &str, owed: &HashSet<
     queue_the_delete_of_one_standing_leaving(common_dir, &leaving, target.as_path(), owed, answer);
 }
 
+/// What one requeue of a leaving came to.
+/// Why:
+///   Three paths queue a delete again (the deleting look, the scan of a leftover and the hand-over's repair),
+///  and each words the three endings differently,
+///  so they share the act and not the words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Attempted = { kind: 'queued' } | { kind: 'spent' } | { kind: 'failed'; reason: string };
+/// ```
+pub(crate) enum Attempted {
+    /// The delete was queued, and its attempt counted.
+    Queued,
+    /// Every attempt this leaving may cost is taken or made.
+    Spent,
+    /// The delete could not be queued, and the attempt it would have cost was given back.
+    Failed(String),
+}
+
+/// What:
+///  Queue the delete of one leaving as its next attempt:
+///  take a slot before the act,
+///  queue the delete,
+///  and mark the slot made,
+///  or give it back when the delete could not be queued.
+/// Why:
+///   A slot taken before the act is what two commands cannot both pass,
+///  and a slot given back on failure is what keeps a failed write from costing an attempt.
+///  A command killed between the slot and the act leaves the slot to the next command,
+///  which takes it over and makes the attempt
+/// (`worktree_removal_leaving_attempts.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const queued = await queueTheDeleteAsTheNextAttempt(commonDir, leaving); // Queued | Spent | Failed
+/// ```
+pub(crate) fn queue_the_delete_as_the_next_attempt(common_dir: &Path, leaving: &Leaving) -> Attempted {
+    let id: String = leaving.item.id();
+    let owner: String = match crate::process_identity::current_birth_identity() {
+        Ok(identity) => format!("{}:{identity}", std::process::id()),
+        Err(error) => return Attempted::Failed(format!("this command cannot name itself ({error})")),
+    };
+    let Some(number): Option<u32> = crate::worktree_removal_leaving_attempts::take_an_attempt(common_dir, id.as_str(), owner.as_str()) else {
+        return Attempted::Spent;
+    };
+    // What: The step a control can kill a command at between the slot it took and the delete it queues.
+    // Why:  The next command must still queue the delete, whatever the killed one spent.
+    #[cfg(test)]
+    crate::worktree_attempt_budget_test_support::reached(crate::worktree_attempt_budget_test_support::BEFORE_THE_DELETE_IS_QUEUED);
+    if let Err(reason) = queue_the_delete_again(common_dir, leaving) {
+        crate::worktree_removal_leaving_attempts::release_the_attempt(common_dir, id.as_str(), number);
+        return Attempted::Failed(reason);
+    }
+    crate::worktree_removal_leaving_attempts::mark_the_attempt_made(common_dir, id.as_str(), number);
+    return Attempted::Queued;
+}
+
 /// What:
 ///  Queue the delete of a leaving whose subvolume still stands where the rename put it,
 ///  unless a round already owes that delete,
@@ -338,24 +392,14 @@ fn queue_the_delete_of_one_standing_leaving(common_dir: &Path, leaving: &Leaving
     // Why:  A control kills one command at each of them and proves the next command still queues the delete.
     #[cfg(test)]
     crate::worktree_attempt_budget_test_support::reached(crate::worktree_attempt_budget_test_support::AFTER_THE_PROOF);
-    if crate::worktree_removal_leaving_that_outlives_its_record::attempts_taken(common_dir, leaving.item.id().as_str()) >= MAX_TRIES {
-        answer.said.push(attempts_are_spent_line(common_dir, target, leaving.item.id().as_str()));
-        return;
-    }
-    #[cfg(test)]
-    crate::worktree_attempt_budget_test_support::reached(crate::worktree_attempt_budget_test_support::BEFORE_THE_DELETE_IS_QUEUED);
-    if let Err(reason) = queue_the_delete_again(common_dir, leaving) {
-        answer.said.push(format!(
+    match queue_the_delete_as_the_next_attempt(common_dir, leaving) {
+        Attempted::Queued => answer.queued = true,
+        Attempted::Spent => answer.said.push(attempts_are_spent_line(common_dir, target, leaving.item.id().as_str())),
+        Attempted::Failed(reason) => answer.said.push(format!(
             "{SAID} the subvolume a removed worktree was renamed to at {named} still stands there, and the delete that would remove it cannot be queued ({reason}), so `btrfs subvolume delete {named}` removes it by hand and frees the space it holds.",
             named = target.display()
-        ));
-        return;
+        )),
     }
-    // What: The attempt is counted now, after the delete it counts was queued.
-    // Why:  A command killed between the two leaves a delete the next command finds owed, never a budget spent on a delete
-    //       that was never queued.
-    crate::worktree_removal_leaving_that_outlives_its_record::note_an_attempt_taken(common_dir, leaving.item.id().as_str());
-    answer.queued = true;
 }
 
 /// What:
@@ -374,17 +418,27 @@ fn queue_the_delete_of_one_standing_leaving(common_dir: &Path, leaving: &Leaving
 /// noteTheAttempt(commonDir, leaving); answer.queued = true;
 /// ```
 pub(crate) fn wake_a_pending_delete(common_dir: &Path, leaving: &Leaving, target: &Path, answer: &mut Leavings) {
-    if crate::worktree_removal_leaving_that_outlives_its_record::attempts_taken(common_dir, leaving.item.id().as_str()) >= MAX_TRIES {
-        answer.said.push(attempts_are_spent_line(common_dir, target, leaving.item.id().as_str()));
+    let id: String = leaving.item.id();
+    let owner: String = match crate::process_identity::current_birth_identity() {
+        Ok(identity) => format!("{}:{identity}", std::process::id()),
+        Err(error) => {
+            answer.said.push(format!(
+                "{SAID} the subvolume a removed worktree was renamed to at {named} still stands there, and this command cannot name itself ({error}), so it does not ask the service for it; `btrfs subvolume delete {named}` removes it by hand and frees the space it holds.",
+                named = target.display()
+            ));
+            return;
+        }
+    };
+    let Some(number): Option<u32> = crate::worktree_removal_leaving_attempts::take_an_attempt(common_dir, id.as_str(), owner.as_str()) else {
+        answer.said.push(attempts_are_spent_line(common_dir, target, id.as_str()));
         return;
-    }
+    };
     crate::worktree_removal_leaving_that_outlives_its_record::note_the_attempt(common_dir, leaving);
     debug(TAG, format!("a round of the service owes the delete of {}, so it is told again and nothing is queued", target.display()).as_str());
     answer.queued = true;
-    // What: The attempt this ask costs, counted by the caller once the wake is made.
-    // Why:  A command killed between the ask and its count costs one ask nobody counted, never a budget spent by an ask that
-    //       was never made.
-    answer.asked = Some((common_dir.to_path_buf(), String::from(leaving.item.id())));
+    // What: The slot this ask took, to be marked once the wake it is part of is made.
+    // Why:  A command killed between the slot and the wake leaves the slot to the next command, which takes it over.
+    answer.asks.push((common_dir.to_path_buf(), id, number));
 }
 
 /// What:
@@ -400,8 +454,8 @@ pub(crate) fn wake_a_pending_delete(common_dir: &Path, leaving: &Leaving, target
 /// ```ts
 /// const line = `${SAID} the subvolume a removed worktree was renamed to at ${path} is still there after ${tries} more attempts to delete it, ...`;
 /// ```
-fn attempts_are_spent_line(common_dir: &Path, target: &Path, id: &str) -> String {
-    let taken: u32 = crate::worktree_removal_leaving_that_outlives_its_record::attempts_taken(common_dir, id);
+pub(crate) fn attempts_are_spent_line(common_dir: &Path, target: &Path, id: &str) -> String {
+    let taken: u32 = crate::worktree_removal_leaving_attempts::attempts_taken(common_dir, id);
     return format!(
         "{SAID} the subvolume a removed worktree was renamed to at {named} is still there after {taken} attempts by commands of this repository to have the commit service delete it, so this command asks for no more; `journalctl --identifier=monochromatic-git-policy-cli` holds what the service's own tries came to, and `btrfs subvolume delete {named}` removes the subvolume by hand and frees the space it holds.",
         named = target.display()

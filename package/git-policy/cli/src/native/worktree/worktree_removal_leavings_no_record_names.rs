@@ -91,7 +91,7 @@ use crate::plain_file::read_plain_file;
 use crate::work_item::{DONE, FAILED, WorkItem, WorkKind, queued_ids, state_directory};
 use crate::worktree_remove_hand_over::{DELETE_REFERENCE, removal_item};
 use crate::worktree_removal_leaving_that_outlives_its_record::{RECORD_LIMIT, forget_a_place, record_a_leaving_found_by_a_scan, the_ids_of, the_mark_of};
-use crate::worktree_removal_leavings_a_command_queues_again::{Leavings, wake_a_pending_delete};
+use crate::worktree_removal_leavings_a_command_queues_again::{Attempted, Leavings, attempts_are_spent_line, queue_the_delete_as_the_next_attempt, wake_a_pending_delete};
 use crate::worktree_removal_leavings_already_reported::{forget_the_report, report_once};
 use crate::worktree_removal_takes_its_pending_deletions::is_a_leaving_name;
 use std::collections::HashSet;
@@ -299,7 +299,7 @@ fn a_round_owes(owes: &HashSet<String>, item: &WorkItem) -> bool {
 /// return answer;
 /// ```
 pub(crate) fn queue_the_leavings_no_record_names(common_dir: &Path, work: &Path, named: &HashSet<PathBuf>) -> Leavings {
-    let mut answer: Leavings = Leavings { queued: false, asked: None, said: Vec::new() };
+    let mut answer: Leavings = Leavings { queued: false, asks: Vec::new(), said: Vec::new() };
     // One listing of each state a round owes, asked only when a place turns out to need it.
     let mut owed: Option<HashSet<String>> = None;
     for place in the_directories_a_removal_renames_inside(common_dir) {
@@ -470,13 +470,14 @@ fn queue_the_leaving_found(common_dir: &Path, work: &Path, place: &Path, path: &
         wake_a_pending_delete(common_dir, &leaving, path, answer);
         return;
     }
-    match crate::worktree_removal_leaving_that_outlives_its_record::queue_the_delete_again(common_dir, &leaving) {
-        Ok(()) => {
+    match queue_the_delete_as_the_next_attempt(common_dir, &leaving) {
+        Attempted::Queued => {
             debug(TAG, format!("the subvolume {} no leaving record named is recorded and queued for a round's delete", path.display()).as_str());
             forget_the_report(common_dir, path);
             answer.queued = true;
         }
-        Err(reason) => say_not_queued(common_dir, path, id, format!("the delete that would remove it cannot be queued ({reason})"), answer),
+        Attempted::Spent => report_once(common_dir, path, attempts_are_spent_line(common_dir, path, item.id().as_str()), &mut answer.said),
+        Attempted::Failed(reason) => say_not_queued(common_dir, path, id, format!("the delete that would remove it cannot be queued ({reason})"), answer),
     }
 }
 

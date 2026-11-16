@@ -42,7 +42,7 @@
 use crate::diagnostic_log::{debug, warn};
 use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced};
 use crate::process_identity::current_birth_identity;
-use crate::service_work::{MAX_TRIES, work_directory};
+use crate::service_work::work_directory;
 use crate::work_item::{DONE, FAILED, PENDING, WorkItem, requeue_after_giving_up, state_directory};
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -67,20 +67,6 @@ pub const LEAVINGS_FOLDER: &str = "monochromatic-git-policy-cli/leavings";
 ///  so it writes it down before the rename,
 ///  and a command that finds nothing of this program's left there drops the record.
 pub(crate) const LEAVING_PLACES_FOLDER: &str = "monochromatic-git-policy-cli/leaving-places";
-
-/// What:
-///  The folder of the common Git directory in which one file stands for one attempt a leaving may cost,
-///  created exclusively by the command that takes it.
-/// Why:
-///   The attempts a record may cost bound how often the service is asked for a delete,
-///  and several commands of one repository run at once:
-///  a count each of them reads from the record before writing it back lets four commands ask four times while the record
-///  advances once
-/// (`wake_a_pending_delete`).
-///  A file a command creates with `create_new` can be made by one command only,
-///  so the number of attempts taken is the number of files,
-///  whatever runs beside it.
-pub(crate) const LEAVING_ATTEMPTS_FOLDER: &str = "monochromatic-git-policy-cli/leaving-attempts";
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeRemovalLeaving";
@@ -391,7 +377,7 @@ pub fn forget_the_leaving(common_dir: &Path, id: &str) {
     }
     // An attempt belongs to the leaving it was taken for: one that outlived its record would spend the budget of the next
     // leaving of the same place.
-    forget_the_attempts(common_dir, id);
+    crate::worktree_removal_leaving_attempts::forget_the_attempts(common_dir, id);
     // The folder goes with the last record, as the record of a removal's destroy does; one that still holds another record
     // stays, which its own failure says.
     let _kept = std::fs::remove_dir(common_dir.join(LEAVINGS_FOLDER));
@@ -414,100 +400,6 @@ pub fn forget_the_leaving(common_dir: &Path, id: &str) {
 /// ```
 pub(crate) fn the_ids_of(item: &WorkItem) -> [String; 2] {
     return [item.id(), item.id_before_the_branch()];
-}
-
-/// What:
-///  The file one attempt of one leaving is taken by,
-///  named by the leaving's id and the number of the attempt.
-/// Why:
-///   The name is what the exclusive create decides on,
-///  so one file is one attempt and no two commands can take the same one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const path = join(commonDir, LEAVING_ATTEMPTS_FOLDER, `${id}.${number}`);
-/// ```
-fn attempt_path(common_dir: &Path, id: &str, number: u32) -> PathBuf {
-    return common_dir.join(LEAVING_ATTEMPTS_FOLDER).join(format!("{id}.{number}"));
-}
-
-/// What:
-///  Count one attempt a leaving has just cost,
-///  by taking the next number a record may reach.
-/// Why:
-///   An attempt is counted by the act it counts,
-///  so this is called after the delete is queued or the service is asked,
-///  never before:
-///  a command killed between the two then leaves the delete owed rather than the budget spent,
-///  and the next command does the act and counts it
-/// (`queue_the_delete_of_one_standing_leaving`,
-/// `wake_a_pending_delete`).
-///  The create is exclusive,
-///  so of any number of commands acting at once each takes a number of its own,
-///  and the count is the number of acts rather than whichever write came last.
-///  A number that cannot be taken is logged and costs the count, not the act.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// noteAnAttemptTaken(commonDir, id); // creating the lowest free leaving-attempts/<id>.<n>
-/// ```
-pub(crate) fn note_an_attempt_taken(common_dir: &Path, id: &str) {
-    let folder: PathBuf = common_dir.join(LEAVING_ATTEMPTS_FOLDER);
-    if let Err(error) = create_private_directory_all(folder.as_path()) {
-        warn(TAG, format!("the attempt of {id} is not counted, because {} cannot be made ({error})", folder.display()).as_str());
-        return;
-    }
-    for number in 1..=MAX_TRIES {
-        let path: PathBuf = attempt_path(common_dir, id, number);
-        match std::fs::OpenOptions::new().write(true).create_new(true).open(path.as_path()) {
-            Ok(_taken) => return,
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
-            Err(error) => {
-                warn(TAG, format!("the attempt {number} of {id} is not counted ({error})").as_str());
-                return;
-            }
-        }
-    }
-    // Every number a record may reach is taken, so the count stands at its bound and this act is not counted again.
-}
-
-/// What:
-///  How many attempts of this leaving a command has taken,
-///  for the line that says they are spent.
-/// Why:
-///  The number is the count of the files the commands created,
-///  which is the count every later command agrees on.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const taken = attempts_taken(commonDir, id);
-/// ```
-pub(crate) fn attempts_taken(common_dir: &Path, id: &str) -> u32 {
-    let mut taken: u32 = 0;
-    for number in 1..=MAX_TRIES {
-        if attempt_path(common_dir, id, number).is_file() {
-            taken += 1;
-        }
-    }
-    return taken;
-}
-
-/// What:
-///  Drop the attempts taken for one leaving,
-///  once nothing of this program's stands where it named.
-/// Why:
-///  An attempt is the budget of one leaving,
-///  and the record of the next leaving of the same place must start with all of them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// forgetTheAttempts(commonDir, id);
-/// ```
-fn forget_the_attempts(common_dir: &Path, id: &str) {
-    for number in 1..=MAX_TRIES {
-        let _removed = std::fs::remove_file(attempt_path(common_dir, id, number));
-    }
-    let _kept = std::fs::remove_dir(common_dir.join(LEAVING_ATTEMPTS_FOLDER));
 }
 
 /// What:
