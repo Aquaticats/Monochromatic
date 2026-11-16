@@ -141,8 +141,39 @@ fn words_for_an_unreadable_snapshot(error: crate::fs_primitive_error::PrimitiveE
 }
 
 /// What:
-///  Whether the snapshot standing at the container's name is one the filesystem says this source made after the
-/// recorded instant,
+///  The words of the reason a stage is kept when the creation the filesystem recorded is older than the instant the
+///  record holds,
+/// as one phrase both the sentence and the reader of it name.
+/// Why:
+///   That answer comes from a clock that went back between the record and the creation,
+/// and the wrapper's own snapshot and a
+///  person's then cannot be told apart by the filesystem's own instant.
+/// The folder is kept either way;
+/// what the phrase buys
+///  is that a folder kept for that reason is named once and not on every command of the repository.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const CLOCK_INVERSION = 'came into being before this command wrote the record';
+/// ```
+pub const CLOCK_INVERSION_PHRASE: &str = "came into being before this command wrote the record";
+
+/// What:
+///  Whether this reason is the one a clock that went back gives.
+/// Why:
+///   The reaping names such a folder once and then leaves it quiet,
+/// because the answer cannot change until the folder does,
+/// and  naming it on every command nags for ever about something no command may delete.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const wentBack = (reason) => reason.includes(CLOCK_INVERSION);
+/// ```
+pub fn the_record_is_later_than_the_creation(reason: &str) -> bool {
+    return reason.contains(CLOCK_INVERSION_PHRASE);
+}
+
+
 /// or the reason a person reads when it is not.
 /// Why:
 ///   This is the proof for the record a command writes before its snapshot exists,
@@ -173,8 +204,8 @@ pub fn prove_made_from_the_recorded_source(container: &Path, origin: &SnapshotOr
         ));
     }
     if made.created < origin.created_after {
-        return Err(String::from(
-            "the snapshot there now came into being before this command wrote the record of its creation, so it is not the snapshot that creation made",
+        return Err(format!(
+            "the snapshot there now {CLOCK_INVERSION_PHRASE} of its creation, so it is not the snapshot that creation made"
         ));
     }
     return Ok(());

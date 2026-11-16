@@ -113,8 +113,10 @@ pub fn record_intended_entries(container: &Path, entries: &[WorktreeCopyEntry]) 
 /// ```
 pub fn entries_the_payload_may_hold(container: &Path) -> Option<HashSet<Vec<u8>>> {
     let path: PathBuf = container.join(INTENDED_NAME);
-    let bytes: Vec<u8> = std::fs::read(path.as_path()).ok()?;
-    let text: &str = std::str::from_utf8(bytes.as_slice()).ok()?;
+    // The record is read through the bounded plain-file reader every record of this package is read through: a named
+    // pipe, a device or a link at its name is refused instead of waited on, and its size is bounded, so no name a person
+    // or another program puts there can hold a command of the repository.
+    let text: String = crate::plain_file::read_plain_text(path.as_path()).ok()?;
     let mut allowed: HashSet<Vec<u8>> = HashSet::new();
     for line in text.lines() {
         let path_bytes: Vec<u8> = bytes_of_hex(line)?;
@@ -312,7 +314,8 @@ fn read_directory_line(value: &str) -> Option<(PathBuf, DirectoryTimes)> {
 /// const reason = reasonTheStageWasKept(claim, container); // undefined before the first look, or after a change
 /// ```
 pub fn reason_the_stage_was_kept(claim: &Path, container: &Path) -> Option<String> {
-    let text: String = std::fs::read_to_string(kept_record_beside(claim)).ok()?;
+    // The bounded plain-file reader, for the reason the record of what the copy was writing is read through it.
+    let text: String = crate::plain_file::read_plain_text(kept_record_beside(claim).as_path()).ok()?;
     let mut reason: Option<&str> = None;
     let mut directories: Vec<(PathBuf, DirectoryTimes)> = Vec::new();
     for line in text.lines() {

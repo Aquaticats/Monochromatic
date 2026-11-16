@@ -348,7 +348,7 @@ fn a_shared_claim_file_is_refused() {
     let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     std::fs::set_permissions(claim.path.as_path(), std::fs::Permissions::from_mode(0o644)).expect("shared");
     let failure: WorktreeCopyError = reap_abandoned_stages(common.as_path()).expect_err("refused");
-    assert!(failure.0.contains("journal file is unsafe"), "{}", failure.0);
+    assert!(failure.0.contains("stage claim is unsafe"), "{}", failure.0);
     remove(root.as_path());
 }
 
@@ -3422,5 +3422,61 @@ fn the_kept_record_is_believed_only_while_the_directories_it_names_are_unchanged
     std::fs::create_dir_all(deeper.as_path()).expect("a directory of the person's");
     assert_eq!(crate::worktree_copy_stage_intended_entries::reason_the_stage_was_kept(claim_path.as_path(), container.as_path()), None, "a change below a subfolder makes the record stale");
     make_removable(container.as_path());
+    remove(root.as_path());
+}
+
+/// What:
+///  The state a clock that went back leaves the wrapper's own snapshot in:
+/// a real snapshot at the stage name, from the repository's own subvolume,
+/// and the record of the creation naming an instant later than the snapshot's own.
+/// Why:
+///   The filesystem stamps a subvolume's creation with the wall clock,
+/// so a clock set back between two lines of `take_snapshot` makes the wrapper's own creation look older than the
+///  record that describes it; nothing on disk then tells it from a snapshot of a person's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { root, common, container } = theStateAClockThatWentBackLeaves('...');
+/// ```
+#[cfg(target_os = "linux")]
+fn the_state_a_clock_that_went_back_leaves(name: &str) -> Option<(PathBuf, PathBuf, PathBuf)> {
+    let root: PathBuf = crate::fs_btrfs_test_support::btrfs_fixture(name)?;
+    let repo: PathBuf = crate::worktree_ladder_test_support::subvolume_repository(root.as_path());
+    let common: PathBuf = repo.join(".git");
+    let destination: PathBuf = root.join("topic");
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("an add's claim");
+    crate::test_support::git(repo.as_path(), &["worktree", "add", "--no-checkout", "-b", "topic", "../topic"]);
+    let container: PathBuf = claim.container().to_path_buf();
+    crate::fs_btrfs_ioctl::snapshot_create_at(repo.as_path(), container.as_path()).expect("the snapshot the wrapper's own creation makes");
+    // The record a clock that went back leaves: it holds an instant an hour after the creation the filesystem stamped.
+    let origin: crate::worktree_copy_stage_snapshot_origin::SnapshotOrigin = crate::worktree_copy_stage_snapshot_origin::SnapshotOrigin {
+        parent: crate::fs_btrfs_ioctl::subvolume_info(repo.as_path()).expect("the source").uuid,
+        created_after: std::time::SystemTime::now() + std::time::Duration::from_secs(3_600),
+    };
+    record_creating_at(common.as_path(), container.as_path(), std::time::SystemTime::now(), Some(&origin)).expect("the record of the creation");
+    std::mem::forget(claim);
+    return Some((root, common, container));
+}
+
+/// A clock that went back names the kept stage once and then leaves it quiet,
+/// because no command may delete a folder the filesystem says came into being before the record,
+/// and naming it on every command nags for ever about something no command will settle.
+/// Why the control reads this way:
+///  the folder stays either way, and what a person feels is the line;
+///  once is what the rule asks for, and a repeat is what a nag is.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_clock_that_went_back_names_the_kept_stage_once() {
+    let Some((root, common, container)) = the_state_a_clock_that_went_back_leaves("claim-clock-back") else { return };
+    let first: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the first command keeps it");
+    assert!(first.iter().any(|notice: &String| { return notice.contains("was not changed") && notice.contains("came into being before this command wrote the record"); }), "the first command says why it is kept: {first:?}");
+    assert!(container.exists(), "the folder is kept, never deleted on a clock that went back");
+    let second: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the second command goes on");
+    assert!(second.is_empty(), "the second command says nothing about a folder it already named: {second:?}");
+    let third: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the third command goes on");
+    assert!(third.is_empty(), "and neither does any later one: {third:?}");
+    assert!(container.exists(), "the folder still stands for the person to remove");
+    make_removable(container.as_path());
+    crate::subvolume_remove::remove_tree(container.as_path()).expect("the control's snapshot");
     remove(root.as_path());
 }

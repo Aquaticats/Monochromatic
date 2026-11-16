@@ -263,9 +263,11 @@ impl StageClaim {
     fn a_journal_names_the_stage(&self) -> bool {
         // The journal root is `<common>/<parent>/<version>`, so the common directory is two parents up.
         let Some(common) = self.path.parent().and_then(Path::parent).and_then(Path::parent) else {
-            return true;
+            return false;
         };
-        let Ok(listed) = crate::worktree_copy_journal::read_listed_journals(common) else { return true };
+        // A journal root that cannot be read names no journal this command knows of, so the folder is treated as one that
+        // may still stand and nothing of the claim is removed: an answer that did not come is never an answer of absence.
+        let Ok(listed) = crate::worktree_copy_journal::read_listed_journals(common) else { return false };
         for journal in listed {
             if let crate::worktree_copy_journal::JournalFile::Pending(pending) = journal
                 && pending.journal.stage_container.as_path() == self.container.as_path()

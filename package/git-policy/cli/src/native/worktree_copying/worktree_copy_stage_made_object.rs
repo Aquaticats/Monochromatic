@@ -267,7 +267,9 @@ fn read_made_text(text: &str) -> Option<MadeObject> {
 /// const made = readMadeRecord(path); // undefined: absent, unreadable, or not a record of this shape
 /// ```
 pub fn read_made_record(record: &Path) -> Option<MadeObject> {
-    let text: String = std::fs::read_to_string(record).ok()?;
+    // The bounded plain-file reader: a named pipe, a device or a link at the record's name is refused instead of waited
+    // on, and a record's size is bounded, so no name another program puts there holds a command of the repository.
+    let text: String = crate::plain_file::read_plain_text(record).ok()?;
     return read_made_text(text.as_str());
 }
 

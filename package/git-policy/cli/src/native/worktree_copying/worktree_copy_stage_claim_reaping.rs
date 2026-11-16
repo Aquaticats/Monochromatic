@@ -215,7 +215,15 @@ fn an_entry_the_wrappers_stage_does_not_explain(container: &Path) -> Result<Stag
     let listing = match std::fs::read_dir(container) {
         Ok(listing) => listing,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(StageContent { unexplained: None, examined }),
-        Err(error) => return Err(raw_failure(&error)),
+        // A folder this command may not list is one it cannot judge, and a failure to look is never a reason to stop a
+        // person's command: the folder is kept and the line says what could not be read. Nothing is removed on an answer
+        // that did not come.
+        Err(error) => {
+            return Ok(StageContent {
+                unexplained: Some(format!("nothing shows what stands in it ({error})")),
+                examined,
+            });
+        }
     };
     let mut names: Vec<String> = Vec::new();
     for listed in listing {
@@ -231,7 +239,12 @@ fn an_entry_the_wrappers_stage_does_not_explain(container: &Path) -> Result<Stag
     match std::fs::symlink_metadata(payload.as_path()) {
         Ok(_) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(StageContent { unexplained: None, examined }),
-        Err(error) => return Err(raw_failure(&error)),
+        Err(error) => {
+            return Ok(StageContent {
+                unexplained: Some(format!("nothing shows what {PAYLOAD_NAME}/ is ({error})")),
+                examined,
+            });
+        }
     }
     examined.push(PathBuf::from(PAYLOAD_NAME));
     let holds_nothing: bool = std::fs::read_dir(payload.as_path()).is_ok_and(|mut found: std::fs::ReadDir| { return found.next().is_none(); });
@@ -272,12 +285,15 @@ pub(crate) fn first_entry_the_payload_may_not_hold(payload: &Path, allowed: std:
     let mut pending: Vec<(PathBuf, Vec<u8>)> = vec![(payload.to_path_buf(), Vec::new())];
     let mut read: Vec<PathBuf> = Vec::new();
     while let Some((directory, relative)) = pending.pop() {
+        // The directory is stamped before it is listed, so a directory the walk could not read is stamped too: a person who
+        // fixes what stopped the look (a mode, an owner) has changed that directory's own times, and the next command
+        // examines the payload again instead of believing a reason that is no longer true.
+        read.push(PathBuf::from(std::ffi::OsString::from_vec(relative.clone())));
         let listing: std::fs::ReadDir = match std::fs::read_dir(directory.as_path()) {
             Ok(listing) => listing,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(error) => return Ok((Some(format!("nothing shows what stands below {} ({error})", crate::worktree_copy_repository_path::shown_repository_path(relative.as_slice()))), read)),
         };
-        read.push(PathBuf::from(std::ffi::OsString::from_vec(relative.clone())));
         for found in listing {
             let entry: std::fs::DirEntry = match found {
                 Ok(entry) => entry,
@@ -426,14 +442,10 @@ pub fn claim_file_reading(claim: &Path) -> Result<Option<ClaimFile>, WorktreeCop
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(raw_failure(&error)),
     }
-    // A claim with a second name is the half-done keep of a release before this one: its bytes were linked into the
-    // folder beside the records before the claim was written again, and every command then refused the claim for ever
-    // after. It is answered as unreadable here, so the pass that settles a claim it cannot read finishes that keep
-    // (issue 6297 covers the link; the release that wrote it is 0.6.1-alpha.15's).
-    if std::fs::symlink_metadata(claim).is_ok_and(|found: std::fs::Metadata| { return std::os::unix::fs::MetadataExt::nlink(&found) > 1; }) {
-        return Ok(Some(ClaimFile::Unreadable { reason: String::from("it has a second name, and a claim of this release has one") }));
-    }
-    assert_private_path(claim, Role::JournalFile)?;
+    // A claim is one plain file, whatever number of names it has: a backup or copy tool that hard-links the files of
+    // `.git` gives a running add's claim a second name, and the claim says the same thing with one name or two. The
+    // bytes are read below, and a claim the pass cannot read is settled by the pass that keeps such a claim.
+    assert_private_path(claim, Role::ClaimFile)?;
     // `match` on the read: the claim can vanish between the lookup and the read, and bytes that are not text are damage.
     let text: String = match std::fs::read_to_string(claim) {
         Ok(text) => text,
@@ -778,6 +790,26 @@ pub fn reap_judged_stages(
                         }
                         Provenance::Gone => {}
                         Provenance::Unproved(reason) => {
+                            // A folder that was examined and kept is said once and then left quiet: the person read the line,
+                            // and a clock that went back, or a snapshot of a person's at the reserved name, would otherwise
+                            // name the same folder on every command of the repository. The claim stays, so the folder is still
+                            // tracked, and an entry added to its top is examined again.
+                            let said_once: bool = crate::worktree_copy_stage_snapshot_origin::the_record_is_later_than_the_creation(reason.as_str());
+                            if said_once
+                                && crate::worktree_copy_stage_intended_entries::reason_the_stage_was_kept(claim.as_path(), container.as_path()).is_some()
+                            {
+                                continue;
+                            }
+                            if said_once
+                                && let Err(error) = crate::worktree_copy_stage_intended_entries::record_the_stage_was_kept(
+                                    claim.as_path(),
+                                    container.as_path(),
+                                    reason.as_str(),
+                                    [PathBuf::new()].as_slice(),
+                                )
+                            {
+                                debug(TAG, format!("the reason {} was kept could not be written ({}); the next command examines it again", container.display(), error.0).as_str());
+                            }
                             notices.push(kept_stage_words(container.as_path(), reason.as_str()));
                             stage_stays = true;
                         }
@@ -795,8 +827,9 @@ pub fn reap_judged_stages(
                         notices.push(kept_copy_stage_words(container.as_path(), "it is not a folder this account made, so nothing in it was touched"));
                         stage_stays = true;
                     } else {
-                        // A folder that was examined and kept says why, and the walk behind that answer is made once
-                        // for a folder that does not change: the person reads the same line and no command pays it again.
+                        // A folder that was examined and kept says why once, and the walk behind that answer is made once for
+                        // a folder that does not change: the person read the line, and no command pays for it again. The claim
+                        // stays, so the folder is still tracked and the next change to it is examined.
                         if let Some(reason) = crate::worktree_copy_stage_intended_entries::reason_the_stage_was_kept(claim.as_path(), container.as_path()) {
                             notices.push(kept_copy_stage_words(container.as_path(), reason.as_str()));
                             continue;

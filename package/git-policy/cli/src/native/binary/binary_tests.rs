@@ -429,6 +429,11 @@ mod worktree_copy;
 #[path = "binary_worktree_copy_unreadable_record_tests.rs"]
 mod worktree_copy_unreadable_record;
 
+/// What a stage, a claim or a record may do to the command that meets it:
+/// nothing that stops it and nothing that holds it.
+#[path = "binary_worktree_copy_records_that_must_not_stop_or_wait_tests.rs"]
+mod worktree_copy_records_that_must_not_stop_or_wait;
+
 /// A measurement for the handover,
 /// not a control:
 /// what one flush of each record costs on this host,

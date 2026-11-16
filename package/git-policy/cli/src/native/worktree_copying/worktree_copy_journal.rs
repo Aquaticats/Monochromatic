@@ -57,6 +57,15 @@ pub enum Role {
     JournalDirectory,
     /// A journal file.
     JournalFile,
+    /// A stage claim:
+    /// one plain file,
+    /// whatever number of names it has.
+    /// Why it is not `JournalFile`:
+    /// a backup or copy tool that hard-links the files of `.git` gives a running add's claim a second name,
+    /// and a
+    ///  claim is judged by what it says and not by how many names it has
+    /// (a second name stopped every command of the repository until a person removed one).
+    ClaimFile,
     /// A private stage container or payload.
     PrivateStage,
 }
@@ -68,6 +77,7 @@ impl Role {
         match self {
             Role::JournalDirectory => return "journal directory",
             Role::JournalFile => return "journal file",
+            Role::ClaimFile => return "stage claim",
             Role::PrivateStage => return "private stage",
         }
     }
@@ -93,6 +103,9 @@ pub fn assert_private_path(path: &Path, role: Role) -> Result<(), WorktreeCopyEr
         std::fs::symlink_metadata(path).map_err(raw_failure_of)?;
     let shape: bool = match role {
         Role::JournalFile => metadata.is_file() && metadata.nlink() == 1,
+        // A claim is one plain file, whatever number of names it has: a backup tool that hard-links `.git` gives a
+        // running add's claim a second name, and that add's stage is its own.
+        Role::ClaimFile => metadata.is_file(),
         Role::JournalDirectory | Role::PrivateStage => metadata.is_dir(),
     };
     // SAFETY: `geteuid` has no preconditions and cannot fail.
