@@ -477,6 +477,16 @@ await describe({
          What the stand-in was asked.
          */
         const calls = await recordedCargoCalls({ directory: standIn.directory, },);
+        // Cargo's `clean` takes the release profile only when it is told, and a clean of the dev profile leaves the
+        // release units a release build would call fresh. Measured 2026-11-16: without this flag the release task
+        // printed `Finished` in 0.12 s and linked the artifact of a state built from other sources.
+        expect(calls[1]?.args,).toEqual([
+          'clean',
+          '--release',
+          '--offline',
+          '--package',
+          'probe',
+        ],);
         expect(calls[2]?.args,).toEqual([
           'build',
           '--locked',

@@ -257,7 +257,11 @@ measured 2026-11-16 in a worktree of this repository with `mise exec -- cargo`:
    against 1 m 51 s for a build from an empty build directory (dependency builds stay),
 - a build of an unchanged checkout no longer answers in under a second,
 - the step refuses a caller whose `CARGO_TARGET_DIR` moves the target directory,
-   where a bare `cargo build` accepted it and quietly wrote the program elsewhere.
+   where a bare `cargo build` accepted it and quietly wrote the program elsewhere,
+- a release build needs `--release` in the clean as well as in the build:
+   measured 2026-11-16, `cargo clean --offline --package monochromatic-git-policy-cli` alone left the release units
+   fresh, and `native:build:release` then printed `Finished` in 0.12 s and linked an artifact built from other sources.
+   With `--release` it compiled the crate (40.68 s).
 
 A person's own,
 when a program's freshness is in question:

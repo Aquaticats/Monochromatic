@@ -422,6 +422,7 @@ export async function buildFresh(request: NativeBuildRequest): Promise<NativeBui
       ...common,
       args: [
         'clean',
+        ...(request.profile === 'release' ? ['--release'] : []),
         '--offline',
         '--package',
         member,
