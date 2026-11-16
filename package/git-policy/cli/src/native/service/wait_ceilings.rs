@@ -924,6 +924,48 @@ pub const LADDER_READ_TREE_CEILING: Duration = OBJECT_STEP_CEILING;
 /// and the two commands that finish or remove it.
 pub const LADDER_CHECKOUT_CEILING: Duration = whole_minutes_at_least(Duration::from_millis(229_386 * CEILING_MARGIN as u64));
 
+/// The longest the wrapper's own work for one `git worktree add` runs in all:
+/// every step it starts for itself,
+/// from
+///  the recovery of a dead add's records to the last entry of the ignored-state copy,
+/// is clamped into what is left of this,
+/// the
+///  add starts no further step once it is spent,
+/// and an add that has not made its worktree by then stops and
+///  says what it was waiting for.
+///  Why:
+/// each step's own bound does not bound the add:
+/// on 2026-11-13 a pipe stood at a
+///  repository's `.git/info/exclude`,
+///  every Git child of an add stalled in the same read,
+///  each child was ended at its own
+///  window,
+///  another followed,
+///  and the add had not answered after 240 seconds with a quiet window of
+///  ten (`doc/handover/cli-git-rust-implementation.md`,
+///  "Nothing waits forever",
+///  2026-11-03,
+///  "nothing should ever wait forever or indefinitely").
+///  Measured:
+/// the add timing log of this repository
+///  (`.git/monochromatic-git-policy-cli-worktree-add-timing.jsonl`,
+///  167 records read 2026-11-16T11:17:00-05:00),
+///  keeping every step of an add but the person's own forwarded command and the trash's hand-over to the service:
+///  the
+///  wrapper's own work of one add took at most 132,570 ms (median 6,134 ms,
+///  99th percentile 61,711 ms).
+///  Margin:
+/// the smallest whole number of minutes that is at least five times that (662,850 ms),
+/// the factor the
+///  ceilings above use,
+/// so 12 minutes.
+///  The person's own command is not in this:
+/// native Git waits as long as its own work takes,
+///  so its time is
+///  not counted (`worktree/worktree_add_own_work_deadline.rs`).
+pub const WORKTREE_ADD_OWN_WORK_CEILING: Duration =
+    whole_minutes_at_least(Duration::from_millis(132_570 * CEILING_MARGIN as u64));
+
 /// The longest the Markdown linter checks one file,
 /// whatever it shows,
 /// before the wrapper stops waiting for it (owner,

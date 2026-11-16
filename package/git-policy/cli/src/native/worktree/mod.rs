@@ -271,6 +271,10 @@ pub mod worktree_ladder_target;
 #[cfg(target_os = "linux")]
 pub mod ladder_step_ceilings;
 
+/// The one allowance of time the wrapper's own steps of one `git worktree add` share,
+/// and what an add that ends at it says.
+pub mod worktree_add_own_work_deadline;
+
 /// The ladder's choice of rung before real Git runs.
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_run;

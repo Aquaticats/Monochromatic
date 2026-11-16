@@ -83,6 +83,11 @@ pub async fn run_git_awaiting(context: &GitContext, request: &GitRequest) -> std
     if let Some(answered) = try_request(context, request) {
         return Ok(answered);
     }
+    // The allowance of one add's own work: a step started after it is spent would be ended at once, so it is refused here
+    //  and the caller words that as the step it is (`worktree_add_own_work_deadline.rs`).
+    if crate::worktree_add_own_work_deadline::a_clock_runs_here() {
+        crate::worktree_add_own_work_deadline::before_a_step(step_subject(request).as_str())?;
+    }
     let label: String = crate::add_timing::git_step_label(request.arguments.as_slice());
     let entered: bool = crate::add_timing::begin_step(label.as_str());
     let output: std::io::Result<GitOutput> = run_git_pausing_awaiting(context, request, START_RETRY_BUDGET).await;
@@ -231,7 +236,9 @@ async fn run_git_watched_awaiting(context: &GitContext, request: &GitRequest, te
     // The class label travels in the subject, so the notices and the timeout sentence name the kind of step.
     let subject: String = step_subject(request);
     let ledger_step: String = crate::add_timing::git_step_label(request.arguments.as_slice());
-    let bound: StepBound = step_bound(request);
+    // The add's own allowance: the step ends at its own bound or at what is left of the allowance, whichever is first.
+    let (terms_of_the_step, bound): (crate::child_watch::WatchTerms, StepBound) =
+        crate::worktree_add_own_work_deadline::within_the_allowance(terms, step_bound(request), subject.as_str());
     // A write that is never ended is recorded for the clients that queue behind it (`service_busy.rs`); the record ends with the step.
     let _recorded = if matches!(bound, StepBound::Unbounded) {
         crate::service_busy_step_record_on_this_thread::enter_step(format!("{} in {}", command_text(&request.arguments), request.cwd.display()))
@@ -242,7 +249,7 @@ async fn run_git_watched_awaiting(context: &GitContext, request: &GitRequest, te
     let began: std::time::Instant = std::time::Instant::now();
     // A stop of the service lets the branch write finish (owner, 2026-11-08, "B: let a branch write finish (Recommended)").
     let a_stop_lets_it_finish: bool = matches!(bound, StepBound::Unbounded) && is_branch_write(request);
-    let watched = output_watched_within_for_a_stop_awaiting(&mut command, subject.as_str(), ledger_step.as_str(), terms, may_be_rerun(request), bound, a_stop_lets_it_finish).await;
+    let watched = output_watched_within_for_a_stop_awaiting(&mut command, subject.as_str(), ledger_step.as_str(), terms_of_the_step, may_be_rerun(request), bound, a_stop_lets_it_finish).await;
     crate::transaction_step_durations::note_step_asked(ledger_step.as_str(), request.arguments.as_slice(), began, began.elapsed());
     let output: std::process::Output = watched?;
     return Ok(GitOutput {

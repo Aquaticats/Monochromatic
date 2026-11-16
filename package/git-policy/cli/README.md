@@ -972,6 +972,16 @@ Read-only commands,
      with the fields `CLI_GIT_WORKTREE`,
    `CLI_GIT_SLOW_CAUSE` and `CLI_GIT_SLOW_DETAIL`.
      On a filesystem that is not btrfs it says nothing.
+  One allowance covers every step the wrapper starts for itself in one add (`WORKTREE_ADD_OWN_WORK_CEILING`,
+   twelve minutes, five times the longest own work of an add in this repository's add timing log);
+   each of those steps ends at what is left of it,
+     the person's own forwarded command does not count against it,
+   and an add whose own steps have spent it stops before Git runs,
+     takes away what it prepared and the record it wrote,
+   and fails naming the allowance,
+     the last step it waited for,
+     and what it left.
+     `CLI_GIT_ADD_OWN_WORK_SECONDS` sets the allowance for one command.
   The ladder does not read `--force`,
      `--no-checkout`,
      `-B`,

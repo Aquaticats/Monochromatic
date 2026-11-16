@@ -580,7 +580,21 @@ fn run_settled(
             let ladder_started: bool = matches!(step, GitStep::Other { .. });
             // The person's step is the person's command and keeps the person's monitor setting; a ladder step is the wrapper's own.
             let owner: StartOwner = if ladder_started { StartOwner::Wrapper } else { StartOwner::Person };
-            let ceiling: Option<std::time::Duration> = if ladder_started { crate::ladder_step_ceilings::ceiling_of(child_arguments.as_slice()) } else { None };
+            // The person's own command is Git's time and not the wrapper's, so the allowance of the add's own work stops while
+            // it runs (`worktree_add_own_work_deadline.rs`). A ladder step is the wrapper's own work and keeps that ceiling or
+            // ends at what is left of the allowance, whichever is sooner.
+            let _the_persons_time = if ladder_started { None } else { Some(crate::worktree_add_own_work_deadline::the_persons_command_began()) };
+            if ladder_started && crate::worktree_add_own_work_deadline::a_clock_runs_here() {
+                let asked: Result<(), std::io::Error> = crate::worktree_add_own_work_deadline::before_a_step(words_of(child_arguments.as_slice()).as_str());
+                if let Err(error) = asked {
+                    return Err(WorktreeCopyError(format!("monochromatic-git-policy-cli: the step `{}` did not finish: {error}", words_of(child_arguments.as_slice()))));
+                }
+            }
+            let ceiling: Option<std::time::Duration> = if ladder_started {
+                crate::worktree_add_own_work_deadline::a_bound_within_the_allowance(crate::ladder_step_ceilings::ceiling_of(child_arguments.as_slice()), words_of(child_arguments.as_slice()).as_str())
+            } else {
+                None
+            };
             let ran: std::io::Result<ChildOutcome> = match ceiling {
                 Some(longest) => run_real_git_until(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), longest, owner),
                 None => run_real_git_naming(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), child_started, owner),

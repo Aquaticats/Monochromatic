@@ -2735,6 +2735,39 @@ however bounded the step was;
 `Command::output` and the wrapper's own forwarded child are such callers,
 and the line a ceiling writes says so and says which of the two things it knows about Git,
 naming the helper nowhere because nothing reports which process a filter started.
+One allowance covers every step the wrapper starts for itself in one `git worktree add`
+(`WORKTREE_ADD_OWN_WORK_CEILING`,
+sized from this repository's add timing log),
+because a bound on each step does not bound the add:
+on 2026-11-13 a pipe
+stood at a repository's `.git/info/exclude`,
+every Git child of an add stalled in the same read,
+each child was ended at
+its own window,
+another followed,
+and the add had not answered after 240 seconds.
+Every step of the wrapper's own work
+is clamped into what is left of the allowance,
+no step starts once it is spent,
+and the person's own forwarded command
+is outside it:
+the clock stops while that command runs,
+so Git's own twenty-minute checkout is never counted
+against the wrapper's steps.
+An add whose own steps have spent the allowance before real Git runs stops there:
+what the ladder prepared
+and the empty destination this command reserved are taken away,
+the record of the add goes with them,
+and the command fails
+with the allowance's number,
+the last step it waited for,
+and what it left,
+so nothing of a half-made worktree is there
+for the next command to trip on and a second add of the same worktree works.
+The allowance is one deadline and not a count of tries,
+because a count of tries cannot bound the time a copy of a large tree
+takes;
+`CLI_GIT_ADD_OWN_WORK_SECONDS` sets it for one command.
 The record of an add that owes an ignored-state copy lives from before real Git runs until that copy's journal names
 its stage:
 the rung that took the claim hands it to the copy instead of releasing it,

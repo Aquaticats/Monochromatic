@@ -222,6 +222,7 @@ fn an_add_whose_own_child_stalls_every_time_ends_within_its_allowance_and_leaves
     let mut command: Command = wrapped_add(&fixture, avenue.as_str(), repo.as_path(), destination.as_path(), STALLING_ALLOWANCE_SECONDS);
     let answer: Answer = run_under_the_control(&mut command);
     let said: String = String::from_utf8_lossy(answer.stderr.as_slice()).into_owned();
+    println!("the add ended after {:?} saying: {said}", answer.ending);
     assert!(started.exists(), "the stand-in Git was never asked for the untracked scan, so nothing stalled: {said}");
     assert_eq!(answer.ending, Ending::Itself, "the add was still running at this control's {CONTROL_BOUND_SECONDS}-second bound: {said}");
     assert_eq!(answer.status.code(), Some(ENGINE_FAILURE_EXIT_CODE), "an add that ended at its allowance reports the wrapper's own failure: {said}");
