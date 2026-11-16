@@ -455,7 +455,12 @@ export function createQwenTokenPlanIndividualProvider({
         'abort',
         onHostAbort,
         );
-      delete state.inFlight;
+      // The cleanup removes only what this refresh owns:
+      // a later refresh takes the in-flight controller over by aborting this
+      // one first, and that newer controller has to survive this cleanup, or a
+      // session shutdown finds nothing left to abort.
+      if (state.inFlight === controller)
+        delete state.inFlight;
     },
   };
   return {

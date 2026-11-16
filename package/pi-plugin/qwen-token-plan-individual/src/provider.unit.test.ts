@@ -482,6 +482,60 @@ await describe({
           .toHaveLength(expectedSnapshotIds().length);
       },
     },),
+    it({
+      name: 'aborts the refresh still in flight after an older refresh\'s cleanup has run',
+      fn: async () => {
+        /**
+         Signals the fixture transport received, in order.
+         */
+        const seenSignals: AbortSignal[] = [];
+        /**
+         Releases the fixture transport holds, in order, so each pending fetch
+         can be answered once the test decides what it should prove.
+         */
+        const releases: ((response: Response) => void)[] = [];
+        const runtime = createQwenTokenPlanIndividualProvider({
+          logger: fixtureLogger(),
+          apiKeyAuth: fixtureApiKeyAuth(),
+          fetcher: function fetcher(
+            options: Parameters<QwenTokenPlanListingFetcher>[0],
+          ): ReturnType<QwenTokenPlanListingFetcher> {
+            seenSignals.push(options.signal,);
+            return new Promise(function pending(resolve, reject) {
+              options.signal.addEventListener('abort', function onAbort() {
+                reject(new Error('aborted',),);
+              }, { once: true, },);
+              releases.push(resolve,);
+            },);
+          },
+        },);
+        /**
+         The older refresh, whose cleanup runs first.
+         */
+        const older = fixtureRefreshContext();
+        /**
+         The newer refresh, which takes the in-flight controller over.
+         */
+        const newer = fixtureRefreshContext();
+        const olderRefresh = runtime.provider.refreshModels?.(older.context,);
+        const newerRefresh = runtime.provider.refreshModels?.(newer.context,);
+        // The older refresh's fetch is aborted by the takeover, so awaiting it
+        // runs the older cleanup while the newer refresh is still in flight.
+        await olderRefresh;
+        runtime.abortInFlightRefresh();
+        // The refresh actually in flight is the one a shutdown has to cancel.
+        expect(seenSignals[1]?.aborted,).toBe(true);
+        // Answering what the newer fetch was waiting for must publish nothing:
+        // it was cancelled before anything could land.
+        const [releaseNewer] = releases.slice(1,);
+        releaseNewer?.(listingResponse([listingEntry(FIXTURE_CHAT_ID,),],),);
+        await newerRefresh;
+        expect(newer.publications,).toHaveLength(0,);
+        expect(older.publications,).toHaveLength(0,);
+        expect(runtime.provider.getModels(),)
+          .toHaveLength(expectedSnapshotIds().length);
+      },
+    },),
   ],
 },);
 

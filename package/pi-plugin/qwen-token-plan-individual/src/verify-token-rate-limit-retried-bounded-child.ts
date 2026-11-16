@@ -13,10 +13,17 @@
  then killed after another wait,
  and its streams and handle are released either way.
 
- Measured on this machine on 2026-11-14:
- a stand-in that traps `SIGTERM` was still running 3 s after a 1 s bound,
- and a proof process with its pipes attached did not exit until the stand-in
- was killed.
+ Both events this module waits on are promised when the child starts,
+ not when the wait begins:
+ a listener attached after the event has fired waits for something that has
+ already happened,
+ and pays its stated wait for nothing.
+ A child that ended at 100 ms was measured returning at 2 120 ms that way
+ (review of 2026-11-13, `probe-bounded-child-timed.mjs early-exit-repeat`).
+ The run reports which waits had to fall back
+ ({@link BoundedChildResult.fallbackWaits}),
+ so a caller can say the event ended a wait rather than that the wait was
+ short.
 
  @module
  */
@@ -26,13 +33,16 @@ import {
   type ChildProcessByStdio,
 } from 'node:child_process';
 import type { Readable, } from 'node:stream';
-import { once, } from 'node:events';
 import { setTimeout as sleepFor, } from 'node:timers/promises';
+import type {
+  ForeignBorrowed,
+} from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 //region Constants
 
 /**
- Text an abort shows up as, which is how a run reaches its bound.
+ Text the bound's own abort arrives as,
+ which is the one `error` event that does not mean the child never started.
  */
 const ABORT_ERROR_NAME = 'AbortError';
 
@@ -50,7 +60,8 @@ const KILL_WAIT_MILLISECONDS = 2_000;
 
 /**
  Wait for both output streams to close,
- so the output a run printed last is not lost to a return that outraces it.
+ so the output a run printed last is not lost,
+ and so a stream a grandchild keeps open cannot hold the proof.
  */
 const STREAM_CLOSE_WAIT_MILLISECONDS = 2_000;
 
@@ -64,6 +75,13 @@ const STREAM_CLOSE_WAIT_MILLISECONDS = 2_000;
  so neither output hangs on a reader that never comes.
  */
 type PipedChild = ChildProcessByStdio<null, Readable, Readable>;
+
+/**
+ One wait this module can take,
+ named for the event it waits on,
+ so a reader of a result knows which wait fell back to its stated bound.
+ */
+export type BoundedChildWait = 'exit' | 'close';
 
 /**
  One child to run, and the bound it gets.
@@ -116,9 +134,120 @@ export type BoundedChildResult = {
    Whether it reached its bound and had to be ended.
    */
   readonly timedOut: boolean;
+  /**
+   Which waits had to stop waiting for their event, in the order they did:
+   `'exit'` for the child's own end, `'close'` for its output streams closing.
+   An entry means the stated wait ended that wait rather than the event.
+   */
+  readonly fallbackWaits: readonly BoundedChildWait[];
+};
+
+/**
+ What this run has observed about its child, filled by the listeners the run
+ attaches when the child starts.
+ */
+type ChildProgress = {
+  /**
+   The child's own end, promised from the start.
+   */
+  readonly exited: Promise<void>;
+  /**
+   Both output streams closing, promised from the start.
+   */
+  readonly closed: Promise<void>;
+  /**
+   A start that failed, promised so nothing waits on a child that never ran.
+   */
+  readonly failed: Promise<void>;
+  /**
+   Waits that fell back to their stated bound, in the order they did.
+   */
+  readonly fallbackWaits: BoundedChildWait[];
 };
 
 //endregion Types
+
+//region Waiting without missing an event
+
+/**
+ One promise's arrival, tagged so a race can say which side arrived.
+
+ @param promise - promise to wait on
+
+ @returns a promise that resolves when that one does
+
+ @example
+ ```typescript
+ const winner = await Promise.race([arrived({ promise }), waitPassed({ milliseconds: 2_000 })]);
+ ```
+ */
+async function arrived({
+  promise,
+}: {
+  readonly promise: Promise<void>;
+},): Promise<{ readonly arrived: true }> {
+  await promise;
+  return { arrived: true, };
+}
+
+/**
+ One stated wait, tagged so a race can say it was the one that ended the wait.
+
+ @param milliseconds - how long to wait
+
+ @returns a promise that resolves after that wait
+
+ @example
+ ```typescript
+ const winner = await waitPassed({ milliseconds: 2_000 });
+ ```
+ */
+async function waitPassed({
+  milliseconds,
+}: {
+  readonly milliseconds: number;
+},): Promise<{ readonly waited: true }> {
+  await sleepFor(milliseconds,);
+  return { waited: true, };
+}
+
+/**
+ A promise that resolves once one signal has aborted, or at once when it
+ already has.
+
+ @param signal - signal to watch
+
+ @returns a promise that resolves when the signal aborts
+
+ @example
+ ```typescript
+ const bound = await abortArrival({ signal: AbortSignal.timeout(1_000) });
+ ```
+ */
+function abortArrival({
+  signal,
+}: {
+  readonly signal: AbortSignal;
+},): Promise<{ readonly aborted: true }> {
+  /**
+   The arrival, resolved by the signal's own abort.
+   */
+  const arrival = Promise.withResolvers<{ readonly aborted: true }>();
+  if (signal.aborted) {
+    arrival.resolve({ aborted: true, },);
+    return arrival.promise;
+  }
+  signal.addEventListener(
+    'abort',
+    function onAbort() {
+      arrival.resolve({ aborted: true, },);
+    },
+    { once: true, },
+  );
+  return arrival.promise;
+}
+
+//endregion Waiting without missing an event
 
 //region Ending one child
 
@@ -149,38 +278,40 @@ function hasEnded({
 
  @param child - child the run started
 
+ @param progress - what this run has observed, which records a fallback
+
  @param milliseconds - longest this call waits
 
  @returns `true` when the child has ended
 
  @example
  ```typescript
- const ended = await endedWithin({ child, milliseconds: 2_000 });
+ const ended = await endedWithin({ child, progress, milliseconds: 2_000 });
  ```
  */
 async function endedWithin({
   child,
+  progress,
   milliseconds,
 }: {
   readonly child: PipedChild;
+  readonly progress: ChildProgress;
   readonly milliseconds: number;
 },): Promise<boolean> {
-  try {
-    await Promise.race([
-      once(
-        child,
-        'exit',
-      ),
-      sleepFor(milliseconds,),
-    ],);
-    return hasEnded({ child, },);
-  } catch (error) {
-    // An `error` event is what the abort itself emits, so it is expected here;
-    // anything else is a failure of this wait rather than of the child.
-    if ((Error.isError(error,)) && (error.name === ABORT_ERROR_NAME))
-      return hasEnded({ child, },);
-    throw error;
-  }
+  if (hasEnded({ child, },))
+    return true;
+  /**
+   Which side ended this wait: the child's end, which was promised when it
+   started, or the stated wait.
+   */
+  const winner = await Promise.race([
+    arrived({ promise: progress.exited, }),
+    waitPassed({ milliseconds, },),
+  ],);
+  if ('waited' in winner)
+    progress.fallbackWaits
+      .push('exit',);
+  return hasEnded({ child, },);
 }
 
 /**
@@ -191,27 +322,33 @@ async function endedWithin({
 
  @param child - child the run started
 
+ @param progress - what this run has observed
+
  @example
  ```typescript
- await endForCertain({ child });
+ await endForCertain({ child, progress });
  ```
  */
 async function endForCertain({
   child,
+  progress,
 }: {
   readonly child: PipedChild;
+  readonly progress: ChildProgress;
 },): Promise<void> {
   if (hasEnded({ child, },))
     return;
   child.kill('SIGTERM',);
   if (await endedWithin({
     child,
+    progress,
     milliseconds: SECOND_SIGNAL_WAIT_MILLISECONDS,
   },))
     return;
   child.kill('SIGKILL',);
   await endedWithin({
     child,
+    progress,
     milliseconds: KILL_WAIT_MILLISECONDS,
   },);
 }
@@ -222,30 +359,31 @@ async function endForCertain({
 
  @param child - child the run started
 
+ @param progress - what this run has observed, which records a fallback
+
  @example
  ```typescript
- await closedStreams({ child });
+ await closedStreams({ child, progress });
  ```
  */
 async function closedStreams({
   child,
+  progress,
 }: {
   readonly child: PipedChild;
+  readonly progress: ChildProgress;
 },): Promise<void> {
-  try {
-    await Promise.race([
-      once(
-        child,
-        'close',
-      ),
-      sleepFor(STREAM_CLOSE_WAIT_MILLISECONDS,),
-    ],);
-  } catch (error) {
-    // An `error` event is what the abort emits; the streams are released
-    // either way, so only an unexpected failure is raised.
-    if (!((Error.isError(error,)) && (error.name === ABORT_ERROR_NAME)))
-      throw error;
-  }
+  /**
+   Which side ended this wait: both streams closing, promised when the child
+   started, or the stated wait.
+   */
+  const winner = await Promise.race([
+    arrived({ promise: progress.closed, }),
+    waitPassed({ milliseconds: STREAM_CLOSE_WAIT_MILLISECONDS, },),
+  ],);
+  if ('waited' in winner)
+    progress.fallbackWaits
+      .push('close',);
   child.stdout
     .destroy();
   child.stderr
@@ -259,41 +397,49 @@ async function closedStreams({
 
  @param child - child the run started
 
+ @param progress - what this run has observed
+
+ @param bound - the signal the run's bound raises
+
  @returns the exit status, or that the run reached its bound
 
  @example
  ```typescript
- const ending = await endingOf({ child });
+ const ending = await endingOf({ child, progress, bound });
  ```
  */
 async function endingOf({
   child,
+  progress,
+  bound,
 }: {
   readonly child: PipedChild;
+  readonly progress: ChildProgress;
+  readonly bound: AbortSignal;
 },): Promise<{
   readonly exitCode?: number;
   readonly timedOut: boolean;
 }> {
-  try {
-    await once(
-      child,
-      'exit',
-    );
-    /**
-     Exit status the child reported, which it leaves absent when a signal ended
-     it.
-     */
-    const { exitCode, } = child;
-    return {
-      ...(exitCode === null ? {} : { exitCode, }),
-      timedOut: false,
-    };
-  } catch (error) {
-    return {
-      timedOut: (Error.isError(error,))
-        && (error.name === ABORT_ERROR_NAME),
-    };
-  }
+  /**
+   Which side ended this wait: the child's own end, a start that failed, or
+   the bound's signal.
+   */
+  const winner = await Promise.race([
+    arrived({ promise: progress.exited, }),
+    arrived({ promise: progress.failed, }),
+    abortArrival({ signal: bound, },),
+  ],);
+  if ('aborted' in winner)
+    return { timedOut: true, };
+  /**
+   Exit status the child reported, which it leaves absent when a signal ended
+   it.
+   */
+  const { exitCode, } = child;
+  return {
+    ...(exitCode === null ? {} : { exitCode, }),
+    timedOut: false,
+  };
 }
 
 //endregion Ending one child
@@ -306,7 +452,8 @@ async function endingOf({
  @param request - the program, its arguments, its folder, its environment and
  its bound
 
- @returns what it wrote, how it ended, and the process id it ran under
+ @returns what it wrote, how it ended, the process id it ran under, and which
+ waits had to fall back
 
  @example
  ```typescript
@@ -333,6 +480,10 @@ export async function runBoundedChild(
     boundMilliseconds,
   } = request;
   /**
+   The run's bound, whose signal is the first one the child gets.
+   */
+  const bound = AbortSignal.timeout(boundMilliseconds,);
+  /**
    Child process for this run.
    */
   const child = spawn(
@@ -352,9 +503,55 @@ export async function runBoundedChild(
       ] as const,
       env,
       // The bound's own signal, which a program may trap or ignore.
-      signal: AbortSignal.timeout(boundMilliseconds,),
+      signal: bound,
     },
   );
+  /**
+   The child's own end, promised now so a wait begun later cannot miss it.
+   */
+  const exited = Promise.withResolvers<void>();
+  /**
+   Both output streams closing, promised now for the same reason.
+   */
+  const closed = Promise.withResolvers<void>();
+  child.once(
+    'exit',
+    function markExit() {
+      exited.resolve();
+    },
+  );
+  child.once(
+    'close',
+    function markClose() {
+      closed.resolve();
+    },
+  );
+  /**
+   A start that failed, which ends both waits so nothing here waits on a child
+   that never ran.
+   */
+  const failed = Promise.withResolvers<void>();
+  child.once(
+    'error',
+    function markFailedStart(error: ForeignBorrowed<Error>,) {
+      // The bound's own abort arrives here too, and it is not a start failure:
+      // the child is running, and its own exit is what ends its wait.
+      if (error.name === ABORT_ERROR_NAME)
+        return;
+      failed.resolve();
+      exited.resolve();
+      closed.resolve();
+    },
+  );
+  /**
+   What this run has observed about its child.
+   */
+  const progress: ChildProgress = {
+    exited: exited.promise,
+    closed: closed.promise,
+    failed: failed.promise,
+    fallbackWaits: [],
+  };
   /**
    Standard output the child prints, in order.
    */
@@ -380,10 +577,20 @@ export async function runBoundedChild(
   /**
    How the child ended.
    */
-  const ending = await endingOf({ child, },);
+  const ending = await endingOf({
+    child,
+    progress,
+    bound,
+  },);
   if (ending.timedOut)
-    await endForCertain({ child, },);
-  await closedStreams({ child, },);
+    await endForCertain({
+      child,
+      progress,
+    },);
+  await closedStreams({
+    child,
+    progress,
+  },);
   return {
     stdout: Buffer.concat(stdoutChunks,)
       .toString('utf8',),
@@ -392,6 +599,9 @@ export async function runBoundedChild(
     ...(ending.exitCode === undefined ? {} : { exitCode: ending.exitCode, }),
     ...(child.pid === undefined ? {} : { pid: child.pid, }),
     timedOut: ending.timedOut,
+    fallbackWaits: [
+      ...progress.fallbackWaits,
+    ],
   };
 }
 

@@ -7,7 +7,12 @@
  so a run bound that sends one signal and stops there leaves it alive,
  and the orphan's open pipes keep this process from ending.
  The second case is the positive control:
- a child that ends by itself still reports its exit status and its output.
+ a child that ends by itself still reports its exit status, its output,
+ and that neither wait fell back,
+ which is what says the event ended each wait rather than the stated bound.
+ The third case is the other side of that report:
+ a grandchild keeps the pipe open after its parent is gone,
+ so the stream wait really does fall back, and the run says so.
 
  @module
  */
@@ -49,6 +54,15 @@ const STAND_IN_THAT_IGNORES_THE_FIRST_SIGNAL =
  A stand-in for a child that finishes by itself.
  */
 const STAND_IN_THAT_FINISHES = String.raw`process.stdout.write("DONE\n");`;
+
+/**
+ A stand-in whose output stream outlives it:
+ the child starts a grandchild that inherits its own standard output and keeps
+ writing to it, then exits at 100 ms itself.
+ The grandchild ends as soon as its next write finds the pipe destroyed,
+ so nothing of this fixture outlives the case.
+ */
+const STAND_IN_WHOSE_OUTPUT_OUTLIVES_IT = String.raw`const { spawn } = require("node:child_process"); const keeper = spawn(process.execPath, ["-e", 'process.stdout.on("error", function () { process.exit(0); }); setInterval(function () { process.stdout.write("k"); }, 50);'], { stdio: ["ignore", "inherit", "ignore"] }); keeper.unref(); setTimeout(function () { process.exit(0); }, 100);`;
 
 /**
  What one settled promise left behind: its value or the error it failed with.
@@ -194,6 +208,32 @@ await describe({
         expect(outcome.value?.timedOut,).toBe(false,);
         expect(outcome.value?.exitCode,).toBe(0,);
         expect(outcome.value?.stdout,).toBe('DONE\n',);
+        // The child's own exit and its streams closing are promised when it
+        // starts, so neither wait may fall back: the events ended both.
+        expect(outcome.value?.fallbackWaits,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'records the stream wait that falls back when a grandchild keeps the pipe open',
+      fn: async () => {
+        /**
+         What the runner resolved the stand-in child with.
+         */
+        const outcome = await settledOrFailed({
+          promise: runBoundedChild({
+            file: process.execPath,
+            args: ['--eval', STAND_IN_WHOSE_OUTPUT_OUTLIVES_IT,],
+            cwd: process.cwd(),
+            env: { PATH: process.env.PATH ?? '', },
+            boundMilliseconds: CONTROL_WATCHDOG_MILLISECONDS,
+          },),
+        },);
+        expect(outcome.error,).toBe(undefined,);
+        expect(outcome.value?.timedOut,).toBe(false,);
+        expect(outcome.value?.exitCode,).toBe(0,);
+        // A pipe a grandchild holds open never closes on its own, so the
+        // stated wait is what ends this wait, and the result says so.
+        expect(outcome.value?.fallbackWaits,).toEqual(['close',],);
       },
     },),
   ],
