@@ -17299,7 +17299,8 @@ so holding such a commit against the whole index refused commits real Git makes
 in `src/native/landing/service_native.rs`;
 measured with Git 2.56.0:
 `git commit -- <path>` lands the working copy of that path with the other entries left as the base holds them,
-and a pathless `-o` names no path, so its commit holds the base's tree alone and the staged change stays staged).
+and a pathless `-o` names no path,
+so its commit holds the base's tree alone and the staged change stays staged).
 A commit Git built without an editor is built again on the new tip,
 signed again by Git,
 while the time since its first build is under the ceiling;
