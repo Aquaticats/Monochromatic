@@ -39571,6 +39571,34 @@ Round twenty (asked and answered at about 22:47, written here at 2026-11-15T22:5
   holds the old value armed and does not know the new one. A new value such a run reads from a file all runs share (`~/.pi/agent/auth.json`, `models.json`, `.bashrc`) or from a store its worktree merged goes through unmasked until that run ends.
   The owner's choice stands as made (wait for the last run from before the merge); what is added is in the kept list, first entry, and is said again when the watch ends. A second pass by the advisor found this, not the session.
 
+Reviews and audits move from Kimi to Claude Sonnet (the owner's message of about 23:27 on 2026-11-15, written here at 2026-11-15T23:40-05:00; not asked, the owner wrote it unprompted):
+
+- The owner: "I just checked my bills and found that Kimi K3.1 Pro is almost prohibitively expensive. Please use Sonnet for reviews and audits from now on.
+  Close the Kimi pool for now, but let the already running runs finish. Anyway, I'll probably figure out something better in the next week. That's it, going back to sleep now."
+  And, a few minutes later: "Do the AGENTS.md edit too. Yes this decision is probably temporary, but AGENTS.md is expected to change often too."
+- **Done, in this order.** The scratch starter starts no review and no run naming a Kimi model while
+  `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/no-run-starts-on-kimi-and-reviews-go-to-claude-sonnet-while-this-file-exists.md` exists (in force from about 23:29; each such entry keeps its place).
+  Four reviews were going on Kimi then (discarding guard, drawn shadow tree, held-push holder, renamed subvolume); they are left to end, and a review that ends thin is not started again on Kimi.
+  Rules `KRV`, `LHZ` and `PFW` in `AGENTS.md` now name Claude Sonnet, `CLAUDE.md` is regenerated, and `.agents/skills/pi-as-subagent/SKILL.md` says the same (commit `0f52021c6c`).
+  The package's own pool table still read 20 for `neuralwatt-kimi-flex` at that moment; a Claude subagent is closing it on a branch (`chore/pi-shared-subagent-driver-kimi-pool-closed-on-the-owners-word`), merged once its checks are read.
+  Until then the launcher would still place a run that names that model, from any session.
+- **The route to Sonnet, measured and not assumed.** Pi on this machine has no provider that serves a Claude model: its credential file names `synthetic`, `qwen-token-plan-individual` and `opencode-go` (names only, read in-process at about 23:29).
+  So a review is done by a Claude Code subagent on Sonnet that this session starts (the Agent tool), which is rule `LHZ`'s "by whatever route that harness offers".
+  `prepare-one-queued-review-for-a-claude-sonnet-subagent.ts` in the same scratch folder has the package write the brief, makes a detached worktree `.claude/worktrees/sonnet-review-<name>` at the commit, links it, writes the subagent's prompt beside the brief, and only then takes the entry off the queue;
+  each handed-over review is one line in `keep/reviews-handed-to-claude-sonnet-subagents.jsonl`.
+- **What this route does not have, said plainly.** These reviews do not show in the Pi waiter (their end is the subagent's own notice, and each round also looks for the `review.md` of every line in that list);
+  the driver's masking of secret values does not cover a Claude Code subagent, so each prompt carries the credential ban and says nothing masks its tool results;
+  a subagent's commands share the session's command group, so each prompt puts every build and test in a scope of its own;
+  and they need this session awake, where a Pi review started from the queue by itself.
+  A Sonnet review of an author on another vendor's model (every Pi author today) is an independent review; of anything a Claude session wrote it is a second pass and is labelled so.
+- **Adopted without asking, each open to veto.** The Pi filling level is the cap less the Claude-side agents going (18 since 23:32:32, for the pool-closing agent and the first Sonnet review), since the starter counts Pi units alone.
+  Sonnet reviews start one at a time until the first is read and accepted (it states its range and its count of files read and shows what it ran), then up to three at once.
+  The owner's earlier answer for a thin review ("Restart once by itself ON A DIFFERENT MODEL", "The other of the pair; Sonnet while Qwen is dry") has no other model left to go to while Sonnet is the only reviewer:
+  a thin Sonnet review is started once more on Sonnet with what was missing named, and the question of a second model goes to the kept list.
+  The open Kimi audit of `0.6.1-alpha.14` (LFS) is not started again on Kimi.
+- **A slip of this session's:** the pool-closing subagent was started while twenty Pi units were going, one agent over the cap, before the filling level was lowered. No run was stopped; the count falls back under the cap as Pi runs end.
+- Two queued reviews cannot be started by any route yet: the cargo-shadow control at `e6e6c21726` (the package's brief writer answers "nothing to review", its one changed code file being read as a test) joins the tests-only ranges that wait for the brief writer for tests.
+
 Adopted from the same prepared batch without asking, each because a recorded rule or an earlier answer decides it, each open to veto:
 
 - Pi driver, numbered unit names (`pi-<name>@<n>.service`): kept, since going back brings the refused second start back;
