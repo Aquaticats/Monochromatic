@@ -10302,7 +10302,7 @@ The `HEAD` reading is not a loose match (`head_of`,
 `object_exists`).
 It takes exactly one line with an optional final newline and refuses a carriage return,
 a second line or a NUL;
-a `ref: ` line must name a full reference (a `refs/` name of printable bytes, no empty component,
+a `ref: ` line must name a full reference (a `refs/` name of the bytes Git allows, no empty component,
 none beginning with a dot or ending in `.lock`, no `..` or `@{`, none of ``~^:?*[\``);
 and a lone object name must be lowercase hexadecimal of this repository's length whose object the store really holds,
 because Git refuses a folder whose detached `HEAD` names an object it does not have.

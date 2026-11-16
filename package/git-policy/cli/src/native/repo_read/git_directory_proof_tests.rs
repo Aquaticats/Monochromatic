@@ -64,6 +64,7 @@ fn head_contents(oid: &str) -> Vec<(&'static str, Vec<u8>)> {
         ("symref-one-level", b"ref: HEAD\n".to_vec()),
         ("symref-no-space", b"ref:refs/heads/main\n".to_vec()),
         ("symref-unborn", b"ref: refs/heads/unborn\n".to_vec()),
+        ("symref-another-alphabet", "ref: refs/heads/caf\u{e9}\n".as_bytes().to_vec()),
         ("symref-tags", b"ref: refs/tags/v1\n".to_vec()),
         ("symref-bare-refs", b"ref: refs/\n".to_vec()),
         ("symref-refs-nul", b"ref: refs/\0\n".to_vec()),
@@ -142,6 +143,7 @@ fn no_head_the_proof_accepts_is_one_real_git_refuses() {
     // Why:  A proof that refused every folder, or one that accepted every folder, would pass the assertion above for a
     //       wrong reason, and the cases Git refuses are the ones the defect was made of.
     assert!(accepted.contains(&"valid-symref") && accepted.contains(&"valid-detached"), "the proof accepts the two spellings a real repository carries: {accepted:?}");
+    assert!(accepted.contains(&"symref-another-alphabet"), "the proof accepts a reference name of another alphabet, which real Git allows: {accepted:?}");
     assert!(accepted.len() >= 2, "the comparison holds cases both accept: {accepted:?}");
     assert!(!accepted.contains(&"symref-nul"), "the proof refuses a symref carrying a NUL, which real Git refuses");
     assert!(!accepted.contains(&"hex-40-missing"), "the proof refuses a detached HEAD whose object is not there, which real Git refuses");

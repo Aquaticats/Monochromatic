@@ -208,7 +208,7 @@ fn head_of(bytes: &[u8]) -> Option<Head> {
 
 /// What:
 ///  Whether `name` is a full reference name Git could store:
-///  `refs/` and components of printable bytes,
+///  `refs/` and components of bytes Git allows,
 ///  none of them empty,
 ///  beginning with a dot,
 ///  or ending in `.lock`.
@@ -239,9 +239,13 @@ fn is_a_full_refname(name: &str) -> bool {
         return false;
     }
     for byte in name.bytes() {
-        let printable: bool = (0x21..0x7f).contains(&byte);
+        // What: Every byte Git allows in a reference name, and no other.
+        // Why:  Git refuses a space, a control byte and 0x7f, and allows the rest, a name of another alphabet included;
+        //       refusing a name Git allows would cost the pass in that repository and nothing else, but it would cost it
+        //       on every command, so the rule follows Git's own.
+        let allowed: bool = byte > 0x20 && byte != 0x7f;
         let special: bool = matches!(byte, b'~' | b'^' | b':' | b'?' | b'*' | b'[' | b'\\');
-        if !printable || special {
+        if !allowed || special {
             return false;
         }
     }
