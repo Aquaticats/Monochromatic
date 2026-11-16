@@ -20,9 +20,9 @@ export type SubcommandSteps = {
   readonly down: (call: { readonly config: WireguardConfig; },) => Promise<void>;
 
   /**
-   Prints one start notice or loud report.
+   Prints one start notice or loud report where the person will see it.
    */
-  readonly warn: (notice: string,) => void;
+  readonly printNotice: (notice: string,) => void;
 };
 
 /**
@@ -74,6 +74,6 @@ export async function runSubcommand(
     providerHosts: PROVIDER_HOSTS,
     recommendedMark: RECOMMENDED_EXEMPT_MARK,
   },))
-    steps.warn(notice,);
+    steps.printNotice(notice,);
   await steps.up({ config, },);
 }

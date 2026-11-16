@@ -8,9 +8,11 @@ use crate::application_watch::{prepare_application_watch, run_application_watch,
 use crate::leftover_sweep::SweepSetup;
 /// Production target roots and app slice path.
 use crate::application_targets::{user_app_slice, ScanRoots};
-/// Generic exact process validation and shutdown.
+/// Generic exact process validation and shutdown,
+/// including the group a killed watcher left.
 use crate::keeper_process::{
     command_process_is_live,
+    end_leftover_group,
     process_start_time,
     stop_command_process,
 };
@@ -28,7 +30,7 @@ use crate::startup_relay::forward_startup_failures;
 /// The user's toolchain roots.
 use crate::install_roots::{install_roots, InstallRoots};
 /// Moves matched processes into the updates slice.
-use crate::scope_adoption::BusctlAdopter;
+use crate::scope_adoption::PrivateSocketAdopter;
 /// The watched user's account.
 use crate::user_account::lookup_user;
 /// Non-panicking output and escaping.
@@ -57,6 +59,10 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
 /// Child readiness after inotify installation and race-closing second scan.
 const READY: &str = "READY";
+/// How long the watcher may take to report readiness or to commit.
+/// The wait is bounded because `watch-start` holds the lifecycle lock while it waits:
+/// a watcher that never says one of them would keep every other lifecycle command out for good.
+const HANDSHAKE_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
 /// Parent command after watcher state reaches durable storage.
 const COMMIT: &str = "COMMIT";
 /// Child acknowledgement before entering event loop.
@@ -89,17 +95,19 @@ fn expected_watch_command(
     ]);
 }
 
-/// Reads one newline-delimited watcher handshake message.
-fn read_message(output: &mut BufReader<ChildStdout>) -> io::Result<String> {
-    let mut line = String::new();
-    let count = output.read_line(&mut line)?;
-    if count == 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::UnexpectedEof,
-            "watcher closed handshake channel",
-        ));
-    }
-    return Ok(line.trim_end().to_owned());
+/// Reads one handshake message,
+/// but not for longer than `limit`:
+/// the caller holds the lifecycle lock while it waits,
+/// so a watcher that never speaks must not keep it.
+fn read_message_within(output: &mut BufReader<ChildStdout>, limit: std::time::Duration, what: &str) -> io::Result<String> {
+    return crate::line_ready::read_message_within(output, limit, what);
+}
+
+/// Waits for the candidate to end,
+/// and ends it when it does not,
+/// because a watcher whose parent is gone waits on a commit that never comes.
+fn wait_within(child: &mut Child, limit: std::time::Duration) -> io::Result<std::process::ExitStatus> {
+    return crate::line_ready::wait_within(child, limit);
 }
 
 /// Stops persisted watcher only when complete command identity matches.
@@ -108,20 +116,31 @@ pub fn stop_application_watch(key: &str) -> io::Result<()> {
         return Ok(());
     };
     let expected = expected_watch_command(process, key)?;
-    if !command_process_is_live(
+    if command_process_is_live(
         process.pid,
         process.start_time,
         &expected,
         "application watcher",
     )? {
+        stop_command_process(
+            process.pid,
+            process.start_time,
+            &expected,
+            "application watcher",
+        )?;
         return remove_watch_state(key);
     }
-    stop_command_process(
-        process.pid,
-        process.start_time,
-        &expected,
-        "application watcher",
-    )?;
+    // The leader is gone,
+    // and the children it started in its group need not be:
+    // a manager client left alive can still change the user's manager after this stop returned,
+    // so the group is ended before the record is forgotten.
+    // A group that survives keeps the record, so the next stop tries again.
+    let group = end_leftover_group(process.pid, process.start_time, "application watcher")?;
+    if group == crate::keeper_process::LeftoverGroup::Ended {
+        log_line(&format!(
+            "wg-quicker-exempt: the watcher of {key} was gone and its process group still held a member, so the group was ended before its record was removed"
+        ));
+    }
     return remove_watch_state(key);
 }
 
@@ -195,12 +214,12 @@ fn spawn_watch_candidate(
         return Err(io::Error::other("watcher stdout absent"));
     };
     let mut output = BufReader::new(stdout);
-    let ready = read_message(&mut output);
+    let ready = read_message_within(&mut output, HANDSHAKE_LIMIT, "readiness");
     let ready_message = match ready {
         Ok(message) => message,
         Err(error) => {
             drop(input);
-            let status = child.wait()?;
+            let status = wait_within(&mut child, HANDSHAKE_LIMIT)?;
             let log_text = read_watch_log(key)?;
             return Err(io::Error::new(
                 error.kind(),
@@ -210,7 +229,7 @@ fn spawn_watch_candidate(
     };
     if ready_message != READY {
         drop(input);
-        let status = child.wait()?;
+        let status = wait_within(&mut child, HANDSHAKE_LIMIT)?;
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             format!("unexpected application watcher readiness ({status}): {ready_message}"),
@@ -243,12 +262,12 @@ pub fn start_application_watch(
     let mut candidate = spawn_watch_candidate(key, mark, uid)?;
     if let Err(error) = write_watch_state(key, candidate.process) {
         drop(candidate.input);
-        let _wait_result = candidate.child.wait();
+        let _wait_result = wait_within(&mut candidate.child, HANDSHAKE_LIMIT);
         return Err(error);
     }
     writeln!(candidate.input, "{COMMIT}")?;
     candidate.input.flush()?;
-    let acknowledgement = read_message(&mut candidate.output)?;
+    let acknowledgement = read_message_within(&mut candidate.output, HANDSHAKE_LIMIT, "its commit")?;
     if acknowledgement != COMMITTED {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
@@ -310,11 +329,10 @@ pub fn run_application_watch_child(
     }
     let routing = UpdateRouting::new(RoutingSetup {
         uid,
-        gid: account.gid,
         install_roots: install_root_set.roots,
         proc_root: PathBuf::from("/proc"),
         cgroup_root: PathBuf::from("/sys/fs/cgroup"),
-        adopter: Box::new(BusctlAdopter::new()),
+        adopter: Box::new(PrivateSocketAdopter::new()),
     });
     let mut watch = prepare_application_watch(roots, mark, routing, ReporterIdentity { uid, gid: account.gid }, Some(SweepSetup::production(uid, account.gid)))?;
     writeln!(io::stdout(), "{READY}")?;
