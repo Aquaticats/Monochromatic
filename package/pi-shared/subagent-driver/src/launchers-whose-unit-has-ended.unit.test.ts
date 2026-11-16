@@ -392,13 +392,13 @@ await describe({
               },),
             ];
             /**
-             What systemd answered for each unit.
+             What systemd answered for each run name's units, read from the unit names it was asked about.
              */
             const states = new Map([
-              ['pi-ended.service', 'inactive',],
-              ['pi-young.service', 'inactive',],
-              ['pi-running.service', 'active',],
-              ['pi-unreadable.service', '',],
+              ['ended', ['inactive',],],
+              ['young', ['inactive',],],
+              ['running', ['active',],],
+              ['unreadable', [],],
             ],);
             /**
              The launchers the command may end.
@@ -406,8 +406,8 @@ await describe({
             const past = await launchersPastTheirUnits({
               launchers,
               minimumAgeSeconds: LAUNCHER_MINIMUM_AGE_SECONDS,
-              unitStateOf: async function stateOf(unitName,) {
-                return states.get(unitName,) ?? '';
+              unitStatesOfAName: async function statesOf(runName,) {
+                return states.get(runName,) ?? [];
               },
               stateIsRunning: function isRunning(state,) {
                 return unitStateIsRunning({ state, },);
@@ -557,7 +557,8 @@ await describe({
             await writeProgram({
               folder: folder.bins,
               name: 'systemctl',
-              body: `printf '%s\\n' 'inactive'`,
+              // The command asks for every unit of the run's name, and reads the state the manager prints in the third column.
+              body: `printf '%s\\n' '  pi-copy-route@1.service loaded inactive dead a run'`,
             },);
             /**
              What the command printed.
@@ -583,7 +584,7 @@ await describe({
             await writeProgram({
               folder: folder.bins,
               name: 'systemctl',
-              body: `printf '%s\\n' 'active'`,
+              body: `printf '%s\\n' '  pi-copy-route@1.service loaded active running a run'`,
             },);
             /**
              What the command printed.

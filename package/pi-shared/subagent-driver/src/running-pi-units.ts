@@ -49,9 +49,106 @@ const PI_UNIT_PREFIX = 'pi-';
 export const PI_UNIT_NUMBER_SEPARATOR = '@';
 
 /**
+ The states a unit is in before it has ended, which are the states in which a run it carries is going: a unit being started and a unit
+ being stopped both still hold their run's work, and `wait-for-a-unit-to-end` and the worktree removal read the same set.
+
+ A state of its own, such as `inactive` or `failed`, is a unit that has ended; empty text names no state at all, which is not a state
+ a run has ended in either.
+ */
+export const UNIT_STATES_NOT_ENDED: ReadonlySet<string> = new Set<string>([
+  'active',
+  'activating',
+  'reloading',
+  'refreshing',
+  'deactivating',
+]);
+
+/**
+ What a unit's name says: the run's name, and the number of the run folder its start claimed when the name carries one.
+ */
+export type UnitNameParts = {
+  /**
+   The run's name, which is everything between the prefix and the number.
+   */
+  readonly name: string;
+
+  /**
+   The number of the run folder its start claimed, when the name carries one.
+   */
+  readonly runNumber?: number;
+};
+
+/**
+ Reads what a unit's name says, in one place, so every reader of a unit's name agrees about the form it takes.
+
+ A unit is `pi-<name>.service` or `pi-<name>@<number>.service`: the first form is one a launcher of an earlier version made or a
+ person started by the recipe, and the second is every start this launcher makes. The `pi-` prefix and the `.service` suffix are the
+ unit's own, so a run's name is never taken to begin with `pi-` or to end with `.service`.
+
+ @param unitName - the unit's name as systemd prints it
+
+ @returns the run's name, and the number the name carries when it carries one
+
+ @example
+ ```ts
+ const parts = unitNameParts({ unitName: 'pi-copy-route@3.service', },);
+ ```
+ */
+export function unitNameParts({ unitName, }: { readonly unitName: string },): UnitNameParts {
+  /**
+   The name without the unit's own prefix and suffix.
+   */
+  const withoutSuffix = unitName.trim()
+    .replace(
+    UNIT_SUFFIX,
+    '',
+    );
+  /**
+   The name without the unit's own prefix, which a run's name never begins with.
+   */
+  const bare = withoutSuffix.startsWith(PI_UNIT_PREFIX,)
+    ? withoutSuffix.slice(PI_UNIT_PREFIX.length,)
+    : withoutSuffix;
+  /**
+   Where the separator stands, or minus one when the name carries no number.
+   */
+  const separator = bare.indexOf(PI_UNIT_NUMBER_SEPARATOR,);
+  if (separator === (-1)) {
+    return { name: bare, };
+  }
+  /**
+   The text after the separator, which is the number when it is whole.
+   */
+  const written = bare.slice(separator + PI_UNIT_NUMBER_SEPARATOR.length,);
+  return {
+    name: bare.slice(
+      0,
+      separator,
+    ),
+    ...(isDigitsOnly(written,) ? { runNumber: Number(written,), } : {}),
+  };
+}
+
+/**
+ Says whether a state systemd reported is one a run has not ended in.
+
+ @param state - the state systemd answered, or empty text when it answered nothing
+
+ @returns whether the run of a unit in that state is going
+
+ @example
+ ```ts
+ const going = unitStateIsNotEnded({ state: 'deactivating', },);
+ ```
+ */
+export function unitStateIsNotEnded({ state, }: { readonly state: string },): boolean {
+  return UNIT_STATES_NOT_ENDED.has(state,);
+}
+
+/**
  The end of every systemd unit name.
  */
-const UNIT_SUFFIX = '.service';
+export const UNIT_SUFFIX = '.service';
 
 /**
  A Pi run that is going now.
@@ -71,6 +168,11 @@ export type RunningPiUnit = {
    The number of the run folder the start that made this unit claimed, when its name carries one.
    */
   readonly runNumber?: number;
+
+  /**
+   The state the manager reports for the unit, which is a state its run has not ended in.
+   */
+  readonly state: string;
 
   /**
    How long the unit has been up.
@@ -137,23 +239,16 @@ export function unitNameOfGiven({
   readonly runNumber?: number;
 },): string {
   /**
-   The name without the unit suffix systemd adds, and without a number an earlier start wrote into it.
+   The run's name as the caller gave it, without a unit suffix the caller may have added.
+
+   A run's name is never read out of a unit's name here: `unitNameParts` does that, and every reader of a unit's name uses it. So a
+   run named `pi-shared-x` gives the unit `pi-pi-shared-x@2.service`, which is the unit that start makes.
    */
-  const withoutSuffix = name.trim()
+  const bareName = name.trim()
     .replace(
     UNIT_SUFFIX,
     '',
     );
-  /**
-   The run's own name, which is what a unit name is built from.
-   */
-  const bareName = (withoutSuffix.startsWith(
-    PI_UNIT_PREFIX,
-  ) ? withoutSuffix.slice(PI_UNIT_PREFIX.length,) : withoutSuffix)
-    .split(
-    PI_UNIT_NUMBER_SEPARATOR,
-    1,
-    )[0] ?? '';
   return `${PI_UNIT_PREFIX}${bareName}${(runNumber === undefined) ? '' : `${PI_UNIT_NUMBER_SEPARATOR}${String(runNumber,)}`}${UNIT_SUFFIX}`;
 }
 
@@ -162,11 +257,11 @@ export function unitNameOfGiven({
 
  @param unitName - the unit's name as systemd prints it
 
- @returns the run's name, or the unit's name when it does not follow the recipe
+ @returns the run's name
 
  @example
  ```ts
- const runName = runNameOfUnit({ unitName: 'pi-foo.service', },);
+ const runName = runNameOfUnit({ unitName: 'pi-foo@3.service', },);
  ```
  */
 export function runNameOfUnit({
@@ -174,25 +269,8 @@ export function runNameOfUnit({
 }: {
   readonly unitName: string;
 },): string {
-  /**
-   The name without its prefix and suffix, when it has both.
-   */
-  const bare = unitName.endsWith(UNIT_SUFFIX,)
-    ? unitName.slice(
-      0,
-      -UNIT_SUFFIX.length,
-    )
-    : unitName;
-  /**
-   The name without the prefix, and without the number of the folder its start claimed.
-   */
-  const named = bare.startsWith(PI_UNIT_PREFIX,)
-    ? bare.slice(PI_UNIT_PREFIX.length,)
-    : bare;
-  return named.split(
-    PI_UNIT_NUMBER_SEPARATOR,
-    1,
-  )[0] ?? '';
+  return unitNameParts({ unitName, },)
+    .name;
 }
 
 /**
@@ -213,26 +291,10 @@ export function runNumberOfUnit({
   readonly unitName: string;
 },): { readonly number?: number } {
   /**
-   The name without its prefix and suffix, when it has both.
+   What the unit's name says, by the one parse every reader uses.
    */
-  const bare = unitName.endsWith(UNIT_SUFFIX,)
-    ? unitName.slice(
-      0,
-      -UNIT_SUFFIX.length,
-    )
-    : unitName;
-  /**
-   Where the separator stands, or minus one when the unit's name carries no number.
-   */
-  const separator = bare.indexOf(PI_UNIT_NUMBER_SEPARATOR,);
-  if (separator === (-1)) {
-    return {};
-  }
-  /**
-   The text after the separator, which is the number when it is whole.
-   */
-  const written = bare.slice(separator + PI_UNIT_NUMBER_SEPARATOR.length,);
-  return isDigitsOnly(written,) ? { number: Number(written,), } : {};
+  const parts = unitNameParts({ unitName, },);
+  return ((parts.runNumber === undefined) ? {} : { number: parts.runNumber, });
 }
 
 /**
@@ -287,10 +349,14 @@ function runningUnitOfBlock({
    Where the unit's start is on the monotonic clock.
    */
   const started = fields.get('ActiveEnterTimestampMonotonic',);
+  /**
+   The state the manager reports for the unit.
+   */
+  const state = fields.get('ActiveState',) ?? '';
   if (
     (unitName === undefined)
       || (started === undefined)
-      || (fields.get('ActiveState',) !== 'active')
+      || (!unitStateIsNotEnded({ state, },))
   ) {
     return NOT_RUNNING;
   }
@@ -303,6 +369,7 @@ function runningUnitOfBlock({
     unitName,
     elapsedMilliseconds: (nowMicroseconds - Number(started,)) / MICROSECONDS_PER_MILLISECOND,
     mainPid: Number(fields.get('MainPID',) ?? 0,),
+    state,
     ...((runNumber === undefined) ? {} : { runNumber, }),
   };
 }
@@ -418,32 +485,36 @@ export function startRunningPiUnits({
 }
 
 /**
- Reads every unit the manager still holds for one run's name, whatever run folder number each start claimed.
+ Reads every unit the manager holds for one run's name, with the state it reports for each.
 
- A run's unit name carries the number of the folder its start claimed, so a question about one run's name is a question about a
- family of unit names. The manager is asked for that family and each answer is checked against the run's name and the shape of a
- number, so a unit of a longer run name that begins with this one is never taken for this run's.
+ The manager is asked for every Pi unit at once, `pi-*.service`, and each answer is read by `unitNameParts`, so the question carries no
+ run's name into a glob: a name that begins with `pi-` and a name that carries `@` are both read as the run's own name, and a unit
+ started without a number is found beside the numbered ones. A state in {@link UNIT_STATES_NOT_ENDED} is a unit whose run is going,
+ which is the answer `checks-before-a-start.ts` and `remove-finished-worktrees.ts` both ask for.
 
  @param run - how a command is run, which a test replaces
 
  @param runName - the run's name
 
- @returns the unit names the manager holds for that name, in the order it printed them
+ @returns each unit of that name the manager holds, with its state, in the order it printed them
 
  @example
  ```ts
- const units = await unitNamesOfARunName({ run: runCommandWithChildProcess, runName: 'copy-route', },);
+ const units = await unitsOfARunName({ run: runCommandWithChildProcess, runName: 'copy-route', },);
  ```
  */
-export async function unitNamesOfARunName({
+export async function unitsOfARunName({
   run,
   runName,
 }: {
   readonly run: RunCommand;
   readonly runName: string;
-}): Promise<readonly string[]> {
+}): Promise<readonly {
+  readonly unitName: string;
+  readonly state: string
+}[]> {
   /**
-   What the manager printed for that family of unit names.
+   What the manager printed for every Pi unit it holds, ended or not.
    */
   const shown = await run({
     command: 'systemctl',
@@ -453,7 +524,7 @@ export async function unitNamesOfARunName({
       '--all',
       '--no-legend',
       '--plain',
-      `${PI_UNIT_PREFIX}${runName}${PI_UNIT_NUMBER_SEPARATOR}*${UNIT_SUFFIX}`,
+      `${PI_UNIT_PREFIX}*${UNIT_SUFFIX}`,
     ],
   },);
   // A manager that could not answer names no unit, which is what an empty answer gives as well: refusing a run because a question
@@ -461,16 +532,146 @@ export async function unitNamesOfARunName({
   if (shown.status !== 0) {
     return [];
   }
-  return shown.stdout
-    .split('\n',)
-    .map(function unitNameOf(line,) {
-      return firstWordOf(line,);
-    },)
-    .filter(function isThisRunsUnit(unitName,) {
-      return (unitName !== '')
-        && (runNameOfUnit({ unitName, },) === runName)
-        && (runNumberOfUnit({ unitName, },)
-          .number
-          !== undefined);
+  /**
+   Every unit whose run name is this run's, with its state.
+   */
+  const units: {
+    unitName: string;
+    state: string
+  }[] = [];
+  for (const line of shown.stdout
+    .split(
+    '\n',
+    )) {
+    /**
+     The unit's name, which is the line's first word.
+     */
+    const unitName = firstWordOf(line,);
+    if ((unitName === '') || (unitNameParts({ unitName, },)
+      .name
+      !== runName)) {
+      continue;
+    }
+    /**
+     The state the manager reports, which is the line's third column.
+     */
+    const state = line.trim()
+      .split(' ',)
+      .filter(function isAWord(word,) {
+        return word !== '';
+      },)[2]
+      ?? '';
+    units.push({
+      unitName,
+      state,
     },);
+  }
+  return units;
+}
+
+/**
+ Reads the run names whose unit is in a state its run has not ended in, from one listing of every Pi unit.
+
+ This is the answer `remove-finished-worktrees.ts` asks once for the whole machine, so a worktree is kept while any unit of its run's
+ name is starting, running or stopping.
+
+ @param run - how a command is run, which a test replaces
+
+ @returns the run names whose unit has not ended, each once
+
+ @examples
+ ```ts
+ const going = await runNamesWithAUnitNotEnded({ run: runCommandWithChildProcess, },);
+ ```
+ */
+export async function runNamesWithAUnitNotEnded({
+  run,
+}: {
+  readonly run: RunCommand;
+}): Promise<ReadonlySet<string>> {
+  /**
+   What the manager printed for every Pi unit it holds.
+   */
+  const shown = await run({
+    command: 'systemctl',
+    words: [
+      '--user',
+      'list-units',
+      '--all',
+      '--no-legend',
+      '--plain',
+      `${PI_UNIT_PREFIX}*${UNIT_SUFFIX}`,
+    ],
+  },);
+  if (shown.status !== 0) {
+    // A manager that cannot answer leaves every worktree alone rather than reading a live run as an ended one.
+    throw new PiUnitsUnreadableError(
+      `systemctl could not list the Pi units: ${shown.problem
+        ?? shown.stderr
+          .trim()}`,
+    );
+  }
+  /**
+   The run names with a unit whose run has not ended.
+   */
+  const names = new Set<string>();
+  for (const line of shown.stdout
+    .split(
+    '\n',
+    )) {
+    /**
+     The unit's name and the state the manager reports for it.
+     */
+    const unitName = firstWordOf(line,);
+    /**
+     The state the manager reports, which is the line's third column.
+     */
+    const state = line.trim()
+      .split(' ',)
+      .filter(function isAWord(word,) {
+        return word !== '';
+      },)[2]
+      ?? '';
+    if ((unitName !== '') && (!unitStateIsNotEnded({ state, },))) {
+      continue;
+    }
+    if (unitName !== '') {
+      names.add(unitNameParts({ unitName, },)
+        .name,);
+    }
+  }
+  return names;
+}
+
+/**
+ Says whether any unit of one run's name is in a state its run has not ended in.
+
+ @param run - how a command is run
+
+ @param runName - the run's name
+
+ @returns whether a run of that name is going
+
+ @example
+ ```ts
+ const going = await aRunOfThatNameIsGoing({ run, runName: 'copy-route', },);
+ ```
+ */
+export async function aRunOfThatNameIsGoing({
+  run,
+  runName,
+}: {
+  readonly run: RunCommand;
+  readonly runName: string;
+}): Promise<boolean> {
+  /**
+   Every unit of that run's name, with its state.
+   */
+  const units = await unitsOfARunName({
+    run,
+    runName,
+  },);
+  return units.some(function isNotEnded(unit,) {
+    return unitStateIsNotEnded({ state: unit.state, },);
+  },);
 }

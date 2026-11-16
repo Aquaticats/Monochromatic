@@ -12,7 +12,6 @@
 import { basename, } from 'node:path';
 import type { ProcessUnderARun, } from './processes-under-a-pi-run.ts';
 import { SECONDS_PER_MINUTE, } from './overdue-constants.ts';
-import { unitNameOfGiven, } from './running-pi-units.ts';
 
 /**
  The signal a launcher past its unit is ended with: the polite one, so a launcher holding a file open still closes it.
@@ -203,14 +202,15 @@ export type LauncherPastItsUnit = {
 /**
  Reads the launchers whose unit has ended, among those old enough to have made one.
 
- An answer that names no state is not an end: a manager that could not be asked says nothing about the unit, and a launcher it
- could not describe is not one this command may end.
+ A unit's name carries the number of the run folder its start claimed, so a launcher's run is looked for as every unit of its name,
+ in every state a run has not ended in: a state named is a run going, and an empty answer is not an end either, because a manager that
+ could not be asked says nothing about the unit and a launcher it could not describe is not one this command may end.
 
  @param launchers - the launcher processes
 
  @param minimumAgeSeconds - how long a launcher must have been running to count
 
- @param unitStateOf - asks systemd what state a unit is in, which a test replaces
+ @param unitStatesOfAName - asks systemd for the states of every unit of a run's name, which a test replaces
 
  @param stateIsRunning - says whether a state means the unit is still running
 
@@ -220,19 +220,19 @@ export type LauncherPastItsUnit = {
 
  @example
  ```ts
- const past = await launchersPastTheirUnits({ launchers, minimumAgeSeconds: 3_600, unitStateOf, stateIsRunning, childrenOfParent, },);
+ const past = await launchersPastTheirUnits({ launchers, minimumAgeSeconds: 3_600, unitStatesOfAName, stateIsRunning, childrenOfParent, },);
  ```
  */
 export async function launchersPastTheirUnits({
   launchers,
   minimumAgeSeconds,
-  unitStateOf,
+  unitStatesOfAName,
   stateIsRunning,
   childrenOfParent,
 }: {
   readonly launchers: readonly LauncherProcess[];
   readonly minimumAgeSeconds: number;
-  readonly unitStateOf: (unitName: string) => Promise<string>;
+  readonly unitStatesOfAName: (runName: string) => Promise<readonly string[]>;
   readonly stateIsRunning: (state: string) => boolean;
   readonly childrenOfParent: (pid: number) => readonly ProcessUnderARun[];
 },): Promise<readonly LauncherPastItsUnit[]> {
@@ -243,20 +243,27 @@ export async function launchersPastTheirUnits({
     return launcher.elapsedSeconds >= minimumAgeSeconds;
   },);
   /**
-   The state of each of their units, asked all at once: one question is about one unit and waits on nothing else.
+   The states of every unit of each launcher's run name, asked all at once: one question is about one name and waits on nothing else.
    */
   const states = await Promise.all(old.map(function ofLauncher(launcher,) {
-    return unitStateOf(unitNameOfGiven({ name: launcher.name, },),);
+    return unitStatesOfAName(launcher.name,);
   },));
   return old.flatMap(function ofState(
     launcher,
     index,
   ) {
     /**
-     The state systemd answered for its unit.
+     The states systemd answered for the units of its run's name.
      */
-    const unitState = states[index] ?? '';
-    return ((unitState === '') || stateIsRunning(unitState,))
+    const unitStates = states[index] ?? [];
+    /**
+     The state the answer names, which is the one state a reader of the line sees, or empty text when the run has ended.
+     */
+    const unitState = unitStates.find(function isRunning(state,) {
+      return stateIsRunning(state,);
+    },) ?? unitStates[0]
+      ?? '';
+    return ((unitStates.length === 0) || stateIsRunning(unitState,))
       ? []
       : [{
         launcher,

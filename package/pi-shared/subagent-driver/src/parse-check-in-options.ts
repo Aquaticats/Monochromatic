@@ -5,7 +5,7 @@
  */
 
 import { parseArgs, } from 'node:util';
-import { unitNameOfGiven, } from './running-pi-units.ts';
+import { UNIT_SUFFIX, } from './running-pi-units.ts';
 import {
   type RequiredOption,
   requiredText,
@@ -133,8 +133,16 @@ export function parseCheckInOptions(commandLine: readonly string[],): CheckInOpt
         value: values['runs-folder'],
         name: 'runs-folder',
       },),),
+      // The name given is a unit's name, which systemd prints with its number: reading it through the function that *makes* a unit
+      // name from a run's name dropped the number and looked for a unit no launcher makes.
       unitNames: units.map(function asUnitName(name,) {
-        return unitNameOfGiven({ name, },);
+        /**
+         The name as given, without the spaces a shell line may carry around it.
+         */
+        const trimmed = name.trim();
+        return trimmed.endsWith(UNIT_SUFFIX,)
+          ? trimmed
+          : `${trimmed}${UNIT_SUFFIX}`;
       },),
     };
   }

@@ -357,6 +357,7 @@ export async function finishTheRun(request: FinishRequest,): Promise<FinishedRun
       git: request.git,
       checkoutFolder: request.checkoutFolder,
       worktree: request.worktree,
+      claim: { runFolder: request.runFolder, },
     },)}`,);
   }
   // A run whose Pi left before the run got going is the one ending whose reason only Pi can give: a load failure, a refused

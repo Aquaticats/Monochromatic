@@ -23,7 +23,10 @@ import {
   piProblemIn,
   rememberPiStartCheck,
 } from './pi-start-check.ts';
-import { unitNamesOfARunName, } from './running-pi-units.ts';
+import {
+  unitStateIsNotEnded,
+  unitsOfARunName,
+} from './running-pi-units.ts';
 
 export {
   PI_LOAD_FAILURE_TEXT,
@@ -143,17 +146,18 @@ export async function baseProblemIn({
 }
 
 /**
- Says whether a run of this name is going now, which is what stops a second run of one name from being started into the same work.
+ Says whether a run of this name is going now, judging by the units the manager holds for it.
 
- A run's unit carries the number of the folder its start claimed, so this asks for every unit of that name rather than for one unit
- name. Two starts that arrive at the same instant both pass it, and each claims a folder and a unit of its own; a start that arrives
- once a unit of the name is there is refused, because one name is one run at a time and its worktree and session are the run's.
+ Every unit of that name is read, whatever number it carries and whether it carries one, and a state in which its run has not ended
+ counts as going. What this cannot see is a start that has not made its unit yet, and it does not need to: two starts that arrive at
+ the same instant each claim a folder of their own, and a worktree is taken up only when the run that made it has ended, so the two
+ cannot work in one worktree even though both are let through here.
 
  @param run - how a command is run
 
  @param runName - the run's name
 
- @returns the problem in words, or nothing when no unit of that name is there
+ @returns the problem in words, or nothing when no unit of that name is going
 
  @example
  ```ts
@@ -168,17 +172,26 @@ export async function runGoingProblemIn({
   readonly runName: string;
 },): Promise<{ readonly problem?: string }> {
   /**
-   Every unit the manager holds for that run's name.
+   Every unit the manager holds for that run's name, with its state.
    */
-  const units = await unitNamesOfARunName({
+  const units = await unitsOfARunName({
     run,
     runName,
   },);
-  if (units.length === 0) {
+  /**
+   The units whose run has not ended.
+   */
+  const going = units.filter(function isNotEnded(unit,) {
+    return unitStateIsNotEnded({ state: unit.state, },);
+  },);
+  if (going.length === 0) {
     return {};
   }
   return {
-    problem: `${units.join(', ',)} ${(units.length === 1) ? 'is' : 'are'} already there, so a run named ${runName} is going and this start would be a second run of it: wait for that run to end, or start this one under another name`,
+    problem: `${going.map(function unitNameOf(unit,) {
+      return `${unit.unitName} (${unit.state})`;
+    },)
+      .join(', ',)} ${(going.length === 1) ? 'is' : 'are'} going, so a run named ${runName} is going and this start would be a second run of it: wait for that run to end, or start this one under another name`,
   };
 }
 

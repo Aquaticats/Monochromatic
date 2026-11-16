@@ -20,6 +20,7 @@ import {
 import type { RunCommand, } from './run-command.ts';
 import {
   PiUnitsUnreadableError,
+  unitNameParts,
 } from './running-pi-units.ts';
 import {
   type PoolMembership,
@@ -273,11 +274,11 @@ export function unitRunNamesIn({ shown, }: { readonly shown: string },): readonl
     .filter(function isPiUnit(unit,) {
       return unit.startsWith(PI_UNIT_PREFIX,) && unit.endsWith(UNIT_SUFFIX,);
     },)
+    // The number a unit's name carries is the run folder its start claimed, not part of the run's name: reading it as part of the
+    // name made one live run count twice, once for its launcher and once for its unit.
     .map(function nameOf(unit,) {
-      return unit.slice(
-        PI_UNIT_PREFIX.length,
-        -UNIT_SUFFIX.length,
-      );
+      return unitNameParts({ unitName: unit, },)
+        .name;
     },);
 }
 
@@ -391,7 +392,22 @@ export async function goingRunsNow({
           .trim()}`,
     );
   }
-  for (const name of unitRunNamesIn({ shown: listed.stdout, },)) {
+  for (const unitName of listed.stdout
+    .split('\n',)
+    .map(function wordOf(line,) {
+      return firstWordOf(line,);
+    },)
+    .filter(function isPiUnit(unit,) {
+      return unit.startsWith(PI_UNIT_PREFIX,) && unit.endsWith(UNIT_SUFFIX,);
+    },)) {
+    /**
+     What that unit's name says: the run's name and the number of the folder its start claimed.
+     */
+    const parts = unitNameParts({ unitName, },);
+    /**
+     The run's name, which is the name the launcher of that run is counted under as well.
+     */
+    const {name} = parts;
     if (runs.has(name,)) {
       continue;
     }
@@ -404,13 +420,13 @@ export async function goingRunsNow({
       words: [
         '--user',
         'show',
-        `${PI_UNIT_PREFIX}${name}${UNIT_SUFFIX}`,
+        unitName,
         EXEC_START_PROPERTY,
         '--value',
       ],
     },);
     if (shown.status !== 0) {
-      onProblem(`pool of unit ${PI_UNIT_PREFIX}${name}${UNIT_SUFFIX} not read: ${shown.problem
+      onProblem(`pool of unit ${unitName} not read: ${shown.problem
         ?? shown.stderr
           .trim()}`);
     }

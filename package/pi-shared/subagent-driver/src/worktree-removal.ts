@@ -9,6 +9,7 @@
  */
 
 import type { GitRunner, } from './worktree-git.ts';
+import { proofOf, } from './worktree-proof.ts';
 
 /**
  The end reasons of a run that finished its work, which are the only runs whose worktree is removed.
@@ -113,7 +114,11 @@ export function worktreeOutcomeOf({
 }
 
 /**
- Removes a run's worktree, never by force.
+ Removes a run's worktree, never by force, and only when its proof does not name another run.
+
+ The path `pi-<name>` is shared by every start of a name, so a run that ended could otherwise remove the worktree a newer start of the
+ same name had just made clean. Where a proof names the run folder that made the worktree, that folder is compared with the run folder
+ whose end is being put away; where no proof exists, the decision above stands as it did.
 
  @param git - how one git command is run
 
@@ -121,22 +126,45 @@ export function worktreeOutcomeOf({
 
  @param worktree - the worktree's path
 
+ @param claim - the run folder whose end is being put away, when the caller knows it
+
  @returns what git answered, in words for a reader
 
  @example
  ```ts
- const note = await removeWorktree({ git, checkoutFolder: '/repo', worktree: '/repo/.claude/worktrees/pi-a', },);
+ const note = await removeWorktree({ git, checkoutFolder: '/repo', worktree: '/repo/.claude/worktrees/pi-a', claim: { runFolder: '/runs/a-1' }, },);
  ```
  */
 export async function removeWorktree({
   git,
   checkoutFolder,
   worktree,
+  claim,
 }: {
   readonly git: GitRunner;
   readonly checkoutFolder: string;
   readonly worktree: string;
+  readonly claim?: {
+    /**
+     The run folder whose end is being put away.
+     */
+    readonly runFolder: string;
+  };
 },): Promise<string> {
+  /**
+   The proof beside the worktree, when one is there.
+   */
+  const { proof, } = await proofOf({ worktree, },);
+  /**
+   The name of the run folder whose end is being put away, when the caller named one.
+   */
+  const ownFolderName = claim?.runFolder
+    .split('/',)
+    .at(-1,);
+  if ((proof !== undefined) && (ownFolderName !== undefined)
+    && (proof.runFolder !== ownFolderName)) {
+    return `worktree kept: its proof says run folder ${proof.runFolder} made it, and this is run folder ${ownFolderName}'s end`;
+  }
   /**
    What git answered about removing the worktree.
    */

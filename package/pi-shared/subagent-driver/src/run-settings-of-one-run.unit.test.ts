@@ -525,6 +525,9 @@ await describe({
               '--wait',
               '--unit=pi-copy-route@4.service',
               '--collect',
+              // A numbered unit is nested in a slice of its own unless the slice is named, and the tunnel tooling marks a Pi unit
+              // only where its cgroup sits directly under app.slice.
+              '--slice=app.slice',
               `--property=RuntimeMaxSec=${String(7_200 + UNIT_GRACE_SECONDS,)}`,
               '--property=MemoryMax=12G',
               '--property=CPUQuota=800%',
@@ -920,6 +923,9 @@ await describe({
               state: 'made',
               writtenAt: new Date(0,).toISOString(),
             },),);
+            // The run that made it has ended, which is when its worktree may be taken up by another start of the name.
+            await mkdir(join(folder.path, 'runs', 'a-1',), { recursive: true, },);
+            await writeFile(join(folder.path, 'runs', 'a-1', 'summary.json',), '{"endReason":"idle"}',);
             /**
              A git nobody should reach.
              */
@@ -978,56 +984,79 @@ await describe({
           },
         },),
         it({
-          name: 'leaves a worktree whose making has not finished while its maker may still be making it, and clears one whose making was killed at its own bound',
+          name: 'keeps a worktree whole while the making that left it may still be under way, and clears it only when that making process is gone',
           fn: async () => {
             await using folder = await makeFolder();
             /**
-             When this test reads the time.
+             A process folder holding one entry: the making this test says is still running.
              */
-            const nowMilliseconds = 1_700_000_000_000;
+            const proc = join(folder.path, 'proc',);
+            await mkdir(join(proc, '4242',), { recursive: true, },);
+            await writeFile(join(proc, '4242', 'stat',), '4242 (launcher) S 1 4242 4242 0 -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 98765 0 0\n',);
             /**
-             The worktree a making left.
+             What a making writes beside its worktree, naming the process that wrote it.
              */
-            const worktree = join(folder.path, '.claude', 'worktrees', 'pi-a',);
-            await mkdir(join(worktree, '.git',), { recursive: true, },);
-            await writeFile(join(worktree, 'half.txt',), 'half a copy',);
-            /**
-             What that making wrote beside it.
-             */
-            function proofOfTheMaking(when: number,): string {
+            function theMakingOf({ worktree, maker, }: {
+              readonly worktree: string;
+              readonly maker: { readonly pid: number; readonly startedAt: string };
+            },): string {
               return JSON.stringify({
                 path: worktree,
                 runName: 'a',
                 runFolder: 'a-1',
                 branch: 'feat/a',
                 state: 'making',
-                writtenAt: new Date(when,).toISOString(),
+                writtenAt: new Date(0,).toISOString(),
+                maker,
               },);
             }
-            await writeFile(worktreeProofFileOf({ worktree, },), proofOfTheMaking(nowMilliseconds,),);
+            /**
+             A worktree whose making is still running, which this start may not touch.
+             */
+            const stillMaking = join(folder.path, 'pi-a',);
+            await mkdir(join(stillMaking, '.git',), { recursive: true, },);
+            await writeFile(join(stillMaking, 'half.txt',), 'half a copy',);
+            await writeFile(worktreeProofFileOf({ worktree: stillMaking, },), theMakingOf({
+              worktree: stillMaking,
+              maker: {
+                pid: 4_242,
+                startedAt: '98765',
+              },
+            },),);
             try {
               await makeWorktree({
                 git: standInGit([answered(0, ''),],).git,
                 checkoutFolder: folder.path,
-                worktree,
+                worktree: stillMaking,
                 branch: 'feat/a',
                 base: BASE_OF_A_RUN_NAMING_NONE,
                 claim: {
                   runName: 'a',
-                  runFolder: join(folder.path, 'runs', 'a-1',),
+                  runFolder: join(folder.path, 'runs', 'a-2',),
                 },
-                now: function now() {
-                  return nowMilliseconds;
-                },
+                processFolder: proc,
+                maker: { pid: 1, startedAt: '1', },
               },);
             }
             catch (error) {
               expect(error,).toBeInstanceOf(WorktreeTakenError,);
-              expect(String(error,),).toContain('making has not finished',);
+              expect(String(error,),).toContain('may still be making it',);
+              expect(await readFile(join(stillMaking, 'half.txt',), 'utf8',),).toBe('half a copy',);
             }
-            // The same proof, older than a making\'s own bound, names an add killed at that bound: its partial checkout is cleared,
-            // and the worktree is made again.
-            await writeFile(worktreeProofFileOf({ worktree, },), proofOfTheMaking((nowMilliseconds - WORKTREE_ADD_TIMEOUT_MILLISECONDS) - 120_000,),);
+            /**
+             A worktree whose making names a process the kernel no longer holds, which is a making that ended: its partial checkout
+             is no run's work, so it is cleared and the worktree is made again.
+             */
+            const givenUp = join(folder.path, 'pi-b',);
+            await mkdir(join(givenUp, '.git',), { recursive: true, },);
+            await writeFile(join(givenUp, 'half.txt',), 'half a copy',);
+            await writeFile(worktreeProofFileOf({ worktree: givenUp, },), theMakingOf({
+              worktree: givenUp,
+              maker: {
+                pid: 4_343,
+                startedAt: '98765',
+              },
+            },),);
             /**
              A git that answers the clearing's prune, says the branch is new, and makes the worktree.
              */
@@ -1040,22 +1069,22 @@ await describe({
             expect(await makeWorktree({
               git: git.git,
               checkoutFolder: folder.path,
-              worktree,
+              worktree: givenUp,
               branch: 'feat/a',
               base: BASE_OF_A_RUN_NAMING_NONE,
               claim: {
                 runName: 'a',
-                runFolder: join(folder.path, 'runs', 'a-1',),
+                runFolder: join(folder.path, 'runs', 'a-2',),
               },
-              now: function now() {
-                return nowMilliseconds;
-              },
+              processFolder: proc,
+              maker: { pid: 1, startedAt: '1', },
             },),).toContain('new branch feat/a',);
-            await expect(readFile(join(worktree, 'half.txt',), 'utf8',),).rejects.toThrow('ENOENT',);
+            await expect(readFile(join(givenUp, 'half.txt',), 'utf8',),).rejects.toThrow('ENOENT',);
+            expect(await readFile(join(stillMaking, 'half.txt',), 'utf8',),).toBe('half a copy',);
           },
         },),
         it({
-          name: 'removes a folder that is empty and is no worktree, and refuses one that holds anything',
+          name: 'removes a folder that is empty and is no worktree, keeps one a person holds for a day, and then removes it and makes its own',
           fn: async () => {
             await using folder = await makeFolder();
             /**
@@ -1077,13 +1106,18 @@ await describe({
                 runName: 'a',
                 runFolder: join(folder.path, 'runs', 'a-1',),
               },
+              maker: { pid: 1, startedAt: '1', },
             },);
             /**
-             A folder holding a file a person wrote.
+             A folder holding a file a person wrote, which no proof names.
              */
             const held = join(folder.path, 'pi-b',);
             await mkdir(held,);
             await writeFile(join(held, 'notes.md',), 'keep me',);
+            /**
+             When this test reads the time.
+             */
+            const nowMilliseconds = Date.parse('2026-11-16T00:00:00.000Z',);
             try {
               await makeWorktree({
                 git: standInGit([answered(1, ''), answered(0, ''),],).git,
@@ -1095,11 +1129,39 @@ await describe({
                   runName: 'b',
                   runFolder: join(folder.path, 'runs', 'b-1',),
                 },
+                now: function now() {
+                  return nowMilliseconds;
+                },
+                maker: { pid: 1, startedAt: '1', },
               },);
             }
             catch (error) {
-              expect(error,).toBeInstanceOf(WorktreeFolderOccupiedError,);
-              expect(String(error,),).toContain('holds something',);
+              // A person's folder is left exactly as it is, and the start records the first sighting so a later start has a bound.
+              expect(error,).toBeInstanceOf(WorktreeTakenError,);
+              expect(String(error,),).toContain('no proof says this run made',);
+              expect(await readFile(join(held, 'notes.md',), 'utf8',),).toBe('keep me',);
+              // The same sighting, a day later, is a folder no one has claimed: it is removed and the worktree is made.
+              expect(await makeWorktree({
+                git: standInGit([
+                  answered(0, ''),
+                  answered(1, ''),
+                  answered(0, ''),
+                  answered(0, ''),
+                ],).git,
+                checkoutFolder: folder.path,
+                worktree: held,
+                branch: 'feat/b',
+                base: BASE_OF_A_RUN_NAMING_NONE,
+                claim: {
+                  runName: 'b',
+                  runFolder: join(folder.path, 'runs', 'b-2',),
+                },
+                now: function now() {
+                  return nowMilliseconds + (24 * 60 * 60 * 1_000) + 1;
+                },
+                maker: { pid: 1, startedAt: '1', },
+              },),).toContain('new branch feat/b',);
+              await expect(readFile(join(held, 'notes.md',), 'utf8',),).rejects.toThrow('ENOENT',);
               return;
             }
             throw new Error('a folder holding a file was taken for a worktree',);

@@ -28,6 +28,7 @@ import {
   stopLaunchers,
 } from './launchers-whose-unit-has-ended.ts';
 import { optionIn, } from './option-in.ts';
+import { unitsOfARunName, } from './running-pi-units.ts';
 import { startProcessTable, } from './processes-under-a-pi-run.ts';
 import { requiredPositiveNumber, } from './required-option-values.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
@@ -183,10 +184,16 @@ const past = await launchersPastTheirUnits({
     launcherEntryNames: options.launcherEntryNames,
   },),
   minimumAgeSeconds: options.minimumAgeSeconds,
-  unitStateOf: async function stateOf(unitName,) {
-    return await unitStateOf({
+  unitStatesOfAName: async function statesOf(runName,) {
+    /**
+     Every unit of that run's name, with the state the manager reports for it.
+     */
+    const units = await unitsOfARunName({
       run: runCommandWithChildProcess,
-      unitName,
+      runName,
+    },);
+    return units.map(function stateOf(unit,) {
+      return unit.state;
     },);
   },
   stateIsRunning: function isRunning(state,) {

@@ -17,6 +17,7 @@ import {
 import { join, } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
 import { entriesOrNothingIn, } from './newest-finished-run-of-a-name.ts';
+import { UNIT_STATES_NOT_ENDED, } from './running-pi-units.ts';
 
 /**
  The prefix a run's worktree folder carries, which every worktree of a run is named with.
@@ -440,17 +441,7 @@ export function decideWorktree({
   readonly status: number;
   readonly statusText: string;
 },): WorktreeDecision {
-  /**
-   The states a unit is in while it has not ended.
-   */
-  const running = [
-    'active',
-    'activating',
-    'deactivating',
-    'reloading',
-    'refreshing',
-  ];
-  if (running.includes(unitState,)) {
+  if (UNIT_STATES_NOT_ENDED.has(unitState,)) {
     return {
       action: 'skip',
       reason: `its unit still runs (${unitState})`,

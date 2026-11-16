@@ -53,9 +53,11 @@ await describe({
           '--unit=pi-gamma',
         ],);
         expect(options.runsFolder,).toBe('/runs',);
+        // A name given is a unit's name as systemd prints it: the number a numbered unit carries is kept, and a name without the
+        // suffix gets it, because reading a run's name into a unit's name here dropped that number.
         expect(options.unitNames,).toEqual([
           'pi-alpha.service',
-          'pi-beta.service',
+          'beta.service',
           'pi-gamma.service',
         ],);
       },

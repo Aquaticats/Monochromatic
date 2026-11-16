@@ -11,17 +11,13 @@
 
 import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
 import type { RunCommand, } from './run-command.ts';
+import { UNIT_STATES_NOT_ENDED, } from './running-pi-units.ts';
 
 /**
- The states a unit is in while it is running, changing or being reloaded: a unit in one of them has not ended.
+ The states a unit is in while it is running, changing or being reloaded, which is the set this package reads everywhere: a unit in
+ one of them has not ended.
  */
-const RUNNING_STATES: ReadonlySet<string> = new Set<string>([
-  'active',
-  'activating',
-  'deactivating',
-  'reloading',
-  'refreshing',
-]);
+const RUNNING_STATES: ReadonlySet<string> = UNIT_STATES_NOT_ENDED;
 
 /**
  Says whether a unit is still running, from the state systemd answered.

@@ -178,15 +178,21 @@ export {
 } from './run-folder-of-a-unit.ts';
 export {
   PI_UNIT_NUMBER_SEPARATOR,
+  type RunningPiUnit,
+  type UnitNameParts,
   monotonicMicrosecondsNow,
   parseRunningPiUnits,
   PiUnitsUnreadableError,
-  type RunningPiUnit,
+  runNamesWithAUnitNotEnded,
   runNameOfUnit,
   runNumberOfUnit,
   startRunningPiUnits,
+  UNIT_STATES_NOT_ENDED,
+  UNIT_SUFFIX,
   unitNameOfGiven,
-  unitNamesOfARunName,
+  unitNameParts,
+  unitStateIsNotEnded,
+  unitsOfARunName,
 } from './running-pi-units.ts';
 export {
   type OpenToolCall,

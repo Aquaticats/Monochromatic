@@ -24,6 +24,12 @@ import { unitNameOfGiven, } from './running-pi-units.ts';
 export const UNIT_GRACE_SECONDS: number = 2 * Math.ceil(TEARDOWN_MILLISECONDS / MILLISECONDS_PER_SECOND);
 
 /**
+ The slice a Pi unit sits in, named explicitly because systemd nests a transient unit whose name carries `@` in a slice of its own,
+ and the tunnel tooling marks a Pi unit only where its cgroup sits directly under this slice.
+ */
+const APP_SLICE = 'app.slice';
+
+/**
  The weight the unit's input and output get against other units', which is what the scratch launcher gave every run it started.
  */
 export const UNIT_IO_WEIGHT = 10;
@@ -165,6 +171,9 @@ export function unitCommandOf(request: UnitCommandRequest,): {
         runNumber: request.runNumber,
       },)}`,
       '--collect',
+      // A transient unit named with `@` is given a slice of its own under app.slice, and the tunnel tooling marks a Pi unit only
+      // where its cgroup sits directly under app.slice. Naming the slice keeps a numbered unit where an unnumbered one sat.
+      `--slice=${APP_SLICE}`,
       `--property=RuntimeMaxSec=${String(runtimeMaxSecondsOf({ wallSeconds: request.wallSeconds, },),)}`,
       `--property=MemoryMax=${request.memory}`,
       `--property=CPUQuota=${String(request.cpuPercent,)}%`,

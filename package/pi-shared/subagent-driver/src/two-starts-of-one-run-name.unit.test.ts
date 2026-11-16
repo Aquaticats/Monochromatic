@@ -35,7 +35,6 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
-  WORKTREE_ADD_TIMEOUT_MILLISECONDS,
   nextRunNumber,
   parseWorktreeLauncherOptions,
 } from '../dist/final/node/index.mjs';
@@ -776,17 +775,25 @@ await describe({
          The proof that making left, which says its making has not finished and was written a moment ago.
          */
         const proofFile = proofFileOf(worktree,);
-        function proofOfTheMaking(when: number,): string {
+        function proofOfTheMaking(maker: {
+          readonly pid: number;
+          readonly startedAt: string;
+        },): string {
           return JSON.stringify({
             path: worktree,
             runName: RUN_NAME,
             runFolder: `${RUN_NAME}-1`,
             branch: 'feat/shared',
             state: 'making',
-            writtenAt: new Date(when,).toISOString(),
+            writtenAt: new Date(0,).toISOString(),
+            maker,
           },);
         }
-        await writeFile(proofFile, proofOfTheMaking(Date.now(),),);
+        // A making whose process this test is, which the kernel holds: it may still be making the worktree, so nothing is removed.
+        await writeFile(proofFile, proofOfTheMaking({
+          pid: process.pid,
+          startedAt: '1',
+        },),);
         /**
          What one start that finds that worktree ended with.
          */
@@ -796,13 +803,16 @@ await describe({
           branch: 'feat/shared',
         },);
         expect(whileItMayStillBeMade.status,).not.toBe(0,);
-        expect(whileItMayStillBeMade.output,).toContain('making has not finished',);
+        expect(whileItMayStillBeMade.output,).toContain('may still be making it',);
         expect(whileItMayStillBeMade.output,).toContain(worktree,);
         // The half-written worktree is left exactly as it is, so a person can look at what that making left.
         expect((await runGit(worktree, ['status', '--porcelain',],)).trim(),).toContain('D tracked.txt',);
-        // The same proof, older than the making's own bound, names an add killed at that bound: its partial checkout is cleared and
+        // The same proof, naming a process the kernel no longer holds, names a making that ended: its partial checkout is cleared and
         // the worktree is made again, so the run name is not blocked by a making that can never finish.
-        await writeFile(proofFile, proofOfTheMaking((Date.now() - WORKTREE_ADD_TIMEOUT_MILLISECONDS) - 120_000,),);
+        await writeFile(proofFile, proofOfTheMaking({
+          pid: 999_999_999,
+          startedAt: '1',
+        },),);
         /**
          What one start that finds a making given up ended with.
          */

@@ -42,6 +42,52 @@ const WORKTREE_PROOF_STATES: ReadonlySet<string> = new Set<string>([
   'made',
 ]);
 
+/**
+ Hours in a day, which is the bound an unproven worktree is kept for.
+ */
+const HOURS_IN_A_DAY = 24;
+
+/**
+ Milliseconds in one hour.
+ */
+const MILLISECONDS_IN_AN_HOUR = 60 * 60 * 1_000;
+
+/**
+ The end of the file a start writes when it finds a worktree no proof says it made, which is the worktree a person made by hand or
+ one made before this package wrote proofs. It carries the first sighting, so a bound can pass without removing a person's work at
+ once and without keeping it for ever.
+ */
+const UNPROVEN_SIGHTING_FILE_END = '.unproven.json';
+
+/**
+ How long an unproven worktree is kept after the first start that wanted its path saw it.
+
+ The decision of 2026-11-15 is that a worktree with no proof of who made it is removed after a bound. The bound here is a day: the
+ longest run this machine starts asks for sixteen hours (`--wall=57600` in the coordinating session's batches), so a worktree nobody
+ claimed a day after a start first wanted its path cannot be a run's own worktree, while a person who made one by hand still has a
+ working day to say so by naming the run another way. Nothing is removed before it.
+ */
+export const UNPROVEN_WORKTREE_KEPT_MILLISECONDS: number = 24 * 60
+  * 60
+  * 1_000;
+
+
+/**
+ The program that wrote a proof: its process number and the moment the kernel says that process started, which together name one
+ process and cannot be confused with a later process that took the same number. A record without a maker is one an earlier version of
+ this package wrote, and its maker can never be shown gone.
+ */
+export type ProofMaker = {
+  /**
+   The process's number.
+   */
+  readonly pid: number;
+
+  /**
+   The moment the kernel says that process started, as `/proc/<pid>/stat` prints it.
+   */
+  readonly startedAt: string;
+};
 
 /**
  What a making writes beside its worktree: which run folder's claim made it, for which branch, whether the making finished, and when
@@ -77,6 +123,31 @@ export type WorktreeProof = {
    When this proof was last written, as an ISO 8601 instant.
    */
   readonly writtenAt: string;
+
+  /**
+   The process that wrote it, or nothing for a proof an earlier version of this package wrote.
+   */
+  readonly maker?: ProofMaker;
+};
+
+/**
+ What a start found at a path that holds a worktree no proof names: when a start first wanted that path, and which start saw it.
+ */
+export type UnprovenSighting = {
+  /**
+   The worktree's path this sighting is about.
+   */
+  readonly path: string;
+
+  /**
+   When a start first found it unproven, as an ISO 8601 instant.
+   */
+  readonly firstSeenAt: string;
+
+  /**
+   The run folder of the start that saw it.
+   */
+  readonly seenBy: string;
 };
 
 /**
@@ -167,6 +238,34 @@ function proofIn({ stored, }: { readonly stored: unknown },): { readonly proof?:
     || (writtenAt === '')) {
     return {};
   }
+  /**
+   The process that wrote the proof, when the stored value names one.
+   */
+  const {maker} = fields;
+  /**
+   The maker, read field by field, or nothing when it is no maker.
+   */
+  const readMaker: ProofMaker | undefined = (((typeof maker) === 'object') && (maker !== null))
+    ? ((typeof Reflect.get(
+      maker,
+      'pid',
+    )) === 'number')
+      && ((typeof Reflect.get(
+        maker,
+        'startedAt',
+      )) === 'string')
+      ? {
+        pid: Reflect.get(
+          maker,
+          'pid',
+        ) as number,
+        startedAt: Reflect.get(
+          maker,
+          'startedAt',
+        ) as string,
+      }
+      : undefined
+    : undefined;
   return {
     proof: {
       path,
@@ -175,6 +274,7 @@ function proofIn({ stored, }: { readonly stored: unknown },): { readonly proof?:
       branch,
       state: (state === 'made') ? 'made' : 'making',
       writtenAt,
+      ...((readMaker === undefined) ? {} : { maker: readMaker, }),
     },
   };
 }
@@ -260,4 +360,417 @@ export async function writeProof({
     written,
     file,
   );
+}
+
+/**
+ Claims the proof beside a worktree, with one exclusive create, so exactly one start's making owns the path.
+
+ A start that cannot create the file reads what is there and decides from it; it never writes over another making's proof, which is
+ what let one start erase the record of the worktree another start had made.
+
+ @param worktree - the worktree's path
+
+ @param proof - what this making is
+
+ @returns whether this start's claim is the one that won
+
+ @example
+ ```ts
+ const claimed = await claimProof({ worktree: '/repo/.claude/worktrees/pi-a', proof, },);
+ ```
+ */
+export async function claimProof({
+  worktree,
+  proof,
+}: {
+  readonly worktree: string;
+  readonly proof: WorktreeProof;
+},): Promise<boolean> {
+  /**
+   The file the making writes.
+   */
+  const file = worktreeProofFileOf({ worktree, },);
+  await mkdir(
+    dirname(file,),
+    { recursive: true, },
+  );
+  try {
+    await writeFile(
+      file,
+      `${JSON.stringify(
+        proof,
+        undefined,
+        2,
+      )}\n`,
+      {
+        encoding: 'utf8',
+        flag: 'wx',
+      },
+    );
+    return true;
+  }
+  catch (error) {
+    if (errorCodeOf(error,) === 'EEXIST') {
+      return false;
+    }
+    throw error;
+  }
+}
+
+/**
+ Moves a proof out of the way, so the making that read it can claim the path.
+
+ Only one caller can move a given file: a second rename of the same file finds it gone. That is what makes taking over a proof whose
+ maker is gone a decision one start makes.
+
+ @param worktree - the worktree's path
+
+ @returns whether this caller moved it
+
+ @example
+ ```ts
+ const moved = await moveTheProofAway({ worktree: '/repo/.claude/worktrees/pi-a', },);
+ ```
+ */
+export async function moveTheProofAway({ worktree, }: { readonly worktree: string },): Promise<boolean> {
+  /**
+   The file the making wrote.
+   */
+  const file = worktreeProofFileOf({ worktree, },);
+  try {
+    await rename(
+      file,
+      `${file}.${String(process.pid,)}.given-up`,
+    );
+    return true;
+  }
+  catch (error) {
+    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+/**
+ Reads the record of the first start that wanted a path holding a worktree no proof names.
+
+ @param worktree - the worktree's path
+
+ @returns the sighting, or nothing when no start has recorded one, or the problem reading it gave
+
+ @example
+ ```ts
+ const { sighting } = await readSighting({ worktree: '/repo/.claude/worktrees/pi-a', },);
+ ```
+ */
+export async function readSighting({ worktree, }: { readonly worktree: string },): Promise<{
+  readonly sighting?: UnprovenSighting;
+  readonly problem?: string
+}> {
+  /**
+   The file the first sighting is written in.
+   */
+  const file = unprovenSightingFileOf({ worktree, },);
+  try {
+    /**
+     What the file holds, of any shape.
+     */
+    const stored: unknown = JSON.parse(await readFile(
+      file,
+      'utf8',
+    ),);
+    if (((typeof stored) !== 'object') || (stored === null)) {
+      return { problem: `${file} holds no record of a sighting`, };
+    }
+    /**
+     The three fields a sighting carries.
+     */
+    const path = Reflect.get(
+      stored,
+      'path',
+    );
+    const firstSeenAt = Reflect.get(
+      stored,
+      'firstSeenAt',
+    );
+    const seenBy = Reflect.get(
+      stored,
+      'seenBy',
+    );
+    if (((typeof path) !== 'string') || ((typeof firstSeenAt) !== 'string')
+      || ((typeof seenBy) !== 'string')) {
+      return { problem: `${file} holds no record of a sighting`, };
+    }
+    return { sighting: {
+      path,
+      firstSeenAt,
+      seenBy,
+    }, };
+  }
+  catch (error) {
+    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
+      return {};
+    }
+    return { problem: `${file} cannot be read as a record of a sighting: ${String(error,)}`, };
+  }
+}
+
+/**
+ Writes the first sighting of an unproven worktree, with one exclusive create, so the bound begins once.
+
+ @param worktree - the worktree's path
+
+ @param sighting - when this start saw it, and which start it was
+
+ @returns whether this start wrote the first sighting
+
+ @example
+ ```ts
+ const first = await writeSighting({ worktree: '/repo/.claude/worktrees/pi-a', sighting, },);
+ ```
+ */
+export async function writeSighting({
+  worktree,
+  sighting,
+}: {
+  readonly worktree: string;
+  readonly sighting: UnprovenSighting;
+},): Promise<boolean> {
+  /**
+   The file the first sighting is written in.
+   */
+  const file = unprovenSightingFileOf({ worktree, },);
+  await mkdir(
+    dirname(file,),
+    { recursive: true, },
+  );
+  try {
+    await writeFile(
+      file,
+      `${JSON.stringify(
+        sighting,
+        undefined,
+        2,
+      )}\n`,
+      {
+        encoding: 'utf8',
+        flag: 'wx',
+      },
+    );
+    return true;
+  }
+  catch (error) {
+    if (errorCodeOf(error,) === 'EEXIST') {
+      return false;
+    }
+    throw error;
+  }
+}
+
+/**
+ Moves the sighting of an unproven worktree out of the way, so the making that removes it is the one that began the bound.
+
+ @param worktree - the worktree's path
+
+ @returns whether this caller moved it
+
+ @example
+ ```ts
+ const moved = await moveTheSightingAway({ worktree: '/repo/.claude/worktrees/pi-a', },);
+ ```
+ */
+export async function moveTheSightingAway({ worktree, }: { readonly worktree: string },): Promise<boolean> {
+  /**
+   The file the first sighting is written in.
+   */
+  const file = unprovenSightingFileOf({ worktree, },);
+  try {
+    await rename(
+      file,
+      `${file}.${String(process.pid,)}.removed`,
+    );
+    return true;
+  }
+  catch (error) {
+    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+/**
+ Reads the file that records the first sighting of a worktree no proof names.
+
+ @param worktree - the worktree's path
+
+ @returns the file's path
+
+ @example
+ ```ts
+ const file = unprovenSightingFileOf({ worktree: '/repo/.claude/worktrees/pi-a', },);
+ ```
+ */
+export function unprovenSightingFileOf({ worktree, }: { readonly worktree: string },): string {
+  return join(
+    dirname(worktree,),
+    `.${basename(worktree,)}${UNPROVEN_SIGHTING_FILE_END}`,
+  );
+}
+
+/**
+ Reads the moment a process started, out of the line `/proc/<pid>/stat` holds.
+
+ The kernel writes the program's name in parentheses, where a name may hold spaces and parentheses of its own, so the fields are read
+ after the last parenthesis.
+
+ @param stat - the line `/proc/<pid>/stat` holds
+
+ @returns the start moment as the kernel prints it, or nothing when the line is no stat line
+
+ @example
+ ```ts
+ const startedAt = startMomentIn({ stat: '1234 (bash) S 1 1234 ... 98765 ...', },);
+ ```
+ */
+export function startMomentIn({ stat, }: { readonly stat: string },): { readonly startedAt?: string } {
+  /**
+   Where the program's name ends, after which the kernel's fields begin.
+   */
+  const close = stat.lastIndexOf(')',);
+  if (close === (-1)) {
+    return {};
+  }
+  /**
+   The fields after the name, of which the twentieth is the start moment: the third field is the state, so the twenty-second is
+   nineteenth after the name.
+   */
+  const fields = stat.slice(close + 1,)
+    .trim()
+    .split(' ',);
+  /**
+   The start moment, as the kernel prints it.
+   */
+  const startedAt = fields[19];
+  return ((startedAt === undefined) || (startedAt === '')) ? {} : { startedAt, };
+}
+
+/**
+ Reads the process a proof names, as it is now.
+
+ @param maker - the process a proof names
+
+ @param processFolder - the folder holding one entry per process, `/proc` here
+
+ @returns the maker, or nothing when no such process is running
+
+ @example
+ ```ts
+ const stillThere = await makerNow({ maker, processFolder: '/proc', },);
+ ```
+ */
+export async function makerNow({
+  maker,
+  processFolder,
+}: {
+  readonly maker: ProofMaker;
+  readonly processFolder: string;
+}): Promise<{ readonly maker?: ProofMaker }> {
+  try {
+    /**
+     The line the kernel holds for that process number.
+     */
+    const stat = await readFile(
+      join(
+        processFolder,
+        String(maker.pid,),
+        'stat',
+      ),
+      'utf8',
+    );
+    /**
+     The moment that process started.
+     */
+    const { startedAt, } = startMomentIn({ stat, },);
+    return (startedAt === maker.startedAt) ? { maker, } : {};
+  }
+  catch (error) {
+    if ((errorCodeOf(error,) === MISSING_PATH_CODE) || (errorCodeOf(error,) === 'ESRCH')) {
+      return {};
+    }
+    throw error;
+  }
+}
+
+/**
+ Says whether the process a proof names is still the one that wrote it, which decides whether a making may still be under way.
+
+ A proof an earlier version of this package wrote names no maker, and no maker that is not named can be shown gone: such a proof is
+ never a licence to remove what stands at the path.
+
+ @param proof - the proof that says a making did not finish
+
+ @param processFolder - the folder holding one entry per process
+
+ @returns whether the maker may still be making the worktree
+
+ @example
+ ```ts
+ const mayStillBeMaking = await itsMakerMayStillBeMaking({ proof, processFolder: '/proc', },);
+ ```
+ */
+export async function itsMakerMayStillBeMaking({
+  proof,
+  processFolder,
+}: {
+  readonly proof: WorktreeProof;
+  readonly processFolder: string;
+}): Promise<boolean> {
+  if (proof.maker === undefined) {
+    return true;
+  }
+  return (await makerNow({
+    maker: proof.maker,
+    processFolder,
+  },)).maker !== undefined;
+}
+
+/**
+ Reads the maker of this process, which a new proof names.
+
+ @param processFolder - the folder holding one entry per process
+
+ @returns this process, as a proof names it
+
+ @throws Error when this process's own line cannot be read, which no start can work around
+
+ @example
+ ```ts
+ const maker = await makerOfThisProcess({ processFolder: '/proc', },);
+ ```
+ */
+export async function makerOfThisProcess({ processFolder, }: { readonly processFolder: string },): Promise<ProofMaker> {
+  /**
+   This process's own line, which the kernel holds for every running process.
+   */
+  const stat = await readFile(
+    join(
+      processFolder,
+      String(process.pid,),
+      'stat',
+    ),
+    'utf8',
+  );
+  /**
+   The moment this process started.
+   */
+  const { startedAt, } = startMomentIn({ stat, },);
+  if (startedAt === undefined) {
+    throw new Error(`this process's own line in ${processFolder} names no start moment, so a proof cannot name the making it is: ${stat}`,);
+  }
+  return {
+    pid: process.pid,
+    startedAt,
+  };
 }

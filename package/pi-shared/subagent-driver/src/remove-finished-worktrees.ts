@@ -45,7 +45,7 @@ import {
   runCommandWithChildProcess,
 } from './run-command.ts';
 import { usageWasAsked, } from './usage-of-a-command.ts';
-import { startRunningPiUnits, } from './running-pi-units.ts';
+import { runNamesWithAUnitNotEnded, } from './running-pi-units.ts';
 import { processesAtTheirFolders, } from './wake-a-run-whose-work-outlives-its-turn.ts';
 
 /**
@@ -245,13 +245,10 @@ if (listed.status !== 0) {
 }
 
 /**
- The names of the runs going now, which is every active Pi unit's run name, read once: a run's unit carries the number of the
- folder its start claimed, so a question about one name is a question about a family of unit names.
+ The names of the runs going now, read once from every Pi unit the manager holds: a run's unit carries the number of the folder its
+ start claimed, and a unit that is starting or stopping still holds its run's work, so both count as going.
  */
-const going = new Set<string>((await startRunningPiUnits({ run: runCommandWithChildProcess, },)())
-  .map(function nameOf(unit,) {
-    return unit.name;
-  },));
+const going = await runNamesWithAUnitNotEnded({ run: runCommandWithChildProcess, },);
 
 /**
  The folder every process of the machine works in, read once.

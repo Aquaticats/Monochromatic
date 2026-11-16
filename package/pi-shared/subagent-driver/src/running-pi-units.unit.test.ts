@@ -74,12 +74,21 @@ await describe({
           shown: SHOWN,
           nowMicroseconds: 1_000_000 + (5 * MICROSECONDS_PER_MINUTE),
         },);
-        expect(units,).toEqual([
+        expect(units.map(function fewerFields(unit,) {
+          return {
+            name: unit.name,
+            unitName: unit.unitName,
+            elapsedMilliseconds: unit.elapsedMilliseconds,
+            mainPid: unit.mainPid,
+            state: unit.state,
+          };
+        },),).toEqual([
           {
             name: 'alpha',
             unitName: 'pi-alpha.service',
             elapsedMilliseconds: 5 * 60_000,
             mainPid: 4_242,
+            state: 'active',
           },
         ],);
       },
@@ -108,6 +117,37 @@ await describe({
         },);
         expect(units).toHaveLength(1,);
         expect(units[0]?.name,).toBe('beta',);
+      },
+    },),
+    it({
+      name: 'reads a unit that is starting or stopping as a run that has not ended, and one that ended as no run',
+      fn: async () => {
+        expect(parseRunningPiUnits({
+          shown: [
+            'Id=pi-alpha@2.service',
+            'ActiveState=activating',
+            'ActiveEnterTimestampMonotonic=0',
+            'MainPID=9',
+            '',
+            'Id=pi-alpha@1.service',
+            'ActiveState=deactivating',
+            'ActiveEnterTimestampMonotonic=0',
+            'MainPID=8',
+            '',
+            'Id=pi-alpha.service',
+            'ActiveState=inactive',
+            'ActiveEnterTimestampMonotonic=0',
+            'MainPID=0',
+          ].join(
+            '\n',
+          ),
+          nowMicroseconds: 1_000,
+        },).map(function nameOf(unit,) {
+          return [unit.name, unit.runNumber, unit.state,];
+        },),).toEqual([
+          ['alpha', 2, 'activating',],
+          ['alpha', 1, 'deactivating',],
+        ],);
       },
     },),
     it({

@@ -123,6 +123,7 @@ function unitOf({
     unitName: `pi-${name}.service`,
     elapsedMilliseconds,
     mainPid: 4_242,
+    state: 'active',
   };
 }
 

@@ -19,8 +19,11 @@ import {
   WORKTREE_ADD_TIMEOUT_MILLISECONDS,
   branchExists,
 } from './worktree-git.ts';
-import { writeProof, } from './worktree-proof.ts';
-import { clearWhatThisMakingLeft, } from './worktree-taking-up.ts';
+import {
+  type ProofMaker,
+  writeProof,
+} from './worktree-proof.ts';
+import { clearWhatALeftoverLeft, } from './worktree-taking-up.ts';
 
 /**
  Writes the proof of this making, asks git for the worktree, and answers with what it did.
@@ -60,6 +63,7 @@ export async function makeTheWorktree({
   base,
   claim,
   now,
+  maker,
 }: {
   readonly git: GitRunner;
   readonly checkoutFolder: string;
@@ -71,6 +75,7 @@ export async function makeTheWorktree({
     readonly runFolder: string;
   };
   readonly now: () => number;
+  readonly maker: ProofMaker;
 }): Promise<string> {
   /**
    Whether the branch the run works on was there before this start asked anything, which says which of the two things the add
@@ -117,6 +122,7 @@ export async function makeTheWorktree({
           branch,
           state: 'making',
           writtenAt: new Date(now(),).toISOString(),
+          maker,
         },
       },);
       // A killed add may have registered the path before it ended. Pruning clears such a registration, and it takes no folder and
@@ -155,7 +161,7 @@ export async function makeTheWorktree({
       if ((attempted.status === 0) || (attempt === WORKTREE_ADD_ATTEMPTS)) {
         return attempted;
       }
-      await clearWhatThisMakingLeft({
+      await clearWhatALeftoverLeft({
         git,
         checkoutFolder,
         worktree,
@@ -195,6 +201,7 @@ export async function makeTheWorktree({
       branch,
       state: 'made',
       writtenAt: new Date(now(),).toISOString(),
+      maker,
     },
   },);
   return branchWasThere
