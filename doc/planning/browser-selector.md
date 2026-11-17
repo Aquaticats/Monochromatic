@@ -27,7 +27,43 @@ The [terminal's Slint build](../../package/terminal/app/build.rs) provides the m
 The [file manager's Cargo lockfile](../../package/file-manager/app/Cargo.lock) records the `gio` dependency.
 `pkg-config --modversion gio-2.0 gio-unix-2.0` reported `2.90.1` for both on the test machine.
 
-## Open choices 2026-11-17T16:35:12-05:00
+## Browser and profile choices 2026-11-17T16:40:02-05:00
 
-Choose how profiles enter the picker and which browser installations to verify.
-Use the resulting requirements to define the selection and launch behavior.
+Discover installed browsers through GIO. Show a plain choice for each browser and separate choices
+for named profiles discovered in Firefox, Firefox ESR, Firefox Developer Edition, and Helium.
+The plain choice uses the browser's registered desktop entry. A named choice opens the same target
+with explicit profile arguments.
+
+Firefox provides legacy profile names and paths in `profiles.ini`. Its current profile manager
+also stores named profiles in SQLite group databases. The installed Firefox variants have distinct
+remoting names and can share a profile inventory. Use evidence from Firefox's per-install defaults
+and profile compatibility metadata to determine which Firefox can open a profile.
+[Mozilla profile architecture](https://firefox-source-docs.mozilla.org/toolkit/profile/index.html)
+
+All three installed Firefox variants accept `--profile PATH --new-tab URI` according to
+`--help` in a disposable home. Codex checked each installed revision's startup code for
+path-based forwarding to an already running instance. Runtime delivery still needs verification.
+
+Helium uses Chromium's profile storage. The installed wrapper forwards arguments to Helium.
+A disposable attempt to start Helium returned `spawnSync dbus-run-session ETIMEDOUT` after creating
+`net.imput.helium` and `net.imput.helium-headless` under the fixture's config directory.
+Verify profile metadata and launch on a nested desktop.
+[Chromium user data directory](https://chromium.googlesource.com/chromium/src/+/HEAD/docs/user_data_dir.md)
+
+## Proposed picker behavior 2026-11-17T16:40:02-05:00
+
+Use one window with the incoming target and a list of browser and profile choices.
+Open the selected target on click or Enter. Support the arrow keys for selection and Escape to close.
+Show an error when there are no available browsers, or when the selected launch fails.
+Use the desktop entry's `%u` argument for a single URL or file per invocation.
+
+The package will live at `package/browser-selector/app` and follow the existing desktop packages'
+`mise` tasks. Install its binary and desktop entry under the user's local install directories.
+The desktop environment owns default application changes. Test registration and removal in a
+disposable KDE profile.
+
+## Open choices 2026-11-17T16:40:02-05:00
+
+Decide whether automatic Firefox discovery reads both profile storage formats.
+Reading the newer format uses the system SQLite library in read-only mode.
+`pkg-config --modversion sqlite3` reported `3.54.1` on the test machine.
