@@ -1,6 +1,6 @@
 # Browser selector
 
-Proposal awaiting design confirmation.
+Implementation authorized. Verification is pending.
 
 ## First release scope 2026-11-17T16:35:12-05:00
 
@@ -62,7 +62,7 @@ Open the selected target on click or Enter. Support the arrow keys for selection
 Show an error when there are no available browsers, or when the selected launch fails.
 Use the desktop entry's `%u` argument for a single URL or file per invocation.
 
-The package will live at `package/browser-selector/app` and follow the existing desktop packages'
+The package will live at `package/browser-selector/desktop-app` and follow the existing desktop packages'
 `mise` tasks. Install its binary and desktop entry under the user's local install directories.
 The desktop environment owns default application changes. Test registration and removal in a
 disposable KDE profile.

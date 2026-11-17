@@ -1,0 +1,28 @@
+[tasks.build]
+description = "Build the browser selector"
+run = "cargo build --release"
+
+[tasks."build:debug"]
+description = "Build the browser selector with debug information"
+run = "cargo build"
+
+[tasks.lint]
+description = "Check Rust, Slint, and the desktop entry"
+run = ["cargo clippy --all-targets -- --deny warnings", "desktop-file-validate share/applications/monochromatic.browser-selector.desktop"]
+
+[tasks.format]
+description = "Format Rust sources"
+run = "cargo fmt"
+
+[tasks.test]
+description = "Run browser selector tests through nextest"
+run = "cargo nextest run"
+
+[tasks.install]
+description = "Install the picker and register its per-user desktop entry"
+depends = ["build"]
+run = "node install.ts install"
+
+[tasks.uninstall]
+description = "Remove the picker and its per-user desktop entry"
+run = "node install.ts uninstall"
