@@ -89,6 +89,33 @@ install -D --mode=755 ./target/release/browser-selector "$HOME/.local/bin/browse
 Keep the registered binary at that path. Copying it alone leaves the existing desktop entry pointing
 at the checkout, where removing build output can break URL dispatch.
 
+## Uninstall when the previous handler was never recorded
+
+On 2026-11-17, Browser Selector's `--uninstall` exited with status `1` and printed
+`Browser Selector is the default, but the previous browser was not recorded.`
+The config's `previous_handlers` object was empty, and the guard ran before file removal.
+[`src/install.rs:107`][uninstall-guard]
+
+```rust
+// src/install.rs:108
+if !config.previous_handlers.is_empty() {
+    restore_previous(config)?;
+} else if SCHEMES.iter().all(|mime| query_handler(mime) == desktop_filename()) {
+    return Err("Browser Selector is the default, but the previous browser was not recorded.".into());
+}
+```
+
+Removing the Browser Selector entries for HTTP and HTTPS from the `[Default Applications]` section
+of `~/.config/mimeapps.list` dropped the explicit overrides. A second uninstall attempt hit the same guard.
+`XDG_UTILS_DEBUG_LEVEL=2 xdg-mime query default x-scheme-handler/https` reached the user
+`applications/mimeinfo.cache`, where Browser Selector was the first registered handler for both schemes.
+
+Codex removed the installed binary, desktop entry, and matching icons. The desktop and icon caches
+were refreshed with `update-desktop-database`, `kbuildsycoca6`, and `gtk4-update-icon-cache`.
+Both `xdg-mime query default` checks and `xdg-settings get default-web-browser` then returned
+`firefox-esr.desktop`. Firefox ESR was the resulting fallback on that machine. The historical
+handler before Browser Selector was unknown.
+
 ## Upstream filing decision
 
 GitHub issue and pull request searches for `"command not found" OR "xdg-open" OR "PATH"`
@@ -101,5 +128,6 @@ outside this diagnosis, and no upstream patch was prototyped. There is no upstre
 [write-launcher]: https://github.com/lava/browser-chooser/blob/164028b43c664b4aa72015ae0432c9205be1c692/src/install.rs#L62-L88
 [desktop-exec]: https://github.com/lava/browser-chooser/blob/164028b43c664b4aa72015ae0432c9205be1c692/src/install.rs#L30-L38
 [set-defaults]: https://github.com/lava/browser-chooser/blob/164028b43c664b4aa72015ae0432c9205be1c692/src/install.rs#L78-L87
+[uninstall-guard]: https://github.com/lava/browser-chooser/blob/164028b43c664b4aa72015ae0432c9205be1c692/src/install.rs#L107-L121
 [readme-install]: https://github.com/lava/browser-chooser/blob/164028b43c664b4aa72015ae0432c9205be1c692/README.md#L25-L29
 [readme-usage]: https://github.com/lava/browser-chooser/blob/164028b43c664b4aa72015ae0432c9205be1c692/README.md#L41-L47
