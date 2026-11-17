@@ -195,6 +195,9 @@ At about 17:58 on 2026-11-16: "I just received the new SSD. Let everything alrea
   is copied to the home folder's NVMe drive:
   `/var/home/user/copy-of-the-agent-scratch-text-made-before-the-reboot-of-2026-11-16/`.
   It holds no session or feed file of a run and no build tree. Remove it once the scratch is known to have come back.
+  Its last run, at 19:30:50, found 28,391 files already there and copied 117 more; 30 files over 4 MiB were left,
+  and three things could not be read: two fixture files a lock-shim reproduction made unreadable on purpose,
+  and the folder `service-change-probe`, which another user id owns. The run's own output is `last-run-of-the-copy.txt` in the copy.
 
 #### How to start again
 
