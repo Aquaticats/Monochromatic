@@ -170,8 +170,10 @@ The owner's answers of the day are under "Owner decisions in force", in the entr
   `~/temp/agent/getting-the-machine-ready-for-a-reboot-2026-11-16/keep/uncommitted-work-of-each-worktree/`.
 - **Datasets:** `~/.cargo/build` is `zpcachyos/nosnap/cargo-build` (made 2026-11-17, contents moved in and checked byte for byte).
 - **Git:** every shell in the checkout runs the wrapper through `.cache/monochromatic-git-policy-cli-bin/git`,
-  a cargo build of main linked by hand; no commit service unit is installed here
-  (`systemctl --user list-unit-files 'monochromatic-git-policy-cli*'` printed nothing).
+  a cargo build of main linked by hand. No commit service unit existed before the first commit through it
+  (`systemctl --user list-unit-files 'monochromatic-git-policy-cli*'` printed nothing at 18:36:32);
+  that commit (8a41d900ff, 2026-11-17T18:37:13-05:00, signed) brought up `monochromatic-git-policy-cli@<instance>.service`
+  and its socket, and the wrapper reported "The backup push of branch main for commit 8a41d900ff was made".
 - **Agents:** nothing runs. Writers are GPT 6.2 Sol on `openai` and reviewers DeepSeek V4.1 Flash from Synthetic,
   then `opencode-go`, then Neuralwatt flex, all through the driver; the driver's pool table does not list them yet,
   so such a run is in no pool and nothing limits how many start. The agent cap is found again on the new pool before any filling.
