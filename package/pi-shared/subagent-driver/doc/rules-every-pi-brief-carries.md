@@ -203,7 +203,7 @@ Each rule is the project's own requirement.
   `cargo metadata` names a folder the build does not use;
   to learn where a build put its output,
   ask cargo with `--message-format=json`.
-- Never walk `/var/mnt/encrypted/cargo-build`,
+- Never walk `~/.cargo/build`,
   the build directory every agent shares:
   no `find`,
   `du`,
