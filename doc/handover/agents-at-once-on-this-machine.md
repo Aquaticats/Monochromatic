@@ -220,7 +220,9 @@ the owner said on 2026-11-14 at about 14:39 that the arrival slipped from 2026-1
 ## Readings on the new drive
 
 The probe writes and syncs 4 KiB once a minute in two datasets of the pool `zpcachyos`:
-the snapshotted home dataset (`~/.cache/disk-ceiling-probe-file`)
+the snapshotted home dataset `zpcachyos/ROOT/cos/home`
+(in the search's own folder, where every run's scratch lives too;
+`~/.cache` is the snapshot-free `zpcachyos/nosnap/user-cache`)
 and the snapshot-free `zpcachyos/nosnap/cargo-build` (`~/.cargo/build/disk-ceiling-probe-file`),
 one line a minute in `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026-11-17/keep/probe-readings.jsonl`.
 No level has started yet.

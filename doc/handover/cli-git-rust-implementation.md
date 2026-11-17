@@ -39629,8 +39629,17 @@ Answers through the question tool and words typed in the session, after the owne
   and the reviewer "Synthetic and C and B, as a pool with preference.", which names, in that order,
   `synthetic` `hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`, `opencode-go` `deepseek-v4.1-flash` and `neuralwatt` `deepseek-v4.1-flash-flex`.
   The provider `deepseek` is never used. Both run through `package/pi-shared/subagent-driver`.
-  This replaces reviews on Claude Sonnet subagents and GPT runs through `codex`; `AGENTS.md` still says otherwise
-  (rules `KRV`, `LHZ`, `PFW`, `XVW`, `XVB`, `XVS`) and its rewrite is put to the owner.
+  This replaces reviews on Claude Sonnet subagents and GPT runs through `codex`.
+- **`AGENTS.md` rewrite:** the owner picked "A: Rewrite; audits go to DeepSeek (Recommended)" with the note
+  "Rewrite, audits stay sonnet, but Synthetic, then ... are implementation details in our driver package and shouldn't take up precious tokens.
+  Also you're supposed to bench deepseek as reviewer against what we had before and challenge me if you think we need more changes."
+  So `XVW` (delegated writing through Pi on GPT 6.2 Sol) and `KRV` (reviews through Pi on DeepSeek, never the official `deepseek` provider)
+  were rewritten without the provider order, `PFW` names any review or audit, `LHZ` keeps long audits on Claude Sonnet,
+  and `XVB` and `XVS` were retired (9a30206cbb). The bench of DeepSeek as reviewer against Sonnet and Kimi on inputs
+  whose defects a failing control later proved is owed, with any challenge put to the owner.
+- **Agent cap:** "The cap shouldn't be 20. The 20 cap was set because my old disk was slow, and we're on the new disk now.",
+  then, after the session read that as no cap, "I didn't tell you to outright remove the cap. You're meant to bisect for it.",
+  then "Start from 20 instead." The search on the new drive and its readings are in `doc/handover/agents-at-once-on-this-machine.md`.
 - **Git for agents:** "A: Build wrapper by cargo now (Recommended)": no Pi run could start, because the driver's launcher refuses
   a session whose `git` is not the wrapper and the wrapper's link comes from the held install.
   The session first linked it for every shell in the checkout and had told the owner their own shell would keep `/usr/bin/git`,
