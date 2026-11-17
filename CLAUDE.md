@@ -319,26 +319,14 @@ A same-vendor subagent is a second pass:
  never as independent.
 
 XVW:
- GPT audits,
- `timeout` sized in seconds:
- `timeout 3600 codex exec --dangerously-bypass-approvals-and-sandbox --model gpt-6.1-sol --config model_reasoning_effort=xhigh "<question>"`.
-
-XVB:
- Every `codex` run passes `--dangerously-bypass-approvals-and-sandbox`,
- because its auto mode has too many issues,
- and names `xhigh` explicitly.
-
-XVS:
- Keep GPT runs small,
- one narrow question each:
- GPT models cannot be trusted on long-horizon work.
+ Delegated writing runs through Pi on GPT 6.2 Sol,
+ started by `package/pi-shared/subagent-driver`.
 
 KRV:
- Reviews of a change go to Claude Sonnet alone,
- by whatever route the harness in use offers,
- in a worktree of its own;
- none starts on Kimi K3.1 Pro,
- which costs too much.
+ Reviews of a change run through Pi on DeepSeek,
+ started by `package/pi-shared/subagent-driver`,
+ in a worktree of their own;
+ never on the official `deepseek` provider.
 
 LHZ:
  Long-horizon audits,
@@ -350,7 +338,7 @@ LHZ:
 PFW:
  Alongside advisor,
  never instead:
- a Sonnet review reads the paths its prompt names,
+ a review or audit reads the paths its prompt names,
  whole files and the diff,
  never prose.
 Background it;
