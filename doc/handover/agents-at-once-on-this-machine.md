@@ -7,7 +7,21 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-At most **20** agents run on this machine at once since 2026-11-15T10:50:46-05:00,
+**No disk cap holds on this machine since the move to the new drive on 2026-11-17.**
+Every number on this page was measured on the old drives (the SATA 860 EVO and the old NVMe),
+whose stalls set it.
+The home folder now sits on the ZFS pool `zpcachyos` on the Intel 3.5 TB NVMe,
+and the owner wrote on 2026-11-17:
+"The cap shouldn't be 20. The 20 cap was set because my old disk was slow, and we're on the new disk now."
+So no count of agents from this page holds work back.
+What still limits runs is each provider's own measured refusal
+(the pools in `package/pi-shared/subagent-driver/src/pool-limits.ts` and the skill `pi-as-subagent`).
+The disk probe under "What counts as the ceiling" may run beside the work to show a stall if the new drive has one;
+a cap returns to this page only from such a measured stall.
+What follows is the old drives' record,
+kept as it was written.
+
+At most **20** agents ran on this machine at once from 2026-11-15T10:50:46-05:00 until the move,
 by the owner's answer of that morning
 ("Step to 20 with the probe (Recommended)",
 asked whether the cap stays at 17 until the new drive,
