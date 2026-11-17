@@ -726,16 +726,16 @@ fn a_persons_removal_of_a_file_the_merge_added_stays_removed_in_every_place_it_i
 
     // A: an unstaged removal.
     std::fs::remove_file(world.repo.join("rival.txt")).expect("the person removes the merge's file");
-    let observed: Observed = run_wrapped(fixture, world.repo.as_path(), &["status", "--short"]);
-    assert_eq!(observed.code, Some(0), "the command runs: {}", stderr_of(&observed));
+    let unstaged: Observed = run_wrapped(fixture, world.repo.as_path(), &["status", "--short"]);
+    assert_eq!(unstaged.code, Some(0), "the command runs: {}", stderr_of(&unstaged));
     assert!(!there(world.repo.join("rival.txt").as_path()), "the merge's file is not written back");
     assert_eq!(changes(fixture, world.repo.as_path()), "D rival.txt", "and the removal is still the checkout's");
 
     // B: a staged removal.
     git(fixture, world.repo.as_path(), &["reset", "--quiet", "--hard"]);
     git(fixture, world.repo.as_path(), &["rm", "--quiet", "rival.txt"]);
-    let observed: Observed = run_wrapped(fixture, world.repo.as_path(), &["status", "--short"]);
-    assert_eq!(observed.code, Some(0), "the command runs: {}", stderr_of(&observed));
+    let staged: Observed = run_wrapped(fixture, world.repo.as_path(), &["status", "--short"]);
+    assert_eq!(staged.code, Some(0), "the command runs: {}", stderr_of(&staged));
     assert!(!there(world.repo.join("rival.txt").as_path()), "the merge's file is not written back");
     assert_eq!(changes(fixture, world.repo.as_path()), "D  rival.txt", "and it stays staged as removed");
 
@@ -749,8 +749,8 @@ fn a_persons_removal_of_a_file_the_merge_added_stays_removed_in_every_place_it_i
     );
     assert_eq!(checked_out(fixture, linked.as_path()), String::from("refs/heads/feature"));
     git(fixture, linked.as_path(), &["rm", "--quiet", "rival.txt"]);
-    let observed: Observed = run_wrapped(fixture, linked.as_path(), &["status", "--short"]);
-    assert_eq!(observed.code, Some(0), "the command runs in the linked worktree: {}", stderr_of(&observed));
+    let in_the_worktree: Observed = run_wrapped(fixture, linked.as_path(), &["status", "--short"]);
+    assert_eq!(in_the_worktree.code, Some(0), "the command runs in the linked worktree: {}", stderr_of(&in_the_worktree));
     assert!(!there(linked.join("rival.txt").as_path()), "the merge's file is not written back there either");
     assert_eq!(changes(fixture, linked.as_path()), "D  rival.txt", "and it stays staged as removed there");
     remove(fixture);

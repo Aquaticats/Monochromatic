@@ -5208,8 +5208,13 @@ fn two_commands_that_read_one_dead_claim_take_the_place_once() {
         let handed: (PathBuf, PathBuf, crate::transaction_owner::TransactionOwner, crate::transaction_owner::TransactionOwner) =
             (git_dir.clone(), dead_path.clone(), owner, dead_owner.clone());
         takers.push(std::thread::spawn(move || {
-            let (git_dir, dead_path, owner, the_dead_owner) = handed;
-            return the_repair_owner_after_its_owner_died(git_dir.as_path(), &owner, dead_path.as_path(), &the_dead_owner);
+            let (where_the_place_is, the_place, its_taker, the_dead_owner) = handed;
+            return the_repair_owner_after_its_owner_died(
+                where_the_place_is.as_path(),
+                &its_taker,
+                the_place.as_path(),
+                &the_dead_owner,
+            );
         }));
     }
     let took: Vec<Option<ARepairInHand>> = takers.into_iter().map(|taker| return taker.join().expect("a command ended")).collect();

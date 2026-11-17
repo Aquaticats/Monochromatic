@@ -325,8 +325,8 @@ fn play_inside_the_claim() {
         let held = INSIDE_THE_CLAIM.lock().unwrap_or_else(|poisoned| return poisoned.into_inner());
         held.as_ref().map(std::sync::Arc::clone)
     };
-    if let Some(step) = step {
-        step();
+    if let Some(held) = step {
+        held();
     }
 }
 
