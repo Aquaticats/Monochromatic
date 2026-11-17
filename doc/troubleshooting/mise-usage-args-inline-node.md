@@ -89,6 +89,13 @@ as shown by the child process arguments.
 The build used a separate scratch `toolchain:install` task whose command explicitly named the locked tools.
 The scoped task finished with `2 installed, 64 unchanged, 0 failed`.
 
+The maintainer requested removal of the tools added by these runs.
+The cleanup removed the new toolchain store and checkout launchers, the pnpm and uv tools added by the runs,
+and the Rust components and Android targets added to the existing nightly.
+Both the removed managed pnpm and the CachyOS `pacman` package reported version `12.21.0`.
+The [distro package manager decision](../decision/mpm-toolchain-adoption.md#distro-package-manager-preference-2026-11-17t163103-0500)
+records the intended preference and the open handling of version mismatches and unavailable packages.
+
 ## Symptom
 
 A mise task declares variadic usage arguments,
