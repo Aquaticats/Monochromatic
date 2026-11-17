@@ -35,9 +35,11 @@ The plain choice uses the browser's registered desktop entry. A named choice ope
 with explicit profile arguments.
 
 Firefox provides legacy profile names and paths in `profiles.ini`. Its current profile manager
-also stores named profiles in SQLite group databases. The installed Firefox variants have distinct
-remoting names and can share a profile inventory. Use evidence from Firefox's per-install defaults
-and profile compatibility metadata to determine which Firefox can open a profile.
+also stores named profiles in SQLite group databases. Include both kinds of profiles in the picker.
+Use system SQLite in read-only mode for profile names and paths. `pkg-config --modversion sqlite3`
+reported `3.54.1` on the test machine. The installed Firefox variants have distinct remoting names
+and can share a profile inventory. Use evidence from Firefox's per-install defaults and profile
+compatibility metadata to determine which Firefox can open a profile.
 [Mozilla profile architecture](https://firefox-source-docs.mozilla.org/toolkit/profile/index.html)
 
 All three installed Firefox variants accept `--profile PATH --new-tab URI` according to
@@ -62,8 +64,10 @@ The package will live at `package/browser-selector/app` and follow the existing 
 The desktop environment owns default application changes. Test registration and removal in a
 disposable KDE profile.
 
-## Open choices 2026-11-17T16:40:02-05:00
+## Verification before delivery 2026-11-17T16:44:59-05:00
 
-Decide whether automatic Firefox discovery reads both profile storage formats.
-Reading the newer format uses the system SQLite library in read-only mode.
-`pkg-config --modversion sqlite3` reported `3.54.1` on the test machine.
+Check that each selected browser receives the exact target in the selected profile.
+Use disposable profiles to verify both Firefox storage formats and Helium with cold and running
+browser instances. Run the Slint picker in a nested desktop to exercise keyboard and pointer input.
+Use separate fixtures for the default applications so verification preserves the desktop's active
+associations.
