@@ -100,8 +100,29 @@ sudo pacman --upgrade ./browsers-bin-0.8.6-1-x86_64.pkg.tar.zst
 ```
 
 The commands assume the recipe's `desktop-file-utils` and `xdg-utils` build dependencies are present.
-They were installed on the tested host. Future upgrades through this workaround require a fresh
-build with `makepkg`. Pacman tracks the resulting files and owns package removal.
+They were installed on the tested host. Pacman tracks the resulting files and owns package removal.
+
+## Upgrade behavior on `2026-11-17T15:39:55-05:00`
+
+Shelly discovers AUR updates from the package names and versions in pacman's foreign package inventory.
+In a disposable root installed from the local archive, `shelly list aur --names-only` listed `browsers-bin`.
+The AUR update query reported `0.8.5-1` to `0.8.6-1` from an older-version fixture and returned no updates
+from the current-version fixture with a fresh home. [Shelly update discovery][shelly-discovery]
+
+`shelly upgrade aur` calls `AurManager.updatePackages`, which enters the installation build path.
+An upgrade package with the same installer UID check will fail in that path. Continuing to build and
+install local archives requires running that procedure again for each release.
+[Shelly upgrade dispatch][shelly-upgrade]
+
+Cachy Update `4.4.7-1` is installed on the host. Its helper selection in
+`/usr/share/arch-update/lib/common.sh:118` chose `paru` when the CachyOS Paru `2.2.0-2` binary was present
+in a disposable `PATH`. Paru reported the pending `browsers-bin` upgrade in the older-version fixture.
+Paru builds with `makepkg`, whose package step was verified with the unmodified AUR recipe.
+The installed Cachy Update code in `/usr/share/arch-update/lib/update.sh:32` delegates the AUR upgrade
+to the selected helper. [Paru build invocation][paru-build]
+
+The host's active `arch-update.timer` invokes `arch-update --check` through `arch-update.service`.
+It schedules update checks. Running `arch-update` applies pending upgrades after confirmation.
 
 ## What does not work
 
@@ -134,5 +155,8 @@ The filing decision is to keep the diagnosis and verified workaround in this rec
 [browsers-release]: https://github.com/Browsers-software/browsers/releases/tag/0.8.6
 [shelly-launch]: https://github.com/Seafoam-Labs/Shelly-ALPM/blob/a1648fd10b37e3f051aa08dbbc410680ce772abe/Shelly.PackageManager/src/aur/builder/steps.zig#L240-L254
 [shelly-wrappers]: https://github.com/Seafoam-Labs/Shelly-ALPM/blob/a1648fd10b37e3f051aa08dbbc410680ce772abe/Shelly.PackageManager/src/aur/builder/steps.zig#L335-L347
+[shelly-discovery]: https://github.com/Seafoam-Labs/Shelly-ALPM/blob/a1648fd10b37e3f051aa08dbbc410680ce772abe/Shelly.PackageManager/src/aur/manager.zig#L595-L620
+[shelly-upgrade]: https://github.com/Seafoam-Labs/Shelly-ALPM/blob/a1648fd10b37e3f051aa08dbbc410680ce772abe/Shelly.Cli.Zig/src/commands/upgrade.zig#L675-L714
+[paru-build]: https://github.com/Morganamilo/paru/blob/ddd54339054ac6638acaf7a5387a360aabef3bc3/src/exec.rs#L205-L239
 [ownership-issue]: https://github.com/Seafoam-Labs/Shelly-ALPM/issues/2025
 [builder-design]: https://github.com/Seafoam-Labs/Shelly-ALPM/blob/a1648fd10b37e3f051aa08dbbc410680ce772abe/Shelly.PackageManager/src/aur/builder/README.md#L185-L190
