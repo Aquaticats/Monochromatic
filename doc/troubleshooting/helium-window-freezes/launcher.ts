@@ -17,7 +17,8 @@ const metrics = join(profile, 'BrowserMetrics');
 //endregion
 
 //region Force Chromium's verified local-memory fallback for diagnostic histograms
-// Chromium 156 and 157 initialize this mapping before feature flags are available.
+// Chromium 156 initializes this mapping before feature flags are available;
+// on 157 the startup call site was not reread, but plain starts still create the mapping.
 // Helium deletes an empty BrowserMetrics directory within seconds of startup.
 // The file inside keeps the read-only directory in place, so later starts that skip
 // this launcher (an in-browser relaunch, web-app shortcuts, a terminal `helium-browser`)

@@ -9,7 +9,10 @@
 // - `desktop`: the first `Exec=` line of `~/.local/share/applications/helium.desktop`.
 // - `sentinel`: plain Helium on a profile whose `BrowserMetrics` folder was made
 //   read-only, with a file inside, before the start.
+// - `prepared-mid-session`: plain Helium; once its spare file exists, the folder is made
+//   read-only with a file inside while it runs, then it relaunches (implies `restart`).
 // `restart` additionally opens `chrome://restart` over DevTools and checks the relaunched process.
+// The log ends with any Helium core dumps recorded since the run started.
 //
 // Probe pitfalls this script handles:
 // - Chromium moves its browser main process out of the launching unit into its own
@@ -74,16 +77,23 @@ function desktopMainExec(): string[] {
   return execLine.slice('Exec='.length).split(' ').filter(token => token !== '%U');
 }
 
-if (arm === 'sentinel') {
+// Same steps as the launcher and as the manual preparation of a running profile.
+function prepareReadOnlyMetricsFolder() {
   const metrics = join(profile, 'BrowserMetrics');
   mkdirSync(metrics, { recursive: true, mode: 0o700 });
+  chmodSync(metrics, 0o700);
   writeFileSync(join(metrics, 'read-only-on-purpose.txt'), 'sentinel\n');
   chmodSync(metrics, 0o500);
+}
+
+if (arm === 'sentinel') {
+  prepareReadOnlyMetricsFolder();
 }
 
 const commandsByArm = new Map<string, () => string[]>([
   ['control', () => ['/usr/bin/helium-browser']],
   ['sentinel', () => ['/usr/bin/helium-browser']],
+  ['prepared-mid-session', () => ['/usr/bin/helium-browser']],
   ['launcher', () => ['/usr/bin/node', join(homedir(), '.local', 'lib', 'helium', 'launcher.ts')]],
   ['desktop', desktopMainExec],
 ]);
@@ -167,6 +177,7 @@ async function requestRestart(port: string) {
 //endregion
 
 //region Run, observe, stop
+const runStart = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
 log(`arm ${arm}: ${[...command, ...browserArguments].join(' ')}`);
 execFileSync('systemd-run', [
   '--user', `--unit=${unit}`, '--collect',
@@ -182,7 +193,18 @@ try {
   report('after initialization');
   await sleep(30000);
   report('30 s later');
-  if (wantRestart && port) {
+  if (arm === 'prepared-mid-session') {
+    // Mirror a profile prepared while Helium runs: wait for the spare file Chromium
+    // writes on a delayed worker task, then make the folder read-only with a file inside.
+    const spare = join(profile, 'BrowserMetrics-spare.pma');
+    for (let attempt = 0; attempt < 360 && !existsSync(spare); attempt++) {
+      await sleep(500);
+    }
+    log(`spare file ${existsSync(spare) ? `present, ${statSync(spare).size} bytes` : 'absent after 180 s'}`);
+    prepareReadOnlyMetricsFolder();
+    report('after preparing the folder mid-session');
+  }
+  if ((wantRestart || arm === 'prepared-mid-session') && port) {
     const before = browserPids();
     await requestRestart(port);
     for (let attempt = 0; attempt < 60; attempt++) {
@@ -203,5 +225,12 @@ try {
   log(`stopped ${unit} ${scopes.join(' ')}`);
   await sleep(2000);
   log(`browser main pids left for this profile: ${JSON.stringify(browserPids())}`);
+  try {
+    const dumps = execFileSync('coredumpctl', ['list', '--no-pager', `--since=${runStart}`, heliumBinary], { encoding: 'utf8' });
+    log(`Helium core dumps since ${runStart}:\n${dumps}`);
+  } catch (error) {
+    // coredumpctl exits non-zero when it finds no matching dump.
+    log(`coredumpctl found no Helium core dump since ${runStart}: ${String((error as { stderr?: string }).stderr ?? error).trim()}`);
+  }
 }
 //endregion
