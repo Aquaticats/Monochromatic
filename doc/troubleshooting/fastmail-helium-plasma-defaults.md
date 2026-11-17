@@ -7,7 +7,8 @@ Delivery of a compose link into a signed-in account remains unverified.
 
 Fastmail is installed in Helium and offers shortcuts for Mail, Calendar, and Contacts.
 Plasma's **Default Applications** page offers **Email Client**, **Calendar**, and **Phone Numbers**.
-Each row has its own association, so the Calendar and Contacts shortcuts leave the related desktop inputs unhandled.
+The Fastmail launcher advertises an email association. Its Calendar and Contacts shortcuts open those sections
+inside Fastmail.
 
 ## Root cause
 
