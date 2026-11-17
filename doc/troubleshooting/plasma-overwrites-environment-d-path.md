@@ -90,6 +90,8 @@ The installed `/usr/lib/plasma-sourceenv.sh` was invoked with the failing login 
 With no hook it returned the failing path and launching `maki` yielded `ENOENT`.
 With an equivalent symlink in a disposable directory it returned a path with `~/.cargo/bin`,
 and launching `maki --version` using that path printed `maki 0.7.2`.
+At `2026-11-17T18:52:47-05:00`, Codex installed the link in the user's Plasma hook directory.
+Repeating the loader check against the installed link also produced `maki 0.7.2`.
 A full Plasma login with the symlink remains to be checked.
 
 ## What does not work
