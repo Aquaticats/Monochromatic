@@ -1,8 +1,8 @@
 # rclone bisync 1.76.0 aborts every run while Path1 holds a name that a ZFS `normalization=formD` Path2 refuses
 
 Status: written by an agent on 2026-11-17, not reviewed or approved by the owner.
-The rclone upstream audit is incomplete (constraint 6 has no prototype yet);
-see "Upstream filing decision".
+Nothing has been filed upstream,
+and the readiness check in "Upstream filing decision" has not been run.
 
 When a file appears on Path1 whose name the local ZFS dataset cannot create,
 `rclone bisync` fails the whole run with exit status 7 and prints `Must run --resync to recover`.
@@ -436,10 +436,71 @@ and the reporter called the "retryable without --resync" line misleading.
 5.  Likely to fix:
     no won't-fix signal found.
 6.  Prototype:
-    not yet.
-    The audit is incomplete until a message patch is built and run against the harness.
+    done on 2026-11-17 in a disposable clone of tag `v1.76.0`
+    (`origin` `https://github.com/rclone/rclone.git`,
+    commit `e982ff36668f5130d94b4f70409babb3d964df42`),
+    built with `go build` (go1.27.4).
 
-Do not file as-is.
+```diff
+--- a/cmd/bisync/operations.go
++++ b/cmd/bisync/operations.go
+@@ -223,7 +223,11 @@ func Bisync(ctx context.Context, fs1, fs2 fs.Fs, optArg *Options) (err error) {
+ 				_ = os.Rename(b.listing2, b.listing2+"-err")
+ 			}
+ 			fs.Errorf(nil, Color(terminal.RedFg, "Bisync critical error: %v"), err)
+-			fs.Error(nil, Color(terminal.RedFg, "Bisync aborted. Must run --resync to recover."))
++			if b.opt.Recover && !b.opt.Resync && bilib.FileExists(b.listing1+"-old") && bilib.FileExists(b.listing2+"-old") {
++				fs.Error(nil, Color(terminal.YellowFg, "Bisync aborted. The next run will retry from the backup listings as --recover is set."))
++			} else {
++				fs.Error(nil, Color(terminal.RedFg, "Bisync aborted. Must run --resync to recover."))
++			}
+ 		}
+ 		return ErrBisyncAborted
+ 	}
+```
+
+Verification of the prototype,
+with the harness in "Verification" run against both binaries on throwaway pools:
+
+- Installed v1.76.0,
+  with backups:
+  runs 1 to 3 print `Bisync aborted. Must run --resync to recover.`;
+  after the rename,
+  a plain run reverts to the backups and ends `Bisync successful` (exit 0).
+- Patched,
+  with backups:
+  the same runs print `Bisync aborted. The next run will retry from the backup listings as --recover is set.`;
+  the outcome of every run is unchanged.
+- Without backups,
+  both binaries print the same lines run for run,
+  and both still need a `--resync`,
+  so the patch changes only the case where the old message was untrue.
+- `go test -count=1 -v ./cmd/bisync/ -remote local` with `RCLONE_CONFIG=/notfound`:
+  every test passed and none failed.
+  `TestBisyncRemoteRemote` ran all 33 golden cases (one per `cmd/bisync/testdata/test_*` folder);
+  `TestBisyncRemoteLocal` and `TestBisyncLocalRemote` skip when both paths are local.
+  Without `-remote local` all three golden suites skip,
+  so a bare `go test ./cmd/bisync/` proves nothing about this change.
+- Not run:
+  `make quicktest`,
+  which rclone's `CONTRIBUTING.md` requires before a pull request,
+  and `golangci-lint`.
+
+All six constraints hold.
+The second misleading message ("retryable without --resync" when no backups exist) is outside this patch.
+
+Readiness check,
+not run on any item:
+reproduction on the latest release and other maintained lines,
+prior pull requests touching these lines,
+the issue and pull request templates,
+the tracker's automation,
+a same-day duplicate and work-in-progress search,
+a trust-system search,
+and a public reproduction repository with a CI workflow.
+No recommendation to file;
+that is the poster's decision,
+with the risk described at the start of this section.
 
 ~~~md
 Title: bisync: "Must run --resync to recover" is printed even when --recover will recover on the next run
