@@ -166,6 +166,34 @@ so this package follows the file descriptions and the C sources.
   `io.bfq.weight` printed `default 10`,
   so a write to `io.bfq.weight` is the one that takes effect.
 
+### When the weight files exist
+
+`claude-code-bash` sits in the user manager's `app.slice`,
+and its weight files exist only while `app.slice/cgroup.subtree_control` lists `io`.
+systemd lists it there only while at least one unit in `app.slice` sets an IO property such as `IOWeight=`,
+and takes it away when the last such unit stops.
+On the owner's workstation that unit is the terminal:
+drop-ins named `app-<terminal app ID>.scope.d/10-io-weight.conf`,
+`app-<terminal app ID>-.service.d/10-io-weight.conf` and `app-<terminal app ID>@.service.d/10-io-weight.conf`
+under `~/.config/systemd/user/` set `IOWeight=1` for each terminal.
+A terminal whose app ID has no drop-in leaves `io` off,
+and the watcher then logs `IO-WEIGHT-UNAVAILABLE` every pass.
+The drop-ins are host configuration,
+not part of this package.
+
+The measurement behind this,
+on the CachyOS install of 2026-11-17T12:33:47-05:00,
+where odytty's app ID had become `io.unfinished_works.odytty` and no drop-in matched it:
+
+- `app.slice/cgroup.subtree_control` read `cpu memory pids dmem`,
+  and the watcher logged `IO-WEIGHT-UNAVAILABLE` every pass.
+- `systemd-run --user --scope --property=IOWeight=1 sleep 15` added `io` to that file,
+  both weight files appeared in `claude-code-bash`,
+  and the watcher logged `IO-WEIGHT-APPLIED` for each.
+- When the scope ended,
+  `io` left the file and `IO-WEIGHT-UNAVAILABLE` came back.
+- A drop-in for `app-io.unfinished_works.odytty@.service` put `io` back for as long as the terminal runs.
+
 ### Disks this does not cover
 
 `sda` uses `kyber` (`none mq-deadline [kyber] bfq`),
