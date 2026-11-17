@@ -11,11 +11,6 @@
           name='externalProjectPath'
           value='$PROJECT_DIR$/packages/linter/kotlin'
         />
-        <option name='modules'>
-          <set>
-            <option value='/var/home/user/Monochromatic/packages/linter/kotlin' />
-          </set>
-        </option>
         <option
           name='resolveExternalAnnotations'
           value='true'
