@@ -12,7 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }
-gio = { workspace = true }
+gio = { workspace = true, features = ["v2_66"] }
 rusqlite = { workspace = true }
 serde_json = { workspace = true }
 slint = { workspace = true, default-features = false, features = ["std", "backend-winit", "renderer-software", "accessibility", "compat-1-2"] }

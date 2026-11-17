@@ -41,7 +41,7 @@ pub(crate) fn parse(input: &OsStr) -> anyhow::Result<Target> {
         && (scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https"))
     {
         // `?` returns the parsing error immediately if GIO rejects the URL.
-        let parsed = gio::glib::Uri::parse(text, gio::glib::UriFlags::NONE)?;
+        let parsed = gio::glib::Uri::parse(text, gio::glib::UriFlags::ENCODED)?;
         anyhow::ensure!(parsed.host().is_some_and(|host| !host.is_empty()), "The URL needs a hostname.");
 
         // Return the success value with owned copies, preserving the URL as supplied.

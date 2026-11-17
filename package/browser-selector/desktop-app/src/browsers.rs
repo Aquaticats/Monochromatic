@@ -84,7 +84,7 @@ fn simple_program(app: &gio::AppInfo) -> Option<PathBuf> {
     let command_line = app.commandline()?;
     let arguments = gio::glib::shell_parse_argv(command_line).ok()?;
     if arguments.len() == 2 && (arguments[1] == "%u" || arguments[1] == "%U") {
-        return gio::glib::find_program_in_path(app.executable());
+        return gio::glib::find_program_in_path(app.executable()?);
     }
     // Apps with package-specific wrapper arguments remain available through GIO.
     return None;

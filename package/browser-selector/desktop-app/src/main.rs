@@ -8,6 +8,9 @@ mod browsers;
 mod profiles;
 /// Validates and formats the supplied link or file.
 mod target;
+/// Exercises URI handling and discovery with disposable browser fixtures.
+#[cfg(test)]
+mod tests;
 
 /// Imports Slint's window operations and model types for the list of labels.
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};

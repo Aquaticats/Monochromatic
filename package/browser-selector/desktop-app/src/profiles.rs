@@ -79,6 +79,9 @@ fn group_profiles(path: &Path) -> rusqlite::Result<Vec<(String, String)>> {
 /// function profileDirectory(root: Path, storedPath: string): Path | undefined;
 /// ```
 fn profile_directory(root: &Path, stored_path: &str) -> Option<PathBuf> {
+    if stored_path.is_empty() {
+        return None;
+    }
     // Joining an absolute path preserves it. Firefox also supports profiles outside the data root.
     let path = fs::canonicalize(root.join(stored_path)).ok()?;
     if path.is_dir() {
