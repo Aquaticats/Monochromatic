@@ -211,18 +211,24 @@ and of the driver package,
 - **A writer**, a run that changes code or documents,
   is `--provider=openai --model=gpt-6.2-sol`,
   the provider the owner picked ("A: openai (Recommended)").
-- **A reviewer**, a run that reviews a change or audits code,
+- **A reviewer**, a run that reviews a change,
   is DeepSeek V4.1 Flash from one pool in the owner's order
   ("Synthetic and C and B, as a pool with preference."):
   `--provider=synthetic --model=hf:deepseek-ai/DeepSeek-V4.1-Flash-1017` first,
   then `--provider=opencode-go --model=deepseek-v4.1-flash`,
   then `--provider=neuralwatt --model=deepseek-v4.1-flash-flex` with the doubled wall clock flex runs get.
 - **The provider `deepseek` is never used**, for any run.
+- **Long-horizon audits** stay on Claude Sonnet,
+  by whatever route the harness offers, outside Pi
+  (rule `LHZ`; the owner, 2026-11-17: "Rewrite, audits stay sonnet").
 
 A writer and its reviewer come from different vendors,
 so such a review is independent in the sense rule `IRW` gives.
-This replaces reviews on Claude Sonnet subagents and GPT runs through `codex`;
-`AGENTS.md` says otherwise in rules `KRV`, `LHZ`, `XVW` and `XVS` until they are rewritten.
+This replaces reviews on Claude Sonnet subagents and GPT runs through `codex`
+(rules `KRV` and `XVW` in `AGENTS.md`).
+The provider order belongs in the driver package:
+once its pool table holds these pools,
+this list shrinks to a pointer there.
 
 How many GPT runs `openai` answers at once is not measured;
 the first 429 on it sets that number,
