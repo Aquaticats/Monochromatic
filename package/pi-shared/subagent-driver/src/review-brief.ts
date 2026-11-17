@@ -115,7 +115,12 @@ export function reviewBriefValues({
     COMMIT: commit,
     // Read through the home folder of whoever runs the command, as the default reviews and runs folders are.
     EARLIER_REVIEW_FOLDERS: EARLIER_REVIEW_FOLDERS_IN_HOME.map(function asACodeSpanBelowHome(parts,) {
-      return `\`${join(homedir(), ...parts,)}\``;
+      return `\`${
+        join(
+          homedir(),
+          ...parts,
+        )
+      }\``;
     },)
       .join(', ',),
     REVIEWS_FOLDER: reviewsFolder,
