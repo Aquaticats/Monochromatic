@@ -33,7 +33,9 @@ so this removes the same mapping without a measured freeze reduction here.
   A read-only folder that still holds a file cannot be deleted,
   so every later start of that profile takes the local-memory fallback,
   whether or not it goes through the launcher.
-  That covers `chrome://restart`,
+  Tested:
+  a plain `/usr/bin/helium-browser` start of a prepared profile and `chrome://restart`.
+  Inferred from the folder persisting, not run:
   the relaunch Helium offers after a flag change or a package update,
   web-app shortcuts (their `Exec=` calls `/opt/helium-browser-bin/helium-wrapper` directly),
   and `helium-browser` typed in a terminal.
@@ -147,9 +149,28 @@ Arms without one:
 - `desktop`,
   the installed `helium.desktop` main `Exec=` line:
   no mapping at any of the four checks.
+- `prepared-mid-session`,
+  which mirrors how the user's real profile was prepared:
+  plain Helium mapped `BrowserMetrics-6AFCD9C7-4B642.pma` after startup and 30 s later;
+  its 4,194,304-byte `BrowserMetrics-spare.pma` appeared 90 s after start;
+  the folder was then made read-only with a file inside while that browser ran,
+  and it kept its existing mapping.
+  After `chrome://restart`,
+  the relaunched browser had no mapping,
+  was still running 20 s later,
+  and the folder was intact.
+  `coredumpctl` recorded no Helium core dump during the run.
 
 Every browser stayed running through its checks and was then stopped by the harness.
-Logs are in `${HOME}/temp/agent/helium-metrics-launcher-check-on-chromium-157-2026-11-17/keep`.
+The `prepared-mid-session` run used the committed harness;
+the other arms ran in a scratch predecessor with the same checks,
+before the harness was committed.
+Logs are in `${HOME}/temp/agent/helium-metrics-launcher-check-on-chromium-157-2026-11-17/keep`
+and `${HOME}/temp/agent/helium-metrics-prepared-mid-session-check-2026-11-17/keep`.
+No crash report appeared in Helium's crash database during the runs,
+which the throwaway browsers share with the real profile
+(`${HOME}/.config/net.imput.helium/Crash Reports`;
+only its `settings.dat` changed).
 The harness and the launcher pass `mise run lint:types` from the companion folder.
 
 #### Probe errors caught before trusting a result
