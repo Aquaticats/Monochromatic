@@ -9455,12 +9455,14 @@ in-process reader can) gives every value of the multi-valued keys.
   A record is finished when every worktree that has its branch checked out shows the tip the branch was
   moved to, in its index and in its files, or holds changes that are a person's own, which are left to
   them and named.
-  What proves a path is a leftover of the move is an entry the move wrote there: the index's entry for an
-  end of the move exactly, or the file's bytes while the file is there.
-  An absent entry of the tip the branch moved from proves nothing on its own, because a person's `git rm`
-  of a file the merge added leaves the same index and the same files; a command that finishes a record
-  therefore never creates such a path and names it instead, while the command that made the move writes
-  it, because that command knows it wrote this checkout
+  What proves a path is a leftover of the move is an entry the move wrote there:
+  the index's entry for an end of the move exactly,
+  or the file's bytes while the file is there.
+  An absent entry of the tip the branch moved from proves nothing on its own,
+  because a person's `git rm` of a file the merge added leaves the same index and the same files;
+  a command that finishes a record therefore never creates such a path and names it instead,
+  while the command that made the move writes it,
+  because that command knows it wrote this checkout
   (a review of commit `4a2425a378`,
   its findings 2 and 3).
   A record's writer is the move and not the process that hosts moves:

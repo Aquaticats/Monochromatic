@@ -637,9 +637,13 @@ Read-only commands,
   in its index and in its files, or holds changes that are yours, which are left to you and named:
   a file still holding the tip the branch moved from is the move's own leftover and is brought to the branch,
   and a file holding anything else is yours.
-  A path the move added whose file is not there is left as it is by a later command's work, because the same
-  bytes are what your own `git rm`, staged or not, leaves behind, and that removal is yours;
-  the command that made the move writes those files itself, because it knows it wrote that checkout.
+  A path the move added whose file is not there is left as it is by a later command's work,
+  because the same bytes are what your own `git rm`,
+  staged or not,
+  leaves behind,
+  and that removal is yours;
+  the command that made the move writes those files itself,
+  because it knows it wrote that checkout.
   A command is let through only when no file this move wrote still holds what the branch moved from,
   so a commit it makes cannot record that older tree; if another command is repairing that checkout it waits
   for it, at most 5 seconds, and then goes on and says so, keeping the record for the next command.
