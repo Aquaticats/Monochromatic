@@ -5,7 +5,7 @@
   "private": true,
   "version": "0.0.1",
   "engines": {
-    "dsh": "0.2.2-rc.1"
+    "dsh": "0.2.2-rc.3"
   },
   "repository": {
     "type": "git",
