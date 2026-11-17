@@ -36,17 +36,33 @@ type StopSignal = 'KILL' | 'TERM';
 /**
  Path to the quantized LFM2.5-VL model weights, below the home folder of whoever runs the daemon.
  */
-const MODEL = join(homedir(), 'models', 'lfm25-vl-1.6b', 'LFM2.5-VL-1.6B-Q4_0.gguf',);
+const MODEL = join(
+  homedir(),
+  'models',
+  'lfm25-vl-1.6b',
+  'LFM2.5-VL-1.6B-Q4_0.gguf',
+);
 
 /**
  Path to the multimodal projection weights for LFM2.5-VL, below the home folder of whoever runs the daemon.
  */
-const MMPROJ = join(homedir(), 'models', 'lfm25-vl-1.6b', 'mmproj-LFM2.5-VL-1.6b-Q8_0.gguf',);
+const MMPROJ = join(
+  homedir(),
+  'models',
+  'lfm25-vl-1.6b',
+  'mmproj-LFM2.5-VL-1.6b-Q8_0.gguf',
+);
 
 /**
  Path to the llama-server binary inside the distrobox container, below the home folder of whoever runs the daemon.
  */
-const LLAMA_SERVER = join(homedir(), 'llama-cpp-build', 'build', 'bin', 'llama-server',);
+const LLAMA_SERVER = join(
+  homedir(),
+  'llama-cpp-build',
+  'build',
+  'bin',
+  'llama-server',
+);
 
 /**
  Port for the local llama-server HTTP API.
