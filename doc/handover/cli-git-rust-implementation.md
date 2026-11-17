@@ -152,6 +152,31 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### On the new system: what came over and what runs nothing yet (2026-11-17T18:36:32-05:00)
+
+Not final and not approved: this session's own account of what it checked.
+The owner's answers of the day are under "Owner decisions in force", in the entry of 2026-11-17.
+
+- **Machine:** CachyOS on the Intel 3.5 TB NVMe, pool `zpcachyos`, home at `/home/user` on `zpcachyos/ROOT/cos/home`
+  with up to 25 hourly snapshots; the old SATA and old NVMe drives are mounted read only at `/mnt/old-sata` and `/mnt/old-nvme`
+  by `~/Downloads/old-drives/mount-old-drives.sh`. The migration session's account is `~/Downloads/monochromatic-migration-progress.md`.
+- **Repository:** `/home/user/Monochromatic`, `main` equal to `origin/main` at 899b8e7cbd when read; its 155 worktree records
+  still point at old paths and none holds a commit origin lacks.
+- **Scratch:** `~/temp/agent` holds the old scratch's text (28,508 files, 1311 MiB, copied 2026-11-17 from the SATA originals;
+  the same three unreadable items as before). The queue, its scripts and the 36 briefs its entries name had their old paths rewritten
+  (152 paths in 66 files; originals under
+  `~/temp/agent/old-worktrees-and-scratch-on-the-old-drives-checked-from-the-new-system-2026-11-17/keep/before-path-rewrite/`).
+  The patches of the old worktrees' uncommitted work are in
+  `~/temp/agent/getting-the-machine-ready-for-a-reboot-2026-11-16/keep/uncommitted-work-of-each-worktree/`.
+- **Datasets:** `~/.cargo/build` is `zpcachyos/nosnap/cargo-build` (made 2026-11-17, contents moved in and checked byte for byte).
+- **Git:** every shell in the checkout runs the wrapper through `.cache/monochromatic-git-policy-cli-bin/git`,
+  a cargo build of main linked by hand; no commit service unit is installed here
+  (`systemctl --user list-unit-files 'monochromatic-git-policy-cli*'` printed nothing).
+- **Agents:** nothing runs. Writers are GPT 6.2 Sol on `openai` and reviewers DeepSeek V4.1 Flash from Synthetic,
+  then `opencode-go`, then Neuralwatt flex, all through the driver; the driver's pool table does not list them yet,
+  so such a run is in no pool and nothing limits how many start. The agent cap is found again on the new pool before any filling.
+- **Next:** the ZFS route's design talk with the owner; then mpm-shadow's; then writers and reviewers.
+
 ### Stopped for a reboot with the new SSD in hand: what is saved where, and how to start again (2026-11-16T19:22:33-05:00)
 
 Not final and not approved: this is the session's own account of what it checked.
@@ -39580,6 +39605,40 @@ Timestamps are the commit times at which the decision was first written into the
 the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
+
+### On the new system: what came over, GPT writes and DeepSeek reviews through Pi, the wrapper is git, and the ZFS route comes first (2026-11-17, said before 18:36:32-05:00)
+
+Answers through the question tool and words typed in the session, after the owner wrote "I'm back. On the new system."
+
+- **Old worktrees:** "A, and this implies we really should be doing proper fast route first."
+  Option A was: copy the patches of the uncommitted work (627 MB), leave the worktree folders on the old drive until the wipe,
+  compare the two older orphans with Git before the wipe, then `git worktree prune` the stale records.
+  Measured first: none of the 155 worktrees the repository registers holds a commit that origin lacks,
+  so the migration note's "detached commits at risk" are on origin under their authors' branches.
+- **Old scratch:** "A: Text only (Recommended)": the queue, its scripts, the briefs, each run's summary, the review reports,
+  every `keep/` folder and the patches, from the SATA originals in the same layout; the build trees stay behind.
+- **Toolchain:** "A: mpm-shadow change first (Recommended)": mpm-shadow learns to prefer pacman's tools on this system
+  before the toolchain installs, as the owner had told the migration session.
+- **Snapshots:** "A: ~/.cargo/build only (Recommended)": `~/.cargo/build` gets a snapshot-free dataset; `~/temp/agent` stays snapshotted.
+- **Writers and reviewers:** "Also, I'm now making GPT 6.2 Sol as writer and deepseek as reviewer.",
+  then "Once again, /pi-as-subagent . GPT and deepseek should both be in it now. And don't use the deepseek official provider.",
+  "We already have a package about pi as subagents in the workspace." and "If that wasn't obvious from the skill, edit the skill."
+  Then through the question tool: the writer's provider "A: openai (Recommended)", so `--provider openai --model gpt-6.2-sol`;
+  and the reviewer "Synthetic and C and B, as a pool with preference.", which names, in that order,
+  `synthetic` `hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`, `opencode-go` `deepseek-v4.1-flash` and `neuralwatt` `deepseek-v4.1-flash-flex`.
+  The provider `deepseek` is never used. Both run through `package/pi-shared/subagent-driver`.
+  This replaces reviews on Claude Sonnet subagents and GPT runs through `codex`; `AGENTS.md` still says otherwise
+  (rules `KRV`, `LHZ`, `PFW`, `XVW`, `XVB`, `XVS`) and its rewrite is put to the owner.
+- **Git for agents:** "A: Build wrapper by cargo now (Recommended)": no Pi run could start, because the driver's launcher refuses
+  a session whose `git` is not the wrapper and the wrapper's link comes from the held install.
+  The session first linked it for every shell in the checkout and had told the owner their own shell would keep `/usr/bin/git`,
+  which was wrong: `.config/mise/conf.d/20-env.toml` puts `.cache/monochromatic-git-policy-cli-bin` on PATH for every shell there.
+  The session took the link out and made an agent-only folder; the owner then wrote "Do the owner-wide change anyway."
+  So `.cache/monochromatic-git-policy-cli-bin/git` links to a cargo release build of main at 899b8e7cbd
+  in `.cache/wrapper-built-by-cargo-for-agent-sessions-until-the-toolchain-installs/`, and every shell in the checkout runs the wrapper.
+  It is a stopgap: no launcher, and the real install replaces it after the mpm-shadow change.
+- **Order:** "A: ZFS route first (Recommended)": the wrapper's ZFS fast route is designed with the owner first,
+  dependencies first; mpm-shadow's design talk follows; writers for each may then run side by side.
 
 ### The new SSD holds CachyOS on ZFS, both old drives are wiped after the migration, work resumes after a probe, and the wrapper supports ZFS (2026-11-16, said before 19:41:40-05:00)
 
