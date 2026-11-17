@@ -2,6 +2,8 @@ import {
   type ChildProcess,
   spawn as cpSpawn,
 } from 'node:child_process';
+import { homedir, } from 'node:os';
+import { join, } from 'node:path';
 import { setTimeout, } from 'node:timers/promises';
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
@@ -32,19 +34,19 @@ type StopSignal = 'KILL' | 'TERM';
 
 // LFM2.5-VL-1.6B: smaller/faster than Qwen3-VL-2B while still vision-capable
 /**
- Path to the quantized LFM2.5-VL model weights.
+ Path to the quantized LFM2.5-VL model weights, below the home folder of whoever runs the daemon.
  */
-const MODEL = '/var/home/user/models/lfm25-vl-1.6b/LFM2.5-VL-1.6B-Q4_0.gguf';
+const MODEL = join(homedir(), 'models', 'lfm25-vl-1.6b', 'LFM2.5-VL-1.6B-Q4_0.gguf',);
 
 /**
- Path to the multimodal projection weights for LFM2.5-VL.
+ Path to the multimodal projection weights for LFM2.5-VL, below the home folder of whoever runs the daemon.
  */
-const MMPROJ = '/var/home/user/models/lfm25-vl-1.6b/mmproj-LFM2.5-VL-1.6b-Q8_0.gguf';
+const MMPROJ = join(homedir(), 'models', 'lfm25-vl-1.6b', 'mmproj-LFM2.5-VL-1.6b-Q8_0.gguf',);
 
 /**
- Path to the llama-server binary inside the distrobox container.
+ Path to the llama-server binary inside the distrobox container, below the home folder of whoever runs the daemon.
  */
-const LLAMA_SERVER = '/var/home/user/llama-cpp-build/build/bin/llama-server';
+const LLAMA_SERVER = join(homedir(), 'llama-cpp-build', 'build', 'bin', 'llama-server',);
 
 /**
  Port for the local llama-server HTTP API.
