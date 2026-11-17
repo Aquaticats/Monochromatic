@@ -136,6 +136,9 @@ With a clean Bash process and `PATH=/usr/bin:/bin`, Codex reproduced exit status
 Under that same `PATH`, `cargo binstall -V` printed `1.27.0`. After the export, `command -v maki`
 resolved to the installed binary and `maki --version` printed `maki 0.7.2`.
 
+If `environment.d` already declares the Cargo directory and it disappears at Plasma login, see
+[Plasma's PATH overwrite](plasma-overwrites-environment-d-path.md).
+
 ## What does not work
 
 - Adding release-download options to a registry lookup still selects the library's manifest.
