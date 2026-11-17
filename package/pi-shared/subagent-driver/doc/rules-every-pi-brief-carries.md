@@ -294,7 +294,7 @@ so open questions go in the report.
 ## Nothing shows on the desktop
 
 Start a program that opens a window only in its own headless mode,
-or inside `/var/home/user/Monochromatic/.cache/toolchain-bin/monochromatic-nested-wayland-session --headless`.
+or inside `~/Monochromatic/.cache/toolchain-bin/monochromatic-nested-wayland-session --headless`.
 Probe a CLI that can launch a terminal or a browser only with a disposable `HOME` and a `PATH` without `terminal-exec`.
 Desktop notifications are the exception and are wanted:
 never disable,
