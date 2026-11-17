@@ -463,6 +463,19 @@ The maintainer then chose a shadow of `mpm` written in Rust with clap,
  over "Checkout's version":
   the lock keeps `@latest` and the daily timer moves it.
 
+## Distro package manager preference (2026-11-17T16:31:03-05:00)
+
+The maintainer directed `mpm-shadow` to prefer distro package managers on non-atomic distributions.
+Implementation is pending. The preference's interaction with locked versions and unavailable distro packages
+remains open.
+
+pnpm provides a concrete case. On the CachyOS host, `pacman --sync --print pnpm` resolved to
+`cachyos-extra-znver4`'s `pnpm` `12.21.0-1.1`, whose upstream version matches
+[`toolchain.lock.json`](../../toolchain.lock.json). The downloaded archive matched the sync database's SHA-256.
+Its `usr/bin/pnpm --version` returned `12.21.0` with Node.js absent from `PATH`.
+The currently active npm copy in `~/.local/bin` takes precedence over `/usr/bin` on this host.
+See the [pnpm launcher investigation](../troubleshooting/pnpm-node-launcher-fallback.md) for the warning it emits.
+
 ## Exit and rollback
 
 - Every step lands as its own commit series,
