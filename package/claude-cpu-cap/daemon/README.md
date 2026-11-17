@@ -170,14 +170,18 @@ so this package follows the file descriptions and the C sources.
 
 `claude-code-bash` sits in the user manager's `app.slice`,
 and its weight files exist only while `app.slice/cgroup.subtree_control` lists `io`.
-systemd lists it there only while at least one unit in `app.slice` sets an IO property such as `IOWeight=`,
-and takes it away when the last such unit stops.
+In the measurement below,
+systemd listed `io` there while a unit in `app.slice` set `IOWeight=`,
+and took it away when that unit stopped;
+other IO properties were not tried.
 On the owner's workstation that unit is the terminal:
-drop-ins named `app-<terminal app ID>.scope.d/10-io-weight.conf`,
+drop-ins named `app-<terminal app ID>-.scope.d/10-io-weight.conf`,
 `app-<terminal app ID>-.service.d/10-io-weight.conf` and `app-<terminal app ID>@.service.d/10-io-weight.conf`
 under `~/.config/systemd/user/` set `IOWeight=1` for each terminal.
-A terminal whose app ID has no drop-in leaves `io` off,
-and the watcher then logs `IO-WEIGHT-UNAVAILABLE` every pass.
+With odytty,
+whose app ID had no drop-in,
+`io` stayed off,
+and the watcher logged `IO-WEIGHT-UNAVAILABLE` every pass.
 The drop-ins are host configuration,
 not part of this package.
 
