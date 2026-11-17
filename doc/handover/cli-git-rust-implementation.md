@@ -152,6 +152,82 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Stopped for a reboot with the new SSD in hand: what is saved where, and how to start again (2026-11-16T19:22:33-05:00)
+
+Not final: one review was still going when this was written, and its result is in the round list under "Open work".
+
+#### What the owner asked
+
+At about 17:58 on 2026-11-16: "I just received the new SSD. Let everything already running run to their conclusion and sort out the system until it's good to reboot. Tell me when is a good time to reboot."
+
+#### What was stopped and what ended by itself
+
+- The filling unit was stopped between two of its rounds at 18:01:34 and none was started in its place.
+- Every Pi run that was going ended by itself; the last at 19:17:27.
+  At 19:22:00 no unit named `pi-*`, `launch-*`, `fill-*`, `wait-*` or `disk-*` was active.
+- The drive probe ended by itself: 18 agents held for its eight hours, slowest write-and-sync 15,512 ms. No other was started.
+- Each run and review that ended is in the round list under "Open work", with what it needs next.
+  Nothing was started for any of them: briefs were written and entries put into the queue file only.
+
+#### What is saved where
+
+- `main` equals `origin/main`, and at 19:22:33 no worktree of the repository held a commit that `origin` lacks.
+- Of 156 worktrees, 43 held files not committed (leftovers of ended runs and of other sessions, the main checkout's six among them).
+  Each one's uncommitted work is saved as `<name>.patch`, `<name>.status.txt` and its small untracked files,
+  with no worktree, index or branch changed,
+  under `~/temp/agent/getting-the-machine-ready-for-a-reboot-2026-11-16/keep/uncommitted-work-of-each-worktree/`.
+- `~/temp` is a link to `/var/mnt/encrypted/temp`, so the scratch stands on the repository's SATA drive.
+  The text of the scratch that nothing else holds (the resume queue and its scripts, every `*-prompt.md`,
+  every run's `summary.json`, the Markdown of every review folder, each scratch folder's `keep/`, the patches)
+  is copied to the home folder's NVMe drive:
+  `/var/home/user/copy-of-the-agent-scratch-text-made-before-the-reboot-of-2026-11-16/`.
+  It holds no session or feed file of a run and no build tree. Remove it once the scratch is known to have come back.
+
+#### How to start again
+
+The agent cap was found by probing the drives as they were; with another drive in the machine it is found again before anything is filled
+(`doc/handover/agents-at-once-on-this-machine.md`).
+
+1.  Check that the paths still resolve: `realpath ~/temp/agent` and the repository at `/var/mnt/encrypted/repository/Monochromatic`.
+    If the scratch did not come back, the copy named under "What is saved where" holds the queue and the briefs.
+2.  Read the head of the queue:
+    `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/resume-queue-in-order-one-entry-per-free-slot.json`.
+    Its first entry is the review of the landed-removal fix at `00ba90b007`, then pass 59.
+3.  Reviews go to Claude Sonnet subagents, prepared one at a time with
+    `prepare-one-queued-review-for-a-claude-sonnet-subagent.ts <entry name>` from the queue's folder.
+4.  The probe, with the level to try as its first parameter:
+
+    ```sh
+    # run from /var/mnt/encrypted/repository/Monochromatic
+    systemd-run --user --unit="disk-ceiling-probe-level-18-$(date +%Y%m%dT%H%M%S)" --collect --wait --pipe --quiet \
+      --property=CPUQuota=50% --property=MemoryMax=512M --property=TasksMax=32 --property=IOWeight=1 \
+      /var/mnt/encrypted/repository/Monochromatic/.cache/toolchain-bin/node ~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/probe-write-and-sync-on-both-drives-every-minute.ts 18 28800
+    ```
+
+5.  The filling unit, with the count of Pi runs as its first parameter and its life in seconds as its second:
+
+    ```sh
+    # run from /var/mnt/encrypted/repository/Monochromatic
+    systemd-run --user --unit="fill-free-places-and-put-ended-reviews-back-at-level-13-$(date +%Y%m%dT%H%M%S)" --collect \
+      --property=CPUQuota=100% --property=MemoryMax=2G --property=TasksMax=256 --property=IOWeight=1 \
+      --working-directory=/var/mnt/encrypted/repository/Monochromatic \
+      /var/mnt/encrypted/repository/Monochromatic/.cache/toolchain-bin/node ~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/fill-free-places-from-the-resume-queue-without-a-session-awake.ts 13 28800
+    ```
+
+6.  The waiter that reports each ended run, with the moment to look from as its first parameter:
+
+    ```sh
+    # run from /var/mnt/encrypted/repository/Monochromatic
+    systemd-run --user --unit="wait-until-a-pi-run-has-ended-from-$(date +%Y%m%dT%H%M%S)" --slice=background.slice --collect --wait --pipe --quiet \
+      --property=CPUQuota=50% --property=MemoryMax=512M --property=TasksMax=32 --property=IOWeight=1 \
+      /var/mnt/encrypted/repository/Monochromatic/.cache/toolchain-bin/node ~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/wait-until-a-pi-run-has-ended-by-its-summary-file.ts <ISO moment> 28800 240 optique-,kitesurf-,canary-
+    ```
+
+#### What a reboot ends that is not this effort's
+
+Read at 18:00 and not stopped by this session: other sessions' units and the desktop's applications.
+The tunnel tooling is not deployed, and no container was running at 18:39.
+
 ### After the restart: the owner's cleanup, a cap of four runs raised by bisecting, scratch left uncleaned (2026-11-13T10:27:50-05:00)
 
 #### What the owner did and said
