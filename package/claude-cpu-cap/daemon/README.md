@@ -47,8 +47,8 @@ the evidence behind the settings is in
   minima and maxima of every sample column between two UTC times.
 - `systemd/claude-cpu-watch.service`:
   the unit;
-  `ExecStart` runs `src/cpu-watch.ts` from this checkout,
-  after an `ExecStartPre` that checks the repository link.
+  `ExecStart` runs `src/cpu-watch.ts` from this checkout
+  with the `node` on the user manager's `PATH`.
 
 ## Overrides
 
@@ -210,13 +210,16 @@ so they are out of scope for this package.
 
 ## Install
 
-The unit file in `~/.config/systemd/user/` is a regular copy of the file in `systemd/`, not a link into the repository:
-the user manager reads it while loading units, and a link into a repository that lives on the 860 drive would leave the
-unit unloaded whenever the drive is not mounted at manager start or at a daemon reload.
-The copy's `ExecStartPre` runs the repository link check installed outside the repository
-(`~/.local/share/monochromatic-dev/repository-link/check.mjs`), so a start before the mount fails with the plain
-message and status 75, and `Restart=on-failure` with `RestartSec=30` and no start limit retries until the mount is
-there.
+The unit file in `~/.config/systemd/user/` is a regular copy of the file in `systemd/`,
+not a link into the repository:
+the user manager reads it while loading units,
+and a copy stays loadable whatever happens to the checkout.
+`ExecStart` finds `node` through `/usr/bin/env` on the user manager's `PATH`,
+which `~/.config/environment.d/` can extend,
+and `Restart=on-failure` with `RestartSec=30` starts the watcher again after it fails.
+Until the 2026-11-17 move to CachyOS the unit also ran the repository link check before each start,
+because the repository lived on the 860 drive and could be unmounted when the manager started;
+the repository now lives on the home volume.
 Copy again after every edit of the file in `systemd/`:
 
 ```bash
