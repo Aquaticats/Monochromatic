@@ -100,4 +100,3 @@ function refreshDesktopDatabase() {
   execFileSync('update-desktop-database', [dirname(desktopPath)], { stdio: 'inherit' })
 }
 '''
-
