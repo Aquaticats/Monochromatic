@@ -16,9 +16,13 @@ The owner on 2026-11-17:
 "The cap shouldn't be 20. The 20 cap was set because my old disk was slow, and we're on the new disk now."
 and, when a session read that as no cap at all,
 "I didn't tell you to outright remove the cap. You're meant to bisect for it."
-The search starts at four and doubles until a level fails,
-then halves the gap,
+The owner then wrote "Start from 20 instead.",
+so the search starts at twenty and doubles until a level fails,
+then halves the gap between the last level that held and the one that failed,
 with the same failing criteria and the same hour per level.
+Should twenty itself fail,
+the levels halve downward until one holds and the gap is then halved the same way
+(this session's reading of the method for that case, open to the owner's veto).
 Its readings go under `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026-11-17/keep/`,
 and each level gets its own heading under "Readings on the new drive".
 Each provider's own measured refusal still limits its pool beside this cap
