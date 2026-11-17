@@ -102,14 +102,45 @@ console.log('rc.3 Typert import cannot resolve zod');
 NODE
 ```
 
-## Verified diagnostic controls and repair limits
+## Verified package repair
 
 A process-local Node resolver hook supplied the `zod` already installed for `dsh-workspace` to the `dsh-web`
-artifact. The same artifact then imported successfully and exported `TYPERT`. This verifies the missing
-dependency edge at the import boundary. An installation using corrected dependency metadata remains untested.
+artifact. The same artifact then imported successfully and exported `TYPERT`. A later disposable install of
+`@deepseek-ai/dsh@0.2.2-rc.3` on this Linux x64 glibc host verified these pnpm extensions:
+
+```yaml
+# pnpm-workspace.yaml in the installation project that owns @deepseek-ai/dsh
+packageExtensions:
+  '@deepseek-ai/dsh-web@0.2.2-rc.3':
+    dependencies:
+      zod: 4.6.6
+  node-addon-native-custom-loader@0.1.9:
+    optionalDependencies:
+      node-addon-require-builtin-linux-x64-gnu: 0.1.9
+```
+
+The first entry supplies the runtime import. The second applies the
+[recorded native loader workaround](dsh-rc5-profile-startup.md#verified-repair), which the disposable
+global virtual store install needed to start. Each entry is scoped by package version.
+
+```sh
+# Run from the disposable installation project with DSH_PROBE_STORE set to its private store.
+pnpm install --ignore-scripts --prefer-offline --config.enable-global-virtual-store=true \
+  --store-dir "$DSH_PROBE_STORE" --reporter=append-only
+```
+
+Pnpm `12.21.0` installed the corrected graph. Importing `dsh-web/typert` from `dsh-base` succeeded, and the
+installed CLI served authenticated `workspace/create` and `session/list` requests with a unique-path fixture.
+The duplicate-path control still returned `gateway/service-unavailable` for `workspace/create` with the
+corrected packages installed. The native extension targets this host's prebuilt binary. The Typert extension
+is needed until a published version declares its dependency.
+
+## Workspace verification
 
 The two local workspace records both own sessions. A live repair needs to preserve both session memberships
-and keep one record for the path. The distinct-path control verifies the uniqueness rule on synthetic data.
+and keep one record for the path. An in-memory merge of the saved records passed the installed schemas and
+registry validator with every session membership, archive flag, and pin preserved. The
+[recovery proposal](../planning/dsh-web-rc3-recovery.md) records the order and checks for applying it.
 
 ## What does not work
 
