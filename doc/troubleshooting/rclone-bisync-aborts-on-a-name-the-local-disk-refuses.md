@@ -167,6 +167,17 @@ rclone's own documentation scopes `--recover` to "a sudden interruption or other
 (`docs/content/bisync.md:786-787` in the v1.76.0 tree),
 so the fallback after a critical abort goes beyond what is documented.
 
+Where this was measured:
+between two local folders,
+without the Garage unit's `--use-server-modtime`,
+`--fast-list` and filter.
+With `--use-server-modtime`,
+files synced during the failing runs look "new or changed on both sides" after the revert
+and may resolve as conflicts,
+which `--conflict-resolve newer` settles by keeping the newer copy and renaming the other to `.conflictN`;
+see `doc/troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md`.
+That was not measured.
+
 An earlier reading was wrong too:
 "one bad name stops the whole sync until a `--resync`".
 That came from a first throwaway test whose only successful run was the `--resync` baseline,
@@ -247,10 +258,10 @@ Node 26 runs TypeScript files directly.
 
 ### Patterns that work
 
-- A name whose NFD form fits in 255 bytes on `normalization=formD`:
-  the shortened name,
-  229 bytes NFC and 244 bytes NFD,
+- The shortened name on `normalization=formD`,
+  229 bytes NFC and 244 bytes NFD:
   downloaded with `Copied (new)` on the real sync.
+  Names between 245 and 255 bytes NFD were not tried.
 - The 249-byte name on a dataset with `normalization=none`:
   `cp -a` created it.
 - The same name on a dataset with `normalization=formC`:
@@ -293,7 +304,8 @@ exit 7,
 
 ```bash
 rclone moveto 'garage:files/Plain/<dir>/<long name>' 'garage:files/Plain/<dir>/<short name>'
-# the NFD form must stay at most 255 bytes:
+# 244 bytes in NFD is the measured-safe size; the exact limit depends on rclone's temporary
+# .partial name, whose naming rule was not traced, so stay well under 255:
 python3 -c 'import sys,unicodedata as u;print(len(u.normalize("NFD",sys.argv[1]).encode()))' '<short name>'
 ```
 
