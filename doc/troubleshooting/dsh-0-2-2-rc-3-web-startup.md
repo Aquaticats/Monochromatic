@@ -1,6 +1,6 @@
 # DSH 0.2.2-rc.3 web startup skips bundles and leaves workspace services unavailable
 
-Diagnosis verified against the installed packages and release artifacts. Live profile repair remains open.
+Codex verified the diagnosis against the installed packages and release artifacts and applied the live repair.
 
 ## Symptom
 
@@ -140,7 +140,7 @@ is needed until a published version declares its dependency.
 The two local workspace records both own sessions. A live repair needs to preserve both session memberships
 and keep one record for the path. An in-memory merge of the saved records passed the installed schemas and
 registry validator with every session membership, archive flag, and pin preserved. The
-[recovery proposal](../planning/dsh-web-rc3-recovery.md) records the order and checks for applying it.
+[recovery record](../planning/dsh-web-rc3-recovery.md) gives the installation steps and live verification results.
 
 ## What does not work
 

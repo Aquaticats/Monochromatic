@@ -1,8 +1,8 @@
 # Recover the DSH web profile on rc.3
 
-Proposed. The package and registry checks passed in disposable fixtures. Live recovery and plugin verification are open.
+Codex applied the recovery and verified live startup, session reads, and plugin activation.
 
-## Recommended recovery
+## Recovery steps
 
 1.  Keep the CLI on `0.2.2-rc.3`. Stage the version-scoped pnpm package extensions from the
     [startup diagnosis](../troubleshooting/dsh-0-2-2-rc-3-web-startup.md#verified-package-repair) in the
@@ -29,6 +29,21 @@ Proposed. The package and registry checks passed in disposable fixtures. Live re
 The two registry records both held sessions. Dropping one row would discard its workspace membership.
 The installed registry rejected the original state and accepted the proposed merge in memory. The set of session
 IDs and the global archive and pin arrays matched the input after the merge.
+
+## Live verification at 2026-11-17T17:01:07-05:00
+
+- The active DSH installation remained on `0.2.2-rc.3`. Its `dsh-base` bundle resolved the `dsh-web/typert`
+  host artifact with `zod` linked to the importing package.
+- The workspace merge retained the older ID. The repaired registry preserved the complete session membership,
+  archive and pin arrays, default workspace, and private permissions. Codex retained a private copy of the
+  original registry and verified session event reads from both original workspace records.
+- `d03c8d020c` updates the DSH catalog and regenerated lockfile. Advisor's workspace build needs the new
+  `dsh-error` peer of `dsh-llm`, `dsh-sandbox`, `dsh-attachment`, and `dsh-working-directory`, so Advisor's
+  development dependencies provide it explicitly. The frozen install passed.
+- Advisor, NeuralWatt, and Qwen Token Plan Individual passed their type checks, builds, and unit suites.
+  The copied profile reported all three plugin fibers active, then `2a72656b12` recorded the verified host
+  version in their manifests. The live profile also reported all three active and served authenticated session
+  reads. The verification process exited and released the listener.
 
 ## Fallback
 
