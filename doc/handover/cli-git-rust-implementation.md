@@ -216,8 +216,11 @@ Before any step of the numbered list:
 - **Paths.** The queue's entries, the scripts in the scratch, the registrations of the worktrees and the lines in this list
   name `/var/mnt/encrypted/repository/Monochromatic`, `/var/mnt/encrypted/temp/agent` and `/var/home/user` (also spelled `/home/user`).
   Either the new system keeps those paths or each of these is rewritten; that is put to the owner with the new system's mounts read first.
-- **The wrapper on ZFS** is a requirement of the owner's and is not built: until it is, treat a checkout on ZFS as untested ground,
+- **The wrapper on ZFS** is a requirement of the owner's and is not built, and the owner's "B: Full parity before the wipe"
+  ties the wipe to it: **neither old drive is wiped before the wrapper's ZFS route is built, reviewed and released.**
+  Until then the old drives keep the Btrfs repository the wrapper is proven on. Treat a checkout on ZFS as untested ground:
   run the wrapper's controls there before trusting a worktree add or removal, and expect the Btrfs controls to print `BTRFS CONTROL NOT RUN`.
+  The design starts with a grilling of the owner, dependencies first, and is this effort's first new work on the new system.
 - The agent cap of 18 and the probe's readings describe the old drives. On the new pool the probe runs first, from a low level upward.
 
 Then, with the repository and the scratch reachable:
@@ -39601,7 +39604,16 @@ Three things the owner said after the machine was made ready for the reboot; the
   `SPEC.md` names ZFS once; no control of the wrapper has run on ZFS.
   `doc/planning/filesystem-for-the-repository-volume.md` already says the snapshot route "would have to move to ZFS clones",
   and `doc/planning/btrfs-and-zfs-each-at-its-best.md` measured a clone's destruction at 2 to 9 seconds where Btrfs took 0.02 to 0.1.
-  How far "properly" reaches is put to the owner; the answer is recorded beside this entry.
+  How far "properly" reaches was put to the owner through the question tool, with three options
+  (correct on ZFS first and the clone route after; full parity before the wipe; correct on ZFS only).
+  **The owner chose "B: Full parity before the wipe":** the old drives are not wiped until the wrapper's ZFS route exists,
+  is reviewed and is released: `git worktree add` by snapshot and clone, removal of a finished worktree in one step,
+  and the migration of a checkout into a dataset, beside every guard and control passing on a real pool.
+  The owner chose it over the recommended order, knowing the wipe waits on that work.
+  Not decided yet, and to be settled with the owner by the grilling flow before any brief is written
+  (dependencies first): how the wrapper talks to ZFS (the `zfs` program or a library), how an unprivileged account
+  makes and destroys a dataset (a `zfs allow` grant or another way), the layout of datasets under the repository,
+  and what a person waits for while a clone is destroyed.
 
 ### A `worktree add` relinks by itself when no service took its request, and a Pi run is confined with its containers started by the account's manager (2026-11-16, answered through the question tool between 17:33:37-05:00 and 17:36:00-05:00)
 
