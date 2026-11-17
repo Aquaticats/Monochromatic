@@ -82,6 +82,13 @@ explicit paths select only those files without changing its rule configuration.
 This task change still requires a successful real invocation.
 Do not attribute package-wide coverage to a selected-file check.
 
+On 2026-11-17, `mise run toolchain:install -- --help` failed with the same Node diagnostic.
+Mise appended `--help` to the inline source after `runMpmShadow(['install'])`.
+Setting `usage_args` directly in the parent environment still launched an unscoped `mpm-shadow install`,
+as shown by the child process arguments.
+The build used a separate scratch `toolchain:install` task whose command explicitly named the locked tools.
+The scoped task finished with `2 installed, 64 unchanged, 0 failed`.
+
 ## Symptom
 
 A mise task declares variadic usage arguments,

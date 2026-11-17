@@ -1,13 +1,26 @@
 //! Tests URL encoding and routing with disposable browser profile data.
 
 /// Imports the path and file functions used to create disposable fixtures.
-use std::{ffi::OsStr, fs};
+use std::{ffi::OsStr, fs, path::Path};
 
 /// Imports the GIO methods used to check file URI decoding.
 use gio::prelude::FileExt;
 
 /// Imports the app entry points exercised by these tests.
 use crate::{profiles, target};
+
+/// What: Creates an automatically removed scratch directory inside the build directory.
+/// Why: Each test mutates its own fixture on the package's filesystem.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function fixture(): TemporaryDirectory;
+/// ```
+fn fixture() -> anyhow::Result<tempfile::TempDir> {
+    let build = Path::new(env!("CARGO_MANIFEST_DIR")).join("target");
+    fs::create_dir_all(&build)?;
+    return Ok(tempfile::tempdir_in(build)?);
+}
 
 /// What: Checks that a web URL keeps its query and fragment byte for byte.
 /// Why: The picker must forward the supplied address unchanged.
@@ -34,7 +47,7 @@ fn web_url_keeps_escaping_and_fragment() -> anyhow::Result<()> {
 /// ```
 #[test]
 fn file_path_round_trips_through_desktop_uri() -> anyhow::Result<()> {
-    let fixture = tempfile::tempdir()?;
+    let fixture = fixture()?;
     let path = fixture.path().join("a # b% 雪.htm");
     fs::write(&path, "<title>Fixture</title>")?;
     let parsed = target::parse(path.as_os_str())?;
@@ -57,7 +70,7 @@ fn file_path_round_trips_through_desktop_uri() -> anyhow::Result<()> {
 /// ```
 #[test]
 fn firefox_sqlite_and_legacy_profiles_keep_channel_identity() -> anyhow::Result<()> {
-    let fixture = tempfile::tempdir()?;
+    let fixture = fixture()?;
     let root = fixture.path();
     for directory in ["release", "esr", "work", "personal", "legacy", "Profile Groups"] {
         fs::create_dir(root.join(directory))?;
@@ -75,21 +88,21 @@ fn firefox_sqlite_and_legacy_profiles_keep_channel_identity() -> anyhow::Result<
     }
     fs::write(
         root.join("profiles.ini"),
-        "[Profile0]\nName=Group anchor\nIsRelative=1\nPath=work\nStoreID=fixture\n\
+        "[Profile0]\nName=Group anchor\nIsRelative=1\nPath=work\n\
          [Profile1]\nName=Legacy\nIsRelative=1\nPath=legacy\n",
     )?;
     let database = rusqlite::Connection::open(root.join("Profile Groups/fixture.sqlite"))?;
     database.execute_batch(
-        "CREATE TABLE Profiles (name TEXT, path TEXT);\
+        "PRAGMA journal_mode=WAL; CREATE TABLE Profiles (name TEXT, path TEXT);\
          INSERT INTO Profiles VALUES ('Work', 'work'), ('Personal', 'personal'), ('Stale', 'missing');",
     )?;
 
     let found = profiles::firefox_profiles_at(root);
     let release_profiles = profiles::profiles_for_firefox(&found, &release.join(executable), false);
     let esr_profiles = profiles::profiles_for_firefox(&found, &esr.join(executable), false);
-    let release_names: Vec<&str> = release_profiles.iter().map(|profile| profile.name.as_str()).collect();
+    let release_names: Vec<&str> = release_profiles.iter().map(|profile| return profile.name.as_str()).collect();
     assert_eq!(release_names, ["Personal", "Work"]);
-    let esr_names: Vec<&str> = esr_profiles.iter().map(|profile| profile.name.as_str()).collect();
+    let esr_names: Vec<&str> = esr_profiles.iter().map(|profile| return profile.name.as_str()).collect();
     assert_eq!(esr_names, ["Legacy"]);
     assert_eq!(esr_profiles[0].arguments, [OsStr::new("--profile"), root.join("legacy").as_os_str(), OsStr::new("--new-tab")]);
     return Ok(());
@@ -104,7 +117,7 @@ fn firefox_sqlite_and_legacy_profiles_keep_channel_identity() -> anyhow::Result<
 /// ```
 #[test]
 fn helium_uses_the_directory_key_and_ignores_stale_rows() -> anyhow::Result<()> {
-    let fixture = tempfile::tempdir()?;
+    let fixture = fixture()?;
     let root = fixture.path();
     for directory in ["Profile 7", "Omitted"] {
         fs::create_dir(root.join(directory))?;

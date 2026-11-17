@@ -10,10 +10,6 @@ run = "cargo build"
 description = "Check Rust, Slint, and the desktop entry"
 run = ["cargo clippy --all-targets -- --deny warnings", "desktop-file-validate share/applications/monochromatic.browser-selector.desktop"]
 
-[tasks.format]
-description = "Format Rust sources"
-run = "cargo fmt"
-
 [tasks.test]
 description = "Run browser selector tests through nextest"
 run = "cargo nextest run"
@@ -42,16 +38,23 @@ const metadata = JSON.parse(execFileSync('cargo', ['metadata', '--no-deps', '--f
 const builtBinary = join(metadata.target_directory, 'release', binaryName)
 const template = readFileSync(join('share', 'applications', desktopName), 'utf8')
 // Desktop entries first unescape the value, then parse quoted arguments and expand field codes.
-const escapedBinary = binaryPath
-  .replaceAll('\\', '\\\\\\\\')
-  .replaceAll(String.fromCharCode(96), '\\\\' + String.fromCharCode(96))
-  .replaceAll('$', '\\\\$')
-  .replaceAll('"', '\\\\"')
-  .replaceAll('%', '%%')
-  .replaceAll('\n', '\\n')
-  .replaceAll('\r', '\\r')
-  .replaceAll('\t', '\\t')
-const desktopEntry = template.replace('Exec=' + binaryName, () => 'Exec="' + escapedBinary + '"')
+function desktopArgument(value: string) {
+  const escaped = value
+    .replaceAll('\\', '\\\\\\\\')
+    .replaceAll(String.fromCharCode(96), '\\\\' + String.fromCharCode(96))
+    .replaceAll('$', '\\\\$')
+    .replaceAll('"', '\\\\"')
+    .replaceAll('%', '%%')
+    .replaceAll('\n', '\\n')
+    .replaceAll('\r', '\\r')
+    .replaceAll('\t', '\\t')
+  return '"' + escaped + '"'
+}
+
+// GIO checks the first executable before expanding field codes. The shell receives a fixed
+// script, with the binary and the incoming target supplied as individual arguments.
+const launcher = '/bin/sh -c ' + desktopArgument('exec "$@"') + ' browser-selector ' + desktopArgument(binaryPath)
+const desktopEntry = template.replace('Exec=' + binaryName, () => 'Exec=' + launcher)
 
 installAtomically(binaryPath, path => {
   copyFileSync(builtBinary, path)
@@ -75,7 +78,7 @@ if (existsSync(dirname(desktopPath))) {
 rmSync(binaryPath, { force: true })
 '''
 [env]
-# Slint 1.19 expects feature names here. The picker uses stable markup.
+# The picker uses stable markup and does not need the repository-wide experimental feature setting.
 SLINT_ENABLE_EXPERIMENTAL_FEATURES = ""
 
 [vars]

@@ -42,7 +42,8 @@ pub(crate) fn parse(input: &OsStr) -> anyhow::Result<Target> {
     {
         // `?` returns the parsing error immediately if GIO rejects the URL.
         let parsed = gio::glib::Uri::parse(text, gio::glib::UriFlags::ENCODED)?;
-        anyhow::ensure!(parsed.host().is_some_and(|host| !host.is_empty()), "The URL needs a hostname.");
+        let has_host = parsed.host().is_some_and(|host| return !host.is_empty());
+        anyhow::ensure!(has_host, "The URL needs a hostname.");
 
         // Return the success value with owned copies, preserving the URL as supplied.
         return Ok(Target { uri: text.to_owned(), display: text.to_owned() });

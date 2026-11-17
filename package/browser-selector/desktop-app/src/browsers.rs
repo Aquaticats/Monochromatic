@@ -1,7 +1,7 @@
 //! Discovers registered browsers and sends the target to the selected launcher.
 
-/// Imports containers, native argument strings, and the direct process launcher.
-use std::{collections::BTreeMap, ffi::OsString, path::PathBuf, process::Command};
+/// Imports containers, native paths, and the direct process launcher.
+use std::{collections::BTreeMap, path::PathBuf, process::Command};
 
 /// Imports the extension methods GIO adds to registered applications.
 use gio::prelude::AppInfoExt;
@@ -23,7 +23,7 @@ enum Launch {
     /// Run the desktop entry through GIO using its ordinary behavior.
     Desktop(gio::AppInfo),
     /// Pass the profile and target as individual arguments to a supported native executable.
-    Profile { program: PathBuf, arguments: Vec<OsString> },
+    Profile { program: PathBuf, profile: profiles::Profile },
 }
 
 /// What: The row label and its launch operation stay coupled as one record.
@@ -54,8 +54,9 @@ impl Choice {
             Launch::Desktop(app) => {
                 app.launch_uris(&[uri], gio::AppLaunchContext::NONE)?;
             }
-            Launch::Profile { program, arguments } => {
-                Command::new(program).args(arguments).arg(uri).spawn()?;
+            Launch::Profile { program, profile } => {
+                anyhow::ensure!(profile.directory.is_dir(), "The profile directory is no longer available.");
+                Command::new(program).args(&profile.arguments).arg(uri).spawn()?;
             }
         }
         return Ok(());
@@ -125,19 +126,19 @@ pub(crate) fn discover() -> Vec<Choice> {
             for profile in profiles::profiles_for_firefox(&firefox_profiles, program, firefox.len() == 1) {
                 choices.push(Choice {
                     label: format!("{name} · {}", profile.name),
-                    launch: Launch::Profile { program: program.clone(), arguments: profile.arguments },
+                    launch: Launch::Profile { program: program.clone(), profile },
                 });
             }
         } else if id == "helium.desktop" && let Some(program) = simple_program(&app) {
             for profile in profiles::helium_profiles(&profiles::helium_root()) {
                 choices.push(Choice {
                     label: format!("{name} · {}", profile.name),
-                    launch: Launch::Profile { program: program.clone(), arguments: profile.arguments },
+                    launch: Launch::Profile { program: program.clone(), profile },
                 });
             }
         }
         choices.push(Choice { label: name, launch: Launch::Desktop(app) });
     }
-    choices.sort_by_key(|choice| choice.label.to_lowercase());
+    choices.sort_by_cached_key(|choice| return choice.label.to_lowercase());
     return choices;
 }

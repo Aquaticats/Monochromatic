@@ -6,7 +6,7 @@ keyboard, or Escape to close.
 
 ## Install and set the defaults
 
-Builds use the system GIO and SQLite development libraries, Rust, and `pkg-config`.
+Builds use the system GIO 2.66 or newer and SQLite development libraries, Rust, and `pkg-config`.
 Installation uses `update-desktop-database` from `desktop-file-utils`.
 
 ```sh
@@ -26,9 +26,10 @@ The executable accepts one HTTP URL, HTTPS URL, native file URI, or local path.
 
 Plain browser entries use the launchers registered with the desktop. Automatic profile discovery
 covers the native Firefox, Firefox ESR, Firefox Developer Edition, and Helium desktop launchers.
-Firefox profiles come from `profiles.ini` and read-only SQLite group databases. When several
-Firefox channels are installed, a profile's compatibility metadata or its group's last-used
-installation determines which browser can open it. Helium profiles come from `Local State`.
+Profile choices use standard native desktop commands with a single URL field. Firefox profiles come
+from `profiles.ini` and read-only SQLite group databases, including groups outside the legacy index.
+When several Firefox channels are installed, a profile's compatibility metadata or its group's
+last-used installation determines which browser can open it. Helium profiles come from `Local State`.
 
 ## Uninstall
 
