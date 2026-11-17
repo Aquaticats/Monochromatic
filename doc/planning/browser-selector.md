@@ -6,7 +6,8 @@ Proposal awaiting design confirmation.
 
 Build a minimal Slint browser and profile picker for Linux and verify it on KDE.
 Use the repository's Rust and Slint build pattern and system GIO for desktop application integration.
-The user selects the installed chooser in KDE's default application and file association settings.
+The user selects the installed chooser as the default web browser for HTTP and HTTPS in KDE.
+Set `text/html` and `application/xhtml+xml` for the chooser in KDE's File Associations settings.
 Show the picker for every open request, including when there is only one eligible browser.
 
 The desktop entry should advertise `x-scheme-handler/http`, `x-scheme-handler/https`, `text/html`,
@@ -17,6 +18,8 @@ and `application/xhtml+xml`. The last association includes `.xhtml` and `.xht` f
 On the KDE Wayland test machine, `gio mime` reported Firefox ESR as the HTTP and HTTPS default
 and Firefox ESR Safe Mode as the HTML default. The file association list also included editors.
 The chooser needs browser discovery even when the input is a local file.
+The browser setting in Plasma 6.8.3 writes the two URL scheme associations.
+[Plasma default browser component][plasma]
 
 Codex probed ordinary HTML and XHTML content under both `.html` and `.htm` in a disposable fixture.
 `xdg-mime query filetype`, `gio info`, and `file --mime-type` returned `text/html` for ordinary HTML
@@ -47,9 +50,9 @@ All three installed Firefox variants accept `--profile PATH --new-tab URI` accor
 path-based forwarding to an already running instance. Runtime delivery still needs verification.
 
 Helium uses Chromium's profile storage. The installed wrapper forwards arguments to Helium.
-A disposable attempt to start Helium returned `spawnSync dbus-run-session ETIMEDOUT` after creating
-`net.imput.helium` and `net.imput.helium-headless` under the fixture's config directory.
-Verify profile metadata and launch on a nested desktop.
+In a disposable headless run, Helium opened an HTML file whose name contained spaces and `#`.
+It stored the requested profile directory in `Local State` under `profile.info_cache`.
+Verify delivery to an existing profile on a nested desktop.
 [Chromium user data directory](https://chromium.googlesource.com/chromium/src/+/HEAD/docs/user_data_dir.md)
 
 ## Proposed picker behavior 2026-11-17T16:40:02-05:00
@@ -71,3 +74,5 @@ Use disposable profiles to verify both Firefox storage formats and Helium with c
 browser instances. Run the Slint picker in a nested desktop to exercise keyboard and pointer input.
 Use separate fixtures for the default applications so verification preserves the desktop's active
 associations.
+
+[plasma]: https://github.com/KDE/plasma-workspace/blob/v6.8.3/kcms/componentchooser/components/componentchooserbrowser.cpp
