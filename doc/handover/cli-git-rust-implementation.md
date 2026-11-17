@@ -154,7 +154,8 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ### Stopped for a reboot with the new SSD in hand: what is saved where, and how to start again (2026-11-16T19:22:33-05:00)
 
-Not final: one review was still going when this was written, and its result is in the round list under "Open work".
+Not final and not approved: this is the session's own account of what it checked.
+Every run and review of this effort has ended; the last review had returned by 19:28:45 and its result is in the round list under "Open work".
 
 #### What the owner asked
 
@@ -172,10 +173,22 @@ At about 17:58 on 2026-11-16: "I just received the new SSD. Let everything alrea
 #### What is saved where
 
 - `main` equals `origin/main`, and at 19:22:33 no worktree of the repository held a commit that `origin` lacks.
+- No local branch holds a commit `origin` lacks, with or without a worktree
+  (`git rev-list --count --branches --not --remotes=origin` prints 0).
+  It printed 8 before: the merges of `integrate/git-policy-cli-pass-34-a-trash-left-at-its-ceiling-comes-back-after-its-lease`,
+  made on 2026-11-14 and never pushed. That branch is pushed now, as it stood.
+- The repository holds three stash entries, of 2026-05-10, 2026-08-05 and 2026-10-29, none made by this effort.
+  A stash cannot be pushed, so each is saved as a patch against its base commit
+  under `~/temp/agent/getting-the-machine-ready-for-a-reboot-2026-11-16/keep/stash-entries-of-the-repository/`. The stash itself is untouched.
+- `/var/home/user/Monochromatic` is a link to `/var/mnt/encrypted/repository/Monochromatic`: one repository, not two.
 - Of 156 worktrees, 43 held files not committed (leftovers of ended runs and of other sessions, the main checkout's six among them).
   Each one's uncommitted work is saved as `<name>.patch`, `<name>.status.txt` and its small untracked files,
   with no worktree, index or branch changed,
   under `~/temp/agent/getting-the-machine-ready-for-a-reboot-2026-11-16/keep/uncommitted-work-of-each-worktree/`.
+  **One exception:** the worktree `pi-sol-shadow-and-replay-route-findings-on-main`, which is not this effort's,
+  holds one untracked folder, `.audit-shadow-replay/`, with a file this account may not read. It has no tracked change,
+  so its patch is rightly empty; that folder is not saved whole.
+  Untracked files over 4 MiB are listed and not copied.
 - `~/temp` is a link to `/var/mnt/encrypted/temp`, so the scratch stands on the repository's SATA drive.
   The text of the scratch that nothing else holds (the resume queue and its scripts, every `*-prompt.md`,
   every run's `summary.json`, the Markdown of every review folder, each scratch folder's `keep/`, the patches)
@@ -192,7 +205,10 @@ The agent cap was found by probing the drives as they were; with another drive i
     If the scratch did not come back, the copy named under "What is saved where" holds the queue and the briefs.
 2.  Read the head of the queue:
     `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/resume-queue-in-order-one-entry-per-free-slot.json`.
-    Its first entry is the review of the landed-removal fix at `00ba90b007`, then pass 59.
+    It holds 96 entries. Its first is the review of the gate-script unit test (two files),
+    its second the review of the landed-removal fix at `00ba90b007`, which is the one pass 59 waits for.
+    Not in the queue and waiting for a brief written by hand: the authors of the checkout migration, of the many changed files,
+    of the tunnel tooling (after its second review part) and of the empty-tree commit fix.
 3.  Reviews go to Claude Sonnet subagents, prepared one at a time with
     `prepare-one-queued-review-for-a-claude-sonnet-subagent.ts <entry name>` from the queue's folder.
 4.  The probe, with the level to try as its first parameter:
@@ -223,10 +239,24 @@ The agent cap was found by probing the drives as they were; with another drive i
       /var/mnt/encrypted/repository/Monochromatic/.cache/toolchain-bin/node ~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/wait-until-a-pi-run-has-ended-by-its-summary-file.ts <ISO moment> 28800 240 optique-,kitesurf-,canary-
     ```
 
-#### What a reboot ends that is not this effort's
+#### What a reboot ends
 
-Read at 18:00 and not stopped by this session: other sessions' units and the desktop's applications.
-The tunnel tooling is not deployed, and no container was running at 18:39.
+Read at 19:23:52 and 19:24:22 and stopped by nobody; none of it holds work that is not saved:
+
+- Leftovers of this effort's ended runs and reviews, in `run-p…` scopes:
+  fixture programs of 2026-11-13 in the deleted folders of the index-lock run (`editor.sh` and `sleep`),
+  `node` programs of 2026-11-14 in the lock-shim run's scratch,
+  shells of 2026-11-16 12:28 to 12:39 in the reproductions folder of the review of the killed-Git lock at `bbda166ce2`,
+  and one scope of 2026-11-13 13:57 with two wrapper test programs whose folder cannot be read.
+  A run that ends can leave programs behind: the driver's scan for work a run left running is the place for it
+  (branch `58bfdf1ced`, review queued); whether that branch covers these cases is for its review.
+- 144 `cargo-shadow-<hash>.scope` units started between 2026-11-13 and 2026-11-15, each with no task in it:
+  cargo-shadow leaves an empty scope behind. Not yet briefed.
+- Nine `podman-pause-…` scopes with one `catatonit` each; `podman ps --all` lists no container.
+- Six `monochromatic-git-policy-cli@….service` commit services; the main checkout's `git status` names no owed push.
+- Another Claude Code session on this repository, `monochromatic-7b`, open for three days and waiting; this session cannot vouch for its state.
+  The six modified files and one untracked file in the main checkout are other sessions' and are saved as a patch like the rest.
+- The desktop's applications. The tunnel tooling is not deployed.
 
 ### After the restart: the owner's cleanup, a cap of four runs raised by bisecting, scratch left uncleaned (2026-11-13T10:27:50-05:00)
 
@@ -40205,6 +40235,12 @@ Recovery after the hold (committed at 2026-11-16T10:25:11-05:00; an earlier word
   **The copy-owner author's fourth run, whole at `eaacf58e50` (branch `fix/git-policy-cli-copy-owner-and-transaction-owner-spelled-another-way-are-never-taken-for-gone`; changed modules 1,609 of 1,609, binary controls 48 of 48):** by the owner's "Per command", a young record no longer stops `worktree add` (both adds exit 0, where the younger exited 2); the telling moved off the warning channel to the notices step, so it survives `MONOCHROMATIC_WARN=false`; the platform-refusal arms have seam controls that fail with the arm taken out; a copy whose owner record is no token is kept and named; the printed command is run in a control for a path with a space, both quotes and a newline; the claim's words name the stage the `rm` leaves and its own `rm --recursive`.
   **The review-briefs author's fourth run, at the branch tip named in the queue entry (branch `feat/pi-shared-subagent-driver-review-briefs-demand-what-was-read-and-run-and-a-review-that-ran-nothing-is-started-again`; 224 unit passes; `main` merged four times):** commands run through `mise run`, `mise exec`, `systemd-run`, `bash -c`, `time` and `cargo nextest` now count as run; a stale start marker has exactly one owner in 300 of 300 trials (two in 2 of 300 before); only `--start` starts a second review. Over the same 32 real reviews of 2026-11-16 the check accepts 7 where it accepted none, and would start 25 again. **It says the fixes existed before this turn, so the failing-first cycle per finding was not done; the tests that would fail without each fix are named in its report.**
 - **The last Pi run ended at 19:17:27, so no Pi run is going: read at 19:22:00, no unit named `pi-*`, `launch-*`, `fill-*`, `wait-*` or `disk-*` is active.** It is the fresh run for the push of a branch other than the one checked out, whole at `52701f4a5b` (branch `fix/git-policy-cli-push-of-a-branch-not-checked-out-leaves-a-staged-removal-alone-and-stops-no-command`; `main` merged with no conflict; `push::` 622, `invocation::` 352, the reconcile tests 137 and the branch's sixteen binary controls all pass). The sweep now writes what it can prove and leaves, and names, a path whose state is what `git rm` of a merge-added file leaves, so a removal is never undone; the switch-away control's expectation changed for that, which its review weighs first. One control cannot be shown failing against the code before the fix (the claim step stops the second command before that window), and its report says so. It discloses one `btrfs filesystem du` of the scratch root, against its brief, which timed out and printed nothing. Its review is entered in the queue. Still going: the review of the empty-tree commit fix, alone.
+- **The last review is back, so nothing of this effort is going: the review of the empty-tree commit fix (`3822c44c2f`, delta since `b92347ebd3`; 8 of 8 files; independent; both builds, whole modules).** It found no folder of the earlier review and took that review's two findings from this page.
+  **An empty tree still lands, on the tip as on `main`, in the default route:** `git commit -m x -- a.txt` with the commit's scratch folder removed after staging lands the empty tree and exits 0; the same with the folder emptied or replaced or its private index removed, for a whole-index commit and for `--amend -- <path>`. The branch's guard is used only for commits real Git builds; the route where the service builds the commit never reaches it, and every binary control of the author forces the Git route with `commit.verbose false`. **So the branch does not close the window the passes were refused for; it narrows it:** in 1,170 perturbed cells of the Git-built route none landed a tree other than real Git's, where `main` lands the empty tree in 10.
+  No test passes on `main` and fails on the tip (unit 2,705 of 2,705 against 2,675 of 2,675; binary 201 of 202 against 179 of 180, the one failure `repository_naming_commit`, `main`'s).
+  The branch brings: `--amend --only` and `--amend -o` with staged changes are refused where `main` lands them; a named pipe as `--pathspec-from-file` during a stopped revert waits without bound where `main` ends after 60 s; `--pathspec-from-file=-` during a stopped revert is refused (`main` lands a wrong tree there); a revert's concluding commit of named paths is refused when its scratch folder is emptied; an edit of the named file between the capture and Git's own read refuses the commit; a stale exemption list lets the table test pass with the guard taken out, and a SPEC paragraph is overstated.
+  `main` has too: the empty tree in the default route; a pathless `-o` landing the whole index where real Git lands `HEAD`'s tree; a named pipe in a plain state waiting without bound; the second of two commits of named paths during a stopped revert exiting 1; revert state files left when the scratch folder is lost after the build.
+  Next, after the reboot: the author's brief with the default route as its one subject (the guard reaches the commit the service builds, with a control that does not force the Git route), the five brought findings named for the same round where they stand in its files; no pass for this branch before. Its review worktree is removed; the review folder keeps both builds for the delta review.
 - Two authors whose last run said it was unfinished are queued again with what they themselves listed as open and nothing added: the queue of runs as a folder (its lint) and `mpm-shadow`'s removal of old versions (controls shown failing, `main` merged, the decisions of 2026-11-15, the cost).
 - Still owed from the night: the drawn-shadow-tree author's eleventh run (queued, see the entry before this one in this list) (pass 57's refusal and its Kimi review's two findings); the fresh run for the age arithmetic and the linked-worktree exemption; the Sonnet audit of the LFS path; the Sonnet pass of the pool change.
 
