@@ -14,6 +14,8 @@ That browser was not restarted,
 because the last automated restart lost the user's session
 (see "Session restoration failure");
 it keeps its mapping until the user next starts Helium.
+(The user restarted it at `2026-11-17T17:57:06-05:00`;
+the new browser has no mapping, see "Next action".)
 
 The stalls in "Metrics write faults block the main thread" were captured on Btrfs.
 No stall has been captured on this ZFS machine,
@@ -715,6 +717,10 @@ they have not been copied over the user's new session.
   Helium deletes it within seconds of startup,
   so a relaunch through `chrome://restart`, which skips the launcher, maps the file again.
   A file inside the directory prevents the deletion.
+- `grep --count '\.pma' "/proc/$(pgrep --oldest --exact helium)/maps"` does not reliably check the user's browser:
+  at `2026-11-17T17:57` the oldest `helium` process was another session's automation browser
+  with its own `--user-data-dir`,
+  so the check read the wrong process and its `0` said nothing about the real profile.
 - Matching the browser by the launching systemd unit's cgroup,
   or by NUL-separated `/proc/<pid>/cmdline` arguments,
   finds no Chromium browser main process;
@@ -739,9 +745,11 @@ No upstream report or generated issue draft was sent.
 
 ## Next action
 
-As of 2026-11-17,
-the user's running Helium (PID `27925`) predates the change and still maps its metrics file.
-The user restarts Helium when convenient.
+The user restarted Helium with `helium://restart`.
+The new default-profile browser main process (PID `320152`, started `2026-11-17T17:57:06-05:00` with `--restart`)
+has no metrics mapping,
+and `BrowserMetrics` still holds its file,
+so the workaround is in effect on the real profile.
 Helium `0.21.3.1`'s menu has no Exit item;
 typing `helium://restart` in the address bar relaunches it.
 On a throwaway profile at `2026-11-17T17:54:56-05:00`,
@@ -751,12 +759,16 @@ which the user's profile leaves at Helium's default.
 The relaunch skips the launcher,
 and the read-only folder still keeps the metrics in memory
 (the `prepared-mid-session` arm in "Verification on Chromium 157").
-Afterwards this prints `0` when the browser main process has no metrics mapping:
+This prints the metrics-mapping count of the default-profile browser main process;
+`0` means the workaround is in effect:
 
 ```sh
-# The oldest helium process is the browser main process
-grep --count '\.pma' "/proc/$(pgrep --oldest --exact helium)/maps"
+# Skips child processes (--type=) and other profiles (--user-data-dir=), such as automation browsers
+pgrep --exact helium --list-full | grep --invert-match --regexp=--type= --regexp=--user-data-dir= | cut --delimiter=' ' --fields=1 | xargs -I{} grep --count '\.pma' /proc/{}/maps
 ```
+
+It was tested in zsh and fish,
+and selected PID `320152`.
 
 The next useful evidence is a recurrence in the current launcher session,
 correlated with the retained syscall and blocked-main-thread capture.
