@@ -741,8 +741,17 @@ No upstream report or generated issue draft was sent.
 
 As of 2026-11-17,
 the user's running Helium (PID `27925`) predates the change and still maps its metrics file.
-The user restarts Helium when convenient;
-afterwards this prints `0` when the browser main process has no metrics mapping:
+The user restarts Helium when convenient.
+Helium `0.21.3.1`'s menu has no Exit item;
+typing `helium://restart` in the address bar relaunches it.
+On a throwaway profile at `2026-11-17T17:54:56-05:00`,
+that restart brought back every open tab (a `data:` page, an `about:blank#` page, and the New Tab page).
+A plain quit and reopen follows the profile's "On startup" setting instead,
+which the user's profile leaves at Helium's default.
+The relaunch skips the launcher,
+and the read-only folder still keeps the metrics in memory
+(the `prepared-mid-session` arm in "Verification on Chromium 157").
+Afterwards this prints `0` when the browser main process has no metrics mapping:
 
 ```sh
 # The oldest helium process is the browser main process
