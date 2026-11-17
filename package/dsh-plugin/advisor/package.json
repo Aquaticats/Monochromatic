@@ -84,6 +84,7 @@
     "@deepseek-ai/dsh-attachment": "catalog:",
     "@deepseek-ai/dsh-brand": "catalog:",
     "@deepseek-ai/dsh-commands": "catalog:",
+    "@deepseek-ai/dsh-error": "catalog:",
     "@deepseek-ai/dsh-fs": "catalog:",
     "@deepseek-ai/dsh-llm": "catalog:",
     "@deepseek-ai/dsh-ptc-runtime": "catalog:",
