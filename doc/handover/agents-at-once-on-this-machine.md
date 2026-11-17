@@ -7,17 +7,22 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-**No disk cap holds on this machine since the move to the new drive on 2026-11-17.**
-Every number on this page was measured on the old drives (the SATA 860 EVO and the old NVMe),
-whose stalls set it.
-The home folder now sits on the ZFS pool `zpcachyos` on the Intel 3.5 TB NVMe,
-and the owner wrote on 2026-11-17:
+**On the new drive the cap is found again by the search under "What counts as the ceiling",
+and until the search ends the cap is the level it is testing.**
+Every number below this paragraph was measured on the old drives (the SATA 860 EVO and the old NVMe),
+whose stalls set it, and none of them holds on the new drive.
+The home folder now sits on the ZFS pool `zpcachyos` on the Intel 3.5 TB NVMe.
+The owner on 2026-11-17:
 "The cap shouldn't be 20. The 20 cap was set because my old disk was slow, and we're on the new disk now."
-So no count of agents from this page holds work back.
-What still limits runs is each provider's own measured refusal
-(the pools in `package/pi-shared/subagent-driver/src/pool-limits.ts` and the skill `pi-as-subagent`).
-The disk probe under "What counts as the ceiling" may run beside the work to show a stall if the new drive has one;
-a cap returns to this page only from such a measured stall.
+and, when a session read that as no cap at all,
+"I didn't tell you to outright remove the cap. You're meant to bisect for it."
+The search starts at four and doubles until a level fails,
+then halves the gap,
+with the same failing criteria and the same hour per level.
+Its readings go under `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026-11-17/keep/`,
+and each level gets its own heading under "Readings on the new drive".
+Each provider's own measured refusal still limits its pool beside this cap
+(`package/pi-shared/subagent-driver/src/pool-limits.ts` and the skill `pi-as-subagent`).
 What follows is the old drives' record,
 kept as it was written.
 
@@ -208,9 +213,17 @@ The search is done again after the new drive is in
 (expected 2026-11-17;
 the owner said on 2026-11-14 at about 14:39 that the arrival slipped from 2026-11-15).
 
+## Readings on the new drive
+
+The probe writes and syncs 4 KiB once a minute in two datasets of the pool `zpcachyos`:
+the snapshotted home dataset (`~/.cache/disk-ceiling-probe-file`)
+and the snapshot-free `zpcachyos/nosnap/cargo-build` (`~/.cargo/build/disk-ceiling-probe-file`),
+one line a minute in `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026-11-17/keep/probe-readings.jsonl`.
+No level has started yet.
+
 ## Readings
 
-Probe readings,
+Probe readings on the old drives,
 one line a minute:
 `~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/probe-readings.jsonl`.
 
