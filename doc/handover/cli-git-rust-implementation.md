@@ -201,8 +201,26 @@ At about 17:58 on 2026-11-16: "I just received the new SSD. Let everything alrea
 
 #### How to start again
 
-The agent cap was found by probing the drives as they were; with another drive in the machine it is found again before anything is filled
-(`doc/handover/agents-at-once-on-this-machine.md`).
+**The next boot is not this system.** By the owner's words of 2026-11-16, quoted under "Owner decisions in force",
+the new SSD is a third drive with CachyOS on ZFS, and both old drives are wiped once the migration is done.
+A session there starts with no memory of this one unless `~/.claude` was carried over; this page, read from GitHub, is what it has.
+Before any step of the numbered list:
+
+- **Wipe nothing and call no migration done until each of these is on the new system or shown not to be needed:**
+  the repository at `/var/mnt/encrypted/repository/Monochromatic` on the SATA drive (LUKS, Btrfs): every commit is on `origin`,
+  but 43 worktrees hold uncommitted files and the stash holds three entries, saved as patches in the scratch;
+  the agent scratch at `/var/mnt/encrypted/temp/agent` (about 276 GB, most of it build trees; the resume queue, the briefs,
+  the review reports and every `keep/` folder are the part nothing else holds, and their copy is on the NVMe);
+  in the home folder on the NVMe: `~/.claude` (this session's transcript, its task list and the settings and hooks),
+  `~/.pi/agent`, `~/.cargo`, `~/.config/mise` and the tool stores; never print a credential file while moving one.
+- **Paths.** The queue's entries, the scripts in the scratch, the registrations of the worktrees and the lines in this list
+  name `/var/mnt/encrypted/repository/Monochromatic`, `/var/mnt/encrypted/temp/agent` and `/var/home/user` (also spelled `/home/user`).
+  Either the new system keeps those paths or each of these is rewritten; that is put to the owner with the new system's mounts read first.
+- **The wrapper on ZFS** is a requirement of the owner's and is not built: until it is, treat a checkout on ZFS as untested ground,
+  run the wrapper's controls there before trusting a worktree add or removal, and expect the Btrfs controls to print `BTRFS CONTROL NOT RUN`.
+- The agent cap of 18 and the probe's readings describe the old drives. On the new pool the probe runs first, from a low level upward.
+
+Then, with the repository and the scratch reachable:
 
 1.  Check that the paths still resolve: `realpath ~/temp/agent` and the repository at `/var/mnt/encrypted/repository/Monochromatic`.
     If the scratch did not come back, the copy named under "What is saved where" holds the queue and the briefs.
@@ -39559,6 +39577,31 @@ Timestamps are the commit times at which the decision was first written into the
 the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
+
+### The new SSD holds CachyOS on ZFS, both old drives are wiped after the migration, work resumes after a probe, and the wrapper supports ZFS (2026-11-16, said before 19:41:40-05:00)
+
+Three things the owner said after the machine was made ready for the reboot; the first two through the question tool.
+
+- **Where the new SSD goes:** "It's added as a 3rd drive, and I'm going to install CachyOS on it with ZFS.
+  And after I boot into CachyOS and you helped with the migration, I'm going to wipe both current drives to make them ZFS."
+  So the next boot is another operating system on another filesystem, with both old drives still whole beside it,
+  and **nothing that lives only on the old drives is safe once the migration is called done**:
+  the repository's worktrees and stash, the whole agent scratch, and the home folder's agent state.
+  This replaces what `doc/decision/cachyos-zfs-desktop.md` and `doc/runbook/migrate-bazzite-to-cachyos-zfsbootmenu.md` plan
+  (the system onto the NVMe, the 4 TB drive kept outside the pool);
+  neither is amended yet, and both are another effort's records.
+- **How the work starts again:** "A: Probe, then resume (Recommended)":
+  a session checks the paths, finds the agent cap again with the drive probe,
+  then starts reviews and Pi runs from the queue without waiting for the owner.
+  It was asked before the owner named the new system, so on CachyOS it holds once the tools and the repository are in place there.
+- **The wrapper on ZFS:** "Oh and the wrapper has to support ZFS properly as well."
+  As read on 2026-11-16: the wrapper's snapshot route for `git worktree add`, its one-step removal of a worktree
+  and its checkout migration are written for Btrfs subvolumes
+  (`package/git-policy/cli/src/native/subvolume/`; the README says the checkout migration refuses when "the checkout is not on btrfs");
+  `SPEC.md` names ZFS once; no control of the wrapper has run on ZFS.
+  `doc/planning/filesystem-for-the-repository-volume.md` already says the snapshot route "would have to move to ZFS clones",
+  and `doc/planning/btrfs-and-zfs-each-at-its-best.md` measured a clone's destruction at 2 to 9 seconds where Btrfs took 0.02 to 0.1.
+  How far "properly" reaches is put to the owner; the answer is recorded beside this entry.
 
 ### A `worktree add` relinks by itself when no service took its request, and a Pi run is confined with its containers started by the account's manager (2026-11-16, answered through the question tool between 17:33:37-05:00 and 17:36:00-05:00)
 
