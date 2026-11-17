@@ -1,6 +1,8 @@
 [Unit]
 Description=Claude session CPU cap reconciler and system degradation watcher
 Documentation=file://%h/Monochromatic/package/claude-cpu-cap/daemon/README.md
+# No start limit: whatever makes a start fail, the unit retries every thirty seconds instead of ending in a failed state.
+StartLimitIntervalSec=0
 
 [Service]
 # The manager does not read the shell's PATH: `env` finds `node` on the user manager's own PATH, which

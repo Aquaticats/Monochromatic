@@ -220,7 +220,8 @@ the user manager reads it while loading units,
 and a copy stays loadable whatever happens to the checkout.
 `ExecStart` finds `node` through `/usr/bin/env` on the user manager's `PATH`,
 which `~/.config/environment.d/` can extend,
-and `Restart=on-failure` with `RestartSec=30` starts the watcher again after it fails.
+and `Restart=on-failure` with `RestartSec=30` and no start limit starts the watcher again after it fails,
+so it never ends in a failed state.
 Until the 2026-11-17 move to CachyOS the unit also ran the repository link check before each start,
 because the repository lived on the 860 drive and could be unmounted when the manager started;
 the repository now lives on the home volume.
