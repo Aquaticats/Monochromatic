@@ -8,6 +8,8 @@ Owner review is open.
 - `cargo binstall maki` reports `no binaries specified nor inferred` and exits with status 86.
 - `cargo binstall https://github.com/tontinton/maki` reports
   `https://github.com/tontinton/maki is not found` and exits with status 76.
+- After a successful install to `~/.cargo/bin/maki`, Bash can report `maki: command not found`
+  if `~/.cargo/bin` is missing from the shell's `PATH`.
 
 ## Root cause
 
@@ -107,6 +109,33 @@ sh maki-install.sh
 maki --version
 ```
 
+## Bash cannot find the installed binary
+
+Cargo adds its own bin directory to its external subcommand search when the directory is absent
+from `PATH`. That lets `cargo binstall` work in a shell that cannot resolve `maki` by name.
+See `src/bin/cargo/main.rs:341`. [Cargo subcommand source][cargo-subcommand-source]
+
+```rust
+// src/bin/cargo/main.rs
+if !path_dirs.iter().any(|p| p == &home_bin) {
+    path_dirs.insert(0, home_bin);
+}
+```
+
+If Cargo Binstall reported installing to `~/.cargo/bin/maki`, add that directory to the current Bash
+session and check which binary runs. [Repository prerequisites](../../README.md#prerequisites)
+
+```sh
+# doc/troubleshooting/cargo-binstall-maki.md
+export PATH="$HOME/.cargo/bin:$PATH"
+command -v maki
+maki --version
+```
+
+With a clean Bash process and `PATH=/usr/bin:/bin`, Codex reproduced exit status 127 for `maki`.
+Under that same `PATH`, `cargo binstall -V` printed `1.27.0`. After the export, `command -v maki`
+resolved to the installed binary and `maki --version` printed `maki 0.7.2`.
+
 ## What does not work
 
 - Adding release-download options to a registry lookup still selects the library's manifest.
@@ -135,3 +164,4 @@ Git override pull request (Cargo Binstall #1162) and related Git revision reques
 [install]: https://github.com/tontinton/maki/blob/339b61a5518ad9d98cc9cba6f3dbf44e48ce93cc/README.md#L101-L124
 [index]: https://index.crates.io/ma/ki/maki#:~:text=%220.1.0%22
 [release]: https://github.com/tontinton/maki/releases/tag/v0.7.2#:~:text=v0.7.2
+[cargo-subcommand-source]: https://raw.githubusercontent.com/rust-lang/cargo/ede6cefea9731cb595942338824c2f9a610b8189/src/bin/cargo/main.rs#:~:text=path_dirs.insert(0%2C%20home_bin)
