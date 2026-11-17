@@ -32,9 +32,11 @@ workspace.windowActivated.connect(function(client) {
 // Browsers: remap to Ctrl+W via ydotool.
 // Neovide: send <F16> to Neovim via msgpack-rpc (Neovide swallows Ctrl+F4).
 
+// Helium (Chromium-based) reports the window class "helium" on Plasma 6.8 Wayland,
+// which none of the other names match.
 var BROWSERS = [
     "librewolf", "firefox", "chrome", "chromium",
-    "brave", "brave-browser", "edge", "vivaldi", "opera"
+    "brave", "brave-browser", "edge", "vivaldi", "opera", "helium"
 ];
 
 registerShortcut("BrowserCloseTab", "Close Tab (Ctrl+F4)", "Ctrl+F4", function() {
