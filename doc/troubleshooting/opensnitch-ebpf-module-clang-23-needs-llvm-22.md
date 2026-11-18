@@ -364,9 +364,10 @@ and nothing here reproduces a crash with `--target=bpf`.
   `kretprobe`,
   `tracepoint`,
   `uprobe` and `uretprobe` sections in each rebuilt tree.
-  The sorted section names of the installed objects are identical to those of the objects in the cached package
+  The sorted section names of the installed objects and of both rebuilt trees
+  are identical to those of the objects in the cached package
   `opensnitch-1.7.2-4.1-x86_64_v4.pkg.tar.zst` (18 names each,
-  `diff` prints nothing).
+  `diff` prints nothing for each).
 
 ### Installed module at run time
 
@@ -397,7 +398,7 @@ which section has no attached program was not identified.
 - Loading the `v1.8.0` objects.
   Only the objects of the master recipe were loaded.
 - Which of the 18 probe sections is the one without an attached program.
-- `make CC=... LLC=...` with Arch's LLVM 22 names (see "Verified workarounds").
+- `make CC=... LLC=...` with this host's LLVM 22 names (see "Verified workarounds").
 - The Arch GitLab and AUR links in a browser.
   Both hosts answer an automated browser with an Anubis access-denied page,
   and no way around it was tried.
@@ -417,7 +418,7 @@ which section has no attached program was not identified.
 ```bash
 # build step, run in the ebpf_prog directory of a checkout
 kdir="/usr/lib/modules/$(uname -r)/build"
-PATH="/usr/lib/llvm22/bin:${PATH}" KERNEL_DIR="${kdir}" KERNEL_HEADERS="${kdir}" ARCH=x86 make all
+PATH="/usr/lib/llvm22/bin:${PATH}" make all KERNEL_DIR="${kdir}" KERNEL_HEADERS="${kdir}" ARCH=x86
 ```
 
 The Arch packaging merge request for the `opensnitch` package takes the same approach:
@@ -442,8 +443,9 @@ The OpenSnitch report's suggestion is `make CC=clang-22 LLC=llc-22`
 ([comment][issue-1686-diagnosis]),
 which its author did not test with clang 23.
 On this host `llc-22` is linked into `/usr/bin` by `llvm22`,
-but `clang-22` is not on `PATH`,
-so that spelling does not work as written on Arch.
+but `clang-22` is not on `PATH`
+(CachyOS with the package `clang22` `22.1.8-1.1`),
+so that spelling does not work as written on this host.
 `CC` is a plain assignment in the Makefile,
 and a command-line `CC=` overrides it
 (the `--target=bpf` test in "Verification" relied on that).
@@ -493,8 +495,8 @@ The tag needs all three flags besides LLVM 22:
 ```bash
 # in the ebpf_prog directory of a v1.8.0 checkout
 kdir="/usr/lib/modules/$(uname -r)/build"
-PATH="/usr/lib/llvm22/bin:${PATH}" KERNEL_DIR="${kdir}" KERNEL_HEADERS="${kdir}" ARCH=x86 \
-  EXTRA_FLAGS="-fms-extensions -Wno-microsoft-anon-tag -DCC_USING_FENTRY" make all
+PATH="/usr/lib/llvm22/bin:${PATH}" make all KERNEL_DIR="${kdir}" KERNEL_HEADERS="${kdir}" ARCH=x86 \
+  EXTRA_FLAGS="-fms-extensions -Wno-microsoft-anon-tag -DCC_USING_FENTRY"
 ```
 
 Tradeoffs:
@@ -832,7 +834,8 @@ and `opensnitch-dns.o`, with the same 18 probe sections as the 1.7.2 package's o
 v1.8.0 builds the same way with
 `EXTRA_FLAGS="-fms-extensions -Wno-microsoft-anon-tag -DCC_USING_FENTRY"`.
 The master objects load under a 1.9.0 daemon.
-`clang-22` is not on `PATH` on Arch, so the `CC=clang-22` suggestion in this thread needs `/usr/lib/llvm22/bin/clang`.
+On the CachyOS host checked (`clang22` 22.1.8-1.1) `clang-22` is not on `PATH`,
+so the `CC=clang-22` suggestion in this thread needs `/usr/lib/llvm22/bin/clang` there.
 ~~~
 
 The comment makes no claim about the `v1.8.0` objects at run time.
