@@ -70,29 +70,41 @@ scripts and outputs under `~/temp/agent/zfs-fast-route-design-facts-2026-11-17/k
 The owner asked to dig deeper and allowed root ("You have passwordless sudo.").
 Each mechanism was tried on a throwaway dataset under `zpcachyos/nosnap` with `setuid=off devices=off`,
 and every system file the probe changed was put back and checked afterwards
-(script and full output: `probe-the-root-once-mount-routes-sudo-polkit-fstab-and-zed.ts`,
-`probe-the-polkit-and-fstab-mount-routes-again.ts`, `keep/root-once-route-probe.txt`).
+(scripts `probe-the-root-once-mount-routes-sudo-polkit-fstab-and-zed.ts`,
+`probe-the-polkit-and-fstab-mount-routes-again.ts`, `probe-what-each-root-once-route-lets-through-options-regex-legacy.ts`;
+full output `keep/root-once-route-probe.txt`).
 
-- **A sudoers rule with wildcards is unsafe as written by mitosis-db.**
-  For a rule `nobody ALL=(root) NOPASSWD: /usr/bin/zfs mount <parent>/*, /usr/bin/zfs unmount <parent>/*`,
-  `sudo -l -U nobody` allowed `zfs mount <parent>/a-clone zpcachyos/ROOT/cos/home`,
-  `zfs unmount <parent>/a-clone -a` and `zfs unmount <parent>/a-clone -f`,
-  and refused only an option placed before the operand and a dataset outside the parent.
-  `zfs` honours an option placed after its operand (`zfs get name zpcachyos -H` printed no header),
-  so that rule lets the user run `zfs unmount -a` as root.
-  A sudo route needs a root-owned helper that checks its own arguments, named exactly in sudoers.
-- **A polkit rule with systemd mount units works.**
+- **A sudoers rule with anchored regular expressions works and refused every variant tried.**
+  sudo here is 1.9.17p2, and sudo 1.9.10 and later read arguments that start with `^` and end with `$` as a regex.
+  For `nobody ALL=(root) NOPASSWD: /usr/bin/zfs ^mount <parent>/[a-z0-9-]+$, /usr/bin/zfs ^unmount <parent>/[a-z0-9-]+$`
+  (`visudo -cf` parsed it), `sudo -l -U nobody` allowed `zfs mount <parent>/a-clone` and `zfs unmount <parent>/a-clone`
+  and refused `… -o suid`, a second operand, `unmount … -f`, `unmount … -a`, a nested `<parent>/a/b`
+  and a dataset outside the parent. It needs no root code of ours.
+- **A sudoers rule with wildcards lets the user pick mount options.**
+  For `nobody ALL=(root) NOPASSWD: /usr/bin/zfs mount <parent>/*, /usr/bin/zfs unmount <parent>/*`,
+  `sudo -l -U nobody` allowed a second operand, `unmount … -a` and `unmount … -f` after the operand.
+  `zfs` itself rejects the second operand and `-a` with an operand ("too many arguments",
+  `share_mount` and `unshare_unmount` in `cmd/zfs/zfs_main.c` at tag `zfs-2.4.4`, lines 7696 and 7954),
+  but it reads options placed after the operand (`getopt_long` permutes; `zfs get name zpcachyos -H` printed no header),
+  and root's `zfs mount <clone> -o suid,dev` mounted the clone without `nosuid,nodev` although the parent has
+  `setuid=off devices=off`. So that rule lets the user turn setuid and device files back on for any dataset under the parent.
+  mitosis-db prints a sudoers rule from `mitosis zfs setup`, but its text was not read
+  (the docs.rs source view dropped the function bodies), so whether its rule has this shape is unknown.
+- **A polkit rule with systemd mount units mounts, and lets the user mount anything at the allowed path.**
   Without a rule, `StartTransientUnit` from the user answered "Access denied as the requested operation requires
   interactive authentication"; with a rule allowing one unit name, the user's call over D-Bus
-  (`What=<dataset>`, `Type=zfs`, `Options=zfsutil`) mounted the clone in 0.011 s, the file read back,
-  `StopUnit` unmounted it in 0.011 s, and another unit name was refused.
-  systemd hands polkit the unit name and the verb (`bus_verify_manage_units_async_impl(m, name, "start", …)`
-  in `src/core/dbus-manager.c` on systemd main); it does not hand it `What=` or `Options=`,
-  so the rule pins the mount path but not which dataset is mounted there or with what options
-  (read from the source, not probed: a user so allowed could ask for `Options=suid` or another dataset at that path).
+  (`What=<dataset>`, `Type=zfs`, `Options=zfsutil`) mounted the clone in 0.011 s, `StopUnit` unmounted it in 0.011 s,
+  and another unit name was refused.
+  But under the same rule the user's `Options=zfsutil,suid,dev` mounted the clone without `nosuid,nodev`,
+  and `What=tmpfs Type=tmpfs` mounted a tmpfs at that path:
+  systemd hands polkit only the unit name and the verb (`bus_verify_manage_units_async_impl(m, name, "start", …)`
+  in `src/core/dbus-manager.c` on systemd main), so no rule can check what is mounted or how.
+  A user allowed this could mount a block device such as the EFI partition there with options of their choosing,
+  which is as good as root; this route is unfit to ship.
   Unit names hold `\x2d` escapes, which a rule must double inside a JavaScript string (the first try failed on that).
-- **An fstab `user` entry does not work for ZFS.** util-linux 2.42 ran `mount.zfs` for the user without root:
-  "zfs_mount_at() failed: Insufficient privileges".
+- **An fstab `user` entry does not work for ZFS**, with `zfsutil` on an ordinary dataset
+  or without it on a dataset whose `mountpoint` is `legacy` (the Server Fault answer's form):
+  util-linux 2.42 ran `mount.zfs` for the user, and both answered "zfs_mount_at() failed: Insufficient privileges".
 - **A ZED handler works.** With ZED started (it is installed but disabled here) and a handler under `/etc/zfs/zed.d/`
   that mounts a clone made under the parent and unmounts one whose user property `org.monochromatic:unmount`
   says `requested`, the clone was mounted 0.006 s after the user's `zfs clone` returned
@@ -110,7 +122,23 @@ and every system file the probe changed was put back and checked afterwards
   Its lower layer must outlive the worktree, so it needs snapshots of the wrapper's own (sanoid prunes its own after 25 hours)
   and so `snapshot` delegated on the dataset that holds the source.
   fuse-overlayfs splits `lowerdir` on `:`, and sanoid's snapshot names hold colons.
-- **Reflink copies** within one dataset (Genesis's route): 5.63 s for the 56,478-file worktree.
+- **Reflink copies** within one dataset: 5.63 s for the 56,478-file worktree.
+  Genesis's route copies the unchanged files and build folders this way and then has Git check out the files that differ;
+  only the full copy was timed, not Genesis's split.
+- **`zfs zone`** (in 2.4.4; `zfs-zone(8)`) attaches a dataset whose `zoned` property is on to a user namespace,
+  and is run by root. Inside that namespace its administrator mounts it,
+  and "a zoned file system cannot be mounted outside the user namespace", so the person's own shells would not see it,
+  the same limit as 2.5's `zoned_uid`.
+
+## What container tools do
+
+- Docker's `zfs` storage driver is configured with root (`sudo zpool create … -m /var/lib/docker`, `/etc/docker/daemon.json`),
+  and its daemon makes a snapshot and a clone per layer (docs.docker.com, "ZFS storage driver").
+  Whether rootless Docker can use it was not settled: the rootless page read lists no storage drivers.
+- Incus runs its `zfs` driver from its root daemon; its `zfs.delegate` option (ZFS 2.2 or later) hands a dataset to a
+  container so the `zfs` command works inside it, which is the namespace route of `zfs zone`
+  (linuxcontainers.org, Incus "ZFS - zfs").
+- Each keeps the mounts in a root daemon or inside a namespace; none gives an ordinary user mounts in their own namespace.
 
 ## Dependencies to pick
 
@@ -140,14 +168,26 @@ Route: dataset clones with a reflink fallback (C), because a clone plus its moun
 (plus a 0.04 to 0.12 s snapshot) and carries ignored state the way the Btrfs route does,
 while the fallback keeps a 5.6 s route on machines without the root setup.
 Driver: the `zfs` program, because no crate in the listing is shown current for OpenZFS 2.4.
-Mount mechanism, ranked: a root-owned helper named exactly in sudoers > a polkit rule with systemd mount units >
-a ZED handler > fuse-overlayfs > fstab `user` entries (do not work) and raw sudoers wildcards (unsafe).
-The helper ranks above polkit because it can check the dataset, the path and the options, where polkit sees only the
-unit name; polkit ranks above ZED because it needs no root code of ours and no daemon turned on;
-ZED ranks above fuse-overlayfs because its clones run at native speed, where the overlay costs 2.2× to 3.4×
-for as long as the worktree lives.
+Mount mechanism, ranked: an anchored-regex sudoers rule > a ZED handler > a root-owned helper of ours > fuse-overlayfs.
+Out: a polkit rule (lets the user mount anything at the path), a wildcard sudoers rule (lets the user turn setuid back on),
+fstab `user` entries (do not work).
+The regex rule ranks above ZED because it needs no root code of ours and no daemon turned on,
+and it refused every variant tried; ZED ranks above our own helper because ZED was probed working
+and the helper was never built (it ranked first in this page's earlier draft, before the regex rule was tried);
+the helper ranks above fuse-overlayfs because its clones run at native speed,
+where the overlay costs 2.2× to 3.4× for as long as the worktree lives.
+
+## Not researched yet
+
+- containerd's ZFS snapshotter.
+- Genesis's split (reflink the unchanged files, Git checks out the rest), timed as a whole.
+- How the wrapper's controls get a real pool (a file-backed pool made once by root, a delegated dataset on the
+  person's pool as these probes used, or a VM with ZFS).
+- The text of mitosis-db's printed sudoers rule.
 
 ## Open choices for the owner
 
 - The route: dataset clones with a reflink fallback, dataset clones alone, or reflinks alone.
 - For dataset clones, the root mechanism that mounts and unmounts, from the ranked list in "Recommendation".
+- Driving ZFS through the `zfs` program or a crate.
+- Moving the main checkout into a dataset of its own, and naming that dataset in sanoid's configuration.
