@@ -161,9 +161,12 @@ The owner: "shutdown the entire system after you finish A THOROUGH RESEARCH. I'm
   `doc/planning/cli-git-zfs-worktree.md`, with every mechanism tried on this machine as root on throwaway datasets
   (the owner: "You have passwordless sudo."), every system file put back and checked,
   and probe scripts and outputs under `~/temp/agent/zfs-fast-route-design-facts-2026-11-17/`.
-  Findings that changed the earlier questions: mitosis-db's wildcard sudoers rule lets the user run `zfs unmount -a` as root;
-  a polkit rule for systemd mount units works but sees only the unit name; fstab `user` entries fail for ZFS;
-  a ZED handler works; fuse-overlayfs needs no root and costs 2.2× to 3.4× for the worktree's life.
+  Findings that changed the earlier questions: an anchored-regex sudoers rule (sudo 1.9.17p2 here) allows exactly
+  mount and unmount of a child of the parent and refused every variant tried, so it needs no root code of ours;
+  a wildcard sudoers rule lets the user turn setuid back on; a polkit rule for systemd mount units lets the user
+  mount anything at the allowed path (tmpfs and `suid` were accepted), so it is unfit to ship;
+  fstab `user` entries fail for ZFS in both forms; a ZED handler works;
+  fuse-overlayfs needs no root and costs 2.2× to 3.4× for the worktree's life.
   **First thing next session:** put the open choices on that page to the owner through the question tool
   (route; mount mechanism; `zfs` program or a crate; moving the checkout into a dataset of its own and sanoid's entry for it),
   each re-explained, then the cross-vendor re-review of the design before confirming it.

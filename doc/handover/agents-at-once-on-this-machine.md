@@ -243,7 +243,7 @@ one line a minute in `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026
   and the probe was stopped at 19:28:50-05:00.
   Its 35 readings (23:54:13Z to 00:28:17Z) saw at most 13 `pi-*` units going, never twenty;
   the slowest write-and-sync took 72 ms on the home dataset and 2,564 ms on `cargo-build`, none over 5 s.
-  No run met the 120 s first-answer bound, and no disk error showed.
+  The runs' first-answer times and the disk error log were not read before the stop.
   Level 20 was neither held an hour nor filled, so it neither passed nor failed: the search starts at twenty again.
   Synthetic answered `429 "Too many concurrent requests"` with about ten DeepSeek runs going,
   which is what kept the level from filling.
