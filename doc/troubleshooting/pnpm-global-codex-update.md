@@ -82,7 +82,7 @@ Here it saved `^0.169.0`, which admits stable versions from `0.169.0` up to `0.1
 
 ```rust
 // pnpm/crates/registry/src/range_spec_style.rs
-Self::Major | Self::None => "^",
+RangeSpecStyle::Major | RangeSpecStyle::None => "^",
 ```
 
 ### Reproduce the selection
