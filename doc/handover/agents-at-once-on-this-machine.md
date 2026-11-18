@@ -238,6 +238,15 @@ one line a minute in `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026
   which starts queue entries into free places under twenty every 150 s
   (reviews on Synthetic DeepSeek, writers on GPT 6.2 Sol, by the starter's change of 2026-11-17).
 - Six `codex` processes and one `claude` process of other sessions were going when the level began; the probe counts `pi-*` units only.
+- Cut short, not finished: the owner asked for a shutdown at night ("shutdown the entire system after you finish A THOROUGH RESEARCH. I'm going to bed."),
+  so the filling unit was stopped about 19:26, every going run was ended through its stop file at 19:28:09,
+  and the probe was stopped at 19:28:50-05:00.
+  Its 35 readings (23:54:13Z to 00:28:17Z) saw at most 13 `pi-*` units going, never twenty;
+  the slowest write-and-sync took 72 ms on the home dataset and 2,564 ms on `cargo-build`, none over 5 s.
+  No run met the 120 s first-answer bound, and no disk error showed.
+  Level 20 was neither held an hour nor filled, so it neither passed nor failed: the search starts at twenty again.
+  Synthetic answered `429 "Too many concurrent requests"` with about ten DeepSeek runs going,
+  which is what kept the level from filling.
 
 ## Readings
 

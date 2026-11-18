@@ -152,6 +152,32 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Stopped for the owner's shutdown at night (2026-11-17T19:28:50-05:00)
+
+Not final and not approved: this session's own account.
+The owner: "shutdown the entire system after you finish A THOROUGH RESEARCH. I'm going to bed."
+
+- **ZFS fast route (task 379):** the research the owner asked for twice ("Dig even deeper.") is written up in
+  `doc/planning/cli-git-zfs-worktree.md`, with every mechanism tried on this machine as root on throwaway datasets
+  (the owner: "You have passwordless sudo."), every system file put back and checked,
+  and probe scripts and outputs under `~/temp/agent/zfs-fast-route-design-facts-2026-11-17/`.
+  Findings that changed the earlier questions: mitosis-db's wildcard sudoers rule lets the user run `zfs unmount -a` as root;
+  a polkit rule for systemd mount units works but sees only the unit name; fstab `user` entries fail for ZFS;
+  a ZED handler works; fuse-overlayfs needs no root and costs 2.2× to 3.4× for the worktree's life.
+  **First thing next session:** put the open choices on that page to the owner through the question tool
+  (route; mount mechanism; `zfs` program or a crate; moving the checkout into a dataset of its own and sanoid's entry for it),
+  each re-explained, then the cross-vendor re-review of the design before confirming it.
+- **Runs:** every going run ended `stop-file` at 19:28:09 with its session saved
+  (list with turns and session files: `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026-11-17/keep/pi-runs-stopped-for-the-shutdown-of-2026-11-17.txt`).
+  Nine are queue entries: resume each under a new unit and run folder with `--session=<its session file>`;
+  the queue entries the filling unit started are listed in `keep/entries-the-filling-unit-started.txt` beside it.
+  The filling unit is stopped, and the queue starter still points reviews at Synthetic.
+- **Reviewer bench (task 387):** of six runs, the `3822c44c2f` run 2 and the `915ef30e09` run 1 ended `idle`;
+  the `3822c44c2f` run 1 and the `915ef30e09` run 2 ended on Synthetic's `429 "Too many concurrent requests"` after 93 and 127 turns;
+  both `a13faa0d55` runs were stopped by the stop file at 234 and 254 turns. Resume the four unfinished ones
+  (on `opencode-go`, by the skill's 429 rule) before scoring; nothing is scored yet.
+- **Agent cap (task 337):** level 20 was cut short with no verdict; see "Level 20" on `doc/handover/agents-at-once-on-this-machine.md`.
+
 ### On the new system: what came over and what runs nothing yet (2026-11-17T18:36:32-05:00)
 
 Not final and not approved: this session's own account of what it checked.
