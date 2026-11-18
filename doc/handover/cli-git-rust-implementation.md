@@ -170,8 +170,14 @@ Am I missing something? Are you missing something?"
   **Owner's answers of 2026-11-18** (quoted on that page under "Owner's answers of 2026-11-18"): ZED-mounted clones
   with the reflink fallback, and "There is a reason we have a doctor subcommand."; ZED handler; "A Rust crate"
   (against the recommendation); home's snapshots made recursive with a blocklist, "Worktrees are not necessarily throwaway."
-  **Next:** research the Rust crates for ZFS and put the pick to the owner, then the blocklist's content,
-  then the cross-vendor re-review of the design before confirming it.
+  **Crate vet started:** `doc/audit/tech-rust-crate-for-openzfs-vet-2026-11-18.md` (context, hard constraints,
+  frozen criteria and query schedule; commit 3fcecc48bf). Asked who runs the discovery, the owner answered
+  "Use pi with deepseek to run it.", so unit `pi-rust-crate-for-openzfs-discovery-1` (Synthetic DeepSeek V4.1 Flash,
+  turn cap 640, wall 5,400 s) runs it from the report alone and writes
+  `~/temp/agent/pi-runs/rust-crate-for-openzfs-discovery-1/discovery-ledger-and-query-records.md`; it edits nothing
+  in the checkout. Launcher: `~/temp/agent/rust-crate-for-openzfs-vet-2026-11-18/keep/start-the-discovery-run-on-deepseek.ts`.
+  **Next:** check its ledger, fold it into the report, then screening, cloning and validation of the survivors by this
+  session, the ranking to the owner, then the blocklist's content, then the cross-vendor re-review of the design.
 - **Runs, reviewer bench, agent cap:** unchanged since the entry of 2026-11-17T19:28:50-05:00.
 
 ### Stopped for the owner's shutdown at night (2026-11-17T19:28:50-05:00)
