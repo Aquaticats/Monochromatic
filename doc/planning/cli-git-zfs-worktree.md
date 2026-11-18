@@ -335,7 +335,7 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
 
 - **Route**: "ZED, Clones, reflink. There is a reason we have a doctor subcommand."
   Dataset clones mounted by ZED, with the reflink fallback.
-  This session's reading of the second sentence, open to the owner's correction: the root-once setup
+  The owner confirmed this reading of the second sentence the same day ("Report and print commands (Recommended)"): the root-once setup
   (the checkout's dataset, the worktrees parent owned by root, the delegation, ZED switched on, the handler installed)
   is reported by `git monochromatic-git-policy-cli doctor`, which says what holds and prints the commands without running them,
   as its filesystem section already does for Btrfs (`package/git-policy/cli/src/native/health/doctor_filesystem.rs`).
