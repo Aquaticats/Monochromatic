@@ -167,12 +167,14 @@ Not final and not approved: this session's own account.
   The owner then chose the kernel interface and dropped crates that run `zfs` (entry of 2026-11-18 under
   "Owner decisions in force"), which leaves one survivor, `zfsdev`, cloned with history at
   `~/temp/agent/rust-crate-for-openzfs-vet-2026-11-18/zfsdev-rs-2026-11-18` (pushes disabled).
-  **Next:** its full gates and validation alone: read its source and `build.rs`, compare its `zfs_cmd_t` and ioctl
-  numbers with OpenZFS 2.4.4 (clone at `~/temp/agent/rust-crate-for-openzfs-vet-2026-11-18/openzfs-at-zfs-2.4.4`),
-  maintenance audit, a container build with no home mount, then the six operations on a file-backed pool inside a
-  throwaway VM, never against `zpcachyos`; then scoring and the owner's verdict. The locked report writes go through
-  `~/temp/agent/rust-crate-for-openzfs-vet-2026-11-18/keep/write-the-vet-report-under-its-lock.ts` from the staged copy
-  `staged-vet-report.md` beside it.
+  Reading it found its layout matches the running 2.4.4 module (pahole on the module's BTF) but that it has no
+  `ZFS_IOC_CLONE`; the owner then chose "Our own small binding (Recommended)" (decision entry of 2026-11-18 under
+  "Owner decisions in force"), and the vet report closed as "no existing crate recommended" (commit 6c2c1db716).
+  A container build of `zfsdev` was stopped at the host firewall: rootless podman's traffic reaches OpenSnitch as
+  `passt.avx2`; the owner then had it allowed permanently and asked for the matching `mvm` switch, filed as issue 6312
+  (`doc/troubleshooting/rootless-podman-traffic-reaches-opensnitch-as-pasta.md`).
+  **Next:** the snapshot blocklist question, then the design proposal with the binding's place and name, the
+  cross-vendor re-review, acceptance; the binding's tests run on a file-backed pool inside a throwaway VM.
 - **Reviewer bench (task 387):** all four resumed reviews ended `idle` on `opencode-go` with no rate-limit error
   (`a13faa0d55` runs 1 and 2: 92 and 152 turns; `3822c44c2f` run 1: 33; `915ef30e09` run 2: 49); all six now have a
   review. Nothing is scored yet.
@@ -39694,6 +39696,12 @@ Timestamps are the commit times at which the decision was first written into the
 the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
+
+### ZFS crate: our own small binding over /dev/zfs (2026-11-18, said after 18:31:39-05:00)
+
+Through the question tool, after the vet found that `zfsdev` has no clone: "Our own small binding (Recommended)",
+quoted in `doc/planning/cli-git-zfs-worktree.md`, section "Owner's answers of 2026-11-18". Declined: copying
+`zfsdev` whole with clone added, and asking upstream and waiting.
 
 ### ZFS crate: the kernel interface, no CDDL linking, no crate that runs zfs (2026-11-18, said before 18:21:50-05:00)
 

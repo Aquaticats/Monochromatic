@@ -2,6 +2,7 @@
 
 Rootless podman sends every container's network traffic through `pasta`, so OpenSnitch asks about `passt.avx2`
 rather than about the program inside the container, and a rule for it covers every rootless container at once.
+Since 2026-11-18 a permanent rule allows it (section "The firewall rule: `passt` is allowed permanently").
 
 ## Symptom
 
@@ -47,11 +48,29 @@ names `passt`. Any program can also start `pasta` for a namespace of its own, si
 list and no prompt. Whoever starts the container picks those options, and podman's defaults give every rootless
 container full outbound access. The one per-container control is podman's `--network none`, chosen by the caller.
 
-## What follows for the firewall rule
+## The firewall rule: `passt` is allowed permanently
 
 The owner's policy, 2026-11-18: "My policy is allow things that have builtin net permission controls."
-`pasta` has none, so by that policy it gets no permanent allow; a permanent rule for `passt.avx2` would let any
-container any agent or test starts reach any host. The recommendation given was Drop.
+The session first recommended Drop, reading the policy against `pasta` alone. The owner then decided:
+"Permanently allow passt/pasta . mvm is our too so its own builtin disabling net is possible and should be added as a
+gh issue feature request on our repo." The control that counts is the caller's: podman's `--network none` turns a
+container's network off, so a container that should not reach the network is started with it.
+
+The rule is `/etc/opensnitchd/rules/allow-passt.json` (root-owned, mode 600 like its neighbours), action `allow`,
+duration `always`, operand `process.path`, regular expression `^/usr/bin/passt(?:\.avx2)?$`, case-sensitive.
+It was written in place with `sudo tee` so the rules watcher sees a `Write` event
+(`doc/troubleshooting/opensnitch-1-7-2-system-firewall-quirks.md`, section "Update rule files in place");
+`/var/log/opensnitchd.log` shows `Ruleset changed due to allow-passt.json, reloading ...` at 23:38:20 UTC
+(18:38:20-05:00). The owner's earlier Drop answers had added in-memory deny rules for `/usr/bin/passt.avx2`
+(log lines from 23:31:33 to 23:33:04 UTC); no rule file under `/etc/opensnitchd/rules/` other than `allow-passt.json`
+names `passt`.
+
+Checked afterwards: `podman run --rm --network pasta docker.io/cachyos/cachyos-v4:latest curl --head
+https://geo.mirror.pkgbuild.com/` printed `http 200` and exited 0, with no prompt.
+
+The same switch for this repository's VM tool is issue 6312 ("mvm: a built-in switch to start a VM with no network"):
+every `mvm` VM gets QEMU user-mode networking today (`commonDevices` in `package/mvm/cli/src/domain-xml-builders.ts`)
+with no way to leave it out.
 
 ## Verified workarounds
 
@@ -59,13 +78,7 @@ container any agent or test starts reach any host. The recommendation given was 
 
 Fetch what the build needs on the host (crate sources with `cargo vendor` or `cargo fetch`, packages with the host
 tools), mount them read-only, and run the container with `--network none`. Nothing then reaches `pasta`.
-This was the plan for the `zfsdev` build in `doc/audit/tech-rust-crate-for-openzfs-vet-2026-11-18.md` before the
-owner's decision made that build unnecessary; it has not been run yet.
-
-### A narrow rule, if builds need the network
-
-An OpenSnitch rule for `passt.avx2` limited to the hosts a build needs (the CachyOS mirrors, `index.crates.io`,
-`static.crates.io`) keeps the rule per program and per destination. Not created or tested yet.
+Use it for any build that does not need the network, whatever the firewall allows. Not yet run here.
 
 ## What does not work
 
