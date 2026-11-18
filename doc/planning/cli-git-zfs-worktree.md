@@ -112,6 +112,103 @@ full output `keep/root-once-route-probe.txt`).
   On start ZED replayed older events still in the kernel's queue, so a handler must recheck before acting.
   ZED was stopped and left disabled.
 
+## ZED against the regex sudoers rule, probed again (2026-11-18)
+
+The owner, 2026-11-18: "My impression is ZFS event daemon is the best idea. It's interesting we didn't agree there.
+Am I missing something? Are you missing something?"
+The earlier ranking put the regex rule first for its install cost alone, and neither mechanism had been run
+from the places where worktrees get made, so both were probed again on throwaway datasets under `zpcachyos/nosnap`
+(scripts `probe-zed-against-sudo-from-each-caller-context.ts` and
+`probe-confined-unit-sight-and-the-regex-rule-run-for-real.ts`, output `keep/zed-against-sudo-probe.txt` and
+`keep/confined-unit-sight-and-regex-rule-probe.txt`, all under
+`~/temp/agent/zed-against-sudo-for-clone-mounts-2026-11-18/`).
+Every dataset was destroyed afterwards; the sudoers rule, the throwaway account and the ZED handler were removed;
+ZED was left stopped and disabled; `/etc/passwd` and `/etc/group` read byte for byte as before.
+
+### What the delegated user cannot change on a clone
+
+`zfs clone -o mountpoint=…`, `-o setuid=on`, `-o canmount=noauto` and `-o overlay=off`
+each answered "permission denied", as did `zfs set mountpoint=…` and `zfs set setuid=on` on a clone and `zfs rename` of a clone out of the parent.
+So under either mechanism a clone mounts where the parent's mountpoint puts it, with the parent's options.
+
+### A planted symlink redirects both mechanisms
+
+With the worktrees parent's folder owned by the user, the user made a symlink `<worktrees>/planted`
+pointing at a scratch folder and a clone named `planted`;
+root's `zfs mount` of that clone (what the regex rule allows and a plain handler runs)
+mounted it on the scratch folder (`rw,nosuid,nodev`).
+`zfs_mount_at` (`lib/libzfs/libzfs_mount.c` at tag `zfs-2.4.4`) only `lstat`s the mountpoint and, with `overlay` on
+(the value here), skips the empty-folder check before `do_mount` (`lib/libzfs/os/linux/libzfs_mount_os.c`)
+calls `mount(2)` with the path, and `mount(2)` follows links.
+A link pointing at `/etc` would hand the user `/etc`, so this is root for whoever can plant it.
+With the folder owned by root, mode 0755, the user's `ln -s` there was refused, the clone still mounted,
+and the user wrote inside it (the clone's own top folder is the user's).
+So the worktrees parent's folder must be root's under either mechanism.
+A handler could also check the path before mounting (not tried); a sudoers rule sees only the arguments.
+Root's mount leaves its mountpoint folder behind after the clone is destroyed.
+
+### From each place a worktree can be made
+
+- **This shell, and a unit started the way the driver on main starts Pi runs**: no_new_privs reads 0,
+  the host's namespaces; the delegated clone and `sudo -n zfs mount` both worked.
+- **Under no_new_privs** (`setpriv --no-new-privs`): the delegated clone worked, and sudo refused with
+  "The "no new privileges" flag is set, which prevents sudo from running as root."; a mount root made in the host's
+  namespace (as ZED makes it) was seen and writable from there.
+  The throwaway account holding only the regex rule got the same refusal under the flag.
+  So under no_new_privs ZED works and the sudoers rule does not.
+  No caller on this machine sets the flag today (both readings above); systemd's `NoNewPrivileges=`,
+  containers and agent sandboxes can.
+- **Inside a user namespace**, both `unshare --user --map-current-user` and a unit with `ReadOnlyPaths=`
+  (as branch b75c20af41 starts Pi runs: systemd gave it a user namespace, uid map `1000 1000 1`,
+  though `PrivateUsers` read `no`): `zfs list` of the dataset answered "dataset does not exist" and the clone failed.
+  Neither mechanism helps there: the caller cannot make the clone, so ZED gets no event and sudo has nothing to mount.
+- **What such a confined unit sees of a clone mounted outside it**: a clone root mounted while the unit ran
+  never appeared inside it; one mounted before the unit started appeared read-only under `ReadOnlyPaths=`
+  of the parent folder, and writable when its own path was named in `ReadWritePaths=`.
+  So a confined run's ZFS worktree has to be cloned and mounted outside the unit before it starts,
+  under either mechanism.
+
+### The regex rule, run for real
+
+A throwaway system account holding only
+`/usr/bin/zfs ^mount <parent>/[a-z0-9-]+$, /usr/bin/zfs ^unmount <parent>/[a-z0-9-]+$` mounted a clone
+(`nosuid,nodev`) and unmounted it, and was refused `-o suid,dev` after the operand, `-o suid` before it,
+a second operand, a dataset outside the parent, a nested name, `unmount … -f` and `unmount -a`.
+User nobody could not stand in: PAM refused its account ("Account expired or PAM config lacks an "account" section").
+
+### A ZED handler that reconciles instead of reacting
+
+The handler acted on any history event under the probe's tree by reading the whole parent: it mounted every clone
+not flagged, unmounted every clone whose `org.monochromatic:unmount` said `requested`,
+and wrote `org.monochromatic:unmount-result=failed` when an unmount failed.
+
+- **Speed**, five rounds alternating the two arms and swapping their order each round:
+  the mount was seen 0.21 to 0.25 times as long after `zfs clone` returned as `sudo -n zfs mount` took;
+  the unmount (the user's `zfs set` plus the handler) took 0.69 to 0.83 times as long as `sudo -n zfs unmount`.
+  Most of sudo's time is sudo: `sudo -n /usr/bin/true` took 29 times as long as `/usr/bin/true` in the same rounds.
+  Both arms stay in tens of milliseconds, against the 48.84 s of today's `git worktree add`.
+- **Events while ZED was stopped**: a clone made then was mounted shortly after ZED started,
+  since ZED resumes from the event id it saved.
+- **A lost event**: with the handler held (logging and doing nothing, standing in for an event ZED missed),
+  the clone stayed unmounted, and stayed so after the hold was lifted until the user set a property on the parent;
+  then it was mounted. A handler that reconciles the whole parent recovers a lost event at the next event,
+  and the wrapper can make that event itself.
+- **A busy unmount**: with a process sitting inside, the handler's unmount failed and the failure property appeared;
+  after the process left, a nudge unmounted it. The handler's own property writes are events too,
+  so it writes a value only when it changes, or it would call itself without end.
+- **From source** (`keep/` copies at tag `zfs-2.4.4`): the kernel holds at most `zfs_zevent_len_max` events
+  (512 here) and drops the oldest when full (`zfs_zevent_insert`, `module/zfs/fm.c`), which ZED logs as
+  "Missed %d events" (`cmd/zed/zed_event.c`); ZED runs zedlets in parallel up to its job limit (`cmd/zed/zed_exec.c`),
+  so two runs of the handler can race and each step must survive the other (a second mount just fails);
+  ZED ignores a zedlet that root does not own or that group or others can write (`cmd/zed/zed_conf.c`).
+- **What turning ZED on brings with it**: the package's other zedlets in `/etc/zfs/zed.d/` (syslog, notify,
+  enclosure LED and slot, scrub after resilver, and the list cacher, which does nothing here because
+  `/etc/zfs/zfs-list.cache/` does not exist); which act depends on `zed.rc`, which sets `ZED_EMAIL_ADDR`,
+  `ZED_USE_ENCLOSURE_LEDS` and `ZED_SYSLOG_SUBCLASS_EXCLUDE` here.
+- **Precedent**: upstream's own `history_event-zfs-list-cacher.sh`
+  (OpenZFS commit "systemd mount generator and tracking ZEDLET") is a history-event zedlet that keeps mount state for the mount generator;
+  one search found no project that mounts datasets for users from ZED.
+
 ## Without root at all
 
 - **fuse-overlayfs over a read-only snapshot** (the user reads snapshots through `.zfs/snapshot`, and `fusermount3`
@@ -168,14 +265,27 @@ Route: dataset clones with a reflink fallback (C), because a clone plus its moun
 (plus a 0.04 to 0.12 s snapshot) and carries ignored state the way the Btrfs route does,
 while the fallback keeps a 5.6 s route on machines without the root setup.
 Driver: the `zfs` program, because no crate in the listing is shown current for OpenZFS 2.4.
-Mount mechanism, ranked: an anchored-regex sudoers rule > a ZED handler > a root-owned helper of ours > fuse-overlayfs.
-Out: a polkit rule (lets the user mount anything at the path), a wildcard sudoers rule (lets the user turn setuid back on),
-fstab `user` entries (do not work).
-The regex rule ranks above ZED because it needs no root code of ours and no daemon turned on,
-and it refused every variant tried; ZED ranks above our own helper because ZED was probed working
-and the helper was never built (it ranked first in this page's earlier draft, before the regex rule was tried);
-the helper ranks above fuse-overlayfs because its clones run at native speed,
+Mount mechanism, ranked (changed 2026-11-18): a reconciling ZED handler > an anchored-regex sudoers rule
+> a root-owned helper or service of ours > fuse-overlayfs.
+Out: a polkit rule for transient units (lets the user mount anything at the path), a wildcard sudoers rule
+(lets the user turn setuid back on), fstab `user` entries (do not work).
+ZED ranks above the regex rule because it works for a caller under no_new_privs where sudo refuses,
+the caller never runs anything as root, its mount was seen in 0.21 to 0.25 of the time sudo's took,
+and its handler can check the mount path, where a sudoers rule sees only arguments;
+its costs are a daemon turned on (with the package's other zedlets), root code of ours,
+and an asynchronous request whose waiting, deadline and error report the wrapper must design,
+which the 2026-11-18 probes showed workable (replay after a stop, a lost event recovered, a busy unmount reported).
+The earlier draft ranked the regex rule first for needing no root code and no daemon, which is install cost;
+the 2026-11-18 probes measured where each works and what each can check, and that moved it.
+The regex rule ranks above a helper of ours because it needs no root code
+and was run for real and refused every variant, while the helper was never built,
+and a setuid helper fails under no_new_privs as sudo does;
+a root service with its own request channel is the only kind that could make clones
+for a caller inside a user namespace, also unbuilt.
+The helper ranks above fuse-overlayfs because its clones run at native speed,
 where the overlay costs 2.2× to 3.4× for as long as the worktree lives.
+Under every mechanism: the worktrees parent's folder is root's (a planted symlink otherwise redirects root's mount),
+and a confined run's worktree is cloned and mounted outside its unit before the unit starts.
 
 ## Not researched yet
 
@@ -184,10 +294,18 @@ where the overlay costs 2.2× to 3.4× for as long as the worktree lives.
 - How the wrapper's controls get a real pool (a file-backed pool made once by root, a delegated dataset on the
   person's pool as these probes used, or a VM with ZFS).
 - The text of mitosis-db's printed sudoers rule.
+- A polkit rule for a root-installed template service with a fixed `ExecStart` (the user picks only the instance name);
+  only transient units, where the caller supplies `What=` and `Options=`, were tried.
+- A handler that checks every part of the mount path, or mounts through a file descriptor, before mounting.
+- A handler that sets a clone's `mountpoint` to a path the person asked for, so `git worktree add <path>`
+  could put a clone there; a sudoers rule cannot do this safely.
+- What a reboot does to pending requests: the kernel's event queue starts empty, and `zfs mount -a` at boot
+  mounts every clone whose `canmount` is on, flagged or not.
 
 ## Open choices for the owner
 
 - The route: dataset clones with a reflink fallback, dataset clones alone, or reflinks alone.
-- For dataset clones, the root mechanism that mounts and unmounts, from the ranked list in "Recommendation".
+- For dataset clones, the root mechanism that mounts and unmounts, from the ranked list in "Recommendation"
+  (the owner leaned towards ZED on 2026-11-18, before these probes; not yet chosen).
 - Driving ZFS through the `zfs` program or a crate.
 - Moving the main checkout into a dataset of its own, and naming that dataset in sanoid's configuration.
