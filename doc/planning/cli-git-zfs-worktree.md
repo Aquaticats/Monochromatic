@@ -329,10 +329,30 @@ and a unit that should see clones mounted after it starts must not name the work
 - What a reboot does to pending requests: the kernel's event queue starts empty, and `zfs mount -a` at boot
   mounts every clone whose `canmount` is on, flagged or not.
 
+## Owner's answers of 2026-11-18
+
+Asked through the question tool after the probes of 2026-11-18; the design as a whole is not yet accepted.
+
+- **Route**: "ZED, Clones, reflink. There is a reason we have a doctor subcommand."
+  Dataset clones mounted by ZED, with the reflink fallback.
+  This session's reading of the second sentence, open to the owner's correction: the root-once setup
+  (the checkout's dataset, the worktrees parent owned by root, the delegation, ZED switched on, the handler installed)
+  is reported by `git monochromatic-git-policy-cli doctor`, which says what holds and prints the commands without running them,
+  as its filesystem section already does for Btrfs (`package/git-policy/cli/src/native/health/doctor_filesystem.rs`).
+- **Mount mechanism**: "ZED handler (Recommended)".
+- **Driver**: "A Rust crate", against this page's recommendation of the `zfs` program.
+  Which crate is the next dependency to pick; none in the search was checked against OpenZFS 2.4.4.
+- **Snapshots**: "Make home recursive and blocklist dirs and datasets that shouldn't be snapshoted.
+  Worktrees are not necessarily throwaway."
+  So sanoid's home entry becomes recursive, worktree clones are snapshotted like the rest of home,
+  and whatever should not be snapshotted is excluded by name.
+  What follows from it, for the design: a snapshot covers a whole dataset, so a folder that should not be snapshotted
+  has to become a dataset of its own before it can be excluded; deleting a worktree then destroys its snapshots too
+  (`zfs destroy -r`); `zfs-space-guard` today prunes only `<dataset>@autosnap_*` of its own dataset,
+  so it would leave the children's snapshots alone; the exclusion syntax of sanoid is still to be read from its own docs.
+  This corrects the page's earlier framing of worktrees as throwaway copies.
+
 ## Open choices for the owner
 
-- The route: dataset clones with a reflink fallback, dataset clones alone, or reflinks alone.
-- For dataset clones, the root mechanism that mounts and unmounts, from the ranked list in "Recommendation"
-  (the owner leaned towards ZED on 2026-11-18, before these probes; not yet chosen).
-- Driving ZFS through the `zfs` program or a crate.
-- Moving the main checkout into a dataset of its own, and naming that dataset in sanoid's configuration.
+- Which Rust crate drives ZFS (to be researched and put to the owner).
+- What the snapshot blocklist names.

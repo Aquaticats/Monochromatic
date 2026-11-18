@@ -167,8 +167,11 @@ Am I missing something? Are you missing something?"
   parent's folder must be root's and clones cannot be children of the checkout's dataset;
   a caller inside a user namespace (a unit with `ReadOnlyPaths=`, as branch b75c20af41 starts Pi runs) sees no dataset
   and cannot clone, while the reflink fallback works there.
-  **Next:** the open choices on that page go to the owner through the question tool (sent with the answer to this
-  question), then the cross-vendor re-review of the design before confirming it.
+  **Owner's answers of 2026-11-18** (quoted on that page under "Owner's answers of 2026-11-18"): ZED-mounted clones
+  with the reflink fallback, and "There is a reason we have a doctor subcommand."; ZED handler; "A Rust crate"
+  (against the recommendation); home's snapshots made recursive with a blocklist, "Worktrees are not necessarily throwaway."
+  **Next:** research the Rust crates for ZFS and put the pick to the owner, then the blocklist's content,
+  then the cross-vendor re-review of the design before confirming it.
 - **Runs, reviewer bench, agent cap:** unchanged since the entry of 2026-11-17T19:28:50-05:00.
 
 ### Stopped for the owner's shutdown at night (2026-11-17T19:28:50-05:00)
@@ -39653,6 +39656,13 @@ Timestamps are the commit times at which the decision was first written into the
 the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
+
+### ZFS route: ZED-mounted clones with a reflink fallback, a Rust crate, recursive snapshots (2026-11-18, said before 17:30:00-05:00)
+
+Four answers through the question tool, quoted with this session's readings in `doc/planning/cli-git-zfs-worktree.md`,
+section "Owner's answers of 2026-11-18": route, ZED handler, "A Rust crate", and recursive home snapshots with a blocklist
+("Worktrees are not necessarily throwaway.").
+The design as a whole is not yet accepted.
 
 ### On the new system: what came over, GPT writes and DeepSeek reviews through Pi, the wrapper is git, and the ZFS route comes first (2026-11-17, said before 18:36:32-05:00)
 
