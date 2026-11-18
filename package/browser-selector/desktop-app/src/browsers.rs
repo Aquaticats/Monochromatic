@@ -168,3 +168,29 @@ pub(crate) fn discover() -> Vec<Choice> {
     choices.sort_by_cached_key(|choice| return choice.label.to_lowercase());
     return choices;
 }
+
+/// Verifies that a launcher can keep its fixed arguments before the URL field.
+#[cfg(test)]
+mod tests {
+    use super::profile_launcher;
+
+    /// What: Builds a GIO command with the same argument layout as a browser wrapper.
+    /// Why: Removing or splitting a fixed argument can hide profiles or break the wrapper.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// assert.deepEqual(profileLauncher(app).fixedArguments, [script, argument]);
+    /// ```
+    #[test]
+    fn helium_wrapper_keeps_its_fixed_arguments() -> anyhow::Result<()> {
+        let application = gio::AppInfo::create_from_commandline(
+            "/usr/bin/env \"wrapper script.ts\" \"fixed argument\"",
+            Some("Wrapped browser"),
+            gio::AppInfoCreateFlags::SUPPORTS_URIS,
+        )?;
+        let launcher = profile_launcher(&application).ok_or_else(|| anyhow::anyhow!("Expected a profile launcher"))?;
+        assert_eq!(launcher.program, std::path::Path::new("/usr/bin/env"));
+        assert_eq!(launcher.fixed_arguments, ["wrapper script.ts", "fixed argument"]);
+        return Ok(());
+    }
+}

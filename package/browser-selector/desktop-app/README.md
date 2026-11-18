@@ -30,6 +30,7 @@ Profile choices use standard native desktop commands with a single URL field. Fi
 from `profiles.ini` and read-only SQLite group databases, including groups outside the legacy index.
 When several Firefox channels are installed, a profile's compatibility metadata or its group's
 last-used installation determines which browser can open it. Helium profiles come from `Local State`.
+For Helium wrappers, the picker keeps the launcher's fixed arguments before the profile flags and target.
 
 ## Uninstall
 
