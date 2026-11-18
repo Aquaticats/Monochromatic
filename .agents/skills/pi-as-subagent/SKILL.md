@@ -233,12 +233,14 @@ this list shrinks to a pointer there.
 How many GPT runs `openai` answers at once is not measured;
 the first 429 on it sets that number,
 as a measured refusal sets every pool's.
-Synthetic sets no limit on runs at once,
-and its 429 means the quota is spent
-("Synthetic doesn't have a concurrent limit. The Synthetic quota got blown once again."),
-so a review that gets one moves to the next pool and resumes its session there
+Synthetic now refuses on concurrency too:
+on 2026-11-17, with about ten DeepSeek runs going, it answered `429 "Too many concurrent requests"`;
+two of six bench reviews ended on it after 93 and 127 turns,
+and the four that finished met it 31 to 74 times each
+(the owner had written earlier "Synthetic doesn't have a concurrent limit. The Synthetic quota got blown once again.").
+So a review that ends on a Synthetic 429 moves to the next pool and resumes its session there
 with `--session=<session file>`,
-rather than retrying on Synthetic.
+and how many runs Synthetic takes at once is still to be measured.
 The driver's pool table (`package/pi-shared/subagent-driver/src/pool-limits.ts`) does not list these pools yet:
 until it does,
 a run naming them is in no pool and nothing counts it,
