@@ -225,7 +225,19 @@ the snapshotted home dataset `zpcachyos/ROOT/cos/home`
 `~/.cache` is the snapshot-free `zpcachyos/nosnap/user-cache`)
 and the snapshot-free `zpcachyos/nosnap/cargo-build` (`~/.cargo/build/disk-ceiling-probe-file`),
 one line a minute in `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026-11-17/keep/probe-readings.jsonl`.
-No level has started yet.
+
+### Level 20, started 2026-11-17T18:54:13-05:00
+
+- The probe unit `disk-ceiling-probe-new-zfs-drive-level-20-20261117` started at 18:54:13 for eight hours;
+  its first reading, with no agent unit going, took 0 ms on both datasets (both `sync=standard`).
+- Two canary runs (GPT 6.2 Sol on `openai`, DeepSeek V4.1 Flash on Synthetic) each ended `idle` after three turns
+  and about two and a half minutes: the wrapper answered as `git`, a worktree was made on ZFS, `cargo` and `node` ran.
+- The work at this level: six DeepSeek reviews of the reviewer bench (batch started 18:59:17),
+  the queue's first review (started by hand at 18:59:38), and the filling unit
+  `fill-free-places-at-level-20-on-the-new-drive-20261117` from 19:00:13 for eight hours,
+  which starts queue entries into free places under twenty every 150 s
+  (reviews on Synthetic DeepSeek, writers on GPT 6.2 Sol, by the starter's change of 2026-11-17).
+- Six `codex` processes and one `claude` process of other sessions were going when the level began; the probe counts `pi-*` units only.
 
 ## Readings
 
