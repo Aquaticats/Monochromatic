@@ -108,3 +108,11 @@ targets in the selected disposable profiles. Developer Edition's default fixture
 `dom.ipc.forkserver.enable` to `false` in the fixture profile and waited for startup before choosing the
 second target. Some content subprocesses still exited on signal 11 during the passing run.
 The selector does not change browser preferences.
+
+## Helium wrapper discovery 2026-11-18T11:25:50-05:00
+
+Codex reproduced the missing profiles with the user's `helium.desktop` override and with a disposable
+launcher. Both had fixed arguments before `%U`. The installed picker showed the plain Helium row and
+omitted both named profiles. The updated release showed both profiles from the user's `Local State`.
+A disposable click test confirmed that the wrapper received its fixed argument, selected profile key,
+data root, and exact URL. Firefox channel detection still derives the installation from its executable.
