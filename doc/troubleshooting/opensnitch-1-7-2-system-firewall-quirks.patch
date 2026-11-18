@@ -1,0 +1,88 @@
+diff --git a/daemon/firewall/nftables/exprs/ip.go b/daemon/firewall/nftables/exprs/ip.go
+index c11f5af..23dca5d 100644
+--- a/daemon/firewall/nftables/exprs/ip.go
++++ b/daemon/firewall/nftables/exprs/ip.go
+@@ -34,16 +34,32 @@ import (
+ func NewExprIP(family string, ipOptions []*config.ExprValues, cmpOp expr.CmpOp) (*[]expr.Any, error) {
+ 	var exprIP []expr.Any
+ 
++	isIPv6 := family == NFT_FAMILY_IP6
++	for _, ipOpt := range ipOptions {
++		if ipOpt.Key == NFT_SADDR || ipOpt.Key == NFT_DADDR {
++			first := strings.Split(ipOpt.Value, "-")[0]
++			if ip := net.ParseIP(first); ip != nil && ip.To4() == nil {
++				isIPv6 = true
++			}
++		}
++	}
++
+ 	// if the table family is inet, we need to specify the protocol of the IP being added.
+ 	if family == NFT_FAMILY_INET {
++		nfproto := byte(unix.NFPROTO_IPV4)
++		if isIPv6 {
++			nfproto = unix.NFPROTO_IPV6
++		}
+ 		exprIP = append(exprIP, &expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1})
+-		exprIP = append(exprIP, &expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV4}})
++		exprIP = append(exprIP, &expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{nfproto}})
+ 	}
+ 	for _, ipOpt := range ipOptions {
+-		// TODO: ipv6
+ 		switch ipOpt.Key {
+ 		case NFT_SADDR, NFT_DADDR:
+ 			payload := getExprIPPayload(ipOpt.Key)
++			if isIPv6 {
++				payload = getExprIP6Payload(ipOpt.Key)
++			}
+ 			exprIP = append(exprIP, payload)
+ 			if strings.Index(ipOpt.Value, "-") == -1 {
+ 				exprIPtemp, err := getExprIP(ipOpt.Value, cmpOp)
+@@ -111,6 +127,28 @@ func getExprIPPayload(what string) *expr.Payload {
+ 
+ // Supported IP types: a.b.c.d, a.b.c.d-w.x.y.z
+ // TODO: support IPs separated by commas: a.b.c.d, e.f.g.h,...
++// getExprIP6Payload returns the IPv6 header offsets of saddr (8) and daddr (24), 16 bytes each.
++func getExprIP6Payload(what string) *expr.Payload {
++	offset := uint32(8) // saddr
++	if what == NFT_DADDR {
++		offset = 24
++	}
++	return &expr.Payload{
++		DestRegister: 1,
++		Offset:       offset,
++		Base:         expr.PayloadBaseNetworkHeader,
++		Len:          16,
++	}
++}
++
++// ipBytes returns 4 bytes for an IPv4 address and 16 bytes for an IPv6 address.
++func ipBytes(ip net.IP) []byte {
++	if ip4 := ip.To4(); ip4 != nil {
++		return ip4
++	}
++	return ip.To16()
++}
++
+ func getExprIP(value string, cmpOp expr.CmpOp) (*[]expr.Any, error) {
+ 	ip := net.ParseIP(value)
+ 	if ip == nil {
+@@ -121,7 +159,7 @@ func getExprIP(value string, cmpOp expr.CmpOp) (*[]expr.Any, error) {
+ 		&expr.Cmp{
+ 			Op:       cmpOp,
+ 			Register: 1,
+-			Data:     ip.To4(),
++			Data:     ipBytes(ip),
+ 		},
+ 	}, nil
+ }
+@@ -140,8 +178,8 @@ func getExprRangeIP(value string, cmpOp expr.CmpOp) (*[]expr.Any, error) {
+ 		&expr.Range{
+ 			Op:       cmpOp,
+ 			Register: 1,
+-			FromData: ipSrc.To4(),
+-			ToData:   ipDst.To4(),
++			FromData: ipBytes(ipSrc),
++			ToData:   ipBytes(ipDst),
+ 		},
+ 	}, nil
+ }
