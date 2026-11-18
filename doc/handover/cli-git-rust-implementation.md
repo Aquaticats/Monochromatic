@@ -178,7 +178,14 @@ Am I missing something? Are you missing something?"
   in the checkout. Launcher: `~/temp/agent/rust-crate-for-openzfs-vet-2026-11-18/keep/start-the-discovery-run-on-deepseek.ts`.
   **Next:** check its ledger, fold it into the report, then screening, cloning and validation of the survivors by this
   session, the ranking to the owner, then the blocklist's content, then the cross-vendor re-review of the design.
-- **Runs, reviewer bench, agent cap:** unchanged since the entry of 2026-11-17T19:28:50-05:00.
+- **Reviewer bench (task 387):** the four unfinished runs were resumed from their saved sessions on
+  `opencode-go deepseek-v4.1-flash` (the next pool after Synthetic) at about 17:55 on 2026-11-18, each under its own
+  unit with a resume prompt (`resume-prompt-2026-11-18.md` in its review folder) and a new run folder; launcher script
+  `~/temp/agent/reviewer-bench-deepseek-against-sonnet-2026-11-17/resume-the-four-unfinished-bench-reviews-on-opencode-go.ts`,
+  logs `<name>-resume-launcher-2026-11-18.log` beside it. The two `a13faa0d55` worktrees were added again from their
+  branches; the launcher's dependency install answered status 1 for three of the four (read before trusting a build
+  failure in their reviews). Nothing is scored yet.
+- **Queue runs and agent cap:** unchanged since the entry of 2026-11-17T19:28:50-05:00.
 
 ### Stopped for the owner's shutdown at night (2026-11-17T19:28:50-05:00)
 
