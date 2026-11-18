@@ -152,6 +152,32 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Crate vet down to one survivor, bench reviews all back (2026-11-18T18:25:00-05:00)
+
+Not final and not approved: this session's own account.
+
+- **Crate vet (task 379):** the discovery run did its work in 81 turns (cost 0.52 US dollars, no rate-limit error) and
+  was ended with the stop file because the driver kept it open for unrelated processes in the main checkout
+  (issue 6311: the driver counts every process working under `--working-folder` as the run's own; the unmerged branch
+  58bfdf1ced keeps the same test). Its records are committed as
+  `doc/audit/tech-rust-crate-for-openzfs-vet-2026-11-18-discovery-records.md`; the report
+  `doc/audit/tech-rust-crate-for-openzfs-vet-2026-11-18.md` holds the ledger, the screening judgements, and the
+  targeted evidence read from OpenZFS at `zfs-2.4.4` (libraries CDDL-1.0; `libzfs_core` "Evolving (not Committed)";
+  a build-time link would make every released wrapper archive need OpenZFS to start).
+  The owner then chose the kernel interface and dropped crates that run `zfs` (entry of 2026-11-18 under
+  "Owner decisions in force"), which leaves one survivor, `zfsdev`, cloned with history at
+  `~/temp/agent/rust-crate-for-openzfs-vet-2026-11-18/zfsdev-rs-2026-11-18` (pushes disabled).
+  **Next:** its full gates and validation alone: read its source and `build.rs`, compare its `zfs_cmd_t` and ioctl
+  numbers with OpenZFS 2.4.4 (clone at `~/temp/agent/rust-crate-for-openzfs-vet-2026-11-18/openzfs-at-zfs-2.4.4`),
+  maintenance audit, a container build with no home mount, then the six operations on a file-backed pool inside a
+  throwaway VM, never against `zpcachyos`; then scoring and the owner's verdict. The locked report writes go through
+  `~/temp/agent/rust-crate-for-openzfs-vet-2026-11-18/keep/write-the-vet-report-under-its-lock.ts` from the staged copy
+  `staged-vet-report.md` beside it.
+- **Reviewer bench (task 387):** all four resumed reviews ended `idle` on `opencode-go` with no rate-limit error
+  (`a13faa0d55` runs 1 and 2: 92 and 152 turns; `3822c44c2f` run 1: 33; `915ef30e09` run 2: 49); all six now have a
+  review. Nothing is scored yet.
+- **Queue runs and agent cap:** unchanged since the entry of 2026-11-17T19:28:50-05:00.
+
 ### ZED against the regex sudoers rule, probed on the owner's question (2026-11-18T17:15:00-05:00)
 
 Not final and not approved: this session's own account.
@@ -176,8 +202,7 @@ Am I missing something? Are you missing something?"
   turn cap 640, wall 5,400 s) runs it from the report alone and writes
   `~/temp/agent/pi-runs/rust-crate-for-openzfs-discovery-1/discovery-ledger-and-query-records.md`; it edits nothing
   in the checkout. Launcher: `~/temp/agent/rust-crate-for-openzfs-vet-2026-11-18/keep/start-the-discovery-run-on-deepseek.ts`.
-  **Next:** check its ledger, fold it into the report, then screening, cloning and validation of the survivors by this
-  session, the ranking to the owner, then the blocklist's content, then the cross-vendor re-review of the design.
+  The next step moved to the entry of 2026-11-18T18:25:00-05:00.
 - **Reviewer bench (task 387):** the four unfinished runs were resumed from their saved sessions on
   `opencode-go deepseek-v4.1-flash` (the next pool after Synthetic) at about 17:55 on 2026-11-18, each under its own
   unit with a resume prompt (`resume-prompt-2026-11-18.md` in its review folder) and a new run folder; launcher script
@@ -39669,6 +39694,13 @@ Timestamps are the commit times at which the decision was first written into the
 the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
+
+### ZFS crate: the kernel interface, no CDDL linking, no crate that runs zfs (2026-11-18, said before 18:21:50-05:00)
+
+Two answers through the question tool, quoted in `doc/planning/cli-git-zfs-worktree.md`, section "Owner's answers of
+2026-11-18": "Kernel interface (Recommended)" (the crate talks to `/dev/zfs` itself in Rust and links none of
+OpenZFS's CDDL libraries; declined: linking them with a license exception and run-time loading, or with no license
+change) and, for crates that run the `zfs` program, "Out (Recommended)".
 
 ### ZFS route: ZED-mounted clones with a reflink fallback, a Rust crate, recursive snapshots (2026-11-18, said before 17:30:00-05:00)
 
