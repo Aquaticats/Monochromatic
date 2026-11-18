@@ -1,17 +1,18 @@
 # Rust crate for OpenZFS: technology vet (2026-11-18)
 
 Not final and not approved.
-Status: in progress; lifecycle phase: discovery and screening done, targeted evidence next.
+Status: in progress; lifecycle phase: discovery and screening done, targeted evidence under way.
 Checked so far by the coordinating session: the delegated discovery's ledger against its saved provider responses
-(spot checks under "Query records"), and the screening judgements under "Coordinator's screening judgements".
-Nothing has been cloned, built or run from any candidate yet.
+(spot checks under "Query records"), the screening judgements under "Coordinator's screening judgements", and the
+OpenZFS license, interface and coverage facts under "Targeted evidence gathered (2026-11-18)".
+No candidate has been cloned, built or run yet; the license gate waits for the owner.
 
 ## Report metadata
 
 - **Subject**: Rust crate for OpenZFS.
 - **Scope**: which Rust crate the git wrapper (`package/git-policy/cli`) uses to snapshot, clone, destroy,
   read and set user properties of, and list ZFS datasets, as an unprivileged user holding delegated permissions.
-- **Started**: 2026-11-18T17:45:00-05:00. **Last updated**: 2026-11-18T18:07:26-05:00.
+- **Started**: 2026-11-18T17:45:00-05:00. **Last updated**: 2026-11-18T18:12:51-05:00.
 - **Governing skill**: `.agents/skills/choosing-technology/SKILL.md` at commit
   `45d42d9b23d2f2752f9c512683b45905e13afe99`, SHA-256
   `f4cfa6bc5d1d71f4b136f92ff9fbdab68575c920bd334f824d253336c8782e1b`.
@@ -281,16 +282,79 @@ Saturated, with at least two survivors.
 Entering targeted evidence: `libzfs` (whamcloud), `zfs-core`, the razor family, `libzetta`, `zfsdev`,
 `clinta/zfs-rs`, `moretea/rust-zfs`; `libzfs_core-sys` is pending one Linux build.
 
+## Targeted evidence gathered (2026-11-18)
+
+Source: OpenZFS cloned at tag `zfs-2.4.4` (annotated tag `f75f3256a0`, commit
+`71a9f9578616a90c3c14bb59629fb4d31bfd68d1`, 2026-08-21T09:19:47-07:00) into
+`~/temp/agent/rust-crate-for-openzfs-vet-2026-11-18/openzfs-at-zfs-2.4.4`.
+Installed here: `zfs-utils 2.4.4-3` owns `/usr/lib/libzfs_core.so`; `pkg-config` reports `libzfs_core` and `libzfs`
+2.4.4 with `-lzfs -lzfs_core -lnvpair`; headers are under `/usr/include/libzfs`; there is no `libnvpair.pc`.
+
+### The OpenZFS libraries are CDDL-1.0
+
+- Of the 25 `.c` and `.h` files under `lib/libzfs_core`, `lib/libzfs` and `lib/libnvpair`, 23 carry the
+  "CDDL HEADER START" block; `lib/libnvpair/libnvpair_json.c` carries `SPDX-License-Identifier: CDDL-1.0` and the
+  illumos CDDL notice instead; `lib/libzfs/os/freebsd/libzfs_zmount.c` is FreeBSD-only and not built here.
+- `COPYRIGHT`: "Unless otherwise noted, all files in this distribution are released under the Common Development and
+  Distribution License (CDDL)"; the one noted exception in these libraries is `lib/libzfs/THIRDPARTYLICENSE.openssl`
+  (PBKDF2).
+- CDDL-1.0 section 3.6 (`LICENSE` line 216): "You may create a Larger Work by combining Covered Software with other
+  code not governed by the terms of this License and distribute the Larger Work as a single product. In such a case,
+  You must make sure the requirements of this License are fulfilled for the Covered Software."
+  So the CDDL side permits the combination.
+
+### What the wrapper's license says about linking them
+
+The wrapper is `LGPL-3.0-or-later`, which incorporates GPL-3.0; its additional permissions cover others linking to the
+wrapper, not the wrapper linking a library, so GPL-3.0's terms decide.
+
+- GPL-3.0 section 1 (`LICENSES/GPL-3.0-or-later.txt` lines 134 to 145): Corresponding Source "does not include the
+  work's System Libraries", and "includes ... the source code for shared libraries and dynamically linked subprograms
+  that the work is specifically designed to require".
+- GPL-3.0 section 1, lines 123 to 132: System Libraries are what "is included in the normal form of packaging a Major
+  Component, but which is not part of that Major Component, and ... serves only to enable use of the work with that
+  Major Component", a Major Component being "a major essential component (kernel, window system, and so on) of the
+  specific operating system".
+- The FSF's own reading ([Interpreting, enforcing and changing the GNU GPL, as applied to combining Linux and ZFS](https://www.fsf.org/licensing/zfs-and-linux),
+  read 2026-11-18 through the search tool): "dynamic vs. static linking never makes any difference on the outcome of
+  the analysis", and, under "Copyright Holders Can Explicitly Authorize Additional Uses", the copyright holders "are
+  legally free to give additional permission for use of their work".
+- Counter-reading, low weight (a mailing-list opinion, not a ruling): on guix-devel in July 2021 a participant held
+  that the conflict "is specific to CDDL+GPL only, not CDDL+LGPL, so distributing a dynamically linked libvirt with ZFS
+  support is allowed" (lists.gnu.org/r/guix-devel/2021-07/msg00012.html).
+
+Result: a wrapper binary that links `libzfs_core`, `libzfs` or `libnvpair` is compatible with its license only on
+the System Libraries reading (the libraries ship with the ZFS kernel module, arguably a Major Component on a ZFS root)
+or with an additional permission from the wrapper's copyright holders. Choosing between those, or refusing both, is a
+licensor's decision, so it goes to the owner. It applies to every survivor except `zfsdev`, which links no OpenZFS
+library; `clinta/zfs-rs` links `libnvpair`.
+
+### libzfs_core is not a committed interface
+
+`lib/libzfs_core/libzfs_core.c` lines 45 to 50: "The libzfs_core interface will be committed ... Currently, the
+interface is Evolving (not Committed), but we intend to commit to it once it is more complete".
+Line 55 to 57: it is "a thin layer, marshaling arguments to/from the kernel ioctls ... generally a 1:1 correspondence
+between libzfs_core functions and ioctls". So a crate on `libzfs_core` and a crate on the ioctls carry much the same
+interface risk; `libzfs` promises less than either.
+
+### libzfs_core alone cannot set a property or list datasets without root
+
+`include/libzfs_core.h` at 2.4.4 declares `lzc_snapshot`, `lzc_clone`, `lzc_create`, `lzc_destroy`,
+`lzc_destroy_snaps`, `lzc_get_props`, `lzc_exists`, `lzc_rename`, `lzc_promote` and `lzc_channel_program`, among
+others, and no function that sets a property or lists datasets.
+The general route around that, a channel program, needs root: `man/man8/zfs-program.8` line 40, "Channel programs
+may only be run with root privileges."
+So a crate that reaches ZFS only through `libzfs_core` cannot meet the hard constraint "covers ... user-property get
+and set, and dataset listing" as an unprivileged user; it needs `libzfs` or the ioctls themselves for those two.
+To confirm per crate from its source: `zfs-core` (lzc and nvpair only by its metadata), `razor-libzfscore` and
+`razor-safe-lzc` (the razor family also binds `libzfs`), and `libzetta` (which reaches `zfs(8)` for the rest).
+
 ## Targeted evidence still to gather
 
 Each applies to every survivor it names, at equal depth.
 
-- **License gate, CDDL**: read the license headers of `libzfs`, `libzfs_core` and `libnvpair` at OpenZFS tag
-  `zfs-2.4.4`, CDDL-1.0 on larger works, and the system-library and linking terms of GPL-3.0 and LGPL-3.0, then
-  decide whether a program under `LGPL-3.0-or-later` may link them, or put it to the owner as the wrapper's licensor.
-  Applies to every survivor that links an OpenZFS library: all but `zfsdev`.
-- **Interface stability**: what OpenZFS says about the stability of `libzfs` against `libzfs_core` and the ioctl
-  interface, since bindings generated for an older release are only correct if the interface held still.
+- **License gate**: the owner's decision on linking the CDDL libraries (see "What the wrapper's license says about
+  linking them").
 - **Where the wrapper runs**: the wrapper is built and run on machines without ZFS; a crate linked at build time to
   `libzfs.so` makes that library a load-time requirement of every build unless it sits behind a cargo feature or is
   loaded at run time. Measure the wrapper's release targets and what each survivor needs at build and load time.
