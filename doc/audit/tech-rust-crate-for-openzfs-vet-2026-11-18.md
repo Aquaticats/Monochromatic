@@ -13,7 +13,7 @@ leaves `zfsdev` as the one survivor (section "Owner's route decision").
 - **Subject**: Rust crate for OpenZFS.
 - **Scope**: which Rust crate the git wrapper (`package/git-policy/cli`) uses to snapshot, clone, destroy,
   read and set user properties of, and list ZFS datasets, as an unprivileged user holding delegated permissions.
-- **Started**: 2026-11-18T17:45:00-05:00. **Last updated**: 2026-11-18T18:22:31-05:00.
+- **Started**: 2026-11-18T17:45:00-05:00. **Last updated**: 2026-11-18T18:31:39-05:00.
 - **Governing skill**: `.agents/skills/choosing-technology/SKILL.md` at commit
   `45d42d9b23d2f2752f9c512683b45905e13afe99`, SHA-256
   `f4cfa6bc5d1d71f4b136f92ff9fbdab68575c920bd334f824d253336c8782e1b`.
@@ -408,6 +408,64 @@ user property) and a listing (`doctor` and sweeps over the worktrees parent), so
 sources, not yet run. To confirm per crate from its source: `zfs-core` (lzc and nvpair only by its metadata),
 `razor-libzfscore` and `razor-safe-lzc` (the razor family also binds `libzfs`), and `libzetta` (which reaches
 `zfs(8)` for the rest).
+
+## zfsdev at 4559ffc711 (2026-11-10T00:21:12+02:00): gates read so far
+
+Clone with history at `~/temp/agent/rust-crate-for-openzfs-vet-2026-11-18/zfsdev-rs-2026-11-18` (pushes disabled).
+
+### Source, dependencies and license
+
+- `Cargo.toml`: `zfsdev` 0.4.8, `license = "MIT OR Apache-2.0"`, `publish = false`, edition 2024, `rust-version = "1.88"`;
+  runtime dependencies `strum` 0.28 and `thiserror` 2, `libc` 0.2 on Linux only, and `sha1` and `pbkdf2` behind the
+  off-by-default `wrapkey` feature. Mutating requests sit behind the `write` feature. No `build.rs`.
+- `doc/` holds vendored OpenZFS reference files under the CDDL and is excluded from packaging (`exclude = ["doc/", "fuzz/"]`);
+  none of it is compiled.
+- Size: 11,112 lines under `src/` and 929 in `tests/live_zfs.rs`; `unsafe` appears 15 times (12 in `src/ioctl.rs`,
+  2 in `src/mount.rs`, 1 in `src/kstat.rs`).
+- Tests: `tests/live_zfs.rs` against a real pool and two fuzz targets (`fuzz/fuzz_targets/nvlist.rs`, `kstat.rs`);
+  no CI configuration in the repository.
+
+### Layout against OpenZFS 2.4.4: verified against the running kernel
+
+- The source says its struct layouts "mirror OpenZFS 2.2.2" and const-asserts `size_of::<ZfsCmd>() == 13744` and a
+  352-byte `ZinjectRecord` (`src/ioctl.rs` lines 1033 to 1076).
+- OpenZFS changed `zfs_cmd_t` after 2.2.2: at 2.4.4 `zc_defer_destroy`, `zc_flags` and `zc_action_handle` sit in a
+  union with a grown `zinject_record_t` (diff of the `zfs_cmd` blocks of `doc/reference/zfs_ioctl.h` and
+  `include/sys/zfs_ioctl.h`). zfsdev's own `doc/reference/2.4/README.md` analyses this at tag `zfs-2.4.4` and
+  concludes the offsets and the 13,744-byte size are unchanged.
+- Checked independently on the running module (`/sys/module/zfs/version` `2.4.4-1`) with
+  `pahole --btf_base /sys/kernel/btf/vmlinux -C zfs_cmd /sys/kernel/btf/zfs`: size 13,744; `zc_inject_record` at
+  13,296 with size 368; `zc_defer_destroy` at 13,648, `zc_flags` at 13,652, `zc_action_handle` at 13,656, which is
+  352 bytes into the record, as zfsdev lays them out (output kept as
+  `keep/running-kernel-zfs-cmd-layout-from-btf.txt`). A field-by-field comparison with zfsdev's compiled offsets is
+  still to run.
+- Request numbers: the 90 entries of `zfs_ioc_t` before the platform block sit at the same positions in zfsdev's
+  vendored 2.2.2 `zfs.h` and in 2.4.4; 2.4.4 adds `ZFS_IOC_POOL_PREFETCH` and `ZFS_IOC_DDT_PRUNE` there, and the
+  platform block keeps its assigned start (`keep/compare-zfsdev-ioctl-list-with-openzfs-2-4-4.ts`).
+- Kernel-version gate: outside OpenZFS 2.0 to 2.4 a handle refuses mutating requests unless opted in, and every
+  request travels in a zeroed 16 KiB buffer larger than the struct (README, "Platform and kernel support").
+
+### Coverage of the six operations: clone is missing
+
+- Present: `snapshot` (`ZFS_IOC_SNAPSHOT`), `destroy` and `destroy_snaps`, `set_prop` and `inherit_prop`,
+  `objset_stats` (properties, user properties included), `datasets` (children, `ZFS_IOC_DATASET_LIST_NEXT`),
+  `snapshots`, `create`, `rename` (`src/ioctl.rs` lines 2122 to 2408).
+- Absent: clone and promote. zfsdev's request list has no `ZFS_IOC_CLONE` (0x5a42 at 2.4.4) or `ZFS_IOC_PROMOTE`
+  (0x5a22), and no method, test or README line clones a dataset.
+- What a clone takes at 2.4.4: `lzc_clone` (`lib/libzfs_core/libzfs_core.c` lines 328 to 341) sends
+  `ZFS_IOC_CLONE` with the new name in `zc_name` and an nvlist holding `origin` and optional `props`;
+  the kernel's `zfs_ioc_clone` (`module/zfs/zfs_ioctl.c` line 3844) reads the same two keys. zfsdev already sends
+  requests of this shape (`snapshot`, `destroy_snaps`), so the missing piece is one request number and one method.
+
+So `zfsdev` as published fails the hard constraint "Covers snapshot, clone, destroy, user-property get and set, and
+dataset listing". By the report's context, that makes a binding written for this repository eligible too.
+
+### Maintenance
+
+- 106 commits from 2026-06-12 to 2026-11-10 by one maintainer (104 commits; 2 authored as "Claude"); 45 commits carry
+  `Co-authored-by` trailers naming Claude models.
+- GitHub repository created 2026-10-07, last push 2026-11-09; 0 stars, 0 forks, no issues and no pull requests
+  (`gh issue list` and `gh pr list --state all`); tags `v0.4.1` (2026-10-07) to `v0.4.8` (2026-11-10).
 
 ## Targeted evidence still to gather
 
