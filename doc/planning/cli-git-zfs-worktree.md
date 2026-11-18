@@ -366,7 +366,16 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   What follows from it, for the design: a snapshot covers a whole dataset, so a folder that should not be snapshotted
   has to become a dataset of its own before it can be excluded; deleting a worktree then destroys its snapshots too
   (`zfs destroy -r`); `zfs-space-guard` today prunes only `<dataset>@autosnap_*` of its own dataset,
-  so it would leave the children's snapshots alone; the exclusion syntax of sanoid is still to be read from its own docs.
+  so it would leave the children's snapshots alone.
+  Sanoid's exclusion, measured 2026-11-18 on the installed sanoid 2.3.0 in simulate mode (`--readonly`, which guards
+  every `zfs snapshot` call at `/usr/bin/sanoid:665`): a parent section with `recursive = yes` and a child dataset's own
+  section with `autosnap = no` leaves that child out. A probe config made `zpcachyos/nosnap` recursive and gave
+  `zpcachyos/nosnap/npm` such a section; twelve runs each listed the parent and its other five children and never `npm`,
+  and the same config without the child's section listed `npm` too (positive control). Sanoid walks its sections in
+  Perl hash order (`foreach my $section (keys %ini)`, `/usr/bin/sanoid:970`), and the listed order did change between
+  runs, so the exclusion does not depend on the order. A dataset outside home's tree, like those under
+  `zpcachyos/nosnap`, is never reached by home's recursion at all. Records:
+  `~/temp/agent/snapshot-blocklist-candidates-measured-2026-11-18/keep/`.
   This corrects the page's earlier framing of worktrees as throwaway copies.
 
 ## Open choices for the owner
