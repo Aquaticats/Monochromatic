@@ -385,12 +385,15 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   `~/temp/agent/snapshot-blocklist-candidates-measured-2026-11-18/keep/`.
 - **What the snapshots hold today** (measured 2026-11-18 with `zfs diff` between consecutive hourly snapshots of
   `zpcachyos/ROOT/cos/home`; sanoid names its snapshots in UTC; counts are changed files, not bytes):
-  - 17:00 to 18:00 local (6.87 GB written into the next snapshot): `~/Monochromatic/.claude` 194,383, nearly all
-    inside agent worktrees and spread over package source folders (`package/forbidden-strings` 44,205,
-    `package/jsonc-edit` 17,418, `package/translation-repair` 17,034, `package/music-player` 16,539, and so on),
-    which is whole checkouts written as worktrees are made and removed; build output barely shows (`.cache` 1,638;
-    `node_modules` not among the top 40 folders inside worktrees); `~/temp/agent` 32,312;
-    `~/Monochromatic/.git` 5,963; `~/.config/mozilla` 2,062; `~/.local/share` 328.
+  - 17:00 to 18:00 local (6.87 GB written into the next snapshot; the raw diff is kept as
+    `keep/raw-zfs-diff-home-2200-to-2300-utc.tsv`, 236,301 lines): by change, 127,447 files removed, 78,736 added,
+    771 modified in place, the rest folders and links. Of the 194,379 entries inside `~/Monochromatic/.claude/worktrees`,
+    129,623 belong to the two worktrees removed during the hour and 64,756 to the one made during it; none belong to a
+    worktree that lived through the hour. `~/temp/agent` had 32,312, of which 31,961 were the reviewer bench's
+    reproduction fixtures (throwaway repositories the reviewers made in their run folders). Smaller: `~/Monochromatic/.git`
+    5,963; `~/.config/mozilla` 2,062; `~/.local/share` 328.
+    Limit: nothing was building inside a living worktree that hour, so this sample says nothing about how much build
+    output (per-package `node_modules`, `dist`, caches) a living worktree adds; that needs an hour with agents building.
   - 12:00 to 13:00 local (428 MB): `~/go/pkg` 3,889, `~/aur` 2,789, `~/Downloads/old-drives` 505,
     `~/.config/mozilla` 410; no agent worktree or scratch folder among the top 40.
   - Sizes, `du --bytes`: `~/.local/share` 21 GB (JetBrains 11 GB, pnpm store 4.0 GB, Steam 3.3 GB, podman's
@@ -402,8 +405,10 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
     `${HOME}/.local/share/pnpm/store`, and the pool's `feature@block_cloning` is `active` with `zfs_bclone_enabled`
     1, so a folder carved into its own dataset in the same pool can still receive cloned files (ZFS's documented
     cross-dataset block cloning; not run here).
-  So under the clone route most of the measured churn goes away by design: a clone shares its origin's blocks, and
-  removing a worktree destroys its clone and the clone's own snapshots at once.
+  What follows, as inference not yet shown by a clone run: in the measured hour the churn was worktrees being made and
+  removed, which the clone route changes. A clone shares its origin's blocks, so making one should write little, and
+  removing a worktree destroys its clone and the clone's own snapshots at once, where today a removed worktree's files
+  stay held by home's snapshots for up to 25 hours.
   This corrects the page's earlier framing of worktrees as throwaway copies.
 
 ## Open choices for the owner
