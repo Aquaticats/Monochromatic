@@ -376,6 +376,27 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   runs, so the exclusion does not depend on the order. A dataset outside home's tree, like those under
   `zpcachyos/nosnap`, is never reached by home's recursion at all. Records:
   `~/temp/agent/snapshot-blocklist-candidates-measured-2026-11-18/keep/`.
+- **What the snapshots hold today** (measured 2026-11-18 with `zfs diff` between consecutive hourly snapshots of
+  `zpcachyos/ROOT/cos/home`; sanoid names its snapshots in UTC; counts are changed files, not bytes):
+  - 17:00 to 18:00 local (6.87 GB written into the next snapshot): `~/Monochromatic/.claude` 194,383, nearly all
+    inside agent worktrees and spread over package source folders (`package/forbidden-strings` 44,205,
+    `package/jsonc-edit` 17,418, `package/translation-repair` 17,034, `package/music-player` 16,539, and so on),
+    which is whole checkouts written as worktrees are made and removed; build output barely shows (`.cache` 1,638;
+    `node_modules` not among the top 40 folders inside worktrees); `~/temp/agent` 32,312;
+    `~/Monochromatic/.git` 5,963; `~/.config/mozilla` 2,062; `~/.local/share` 328.
+  - 12:00 to 13:00 local (428 MB): `~/go/pkg` 3,889, `~/aur` 2,789, `~/Downloads/old-drives` 505,
+    `~/.config/mozilla` 410; no agent worktree or scratch folder among the top 40.
+  - Sizes, `du --bytes`: `~/.local/share` 21 GB (JetBrains 11 GB, pnpm store 4.0 GB, Steam 3.3 GB, podman's
+    `containers` 1.2 GB); `~/Monochromatic/.claude/worktrees` 14 GB; `~/Monochromatic/.git` 2.3 GB; `~/.rustup`
+    1.2 GB; `~/.config/mozilla` 1.3 GB; `~/aur` 177 MB; `~/go` 46 MB.
+  - Already outside home's tree and never snapshotted: `~/.cargo/build`, `~/.cargo/registry`, `~/.npm`, `~/.cache`,
+    the vm-builder output folder and `/var/lib/libvirt/images` (datasets under `zpcachyos/nosnap`).
+  - pnpm imports with `packageImportMethod: clone-or-copy` (`pnpm-workspace.yaml:548`) from a store at
+    `${HOME}/.local/share/pnpm/store`, and the pool's `feature@block_cloning` is `active` with `zfs_bclone_enabled`
+    1, so a folder carved into its own dataset in the same pool can still receive cloned files (ZFS's documented
+    cross-dataset block cloning; not run here).
+  So under the clone route most of the measured churn goes away by design: a clone shares its origin's blocks, and
+  removing a worktree destroys its clone and the clone's own snapshots at once.
   This corrects the page's earlier framing of worktrees as throwaway copies.
 
 ## Open choices for the owner
