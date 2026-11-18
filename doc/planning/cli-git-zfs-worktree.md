@@ -352,6 +352,13 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   The same answer reads "A Rust crate" as including a crate that skips the C libraries.
 - **Crates that run the `zfs` program** (same question round): "Out (Recommended)"; `zfskit` and
   `nessie-backend-zfs` leave the vet.
+- **How the wrapper gets clone** (asked after the vet found that `zfsdev`, the one crate on the kernel-interface
+  route, has no `ZFS_IOC_CLONE`; answered 2026-11-18 after 18:31:39-05:00): "Our own small binding (Recommended)":
+  a crate in this repository that speaks only the requests the wrapper uses (snapshot, clone, destroy, get and set
+  user properties, list children, maybe promote), reusing `zfsdev`'s MIT/Apache nvlist codec, layout work and fuzz
+  targets with attribution, and checking `zfs_cmd_t` against the kernel's BTF in a test.
+  Declined: copying `zfsdev` whole and adding clone, and asking upstream and waiting.
+  Evidence: `doc/audit/tech-rust-crate-for-openzfs-vet-2026-11-18.md`, section "zfsdev at 4559ffc711".
 - **Snapshots**: "Make home recursive and blocklist dirs and datasets that shouldn't be snapshoted.
   Worktrees are not necessarily throwaway."
   So sanoid's home entry becomes recursive, worktree clones are snapshotted like the rest of home,
@@ -364,6 +371,6 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
 
 ## Open choices for the owner
 
-- Which Rust crate drives ZFS: narrowed by the owner's route answer to crates that speak `/dev/zfs` in Rust; the one
-  found is `zfsdev` (GitHub only), under validation in the vet report, and its ranking goes to the owner.
+- Which Rust crate drives ZFS: settled by the owner's answers of 2026-11-18 as a small binding of this repository
+  over `/dev/zfs`; where it lives and what it is named belong to the design proposal.
 - What the snapshot blocklist names.

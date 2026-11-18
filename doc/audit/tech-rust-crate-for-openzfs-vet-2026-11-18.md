@@ -1,7 +1,9 @@
 # Rust crate for OpenZFS: technology vet (2026-11-18)
 
 Not final and not approved.
-Status: in progress; lifecycle phase: discovery and screening done, targeted evidence under way.
+Status: synthesis written, not approved; no existing crate recommended; the owner chose a binding of this repository
+(section "Result and the owner's decision"). The remaining list under "Targeted evidence still to gather" is kept as
+it stood when the decision made it moot.
 Checked so far by the coordinating session: the delegated discovery's ledger against its saved provider responses
 (spot checks under "Query records"), the screening judgements under "Coordinator's screening judgements", and the
 OpenZFS license, interface and coverage facts under "Targeted evidence gathered (2026-11-18)".
@@ -13,7 +15,7 @@ leaves `zfsdev` as the one survivor (section "Owner's route decision").
 - **Subject**: Rust crate for OpenZFS.
 - **Scope**: which Rust crate the git wrapper (`package/git-policy/cli`) uses to snapshot, clone, destroy,
   read and set user properties of, and list ZFS datasets, as an unprivileged user holding delegated permissions.
-- **Started**: 2026-11-18T17:45:00-05:00. **Last updated**: 2026-11-18T18:31:39-05:00.
+- **Started**: 2026-11-18T17:45:00-05:00. **Last updated**: 2026-11-18T18:34:01-05:00.
 - **Governing skill**: `.agents/skills/choosing-technology/SKILL.md` at commit
   `45d42d9b23d2f2752f9c512683b45905e13afe99`, SHA-256
   `f4cfa6bc5d1d71f4b136f92ff9fbdab68575c920bd334f824d253336c8782e1b`.
@@ -466,6 +468,32 @@ dataset listing". By the report's context, that makes a binding written for this
   `Co-authored-by` trailers naming Claude models.
 - GitHub repository created 2026-10-07, last push 2026-11-09; 0 stars, 0 forks, no issues and no pull requests
   (`gh issue list` and `gh pr list --state all`); tags `v0.4.1` (2026-10-07) to `v0.4.8` (2026-11-10).
+
+## Result and the owner's decision (2026-11-18, after 18:31:39-05:00)
+
+No existing crate meets every hard constraint on the route the owner chose: every C-library crate links an OpenZFS
+library, the two crates that run `zfs` are the declined option, and `zfsdev`, the one kernel-interface crate, has no
+clone. So no crate is recommended, and by this report's context a binding written for this repository became eligible.
+Asked how to close the gap, the owner chose "Our own small binding (Recommended)" over copying `zfsdev` whole with
+clone added and over asking upstream and waiting. The binding speaks only the requests the wrapper uses and may reuse
+`zfsdev`'s MIT/Apache nvlist codec, layout analysis and fuzz targets with attribution.
+No scoring or sensitivity pass was run: with no survivor that meets every hard constraint there is nothing to rank,
+and the skill's sensitivity procedure applies to scored finalists.
+
+What carries over to that binding from this vet:
+
+- The layout facts checked on the running kernel (section "Layout against OpenZFS 2.4.4") and the method:
+  `pahole --btf_base /sys/kernel/btf/vmlinux -C zfs_cmd /sys/kernel/btf/zfs`.
+- The request numbers at 2.4.4 the wrapper needs: `ZFS_IOC_OBJSET_STATS` 0x5a12, `ZFS_IOC_DATASET_LIST_NEXT` 0x5a14,
+  `ZFS_IOC_SET_PROP` 0x5a16, `ZFS_IOC_DESTROY` 0x5a18, `ZFS_IOC_PROMOTE` 0x5a22, `ZFS_IOC_SNAPSHOT` 0x5a23,
+  `ZFS_IOC_DESTROY_SNAPS` 0x5a3b, `ZFS_IOC_CLONE` 0x5a42 (`include/sys/fs/zfs.h` at `zfs-2.4.4`).
+- The load-time finding: nothing is linked, so released archives keep starting where ZFS is absent.
+- The safety rules for running it: test against a file-backed pool inside a throwaway VM, never `zpcachyos`.
+
+The `zfsdev` container build begun at 18:27 was stopped before it built anything: the container's package download
+went through rootless podman's `pasta` helper, which the host firewall prompts for, and the owner's decision made
+the build unnecessary for the choice. A build of copied `zfsdev` code, if any, should run with `--network none` and
+crate sources fetched on the host.
 
 ## Targeted evidence still to gather
 
