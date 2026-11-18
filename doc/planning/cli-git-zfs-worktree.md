@@ -368,13 +368,20 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   (`zfs destroy -r`); `zfs-space-guard` today prunes only `<dataset>@autosnap_*` of its own dataset,
   so it would leave the children's snapshots alone.
   Sanoid's exclusion, measured 2026-11-18 on the installed sanoid 2.3.0 in simulate mode (`--readonly`, which guards
-  every `zfs snapshot` call at `/usr/bin/sanoid:665`): a parent section with `recursive = yes` and a child dataset's own
-  section with `autosnap = no` leaves that child out. A probe config made `zpcachyos/nosnap` recursive and gave
-  `zpcachyos/nosnap/npm` such a section; twelve runs each listed the parent and its other five children and never `npm`,
-  and the same config without the child's section listed `npm` too (positive control). Sanoid walks its sections in
-  Perl hash order (`foreach my $section (keys %ini)`, `/usr/bin/sanoid:970`), and the listed order did change between
-  runs, so the exclusion does not depend on the order. A dataset outside home's tree, like those under
-  `zpcachyos/nosnap`, is never reached by home's recursion at all. Records:
+  every `zfs snapshot` call at `/usr/bin/sanoid:665`), with probe configs that make `zpcachyos/nosnap` recursive and
+  give its child `zpcachyos/nosnap/npm` a section of its own with `autosnap = no`:
+  - With `recursive = yes` and the child's section written after the parent's, `npm` is left out: twelve runs never
+    listed it, and the same config without the child's section listed it (positive control).
+  - With the child's section written before the parent's, `npm` is snapshotted. Sanoid reads its sections in file
+    order (`tie my %ini, 'Config::IniFiles'`, `/usr/bin/sanoid:936`), and the parent's recursion copies its settings
+    onto every child without checking for a child section of its own (`/usr/bin/sanoid:1110`), so a child section
+    only wins when it is read after its parent. An earlier version of this paragraph said the exclusion did not depend
+    on the order; that was wrong, because the twelve runs all read the parent first.
+  - With `recursive = zfs`, sanoid takes one `zfs snapshot -r` on the parent and every child is in it; a child cannot
+    be left out in that mode.
+  So a blocklist in sanoid's config works only with `recursive = yes` and each excluded child's section below its
+  parent's, which the config's own comments should say. A dataset outside home's tree, like those under
+  `zpcachyos/nosnap`, is never reached by home's recursion at all, whatever the order. Records:
   `~/temp/agent/snapshot-blocklist-candidates-measured-2026-11-18/keep/`.
 - **What the snapshots hold today** (measured 2026-11-18 with `zfs diff` between consecutive hourly snapshots of
   `zpcachyos/ROOT/cos/home`; sanoid names its snapshots in UTC; counts are changed files, not bytes):

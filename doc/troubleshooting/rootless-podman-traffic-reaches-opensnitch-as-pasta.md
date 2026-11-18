@@ -61,9 +61,11 @@ duration `always`, operand `process.path`, regular expression `^/usr/bin/passt(?
 It was written in place with `sudo tee` so the rules watcher sees a `Write` event
 (`doc/troubleshooting/opensnitch-1-7-2-system-firewall-quirks.md`, section "Update rule files in place");
 `/var/log/opensnitchd.log` shows `Ruleset changed due to allow-passt.json, reloading ...` at 23:38:20 UTC
-(18:38:20-05:00). The owner's earlier Drop answers had added in-memory deny rules for `/usr/bin/passt.avx2`
-(log lines from 23:31:33 to 23:33:04 UTC); no rule file under `/etc/opensnitchd/rules/` other than `allow-passt.json`
-names `passt`.
+(18:38:20-05:00). Before it, the log shows four in-memory deny rules for `/usr/bin/passt.avx2`, from 23:31:33 to 23:33:04 UTC,
+spaced exactly 30 seconds apart. The UI's prompt timeout here is `default_timeout=30`
+(`~/.config/opensnitch/settings.conf`), so these may be prompts that timed out to their default action as much as
+Drop answers; which it was is not established. No rule file under `/etc/opensnitchd/rules/` other than
+`allow-passt.json` names `passt`.
 
 Checked afterwards: `podman run --rm --network pasta docker.io/cachyos/cachyos-v4:latest curl --head
 https://geo.mirror.pkgbuild.com/` printed `http 200` and exited 0, with no prompt.
