@@ -12,7 +12,7 @@ No candidate has been cloned, built or run yet; the license gate waits for the o
 - **Subject**: Rust crate for OpenZFS.
 - **Scope**: which Rust crate the git wrapper (`package/git-policy/cli`) uses to snapshot, clone, destroy,
   read and set user properties of, and list ZFS datasets, as an unprivileged user holding delegated permissions.
-- **Started**: 2026-11-18T17:45:00-05:00. **Last updated**: 2026-11-18T18:12:51-05:00.
+- **Started**: 2026-11-18T17:45:00-05:00. **Last updated**: 2026-11-18T18:19:09-05:00.
 - **Governing skill**: `.agents/skills/choosing-technology/SKILL.md` at commit
   `45d42d9b23d2f2752f9c512683b45905e13afe99`, SHA-256
   `f4cfa6bc5d1d71f4b136f92ff9fbdab68575c920bd334f824d253336c8782e1b`.
@@ -305,8 +305,11 @@ Installed here: `zfs-utils 2.4.4-3` owns `/usr/lib/libzfs_core.so`; `pkg-config`
 
 ### What the wrapper's license says about linking them
 
-The wrapper is `LGPL-3.0-or-later`, which incorporates GPL-3.0; its additional permissions cover others linking to the
-wrapper, not the wrapper linking a library, so GPL-3.0's terms decide.
+The wrapper is `LGPL-3.0-or-later`, which incorporates GPL-3.0. Its additional permissions are about a
+"Combined Work", "a work produced by combining or linking an Application with the Library", where an "Application"
+"makes use of an interface provided by the Library" (`LICENSES/LGPL-3.0-or-later.txt` lines 19 to 30, section 4 from
+line 79). The wrapper calling `libzfs_core` is the wrapper using another library's interface, not an application
+using the wrapper, so those permissions do not reach it and GPL-3.0's terms decide.
 
 - GPL-3.0 section 1 (`LICENSES/GPL-3.0-or-later.txt` lines 134 to 145): Corresponding Source "does not include the
   work's System Libraries", and "includes ... the source code for shared libraries and dynamically linked subprograms
@@ -329,35 +332,69 @@ or with an additional permission from the wrapper's copyright holders. Choosing 
 licensor's decision, so it goes to the owner. It applies to every survivor except `zfsdev`, which links no OpenZFS
 library; `clinta/zfs-rs` links `libnvpair`.
 
+Who could grant an additional permission, read 2026-11-18:
+`git log --format='%an' -- package/git-policy/cli` counts 7,144 commits by the owner's account, 94 by
+`github-actions[bot]`, and one by an author named `T` (8ed5daa61b, 2026-09-25, "refactor(git-policy-cli): satisfy lint
+rules in the concurrent commit transaction").
+`cargo metadata --locked` for the wrapper lists 326 packages; the only `LGPL` ones are six crates of this repository
+(`forbidden-regex`, `forbidden-strings`, `monochromatic-catalog-specifier`, `monochromatic-git-policy-cli`,
+`monochromatic-jsonc-edit`, `monochromatic-lint`), and the one other copyleft mention, `r-efi`, is
+`MIT OR Apache-2.0 OR LGPL-2.1-or-later`, so a permissive choice. No third-party copyleft code would stand in the way
+of an exception; the `T` commit is the one authorship to settle if one is written.
+
+### Where the wrapper ships and what it links today
+
+- `toolchain.lock.json` installs the wrapper by `"route": "archive"` from release archives for `linux-x64` and
+  `linux-arm64` (the `-musl` rows point at the same `gnu` archives); `os` is `linux` only.
+- `.github/workflows/cargo-publish.yml` builds those archives on GitHub-hosted runners (`ubuntu-24.04`,
+  `ubuntu-24.04-arm`, and macOS and Windows runners for the other targets in its matrix).
+- `ldd` on the wrapper built here from main lists only `linux-vdso`, `libgcc_s`, `libm`, `libc` and the loader.
+
+So a crate that links `libzfs_core`, `libzfs` or `libnvpair` at build time would make those libraries a load-time
+requirement of every released archive: the wrapper would stop starting on any machine or container without OpenZFS's
+user-space libraries, and the release runners would need OpenZFS development files installed. Avoiding that takes a
+cargo feature left out of the released archives (which would leave the installed wrapper without ZFS support) or
+loading the libraries at run time, which none of the survivors does. `zfsdev` needs neither: it opens `/dev/zfs`, which
+is simply absent where ZFS is not.
+
 ### libzfs_core is not a committed interface
 
 `lib/libzfs_core/libzfs_core.c` lines 45 to 50: "The libzfs_core interface will be committed ... Currently, the
 interface is Evolving (not Committed), but we intend to commit to it once it is more complete".
 Line 55 to 57: it is "a thin layer, marshaling arguments to/from the kernel ioctls ... generally a 1:1 correspondence
 between libzfs_core functions and ioctls". So a crate on `libzfs_core` and a crate on the ioctls carry much the same
-interface risk; `libzfs` promises less than either.
+interface risk. What OpenZFS promises for `libzfs` itself was not read; no claim is made about it here.
 
-### libzfs_core alone cannot set a property or list datasets without root
+### libzfs_core's typed calls do not set a property after creation or list datasets
 
 `include/libzfs_core.h` at 2.4.4 declares `lzc_snapshot`, `lzc_clone`, `lzc_create`, `lzc_destroy`,
 `lzc_destroy_snaps`, `lzc_get_props`, `lzc_exists`, `lzc_rename`, `lzc_promote` and `lzc_channel_program`, among
-others, and no function that sets a property or lists datasets.
-The general route around that, a channel program, needs root: `man/man8/zfs-program.8` line 40, "Channel programs
-may only be run with root privileges."
-So a crate that reaches ZFS only through `libzfs_core` cannot meet the hard constraint "covers ... user-property get
-and set, and dataset listing" as an unprivileged user; it needs `libzfs` or the ioctls themselves for those two.
-To confirm per crate from its source: `zfs-core` (lzc and nvpair only by its metadata), `razor-libzfscore` and
-`razor-safe-lzc` (the razor family also binds `libzfs`), and `libzetta` (which reaches `zfs(8)` for the rest).
+others, and no typed function that sets a property on an existing dataset or lists datasets.
+What it does offer, read from `lib/libzfs_core/libzfs_core.c`:
+
+- `lzc_create`, `lzc_clone` and `lzc_snapshot` take a `props` nvlist (lines 303, 328, 407), so user properties can be
+  set when a dataset or snapshot is made; whether delegation accepts user properties there is to be tested.
+- `lzc_ioctl_fd(int, unsigned long, struct zfs_cmd *)` is exported (header line 46; source line 183) and passes any
+  ioctl through, so set and list are reachable by building `zfs_cmd_t` by hand, which is the work an ioctl crate does.
+- Channel programs cannot stand in: `man/man8/zfs-program.8` line 40, "Channel programs may only be run with root
+  privileges."
+
+The design needs a set after creation (a worktree asks the ZED handler to unmount it before it is destroyed, through a
+user property) and a listing (`doctor` and sweeps over the worktrees parent), so a crate that offers only
+`libzfs_core`'s typed calls covers those two only through `libzfs` or hand-built ioctls. This is read from headers and
+sources, not yet run. To confirm per crate from its source: `zfs-core` (lzc and nvpair only by its metadata),
+`razor-libzfscore` and `razor-safe-lzc` (the razor family also binds `libzfs`), and `libzetta` (which reaches
+`zfs(8)` for the rest).
 
 ## Targeted evidence still to gather
 
 Each applies to every survivor it names, at equal depth.
 
-- **License gate**: the owner's decision on linking the CDDL libraries (see "What the wrapper's license says about
-  linking them").
-- **Where the wrapper runs**: the wrapper is built and run on machines without ZFS; a crate linked at build time to
-  `libzfs.so` makes that library a load-time requirement of every build unless it sits behind a cargo feature or is
-  loaded at run time. Measure the wrapper's release targets and what each survivor needs at build and load time.
+- **License gate and route**: the owner's decision on linking the CDDL libraries, put together with the load-time
+  finding under "Where the wrapper ships and what it links today".
+- **Safety of validation**: read each survivor's `build.rs` before building; build in a container with no home mount;
+  regenerate checked-in bindings against the 2.4.4 headers and diff them before calling anything; run old bindings and
+  raw ioctls only against a file-backed pool inside a throwaway VM, never against `zpcachyos`.
 - **libzetta per operation**: which of the six needed operations go through `zfs(8)`.
 - **Clone and read**: each survivor at its exact revision, its build script, its foreign-function or ioctl surface,
   its error type, its tests and CI, and its maintenance record, as the skill's open-source gates list.
