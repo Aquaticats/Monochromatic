@@ -68,6 +68,25 @@ matches!(source.try_exists(), Ok(false)).then_some((alias, source))
 
 ## Verification
 
+### Find the saved range
+
+`pnpm root --global` prints the global package root.
+Each install group has its own `package.json` under that root.
+In `pnpm list --global --json`, the dependency's `path` identifies its group as the directory before `node_modules`.
+Open that group's `package.json` and read `dependencies["@openai/codex"]`.
+The sibling `pnpm-lock.yaml` records the saved `specifier` and resolved `version` separately.
+
+For an unqualified add, pnpm saves a caret range around the version it resolves by default.
+Here it saved `^0.169.0`, which admits stable versions from `0.169.0` up to `0.170.0` exclusive.
+[`pnpm/crates/registry/src/range_spec_style.rs:32`][pnpm-save-range]
+
+```rust
+// pnpm/crates/registry/src/range_spec_style.rs
+Self::Major | Self::None => "^",
+```
+
+### Reproduce the selection
+
 Use `pnpm 12.21.0` and a disposable global directory. These results were observed before `0.170.0`
 reached the default cutoff. The registry confirms publication timestamps for the wrapper and each platform build.
 
@@ -135,4 +154,5 @@ No new filing. The open report already records the release-age mismatch and the 
 [pnpm-pick]: https://github.com/pnpm/pnpm/blob/b8d388835f9a40ee1ac53fbc2d4b58c3ebfa5600/pnpm/crates/resolving-npm-resolver/src/pick_package/version_pick.rs#L118-L129
 [pnpm-global]: https://github.com/pnpm/pnpm/blob/b8d388835f9a40ee1ac53fbc2d4b58c3ebfa5600/pnpm/crates/cli/src/cli_args/global/selectors.rs#L104-L141
 [pnpm-strict]: https://github.com/pnpm/pnpm/blob/b8d388835f9a40ee1ac53fbc2d4b58c3ebfa5600/pnpm/crates/config/src/registry_options.rs#L196-L213
+[pnpm-save-range]: https://github.com/pnpm/pnpm/blob/b8d388835f9a40ee1ac53fbc2d4b58c3ebfa5600/pnpm/crates/registry/src/range_spec_style.rs#L32-L51
 [codex-issue]: https://github.com/openai/codex/issues/39533#:~:text=Because%20of%20the%20new%20pnpm
