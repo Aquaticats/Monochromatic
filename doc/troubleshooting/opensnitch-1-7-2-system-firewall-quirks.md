@@ -1,5 +1,23 @@
 # OpenSnitch 1.7.2 system firewall: IPv6 addresses build IPv4 matches, nothing filters while stopped
 
+Status note at 2026-11-18T13:09:51-05:00:
+the host moved to the AUR `opensnitch-git` on 2026-11-18,
+at 2026-11-18T12:38:18-05:00 by `pacman.log`.
+The package is `1.8.0.r224.a1353848-1`,
+and its daemon reports `1.9.0`.
+The text of this doc describes 1.7.2 and was not rechecked on 1.9.0.
+The table and chain names changed:
+1.7.2 uses the tables `filter`,
+`mangle` and `nat`,
+master uses one `inet opensnitch` table with chains `filter_input`,
+`filter_forward`,
+`mangle_output` and so on,
+and the daemon hardcodes `opensnitch`/`filter_input` for its DNS rule and `mangle_output` for interception.
+Where this doc says `inet filter input`,
+the matching chain on 1.9.0 is `inet opensnitch filter_input`.
+See [the AUR packages doc](opensnitch-ebpf-module-clang-23-needs-llvm-22.md) for the switch,
+the eBPF module build and the source lines.
+
 Status at 2026-11-18T12:16:50-05:00:
 agent-written from a live ufw-to-OpenSnitch cutover on a CachyOS desktop;
 not reviewed or approved by the owner.
