@@ -1,14 +1,17 @@
 # Rust crate for OpenZFS: technology vet (2026-11-18)
 
 Not final and not approved.
-Status: in progress; lifecycle phase: context and rubric frozen, discovery delegated.
+Status: in progress; lifecycle phase: discovery and screening done, targeted evidence next.
+Checked so far by the coordinating session: the delegated discovery's ledger against its saved provider responses
+(spot checks under "Query records"), and the screening judgements under "Coordinator's screening judgements".
+Nothing has been cloned, built or run from any candidate yet.
 
 ## Report metadata
 
 - **Subject**: Rust crate for OpenZFS.
 - **Scope**: which Rust crate the git wrapper (`package/git-policy/cli`) uses to snapshot, clone, destroy,
   read and set user properties of, and list ZFS datasets, as an unprivileged user holding delegated permissions.
-- **Started**: 2026-11-18T17:45:00-05:00. **Last updated**: 2026-11-18T17:45:00-05:00.
+- **Started**: 2026-11-18T17:45:00-05:00. **Last updated**: 2026-11-18T18:07:26-05:00.
 - **Governing skill**: `.agents/skills/choosing-technology/SKILL.md` at commit
   `45d42d9b23d2f2752f9c512683b45905e13afe99`, SHA-256
   `f4cfa6bc5d1d71f4b136f92ff9fbdab68575c920bd334f824d253336c8782e1b`.
@@ -17,6 +20,16 @@ Status: in progress; lifecycle phase: context and rubric frozen, discovery deleg
 - **Active audit owner**: the coordinating Claude Code session; the discovery phase is run by a Pi run on
   DeepSeek V4.1 Flash, by the owner's answer of 2026-11-18: "Use pi with deepseek to run it."
 - **Prior compatible report**: none; no file under `doc/audit/` names ZFS.
+- **Discovery run**: Pi on `synthetic` `hf:deepseek-ai/DeepSeek-V4.1-Flash-1017` through
+  `package/pi-shared/subagent-driver`, run folder `~/temp/agent/pi-runs/rust-crate-for-openzfs-discovery-1`;
+  its queries ran 2026-11-18T17:26:59-05:00 to 17:38:00-05:00 by the saved responses' times;
+  81 turns, no retries, no rate-limit errors, cost 0.52 US dollars by the driver's `summary.json`.
+  It ended `stop-file`: its work was done and the driver kept it open for unrelated processes in the main checkout
+  (issue 6311), so the coordinator ended it with the driver's stop file.
+- **Discovery records**: every query record, page count and screened repository is in
+  [`tech-rust-crate-for-openzfs-vet-2026-11-18-discovery-records.md`](tech-rust-crate-for-openzfs-vet-2026-11-18-discovery-records.md),
+  the delegate's file as it wrote it; the provider responses it read are kept under
+  `~/temp/agent/rust-crate-for-openzfs-vet-2026-11-18/keep/discovery-raw/`.
 
 ## Hard constraints
 
@@ -43,6 +56,10 @@ Status: in progress; lifecycle phase: context and rubric frozen, discovery deleg
 
 The owner chose a crate on 2026-11-18 ("A Rust crate"), against the recommendation of the `zfs` program in
 `doc/planning/cli-git-zfs-worktree.md`, section "Owner's answers of 2026-11-18".
+The two options as the owner saw them:
+"Run `zfs` with `-H` for machine-readable output ... Cons: a new process for every call ... errors come back as text
+to parse", and "A Rust crate: libzetta 0.5.0, razor-libzfscore 0.13.1 and others call ZFS's C libraries from inside
+the program. Pros: typed calls, no new process."
 The design there: worktrees are ZFS clones of a fresh snapshot of the checkout's dataset, made by the user under
 delegated permissions (`create,clone,snapshot,destroy,mount,promote,userprop`); a ZED handler mounts and unmounts
 them as root, prompted by user properties named `org.monochromatic:*`; the crate never mounts.
@@ -110,20 +127,175 @@ no more; a provider cap reached first marks the class blocked, and the record sa
 Every new term found while running the schedule (a crate family, a library name, a synonym) gets one more run of
 the same queries in each class with that term; the schedule is then frozen and later terms are only recorded.
 
+Run once, with the terms `zfsdev`, `libnvpair`, `libnv`, `illumos-nvpair`, `razor`, `libzetta`, `open3`, `veneer`
+and `uzfs`; it added no candidate.
+
 ## Candidate ledger
 
-One subsection per candidate: the crate or repository, the exact latest version and its date, the source repository,
-where it was found, its base category, its overlays, the license its registry entry states, which OpenZFS libraries it
-links or which interface it speaks, and its screening result from metadata alone (pass, fail with the evidence, or
-pending targeted evidence).
-Screening uses metadata only; nothing is cloned, built or run in this phase.
+Screening used metadata only. Each subsection names the candidate, its version and date, its repository, what it
+binds or speaks, its license as stated, and the screening result after the coordinator's judgements.
+The delegate's fuller entries, with every query that found each candidate, are in the discovery records file.
 
-Not yet filled.
+### libzfs, `whamcloud/rust-libzfs` (enters targeted evidence)
+
+- `libzfs` 0.6.16 (2020-08-28) with `libzfs-sys` 0.5.11 and `libzfs-types` 0.1.2; repository archived, last push
+  2023-07-11.
+- Binds `libzfs` through checked-in bindgen output generated for libzfs 0.7.13 (its README: "they should only be used
+  against this version"), and `libnvpair` through `nvpair-sys`.
+- License: MIT. Screening: pass. Open: whether bindings generated for 0.7.13 can be correct against 2.4.4.
+
+### zfs-core, `codyps/rust-libzfs` (enters targeted evidence)
+
+- `zfs-core` 0.5.0 (2020-12-14) with `zfs-core-sys` 0.5.0, `nvpair` 0.5.0, `nvpair-sys` 0.4.0; last push 2023-03-10.
+- Binds `libzfs_core` and `libnvpair` through pre-generated bindings and `pkg-config`.
+- License: `Apache-2.0 OR MIT`. Screening: pass. Open: 2020 bindings against 2.4.4.
+
+### razor family, `razor-zfs/razor-rs` (enters targeted evidence)
+
+- `razor-libzfscore` 0.13.1, `razor-libnvpair` 0.13.1, `razor-nvpair` 0.13.1 (2023-07-31); `razor-libzfs` 0.12.0
+  and `razor-safe-lzc` 0.12.0 (2022-07-26); last push 2023-08-27.
+- Binds `libzfs`, `libzfs_core` and `libnvpair` through bindgen at build time, so a build needs libclang and the
+  OpenZFS development files.
+- License: `MIT OR Apache-2.0`. Screening: pass. Open: no release since 2023.
+
+### libzetta, `Inner-Heaven/libzetta-rs` (enters targeted evidence, with a category question)
+
+- `libzetta` 0.5.0 (2023-05-13) with `libzetta-zfs-core-sys` 0.5.2; last push 2026-02-23.
+- Binds `libzfs_core`, uses FreeBSD's `libnv` through `libnv ^0.4.2`, and by its README "resorts to `zfs(8)` and
+  `zpool(8)` where `lzc` falls shorts".
+- License: BSD-2-Clause. Screening: pass, pending targeted evidence on which of the six needed operations it performs
+  by running `zfs(8)`; any that it does fails the category for that operation (see the judgements section).
+
+### zfsdev, `Ukko-Ylijumala/zfsdev-rs` (enters targeted evidence, on a reading open to veto)
+
+- 0.4.8 at the repository head; `publish = false`, so no crates.io release; last push 2026-11-09.
+- Speaks `/dev/zfs` directly in Rust ("No libzfs, no FFI, no zfs/zpool output scraping"), with its own packed-nvlist
+  codec; mutating operations behind a `write` feature; `edition = "2024"`.
+- License: `MIT OR Apache-2.0` as stated in its `Cargo.toml`. Screening: pass on the gates.
+  Two open points: it is reachable only as a git dependency, which the wrapper cannot publish with (judgements
+  section), and it must follow the 2.4.4 ioctl interface itself.
+
+### clinta/zfs-rs (enters targeted evidence, weak fit)
+
+- 0.0.1 at the repository head, never published; last push 2020-10-06.
+- Sends ioctls to `/dev/zfs` itself and links only `libnvpair`.
+- License: `MIT OR Apache-2.0` as stated in its `Cargo.toml`. Screening: pass on the gates; git dependency only.
+
+### moretea/rust-zfs (enters targeted evidence, weak fit)
+
+- 0.1.0 at the repository head, never published; last push 2018-09-16.
+- Binds `libzfs`. License: LGPL-3.0, the wrapper's own family. Screening: pass on the gates; git dependency only.
+
+### libzfs_core-sys (pending)
+
+- 0.1.0 (2017-11-05), no repository declared; checked-in bindings over `libzfs_core`, depends on FreeBSD's
+  `libnv-sys`; a raw binding layer with no API above it.
+- License: BSD-2-Clause. Screening: pending one build attempt on Linux x86-64.
+
+### zfskit, `okhsunrog/zfskit` (exit: category)
+
+- 0.3.0 (2026-10-06), `MIT OR Apache-2.0`. Its README: "CLI-only, no FFI"; it runs `zfs(8)` and `zpool(8)` and
+  parses their JSON output.
+- Exits on category: it is the option the owner declined, run through a crate (judgements section).
+
+### nessie-backend-zfs (exit: category)
+
+- 0.4.4 (2026-11-03), `MIT OR Apache-2.0`; runs `zfs`, `zpool` and `exportfs` behind a `CommandRunner` seam as a
+  storage backend for another daemon.
+- Exits on category for the same reason as `zfskit`; its API is also a storage-backend trait, not a ZFS one.
+
+### Exits by group
+
+- **AGPL-licensed** (license; both also run the `zfs` program): `zfs-cmd-api` 0.2.0, `ChocolateLoverRaj/zfs_wrapper`.
+- **No license stated, so no grant** (license): `wfraser/libzfs-rs`, `kavan-mevada/libzfs`, `akhilerm/libzfs-rs`,
+  `problame/libzfs-rs`, `sgrankin/zfs-sys`.
+- **On-disk format readers or reimplementations** (category): `zfs` 0.1.0, `lamzfs`, `zfs-forensic-core`, `filer-zfs`,
+  `lcpfs`, `turlando/zfs-rs`, `okhsunrog/zfs-rs`.
+- **Empty or placeholder publishes** (no inspectable source): `rzfs_lib`, `rzfs_userspace`, the four `zfs-rs*` 0.0.0
+  crates, `abgleich-lib`.
+- **FreeBSD only** (platform): the four `freqlabs/rs-*-sys` repositories.
+- **nvpair or libnv codecs alone** (category; dependencies of candidates, not candidates): `nvpair-rs`,
+  `stone-libnvpair`, `stone-libnvpair-sys`, `illumos-nvpair`, `illumos-nvpair-sys`, `libnv`, `libnv-sys`.
+- **Raw binding layers with no API** (nothing to drive): `johnramsden/rust-zfs-sys`.
+- **Applications, not libraries** (category): `chithi`, `sam-zfs-unlocker`, `zfs-autosnap`, `shock`, `zfshealth`,
+  `zftop`, `ztop`, `DanielArmengod/zfs-rs`, `InkerBot/zfs-unlock`, `oxidecomputer/zfs-atomic-change-key`,
+  `komori/Honeydew`.
+- **Neighbouring projects** (category): `iomesh/libuzfs-rs`, `robn/veneer`, `truenas/truenas_ros`,
+  `AlexanderThaller/calipe-rs`.
+
+## Coordinator's screening judgements
+
+Each is a reading of a settled fact or decision, stated so it can be overturned.
+
+1.  **A crate that runs the `zfs` program is the declined option.**
+    The owner chose between running `zfs` ("a new process for every call", "errors come back as text to parse") and a
+    crate that calls ZFS "from inside the program" ("typed calls, no new process").
+    `zfskit` and `nessie-backend-zfs` run the program, so they carry exactly the costs the owner declined and exit on
+    category. `libzetta` runs it for part of its surface; it stays in only for operations it performs without the
+    program, which targeted evidence checks per operation.
+2.  **A crate in-process without the C libraries fits the owner's choice.**
+    The option's text named the C libraries as how existing crates do it; the stated reasons were typed calls and no
+    new process, which `zfsdev` and `clinta/zfs-rs` give through `/dev/zfs`. They stay in; the owner can strike them at
+    the ranking.
+3.  **No license stated is no grant.** Five repositories state none; with no grant there is nothing to link under,
+    so they exit on the license gate. Adopted from the delegate's handling.
+4.  **AGPL does not fit an `LGPL-3.0-or-later` program as a whole.** Both AGPL crates also run the `zfs` program, so
+    judgement 1 already removes them and this reading decides nothing on its own.
+5.  **A git-only crate needs a crates.io copy before the wrapper can use it.** The wrapper is published to crates.io
+    (`.github/workflows/crate-release.yml` dispatches `cargo-publish.yml`), and the Cargo book says
+    "crates.io does not allow packages to be published with dependencies on code published outside of crates.io
+    itself (dev-dependencies are ignored)"
+    ([Specifying Dependencies](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html), read
+    2026-11-18; page saved as `keep/cargo-book-specifying-dependencies-2026-11-18.html`).
+    So `zfsdev`, `clinta/zfs-rs` and `moretea/rust-zfs` would each need their code vendored into the wrapper or
+    published under a name of ours, which their permissive licenses allow; that cost is scored under maintenance and
+    build cost, not treated as an exit.
 
 ## Query records
 
-Not yet filled.
+The full records, per query and page, with filters, sort order, counts and new candidates, are in the discovery
+records file. The class results:
+
+- **crates.io**: saturated. The ten searches took 13 pages (`zfs` 222 results over three pages, `zfs clone` 103 over
+  two, the rest one page each), plus the `zfs` keyword listing, the category lookup and the `filesystem` category
+  search, and 21 reverse-dependency queries, none over one page.
+  The delegate read every page to each provider total instead of stopping after two pages without a survivor,
+  because the `libzfs` crates are on the last page of `zfs`; the frozen stop rule would have missed them.
+- **GitHub**: saturated. Two of the eight repository searches returned exactly the `--limit 100` they asked for
+  (`zfs --language=Rust`, 100 of 155; `zfs --topic=zfs`, 100 of 761); the delegate ran those two again at
+  `--limit 1000`, recorded both runs, and screened every repository, listed in the records file's appendix.
+- **Wider web and lib.rs**: saturated; nothing that the registries had not found.
+- **This repository**: saturated; no `Cargo.toml` or `Cargo.lock` under `package/` names a ZFS crate, and no
+  decision or audit record names one, so there is no incumbent.
+
+Spot checks by the coordinator against the saved responses, 2026-11-18:
+`raw/crates-q-zfs-p3.json` reports total 222 and lists `libzfs-types`, `libzfs-sys`, `libzfs` and `libzfs_core-sys`;
+`raw/crate-libzfs.json` gives 0.6.16 updated 2020-08-28 at `whamcloud/rust-libzfs`;
+`raw/crate-libzetta.json` gives 0.5.0 updated 2023-05-13 at `Inner-Heaven/libzetta-rs`;
+`raw/repos-zfs-language-rust.json` holds 100 entries and `raw/probe-repos-zfs-language-rust-limit-1000.json` 155.
+Each matches the ledger.
 
 ## Discovery result
 
-Pending.
+Saturated, with at least two survivors.
+Entering targeted evidence: `libzfs` (whamcloud), `zfs-core`, the razor family, `libzetta`, `zfsdev`,
+`clinta/zfs-rs`, `moretea/rust-zfs`; `libzfs_core-sys` is pending one Linux build.
+
+## Targeted evidence still to gather
+
+Each applies to every survivor it names, at equal depth.
+
+- **License gate, CDDL**: read the license headers of `libzfs`, `libzfs_core` and `libnvpair` at OpenZFS tag
+  `zfs-2.4.4`, CDDL-1.0 on larger works, and the system-library and linking terms of GPL-3.0 and LGPL-3.0, then
+  decide whether a program under `LGPL-3.0-or-later` may link them, or put it to the owner as the wrapper's licensor.
+  Applies to every survivor that links an OpenZFS library: all but `zfsdev`.
+- **Interface stability**: what OpenZFS says about the stability of `libzfs` against `libzfs_core` and the ioctl
+  interface, since bindings generated for an older release are only correct if the interface held still.
+- **Where the wrapper runs**: the wrapper is built and run on machines without ZFS; a crate linked at build time to
+  `libzfs.so` makes that library a load-time requirement of every build unless it sits behind a cargo feature or is
+  loaded at run time. Measure the wrapper's release targets and what each survivor needs at build and load time.
+- **libzetta per operation**: which of the six needed operations go through `zfs(8)`.
+- **Clone and read**: each survivor at its exact revision, its build script, its foreign-function or ioctl surface,
+  its error type, its tests and CI, and its maintenance record, as the skill's open-source gates list.
+- **Validation**: build each against OpenZFS 2.4.4 on this machine and run the six operations as an unprivileged
+  user holding delegated permissions on a throwaway dataset.
