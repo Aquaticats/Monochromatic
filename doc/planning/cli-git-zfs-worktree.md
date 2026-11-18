@@ -342,6 +342,16 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
 - **Mount mechanism**: "ZED handler (Recommended)".
 - **Driver**: "A Rust crate", against this page's recommendation of the `zfs` program.
   Which crate is the next dependency to pick; none in the search was checked against OpenZFS 2.4.4.
+- **How the crate reaches ZFS** (asked through the question tool after the crate vet's discovery, answered before
+  2026-11-18T18:21:50-05:00): "Kernel interface (Recommended)": the crate talks to `/dev/zfs` itself, in Rust, and
+  links none of OpenZFS's CDDL-1.0 libraries. Declined: linking the C libraries with a license exception and run-time
+  loading, and linking them with no license change. The facts put to the owner are in
+  `doc/audit/tech-rust-crate-for-openzfs-vet-2026-11-18.md`, section "Targeted evidence gathered (2026-11-18)":
+  the libraries are CDDL-1.0, a build-time link would make every released wrapper archive need them to start, and
+  `libzfs_core` is "Evolving (not Committed)" and a 1:1 layer over the same kernel calls.
+  The same answer reads "A Rust crate" as including a crate that skips the C libraries.
+- **Crates that run the `zfs` program** (same question round): "Out (Recommended)"; `zfskit` and
+  `nessie-backend-zfs` leave the vet.
 - **Snapshots**: "Make home recursive and blocklist dirs and datasets that shouldn't be snapshoted.
   Worktrees are not necessarily throwaway."
   So sanoid's home entry becomes recursive, worktree clones are snapshotted like the rest of home,
@@ -354,5 +364,6 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
 
 ## Open choices for the owner
 
-- Which Rust crate drives ZFS (to be researched and put to the owner).
+- Which Rust crate drives ZFS: narrowed by the owner's route answer to crates that speak `/dev/zfs` in Rust; the one
+  found is `zfsdev` (GitHub only), under validation in the vet report, and its ranking goes to the owner.
 - What the snapshot blocklist names.

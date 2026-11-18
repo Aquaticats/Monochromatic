@@ -5,14 +5,15 @@ Status: in progress; lifecycle phase: discovery and screening done, targeted evi
 Checked so far by the coordinating session: the delegated discovery's ledger against its saved provider responses
 (spot checks under "Query records"), the screening judgements under "Coordinator's screening judgements", and the
 OpenZFS license, interface and coverage facts under "Targeted evidence gathered (2026-11-18)".
-No candidate has been cloned, built or run yet; the license gate waits for the owner.
+No candidate has been cloned, built or run yet. The owner chose the kernel-interface route on 2026-11-18, which
+leaves `zfsdev` as the one survivor (section "Owner's route decision").
 
 ## Report metadata
 
 - **Subject**: Rust crate for OpenZFS.
 - **Scope**: which Rust crate the git wrapper (`package/git-policy/cli`) uses to snapshot, clone, destroy,
   read and set user properties of, and list ZFS datasets, as an unprivileged user holding delegated permissions.
-- **Started**: 2026-11-18T17:45:00-05:00. **Last updated**: 2026-11-18T18:19:09-05:00.
+- **Started**: 2026-11-18T17:45:00-05:00. **Last updated**: 2026-11-18T18:22:31-05:00.
 - **Governing skill**: `.agents/skills/choosing-technology/SKILL.md` at commit
   `45d42d9b23d2f2752f9c512683b45905e13afe99`, SHA-256
   `f4cfa6bc5d1d71f4b136f92ff9fbdab68575c920bd334f824d253336c8782e1b`.
@@ -281,6 +282,28 @@ Each matches the ledger.
 Saturated, with at least two survivors.
 Entering targeted evidence: `libzfs` (whamcloud), `zfs-core`, the razor family, `libzetta`, `zfsdev`,
 `clinta/zfs-rs`, `moretea/rust-zfs`; `libzfs_core-sys` is pending one Linux build.
+
+## Owner's route decision (2026-11-18, before 18:21:50-05:00)
+
+Asked through the question tool with the facts under "Targeted evidence gathered (2026-11-18)".
+
+- **How the crate reaches ZFS**: "Kernel interface (Recommended)": the crate talks to `/dev/zfs` itself, in Rust,
+  and links no OpenZFS library. Declined: "C libs, exception + run-time load" and "C libs, no license change".
+  The answer also settles judgement 2: a crate that skips the C libraries counts as "a Rust crate".
+- **Crates that run the `zfs` program**: "Out (Recommended)", which confirms judgement 1.
+
+What this does to the ledger, as a category exit under the owner's decision (links an OpenZFS library, so it is not
+a kernel-interface crate):
+
+- `libzfs` (whamcloud), `zfs-core`, the razor family, `libzetta`, `moretea/rust-zfs` and `libzfs_core-sys` exit:
+  each binds `libzfs`, `libzfs_core` or both.
+- `clinta/zfs-rs` exits: it sends ioctls itself but links `libnvpair`, which is CDDL-1.0.
+- `zfskit` and `nessie-backend-zfs` stay out (judgement 1, now the owner's).
+
+Result: one survivor, `zfsdev`. The skill's rule for that case applies ("If saturated discovery finds one survivor,
+record every exhausted source and continue with that survivor"): every source class is recorded as saturated under
+"Query records", and `zfsdev` goes through the full open-source gates and validation alone.
+A binding written for this repository stays eligible only if `zfsdev` fails a named hard constraint.
 
 ## Targeted evidence gathered (2026-11-18)
 
