@@ -152,6 +152,25 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### ZED against the regex sudoers rule, probed on the owner's question (2026-11-18T17:15:00-05:00)
+
+Not final and not approved: this session's own account.
+The owner, 2026-11-18: "My impression is ZFS event daemon is the best idea. It's interesting we didn't agree there.
+Am I missing something? Are you missing something?"
+
+- **ZFS fast route (task 379):** three probes on throwaway datasets (everything they made removed, ZED left stopped and
+  disabled; scripts and output in `~/temp/agent/zed-against-sudo-for-clone-mounts-2026-11-18/keep/`), written up in
+  `doc/planning/cli-git-zfs-worktree.md`, section "ZED against the regex sudoers rule, probed again (2026-11-18)".
+  The mount-mechanism ranking there now puts a reconciling ZED handler first, as a close call; the reasons, sudo's
+  real advantages and what moved the ranking are on the page.
+  Found on the way, true under either mechanism: a planted symlink redirects root's `zfs mount`, so the worktrees
+  parent's folder must be root's and clones cannot be children of the checkout's dataset;
+  a caller inside a user namespace (a unit with `ReadOnlyPaths=`, as branch b75c20af41 starts Pi runs) sees no dataset
+  and cannot clone, while the reflink fallback works there.
+  **Next:** the open choices on that page go to the owner through the question tool (sent with the answer to this
+  question), then the cross-vendor re-review of the design before confirming it.
+- **Runs, reviewer bench, agent cap:** unchanged since the entry of 2026-11-17T19:28:50-05:00.
+
 ### Stopped for the owner's shutdown at night (2026-11-17T19:28:50-05:00)
 
 Not final and not approved: this session's own account.
@@ -167,9 +186,7 @@ The owner: "shutdown the entire system after you finish A THOROUGH RESEARCH. I'm
   mount anything at the allowed path (tmpfs and `suid` were accepted), so it is unfit to ship;
   fstab `user` entries fail for ZFS in both forms; a ZED handler works;
   fuse-overlayfs needs no root and costs 2.2× to 3.4× for the worktree's life.
-  **First thing next session:** put the open choices on that page to the owner through the question tool
-  (route; mount mechanism; `zfs` program or a crate; moving the checkout into a dataset of its own and sanoid's entry for it),
-  each re-explained, then the cross-vendor re-review of the design before confirming it.
+  The next step moved to the entry of 2026-11-18T17:15:00-05:00.
 - **Runs:** every going run ended `stop-file` at 19:28:09 with its session saved
   (list with turns and session files: `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026-11-17/keep/pi-runs-stopped-for-the-shutdown-of-2026-11-17.txt`).
   Nine are queue entries: resume each under a new unit and run folder with `--session=<its session file>`;

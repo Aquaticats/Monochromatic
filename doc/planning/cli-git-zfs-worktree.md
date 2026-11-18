@@ -118,10 +118,11 @@ The owner, 2026-11-18: "My impression is ZFS event daemon is the best idea. It's
 Am I missing something? Are you missing something?"
 The earlier ranking put the regex rule first for its install cost alone, and neither mechanism had been run
 from the places where worktrees get made, so both were probed again on throwaway datasets under `zpcachyos/nosnap`
-(scripts `probe-zed-against-sudo-from-each-caller-context.ts` and
-`probe-confined-unit-sight-and-the-regex-rule-run-for-real.ts`, output `keep/zed-against-sudo-probe.txt` and
-`keep/confined-unit-sight-and-regex-rule-probe.txt`, all under
-`~/temp/agent/zed-against-sudo-for-clone-mounts-2026-11-18/`).
+(scripts and output in `~/temp/agent/zed-against-sudo-for-clone-mounts-2026-11-18/keep/`:
+`probe-zed-against-sudo-from-each-caller-context.ts` with `zed-against-sudo-probe.txt`,
+`probe-confined-unit-sight-and-the-regex-rule-run-for-real.ts` with `confined-unit-sight-and-regex-rule-probe.txt`,
+`probe-confined-unit-control-and-reflink-fallback.ts` with `confined-unit-control-and-reflink-fallback-probe.txt`;
+each output file marks the lines of a first run that a script fault voided, and the rerun beneath them).
 Every dataset was destroyed afterwards; the sudoers rule, the throwaway account and the ZED handler were removed;
 ZED was left stopped and disabled; `/etc/passwd` and `/etc/group` read byte for byte as before.
 
@@ -144,8 +145,14 @@ A link pointing at `/etc` would hand the user `/etc`, so this is root for whoeve
 With the folder owned by root, mode 0755, the user's `ln -s` there was refused, the clone still mounted,
 and the user wrote inside it (the clone's own top folder is the user's).
 So the worktrees parent's folder must be root's under either mechanism.
+The same code mounts the parent dataset itself at boot (`zfs mount -a`), so a parent mounted inside a folder the user owns
+could be redirected the same way while it is unmounted; that was not probed, and it holds today for every dataset
+mounted inside the home folder.
 A handler could also check the path before mounting (not tried); a sudoers rule sees only the arguments.
 Root's mount leaves its mountpoint folder behind after the clone is destroyed.
+Who this guards against: on this machine the account has passwordless sudo, so a process running as the account gains
+nothing from it; it matters for an account that holds only the root-once setup (the wrapper on other machines,
+or this one if blanket sudo ever ends) and for a confined agent process that can still write that folder.
 
 ### From each place a worktree can be made
 
@@ -156,17 +163,26 @@ Root's mount leaves its mountpoint folder behind after the clone is destroyed.
   namespace (as ZED makes it) was seen and writable from there.
   The throwaway account holding only the regex rule got the same refusal under the flag.
   So under no_new_privs ZED works and the sudoers rule does not.
-  No caller on this machine sets the flag today (both readings above); systemd's `NoNewPrivileges=`,
-  containers and agent sandboxes can.
+  No caller read on this machine sets the flag today: this Claude Code session's own shell and a unit with the
+  driver's properties both read 0 (no Pi run was going, so a Pi tool process itself was not read);
+  systemd's `NoNewPrivileges=`, containers and agent sandboxes can set it.
 - **Inside a user namespace**, both `unshare --user --map-current-user` and a unit with `ReadOnlyPaths=`
   (as branch b75c20af41 starts Pi runs: systemd gave it a user namespace, uid map `1000 1000 1`,
   though `PrivateUsers` read `no`): `zfs list` of the dataset answered "dataset does not exist" and the clone failed.
   Neither mechanism helps there: the caller cannot make the clone, so ZED gets no event and sudo has nothing to mount.
-- **What such a confined unit sees of a clone mounted outside it**: a clone root mounted while the unit ran
-  never appeared inside it; one mounted before the unit started appeared read-only under `ReadOnlyPaths=`
-  of the parent folder, and writable when its own path was named in `ReadWritePaths=`.
-  So a confined run's ZFS worktree has to be cloned and mounted outside the unit before it starts,
-  under either mechanism.
+- **What such a confined unit sees of a clone mounted outside it**: with the worktrees parent itself named in
+  `ReadOnlyPaths=`, a clone root mounted while the unit ran never appeared inside it, and one mounted before the unit
+  started appeared read-only, or writable when its own path was named in `ReadWritePaths=`.
+  The control, with the parent outside every `Read*Paths=` (the unit made read-only an unrelated folder instead),
+  saw a clone mounted while it ran, writable. So what hides a later mount is the read-only bind of the parent,
+  not the unit's namespaces.
+- **Who makes worktrees today**: the driver makes each run's worktree before it starts the run's unit
+  (`makeWorktree` in `package/pi-shared/subagent-driver/src/start-pi-run-in-a-worktree.ts`), outside any confinement;
+  an agent that runs `git worktree add` inside a confined unit cannot clone.
+- **The reflink fallback inside a confined unit works**: a `cp --reflink=always` of a 64 MiB file within one writable
+  folder, and from a folder named in `ReadOnlyPaths=` into one named in `ReadWritePaths=` of the same dataset,
+  each grew the pool's `bclonesaved` by exactly 67,108,864 bytes, as the same copy outside any unit did
+  (a first run that read `bclonesaved` before the pool synced read 0 for all three, the control included, and is void).
 
 ### The regex rule, run for real
 
@@ -183,8 +199,10 @@ not flagged, unmounted every clone whose `org.monochromatic:unmount` said `reque
 and wrote `org.monochromatic:unmount-result=failed` when an unmount failed.
 
 - **Speed**, five rounds alternating the two arms and swapping their order each round:
-  the mount was seen 0.21 to 0.25 times as long after `zfs clone` returned as `sudo -n zfs mount` took;
-  the unmount (the user's `zfs set` plus the handler) took 0.69 to 0.83 times as long as `sudo -n zfs unmount`.
+  from the start of `zfs clone` to a mounted worktree, the ZED arm took 0.48 to 0.60 times as long as
+  `zfs clone` followed by `sudo -n zfs mount`; the unmount (the user's `zfs set` plus the handler)
+  took 0.69 to 0.83 times as long as `sudo -n zfs unmount`.
+  (A ratio taken from when `zfs clone` returned would read about a quarter, but by then the handler had already begun.)
   Most of sudo's time is sudo: `sudo -n /usr/bin/true` took 29 times as long as `/usr/bin/true` in the same rounds.
   Both arms stay in tens of milliseconds, against the 48.84 s of today's `git worktree add`.
 - **Events while ZED was stopped**: a clone made then was mounted shortly after ZED started,
@@ -252,7 +270,10 @@ and wrote `org.monochromatic:unmount-result=failed` when an unmount failed.
 ## Layout facts the design must meet
 
 - A clone's source must be a dataset. The main checkout is a folder inside `zpcachyos/ROOT/cos/home` today,
-  so the route needs the checkout moved into a dataset of its own once, with worktrees as clones beneath it.
+  so the route needs the checkout moved into a dataset of its own once.
+  Its clones cannot be children of that dataset: a child mounts inside the checkout's folder, which the user owns,
+  and a planted symlink there redirects root's mount (section "A planted symlink redirects both mechanisms").
+  They go under a separate parent dataset whose folder is root's.
 - sanoid's entry names `zpcachyos/ROOT/cos/home` with no `recursive` line (`/etc/sanoid/sanoid.conf`),
   so a child dataset holding the checkout would drop out of the hourly snapshots unless sanoid names it too.
 - `zfs-space-guard` destroys only `<dataset>@autosnap_*` of its own dataset (`/usr/local/sbin/zfs-space-guard`, line 44),
@@ -269,10 +290,14 @@ Mount mechanism, ranked (changed 2026-11-18): a reconciling ZED handler > an anc
 > a root-owned helper or service of ours > fuse-overlayfs.
 Out: a polkit rule for transient units (lets the user mount anything at the path), a wildcard sudoers rule
 (lets the user turn setuid back on), fstab `user` entries (do not work).
-ZED ranks above the regex rule because it works for a caller under no_new_privs where sudo refuses,
-the caller never runs anything as root, its mount was seen in 0.21 to 0.25 of the time sudo's took,
-and its handler can check the mount path, where a sudoers rule sees only arguments;
-its costs are a daemon turned on (with the package's other zedlets), root code of ours,
+ZED ranks above the regex rule, a close call: the only place measured where one works and the other does not is a
+caller under no_new_privs without a user namespace, and no caller read here sets that flag today;
+the rest is that the caller never runs anything as root, its worktree was ready in 0.48 to 0.60 of the sudo arm's time,
+and its handler can check the mount path (not tried), where a sudoers rule sees only arguments.
+So the ranking is a bet on future callers and on a path check still to be built.
+The regex rule's real advantages: it is synchronous, `zfs` gives the caller its own error text,
+it needs no daemon and no root code of ours, and it was run for real and refused every variant.
+ZED's costs: a daemon turned on (with the package's other zedlets), root code of ours,
 and an asynchronous request whose waiting, deadline and error report the wrapper must design,
 which the 2026-11-18 probes showed workable (replay after a stop, a lost event recovered, a busy unmount reported).
 The earlier draft ranked the regex rule first for needing no root code and no daemon, which is install cost;
@@ -284,8 +309,10 @@ a root service with its own request channel is the only kind that could make clo
 for a caller inside a user namespace, also unbuilt.
 The helper ranks above fuse-overlayfs because its clones run at native speed,
 where the overlay costs 2.2× to 3.4× for as long as the worktree lives.
-Under every mechanism: the worktrees parent's folder is root's (a planted symlink otherwise redirects root's mount),
-and a confined run's worktree is cloned and mounted outside its unit before the unit starts.
+Under every mechanism: the worktrees parent's folder is root's (a planted symlink otherwise redirects root's mount);
+a caller inside a user namespace (a unit with `ReadOnlyPaths=` included) cannot clone, so its ZFS worktree is made
+outside it, as the driver already makes run worktrees, or it takes the reflink fallback, which works there;
+and a unit that should see clones mounted after it starts must not name the worktrees parent in `ReadOnlyPaths=`.
 
 ## Not researched yet
 
