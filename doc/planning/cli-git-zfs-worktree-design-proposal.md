@@ -90,6 +90,8 @@ at line 1525.
   registration (`module/zfs/zfs_ioctl.c:7621` to `:7624`, OpenZFS `zfs-2.4.4`) shows the read policy and an
   optional wildcard property list (`zfs_keys_get_bookmarks`, `:4192` to `:4194`); [VM item 13][vm-13] read each
   bookmark's GUID and creation transaction group.
+- `ZFS_IOC_CHANNEL_PROGRAM` (`0x5a48`, `include/sys/fs/zfs.h:1556`): run one fixed root-owned program for
+  conditional destruction, and only under the [root removal option](#clone-removal-identity-protection).
 
 The [project decided][answers] "B: Include promote". Promoting a clone of the checkout makes the checkout a
 clone of the promoted dataset and transfers the origin snapshot and the checkout's older snapshots into the
@@ -353,7 +355,8 @@ and checkout are ready. The export command unmounts datasets before issuing expo
 (`cmd/zpool/zpool_main.c:2410` to `:2434`); the export event is posted during kernel export
 (`module/zfs/spa.c:7829` to `:7839`), too late to order those unmounts. Replaying or polling after an
 import cannot provide the missing shutdown ordering. The proposed mechanism is the project's
-ZED handler for in-session requests **plus** a systemd unit for boot and shutdown, not a second request channel.
+ZED handler for in-session requests **plus** a systemd unit for boot and shutdown, not a second request channel
+for mounting; the [root removal option](#clone-removal-identity-protection) would add one for destruction.
 
 Install the root-owned system unit `reconcile-git-worktree-clone-mounts.service` with `Type=oneshot`,
 `RemainAfterExit=yes` and `WantedBy=multi-user.target`. Wire `Requires=` and `After=` to the checkout provider
@@ -679,7 +682,7 @@ therefore omits the key, and a test asserts that the encoded request has no `def
     This includes a proven own sanoid snapshot; a missing or changed recorded identity, unproved new history, or
     unknown prior outcome stops the attempt. After each known batch outcome, enumerate again before head destroy.
     A snapshot created after the final enumeration can still block head destroy (`module/zfs/dsl_destroy.c:783`
-    to `:789`, OpenZFS `zfs-2.4.4`); retry only after identifying the new own snapshot and reproving the plan, not
+    to `:790`, OpenZFS `zfs-2.4.4`); retry only after identifying the new own snapshot and reproving the plan, not
     on unexplained `EBUSY`. Before head destroy, also enforce the selected policy's deferred-origin protection:
     destroying the last clone can reap an origin already marked for deferred destroy outside the separate
     origin-cleanup step (`dsl_destroy.c:1028` to `:1037` and `:1168` to `:1172`). Bound replanning by
@@ -1062,13 +1065,19 @@ the account's attempt with a matching tuple was denied. The substitutions were s
   fixed root-owned program and exact identity tuples. Check the expected clone GUID, origin and `createtxg` and the
   approved history identities in the program, not just before submission. The program excludes concurrent ZFS admin
   changes while it runs (`man/man8/zfs-program.8:35` to `:40`); it does not settle Linux mount or Git races. This
-  adds a privileged request and recovery surface. Before enabling it, prove scope against spoofed or replayed
-  requests and same-name replacements. Persist the verified plan under root control before mutation; after a lost
-  response or restart, prove which recorded identities survive or are gone before resuming, never replay by name.
+  adds a privileged request and recovery surface. It is also a second request channel beside the mount intent
+  property, and a third root-installed program beside the handler and the mount binary. Two facts it still lacks
+  belong to the owner's weighing rather than to this text: where root records the origin-side lineage inventory at
+  add time, since the claim and that inventory sit in the account-owned Git common directory and the handler records
+  slot identity rather than lineage; and how the unprivileged wrapper reaches a root removal operation, because
+  "authenticate the caller against the configured UID" names no transport here. Before enabling it, prove scope
+  against spoofed or replayed requests and same-name replacements. Persist the verified plan under root control
+  before mutation; after a lost response or restart, prove which recorded identities survive or are gone before
+  resuming, never replay by name.
   In the snapshot program, precheck every approved snapshot and its delete prerequisites before any snapshot
   mutation (`module/zfs/dsl_destroy.c:630` to `:653` is the kernel's batch pattern). Prove no-loss refusal and
   per-name results for snapshot precheck failures. Run a separate conditional head request after verifying the
-  snapshot outcome: the head check would refuse while own snapshots remain (`dsl_destroy.c:783` to `:789`).
+  snapshot outcome: the head check would refuse while own snapshots remain (`dsl_destroy.c:783` to `:790`).
   Check the actual origin's identity and deferred-destroy state inside the head program and refuse a deferred
   origin, so the head request cannot implicitly reap it (proposed from `dsl_destroy.c:1028` to `:1037`).
   Before enabling this option, prove execution and result budgets for a whole snapshot batch and exercise failure
