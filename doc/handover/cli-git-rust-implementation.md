@@ -40044,7 +40044,24 @@ test): the evidence cited beside the 60 s timed `ip`, `wg`, `nft` and `sysctl`, 
 literal `60_000`s with no exported constant; each stall test spends the full minute. All three accepted; the author's
 fourth run (`pi-node-sync-calls-go-through-coreutils-sync-4`, GPT) cites this machine's write-and-sync readings (72 ms
 and 2,564 ms on the ZFS drive, 15,512 ms on the earlier drive under 18 agents), names one constant per package and
-gives the tests a short bound; then the merge.
+gives the tests a short bound; then the merge. It ended `idle` (35 turns; `1505fb21f1`, `530e6888da`): one named
+constant per package with the readings cited beside it, stall tests at a 400 ms bound with the production constant
+still asserted (Git 63.454 s to 4.159 s, claims 64.174 s to 4.489 s). `main` merged into the branch in its worktree
+(`7d10dc5f88`, the research-doc conflict resolved by keeping both sides: the `node:ffi` paragraph from `main` ends
+"Keeping durability under the default", the branch's "Directory sync for published claims" follows); the three
+packages' `lint:types` pass on the merged tree. **In `main` by fast-forward at 2026-11-19** (tip `7d10dc5f88`); the
+wrapper handed the worktree's removal to the commit service on the merge. The merge first met an uncommitted README
+paragraph and an untracked doc (`package/git-policy/cli/README.md`,
+`package/git-policy/cli/doc/planted-controls-name-the-code-that-holds-their-guard.md`) left in the main checkout at
+07:05 on 2026-11-16 by the planted-controls run (`planted-controls-of-the-wrapper-name-current-sources-again-...-1`, the
+run that also committed `293de6dae5` by mistake); its branch
+`test/git-policy-cli-planted-controls-of-the-wrapper-name-current-sources-again` holds a different version of the doc
+(23 lines added, 48 removed). The owner chose "Save as patch (Recommended)": the paragraph is saved as
+`~/temp/agent/planted-controls-leftover-in-the-main-checkout-2026-11-19/keep/readme-paragraph-left-uncommitted-by-the-planted-controls-run.patch`
+and the doc copied beside it (checked byte for byte), then the README restored with the wrapper's
+`--no-enforce-worktree` hatch and the untracked doc removed. **When the planted-controls branch is merged, compare its
+doc and README pointer with that saved version.** The other four uncommitted files in the main checkout date from
+2026-11-10 and stay as they are.
 
 The prewarm writer's DeepSeek resume ended `idle` (214 turns) at `4ebfded328`, not final
 (`~/temp/agent/prewarm-acts-only-on-the-entry-it-checked-2026-11-16-scratch/keep/report.md`): one held-name module
@@ -40094,7 +40111,31 @@ clone's, and the bookmark moved; 14, the CLI refused a mixed batch before any io
 private move and unmount both later namespaces still held the clone, the root scan found both, the clone's destroy
 returned "dataset is busy"; 16, no `mvm` image runs `7.3.5-1-cachyos` with OpenZFS 2.4.4. The revision writer
 (`pi-zfs-worktree-design-proposal-delta-gate-review-revision-1`, GPT, fresh, same worktree) writes DH1 as an open
-choice with both ways out and answers DM1 to DM4 and the lows. The review itself was the one going
+choice with both ways out and answers DM1 to DM4 and the lows. It ended `idle` (97 turns; `6ed879ab8b` to
+`7fe84c7be8`, one commit per finding): DH1 left open as one choice with both ways out (delegated destroy with the
+same-account residual accepted explicitly, or a root-run conditional destroy owned by the wrapper's removal workflow);
+DM1 proof order (origin and origin snapshot GUID, then `createtxg`, then the origin-side inventory; bookmarks); DM2 one
+`ZFS_IOC_DESTROY_SNAPS` with split rules; DM3 a root scan by mount namespace before the first snapshot delete; DM4 an
+allowlist of exact kernel releases, `7.3.5-1-cachyos` not yet on it; lows answered; 14 open choices. It disagrees with
+the review on one point, partial cleanup stays a recovery state even with one batch (a split batch, a failed head
+destroy); I agree with it. Next (rule `RRG`, and `LHZ` for a design put to the owner): a Sonnet re-review of
+`652b51d74d..7fe84c7be8` (background Agent, read-only), then the 14 choices through the question tool, ranked.
+
+**Fixture provenance audit by model (Sonnet, read-only, 2026-11-18T23:13 to 23:46-05:00;
+`~/temp/agent/fixture-provenance-audit-by-model-2026-11-19/keep/report.md`, saved by the coordinator from the agent's
+returned text because the harness refused its file write).** GPT 6.2 Sol, model verified: 9 writer runs, 37 fixtures of
+another program's output, 22 with no producer or capture behind them (class d), in 3 of the 9 runs, all in
+`package/pi-plugin/rate-limit-fallback`, including 8 added by the run that answered the review after it had built the
+adapter check (policy wordings, a Qwen wording, legacy status prefixes). The other 6 GPT runs took their fixtures from
+the real tool (Node `spawn`, `/usr/bin/false`) or labelled stand-ins. No run folder before 2026-11-17 has a
+`feed.jsonl` (the reason is not known), so no pre-switch run has a verifiable model and the specified DeepSeek arm is
+empty; the 9 most recent pre-switch test-changing runs (model unverified, all in `package/git-policy/cli`, tests on real
+Git) added 0 class d fixtures; one pre-switch run on the same topic (`pi-driver-leaves-429s-to-pis-native-retry-1`,
+2026-11-11, found by a targeted search) added 4, with a README sentence resting on one
+(`package/pi-shared/subagent-driver/README.md:1608-1610`). The counts cannot say the rate differs by model; they fit
+"a remote API with no local capture gets invented strings". Follow-ups: the provider's remaining class d fixtures go to
+its next review; the driver package's four (`src/retries-of-a-model-error.unit.test.ts:53`, `:114`, `:115`, `:116` at
+`8364fed8d9`) and its README example need replacing with captured forms. The review itself was the one going
 (`pi-review-node-sync-calls-go-through-coreutils-sync-at-e5c61b8af2-1`, in the writer's worktree).
 
 The work-record review `1d5ad2597d` returned (85 turns, `idle`): four reads that wait for ever on a named pipe
