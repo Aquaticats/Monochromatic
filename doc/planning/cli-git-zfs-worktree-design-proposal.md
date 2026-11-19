@@ -34,8 +34,9 @@ ships and what it links today" explains why the binary must still start without 
 ### Requests and input ownership
 
 The initial interface is Linux only. Expose typed operations, not a general-purpose ioctl or property setter.
-Numbers are for OpenZFS `zfs-2.4.4`, `include/sys/fs/zfs.h:1502` to `:1550`. The vet's "Result and the owner's decision"
-records the core set; `SNAPSHOT_LIST_NEXT` and `GET_FSACL` were checked separately in the same header.
+Numbers are for OpenZFS `zfs-2.4.4`, `include/sys/fs/zfs.h:1502` to `:1550`.
+The vet's "Result and the owner's decision" records the core set;
+`SNAPSHOT_LIST_NEXT` and `GET_FSACL` were checked separately in the same header.
 
 - `ZFS_IOC_OBJSET_STATS` (`0x5a12`): inspect dataset type, identity, origin, and the values and sources of properties.
 - `ZFS_IOC_DATASET_LIST_NEXT` (`0x5a14`): enumerate immediate children via the kernel's cursor.
@@ -148,11 +149,10 @@ with no other descendants and do not treat its snapshots as protection from that
     special form cannot use the ladder's existing-parent requirement unchanged. All other paths keep their meaning.
 2.  Require the ladder's chosen source to be the configured main checkout and prove it clean. Do not silently use
     the main checkout in place of a linked source. Freeze its index/tree proof and make a fresh, uniquely named
-    `main-dataset@cli-git-origin-<nonce>` snapshot for this add. Clone it to the
-    slot with a local mount request at creation. Bind the journal to the actual origin snapshot and clone GUIDs,
-    not merely the requested names. Never reuse a sanoid snapshot as the origin or promote a clone. The [ZFS
-    planning record][zfs-plan], lines 32 to 43, records the measured dependency: the origin cannot be destroyed
-    while a clone uses it.
+    `main-dataset@cli-git-origin-<nonce>` snapshot for this add. Clone it to the slot with a local mount request
+    at creation. Bind the journal to the actual origin snapshot and clone GUIDs, not merely the requested names.
+    Never reuse a sanoid snapshot as the origin or promote a clone. The [ZFS planning record][zfs-plan],
+    lines 32 to 43, records the measured dependency: the origin cannot be destroyed while a clone uses it.
 3.  Wait for ZED and verify the exact ZFS mount is visible and writable in the caller's namespace. At this point
     the filesystem is a clone, not yet a Git worktree. Rename the inherited `checkout` to a private staging name
     beside it inside the clone. Register `checkout` using Git's `worktree add --no-checkout` validation; bind the
@@ -167,6 +167,7 @@ with no other descendants and do not treat its snapshots as protection from that
 4.  Record the completed binding in the Git common directory: canonical path, repository and registration
     identities, dataset and origin names and GUIDs, and request nonce. A lookup requires that binding plus the
     expected clone lineage and mount facts; a prefix or a user property is not proof of ownership.
+    If clone creation failed and absence is certain, try to delete only the origin this add proved it created.
     Keep an interrupted add and its registration when ownership or cleanup is uncertain. Report the stage, clone,
     origin and actual registration, and whether to resume, remove, or rerun at an ordinary writable destination.
     Do not create a second checkout over an unverified mount, or destroy another process's stage. After Git binds
@@ -205,8 +206,9 @@ it does not cancel a kernel request or revoke a durable intent. Never retry with
 
 If the handler refuses, the caller sees the exact failed operation, dataset, expected path and reason. On `EBUSY`,
 name the mount, explain that open handles or a working directory can keep it busy, and advise leaving it and retrying
-from another checkout. Explain that the request remains live and a later sweep can unmount it unless it is reversed. On timeout, report the last observed state, that a late action is possible, the handler's log
-and `doctor` commands, and the matching request to resume. Treat a mount hidden from the caller as a separate failure,
+from another checkout. Explain that the request remains live and a later sweep can unmount it unless it is reversed.
+On timeout, report the last observed state, that a late action is possible, the handler's log and `doctor` commands,
+and the matching request to resume. Treat a mount hidden from the caller as a separate failure,
 not a timeout success. The [ZFS planning record][zfs-plan], lines 157 to 185 and 195 to 226, documents replay after
 ZED stops, a dropped event recovered by a later property write, a busy unmount reported and retried, parallel zedlets,
 and the confined caller that could not see a later mount. A reboot starts with no usable old event queue; durable
@@ -218,8 +220,9 @@ Reuse the linked registration and back-link checks, the lock and clean checks (o
 cleanliness, not a lock or an identity check), and the held-directory boundary walk. Check the clone, its checkout,
 and its registration for other worktrees, nested datasets and mounts, including bind mounts. Check actual dataset
 children and snapshots as well. An unsupported remove of a known managed clone must not fall through to Git's
-recursive removal. Report the blocker and do not touch its files. The guards come from the [wrapper specification][spec],
-lines 2932 to 2943 and 3064 to 3190, and `src/native/subvolume/subvolume_remove_walk.rs:465` under the CLI package.
+recursive removal. Report the blocker and do not touch its files. The guards come from the
+[wrapper specification][spec], lines 2932 to 2943 and 3064 to 3190, and
+`src/native/subvolume/subvolume_remove_walk.rs:465` under the CLI package.
 
 Record removal intent, warn that successful removal deletes snapshot history of that worktree, release handles that
 would hold it busy, and request `unmount`. After a matching root result, verify the mount is absent and the recorded
@@ -258,8 +261,8 @@ On ordinary writable paths, **rung 2** gains ZFS `FICLONE` if a clean source and
 and the kernel accepts the reflink. Use held descriptors and existing clone, index, and ignored-copy rules.
 Choose it if managed setup or a safe mount is unavailable before mutation, the caller cannot clone in its namespace,
 or the requested path is outside the managed anchor. For a refused `FICLONE`, cross-dataset path, or unproved
-source, continue to **rung 3**, Git's checkout plus the existing ignored-state behavior. The [ZFS planning
-record][zfs-plan], lines 14 to 30, records `EXDEV` across datasets despite block cloning being enabled. Do not hide
+source, continue to **rung 3**, Git's checkout plus the existing ignored-state behavior. The
+[ZFS planning record][zfs-plan], lines 14 to 30, records `EXDEV` across datasets despite block cloning being enabled. Do not hide
 an ordinary byte copy inside rung 2. A managed path cannot be filled without its mount, because the anchor is
 root-owned; print the requirement and the option to retry at an ordinary path. After migration, that ordinary path
 must be under the source's dataset to reflink. A same-pool path in home is no longer enough.
