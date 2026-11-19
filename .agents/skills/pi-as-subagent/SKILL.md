@@ -322,11 +322,17 @@ which `mise run toolchain:install` makes.
     a reviewer names the provider and model its pool gives
     (section "Who writes and who reviews"):
 
+    Pi writes its tools' spilled output (`pi-bash-*.log`, `pi-codemode-*.txt`) to Node's `os.tmpdir()`
+    (`@earendil-works/pi-coding-agent` 1.5.2, `dist/utils/output-files.js:16`), which is `/tmp` unless `TMPDIR` names
+    another folder (checked 2026-11-19 with `node --print "require('node:os').tmpdir()"` under both),
+    so give each run `TMPDIR` inside its run folder, made first with `mkdir --parents <run>/tmp`;
+    rule `ATH` keeps scratch out of `/tmp`, and a brief cannot reach what Pi itself writes.
+
     ```sh
     # run from ~/Monochromatic
     systemd-run --user --wait --unit=pi-<task> --collect \
       --property=RuntimeMaxSec=2500 --property=MemoryMax=3G --property=CPUQuota=200% --property=TasksMax=300 --property=IOWeight=1 \
-      --setenv=PATH="$(mise exec -- printenv PATH)" --setenv=HOME="$HOME" \
+      --setenv=PATH="$(mise exec -- printenv PATH)" --setenv=HOME="$HOME" --setenv=TMPDIR=<run>/tmp \
       "$(mise exec -- bash --noprofile --norc -c 'command -v node')" \
       "$PWD/package/pi-shared/subagent-driver/src/drive-pi-subagent.ts" \
       --run-folder=<run> --working-folder=<its worktree, or "$PWD"> --prompt-file=<prompt-file> \
