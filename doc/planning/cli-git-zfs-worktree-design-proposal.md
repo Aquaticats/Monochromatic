@@ -315,8 +315,9 @@ kind, name, GUID and `createtxg`. Record the clone's initial inventory separatel
 cannot identify transferred history. This is a proposed proof record based on the transfer in [VM item 13][vm-13].
 [Removal and recovery](#removal-and-recovery) defines how to use it. This draft does not name where that binding and
 lineage record lives: only the per-add claim record has a named home, the account-owned Git common directory, and
-the account can write whichever store holds the binding. Root's conditional destruction therefore has to keep its
-own copy of the identities it checks ([Clone removal identity protection](#clone-removal-identity-protection)).
+the account writes the binding record wherever it is placed (reasoning: the wrapped add writes it as the account).
+Root's conditional destruction therefore has to keep its own copy of the identities it checks
+([Clone removal identity protection](#clone-removal-identity-protection)).
 On resume distinguish a claimed empty slot, registration without a dataset (including a possible origin only),
 an unmounted clone, a mounted but unfinished clone and a verified checkout. Recheck recorded identities, the mount
 and the visible pointer before resuming; never use names, properties or a matching result alone to prove ownership.
@@ -1047,11 +1048,11 @@ between them. Use the VM findings and identify what remains unmeasured; a rankin
   exact list disables the managed route after every CachyOS kernel package update until a VM run passes on that
   release, which makes existing unmounted clones unavailable in the meantime. No release on `7.3.5-1-cachyos` has
   been qualified: [VM item 16][vm-kernel] searched the built-in images and the local image directory only, did not
-  query the remote catalog, and the guests it found boot `6.8.0-147-generic`; the custom-template route named under
-  [Acceptance tests the build still owes](#acceptance-tests-the-build-still-owes) stays open. A functional probe admits
-  untested releases and leaves unmeasured behaviour to appear on the host, where a failure would show as a refused
-  mount or as one the probe did not detect (reasoning). Both keep the runtime module gate, neither authorizes a path
-  mount, and both preserve existing bindings and intent while the route is unavailable.
+  query the remote catalog, and the guests this record used boot `6.8.0-147-generic`; the custom-template route named
+  under [Acceptance tests the build still owes](#acceptance-tests-the-build-still-owes) stays open. A functional
+  probe admits untested releases and leaves unmeasured behaviour to appear on the host, where a failure would show
+  as a refused mount or as one the probe did not detect (reasoning). Both keep the runtime module gate, neither
+  authorizes a path mount, and both preserve existing bindings and intent while the route is unavailable.
 - Blocked-removal cancellation. Offer an explicit `cancel-worktree-removal <slot>` command that settles outstanding
   requests and reverses intent only for a proven surviving binding; or report the resume step and leave reversal to
   administrator recovery. A command gives the operator one supported way back; report-only keeps the caller
