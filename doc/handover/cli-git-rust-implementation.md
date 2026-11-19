@@ -39964,8 +39964,13 @@ What follows from them, as work:
   part is an open item" misses the bookmark plan's home; the record ties the deferred refusal to the forced arm; the
   "Pre-acceptance VM measurements" passage still reads as pending; two acceptance items lack the survive assertion and
   "outside the caller's session"; thirteen live "this draft" references); fit to merge after M1. Weighed as all worth
-  fixing. GOING: the narrow round `pi-zfs-design-acceptance-fold-in-review-findings-fixed` in the fold-in worktree;
-  then the coordinator's `rg` check and the merge.
+  fixing. The narrow round ended `idle` (67 turns) at `0ba9932042`, all six answered (L1 by weakening the record's
+  sentence, since the binding and lineage record's home is also unnamed). The coordinator's check passed (script
+  `check-the-fixes-at-0ba9932042.ts` in the round's folder; the old anchor search found its one link at `0113aebc3f`
+  and none at the tip). **The accepted design is in `main`** (`git merge --no-ff`; the proposal, the measurements
+  record and `doc/decision/cli-git-zfs-worktree-design.md`); the fold-in worktree is removed; the folded ZFS answers
+  left the questions file, and the two pointers to the acceptance section now say it reads as recorded at
+  `38ed22c5ea`.
   GOING beside it, in the slot the LFS worktree freed: the implementation plan (nothing of the route is built yet: no
   `package/zfs/`), `pi-zfs-worktree-implementation-plan` (DeepSeek on Neuralwatt, cap 635, wall 180 min) in
   `.claude/worktrees/zfs-worktree-implementation-plan` on `docs/planning-cli-git-zfs-worktree-implementation-plan` from
