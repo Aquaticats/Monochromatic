@@ -194,7 +194,14 @@ Not final and not approved: this session's own account.
   research documents): every one of H3, H4, M1 to M5 and L1 to L6 is accepted for the fold-in, none dismissed; H3 is
   reproduced by the ZFS research's VM log (`guest-exact-zfs.log` lines 42 to 44: a `.git` pointer left in the
   checkout layer keeps `git worktree prune` from removing the registration, and without it prune removes it), and L5
-  too (lines 40 to 41: `git worktree move` of a mounted clone fails "Device or resource busy"); its worktree is removed. The owner then added `AGENTS.md` rule `WTU` (d507a55f0e) and
+  too (lines 40 to 41: `git worktree move` of a mounted clone fails "Device or resource busy"); its worktree is removed.
+  H1 and H2 weighed after the two research documents landed (read whole, review lines 19 to 206): both accepted. H1's
+  location is decided, its fill is the clones document's item 7 sequence, its descriptor attach is measured in item 3;
+  its VM gates 1 (the path-mount control), 3 (a rename loop over many mounts), 6 (a path swapped before unmount) and 7
+  (a user namespace attaching the clone, `FS_USERNS_MOUNT`) stay open. H2's dataset and path are the owner's answer A,
+  its pnpm consequence is measured; still owed are the checkout dataset's own boot mount (an entry the account can
+  replace while unmounted: `chattr +i` or `mountpoint=legacy` with the descriptor attach) and a rule for nested
+  datasets such as `zpcachyos/nosnap/vm-builder-output` under the checkout. The owner then added `AGENTS.md` rule `WTU` (d507a55f0e) and
   the wrapper refusal for later (issue 6313), and asked for three digs, all GPT 6.2 Sol through Pi, **going since
   2026-11-18T19:46:28-05:00, 19:47:23 and 19:47:48 in this order**: the search for an earlier `AGENTS.md` worktree-place rule (unit
   `pi-agents-md-worktree-place-rule-search-1`, read-only in the main checkout, report
