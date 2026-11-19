@@ -40189,7 +40189,21 @@ commits from `a4b227503a`; all four package tasks pass (72 cases); each new test
 flagged). It kept the Qwen 60 s hold on the Token Plan FAQ; **the coordinator opened that page (2026-11-19) and it does
 carry "429 Requests rate limit exceeded" and "Wait about 1 minute before retrying"**. GOING: DeepSeek short review on
 Synthetic, `pi-review-pi-plugin-rate-limit-fallback-at-87569e86ef-1` (review file under
-`change-reviews/pi-plugin-rate-limit-fallback-at-87569e86ef/`).
+`change-reviews/pi-plugin-rate-limit-fallback-at-87569e86ef/`). It ended `idle` (138 turns): **0 high, 0 medium, 7
+low**: the gate matches the OpenAI sentence anywhere (`includes`) while its TSDoc and the README say start and "cannot
+fire", measured firing on a quoting refusal; a stale `HTTP 429` example; the Responses 429 recognised only under the
+provider name `openai` though the adapter builds the prefix from any provider (`openai-responses.js:177`); no test of the
+`429 "…"` shape; the verifier's no-request property rests on one constant; a stale "HTTP 200 observed" comment; the
+writer's case count is 66, not 72. All accepted (7 is a record fix). GOING: the writer's session resumed for 1 to 6,
+`pi-provider-answers-its-third-review-1` (run-9); then a delta check and merge into main.
+
+**Reviewer speed result (2026-11-19, four interleaved rounds, model time from the feeds' prompt-sent to settled,
+`keep/runs.jsonl`):** Qwen-plan DeepSeek 9.4, 10.8, 6.3, 17.7 s; its same-model control 18.9, 13.5, 11.9, 8.3 s (Qwen
+over control 0.50 to 2.13, the run-to-run spread); `infinite:small:vision` 186.5, 496.4, 413.9, 488.7 s, which is 13, 41,
+46 and 38 times the mean of the two Qwen runs of its round, well outside that spread. All twelve answers named the 60 s
+bound and `SYNC_DEADLINE_MILLISECONDS` correctly, so the answers matched and only the speed differed. At the median
+ratio a 150-turn review that takes about 17 minutes on Qwen would take several hours (extrapolation, not measured).
+For the owner: where, if anywhere, it sits in the reviewer pool.
 
 **For the owner (terms of the Qwen plan, found 2026-11-19 on that same FAQ page):** "Token Plan Personal Edition is for
 individual interactive development through officially designated tools (such as Cursor, Claude Code, and Windsurf).
