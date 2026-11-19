@@ -3,7 +3,7 @@
 **Non-final draft by an agent, unapproved.** It records guest observations and design implications, not design
 acceptance. A section heading's stamp is the commit time of the commit that landed that section. This file's own
 revision stamp is what `git log --format=%cI -1` prints for the file, which before this revision's commit reported
-2026-11-19T01:26:08-05:00 at `6f317a849f`. The account ownership decision in the
+2026-11-19T01:33:25-05:00 at `ee3d145d8f`. The account ownership decision in the
 [planning record](cli-git-zfs-worktree.md#owners-answers-of-2026-11-18) makes the refusal repeat a pre-acceptance
 condition, not something to postpone until implementation.
 
