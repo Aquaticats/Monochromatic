@@ -82,8 +82,8 @@ at line 1525.
 - `ZFS_IOC_SNAPSHOT` (`0x5a23`): create a named origin; the request names the pool and carries a `snaps` nvlist
   (the kernel's name/value list), not a recursive flag.
 - `ZFS_IOC_GET_FSACL` (`0x5a29`): read delegations for `doctor`; inspect grants on ancestors too.
-- `ZFS_IOC_DESTROY_SNAPS` (`0x5a3b`): destroy an explicit snapshot name set, with no deferred destroy,
-  preserving per-name failures.
+- `ZFS_IOC_DESTROY_SNAPS` (`0x5a3b`): destroy an explicit snapshot name set, preserving per-name failures; the
+  request omits the `defer` key, so no snapshot is marked for deferred destroy.
 - `ZFS_IOC_CLONE` (`0x5a42`): place the target in `zc_name` and send `origin` and optional `props` in the nvlist.
   The contract is in `lib/libzfs_core/libzfs_core.c:328` and `module/zfs/zfs_ioctl.c:3844` at `zfs-2.4.4`.
 - `ZFS_IOC_GET_BOOKMARKS` (`0x5a44`, `include/sys/fs/zfs.h:1552`): enumerate one dataset's bookmarks and request
@@ -595,6 +595,13 @@ own snapshots in one ioctl. The kernel prechecks the whole request before deleti
 name-based, ignores missing snapshot names (`lib/libzfs_core/libzfs_core.c:442` to `:456`), and is not atomic with
 the later head destroy. Neither a successful batch nor a dependency refusal establishes provenance.
 
+The kernel reads a snapshot's deferral from the presence of a `defer` key in the request, whatever its value
+(OpenZFS `zfs-2.4.4`, `module/zfs/zfs_ioctl.c:4119` and `:4132`), and `libzfs_core` adds that key only when it
+defers (`lib/libzfs_core/libzfs_core.c:475` to `:476`). A request that carried `"defer": false` would mark a
+snapshot with dependent clones for deferred destroy rather than refusing it, which would reintroduce item 11's
+loss and also mark a foreign relocated origin for later reaping (`libzfs_core.c:442` to `:451`). The binding
+therefore omits the key, and a test asserts that the encoded request has no `defer` key.
+
 1.  Prove the live pool, clone and origin dataset GUIDs match the binding. Then prove lineage in this order:
     - Necessary check: read the clone's live `origin` and resolve it to the recorded origin dataset and origin
       snapshot GUID. Require the recorded direct origin, not just a name match. Check the recorded clone and
@@ -624,7 +631,7 @@ the later head destroy. Neither a successful batch nor a dependency refusal esta
 3.  After unmount, persist the verified inventory and expected clone identity as the destruction plan.
     Require fresh root all-namespace verification before the first snapshot delete. Reprove lineage and candidate
     identities immediately before submitting the full verified snapshot set in one `ZFS_IOC_DESTROY_SNAPS` request
-    with `defer=false`; retain the per-name error list (direct route, [item 14][vm-batch]).
+    that omits the `defer` key; retain the per-name error list (direct route, [item 14][vm-batch]).
     If root conditional destruction is selected, require equivalent whole-batch checks and per-name results inside
     its single channel program request, not an external name-based ioctl after a conditional check (unmeasured).
     Skip the snapshot request for an empty set. Only then destroy the verified unmounted head under the selected
@@ -1216,9 +1223,10 @@ only for unused slots. These are unrun acceptance requirements, not evidence fro
   Under either policy an ordinary authorized removal must destroy the verified clone and its own snapshots and
   print the loss in the same invocation. Refusal controls test unsafe cases; a route that only refuses does not pass.
 - Repeat the [VM item 14][vm-batch] mixed and own-snapshot batch controls through the binding, including per-name
-  errors and GUID preservation. Exercise the selected execution route and its supported size limit, a split with
-  a changed inventory between chunks, and interruption before and after the separate head destroy. For the root
-  option prove batch-equivalent refusal, including bounded program execution; item 12 did not test it.
+  errors, GUID preservation and an assertion that the encoded request carries no `defer` key. Exercise the
+  selected execution route and its supported size limit, a split with a changed inventory between chunks, and
+  interruption before and after the separate head destroy. For the root option prove batch-equivalent refusal,
+  including bounded program execution; item 12 did not test it.
 - Kill removal across unmount, snapshot destruction, clone and origin cleanup, and Git and directory cleanup.
   Verify busy and staged mounts, nested datasets, same-name replacements, held snapshots and another clone
   pinning the origin each block the unsafe next action. Inject a new own sanoid snapshot between proof and batch
