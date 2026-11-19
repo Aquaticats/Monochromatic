@@ -40846,6 +40846,8 @@ By 03:24:49Z three more ended `idle`; each next step needs a new worktree, so ea
   `work-the-run-left-running.unit.test.ts:1576` (`cgroupShownByMachine` was not `''`), and "the values of this machine"
   failed with `SecretEnvironmentUnreadableError`; both files passed when run alone, neither starts the stand-in, and no
   cause was measured. Log: `~/temp/agent/stand-in-session-files-in-home-2026-11-19T1540/keep/full-suite.log`.
+  The first is filed as #6319; the second is the fixture flake whose fresh run was queued on 2026-11-16 (its fixture,
+  `package/env-local-json/core/src/fixture.ts`, was last changed on 2026-11-07).
 - Review of the empty-last-answer driver branch `d525bcf531` (124 turns, final): a keep on a filesystem with no hard links
   copies straight into the final kept name, so a kill mid-copy leaves a partial `.failed-<name>`
   (`keeping-a-message-aside.ts:386-420`); `README.md:1043` promises one kept name per message where the copy path and
