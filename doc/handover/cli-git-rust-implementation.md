@@ -214,6 +214,17 @@ Not final and not approved: this session's own account.
   fold everything into the proposal with a writer run, then a Sonnet gate review of the folded proposal (rule `LHZ`:
   a design put to the owner is a gate), then the owner's acceptance through the question tool; the checkout-as-dataset
   choice waits for the pnpm answer (owner: "I'm not sure yet").
+- **Two of the three ZFS digs landed in main:** `doc/planning/cli-git-zfs-clones-mounted-under-the-checkout.md`
+  (merge of `docs/planning-zfs-clones-mounted-under-the-checkout`, 6e175a8d09; probes by GPT, written by DeepSeek
+  under rule `RKD`, 41 turns; logs and scripts in `~/temp/agent/zfs-nested-checkout-mounts-2026-11-18-scratch/keep/`;
+  the guest was made by hand with qemu because the mvm template build failed, and is gone) and
+  `doc/planning/cli-git-zfs-checkout-dataset-and-pnpm.md` (merge of `docs/planning-checkout-dataset-and-pnpm`,
+  7b646d71e9 and df9304ed19; GPT, 117 turns; it left nothing under `~/.cache`). The pnpm result: with the global
+  virtual store, pnpm imports package payload only inside the home store, so a checkout dataset at the same path moved
+  zero payload bytes into the checkout and four paired offline installs took 0.984 to 1.101 times their home controls
+  (control spread 1.091); a clone's links into the home store break by path depth and the wrapper's relink repairs
+  them; ranking shared home store > in-tree store > separate cache store. The checkout-as-dataset question goes to the
+  owner with these results. The AGENTS.md search is still running.
 - **Driver idle window defaults to 0: in main** as 5b53cd90f2 (decision entry "Driver: the idle window defaults to
   0"; behaviour in `package/pi-shared/subagent-driver/README.md`, the default in the pi-as-subagent skill's step 5).
   Its DeepSeek review (179 turns, `idle`; file
