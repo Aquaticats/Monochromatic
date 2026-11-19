@@ -80,6 +80,12 @@ const FULL_PERCENT = 100;
 const SINGLE_SLOT = 1;
 
 /**
+ Minimum wait the endpoint documents between two quota reads of one member: at most one a second
+ (https://docs.neuralwatt.com/guides/rate-limits.md, "Checking your current limit").
+ */
+const MINIMUM_READ_INTERVAL_MS = 1_000;
+
+/**
  Writer head, the NeuralWatt standard lane that asks the same endpoint for its own ceiling.
  */
 const [NEURALWATT_STANDARD,] = WRITER_TARGETS;
@@ -399,7 +405,9 @@ await describe({
     },),
     it({
       name: 'admits only the reported flex ceiling, not the standard concurrency ceiling',
-      fn: async function flexCeiling() {
+      fn: async function flexCeiling(ctx,) {
+        const clock = { now: Date.now(), };
+        ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
         const physical = NEURALWATT_FLEX;
         const reading = { flex: 1, };
         const ready = Promise.withResolvers<void>();
@@ -434,6 +442,8 @@ await describe({
           expect(isRetryableAssistantError(denied.result,),).toBe(false,);
           expect(calls.length,).toBe(1,);
           reading.flex += 1;
+          // The endpoint may be read again only after its documented interval.
+          clock.now += MINIMUM_READ_INTERVAL_MS;
           const afterIncrease = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           expect(afterIncrease.result.stopReason,).toBe('stop',);
         }
@@ -514,7 +524,9 @@ await describe({
     },),
     it({
       name: 'a quota read that confirms the overage cleared removes the observed cap',
-      fn: async function clearedOverage() {
+      fn: async function clearedOverage(ctx,) {
+        const clock = { now: Date.now(), };
+        ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
         /**
          Hand-written stand-in for the recorded refusal class with one slot, so the case needs one open
          stream; `OVERAGE_REFUSAL` is the recorded body it models, whose cap is six.
@@ -564,6 +576,8 @@ await describe({
           const denied = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           expect(denied.result.errorMessage,).toContain(`local concurrency ceiling (${ceiling} of ${ceiling} in use)`,);
           subscription.inOverage = false;
+          // The endpoint may be read again only after its documented interval.
+          clock.now += MINIMUM_READ_INTERVAL_MS;
           const cleared = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           expect(cleared.result.stopReason,).toBe('stop',);
           expect(cleared.result.provider,).toBe('neuralwatt',);

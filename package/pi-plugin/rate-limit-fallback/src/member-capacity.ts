@@ -36,6 +36,10 @@ export type MemberCapacity = {
    */
   active: number;
   /**
+   When this member was last read from its quota endpoint, or zero before the first read.
+   */
+  lastReadAt: number;
+  /**
    Retry/reset timestamp supplied by the provider or its documented guidance.
    */
   retryAt: number;
@@ -85,6 +89,7 @@ export function capacityOf({
   const capacity: MemberCapacity = {
     needsProbe: true,
     active: 0,
+    lastReadAt: 0,
     retryAt: 0,
     evidence: {},
   };
@@ -98,6 +103,27 @@ export function capacityOf({
 //endregion One live view per exact member
 
 //region Live quota reads and local ceiling
+
+/**
+ Minimum wait between two reads of one member, from the endpoint's own published rate.
+
+ NeuralWatt's guide says `/v1/rate_limits` "is rate-limited to 2 requests per second per customer —
+ poll at most once per second" (https://docs.neuralwatt.com/guides/rate-limits.md, "Checking your
+ current limit").
+ */
+const QUOTA_READ_INTERVAL_MS = 1_000;
+
+/**
+ Whether this member was read too recently to read again.
+
+ @param capacity - member state holding the last read time
+
+ @returns whether the documented minimum interval has not passed
+ */
+function isReadTooSoon(capacity: Readonly<{ lastReadAt: number }>,): boolean {
+  return (capacity.lastReadAt !== 0)
+    && ((Date.now() - capacity.lastReadAt) < QUOTA_READ_INTERVAL_MS);
+}
 
 /**
  Provisional pre-install bound for optional quota reads on the inference path. Set it from the live endpoint
@@ -270,6 +296,7 @@ export async function refreshCapacity({
     capacity.needsProbe = false;
     if (capacity.retryAt <= Date.now())
       capacity.retryAt = 0;
+    capacity.lastReadAt = Date.now();
     /**
      Fresh quota facts that may supersede previous capacity or retry hints.
      */
@@ -347,6 +374,12 @@ export async function refreshCapacity({
     capacity.needsProbe = true;
   if (!capacity.needsProbe)
     return;
+  if (isReadTooSoon(capacity,)) {
+    // The endpoint's own rate limits how often this member may ask; ask again on a later admission
+    // instead of polling it now.
+    capacity.needsProbe = true;
+    return;
+  }
   capacity.pending = refresh();
   await waitForCapacity({
     pending: capacity.pending,

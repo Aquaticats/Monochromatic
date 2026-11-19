@@ -31,12 +31,20 @@ const QWEN_WAIT_MS = 60_000;
 const SYNTHETIC_WINDOW_MS = 3_600_000;
 
 /**
+ Minimum wait the endpoint documents between two quota reads of one member: at most one a second
+ (https://docs.neuralwatt.com/guides/rate-limits.md, "Checking your current limit").
+ */
+const MINIMUM_READ_INTERVAL_MS = 1_000;
+
+/**
  Requests the subscription stand-in allows in its window, one, so a single request depletes it.
  */
 const SUBSCRIPTION_REQUEST_LIMIT = 1;
 
 await describe({
   name: 'quota reentry',
+  // These cases stub the shared clock, so one at a time keeps them from reading each other's time.
+  concurrency: 1,
   children: [
     it({
       name: 'holds Qwen for the documented minute when a request-rate 429 carries no reset',
@@ -64,7 +72,9 @@ await describe({
     },),
     it({
       name: 'retries an unavailable first quota read and honors the next depleted window',
-      fn: async function firstReadUnavailable() {
+      fn: async function firstReadUnavailable(ctx,) {
+        const clock = { now: Date.now(), };
+        ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
         const observations = { reads: 0, };
         const { provider, options, } = await fixture({
           extension,
@@ -82,10 +92,40 @@ await describe({
         },);
         const model = poolModel({ provider, id: 'reviewer', },);
         const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        // The endpoint may be read again only after its documented interval.
+        clock.now += MINIMUM_READ_INTERVAL_MS;
         const second = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(first.result.provider,).toBe('synthetic',);
         expect(second.result.provider,).toBe('opencode-go',);
         expect(observations.reads,).toBe(2,);
+      },
+    },),
+    it({
+      name: 'reads one member quota at most once per second',
+      fn: async function readInterval(ctx,) {
+        const clock = { now: Date.now(), };
+        ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
+        const reads = { count: 0, };
+        const { provider, options, } = await fixture({
+          extension,
+          models: SYNTHETIC_AND_BACKUP,
+          play({ model, }) { return immediate({ model, },); },
+          async fetchQuota() {
+            reads.count += 1;
+            return new Response(null, { status: 503, },);
+          },
+        },);
+        const model = poolModel({ provider, id: 'reviewer', },);
+        const a = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        console.error(`DEBUG 1 reads=${reads.count} from=${a.result.provider} now=${clock.now}`);
+        expect(reads.count,).toBe(1,);
+        const b = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        console.error(`DEBUG 2 reads=${reads.count} from=${b.result.provider} now=${clock.now}`);
+        expect(reads.count,).toBe(1,);
+        clock.now += MINIMUM_READ_INTERVAL_MS;
+        const cc = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        console.error(`DEBUG 3 reads=${reads.count} from=${cc.result.provider} now=${clock.now}`);
+        expect(reads.count,).toBe(2,);
       },
     },),
     it({
