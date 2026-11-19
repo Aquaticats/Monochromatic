@@ -55,6 +55,9 @@ const POLICY_LABELS = [
 /**
  Check the leading status token, without treating an unrelated mention of 429 as a failure status.
 
+ A recorded provider message begins `429 "…"` as well as `429: {…}`, so a space, tab, colon or the
+ end of the text closes the status token; a digit or letter after it means the number is not a status.
+
  @param value - terminal error text from the adapter
 
  @returns whether the message starts with HTTP 429
@@ -66,44 +69,37 @@ function startsWithRateLimit(value: string,): boolean {
   const message = foldProviderText(value,);
   if (message.startsWith(OPENAI_RESPONSES_RATE_LIMIT,))
     return true;
-  /**
-   Status prefixes accepted by the adapter boundary.
-   */
-  const prefixes = [
-    'status code:',
-    'status:',
-    'http',
-  ] as const;
-  /**
-   Matched prefix, absent if the message starts directly with the status.
-   */
-  const prefix = prefixes.find(function matchesPrefix(candidate,) {
-    return message.startsWith(candidate,);
-  },);
-  /**
-   Start of the horizontal whitespace following the prefix.
-   */
-  const afterPrefix = prefix?.length ?? 0;
-  if ((prefix === 'http') && (message[afterPrefix] !== ' ')
-    && (message[afterPrefix] !== '\t'))
+  if (!message.startsWith(RATE_LIMIT_STATUS,))
     return false;
-  for (let offset = afterPrefix; offset <= message.length; offset += 1) {
-    if ((prefix !== undefined) && ((message[offset] === ' ') || (message[offset] === '\t')))
-      continue;
-    if (!message.startsWith(
-      RATE_LIMIT_STATUS,
-      offset,
-    ))
-      return false;
-    /**
-     Boundary after the status, to exclude codes with additional digits or letters.
-     */
-    const boundary = message[offset + RATE_LIMIT_STATUS.length];
-    return (boundary === undefined) || (boundary === ':')
-      || (boundary === ' ')
-      || (boundary === '\t');
-  }
-  return false;
+  /**
+   Character after the status token, absent when the status is the whole message.
+   */
+  const boundary = message[RATE_LIMIT_STATUS.length];
+  return (boundary === undefined) || (boundary === ':')
+    || (boundary === ' ')
+    || (boundary === '\t');
+}
+
+/**
+ Whether the failure carries OpenAI's own policy-stop opening.
+
+ Only this opening takes precedence over an explicit HTTP 429, and only this opening moves a request
+ on to the next member: another vendor's content stop ends the request as it did before the move
+ was introduced.
+
+ @param message - failed provider message
+
+ @returns whether the text starts with OpenAI's stock refusal
+
+ @example
+ ```ts
+ hasOpenAiPolicyOpening({ stopReason: 'error', errorMessage: 'This content was flagged for possible risk' }); // true
+ ```
+ */
+export function hasOpenAiPolicyOpening(message: FailureEvidence,): boolean {
+  return (message.stopReason === 'error')
+    && foldProviderText(message.errorMessage ?? '',)
+      .includes(OPENAI_POLICY_OPENING,);
 }
 
 /**
