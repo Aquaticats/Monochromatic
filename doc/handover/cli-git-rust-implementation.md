@@ -40284,6 +40284,16 @@ committed skill). Worktree removed by the commit service; branch deleted locally
 the `lstat`-to-`chmod` window (closable only with `fchmod`, refused under the permission model); `createSopsFixture`'s
 exit-not-close read (branch `74dbe1200e`, unmerged) still reddens the suite at times.
 
+**State at the overnight poweroff (owner: "Shut down when done"), 2026-11-19:** `main` equals `origin/main`; no local
+branch holds a commit `origin` lacks; no `pi-*`, `reviewer-*`, `fill-*`, `wait-*` or `launch-*` unit; no VM (`mvm
+--backend libvirt list`); no container; no other live session (`ListAgents`). The main checkout holds four files with
+other sessions' uncommitted edits (the standing state, task 210), left untouched and saved as a patch at
+`~/temp/agent/other-sessions-uncommitted-edits-saved-before-poweroff-2026-11-19/keep/` with the commit it applies to.
+`~/temp/agent` measured 3.3 GiB by the last writer run (largest: `prewarm-acts-only-on-the-entry-it-checked-2026-11-16-scratch`
+743 MiB, `watch-for-a-killed-gits-lock-costs-nothing-per-folder-2026-11-16-scratch` 439 MiB, `change-reviews` 390 MiB).
+**NEXT SESSION, FIRST:** the questions in `doc/handover/questions-for-the-owner.md`, section "Prepared overnight for the
+question tool, 2026-11-19T03:30:00-05:00", then its "To tell the owner in the morning, no answer needed" items.
+
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed
 and pushed, main == origin/main, no `pi-*`, `reviewer-*` or other unit of this session left, then poweroff.
