@@ -231,7 +231,10 @@ export async function writeFileAtomically({
       },
     );
     // Flush the closed temporary file before rename so power loss cannot publish an empty destination.
-    await syncWrittenPath({ path: temporary, runSync });
+    await syncWrittenPath({
+      path: temporary,
+      runSync,
+    });
   }
   catch (error) {
     await rm(

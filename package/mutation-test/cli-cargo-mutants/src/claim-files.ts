@@ -124,7 +124,10 @@ export async function writePrivate({
         mode: claimMode,
       },
     );
-    await syncWrittenPath({ path, ...(runSync === undefined ? {} : { runSync }) });
+    await syncWrittenPath({
+      path,
+      ...(runSync === undefined ? {} : { runSync }),
+    });
   }
   catch (error) {
     await unlink(path);
