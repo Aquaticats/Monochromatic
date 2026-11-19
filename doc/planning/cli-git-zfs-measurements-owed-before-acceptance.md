@@ -762,7 +762,7 @@ upward (`module/zfs/dsl_deleg.c:576`, `zfs-2.4.4`).
 
 Root then made the clone as items 11 and 14 do, with `@earliest`, `@origin` and `@checkout-later` on the checkout,
 `zfs clone <checkout>@origin <clone>`, `@worktree-own` and `@worktree-own-next` on the clone, and
-`zfs promote <clone>`. The clone was never mounted, and the promotion left the checkout as a clone of it:
+`zfs promote <clone>`. The clone stayed unmounted, and the promotion left the checkout as a clone of it:
 
 ```text
 # item-17-exact-3.log, before the batch
