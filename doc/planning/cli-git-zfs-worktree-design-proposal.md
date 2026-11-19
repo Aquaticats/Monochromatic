@@ -609,17 +609,16 @@ head destroy. The deployment must also exclude untracked copies and pinned handl
 mounts during that interval; stopping the managed consumers alone does not do that. A channel program excludes ZFS
 administrative changes, not Linux namespace changes (`man/man8/zfs-program.8:35` to `:40`).
 
-Item 15 did not show an exclusion mechanism for unrestricted callers, such as a rootless container started after
-attach, so a clean scan alone cannot qualify that deployment. No option or deployment this draft names can show that
-exclusion today: the descriptor checks and the namespace scan act on what root can observe, and none of them stops an
-unrestricted caller from attaching the clone after the scan (reasoning from [item 15][vm-namespaces], not a
-measured interleaving). Item 15 found no complete namespace or mount-reference exclusion: its scan saw readable,
-live representatives of the observed namespaces only, and does not generalize to pinned namespaces or racing task
-changes ([VM delta limits][vm-delta-limits], "What this repeat did not show"). This draft proposes no
-mechanism that would show the exclusion, so what removal does in that state is the
-[Removal when the namespace exclusion cannot be shown](#open-project-choices) choice, whose refusing option every
-described setup takes today; that leaves the project's decided removal, "B: Destroy at once" ([project
-decision][answers], lines 491 to 494), unreached. A deployment that can show the exclusion still accepts a
+Item 15 showed no exclusion that keeps an unrestricted caller, such as a rootless container started after
+attach, from attaching the clone after a scan, so a clean scan alone does not qualify that deployment. It found no
+complete namespace or mount-reference exclusion: its scan saw readable, live representatives of the observed
+namespaces only, and does not generalize to pinned namespaces or racing task changes ([VM delta
+limits][vm-delta-limits], "What this repeat did not show"). Nothing this draft describes shows one either, because
+the descriptor checks and the namespace scan act on what root can observe (reasoning from
+[item 15][vm-namespaces], not a measured interleaving). What removal does in that state is therefore the
+[Removal when the namespace exclusion cannot be shown](#open-project-choices) choice, and this draft states no
+removal rule until the owner answers it: a refusal is one option of that choice, described there, and neither arm
+is a rule of this draft or a veto-open default. A deployment that can show the exclusion still accepts a
 residual: a clean scan that misses a later copy leaves snapshots gone with the head still busy, the resume state
 [Removal and recovery](#removal-and-recovery) names. That loses no history the project chose to keep, since
 "B: Destroy at once" already declines to retain a removed worktree's own snapshots (reasoning from
@@ -665,10 +664,11 @@ slot. See the [wrapper specification][spec], lines 2932 to 2943 and 3064 to 3190
 The [project decided][answers] "B: Destroy at once". A normal authorized removal destroys the clone and its own
 snapshots in that invocation. It does not prompt, require a separate snapshot-deletion flag, or wait out retention.
 It waits for verified unmount within the [deadline](#waiting-and-refusal) once sized, and for the destroy results,
-not for background space reclamation. No described setup reaches this yet: the draft's rule refuses while the
-deployment cannot show the namespace exclusion, and whether removal refuses or proceeds without that showing is the
-[Removal when the namespace exclusion cannot be shown](#open-project-choices) choice, whose refusing option every
-described setup takes today ([Mounts held by other namespaces](#mounts-held-by-other-namespaces)).
+not for background space reclamation. While no described setup can show the namespace exclusion, whether removal
+refuses or destroys anyway is the
+[Removal when the namespace exclusion cannot be shown](#open-project-choices) choice: the refusal is one option of
+that choice, not a rule of this draft, and this draft states no arm as operative until the owner answers it
+([Mounts held by other namespaces](#mounts-held-by-other-namespaces)).
 
 [VM item 11][vm-promote] shows why the lineage check must precede **any** snapshot delete. Recursive destroy of
 the promoted clone refused and left the snapshot set unchanged. But an explicit delete erased the relocated
@@ -1085,31 +1085,38 @@ ranking between them. Use the VM findings and identify what remains unmeasured; 
   [Mounts held by other namespaces](#mounts-held-by-other-namespaces)). No alternative descriptor unmount was
   tested. Do not silently change propagation. Two facts belong to this choice: a deployment that can show the
   exclusion still accepts planned snapshots all gone with the head refused when a copy survives the scan (the
-  outcome [VM item 15][vm-namespaces] measured), and the draft's rule refuses before the first snapshot delete
-  when the deployment cannot show it. No option here, and no deployment this draft names, can show that exclusion
-  today: [VM item 15][vm-namespaces] found no complete namespace or mount-reference exclusion, and this draft adds
-  none. The first two options therefore take the refusing arm, and the third has no named arrangement to test, so
-  none reaches the decided "B: Destroy at once"; whether removal may proceed without that showing is the
-  [Removal when the namespace exclusion cannot be shown](#open-project-choices) choice. How the options compare is
-  reasoning from those measurements, not a measured comparison: the first two differ in who keeps the mount
-  isolation current and agree on what removal accepts, while the third must bring its own unmount and visibility
-  proof and may differ there.
-- Removal when the namespace exclusion cannot be shown. [VM item 15][vm-namespaces] found no mechanism that keeps
-  an unrestricted caller from attaching the clone after the scan, and this draft adds none, so this choice decides
-  what removal does in that state.
-  - Refuse before the first snapshot delete, which is the rule the draft states under
-    [Mounts held by other namespaces](#mounts-held-by-other-namespaces). No described setup removes: every
-    deployment whose arrangement this draft describes takes this arm, so none reaches "B: Destroy at once"
-    ([project decision][answers], lines 491 to 494), and an authorized removal stays destroyable only through
-    action outside the wrapper (reasoning from the same item).
-  - Destroy the clone's own snapshots and then the head anyway, accepting the residual. Item 15 measured what a
-    process holding the clone in another namespace then sees: with a private checkout the host unmounted and the
-    probe destroyed an own snapshot while both post-attach readers still held the clone, and the head destroy
-    refused with `dataset is busy` until both stopped ([item 15][vm-namespaces]). So that process keeps reading
-    the live head through its mount, the clone's own snapshots are gone for good, and the removal ends in the
-    "planned snapshots all gone with the head refused" state until the holder lets go; the scan authorizing the
-    attempt saw process-visible holders only, not pinned namespaces without a visible task or racing task changes
-    (reasoning from item 15, not a measured interleaving).
+  outcome [VM item 15][vm-namespaces] measured), and no arrangement this draft describes shows that exclusion, so
+  the [Removal when the namespace exclusion cannot be shown](#open-project-choices) choice bears on every option
+  here and this draft states neither of its arms as the operative rule until the owner answers. No option here,
+  and no deployment this draft names, can show that exclusion today: [VM item 15][vm-namespaces] found no
+  complete namespace or mount-reference exclusion, and this draft adds none. How the options compare is reasoning
+  from those measurements, not a measured comparison: the first two differ in who keeps the mount isolation
+  current, while the third must bring its own unmount and visibility proof and may differ there.
+- Removal when the namespace exclusion cannot be shown. [VM item 15][vm-namespaces] found no complete namespace
+  or mount-reference exclusion: its scan saw readable, live representatives of the observed namespaces only, and
+  did not generalize to pinned namespaces without a visible task or to racing task changes
+  ([VM delta limits][vm-delta-limits], "What this repeat did not show"). Nothing this draft describes shows one
+  either, so this choice decides what removal does in that state. Neither arm is the draft's operative rule until
+  the owner answers, and neither is a veto-open default, because the draft adopts neither.
+  - Refuse before the first snapshot delete. No described setup removes under this arm, so the decided
+    "B: Destroy at once" ([project decision][answers], lines 491 to 494) stays unreached for every deployment
+    whose arrangement this draft describes, and an authorized removal is destroyable only through action outside
+    the wrapper (reasoning). The project declined a refusal of this kind once: when it chose "B: Destroy at once",
+    the offered "refuse without an explicit flag" was declined ([project decision][answers], lines 491 to 494). This
+    arm has no flag path at all, because the wrapper's one supported `--force` waives cleanliness, not a mount
+    boundary or identity check ([Removal and recovery](#removal-and-recovery)), so it is stricter than the refusal
+    the project declined (reasoning).
+  - Destroy the clone's own snapshots and then the head anyway, accepting the residual. Item 15 measured this much:
+    with a private checkout, the host unmounted while both post-attach readers still held a ZFS row for the clone
+    in `mountinfo` and neither worked in the clone directory, a disposable own snapshot was destroyed while they
+    were alive, and the head destroy refused `dataset is busy` until both stopped ([item 15][vm-namespaces]). No
+    read through the mount was measured. The rest is reasoning: the snapshots this arm destroys are gone for good,
+    so the removal ends in "planned snapshots all gone with the head refused" until the holder lets go, and a
+    holder that attaches after a clean scan is unmeasured. This arm keeps the scan: it still needs the fresh root
+    all-namespace verification before the first snapshot delete and before the head destroy
+    ([Requests, results and ordering](#requests-results-and-ordering)), and a missing, mismatched or busy unmount
+    still blocks destruction even when the slot is clear ([Removal and recovery](#removal-and-recovery), step 2).
+    That scan is proposed protocol; item 15 ran one scan per arm and did not exercise repeat requests.
 - Kernel-release readiness. Qualify an exact list of kernel releases per architecture with built-product runs, or
   probe the descriptor, staging and namespace behaviour at start and refuse only what the probe cannot show. The
   exact list disables the managed route after every CachyOS kernel package update until a VM run passes on that
@@ -1501,8 +1508,8 @@ Ubuntu guest.
   successful destroy on a match, no delegated destroy, and recovery after interruption for root destruction.
   Under either policy an ordinary authorized removal must destroy the verified clone and its own snapshots and
   print the loss in the same invocation. Refusal controls test unsafe cases; a route that only refuses does not
-  pass, and every route this draft describes fails that gate today, which is the
-  [Removal when the namespace exclusion cannot be shown](#open-project-choices) choice.
+  pass, and no route this draft describes passes that gate today, because none can show the namespace exclusion.
+  Which arm governs is the [Removal when the namespace exclusion cannot be shown](#open-project-choices) choice.
 - Repeat the [VM item 14][vm-batch] mixed and own-snapshot batch controls through the binding, including per-name
   errors, GUID preservation and an assertion that the encoded request carries no `defer` key. Run the same batch
   as the delegated account under the planned grants; item 14 ran it as root, and [VM items 17][vm-17] and
