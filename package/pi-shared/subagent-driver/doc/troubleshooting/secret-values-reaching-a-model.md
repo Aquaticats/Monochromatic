@@ -227,9 +227,10 @@ makes.
 - A value shorter than eight characters, because such a string appears in ordinary text by chance.
   Every value the store declares today is at least ten characters
   (`keep/measure-store-value-lengths.ts` in the report's scratch folder).
-- Pi's output files for a *greater* output than it shows are masked only when Pi names one that is in the operating
-  system's temporary folder and whose name is exactly `pi-output-` and sixteen hexadecimal digits, with an optional
-  extension (`src/pi-output-file-of-a-tool-result.ts`). A file named any other way is left as Pi wrote it.
+- Pi's output files for a *greater* output than it shows are masked only when Pi names one that is in the folder
+  `os.tmpdir()` names in Pi's own process, which for a run is `temporary-files-pi-wrote/` in the run folder, and whose name
+  is exactly `pi-output-` and sixteen hexadecimal digits, with an optional extension
+  (`src/pi-output-file-of-a-tool-result.ts`). A file named any other way is left as Pi wrote it.
 - **A tool result whose `details` cannot be read.** The masking reads `details` to mask it. When reading it throws, the
   result is withheld, and withholding it also has to read `details` to find the full-output file a peer may have named.
   Both reads fail, so Pi keeps the tool's own result: the model sees the original content, a value in it included.
