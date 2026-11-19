@@ -414,61 +414,69 @@ checkout or built clone route ([pnpm study][pnpm], "Where pnpm writes" and "Offl
 
 ## Snapshots and setup reporting
 
-The owner said, "Make home recursive and blocklist dirs and datasets that shouldn't be snapshoted.
-Worktrees are not necessarily throwaway." and chose "Explicit list of all seven (Recommended)"
-([ZFS planning record][zfs-plan], lines 362 to 385 and 426 to 436). Keep the home hourly template, include the main
-and clone datasets, and keep `${HOME}/.local/share/pnpm/store` in home's dataset. The owner's reason was
-"you missed how pnpm store shouldn't become its own datasets due to not being able to take advantage of clones."
-That preserves reflinks within home, not between home and the migrated checkout or clone datasets.
+"Worktrees are not necessarily throwaway." Keep the home hourly template with `recursive = yes`. It reaches
+both sibling datasets and each clone by dataset ancestry, not by mount path. Keep the pnpm store in home and
+snapshotted. Use the eight exclusions named in the [planning decision][answers]; the option's label miscounted,
+not its list. A directory can be excluded only once it is its own dataset.
 
 ```ini
 # /etc/sanoid/sanoid.conf (affected sections only)
 # Use yes, not zfs. Put exclusions after every recursive ancestor's section.
+# /home
 [zpcachyos/ROOT/cos/home]
   use_template = home
   recursive = yes
 
+# /var/cache
 [zpcachyos/ROOT/cos/varcache]
   autosnap = no
 
+# Unmounted container (mountpoint=none)
 [zpcachyos/nosnap]
   autosnap = no
 
+# /home/user/.cargo/build
 [zpcachyos/nosnap/cargo-build]
   autosnap = no
 
+# /home/user/.cargo/registry
 [zpcachyos/nosnap/cargo-registry]
   autosnap = no
 
+# /home/user/.npm
 [zpcachyos/nosnap/npm]
   autosnap = no
 
+# /home/user/.cache
 [zpcachyos/nosnap/user-cache]
   autosnap = no
 
+# /home/user/Monochromatic/package/vm-builder/cli/output
 [zpcachyos/nosnap/vm-builder-output]
   autosnap = no
 
+# /var/lib/libvirt/images
 [zpcachyos/nosnap/libvirt-images]
   autosnap = no
 ```
 
-Also require `com.sun:auto-snapshot=false` on every listed dataset, including `/var/cache` (`varcache`), which
-lacks it in the recorded probe. It is a separate policy marker, not the sanoid exclusion mechanism.
-Sanoid `2.3.0` copies recursive parent settings onto descendants in file order. The probe used
-`/usr/bin/sanoid:665`, `:936` and `:1110`: the later child section beat `recursive = yes`, removing it was a positive
-control, reversing the order made the child snapshot again, and `recursive = zfs` included it regardless.
-The listed exclusions are currently outside home's subtree; place them after any recursive ancestors regardless.
-If a folder later needs exclusion, it must first be separated as a dataset. Evidence: [ZFS planning record][zfs-plan],
-lines 369 to 385 and 400 to 437, and `snapshot-blocklist-candidates-measured-2026-11-18/keep/`.
+Set `com.sun:auto-snapshot=false` on each exclusion, including `/var/cache`, which lacked it in the probe.
+This marker does not implement sanoid's exclusion. Sanoid reads sections in file order: an `autosnap = no`
+section before a recursive ancestor can be overwritten, and `recursive = zfs` offers no per-child exclusion.
+Both versions tested reproduced the order effect. The current exclusions are outside the home subtree; name and
+order them explicitly so a later move under recursion does not silently include them ([nested-clone research][nested],
+item 4, and [planning record][answers]).
 
-`zfs-space-guard` currently scopes pruning to its configured dataset, `zpcachyos/ROOT/cos/home` by default, and the
-`autosnap_` prefix (`/usr/local/sbin/zfs-space-guard:6` and `:44`). It will not prune the main or clone hourlies or any
-`cli-git-origin-` snapshots. Sanoid keeps and prunes its own hourlies; normal worktree removal deletes that clone's
-snapshot history. An hourly snapshot is not a publication marker: it can capture a clone during add or removal.
-Account for those intermediate snapshots in the retention and recovery checks. Origin blocks may be pinned until
-no clone depends on them. A home-only guard cannot reclaim blocks held only by descendant snapshots.
-Do not expand the guard's deletion authority implicitly.
+Each living clone pins its checkout origin, retaining blocks changed in the checkout since the snapshot. Persist
+and report the exact origin and measured retention where available. Checkout snapshots contain only underlays,
+including reflink/Git worktree data when those slots are ordinary directories; they do not contain live clone
+contents. Clone snapshots can capture an unfinished add or removal and are deliberately lost when that clone is
+removed. Neither hourly snapshots nor a mounted path imply a usable registration.
+
+`zfs-space-guard` currently prunes only `<dataset>@autosnap_*` of its configured dataset (default
+`zpcachyos/ROOT/cos/home`, `/usr/local/sbin/zfs-space-guard:7` and `:44`). That cannot prune descendant hourlies or
+`git-worktree-clone-origin-` snapshots, and cannot free blocks retained only by them. Leave guard expansion an
+[open choice](#open-project-choices); it is not implicit in making home recursive.
 
 ### What doctor checks and prints
 
