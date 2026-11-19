@@ -566,13 +566,18 @@ mounts during that interval; stopping the managed consumers alone does not do th
 administrative changes, not Linux namespace changes (`man/man8/zfs-program.8:35` to `:40`).
 
 Item 15 did not show an exclusion mechanism for unrestricted callers, such as a rootless container started after
-attach, so a clean scan alone cannot qualify that deployment. Removal therefore refuses before the first snapshot
-delete when the selected deployment cannot show that exclusion, and a deployment that can show it still accepts a
+attach, so a clean scan alone cannot qualify that deployment. No option or deployment this draft names can show that
+exclusion today: the descriptor checks and the namespace scan act on what root can observe, and none of them stops an
+unrestricted caller from attaching the clone after the scan (reasoning from [item 15][vm-namespaces], not a
+measured interleaving). Every described setup therefore takes the refusing arm below, and none of them reaches the
+project's decided removal, "B: Destroy at once" ([project decision][answers], lines 491 to 494). This draft proposes
+no mechanism that would show the exclusion. Removal therefore refuses before the first snapshot
+delete when a selected deployment cannot show that exclusion, and a deployment that can show it still accepts a
 residual: a clean scan that misses a later copy leaves snapshots gone with the head still busy, the resume state
 [Removal and recovery](#removal-and-recovery) names. That loses no history the project chose to keep, since
 "B: Destroy at once" already declines to retain a removed worktree's own snapshots; this draft accepts the race, not
 the project (reasoning from [item 15][vm-namespaces], not a measured interleaving). The
-[propagation choice](#open-project-choices) carries both conditions as facts.
+[propagation choice](#open-project-choices) carries these conditions as facts.
 
 [VM item 3][vm-propagation] measured the move refusing with `EINVAL` when its immediate parent, the checkout,
 was shared. Making **only the checkout mount private** let the fresh process move to private staging and unmount;
@@ -613,7 +618,8 @@ slot. See the [wrapper specification][spec], lines 2932 to 2943 and 3064 to 3190
 The [project decided][answers] "B: Destroy at once". A normal authorized removal destroys the clone and its own
 snapshots in that invocation. It does not prompt, require a separate snapshot-deletion flag, or wait out retention.
 It waits for verified unmount within the [deadline](#waiting-and-refusal) once sized, and for the destroy results,
-not for background space reclamation.
+not for background space reclamation. No described setup reaches this yet, because removal refuses while the
+deployment cannot show the namespace exclusion ([Mounts held by other namespaces](#mounts-held-by-other-namespaces)).
 
 [VM item 11][vm-promote] shows why the lineage check must precede **any** snapshot delete. Recursive destroy of
 the promoted clone refused and left the snapshot set unchanged. But an explicit delete erased the relocated
@@ -986,10 +992,15 @@ unmeasured; a ranking is not a decision.
   does not eliminate the all-namespace check. Qualify how the selected setup excludes untracked holders and
   new copies through destruction, not merely what the handler's namespace sees (unmeasured; see
   [Mounts held by other namespaces](#mounts-held-by-other-namespaces)). No alternative descriptor unmount was
-  tested. Do not silently change propagation. Two facts belong to this choice: a deployment that can show the
+  tested. Do not silently change propagation. Three facts belong to this choice: a deployment that can show the
   exclusion still accepts planned snapshots all gone with the head refused when a copy survives the scan (the
-  outcome [VM item 15][vm-namespaces] measured), and removal refuses before the first snapshot delete when the
-  deployment cannot show it. The options differ in who keeps the isolation current, not in what removal accepts.
+  outcome [VM item 15][vm-namespaces] measured); removal refuses before the first snapshot delete when the
+  deployment cannot show it; and no option here, and no deployment this draft names, can show that exclusion today,
+  so each option takes the refusing arm and none reaches the decided "B: Destroy at once"
+  ([VM item 15][vm-namespaces] found no mechanism, and this draft adds none). How the options compare is reasoning
+  from those measurements, not a measured comparison: the first two differ in who keeps the mount isolation current
+  and agree on what removal accepts, while the third must bring its own unmount and visibility proof and may differ
+  there.
 - Kernel-release readiness. Qualify an exact list of kernel releases per architecture with built-product runs, or
   probe the descriptor, staging and namespace behaviour at start and refuse only what the probe cannot show. The
   exact list disables the managed route after every CachyOS kernel package update until a VM run passes on that
