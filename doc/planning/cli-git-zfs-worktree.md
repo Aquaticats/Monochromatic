@@ -443,6 +443,12 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   to keep ~/Monochromatic where it is." The proposal's move of the checkout under a root-owned folder is withdrawn.
   A clone is made from a snapshot of one dataset, so the checkout still becomes a dataset of its own, mounted at
   `~/Monochromatic` (the session's reading, put to the owner the same evening).
+- **The checkout becomes its own dataset** (question tool, 2026-11-18, after the pnpm measurements in
+  [cli-git-zfs-checkout-dataset-and-pnpm.md](cli-git-zfs-checkout-dataset-and-pnpm.md)): "A: Own dataset
+  (Recommended)". `~/Monochromatic` becomes a ZFS dataset of its own mounted at the same path, moved once by root with
+  every session in the checkout stopped; the pnpm store stays in home. `du --summarize --block-size=1M` over the
+  checkout gave 27,899 MiB at 2026-11-18T20:23:56-05:00, an upper bound on that copy that also counts the worktrees
+  under `.claude/worktrees/` and the nested `zpcachyos/nosnap/vm-builder-output` mount.
 - **Where worktrees live** (plain text, same evening): "surely there is a rule mandating putting worktrees in
   ./.claude ?" Every worktree of this repository, clones included, lives under `~/Monochromatic/.claude/worktrees/`.
   No rule in `AGENTS.md` has said so at any point (its history searched on 2026-11-18 back to 964883fd94); the place

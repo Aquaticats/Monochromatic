@@ -39764,6 +39764,14 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### ZFS route: the checkout becomes its own dataset at the same path (2026-11-18, evening)
+
+Through the question tool, with the pnpm measurements of `doc/planning/cli-git-zfs-checkout-dataset-and-pnpm.md`
+put beside it: "A: Own dataset (Recommended)" over "C: Decide after the gate review" and "B: Stay a plain folder".
+Recorded in `doc/planning/cli-git-zfs-worktree.md`, "Owner's answers of 2026-11-18". The design proposal's fold-in
+writes one layout: the checkout dataset at `~/Monochromatic`, clones under `.claude/worktrees/`, the pnpm store in
+home.
+
 ### A run OpenAI stops as a "possible risk" resumes on DeepSeek (2026-11-18, evening)
 
 In plain text, after the ZFS-clones research ended on OpenAI's filter:
