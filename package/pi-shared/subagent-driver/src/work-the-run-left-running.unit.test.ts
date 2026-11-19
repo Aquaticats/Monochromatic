@@ -986,14 +986,27 @@ await describe({
               cgroup: theRunsUnit(),
             },);
             // The work the run started: a real process this test starts, which descends from this test's own process. The test's
-            // own number plays the run's own, as the driver's number does for a run. The run's unit is a stand-in, since no test of
-            // this repository may make a unit, and the control group is the one the kernel reports for that process.
+            // own number plays the run's own, as the driver's number does for a run. The run's own unit is a stand-in name, because
+            // a real unit is the manager's to make and a unit test asks no manager for one, and the control group is the one the
+            // kernel reports for that process.
             await using build = await startARealProcess({ folder: workingFolder, },);
             await writeRecordsOfRealProcess({
               folder: processes,
               pid: build.pid,
               worksIn: workingFolder,
             },);
+            /**
+             What the fixture's own record says the kernel names that process, which the driver's line carries: the name of a process
+             that has not run its program yet is the one of the process that started it, and the line is about descent either way.
+             */
+            const named = (await readFile(
+              join(
+                processes,
+                String(build.pid,),
+                'comm',
+              ),
+              'utf8',
+            )).trim();
             expect(await workOutlivingTheTurnIn({
               runFolder: folder.path,
               workingFolder,
@@ -1006,7 +1019,7 @@ await describe({
                   stderr: '',
                 };
               },
-            },),).toEqual([`${String(build.pid,)} sleep`,],);
+            },),).toEqual([`${String(build.pid,)} ${named}`,],);
           },
         },),
         it({
