@@ -37,16 +37,17 @@ other non-429 errors do not trigger fallback. When an adapter does not expose a
 response status, the pool reads it from Pi's `OpenAI API error (429): …`
 (Responses) or `429: …` (Completions) wording.
 
-A policy stop follows the same exposure rule. OpenAI's
-`This content was flagged for possible cybersecurity risk` advisory, which
-arrives inside a stream that already answered HTTP 200, moves the request to
-the next member with the same transcript when no output was exposed. Once
-text, thinking, or tool output was shown, the stop ends the request and the
-message names the member and keeps the advisory. Either way the plugin logs
-the move with the member's name and the stop's text, worded apart from a
-rate-limit move, and the assistant record names the member that answered. If
-every member stops before output, the request ends with the last stopped
-member's attributed advisory.
+A policy stop follows the same exposure rule, and only OpenAI's own opening
+moves a request on. A member that relays `This content was flagged for
+possible cybersecurity risk` before any text, thinking, or tool output moves
+the request to the next member with the same transcript. Once output was
+shown, the stop ends the request and the message names the member and keeps
+the advisory. Either way the plugin logs the member's name and the stop's
+text, worded apart from a rate-limit move, and the assistant record names the
+member that answered. If every member stops before output, the request ends
+with the last stopped member's attributed advisory. Neither pool has an
+OpenAI member since 2026-11-19, so this move cannot fire unless one is added;
+the rule and its tests stay for that case.
 
 The project decided this on 2026-11-19 for [issue 6314][issue-6314]: the stop
 moves the request on automatically ("Automatic (Recommended)"). That makes
@@ -55,14 +56,18 @@ resuming such a run on DeepSeek is the same move, done by hand.
 
 These rules rest on unit tests that drive the built plugin against stand-in
 members, and on the installed Responses adapter reporting the recorded stop
-text byte for byte over an in-memory HTTP 200 stream. No policy move has been
-observed on a real provider yet; the extension check covers the 429 handoff
-only.
+text byte for byte over an in-memory stream. The recorded advisory carries no
+HTTP status, which is the form the installed adapter reports when a stream
+fails without one; the capture fixes the text alone, not the wire event that
+carried it. No policy move has been observed on a real provider yet; the
+extension check covers the 429 handoff only.
 
 OpenAI's `This content was flagged for possible`
 opening takes precedence over a 429, even if the advisory following it is
 truncated or changes punctuation. The shorter `possible risk` wording and
-generic policy labels identify a stop only when there is no 429 status.
+generic policy labels identify a stop only when there is no 429 status, and
+they never move a request on: such a stop ends it, as it did before the move
+existed.
 A stop that ends the request names the member and preserves the advisory,
 including OpenAI's
 remediation. It replaces only the spans matched by Pi's transient-error

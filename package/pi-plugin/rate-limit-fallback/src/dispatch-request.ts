@@ -26,6 +26,7 @@ import { policyStopMessage, } from './policy-stop-message.ts';
 import { HTTP_RATE_LIMIT_STATUS, } from './provider-wire-text.ts';
 import type { RoutingRegistry, } from './quota-endpoints.ts';
 import {
+  hasOpenAiPolicyOpening,
   headerReset,
   isPolicyStop,
   isRateLimit,
@@ -385,12 +386,17 @@ export async function* dispatchRequest({
               },),
             },
           };
-          if ((!committed) && (event.error
+          /**
+           Items the terminal message carries; Pi saw no output while this is zero.
+           */
+          const terminalItems = event.error
             .content
-            .length
-            === 0))
+            .length;
+          if ((!committed) && (terminalItems === 0)
+            && hasOpenAiPolicyOpening(event.error,))
             {
             // Pi has seen no output, so the same transcript may still be answered further along.
+            // Only OpenAI's own opening moves on; another vendor's content stop ends the request.
             rl.debug(`${id}: ${label} stopped the request under its content policy before output; trying the next member: ${event.error
               .errorMessage
               ?? ''}`,);
