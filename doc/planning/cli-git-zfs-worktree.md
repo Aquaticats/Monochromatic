@@ -402,9 +402,22 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   - Already outside home's tree and never snapshotted: `~/.cargo/build`, `~/.cargo/registry`, `~/.npm`, `~/.cache`,
     the vm-builder output folder and `/var/lib/libvirt/images` (datasets under `zpcachyos/nosnap`).
   - pnpm imports with `packageImportMethod: clone-or-copy` (`pnpm-workspace.yaml:548`) from a store at
-    `${HOME}/.local/share/pnpm/store`, and the pool's `feature@block_cloning` is `active` with `zfs_bclone_enabled`
-    1, so a folder carved into its own dataset in the same pool can still receive cloned files (ZFS's documented
-    cross-dataset block cloning; not run here).
+    `${HOME}/.local/share/pnpm/store`. A reflink clone does not cross a dataset boundary here, although the pool's
+    `feature@block_cloning` is `active`, `zfs_bclone_enabled` is 1 and every dataset shares the encryption root
+    `zpcachyos`: measured 2026-11-18 with a 1 MiB file, `cp --reflink=always` within the home dataset succeeded, and
+    from `~/.cache` (dataset `zpcachyos/nosnap/user-cache`) into home it failed with "Invalid cross-device link";
+    Node's `copyFileSync(..., COPYFILE_FICLONE_FORCE)`, the clone call pnpm makes, failed the same way with `EXDEV`.
+    So a pnpm store on a dataset of its own, or a `node_modules` on one, would make pnpm copy instead of clone.
+    The owner, 2026-11-18, on the blocklist question: "you missed how pnpm store shouldn't become its own datasets due
+    to not being able to take advantage of clones." The store stays in home's dataset.
+    Still to measure for the clone route itself: a worktree clone is a dataset of its own too, so a `pnpm install`
+    inside one imports across that boundary; with `virtualStoreType: global` its `node_modules` holds links into
+    `<storeDir>/links`, so how much is copied rather than linked is the open question (to run in the VM test).
+  - The owner, same answer: "some cache folders are already their separate datasets but not necessarily already in
+    the blocklist." Measured the same day: `zpcachyos/ROOT/cos/varcache` (`/var/cache`) is a dataset of its own that
+    sanoid leaves alone only because its config does not name it (its comment says so), and it lacks the
+    `com.sun:auto-snapshot=false` property the `zpcachyos/nosnap` datasets carry; the `zpcachyos/nosnap` datasets are
+    unsnapshotted because no sanoid section names them, not because any section excludes them.
   What follows, as inference not yet shown by a clone run: in the measured hour the churn was worktrees being made and
   removed, which the clone route changes. A clone shares its origin's blocks, so making one should write little, and
   removing a worktree destroys its clone and the clone's own snapshots at once, where today a removed worktree's files
