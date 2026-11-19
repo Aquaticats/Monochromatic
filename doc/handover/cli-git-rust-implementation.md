@@ -40169,6 +40169,12 @@ review probe D is the real-manager evidence). GOING: `pi-driver-work-left-runnin
 seen: two of its full suite runs failed `drive-pi-subagent.unit.test.ts` `createSopsFixture` cases that pass alone; the
 recorded mechanism (`env-local-json/core/src/fixture.ts:217`) is the known fixture flake the env-local-json fixture run
 owns, and a run without the new file passed; not yet shown unrelated to the new tests' load (one sample each way).
+Run-3 ended `idle` (45 turns) at `33c214d45d`: both manager-dependent tests and their helpers removed; one real-process
+test (a shell backgrounds `sleep 60` and exits; asserted alive, out of the test's tree, not named) replaces them; no test
+in the package spawns the real `systemd-run` or `systemctl` (every hit is a stand-in written onto a test's own `PATH`);
+209 passes, the only failure `secret-values-of-this-machine.unit.test.ts`, the documented fixture flake. GOING: a DeepSeek
+delta review on Synthetic, `pi-review-pi-shared-subagent-driver-work-left-running-at-33c214d45d-1`; merge on a clean
+delta.
 
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed
