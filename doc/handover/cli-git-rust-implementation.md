@@ -40271,6 +40271,18 @@ unmerged close-wait branch `74dbe1200e`). Lows: no `cause` on the new error; the
 checkout's link. GOING: the last narrow round (`...-temporary-folder-inside-its-run-3`, run-3): README wording, the sops
 section in the host-load doc, `cause`, the `chmod` arm if a seam fits. Then the coordinator reads the diff and merges,
 with no further review round (the loop-ending rule of the ZFS fold-ins).
+Run-3 ended `idle` (32 turns) at `e2c1326f3a` (`6fad1ea49e` fix, `e2c1326f3a` docs): README and module docs now say a
+link is refused before any mode is set and a swap between the check and `chmod` is not covered; `cause` kept;
+a `setTheMode` seam tests the `chmod`-failure arm; the host-load doc has the store-read section, mechanism inferred.
+Coordinator read the source and README diff: sound. **IN MAIN** as `4265cdb286` (fast-forward after merging `main`,
+documents only); the main checkout relinked (`pnpm install --offline --frozen-lockfile`; `caught-value-core` link
+present); **checked at the user boundary**: a real Pi run from `main` with no `TMPDIR` passed
+(`~/temp/agent/driver-gives-pi-its-temporary-folder-checked-on-main-2026-11-19/run`) ended `idle` in 2 turns, Pi's own
+shell answered `os.tmpdir()` with the run's `temporary-files-pi-wrote`, and `stat` read it `700 directory`. The skill's
+launch line dropped `--setenv=TMPDIR` (committed; both gitignored mirrors copied after `cmp` showed they matched the
+committed skill). Worktree removed by the commit service; branch deleted locally and on `origin`. **Follow-ups, low:**
+the `lstat`-to-`chmod` window (closable only with `fchmod`, refused under the permission model); `createSopsFixture`'s
+exit-not-close read (branch `74dbe1200e`, unmerged) still reddens the suite at times.
 
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed

@@ -133,8 +133,15 @@ staging at `/run/git-worktree-clone-mount-staging` (needs a boot unit to create 
   before 2026-11-17 has a `feed.jsonl`, so the DeepSeek comparison arm is empty and the counts cannot say whether the
   rate differs by model; they fit "a remote API with no local capture gets invented strings". The driver package holds
   4 such fixtures (`src/retries-of-a-model-error.unit.test.ts`) and a README example resting on one; both are follow-ups.
-- Merged overnight: the virtual Pi provider (`58756ee7fe`) and the driver's wait for left work counting only its own
-  process tree (`2365f8e55f`).
+- Merged overnight: the virtual Pi provider (`58756ee7fe`), the driver's wait for left work counting only its own
+  process tree (`2365f8e55f`), and the driver giving each run's Pi a private temporary folder inside the run folder
+  (`4265cdb286`; a real run from `main` showed Pi's `os.tmpdir()` inside the run folder at mode `700`; the skill's launch
+  line no longer passes `TMPDIR`).
+- A proposed `AGENTS.md` edit, from a slip overnight: briefs called a test failure "recorded" in a troubleshooting doc
+  that did not record it (a review caught it). Rule `SRC` covers only rules; tightening it to "Before attributing a rule
+  or a recorded fact to a file (...), grep that file" would have caught it. Adopt the tightened `SRC` > leave it, because
+  the edit is one word-group in an existing rule and the slip sent a reviewer to check against a record that was not
+  there.
 
 ## Asked while the owner is away, started 2026-11-09T01:16:11-05:00
 
