@@ -1102,6 +1102,15 @@ name-based request to that GUID (`module/zfs/zfs_ioctl.c:2244` to `:2300` and `:
 The fixture's root channel program refused stale tuples for both replacements and destroyed on a matching tuple;
 the account's attempt with a matching tuple was denied. The substitutions were sequenced, not concurrent.
 
+Item 17's delegated arm, under the grants this draft proposes except the checkout's local `snapshot`
+([Scoped delegation](#scoped-delegation)), sent one `ZFS_IOC_DESTROY_SNAPS` request naming two of the clone's own
+snapshots: it returned 0 and deleted both, a name with a dependent clone returned `EEXIST` with both kept, and root's
+control request matched ([VM item 17][vm-17] on OpenZFS `2.4.4-1`). Beside those measured results stand the two things
+the root option still lacks: where root records the origin-side lineage inventory at add time, since the claim
+record has a named home in the account-owned Git common directory, the binding record's home is unnamed, and the
+handler records slot identity rather than lineage; and how the unprivileged wrapper reaches a root removal
+operation, because "authenticate the caller against the configured UID" names no transport here.
+
 - Scope delegated destruction to protecting foreign history. Keep descendant `destroy` and require `doctor` and
   removal preflight to verify the scoped effective grants. Without `promote`, `rename` or `receive` authority, the
   delegated account cannot move foreign history into the removal set (reasoning from the grant model and items 11
@@ -1126,12 +1135,9 @@ the account's attempt with a matching tuple was denied. The substitutions were s
   approved history identities in the program, not just before submission. The program excludes concurrent ZFS admin
   changes while it runs (`man/man8/zfs-program.8:35` to `:40`); it does not settle Linux mount or Git races. This
   adds a privileged request and recovery surface. It is also a second request channel beside the mount intent
-  property, and a third program beside the account-called wrapper and the clone-mount handler. Two facts it still
-  lacks belong in the owner's weighing: where root records the origin-side lineage inventory at add time, since the
-  claim and that inventory sit in the account-owned Git common directory and the handler records slot identity
-  rather than lineage; and how the unprivileged wrapper reaches a root removal operation, because "authenticate the
-  caller against the configured UID" names no transport here. Before enabling it, prove scope against spoofed or
-  replayed requests and same-name replacements. Persist the verified plan under root control before mutation;
+  property, and a third program beside the account-called wrapper and the clone-mount handler. Before enabling it,
+  prove scope against spoofed or replayed requests and same-name replacements. Persist the verified plan under root
+  control before mutation;
   after a lost response or restart, prove which recorded identities survive or are gone before resuming, never
   replay by name.
   In the snapshot program, precheck every approved snapshot and its delete prerequisites before any snapshot
