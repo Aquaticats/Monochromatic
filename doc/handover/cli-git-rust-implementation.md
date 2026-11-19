@@ -40052,6 +40052,16 @@ back. **What a cull costs, to weigh with it:** with DeepSeek writing and DeepSee
 by another vendor (rule `IRW`), so short reviews would need another reviewer model, which changes rule `KRV` and is the
 owner's to approve.
 
+**Owner, 2026-11-19, on a quota-free reviewer:** "Also check Synthetic's infinite:small:vision for reviewer. It's the
+same model as deepseek v4.1 flash 1017, just much slower, but it doesn't drain my quota. You might need to benchmark it
+on a speed basis." Pi lists it as `synthetic/infinite:small:vision` (context 524.3K, max output 65.5K, the same limits
+as Synthetic's `hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`). Benchmark going (unit
+`reviewer-speed-infinite-small-vision-against-qwen-20261119`, script and results in
+`~/temp/agent/reviewer-speed-infinite-small-vision-against-qwen-deepseek-2026-11-19/keep/`): one fixed read-only review
+task (two `git show` reads at `7d10dc5f88`, three questions), four rounds in rotated order of the Qwen-plan DeepSeek arm,
+the `infinite:small:vision` arm and a second Qwen arm as the same-model control; each run's wall time, turns and output
+tokens, read as ratios to the control arm of its own round.
+
 The third prewarm run ended `idle` (77 turns, no new commit; report updated): through a built wrapper with the fill's
 staging and target replaced mid-clone, the tip left the other command's files at both names byte for byte and said why
 ("holds no claim of this job ... left as it is found"); `main` did not delete the replacement in that run either (its
