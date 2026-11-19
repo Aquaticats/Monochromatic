@@ -423,9 +423,19 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   removing a worktree destroys its clone and the clone's own snapshots at once, where today a removed worktree's files
   stay held by home's snapshots for up to 25 hours.
   This corrects the page's earlier framing of worktrees as throwaway copies.
+- **What the blocklist names** (question tool, 2026-11-18, after the corrections quoted under "What the snapshots hold
+  today"): "Explicit list of all seven (Recommended)". The blocklist names every dataset that must never be
+  snapshotted, explicitly, so a recursive parent or a later move cannot pull one in: `zpcachyos/ROOT/cos/varcache`
+  (`/var/cache`), `zpcachyos/nosnap`, and its children `cargo-build` (`~/.cargo/build`), `cargo-registry`
+  (`~/.cargo/registry`), `npm` (`~/.npm`), `user-cache` (`~/.cache`), `vm-builder-output` (the vm-builder output
+  folder) and `libvirt-images` (`/var/lib/libvirt/images`). Each is named in `sanoid.conf` with `autosnap = no` in a
+  section below any recursive parent's (the order sanoid needs, measured), and each carries
+  `com.sun:auto-snapshot=false` (to be added on `varcache`). Home's entry becomes recursive; worktree clones and the
+  pnpm store stay snapshotted. Adopted with the answer, open to veto: `doctor` checks this list (each entry present,
+  below its parent, property set) and prints the commands that fix drift, since the owner's earlier answer has
+  `doctor` report the root-once setup and print its commands.
 
 ## Open choices for the owner
 
 - Which Rust crate drives ZFS: settled by the owner's answers of 2026-11-18 as a small binding of this repository
   over `/dev/zfs`; where it lives and what it is named belong to the design proposal.
-- What the snapshot blocklist names.

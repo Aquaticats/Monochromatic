@@ -39697,6 +39697,17 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### ZFS snapshots: an explicit blocklist of seven datasets, the pnpm store stays in home, passt allowed (2026-11-18, evening)
+
+Three answers, quoted in `doc/planning/cli-git-zfs-worktree.md` ("What the snapshots hold today" and "What the
+blocklist names"): the pnpm store must not become its own dataset ("not being able to take advantage of clones";
+measured: a reflink clone fails with EXDEV across datasets); cache datasets must be on the blocklist, not merely
+outside home's tree; and "Explicit list of all seven (Recommended)" (`/var/cache` and `zpcachyos/nosnap` with its six
+children, each with `autosnap = no` below its recursive parent in `sanoid.conf` and `com.sun:auto-snapshot=false`;
+`doctor` checks it, adopted open to veto). Separately: "Permanently allow passt/pasta", with an `mvm` network switch
+filed as issue 6312 (`doc/troubleshooting/rootless-podman-traffic-reaches-opensnitch-as-pasta.md`); and rule PWT
+rewritten to forbid waiting on a stand-in PID (ccf0590fd6).
+
 ### ZFS crate: our own small binding over /dev/zfs (2026-11-18, said after 18:31:39-05:00)
 
 Through the question tool, after the vet found that `zfsdev` has no clone: "Our own small binding (Recommended)",
