@@ -39746,7 +39746,10 @@ Through the question tool, after the reviewer bench was put to the owner as a ch
 of Sonnet's 17 findings a reader of the code and brief could reach, DeepSeek's two runs per case found 3; DeepSeek made
 7 Sonnet missed): "Keep deepseek. Short reviews are supposed to be frequent. Long reviews and audits are supposed to
 have Sonnet and be rare." Declined: both reviewers per change, a re-bench with equal inputs, two DeepSeek runs per
-change, Sonnet alone. Where short ends and long begins was put to the owner the same evening.
+change, Sonnet alone. Where short ends and long begins, answered the same evening: "Long = at a gate (Recommended)": a
+Sonnet review only at an integration pass before main, a release, or a design put to the owner; every other review is
+short and goes to DeepSeek. Declined: long meaning a review that builds or reproduces, or one above a size. Written into
+`AGENTS.md` rules `KRV` and `LHZ` and the pi-as-subagent skill's section "Who writes and who reviews" the same evening.
 
 ### ZFS route: ~/Monochromatic stays, worktrees live under its .claude/worktrees (2026-11-18, evening)
 

@@ -323,17 +323,18 @@ XVW:
  started by `package/pi-shared/subagent-driver`.
 
 KRV:
- Reviews of a change run through Pi on DeepSeek,
- started by `package/pi-shared/subagent-driver`,
+ Short reviews of a change (all but integration passes,
+ releases and designs put to the owner) run through Pi on DeepSeek,
  in a worktree of their own;
- never on the official `deepseek` provider.
+ never the official `deepseek` provider.
 
 LHZ:
- Long-horizon audits,
+ Gate reviews (an integration pass before main,
+ a release,
+ a design put to the owner) and long-horizon audits,
  in every harness:
  run Claude Sonnet,
- by whatever route that harness offers;
- the Kimi K3.1 Pro pool is closed.
+ by whatever route that harness offers.
 
 PFW:
  Alongside advisor,
