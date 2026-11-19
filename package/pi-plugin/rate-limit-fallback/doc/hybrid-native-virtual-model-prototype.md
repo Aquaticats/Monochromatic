@@ -227,7 +227,8 @@ a member.
 Two arms on the probe pool, one native-only arm, and one negative result.
 
 Quota exhaustion, the Synthetic subscription refusal (captured), which Pi's classifier calls
-non-retryable because the text carries `billing`: under the hybrid the pool moves to the next member
+non-retryable because the text carries `billing` (`@earendil-works/pi-ai` `dist/utils/retry.js:18`):
+under the hybrid the pool moves to the next member
 inside the same request and the turn completes, with no `auto_retry_start` and no compaction. The
 command is item 3's with `id: "refuses-quota"` as the first member.
 Capture: `cli-item5-hybrid-quota-refusal/`.
@@ -239,8 +240,9 @@ the behaviour the hybrid is meant to keep away from. Capture: `cli-item5-native-
 `PI_HYBRID_NATIVE_TARGET=hybrid-probe-member/refuses-quota` and
 `--model rate-limit-fallback/hybrid-native-probe`.
 
-Cloudflare 523, whose own page heads it "Error 523: origin is unreachable" and whose text matches no
-Pi retry pattern: under the hybrid the pool does not move on, because the current code hands off only a
+Cloudflare 523, whose own page heads it "Error 523: origin is unreachable" and whose text matches none
+of Pi's retry patterns (`@earendil-works/pi-ai` `dist/utils/retry.js:29-112`): under the hybrid the
+pool does not move on, because the current code hands off only a
 429 before output or a provider-gated policy stop. The turn ends after one member request, with no
 `auto_retry_start`. That is the gap the owner's point 1 decision ("Move on" for 503 and Cloudflare 52x)
 closes after the rebuild, not something this run built. Capture: `cli-item5-hybrid-523-refusal/`.
