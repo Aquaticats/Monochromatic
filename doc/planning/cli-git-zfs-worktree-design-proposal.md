@@ -558,9 +558,9 @@ crash was measured.
 "Unmounted" means absent in every mount namespace holding the clone's ZFS source, including binds and staging.
 [VM item 15][vm-namespaces] started an `unshare` reader and a `PrivateMounts=yes` unit after the attach. With a
 private checkout, host-side staging and unmount succeeded, but root's scan found both readers still holding the
-clone. The probe could destroy an own snapshot while those copies lived; the head destroy refused with `dataset is
-busy`. Head destroy succeeded after both readers stopped. With a shared checkout, descriptor move refused with
-`EINVAL`; the positive control used a path unmount solely to exercise propagation. It removed the peer and slave
+clone. The probe could destroy an own snapshot while those copies lived; the head destroy refused with
+`dataset is busy`. Head destroy succeeded after both readers stopped. With a shared checkout, descriptor move refused
+with `EINVAL`; the positive control used a path unmount solely to exercise propagation. It removed the peer and slave
 copies while both readers were alive, and head destroy succeeded. This does not authorize path unmount in the design.
 
 Proposed check based on item 15: the root mount handler groups live tasks by `/proc/<pid>/ns/mnt`, scans the matching
@@ -635,11 +635,11 @@ deployment cannot show the namespace exclusion ([Mounts held by other namespaces
 
 [VM item 11][vm-promote] shows why the lineage check must precede **any** snapshot delete. Recursive destroy of
 the promoted clone refused and left the snapshot set unchanged. But an explicit delete erased the relocated
-older checkout snapshot before the kernel refused to delete the relocated origin with `snapshot has dependent
-clones`. Promoting back did not restore the lost snapshot. The dependent-destroy dry run included the checkout
-and its later snapshot (`item-11-exact.log:69` to `:94` and `:123` to `:135`). Never issue recursive or
-dependent-clone destruction; a dependency refusal protects the specific snapshot it names, not the rest of the
-history.
+older checkout snapshot before the kernel refused to delete the relocated origin with
+`snapshot has dependent clones`. Promoting back did not restore the lost snapshot. The dependent-destroy dry run
+included the checkout and its later snapshot (`item-11-exact.log:69` to `:94` and `:123` to `:135`). Never issue
+recursive or dependent-clone destruction; a dependency refusal protects the specific snapshot it names, not the
+rest of the history.
 
 [VM item 14][vm-batch] sent the mixed `@earliest` and `@origin` batch through both paths. The CLI refused a
 snapshot with a dependent clone before issuing any `ZFS_IOC_DESTROY_SNAPS` ioctl. The direct request returned
