@@ -1659,7 +1659,8 @@ Two parts the design leaves open block its acceptance arms:
 the checkout provider stays conditional in "One-time move and checkout boot protection",
 which names "the protected `home-user-Monochromatic.mount` if using a generated mount unit,
 or `zfs-mount.service` where it mounts the checkout",
-and "Checkout boot mount protection" says to prove the failure control and production ordering before enabling the gate.
+and "Checkout boot mount protection" says
+to prove the failure control and production ordering before enabling the gate.
 The staging design blocks its boot arm through step 9's open item.
 The migration itself is a runbook that needs no design beyond the design's own protection decision;
 that reading is the plan's suggestion.
