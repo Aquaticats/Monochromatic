@@ -349,3 +349,19 @@ exclude all path descendants from automatic early mounting and order their attac
 checkout mount, or refuse if that ordering cannot be proved. Include datasets outside the checkout's ZFS
 ancestry and verify path reachability, not only mount-table membership. This did not exercise a failed
 ordinary-checkout mount or production boot units.
+
+## 10. Explicit ZFS mount of a legacy clone
+
+Guest: `6.8.0-147-generic`, OpenZFS userspace/module `2.4.4-1` (`item-10-exact.log`). The kernel differs from the
+host; the module release matches. `zfs get` showed inherited `mountpoint=legacy`, default `canmount=on` and
+`mounted=no`. An explicit `zfs mount <clone>` exited 1 and left the slot unmounted:
+
+```text
+cannot mount 'zfsowed10/home/worktree-clone-datasets/legacy': legacy mountpoint
+use mount(8) to mount this filesystem
+```
+
+The descriptor attach of that same dataset succeeded, with `rw,nosuid,nodev,relatime`. This confirms the
+explicit-mount branch of `zfs-2.4.4`'s `cmd/zfs/zfs_main.c:7240` to `:7248`. The proposal's citation at
+lines 118 to 119 points at the unmount branch instead. Treat the refusal as expected: an inherited legacy
+property does not name a target slot, and the design must not fall back to a path-based mount.
