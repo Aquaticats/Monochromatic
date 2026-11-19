@@ -544,10 +544,15 @@ For a managed-consumer deployment, propose that the wrapper and consumer launche
 finish draining consumers and namespace handles before the root handler scans. Keep admission closed through the
 head destroy. The deployment must also exclude untracked copies and pinned handles and prevent independent new
 mounts during that interval; stopping the managed consumers alone does not do that. A channel program excludes ZFS
-administrative changes, not Linux namespace changes (`man/man8/zfs-program.8:35` to `:40`). Item 15 did not show
-an exclusion mechanism for unrestricted callers, so a clean scan alone cannot qualify that deployment. The
-propagation choice must show how its supported deployment enforces these conditions and passes normal removal;
-this is a proposed requirement, not a measured guarantee.
+administrative changes, not Linux namespace changes (`man/man8/zfs-program.8:35` to `:40`).
+
+Item 15 did not show an exclusion mechanism for unrestricted callers, such as a rootless container started after
+attach, so a clean scan alone cannot qualify that deployment. Removal therefore refuses before the first snapshot
+delete when the selected deployment cannot show that exclusion, and a deployment that can show it still accepts a
+residual: a copy that appears after the scan leaves planned snapshots all gone with the head refused, the resume
+state [Removal and recovery](#removal-and-recovery) names, which "B: Destroy at once" already accepts (reasoning
+from [item 15][vm-namespaces], not a measured interleaving). The [propagation choice](#open-project-choices)
+carries both conditions as facts.
 
 [VM item 3][vm-propagation] measured the move refusing with `EINVAL` when its immediate parent, the checkout,
 was shared. Making **only the checkout mount private** let the fresh process move to private staging and unmount;
@@ -952,7 +957,10 @@ unmeasured; a ranking is not a decision.
   does not eliminate the all-namespace check. Qualify how the selected setup excludes untracked holders and
   new copies through destruction, not merely what the handler's namespace sees (unmeasured; see
   [Mounts held by other namespaces](#mounts-held-by-other-namespaces)). No alternative descriptor unmount was
-  tested. Do not silently change propagation.
+  tested. Do not silently change propagation. Two facts belong to this choice: a deployment that can show the
+  exclusion still accepts planned snapshots all gone with the head refused when a copy survives the scan (the
+  outcome [VM item 15][vm-namespaces] measured), and removal refuses before the first snapshot delete when the
+  deployment cannot show it. The options differ in who keeps the isolation current, not in what removal accepts.
 - Managed path interface. Accept the canonical path from ordinary `git worktree add <path>` only, with fallback at
   the same slot; or also add an opt-in named allocator that reports the chosen path under `.claude/worktrees`.
   [VM item 1][vm-register] used an explicit canonical path under that parent, not an allocator or the wrapper's
