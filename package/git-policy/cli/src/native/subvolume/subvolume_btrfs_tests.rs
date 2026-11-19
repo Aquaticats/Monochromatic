@@ -3,7 +3,7 @@
 //! `FICLONE` and the kernel's exchange on a
 //!  real btrfs filesystem.
 //! Each needs a btrfs fixture root;
-//! on the container gate (an overlay) they print one line each
+//! on the container gate's tmpfs fixture root they print one line each
 //!  and the run states that this is known (`fs_btrfs_test_support`),
 //! and the host task `native:test:host:btrfs` runs them.
 
