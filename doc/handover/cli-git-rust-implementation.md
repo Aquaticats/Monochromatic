@@ -40142,6 +40142,20 @@ the repository, timing from the feed. Owner: "Fix the driver too." GOING:
 `fix/pi-shared-subagent-driver-work-left-running-counts-only-processes-the-run-started`): the wait counts only work the
 run started, with a failing-first test on a real outside process; the TMPDIR fix follows as its own run.
 
+**Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
+machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed
+and pushed, main == origin/main, no `pi-*`, `reviewer-*` or other unit of this session left, then poweroff.
+
+**Bounded Sonnet check of the ZFS fold-in (`7fe84c7be8..68690e60be`), back 2026-11-19:** M1, M2, M3, M5, L1 to L6 and
+L8 answered; M4 and L7 partly (M4's lineage store and transport stay disclosed unknowns; L7's veto-open defaults sit
+outside the open-choices list); all five writer disagreements upheld against their sources. One tension with "B: Destroy
+at once": removal refuses when the namespace exclusion cannot be shown and no named option shows it, which no sentence
+says plainly. Eleven new lows N1 to N11 (among them N4: any bookmark on a clone refuses its removal, cost unstated; N1:
+item 16 searched only local images; N3: stale revision timestamps; N8/N9: wording that ranks or presents the coupled pair
+inconsistently). Sixteen open choices named. NEXT: after item 17 lands (it edits the same two files now), one DeepSeek
+fold-in of N1 to N11, the M4/L7 partials and the destroy-at-once sentence; then the choices to the owner in the morning.
+Check text in the agent's final message, summarised here; not saved as a file.
+
 The third prewarm run ended `idle` (77 turns, no new commit; report updated): through a built wrapper with the fill's
 staging and target replaced mid-clone, the tip left the other command's files at both names byte for byte and said why
 ("holds no claim of this job ... left as it is found"); `main` did not delete the replacement in that run either (its
