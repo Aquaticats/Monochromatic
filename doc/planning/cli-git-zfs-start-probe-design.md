@@ -254,8 +254,9 @@ These lines are from the tag's commit `71a9f9578616`, cloned on 2026-11-19 from 
 
 - This host's `/usr/include/linux/mount.h` (package `linux-api-headers` 1:7.1-1) lists every `MOUNT_ATTR_*`
   value (`:118` to `:128`) and `struct mount_attr` with separate `attr_set`, `attr_clr`, `propagation` and
-  `userns_fd` fields (`:133` to `:139`). There is no `MOUNT_ATTR_PRIVATE`; propagation is its own field, and it
-  takes the `MS_*` propagation values (`ms_private` at `:32`, the field's comment at `:170` to `:171`).
+  `userns_fd` fields (`:133` to `:138`). There is no `MOUNT_ATTR_PRIVATE`; propagation is its own field of that
+  struct (`:136`), and it takes the `MS_*` propagation values (`MS_PRIVATE` at `:32`, the value list beside
+  `mnt_propagation` at `:171`).
 - That copy is byte-identical to this host's 7.3.5 tree, `/usr/src/linux-cachyos/include/uapi/linux/mount.h`,
   apart from the include guard name (diff, 2026-11-19), so the header facts above are the running kernel's own
   UAPI, not another release's.
