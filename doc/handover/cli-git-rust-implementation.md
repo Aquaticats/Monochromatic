@@ -39847,6 +39847,15 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### The owner is away overnight; shut down when nothing is left (2026-11-18T23:25:00-05:00)
+
+The owner, plain text: "I'm gonna go to bed. You keep working and try not to block on me. Whenever you run out of
+things you can do w/o me, shutdown the entire system." So: every run going finishes and is handled (reviews, merges
+of reviewed non-wrapper work, the next step of each item); questions for the owner are written here, ranked, and asked
+when the owner is back, never waited on; and once no run is going and nothing more can move without the owner,
+everything is committed and pushed (rule `RBT`), every unit and worktree this session started is stopped or removed,
+and the machine is powered off. The queue stays stopped (no heavy worktree use before the ZFS route).
+
 ### Runs that ended after the filling stopped (2026-11-18T22:25:00-05:00)
 
 Three reviews returned (all `idle`, no rate-limit error); each found what the branch brings, so each goes to its
