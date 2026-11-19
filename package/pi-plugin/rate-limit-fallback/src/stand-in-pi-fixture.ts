@@ -132,9 +132,14 @@ export const PHYSICAL_MODELS: readonly Model<Api>[] = TARGETS.map(function toMod
 export type ModelIdentity = Pick<Readonly<Model<Api>>, 'api' | 'id' | 'provider'>;
 
 /**
- Compose a refusal body in the forms produced by Pi's OpenAI Responses and Completions adapters.
+ Compose a refusal in the forms Pi's installed adapters build.
 
- @param model - API selection that formats the refusal
+ The Responses adapter labels a failure it formats as `<Provider> API error (<status>): <body>`, with
+ `OpenAI` standing in for the provider id `openai` and the bare provider id for every other provider
+ (`@earendil-works/pi-ai` dist/api/openai-responses.js:177 and `formatProviderError` in
+ dist/utils/error-body.js). The Completions adapter prefixes only the status.
+
+ @param model - API selection and provider that format the refusal
 
  @param message - provider's error text inside the HTTP body
 
@@ -142,23 +147,27 @@ export type ModelIdentity = Pick<Readonly<Model<Api>>, 'api' | 'id' | 'provider'
 
  @example
  ```ts
- rateLimitRefusal({ model: { api: 'openai-responses' } });
+ rateLimitRefusal({ model: { api: 'openai-responses', provider: 'neuralwatt' } });
  ```
  */
 export function rateLimitRefusal({
   model,
   message = 'Too many requests',
 }: {
-  readonly model: Pick<ModelIdentity, 'api'>;
+  readonly model: Pick<ModelIdentity, 'api' | 'provider'>;
   readonly message?: string;
 },): string {
   /**
    The OpenAI SDK unwraps the HTTP body's `error` field before Pi serializes it.
    */
   const body = JSON.stringify({ message, },);
-  return model.api === 'openai-responses'
-    ? `OpenAI API error (${RATE_LIMIT_STATUS}): ${body}`
-    : `${RATE_LIMIT_STATUS}: ${body}`;
+  if (model.api !== 'openai-responses')
+    return `${RATE_LIMIT_STATUS}: ${body}`;
+  /**
+   Provider label the Responses adapter prints, which spells out `OpenAI`.
+   */
+  const label = model.provider === 'openai' ? 'OpenAI' : model.provider;
+  return `${label} API error (${RATE_LIMIT_STATUS}): ${body}`;
 }
 
 /**

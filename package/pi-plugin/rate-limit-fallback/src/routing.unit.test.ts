@@ -17,7 +17,7 @@ import {
   RATE_LIMIT_STATUS,
   TRANSCRIPT,
 } from './stand-in-pi-fixture.ts';
-import { REVIEWER_TARGETS, WRITER_TARGETS, } from './member-order-fixture.ts';
+import { labelOf, REVIEWER_TARGETS, WRITER_TARGETS, } from './member-order-fixture.ts';
 
 /** Writer head, the member every request starts at. */
 const [HEAD,] = WRITER_TARGETS;
@@ -39,6 +39,34 @@ const TERMINAL_ERRORS = [
 await describe({
   name: 'ordered provider routing',
   children: [
+    it({
+      name: 'moves on from the Responses refusal form under any provider name',
+      fn: async function responsesPrefix() {
+        /**
+         Writer head speaking the Responses protocol, as a non-OpenAI member would if Pi routed one
+         through that adapter; its refusal carries the adapter's own `<provider> API error (429):`
+         label.
+         */
+        const responses = { ...HEAD, api: 'openai-responses', };
+        const { provider, calls, options, } = await fixture({
+          extension,
+          models: [responses, WRITER_TARGETS[1],],
+          play({ model, }) {
+            return calls.length === 1
+              ? immediate({ model, errorMessage: rateLimitRefusal({ model, },), },)
+              : immediate({ model, },);
+          },
+        },);
+        const model = poolModel({ provider, id: 'writer', },);
+        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual([
+          labelOf(responses,),
+          labelOf(WRITER_TARGETS[1],),
+        ],);
+        expect(result.stopReason,).toBe('stop',);
+        expect(result.provider,).toBe(WRITER_TARGETS[1].provider,);
+      },
+    },),
     it({
       name: 'writer tries the exact pool and keeps only the answering member events',
       fn: async function writerOrder() {
