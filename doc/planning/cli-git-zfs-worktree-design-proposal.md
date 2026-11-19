@@ -1,19 +1,35 @@
 # ZFS worktree design proposal for the Git wrapper
 
-**Non-final draft by an agent, unapproved.** Third delta fold-in: this revision answers the bounded check of
-`7fe84c7be8` to `68690e60be`, its findings N1 to N11 and one tension with the decided removal. This file's own
+**Non-final draft by an agent, unapproved.** Fourth delta fold-in: this revision answers the bounded check of
+`9a1a47e190` to `b26aa27f3c`, its residues and its bookmark verdict, and folds in [item 18][vm-18]. This file's own
 revision stamp is what `git log --format=%cI -1` prints for the file, which before this revision's commit reported
-2026-11-19T00:47:40-05:00 at `f65862e5c7`; a section heading's stamp is the commit time of the commit that landed
+2026-11-19T01:26:48-05:00 at `9331b1101a`; a section heading's stamp is the commit time of the commit that landed
 that section.
 
-This revision keeps every previous answer and changes these statements. Where removal refuses for want of the
-namespace exclusion, it says that no option or deployment here can show that exclusion today, so no described setup
-reaches "B: Destroy at once". The bookmark check passes on a live clone snapshot's tuple instead of a recorded
-bookmark. Item 17's delegated snapshot batch and the root option's two unnamed mechanisms stand in the identity
-choice. The receipts, the second binary, the refusal of an implicit remount and the private staging path are listed
-as veto-open defaults. The sweep's coalescing is named unspecified, the fresh scans are counted once with the chunk
-rule, a partial snapshot set belongs to whichever program failed, the coupled pair has one presentation rule, and
-each file now dates its revision from its own commit.
+This revision changes these statements. The rule that refused removal wherever the namespace exclusion cannot be
+shown is now one option of an open choice, because no described setup can show that exclusion. A bookmark whose
+snapshot this removal itself destroys no longer strands the next chunk or the replan; one whose snapshot was
+already gone refuses with its cost and the way out, and two acceptance controls are added. Item 17 and item 18
+state which clone topology each measured. The coalescing and rate gap sits in the lost last event choice, the
+excluded pair is reasoning from the grants, and each choice carries its facts while each veto-open default carries
+its evidence, its cost and how to veto it.
+
+The third delta fold-in answered the bounded check of `7fe84c7be8` to `68690e60be`, its findings N1 to N11 and one
+tension with the decided removal. That revision kept every previous answer and changed these statements. Where
+removal refuses for want of the namespace exclusion, it said that no option or deployment here can show that
+exclusion today, so no described setup reaches "B: Destroy at once". The bookmark check passed on a live clone
+snapshot's tuple instead of a recorded bookmark. Item 17's delegated snapshot batch and the root option's two
+unnamed mechanisms stand in the identity choice. The receipts, the second binary, the refusal of an implicit
+remount and the private staging path are listed as veto-open defaults. The sweep's coalescing is named
+unspecified, the fresh scans are counted once with the chunk rule, a partial snapshot set belongs to whichever
+program failed, the coupled pair has one presentation rule, and each file now dates its revision from its own
+commit.
+
+[Item 17][vm-17]'s fold-in (`64cdbc5263`, 2026-11-19T00:44:01-05:00; `2e7be7d71d`, 2026-11-19T00:44:56-05:00)
+recorded the delegated account's snapshot batch in the [measurement record][measurements] and stated its result
+here. [Item 18][vm-18]'s fold-in (`9b2cd94680`, 2026-11-19T01:25:34-05:00; `9331b1101a`,
+2026-11-19T01:26:48-05:00; `02592290ee`, 2026-11-19T01:27:16-05:00) recorded the same requests on an unpromoted
+clone and stated them beside item 17's. Both ran in guests booting `6.8.0-147-generic` with OpenZFS `2.4.4-1`.
 
 Second delta fold-in, tip `68690e60be` (2026-11-19T00:30:21-05:00), answering the second delta review of
 `7fe84c7be8`, including decisions that review showed the body made without the project: that revision omitted the
@@ -1164,9 +1180,13 @@ the account's attempt with a matching tuple was denied. The substitutions were s
 Item 17's delegated arm, under the grants this draft proposes except the checkout's local `snapshot`
 ([Scoped delegation](#scoped-delegation)), sent one `ZFS_IOC_DESTROY_SNAPS` request naming two of the clone's own
 snapshots: it returned 0 and deleted both, a name with a dependent clone returned `EEXIST` with both kept, and root's
-control request matched ([VM item 17][vm-17] on OpenZFS `2.4.4-1`). [Item 18][vm-18] sent the same three requests on
-an unpromoted clone, the shape removal destroys, and got the same returns and kept sets, with the checkout's own
-snapshots unchanged. Beside those measured results stand the two things
+control request matched ([VM item 17][vm-17] on OpenZFS `2.4.4-1`), on a promoted clone, whose snapshot list
+therefore held the two transferred origin names as well. [Item 18][vm-18] sent the same three requests on an
+unpromoted clone, the shape removal destroys, and got the same returns and kept sets, with the checkout's own
+snapshots unchanged. No guest ran both topologies: the two results agree across guests on the same releases, not
+within one guest, and neither measured the binding or the head destroy that follows (unmeasured). Item 18's arm is
+the one removal reaches, since removal destroys verified unpromoted clones and refuses a promoted clone before the
+first snapshot delete. Beside those measured results stand the two things
 the root option still lacks: where root records the origin-side lineage inventory at add time, since the claim
 record has a named home in the account-owned Git common directory, the binding record's home is unnamed, and the
 handler records slot identity rather than lineage; and how the unprivileged wrapper reaches a root removal
@@ -1270,13 +1290,15 @@ and 18 ran in guests of their own with the same releases.
 - [Item 16][vm-kernel], recorded: no built-in or locally supplied VM image booted `7.3.5-1-cachyos` with OpenZFS
   `2.4.4`. The remote catalog was not queried; the fixture did not run on the target kernel.
 - [Item 17][vm-17], measured: under item 12's grants the delegated account destroyed two clone-own snapshots in
-  one `ZFS_IOC_DESTROY_SNAPS` request, which returned 0; a name with a dependent clone returned `EEXIST` and
-  neither snapshot was deleted; root's control request returned 0. A user hold, a held or larger set, request
-  limits, the binding and the head destroy that follows remain unmeasured.
+  one `ZFS_IOC_DESTROY_SNAPS` request on a promoted clone, which returned 0 and left the two transferred origin
+  names listed under it; a name with a dependent clone returned `EEXIST` and neither snapshot was deleted; root's
+  control request returned 0. A user hold, a held or larger set, request limits, the binding and the head destroy
+  that follows remain unmeasured, and that topology is not the one removal destroys.
 - [Item 18][vm-18], measured: the same three requests on an unpromoted clone, the shape removal destroys,
   returned the same results: 0 for the account's two clone-own snapshots and for root's control, `EEXIST` with
   both kept for the name with a dependent clone, and the checkout's three snapshots unchanged. A user hold, a held
-  or larger set, request limits, the binding and the head destroy that follows remain unmeasured.
+  or larger set, request limits, the binding and the head destroy that follows remain unmeasured, and the two
+  topologies agree across guests on the same releases, not within one guest.
 
 ### Open measurements
 
