@@ -474,8 +474,10 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   `~/temp/agent/agents-md-worktree-place-rule-search-2026-11-18/keep/`) found the same: `WTU` (d507a55f0e) is the first
   repository-wide rule, and nothing was added and later removed. It found where the memory comes from: the handover of
   2026-11-04 (031cfafaa6) records that briefs and a trace script put worktrees there, that an `AGENTS.md` rule was
-  proposed, and the answer "Wrapper fix only". The old drives were not mounted during that search, so their copies
-  were not read.
+  proposed, and the answer "Wrapper fix only" with the note "What do you mean \"wrapper fix\" here?". The rule was
+  proposed because an add outside `.claude/worktrees/` was a byte copy (each such add read about 52 GB and wrote about
+  49.5 GB, measured that day) while the same add under `.claude/worktrees/` was a snapshot in seconds. The old drives
+  were not mounted during that search, so their copies were not read.
   A clone mounted there sits in a folder the account owns, which the finding under "A planted symlink redirects both
   mechanisms" makes dangerous for a mount that follows paths: the design has to mount without
   following anything the account can change, and the VM has to prove it.
