@@ -39961,11 +39961,38 @@ What follows from them, as work:
   the three inline inputs stay made up and say so with their boundary; the README list rests on Pi's own retry pattern
   (`retry.js` lines 36 to 39); it also added a paragraph to the package's `doc/rules-every-pi-brief-carries.md`, outside
   its brief. It names two more strings of the same file that stand for provider output with no capture, `HTTP_429` and
-  `QUOTA_EXCEEDED` (a real capture exists for the quota one). Its worktree is removed (branch kept); GOING: its short
-  review on the Qwen plan, unit `pi-driver-model-error-fixtures-short-review-on-the-qwen-plan`, in the detached
-  worktree `.claude/worktrees/pi-qwen-review-driver-model-error-fixtures-at-026bef2510`, told to list every
-  output-standing string in the file; folder
-  `~/temp/agent/driver-model-error-fixtures-short-review-on-the-qwen-plan-2026-11-19/`. The driver pool table (task 383)
+  `QUOTA_EXCEEDED` (a real capture exists for the quota one). Its short review on the Qwen plan returned (51 turns;
+  report `~/temp/agent/driver-model-error-fixtures-short-review-on-the-qwen-plan-2026-11-19/report.md`): the new
+  capture and the README's `retry.js` citations are exact, each changed test tests the rule it tested at `main` (a
+  probe on the built library), checks pass; three medium findings (`HTTP_429` and `QUOTA_EXCEEDED` still neither
+  captured nor labelled; about thirty-five more strings in the file, unchanged since `main`, with neither source nor
+  label; `OPERATION_ABORTED`'s cited `feed.jsonl` is gone and its summary does not hold the text) and three low (two
+  more cited feeds gone though their summaries hold the text; the rules-doc paragraph counts a dated quote in a skill
+  or handover as a capture, wider than `TAE`; the file's top doc says all its texts are recorded). All weighed as worth
+  fixing; GOING: the fix run `pi-driver-model-error-fixtures-review-findings-fixed` (DeepSeek on Neuralwatt, cap 635)
+  in `.claude/worktrees/pi-driver-model-error-fixtures-review-findings-fixed` on the same branch; folder
+  `~/temp/agent/driver-model-error-fixtures-review-findings-fixed-2026-11-19/`.
+- **A defect both runs met:** in a fresh worktree `mise run //package/pi-shared/subagent-driver:lint:types` fails on
+  files the change did not touch until `mise run //package/pi-shared/subagent-driver:build` runs, because the unit
+  tests import `../dist/final/node/index.mjs` and the worktree's `dist` is the main checkout's copied ignored build,
+  older than the branch's source (missing `TEMPORARY_FOLDER_MODE` and five more exports). Not filed yet; the owner of
+  the fix is the package's `lint:types` task (depend on `build`) or the tests' import of built output.
+- **The hybrid provider prototype ended `idle`** (200 turns, 23 min; branch
+  `feat/pi-plugin-rate-limit-fallback-hybrid-prototype-native-virtual-model-routes-to-the-pool` at `7328d0ca9d`, eight
+  files under `src/hybrid-prototype/` plus an optional `pools` table on `dispatchRequest`; findings page
+  `package/pi-plugin/rate-limit-fallback/doc/hybrid-native-virtual-model-prototype.md`, unapproved). By its report:
+  item 1 passed (a real turn through the hybrid, Pi recorded Neuralwatt); item 2 passed both arms (forced overflow on
+  a stand-in member: hybrid compacts and retries with the router called on `retry`, turn completes; the pool selected
+  directly ends the turn); item 3 passed on a stand-in carrying a captured refusal; item 4 passed (declared limits
+  before, the answering member's after); item 5 passed for quota exhaustion, a Cloudflare 523 does not yet move on
+  (point 1 of the rebuild), a policy stop not shown (no `openai` member). It corrected the brief: a 522 with
+  Cloudflare's "Connection timed out" is retried by Pi. The overflow body rests on Pi's detector, not a capture (a
+  real overflow needs hundreds of thousands of tokens); `--no-extensions` drops the member extensions, so an install
+  must load them. Real-request cost: four one-word sessions. Its worktree is swapped for the short review's; GOING:
+  `pi-rate-limit-fallback-hybrid-prototype-short-review-on-the-qwen-plan` in
+  `.claude/worktrees/pi-qwen-review-rate-limit-fallback-hybrid-prototype-at-7328d0ca9d`, rerunning each verdict on
+  stand-in members; folder `~/temp/agent/rate-limit-fallback-hybrid-prototype-short-review-on-the-qwen-plan-2026-11-19/`.
+  Then the rebuild (points 1 to 3 and 5, the hybrid wiring, the 22 uncaptured fixtures) if the verdicts hold. The driver pool table (task 383)
   waits on more than a slot: it changes `pool-limits.ts`, as the unmerged `ecec388cdb` does (13 files; its review
   queued 2026-11-16 and never started), and the entry of 2026-11-16 on the second timing of the two pools puts
   follow-ups to that file on top of `ecec388cdb` once it is reviewed and in `main`; that review waits with the queue.
