@@ -40011,8 +40011,20 @@ What follows from them, as work:
   exactly 120 characters wrapped in `9137efc5b4`. ACCEPTED by the owner through the question tool
   (2026-11-19T17:45:53-05:00, "Accept (Recommended)"; worktrees for the ZFS build steps "Up to 64"); marked in the
   plan's header and merged into `main` with `--no-ff`. The plan worktree was left in place by the merge because a
-  process was working in it; it is removed once nothing there is the session's. NEXT: step 1 and the steps and
-  designs the plan names as startable now. By the owner's answers of
+  process was working in it; it was removed after (the removal kept a service journal under
+  `~/.local/state/monochromatic-git-policy-cli/service/123caee122671a2b63814dcc77354f00`). The coordinator checked the
+  merged plan's "Depends on" lists by script: no step depends on a later one (a planted backward edge was flagged).
+  GOING since about 2026-11-19T18:00-05:00, each DeepSeek on Neuralwatt, cap 635, in its own worktree from `main`
+  `73eaad0846`: step 1, `pi-zfs-step-1-binding-package-and-codec` (`.claude/worktrees/zfs-step-1-binding-package`,
+  `feat/zfs-request-to-openzfs-kernel-device-binding-package-and-codec`; checks wholly in a container built from the
+  gate base image, `file-enforcer` and the linter from lock archives, `cargo-fuzz` from pacman or `cargo-binstall`,
+  no host sysroot mounted, no `/dev/zfs`); and the three blocking designs, each one new unapproved file under
+  `doc/planning/`: `pi-zfs-start-probe-design`, `pi-zfs-runtime-layout-checker-design` (lists its dependency
+  candidates first by the `choosing-technology` skill; the pick is the owner's) and `pi-zfs-staging-under-cache-design`
+  (worktrees `.claude/worktrees/zfs-start-probe-design`, `zfs-runtime-layout-checker-design`,
+  `zfs-staging-under-cache-design`, made with `--no-worktree-copy`). Briefs under `~/temp/agent/zfs-*-2026-11-19/`.
+  Steps 3 and 4 wait for step 2's guest fixture (their VM arms) and their merges for the gate fix. Each design then
+  gets a Sonnet gate review and the owner's acceptance before step 6 or step 9 builds on it. By the owner's answers of
   2026-11-19T17:10:00-05:00 (questions file) the LFS review and the provider rebuild finish and nothing else off the
   ZFS path starts, and owner questions off the ZFS path wait in the questions file (new rule `QWP`).
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
