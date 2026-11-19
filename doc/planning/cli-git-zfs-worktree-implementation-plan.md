@@ -1650,6 +1650,105 @@ Host reads are allowed and were used here:
   `cargo nextest` and its type gate,
   per rules `RNQ` and `CM6`.
 
+### What each step runs where
+
+Each entry names the part that needs no kernel or pool,
+which runs on this host,
+and the part that does.
+
+- Step 1:
+  the codec,
+  request packing,
+  bounded decoding and the fuzz targets on the host;
+  nothing in a VM.
+- Step 2:
+  no host half beyond step 1's;
+  every live call runs in the VM.
+- Step 3:
+  `fs_kind` recognition and the ladder's choice on the host;
+  the reflink and cross-dataset controls in the VM.
+- Step 4:
+  the identity compare,
+  the refusal wording and the rollback plan on fixture folders on the host;
+  real mounts,
+  flags and renames in the VM.
+- Step 5:
+  mode dispatch and the release and source-guard checks on the host;
+  the install in the VM at step 19.
+- Step 6:
+  the gate's decisions from supplied facts on the host;
+  the real module,
+  BTF mismatch and probe in the VM.
+- Step 7:
+  the grammar,
+  the byte bounds,
+  receipt parsing and the file modes on the host;
+  delivery and refusal in the VM.
+- Step 8:
+  the name grammar,
+  intent parsing and the refusal order on the host;
+  clone verification and attach in the VM.
+- Step 9:
+  the reopen flags and the identity compare's inputs on the host;
+  the move,
+  busy unmount and reattach in the VM.
+- Step 10:
+  the claim record,
+  the resume states and `ENOSPC` handling on fixture repositories on the host;
+  the real add
+  in the VM.
+- Step 11:
+  the restore and the proof's comparisons on fixture repositories on the host;
+  the dirty source and the write
+  window in the VM.
+- Step 12:
+  the state classification and the move refusal on fixture repositories on the host;
+  prune against a real
+  clone in the VM.
+- Step 13:
+  writing,
+  recognizing and releasing the lock on fixture repositories on the host;
+  the post-loss install in
+  the VM.
+- Step 14:
+  the lineage proof's arithmetic,
+  the bookmark rule and plan persistence on captured tuples on the host;
+  live
+  GUIDs and the refusals in the VM.
+- Step 15:
+  the batch's encoding without a `defer` key,
+  the split arithmetic and per-name result parsing on the host;
+  the delegated request,
+  its budget and the interruption arms in the VM.
+- Step 16:
+  the checks' decision table on the host;
+  the mark and each refusal in the VM.
+- Step 17:
+  the cancel command's proof and the caller-session classification on fixture processes on the host;
+  ending
+  holders and the arms in the VM.
+- Step 18:
+  report assembly,
+  wording and exit status on the host;
+  the checks and the printed commands in the VM.
+- Step 19:
+  the units' ordering parsed and asserted on the host;
+  the real reboot,
+  shutdown and migration in the VM.
+- Step 20:
+  config parsing and the coverage comparison on the host;
+  sanoid 2.3.0 in the VM.
+- Step 21:
+  the repair stage selection on fixture repositories on the host;
+  real installs and watches in the VM.
+- Step 22:
+  no host half;
+  the measurements run in the VM.
+- Step 23:
+  no host half;
+  the qualification run is the VM.
+
+
 ## What can start now
 
 Step 1 can start today.
