@@ -11,6 +11,7 @@ import {
   isErrnoException,
 } from './errors.ts';
 import { parseOpenSnitchConfig, } from './opensnitch-config-tree.ts';
+import { syncWrittenPath, } from './sync-written-path.ts';
 
 /**
  Module logger for OpenSnitch config persistence.
@@ -140,28 +141,30 @@ async function writeThroughWatchedInode(
     replacement,
     padding,
   ],);
-  /**
-   Watched file descriptor retaining inode through write.
-   */
-  await using handle = await open(
-    path,
-    'r+',
-  );
-  /**
-   Positional write result used to reject a partial config.
-   */
-  const { bytesWritten, } = await handle.write(
-    payload,
-    0,
-    payload.length,
-    0,
-  );
-  if (bytesWritten !== payload.length) {
-    throw new OpenSnitchConfigError(
-      `OpenSnitch system-firewall write was incomplete: ${path}`,
+  {
+    /**
+     Watched file descriptor retaining inode through write, closed before path-based sync.
+     */
+    await using handle = await open(
+      path,
+      'r+',
     );
+    /**
+     Positional write result used to reject a partial config.
+     */
+    const { bytesWritten, } = await handle.write(
+      payload,
+      0,
+      payload.length,
+      0,
+    );
+    if (bytesWritten !== payload.length) {
+      throw new OpenSnitchConfigError(
+        `OpenSnitch system-firewall write was incomplete: ${path}`,
+      );
+    }
   }
-  await handle.sync();
+  await syncWrittenPath(path,);
 }
 
 /**

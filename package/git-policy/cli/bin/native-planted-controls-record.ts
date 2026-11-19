@@ -1,16 +1,18 @@
 /**
  The record a passing run of the planted controls leaves: its shape, its digest of the control table, and its atomic write.
  */
+import { execFile } from 'node:child_process';
 import {
   createHash,
   randomUUID,
 } from 'node:crypto';
 import {
-  open,
   rename,
   rm,
+  writeFile,
 } from 'node:fs/promises';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 
 import type { PlantedControl } from './native-planted-controls.ts';
 
@@ -131,6 +133,47 @@ export function plantedControlsPassedRecord({
 }
 
 /**
+ Failure to sync a closed record before publication.
+ */
+class DurableWriteSyncError extends Error {
+  /**
+   Names the operation that failed rather than the write that already ran.
+   */
+  override name = 'DurableWriteSyncError';
+}
+
+/**
+ Node's own `execFile` promise adapter signature, avoiding the generic void callback overload.
+ */
+const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
+
+/**
+ Runs GNU coreutils `sync` without a shell and waits for its result.
+ */
+const execFileAsync = promisifyExecFile(execFile);
+
+/**
+ Flush a closed record by path because Node disables descriptor sync under its permission model.
+
+ @param path - Private record to sync before rename.
+
+ @throws {@link DurableWriteSyncError} when `sync` cannot start or finish successfully.
+
+ @example
+ ```ts
+ await syncWrittenPath('/e/private-record.tmp');
+ ```
+ */
+async function syncWrittenPath(path: string): Promise<void> {
+  try {
+    await execFileAsync('sync', ['--data', '--', path]);
+  }
+  catch (error) {
+    throw new DurableWriteSyncError(`Cannot sync ${path} with GNU coreutils sync --data: ${String(error)}`, { cause: error });
+  }
+}
+
+/**
  Write a file so that a reader sees all of it or none of it, and a crash leaves no torn record.
 
  @param file - destination path
@@ -154,18 +197,9 @@ export async function writeFileAtomically({
    */
   const temporary = `${file}.${String(process.pid)}.${randomUUID()}.tmp`;
   try {
-    /**
-     The temporary file, flushed before the rename so a power loss cannot publish an empty destination.
-     */
-    await using handle = await open(
-      temporary,
-      'wx',
-    );
-    await handle.writeFile(
-      text,
-      'utf8',
-    );
-    await handle.sync();
+    await writeFile(temporary, text, { flag: 'wx', encoding: 'utf8' });
+    // Flush the closed temporary file before rename so power loss cannot publish an empty destination.
+    await syncWrittenPath(temporary);
   }
   catch (error) {
     await rm(

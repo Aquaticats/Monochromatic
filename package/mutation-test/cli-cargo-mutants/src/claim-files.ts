@@ -9,6 +9,7 @@ import {
   open,
   rename,
   unlink,
+  writeFile,
 } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -21,6 +22,7 @@ import {
 } from './claim-record.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import { isMissing } from './fs-guards.ts';
+import { syncWrittenPath } from './sync-written-path.ts';
 
 /**
  The most bytes of a claim file that are read (`single_owner_claim.rs:207`).
@@ -73,14 +75,7 @@ function hasCode({
  ```
  */
 export async function syncDirectory(directory: string): Promise<void> {
-  /**
-   The directory, opened for the flush.
-   */
-  await using handle = await open(
-    directory,
-    'r',
-  );
-  await handle.sync();
+  await syncWrittenPath(directory);
 }
 
 /**
@@ -112,16 +107,8 @@ export async function writePrivate({
     `.owner-claim.tmp.${String(process.pid)}.${crypto.randomUUID()}`,
   );
   try {
-    /**
-     The new file, which must not exist yet.
-     */
-    await using handle = await open(
-      path,
-      'wx',
-      claimMode,
-    );
-    await handle.writeFile(encodeClaimRecord(record));
-    await handle.sync();
+    await writeFile(path, encodeClaimRecord(record), { flag: 'wx', mode: claimMode });
+    await syncWrittenPath(path);
   }
   catch (error) {
     await unlink(path);
