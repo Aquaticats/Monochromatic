@@ -40058,6 +40058,28 @@ DeepSeek short review of DeepSeek work is labelled a second pass (rule `IRW`), a
 gate reviews and audits (rule `LHZ`). The coordinator's lean, told to the owner: cull when the audit lands unless it
 surprises.
 
+**GPT dropped as the writer (2026-11-19, the coordinator's decision under the owner's delegation, open to veto).**
+The cross-topic audit (`~/temp/agent/writer-reliability-by-model-across-topics-2026-11-19/keep/report.md`, Sonnet,
+low confidence) found no correctness difference: unbacked program-output fixtures on the same remote-API topic GPT 3 of
+4 runs, DeepSeek 1 of 3; contradicted claims 0.83 against 0.67 per reviewed unit; one DeepSeek guard test passed without
+its fix. So the earlier ground "the invented test messages are a GPT trait" is retracted; the brief rule "What another
+program prints" and the review check address it for every writer. What remains GPT-only on record: OpenAI's content
+filter ended three GPT runs (two writers of 2026-11-18 and the audit `sol-invocation-and-argument-route-findings-on-main-1`
+of 2026-11-09) and no DeepSeek run on record (a filter ending in a normal stop would not show); one GPT run declined a
+decision the project had made; and routing around the filter needed the relay machinery whose hazards the provider
+review measured. Fisher exact on the sample p about 0.22. The owner's reason for trying GPT: "I tried using GPT as a
+writer because 6.2 models were released and I have a 100USD/month GPT plan, so I thought I'd use the quota. Apparently
+not a good decision." (flat plan, so Pi's per-token cost figures were never the bill). **Reverses if:** DeepSeek writers
+show more contradicted claims or gate-review findings per run than GPT's record in the coming rounds, or the owner says
+so. **Changed:** `XVW` now names DeepSeek; `RKD` retired and reserved (`forbidden-strings.append.local.txt`, local-049);
+`CLAUDE.md` regenerated as the concat after checking HEAD matched; the pi-as-subagent skill's "Who writes and who
+reviews" gives writers the pre-switch order (neuralwatt `deepseek-v4.1-flash`, then its `-flex`, then opencode-go) and
+labels short reviews a second pass. **Still to do:** the provider package (OpenAI leaves the writer pool, so the
+automatic policy-stop move the owner chose has no member with a stop on record; it is removed or left dormant, the owner
+told, open to veto; review mediums 1 and 3 go with it, the fixture lows and mutants `M12`, `M13` remain); the driver pool
+table (task 383) without OpenAI; when the queue resumes, check which model its starter gives writer entries (no tracked
+file and no `pi-runs` script names `gpt-6.2-sol`; the batch files that do record runs already done).
+
 **Second ZFS delta review (Sonnet, 2026-11-19T00:06:18-05:00): 0 high, 5 medium, 8 low**, all accepted by the
 coordinator; the writer's disagreement with the first delta review is upheld. Saved from the reviewer's final message to
 `~/temp/agent/zfs-worktree-design-proposal-fold-in-2026-11-18/keep/second-delta-review.md`. M3 checked by the
