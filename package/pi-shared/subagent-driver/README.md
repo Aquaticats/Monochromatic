@@ -1338,17 +1338,20 @@ and a `systemd-run --scope` the agent runs in the foreground keeps the parent th
 while a process another session, another run or the person started descends from that and never from this run.
 A process whose folder or parent chain cannot be read counts for nothing.
 
-Work that has left the run's own process tree is waited for by the other two answers and not by the process table.
+Work that has left the run's own process tree is waited for by the process tool's records and not by the process table.
 A `systemd-run --scope` the agent puts in the background,
 a `setsid`, or a double fork hands its process to the service manager when its parent exits,
 so the chain then ends at the manager instead of at the run,
 and the process table names nothing even though the work still runs in the run's folder.
-The run's own `process` tool keeps such work, because the record it writes carries the number,
-and a command that names a unit with `--unit=` keeps it, because the manager is asked about the unit.
-So an agent starts work that outlives its turn with the `process` tool,
-or as a named unit with `systemd-run --user --unit=<name>`,
-and never as a backgrounded scope whose caller exits:
-that last shape is not waited for, and the run ends `idle` while the work goes on.
+A process the run's own `process` tool recorded keeps the run while the number it holds is still a process,
+whatever folder that work is in;
+a recorded command that names a unit with `--unit=` keeps the run while the manager holds that unit,
+whatever the tool's last answer says about the client that started it,
+because a client that has ended says nothing about the unit it asked for.
+So an agent starts work that outlives its turn through the `process` tool,
+and starts that work as a named unit with `systemd-run --user --unit=<name>` when it should outlive the client too.
+A unit started any other way, from a `bash` call for example, has no record,
+and nothing else asks the manager about it: the run ends `idle` while that unit runs.
 Before 2026-11-19 the folder and the control group were the whole test,
 which counted that backgrounded scope as the run's work,
 and counted every other session's process in the main checkout too:
