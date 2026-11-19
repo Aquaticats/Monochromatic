@@ -854,7 +854,7 @@ RGT:
 
 HRM:
  Could an action physically harm a human,
- or wear or damage hardware?
+ or damage hardware?
  Ask first.
 `ssh m1`:
  16 GiB RAM cap,
