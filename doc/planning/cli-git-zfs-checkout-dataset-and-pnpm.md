@@ -40,13 +40,15 @@ configured global virtual store uses for registry files.
 - Each arm had 117 regular files (including `.modules.yaml`, `.pnpm/lock.yaml` and executable shims) and zero regular
   files with more than one link. They held 1,504,261 logical bytes in home and 1,502,154 across the boundary in the
   timed runs. Comparing the last output trees with the input archive found no added paths outside `node_modules`.
+  A separate file-write trace in both arms counted 117 checkout `write` calls to 117 paths, returning 1,508,460 bytes
+  in home and 1,506,353 bytes across the boundary. In each run, the home store also received 48,447 bytes through
+  `write` and 8 through `pwrite64`, in addition to its reflinks. These are syscall return bytes, not device writes.
 - A separate `strace` run at a new cross-dataset checkout path found zero checkout `FICLONE`, hard-link,
   `copy_file_range` or `sendfile` calls for the package imports. It found 1,616 successful `FICLONE` calls **inside the
   shared home store**, at least 28,511,186 bytes referenced by those calls (11 destination paths were gone at inventory
   time). The inherited-state relink at another new path also made 1,616 store-local clone calls. A warm CAFS and a
   populated `links` tree do not guarantee zero work in the shared store for a new path. This repo has path-specific
-  `link:` overrides (`pnpm-workspace.yaml:304,391,412,428,457`); pnpm's
-  [`lockfileToDepGraph`](https://github.com/pnpm/pnpm/blob/v12.21.0/pnpm11/deps/graph-hasher/src/lockfileToDepGraph.ts#L48-L61)
+  `link:` overrides (`pnpm-workspace.yaml:304,391,412,428,457`); pnpm's [`lockfileToDepGraph`][pnpm-graph]
   includes an absolute target for those graph nodes. The trace proves where the imports went, not which override
   requested each import. The store also records projects. No store entries were pruned to start a run.
 - Positive control: changed **only the disposable checkout's** virtual-store setting to `project`, so CAFS-to-
@@ -105,7 +107,7 @@ The independent guest pool had one file-backed vdev, no other workloads, compres
 `zfs_bclone_enabled=1`. Ran OpenZFS userspace **and** module 2.4.4 on kernel `6.8.0-147-generic`.
 For each operation, synced before and after with guest `zpool sync`, recorded exact-byte properties, and compared
 contents for successful copies. Each source was 8,388,608 bytes. The two counters in each pair are
-`bcloneused` and `bclonesaved`; `allocated` is a separate pool-wide delta including metadata.
+[`bcloneused` and `bclonesaved`][zfs-pool-properties]; `allocated` is a separate pool-wide delta including metadata.
 
 - Unencrypted read/write across datasets, negative control: `(0, 0)` remained `(0, 0)`; allocated grew 8,395,776.
   `FICLONE` inside the source dataset, positive control: `(0, 0)` became `(8,388,608, 8,388,608)`; allocated grew
@@ -278,11 +280,14 @@ or measure a cold registry download. Check the actual live checkout migration, t
 service and the editor in use before treating any of those as verified. No recommendation here changes an owner decision.
 
 [pnpm-importer]: https://github.com/pnpm/pnpm/blob/v12.21.0/pnpm11/fs/indexed-pkg-importer/src/index.ts#L119-L140
+[pnpm-graph]:
+  https://github.com/pnpm/pnpm/blob/v12.21.0/pnpm11/deps/graph-hasher/src/lockfileToDepGraph.ts#L48-L61
 [linux-ficlone]: https://github.com/torvalds/linux/blob/master/fs/remap_range.c#L371-L400
 [linux-copy-range]: https://github.com/torvalds/linux/blob/master/fs/read_write.c#L1480-L1494
 [zfs-zpl]: https://github.com/openzfs/zfs/blob/zfs-2.4.4/module/os/linux/zfs/zpl_file_range.c#L87-L128
 [zfs-clone]: https://github.com/openzfs/zfs/blob/zfs-2.4.4/module/zfs/zfs_vnops.c#L1608-L1651
 [zfs-keys]: https://github.com/openzfs/zfs/blob/zfs-2.4.4/module/zfs/dsl_crypt.c#L270-L300
+[zfs-pool-properties]: https://github.com/openzfs/zfs/blob/zfs-2.4.4/man/man7/zpoolprops.7#L68-L74
 [node-copy]: https://github.com/nodejs/node/blob/v26.13.1/src/node_file.cc#L3023-L3039
 [uv-copy]: https://github.com/nodejs/node/blob/v26.13.1/deps/uv/src/unix/fs.c#L1358-L1387
 [uv-range]: https://github.com/nodejs/node/blob/v26.13.1/deps/uv/src/unix/fs.c#L981-L1074
