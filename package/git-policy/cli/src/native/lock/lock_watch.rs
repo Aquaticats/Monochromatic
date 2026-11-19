@@ -902,9 +902,9 @@ impl Watch {
     /// ```ts
     /// watchFolderAndBelow(gitDir) // gitDir, then refs and the other shallow folders, one depth at a time
     /// ```
-    fn watch_folder_and_below(&mut self, directory: &Path, depth: usize) {
+    fn watch_folder_and_below(&mut self, directory: &Path, starting_depth: usize) {
         let mut pending: std::collections::VecDeque<(PathBuf, usize)> = std::collections::VecDeque::new();
-        pending.push_back((directory.to_path_buf(), depth));
+        pending.push_back((directory.to_path_buf(), starting_depth));
         while let Some((folder, depth)) = pending.pop_front() {
             // A control makes one read take a while, standing in for a file system that does not answer.
             a_folder_read_may_take_a_while();
@@ -1579,19 +1579,24 @@ impl Binding {
         //       that may carry an earlier holder's PID file; the inode the watcher saw is what tells the two apart
         //       (a review of `bbda166ce2`, finding 6).
         let locks: Vec<PathBuf> = self.tracker.locks_taken(self.child_pid);
-        forget_what_the_child_finished(&mut self.bound);
-        let pending = locks.iter().filter_map(|lock| {
-            if self.bound.contains_key(lock) {
-                return None;
-            }
+        let pending: std::collections::HashMap<PathBuf, (u64, u64)> = locks.iter().filter_map(|lock| {
             let seen = crate::index_lock_evidence::read_lock_metadata(lock.as_path()).ok().flatten()?;
             return Some((lock.clone(), (seen.device, seen.inode)));
         }).collect();
         if let Ok(mut held) = self.reported.lock() {
-            held.reported_take = !locks.is_empty();
+            held.reported_take = !pending.is_empty();
             held.pending = pending;
         }
+        // Publish the fresh report before touching old pins. A slow removal must not hide a new take from finish.
+        forget_what_the_child_finished(&mut self.bound);
         bind_what_the_child_took(locks, watch, self);
+    }
+
+    /// Acknowledge a take only once its pin is reachable and still holds the file at that path.
+    fn acknowledge_pin(&self, lock: &Path) {
+        if let Ok(mut held) = self.reported.lock() {
+            let _published = held.pending.remove(lock);
+        }
     }
 }
 
@@ -1857,6 +1862,7 @@ fn bind_what_the_child_took(locks: Vec<PathBuf>, watch: &Watch, binding: &mut Bi
     for lock in locks {
         // The preceding forget pass kept only pins that still hold their exact file.
         if binding.bound.contains_key(&lock) {
+            binding.acknowledge_pin(lock.as_path());
             continue;
         }
         // What: The folder standing at the lock's path must still be the folder this watch opened there.
@@ -1879,10 +1885,7 @@ fn bind_what_the_child_took(locks: Vec<PathBuf>, watch: &Watch, binding: &mut Bi
         crate::service_fault::reach(BEFORE_A_TAKE_IS_PINNED);
         let folder_named: (u64, u64) = (identity_of_the_folder.device, identity_of_the_folder.inode);
         if let Some(recorded) = lock_bindings::write(binding.common_dir.as_path(), lock.as_path(), &holder, folder_named) {
-            // Let the caller stop counting this take only after its pin is reachable.
-            if let Ok(mut held) = binding.reported.lock() {
-                let _published = held.pending.remove(&lock);
-            }
+            binding.acknowledge_pin(lock.as_path());
             let _previous = binding.bound.insert(lock, recorded);
         }
     }
