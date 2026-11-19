@@ -1363,19 +1363,22 @@ which is the same moment the driver stops waiting.
 Pi refuses a prompt that meets a running agent when the prompt names no streaming behaviour,
 and queues it into that turn when one is named
 (`prompt()` in `dist/core/agent-session.js` of Pi 1.5.2):
-that refusal is not a refusal of the message,
-and a driver that read it as one ended the run of 2026-11-19 `prompt-rejected`
+that answer is about the agent being busy, not about the message,
+and a driver that read it as a refusal ended the run of 2026-11-19 `prompt-rejected`
 while the agent was in a turn of its own,
 cutting that turn off.
 With the behaviour named,
-the wake joins the running turn before its next request,
-so the wake costs no second turn and that turn's reply is the run's last answer.
+the wake is delivered after the running turn and before the next request,
+so it is read inside the same agent run;
+the agent may answer in a further turn of that run,
+and the run ends when that turn settles.
 Pi ignores the behaviour while its agent rests,
 so a wake sent to a resting Pi starts a turn as it always did.
-Pi's answer that its agent is already processing is never read as a refusal either:
-it says the agent is awake,
-so the run stays up for the turn it is in,
-and the feed gains a `problem` line saying so.
+Pi's answer that its agent is already processing is not read as a refusal of the message either:
+it says only that the agent is in a turn,
+so the run stays up until that turn settles;
+the message is then not delivered,
+and the feed gains a `problem` line saying both.
 `doc/troubleshooting/pi-refuses-a-prompt-while-its-agent-is-already-processing.md` walks Pi's own source for that answer
 and lists the driver's other prompts that can meet it.
 
