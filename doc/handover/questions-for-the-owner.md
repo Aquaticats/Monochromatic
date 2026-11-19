@@ -103,6 +103,17 @@ until then this list is their record. Each was asked with the ranking and facts 
 - `AGENTS.md` rule `DCK` gains "that turn" (proposed after the Qwen terms were asked again for want of a record):
   "Adopt (Recommended)".
 - The overnight report (the three merges and the fixture audit counts), asked as an acknowledgement: "Seen".
+- Virtual provider point 4, asked a third time after reading Pi's retry classifier (`pi-ai/dist/utils/retry.js:4-50`):
+  under native virtual models a policy stop, quota exhaustion (`insufficient_quota`, OpenCode Go usage limits) and
+  Cloudflare 521, 522, 523, 525 and 526 end the turn, because Pi re-routes only errors it calls retryable; this
+  machine's Pi retries up to 8 times from 1 s (`~/.pi/agent/settings.json` `retry`), not the defaults first quoted.
+  Answer: "Hybrid, prototype first (Recommended)": a native virtual model whose router sends every request to the
+  package's pool provider, proved first by a prototype session that forces a member's context overflow.
+- ZFS default 4, where the account-owned staging folder is: "Under ~/.cache, and make the wrapper clean after itself."
+- The provider README's install precondition (a live check of each quota endpoint to set the read's deadline):
+  "Run the live check (Recommended)".
+- The Dependabot alert reported on every push, and DCK's "next action" trimmed to "next step": "Look into the alert
+  (Recommended)".
 
 ## Prepared overnight for the question tool, 2026-11-19T03:30:00-05:00
 
