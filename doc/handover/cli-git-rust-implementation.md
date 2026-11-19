@@ -39847,6 +39847,17 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### The Qwen plan's terms fit the Pi runs on it (2026-11-19T11:20:00-05:00)
+
+The owner, plain text, on return in the morning: "Regarding the Qwen plan's terms: We talked about this, and we
+determined we're fine because our traffic shape is approved and it is indeed agentic coding and you're monitoring
+them." So the reviewer order keeps `qwen-token-plan-individual` first, the hold on new Qwen-plan runs written on
+2026-11-19 (entry "For the owner (terms of the Qwen plan ...)") is lifted, and a run started on the plan stays watched
+by the session that started it until it ends. The canonical place is `.agents/skills/pi-as-subagent/SKILL.md`, section
+"Who writes and who reviews". The earlier talk the owner refers to left no record in `doc/` or `.agents/` (searched
+2026-11-19 for the FAQ's words, "traffic shape" and "agentic coding"; the 2026-11-13 entry "What the provider says"
+had left the question "the owner's to weigh"), which is why the overnight list asked it again.
+
 ### The owner is away overnight; shut down when nothing is left (2026-11-18T23:25:00-05:00)
 
 The owner, plain text: "I'm gonna go to bed. You keep working and try not to block on me. Whenever you run out of
@@ -40462,7 +40473,8 @@ Using the API key for production automated services, batch scripts, or scheduled
 also recommends 6 to 8 concurrent agents on the Pro tier. The reviewer pool puts `qwen-token-plan-individual` first (the
 owner's word of 2026-11-18), and the coordinator's Pi runs are scripted and run in systemd units. Whether that use fits
 those terms is the owner's call; no new run is started on the Qwen plan until then (the benchmark already going keeps
-its Qwen control arm).
+its Qwen control arm). Answered 2026-11-19 in the morning: the use fits, and the hold is lifted (entry "The Qwen plan's
+terms fit the Pi runs on it" under "Owner decisions in force").
 
 The third prewarm run ended `idle` (77 turns, no new commit; report updated): through a built wrapper with the fill's
 staging and target replaced mid-clone, the tip left the other command's files at both names byte for byte and said why

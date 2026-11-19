@@ -229,7 +229,9 @@ the audit found no correctness difference either way.
   is DeepSeek V4.1 Flash from one pool in the owner's order:
   `--provider=qwen-token-plan-individual --model=deepseek-v4.1-flash-1017` first
   (the owner, 2026-11-18: "Add my qwen individual token plan deepseek-v4.1-flash-1017 to the deepseek pool."
-  and "Orderings: qwen individual token plan first."; how many runs it takes at once is unmeasured),
+  and "Orderings: qwen individual token plan first."; how many runs it takes at once is unmeasured;
+  its terms fit these runs, the owner, 2026-11-19: "our traffic shape is approved and it is indeed agentic coding
+  and you're monitoring them", so the session that starts a run on it watches that run until it ends),
   then the earlier order ("Synthetic and C and B, as a pool with preference."):
   `--provider=synthetic --model=hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`,
   then `--provider=opencode-go --model=deepseek-v4.1-flash`,

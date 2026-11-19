@@ -100,10 +100,6 @@ staging at `/run/git-worktree-clone-mount-staging` (needs a boot unit to create 
 
 ### Other questions for the morning
 
-- Qwen Token Plan terms. Its FAQ (https://www.alibabacloud.com/help/en/model-studio/token-plan-faq) says Personal
-  Edition is for interactive development through designated tools and that batch scripts and scheduled background tasks
-  are not allowed; Pi reviewer runs are automated. Stop using it for Pi runs > keep using it, because the use is outside
-  its stated terms on the owner's account.
 - Synthetic `infinite:small:vision` (quota-free; 13 to 46 times slower than the Qwen-plan arm over four interleaved
   rounds, answers matching). Last in the reviewer pool, used only when every other pool refuses > not used > earlier,
   because a slow review beats none and anything earlier costs hours per review.
