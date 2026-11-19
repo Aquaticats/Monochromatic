@@ -76,9 +76,13 @@ classifier, such as standalone retryable status numbers, `rate limit`, and
 punctuation are kept. This prevents Pi's outer retry from restarting a policy stop; a
 move to the next member never reaches that classifier at all.
 
-If the pool cannot answer, the last attempted member's failure is returned: its
-429 as it arrived, or a policy stop attributed to that member.
-Otherwise the pool names the held members and their state: a published zero flex
+When no member answers, the pool returns a failure rather than a fallback. A
+policy stop it set aside comes first, attributed to the member that stopped the
+request: that run ends there, even though the later members were only
+rate-limited, because returning their 429 would let Pi's outer retry restart at
+the member that refused. With no stop set aside, the pool returns the last
+member's 429 as it arrived. When no member was attempted, the pool names the held
+members and their state: a published zero flex
 floor, a local concurrency ceiling with the count in use, or a hold until
 a provider-derived time. These local admission results do not carry a
 fabricated 429 and are not retried by Pi: generic retry backoff cannot be

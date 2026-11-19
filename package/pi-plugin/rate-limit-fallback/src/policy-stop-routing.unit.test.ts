@@ -21,7 +21,6 @@ import {
   collect,
   fixture,
   immediate,
-  type MemberCall,
   poolModel,
   rateLimitRefusal,
   RATE_LIMIT_STATUS,
@@ -111,17 +110,21 @@ const RETAINED_DETAIL = 'Reference İ😀abc429xyz, 1503, and rate\nlimit.';
 /**
  Build the policy stop through the installed adapter for the transcript under test.
 
- @param call - member request the pool dispatched
+ @param model - member whose stream carries the advisory
+
+ @param options - request options the pool forwarded to the member
 
  @param exposedText - text the member streams before the stop
 
  @returns physical stream from the installed Responses adapter
  */
-function adapterStop({
-  call: { model, options, },
+function advisoryStop({
+  model,
+  options,
   exposedText,
 }: {
-  readonly call: MemberCall;
+  readonly model: Model<Api>;
+  readonly options?: SimpleStreamOptions;
   readonly exposedText?: string;
 },): AssistantMessageEventStream {
   return policyStopStream({
@@ -175,10 +178,13 @@ await describe({
       fn: async function policyMove() {
         const { provider, calls, options, } = await fixture({
           extension,
-          play(call) {
-            return labelOf(call.model,) === labelOf(WRITER_HEAD,)
-              ? adapterStop({ call, },)
-              : immediate({ model: call.model, },);
+          play({ model, options: member, }) {
+            return labelOf(model,) === labelOf(WRITER_HEAD,)
+              ? advisoryStop({
+                model,
+                ...(member === undefined ? {} : { options: member, }),
+              },)
+              : immediate({ model, },);
           },
         },);
         const model = poolModel({ provider, id: 'writer', },);
@@ -213,9 +219,10 @@ await describe({
       fn: async function exposedOutput() {
         const { provider, calls, options, } = await fixture({
           extension,
-          play(call) {
-            return adapterStop({
-              call,
+          play({ model, options: member, }) {
+            return advisoryStop({
+              model,
+              ...(member === undefined ? {} : { options: member, }),
               exposedText: 'Partial answer',
             },);
           },
@@ -357,6 +364,33 @@ await describe({
         const askedAgain = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(calls.length,).toBe(2,);
         expect(askedAgain.result.errorMessage,).toBe(stopped.result.errorMessage,);
+      },
+    },),
+    it({
+      name: 'yields the set-aside policy stop when every later member is rate-limited',
+      fn: async function setAsideStopWins() {
+        const { provider, calls, options, } = await fixture({
+          extension,
+          play({ model, options: member, }) {
+            const forwarded = member === undefined ? {} : { options: member, };
+            return labelOf(model,) === labelOf(WRITER_HEAD,)
+              ? advisoryStop({
+                model,
+                ...forwarded,
+              },)
+              : rateLimited({
+                model,
+                ...forwarded,
+                message: 'Too many requests',
+              },);
+          },
+        },);
+        const model = poolModel({ provider, id: 'writer', },);
+        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual(WRITER_TARGETS.map(target => labelOf(target,),),);
+        // The attributed stop is what Pi must see, so its outer retry cannot restart at the head.
+        expect(result.errorMessage,).toBe(`${stoppedBy(WRITER_HEAD,)} ${POLICY_STOP_TEXT}`,);
+        expect(isRetryableAssistantError(result,),).toBe(false,);
       },
     },),
     ...TRANSIENT_SPANS.map(function retrySpan(span,) {

@@ -185,10 +185,14 @@ export async function* dispatchRequest({
    */
   const unavailable: {
     /**
-     Last terminal failure the pool discarded: a 429 as it arrived, or a policy stop
-     that already names the member which stopped the request.
+     Attributed policy stop the pool set aside, kept apart from later refusals so the pool reports the
+     stop rather than a 429 that would make Pi's outer retry restart at the member that refused.
      */
-    lastStop?: Extract<AssistantMessageEvent, { type: 'error'; }>;
+    policyStop?: Extract<AssistantMessageEvent, { type: 'error'; }>;
+    /**
+     Last 429 the pool discarded, as it arrived.
+     */
+    lastRateLimit?: Extract<AssistantMessageEvent, { type: 'error'; }>;
     /**
      Named reasons that registered members were not admitted.
      */
@@ -400,7 +404,7 @@ export async function* dispatchRequest({
             rl.debug(`${id}: ${label} stopped the request under its content policy before output; trying the next member: ${event.error
               .errorMessage
               ?? ''}`,);
-            unavailable.lastStop = stopped;
+            unavailable.policyStop = stopped;
             return false;
           }
           if (buffered.start !== undefined)
@@ -439,7 +443,7 @@ export async function* dispatchRequest({
             retryAt,
           },);
           rl.debug(`${id}: ${label} returned HTTP 429 before output`,);
-          unavailable.lastStop = event;
+          unavailable.lastRateLimit = event;
           return false;
         }
         if (buffered.start !== undefined) {
@@ -467,11 +471,21 @@ export async function* dispatchRequest({
       return;
   }
   /**
-   Last failure the pool discarded, which is what it owes the caller when no member answered.
+   Set-aside policy stop and last rate limit the pool discarded, which is what it owes the caller
+   when no member answered.
    */
-  const { lastStop, } = unavailable;
-  if (lastStop !== undefined) {
-    yield lastStop;
+  const {
+    policyStop,
+    lastRateLimit,
+  } = unavailable;
+  // A stop set aside before the later members were only rate-limited ends the run: yielding the
+  // last 429 instead would let Pi's outer retry restart at the member that refused.
+  if (policyStop !== undefined) {
+    yield policyStop;
+    return;
+  }
+  if (lastRateLimit !== undefined) {
+    yield lastRateLimit;
     return;
   }
   if (unavailable.admissionStops
