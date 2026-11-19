@@ -37,16 +37,18 @@ other non-429 errors do not trigger fallback. When an adapter does not expose a
 response status, the pool reads it from Pi's `OpenAI API error (429): …`
 (Responses) or `429: …` (Completions) wording.
 
-A policy stop follows the same exposure rule, and only OpenAI's own opening
-moves a request on. A member that relays `This content was flagged for
-possible cybersecurity risk` before any text, thinking, or tool output moves
-the request to the next member with the same transcript. Once output was
-shown, the stop ends the request and the message names the member and keeps
-the advisory. Either way the plugin logs the member's name and the stop's
-text, worded apart from a rate-limit move, and the assistant record names the
-member that answered. If every member stops before output, the request ends
-with the last stopped member's attributed advisory. Neither pool has an
-OpenAI member since 2026-11-19, so this move cannot fire unless one is added;
+A policy stop follows the same exposure rule, and only OpenAI's own sentence
+moves a request on. A member whose refusal opens with `This content was
+flagged for possible cybersecurity risk` and shows no text, thinking, or tool
+output before it moves the request to the next member with the same
+transcript. Once output was shown, the stop ends the request and the message
+names the member and keeps the advisory. Either way the plugin logs the
+member's name and the stop's text, worded apart from a rate-limit move, and
+the assistant record names the member that answered. If every member stops
+before output, the request ends with the last stopped member's attributed
+advisory. The sentence is matched at the start of the refusal, so a refusal
+that merely quotes it does not move a request. Neither pool has an OpenAI
+member since 2026-11-19, so this move cannot fire unless one is added, and
 the rule and its tests stay for that case.
 
 The project decided this on 2026-11-19 for [issue 6314][issue-6314]: the stop
@@ -63,11 +65,12 @@ carried it. No policy move has been observed on a real provider yet; the
 extension check covers the 429 handoff only.
 
 OpenAI's `This content was flagged for possible`
-opening takes precedence over a 429, even if the advisory following it is
-truncated or changes punctuation. The shorter `possible risk` wording and
-generic policy labels identify a stop only when there is no 429 status, and
-they never move a request on: such a stop ends it, as it did before the move
-existed.
+sentence takes precedence over a 429 wherever it sits in the text, even if the
+advisory following it is truncated or changes punctuation, so a 429 body that
+quotes it ends the request instead of moving it. The shorter `possible risk`
+wording and generic policy labels identify a stop only when there is no 429
+status, and they never move a request on: such a stop ends it, as it did
+before the move existed.
 A stop that ends the request names the member and preserves the advisory,
 including OpenAI's
 remediation. It replaces only the spans matched by Pi's transient-error

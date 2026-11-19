@@ -296,7 +296,27 @@ await describe({
       },);
     },),
     it({
-      name: 'OpenAI policy opening outranks an adapter 429 and still moves on',
+      name: 'does not move on when a refusal merely quotes OpenAI’s sentence',
+      fn: async function quotedOpening() {
+        /**
+         Hand-written stand-in: a refusal whose own text quotes the stock sentence as evidence of a
+         repeated prompt, the shape the second review measured for a quoting refusal.
+         */
+        const quoting = `400 invalid_request_error: the prompt repeats ${POLICY_STOP_TEXT} three times`;
+        const { provider, calls, options, } = await fixture({
+          extension,
+          play({ model, }) { return immediate({ model, errorMessage: quoting, },); },
+        },);
+        const model = poolModel({ provider, id: 'writer', },);
+        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(WRITER_HEAD,),],);
+        expect(result.stopReason,).toBe('error',);
+        expect(result.errorMessage,).toContain(quoting,);
+        expect(isRetryableAssistantError(result,),).toBe(false,);
+      },
+    },),
+    it({
+      name: 'ends the request when only a 429 body quotes OpenAI’s opening',
       fn: async function sanitizeRefusal() {
         const message = `${POLICY_STOP_TEXT}. ${INJECTED_RETRY_WORDS}`;
         const { provider, calls, options, } = await fixture({
@@ -309,8 +329,11 @@ await describe({
         },);
         const model = poolModel({ provider, id: 'writer', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(WRITER_HEAD,), labelOf(WRITER_SECOND,),],);
-        expect(recordLabel(result,),).toBe(labelOf(WRITER_SECOND,),);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(WRITER_HEAD,),],);
+        expect(result.stopReason,).toBe('error',);
+        expect(result.errorMessage,).toContain(stoppedBy(WRITER_HEAD,),);
+        expect(result.errorMessage,).toContain(POLICY_STOP_TEXT,);
+        expect(isRetryableAssistantError(result,),).toBe(false,);
       },
     },),
     it({

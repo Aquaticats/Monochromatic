@@ -89,15 +89,16 @@ function startsWithRateLimit(value: string,): boolean {
 }
 
 /**
- Whether the failure carries OpenAI's own policy-stop opening.
+ Whether the failure opens with OpenAI's own policy-stop sentence.
 
- Only this opening takes precedence over an explicit HTTP 429, and only this opening moves a request
- on to the next member: another vendor's content stop ends the request as it did before the move
- was introduced.
+ Only this sentence moves a request on to the next member: another vendor's content stop, and a
+ refusal that merely quotes the sentence, end the request at the member that produced them. The
+ match is anchored because OpenAI's stock refusal begins with the sentence in both recorded captures
+ (`policy-stop-fixture.ts`), while a 429 body or a quoting refusal carries it later in the text.
 
  @param message - failed provider message
 
- @returns whether the text starts with OpenAI's stock refusal
+ @returns whether the folded text starts with OpenAI's stock refusal
 
  @example
  ```ts
@@ -107,7 +108,7 @@ function startsWithRateLimit(value: string,): boolean {
 export function hasOpenAiPolicyOpening(message: FailureEvidence,): boolean {
   return (message.stopReason === 'error')
     && foldProviderText(message.errorMessage ?? '',)
-      .includes(OPENAI_POLICY_OPENING,);
+      .startsWith(OPENAI_POLICY_OPENING,);
 }
 
 /**
@@ -137,7 +138,8 @@ export function isPolicyStop({
    Case-folded text with original spacing for the OpenAI refusal wording.
    */
   const text = foldProviderText(message.errorMessage ?? '',);
-  // The stock opening is the only policy text that takes precedence over an explicit HTTP 429.
+  // The stock sentence still outranks an explicit HTTP 429 wherever it sits, so a 429 body that
+  // quotes it is a non-retryable stop rather than a rate limit; only the move needs it at the start.
   if (text.includes(OPENAI_POLICY_OPENING,))
     return true;
   if (rateLimited)
