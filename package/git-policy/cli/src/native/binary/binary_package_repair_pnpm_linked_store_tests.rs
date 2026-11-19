@@ -41,7 +41,8 @@ fn installed_workspace(fixture: &Fixture, physical_home: &Path) -> PathBuf {
 
 /// The wrapper chooses the caller's pnpm, but a queued install inherits the service's home.
 /// Both have the alias here; the seed install alone used the physical spelling.
-/// Distinct store slots for the two worktrees prevent the source copy from satisfying the new tree's import.
+/// The new worktree sits at another depth, so the copied entry cannot resolve and pnpm must write a new one.
+/// A same-depth copy can reuse the source's slot even with a physical home; that is a different pnpm defect.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -65,14 +66,18 @@ fn real_pnpm_links_the_new_worktrees_override_with_a_linked_home() {
     std::os::unix::fs::symlink(&physical_home, &linked_home).expect("linked home");
     give_service_environment(&fixture, "HOME", linked_home.to_str().expect("fixture home path"));
     let repo: PathBuf = installed_workspace(&fixture, &physical_home);
+    let source: PathBuf = std::fs::canonicalize(repo.join("node_modules/consumer")).expect("source consumer");
+    let source_link: PathBuf = source.with_file_name("proper-lockfile");
+    let source_shim: PathBuf = std::fs::canonicalize(&source_link).expect("the seed install's link resolves");
+    let topic: PathBuf = fixture.root.join("worktrees/topic");
     let added: Observed = observe(wrapped(&fixture).env("HOME", &linked_home).current_dir(&repo)
-        .args(["worktree", "add", "-b", "topic", "../topic"]), b"");
+        .args(["worktree", "add", "-b", "topic", "../worktrees/topic"]), b"");
     assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
-    let topic: PathBuf = fixture.root.join("topic");
     let consumer: PathBuf = std::fs::canonicalize(topic.join("node_modules/consumer")).expect("consumer resolves from the new worktree");
     let store: PathBuf = std::fs::canonicalize(physical_home.join(".local/share/pnpm/store")).expect("fixture store");
     assert!(consumer.starts_with(&store), "consumer resolved outside the fixture store: {}", consumer.display());
-    assert_ne!(consumer, std::fs::canonicalize(repo.join("node_modules/consumer")).expect("source consumer"), "the new worktree reused the source's slot");
+    assert_ne!(consumer, source, "the new worktree reused the source's slot");
+    assert_eq!(std::fs::canonicalize(source_link).expect("the source link still resolves"), source_shim);
     let link: PathBuf = consumer.with_file_name("proper-lockfile");
     let target: PathBuf = std::fs::read_link(&link).expect("override link in the fixture store");
     let resolved = std::fs::canonicalize(&link);
