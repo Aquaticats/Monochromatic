@@ -234,7 +234,7 @@ makes.
 - **A resumed session the driver did not find.** When the driver finds no file at the `--session` argument,
   it passes the argument unchanged. Pi 1.5.2 can resolve a bare ID (no path separator or `.jsonl` suffix)
   to an existing session, or resolve a relative path from Pi's working folder instead of the driver's.
-  Pi then opens that session without a pre-masked copy. Old entries can reach compaction or branch summarization
+  If Pi opens a session this way, it has no pre-masked copy. Old entries can reach compaction or branch summarization
   without a request hook; ordinary requests still pass through `context_with_system`.
 - **A tool result whose `details` cannot be read.** If reading a property inside `details` throws during masking,
   the hook tries to withhold the result. The fallback reads `details.fullOutputPath` to find a possible full-output
@@ -248,7 +248,7 @@ makes.
   not on the feed.
 - **A value split across two parts of one tool result.** Each part is masked on its own, and a value whose text is
   divided between two parts matches nothing in either; reading the two parts together gives the value back.
-- **The rename window.** The file rewrite reads a snapshot, checks the path again and renames the masked replacement over it.
+- **The rename window.** The rewrite reads a snapshot, checks the path again and renames the masked replacement over it.
   An append between the last check and the rename can be lost. If the driver made a session copy, only that copy is
   eligible for the at-rest rewrite. If there is no copy, the driver accepts a reported path identical to the caller's
   `--session` argument without a birth-time check. Another process can create the caller's file after the copy step
