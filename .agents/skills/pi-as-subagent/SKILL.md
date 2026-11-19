@@ -324,7 +324,7 @@ which `mise run toolchain:install` makes.
       "$PWD/package/pi-shared/subagent-driver/src/drive-pi-subagent.ts" \
       --run-folder=<run> --working-folder=<its worktree, or "$PWD"> --prompt-file=<prompt-file> \
       --provider=openai --model=gpt-6.2-sol \
-      --wall-seconds=2400 --idle-seconds=60 --turn-cap=<sized from past runs>
+      --wall-seconds=2400 --turn-cap=<sized from past runs>
     ```
 
     Size `--turn-cap` to the task from past runs at every launch.
@@ -360,6 +360,10 @@ which `mise run toolchain:install` makes.
     because the driver reads any other name at once.
     Pi gets it as a steer while it runs and as a new prompt while it is idle,
     and `--idle-seconds` is how long the driver stays up for one after Pi settles.
+    It defaults to 0, by the owner's "And shouldn't it be defaulted to 0?" of 2026-11-18:
+    a coordinator woken by the run's end could never steer inside a window,
+    and a message already in `inbox/` when Pi settles is still delivered.
+    Pass a positive value only when you will steer a settled run.
     An entry must be an ordinary file:
     a named pipe is set aside rather than waited on.
     A message Pi refused,
