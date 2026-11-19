@@ -36,6 +36,10 @@ export type MemberCapacity = {
    */
   lastReadAt: number;
   /**
+   When the concurrency ceiling on record was read, or zero before a reading published one.
+   */
+  concurrencyReadAt: number;
+  /**
    Retry/reset timestamp supplied by the provider or its documented guidance.
    */
   retryAt: number;
@@ -85,6 +89,7 @@ export function capacityOf({
   const capacity: MemberCapacity = {
     active: 0,
     lastReadAt: 0,
+    concurrencyReadAt: 0,
     retryAt: 0,
     evidence: {},
   };
@@ -318,6 +323,10 @@ export async function readAtRefusal({
      Observation time used to compare provider deadlines.
      */
     const now = Date.now();
+    // A reading's own time names when it published the ceiling now on record, which a later failed
+    // read leaves in place while moving `lastReadAt` alone.
+    if (evidence.concurrency !== undefined)
+      capacity.concurrencyReadAt = now;
     capacity.evidence = {
       ...capacity.evidence,
       ...(evidence.concurrency === undefined ? {} : { concurrency: evidence.concurrency, }),

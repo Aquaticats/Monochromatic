@@ -221,7 +221,7 @@ export async function* dispatchRequest({
         // admission never dispatches it again and so no later refusal reads a fresh ceiling. The turn
         // says nothing about this when another member answers, so the record names the member, the
         // ceiling and the reading's time at a level a person reads.
-        rl.info(`${id}: ${label} is excluded for the rest of this session: the reading at ${new Date(capacity.lastReadAt,).toISOString()} reported a concurrency ceiling of zero`,);
+        rl.info(`${id}: ${label} is excluded for the rest of this session: the reading at ${new Date(capacity.concurrencyReadAt,).toISOString()} reported a concurrency ceiling of zero`,);
       }
       rl.debug(`${id}: ${label} local concurrency reached published or observed cap ${ceiling}`,);
       unavailable.admissionStops

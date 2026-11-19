@@ -117,10 +117,9 @@ here so a reader never mistakes it for evidence.
   Responses failure label for a non-OpenAI provider. Boundary: the label opens the text, so the pool
   reads the status from it with no response exposed by the adapter.
 - The `Retry-After` hold (`src/transient-refusal.unit.test.ts`, the `transientHold` case) drives a
-  hand-made `onResponse` call on a 503. No installed adapter makes that call, because each reports a
-  failed response through the hook only after a successful one, as `README.md` states under
-  "Changing limits". Boundary: the header path the plugin keeps for an adapter that starts exposing
-  failed responses.
+  hand-made `onResponse` call on a 503. No installed adapter makes that call, because each calls the
+  hook after a successful response alone, as `README.md` states under "Changing limits". Boundary:
+  the header path the plugin keeps for an adapter that starts exposing failed responses.
 - `401 Unauthorized: contact support with request 429`, `Request timed out`,
   `400 Context window exceeded`, `4290 tokens exceeded the window`
   (`src/routing.unit.test.ts` `TERMINAL_ERRORS`): boundary: a failure is not a refusal unless it

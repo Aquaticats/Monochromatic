@@ -183,6 +183,35 @@ await describe({
           },
         },);
       },),
+    ...Object.entries(POLICY_WORDED_503S,)
+      .map(function policyWordingAfterOutput([name, errorMessage,],) {
+        return it({
+          name: `does not move on from a 503 carrying ${name} after output was exposed`,
+          fn: async function afterOutputWithPolicyWording() {
+            const { provider, calls, options, } = await fixture({
+              extension,
+              play({ model, }) {
+                const stream = createAssistantMessageEventStream();
+                /**
+                 Partial message the member exposes before it fails.
+                 */
+                const partial = assistant({ model, },);
+                stream.push({ type: 'start', partial, },);
+                stream.push({ type: 'text_start', contentIndex: 0, partial, },);
+                finish({ stream, message: assistant({ model, errorMessage, },), },);
+                return stream;
+              },
+            },);
+            const model = poolModel({ provider, id: 'writer-pool', },);
+            const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+            // Pi has seen this member's output, so the refusal ends the request there as it arrived,
+            // not rewritten into a policy stop.
+            expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(HEAD,),],);
+            expect(result.stopReason,).toBe('error',);
+            expect(result.errorMessage,).toBe(errorMessage,);
+          },
+        },);
+      },),
     ...[
       {
         name: 'a 429 whose body quotes a Responses failure label',
