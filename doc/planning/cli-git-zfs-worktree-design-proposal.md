@@ -13,7 +13,8 @@ still owes acceptance tests, and the project still owns the listed open choices.
 
 The project chose "ZED, Clones, reflink. There is a reason we have a doctor subcommand." The Git wrapper owns Git
 validation and registration, the unprivileged snapshot and clone lifecycle, and the same-dataset reflink fallback.
-The root-installed ZFS Event Daemon (ZED) handler owns clone mount and unmount, not Git or automatic deletion.
+The root-installed ZFS Event Daemon (ZED) handler and its lifecycle unit own clone mount and unmount, not Git
+or automatic deletion.
 The Rust binding owns the `/dev/zfs` request format, not ownership policy for Git worktrees or snapshots.
 
 The checkout stays at `~/Monochromatic`, on its own dataset after a one-time move. Every worktree of this repository
@@ -232,6 +233,40 @@ paths and `/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc` ro
 host mount namespace. It does not load code from the checkout, run Git, create or remove account slots, or widen
 sandbox access to `/dev/zfs`.
 
+### Boot and shutdown unit
+
+ZED alone cannot cover boot and shutdown. Its event list (`zpool-events(8)`, "Events", and OpenZFS
+`zfs-2.4.4` `include/sys/sysevent/eventdefs.h:100` to `:139`) has `pool_import`, `pool_export` and
+`history_event`, but no checkout-mount-ready or pre-unmount/shutdown event. Import does not imply the keys
+and checkout are ready; export is reported after the pool is exported, too late to unmount clones. Replaying
+or polling after an import cannot provide the missing shutdown ordering. The proposed mechanism is the project's
+ZED handler for in-session requests **plus** a systemd unit for boot and shutdown, not a second request channel.
+
+Install the root-owned system unit `reconcile-git-worktree-clone-mounts.service` with `Type=oneshot`,
+`RemainAfterExit=yes` and `WantedBy=multi-user.target`. For the ordinary checkout, require and order after
+the protected checkout mount provider (the generated `home-user-Monochromatic.mount` or, where it mounts
+the checkout, `zfs-mount.service`); for a legacy checkout, require and order after
+`mount-monochromatic-checkout-by-descriptor.service`. The selected provider must require the actual home and
+key-loading providers and order after them and `zfs-import.target`. Order reconciliation after those providers
+as well. Run both modes in the host mount namespace. Order startup before `systemd-user-sessions.service`;
+checkout-dependent account services must require the checkout provider too.
+
+- `ExecStart` runs the installed `mount-git-worktree-clone-datasets boot-reconcile`. It verifies ABI, keys,
+  checkout and selected propagation before reconciling current intent and publishing this boot's readiness.
+  A failed prerequisite authorizes no attachment. Report per-clone failures without discarding the unit's
+  stop action for mounts that did succeed.
+- `ExecStop` runs `mount-git-worktree-clone-datasets shutdown-unmount`. Withdraw readiness and close admission
+  to new ZED attaches before draining in-flight slot operations. Unmount the verified managed mounts only;
+  do not change durable intent. Reverse stop ordering puts the sweep before the checkout/home providers
+  stop and before key unload and pool export. Add `Before=umount.target`; wire any separate export job to
+  run after the stop pass. Ordering does not turn a failed stop into a successful unmount.
+
+Verify the live checkout before every event action, not just at service start. A busy clone can block normal
+teardown or export: report which clone holds the mount, and never force or detach it. Legacy clones have no
+systemd mount units and `zfs unmount -a` skips them. Idle export/import must still work, and boot must recover
+without an old event queue. A recorded `unmount` remains in effect across restart until destruction or explicit
+reversal. Periodic reconciliation without a waiter depends on the [lost-event choice](#open-project-choices).
+
 ### Requests, results and ordering
 
 The durable mount intent is the clone's local `org.monochromatic:git-worktree-clone-mount-desired-state` property.
@@ -243,16 +278,6 @@ properties, and derive the slot only from a single name. Accept lowercase ASCII 
 hyphens, bounded by the slot component limit and the remaining dataset-name budget. A malformed property, name or
 origin never authorizes work on another mount. Recheck desired state and identities under a per-slot root claim;
 parallel handlers can sweep at once but cannot take conflicting actions on the same mount.
-
-Start a reconcile pass after pool import, required keys and the verified checkout mount, not merely after ZED
-starts. Verify the expected checkout dataset and mount identity in the host mount namespace before each action.
-No clone attaches while the checkout mount is missing or wrong. On shutdown the same handler owns clone unmounts,
-with stop work ordered before checkout/home unmount and pool export. This matters because legacy clones have no
-systemd mount unit and `zfs unmount -a` skips them. Report an expected checkout/home busy refusal by naming the
-mounted clones; never force or detach them. Ordinary idle `zpool export` must still work. A busy clone may block
-shutdown teardown or export; a residual mount is not a successful unmount. Boot must recover without relying on an
-old ZED event queue. A recorded `unmount` remains in effect across restart until destruction or explicit reversal.
-Periodic reconciliation without a waiter depends on the [lost-event choice](#open-project-choices).
 
 Publish an atomic receipt in `/run/git-worktree-clone-mount-results`, using only the canonical numeric dataset GUID
 as the receipt filename. The root-owned directory is mode `0755`; receipts are root-owned mode `0644`, read-only to
@@ -512,7 +537,8 @@ status. `doctor` does not start a service, create a test dataset, repair registr
   broadly just to make an interrupted command pass.
 - Check the handler installation, config and root-owned state and result directories, ZED and service wiring,
   latest readiness and reconciliation, and unresolved requests. Print root install/enable commands and the
-  journal query for the actual unit. Show other enabled zedlets before recommending ZED enablement, including
+  journal queries for `zfs-zed.service` and `reconcile-git-worktree-clone-mounts.service`. Show other enabled zedlets
+  before recommending ZED enablement, including
   applicable syslog, notification, enclosure or scrub effects.
 - Compare the measured dataset tree and store location against recursive coverage. Verify the named exclusion
   sections, ancestor order, mount paths and `com.sun:auto-snapshot=false`; print the concrete INI correction or
@@ -733,10 +759,10 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
 [Acceptance tests the build still owes](#acceptance-tests-the-build-still-owes).
 
 - Item 1, nested snapshots and unmount/export: [Dataset and path layout](#dataset-and-path-layout) separates
-  underlays from clone snapshots; [Requests, results and ordering](#requests-results-and-ordering) owns shutdown
+  underlays from clone snapshots; [Boot and shutdown unit](#boot-and-shutdown-unit) owns shutdown
   unmounts and busy reports. Idle export/import and real shutdown still need VM coverage.
 - Item 2, boot order: [Dataset and path layout](#dataset-and-path-layout) keeps clones out of automatic mounts;
-  [Requests, results and ordering](#requests-results-and-ordering) requires the verified checkout mount first.
+  [Boot and shutdown unit](#boot-and-shutdown-unit) requires the verified checkout mount first.
   [Boot, shutdown and setup](#boot-shutdown-and-setup) tests delayed and failed mount order.
 - Item 3, planted links and descriptor operations: [Descriptor mount and unmount](#descriptor-mount-and-unmount)
   adopts the named requirements and records the propagation limit and rollback failure state.
