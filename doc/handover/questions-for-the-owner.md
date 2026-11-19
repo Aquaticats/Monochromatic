@@ -18,62 +18,81 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Answered in the question tool, recorded 2026-11-19T17:45:53-05:00
+
+- The ZFS worktree implementation plan (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, at
+  `9137efc5b4`): "Accept (Recommended)". Marked accepted in the plan's header and merged into `main`; step 1 is
+  unlocked.
+- How many worktrees the ZFS build steps may use at once (the plan had assumed up to four under the owner's
+  "We shouldn't use worktrees heavily before we implement the zfs parts for the git wrapper"): "Up to 64". Written into
+  the plan, and the held queue of other work stays held. The first wording here said every run still counts against
+  "the cap" in `doc/handover/agents-at-once-on-this-machine.md`; the owner answered "The real limit is the agent cap?
+  Didn't I say the 20 is not really a cap on this new disk? We talked about this at least 3 times." On the new drive
+  20 is the search's first level, not a cap; runs are bounded by each provider pool's measured limit, and that file
+  now says so first.
+
+## Answered in the question tool, recorded 2026-11-19T17:36:44-05:00
+
+Two choices the Sonnet gate review of the ZFS implementation plan raised
+(`~/temp/agent/zfs-worktree-implementation-plan-gate-review-2026-11-19/keep/review.md`, findings F19 and F10). Both
+go into the plan's fix round, and leave this file once the accepted plan holds them:
+
+- Dirty main checkout until the verified dirty restore lands (plan step 11): "Ship step 10 first (Recommended)".
+  Step 10 ships the clean-source clone add first; while step 11 is unlanded, an add from a dirty main checkout takes
+  the ordinary Git route, as today. The design's "Verified restore (Recommended)" still decides what step 11 builds.
+- Step 1's merge path, with `cargo-nextest`, `cargo-fuzz`, `file-enforcer` and the repository linter not installed
+  here and the toolchain install placed after the mpm-shadow change by the answer of 2026-11-17: "Container, narrow
+  install (Recommended)". Step 1's tests and Clippy run in the wrapper's gate image (`cargo-nextest` and Rust from
+  pacman, `package/git-policy/cli/native-test-base.Containerfile`); only the tools no image gives are installed now,
+  one at a time from their lock rows; the full toolchain install still waits for the mpm-shadow change. Checked the
+  same evening: no one-tool host install exists (`package/mpm-shadow/cli/README.md`, entry
+  "`mpm-shadow install [<tool>...]`": with a tool it still "installs every locked tool that is not at its locked
+  version"). Adopted instead, narrower than the answer allowed and open to the owner's veto: step 1's checks run
+  wholly in a container from the gate's base image, with `file-enforcer` and the repository linter taken inside it
+  from their lock rows' `linux-x64` archive and sha256 (rule `CM7`'s container route), and `cargo-fuzz` from pacman
+  if CachyOS packages it, else through `cargo-binstall`, the route its lock row names (`"route": "cargo-binstall"`,
+  version 0.13.2), with `cargo-binstall` itself from its lock row's archive (1.27.0); nothing is built from source and
+  nothing is installed on the host. The first wording said "built inside the container"; the owner asked
+  "Shouldn't cargo-fuzz be installed with cargo-binstall if pacman doesn't have it?", and the lock row confirms it.
+
+## Answered in the question tool, recorded 2026-11-19T17:10:00-05:00
+
+After the owner asked "And why are you asking about lfs now when we're working on zfs?" (the LFS questions of the
+section "Answered in the question tool, recorded 2026-11-19T16:58:00-05:00" were off the ZFS path):
+
+- The two runs off the ZFS path (the LFS fixes' short review and the provider rebuild): "Finish, then hold
+  (Recommended)": both finish and are recorded; no further LFS or provider work starts until the ZFS implementation is
+  moving.
+- `AGENTS.md`: "Adopt (Recommended)": rule `QGR` asks flagged choices the same turn only when they are on the stated
+  priority, and the new rule `QWP` holds owner questions off the priority's path in this file until that work is
+  moving.
+
+## Answered in the question tool, recorded 2026-11-19T16:58:00-05:00
+
+The two choices the LFS audit of the Git wrapper left to the owner (audit report
+`~/temp/agent/lfs-path-of-main-audit-on-sonnet-2026-11-19/report.md`, findings H1 and M4). These go to the LFS fix
+branch `fix/git-policy-cli-lfs-audit-findings-of-2026-11-19` in its next round, and into the wrapper's `SPEC.md`.
+
+- H1, a lowercase token in the path of `lfs.url`: "Hide long words only" (against the ranking, which put hiding the
+  whole path first). The option as asked: path words of 20 or more unbroken lowercase letters print as
+  `<credentials>`; "objects", "info" and repository names stay. Accepted with it: a shorter lowercase token still
+  prints, and a long real folder name is hidden. This settles the open question at `SPEC.md` lines 11928 to 11929.
+- M4, an upload waiting for a person to answer a credential prompt: the owner answered in their own words instead of an
+  option: "Avoid ever asking for someone to type a username or password." So no command the wrapper runs or forwards
+  asks a person for a username or password, with a terminal or without, and a missing credential fails at once with
+  words naming how to supply one. This supersedes, for credential prompts, `SPEC.md`'s "A command the person typed is
+  forwarded with the prompting Git has" and the earlier answer it rests on ("Foreground commands the user types and the
+  wrapper forwards keep Git's normal prompting"), and widens the service's "Never prompt" of 2026-11-07 to every
+  command. An SSH key's passphrase, asked separately: "Passphrases count too (Recommended)": a key not loaded in
+  ssh-agent fails at once with words saying to run `ssh-add`; what the OpenSSH setting that stops the prompt also
+  turns off (for example the yes/no question for an unknown host key) is to be measured and written down.
+
 ## Answered in the question tool, started 2026-11-19T11:30:00-05:00
 
-The ZFS answers go into the proposal (`doc/planning/cli-git-zfs-worktree-design-proposal.md` on branch
-`docs/planning-cli-git-zfs-worktree-design-proposal`, last read at `b5294a7325`) in one fold-in once the round ends;
-until then this list is their record. Each was asked with the ranking and facts of the overnight list.
+The ZFS answers of this round left this file on 2026-11-19: the accepted design holds them
+(`doc/decision/cli-git-zfs-worktree-design.md` and `doc/planning/cli-git-zfs-worktree-design-proposal.md`), and
+they read as recorded at `38ed22c5ea`.
 
-- ZFS choice 1, checkout boot mount protection: "Immutable entry (Recommended)": the ordinary mountpoint plus an
-  immutable covered entry.
-- ZFS choice 2, checkout propagation policy: "Boot unit sets it (Recommended)".
-- ZFS choice 3, removal when the namespace exclusion cannot be shown: "Destroy anyway (Recommended)": the scan that
-  refuses holders it sees stays, then the clone's snapshots and the head are destroyed.
-- ZFS choice 4, bookmarks on a clone being removed: "A: Live or planned (Recommended)".
-- ZFS choice 5, kernel-release readiness: "Probe at start" (against the ranking, which put the exact allowlist first).
-  The functional probe's steps, its side effects at start and how it refuses are not yet designed; the runtime module
-  gate of "A: Test plus runtime gate" stays.
-- ZFS choice 6, blocked-removal cancellation: the owner answered with a question, "What? Shouldn't it auto-cancel
-  then? And we're supposed to remove even if busy anyway." Asked again in two parts with the measured facts (proposal
-  lines 591 to 608: unmount without force or lazy detach; the head destroy refused `dataset is busy` while another
-  namespace held the clone).
-  - First part, what happens when the final destroy is refused: "Kill or otherwise remove or destroy the holders
-    whenever --force is specified, auto-cancel if not." So `--force` gains a second meaning beside waiving
-    cleanliness (the holders are ended), and without it a blocked removal reverts by itself. The fold-in has to say
-    what auto-cancel restores when the clone's own snapshots are already gone under choice 3's destroy-anyway order,
-    and this answer narrows the veto-open default "no implicit remount after a failure or restart".
-  - Second part, forced removal of a busy clone: "Measure in a VM (Recommended)": a VM item force-unmounts or ends
-    the holders in each namespace and destroys the clone, recording what the holder sees; adopted only if it works.
-- ZFS choice 7, managed path interface: "Canonical path only (Recommended)".
-- ZFS choice 8, eligible clone origins: "Main checkout only (Recommended)".
-- ZFS choice 9, ABI verification: "Runtime layout check (Recommended)" (re-ranked after choice 5's answer; overnight it
-  ranked exact profiles first).
-- ZFS choice 10, lost last event without a waiter: "Triggers only, and we control the triggers, which makes the con of
-  "unavailable until next trigger" moot."
-- ZFS choice 11, origin cleanup authority: "Account grant" (against the ranking, which put root-owned cleanup first):
-  descendants-only `mount,destroy` on the checkout.
-- ZFS choice 12, space-pressure pruning: "Current scope (Recommended)".
-- ZFS choice 13, misplaced attach: "Roll back at once (Recommended)".
-- ZFS choice 18, clone removal identity protection: "Delegated destroy (Recommended)". With choice 11 this is the
-  pair the proposal excludes until the origin rule is proved for the account (proposal lines 1164 to 1175 and 1289
-  to 1295); asked again as one question with the ways out.
-  - The pair, asked again: "Keep both, check first (Recommended)": just before the head destroy, removal checks that
-    the clone and its origin are the planned ones and that the origin is not marked for deferred destroy, refusing
-    otherwise, with a VM item showing the refusal; a same-account mark between the check and the destroy stays inside
-    the account-versus-itself residual choice 18 accepts.
-- ZFS choice 14, busy unmount after a staging move: "Reattach when safe (Recommended)", asked as following from choice
-  6 (without `--force` the removal auto-cancels; with it the holders are ended).
-- ZFS choice 15, dirty main checkout on the first rung: "Verified restore (Recommended)".
-- ZFS choice 16, prune protection while unmounted: "Git lock + pointers (Recommended)".
-- ZFS choice 17, Git registration when origin cleanup is blocked: "Settle + own record" (against the ranking): the
-  registration is settled once the clone is destroyed, and a separate durable record carries the origin cleanup.
-- ZFS default 1, receipts as files under `/run`: "Keep receipt files (Recommended)".
-- ZFS default 2, the mount handler as a second binary in `package/git-policy/cli`: "Keep inside cli (Recommended)".
-- ZFS default 3, no implicit remount: "Keep, one exception (Recommended)": the one exception is the checked reattach
-  of a removal that auto-cancels without `--force` (choices 6 and 14).
-- ZFS default 4, private staging at `/run/git-worktree-clone-mount-staging`: "Account-owned place" (against the
-  ranking; vetoes the default). The fold-in has to state what replaces the protection the proposal gave staging
-  outside account-controlled trees (proposal lines 1239 to 1243 and the "Descriptor mount and unmount" section).
 - Synthetic `infinite:small:vision` in the short-reviewer order: "Not used".
 - Installing the virtual Pi provider into `~/.pi/agent/settings.json`: "Install now (Recommended)". Done by the
   coordinator, recorded under "Owner decisions in force" in the handover.
@@ -109,7 +128,6 @@ until then this list is their record. Each was asked with the ranking and facts 
   machine's Pi retries up to 8 times from 1 s (`~/.pi/agent/settings.json` `retry`), not the defaults first quoted.
   Answer: "Hybrid, prototype first (Recommended)": a native virtual model whose router sends every request to the
   package's pool provider, proved first by a prototype session that forces a member's context overflow.
-- ZFS default 4, where the account-owned staging folder is: "Under ~/.cache, and make the wrapper clean after itself."
 - The provider README's install precondition (a live check of each quota endpoint to set the read's deadline):
   "Run the live check (Recommended)".
 - The Dependabot alert reported on every push, and DCK's "next action" trimmed to "next step": "Look into the alert
@@ -122,81 +140,11 @@ until then this list is their record. Each was asked with the ranking and facts 
 
 All of these were asked on the morning of 2026-11-19; the answers are in the section "Answered in the question tool,
 started 2026-11-19T11:30:00-05:00". This list stays as the input of the ZFS fold-in and the provider run, and is
-deleted once both have landed.
+deleted once the provider run has landed; its ZFS lists left this file with the ZFS answers on 2026-11-19.
 Each option's facts come from the ZFS proposal at `b5294a7325`
 (`doc/planning/cli-git-zfs-worktree-design-proposal.md` on branch `docs/planning-cli-git-zfs-worktree-design-proposal`)
 and its measurement record; "item N" is a measurement item there.
 The rankings are the coordinator's recommendations, not decisions.
-
-### ZFS worktree route: eighteen open choices
-
-1.  Checkout boot mount protection. A, an ordinary mountpoint plus an immutable entry under it: the flag survived mount
-    and reboot, not a rollback to a snapshot older than the flag (item 8). B, `mountpoint=legacy` plus a boot service: a
-    path mounted early was hidden by the later attach (item 9), and it needs ordering and exclusion from automatic
-    mounting. Ranking: A > B, because A is measured across a reboot with no new service and its gap needs a deliberate
-    rollback.
-2.  Checkout propagation policy. A boot unit sets the checkout private (repeats after a replacement mount and reboot);
-    an administrator sets it once (lost on reboot); or an unnamed other arrangement (needs its own proof). Ranking: boot
-    unit > administrator, because only the unit survives a reboot; administrator > other, because the other has nothing
-    named to test.
-3.  Removal when the namespace exclusion cannot be shown (no setup can show it today, item 15). Destroy anyway, keeping
-    the scan that refuses holders it can see: the head destroy is refused `dataset is busy` while a holder keeps it
-    (item 15), so a missed holder stalls the removal; the clone's snapshots are gone. Refuse: nothing ever removes, and
-    it is stricter than "refuse without an explicit flag", which the owner declined when choosing "B: Destroy at once".
-    Ranking: destroy anyway > refuse, because it carries out the decided removal and the kernel's busy check still
-    keeps the head; a missed or late holder is unmeasured.
-4.  Bookmarks on a clone being removed. A: pass on a live clone snapshot's tuple or one the removal plan recorded; a
-    bookmark whose snapshot is gone refuses until a person runs `zfs destroy <clone>#<bookmark>`. C: judge by
-    creation-txg ordering and origin-side tuples (source reading, unmeasured; not proof for other topologies). B: live
-    snapshots only, which strands a split or replanned removal after its first delete. Ranking: A > C, because A's cost
-    needs someone to bookmark a worktree clone (the account has no `bookmark` grant) while C rests on an unproved
-    argument; C > B, because B strands removals.
-5.  Kernel-release readiness. An exact allowlist with built-product runs (the route turns off after each kernel update
-    until a run passes, falling back to the plain route; nothing on `7.3.5-1-cachyos` is qualified yet, item 16) or a
-    functional probe at start (admits untested releases; its steps are not written). Ranking: allowlist > probe,
-    because it matches the owner's "A: Test plus runtime gate" for the module (refuse and fall back, no override).
-6.  Blocked-removal cancellation. A `cancel-worktree-removal <slot>` command or report-only with manual recovery;
-    neither restores destroyed snapshots. Ranking: command > report-only, because it gives one supported way back.
-7.  Managed path interface. Canonical path only (ordinary `git worktree add <path>` under `.claude/worktrees/`) or an
-    opt-in allocator as well. Ranking: canonical only > allocator, because nothing asks for the extra command yet.
-8.  Eligible clone origins. Main checkout only, or linked worktrees too (keeps ignored state, chains dependencies, can
-    block origin cleanup; chain removal unmeasured). Ranking: main only > linked, because chains are unmeasured.
-9.  ABI verification. Exact approved BTF profiles (can turn clones off after a ZFS rebuild until approved) or a runtime
-    layout check (accepts more builds, adds a parser). Ranking: exact > layout, for the same reason as choice 5.
-10. Lost last event without a waiter. Add a periodic scoped sweep (its rate rule is still unwritten) or rely on startup,
-    readiness, ZED and nudges (a lost event leaves the worktree unavailable until another trigger). Ranking: sweep >
-    none, because a worktree stuck unavailable is the failure the owner has asked never to wait on.
-11. Origin cleanup authority. Root-owned cleanup limited to proven origins (its own privileged proof) or a
-    descendants-only `mount,destroy` grant on the checkout (lets the account destroy or defer-destroy any checkout
-    snapshot, sanoid's included). Ranking: root-owned > grant, because the grant puts the home dataset's whole snapshot
-    history within reach of an agent's mistake. Coupled with choice 18: a delegated clone destroy with a delegated
-    origin destroy is excluded until the origin rule is proved.
-12. Space-pressure pruning. Current scope, or an allowlist that lets the guard prune managed descendants' sanoid
-    hourlies (frees more, deletes living history early). Ranking: current > allowlist, because 3.19 TB is free.
-13. Misplaced attach. Immediate descriptor rollback (succeeded in synchronized trials, item 2) or leave it attached and
-    report. Ranking: rollback > leave, because a mount at an account-chosen place is the hazard the design guards.
-14. Busy unmount after a staging move. Keep it staged (the worktree stays unavailable) or reattach when safe (a second
-    attach and a race). Ranking: keep staged > reattach, consistent with the default of no implicit remount.
-15. Dirty main checkout on the first rung. A verified dirty-main restore (needs a defined restore and its own proof) or
-    require a clean source. Ranking: restore > clean only, because the main checkout here usually holds other
-    sessions' uncommitted edits, so a clean-only rule would skip the clone route most of the time.
-16. Prune protection while unmounted. A managed Git lock plus pointer copies (held against `git worktree prune` and
-    `--expire now`, not `--force --force`, item 6) or a root-set immutable flag (unmeasured). Ranking: lock > flag,
-    because only the lock is measured.
-17. Git registration when origin cleanup is blocked. Keep it until cleanup or settle it with an independent record.
-    Ranking: keep > settle, because Git keeps seeing the worktree and the slot stays reserved.
-18. Clone removal identity protection. Delegated `destroy` with scoped grants (measured on both clone topologies, items
-    12, 17, 18; accepts that a process running as the account could substitute a dataset) or root identity-conditional
-    destruction (refused stale tuples, item 12; needs an unnamed transport and an unnamed home for its inventory).
-    Ranking: delegated > root, because it is measured end to end and needs no privileged transport; with choice 11 at
-    root-owned, the excluded pair does not arise.
-
-### ZFS worktree route: four defaults open to veto
-
-Each is asked as keep or replace, keep recommended: receipts as files under `/run` (the alternative, acknowledgement
-properties, raises a ZED event per write); the mount handler as a second binary in `package/git-policy/cli` (shares the
-binding and the ABI gate); no implicit remount after a failure or restart (avoids racing a standing unmount); private
-staging at `/run/git-worktree-clone-mount-staging` (needs a boot unit to create it).
 
 ### Other questions for the morning
 

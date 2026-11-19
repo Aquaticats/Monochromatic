@@ -443,9 +443,14 @@ QGR:
  adopt + record unasked,
  even while grilling.
 Flagged choices (veto-open adoptions,
- open questions):
- ask same turn with options;
- never park them in docs.
+ open questions) on the stated priority:
+ ask same turn with options.
+
+QWP:
+ While the owner has set a priority,
+ owner questions off its path wait in `doc/handover/questions-for-the-owner.md`
+ until its work is moving;
+ say they wait.
 
 GXD:
  Grilling a design:

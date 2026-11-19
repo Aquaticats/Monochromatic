@@ -88,14 +88,21 @@ function declineNothing(): void {
 }
 
 /**
- A rate limit, shaped as a gateway sends one, and the error the record's own tests end a run on.
+ The concurrency 429 a Synthetic review run met on 2026-11-17, word for word from
+ `pi-runs/deepseek-review-bench-drawn-shadow-tree-at-3822c44c2f-run-1-1/summary.json`'s `modelError`, which is the same text
+ that run's `piRetryGaveUp` and Pi's own `auto_retry_end` line (that folder's `feed.jsonl`, line 378) record after 8 attempts:
+ the error the record's own tests end a run on.
  */
-const RATE_LIMIT_ERROR_TEXT = '429 {"error":{"message":"Too many requests"}}';
+const RATE_LIMIT_ERROR_TEXT = '429 "Too many concurrent requests"';
 
 /**
- A plan limit sent as a rate limit: Pi's own retry leaves it to the run, so a run can end on one after a rate limit it retried.
+ A plan limit sent as a rate limit, word for word from
+ `pi-runs/review-git-policy-cli-push-of-a-branch-that-is-not-checked-out-answers-after-its-fourth-review-1/summary.json`'s
+ `modelError` on 2026-11-14, a run that ended `model-error` on it: Pi's own retry leaves such a limit to the run, so a run can
+ end on one after a rate limit it retried.
  */
-const QUOTA_ERROR_TEXT = '429 {"error":{"code":"insufficient_quota","message":"You exceeded your current quota"}}';
+const QUOTA_ERROR_TEXT =
+  '429: {"message":"Your token-plan 1-month quota has been exhausted. The quota will reset at 11-18 16:00:00 UTC.","id":"5b5c007e-04df-41cb-9057-e74307c026a1","type":"insufficient_quota","code":"insufficient_quota"}';
 
 function assistantMessage(
   content: readonly Record<string, unknown>[],

@@ -7,8 +7,16 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-**On the new drive the cap is found again by the search under "What counts as the ceiling",
-and until the search ends the cap is the level it is testing.**
+**On the new drive 20 is not a cap.
+It is the first level of the search under "What counts as the ceiling",
+which doubles from there until a level fails.
+Until that search has found the drive's ceiling,
+no run waits for a disk cap:
+each provider pool's measured limit bounds its own runs.**
+The owner on 2026-11-19, after a session wrote that ZFS runs still count against "the cap" here:
+"The real limit is the agent cap? Didn't I say the 20 is not really a cap on this new disk?
+We talked about this at least 3 times."
+The search itself waits for the wrapper's ZFS route, by the owner's word of 2026-11-18.
 Every number below this paragraph was measured on the old drives (the SATA 860 EVO and the old NVMe),
 whose stalls set it, and none of them holds on the new drive.
 The home folder now sits on the ZFS pool `zpcachyos` on the Intel 3.5 TB NVMe.
@@ -25,8 +33,9 @@ the levels halve downward until one holds and the gap is then halved the same wa
 (this session's reading of the method for that case, open to the owner's veto).
 Its readings go under `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026-11-17/keep/`,
 and each level gets its own heading under "Readings on the new drive".
-Each provider's own measured refusal still limits its pool beside this cap
-(`package/pi-shared/subagent-driver/src/pool-limits.ts` and the skill `pi-as-subagent`).
+Each provider's own measured refusal limits its pool
+(`package/pi-shared/subagent-driver/src/pool-limits.ts` and the skill `pi-as-subagent`),
+and that is the bound on runs until the search finds the drive's.
 What follows is the old drives' record,
 kept as it was written.
 
