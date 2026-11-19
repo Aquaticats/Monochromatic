@@ -39977,7 +39977,18 @@ campaign lock), L1 (a created `wg` rule file is never synced while the README no
 error family), L3 (helper written three times beside existing runners), L4 (no boundary tests for `--` and the
 argument array); recorded, not changed: L5 (a failed directory sync on claim release is logged and the run still
 succeeds; older behaviour). The author's third run (`pi-node-sync-calls-go-through-coreutils-sync-3`) answers them;
-then a delta review and the merge. The review itself was the one going
+then a delta review and the merge.
+
+The prewarm writer's DeepSeek resume ended `idle` (214 turns) at `4ebfded328`, not final
+(`~/temp/agent/prewarm-acts-only-on-the-entry-it-checked-2026-11-16-scratch/keep/report.md`): one held-name module
+(`package_repair_prewarm_a_held_name.rs`: a held directory, take aside with `RENAME_NOREPLACE`, identity and claim read
+again before the act); each of the review's four findings rebuilt as a committed control (the review's
+`reproductions/` was not on disk), each failing with its fix taken out; findings 1 and 2 are not on `main`, findings 3
+and 4 are on `main` in a worse shape; `main` merged with no conflicts; clippy clean; the one ZFS `utf8only` control
+(`EILSEQ`) cannot run on this host. Not done by it: the run through a built wrapper with a mid-fill replacement and
+the interleaved `git worktree add` cost ratio. Its third run
+(`pi-prewarm-of-a-new-worktree-acts-only-on-the-entry-it-checked-3`, same worktree, DeepSeek) does those two in
+fixtures under its scratch; its review waits with the queue. The review itself was the one going
 (`pi-review-node-sync-calls-go-through-coreutils-sync-at-e5c61b8af2-1`, in the writer's worktree).
 
 The work-record review `1d5ad2597d` returned (85 turns, `idle`): four reads that wait for ever on a named pipe
