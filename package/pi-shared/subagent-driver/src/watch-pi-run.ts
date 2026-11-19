@@ -411,6 +411,10 @@ async function readyMessages(inbox: string,): Promise<readonly string[]> {
  */
 export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> {
   /**
+   The record whose settles determine when an empty inbox can permit an idle end.
+   */
+  const { record, } = watch;
+  /**
    Where the watch stands with the model error it last answered, so one error is answered by one attempt.
    */
   const retry: RetryWaiting = {};
@@ -454,6 +458,10 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
       return afterModelError;
     }
     /**
+     Settles the inbox scan can account for. A settle during the scan needs a new look for messages published before it.
+     */
+    const settledBeforeInbox = record.settledCount();
+    /**
      The next message to deliver, if any. An inbox message waits out a retry that is about to go, so a prompt meant for a resting
      Pi cannot start a run the retry prompt then lands in the middle of.
      */
@@ -470,6 +478,9 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
         watch,
         ...(waited.wokenAtSettle === undefined ? {} : { wokenAtSettle: waited.wokenAtSettle, }),
       },))) {
+      if (record.settledCount() !== settledBeforeInbox) {
+        continue;
+      }
       /**
        What the run left running, asked before it may end as a run that finished its turn: an agent that ended its turn while a
        build compiled is waiting for that build, so the run is kept, and sent back to it once it is over. A read of that work that
