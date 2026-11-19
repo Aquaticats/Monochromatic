@@ -40304,6 +40304,16 @@ captures kept only in scratch, untested branches, magic numbers, quota read rate
 session resumed, `pi-provider-answers-its-gate-review-1` (run-10), after merging `main` in. Four owner questions the
 gate named stay open: refusal-time endpoint read, the overage ceiling's minimum, 503 and 52x ending at the member, Pi's
 native virtual models.
+Run-10 ended `idle` (276 turns) at `df69b9dbbd`: `main` merged in at `bcde9f8a65` with no conflict and no change to the
+package; High 1 answered by advertising the smallest registered member's window and output limit (provisional pair
+1,048,576 / 65,536 before a session binds), with the provider registered again inside `session_start`, and pinned by the
+verifier running a real Pi 1.5.2 session over five large turns asserting no compaction (fails with the zero window);
+NeuralWatt ceiling by lane; a 429's delay read from its body (`retry_strategy.suggested_initial_delay_s`), the two
+`onResponse` 429 tests labelled stand-ins; member attempts with `maxRetries: 0`; the policy move also requires
+`physical.provider === 'openai'`; captures kept in the package's `doc/captures.md`; untested branches covered; a
+one-second minimum between quota reads per member, cited from NeuralWatt's guide. On Pi's native virtual models: they
+would take the member's window per answered message but `createVirtualModel` defaults the pool's own window to 0 too.
+GOING: a Sonnet gate delta check of `2070948ce4..df69b9dbbd` (background Agent); merge on a clean check.
 
 **Reviewer speed result (2026-11-19, four interleaved rounds, model time from the feeds' prompt-sent to settled,
 `keep/runs.jsonl`):** Qwen-plan DeepSeek 9.4, 10.8, 6.3, 17.7 s; its same-model control 18.9, 13.5, 11.9, 8.3 s (Qwen
