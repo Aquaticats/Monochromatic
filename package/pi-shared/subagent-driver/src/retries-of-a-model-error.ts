@@ -19,9 +19,11 @@
  limit and a quota, so the driver neither re-prompts one nor waits one out. Which layer owns which errors is in `README.md`.
 
  Every text is folded to lower case once, and each shape is then a plain substring of it, so a failure of a few kilobytes is
- read in one pass and nothing here can backtrack. A 429 is read wherever its digits stand whole, because a gateway may write a
- word in front of the status; every other status is read only where the text starts with one, which is where a response writes it,
- so the same digits inside a body name a token count or a limit the provider states, and neither is transient.
+ read in one pass and nothing here can backtrack. A 429 is read wherever its digits stand whole, because Pi's own composer
+ writes a provider prefix in front of the status (`"<prefix> (<status>): <body>"` in
+ `@earendil-works/pi-ai/dist/utils/error-body.js:139-146`); every other status is read only where the text starts with one,
+ which is where a response writes it, so the same digits inside a body name a token count or a limit the provider states, and
+ neither is transient.
 
  @module
  */
@@ -139,8 +141,9 @@ const THROTTLE_PHRASES: readonly string[] = [
 ];
 
 /**
- The status code of a throttle, looked for wherever it stands whole in the text: a response starts with it, and a gateway or a
- library may write a word in front of it (`HTTP 429`, `status: 429`).
+ The status code of a throttle, looked for wherever it stands whole in the text: a response starts with it, and Pi's own
+ composer writes a provider prefix in front of it (`"<prefix> (<status>): <body>"` in
+ `@earendil-works/pi-ai/dist/utils/error-body.js:139-146`).
  */
 const THROTTLE_CODE = '429';
 
@@ -341,7 +344,8 @@ function holdsOneOf({
 /**
  Tells whether a text folded to lower case names an HTTP 429, wherever it stands.
 
- A response writes its status first, and a gateway or library may write a word in front of it, so the digits are looked for
+ A response writes its status first, and Pi's own composer writes a provider prefix in front of it
+ (`"<prefix> (<status>): <body>"` in `@earendil-works/pi-ai/dist/utils/error-body.js:139-146`), so the digits are looked for
  wherever they are whole. A 429 inside a longer number or word is a count, a request number or a limit the provider states, and
  none of those is a status.
 

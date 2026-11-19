@@ -1599,7 +1599,13 @@ both in `@earendil-works/pi-ai/dist/utils/retry.js` in Pi 1.5.2:
 
 - a `429` is retried,
   with the rate-limit, "rate.?limit" and "too many requests" wording that carries it:
-  a rate limit, a concurrency or flex-request limit, and a provider asking for a slower caller all count;
+  a rate limit, a concurrency or flex-request limit, and a provider asking for a slower caller all count.
+  Those words and statuses are the retried pattern's own: `RETRYABLE_PROVIDER_ERROR_PATTERN` in `retry.js`,
+  `"rate.?limit"` at line 36,
+  `"too many requests"` at line 37,
+  and `429|500|502|503|504|520|524` at line 39,
+  each status counted only where no letter or digit touches it;
+  this list therefore rests on Pi's source, not on one captured refusal;
 - the overload, `5xx`, timeout, dropped-connection and interrupted-stream texts are retried beside it;
 - a quota, a plan and a billing limit are not,
   even when a provider sends one as a `429`:
@@ -1644,7 +1650,9 @@ before the error Pi's retry gave up on can settle.
 The driver neither re-prompts a 429 nor waits one out,
 whether the provider sent a rate limit, a concurrency limit or a quota.
 A 429 counts wherever the text names it whole,
-even behind a word (`HTTP 429: upstream request failed`),
+not only where the text starts with it:
+the prefix Pi's own composer writes leaves the digits whole
+(`OpenAI API error (429): ...`, built by `formatProviderError` in `@earendil-works/pi-ai/dist/utils/error-body.js:139-146`),
 while the same digits inside a longer number are a count, a request number or a stated limit, and no status.
 Once Pi settles on one, the run ends `model-error` on the next look,
 with that error's own text standing:
@@ -1689,8 +1697,11 @@ in the shape the providers write it:
 
 One case stays as it was, and costs a retry of Pi's as well as one of the driver's:
 an error that names no 429 keeps the attempt it had,
-even when its own words name a rate limit,
-so `503 Service Unavailable: rate limit exceeded` is answered by the driver as it always was.
+even when its own words name a rate limit.
+The tests put that boundary in a made-up input,
+`503 Service Unavailable: rate limit exceeded`,
+which no recorded refusal here holds,
+and the driver answers it as it always did.
 Only a 429 itself is left to Pi.
 
 A status is read only where the error text starts with one,
