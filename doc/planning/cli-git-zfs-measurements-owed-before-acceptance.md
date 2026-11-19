@@ -3,7 +3,7 @@
 **Non-final draft by an agent, unapproved.** It records guest observations and design implications, not design
 acceptance. A section heading's stamp is the commit time of the commit that landed that section. This file's own
 revision stamp is what `git log --format=%cI -1` prints for the file, which before this revision's commit reported
-2026-11-19T01:25:41-05:00 at `a6b0ec5913`. The account ownership decision in the
+2026-11-19T01:26:08-05:00 at `6f317a849f`. The account ownership decision in the
 [planning record](cli-git-zfs-worktree.md#owners-answers-of-2026-11-18) makes the refusal repeat a pre-acceptance
 condition, not something to postpone until implementation.
 
@@ -877,9 +877,10 @@ refusal.
 This non-final, unapproved section answers the third bullet of item 17's "What item 17 did not show" and the
 unpromoted-clone limitation item 17 states under its item 1: removal destroys verified unpromoted clones, and no
 unpromoted clone had been measured. The fixture, account, grants and direct `lzc_destroy_snaps` path are item
-17's; the only change to its arms is that the clone is never promoted (`guest-item-18-items.py`, against unchanged
-copies of `guest-probe.py` and `guest-delta-items.py`). The guest was `zfs-item-18-measurements`, an Ubuntu 24.04
-`mvm` libvirt VM, destroyed after the run (`keep/mvm-destroy.log`). Scripts are in
+17's; the removal arms differ only in that the clone is never promoted, and `lists` calls were added to print both
+datasets' snapshot names after each request (`guest-item-18-items.py`, against unchanged copies of `guest-probe.py`
+and `guest-delta-items.py`). The guest was `zfs-item-18-measurements`, an Ubuntu 24.04 `mvm` libvirt VM,
+destroyed after the run (`keep/mvm-destroy.log`). Scripts are in
 `~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/item-18/`: `prepare-item-18.ts` prepared the guest
 and built OpenZFS, `run-item-18.ts` pushed the probe and ran the arm, and `keep/item-18-exact.log` holds every
 command and output quoted here. The host, read-only, reported `7.3.5-1-cachyos` from `uname --kernel-release` and
@@ -901,9 +902,9 @@ zfs-2.4.4-1
 zfs-kmod-2.4.4-1
 ```
 
-The guest kernel differs from the host's. The `zfs-2.4.4` release tarball was configured with
-`--with-linux=/lib/modules/6.8.0-147-generic/build` and built in that guest, and both userspace and module report
-release `2.4.4-1`, the host module's release (`keep/guest-build-driver.log`).
+The guest kernel differs from the host's. `prepare-item-18.ts` built the `zfs-2.4.4` release tarball in that
+guest, configuring `--with-linux` for the guest's own kernel headers, and both userspace and module report release
+`2.4.4-1`, the host module's release (`keep/guest-build-driver.log`).
 
 ### Grants and layout before the batch
 
