@@ -40078,7 +40078,16 @@ criterion and no owed run on the host kernel. The review counts thirteen open ch
 `pi-zfs-measurements-for-the-delta-gate-review-1` (GPT, the proposal's worktree, a throwaway VM) measures items 12 to 16
 (same-name replacement and a channel program, `createtxg` after promote, one batch destroy, a namespace made after the
 attach, the host kernel) into the record; then a fresh writer revises the proposal for the review and the new items;
-then the owner's choices go through the question tool, ranked. The review itself was the one going
+then the owner's choices go through the question tool, ranked. The measurement run ended `idle` (68 turns; one VM
+made and destroyed; `cc87958f37` to `666d6e2617`): 12, the delegated account destroyed an unmounted clone and reused
+its name (GUID changed), `zfs program` refused the account, root's program destroyed only on an identity match; 13,
+transferred snapshots kept their GUIDs with `createtxg` at or below the origin's, the clone's own snapshot above the
+clone's, and the bookmark moved; 14, the CLI refused a mixed batch before any ioctl, one direct
+`ZFS_IOC_DESTROY_SNAPS` returned `EEXIST` and kept both, an own-snapshot batch deleted both in one ioctl; 15, after the
+private move and unmount both later namespaces still held the clone, the root scan found both, the clone's destroy
+returned "dataset is busy"; 16, no `mvm` image runs `7.3.5-1-cachyos` with OpenZFS 2.4.4. The revision writer
+(`pi-zfs-worktree-design-proposal-delta-gate-review-revision-1`, GPT, fresh, same worktree) writes DH1 as an open
+choice with both ways out and answers DM1 to DM4 and the lows. The review itself was the one going
 (`pi-review-node-sync-calls-go-through-coreutils-sync-at-e5c61b8af2-1`, in the writer's worktree).
 
 The work-record review `1d5ad2597d` returned (85 turns, `idle`): four reads that wait for ever on a named pipe
