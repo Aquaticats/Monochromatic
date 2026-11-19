@@ -201,8 +201,13 @@ Not final and not approved: this session's own account.
   checkout as its own dataset (unit `pi-checkout-dataset-and-pnpm-research-1`, worktree
   `.claude/worktrees/checkout-dataset-and-pnpm-research`, doc `doc/planning/cli-git-zfs-checkout-dataset-and-pnpm.md`;
   it may leave a measurement folder under `~/.cache` that it must delete). **Next:** read the three, weigh the review,
-  fold everything into the proposal with a writer run, then the owner's acceptance through the question tool; the
-  checkout-as-dataset choice waits for the pnpm answer (owner: "I'm not sure yet").
+  fold everything into the proposal with a writer run, then a Sonnet gate review of the folded proposal (rule `LHZ`:
+  a design put to the owner is a gate), then the owner's acceptance through the question tool; the checkout-as-dataset
+  choice waits for the pnpm answer (owner: "I'm not sure yet"). Also going: the DeepSeek review of the idle-window
+  branch `fix/pi-shared-subagent-driver-idle-window-defaults-to-zero` at 8c8e9659e8 (unit
+  `pi-driver-idle-window-defaults-to-zero-review-1`, worktree `.claude/worktrees/driver-idle-window-defaults-to-zero-review`,
+  review file `~/temp/agent/driver-idle-window-defaults-to-zero-review-2026-11-18/review.md`); the writer ended `idle`
+  after 82 turns ($1.80) with nine commits and 849 passing cases by its report; merge after the review is weighed.
 - **Driver idle window defaults to 0:** going since 2026-11-18T19:27:38-05:00, GPT 6.2 Sol through Pi, unit
   `pi-driver-idle-window-defaults-to-zero-writer-1`, run folder
   `~/temp/agent/driver-idle-window-defaults-to-zero-writer-2026-11-18/run-1`, worktree
