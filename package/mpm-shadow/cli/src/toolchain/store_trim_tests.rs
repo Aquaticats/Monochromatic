@@ -2482,3 +2482,54 @@ fn reproduction_disappearing_current_lock_keeps_the_loaded_pin() {
         user_data.display()
     );
 }
+
+/// Keeps an interrupted deletion when the lock snapshot did not name it but the lock does at deletion time.
+#[test]
+fn recovery_rereads_a_lock_before_deleting() {
+    let fixture = Fixture::new();
+    // Make the deletion name the real cleanup leaves after starting to unlink a version.
+    let deleting = crate::toolchain::store_versions::deleting_of(&tombstone_of(&fixture.root.join("node/20.0.0")));
+    let payload = deleting.join("surviving-user-data");
+    // All files and the lock belong to the disposable fixture.
+    fs::create_dir_all(&deleting).expect("make the interrupted deletion tree");
+    fs::write(&payload, b"must remain").expect("write surviving data");
+    let lock = fixture.root.join("toolchain.lock.json");
+    // Read the first lock while it names a different version.
+    fs::write(&lock, r#"{"tools":{"node":{"version":"21.0.0","route":"archive"}}}"#).expect("write initial lock");
+    let named = read_named_versions(std::slice::from_ref(&lock));
+    // Prove the test would not stop at the snapshot's protection check.
+    assert!(named.unreadable.is_none());
+    assert_eq!(named.naming_lock("node", "20.0.0"), None);
+    // Model a replacement after the snapshot without depending on scheduling.
+    fs::write(&lock, r#"{"tools":{"node":{"version":"20.0.0","route":"archive"}}}"#).expect("replace lock");
+    let mut run = fixture.run();
+    run.locks.push(lock);
+
+    let finished = finish_removals_with(&run, &named);
+
+    // Require both the retained bytes and the diagnostic from the late check.
+    assert!(payload.exists(), "the late lock named node 20.0.0, but recovery deleted it: {:?}", finished.lines);
+    assert!(finished.lines.iter().any(|line| return line.contains("names it now")), "{:?}", finished.lines);
+}
+
+/// Keeps the remaining bytes of a deletion when a tool's `current` link has been repointed to that version.
+#[cfg(unix)]
+#[test]
+fn recovery_rechecks_current_before_deleting() {
+    let fixture = Fixture::new();
+    // A deletion can be partly complete; the remaining payload still must not be removed while named.
+    let deleting = crate::toolchain::store_versions::deleting_of(&tombstone_of(&fixture.root.join("node/20.0.0")));
+    let payload = deleting.join("surviving-user-data");
+    // Make the interrupted deletion and the link entirely inside this test's store.
+    fs::create_dir_all(&deleting).expect("make the interrupted deletion tree");
+    fs::write(&payload, b"must remain").expect("write surviving data");
+    let link = fixture.root.join("node").join(crate::toolchain::store_versions::CURRENT_LINK_NAME);
+    // The link names the live path even when deletion has moved that path out of the way.
+    std::os::unix::fs::symlink("20.0.0", &link).expect("point current at the interrupted version");
+
+    let finished = finish_removals(&fixture.run());
+
+    // Require both the retained bytes and the diagnostic from the late check.
+    assert!(payload.exists(), "current named node 20.0.0, but recovery deleted it: {:?}", finished.lines);
+    assert!(finished.lines.iter().any(|line| return line.contains("current link names it now")), "{:?}", finished.lines);
+}

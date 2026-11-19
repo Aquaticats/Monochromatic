@@ -112,7 +112,8 @@ fn ends_a_child_at_the_deadline_it_was_given() {
 
 
 /// What:
-/// A request returns at its ceiling even when a grandchild inherited the output pipe and holds it open.
+/// A request returns at its ceiling and fails even when its direct child exited successfully and only a grandchild
+/// still holds the output pipe.
 /// Why:
 /// What a request waits for is the child's ending and the end of its output; a descendant that holds a pipe must not
 /// hold the request, and a Git that forks a helper is exactly that shape.
@@ -141,4 +142,10 @@ fn ends_a_request_while_a_grandchild_holds_the_pipe() {
         "the direct child exited and its 50 ms ceiling passed, but the runner stayed blocked until the grandchild's \
          pipe closed; outcome={outcome:?}"
     );
+    // Distinguish a successful direct child from a failed spawn or a child killed at the ceiling.
+    assert_eq!(outcome.code, 0, "the direct child did not exit successfully: {outcome:?}");
+    // Verify that the inherited pipe, not a different failure, cut off collection of the output.
+    assert!(outcome.stderr.contains("a descendant still held the output past the ceiling"), "{outcome:?}");
+    // An output reader must reject this result even though the direct child succeeded.
+    assert!(!outcome.succeeded(), "cut-off output was accepted as success: {outcome:?}");
 }
