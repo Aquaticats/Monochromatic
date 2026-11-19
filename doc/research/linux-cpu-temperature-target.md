@@ -46,6 +46,25 @@ Workload tests would establish the observed overshoot, frequency response and re
 Live sysfs writes, sustained CPUFreq-based temperature regulation, and removal of the service's frequency limits
 remain untested. The code references are from upstream Linux `v7.3`. Verification of the installed driver was read-only.
 
+## Estimated Rust and Clap size
+
+This estimate counts nonblank, hand-written lines including comments. It assumes one Rust binary,
+a privileged systemd service, a configured hwmon sensor, and a root-owned target file that the CLI replaces
+atomically. The service is the sole userspace writer of the CPUFreq ceiling it manages.
+
+- 60 to 90 Rust lines for Clap, target parsing, and the live target file.
+- 100 to 150 Rust lines to locate and read sensors and discover and update CPUFreq policies.
+- 50 to 70 Rust lines for temperature feedback, ceilings, and hysteresis.
+- 120 to 160 Rust lines for the daemon, release and restart handling, partial write failures, and diagnostics.
+
+The estimate is 330 to 470 production Rust lines, 160 to 240 test lines, and 50 to 80 lines of packaging
+and systemd configuration. That gives 540 to 790 owned lines before documentation.
+The test budget covers threshold behavior, fixture sysfs reads and writes, release, and failed writes.
+
+Nearby code provides scale. The file-enforcer argument excerpt at lines 43 to 104 has 58 nonblank lines,
+the bash-limit Linux resource controls have 114, and the scope registry that updates live cgroup limits has 188.
+[Clap arguments][clap-arguments] · [Linux resource controls][linux-limits] · [Live limit registry][limit-registry]
+
 [amd-7950x]: https://www.amd.com/en/products/processors/desktops/ryzen/7000-series/amd-ryzen-9-7950x.html
 [hwmon-temps]: https://docs.kernel.org/hwmon/sysfs-interface.html#temperatures
 [k10temp]: https://docs.kernel.org/hwmon/k10temp.html#:~:text=Tctl%20is%20the%20processor%20temperature%20control%20value
@@ -60,3 +79,6 @@ remain untested. The code references are from upstream Linux `v7.3`. Verificatio
 [earlier-experiment]: ../handover/claude-cpu-cap-and-thermal-watch.md
 [claude-watcher]: ../../package/claude-cpu-cap/daemon/README.md
 [cpu-max]: https://docs.kernel.org/admin-guide/cgroup-v2.html#cpu-interface-files
+[clap-arguments]: ../../package/file-enforcer/cli/src/args.rs
+[linux-limits]: ../../package/codex-plugin/bash-limit/src/limits.rs
+[limit-registry]: ../../package/wg/cli-quicker-exempt/src/scope_registry.rs
