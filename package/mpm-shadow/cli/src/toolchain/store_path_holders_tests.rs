@@ -57,9 +57,8 @@ fn finds_the_file_this_test_holds_open() {
     let reason: String = held_reason(&after, &version).expect("the scan must find the open file");
     assert!(reason.contains(&format!("pid {}", std::process::id())), "{reason}");
     assert!(reason.contains("has open"), "{reason}");
-    // What: this station holds processes the kernel refuses to describe, and the scan says so.
-    // Why: the rule is that such a process may run any version, so the scan is incomplete exactly when one is listed.
-    assert_eq!(after.incomplete.is_some(), !after.opaque.is_empty(), "{after:?}");
+    // An opaque process does not mean the enumeration itself failed.
+    assert!(after.incomplete.is_none(), "{after:?}");
     assert!(after.processes > 0);
     drop(opened);
 }
@@ -119,6 +118,20 @@ fn calls_the_scan_incomplete_when_a_process_cannot_be_described() {
     assert!(reason.contains("pid 4242 (fd)"), "a short name is named like any other: {reason}");
     assert!(reason.contains("pid 4243 (keepassxc)"), "{reason}");
     assert!(undescribed_reason(&[]).is_none(), "a scan that described every process is complete");
+}
+
+/// Checks the real proc format and a command name containing spaces and a closing parenthesis.
+#[cfg(target_os = "linux")]
+#[test]
+fn reads_process_start_ticks_after_the_parenthesized_command() {
+    let own_row = std::fs::read_to_string("/proc/self/stat").expect("read this test's proc row");
+    // A real process has a start time in this boot's ticks.
+    assert!(super::store_path_holders::process_start_ticks(&own_row).is_some());
+    // Use each field's number as its value, so a parser shifted by one would report a different value.
+    let numeric_fields = (4_u64..=23).map(|field| return field.to_string()).collect::<Vec<_>>().join(" ");
+    let unusual_command = format!("4242 (name) with space) S {numeric_fields}");
+    assert_eq!(super::store_path_holders::process_start_ticks(&unusual_command), Some(22));
+    assert_eq!(super::store_path_holders::process_start_ticks("4242 (truncated) S 0"), None);
 }
 
 /// The words a hold is printed with say what the process does with the path.

@@ -1109,6 +1109,9 @@ The cleanup also keeps:
 - a write time inside a one-hour floor.
 
 The version this run installed is kept as well.
+A hidden process keeps a tree unless the process can be shown to predate the tree.
+The project accepts that a hidden process can still open a newer tree after starting.
+An incomplete scan never proves a tree unused.
 If a lock cannot be read in full, cleanup names it and does not delete live versions or finish pending deletions.
 Finished flat downloads recognized from the old layout can be removed even under the size bound,
 subject to the age and work limits and the checks for an active holder.

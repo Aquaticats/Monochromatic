@@ -155,8 +155,12 @@ the most specific first:
   its working directory (`/proc/<pid>/cwd`),
   a file it has mapped (`/proc/<pid>/maps`),
   or a file it has open (the `/proc/<pid>/fd` links).
-  A process the kernel refuses to describe is matched by the name it calls itself,
-  and its versions are kept with that name in the line.
+  A hidden process protects each candidate unless its start can be shown to be strictly before the tree was created.
+  The cleanup uses filesystem birth time for each object, including separately created archives, not last-write time.
+  It rounds the Linux boot and process start readings conservatively; unavailable or overlapping times keep the tree.
+  This comparison assumes the filesystem birth clock and the current boot-time conversion agree.
+  The project accepted the gap on 2026-11-15: a hidden process that predates the tree may still have opened it later.
+  An identified holder or an incomplete enumeration is never ignored by the age rule.
   The process table reports resolved paths while the store is spelled as `HOME` spells it,
   and this machine's `/home` is a link,
   so both sides of the comparison are resolved to one spelling before they are compared.

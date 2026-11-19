@@ -23,9 +23,11 @@
 /// Imports `Path`,
 /// `PathBuf` from `std::path`.
 use std::path::{Path, PathBuf};
-/// Imports `Duration`,
-/// `Instant` from `std::time`.
-use std::time::Instant;
+/// Imports the monotonic deadline and wall clock used for comparisons with filesystem birth times.
+use std::time::{Instant, SystemTime};
+/// Imports the process runner so reading the host tick frequency cannot hold cleanup past its deadline.
+#[cfg(target_os = "linux")]
+use super::runner::{Ceiling, ProcessRunner, RunRequest, Runner};
 
 /// How a process holds a store path.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -66,11 +68,10 @@ pub struct HeldPath {
 pub struct OpaqueProcess {
     /// The process.
     pub pid: u32,
-    /// The name the process calls itself (`/proc/<pid>/comm`),
-    /// which is the only thing the kernel still says about it.
+    /// The process's display name (`/proc/<pid>/comm`), not evidence of which version it holds.
     pub comm: String,
     /// Conservative upper bound on the process start, absent if the clock or the row could not be read.
-    pub started_before: Option<std::time::SystemTime>,
+    pub started_before: Option<SystemTime>,
 }
 
 /// What a scan of the process table found.
@@ -177,6 +178,59 @@ pub fn resolved_for_comparison(directory: &Path) -> PathBuf {
     };
 }
 
+/// What: `/proc/stat` boot time and the host's proc tick rate, used to round process starts up.
+/// Why: Linux reports process start in clock ticks since boot, while filesystem birth times use wall time.
+#[cfg(target_os = "linux")]
+struct ProcessClock {
+    /// Boot time, rounded down to seconds since the epoch by `/proc/stat`.
+    boot: u64,
+    /// Process-counter ticks per second from `getconf CLK_TCK`.
+    ticks_per_second: u64,
+}
+
+/// Reads the clock once per scan that encounters an opaque process.
+/// An unavailable clock does not prove that a process is older than a tree.
+#[cfg(target_os = "linux")]
+fn read_process_clock(deadline: Instant) -> Option<ProcessClock> {
+    // Use the system command rather than a tool the store may be deleting, and charge it to the cleanup ceiling.
+    let request = RunRequest::new("/usr/bin/getconf", &["CLK_TCK"])
+        .with_deadline(Ceiling::at(deadline, "the cleanup's own work limit"));
+    let result = ProcessRunner.run(&request);
+    if !result.succeeded() {
+        return None;
+    }
+    // `?` leaves the clock unknown if the command or the process table did not provide a usable number.
+    let ticks_per_second = result.stdout.trim().parse::<u64>().ok()?;
+    let proc_stat = std::fs::read_to_string("/proc/stat").ok()?;
+    let boot = proc_stat.lines().find_map(|line| return line.strip_prefix("btime "))?.trim().parse::<u64>().ok()?;
+    // The conversion uses checked division and arithmetic, so no input can overflow a timestamp.
+    return Some(ProcessClock { boot, ticks_per_second });
+}
+
+/// Finds the tick count in field 22 of `/proc/<pid>/stat`, past the command name in parentheses.
+/// Parentheses and spaces in the name do not affect the field count after the last closing parenthesis.
+#[cfg(target_os = "linux")]
+pub(crate) fn process_start_ticks(stat: &str) -> Option<u64> {
+    /// Start time is field 22, or index 19 when the first two fields have been stripped.
+    const START_INDEX_AFTER_COMMAND: usize = 19;
+    // `rsplit_once` takes the last closing parenthesis because the name may itself contain one.
+    let (_, fields) = stat.rsplit_once(')')?;
+    return fields.split_whitespace().nth(START_INDEX_AFTER_COMMAND)?.parse::<u64>().ok();
+}
+
+/// Conservatively rounds the opaque process's start up before comparing it with a tree's birth time.
+#[cfg(target_os = "linux")]
+fn opaque_start_before(clock: &ProcessClock, process: &Path) -> Option<SystemTime> {
+    // A missing, raced or malformed process row supplies no evidence about the time it started.
+    let row = std::fs::read_to_string(process.join("stat")).ok()?;
+    let ticks = process_start_ticks(&row)?;
+    let whole_seconds = ticks.checked_div(clock.ticks_per_second)?;
+    // The boot time and the divided age are each rounded down to a whole second. Allow one second for each.
+    const TWO_ROUNDING_STEPS_SECONDS: u64 = 2;
+    let upper = clock.boot.checked_add(whole_seconds)?.checked_add(TWO_ROUNDING_STEPS_SECONDS)?;
+    return std::time::UNIX_EPOCH.checked_add(std::time::Duration::from_secs(upper));
+}
+
 /// What:
 /// Every store path a live process of this user holds,
 /// read from the process table.
@@ -218,6 +272,8 @@ pub fn holders_of(store_roots: &[PathBuf], deadline: Instant) -> StoreHolders {
         }
     }
     pids.sort_unstable();
+    // Cache failure as well as success so many opaque processes never start many `getconf` commands.
+    let process_clock = std::cell::OnceCell::new();
     for (index, pid) in pids.iter().enumerate() {
         // What: the deadline is checked once per block of processes.
         // Why: reading a clock per process costs more than the process table it guards.
@@ -289,14 +345,13 @@ pub fn holders_of(store_roots: &[PathBuf], deadline: Instant) -> StoreHolders {
                 .unwrap_or_default()
                 .trim()
                 .to_string();
-            // The cleanup fixture can supply evidence before the Linux scan learns to read it.
-            holders.opaque.push(OpaqueProcess { pid: *pid, comm, started_before: None });
+            // Lazily read the common clock, then get this process's own upper start-time bound.
+            let clock = process_clock.get_or_init(|| return read_process_clock(deadline));
+            let started_before = clock.as_ref().and_then(|found| return opaque_start_before(found, &process_directory));
+            holders.opaque.push(OpaqueProcess { pid: *pid, comm, started_before });
         }
     }
-    // What: a process the kernel refuses to describe makes the whole scan incomplete.
-    // Why: such a process may run any version, and a name is not evidence that its files are unused, whatever its
-    // length; reading "not held" into a process that was never read removed a version a live tool was running.
-    holders.incomplete = undescribed_reason(&holders.opaque);
+    // Opaque processes are judged against each object. Only a failure to enumerate the table marks the scan incomplete.
     return holders;
 }
 
@@ -312,6 +367,7 @@ pub fn holders_of(store_roots: &[PathBuf], deadline: Instant) -> StoreHolders {
 /// ```ts
 /// export function undescribedReason(opaque: OpaqueProcess[]): string | undefined
 /// ```
+#[cfg(test)]
 pub fn undescribed_reason(opaque: &[OpaqueProcess]) -> Option<String> {
     if opaque.is_empty() {
         return None;

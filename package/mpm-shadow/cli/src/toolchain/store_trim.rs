@@ -69,10 +69,9 @@
 //!   A link that cannot be read is a link that may name the version, so the version stays.
 //! - a process:
 //!   the process table, once per pass, through `exe`, `cwd`, `fd` and `maps` of every process of this user.
-//!   A process the kernel refuses to describe may run any version, so any such process makes the scan incomplete and
-//!   every version stays, with one line naming the processes.
-//!   Measured on this machine at one moment: twelve processes of this user cannot be described (`ssh-agent`,
-//!   `keepassxc`, `systemd`, `kwin_wayland` and the like), so a pass here keeps everything and removes nothing.
+//!   A hidden process protects a tree unless the process is provably older than that tree's birth.
+//!   The project accepted the gap on 2026-11-15: an older hidden process can open a newer tree later.
+//!   An unknown or tied time still protects the tree. An incomplete enumeration keeps everything.
 //! - the age:
 //!   the newest write anywhere inside the version's tree, never the root's own write time alone, because a write into
 //!   a folder that already exists leaves the root's time alone.
@@ -236,7 +235,7 @@ use super::store_path_holders::{StoreHolders, held_reason, holders_of};
 /// Imports what this module uses from `super::store_versions`.
 use super::store_versions::{
     JudgedTree, RemovalMarker, TreeFacts, VersionDirectory, deleting_of, downloads_of,
-    IN_FLIGHT_DOWNLOAD_SUFFIX, install_directory_name, judged_of_tree, leftover_downloads, newest_write, read_judged,
+    IN_FLIGHT_DOWNLOAD_SUFFIX, inode_of, install_directory_name, judged_of_tree, leftover_downloads, newest_write, read_judged,
     record_of, record_of_marker,
     removal_markers, tombstone_of,
     version_directories, write_judged,
@@ -981,6 +980,31 @@ fn owned_hold_reason(holders: &StoreHolders, root: &Path, tool: &str, version: &
     return None;
 }
 
+/// Why an opaque process could hold the exact object judged for cleanup.
+/// The project accepted the age gap on 2026-11-15 (`doc/handover/cli-git-rust-implementation.md`,
+/// "Owner decisions in force"): a process that predates this tree could open it later.
+/// Use birth time, not mtime, and do not infer an age when the filesystem cannot prove the object's identity.
+fn opaque_hold_reason(holders: &StoreHolders, path: &Path, expected_inode: Option<(u64, u64)>) -> Option<String> {
+    if holders.opaque.is_empty() {
+        return None;
+    }
+    // A missing birth time or an object other than the one judged supplies no age evidence.
+    let birth = fs::symlink_metadata(path)
+        .ok()
+        .filter(|metadata| return expected_inode.is_some() && inode_of(metadata) == expected_inode)
+        .and_then(|metadata| return metadata.created().ok());
+    for process in &holders.opaque {
+        // Only a strict upper bound before the object's birth allows this opaque process to be disregarded.
+        if let (Some(started_before), Some(born)) = (process.started_before, birth)
+            && started_before < born
+        {
+            continue;
+        }
+        return Some(format!("pid {} ({}) is hidden and cannot be shown to predate {}", process.pid, process.comm, path.display()));
+    }
+    return None;
+}
+
 /// What:
 /// Whether the tool's `current` link names `version` right now.
 /// Why:
@@ -1108,8 +1132,7 @@ struct ToSettle<'a> {
 ///   action: "aside" | "back" | "delete" }): { done: true } | { kept: string }
 /// ```
 fn settle(tree: &ToSettle<'_>) -> Settled {
-    // What: a scan that could not be completed, or a process that holds this exact path, keeps it.
-    // Why: a process the kernel will not describe may run any version, and one that holds the path is using it.
+    // An incomplete enumeration keeps everything. A concrete hold defeats cleanup regardless of age.
     if let Some(reason) = &tree.holders.incomplete {
         return Settled::Kept(format!("the process table could not be read in full: {reason}"));
     }
@@ -1127,6 +1150,10 @@ fn settle(tree: &ToSettle<'_>) -> Settled {
         } else {
             "something was written in it after it was judged".to_string()
         });
+    }
+    // Ask about this object again, including archives or flat files whose birth can differ from the version's.
+    if let Some(reason) = opaque_hold_reason(tree.holders, tree.path, now.inode) {
+        return Settled::Kept(reason);
     }
     return match tree.action {
         Settle::Delete => {
@@ -2215,6 +2242,14 @@ fn protection_of(
     {
         return Some(format!("it is in use: {reason}"));
     }
+    // Do not budget space from a version or archive that might have existed when a hidden process started.
+    if let Some(reason) = opaque_hold_reason(holders, &candidate.directory, candidate.inode) {
+        return Some(reason);
+    }
+    if let Some(downloads) = &candidate.downloads {
+        let archive_inode = candidate.downloads_facts.as_ref().and_then(|judged| return judged.inode);
+        return opaque_hold_reason(holders, downloads, archive_inode);
+    }
     return None;
 }
 
@@ -2287,7 +2322,7 @@ pub fn trim_after_install(ctx: &Context, installed: &[(String, String)]) {
 /// `trim_after_install` with a scan of the process table already made.
 /// Why:
 /// A control hands in the scan it built, so it does not depend on which processes the machine happens to be running;
-/// a desktop always holds processes the kernel refuses to describe, and the rule keeps every version while that is so.
+/// a desktop may hold processes the kernel refuses to describe, and the age rule considers each object separately.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
