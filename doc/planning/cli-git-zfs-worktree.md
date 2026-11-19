@@ -455,7 +455,11 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   every session in the checkout stopped; the pnpm store stays in home. `du --summarize --block-size=1M` over the
   checkout gave 27,899 MiB at 2026-11-18T20:23:56-05:00: allocated (compressed) blocks, not the logical bytes the move
   copies, and counting the worktrees under `.claude/worktrees/` and the nested `zpcachyos/nosnap/vm-builder-output`
-  mount; the size of the move itself is still to be measured (`du --apparent-size --one-file-system`). The question put
+  mount. Measured at 2026-11-18T21:05:28-05:00 with `--one-file-system` (so without the nested mount): the checkout
+  holds 32,604 MiB of logical bytes (29,970 MiB allocated), of which `.claude/worktrees/` holds 27,058 MiB (23,300 MiB
+  allocated), so the checkout without its worktrees is about 5,546 MiB; most of what the move copies is worktrees, and
+  removing finished ones before the move shrinks it most (readings in
+  `~/temp/agent/checkout-logical-size-2026-11-18/keep/du-readings.txt`). The question put
   to the owner called the boundary ratios "inside" the control spread of 1.091; the highest, 1.101, is just above it, as
   the pnpm document says ("comparable"), and the ratios went both ways.
 - **Who owns `.claude/worktrees`** (question tool, same evening): "B: Account owns it (Recommended)". The account
