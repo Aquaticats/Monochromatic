@@ -11,8 +11,9 @@ This revision drops the private-ancestor requirement: [VM item 3][vm-propagation
 and enabled staging, at the cost of late-mount visibility in the confined reader. It requires proof of snapshot
 lineage immediately before each destruction request: [VM item 11][vm-promote] lost older checkout history to an
 explicit delete despite the recursive refusal, and [VM item 14][vm-batch] tested a single batch. It also requires
-live dataset identity and staged recovery state (item 4), separates clone creation from key and mount readiness (item 5), and requires boot-time
-verification of underlay protection and nested mount reachability (items 8 and 9). The other observations
+live dataset identity and staged recovery state (item 4), separates clone creation from key and mount readiness
+(item 5), and requires boot-time verification of underlay protection and nested mount reachability (items 8 and 9).
+The other observations
 confirm fixture behavior, not the implementation.
 
 The design keeps the checkout at its existing path and uses account-owned slots over their Git registrations,
@@ -24,7 +25,8 @@ This revision changes documentation only; it does not install, implement or alte
 ## Requirements and module ownership
 
 The project chose "ZED, Clones, reflink. There is a reason we have a doctor subcommand." The Git wrapper owns Git
-validation and registration, the unprivileged snapshot and clone creation, the removal workflow and the same-dataset reflink fallback.
+validation and registration, unprivileged snapshot and clone creation, the removal workflow and the same-dataset
+reflink fallback.
 Who executes managed clone destruction is an [open choice](#clone-removal-identity-protection).
 The root-installed ZFS Event Daemon (ZED) handler and its lifecycle unit own clone mount and unmount, not Git
 or automatic deletion.
@@ -64,10 +66,11 @@ attachment and removal. It has no Git, pool administration, or dataset destructi
 ### Requests and input ownership
 
 The initial interface is Linux only. Expose typed operations, not a general-purpose ioctl or property setter.
-Numbers are for OpenZFS `zfs-2.4.4`, `include/sys/fs/zfs.h:1502` to `:1550`.
+Numbers are for OpenZFS `zfs-2.4.4`, `include/sys/fs/zfs.h:1502` to `:1556`.
 The vet's "Result and the owner's decision" records the core set. This draft adds `OBJSET_STATS` for identity
 and property sources, `SNAPSHOT_LIST_NEXT`, `GET_BOOKMARKS` and `DESTROY_SNAPS` for exact removal accounting,
-and `GET_FSACL` for `doctor`. The cross-vendor review checked `SNAPSHOT_LIST_NEXT` at line 1505 and `GET_FSACL` at line 1525.
+and `GET_FSACL` for `doctor`. The cross-vendor review checked `SNAPSHOT_LIST_NEXT` at line 1505 and `GET_FSACL`
+at line 1525.
 
 - `ZFS_IOC_OBJSET_STATS` (`0x5a12`): inspect dataset type, identity, origin, and the values and sources of properties.
 - `ZFS_IOC_DATASET_LIST_NEXT` (`0x5a14`): enumerate immediate children via the kernel's cursor.
@@ -205,8 +208,9 @@ prove the failure control and production ordering for the selected option before
 
 Root configuration pins the account UID, the checkout path, pool and dataset names and GUIDs. The proposed
 unprivileged lifecycle needs `snapshot` local to the checkout dataset, `clone` on its descendants (snapshots count
-as descendants), `create,mount` local to the clone parent, and `mount,userprop` on the clone parent's descendants. Add `destroy` there only under the delegated
-[clone removal option](#clone-removal-identity-protection) (design alternatives, not product-tested).
+as descendants), `create,mount` local to the clone parent, and `mount,userprop` on the clone parent's descendants.
+Add `destroy` there only under the delegated [clone removal option](#clone-removal-identity-protection)
+(design alternatives, not product-tested).
 Checkout-origin deletion is separately open: adding `mount,destroy` on checkout descendants
 lets the account destroy **any checkout snapshot**, not just wrapper origins, but not the checkout dataset itself.
 Do not assume those snapshots protect against that account or put unrelated ZFS descendants there.
@@ -246,7 +250,7 @@ copies. It does not measure deletion of copied administration, delegated request
     the slot on a qualifying sweep after the clone and its local mount request exist (proposed event ordering).
 3.  Snapshot the checkout, then clone that fresh origin, never a sanoid snapshot. Record the actual snapshot and
     clone GUIDs and their `createtxg` values as each is confirmed, as required by the removal proof proposed from
-    [VM item 13][vm-bookmark]. A successful clone does not imply mount readiness: [VM item 5][vm-key]
+    [VM item 13][vm-13]. A successful clone does not imply mount readiness: [VM item 5][vm-key]
     created a clone with its encryption key unloaded, but detached mount setup refused with `EACCES`. Request
     `mount` via the local desired-state user property described in
     [ZED reconciliation and mount safety](#zed-reconciliation-and-mount-safety), not via `mountpoint`. Send it in
@@ -278,7 +282,7 @@ its expected slot path and identity, pool GUID, origin dataset name and GUID, or
 GUIDs and `createtxg` values, pointer bytes, request nonce and progress. At creation, record the origin-side
 inventory of snapshots through the origin snapshot's transaction group and the origin dataset's bookmarks, by
 kind, name, GUID and `createtxg`. Record the clone's initial inventory separately; an empty new clone inventory
-cannot identify transferred history. This is a proposed proof record based on the transfer in [VM item 13][vm-bookmark].
+cannot identify transferred history. This is a proposed proof record based on the transfer in [VM item 13][vm-13].
 [Removal and recovery](#removal-and-recovery) defines how to use it.
 On resume distinguish a claimed empty slot, registration without a dataset (including a possible origin only),
 an unmounted clone, a mounted but unfinished clone and a verified checkout. Recheck recorded identities, the mount
@@ -434,9 +438,9 @@ that the slot has not changed since Git created it. Its value is to pin the chec
 compare later lookups and unmounts. The no-crossing walk and fresh post-attach check remain mandatory. This is
 proposed ordering from the register-first sequence and descriptor controls of [items 1][vm-register] and
 [2][vm-refusals], not a measurement of handler timing. Treat the claim and pointer as untrusted; check only a
-bounded, regular, no-follow pointer file and never resolve a path from its contents as root. Record and recheck device, inode, UID, permissions and access/default
-ACLs from opened folders. Keep records in `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities`
-under root control. Never refresh a slot identity just because a new inode or permissions appeared there. The
+bounded, regular, no-follow pointer file and never resolve a path from its contents as root. Record and recheck
+device, inode, UID, permissions and access/default ACLs from opened folders. Keep records in
+`/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities` under root control. Never refresh a slot identity just because a new inode or permissions appeared there. The
 handler uses the verified slot descriptors for mount management, not privileged writes into the account's tree.
 
 Only an administrator may explicitly adopt a legitimate replacement after checkout restore or folder recreation.
@@ -603,7 +607,7 @@ the later head destroy. Neither a successful batch nor a dependency refusal esta
       snapshots and bookmarks. Any origin-side hit or unproved provenance refuses destruction. Never update the
       recorded lineage to match an external change.
 
-    [VM item 13][vm-bookmark] measured this separation only on OpenZFS `2.4.4-1`: the transferred snapshots kept
+    [VM item 13][vm-13] measured this separation only on OpenZFS `2.4.4-1`: the transferred snapshots kept
     their GUIDs and transaction groups at or below the origin snapshot's, the own snapshot was newer than the
     clone, the clone lost its direct origin, and the bookmark moved with an unchanged tuple. These are layered
     proposed checks, not a proof that transaction groups establish provenance for other topologies, encryption
@@ -862,10 +866,10 @@ status. `doctor` does not start a service, create a test dataset, repair registr
   broadly just to make an interrupted command pass.
 - Check the handler installation, config and root-owned state and result directories, ZED and service wiring,
   latest readiness and reconciliation, and unresolved requests. Check the proposed staging directory and the
-  propagation of its live bind separately from the checkout ([VM item 3][vm-propagation]). Print root install/enable commands and the
-  journal queries for `zfs-zed.service` and `reconcile-git-worktree-clone-mounts.service`. Show other enabled zedlets
-  before recommending ZED enablement, including
-  applicable syslog, notification, enclosure or scrub effects.
+  propagation of its live bind separately from the checkout ([VM item 3][vm-propagation]). Print root install/enable
+  commands and the journal queries for `zfs-zed.service` and `reconcile-git-worktree-clone-mounts.service`.
+  Show other enabled zedlets before recommending ZED enablement, including applicable syslog, notification,
+  enclosure or scrub effects.
 - Compare the measured dataset tree and store location against recursive coverage. Verify the named exclusion
   sections, ancestor order, mount paths and `com.sun:auto-snapshot=false`; print the concrete INI correction or
   `zfs set com.sun:auto-snapshot=false <verified-dataset>` for confirmed drift. This keeps the planning record's
@@ -875,9 +879,9 @@ status. `doctor` does not start a service, create a test dataset, repair registr
   [VM item 15][vm-namespaces], name each namespace holding the clone by namespace ID and representative PID, with
   matched source and path, and report incomplete coverage as unknown. Do not require root in the `doctor` caller.
   For a blocked removal, show standing `unmount` intent, the last verified loss and remaining objects, and whether
-  guarded cancellation, resume or administrator recovery is available (proposed recovery state, not measured). Report snapshot retention using
-  named ZFS accounting fields where measurable; do not sum shared blocks as if each clone owned them. Explain
-  retained underlays in checkout snapshots. Print the applicable guarded resume or link-repair steps, not a
+  guarded cancellation, resume or administrator recovery is available (proposed recovery state, not measured).
+  Report snapshot retention using named ZFS accounting fields where measurable; do not sum shared blocks as if each
+  clone owned them. Explain retained underlays in checkout snapshots. Print the applicable guarded resume or link-repair steps, not a
   blanket destroy or a guessed registration.
 - Report whether the configured backup job can see the checkout and whether filesystem boundaries are known to
   be enforced. A walker that crosses into a clone may protect the same contents again under the checkout path.
@@ -892,9 +896,9 @@ working setup. This proposal has neither installed nor run the root-once command
 
 There are 14 open choices, including the two alternatives under
 [Clone removal identity protection](#clone-removal-identity-protection) as one choice. They do not reopen
-checkout path, account ownership, ZED, the fallback or recursive snapshot policy. No option is selected or ranked. At the owner handoff, present each decision separately
-in the question tool with its options, pros and cons, and a recommendation that explains each adjacent pair
-in the ranking. Use the VM findings and identify what remains unmeasured; a ranking is not a decision.
+checkout path, account ownership, ZED, the fallback or recursive snapshot policy. No option is selected or ranked.
+At the owner handoff, present each decision separately in the question tool with its options, pros and cons, and a
+recommendation that explains each adjacent pair in the ranking. Use the VM findings and identify what remains unmeasured; a ranking is not a decision.
 
 - Checkout boot mount protection. Keep an ordinary checkout mountpoint and verify an immutable covered entry, or
   use `mountpoint=legacy` with a descriptor boot service that verifies the checkout underlay.
@@ -966,7 +970,8 @@ in the ranking. Use the VM findings and identify what remains unmeasured; a rank
 - Prune protection while unmounted. Use a managed Git lock in addition to preserving the pointer copies, or
   protect the underlay pointer with a root-set immutable flag. [VM item 6][vm-prune] measured the lock with an
   absent pointer. Explicit prune removed the unlocked entry immediately; the `git gc` grace period is not a
-  safeguard against explicit prune (Git `v2.43.0`, `builtin/worktree.c:244`; `git-config(1)`, `gc.worktreePruneExpire`).
+  safeguard against explicit prune (Git `v2.43.0`, `builtin/worktree.c:244`;
+  `git-config(1)`, `gc.worktreePruneExpire`).
   Item 6 did not measure `git gc`, immutable-pointer protection, lock recovery after pointer loss, or Git `2.56.1`.
 - Git registration when origin cleanup is blocked. Keep the registration until the recorded origin is cleaned up;
   or settle the registration after clone destruction and keep an independent durable origin cleanup record. The
@@ -1069,7 +1074,7 @@ same guest kernel and OpenZFS release; item 16 records the separate exact-kernel
 - [Item 12][vm-replacement], measured: the delegated account reused a clone name, including with a new clone of the
   same origin. A root channel program refused stale identities and destroyed a matching clone. Concurrent timing,
   product request authorization and recovery remain unmeasured.
-- [Item 13][vm-bookmark], measured: origin, transaction groups and GUIDs separated own and promoted snapshot
+- [Item 13][vm-13], measured: origin, transaction groups and GUIDs separated own and promoted snapshot
   history in the fixture. A bookmark moved and returned on reverse promotion; a snapshot-only inventory missed it.
 - [Item 14][vm-batch], measured: the CLI refused the mixed set before an ioctl; the direct batch returned `EEXIST`
   and preserved it. The positive control deleted two own snapshots in one batch. Request limits remain unmeasured.
@@ -1091,7 +1096,8 @@ as measured or require a synthetic host-load loop. See "What remains open after 
 The [VM record][vm-limits] and [delta limits][vm-delta-limits] leave execution on `7.3.5-1-cachyos` and Git
 `2.56.1`, the product wrapper, Rust binding and ZED handler, confinement variants and unattended boot and shutdown
 reconciliation, free-running races, concurrent same-name replacement, failed rollback or reattach, and recovery
-from interruption unmeasured. Measure host storage costs separately from guest semantics. The acceptance tests name the product controls;
+from interruption unmeasured. Measure host storage costs separately from guest semantics. The acceptance tests name
+the product controls;
 none of the VM observations authorizes host-pool changes.
 
 ## Acceptance tests the build still owes
@@ -1123,8 +1129,8 @@ only for unused slots. These are unrun acceptance requirements, not evidence fro
   case, rename a pre-existing link into the slot rather than creating it there. Assert every refusal names the
   component or field and leaves existing mounts alone.
 - H1 gate 3: exercise repeated, bounded concurrent slot renames and replacements during real guest mounts, with
-  schedules not synchronized to the handler's checks. This is an unrun `GH1` control, not synthetic host load. Assert no
-  unrelated mount is touched; an attach on a moved recorded inode is detected by the post-attach mount-ID check.
+  schedules not synchronized to the handler's checks. This is an unrun `GH1` control, not synthetic host load.
+  Assert no unrelated mount is touched and the post-attach mount-ID check detects an attach on a moved recorded inode.
   Verify the selected policy for rollback or retention and the stranded report. Test the post-attach check itself,
   not just the open-time checks. [VM item 2][vm-refusals] measured synchronized rollback in a private namespace,
   not the built handler's behavior under free-running changes or rollback failure. Test staging setup at
@@ -1199,7 +1205,7 @@ only for unused slots. These are unrun acceptance requirements, not evidence fro
 - Repeat [VM item 11][vm-promote] against the binding's promote primitive. With the built wrapper, refuse a
   promoted or mismatched clone before the first snapshot delete, and assert that every protected snapshot and
   bookmark identity survives. Repeat the `origin`, `createtxg` and transferred-bookmark controls of
-  [VM item 13][vm-bookmark], including reverse promotion. Include a verified unpromoted clone with manual and
+  [VM item 13][vm-13], including reverse promotion. Include a verified unpromoted clone with manual and
   sanoid snapshots as the removal control. Test
   proof invalidation after administrator lineage changes. Repeat [VM item 12][vm-replacement] for the selected
   [identity policy](#clone-removal-identity-protection): verify absence of the lineage-changing grants for delegated
@@ -1332,7 +1338,7 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
 [vm-promote]: cli-git-zfs-measurements-owed-before-acceptance.md#11-promote-and-the-checkouts-snapshot-history
 [vm-limits]: cli-git-zfs-measurements-owed-before-acceptance.md#what-this-did-not-show
 [vm-replacement]: cli-git-zfs-measurements-owed-before-acceptance.md#12-same-name-replacement-with-delegated-grants
-[vm-bookmark]: cli-git-zfs-measurements-owed-before-acceptance.md#13-creation-transaction-groups-and-a-bookmark-after-promote
+[vm-13]: cli-git-zfs-measurements-owed-before-acceptance.md#13-creation-transaction-groups-and-a-bookmark-after-promote
 [vm-batch]: cli-git-zfs-measurements-owed-before-acceptance.md#14-one-snapshot-destroy-request-after-promote
 [vm-namespaces]: cli-git-zfs-measurements-owed-before-acceptance.md#15-mount-namespaces-created-after-attach
 [vm-kernel]: cli-git-zfs-measurements-owed-before-acceptance.md#16-availability-of-a-guest-with-the-host-kernel
