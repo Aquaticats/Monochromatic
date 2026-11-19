@@ -2589,6 +2589,9 @@ importers:
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core
+      '@monochromatic-dev/test-harness-core-matrix':
+        specifier: workspace:*
+        version: link:../../test-harness/core-matrix
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6

@@ -470,3 +470,74 @@ Nothing to file, by the six constraints:
 The gate is ours, so what needs a change is here: the gate's `podman run` (the fixture root or the
 Clippy toolchain), one test helper (cause A2) and possibly the kill list's `ioctl` entry on a file
 system that does not clone (cause E).
+
+## What was fixed, and what was measured after
+
+Fixed on the branch `fix/git-policy-cli-container-gate-on-a-zfs-host`, with no change to the host:
+nothing on the ZFS dataset, nothing in podman's storage, and nothing in the installed toolchains.
+
+### The gate's fixture root is a tmpfs the container makes
+
+`bin/native-gate-fixture-root.ts` holds the mount and the knob, and `bin/test-native-container.ts`
+spreads them into the suite's `podman run` on every host:
+
+```text
+--tmpfs /gate-fixtures:rw,size=1500m,mode=1777
+--env CLI_GIT_TEST_ROOT=/gate-fixtures
+```
+
+`CLI_GIT_TEST_ROOT` is the variable both faces of the suite already read
+(`FIXTURE_ROOT_VARIABLE` in `src/native/testing/test_support.rs` and in
+`src/native/binary/binary_support_fixture_directories.rs`), so no test code changed for this.
+
+The tmpfs answers the four mount facts the way the kernel overlay of the btrfs host did: it takes a
+name that is not UTF-8, records birth times, is `tmpfs` on both of the product's lists, and Git reads it
+as a local working tree. It also gives the copy flow no clone, which is cause E below.
+
+The size is a ceiling under the container's 2 GiB memory bound, because tmpfs pages count against that
+bound: a fixture tree that outgrows the ceiling fails with `ENOSPC` naming the fixture root, and the
+ceiling is far below the memory bound so the container keeps most of its memory for its processes. The gate's manifest now records the root and the mount options beside the image and
+the limits, so a future failure can read where the tests ran.
+
+### Clippy mounts the repository's locked toolchain
+
+`bin/native-gate-clippy-toolchain.ts` reads `toolchain.lock.json` through the repository's owner of
+that lock (`readLockedRustToolchain` in `package/test-harness/core-matrix`), asks
+`rustup which --toolchain <locked> rustc` for that toolchain's own sysroot, and mounts it where
+`rustc --print sysroot` used to answer. `rustup which` answers about the named toolchain whatever the
+caller's `RUSTUP_TOOLCHAIN` or rustup default says, so the gate no longer depends on the environment
+that started it.
+
+Before it runs Clippy it checks the mounted sysroot's `bin` directory for `cargo`, `cargo-clippy`,
+`clippy-driver`, `rustc` and `rustdoc`, and refuses when one is missing, naming the program, the
+toolchain, the Clippy component, and both ways to install it (`rustup component add clippy
+--toolchain <locked>` and `mise run toolchain:install`). A sysroot without Clippy can therefore no
+longer fall through to the image's older `clippy-driver`, which is what produced the E0514 errors.
+
+`package/git-policy/cli/package.json` gains a `workspace:*` dependency on
+`@monochromatic-dev/test-harness-core-matrix` for that reader, and `pnpm-lock.yaml` gains its importer
+entry; nothing else in the lock changed.
+
+### Cause A2: the one helper that wrote under `target/`
+
+`scratch()` in `src/native/landing/service_claim_watch_tests.rs` now builds its directory under
+`crate::test_support::fixture_root()`, which is the root the suite's knob moves, instead of under the
+crate's `target/`. Every other control in that file already used the fixture root through the same
+function.
+
+### Cause E: the `ioctl` entry follows the fixture root's file system
+
+The copy flow clones each staged file only where the file system may share data blocks between files;
+every other file system has Git check the worktree out, and then the flow makes no `ioctl`. The
+product's answer to that question is now `may_clone` in `src/native/subvolume/fs_kind.rs` (moved there
+from `worktree_snapshot_source`, where it stays the same function with one more reader).
+
+The binary control's `Flow` records which kill-list calls the file system decides, the copy flow
+records `ioctl` with `may_clone`, and `require_the_kill_list_is_made` counts only the calls that hold
+for the fixture root the run measures. The `ioctl` sweep says it did not run, and why, on a fixture
+root that does not clone, as the `strace`-less arms already do; on one that does it sweeps up to twelve
+positions of the `ioctl` calls, as every other kill control of that file does.
+
+### Measured after the changes
+
+TODO-measure: the whole suite, the memory and time peaks, and Clippy.
