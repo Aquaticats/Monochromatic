@@ -10,6 +10,7 @@ import type {
 } from '@earendil-works/pi-ai';
 import type { ModelRegistry, } from '@earendil-works/pi-coding-agent';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { describeCaught, } from './error-class-name.ts';
 import {
   field,
   finiteNumber,
@@ -123,7 +124,7 @@ async function requestQuota({
     // Only the error class is logged: a transport failure's message can echo the request, and the
     // request carries the authorization header.
     if ((error !== undefined) && (signal?.aborted !== true))
-      rl.debug(`Quota response unavailable: ${Error.isError(error,) ? error.name : typeof error}`,);
+      rl.debug(`Quota response unavailable: ${describeCaught(error,)}`,);
     return undefined;
   }
 }
@@ -344,7 +345,7 @@ export async function probeQuota({
   } catch (error) {
     // Only the error class is logged: a credential-resolution error can name the key it read.
     if ((error !== undefined) && (signal?.aborted !== true))
-      rl.debug(`${provider} registry auth for quota read unavailable: ${Error.isError(error,) ? error.name : typeof error}`,);
+      rl.debug(`${provider} registry auth for quota read unavailable: ${describeCaught(error,)}`,);
     return QUOTA_UNAVAILABLE;
   }
 }

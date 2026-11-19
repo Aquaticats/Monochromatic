@@ -5,6 +5,7 @@
 
 import type { AssistantMessage, } from '@earendil-works/pi-ai';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { describeCaught, } from './error-class-name.ts';
 import {
   digitsEnd,
   foldProviderText,
@@ -482,6 +483,13 @@ function bodyDelay({
   readonly now: number;
 },): number {
   /**
+   Logger naming this function, so an unreadable body is attributable.
+   */
+  const rl = tagged({
+    tag: bodyDelay.name,
+    l,
+  },);
+  /**
    Refusal text as the adapter reported it.
    */
   const text = message.errorMessage ?? '';
@@ -514,7 +522,7 @@ function bodyDelay({
   } catch (error) {
     // A truncated or non-JSON body names no delay; only the error class is logged, because the
     // refusal text may carry provider or credential detail.
-    l.debug(`Refusal body unreadable: ${Error.isError(error,) ? error.name : typeof error}`,);
+    rl.debug(`Refusal body unreadable: ${describeCaught(error,)}`,);
     return 0;
   }
 }

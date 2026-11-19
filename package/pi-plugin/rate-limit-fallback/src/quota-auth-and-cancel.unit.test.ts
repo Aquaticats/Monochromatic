@@ -131,6 +131,44 @@ await describe({
         expect(calls.length,).toBe(1,);
       },
     },),
+    it({
+      name: 'admits the member when the quota transport throws a non-Error value',
+      fn: async function nonErrorTransport() {
+        const { provider, options, } = await fixture({
+          extension,
+          models: SYNTHETIC_ONLY,
+          play({ model, }) { return immediate({ model, },); },
+          async fetchQuota() {
+            // A transport may reject with something that is not an Error; the catch must survive it.
+            // oxlint-disable-next-line no-throw-literal, typescript/only-throw-error -- testing non-Error throw
+            throw 'stand-in transport failure';
+          },
+        },);
+        const model = poolModel({ provider, id: 'reviewer', },);
+        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(result.stopReason,).toBe('stop',);
+        expect(result.provider,).toBe('synthetic',);
+      },
+    },),
+    it({
+      name: 'admits the member when the registry resolver throws a non-Error value',
+      fn: async function nonErrorResolver() {
+        const { provider, options, } = await fixture({
+          extension,
+          models: SYNTHETIC_ONLY,
+          async resolveAuth() {
+            // A resolver may fail with something that is not an Error; the catch must survive it.
+            // oxlint-disable-next-line no-throw-literal, typescript/only-throw-error -- testing non-Error throw
+            throw { name: 'stand-in resolver failure', };
+          },
+          play({ model, }) { return immediate({ model, },); },
+        },);
+        const model = poolModel({ provider, id: 'reviewer', },);
+        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(result.stopReason,).toBe('stop',);
+        expect(result.provider,).toBe('synthetic',);
+      },
+    },),
     ...[
       {
         reason: 'non-Bearer header',

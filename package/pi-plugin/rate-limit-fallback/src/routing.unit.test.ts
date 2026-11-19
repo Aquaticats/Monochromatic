@@ -168,6 +168,31 @@ await describe({
       },
     },),
     it({
+      name: 'moves on from a 429 whose body is not JSON',
+      fn: async function unreadableBody() {
+        /**
+         Refusal whose body opens a brace but carries no JSON, so reading a delay from it throws.
+         */
+        const unreadable = '429: {not json';
+        const { provider, calls, options, } = await fixture({
+          extension,
+          models: [REVIEWER_TARGETS[0], REVIEWER_TARGETS[1],],
+          play({ model, }) {
+            return calls.length === 1
+              ? immediate({ model, errorMessage: unreadable, },)
+              : immediate({ model, },);
+          },
+        },);
+        const model = poolModel({ provider, id: 'reviewer', },);
+        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual([
+          labelOf(REVIEWER_TARGETS[0],),
+          labelOf(REVIEWER_TARGETS[1],),
+        ],);
+        expect(result.stopReason,).toBe('stop',);
+      },
+    },),
+    it({
       name: 'writer tries the exact pool and keeps only the answering member events',
       fn: async function writerOrder() {
         const { provider, calls, options, } = await fixture({
