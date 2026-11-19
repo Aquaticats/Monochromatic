@@ -39997,11 +39997,19 @@ What follows from them, as work:
   mergeable only once `cargo-nextest`, `cargo-fuzz`, `file-enforcer` and the repository linter exist here (all four
   absent; the toolchain install waits for the mpm-shadow change by the answer of 2026-11-17). All 32 accepted. The
   owner then answered two through the question tool (questions file, section recorded 2026-11-19T17:36:44-05:00):
-  "Ship step 10 first (Recommended)" and "Container, narrow install (Recommended)". GOING: the fix round
-  `pi-zfs-worktree-implementation-plan-gate-review-findings-fixed` (DeepSeek on Neuralwatt, cap 635) in the plan's
-  worktree; brief under `~/temp/agent/zfs-worktree-implementation-plan-gate-review-findings-fixed-2026-11-19/`, the
-  two answers sent to it through its inbox. Then the coordinator's check, the plan to the owner for acceptance, then
-  step 1. By the owner's answers of
+  "Ship step 10 first (Recommended)" and "Container, narrow install (Recommended)"; no one-tool host install exists,
+  so step 1's checks run wholly in a container (adopted, open to veto), with `cargo-fuzz` through `cargo-binstall`
+  as its lock row names (the owner's correction). ENDED: the fix round
+  `pi-zfs-worktree-implementation-plan-gate-review-findings-fixed` (DeepSeek on Neuralwatt, cap 635), `idle` after
+  96 turns, one commit `55cab4075e` (all 32 findings and the answers; report under
+  `~/temp/agent/zfs-worktree-implementation-plan-gate-review-findings-fixed-2026-11-19/keep/`): step 14 stops at the
+  lineage proof, plan and removal intent; step 15 is the deferred-origin checks; step 16 the snapshot batch, head
+  destroy, origin cleanup and settle; step 9 builds the all-namespace holder scan; step 4 records the parent identity
+  and the adoption decision; steps 19, 20, 18 and 22 say applying anything to this host is the owner's act; at most
+  four concurrent worktrees assumed. The coordinator's check at `55cab4075e`: every unmatched quote traced (owner
+  answers, the mpm-shadow README, handover text, design sentences with dropped labels, suggested headings), one line of
+  exactly 120 characters wrapped in `9137efc5b4`. NEXT: the plan to the owner for acceptance, then step 1. By the
+  owner's answers of
   2026-11-19T17:10:00-05:00 (questions file) the LFS review and the provider rebuild finish and nothing else off the
   ZFS path starts, and owner questions off the ZFS path wait in the questions file (new rule `QWP`).
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
