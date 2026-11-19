@@ -229,13 +229,19 @@ reads again at its first refusal. A 429's own hold is never permanent: it
 carries the time the provider named, and once that time passes the member is
 asked again.
 
-The quota read has its own provisional deadline of two seconds, capped at
-half a positive caller-supplied model timeout (rounded down). The read
-stops holding up dispatch at that deadline even if the transport is slow
-to acknowledge cancellation. A request joining a shared lookup bounds its
-own wait without canceling that lookup. The model request retains its own timeout.
-Set the provisional bound from the live endpoint check before installing
-this extension. The offline verification does not measure endpoint latency.
+The quota read has its own deadline of two seconds, capped at half a positive
+caller-supplied model timeout (rounded down). The read stops holding up dispatch
+at that deadline even if the transport is slow to acknowledge cancellation. A
+request joining a shared lookup bounds its own wait without canceling that
+lookup. The model request retains its own timeout. That bound comes from a live
+endpoint measurement on 2026-11-19: twenty alternating rounds against
+Synthetic's `/v2/quotas` and NeuralWatt's `/v1/rate_limits` and `/v1/quota`,
+with NeuralWatt's flex lane measured over six rounds. Every quota read was
+paired with a same-host listing request that reads no quota. The highest read
+took 464 ms and the nearest-rank 95th percentile 403 ms, so two seconds covers
+the highest reading four times over, and still covers the widest control-arm
+spread on the same host added on top of it. `doc/quota-read-latency.md` records
+the method and the per-arm figures.
 
 ### Provider sources
 

@@ -126,8 +126,13 @@ function isReadTooSoon(capacity: Readonly<{ lastReadAt: number }>,): boolean {
 }
 
 /**
- Provisional pre-install bound for optional quota reads on the inference path. Set it from the live endpoint
- check before install; there is no endpoint latency measurement from this offline work.
+ Deadline for optional quota reads on the inference path, from the live endpoint measurement of
+ 2026-11-19 (`doc/quota-read-latency.md`): twenty alternating rounds against Synthetic's `/v2/quotas`,
+ NeuralWatt's `/v1/rate_limits` and `/v1/quota`, and six for NeuralWatt's flex lane, every quota read
+ bounded by this same two seconds. The highest read took 464.4 ms and the nearest-rank 95th percentile
+ 402.7 ms; no read failed or timed out. Two seconds covers that highest reading 4.3 times over, and
+ still covers it once the widest same-host control-arm spread (431.8 ms) is added (896.2 ms), while
+ staying at or below half of any caller timeout above four seconds.
  */
 const QUOTA_READ_TIMEOUT_MS = 2_000;
 
