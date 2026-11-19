@@ -39959,6 +39959,13 @@ What follows from them, as work:
   `doc/decision/cli-git-zfs-worktree-design.md` written (Status, Decision, What still gates shipping). GOING: its short
   review on the Qwen plan, `pi-zfs-design-acceptance-fold-in-short-review-on-the-qwen-plan`, in the fold-in worktree
   detached at the tip; folder `~/temp/agent/zfs-design-acceptance-fold-in-short-review-on-the-qwen-plan-2026-11-19/`.
+  It ended `idle` (86 turns): no high finding; M1, the early deferred-destroy check is said to refuse "before deleting
+  anything", which a removal resumed after an earlier run cannot promise; L1 to L5 wording (the record's "every other
+  part is an open item" misses the bookmark plan's home; the record ties the deferred refusal to the forced arm; the
+  "Pre-acceptance VM measurements" passage still reads as pending; two acceptance items lack the survive assertion and
+  "outside the caller's session"; thirteen live "this draft" references); fit to merge after M1. Weighed as all worth
+  fixing. GOING: the narrow round `pi-zfs-design-acceptance-fold-in-review-findings-fixed` in the fold-in worktree;
+  then the coordinator's `rg` check and the merge.
   NEXT once it clears and the branch is in `main`: the implementation plan (nothing of the route is built yet: no
   `package/zfs/`), brief ready at `~/temp/agent/zfs-worktree-implementation-plan-2026-11-19/prompt.md`, run in the
   fold-in worktree's slot; then the plan to the owner and its first step. By the owner's answers of
