@@ -312,6 +312,7 @@ or start a run it would refuse.
   A run folder is claimed by making it, so one number belongs to one start.
   Without `--run`, the next free number is taken.
   An existing folder, even an empty one, prevents another launcher from claiming its number.
+  A failure after claiming can leave that number reserved with no records; omit `--run` to take a fresh number.
   The launcher checks for earlier records at an explicitly requested number,
   and the driver independently refuses a folder holding any entry, even if there is no summary.
   The check names the folder and its records.

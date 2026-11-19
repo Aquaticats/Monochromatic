@@ -924,10 +924,24 @@ await describe({
             };
             const firstSeenAt = Date.parse('2026-11-01T00:00:00Z',);
             const graceEndsAt = Date.parse('2026-11-02T00:00:00Z',);
-            for (const [runFolderName, time, reason,] of [
-              ['a-1', firstSeenAt, 'recorded the first sighting',],
-              ['a-2', graceEndsAt - 1, 'first saw it at',],
-            ] as const) {
+            /**
+             Confirms a refused start left the unproven path and Git untouched.
+
+             @param runFolderName - folder the refused start claimed
+
+             @param time - time of the attempt on the fixture's clock
+
+             @param reason - message identifying which part of the grace period was reached
+             */
+            async function expectPreserved({
+              runFolderName,
+              time,
+              reason,
+            }: {
+              readonly runFolderName: string;
+              readonly time: number;
+              readonly reason: string;
+            }): Promise<void> {
               let refusal: unknown;
               try {
                 await makeWorktree({
@@ -944,6 +958,16 @@ await describe({
               expect(await readFile(leftBehind, 'utf8',),).toBe('files with no proof',);
               expect(git.asked,).toEqual([],);
             }
+            await expectPreserved({
+              runFolderName: 'a-1',
+              time: firstSeenAt,
+              reason: 'recorded the first sighting',
+            },);
+            await expectPreserved({
+              runFolderName: 'a-2',
+              time: graceEndsAt - 1,
+              reason: 'first saw it at',
+            },);
             await makeWorktree({
               ...request,
               claim: { runName: 'a', runFolder: join(folder.path, 'runs', 'a-3',), },

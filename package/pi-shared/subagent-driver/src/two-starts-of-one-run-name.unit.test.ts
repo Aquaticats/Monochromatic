@@ -300,9 +300,9 @@ async function fixtureIn(folder: string, withARealRepository: boolean, holdsUnit
     body: [
       'if [ "$2" = show ]; then',
       `  if [ -f '${folder}/unit-names/'"$3.done" ]; then`,
-      "    printf '%s\\n' 'not-found'",
+      String.raw`    printf '%s\n' 'not-found'`,
       '  else',
-      "    printf '%s\\n' 'active'",
+      String.raw`    printf '%s\n' 'active'`,
       '  fi',
       'fi',
     ].join('\n',),
@@ -641,7 +641,8 @@ await describe({
         expect(contaminated.status,).not.toBe(0,);
         expect(contaminated.output,).toContain('RunFolderHoldsAnEarlierAttemptError',);
         expect(contaminated.output,).toContain(EARLIER_ATTEMPT_RECORD,);
-        expect(await readdir(join(fixture.runs, nextFolder,),),).toEqual([EARLIER_ATTEMPT_RECORD,],);
+        const records = await readdir(join(fixture.runs, nextFolder,),);
+        expect(records,).toEqual([EARLIER_ATTEMPT_RECORD,],);
       },
     },),
     it({
