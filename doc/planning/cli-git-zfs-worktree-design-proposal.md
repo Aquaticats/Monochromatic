@@ -524,8 +524,14 @@ holders and incomplete reads in a fresh, nonce- and GUID-bound result. Removal r
 snapshot destruction and again before a later chunk or the head destroy. Report unreadable or racing entries rather
 than treating them as clear. The scan only detected process-visible holders in the VM; it does not prove race-free
 absence, coverage of pinned namespaces without a visible task, or coverage through different process root directories.
-The built route must demonstrate its coverage and exclusion of holder creation in the supported deployment before
-claiming a safe unmount; a clean scan alone is not proof for an unverified arrangement (unmeasured requirement).
+For a managed-consumer deployment, propose that the wrapper and consumer launcher close per-worktree admission and
+finish draining consumers and namespace handles before the root handler scans. Keep admission closed through the
+head destroy. The deployment must also exclude untracked copies and pinned handles and prevent independent new
+mounts during that interval; stopping the managed consumers alone does not do that. A channel program excludes ZFS
+administrative changes, not Linux namespace changes (`man/man8/zfs-program.8:35` to `:40`). Item 15 did not show
+an exclusion mechanism for unrestricted callers, so a clean scan alone cannot qualify that deployment. The
+propagation choice must show how its supported deployment enforces these conditions and passes normal removal;
+this is a proposed requirement, not a measured guarantee.
 
 [VM item 3][vm-propagation] measured the move refusing with `EINVAL` when its immediate parent, the checkout,
 was shared. Making **only the checkout mount private** let the fresh process move to private staging and unmount;
@@ -907,8 +913,10 @@ in the ranking. Use the VM findings and identify what remains unmeasured; a rank
   delivery to the already-confined reader in that arm. The shared arm preserved delivery but could not move
   the clone to staging. [VM item 15][vm-namespaces] measured post-attach namespaces holding the clone after private
   host unmount; the shared-path unmount removed the peer and slave copies, as a control only. Private staging
-  does not eliminate the all-namespace check. No alternative descriptor unmount was tested. Do not silently
-  change propagation.
+  does not eliminate the all-namespace check. Qualify how the selected setup excludes untracked holders and
+  new copies through destruction, not merely what the handler's namespace sees (unmeasured; see
+  [Mounts held by other namespaces](#mounts-held-by-other-namespaces)). No alternative descriptor unmount was
+  tested. Do not silently change propagation.
 - Managed path interface. Accept the canonical path from ordinary `git worktree add <path>` only, with fallback at
   the same slot; or also add an opt-in named allocator that reports the chosen path under `.claude/worktrees`.
   [VM item 1][vm-register] used an explicit canonical path under that parent, not an allocator or the wrapper's
