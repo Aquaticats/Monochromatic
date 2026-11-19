@@ -278,7 +278,10 @@ and wrote `org.monochromatic:unmount-result=failed` when an unmount failed.
   so a child dataset holding the checkout would drop out of the hourly snapshots unless sanoid names it too.
 - `zfs-space-guard` destroys only `<dataset>@autosnap_*` of its own dataset (`/usr/local/sbin/zfs-space-guard`, line 44),
   so it leaves the wrapper's own snapshots alone.
-- Reflinks fail across datasets, so the fallback works only for a worktree in the source's own dataset.
+- Reflinks fail across datasets, so the fallback works only for a worktree in the source's own dataset. (Note of
+  2026-11-18: `FICLONE` gives `EXDEV` across datasets, but `copy_file_range` can still share blocks between datasets
+  with the same data key, such as an encrypted dataset and its own clone; independently created encrypted siblings
+  share none. Measured in `doc/planning/cli-git-zfs-checkout-dataset-and-pnpm.md`, "When a copy still shares blocks".)
 
 ## Recommendation (this session's, not decided)
 
@@ -413,6 +416,9 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
     Still to measure for the clone route itself: a worktree clone is a dataset of its own too, so a `pnpm install`
     inside one imports across that boundary; with `virtualStoreType: global` its `node_modules` holds links into
     `<storeDir>/links`, so how much is copied rather than linked is the open question (to run in the VM test).
+    Measured since (`doc/planning/cli-git-zfs-checkout-dataset-and-pnpm.md`): with the global virtual store pnpm
+    imports payload only inside the home store, and a checkout across the boundary got zero imported package files;
+    a clone's links into the store break by path depth and the wrapper's offline-install repair fixes them.
   - The owner, same answer: "some cache folders are already their separate datasets but not necessarily already in
     the blocklist." Measured the same day: `zpcachyos/ROOT/cos/varcache` (`/var/cache`) is a dataset of its own that
     sanoid leaves alone only because its config does not name it (its comment says so), and it lacks the

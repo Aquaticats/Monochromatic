@@ -426,7 +426,10 @@ This is the conflict. Measured in the guest (`guest-exact-zfs.log:79` to `:104`)
 - the decisive case: `git clean -d --force -X -- .claude/worktrees/walker/only-on-clone/walk-marker`, a pathspec naming
   one file, removed `walker/only-on-clone`, `walker/.gitignore`, `walker/.claude`, `walker/.old-admin-for-probe`,
   `walker/tracked`, and `fallback`, and failed on the mountpoint with `Device or resource busy`
-  (`:93` to `:104`). The pathspec inside an ignored ancestor did not limit the removal to the named file.
+  (`:93` to `:104`). The pathspec inside an ignored ancestor did not limit the removal to the named file. (Note added
+  2026-11-18 by the coordinator: this ran after the probe moved the clone's copied `.git` aside, `user mv "$B/.git"
+  "$B/.old-admin-for-probe"` in `keep/probe.ts`, so the single-force nested-repository protection no longer applied
+  to `walker`; it is the state of a mounted clone with no `.git` at its root, step 4 of item 7's sequence.)
 
 Source: `git clean` walks with `DIR_SHOW_IGNORED` and `DIR_SHOW_IGNORED_TOO` (`builtin/clean.c:971` to `:997`) and
 removes with `REMOVE_DIR_KEEP_NESTED_GIT` (`:927`), which is the single-force protection; the second force clears it
