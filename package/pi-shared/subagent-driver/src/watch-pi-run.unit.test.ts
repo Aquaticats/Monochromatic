@@ -6,6 +6,7 @@
  @module
  */
 
+import { writeFileSync, } from 'node:fs';
 import {
   mkdir,
   mkdtemp,
@@ -564,6 +565,53 @@ await describe({
           deadline: Date.now() + HOLD_MILLISECONDS,
         },);
         expect(endReason,).toBe('idle',);
+      },
+    },),
+    it({
+      name: 'checks the inbox again when Pi settled after the watch read it',
+      fn: async () => {
+        await using run = await startRunAtWork();
+        /**
+         Messages the watch delivered before deciding the run had ended.
+         */
+        const sent: string[] = [];
+        /**
+         Whether the answer-to-model-error check has already seen Pi at work.
+         */
+        let checkedForModelError = false;
+        /**
+         Pi settles after the first inbox scan, with a message published just before the settle.
+         */
+        const record: RecordOfPiRun = {
+          ...run.record,
+          isRunning: function isRunning() {
+            if (!checkedForModelError) {
+              checkedForModelError = true;
+              return true;
+            }
+            if (run.record.isRunning()) {
+              // Publish synchronously to place the event between the inbox scan and the idle decision, without a timer race.
+              writeFileSync(
+                join(run.inbox, MESSAGE_NAME,),
+                MESSAGE_TEXT,
+              );
+              observeSuccessfulReply(run.record,);
+            }
+            return false;
+          },
+        };
+        /**
+         Why the watch ended, with enough time for an inbox scan after the settle and after the reply.
+         */
+        const endReason = await watchUntilEnded({
+          connection: connectionWhosePiReplies({ sent, record: run.record, },),
+          record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + (2 * HOLD_MILLISECONDS),
+        },);
+        expect(endReason,).toBe('idle',);
+        expect(sent,).toEqual([MESSAGE_TEXT,],);
       },
     },),
     it({
