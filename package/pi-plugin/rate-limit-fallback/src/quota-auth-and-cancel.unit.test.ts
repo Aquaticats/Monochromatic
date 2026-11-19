@@ -63,7 +63,8 @@ await describe({
             models: SYNTHETIC_ONLY,
             play({ model, }) { return immediate({ model, },); },
             async fetchQuota(_url, init,) {
-              entered.resolve(init?.signal == null ? {} : { signal: init.signal, },);
+              const signal = init?.signal;
+              entered.resolve((signal === null) || (signal === undefined) ? {} : { signal, },);
               return await reading.promise;
             },
           },);

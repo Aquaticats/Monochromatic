@@ -51,26 +51,31 @@ export const RATE_LIMIT_STATUS = 429;
 export const TARGETS = [
   {
     provider: 'openai',
+    api: 'openai-responses',
     id: 'gpt-6.2-sol',
     baseUrl: 'https://api.openai.com/v1',
   },
   {
     provider: 'qwen-token-plan-individual',
+    api: 'openai-completions',
     id: 'deepseek-v4.1-flash-1017',
     baseUrl: 'https://qwen.example/v1',
   },
   {
     provider: 'synthetic',
+    api: 'openai-completions',
     id: 'hf:deepseek-ai/DeepSeek-V4.1-Flash-1017',
     baseUrl: 'https://api.synthetic.new/v2',
   },
   {
     provider: 'opencode-go',
+    api: 'openai-completions',
     id: 'deepseek-v4.1-flash',
     baseUrl: 'https://opencode.ai/inference/go/v1',
   },
   {
     provider: 'neuralwatt',
+    api: 'openai-completions',
     id: 'deepseek-v4.1-flash-flex',
     baseUrl: 'https://api.neuralwatt.com/v1',
   },
@@ -101,7 +106,6 @@ export const PHYSICAL_MODELS: readonly Model<Api>[] = TARGETS.map(function toMod
   return {
     ...target,
     name: target.id,
-    api: 'test-only-chat',
     input: ['text',],
     cost: {
       input: 0,
@@ -123,7 +127,7 @@ export type ModelIdentity = Pick<Readonly<Model<Api>>, 'api' | 'id' | 'provider'
 /**
  Compose a refusal body in the forms produced by Pi's OpenAI Responses and Completions adapters.
 
- @param model - member whose adapter formats the refusal
+ @param model - API selection that formats the refusal
  
  @param message - provider's error text inside the HTTP body
  
@@ -131,19 +135,19 @@ export type ModelIdentity = Pick<Readonly<Model<Api>>, 'api' | 'id' | 'provider'
 
  @example
  ```ts
- rateLimitRefusal({ model: { provider: 'openai' } });
+ rateLimitRefusal({ model: { api: 'openai-responses' } });
  ```
  */
 export function rateLimitRefusal({
   model,
   message = 'Too many requests',
 }: {
-  readonly model: Pick<ModelIdentity, 'provider'>;
+  readonly model: Pick<ModelIdentity, 'api'>;
   readonly message?: string;
 },): string {
-  /** Parsed API body serialized by Pi's provider-error normalizer. */
-  const body = JSON.stringify({ error: { message, }, },);
-  return model.provider === 'openai'
+  /** The OpenAI SDK unwraps the HTTP body's `error` field before Pi serializes it. */
+  const body = JSON.stringify({ message, },);
+  return model.api === 'openai-responses'
     ? `OpenAI API error (${RATE_LIMIT_STATUS}): ${body}`
     : `${RATE_LIMIT_STATUS}: ${body}`;
 }
