@@ -75,6 +75,17 @@ const DEPLETED_PERCENT = 0;
 const FULL_PERCENT = 100;
 
 /**
+ Longest delay a refusal body may set, the largest `max_delay_s` the provider's documented retry
+ strategies name (https://docs.neuralwatt.com/guides/rate-limits.md, "Uncached TPM Limits").
+ */
+const BODY_DELAY_CAP_MS = 60_000;
+
+/**
+ Delay the capped case's body names, an hour, far past that bound.
+ */
+const BODY_DELAY_HOUR_SECONDS = 3_600;
+
+/**
  One concurrency slot, the stand-in ceiling a single open stream fills.
  */
 const SINGLE_SLOT = 1;
@@ -356,6 +367,33 @@ await describe({
         expect(held.result.errorMessage,).toContain(`${labelOf(NEURALWATT_FLEX,)} is held until`,);
         expect(calls.length,).toBe(FIRST_ATTEMPT,);
         expect(held.result.errorMessage,).toContain(new Date(clock.now + RECORDED_DELAY_MS,).toISOString(),);
+      },
+    },),
+    it({
+      name: 'caps the delay a refusal body names',
+      fn: async function cappedBodyDelay(ctx,) {
+        const clock = { now: Date.now(), };
+        ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
+        /**
+         Refusal body naming an hour, far past any delay the provider's strategies document.
+         */
+        const hourBody = `429: ${JSON.stringify({ retry_strategy: { suggested_initial_delay_s: BODY_DELAY_HOUR_SECONDS, }, },)}`;
+        const { provider, calls, options, } = await fixture({
+          extension,
+          models: [NEURALWATT_FLEX,],
+          play({ model, }) {
+            return calls.length === FIRST_ATTEMPT
+              ? immediate({ model, errorMessage: hourBody, },)
+              : immediate({ model, },);
+          },
+        },);
+        const model = poolModel({ provider, id: 'reviewer', },);
+        const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(first.result.stopReason,).toBe('error',);
+        const held = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(held.result.errorMessage,).toContain(new Date(clock.now + BODY_DELAY_CAP_MS,).toISOString(),);
+        expect(held.result.errorMessage,).not.toContain(new Date(clock.now + (BODY_DELAY_HOUR_SECONDS * 1_000),).toISOString(),);
+        expect(calls.length,).toBe(FIRST_ATTEMPT,);
       },
     },),
     it({
