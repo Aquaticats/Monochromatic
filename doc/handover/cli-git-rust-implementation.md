@@ -39764,6 +39764,14 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### ZFS route: the account keeps owning .claude/worktrees (2026-11-18, evening)
+
+Through the question tool: "B: Account owns it (Recommended)" over "A: Root owns it". Recorded in
+`doc/planning/cli-git-zfs-worktree.md`, "Owner's answers of 2026-11-18". Found while checking the clones document
+against its probe: registration was proven with an account-owned `.claude/worktrees` and the mount refusals with a
+root-owned one, never together, and the document's step 1 said otherwise (corrected in place). The fold-in carries the
+re-measurement of every item 3 refusal under account ownership as an acceptance test.
+
 ### The DeepSeek reviewer pool gains the Qwen individual token plan (2026-11-18, evening)
 
 In plain text: "Add my qwen individual token plan deepseek-v4.1-flash-1017 to the deepseek pool." Pi lists it as

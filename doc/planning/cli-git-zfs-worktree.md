@@ -452,6 +452,13 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   mount; the size of the move itself is still to be measured (`du --apparent-size --one-file-system`). The question put
   to the owner called the boundary ratios "inside" the control spread of 1.091; the highest, 1.101, is just above it, as
   the pnpm document says ("comparable"), and the ratios went both ways.
+- **Who owns `.claude/worktrees`** (question tool, same evening): "B: Account owns it (Recommended)". The account
+  keeps owning `.claude/worktrees` and each slot, so plain `git worktree add`, the reflink fallback and Git's
+  registration need no root step; the root mount's safety rests on the descriptor checks of
+  [cli-git-zfs-clones-mounted-under-the-checkout.md](cli-git-zfs-clones-mounted-under-the-checkout.md), item 3
+  (`openat2` with `RESOLVE_NO_SYMLINKS | RESOLVE_BENEATH | RESOLVE_NO_XDEV | RESOLVE_NO_MAGICLINKS`, the recorded
+  identity, `fsmount` and `move_mount` onto the opened folder, the check after attach), and every refusal there is
+  measured again with account ownership before the design is accepted.
 - **Where worktrees live** (plain text, same evening): "surely there is a rule mandating putting worktrees in
   ./.claude ?" Every worktree of this repository, clones included, lives under `~/Monochromatic/.claude/worktrees/`.
   No rule in `AGENTS.md` has said so at any point (its history searched on 2026-11-18 back to 964883fd94); the place

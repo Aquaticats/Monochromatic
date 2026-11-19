@@ -232,7 +232,10 @@ Measured refusals, each with no mount anywhere (`guest-exact-zfs.log:209` to `:2
 - a link at the place of `.claude` fails the open with `ELOOP` (`:211`);
 - a link at the place of `.claude/worktrees` fails the open with `ELOOP` (`:212`);
 - an account-created link directly inside the root-owned `.claude/worktrees` is refused by the filesystem with
-  `EPERM`, which is the design's cheapest defence and must be kept (`:213` to `:214`);
+  `EPERM` (`:213` to `:214`); note added 2026-11-18 by the coordinator: the project has since decided the account
+  keeps owning `.claude/worktrees` (`doc/planning/cli-git-zfs-worktree.md`, "Owner's answers of 2026-11-18"), so this
+  layer is absent and the `ELOOP` refusal of a link at `<name>` is what holds; every refusal in this list has to be
+  measured again with the account owning `.claude/worktrees` and its slots;
 - a link at the place of `<name>` itself fails the open with `ELOOP` (`:215`);
 - a `..` component fails with `EXDEV` (`:221`);
 - a `/proc` magic link fails with `ELOOP` (`:220`);
@@ -548,7 +551,10 @@ would make `git status` inside the worktree read the wrong repository.
 
 Proven in the guest, in this order (`guest-exact-zfs.log:16` to `:50`):
 
-1. `mkdir <slot>` as the account, inside the root-owned `.claude/worktrees`;
+1. `mkdir <slot>` as the account, inside `.claude/worktrees` (correction of 2026-11-18 by the coordinator: in this
+   part of the probe `.claude/worktrees` was the account's, made by `user mkdir` after `chown` of the checkout,
+   `keep/probe.ts:58` and `:59`; it became root-owned only for the refusal cases of item 3,
+   `keep/guest-extra-commands.txt:25` and `:26`, so registration and the refusals were never shown together);
 2. `git worktree add --no-checkout --detach <slot> HEAD`, which registers the worktree and writes Git's pointer file
    **into the checkout dataset**, so the registration is durable before any clone exists;
 3. snapshot the checkout, then clone it to the clone parent's `<name>`;
