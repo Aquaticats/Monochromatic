@@ -54,6 +54,7 @@ export {
   TEMPORARY_FOLDER_MODE,
   TEMPORARY_FOLDER_NAME,
   TEMPORARY_FOLDER_VARIABLES,
+  TemporaryFolderNotMadeError,
   type TemporaryFolderVariables,
   variablesNamingTemporaryFolder,
 } from './temporary-folder-of-a-run.ts';

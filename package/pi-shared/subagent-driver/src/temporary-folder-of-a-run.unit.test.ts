@@ -1,6 +1,6 @@
 /**
- The temporary folder a run's Pi writes its files in, and the variables that name it. Every folder this file makes is disposable, so
- no test reads or changes the one a real run uses.
+ The temporary folder a run's Pi writes its files in, the variables that name it, and what the maker answers when it cannot make it.
+ Every folder this file makes is disposable, so no test reads or changes the one a real run uses.
 
  @module
  */
@@ -10,7 +10,10 @@ import {
   lstat,
   mkdir,
   mkdtemp,
+  readFile,
   rm,
+  symlink,
+  writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import {
@@ -24,6 +27,7 @@ import {
   TEMPORARY_FOLDER_MODE,
   TEMPORARY_FOLDER_NAME,
   TEMPORARY_FOLDER_VARIABLES,
+  TemporaryFolderNotMadeError,
   variablesNamingTemporaryFolder,
 } from '../dist/final/node/index.mjs';
 
@@ -77,6 +81,25 @@ async function permissionBitsOf(path: string,): Promise<number> {
   return (await lstat(path,)).mode & 0o777;
 }
 
+/**
+ The path the maker is asked about, inside a run folder the test names.
+
+ @param runFolder - the run folder
+
+ @returns the folder the maker makes inside it
+
+ @example
+ ```ts
+ const temporaryFolder = temporaryFolderIn('/runs/a-1');
+ ```
+ */
+function temporaryFolderIn(runFolder: string,): string {
+  return join(
+    runFolder,
+    TEMPORARY_FOLDER_NAME,
+  );
+}
+
 await describe({
   name: '',
   children: [
@@ -98,16 +121,13 @@ await describe({
              What making the folder answered.
              */
             const made = await makeTemporaryFolderOfARun({ runFolder, },);
-            expect(made.folder,).toBe(join(
-              runFolder,
-              TEMPORARY_FOLDER_NAME,
-            ),);
+            expect(made.folder,).toBe(temporaryFolderIn(runFolder,),);
             expect(await permissionBitsOf(made.folder,),).toBe(TEMPORARY_FOLDER_MODE,);
             expect((await lstat(made.folder,)).isDirectory(),).toBe(true,);
           },
         },),
         it({
-          name: 'sets the mode the rule states on a folder the umask left more open, rather than trusting the mode mkdir was given',
+          name: 'sets the mode the rule states on a folder that was already there with wider bits, rather than trusting the mode mkdir was given',
           fn: async () => {
             await using folder = await makeFolder();
             /**
@@ -118,12 +138,9 @@ await describe({
               'run',
             );
             /**
-             The folder already there, holding the wider mode a shell with a lax umask would leave.
+             The folder already there, holding the wider mode somebody else's maker left.
              */
-            const temporaryFolder = join(
-              runFolder,
-              TEMPORARY_FOLDER_NAME,
-            );
+            const temporaryFolder = temporaryFolderIn(runFolder,);
             await mkdir(
               temporaryFolder,
               { recursive: true, },
@@ -134,6 +151,90 @@ await describe({
             );
             await makeTemporaryFolderOfARun({ runFolder, },);
             expect(await permissionBitsOf(temporaryFolder,),).toBe(TEMPORARY_FOLDER_MODE,);
+          },
+        },),
+        it({
+          name: 'refuses a link planted under the folder name instead of following it, and leaves the folder it names at the mode it had',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The run folder this test's run was given.
+             */
+            const runFolder = join(
+              folder.path,
+              'run',
+            );
+            /**
+             A folder outside the run folder that the planted link names, at a mode no run may change.
+             */
+            const outside = join(
+              folder.path,
+              'outside-the-run',
+            );
+            await mkdir(
+              outside,
+              { recursive: true, mode: 0o755, },
+            );
+            await chmod(outside, 0o755,);
+            /**
+             The mode the outside folder had before the maker was asked, which must be the one it keeps.
+             */
+            const outsideModeBefore = await permissionBitsOf(outside,);
+            await mkdir(runFolder, { recursive: true, },);
+            await symlink(
+              outside,
+              temporaryFolderIn(runFolder,),
+            );
+            /**
+             What the maker threw.
+             */
+            let caught: unknown;
+            try {
+              await makeTemporaryFolderOfARun({ runFolder, },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(TemporaryFolderNotMadeError,);
+            expect((caught as TemporaryFolderNotMadeError).folder,).toBe(temporaryFolderIn(runFolder,),);
+            expect((caught as Error).message,).toContain(temporaryFolderIn(runFolder,),);
+            expect(await permissionBitsOf(outside,),).toBe(outsideModeBefore,);
+            expect((await lstat(temporaryFolderIn(runFolder,))).isSymbolicLink(),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'refuses a plain file under the folder name, naming the folder and what the operating system answered',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The run folder this test's run was given.
+             */
+            const runFolder = join(
+              folder.path,
+              'run',
+            );
+            /**
+             The file standing where the folder belongs, which holds what an earlier writer put there.
+             */
+            const fileInTheWay = temporaryFolderIn(runFolder,);
+            await mkdir(runFolder, { recursive: true, },);
+            await writeFile(fileInTheWay, 'not a folder\n',);
+            /**
+             What the maker threw.
+             */
+            let caught: unknown;
+            try {
+              await makeTemporaryFolderOfARun({ runFolder, },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(TemporaryFolderNotMadeError,);
+            expect((caught as TemporaryFolderNotMadeError).folder,).toBe(fileInTheWay,);
+            expect((caught as Error).message,).toContain(fileInTheWay,);
+            expect((caught as Error).message,).toContain('EEXIST',);
+            // The file the maker refused is left as its writer made it.
+            expect(await readFile(fileInTheWay, 'utf8',),).toBe('not a folder\n',);
           },
         },),
       ],

@@ -149,6 +149,9 @@ export class PiRunEndedEarlyError extends Error {
 
  @throws RunFolderHoldsAnEarlierAttemptError when the folder this run was given holds what an earlier attempt left there, which is kept
 
+ @throws TemporaryFolderNotMadeError when the folder this run's Pi writes its temporary files in cannot be made, which is named
+ with what the operating system answered
+
  @throws PiRunEndedEarlyError when the run did not end on its own terms, after the summary is written
 
  @example
