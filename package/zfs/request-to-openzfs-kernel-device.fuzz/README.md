@@ -26,18 +26,19 @@ mise run //package/zfs/request-to-openzfs-kernel-device.fuzz:smoke
 ```
 
 `bin/container.ts` builds an image from the wrapper's gate base image,
-adds
-pacman's `cargo-fuzz` and a nightly toolchain through `rustup`,
-fetches the two
-crates' locked dependencies at image-build time,
-and then runs the target with
-`--network none`,
+adds pacman's `cargo-fuzz` and the repository's nightly toolchain from its
+published archive,
+fetches the two crates' locked dependencies at image-build time,
+and then runs the target with `--network none`,
 no home folder,
 no `/dev/zfs` and explicit CPU,
-memory and
-PID bounds.
+memory and PID bounds.
 It prints the `rustc`,
 `cargo` and `cargo-fuzz` versions it used.
+The nightly is `nightly-2026-11-16`,
+the toolchain the repository's own `RUSTUP_TOOLCHAIN` names;
+it is unpacked rather than mounted from the host,
+because a container never mounts the host's Rust sysroot.
 
 ## The target
 
