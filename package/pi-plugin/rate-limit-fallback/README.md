@@ -69,7 +69,8 @@ another read on the next eligible attempt.
 The quota read has its own provisional deadline of two seconds, capped at
 half a positive caller-supplied model timeout (rounded down). The read
 stops holding up dispatch at that deadline even if the transport is slow
-to acknowledge cancellation. The model request retains its own timeout.
+to acknowledge cancellation. A request joining a shared lookup bounds its
+own wait without canceling that lookup. The model request retains its own timeout.
 Set the provisional bound from the live endpoint check before installing
 this extension. The offline verification does not measure endpoint latency.
 
@@ -149,6 +150,7 @@ another vendor.
 
 - `mise run //package/pi-plugin/rate-limit-fallback:test:unit` runs the
   unit suites against the built entry with stand-in providers and quota endpoints.
+  It also checks the installed adapters' refusal strings through an in-memory transport.
 - `mise run //package/pi-plugin/rate-limit-fallback:verify:extension` loads
   the built extension in a real Pi session, in a disposable offline home,
   and checks request-time registry auth and persisted physical identity.

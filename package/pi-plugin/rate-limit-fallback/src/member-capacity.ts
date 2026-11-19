@@ -123,7 +123,7 @@ function quotaSignal(options?: SimpleStreamOptions,): AbortSignal {
   /**
    Provisional allocation below the model timeout so an optional read cannot spend a full model timeout.
    */
-  const budget = ((timeoutMs === undefined) || (!Number.isSafeInteger(timeoutMs,))
+  const budget = ((timeoutMs === undefined) || (!Number.isFinite(timeoutMs,))
     || (timeoutMs <= 0))
     ? QUOTA_READ_TIMEOUT_MS
     : Math.min(
@@ -187,11 +187,11 @@ async function readQuotaWithinDeadline(request: Parameters<typeof probeQuota>[0]
 }
 
 /**
- Wait for a shared lookup without making one caller's cancellation abort other callers.
+ Wait for a lookup without propagating this waiter's deadline to the shared read.
 
  @param pending - shared member quota read
 
- @param signal - cancellation for this caller alone
+ @param signal - cancellation or wait deadline for this caller alone
  */
 async function waitForCapacity({
   pending,
@@ -204,7 +204,8 @@ async function waitForCapacity({
     await pending;
     return;
   }
-  signal.throwIfAborted();
+  if (signal.aborted)
+    return;
   /**
    Cancellation for the temporary waiter, not for the shared lookup.
    */
@@ -225,7 +226,6 @@ async function waitForCapacity({
       { signal: stopWaiting.signal, },
     ),
   ],);
-  signal.throwIfAborted();
 }
 
 /**
@@ -334,7 +334,7 @@ export async function refreshCapacity({
   if (capacity.pending !== undefined) {
     await waitForCapacity({
       pending: capacity.pending,
-      ...cancellation,
+      signal: quotaSignal(options,),
     },);
     return;
   }

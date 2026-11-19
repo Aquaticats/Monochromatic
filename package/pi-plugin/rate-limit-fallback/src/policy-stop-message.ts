@@ -149,7 +149,9 @@ const RETRY_STATUSES = [
  */
 const FETCH_HEAD = 'request to ';
 
-/** Literal suffix following the destination token in a node-fetch failure. */
+/**
+ Literal suffix following the destination token in a node-fetch failure.
+ */
 const FETCH_TAIL = ' failed, reason:';
 
 //endregion Pi AI 1.5.2 transient-error grammar, from dist/utils/retry.js
