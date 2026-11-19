@@ -41,7 +41,7 @@ use std::mem::size_of;
 ///
 /// [`NvError`] on a malformed pair header or name,
 /// or on nesting past
-/// [`super::data_type::MAX_DEPTH`].
+/// `MAX_DEPTH`.
 pub fn decode_pairs(cursor: &mut Cursor<'_>, depth: usize) -> Result<Vec<NvPair>, NvError> {
     if depth > super::data_type::MAX_DEPTH {
         return Err(NvError::TooDeep);

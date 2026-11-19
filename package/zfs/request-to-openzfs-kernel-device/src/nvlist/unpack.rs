@@ -38,7 +38,7 @@ impl NvList {
     /// a pair's framing is malformed,
     /// a value runs past
     /// its pair,
-    /// or nesting passes [`super::data_type::MAX_DEPTH`].
+    /// or nesting passes `MAX_DEPTH`.
     pub fn unpack(buffer: &[u8]) -> Result<NvList, NvError> {
         let mut cursor: Cursor<'_> = Cursor::new(buffer);
         let header: &[u8] = cursor.take(4)?;

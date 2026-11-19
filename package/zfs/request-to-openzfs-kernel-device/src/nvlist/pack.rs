@@ -43,7 +43,7 @@ impl NvList {
     /// a name or string value,
     /// a size that does not fit its wire field,
     /// or
-    /// nesting past [`super::data_type::MAX_DEPTH`].
+    /// nesting past `MAX_DEPTH`.
     pub fn pack(&self) -> Result<Vec<u8>, NvError> {
         check_version(self.version)?;
         let mut out: Vec<u8> = Vec::with_capacity(16 + self.pairs.len() * 32);

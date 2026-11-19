@@ -175,7 +175,7 @@ starts no `zfs` program.
 ## Using it
 
 ```rust
-use monochromatic_zfs_request_to_openzfs_kernel_device::{snapshot_requests::snapshot, NvList};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{snapshot, NvList};
 
 let mut request = snapshot("pool", &["pool/dataset@before-merge"], None)?;
 // Step 2 carries `request.command_abi_address()` to `libc::ioctl`; the packed
