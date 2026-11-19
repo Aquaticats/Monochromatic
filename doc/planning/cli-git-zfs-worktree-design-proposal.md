@@ -1122,7 +1122,7 @@ between them. Use the VM findings and identify what remains unmeasured; a rankin
 ### Adopted defaults open to veto
 
 These are the draft's own defaults, not owner decisions. Each is adopted so the rest of the design has a concrete
-shape, and each is listed here for a veto; the section named with it is where it is used.
+shape, and each is listed here for a veto, with the section that uses it.
 
 - Receipts as atomic files under `/run/git-worktree-clone-mount-results`, rather than root-written
   acknowledgement properties: an acknowledgement property would raise the ZED event the receipt exists to avoid
