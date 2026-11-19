@@ -2,7 +2,8 @@
 
 **Accepted by the project on 2026-11-19 in the question tool, with its open items still open.** The acceptance is
 recorded under "Answered in the question tool, recorded 2026-11-19T16:22:16-05:00" in the round's questions file,
-`doc/handover/questions-for-the-owner.md`, and the accepted design has its own record,
+`doc/handover/questions-for-the-owner.md` (the section left that file on 2026-11-19 once the decision record held its
+answers; it reads as recorded at `38ed22c5ea`), and the accepted design has its own record,
 [`doc/decision/cli-git-zfs-worktree-design.md`](../decision/cli-git-zfs-worktree-design.md). This file stays the
 planning record and keeps the evidence. The two owed VM measurements still gate shipping, and they decide only the
 sentences already conditional on them.

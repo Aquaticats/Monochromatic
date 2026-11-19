@@ -3,7 +3,8 @@
 ## Status
 
 Accepted 2026-11-19 in the question tool, under "Answered in the question tool, recorded 2026-11-19T16:22:16-05:00",
-with its open items still open.
+with its open items still open. That section left `doc/handover/questions-for-the-owner.md` on 2026-11-19 once this
+record held its answers; it reads as recorded at `38ed22c5ea`.
 The evidence,
 the probes,
 and the rejected options live in
