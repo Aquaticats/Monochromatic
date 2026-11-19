@@ -305,31 +305,42 @@ the last observation, the matching request and how to inspect the handler with `
 is not cancellation: the durable request may act later. Do not retry against an unverified mount or submit a
 conflicting request without verifying and recording recovery.
 
-### Remove without crossing a boundary
+## Removal and recovery
 
-Reuse the linked registration and back-link checks, the lock and clean checks (one supported `--force` can waive
-cleanliness, not a lock or an identity check), and the held-directory boundary walk. Check the clone, its checkout,
-and its registration for other worktrees, nested datasets and mounts, including bind mounts. Check actual dataset
-children and snapshots as well. An unsupported remove of a known managed clone must not fall through to Git's
-recursive removal. Report the blocker and do not touch its files. The guards come from the
-[wrapper specification][spec], lines 2932 to 2943 and 3064 to 3190, and
-`src/native/subvolume/subvolume_remove_walk.rs:465` under the CLI package.
+Reuse the wrapper's Git registration/back-link, lock, clean and held-directory boundary checks. One supported
+`--force` can waive cleanliness, not a lock, mount boundary or identity check. Inspect the mount tree and the dataset
+tree separately for nested worktrees, datasets and mounts, including binds; inspect the Git registration too. If an
+inspection cannot prove its result, refuse instead of falling through to Git's recursive removal for a managed
+slot. See the [wrapper specification][spec], lines 2932 to 2943 and 3064 to 3190, and `find_boundary_below` in
+`package/git-policy/cli/src/native/subvolume/subvolume_remove_walk.rs`.
 
-Record removal intent, warn that successful removal deletes snapshot history of that worktree, release handles that
-would hold it busy, and request `unmount`. After a matching root result, verify the mount is absent and the recorded
-clone GUID, request and registration still match. Re-enumerate that **clone's** snapshots, including sanoid's and
-manual ones. Destroy only the explicit names belonging to it, then the unmounted dataset, then the exact recorded
-origin once no clone depends on it. This deletes the clone and its own snapshots without handing the kernel a
-recursive dependency destroy. Refuse on nested datasets, holds or dependent clones; never remove another
-clone to free an origin. Sanoid can take a new snapshot between enumeration and destroy; a resulting refusal is
-reported or retried from a fresh enumeration within the command budget, not turned into a recursive destroy.
+1.  Record the removal intent and the affected snapshot history, including manual and sanoid snapshots. Name that
+    history as data this removal will destroy. Release local handles that keep the clone busy; request `unmount`.
+    Wait for the matching result, then verify the clone is not mounted, including in handler staging, and that the
+    request, recorded clone GUID, underlay identity and Git registration still match. An unavailable, mismatched
+    or busy unmount blocks destruction; mount absence at the slot alone does not prove it is safe.
+2.  Recheck the named clone's snapshots and children. Destroy only that clone's explicitly enumerated snapshots,
+    then the unmounted clone. Never pass a recursive dataset or dependent-clone destroy. If sanoid adds a snapshot
+    during removal, report the changed set and recheck the deletion authorization before continuing. Holds or
+    dependencies are named, not bypassed. Record partial deletes, including per-snapshot failures.
+3.  Check the exact recorded origin identity before attempting single-snapshot cleanup, using the authority the
+    project selects. The kernel's `snapshot has dependent clones` refusal is the check, not a scan of immediate
+    children or a name test. Leave a refused origin and report it; never destroy a dependent clone to free it.
+    Preserve the incomplete cleanup record even if the clone and Git registration can now be settled.
+4.  After clone destruction is proven and origin cleanup is attempted or recorded as blocked, settle only the
+    matching Git registration and pointer. Remove the leftover underlay folder as the account only after checking
+    it has the recorded identity and is empty. Do not remove an unfamiliar entry, a replacement registration or
+    any mounted tree. Legacy dataset destruction does not remove the slot. Older checkout snapshots can still
+    hold that underlay and pointer until they expire; this is not surviving live worktree data.
 
-Only settle Git's registration after confirming dataset destruction. Record partial success, including any deleted
-snapshots, a surviving origin, a retained unmounted clone, or failed Git cleanup. A later command can resume only the
-matching recorded work and must recheck what it affects. `doctor` reports interrupted work and never reaps by name.
-Destruction is irreversible; the ZFS destroy is name-based and the final identity check is not atomic with it.
-Do not claim this closes same-user check/use races. A matched receipt alone is no authority to delete. VM tests
-must cover replacement, stale acknowledgements, unmount refused or delayed, and an origin that is still in use.
+Resume by reconciling the durable record with the mount table, dataset and snapshot identities, and Git
+registration and pointer. Distinguish unmount still pending or staged, clone still present after partial snapshot
+cleanup, clone gone with a retained origin, and Git or empty-folder cleanup still owed. Report specific blockers:
+`EBUSY` and holder if known, snapshot history at risk, a hold, nested dataset/mount, dependent clone, a mismatched
+identity or a missing/pruned registration. Never infer ownership from a name or let a stale acknowledgement authorize
+cleanup. ZFS destroy is name-based; rechecking its GUID is not atomic with the destroy. The design does not claim to
+exclude a concurrent replacement by the same delegated account between check and use. Test replacement, partial
+removal and resumption in the guest.
 
 ## Ladder and fallback
 
