@@ -1,20 +1,27 @@
 # ZFS worktree design proposal for the Git wrapper
 
-**Non-final and unapproved.** Written by an agent for the project owner's acceptance. No implementation or pool
-changes were made. This proposal draws on the [ZFS planning record][zfs-plan], the [Rust binding vet][vet],
-the [Btrfs design][btrfs-plan], the [wrapper specification][spec], the native source, and the recorded OpenZFS
-and sanoid probes. The design choices and VM checks under [Acceptance gates](#acceptance-gates) remain open.
+**Non-final draft by an agent, unapproved.** This revision (2026-11-18T20:40:28-05:00) replaces the previous draft's
+root-owned anchor, `checkout` subdirectory and directory exchange with the checkout at its existing path and
+account-owned slots mounted directly over their Git registrations. It folds in the project's decisions in
+[Owner's answers of 2026-11-18][answers], the accepted [cross-vendor review and its disposition][handover],
+the [nested-clone research][nested], and the [checkout-dataset and pnpm research][pnpm]. The Rust binding vet,
+Btrfs design, wrapper specification and probe records support specific parts of the design. This is a documentation
+revision, not an implementation or a pool change. The build still owes the acceptance tests; the project still
+owns the listed open choices.
 
 ## Requirements and module ownership
 
-The owner chose "ZED, Clones, reflink. There is a reason we have a doctor subcommand." and
-"ZED handler (Recommended)" ([ZFS planning record][zfs-plan], lines 332 to 343). The wrapper owns Git validation,
-staging, the unprivileged dataset lifecycle, and the reflink fallback. A root-installed ZFS Event Daemon (ZED)
-handler owns mount and unmount, not Git or automatic deletion. The dataset binding owns the kernel request format;
-it does not decide which worktrees or snapshots belong to the wrapper.
+The project chose "ZED, Clones, reflink. There is a reason we have a doctor subcommand." The Git wrapper owns Git
+validation and registration, the unprivileged snapshot and clone lifecycle, and the same-dataset reflink fallback.
+The root-installed ZFS Event Daemon (ZED) handler owns clone mount and unmount, not Git or automatic deletion.
+The Rust binding owns the `/dev/zfs` request format, not ownership policy for Git worktrees or snapshots.
 
-"Report and print commands (Recommended)" ([ZFS planning record][zfs-plan], lines 338 to 341) makes `doctor`
-read-only. The commands it prints are for an administrator, not commands the wrapper executes.
+The checkout stays at `~/Monochromatic`, on its own dataset after a one-time move. Every worktree of this repository
+is directly under `~/Monochromatic/.claude/worktrees/` (`AGENTS.md` rule `WTU`); the account owns the directory and
+each slot. Recursive home snapshots cover the checkout, clone datasets and the pnpm store, with explicit exclusions.
+
+"Report and print commands (Recommended)" makes `git monochromatic-git-policy-cli doctor` read-only: it diagnoses
+the root-once setup and prints concrete commands for the administrator without running them.
 
 ## Binding crate and compatibility
 
@@ -416,7 +423,11 @@ mounting at arbitrary `git worktree add` paths. Snapshotting living clones follo
 throwaway framing; removal deliberately deletes their own snapshots and only their confirmed origin. Performance,
 mount-path validation and boot behavior for this exact design have not been demonstrated.
 
+[answers]: cli-git-zfs-worktree.md#owners-answers-of-2026-11-18
 [zfs-plan]: cli-git-zfs-worktree.md
+[handover]: ../handover/cli-git-rust-implementation.md
+[nested]: cli-git-zfs-clones-mounted-under-the-checkout.md
+[pnpm]: cli-git-zfs-checkout-dataset-and-pnpm.md
 [vet]: ../audit/tech-rust-crate-for-openzfs-vet-2026-11-18.md
 [btrfs-plan]: cli-git-btrfs-worktree.md
 [spec]: ../../package/git-policy/cli/SPEC.md
