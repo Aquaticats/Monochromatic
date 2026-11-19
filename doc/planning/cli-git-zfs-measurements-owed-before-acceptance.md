@@ -321,3 +321,31 @@ entry is a viable protection for this directory under that ancestor layout, but 
 parent rollback. Verify the underlay protection and intended mount identity before an automated checkout
 attach, and after reimport or rollback. This was persistence across a normal reboot with manual import and
 key load, not a test of the production boot service or of replacing an ancestor of the protected entry.
+
+## 9. Automatic mounts below a legacy checkout
+
+Guest: `6.8.0-147-generic`, OpenZFS userspace/module `2.4.4-1` (`item-9-exact.log`). The kernel differs from the
+host; the module release matches. Host `zfs list` reported `zpcachyos/nosnap/vm-builder-output` mounted at
+`/home/user/Monochromatic/package/vm-builder/cli/output`. The guest output dataset was likewise separate
+in dataset ancestry but nested by path. The checkout had `mountpoint=legacy`. The probe created the
+output dataset without mounting it (`zfs create -u`), then ran `zfs mount -a`.
+
+The checkout was still not mounted, but the output dataset was attached to the home underlay. The probe
+wrote a marker into that dataset, then attached the checkout by descriptor. The two mounts had the same
+parent ID, 361. The checkout hid the output marker, even though the output mount still appeared in
+`findmnt --mountpoint` and mountinfo:
+
+```text
+362    361 zfsowed9/nosnap/vm-builder-output private     rw,relatime
+363    361 zfsowed9/home/checkout private     rw,relatime
+362    361 zfsowed9/nosnap/vm-builder-output
+```
+
+`stat` on the marker exited 1 with `No such file or directory`. After unmounting the checkout, the marker
+and output mount ID 362 were visible again. Hidden did not mean unmounted.
+
+GM8's prediction held for an ordinary mount under a legacy checkout. A legacy checkout boot scheme must
+exclude all path descendants from automatic early mounting and order their attachment after the verified
+checkout mount, or refuse if that ordering cannot be proved. Include datasets outside the checkout's ZFS
+ancestry and verify path reachability, not only mount-table membership. This did not exercise a failed
+ordinary-checkout mount or production boot units.
