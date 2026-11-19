@@ -39946,6 +39946,15 @@ an `error` event with no listener (`ABORT_ERR`), which ends Node; the summary th
 resumed as `pi-node-sync-calls-go-through-coreutils-sync-2`, told to list a folder before reading inside `codemode`.
 Not recorded in `doc/troubleshooting/` before; a GPT writer (`pi-pi-codemode-abort-crash-troubleshooting-1`, main
 checkout, one new doc) traces it in upstream `earendil-works/pi` at 1.5.2 under the troubleshooting skill, files nothing.
+It hit OpenAI's "possible risk" stop after 17 turns, went on on DeepSeek (rule `RKD`), and landed
+`doc/troubleshooting/pi-codemode-abort-crashes-pi-on-an-open-read.md` in `main` (`2c5fc7e735`, `b4323352fb`):
+`Execution.finish()` aborts every pending nested call's signal, and the `read` tool passes that signal into
+`createReadStream` with no `error` listener; reproduced three ways (bare stream, Pi's own read tool, Pi's own codemode
+sandbox), fixed upstream by PR #12025 (`ef9361ab70`, 2026-11-11, issue #11956 closed with four duplicates), not yet in
+a release (npm's latest is 1.5.2, which crashes; 1.5.0 does not); workarounds `Promise.allSettled` or reads one at a
+time. Nothing filed. The repository's Markdown gate did not run (`monochromatic-lint: command not found`, the toolchain
+binary is not installed here); a `markdown-it` render stood in. When a Pi release after 1.5.2 carries the fix,
+upgrade Pi and drop the brief line about listing before reading.
 
 The work-record review `1d5ad2597d` returned (85 turns, `idle`): four reads that wait for ever on a named pipe
 (`worktree/worktree_remove_hand_over.rs:761` on every `failed/` entry, reproduced; `landing/service_handoff.rs:663` on an
