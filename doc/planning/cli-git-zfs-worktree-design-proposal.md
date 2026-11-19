@@ -1061,6 +1061,13 @@ same guest kernel and OpenZFS release; item 16 records the separate exact-kernel
 
 ### Open measurements
 
+The delta review's `GH1` is partly resolved. [VM items 2][vm-refusals] and [4][vm-unmount] cover the refusal
+repeat with account-owned slots, ACL drift, mount-table checks and descriptor-based busy unmount. Item 2 measured
+synchronized substitution and a directly created link, not free-running rename/create during repeated mounts or a
+link planted by another route. Keep both gaps in the owner's handoff and the built-handler gates; do not count them
+as measured or require a synthetic host-load loop. See "What remains open after the probe" in the
+[nested-clone research][nested].
+
 The [VM record][vm-limits] and [delta limits][vm-delta-limits] leave execution on `7.3.5-1-cachyos` and Git
 `2.56.1`, the product wrapper, Rust binding and ZED handler, confinement variants and unattended boot and shutdown
 reconciliation, free-running races, concurrent same-name replacement, failed rollback or reattach, and recovery
@@ -1092,9 +1099,11 @@ only for unused slots. These are unrun acceptance requirements, not evidence fro
 - H1 gate 1: reproduce the old check-then-path-mount behavior as a positive control, using only a disposable decoy
   inside the VM. A path mount reached a decoy in the research; that did not test a substitution after the check.
   Prove the harness observes attachment outside the intended slot before trusting any no-mount assertion.
-- Repeat [VM item 2][vm-refusals] with the handler and account-owned slots. Add the link renamed into the slot
-  and assert every refusal names the component or field and leaves existing mounts alone.
-- H1 gate 3: exercise repeated, bounded concurrent slot renames and replacements during real mounts. Assert no
+- Repeat [VM item 2][vm-refusals] with the handler and account-owned slots. As the unrun alternative planting
+  case, rename a pre-existing link into the slot rather than creating it there. Assert every refusal names the
+  component or field and leaves existing mounts alone.
+- H1 gate 3: exercise repeated, bounded concurrent slot renames and replacements during real guest mounts, with
+  schedules not synchronized to the handler's checks. This is an unrun `GH1` control, not synthetic host load. Assert no
   unrelated mount is touched; an attach on a moved recorded inode is detected by the post-attach mount-ID check.
   Verify the selected policy for rollback or retention and the stranded report. Test the post-attach check itself,
   not just the open-time checks. [VM item 2][vm-refusals] measured synchronized rollback in a private namespace,
