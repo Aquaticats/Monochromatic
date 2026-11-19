@@ -27,7 +27,7 @@ the root-once setup and prints concrete commands for the administrator without r
 ## Binding crate and compatibility
 
 The owner chose "A Rust crate", "Kernel interface (Recommended)", "Out (Recommended)" for crates that run `zfs`,
-and "Our own small binding (Recommended)" ([ZFS planning record][zfs-plan], lines 343 to 361).
+and "Our own small binding (Recommended)" ([ZFS planning record][zfs-plan], lines 346 to 364).
 Use `package/zfs/request-to-openzfs-kernel-device`, with Cargo package
 `monochromatic-zfs-request-to-openzfs-kernel-device` and path-derived workspace name
 `@monochromatic-dev/zfs-request-to-openzfs-kernel-device` where workspace naming applies. Its README explains
