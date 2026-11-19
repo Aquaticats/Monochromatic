@@ -778,8 +778,9 @@ RGT:
 ### Hazardous commands
 
 HRM:
- Could an action physically harm a human or wear hardware?
- Warn first.
+ Could an action physically harm a human,
+ or wear or damage hardware?
+ Ask first.
 `ssh m1`:
  16 GiB RAM cap,
  fragile internal SSD;
