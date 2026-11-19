@@ -99,6 +99,17 @@ const RATE_LIMIT_FAILURE_TEXT = '429 {"error":{"message":"Too many requests"}}';
 const ALREADY_PROCESSING_TEXT: string = 'Agent is already processing. Specify streamingBehavior (\'steer\' or \'followUp\') to queue the message.';
 
 /**
+ The reply a recovering turn produces here, whose settle is what a woken run waits for.
+ */
+const RECOVERED_REPLY_TEXT = 'recovered';
+
+/**
+ Milliseconds the turn the agent started itself takes to reply: longer than one look, so a run that ended on the busy answer
+ alone would end before that reply and its settle.
+ */
+const OWN_TURN_REPLY_MILLISECONDS = 2 * POLL_MILLISECONDS;
+
+/**
  How many attempts may follow a model error, for a run whose retries are spent before the error even settles.
  */
 const NO_RETRIES = 0;
@@ -332,7 +343,7 @@ function observeSuccessfulReply(record: RecordOfPiRun,): void {
         role: 'assistant',
         content: [{
           type: 'text',
-          text: 'recovered',
+          text: RECOVERED_REPLY_TEXT,
         },],
         stopReason: 'stop',
       },
@@ -507,9 +518,12 @@ function connectionWhosePiIsAlreadyProcessing({
     send: async function send({ command, }: CommandRequest,) {
       const { message } = command;
       sent.push((typeof message) === 'string' ? message : '',);
-      // The turn the agent had started of its own accord was already running when the message went; its reply and settle follow
-      // the refusal Pi gave the message.
-      observeSuccessfulReply(record,);
+      // The agent was already in a turn of its own when the message went: that turn replies and settles a few looks later, so a
+      // run that ended on the busy answer alone would end before the turn it was waiting for.
+      void (async function replyWhenTheTurnEnds() {
+        await wait(OWN_TURN_REPLY_MILLISECONDS,);
+        observeSuccessfulReply(record,);
+      })();
       return {
         ending: 'answered',
         record: {
@@ -1176,15 +1190,15 @@ await describe({
         let looks = 0;
         const endReason = await watchUntilEnded({
           // Pi answers that its agent is already processing, which says the agent is awake in a turn of its own, and that turn
-          // replies and settles after the answer.
+          // replies and settles a few looks after the answer.
           connection: connectionWhosePiIsAlreadyProcessing({ sent, record: run.record, },),
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: HOLD_MILLISECONDS * 2,
+            milliseconds: HOLD_MILLISECONDS * 3,
           },),
           inbox: run.inbox,
-          deadline: Date.now() + (HOLD_MILLISECONDS * 2),
+          deadline: Date.now() + (HOLD_MILLISECONDS * 3),
           workLeftRunning: async function workLeftRunning() {
             looks += 1;
             return (looks <= 1) ? ['proc_7adb (native-build-2) 486667 systemd-run --user --scope'] : [];
@@ -1193,6 +1207,17 @@ await describe({
         // The message went, and the run ended after the turn the agent had already started, never as one Pi refused a prompt.
         expect(sent.length,).toBe(1,);
         expect(endReason,).toBe('idle',);
+        /**
+         What the run's summary says, which names the turn the run waited for rather than one it ended before.
+         */
+        const summary = run.record.summarize({
+          endReason: 'idle',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        expect(summary.settled,).toBe(2,);
+        expect(summary.lastAssistantText,).toBe(RECOVERED_REPLY_TEXT,);
         /**
          What the run's feed holds.
          */
