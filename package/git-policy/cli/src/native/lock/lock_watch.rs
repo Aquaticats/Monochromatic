@@ -31,14 +31,11 @@
 //!  whatever watch descriptor it carries,
 //!  and the tracker holds the whole run unprovable from it
 //!  (`Tracker::feed`).
-//!  A folder made after the watch began is watched in its turn,
-//!  the folders are watched one depth at a time so the bound reaches the ones locks are taken in
-//!  first,
-//!  and a folder the watch's bound leaves unwatched reports nothing:
-//!  a lock taken there gets no record, and a lock with no record is kept.
-//!  A repository whose Git directory holds more folders than the bound
-//!  (this repository's does) therefore keeps a lock in a deep folder,
-//!  and the sentence about that lock says what is known.
+//!  Git's active and common directories need watches, not a census of their entries.
+//!  Other watches cover named reference and Git state directories, not arbitrary root children.
+//!  A folder made after the watch began is opened only if it is in scope.
+//!  A custom index retains the bounded layout walk because its lock can be elsewhere.
+//!  An unwatched folder reports nothing: a lock taken there gets no record, and a lock without proof is kept.
 //!  Every Git the wrapper starts for its own ladder is watched too,
 //!  from a watcher thread of its own:
 //!  those steps wait for their Git through pipes, a descriptor and a progress watch,
@@ -725,9 +722,9 @@ pub struct Watch {
     child: Option<i32>,
     /// The folders this watch opened, each with the folder itself as the kernel reported it then.
     directories: Vec<WatchedFolder>,
-    /// The Git directories of this repository, as the wrapper was told them,
-    ///  which is what says whether a folder is one whose object store and logs hold no lock of the
-    ///  worktree's state.
+    /// Which Git directories and subdirectories the child can use for locks.
+    scope: WatchScope,
+    /// Known Git directories for the custom-index fallback only, where root `objects` and `logs` are skipped.
     git_directories: Vec<PathBuf>,
     /// The names a reading of a folder found standing there,
     ///  which the next read delivers as events that say so.
@@ -767,49 +764,124 @@ struct WatchedFolder {
     inode: u64,
 }
 
+/// Where the particular Git child can acquire a lock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WatchScope = 'active-index' | 'repository-state' | 'custom-index';
+/// ```
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum WatchScope {
+    /// Only the active Git directory, without discovering its children.
+    ActiveIndex,
+    /// Both roots, their references, and known direct Git state directories.
+    RepositoryState,
+    /// The original bounded walk for a nondefault index.
+    CustomIndex,
+}
+
+/// Git state directories that hold locks directly. Only `refs` has arbitrary nested lock namespaces.
+const STATE_FOLDERS: &[&str] = &["reftable", "info", "sequencer", "rebase-merge", "rebase-apply"];
+
 impl Watch {
-    /// What:
-    ///  Watch `roots` and every folder below them,
-    ///  or nothing when the platform offers no watch or refuses one.
-    /// Why:
-    ///  A watch on a folder does not cover its subfolders,
-    ///  and Git takes reference locks in `refs/heads`, `refs/tags`, the reftable's folder and others:
-    ///  a merge or a rebase updates a branch through such a lock,
-    ///  so a watch of the roots alone would leave a killed Git's reference lock with no record
-    ///  (a review of `fee5557595`,
-    /// finding 1).
-    ///  So the folders of the roots are watched at the depth the lock pass reads,
-    ///  the same two skipped folders that hold no lock of the worktree's state are skipped,
-    ///  and the count is bounded.
-    ///  A folder the bound leaves unwatched costs no safety:
-    ///  a lock taken there gets no record, which is the state every lock was in before this watch
-    ///  existed.
-    ///  A run that cannot watch starts its Git exactly as it did before this watch existed;
-    ///  the command is never delayed or refused for it.
+    /// Open the normal repository watch in a control that does not start through a Git runner.
+    #[cfg(test)]
+    pub fn over(roots: &[PathBuf]) -> Option<Watch> {
+        return Self::over_for_start(roots, WatchScope::RepositoryState);
+    }
+
+    /// What: Open the watches required by this start, before Git can write a lock.
+    /// Why: A watch on a directory does not report its subdirectories. Open only the named regions
+    ///  where this Git can write, without reading the root's entries. Both creation events
+    ///  must still be observed; a name already standing supplies neither of them.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// Watch.over([gitDir, commonDir]) // the two roots and every folder below them
+    /// Watch.overForStart([gitDir, commonDir], 'repository-state');
     /// ```
-    pub fn over(roots: &[PathBuf]) -> Option<Watch> {
+    fn over_for_start(roots: &[PathBuf], mut scope: WatchScope) -> Option<Watch> {
         // SAFETY: a plain system call whose only argument could not be misread; the descriptor is closed by `Drop`.
         let descriptor: i32 = unsafe { libc::inotify_init1(libc::IN_CLOEXEC | libc::IN_NONBLOCK) };
         if descriptor < 0 {
             return None;
         }
-        // What: The Git directories of this repository, as Git told the wrapper where they are.
-        // Why:  A folder's kind is a lookup in what the wrapper was told and never a look at the folder
-        //       (a review of `ca936e0b93`, finding 2).
-        let common_dir: PathBuf = roots.first().map(|root| { return crate::git_directories_of_the_repository::common_dir_of(root.as_path()); }).unwrap_or_default();
-        let git_directories: Vec<PathBuf> = crate::git_directories_of_the_repository::git_directories_of(roots, common_dir.as_path());
-        let mut watch: Watch = Watch { descriptor, child: None, directories: Vec::new(), git_directories, found_by_reading: Vec::new(), roots: roots.to_vec() };
+        // Git can follow an index symlink when it decides where to take its lock.
+        if let Some(active) = roots.first()
+            && std::fs::symlink_metadata(active.join("index")).is_ok_and(|index| { return index.is_symlink(); })
+        {
+            scope = WatchScope::CustomIndex;
+        }
+        // Only the custom-index fallback needs to discover the wider layout.
+        let mut git_directories: Vec<PathBuf> = Vec::new();
+        if scope == WatchScope::CustomIndex && let Some(active) = roots.first() {
+            let common_dir: PathBuf = crate::git_directories_of_the_repository::common_dir_of(active.as_path());
+            git_directories = crate::git_directories_of_the_repository::git_directories_of(roots, common_dir.as_path());
+        }
+        let mut watch: Watch = Watch { descriptor, child: None, directories: Vec::new(), scope, git_directories, found_by_reading: Vec::new(), roots: roots.to_vec() };
         for root in roots {
-            watch.watch_folder_and_below(root.as_path());
+            if scope == WatchScope::CustomIndex {
+                watch.watch_folder_and_below(root.as_path(), 0);
+                continue;
+            }
+            // Open the roots before spending slots on reference namespaces.
+            a_folder_read_may_take_a_while();
+            if watch.watch_one(root.as_path()) && scope == WatchScope::RepositoryState {
+                for folder in STATE_FOLDERS {
+                    watch.watch_subdirectory(root.join(folder).as_path());
+                }
+            }
+            if scope == WatchScope::ActiveIndex {
+                break;
+            }
+        }
+        if scope == WatchScope::RepositoryState {
+            for root in roots {
+                if watch.folder_is_still_the_watched_folder(root.as_path()) {
+                    watch.watch_subdirectory(root.join("refs").as_path());
+                }
+            }
         }
         if watch.directories.is_empty() {
             return None;
         }
         return Some(watch);
+    }
+
+    /// What: Open a named Git subdirectory or a directory inside a reference tree.
+    /// Why: Initial and later directory arrivals have the same scope. A reference called
+    ///  `refs/heads/objects/topic` is still a reference, not the repository's object store.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// watchSubdirectory(newDirectory); // no-op unless its path is part of this scope
+    /// ```
+    fn watch_subdirectory(&mut self, directory: &Path) {
+        if self.scope == WatchScope::CustomIndex {
+            self.watch_folder_and_below(directory, 0);
+            return;
+        }
+        if self.scope == WatchScope::ActiveIndex {
+            return;
+        }
+        for root in &self.roots {
+            // A linked worktree's active root may itself be under the common root.
+            let Ok(relative) = directory.strip_prefix(root) else {
+                continue;
+            };
+            if relative.starts_with("refs") {
+                let depth: usize = relative.components().count();
+                if depth <= MOST_WATCH_DEPTH {
+                    self.watch_folder_and_below(directory, depth);
+                }
+                return;
+            }
+            if STATE_FOLDERS.iter().any(|name| { return relative == Path::new(name); }) {
+                if self.watch_one(directory) {
+                    self.read_what_stands_there(directory);
+                }
+                return;
+            }
+        }
     }
 
     /// What:
@@ -830,13 +902,18 @@ impl Watch {
     /// ```ts
     /// watchFolderAndBelow(gitDir) // gitDir, then refs and the other shallow folders, one depth at a time
     /// ```
-    fn watch_folder_and_below(&mut self, directory: &Path) {
+    fn watch_folder_and_below(&mut self, directory: &Path, depth: usize) {
         let mut pending: std::collections::VecDeque<(PathBuf, usize)> = std::collections::VecDeque::new();
-        pending.push_back((directory.to_path_buf(), 0));
+        pending.push_back((directory.to_path_buf(), depth));
         while let Some((folder, depth)) = pending.pop_front() {
             // A control makes one read take a while, standing in for a file system that does not answer.
             a_folder_read_may_take_a_while();
-            if self.watch_one(folder.as_path()) && depth < MOST_WATCH_DEPTH {
+            if !self.watch_one(folder.as_path()) {
+                continue;
+            }
+            // A tree watch can have missed a lock in a folder discovered after Git started.
+            self.read_what_stands_there(folder.as_path());
+            if depth < MOST_WATCH_DEPTH {
                 let Ok(entries) = std::fs::read_dir(folder.as_path()) else {
                     continue;
                 };
@@ -901,20 +978,13 @@ impl Watch {
             return false;
         };
         // SAFETY: `path` is a valid NUL-terminated name for the call.
-        let watched: i32 = unsafe { libc::inotify_add_watch(self.descriptor, path.as_ptr(), WATCHED_EVENTS) };
+        let watched: i32 = unsafe { libc::inotify_add_watch(self.descriptor, path.as_ptr(), WATCHED_EVENTS | libc::IN_DONT_FOLLOW) };
         if watched < 0 {
             return false;
         }
         if !self.directories.iter().any(|held| { return held.descriptor == watched; }) {
             self.directories.push(WatchedFolder { descriptor: watched, path: folder.to_path_buf(), device: identity.device, inode: identity.inode });
         }
-        // What: The watch is added and only then is the folder read, and what stands there is reported as a name this
-        //       run saw no creation of.
-        // Why:  A watch added to a folder that already exists has missed whatever was made in it before, and Git can
-        //       make a folder and take its first lock before this watch is on it (a review of `6c2272132b`, finding 3).
-        //       The reading finds such a lock, and it cannot say when the lock was made or whose PID file it inherits,
-        //       so the lock is known to stand and is never bound (`FOUND_BY_READING`, `Tracker::was_found_by_reading`).
-        self.read_what_stands_there(folder);
         return true;
     }
 
@@ -1176,7 +1246,7 @@ impl Watch {
                     //       record is one the pass keeps: the safe side.
             if mask & (libc::IN_CREATE | libc::IN_MOVED_TO) != 0 {
                 let made: PathBuf = directory.join(std::ffi::OsString::from_vec(name.to_vec()));
-                self.watch_folder_and_below(made.as_path());
+                self.watch_subdirectory(made.as_path());
             }
             return;
         }
@@ -1208,9 +1278,36 @@ impl Drop for Watch {
 /// ```ts
 /// const watch = watchBeforeStarting(); // undefined when the plan remembered no roots
 /// ```
+#[cfg(test)]
 pub fn watch_before_starting() -> Option<(Watch, Watched)> {
     let watched: Watched = remembered()?;
-    return open_the_watch_within_its_ceiling(watched);
+    return open_the_watch_within_its_ceiling(watched, WatchScope::RepositoryState);
+}
+
+/// What: Classify the actual child arguments after the wrapper has built them.
+/// Why: The version check never needs a reference walk, and `add` locks the index but does not
+///  update references. Keep the old bounded walk for an explicitly selected index.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// watchScopeOf(command) // index, repository state, or custom index
+/// ```
+fn watch_scope_of(command: &std::process::Command) -> WatchScope {
+    use crate::global_arguments::{GlobalOutcome, global_layout};
+    let arguments: Vec<std::ffi::OsString> = command.get_args().map(std::ffi::OsStr::to_os_string).collect();
+    let layout = global_layout(arguments.as_slice());
+    if layout.outcome == GlobalOutcome::Query {
+        return WatchScope::ActiveIndex;
+    }
+    // A setting or removal in the child takes precedence over a value inherited from the caller.
+    let index = command.get_envs().find(|(key, _value)| { return *key == "GIT_INDEX_FILE"; });
+    if index.map_or_else(|| { return std::env::var_os("GIT_INDEX_FILE").is_some(); }, |(_key, value)| { return value.is_some(); }) {
+        return WatchScope::CustomIndex;
+    }
+    if layout.outcome == GlobalOutcome::Command && arguments.get(layout.prefix_len).is_some_and(|word| { return word == "add"; }) {
+        return WatchScope::ActiveIndex;
+    }
+    return WatchScope::RepositoryState;
 }
 
 /// How long the walk of the watched roots is waited for before the command goes on without a watch.
@@ -1244,13 +1341,13 @@ pub const A_WATCH_IS_OPENED_WITHIN: std::time::Duration = std::time::Duration::f
 /// ```ts
 /// const opened = await withTimeout(walkThread(roots), A_WATCH_IS_OPENED_WITHIN); return opened ?? undefined
 /// ```
-fn open_the_watch_within_its_ceiling(watched: Watched) -> Option<(Watch, Watched)> {
+fn open_the_watch_within_its_ceiling(watched: Watched, scope: WatchScope) -> Option<(Watch, Watched)> {
     let (opened, collected) = std::sync::mpsc::channel::<Option<Watch>>();
     let roots: Vec<PathBuf> = watched.roots.clone();
     let thread: std::io::Result<std::thread::JoinHandle<()>> = std::thread::Builder::new()
         .name(String::from("cli-git-watch-open"))
         .spawn(move || {
-            let watch: Option<Watch> = Watch::over(roots.as_slice());
+            let watch: Option<Watch> = Watch::over_for_start(roots.as_slice(), scope);
             let _sent = opened.send(watch);
         });
     let Ok(started_walking) = thread else {
@@ -1279,10 +1376,11 @@ fn open_the_watch_within_its_ceiling(watched: Watched) -> Option<(Watch, Watched
 /// ```ts
 /// const watch = await runBlockingJob(() => walkWithin(A_WATCH_IS_OPENED_WITHIN));
 /// ```
-pub async fn watch_before_starting_awaiting() -> Option<(Watch, Watched)> {
+pub async fn watch_before_starting_awaiting(command: &std::process::Command) -> Option<(Watch, Watched)> {
     let watched: Watched = remembered()?;
+    let scope: WatchScope = watch_scope_of(command);
     let opened: Result<Option<(Watch, Watched)>, crate::blocking_job::BlockingJobError> =
-        crate::blocking_job::run_blocking_job(move || { return open_the_watch_within_its_ceiling(watched); }).await;
+        crate::blocking_job::run_blocking_job(move || { return open_the_watch_within_its_ceiling(watched, scope); }).await;
     return opened.ok().flatten();
 }
 
@@ -1309,7 +1407,9 @@ pub async fn watch_before_starting_awaiting() -> Option<(Watch, Watched)> {
 /// ```
 pub fn start_a_watched_git(command: &mut std::process::Command) -> std::io::Result<(std::process::Child, Option<Binder>)> {
     use crate::start_retry::RetryStart as _;
-    let watched: Option<(Watch, Watched)> = watch_before_starting();
+    let watched: Option<(Watch, Watched)> = remembered().and_then(|watched| {
+        return open_the_watch_within_its_ceiling(watched, watch_scope_of(command));
+    });
     let child: std::process::Child = command.spawn_retrying()?;
     // What: The repository's record names this Git, here, in the one start every watched runner uses.
     // Why:  The record of the child's start is half of the proof that clears a lock this Git left, and a runner that

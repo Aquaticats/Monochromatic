@@ -311,7 +311,7 @@ pub async fn output_watched_within_for_a_stop_awaiting(
 /// ```
 pub async fn start_a_watched_git_awaiting(command: &mut Command) -> std::io::Result<(Child, Option<crate::lock_watch::Binder>)> {
     // The walk of the watched roots reads folders, so it runs as a blocking job and never on this worker.
-    let watched: Option<(crate::lock_watch::Watch, crate::lock_watch::Watched)> = crate::lock_watch::watch_before_starting_awaiting().await;
+    let watched: Option<(crate::lock_watch::Watch, crate::lock_watch::Watched)> = crate::lock_watch::watch_before_starting_awaiting(command).await;
     let child: Child = spawn_retrying_without_blocking(command).await?;
     // What: The repository's record names this Git, in this face of the one start, as the synchronous face does.
     // Why:  A record of the child's start is half of the proof that clears a lock this Git left, and this face writes

@@ -676,6 +676,44 @@ fn a_lock_in_a_folder_made_after_the_watch_began_is_reported() {
     assert!(found.contains(&lock), "a lock inside a folder made after the watch began is reported: {found:?}");
 }
 
+/// What: State folders and root locks are watched; unrelated folders are not.
+/// Why: A genuine new root pair must still prove a take without a root directory listing.
+///  An inherited PID file must not become proof just because its lock was seen created.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(takesAfterWatching()).toEqual([freshRootLock, reftableLock]);
+/// ```
+#[test]
+fn repository_watch_covers_git_state_without_walking_unrelated_folders() {
+    let directory: PathBuf = fixture("watch-only-git-state");
+    let unrelated: PathBuf = directory.join("not-git-state");
+    let newly_made: PathBuf = directory.join("new-but-not-git-state");
+    let reftable: PathBuf = directory.join("reftable");
+    std::fs::create_dir(&unrelated).expect("an unrelated folder already present");
+    std::fs::create_dir(&reftable).expect("the reftable lives here");
+    let inherited: PathBuf = directory.join("HEAD.lock");
+    let pid: i64 = i64::from(std::process::id());
+    let pid_text: String = format!("pid {pid}\n");
+    std::fs::write(pid_file_of(&inherited), &pid_text).expect("a PID file left before the watch");
+    let mut watch: Watch = Watch::over(std::slice::from_ref(&directory)).expect("the repository watch");
+    std::fs::create_dir(&newly_made).expect("an unrelated folder appearing after startup");
+    let mut tracker: Tracker = Tracker::new();
+    tracker.feed(queued(&mut watch).as_slice());
+    let root_lock: PathBuf = directory.join("index.lock");
+    let table_lock: PathBuf = reftable.join("tables.list.lock");
+    for lock in [&root_lock, &table_lock, &unrelated.join("elsewhere.lock"), &newly_made.join("elsewhere.lock")] {
+        std::fs::write(lock, b"new lock").expect("a lock creation");
+        std::fs::write(pid_file_of(lock), &pid_text).expect("a later PID-file creation");
+    }
+    std::fs::write(&inherited, b"a lock following its PID file").expect("the lock inherits the earlier file");
+    tracker.feed(queued(&mut watch).as_slice());
+    let takes: Vec<PathBuf> = tracker.locks_taken(pid);
+    drop(watch);
+    remove(directory.as_path());
+    assert_eq!(takes, vec![root_lock, table_lock], "only fresh ordered pairs in watched state can be recorded");
+}
+
 /// What:
 ///  An event that says the kernel dropped events makes the run's record say nothing,
 ///  though the lock and its PID file were seen created.

@@ -10258,40 +10258,20 @@ cannot check.
 
 The list of what the watch reports, and what it does with each:
 
-- a watch on the Git directory and the common Git directory is opened **before** the child starts,
-  and on **every folder below them** at the depth the lock pass reads,
-  so a lock Git takes one folder down (`refs/heads/main.lock`, `refs/tags/x.lock`, the reftable's
-  table list) is reported like one at the root;
-  the walk goes one depth at a time,
-  so the count bound (`MOST_WATCHED_FOLDERS`, `src/native/lock/lock_watch.rs`) is spent on the
-  folders locks are taken in first
-  (`refs/heads`, `refs/tags`, `reftable` and a linked worktree's own directory all sit a few steps
-  below a root);
-  a folder made while the watch runs (a branch name with a slash in it, a reftable that appears) is
-  watched in its turn;
-  which folders are Git directories is a list the wrapper was told
-  (`src/native/lock/git_directories_of_the_repository.rs`),
-  and the object store and the reflog folders are skipped only directly below a folder of that list,
-  in this walk and in the pass that meets the locks (`src/native/lock/abandoned_locks.rs`);
-  the list is the invocation's Git directory,
-  the common Git directory,
-  every linked worktree's registration (the entries of the common directory's own `worktrees` folder)
-  and every submodule's Git directory (the entries of a Git directory's own `modules` folder, to three
-  levels);
-  a folder's contents and its name are never read as its kind,
-  because a person chooses every name under `refs/` and Git accepts a reference called
-  `refs/heads/marker/HEAD`,
-  which made that folder look like a Git directory and hid the `objects` namespace beside it
-  (a review of `6a506fc03f`, finding 5;
-  a review of `ca936e0b93`, finding 2);
-  and a folder the count bound leaves unwatched reports nothing, so a lock there keeps the bounded
-  wait instead of a record (a review of `fee5557595`, finding 1);
-  a repository above that bound keeps every folder the walk reached first and gets no record for a
-  lock in one it did not;
-  this repository's own common Git directory holds more folders than the bound
-  (more than 3500 on 2026-11-14, most of them the rerere cache's and the linked worktrees' own),
-  so a lock in one of its deeper folders is cleared only by a proof that does not need a record,
-  and the sentence about a lock that is kept says so;
+- the watch opens **before** the child starts. Ordinary `git add` watches only the active Git
+  directory, including the active linked worktree's own directory when linked. Other repository
+  writers watch the active and common roots, the reference trees under `refs`, and the direct
+  state folders `reftable`, `info`, `sequencer`, `rebase-merge` and `rebase-apply`;
+  the roots are not listed. A name that stood before a root watch opened cannot supply a creation
+  event, and the proof still needs both the lock's creation and the later PID file's creation;
+  references have arbitrary namespaces, so `refs` is walked breadth first to the existing count and
+  depth bounds. A new directory in scope is opened when its event arrives. A lock that was already
+  there before the new directory was watched still cannot be recorded from that look;
+  a custom index selected by `GIT_INDEX_FILE`, or a symlink at the default index, keeps the old
+  bounded Git layout walk. The lock clearance pass is unchanged;
+  the ordinary watcher does not follow unrelated directories, inactive linked worktrees, submodule
+  repositories or nested off-layout lock files. Omitted and bounded-out locks still need the proof
+  that does not use the watcher's record;
 - every Git the wrapper starts for this repository's state is watched, and through one start,
   and one of those starts does not yet write the record of the child it started:
   `lock_watch::start_a_watched_git` opens the watch before the child and hands back the child with its
@@ -10506,9 +10486,10 @@ and the row that changed names the control that states it.
 - **The record of a cleared lock, then its removal** (`clear_one`):
   the record is one file named for the take it belongs to,
   so the removal is safe whatever happened in between.
-- **A watch added to a folder, then the picture of that folder** (`lock_watch.rs`,
-  `watch_one` and `watch_folder_and_below`):
-  the watch is added **and then the folder is read**,
+- **A watch added to a reference or state folder, then the picture of that folder** (`lock_watch.rs`,
+  `watch_subdirectory` and `watch_folder_and_below`):
+  the watch is added **and then the folder is read**. Ordinary root watches do not take a picture;
+  they read creation events only. Where a picture is taken,
   and what stands there is reported as a name this run saw no creation of
   (`FOUND_BY_READING`).
   Such a lock is known to stand and is **never bound**:
