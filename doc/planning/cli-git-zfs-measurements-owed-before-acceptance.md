@@ -568,8 +568,10 @@ ZFS_IOC_DESTROY_SNAPS (0x5a3b) count: 0
 The CLI refused before submitting the batch, so this command did not measure kernel atomicity. In the `zfs-2.4.4`
 source, `snapshot_to_nvl_cb` in `cmd/zfs/zfs_main.c` checks dependents while gathering the snapshot names.
 To exercise the kernel, the guest helper submitted exactly those two names in one `lzc_destroy_snaps` call
-with `defer=false` (`argtypes` and call at `guest-delta-items.py:156` to `:165`). `libzfs_core` adds no `defer` key
-for that value (`lib/libzfs_core/libzfs_core.c:475` to `:476`, `zfs-2.4.4`), so the counted ioctl carried none.
+with `defer=false` (`argtypes` and call at `guest-delta-items.py:156` to `:165`). That the counted ioctl carried no
+`defer` key is reasoning, not something the trace read: it ran with `-X raw` and shows the request's address, so the
+inference rests on the helper's `defer=false` call, on `libzfs_core` adding the key only when it defers
+(`lib/libzfs_core/libzfs_core.c:475` to `:476`, `zfs-2.4.4`), and on the guest userspace being that release.
 It returned `EEXIST`, with only `@origin` in the per-name errors:
 
 ```text
