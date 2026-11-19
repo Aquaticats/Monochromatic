@@ -90,12 +90,25 @@ until then this list is their record. Each was asked with the ranking and facts 
   you shouldn't assume the native path can't set context windows." Retracted: "rare at 1M-token windows" (an
   assumption carried from the gate delta check) and the native path's window as a con (taken from a handover note, not
   from Pi's source). Asked again after reading Pi's virtual-model source.
+  - Asked again with Pi 1.5.2's source: a native virtual model takes `contextWindow` and `maxTokens`, and Pi uses the
+    answering model's limits after its first reply (`dist/core/virtual-models.d.ts:78-83`); Pi's overflow
+    compact-and-retry resolves the physical model only under a native virtual selection
+    (`dist/core/agent-session.js:313-318`, `:2499-2533`), so the package's own provider gets none; a native router is
+    called again with the failed attempt on each retry (`virtual-models.d.ts:26-58`) after Pi's auto-retry delay
+    (`baseDelayMs` 2000 doubling, `maxRetries` 3, `dist/core/settings-defaults.js:17-23`). Answer: "Native virtual
+    models" (against the ranking, which put a hybrid first): the pool's admission logic moves into a native router.
+- Virtual provider point 5, the policy move's provider gate: "Keep provider gate (Recommended)".
+- `AGENTS.md` rule `SRC` tightened to cover recorded facts: "Adopt (Recommended)".
+- `AGENTS.md` rule `EXT` extended to options and secondhand notes (proposed after point 4's slip): "Leave it".
+- `AGENTS.md` rule `DCK` gains "that turn" (proposed after the Qwen terms were asked again for want of a record):
+  "Adopt (Recommended)".
+- The overnight report (the three merges and the fixture audit counts), asked as an acknowledgement: "Seen".
 
 ## Prepared overnight for the question tool, 2026-11-19T03:30:00-05:00
 
-The owner went to bed on 2026-11-19 choosing "Shut down when done", so these were not asked in that session.
-The next session asks each one through the question tool, ranked as written here, and records the answers in the
-documents named.
+All of these were asked on the morning of 2026-11-19; the answers are in the section "Answered in the question tool,
+started 2026-11-19T11:30:00-05:00". This list stays as the input of the ZFS fold-in and the provider run, and is
+deleted once both have landed.
 Each option's facts come from the ZFS proposal at `b5294a7325`
 (`doc/planning/cli-git-zfs-worktree-design-proposal.md` on branch `docs/planning-cli-git-zfs-worktree-design-proposal`)
 and its measurement record; "item N" is a measurement item there.

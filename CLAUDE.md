@@ -159,7 +159,7 @@ DCK:
  answers,
  checks,
  and before compaction,
- update canonical docs:
+ update canonical docs that turn:
  meanings,
  requirements,
  evidence,
@@ -168,7 +168,7 @@ DCK:
  rejections,
  unknowns,
  commits,
- next action.
+ next step.
 
 1ST:
  User's first-person words ("I",
@@ -178,7 +178,7 @@ DCK:
  even in handover framing.
 
 SRC:
- Before attributing a rule to a file (`AGENTS.md`,
+ Before attributing a rule or a recorded fact to a file (`AGENTS.md`,
  `CLAUDE.md`,
  `SKILL.md`,
  settings,
