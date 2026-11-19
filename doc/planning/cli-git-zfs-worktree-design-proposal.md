@@ -151,39 +151,76 @@ The `mount` grant is an ioctl prerequisite, not Linux mount-namespace authority.
 OpenZFS `zfs-2.4.4` sources: `man/man8/zfs-allow.8:110` to `:120`,
 `module/zfs/dsl_deleg.c:574` to `:582`, and `module/zfs/zfs_ioctl.c:826` to `:832` and `:1128` to `:1148`.
 
-## Add, mount and removal
+## Add and Git registration
 
-### Create and bind the worktree
+Follow item 7 of the [nested-clone research][nested]: register while the slot is empty, mount at the slot itself,
+then install the same Git pointer in the clone. Git accepts an existing empty slot, not a populated clone root.
+The research's 2026-11-18 correction confirms account ownership for the registration probe. The actual guest
+script (`keep/probe.ts:71` to `:91`) took the origin snapshot before registering and used `mount -t zfs` in that
+sequence. The descriptor attach was a separate probe. The combined ordered wrapper flow is still an acceptance test.
 
-1.  For the clone path, accept only a canonical `linked/<slot>/checkout` destination under the configured anchor.
-    Reserve the slot with a per-add claim; restrict slot names to a single lowercase ASCII name using letters,
-    digits and hyphens. Validate the existing trusted `linked` directory; root creates the missing slot, so this
-    special form cannot use the ladder's existing-parent requirement unchanged. All other paths keep their meaning.
-2.  Require the ladder's chosen source to be the configured main checkout and prove it clean. Do not silently use
-    the main checkout in place of a linked source. Freeze its index/tree proof and make a fresh, uniquely named
-    `main-dataset@cli-git-origin-<nonce>` snapshot for this add. Clone it to the slot with a local mount request
-    at creation. Bind the journal to the actual origin snapshot and clone GUIDs, not merely the requested names.
-    Never reuse a sanoid snapshot as the origin or promote a clone. The [ZFS planning record][zfs-plan],
-    lines 32 to 43, records the measured dependency: the origin cannot be destroyed while a clone uses it.
-3.  Wait for ZED and verify the exact ZFS mount is visible and writable in the caller's namespace. At this point
-    the filesystem is a clone, not yet a Git worktree. Rename the inherited `checkout` to a private staging name
-    beside it inside the clone. Register `checkout` using Git's `worktree add --no-checkout` validation; bind the
-    pointer and its reciprocal Git registration as in the current ladder. No Git invocation uses the copied `.git`
-    directory: verify the frozen source in the stage, discard its copied Git metadata and apply the main-checkout
-    leave-out rule. Verify conversion settings in the new worktree's context, install Git's new pointer and the
-    proven index, then apply the existing tree difference. Exchange the two sibling directories only after
-    rechecking the mount, claims and binding. Both are inside the clone, not one on either side of a mountpoint.
-    `RENAME_EXCHANGE` is handled by `zfs_rename` in `module/os/linux/zfs/zfs_vnops_os.c:2818` at `zfs-2.4.4`;
-    prove the actual add, exchange and crash recovery in the VM. Also prove that the source checks cover the
-    instant snapshotted (index and tracked bytes); do not treat differing ZFS stat identities as clean.
-4.  Record the completed binding in the Git common directory: canonical path, repository and registration
-    identities, dataset and origin names and GUIDs, and request nonce. A lookup requires that binding plus the
-    expected clone lineage and mount facts; a prefix or a user property is not proof of ownership.
-    If clone creation failed and absence is certain, try to delete only the origin this add proved it created.
-    Keep an interrupted add and its registration when ownership or cleanup is uncertain. Report the stage, clone,
-    origin and actual registration, and whether to resume, remove, or rerun at an ordinary writable destination.
-    Do not create a second checkout over an unverified mount, or destroy another process's stage. After Git binds
-    an intact empty checkout, the existing bound Git checkout can finish there if the clone fill alone fails.
+1.  Share preflight with `doctor`. Before a claim, slot, registration, snapshot or clone is written, verify the
+    supported Git form, eligible source and canonical destination, the checkout mount and caller's visibility,
+    `/dev/zfs` access, ABI, effective grants, slot parent identity and owner, mount propagation, installed
+    root-owned handler and configuration, live ZED, and usable root-owned status/results. Require a current
+    handler readiness report for the actual pool, checkout and boot, not just a present executable. Check the
+    clean source and capture its index/tree verification inputs. On refusal, name the check and choose the
+    applicable fallback without leaving a managed object. Never substitute the main checkout for a linked source.
+2.  Claim the destination as the account with an exclusive per-add record in the Git common directory. Write
+    the proposed clone name and unique `git-worktree-clone-origin-<nonce>` snapshot name before any mutation
+    beyond the claim. Create or verify an empty account-owned slot, then run Git's supported `worktree add
+    --no-checkout` form. Record the reciprocal registration and exact `.git` pointer bytes; leave the file in
+    the slot on the checkout dataset. Have the handler verify and record the slot identity before any attach.
+3.  Snapshot the checkout, then clone that fresh origin, never a sanoid snapshot. Record the actual snapshot and
+    clone GUIDs as each is confirmed. Request `mount` via the local desired-state user property described in
+    [ZED reconciliation and mount safety](#zed-reconciliation-and-mount-safety), not via `mountpoint`. Send it in
+    clone `props` only if the delegated creation path is verified. If that path refuses and no clone exists,
+    create it without `props`, then set the local property with `ZFS_IOC_SET_PROP`. If a matching clone already
+    exists, verify it before setting the property and do not issue another clone request. If the outcome is
+    unknown, inspect state before any retry. A clone without a valid local request is not mounted.
+4.  Wait for the matching mount and verify it is visible and writable at the slot in the caller's namespace.
+    The clone still holds the checkout's copied `.git` directory. Compare the frozen index and tracked content
+    in the clone itself against the captured proof, without running Git against that directory. The in-snapshot
+    check proves the bytes; the pre-snapshot check alone does not cover a write between check and snapshot.
+    Discard copied Git administration before running Git inside the clone. Omit copied `.claude/worktrees`,
+    wrapper caches and stages per the main-checkout leave-out rule, and omit nested mount locations identified
+    by the source walk, including `package/vm-builder/cli/output`. Do not descend into, copy or mount at those
+    boundaries. A snapshot omits nested mount contents but can carry real underlay files and stale Git stubs;
+    remove only the verified clone-local copies, never the live mounts or source underlays.
+5.  Install the saved Git pointer inside the clone. Use the verified index and the existing conversion checks
+    and tree difference in the new worktree context. Verify the worktree root, common directory, reciprocal
+    registration, mount identity and checked-out state. Mark the binding usable only after the fill is verified;
+    then run or queue the existing dependency repairs. The wrapper and callers must not use a pending slot as
+    a worktree. A mount can be externally visible before the fill; an interrupted add can expose copied `.git`,
+    which is neither the linked registration nor a success signal.
+
+The durable binding keys on repository and Git registration identity plus clone GUID, not spelling alone. Store
+its expected slot path and identity, origin name and GUID, clone name, pointer bytes, request nonce and progress.
+On resume distinguish a claimed empty slot, registration without a dataset (including a possible origin only),
+an unmounted clone, a mounted but unfinished clone and a verified checkout. Recheck recorded identities, the mount
+and the visible pointer before resuming; never use names, properties or a matching result alone to prove ownership.
+If snapshot or clone returns `ENOSPC`, report the operation, object and pool, keep the claim, and clean up only
+objects whose creation and identity are proven and whose destruction is allowed. A clone pins its origin even before
+it is mounted. If mutation succeeded but its identity was not recorded before interruption, keep and report it
+unless identity can be independently recovered. No silent fallback over an unresolved managed state. An explicitly
+recovered Git-only add may finish at the same slot only after the mount and all outstanding intents are settled.
+
+### Unmounted, pruned or moved worktrees
+
+Keep the underlay pointer intact for `git worktree prune`, independent of the clone's pointer. It is a registration
+stub, not a checkout. `doctor` and wrapper commands that encounter it distinguish a known unmounted clone (ZED off,
+ABI refusal, mount failure or pending request) from a pending add or removal. Report the slot, dataset and next
+safe action instead of treating absent files as deleted tracked files or offering an ordinary add over them.
+
+A damaged link with surviving admin state can use `git worktree repair` from the main checkout, with the verified
+slot passed explicitly. If Git already pruned the admin entry, repair is not a reconstruction of HEAD, index or lock
+state. Restore verified registration data from backup before repairing links; if there is none, report what is lost
+and require an explicit recovery or discard, never guessing from a branch or path. A removal whose recorded clone
+and origin are already gone can settle a missing registration only after proving there is no replacement.
+
+Refuse `git worktree move` for a bound managed clone whether mounted or not: report that the slot is fixed and
+must not be renamed. The mounted guest control failed with `Device or resource busy`; a wrapper refusal also covers
+an unmounted slot, where that kernel protection does not apply.
 
 ### ZED desired state and wait
 
