@@ -304,6 +304,13 @@ gave:
 
 The residual five are cause E (two), cause A2 (one) and cause H (two).
 
+The per-cause name lists in the investigation's `scratch/` hold 184 of the 185 between them, with no
+duplicate: cause A 108, A2 1, B 29, C 28, D 10, E 2, F 3, G 1 and H 2. The one name no list holds is
+`package_repair::pnpm_runs_in_the_new_worktree_only`, which the cause G passage above names: it failed
+in the full suite and passed in both filtered arms. It is also the only name of the 185 absent from
+the as-is arm's first run's 184 failures, and one of the two absent from its second run's 183 (the
+flood control is the other), so it moves with the host's load as cause G says.
+
 The full suite ran once on `main`'s build, as the control: 185 of 9,173 failed, listed above. The
 earlier session's LFS branch failed 187 of 9,189; comparing the two lists leaves four differences and
 every one of them is a test that failed in one run and passed in another of the same tree
@@ -334,7 +341,7 @@ stands: the gate accepts only `--memory`, `--cpus` and `--pids-limit` and passes
 The gate's `podman run` adds `--tmpfs /gate-fixtures:rw,size=1500m,mode=1777 --env
 CLI_GIT_TEST_ROOT=/gate-fixtures`.
 
-- Measured: 5 of the 185 fail (179 fixed); 2.5 times faster than the as-is arm (103.9 s against
+- Measured: 5 of the 185 fail (180 fixed); 2.5 times faster than the as-is arm (103.9 s against
   41 s, both arms run twice, interleaved); about 250 MB more peak memory in the container's cgroup
   (430 MB against 680 MB of a 2 GiB cap), which is the fixtures' own bytes.
 - What it changes about what the tests test: the fixture root becomes a tmpfs, so the mount-dependent
@@ -347,7 +354,11 @@ CLI_GIT_TEST_ROOT=/gate-fixtures`.
   instead of `fuse.fuse-overlayfs`, which is a different "other file system" branch, and the
   `fault_trace` kill list still names a call the flow does not make (cause E).
 - The `size=1500m` is a ceiling under the container's 2 GiB memory cap; a run that outgrows it fails
-  with `ENOSPC` rather than with a mount cause. No run here came near it (peak growth 250 MB).
+  with `ENOSPC` rather than with a mount cause. No run here came near it (peak growth 250 MB). That
+  arm's container peaked at 680 MB with about 250 MB of fixtures in it, which leaves roughly 1618 MB of
+  the cap for fixtures. The whole suite's process pages peaked at 994 MB, which leaves only about
+  1054 MB, so the `1500m` this measurement suggested was not reachable in the gate; the branch ships
+  `768m` instead (the section "The gate's fixture root is a tmpfs the container makes").
 
 ### A host tmpfs directory, bind-mounted
 
@@ -482,7 +493,7 @@ nothing on the ZFS dataset, nothing in podman's storage, and nothing in the inst
 spreads them into the suite's `podman run` on every host:
 
 ```text
---tmpfs /work/package/git-policy/cli/target/gate-fixtures:rw,size=1500m,mode=1777
+--tmpfs /work/package/git-policy/cli/target/gate-fixtures:rw,size=768m,mode=1777
 --env CLI_GIT_TEST_ROOT=/work/package/git-policy/cli/target/gate-fixtures
 ```
 
@@ -502,8 +513,14 @@ name that is not UTF-8, records birth times, is `tmpfs` on both of the product's
 as a local working tree. It also gives the copy flow no clone, which is cause E below.
 
 The size is a ceiling under the container's 2 GiB memory bound, because tmpfs pages count against that
-bound: a fixture tree that outgrows the ceiling fails with `ENOSPC` naming the fixture root, and the
-ceiling is far below the memory bound so the container keeps most of its memory for its processes.
+bound: a fixture tree that outgrows the ceiling fails with `ENOSPC` on the path being written below the
+fixture root, where a tree that instead exhausted the memory bound would end the run with an
+out-of-memory kill. The whole suite's measured run held 994 MiB of process pages at its worst, so the
+bound leaves about 1054 MiB for fixtures; the 768 MiB ceiling is 3.5 times the measured 222 MiB
+fixture peak and 286 MiB below that headroom, so it is the bound a runaway fixture tree meets first.
+The earlier 1500 MiB ceiling, cited from the fixture peak alone, sat above that headroom: the memory
+bound would have ended a run there before the tmpfs answered `ENOSPC`. A caller's smaller `--memory`
+bound moves the memory bound back below the ceiling, which is the caller's own choice of bound.
 The gate's manifest now records the root and the mount options beside the image and the limits, so a
 future failure can read where the tests ran.
 
@@ -544,7 +561,10 @@ The binary control's `Flow` records which kill-list calls the file system decide
 records `ioctl` with `may_clone`, and `require_the_kill_list_is_made` counts only the calls that hold
 for the fixture root the run measures. The `ioctl` sweep says it did not run, and why, on a fixture
 root that does not clone, as the `strace`-less arms already do; on one that does it sweeps up to twelve
-positions of the `ioctl` calls, as every other kill control of that file does.
+positions of the `ioctl` calls, as every other kill control of that file does. It skips only when the
+run states that the absence of a cloning root is known, by the same
+`CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED` the btrfs controls read (the gate image sets it), and fails with
+the fixture root it found otherwise, so no run passes the sweep as coverage it does not have.
 
 ### Five controls that assumed the old fixture root
 
@@ -577,8 +597,20 @@ Two whole suites ran on this host against the branch's tree, each in the gate's 
 
 - The first run, on a tmpfs at `/gate-fixtures`, before the five controls above were fixed:
   `9173 tests run: 9166 passed (5 slow), 7 failed, 28 skipped` in 743 s. Its two failures besides
-  those five are the standing pair below, and its Clippy step exited zero from the mounted locked
-  toolchain (the gate's refusal named only the test run).
+  those five are the standing pair below, and its Clippy step compiled clean from the mounted locked
+  toolchain (the gate's refusal named only the test run). Its output is kept beside the second run's
+  under `scratch/keep/` of `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-fix-2026-11-19/`,
+  read back from the system journal of the two containers it ran (`tender_blackburn`, cgroup
+  `libpod-c731bc55...`, and `great_maxwell`, cgroup `libpod-1418d739...`):
+  `gate-run-1-whole-output-from-the-journal.log` holds the seven failures with their process output,
+  the two `package_repair_prewarm_job` panics among them, and the summary line, and
+  `clippy-run-1-from-the-journal.log` holds the Clippy step's whole stream, which ends with the
+  toolchain's own `Finished` line, 2m 06s after it started, and no warning or error line, the ending a
+  refused Clippy does not have (`clippy-run-2-final-tree.log` ends `error: could not compile` instead).
+  The journal dropped that run's final success-output block after test 1087 of 9173 and every
+  `BTRFS CONTROL NOT RUN` line, the same drops as the second run's log. The gate's own refusal text
+  went to the driver's stdout and survives only in that driver's session record, `run-1/feed.jsonl` of
+  the same folder, which is not kept as evidence here; the two logs above are what the claim rests on.
 - The second run, on the root below `/work`, after the fixture-root, toolchain and five-control changes:
   `9173 tests run: 9171 passed (5 slow), 2 failed, 28 skipped` in 775 s. The two failures are cause H,
   the standing pair: `repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone`
@@ -591,9 +623,11 @@ Two whole suites ran on this host against the branch's tree, each in the gate's 
   while the gate's container ran on, so this run's evidence directory holds no `passed.json`, and its
   output was read back from the journal, which drops some of a burst this size (the btrfs lines and the
   passing controls' lines among them).
-- The suite container's cgroup peaked at 1192 MiB of its 2 GiB bound and the fixture tmpfs at 222 MiB
-  of its 1500 MiB ceiling, with no OOM kill, over 235 samples across the first run's 740 s. That is the
-  whole-suite measurement the tmpfs size cites. The second run's sampler ended with its harness and
+- The suite container's cgroup peaked at 1192 MiB of its 2 GiB bound and the fixture tmpfs at 222 MiB,
+  with no OOM kill, over 235 samples across the first run's 740 s; its process pages, the container's
+  charge minus the fixture bytes in the same sample, peaked at 994 MiB. That is the whole-suite
+  measurement the tmpfs size cites, and the one that showed the 1500 MiB ceiling then shipped to be
+  above the 1054 MiB the bound leaves for fixtures. The second run's sampler ended with its harness and
   still read the first root's path, so its recorded peak of 992 MiB covers only its first 570 s.
 - The first run's gate took 1136 s including a fresh base image (a `pacman` transaction with network)
   and the layered test image; the second reused that base. The investigation's arm of the 185 tests
