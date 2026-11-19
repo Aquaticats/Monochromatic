@@ -39987,6 +39987,15 @@ hallucinated." **For the owner's morning batch (rule `GAP`), a proposed `AGENTS.
 prescribing tool/API behavior in prompts, docs, configs, CI scripts or test fixtures, take it from a real invocation or
 the producer's source, never from how it should work." (Today's text covers prompts, docs, configs and CI scripts, not
 fixtures, which is where this slipped through.)
+Checked at 2026-11-19 after the owner asked who to thank: the strings came in with `5b963acdee` (21:35:51-05:00) in the
+package's first run (`gpt-6.2-sol`, 21:16 to 22:00); that run's feed names the adapter sources twice in all. The
+review's high finding holds from source, read here: an HTTP 429 is thrown before streaming and formatted at
+`@earendil-works/pi-ai` 1.5.2 `dist/api/openai-responses.js:175-177` with `dist/utils/error-body.js:139-145`, which
+prefixes `OpenAI API error (429): ` whenever the error has a status; a policy stop arrives inside an HTTP 200 stream and
+is rethrown as a plain error (line 170), so it has no prefix, matching both real stops on disk. **Correction:** no
+OpenAI 429 is on record here (every recorded 429 is Neuralwatt, Qwen or Synthetic, as `429: {...}` or `429 "..."`), so
+my earlier "what OpenAI actually sends" overstated a source reading; the writer's `429 Too many requests` is close to
+Synthetic's real `429 "Too many concurrent requests"`.
 The coreutils sync change's
 DeepSeek review returned (78 turns, final; 0 high,
 1 medium, 5 low; `~/temp/agent/change-reviews/node-sync-calls-go-through-coreutils-sync-at-e5c61b8af2/review.md`): every
