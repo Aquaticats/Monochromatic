@@ -39982,6 +39982,11 @@ request's (300 s by default, none without `timeoutMs`); lows: bare `possible ris
 first quota read is never retried, local admission failures reported as an invented `HTTP 429`, unreached branches,
 three sibling conventions. All eight accepted; the writer's next run (`pi-provider-answers-its-review-1`, GPT, same
 session) answers them with adapter-built refusal strings. Install into `~/.pi/agent/settings.json` stays for the owner.
+The owner, 2026-11-19, on the invented refusal strings: "'their refusal messages were made up ' - lol. You meant
+hallucinated." **For the owner's morning batch (rule `GAP`), a proposed `AGENTS.md` edit tightening `TAE`:** "Before
+prescribing tool/API behavior in prompts, docs, configs, CI scripts or test fixtures, take it from a real invocation or
+the producer's source, never from how it should work." (Today's text covers prompts, docs, configs and CI scripts, not
+fixtures, which is where this slipped through.)
 The coreutils sync change's
 DeepSeek review returned (78 turns, final; 0 high,
 1 medium, 5 low; `~/temp/agent/change-reviews/node-sync-calls-go-through-coreutils-sync-at-e5c61b8af2/review.md`): every
