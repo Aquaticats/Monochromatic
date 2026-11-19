@@ -18,6 +18,25 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Answered in the question tool, recorded 2026-11-19T16:58:00-05:00
+
+The two choices the LFS audit of the Git wrapper left to the owner (audit report
+`~/temp/agent/lfs-path-of-main-audit-on-sonnet-2026-11-19/report.md`, findings H1 and M4). These go to the LFS fix
+branch `fix/git-policy-cli-lfs-audit-findings-of-2026-11-19` in its next round, and into the wrapper's `SPEC.md`.
+
+- H1, a lowercase token in the path of `lfs.url`: "Hide long words only" (against the ranking, which put hiding the
+  whole path first). The option as asked: path words of 20 or more unbroken lowercase letters print as
+  `<credentials>`; "objects", "info" and repository names stay. Accepted with it: a shorter lowercase token still
+  prints, and a long real folder name is hidden. This settles the open question at `SPEC.md` lines 11928 to 11929.
+- M4, an upload waiting for a person to answer a credential prompt: the owner answered in their own words instead of an
+  option: "Avoid ever asking for someone to type a username or password." So no command the wrapper runs or forwards
+  asks a person for a username or password, with a terminal or without, and a missing credential fails at once with
+  words naming how to supply one. This supersedes, for credential prompts, `SPEC.md`'s "A command the person typed is
+  forwarded with the prompting Git has" and the earlier answer it rests on ("Foreground commands the user types and the
+  wrapper forwards keep Git's normal prompting"), and widens the service's "Never prompt" of 2026-11-07 to every
+  command. Reading adopted, open to veto: an SSH key's passphrase counts as a password; what the OpenSSH setting that
+  stops it also turns off is to be measured and written down.
+
 ## Answered in the question tool, recorded 2026-11-19T16:22:16-05:00
 
 The ZFS proposal after its gate review and the fix round, at `227b2af580` on branch
