@@ -99,9 +99,8 @@ here so a reader never mistakes it for evidence.
 - `503: {"error":{"message":"Request blocked by safety policy","type":"server_error"}}` and
   `503: {"error":{"message":"Upstream says a possible risk applies","type":"server_error"}}`
   (`src/transient-refusal.unit.test.ts` `POLICY_WORDED_503S`): a capacity 503 whose body carries
-  policy wording, measured against the built artifact by the review of the hybrid rebuild. Boundary:
-  the transient status the refusal opens with decides the handoff, so wording inside the body cannot
-  turn it into a stop that ends the request at that member.
+  policy wording. Boundary: the transient status the refusal opens with decides the handoff, so
+  wording inside the body cannot turn it into a stop that ends the request at that member.
 - `523: Error 523: origin is unreachable` and `522: Error 522: connection timed out`
   (`src/transient-refusal.unit.test.ts`, `src/verify-stand-in-member-extension.ts`): the Cloudflare
   origin error headings, which no capture records. Boundary: the status a refusal opens with, so the

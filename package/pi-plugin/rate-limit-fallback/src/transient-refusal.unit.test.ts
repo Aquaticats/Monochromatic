@@ -116,8 +116,7 @@ const TIGHT_QUOTED_LABEL_IN_429 = `429:openai api error (523): upstream unavaila
 
  Made up: the boundary is that the transient status the refusal opens with decides the handoff, so a
  policy label or the `possible risk` phrase inside the body cannot turn a provider's capacity 503
- into a stop that ends the request at that member. The review of the hybrid rebuild measured both
- bodies against the built artifact.
+ into a stop that ends the request at that member.
  */
 const POLICY_WORDED_503S = {
   'a safety-policy label': '503: {"error":{"message":"Request blocked by safety policy","type":"server_error"}}',
