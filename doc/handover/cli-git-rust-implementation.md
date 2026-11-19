@@ -39886,10 +39886,25 @@ What follows from them, as work:
   packages (`7760586f8a`); `rustix` is already at its newest (1.1.6; 0.38.44 is held by `winit` 0.30.13 under
   `slint` 1.19, and `winit` 0.31 is in beta). The package's `lint` task (clippy with `--deny warnings`, then
   `desktop-file-validate`) passes on `7760586f8a`.
-- **GOING**: the ZFS fold-in writer, unit `pi-zfs-proposal-owner-answers-fold-in` (DeepSeek on Neuralwatt, turn cap
-  225 from the longest finished ZFS writer run, 180), in `.claude/worktrees/zfs-worktree-design-proposal-fold-in`;
-  brief and run folder under `~/temp/agent/zfs-proposal-owner-answers-fold-in-2026-11-19/`. Next for it: a DeepSeek
-  short review (Qwen plan first, watched to the end), then a Sonnet gate review before the owner's acceptance.
+- **The ZFS fold-in writer ended `idle`** (unit `pi-zfs-proposal-owner-answers-fold-in`, DeepSeek on Neuralwatt, 139
+  turns, 9 min 23 s, Pi exit 0), in `.claude/worktrees/zfs-worktree-design-proposal-fold-in`; brief and run folder
+  under `~/temp/agent/zfs-proposal-owner-answers-fold-in-2026-11-19/`. Two commits on
+  `docs/planning-cli-git-zfs-worktree-design-proposal`, one file: `055cd5f1bf` (the fold-in) and `53187c9c61` (reattach
+  "decided, still unmeasured"), 605 insertions and 400 deletions over `b5294a7325`. By its report: all eighteen choices
+  sit under a renamed heading `## Project decisions` and the defaults under `### Decided defaults`, with the
+  `#open-project-choices` links repointed (27 sites, none outside the file); unselected alternatives are kept and
+  labelled not selected; the open items sit under `## Open items the decisions leave`; the two VM items under
+  `### Forced removal and deferred origins`. Its stated disagreements: the heading and anchor renames, and three
+  sentences changed as consequences (the linked-source sentence, "the selected source eligibility policy", item 4's
+  "reattach remains open"). Not done by it, being outside its one file: the handover's note and `doc/decision/`.
+- **GOING**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
+  `pi-zfs-proposal-fold-in-short-review-on-the-qwen-plan` (turn cap 540, a quarter above the longest of 672 finished
+  review runs, 431), in its own detached worktree
+  `.claude/worktrees/pi-qwen-review-zfs-proposal-owner-answers-fold-in-at-53187c9c61`; brief, frozen copy of the answer
+  record at `dfe7d53980` and run folder under
+  `~/temp/agent/zfs-proposal-fold-in-short-review-on-the-qwen-plan-2026-11-19/`; watched to its end by the session that
+  started it. A second pass (same vendor as the writer). Then a Sonnet gate
+  review before the owner's acceptance.
 
 ### The Qwen plan's terms fit the Pi runs on it (2026-11-19T11:20:00-05:00)
 
