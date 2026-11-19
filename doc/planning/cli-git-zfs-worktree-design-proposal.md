@@ -1264,6 +1264,10 @@ same guest kernel and OpenZFS release; item 16 records the separate exact-kernel
   absence of all mount references.
 - [Item 16][vm-kernel], recorded: no built-in or locally supplied VM image booted `7.3.5-1-cachyos` with OpenZFS
   `2.4.4`. The remote catalog was not queried; the fixture did not run on the target kernel.
+- [Item 17][vm-17], measured: under item 12's grants the delegated account destroyed two clone-own snapshots in
+  one `ZFS_IOC_DESTROY_SNAPS` request, which returned 0; a name with a dependent clone returned `EEXIST` and
+  neither snapshot was deleted; root's control request returned 0. A user hold, a held or larger set, request
+  limits, the binding and the head destroy that follows remain unmeasured.
 
 ### Open measurements
 
