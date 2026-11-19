@@ -36,9 +36,9 @@ export const gateFixtureRoot: string = `${imagePackageRoot}/${subjectCrate}/targ
 /**
  Size of the tmpfs mounted at {@link gateFixtureRoot}.
 
- Measured 2026-11-19: the whole gate suite peaked at TODO MiB of fixture bytes on this tmpfs (the run recorded in
- `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`), so this ceiling leaves TODO headroom, and the
- suite's own container peaked at TODO MiB of its 2 GiB bound.
+ Measured 2026-11-19: the whole gate suite peaked at 222 MiB of fixture bytes on this tmpfs (the run recorded in
+ `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`), so this ceiling leaves 1278 MiB of headroom,
+ and the suite's own container peaked at 1192 MiB of its 2 GiB bound.
  */
 export const gateFixtureRootSize: string = '1500m';
 

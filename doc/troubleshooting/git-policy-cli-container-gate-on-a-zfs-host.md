@@ -572,7 +572,46 @@ defect:
 
 ### Measured after the changes
 
-TODO-measure: the whole suite, the memory and time peaks, and Clippy.
+Two whole suites ran on this host against the branch's tree, each in the gate's own containers
+(`--memory=2g --cpus=4 --pids-limit=1024`).
+
+- The first run, on a tmpfs at `/gate-fixtures`, before the five controls above were fixed:
+  `9173 tests run: 9166 passed (5 slow), 7 failed, 28 skipped` in 743 s. Its two failures besides
+  those five are the standing pair below, and its Clippy step exited zero from the mounted locked
+  toolchain (the gate's refusal named only the test run).
+- The second run, on the root below `/work`, after the fixture-root, toolchain and five-control changes:
+  `9173 tests run: 9171 passed (5 slow), 2 failed, 28 skipped` in 775 s. The two failures are cause H,
+  the standing pair: `repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone`
+  lists `cli-git-lock-holders` in the `.git` directory it finds and expects it absent, and
+  `service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing` fails with
+  `no scratch directory or record is left: ["cli-git-lock-holders"]`. Both fail on a btrfs host too
+  (cause H above), so no mount change touches them. The 28 skipped are nextest's ignored tests, the
+  same count this investigation's own full run reported; the btrfs controls are not skipped,
+  each prints its line and passes. The harness that ran this suite was stopped by a fault of its own
+  while the gate's container ran on, so this run's evidence directory holds no `passed.json`, and its
+  output was read back from the journal, which drops some of a burst this size (the btrfs lines and the
+  passing controls' lines among them).
+- The suite container's cgroup peaked at 1192 MiB of its 2 GiB bound and the fixture tmpfs at 222 MiB
+  of its 1500 MiB ceiling, with no OOM kill, over 235 samples across the first run's 740 s. That is the
+  whole-suite measurement the tmpfs size cites. The second run's sampler ended with its harness and
+  still read the first root's path, so its recorded peak of 992 MiB covers only its first 570 s.
+- The first run's gate took 1136 s including a fresh base image (a `pacman` transaction with network)
+  and the layered test image; the second reused that base. The investigation's arm of the 185 tests
+  took 41 s against 104 s on the container's own tree; this whole-suite run's 743 s and 775 s are not
+  comparable with the 1053 s the same suite took on the dataset, because that run's tree was also the
+  failing one.
+- Clippy: the first run's gate step exited zero from the mounted locked toolchain (the gate's refusal
+  named only the test run). The second run's step failed on `clippy::shadow_unrelated`, which this gate
+  denies: the two-step assertion the conversion control gained above bound `message` twice in one
+  function. Commit `8d1122a6ae` names the second binding apart, and the same Clippy step over the fixed
+  tree, with the same image, mounted toolchain and flags, then finished with
+  `Finished dev profile [unoptimized] [debuginfo] target(s) in 2m 13s` and no warning or error line
+  (`scratch/clippy-run-2-fixed.log`). The run before the fix failed on that one binding
+  (`scratch/clippy-run-2-final-tree.log`), so the two logs show the step reads this tree.
+- No third gate run was started, as the task set for this fix allows two. The second run's image and
+  the final tree differ in exactly one source file, `src/native/worktree/worktree_convert_safety_tests.rs`
+  (commit `8d1122a6ae`): the SHA-256 of every file under `src` in the image and in the worktree agree
+  otherwise, and that file's only change is one local binding's name.
 
 ### What these changes do not cover
 

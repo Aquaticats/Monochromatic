@@ -6080,7 +6080,8 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   A tmpfs answers all four the way the kernel overlay of the earlier btrfs host did.
   The size is a ceiling under the container's memory bound,
   because tmpfs pages count against that bound;
-  the measured whole-suite run peaked at ... MiB of fixture bytes and ... MiB of the 2 GiB bound.
+  the measured whole-suite run peaked at 222 MiB of fixture bytes and 1192 MiB of the 2 GiB bound
+  (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
 - The controls that need a btrfs filesystem cannot run in the gate container,
   whose fixture root is that tmpfs and never a btrfs filesystem:
   each one prints `BTRFS CONTROL NOT RUN: <control> (<what its fixture root is on>)` and passes there.
@@ -6848,6 +6849,9 @@ because a release waits on that gate and its suite is what the CPUs shorten
   The same four tests at 1024 processes passed all 7,192.
 - The 2 GiB memory bound is the repository default,
   because four tests at once peaked at 978 MiB of it.
+  With the suite's fixture root on a tmpfs, whose pages count against the same bound, a whole suite on a ZFS
+  host peaked at 1192 MiB of it
+  (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
 
 A bound a person passes after the `--` still wins,
 with one exception:
