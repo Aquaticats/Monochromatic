@@ -3,7 +3,13 @@
  @module
  */
 
-import { createAssistantMessageEventStream, lazyStream, } from '@earendil-works/pi-ai';
+import {
+  createAssistantMessageEventStream,
+  lazyStream,
+  type Model,
+  type SimpleStreamOptions,
+} from '@earendil-works/pi-ai';
+import { streamSimple as streamCompletions, } from '@earendil-works/pi-ai/api/openai-completions';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import extension, { PROVIDER_ID, } from '../dist/final/node/index.mjs';
 import {
@@ -12,6 +18,7 @@ import {
   finish,
   fixture,
   immediate,
+  MEMBER_KEY,
   poolModel,
   rateLimitRefusal,
   RATE_LIMIT_STATUS,
@@ -21,6 +28,22 @@ import { labelOf, REVIEWER_TARGETS, WRITER_TARGETS, } from './member-order-fixtu
 
 /** Writer head, the member every request starts at. */
 const [HEAD,] = WRITER_TARGETS;
+
+/**
+ Retry attempts a caller asks for in the provider-retry case, three more than the one the pool should
+ make.
+ */
+const CALLER_RETRIES = 3;
+
+/**
+ Delay cap a caller sets, below the Retry-After the refusal asks for.
+ */
+const CALLER_RETRY_DELAY_CAP_MS = 60_000;
+
+/**
+ Retry-After seconds the refusal names, far above the caller set cap.
+ */
+const REFUSAL_RETRY_AFTER_SECONDS = 3_600;
 
 /**
  The recorded Synthetic refusal in the quoted form, verbatim: the `modelError` of
@@ -46,6 +69,52 @@ const TERMINAL_ERRORS = [
 await describe({
   name: 'ordered provider routing',
   children: [
+    it({
+      name: 'makes one attempt per member even when the caller asks for provider retries',
+      fn: async function noProviderRetry() {
+        /**
+         Fetch attempts the installed Completions adapter made, which must stay at one.
+         */
+        const attempts: string[] = [];
+        const { provider, calls, options, } = await fixture({
+          extension,
+          play({ model, options: member, }) {
+            if (labelOf(model,) !== labelOf(HEAD,))
+              return immediate({ model, },);
+            return streamCompletions(
+              { ...model, api: 'openai-completions', },
+              TRANSCRIPT,
+              {
+                ...member,
+                apiKey: MEMBER_KEY,
+                async fetch() {
+                  attempts.push(labelOf(model,),);
+                  return Response.json(
+                    { message: 'Too many requests', },
+                    {
+                      status: RATE_LIMIT_STATUS,
+                      headers: { 'Retry-After': String(REFUSAL_RETRY_AFTER_SECONDS,), },
+                    },
+                  );
+                },
+              },
+            );
+          },
+        },);
+        const model = poolModel({ provider, id: 'writer', },);
+        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, {
+          ...options,
+          maxRetries: CALLER_RETRIES,
+          maxRetryDelayMs: CALLER_RETRY_DELAY_CAP_MS,
+        },),);
+        expect(attempts,).toEqual([labelOf(HEAD,),],);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual([
+          labelOf(WRITER_TARGETS[0],),
+          labelOf(WRITER_TARGETS[1],),
+        ],);
+        expect(result.stopReason,).toBe('stop',);
+      },
+    },),
     it({
       name: 'moves on from the Responses refusal form under any provider name',
       fn: async function responsesPrefix() {

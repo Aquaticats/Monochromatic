@@ -95,7 +95,9 @@ function memberOptions({
   options?: SimpleStreamOptions;
 },): SimpleStreamOptions {
   /**
-   Separate virtual-provider credentials and member-specific constraints from neutral options.
+   Separate virtual-provider credentials, caller retry policy and member-specific constraints from
+   neutral options. Provider-level retries stay off: one attempt per member keeps the pool the owner
+   of retry and fallback, and the pool itself never sleeps on a refused member.
    */
   const {
     apiKey,
@@ -103,11 +105,13 @@ function memberOptions({
     env,
     maxTokens,
     reasoning,
+    maxRetryDelayMs,
     ...neutral
   } = options ?? {};
   void apiKey;
   void headers;
   void env;
+  void maxRetryDelayMs;
   /**
    Requested reasoning level after applying the physical model's capabilities.
    */
@@ -117,6 +121,7 @@ function memberOptions({
   );
   return {
     ...neutral,
+    maxRetries: 0,
     ...(maxTokens === undefined ? {} : {
       maxTokens: model.maxTokens > 0 ? Math.min(
         maxTokens,
