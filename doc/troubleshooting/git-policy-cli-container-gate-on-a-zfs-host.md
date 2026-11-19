@@ -356,9 +356,10 @@ CLI_GIT_TEST_ROOT=/gate-fixtures`.
 - The `size=1500m` is a ceiling under the container's 2 GiB memory cap; a run that outgrows it fails
   with `ENOSPC` rather than with a mount cause. No run here came near it (peak growth 250 MB). That
   arm's container peaked at 680 MB with about 250 MB of fixtures in it, which leaves roughly 1618 MB of
-  the cap for fixtures. The whole suite's process pages peaked at 994 MB, which leaves only about
-  1054 MB, so the `1500m` this measurement suggested was not reachable in the gate; the branch ships
-  `768m` instead (the section "The gate's fixture root is a tmpfs the container makes").
+  the cap for fixtures. The whole suite's process pages peaked at 994 MiB (the measurement below),
+  which leaves only about 1054 MiB, so the `1500m` this measurement suggested was not reachable in the
+  gate; the branch ships `768m` instead (the section "The gate's fixture root is a tmpfs the container
+  makes").
 
 ### A host tmpfs directory, bind-mounted
 
@@ -519,8 +520,13 @@ out-of-memory kill. The whole suite's measured run held 994 MiB of process pages
 bound leaves about 1054 MiB for fixtures; the 768 MiB ceiling is 3.5 times the measured 222 MiB
 fixture peak and 286 MiB below that headroom, so it is the bound a runaway fixture tree meets first.
 The earlier 1500 MiB ceiling, cited from the fixture peak alone, sat above that headroom: the memory
-bound would have ended a run there before the tmpfs answered `ENOSPC`. A caller's smaller `--memory`
-bound moves the memory bound back below the ceiling, which is the caller's own choice of bound.
+bound would have ended a run there before the tmpfs answered `ENOSPC`. The mechanism was checked in
+the gate image: a 64 MiB tmpfs under a 512 MiB bound took the first 64 MiB of a 96 MiB write and
+answered `No space left on device`, its cgroup reporting `oom_kill 0`, while a 128 MiB tmpfs beside it
+took all 96 MiB (`scratch/tmpfs-size-returns-enospc-probe.log` of
+`~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-review-findings-fixed-2026-11-19/`). A
+caller's smaller `--memory` bound moves the memory bound back below the ceiling, which is the caller's
+own choice of bound.
 The gate's manifest now records the root and the mount options beside the image and the limits, so a
 future failure can read where the tests ran.
 
