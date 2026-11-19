@@ -106,16 +106,17 @@ new crate, clone properties at creation, effective delegation and release-archiv
 Under `zpcachyos/ROOT/cos/home`, put two sibling datasets: `monochromatic-git-checkout`, mounted at
 `/home/user/Monochromatic` (the account's `~/Monochromatic`), and `monochromatic-git-worktree-clone-datasets`,
 an unmounted container with `mountpoint=legacy`, `canmount=off`, `setuid=off` and `devices=off`.
-Each managed clone is an immediate child of the container and mounts at the corresponding account-owned
-`~/Monochromatic/.claude/worktrees/<name>`. There is no intervening filesystem or directory at that slot.
+Each managed clone is an immediate child of the container and mounts directly at the corresponding account-owned
+`~/Monochromatic/.claude/worktrees/<name>`, which is the worktree root.
 Home's sanoid recursion reaches both siblings and the clones; a checkout snapshot includes the slots' underlying
 entries, not the live clone bytes. Each clone needs its own snapshots ([nested-clone research][nested], items 1 and 4).
 
 Clones must inherit `mountpoint=legacy`. The container's `canmount=off` is local; the probe saw `canmount=on` on
 its child. No clone gets an automatic mount or an `fstab` entry. `zfs mount -a` and the systemd ZFS mount generator
-skip legacy datasets; an ordinary clone mountpoint would reopen the early-mount hazard even if only root could
-set it. See [nested-clone research][nested], item 2, and OpenZFS `zfs-2.4.4`,
-`lib/libzfs/libzfs_mount.c:295` to `:297` and `etc/systemd/system-generators/zfs-mount-generator.c:430` to `:432`.
+skip legacy datasets, and `zfs mount <clone>` refuses a legacy mountpoint rather than deriving a path. An ordinary
+clone mountpoint would reopen the early-mount hazard even if only root could set it. See item 2 of the
+[nested-clone research][nested] and OpenZFS `zfs-2.4.4`: `lib/libzfs/libzfs_mount.c:295` to `:297`,
+`etc/systemd/system-generators/zfs-mount-generator.c:430` to `:432` and `cmd/zfs/zfs_main.c:7863` to `:7867`.
 
 ### One-time move and checkout boot protection
 
@@ -212,9 +213,9 @@ stub, not a checkout. `doctor` and wrapper commands that encounter it distinguis
 ABI refusal, mount failure or pending request) from a pending add or removal. Report the slot, dataset and next
 safe action instead of treating absent files as deleted tracked files or offering an ordinary add over them.
 
-A damaged link with surviving admin state can use `git worktree repair` from the main checkout, with the verified
-slot passed explicitly. If Git already pruned the admin entry, repair is not a reconstruction of HEAD, index or lock
-state. Restore verified registration data from backup before repairing links; if there is none, report what is lost
+A damaged link with surviving admin state can use `git worktree repair <verified-slot>` from the main checkout.
+If Git already pruned the admin entry, repair does not reconstruct HEAD, index or lock state. Restore verified
+registration data from backup before repairing links; if there is none, report what is lost
 and require an explicit recovery or discard, never guessing from a branch or path. A removal whose recorded clone
 and origin are already gone can settle a missing registration only after proving there is no replacement.
 
@@ -271,9 +272,11 @@ that the account can change", "The mount must check the target folder's recorded
 incomplete". In this design root records identities, not ownership of the account's folders. At setup root records
 the identity of `.claude/worktrees`. For each new slot root observes and records the verified account-created
 underlay before attach; it must match the claimed registration slot and hold only the expected Git pointer.
-Record and recheck device, inode, UID, permissions and access/default ACLs from the opened folders. Keep records
-under root control in `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities`. Never refresh an
-existing slot identity just because a new inode or permissions appeared at the expected path.
+Treat the Git claim and pointer as untrusted; check only a bounded, regular, no-follow pointer file and never
+resolve a path from its contents as root. Record and recheck device, inode, UID, permissions and access/default
+ACLs from opened folders. Keep records in `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities`
+under root control. Never refresh a slot identity just because a new inode or permissions appeared there. The
+handler uses the verified slot descriptors for mount management, not privileged writes into the account's tree.
 
 Use the research's descriptor-relative `openat2` constraints, `fsmount` with enforced `nosuid,nodev`, and
 `move_mount` onto the opened target. Report the failing component or mismatched identity field. After attach, prove
@@ -396,8 +399,8 @@ checkout or built clone route ([pnpm study][pnpm], "Where pnpm writes" and "Offl
 - A clone inherits relative store links at the source's depth. Keep the wrapper's
   `pnpm install --offline --frozen-lockfile` repair when a lockfile and real `node_modules` are present, queued
   when the service answers and inline otherwise. Skip the separate ignored-file copy only after successful clone
-  fill. Raw clone symlinks were not rebased by the ignored-copy path. The ordinary path still stages and publishes ignored files using its
-  existing reflink, hard-link and explicit copy fallbacks. A clone source or mounted destination can separate
+  fill. Raw clone symlinks were not rebased. The ordinary path still stages and publishes ignored files using
+  its existing reflink, hard-link and explicit copy fallbacks. A clone source or mounted destination can separate
   source, stage and destination. Rebased links alone do not repair a path-specific global-store graph.
 - Cargo intermediate output already lives under `~/.cargo/build` on a different dataset, keyed by workspace path.
   Keep external-slot prewarm and workspace-member cleanup; inherited `target/` does not prove those artifacts safe
@@ -471,7 +474,9 @@ Each living clone pins its checkout origin, retaining blocks changed in the chec
 and report the exact origin and measured retention where available. Checkout snapshots contain only underlays,
 including reflink/Git worktree data when those slots are ordinary directories; they do not contain live clone
 contents. Clone snapshots can capture an unfinished add or removal and are deliberately lost when that clone is
-removed. Neither hourly snapshots nor a mounted path imply a usable registration.
+removed. Neither hourly snapshots nor a mounted path imply a usable registration. Checkout and clone snapshots
+capture pnpm symlink texts, not their external targets. Restore needs compatible home-store contents; an offline
+repair cannot fetch missing packages.
 
 `zfs-space-guard` currently prunes only `<dataset>@autosnap_*` of its configured dataset (default
 `zpcachyos/ROOT/cos/home`, `/usr/local/sbin/zfs-space-guard:7` and `:44`). That cannot prune descendant hourlies or
