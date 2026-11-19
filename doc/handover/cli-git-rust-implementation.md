@@ -201,7 +201,13 @@ Not final and not approved: this session's own account.
   (a user namespace attaching the clone, `FS_USERNS_MOUNT`) stay open. H2's dataset and path are the owner's answer A,
   its pnpm consequence is measured; still owed are the checkout dataset's own boot mount (an entry the account can
   replace while unmounted: `chattr +i` or `mountpoint=legacy` with the descriptor attach) and a rule for nested
-  datasets such as `zpcachyos/nosnap/vm-builder-output` under the checkout. The owner then added `AGENTS.md` rule `WTU` (d507a55f0e) and
+  datasets such as `zpcachyos/nosnap/vm-builder-output` under the checkout. Corrections of 2026-11-18 from the Sonnet
+  gate review of the proposal (`~/temp/agent/zfs-worktree-design-proposal-gate-review-2026-11-18/review.md`, check B):
+  item 7's sequence never ran end to end (the probe snapshotted before registering and mounted with `mount -t zfs`;
+  dated note in the clones document); gate 5's setuid half is open too (only a device open was refused); the review's
+  H1 sentence about detecting a renamed slot after attach is answered by the clones document (the attach reached the
+  old inode), its H2 point 4 is wrong (`vm-builder-output` sits under `zpcachyos/nosnap`, nested by path only), and its
+  H2 point 5 is wrong for `virtualStoreType: global` (zero payload bytes in the checkout). The owner then added `AGENTS.md` rule `WTU` (d507a55f0e) and
   the wrapper refusal for later (issue 6313), and asked for three digs, all GPT 6.2 Sol through Pi, **going since
   2026-11-18T19:46:28-05:00, 19:47:23 and 19:47:48 in this order**: the search for an earlier `AGENTS.md` worktree-place rule (unit
   `pi-agents-md-worktree-place-rule-search-1`, read-only in the main checkout, report
