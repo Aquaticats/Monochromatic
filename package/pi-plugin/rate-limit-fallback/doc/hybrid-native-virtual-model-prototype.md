@@ -319,11 +319,10 @@ All five tasks were run after the last edit to the package's code, from this wor
   timed out" does not end the turn, because Pi's retry classifier matches `timed? out`
   (`@earendil-works/pi-ai` `dist/utils/retry.js:76`, case-insensitive; `isRetryableAssistantError` at
   line 208 tries the non-retryable limit list first). One prompt on the branch's
-  `refuses-cloudflare-522` stand-in member
-  made nine requests to that member and then failed: eight `auto_retry_start` events,
-  `auto_retry_end` with `success: false` and `attempt: 8`, then `agent_settled`. Capture:
-  `item5-hybrid-522-refusal-branch/`; its `package-decision-log.jsonl` records nine
-  `dispatching to hybrid-probe-member/refuses-cloudflare-522` lines. The earlier
+  `refuses-cloudflare-522` stand-in member made nine requests to that member and then failed: eight
+  `auto_retry_start` events, `auto_retry_end` with `success: false` and `attempt: 8`, then
+  `agent_settled`. Capture: `item5-hybrid-522-refusal-branch/`; its `package-decision-log.jsonl`
+  records nine `dispatching to hybrid-probe-member/refuses-cloudflare-522` lines. The earlier
   `item5-hybrid-522-refusal/` capture came from a local member definition that never landed on the
   branch, and its body left out the page's own "Error 522:" prefix; this run uses the branch's member
   and the heading verbatim. 523 matches no retry pattern and ends the turn after one attempt.
