@@ -657,13 +657,21 @@ a test asserts that the encoded request has no `defer` key.
       origin snapshot `createtxg` values against the live ones as well.
     - Independent check: inventory all clone snapshots and bookmarks by kind, name, GUID, owning dataset GUID
       and `createtxg`. Require each snapshot's `createtxg` to be strictly greater than the clone's own. Include
-      manual and sanoid snapshots. Pass a bookmark only when the recorded clone-side inventory holds its name,
-      GUID and `createtxg` and no origin-side tuple matches it. Refuse destruction when a bookmark is unrecorded,
-      when its tuple matches the origin-side inventory, or when the bookmark list could not be read completely, and
-      name each refused bookmark; this rule is proposed, not a measured sufficiency proof. OpenZFS destroys a
-      dataset's bookmark entries with the head
-      (`module/zfs/dsl_destroy.c:1123` to `:1154`, `zfs-2.4.4`), so an unaccounted bookmark goes with it. Treat a
-      bookmark's transaction group as evidence about the history it points to, not proof of when it was made.
+      manual and sanoid snapshots. A bookmark carries the GUID and birth transaction group of the snapshot it was
+      made from, not its own (`module/zfs/dsl_bookmark.c:352` to `:353` copies them from the snapshot and `:719`
+      to `:728` reports them as the bookmark's `guid` and `createtxg`, OpenZFS `zfs-2.4.4`; [VM item 13][vm-13]
+      saw the tuple unchanged after a move). Pass a bookmark therefore when its GUID and `createtxg` equal those of
+      a live clone snapshot that passes the snapshot rule above, and no origin-side tuple matches it. This asks for
+      no recorded bookmark: the recorded clone-side inventory is written once at add and the third check forbids
+      updating it, so the earlier rule, which required the bookmark's own recorded tuple, would have refused the
+      removal of any clone that someone had bookmarked. Refuse destruction when a bookmark's snapshot is no longer
+      live on the clone, when its tuple matches the origin-side inventory, or when the bookmark list could not be
+      read completely, and name each refused bookmark; this pass rule is proposed, not a measured sufficiency
+      proof. Dataset GUIDs are random (`module/zfs/dsl_dataset.c:1203` to `:1204`, `zfs-2.4.4`), so the matching
+      pair identifies the bookmarked snapshot of this clone in practice, not against a 64-bit collision. A
+      bookmark's transaction group is the bookmarked snapshot's birth group, so it says nothing about when the
+      bookmark itself was made. OpenZFS destroys a dataset's bookmark entries with the head
+      (`module/zfs/dsl_destroy.c:1123` to `:1154`, `zfs-2.4.4`), so an unaccounted bookmark goes with it.
     - Third check: compare the live clone inventory against the recorded origin-side GUID inventory, including
       snapshots and bookmarks. Any origin-side hit or unproved provenance refuses destruction. Never update the
       recorded lineage to match an external change.
