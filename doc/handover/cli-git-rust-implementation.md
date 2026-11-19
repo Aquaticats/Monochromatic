@@ -39935,7 +39935,16 @@ What follows from them, as work:
   deferred-mark check before the first delete too" go to the owner at acceptance as questions. By the loop-ending rule
   of the ZFS fold-ins (one narrow round, then the coordinator's `rg` check, no further review), GOING: the fix run
   `pi-zfs-proposal-gate-review-findings-fixed` (DeepSeek on Neuralwatt, cap 635) in the fold-in worktree; folder
-  `~/temp/agent/zfs-proposal-gate-review-findings-fixed-2026-11-19/`. Then the `rg` check and the owner's acceptance.
+  `~/temp/agent/zfs-proposal-gate-review-findings-fixed-2026-11-19/`. It ended `idle` (80 turns) at `227b2af580`
+  (`b5af08eb67`, `a8e275882a`, `84cd2f1f9d`, `227b2af580`; only the proposal changed): every finding answered with a
+  sentence or an open item and no decision changed. Its judgement calls, each marked as the document's reading: an
+  incomplete holder scan does not by itself refuse; which processes a `--force` removal never ends (the caller, its
+  session) is recorded as an open question rather than an exemption the record lacks; the staging test separates a
+  completed from an interrupted removal. The coordinator's `rg` check, the loop's last step, passed (script
+  `check-the-gate-findings-at-227b2af580.ts` in that folder, with a positive control at `4a451701c9`; the one miss,
+  "stops at any mount", is the same words across a line break at 1661 to 1662). NEXT: the owner's acceptance through
+  the question tool, with the review's two owner questions (F4 whether an explicit cancel command stays; F8 whether the
+  deferred-mark check also runs before the first snapshot delete) and the never-end set.
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
   `pi-zfs-proposal-fold-in-short-review-on-the-qwen-plan` (turn cap 540, a quarter above the longest of 672 finished
   review runs, 431), in its own detached worktree
@@ -39948,11 +39957,26 @@ What follows from them, as work:
   `package/pi-plugin/rate-limit-fallback` joined `packages` in `~/.pi/agent/settings.json`, and its summary shows one
   start attempt, no dialogs, no retries and 139 turns. It ran on Neuralwatt by name, so the package's own models are
   not yet exercised by a real run; the hybrid prototype (task 388) is that test.
-- **GOING**: the Sonnet audit of the LFS path of today's `main` (the owner's "Sonnet, current code" of 2026-11-16, in
-  the entry of that day), a background Claude Code subagent on Sonnet in the detached worktree
-  `.claude/worktrees/sonnet-audit-lfs-path-of-main-at-a4c0436ed1`; brief, reproductions and report under
-  `~/temp/agent/lfs-path-of-main-audit-on-sonnet-2026-11-19/`. Scope: `src/native/lfs/` and its callers, held to the
-  LFS passages of the wrapper's `SPEC.md`.
+- **Ended**: the Sonnet audit of the LFS path of `main` (the owner's "Sonnet, current code" of 2026-11-16) at
+  `a4c0436ed1`; the harness refused its report write, so the coordinator saved its returned text as `report.md` under
+  `~/temp/agent/lfs-path-of-main-audit-on-sonnet-2026-11-19/` (reproductions there, about 86 MB). **No package test
+  could run: `cargo-nextest` is installed nowhere on this host** (`native:test:host` and `native:test:binary:host` fail
+  with `error: no such command: nextest`), so every finding rests on its own reproductions against a debug build.
+  High: H1 a token of lowercase letters in the path of `lfs.url` is printed and journaled (`lfs_output_mask.rs:186`;
+  `SPEC.md` 11928 to 11929 leave whether to hide the whole path to the owner); H2 the upload's standard error is cut
+  at 4 MiB before masking, so a URL on the cut keeps the front of its password, and the typed face says nothing of the
+  cut. Medium: M1 a found `git-lfs` that cannot start is called "not found"; M2 the auto-push face reports a signal
+  death as status 1; M3 with no terminal OpenSSH still asks `SSH_ASKPASS` for an `ssh://` endpoint, against the
+  owner's "Never prompt"; M4 an upload waiting for a person's answer at a credential prompt is stopped by the quiet
+  window; M5 a connected stop of an upload names no server (`git-lfs remote get-url` does not exist); M6 `git lfs
+  install` in a repository ends with status 2 and advice that cannot work. Low: four wording slips and test gaps.
+  Properties that held: hanging servers stopped on both faces with no child left; six no-terminal HTTP variants asked
+  nothing; 65 spellings of `git push` and ten history shapes reached the store first. Weighed as all worth fixing;
+  H1 and M4 wait for the owner. GOING: the fix writer `pi-git-policy-cli-lfs-audit-findings-fixed` (DeepSeek on
+  Neuralwatt, cap 635, wall 240 min) in `.claude/worktrees/pi-git-policy-cli-lfs-audit-findings-fixed` on
+  `fix/git-policy-cli-lfs-audit-findings-of-2026-11-19` from `main` (the audit worktree swapped for it), all but H1 and
+  M4, a failing-first test per finding, proof by the audit's reproductions, one container gate run; brief under
+  `~/temp/agent/git-policy-cli-lfs-audit-findings-fixed-2026-11-19/`.
 - **GOING**: the hybrid provider prototype (the owner's "Hybrid, prototype first"), unit
   `pi-rate-limit-fallback-hybrid-prototype` (DeepSeek on Neuralwatt, turn cap 380, a quarter above the longest
   finished run on this package, 301; wall 300 minutes, the longest took 260), in
@@ -39987,10 +40011,12 @@ What follows from them, as work:
   or handover as a capture, wider than `TAE`; the file's top doc says all its texts are recorded). All weighed as worth
   fixing. The fix run ended `idle` (85 turns) at `d2f3a23b7d` (`c96f5a000a`, `d2f3a23b7d`; four files, the source
   file's change doc comments only: "a gateway may write a word in front of it" became a citation of Pi's composer,
-  `error-body.js:139-146`). GOING: its delta review on the Qwen plan,
-  `pi-driver-model-error-fixtures-delta-review-on-the-qwen-plan`, in the detached worktree
-  `.claude/worktrees/pi-qwen-review-driver-model-error-fixtures-at-d2f3a23b7d`; folder
-  `~/temp/agent/driver-model-error-fixtures-delta-review-on-the-qwen-plan-2026-11-19/`. Then the merge.
+  `error-body.js:139-146`). Its delta review on the Qwen plan (50 turns) found it fit to merge, all six checks passing,
+  with three lows (one citation four lines high; six comments pointing with "above"; the two invented provider bodies
+  surviving in `record-of-pi-run.unit.test.ts`). The lows writer (30 turns) answered all three in `92c684667a` and
+  `34f3b647ad`, the record test's two texts now the captured `modelError` of two named runs (the coordinator checked
+  both against their `summary.json`: 34 and 212 characters, equal). **In `main`** by `git merge --no-ff` of
+  `34f3b647ad`; the wrapper handed the review worktree's removal to the commit service.
 - **A defect both runs met:** in a fresh worktree `mise run //package/pi-shared/subagent-driver:lint:types` fails on
   files the change did not touch until `mise run //package/pi-shared/subagent-driver:build` runs, because the unit
   tests import `../dist/final/node/index.mjs` and the worktree's `dist` is the main checkout's copied ignored build,
@@ -40011,7 +40037,16 @@ What follows from them, as work:
   `pi-rate-limit-fallback-hybrid-prototype-short-review-on-the-qwen-plan` in
   `.claude/worktrees/pi-qwen-review-rate-limit-fallback-hybrid-prototype-at-7328d0ca9d`, rerunning each verdict on
   stand-in members; folder `~/temp/agent/rate-limit-fallback-hybrid-prototype-short-review-on-the-qwen-plan-2026-11-19/`.
-  Then the rebuild (points 1 to 3 and 5, the hybrid wiring, the 22 uncaptured fixtures) if the verdicts hold. The driver pool table (task 383)
+  It ended `idle` (170 turns): **every verdict holds**; item 2 holds on a control that differs only in the selection
+  once both arms share a working folder (the cited arms differed by the folder's path, four characters per request).
+  Four medium: the page quotes the control arm's number for the hybrid; item 3's "Pi calls it retryable" is false
+  (`retry.js:18` lists `billing` as non-retryable), though its verdict holds on the package's log; the shipped
+  `src/dispatch-request.ts` now fails `lint:oxlint` (`max-lines` 302 of 300) while the page says it passes; the item 2
+  paragraph on kept captures does not match them. Five low. GOING: the fix writer
+  `pi-rate-limit-fallback-hybrid-prototype-review-findings-fixed` (DeepSeek on Neuralwatt, cap 635) in the same
+  worktree, switched to the prototype branch; brief under
+  `~/temp/agent/rate-limit-fallback-hybrid-prototype-review-findings-fixed-2026-11-19/`. Then the rebuild (points 1 to 3
+  and 5, the hybrid wiring, the 22 uncaptured fixtures). The driver pool table (task 383)
   waits on more than a slot: it changes `pool-limits.ts`, as the unmerged `ecec388cdb` does (13 files; its review
   queued 2026-11-16 and never started), and the entry of 2026-11-16 on the second timing of the two pools puts
   follow-ups to that file on top of `ecec388cdb` once it is reviewed and in `main`; that review waits with the queue.
