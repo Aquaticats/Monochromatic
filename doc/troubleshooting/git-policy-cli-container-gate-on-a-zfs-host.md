@@ -482,9 +482,16 @@ nothing on the ZFS dataset, nothing in podman's storage, and nothing in the inst
 spreads them into the suite's `podman run` on every host:
 
 ```text
---tmpfs /gate-fixtures:rw,size=1500m,mode=1777
---env CLI_GIT_TEST_ROOT=/gate-fixtures
+--tmpfs /work/package/git-policy/cli/target/gate-fixtures:rw,size=1500m,mode=1777
+--env CLI_GIT_TEST_ROOT=/work/package/git-policy/cli/target/gate-fixtures
 ```
+
+The root is a child of the image's `/work` tree rather than the `/gate-fixtures` this investigation
+measured with, because a fixture crate that runs Cargo takes the configuration of the directories above
+it, and the image's vendored-source mapping is `/work/.cargo/config.toml`. The root it replaces
+(`target/tmp` and `target/test-fixtures`) was below `/work` too. The first full run with
+`/gate-fixtures` failed two `package_repair_prewarm_job` controls whose fixture workspaces build
+offline with `serde = "1"`, for want of that mapping; the root below `/work` keeps their ancestry.
 
 `CLI_GIT_TEST_ROOT` is the variable both faces of the suite already read
 (`FIXTURE_ROOT_VARIABLE` in `src/native/testing/test_support.rs` and in
@@ -496,8 +503,9 @@ as a local working tree. It also gives the copy flow no clone, which is cause E 
 
 The size is a ceiling under the container's 2 GiB memory bound, because tmpfs pages count against that
 bound: a fixture tree that outgrows the ceiling fails with `ENOSPC` naming the fixture root, and the
-ceiling is far below the memory bound so the container keeps most of its memory for its processes. The gate's manifest now records the root and the mount options beside the image and
-the limits, so a future failure can read where the tests ran.
+ceiling is far below the memory bound so the container keeps most of its memory for its processes.
+The gate's manifest now records the root and the mount options beside the image and the limits, so a
+future failure can read where the tests ran.
 
 ### Clippy mounts the repository's locked toolchain
 
@@ -538,6 +546,43 @@ for the fixture root the run measures. The `ioctl` sweep says it did not run, an
 root that does not clone, as the `strace`-less arms already do; on one that does it sweeps up to twelve
 positions of the `ioctl` calls, as every other kill control of that file does.
 
+### Five controls that assumed the old fixture root
+
+The first full run on the tmpfs root (with `/gate-fixtures`) failed five controls that the overlay had
+let pass. Each failed for its own reason, and each was a dependency on the root rather than a product
+defect:
+
+- `conflict::discarded_prune::guard_tests::a_removal_that_fails_part_way_is_reported_and_audited_as_partial`
+  read the audit line's file names in the order the removal walk made them and compared them with a
+  sorted list. tmpfs lists a directory in another order, so the control now sorts both sides: what it
+  holds is that the line names the files that went and no other.
+- `repair::package_repair_prewarm_job::tests::the_filling_puts_the_lock_back_as_checked_out` and
+  `the_filling_publishes_a_clean_copy_and_leaves_the_source_alone` build a fixture workspace offline
+  with `serde = "1"` and resolved it from the image's `/work/.cargo/config.toml`, which a root outside
+  `/work` does not reach. The root below `/work` keeps that ancestry, and the controls are unchanged.
+- `worktree::worktree_add_binding::tests::a_relative_pointer_without_links_is_bound` climbed a fixed
+  seven levels with `..` and expected to land on the file system root. `/gate-fixtures` is shallower
+  than the old root, so the climb left the root and the pointer was refused. The climb is now derived
+  from the destination's own depth, and the refused one climbs past it by one.
+- `worktree::worktree_convert::safety_tests::a_difference_keeps_the_old_tree_and_nothing_is_copied`
+  expected the contents difference to be the one reported, but the comparison reports the first
+  difference its walk meets, and tmpfs meets the file only the old tree holds first. The control now
+  checks the promise (old tree kept, installed edit untouched, nothing copied), settles that file, and
+  asks again, so the contents difference itself is the one named.
+
 ### Measured after the changes
 
 TODO-measure: the whole suite, the memory and time peaks, and Clippy.
+
+### What these changes do not cover
+
+- The two standing failures (cause H) still fail, and no mount change touches them.
+- The cloning arm of cause E was not exercised here: this host has no btrfs and no overlay mount, so
+  the runs above printed that the `ioctl` sweep did not run. The list control still requires every
+  listed call on a cloning root, and `may_clone` is the product's own answer to which file systems
+  those are; a btrfs host is where the sweep itself runs again.
+- The mutation runner copies its work tree onto a tmpfs of its own
+  (`package/mutation-test/cli/src/host/podman.ts`), so its tests already met a tmpfs fixture root. That
+  root shares no data blocks between files either, which is the arm the `ioctl` control now skips; the
+  gate and a campaign therefore agree about the fixture file system, which a gate pass reused as a
+  campaign baseline now relies on.

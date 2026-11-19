@@ -6060,9 +6060,14 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
 - `native:test:host` runs the unit tests and `native:test:binary:host` runs the tests that start the built executable,
   both against the host's Git while iterating.
 - The gate's tests keep their fixtures on a tmpfs the test container makes:
-  `--tmpfs /gate-fixtures:rw,size=1500m,mode=1777` and `--env CLI_GIT_TEST_ROOT=/gate-fixtures`
+  `--tmpfs /work/package/git-policy/cli/target/gate-fixtures:rw,size=1500m,mode=1777` and
+  `--env CLI_GIT_TEST_ROOT=/work/package/git-policy/cli/target/gate-fixtures`
   (`bin/native-gate-fixture-root.ts`),
   `CLI_GIT_TEST_ROOT` being the variable both faces of the suite already read to move their fixture root.
+  The root stays below the image's `/work` tree, where the root it replaces was,
+  because a fixture crate that runs Cargo reads the vendored-source mapping in `/work/.cargo/config.toml`
+  from its ancestors;
+  two `package_repair_prewarm_job` controls build a fixture workspace offline and need that mapping.
   Without it the fixtures inherit the container root's file system,
   which on a rootless podman whose storage sits on a ZFS dataset is a user-space
   `fuse.fuse-overlayfs` mount over that dataset:
