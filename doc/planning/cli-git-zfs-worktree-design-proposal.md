@@ -600,7 +600,7 @@ unrestricted caller from attaching the clone after the scan (reasoning from [ite
 measured interleaving). Every described setup therefore takes the refusing arm, and none of them reaches the
 project's decided removal, "B: Destroy at once" ([project decision][answers], lines 491 to 494). This draft proposes
 no mechanism that would show the exclusion. Removal therefore refuses before the first snapshot
-delete when a selected deployment cannot show that exclusion, and a deployment that can show it still accepts a
+delete when the selected deployment cannot show that exclusion, and a deployment that can show it still accepts a
 residual: a clean scan that misses a later copy leaves snapshots gone with the head still busy, the resume state
 [Removal and recovery](#removal-and-recovery) names. That loses no history the project chose to keep, since
 "B: Destroy at once" already declines to retain a removed worktree's own snapshots; this draft accepts the race, not
