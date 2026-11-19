@@ -24,6 +24,11 @@ const SECOND_MS = 1_000;
 
 /**
  Alibaba Cloud's suggested pause for a request-rate error, not a quota cap.
+
+ Quoted from the Token Plan FAQ, section "Rate limiting and concurrency":
+ "A 429 Requests rate limit exceeded response indicates rate limiting, not quota exhaustion" and
+ "Wait about 1 minute before retrying"
+ (https://www.alibabacloud.com/help/en/model-studio/token-plan-faq).
  */
 const QWEN_REQUEST_RATE_WAIT_MS = 60_000;
 
@@ -44,6 +49,10 @@ const OPENAI_POLICY_OPENING = 'this content was flagged for possible ';
 
 /**
  Policy labels that accept a single space, underscore, or hyphen as the separator.
+
+ Stand-ins with no producer: neither an installed adapter nor any recorded provider message on this
+ machine emits them. They stay as a conservative name for a content-stop refusal; the move on before
+ output is gated on OpenAI's opening alone.
  */
 const POLICY_LABELS = [
   'content filter',
@@ -481,6 +490,10 @@ export function headerReset({
 
 /**
  Apply Qwen's documented request-rate recommendation only if no response reset was available.
+
+ The wording is documented, not captured: no recorded `modelError` on this machine carries it, and no
+ installed source builds it, so a change in Qwen's wording silently disables this rule. The rationale
+ is the Token Plan FAQ sentence quoted above `QWEN_REQUEST_RATE_WAIT_MS`.
 
  @param provider - provider that refused
 

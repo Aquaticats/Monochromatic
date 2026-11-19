@@ -318,6 +318,8 @@ await describe({
       fn: async function riskMentionInRateLimit() {
         /**
          Completions refusal that names risk without OpenAI's opening.
+         Hand-written stand-in: no capture on record pairs this wording with a 429, and it exists to
+         prove that a risk mention inside a rate limit stays a rate limit.
          */
         const message = 'Too many requests while we assess possible risk';
         const { provider, calls, options, } = await fixture({

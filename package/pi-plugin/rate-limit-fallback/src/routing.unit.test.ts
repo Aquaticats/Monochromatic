@@ -22,11 +22,18 @@ import { REVIEWER_TARGETS, WRITER_TARGETS, } from './member-order-fixture.ts';
 /** Writer head, the member every request starts at. */
 const [HEAD,] = WRITER_TARGETS;
 
-/** Other non-capacity failures are returned unchanged. */
+/**
+ Other non-capacity failures are returned unchanged.
+
+ The last entry is a hand-written number that merely begins with `429`: another package's tests hold
+ the same shape (`package/pi-shared/subagent-driver/src/retries-of-a-model-error.unit.test.ts`),
+ and a digit after the status token means the text is not a refusal.
+ */
 const TERMINAL_ERRORS = [
   '401 Unauthorized: contact support with request 429',
   'Request timed out',
   '400 Context window exceeded',
+  '4290 tokens exceeded the window',
 ] as const;
 
 await describe({

@@ -21,6 +21,13 @@ import {
 } from './stand-in-pi-fixture.ts';
 import { REVIEWER_TARGETS, WRITER_TARGETS, } from './member-order-fixture.ts';
 
+/**
+ The recorded NeuralWatt overage refusal, verbatim: the `modelError` of
+ `${HOME}/temp/agent/pi-runs/worktree-remove-does-not-wait-on-a-read-only-git-2/summary.json`,
+ 795 characters including the adapter's own `429: ` prefix.
+ */
+const OVERAGE_REFUSAL: string = `429: {"type":"rate_limit_error","code":"concurrent_budget_exceeded","message":"Concurrent limit reached for deepseek-ai/DeepSeek-V4.1-Flash: 6/6 slots in use. Wait for a request to complete and retry. Your subscription is in overage with auto-renew off, so pay-as-you-go limits apply until it renews. Turn auto-renew back on to restore your account level's limits: https://docs.neuralwatt.com/billing/account-levels#overage-with-auto-renew-off","retry_strategy":{"type":"concurrent_drain","suggested_initial_delay_s":1,"max_delay_s":30,"backoff":"exponential","backoff_base":2,"jitter":true},"retryable":true,"context":{"budget":6,"in_flight":6,"model":"deepseek-ai/DeepSeek-V4.1-Flash","limit_type":"concurrent","tpm_window_tokens":0,"tpm_limit":5242880,"floor":5,"burst":6,"burst_shed":false}}`;
+
 /** Empty flex lane; a positive standard ceiling must not let it admit any requests. */
 const NO_FLEX_REQUESTS = 0;
 
@@ -30,8 +37,13 @@ const WINDOW_MS = 60_000;
 /** Header reset duration in seconds, matching the fixture clock window. */
 const WINDOW_SECONDS = WINDOW_MS / 1_000;
 
-/** Known advisory and observed caps recorded on 2026-11-11. */
+/**
+ Stand-in published flex ceiling for the NeuralWatt member; the real value is read from `/v1/rate_limits`
+ in production, and 20 is chosen only to sit above the recorded overage cap.
+ */
 const PUBLISHED_CAP = 20;
+
+/** Concurrent slots the recorded overage refusal reports, `6/6 slots in use`. */
 const OVERAGE_CAP = 6;
 
 /**
@@ -55,6 +67,44 @@ function quotaUrl(input: Parameters<typeof globalThis.fetch>[0],): string {
   if (input instanceof URL)
     return input.href;
   return input.url;
+}
+
+/**
+ Stand-in body for `GET /v1/rate_limits?model=…`, using the field names that endpoint documents:
+ `models[].flex_floor` and `models[].effective_concurrency`
+ (https://docs.neuralwatt.com/guides/rate-limits.md, "Checking your current limit").
+ */
+function rateLimitsReading({
+  flex,
+  effective = PUBLISHED_CAP,
+}: {
+  readonly flex: number;
+  readonly effective?: number;
+},): Response {
+  return Response.json({ models: [{ effective_concurrency: effective, flex_floor: flex, },], },);
+}
+
+/**
+ Stand-in body for `GET /v1/quota`, using the field names that endpoint documents:
+ `subscription.in_overage`, `subscription.auto_renew` and `subscription.current_period_end`
+ (https://docs.neuralwatt.com/api/quota).
+ */
+function quotaReading({
+  inOverage,
+  autoRenew = false,
+  periodEnd,
+}: {
+  readonly inOverage: boolean;
+  readonly autoRenew?: boolean;
+  readonly periodEnd?: number;
+},): Response {
+  return Response.json({
+    subscription: {
+      in_overage: inOverage,
+      auto_renew: autoRenew,
+      ...(periodEnd === undefined ? {} : { current_period_end: new Date(periodEnd,).toISOString(), }),
+    },
+  },);
 }
 
 await describe({
@@ -192,7 +242,7 @@ await describe({
             if (init?.redirect !== undefined)
               redirects.push(init.redirect,);
             return quotaUrl(input,).includes('/v1/rate_limits',)
-              ? Response.json({ models: [{ effective_concurrency: PUBLISHED_CAP, flex_floor: NO_FLEX_REQUESTS, },], },)
+              ? rateLimitsReading({ flex: NO_FLEX_REQUESTS, },)
               : Response.json({});
           },
         },);
@@ -222,7 +272,7 @@ await describe({
           },
           async fetchQuota(input,) {
             return quotaUrl(input,).includes('/v1/rate_limits',)
-              ? Response.json({ models: [{ effective_concurrency: PUBLISHED_CAP, flex_floor: reading.flex, },], },)
+              ? rateLimitsReading({ flex: reading.flex, },)
               : Response.json({});
           },
         },);
@@ -261,15 +311,8 @@ await describe({
           extension,
           models: [NEURALWATT_FLEX,],
           play({ model, }) {
-            if (calls.length === 1) {
-              return immediate({
-                model,
-                errorMessage: rateLimitRefusal({
-                  model,
-                  message: `Concurrent limit reached for deepseek-ai/DeepSeek-V4.1-Flash: ${OVERAGE_CAP}/${OVERAGE_CAP} slots in use. Your subscription is in overage with auto-renew off, so pay-as-you-go limits apply until it renews.`,
-                },),
-              },);
-            }
+            if (calls.length === 1)
+              return immediate({ model, errorMessage: OVERAGE_REFUSAL, },);
             if (clock.now >= end)
               return immediate({ model, },);
             const stream = createAssistantMessageEventStream();
@@ -287,14 +330,11 @@ await describe({
             if (url.pathname === '/v1/rate_limits') {
               if (url.searchParams.get('model',) !== 'deepseek-v4.1-flash-flex')
                 throw new Error('The quota query did not name the flex model',);
-              return Response.json({ models: [{ effective_concurrency: PUBLISHED_CAP, flex_floor: PUBLISHED_CAP, },], },);
+              return rateLimitsReading({ flex: PUBLISHED_CAP, },);
             }
-            return Response.json({
-              subscription: {
-                in_overage: true,
-                auto_renew: false,
-                ...(calls.length === 0 ? {} : { current_period_end: new Date(end,).toISOString(), }),
-              },
+            return quotaReading({
+              inOverage: true,
+              ...(calls.length === 0 ? {} : { periodEnd: end, }),
             },);
           },
         },);
@@ -324,6 +364,64 @@ await describe({
           expect(endpoints,).toEqual([
             '/v1/rate_limits', '/v1/quota', '/v1/rate_limits', '/v1/quota', '/v1/rate_limits', '/v1/quota',
           ],);
+        }
+      },
+    },),
+    it({
+      name: 'a quota read that confirms the overage cleared removes the observed cap',
+      fn: async function clearedOverage() {
+        /**
+         Hand-written stand-in for the recorded refusal class with one slot, so the case needs one open
+         stream; `OVERAGE_REFUSAL` is the recorded body it models, whose cap is six.
+         */
+        const singleSlot = rateLimitRefusal({
+          model: NEURALWATT_FLEX,
+          message: 'Concurrent limit reached for deepseek-ai/DeepSeek-V4.1-Flash: 1/1 slots in use. '
+            + 'Your subscription is in overage with auto-renew off, so pay-as-you-go limits apply until it renews.',
+        },);
+        /**
+         Subscription state the quota endpoint reports, flipped once the exception clears.
+         */
+        const subscription = { inOverage: true, };
+        const ready = Promise.withResolvers<void>();
+        const held = createAssistantMessageEventStream();
+        const { provider, calls, options, } = await fixture({
+          extension,
+          models: [NEURALWATT_FLEX,],
+          play({ model, }) {
+            if (calls.length === 1)
+              return immediate({ model, errorMessage: singleSlot, },);
+            if (calls.length === 2) {
+              ready.resolve();
+              return held;
+            }
+            return immediate({ model, },);
+          },
+          async fetchQuota(input,) {
+            return quotaUrl(input,).includes('/v1/rate_limits',)
+              ? rateLimitsReading({ flex: PUBLISHED_CAP, },)
+              : quotaReading({ inOverage: subscription.inOverage, },);
+          },
+        },);
+        const model = poolModel({ provider, id: 'reviewer', },);
+        const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(first.result.errorMessage,).toContain('overage with auto-renew off',);
+        const open = provider.streamSimple(model, TRANSCRIPT, options,);
+        {
+          await using cleanup: AsyncDisposable = {
+            async [Symbol.asyncDispose](): Promise<void> {
+              finish({ stream: held, message: assistant({ model: NEURALWATT_FLEX, },), },);
+              await collect(open,);
+            },
+          };
+          await ready.promise;
+          const ceiling = 1;
+          const denied = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+          expect(denied.result.errorMessage,).toContain(`local concurrency ceiling (${ceiling} of ${ceiling} in use)`,);
+          subscription.inOverage = false;
+          const cleared = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+          expect(cleared.result.stopReason,).toBe('stop',);
+          expect(cleared.result.provider,).toBe('neuralwatt',);
         }
       },
     },),

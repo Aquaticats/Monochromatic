@@ -18,7 +18,12 @@ import {
 /** Catalog subset that demonstrates a hold without exhausting the pool. */
 const SYNTHETIC_AND_BACKUP = PHYSICAL_MODELS.filter(model => (model.provider === 'synthetic') || (model.provider === 'opencode-go'),);
 
-/** Published retry recommendation for Qwen's request-rate refusal. */
+/**
+ Alibaba Cloud's published wait for its request-rate refusal, quoted from the Token Plan FAQ
+ (https://www.alibabacloud.com/help/en/model-studio/token-plan-faq, "Rate limiting and concurrency":
+ "Wait about 1 minute before retrying"). Documented wording, not a capture: no recorded refusal on
+ this machine carries `Requests rate limit exceeded`.
+ */
 const QWEN_WAIT_MS = 60_000;
 
 /** Duration of the stand-in Synthetic quota window, chosen independently of the Qwen recommendation. */
@@ -28,7 +33,7 @@ await describe({
   name: 'quota reentry',
   children: [
     it({
-      name: 'holds Qwen until its documented recommendation when a request-rate 429 carries no reset',
+      name: 'holds Qwen for the documented minute when a request-rate 429 carries no reset',
       fn: async function qwenRecommendedReset(ctx,) {
         const clock = { now: Date.now(), };
         ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
