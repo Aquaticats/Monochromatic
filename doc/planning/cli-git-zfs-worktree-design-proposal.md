@@ -240,7 +240,8 @@ copies. It does not measure deletion of copied administration, delegated request
     the proposed clone name and unique `git-worktree-clone-origin-<nonce>` snapshot name before any mutation
     beyond the claim. Create or verify an empty account-owned slot, then run Git's supported
     `worktree add --no-checkout` form. Record the reciprocal registration and exact `.git` pointer bytes; leave it in
-    the slot on the checkout dataset. Have the handler verify and record the slot identity before any attach.
+    the slot on the checkout dataset. No handler attestation occurs at registration; the handler first records
+    the slot on a qualifying sweep after the clone and its local mount request exist (proposed event ordering).
 3.  Snapshot the checkout, then clone that fresh origin, never a sanoid snapshot. Record the actual snapshot and
     clone GUIDs and their `createtxg` values as each is confirmed, as required by the removal proof proposed from
     [VM item 13][vm-bookmark]. A successful clone does not imply mount readiness: [VM item 5][vm-key]
@@ -419,10 +420,14 @@ Apply item 3 of the [nested-clone research][nested] as the mount contract: "The 
 that the account can change", "The mount must check the target folder's recorded identity, not just its kind",
 "The mount must be attached to the opened folder, not to a path", and "What unmount needs, and where the probe was
 incomplete". In this design root records identities, not ownership of the account's folders. At setup root records
-the identity of `.claude/worktrees`. For each new slot root observes and records the verified account-created
-underlay before attach; it must match the claimed registration slot and hold only the expected Git pointer.
-Treat the Git claim and pointer as untrusted; check only a bounded, regular, no-follow pointer file and never
-resolve a path from its contents as root. Record and recheck device, inode, UID, permissions and access/default
+the identity of `.claude/worktrees`. On the first qualifying sweep after a new clone has a valid local mount
+request, root opens, checks and records the current account-created underlay before attach. It must match the
+claimed registration slot and hold only the expected Git pointer. This is a first-observation record, not proof
+that the slot has not changed since Git created it. Its value is to pin the checked descriptor for attach and to
+compare later lookups and unmounts. The no-crossing walk and fresh post-attach check remain mandatory. This is
+proposed ordering from the register-first sequence and descriptor controls of [items 1][vm-register] and
+[2][vm-refusals], not a measurement of handler timing. Treat the claim and pointer as untrusted; check only a
+bounded, regular, no-follow pointer file and never resolve a path from its contents as root. Record and recheck device, inode, UID, permissions and access/default
 ACLs from opened folders. Keep records in `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities`
 under root control. Never refresh a slot identity just because a new inode or permissions appeared there. The
 handler uses the verified slot descriptors for mount management, not privileged writes into the account's tree.
