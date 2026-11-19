@@ -1586,8 +1586,8 @@ and 18 ran in guests of their own with the same releases.
   reader did not test consumer writes, a read-only worktrees bind, or a different unmount mechanism.
 - [Item 4][vm-unmount], measured: a fresh process reopened the attached clone and moved it to staging. A changed
   path and wrong dataset source refused, even with reused mount ID, device and inode in the latter control. A
-  busy unmount left the mount staged until retry. Same-name dataset replacement, reattach and crash recovery
-  remain open.
+  busy unmount left the mount staged until retry. Same-name dataset replacement, the decided reattach and crash
+  recovery remain unmeasured.
 - [Item 5][vm-key], measured: the fixture matched the recorded encryption, record size and compression values,
   not the host topology, feature flags or I/O. Root cloned with the key unloaded; detached mount setup refused,
   a test zedlet deferred, and attach worked after manual key load and checkout mount. Delegated clone, product
