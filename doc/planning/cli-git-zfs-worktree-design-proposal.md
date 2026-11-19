@@ -713,14 +713,13 @@ a test asserts that the encoded request has no `defer` key.
       a clone snapshot that passes the snapshot rule in this check, or those of a tuple the destruction plan
       records once step 3 has persisted it, and no origin-side tuple matches it. This asks for no recorded
       bookmark: the recorded clone-side inventory is written once at add and the third check forbids updating it,
-      so the rule this draft
-      used through revision `b26aa27f3c`, which required the bookmark's own recorded tuple, would have refused the
-      removal of any clone that someone had bookmarked. Refuse destruction when a bookmark's tuple matches neither
-      a live clone snapshot that passes the snapshot rule nor a recorded plan tuple, when it matches the
-      origin-side inventory, or when the bookmark list could not be read completely, and name each refused
-      bookmark; this pass rule is proposed, not a measured sufficiency proof. Dataset GUIDs are random
-      (`module/zfs/dsl_dataset.c:1203` to `:1204` and `:1768` to `:1769`, `zfs-2.4.4`), so the matching pair
-      identifies the bookmarked snapshot of this clone in practice, not
+      so the rule this draft used through revision `b26aa27f3c`, which required the bookmark's own recorded tuple,
+      would have refused the removal of any clone that someone had bookmarked. Refuse destruction when a
+      bookmark's tuple matches neither a live clone snapshot that passes the snapshot rule nor a recorded plan
+      tuple, when it matches the origin-side inventory, or when the bookmark list could not be read completely,
+      and name each refused bookmark; this pass rule is proposed, not a measured sufficiency proof. Dataset GUIDs
+      are random (`module/zfs/dsl_dataset.c:1203` to `:1204` and `:1768` to `:1769`, `zfs-2.4.4`), so the matching
+      pair identifies the bookmarked snapshot of this clone in practice, not
       against a 64-bit collision. A bookmark's transaction group is the bookmarked snapshot's birth group, so it
       says nothing about when the bookmark itself was made. OpenZFS destroys a dataset's bookmark entries with the
       head (`module/zfs/dsl_destroy.c:1123` to `:1154`, `zfs-2.4.4`), so an unaccounted bookmark goes with it.
