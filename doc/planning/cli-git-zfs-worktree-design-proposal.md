@@ -293,9 +293,13 @@ stub, not a checkout. `doctor` and wrapper commands that encounter it distinguis
 ABI refusal, mount failure or pending request) from a pending add or removal. Report the slot, dataset and next
 safe action instead of treating absent files as deleted tracked files or offering an ordinary add over them.
 The account can delete the underlay pointer while the clone is unmounted. In [VM item 6][vm-prune], Git `2.43.0`
-pruned the unlocked registration with a missing pointer at the default expiry. The lock set before pointer loss
-preserved the registration at both default expiry and `--expire now`. After pointer restoration, the unmounted
-locked worktree refused ordinary and single-`--force` move and remove; double force bypassed both, and Git removal
+pruned the unlocked registration with a missing pointer on explicit `git worktree prune`, both without `--expire`
+and with `--expire now`. A lock set before pointer loss preserved the registration in both arms. Explicit prune
+without the flag does not wait for a grace period (Git `v2.43.0`, `builtin/worktree.c:236` to `:248`,
+`worktree.c:732` to `:733` and `:772` to `:782`). By contrast, `git gc` defaults to `--expire 3.months.ago`
+(`git-config(1)`, `gc.worktreePruneExpire`), so a recent index can keep an unlocked entry with a missing pointer.
+Item 6 did not measure the `git gc` path. After pointer restoration, the unmounted locked worktree refused
+ordinary and single-`--force` move and remove; double force bypassed both, and Git removal
 left the dataset. This supports a lock as a prune guard, not as an authority boundary or a replacement for the
 wrapper's managed move refusal. Installing or recovering the lock after pointer loss and Git `2.56.1` behavior
 remain unmeasured.
@@ -896,7 +900,9 @@ in the ranking. Use the VM findings and identify what remains unmeasured; a rank
   fixture, not dirty-source restoration or a concurrent write to the source.
 - Prune protection while unmounted. Use a managed Git lock in addition to preserving the pointer copies, or
   protect the underlay pointer with a root-set immutable flag. [VM item 6][vm-prune] measured the lock with an
-  absent pointer, not the immutable-pointer option, lock recovery after pointer loss, or behavior on Git `2.56.1`.
+  absent pointer. Explicit prune removed the unlocked entry immediately; the `git gc` grace period is not a
+  safeguard against explicit prune (Git `v2.43.0`, `builtin/worktree.c:244`; `git-config(1)`, `gc.worktreePruneExpire`).
+  Item 6 did not measure `git gc`, immutable-pointer protection, lock recovery after pointer loss, or Git `2.56.1`.
 - Git registration when origin cleanup is blocked. Keep the registration until the recorded origin is cleaned up;
   or settle the registration after clone destruction and keep an independent durable origin cleanup record. The
   first preserves Git visibility but reserves the slot until cleanup; the second frees the slot but requires
