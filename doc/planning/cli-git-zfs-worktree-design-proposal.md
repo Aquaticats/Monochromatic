@@ -1,17 +1,28 @@
 # ZFS worktree design proposal for the Git wrapper
 
-**Non-final draft by an agent, unapproved.** Fourth delta fold-in: this revision answers the bounded check of
-`9a1a47e190` to `b26aa27f3c`, its residues and its bookmark verdict, and folds in [item 18][vm-18]. This file's own
-revision stamp is what `git log --format=%cI -1` prints for the file, which before this revision's commit reported
-2026-11-19T01:57:34-05:00 at `cb6026e5ed`; a section heading's stamp is the commit time of the commit that landed
-that section.
+**Non-final draft by an agent, unapproved.** Fifth delta fold-in: this revision answers the bounded check of
+`b26aa27f3c` to `1975c5c4cc`. This file's own revision stamp is what `git log --format=%cI -1` prints for the file,
+which before this revision's commit reported 2026-11-19T01:57:55-05:00 at `061c6d7392`; a section heading's stamp
+is the commit time of the commit that landed that section.
 
-This revision changes these statements. The rule that refused removal wherever the namespace exclusion cannot be
-shown is worded as one option of an open choice, because no described setup can show that exclusion. The bookmark
-rule is an open choice now, with three options for a bookmark whose snapshot is gone, and removal applies whichever
-one the owner picks. Item 17 and item 18 state which clone topology each measured. The coalescing and rate gap sits
-in the lost last event choice, the excluded pair is reasoning from the grants, and each choice carries its facts
-while each veto-open default carries its evidence, its cost and how to veto it.
+This revision changes these statements. The refusal of removal while the namespace exclusion cannot be shown is
+worded as one option of its open choice everywhere, with item 15's measured facts beside the option that destroys
+anyway and the scan and busy unmount that option keeps. The bookmark rule is an open choice of three options, with
+the first option's remaining needs stated, and removal applies whichever one the owner picks. The receipts, the
+second binary and the no-implicit-remount defaults state their real costs. The revision entries are corrected, with
+all five item 18 commits named, item 18 reports what each topology kept under the clone, the record quotes the
+checkout's `clone` grant and points item 17 to item 18, and the bookmark citations name the lines that hold their
+text.
+
+Fourth delta fold-in, tip `1975c5c4cc` (2026-11-19T01:35:05-05:00), answered the bounded check of `9a1a47e190` to
+`b26aa27f3c`, its residues and its bookmark verdict, and folded in [item 18][vm-18]. It made the rule that refused
+removal wherever the namespace exclusion cannot be shown one option of an open choice, because no described setup
+can show that exclusion. It made a bookmark whose snapshot the removal itself destroys pass through the plan
+comparison instead of stranding the next chunk or the replan, and gave a bookmark whose snapshot was already gone a
+refusal with its cost and the way out; this revision turns that rule into an open choice. It also added two
+acceptance controls, stated which clone topology items 17 and 18 measured, put the coalescing and rate gap in the
+lost last event choice, stated the excluded pair as reasoning from the grants, and gave each choice its facts and
+each veto-open default its evidence, its cost and how to veto it.
 
 The third delta fold-in answered the bounded check of `7fe84c7be8` to `68690e60be`, its findings N1 to N11 and one
 tension with the decided removal. That revision kept every previous answer and changed these statements. Where
@@ -26,20 +37,20 @@ commit.
 
 [Item 17][vm-17]'s fold-in (`64cdbc5263`, 2026-11-19T00:44:01-05:00; `2e7be7d71d`, 2026-11-19T00:44:56-05:00)
 recorded the delegated account's snapshot batch in the [measurement record][measurements] and stated its result
-here. [Item 18][vm-18]'s fold-in (`9b2cd94680`, 2026-11-19T01:25:34-05:00; `9331b1101a`,
-2026-11-19T01:26:48-05:00; `02592290ee`, 2026-11-19T01:27:16-05:00) recorded the same requests on an unpromoted
-clone and stated them beside item 17's. Both ran in guests booting `6.8.0-147-generic` with OpenZFS `2.4.4-1`.
+here. [Item 18][vm-18]'s fold-in (`9b2cd94680`, 2026-11-19T01:25:34-05:00; `a6b0ec5913`, 2026-11-19T01:25:41-05:00;
+`6f317a849f`, 2026-11-19T01:26:08-05:00; `9331b1101a`, 2026-11-19T01:26:48-05:00; `02592290ee`,
+2026-11-19T01:27:16-05:00) recorded the same requests on an unpromoted clone and stated them beside item 17's.
+Both ran in guests booting `6.8.0-147-generic` with OpenZFS `2.4.4-1`.
 
 Second delta fold-in, tip `68690e60be` (2026-11-19T00:30:21-05:00), answering the second delta review of
 `7fe84c7be8`, including decisions that review showed the body made without the project: that revision omitted the
 `defer` key from the snapshot batch request, because the kernel reads deferral from the key's presence; limited the
 whole-request precheck to check failures and named the state after one batch "planned snapshots all gone with the
-head refused"; had item 14 run as root and then recorded [item 17][vm-17], where the delegated account submitted one
-`ZFS_IOC_DESTROY_SNAPS` request naming the clone's own snapshots, which returned 0 and deleted them while a name
-with a dependent clone returned `EEXIST` with both kept; began naming the observables that prove absence; gave the
-bookmark inventory a pass and refuse rule; and said how the fresh scans are requested. It made kernel-release
-readiness and blocked-removal cancellation owner choices, coupled the identity choice to origin cleanup authority,
-and marked the receipts, the second binary and the refusal of an implicit remount as adopted defaults open to veto.
+head refused"; had item 14 run as root; began naming the observables that prove absence; gave the bookmark inventory
+a pass and refuse rule; and said how the fresh scans are requested. Item 17 landed after that tip. It made
+kernel-release readiness and blocked-removal cancellation owner choices, coupled the identity choice to origin
+cleanup authority, and marked the receipts, the second binary and the refusal of an implicit remount as adopted
+defaults open to veto.
 
 The delta gate revision (`aeb7d6c0a8`, 2026-11-18T23:30:12-05:00) answered findings on `652b51d74d` and folded in
 [VM items 12 to 16][vm-delta], including the dropped private-ancestor requirement:
@@ -1243,9 +1254,10 @@ Item 17's delegated arm, under the grants this draft proposes except the checkou
 ([Scoped delegation](#scoped-delegation)), sent one `ZFS_IOC_DESTROY_SNAPS` request naming two of the clone's own
 snapshots: it returned 0 and deleted both, a name with a dependent clone returned `EEXIST` with both kept, and root's
 control request matched ([VM item 17][vm-17] on OpenZFS `2.4.4-1`), on a promoted clone, whose snapshot list
-therefore held the two transferred origin names as well. [Item 18][vm-18] sent the same three requests on an
-unpromoted clone, the shape removal destroys, and got the same returns and kept sets, with the checkout's own
-snapshots unchanged. No guest ran both topologies: the two results agree across guests on the same releases, not
+therefore held the two transferred origin names as well, and both stayed listed under it after the batch.
+[Item 18][vm-18] sent the same three requests on an unpromoted clone, the shape removal destroys, and got the same
+returns: its own two snapshots destroyed, its snapshot list then empty, and the checkout's three snapshots
+unchanged. No guest ran both topologies: the two results agree across guests on the same releases, not
 within one guest, and neither measured the binding or the head destroy that follows (unmeasured). Item 18's arm is
 the one removal reaches, since removal destroys verified unpromoted clones and refuses a promoted clone before the
 first snapshot delete. Beside those measured results stand the two things
