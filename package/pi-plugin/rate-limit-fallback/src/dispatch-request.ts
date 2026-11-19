@@ -70,7 +70,9 @@ const HTTP_SUCCESS_START = 200;
 const HTTP_SUCCESS_END = 300;
 
 /**
- Logger for dispatch decisions; raw provider messages and credentials are not logged.
+ Logger for dispatch decisions. It names members, decisions and the policy stop's own text; it never
+ logs credentials, quota bodies or any other raw provider message. Pi writes these records as JSONL to
+ the nearest `node_modules/.monochromatic/<day>/` or `~/.local/state/monochromatic/log`.
  */
 const l = tagged({ tag: 'rate-limit-fallback', },);
 
@@ -402,10 +404,12 @@ export async function* dispatchRequest({
             .content
             .length;
           if ((!committed) && (terminalItems === 0)
+            && (physical.provider === 'openai')
             && hasOpenAiPolicyOpening(event.error,))
             {
             // Pi has seen no output, so the same transcript may still be answered further along.
-            // Only OpenAI's own opening moves on; another vendor's content stop ends the request.
+            // Only the OpenAI provider's own opening moves on; another member's content stop, even
+            // one that opens with the same sentence, ends the request at that member.
             rl.debug(`${id}: ${label} stopped the request under its content policy before output; trying the next member: ${event.error
               .errorMessage
               ?? ''}`,);

@@ -179,8 +179,8 @@ await describe({
   name: 'policy stop routing',
   children: [
     it({
-      name: 'moves on when a member relays OpenAI’s advisory before any output',
-      fn: async function policyMove() {
+      name: 'ends the request when a non-OpenAI member relays OpenAI’s advisory',
+      fn: async function relayIsNotAMove() {
         const { provider, calls, options, } = await fixture({
           extension,
           play({ model, options: member, }) {
@@ -193,30 +193,29 @@ await describe({
           },
         },);
         const model = poolModel({ provider, id: 'writer', },);
-        const { events, result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(WRITER_HEAD,), labelOf(WRITER_SECOND,),],);
-        expect(events.map(event => event.type,),).toEqual(['start', 'done',],);
-        expect(recordLabel(result,),).toBe(labelOf(WRITER_SECOND,),);
-        expect(result.stopReason,).toBe('stop',);
-        expect(result.errorMessage,).toBeUndefined();
+        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(WRITER_HEAD,),],);
+        expect(recordLabel(result,),).toBe(labelOf(WRITER_HEAD,),);
+        expect(result.stopReason,).toBe('error',);
+        expect(result.errorMessage,).toBe(`${stoppedBy(WRITER_HEAD,)} ${POLICY_STOP_TEXT}`,);
       },
     },),
     it({
-      name: 'names the member that answered after a policy move in the assistant record',
-      fn: async function answeredAfterMove() {
+      name: 'ends the request when a reviewer member relays OpenAI’s advisory',
+      fn: async function reviewerRelay() {
         const { provider, calls, options, } = await fixture({
           extension,
           play({ model, }) {
-            if (model.provider === QWEN.provider)
-              return immediate({ model, errorMessage: POLICY_STOP_TEXT, },);
-            return immediate({ model, },);
+            return labelOf(model,) === labelOf(QWEN,)
+              ? immediate({ model, errorMessage: POLICY_STOP_TEXT, },)
+              : immediate({ model, },);
           },
         },);
         const model = poolModel({ provider, id: 'reviewer', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(QWEN,), labelOf(SYNTHETIC,),],);
-        expect([result.provider, result.model,],).toEqual([SYNTHETIC.provider, SYNTHETIC.id,],);
-        expect(result.stopReason,).toBe('stop',);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(QWEN,),],);
+        expect([result.provider, result.model,],).toEqual([QWEN.provider, QWEN.id,],);
+        expect(result.stopReason,).toBe('error',);
       },
     },),
     it({
@@ -248,7 +247,7 @@ await describe({
       },
     },),
     it({
-      name: 'ends with the last stopped member when every member stops before output',
+      name: 'ends at the first member when every member would stop before output',
       fn: async function everyMemberStopped() {
         const { provider, calls, options, } = await fixture({
           extension,
@@ -256,30 +255,26 @@ await describe({
         },);
         const model = poolModel({ provider, id: 'writer', },);
         const { events, result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(calls.map(call => labelOf(call.model,),),).toEqual(WRITER_TARGETS.map(target => labelOf(target,),),);
-        expect(events.map(event => event.type,),).toEqual(['error',],);
-        expect(recordLabel(result,),).toBe(labelOf(WRITER_LAST,),);
-        expect(result.errorMessage,).toBe(`${stoppedBy(WRITER_LAST,)} ${POLICY_STOP_TEXT}`,);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(WRITER_HEAD,),],);
+        expect(events.map(event => event.type,),).toEqual(['start', 'error',],);
+        expect(recordLabel(result,),).toBe(labelOf(WRITER_HEAD,),);
+        expect(result.errorMessage,).toBe(`${stoppedBy(WRITER_HEAD,)} ${POLICY_STOP_TEXT}`,);
         expect(isRetryableAssistantError(result,),).toBe(false,);
       },
     },),
     ...Object.entries(OPENAI_POLICY_MESSAGES,).map(function policyMessage([label, errorMessage,],) {
       return it({
-        name: `moves on from ${label} before any output`,
+        name: `ends the request on ${label} from a non-OpenAI member`,
         fn: async function policyStop() {
           const { provider, calls, options, } = await fixture({
             extension,
-            play({ model, }) {
-              return labelOf(model,) === labelOf(WRITER_HEAD,)
-                ? immediate({ model, errorMessage, },)
-                : immediate({ model, },);
-            },
+            play({ model, }) { return immediate({ model, errorMessage, },); },
           },);
           const model = poolModel({ provider, id: 'writer', },);
           const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-          expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(WRITER_HEAD,), labelOf(WRITER_SECOND,),],);
-          expect(recordLabel(result,),).toBe(labelOf(WRITER_SECOND,),);
-          expect(result.stopReason,).toBe('stop',);
+          expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(WRITER_HEAD,),],);
+          expect(result.stopReason,).toBe('error',);
+          expect(result.errorMessage,).toContain(errorMessage,);
         },
       },);
     },),
@@ -396,33 +391,6 @@ await describe({
         expect(askedAgain.result.errorMessage,).toBe(stopped.result.errorMessage,);
       },
     },),
-    it({
-      name: 'yields the set-aside policy stop when every later member is rate-limited',
-      fn: async function setAsideStopWins() {
-        const { provider, calls, options, } = await fixture({
-          extension,
-          play({ model, options: member, }) {
-            const forwarded = member === undefined ? {} : { options: member, };
-            return labelOf(model,) === labelOf(WRITER_HEAD,)
-              ? advisoryStop({
-                model,
-                ...forwarded,
-              },)
-              : rateLimited({
-                model,
-                ...forwarded,
-                message: 'Too many requests',
-              },);
-          },
-        },);
-        const model = poolModel({ provider, id: 'writer', },);
-        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(calls.map(call => labelOf(call.model,),),).toEqual(WRITER_TARGETS.map(target => labelOf(target,),),);
-        // The attributed stop is what Pi must see, so its outer retry cannot restart at the head.
-        expect(result.errorMessage,).toBe(`${stoppedBy(WRITER_HEAD,)} ${POLICY_STOP_TEXT}`,);
-        expect(isRetryableAssistantError(result,),).toBe(false,);
-      },
-    },),
     ...TRANSIENT_SPANS.map(function retrySpan(span,) {
       return it({
         name: `masks Pi retry span ${span} without changing adjacent advisory text`,
@@ -442,7 +410,7 @@ await describe({
           },);
           const model = poolModel({ provider, id: 'writer', },);
           const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-          expect(result.errorMessage,).toBe(`${stoppedBy(WRITER_LAST,)} ${POLICY_STOP_TEXT}. ${RETAINED_DETAIL} ([omitted])`,);
+          expect(result.errorMessage,).toBe(`${stoppedBy(WRITER_HEAD,)} ${POLICY_STOP_TEXT}. ${RETAINED_DETAIL} ([omitted])`,);
           expect(isRetryableAssistantError(result,),).toBe(false,);
         },
       },);

@@ -39,24 +39,24 @@ Responses adapter's `<provider> API error (429): …` label, which spells the
 label `OpenAI` only for the provider named `openai`, or the Completions
 adapter's `429: …`.
 
-A policy stop follows the same exposure rule, and only OpenAI's own sentence
-moves a request on. A member whose refusal opens with `This content was
-flagged for possible cybersecurity risk` and shows no text, thinking, or tool
-output before it moves the request to the next member with the same
-transcript. Once output was shown, the stop ends the request and the message
-names the member and keeps the advisory. Either way the plugin logs the
-member's name and the stop's text, worded apart from a rate-limit move, and
-the assistant record names the member that answered. If every member stops
-before output, the request ends with the last stopped member's attributed
-advisory. The sentence is matched at the start of the refusal, so a refusal
-that merely quotes it does not move a request. Neither pool has an OpenAI
-member since 2026-11-19, so this move cannot fire unless one is added, and
-the rule and its tests stay for that case.
+A policy stop follows the same exposure rule, and only the OpenAI provider can
+move a request on. A member registered as provider `openai` whose refusal opens
+with `This content was flagged for possible cybersecurity risk`, and which shows
+no text, thinking, or tool output before it, moves the request to the next
+member with the same transcript. Any other member's content stop ends the
+request there, and so does a refusal that merely quotes the sentence or carries
+it inside a 429 body. Once output was shown, the stop ends the request and the
+message names the member and keeps the advisory. A move is logged with the
+member's name and the stop's text, worded apart from a rate-limit move, and the
+assistant record names the member that answered; a stop that ends the request is
+not logged. Neither pool has an OpenAI member since 2026-11-19, so this move
+cannot fire unless one is added, and the rule stays for that case.
 
-The project decided this on 2026-11-19 for [issue 6314][issue-6314]: the stop
-moves the request on automatically ("Automatic (Recommended)"). That makes
-rule `RKD` of [`AGENTS.md`][agents-md] automatic for runs on this provider;
-resuming such a run on DeepSeek is the same move, done by hand.
+The project decided this on 2026-11-19, recorded with its owner answers in
+[the handover that carries the provider work][handover]: the stop moves the
+request on automatically ("Automatic (Recommended)"). The decision was about
+OpenAI's filter alone; rule `RKD` that once made the same move by hand is
+retired on `main`.
 
 These rules rest on unit tests that drive the built plugin against stand-in
 members, and on the installed Responses adapter reporting the recorded stop
@@ -71,8 +71,7 @@ sentence takes precedence over a 429 wherever it sits in the text, even if the
 advisory following it is truncated or changes punctuation, so a 429 body that
 quotes it ends the request instead of moving it. The shorter `possible risk`
 wording and generic policy labels identify a stop only when there is no 429
-status, and they never move a request on: such a stop ends it, as it did
-before the move existed.
+status, and they never move a request on: such a stop ends it.
 A stop that ends the request names the member and preserves the advisory,
 including OpenAI's
 remediation. It replaces only the spans matched by Pi's transient-error
@@ -190,7 +189,10 @@ caller-supplied key, headers, or scoped environment. For quota GETs it uses
 official origin as the configured model and resolved authentication, and
 forbids redirects. Registry-resolved bearer headers are accepted; other
   resolved headers are not forwarded to quota endpoints. No production code reads credential files or logs
-credential values, raw quota bodies, or transcripts.
+credential values, raw quota bodies, or transcripts. What it does log is a routing decision's
+member and outcome, and the text of a policy stop that moved a request on. Pi's logger writes those
+records as JSONL to the nearest `node_modules/.monochromatic/<day>/` folder, or to
+`~/.local/state/monochromatic/log` when no project tree is above the working folder.
 
 Pi records the physical provider and model in the assistant message's
 `provider` and `model` fields. A summary can read those fields for every
@@ -222,8 +224,8 @@ the error is passed through, not replayed to another vendor.
   `mise run //package/pi-plugin/rate-limit-fallback:lint:oxlint` check the package.
 
 [openai-limits]: https://developers.openai.com/api/docs/guides/rate-limits
-[issue-6314]: https://github.com/Aquaticat/Monochromatic/issues/6314
 [agents-md]: ../../../AGENTS.md
+[handover]: ../../../doc/handover/cli-git-rust-implementation.md
 [writers]: ../../../.agents/skills/pi-as-subagent/SKILL.md
 [openai-admin]: https://developers.openai.com/api/reference/resources/admin/subresources/organization
 [openai-codex]: https://developers.openai.com/codex/app-server
