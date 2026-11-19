@@ -17,8 +17,8 @@ confirm fixture behavior, not the implementation.
 
 The design keeps the checkout at its existing path and uses account-owned slots over their Git registrations,
 not the first draft's root-owned anchor, `checkout` subdirectory or directory exchange. It draws on the
-[earlier cross-vendor review and its disposition][handover], the [nested-clone research][nested] and the
-[checkout-dataset and pnpm research][pnpm], including the nested-clone record's dated corrections.
+[cross-vendor review of the original design and its disposition][handover], the [nested-clone research][nested]
+and the [checkout-dataset and pnpm research][pnpm], including the nested-clone record's dated corrections.
 This revision changes documentation only; it does not install, implement or alter a pool.
 
 ## Requirements and module ownership
@@ -1217,8 +1217,8 @@ only for unused slots. These are unrun acceptance requirements, not evidence fro
 - Compare clone-add and fallback stages against ordinary Git under the same real workload and interleaved control.
   Separate Git fill, mount/request wait, discarding the copied `.git` and `.claude/worktrees` stubs, and downstream
   preparation. Report disposal as a contribution against the same ordinary Git control's total; it has no matching
-  stage in that arm. [VM item 1][vm-register] and the earlier probe only moved `.git` aside, so neither measures
-  deletion. Use measured reconciliation and shutdown workloads to size any
+  stage in that arm. [VM item 1][vm-register] and item 7 of the [nested-clone research][nested] only moved `.git`
+  aside, so neither measures deletion. Use measured reconciliation and shutdown workloads to size any
   shipped deadline or optional scan interval. Prior isolated mount latency is not a prediction of ready-to-use
   worktree time.
 
