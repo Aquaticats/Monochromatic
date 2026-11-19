@@ -40141,6 +40141,13 @@ the repository, timing from the feed. Owner: "Fix the driver too." GOING:
 `pi-driver-work-left-running-counts-only-its-own`, branch
 `fix/pi-shared-subagent-driver-work-left-running-counts-only-processes-the-run-started`): the wait counts only work the
 run started, with a failing-first test on a real outside process; the TMPDIR fix follows as its own run.
+It ended `idle` (194 turns) at `14a49acc24` (commits `74e13a4b38`, `14a49acc24`): a process-table process counts only
+when its parent chain reaches the driver's own process (`src/processes-descended-from-a-process.ts`, `/proc/<pid>/stat`
+field 4, a work list with a cycle guard); the new test with a real outside `sleep` failed at `4e00a2c1f9`
+(`expected [ '3568781 sleep' ] to deeply equal []`) and passes at the tip; 209 unit passes; lint clean. Narrowing to weigh:
+a process the agent detached so it was reparented no longer keeps the run by the process table (its tool record or
+`--unit` name still can). GOING: DeepSeek short review on Synthetic,
+`pi-review-pi-shared-subagent-driver-work-left-running-at-14a49acc24-1`; merge into main if clean.
 
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed
