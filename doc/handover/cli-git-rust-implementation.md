@@ -40196,6 +40196,13 @@ stale record on every 300 ms look, no seam for the end-to-end path, a stale numb
 M1 by the reviewer's remedies 1 and 2 (only a `systemd-run` command, and only a unit active since that command
 started), state read as `ActiveState`/`SubState`, L1 to L6 fixed, L8 if small, L7 is the recorded host-load class.
 GOING: `pi-driver-work-left-running-counts-only-its-own-5` (run-5).
+Run-5 ended `idle` (89 turns) at `1988f31f2f` (four commits): new `src/units-a-command-starts.ts`; a `--unit=` counts
+only for a `systemd-run` command and only for a unit whose `InactiveExitTimestamp` (the writer's choice over the
+review's field) is at or after the record's `startedAt` (from the tool's `startTime`, else the driver's own start);
+`activating`/`reloading` count, `active`+`exited` does not; quotes and any whitespace handled; settled records asked once
+(100 questions became 1); `PI_RUNS_MANAGER_PROGRAM` seam; README and brief rules match; five tests failed first; 209
+passes, failures only in the known `createSopsFixture` cases. L8 left (not small). GOING: a third delta review on
+Synthetic (`...-at-1988f31f2f-1`), checking the timestamp field against `org.freedesktop.systemd1(5)`.
 
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed
