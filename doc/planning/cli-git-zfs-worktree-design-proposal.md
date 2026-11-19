@@ -909,8 +909,10 @@ in the ranking. Use the VM findings and identify what remains unmeasured; a rank
 - Dirty source on rung 1. Require a clean source, using the applicable fallback for a dirty checkout; or implement
   a verified dirty-main restore comparable to Btrfs. A clean-only route narrows the proof but loses clone speed on
   a dirty main checkout. Dirty support needs a defined Git/index and ignored-state restore, with a frozen proof.
-  Neither option accepts an unproved source. [VM item 1][vm-register] measured the tracked-state check on its
-  fixture, not dirty-source restoration or a concurrent write to the source.
+  Neither option accepts an unproved source. [VM item 1][vm-register] ran `git read-tree HEAD` then reported empty
+  tracked status: Git saw the fixture's tracked content matching `HEAD`. It did not capture the source index and
+  tree before the snapshot or compare that proof to frozen content. That comparison, conversion checks, dirty
+  restoration and concurrent writes remain unmeasured.
 - Prune protection while unmounted. Use a managed Git lock in addition to preserving the pointer copies, or
   protect the underlay pointer with a root-set immutable flag. [VM item 6][vm-prune] measured the lock with an
   absent pointer. Explicit prune removed the unlocked entry immediately; the `git gc` grace period is not a
