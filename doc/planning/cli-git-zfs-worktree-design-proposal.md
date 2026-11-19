@@ -998,6 +998,9 @@ unmeasured; a ranking is not a decision.
   the account to destroy any checkout snapshot. Separate cleanup needs its own privileged ownership and recovery
   proof; it is not implied by the ZED mount handler. [VM item 11][vm-promote] showed why both authorities must
   prove origin identity and lineage before submission; a dependency refusal does not protect other snapshots.
+  Delegated origin `destroy` also lets the account mark a checkout snapshot for deferred destroy, so this choice
+  is coupled to [clone removal identity protection](#clone-removal-identity-protection): the pair with delegated
+  clone destruction is excluded until that option's origin rule is proved for the account.
 - Space-pressure pruning. Keep the guard's current scope and report its limits, or extend it to an explicit
   managed-descendant allowlist for sanoid hourlies with newest-per-dataset retention. Expansion can release more
   blocks, but deletes some living worktree history before normal expiry. The [VM record][vm-limits] does not
@@ -1033,7 +1036,15 @@ unmeasured; a ranking is not a decision.
 
 ### Clone removal identity protection
 
-This is one open project choice, independent of who cleans up a checkout origin. Neither option changes
+This is one open project choice. It is not independent of
+[Origin cleanup authority](#open-project-choices): with descendants `mount,destroy` on the checkout, the account
+becomes an allowed actor that can mark a checkout snapshot for deferred destroy, and the delegated option forbids
+any allowed actor doing that while removal is admitted. Present the two choices together, and treat delegated clone
+destruction with delegated origin `destroy` as excluded until the origin rule is proved for the account itself.
+That last step is reasoning from the grant model and from what the `defer` key does
+(`lib/libzfs_core/libzfs_core.c:442` to `:451`, OpenZFS `zfs-2.4.4`), not a measured account-run deferred destroy.
+No other program on this host marks one: neither sanoid (`/usr/bin/sanoid:399`) nor the space guard
+(`/usr/local/sbin/zfs-space-guard:50`) passes a deferred destroy, so only that grant could. Neither option changes
 "B: Destroy at once" ([project decision][answers], lines 491 to 494).
 
 [VM item 12][vm-replacement] measured the delegated account destroying an unmounted clone and reusing its name,
