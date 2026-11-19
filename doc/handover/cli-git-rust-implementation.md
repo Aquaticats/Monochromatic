@@ -40005,7 +40005,25 @@ interleaved round of `install --frozen-lockfile` on a fixture with a pending-cle
 `main` when nothing is removed, 50.183 to 53.927 times with one removal, 1.702 to 2.069 times the sixth-review tip;
 the same-binary control spread 0.187 to 1.344.** By rule `SLW` that cost is ours to remove: its next run splits the
 total by logged steps, then removes it, makes it cheaper or moves it off the install's waiting path, measured over
-more rounds than one. That run needs a new worktree, so it waits with the queue. The review itself was the one going
+more rounds than one. That run needs a new worktree, so it waits with the queue.
+
+The Sonnet delta gate review of the ZFS proposal at `652b51d74d` returned
+(`~/temp/agent/zfs-worktree-design-proposal-delta-gate-review-2026-11-18/review.md`; 1 high, 4 medium, 10 low; GM1 to
+GM10 and most lows resolved; GH1 and GL4 partly). All five weighed findings accepted:
+DH1 (high), the removal step's identity precondition cannot be met under the delegated grants (no identity-conditional
+destroy in the request list; the account can replace a dataset at a name; channel programs are root-only), so every
+removal would refuse and the owner's "Destroy at once" could not run; a revision removed the earlier explicit acceptance
+of that residual without asking (`e5c2428898`). **For the owner:** scope to the measured threat and accept the
+account-versus-itself residual again, or add a root-run conditional destroy through a channel program; either way the
+acceptance wording stops counting "refusal" as a pass. DM1, "created on this clone" names no observable (`createtxg`
+proposed, needs a positive control; bookmarks move on promote too). DM2, destroy the verified snapshot set in one
+all-or-nothing `ZFS_IOC_DESTROY_SNAPS` request. DM3, a mount namespace made after the attach keeps a private copy of
+the clone mount, so the clone's destroy fails `EBUSY` after its snapshots are gone. DM4, the kernel readiness gate has no
+criterion and no owed run on the host kernel. The review counts thirteen open choices, not twelve. Next, one task each:
+`pi-zfs-measurements-for-the-delta-gate-review-1` (GPT, the proposal's worktree, a throwaway VM) measures items 12 to 16
+(same-name replacement and a channel program, `createtxg` after promote, one batch destroy, a namespace made after the
+attach, the host kernel) into the record; then a fresh writer revises the proposal for the review and the new items;
+then the owner's choices go through the question tool, ranked. The review itself was the one going
 (`pi-review-node-sync-calls-go-through-coreutils-sync-at-e5c61b8af2-1`, in the writer's worktree).
 
 The work-record review `1d5ad2597d` returned (85 turns, `idle`): four reads that wait for ever on a named pipe
