@@ -112,7 +112,11 @@ staging at `/run/git-worktree-clone-mount-staging` (needs a boot unit to create 
   number as the issue comment says > the minimum of two numbers; the endpoint read stays at re-entry > read at refusal
   time, because it halves reads against a rate-limited endpoint; keep the package's own provider > switch to Pi's
   native virtual models, because the native path also defaults the pool's window to 0 and brings branch-selection
-  machinery.
+  machinery; but with the package's own provider a member's real context-overflow error gets no compact-and-retry
+  (measured by the gate delta check of 2026-11-19; rare at 1M-token windows), which the native path would give, so that
+  is the cost of keeping it. The policy move now also requires the member's provider to be `openai`, a stricter reading
+  than the recorded decision about OpenAI's filter: keep the provider gate > text only, because no pool has an OpenAI
+  member and the gate cannot misfire on a quoting refusal.
 - Installing the provider into `~/.pi/agent/settings.json` once it is in `main`: install > wait.
 
 ## Asked while the owner is away, started 2026-11-09T01:16:11-05:00
