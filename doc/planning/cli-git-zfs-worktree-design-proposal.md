@@ -438,9 +438,15 @@ without root. Never use fallback to write over an unresolved managed slot.
 The syscall floor is Linux 5.6 for `openat2`; the other mount APIs used here start at 5.2 (`openat2(2)`,
 `fsmount(2)` and `move_mount(2)`, "History"). The demonstrated guest baseline is `6.8.0-147-generic` with
 OpenZFS 2.4.4 ([nested-clone research][nested], "What was checked and how" and item 3). That validates the
-exercised calls on that build, not the complete mechanism on all kernels at or beyond the syscall floor. Check the
-actual kernel and required operations at handler readiness, separately from the ioctl ABI gate. If unverified,
-refuse managed mounts and report the applicable reflink or Git route.
+exercised calls on that build, not the mechanism on all kernels at or beyond the syscall floor.
+
+This draft's readiness criterion is an allowlist of exact Linux kernel releases per target architecture that pass
+built handler attach, staging unmount, refusal and namespace controls on that release. At readiness compare the
+running release to the allowlist independently of the ZFS ioctl ABI gate. Fixture results alone do not qualify a
+release. Report the running release and missing qualification in `doctor` and preflight. Until a passing run on
+`7.3.5-1-cachyos` exists, do not enable the managed route on that kernel: use the applicable same-dataset reflink or
+ordinary Git path for unused slots, and preserve existing bindings and intent rather than falling back over them.
+This is proposed fail-closed behavior, not a measured readiness gate ([VM item 16][vm-kernel]).
 
 Use descriptor-relative `openat2`, `fsmount` with enforced `nosuid,nodev`, and `move_mount` onto the opened target.
 [VM item 2][vm-refusals] measured the account creating links successfully and the descriptor walk refusing
@@ -940,7 +946,8 @@ The [planning record][answers] requires the descriptor refusals to be measured a
 before design acceptance. The [VM measurement record][measurements] reports that repeat and the other fixture
 results, not acceptance of the design. Each item ran on a separate encrypted file-backed pool with OpenZFS
 `2.4.4-1` and guest kernel `6.8.0-147-generic`; the Git tests used `2.43.0`. See the [fixture][vm-fixture] for the
-read-only host comparison and the [remaining limits][vm-limits].
+read-only host comparison and the [remaining limits][vm-limits]. Items 12 through 15 repeat selected cases on the
+same guest kernel and OpenZFS release; item 16 records the separate exact-kernel image search.
 
 - [Item 1][vm-register], measured: register first, snapshot, clone, attach by descriptor and fill in the verified
   Git context. The underlay pointer survived. Moving copied `.git` aside did not measure deletion or recovery.
@@ -977,12 +984,25 @@ read-only host comparison and the [remaining limits][vm-limits].
   refused. The dependent destroy listing was a dry run. Reversal with name conflicts, other encrypted lineage
   shapes or additional dependents, and the wrapper's pre-delete refusal are still unmeasured.
 
+- [Item 12][vm-replacement], measured: the delegated account reused a clone name, including with a new clone of the
+  same origin. A root channel program refused stale identities and destroyed a matching clone. Concurrent timing,
+  product request authorization and recovery remain unmeasured.
+- [Item 13][vm-bookmark], measured: origin, transaction groups and GUIDs separated own and promoted snapshot
+  history in the fixture. A bookmark moved and returned on reverse promotion; a snapshot-only inventory missed it.
+- [Item 14][vm-batch], measured: the CLI refused the mixed set before an ioctl; the direct batch returned `EEXIST`
+  and preserved it. The positive control deleted two own snapshots in one batch. Request limits remain unmeasured.
+- [Item 15][vm-namespaces], measured: root found both post-attach namespace holders after private host unmount.
+  The shared path control propagated; the shared descriptor move refused. A process-visible scan did not prove
+  absence of all mount references.
+- [Item 16][vm-kernel], recorded: no built-in or locally supplied VM image booted `7.3.5-1-cachyos` with OpenZFS
+  `2.4.4`. The remote catalog was not queried; the fixture did not run on the target kernel.
+
 ### Open measurements
 
-The [VM record's limits][vm-limits] remain open: execution with the host kernel and Git `2.56.1`, the product
-wrapper, Rust binding and ZED handler, confinement variants and unattended boot and shutdown reconciliation,
-free-running races, same-name dataset replacement, failed rollback or reattach, and recovery after interruption.
-Measure host storage costs separately from guest semantics. The acceptance tests name the product controls;
+The [VM record][vm-limits] and [delta limits][vm-delta-limits] leave execution on `7.3.5-1-cachyos` and Git
+`2.56.1`, the product wrapper, Rust binding and ZED handler, confinement variants and unattended boot and shutdown
+reconciliation, free-running races, concurrent same-name replacement, failed rollback or reattach, and recovery
+from interruption unmeasured. Measure host storage costs separately from guest semantics. The acceptance tests name the product controls;
 none of the VM observations authorizes host-pool changes.
 
 ## Acceptance tests the build still owes
@@ -995,6 +1015,15 @@ keys. Capture versions, assertions and controls, not just logs. Start from the [
 its disposable `mvm` recipe reproducible for the built programs. Retain evidence of guest and pool teardown, not
 system changes on the host. These gates carry the [handover's H1 and H2 disposition][handover] and the nested study's
 [What I could not show and why][nested-limits].
+
+Qualify `7.3.5-1-cachyos` in a disposable VM, not on the host pool. [VM item 16][vm-kernel] found no offered local
+image for the combination. The custom-template candidate needs a bootable x86-64 CachyOS qcow2 with
+`linux-cachyos` `7.3.5-1`, matching `linux-cachyos-zfs` or OpenZFS `2.4.4` built for the exact guest headers,
+OpenZFS `2.4.4` userspace and an enabled `qemu-guest-agent`. Verify the booted release with
+`uname --kernel-release` and the loaded module and userspace with `zfs version`; installed packages alone do not
+qualify the run. Repeat item 1's encrypted file-backed fixture and the built mount, unmount, refusal and namespace
+controls on that release. Test readiness with a release not on the list as the negative control, including fallback
+only for unused slots. These are unrun acceptance requirements, not evidence from the Ubuntu guest.
 
 ### Descriptor safety and mount authority
 
@@ -1203,6 +1232,8 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
 [vm-bookmark]: cli-git-zfs-measurements-owed-before-acceptance.md#13-creation-transaction-groups-and-a-bookmark-after-promote
 [vm-batch]: cli-git-zfs-measurements-owed-before-acceptance.md#14-one-snapshot-destroy-request-after-promote
 [vm-namespaces]: cli-git-zfs-measurements-owed-before-acceptance.md#15-mount-namespaces-created-after-attach
+[vm-kernel]: cli-git-zfs-measurements-owed-before-acceptance.md#16-availability-of-a-guest-with-the-host-kernel
+[vm-delta-limits]: cli-git-zfs-measurements-owed-before-acceptance.md#what-this-repeat-did-not-show
 [answers]: cli-git-zfs-worktree.md#owners-answers-of-2026-11-18
 [zfs-plan]: cli-git-zfs-worktree.md
 [handover]: ../handover/cli-git-rust-implementation.md
