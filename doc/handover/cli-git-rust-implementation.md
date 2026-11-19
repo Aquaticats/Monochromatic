@@ -39964,6 +39964,24 @@ back:** how long a worktree with no proof of its maker is kept (now 24 hours fro
 name sooner and can delete live work sooner), and whether a worktree whose maker cannot be identified falls back to
 age (recovers unattended retries, can delete live work) or is kept until someone checks it (no fallback added).
 
+By 03:24:49Z three more ended `idle`; each next step needs a new worktree, so each waits with the queue:
+
+- Masking limits page and stray test files (138 turns, branch tip `c1aa6b042d`, not merged; report under
+  `~/temp/agent/masking-limits-page-and-stray-test-files-2026-11-16-scratch/keep/report.md`): the limits page now says
+  what the code does (truncated-output path accepted, resumed sessions masked only when the driver finds the file, the
+  rename window's real checks, the preview taken before masking), and both test launchers give the stand-in session a
+  `TMPDIR` they remove (the new check failed first in a disposable home); build, types, lint, focused suite and one full
+  package pass (207 passes). Next: its review.
+- Review of the empty-last-answer driver branch `d525bcf531` (124 turns, final): a keep on a filesystem with no hard links
+  copies straight into the final kept name, so a kill mid-copy leaves a partial `.failed-<name>`
+  (`keeping-a-message-aside.ts:386-420`); `README.md:1043` promises one kept name per message where the copy path and
+  `doc/states-of-a-claimed-message.md:148` allow two (reproduced); a doubled `/**` in `driver-types.ts:176-177` ships in
+  the built types. Goes to its author.
+- Killed Git's lock watch (fresh run, 152 turns, branch clean at `f6dce5b9f7`, not merged): finding 5 (start cost with
+  many folders) answered, 3,000 folders 1.04 times `main` after against 1.58 before, `main` against itself 1.00; **finding
+  4 still blocks the merge**: from Git's death to the wrapper's exit at 6% CPU quota, 100 locks take 350.88 ms against
+  1.06 ms on `main` (327.66 times) and 200 locks 545.76 ms against 1.45 ms. Next: its author's run on finding 4.
+
 ### No heavy worktree use before the wrapper's ZFS route (2026-11-18T21:47:42-05:00)
 
 The owner, in plain text: "We shouldn't use worktrees heavily before we implement the zfs parts for the git wrapper."
