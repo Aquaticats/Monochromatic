@@ -56,14 +56,14 @@ await describe({
         fn: async function probeDeadline(ctx,) {
           const deadline = new AbortController();
           const timeout = ctx.sinon.stub(AbortSignal, 'timeout',).returns(deadline.signal,);
-          const entered = Promise.withResolvers<AbortSignal | null | undefined>();
+          const entered = Promise.withResolvers<{ readonly signal?: AbortSignal; }>();
           const reading = Promise.withResolvers<Response>();
           const { provider, calls, options, } = await fixture({
             extension,
             models: SYNTHETIC_ONLY,
             play({ model, }) { return immediate({ model, },); },
             async fetchQuota(_url, init,) {
-              entered.resolve(init?.signal,);
+              entered.resolve(init?.signal == null ? {} : { signal: init.signal, },);
               return await reading.promise;
             },
           },);
@@ -72,7 +72,7 @@ await describe({
             ...options,
             ...(timeoutMs === undefined ? {} : { timeoutMs, }),
           },),);
-          const signal = await entered.promise;
+          const { signal, } = await entered.promise;
           const budget = timeout.firstCall?.args[0];
           deadline.abort();
           const beforeTransportSettles = await Promise.race([result, setImmediate(),],);

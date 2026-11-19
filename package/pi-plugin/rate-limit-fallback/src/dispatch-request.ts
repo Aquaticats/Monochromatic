@@ -244,7 +244,8 @@ export async function* dispatchRequest({
     signal?.throwIfAborted();
     if (capacity.retryAt > Date.now()) {
       rl.debug(`${id}: ${label} has a provider-reported retry window`,);
-      unavailable.admissionStops.push(`${label} is held until ${new Date(capacity.retryAt,).toISOString()}`,);
+      unavailable.admissionStops
+        .push(`${label} is held until ${new Date(capacity.retryAt,).toISOString()}`,);
       return false;
     }
     /**
@@ -261,9 +262,10 @@ export async function* dispatchRequest({
     if (capacity.active >= ceiling) {
       rl.debug(`${id}: ${label} local concurrency reached published or observed cap ${ceiling}`,);
       capacity.needsProbe = true;
-      unavailable.admissionStops.push(ceiling === 0
-        ? `${label} has a published flex floor of zero`
-        : `${label} is at its local concurrency ceiling (${capacity.active} of ${ceiling} in use)`,);
+      unavailable.admissionStops
+        .push(ceiling === 0
+          ? `${label} has a published flex floor of zero`
+          : `${label} is at its local concurrency ceiling (${capacity.active} of ${ceiling} in use)`,);
       return false;
     }
     rl.debug(`${id}: dispatching to ${label}`,);
@@ -361,7 +363,10 @@ export async function* dispatchRequest({
           message: event.error,
           ...(evidence.status === undefined ? {} : { status: evidence.status, }),
         },);
-        if ((event.type === 'error') && isPolicyStop({ message: event.error, rateLimited, },)) {
+        if ((event.type === 'error') && isPolicyStop({
+          message: event.error,
+          rateLimited,
+        },)) {
           if (buffered.start !== undefined)
             yield buffered.start;
           // Remove incidental retry wording so Pi's own retry classifier does not restart this request.
@@ -370,12 +375,21 @@ export async function* dispatchRequest({
             ...event,
             error: {
               ...event.error,
-              errorMessage: policyStopMessage({ memberLabel: label, message: event.error.errorMessage ?? '', },),
+              errorMessage: policyStopMessage({
+                memberLabel: label,
+                message: event.error
+                  .errorMessage
+                  ?? '',
+              },),
             },
           };
           return true;
         }
-        if (rateLimited && (!committed) && (event.error.content.length === 0))
+        if (rateLimited && (!committed)
+          && (event.error
+            .content
+            .length
+            === 0))
           {
           signal?.throwIfAborted();
           /**
@@ -432,8 +446,11 @@ export async function* dispatchRequest({
     yield unavailable.lastRateLimit;
     return;
   }
-  if (unavailable.admissionStops.length > 0)
-    throw new PoolDispatchError(`There is no eligible ${id} member: ${unavailable.admissionStops.join('; ',)}.`,);
+  if (unavailable.admissionStops
+    .length
+    > 0)
+    throw new PoolDispatchError(`There is no eligible ${id} member: ${unavailable.admissionStops
+      .join('; ',)}.`,);
   throw new PoolDispatchError(`No ${id} member is registered in Pi. Check the member model catalogs.`,);
 }
 

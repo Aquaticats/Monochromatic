@@ -11,6 +11,7 @@ import type {
 } from '@earendil-works/pi-ai';
 import {
   probeQuota,
+  QUOTA_UNAVAILABLE,
   type QuotaEvidence,
   type RoutingRegistry,
 } from './quota-endpoints.ts';
@@ -120,13 +121,21 @@ function quotaSignal(options?: SimpleStreamOptions,): AbortSignal {
     timeoutMs,
   } = options ?? {};
   /**
-   Reserve at least half the caller's model budget for inference rather than spending it on optional evidence.
+   Provisional allocation below the model timeout so an optional read cannot spend a full model timeout.
    */
-  const budget = ((timeoutMs === undefined) || (!Number.isSafeInteger(timeoutMs,)) || (timeoutMs <= 0))
+  const budget = ((timeoutMs === undefined) || (!Number.isSafeInteger(timeoutMs,))
+    || (timeoutMs <= 0))
     ? QUOTA_READ_TIMEOUT_MS
-    : Math.min(QUOTA_READ_TIMEOUT_MS, Math.floor(timeoutMs / 2,),);
+    : Math.min(
+      QUOTA_READ_TIMEOUT_MS,
+      Math.floor(timeoutMs / 2,),
+    );
+  /** Independent, abortable quota deadline. */
   const timeout = AbortSignal.timeout(budget,);
-  return signal === undefined ? timeout : AbortSignal.any([signal, timeout,],);
+  return signal === undefined ? timeout : AbortSignal.any([
+    signal,
+    timeout,
+  ],);
 }
 
 /**
@@ -134,28 +143,37 @@ function quotaSignal(options?: SimpleStreamOptions,): AbortSignal {
  The signal still reaches the quota operations so cooperative transports can cancel their work.
 
  @param request - quota lookup and its independent deadline
+ 
  @returns evidence only when lookup completes before cancellation
  */
-async function readQuotaWithinDeadline(request: Parameters<typeof probeQuota>[0] & { readonly signal: AbortSignal; },): Promise<QuotaEvidence | undefined> {
+async function readQuotaWithinDeadline(request: Parameters<typeof probeQuota>[0] & { readonly signal: AbortSignal; },): Promise<QuotaEvidence | typeof QUOTA_UNAVAILABLE> {
+  /** Deadline combined with the owning request's cancellation. */
   const { signal, } = request;
   if (signal.aborted)
-    return undefined;
+    return QUOTA_UNAVAILABLE;
   /**
    Listener cleanup for a read that completes before its deadline.
    */
   const stopWaiting = new AbortController();
+  /** Release the temporary abort listener when either side of the race settles. */
+  using watch = { [Symbol.dispose](): void { stopWaiting.abort(); }, };
   /**
-   Resolve without quota evidence once the deadline or the owning request aborts.
+   Stop the wait once the deadline or the owning request aborts.
+
+   @returns unavailable quota reading
    */
-  async function stopOnAbort(): Promise<undefined> {
-    await once(signal, 'abort', { signal: stopWaiting.signal, },);
-    return undefined;
+  async function stopOnAbort(): Promise<typeof QUOTA_UNAVAILABLE> {
+    await once(
+      signal,
+      'abort',
+      { signal: stopWaiting.signal, },
+    );
+    return QUOTA_UNAVAILABLE;
   }
-  try {
-    return await Promise.race([stopOnAbort(), probeQuota(request,),],);
-  } finally {
-    stopWaiting.abort();
-  }
+  return await Promise.race([
+    stopOnAbort(),
+    probeQuota(request,),
+  ],);
 }
 
 /**
@@ -257,12 +275,12 @@ export async function refreshCapacity({
       capacity.needsProbe = true;
       return;
     }
-    if (reading === undefined)
+    if (reading === QUOTA_UNAVAILABLE)
       capacity.needsProbe = true;
     /**
      Leave existing evidence in place after an unavailable read, but still expire past deadlines.
      */
-    const evidence = reading ?? {};
+    const evidence = reading === QUOTA_UNAVAILABLE ? {} : reading;
     /**
      Observation time used to compare provider deadlines.
      */

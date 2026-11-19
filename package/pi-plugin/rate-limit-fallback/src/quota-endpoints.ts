@@ -22,6 +22,9 @@ import {
  */
 export type RoutingRegistry = Pick<ModelRegistry, 'find' | 'getApiKeyAndHeaders' | 'streamSimple'>;
 
+/** A supported provider's read failed or could not be attempted; try again on reentry. */
+export const QUOTA_UNAVAILABLE = Symbol('Quota reading unavailable',);
+
 /**
  Logger whose diagnostics contain only provider identity and parsed capacity.
  */
@@ -199,7 +202,7 @@ function neuralWattEvidence({
 
  @param signal - quota deadline and parent request cancellation
 
- @returns usable limit facts, empty facts when no quota contract applies, or undefined when a supported read is unavailable
+ @returns usable limit facts, empty facts when no quota contract applies, or `QUOTA_UNAVAILABLE` for a failed read
 
  @example
  ```ts
@@ -216,7 +219,7 @@ export async function probeQuota({
   model: Model<Api>;
   fetchQuota: FetchFunction;
   signal?: AbortSignal;
-},): Promise<QuotaEvidence | undefined> {
+},): Promise<QuotaEvidence | typeof QUOTA_UNAVAILABLE> {
   /**
    Probe diagnostics, excluding credentials and raw provider responses.
    */
@@ -242,7 +245,7 @@ export async function probeQuota({
     if (URL.parse(model.baseUrl,)
       ?.origin
       !== origin)
-      return undefined;
+      return QUOTA_UNAVAILABLE;
     /**
      Member credentials and endpoint overrides as resolved by Pi.
      */
@@ -251,7 +254,7 @@ export async function probeQuota({
     if ((!auth.ok) || (URL.parse(auth.baseUrl ?? model.baseUrl,)
       ?.origin
       !== origin))
-      return undefined;
+      return QUOTA_UNAVAILABLE;
     /**
      An authorization override, including explicit suppression.
      */
@@ -272,7 +275,7 @@ export async function probeQuota({
       .startsWith('bearer ',)) || (bearer.trimEnd()
         .length
         <= 'Bearer '.length))
-      return undefined;
+      return QUOTA_UNAVAILABLE;
     /**
      Transport and authorized header shared by the member's quota GETs.
      */
@@ -282,8 +285,12 @@ export async function probeQuota({
       ...(signal === undefined ? {} : { signal, }),
     };
     if (provider === 'synthetic') {
-      const quota = await requestQuota({ url, ...request, },);
-      return quota === undefined ? undefined : { retryAt: syntheticReset(quota,), };
+      /** Response body when the quota transport and JSON read succeeded. */
+      const quota = await requestQuota({
+        url,
+        ...request,
+      },);
+      return quota === undefined ? QUOTA_UNAVAILABLE : { retryAt: syntheticReset(quota,), };
     }
     /**
      Rate-limit lookup scoped to the exact model and lane.
@@ -307,11 +314,14 @@ export async function probeQuota({
         ...request,
       },),
     ],);
-    return (limits === undefined) && (quota === undefined) ? undefined : neuralWattEvidence({ limits, quota, },);
+    return (limits === undefined) && (quota === undefined) ? QUOTA_UNAVAILABLE : neuralWattEvidence({
+      limits,
+      quota,
+    },);
   } catch (error) {
     // Do not log raw credential-resolution errors.
     if ((error !== undefined) && (signal?.aborted !== true))
       rl.debug(`${provider} registry auth for quota read unavailable`,);
-    return undefined;
+    return QUOTA_UNAVAILABLE;
   }
 }

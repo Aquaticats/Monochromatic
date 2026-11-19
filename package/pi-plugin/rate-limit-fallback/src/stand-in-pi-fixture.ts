@@ -40,7 +40,9 @@ type SessionBinding = Parameters<FallbackHost['on']>[1];
  */
 export const MEMBER_KEY = 'stand-in-member-key';
 
-/** HTTP status used in both adapter and response-hook fixtures. */
+/**
+ HTTP status used in both adapter and response-hook fixtures.
+ */
 export const RATE_LIMIT_STATUS = 429;
 
 /**
@@ -122,8 +124,15 @@ export type ModelIdentity = Pick<Readonly<Model<Api>>, 'api' | 'id' | 'provider'
  Compose a refusal body in the forms produced by Pi's OpenAI Responses and Completions adapters.
 
  @param model - member whose adapter formats the refusal
+ 
  @param message - provider's error text inside the HTTP body
+ 
  @returns terminal SDK error text
+
+ @example
+ ```ts
+ rateLimitRefusal({ model: { provider: 'openai' } });
+ ```
  */
 export function rateLimitRefusal({
   model,
@@ -132,6 +141,7 @@ export function rateLimitRefusal({
   readonly model: Pick<ModelIdentity, 'provider'>;
   readonly message?: string;
 },): string {
+  /** Parsed API body serialized by Pi's provider-error normalizer. */
   const body = JSON.stringify({ error: { message, }, },);
   return model.provider === 'openai'
     ? `OpenAI API error (${RATE_LIMIT_STATUS}): ${body}`
@@ -287,8 +297,11 @@ function quotaUnavailable(): Promise<Response> {
  @param resolvedBaseUrl - registry auth endpoint override
 
  @param resolvedHeaders - header-only registry credential when supplied
+ 
  @param resolveAuth - registry authorization override for error-path tests
+ 
  @param findModel - catalog lookup override for registry-contract tests
+ 
  @param startSession - whether the registration has received a session binding
 
  @returns provider, request history and controls for the fixture
@@ -372,7 +385,10 @@ export function fixture({
       id,
     ) {
       if (findModel !== undefined)
-        return findModel(providerId, id,);
+        return findModel(
+          providerId,
+          id,
+        );
       for (const model of models) {
         if ((model.provider === providerId) && (model.id === id))
           return model;

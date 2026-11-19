@@ -51,12 +51,12 @@ function quotaUrl(input: Parameters<typeof globalThis.fetch>[0],): string {
 await describe({
   name: 'provider quota evidence',
   children: [
-    it({
-      name: 'uses numeric and HTTP-date 429 Retry-After values and resumes at the reported reset',
+    ...[false, true,].map(function retryAfterFormat(asDate,) {
+      return it({
+      name: `uses ${asDate ? 'HTTP-date' : 'numeric'} 429 Retry-After and resumes at the reported reset`,
       fn: async function retryWindow(ctx,) {
         const clock = { now: Date.now(), };
         ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
-        for (const asDate of [false, true,]) {
           const deadline = new Date(clock.now + WINDOW_MS,);
           const retryAfter = asDate ? deadline.toUTCString() : String(WINDOW_SECONDS,);
           const { provider, calls, options, } = await fixture({
@@ -81,8 +81,8 @@ await describe({
           expect([first.result.provider, beforeReset.result.provider, afterReset.result.provider,],).toEqual([
             'qwen-token-plan-individual', 'qwen-token-plan-individual', 'openai',
           ],);
-        }
       },
+    },);
     },),
     it({
       name: 'uses the later compound OpenAI reset when both zero-remaining headers are seen on success',
@@ -176,14 +176,15 @@ await describe({
     it({
       name: 'reports the named NeuralWatt member and a published flex floor of zero without retrying',
       fn: async function zeroFlexFloor() {
-        const redirects: (RequestRedirect | undefined)[] = [];
+        const redirects: RequestRedirect[] = [];
         const physical = PHYSICAL_MODELS.filter(model => model.provider === 'neuralwatt',);
         const { provider, calls, options, } = await fixture({
           extension,
           models: physical,
           play({ model, }) { return immediate({ model, },); },
           async fetchQuota(input, init,) {
-            redirects.push(init?.redirect,);
+            if (init?.redirect !== undefined)
+              redirects.push(init.redirect,);
             return quotaUrl(input,).includes('/v1/rate_limits',)
               ? Response.json({ models: [{ effective_concurrency: PUBLISHED_CAP, flex_floor: NO_FLEX_REQUESTS, },], },)
               : Response.json({});

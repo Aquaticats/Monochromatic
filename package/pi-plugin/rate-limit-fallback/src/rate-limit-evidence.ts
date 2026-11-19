@@ -32,10 +32,14 @@ const QWEN_REQUEST_RATE_WAIT_MS = 60_000;
  */
 const RATE_LIMIT_STATUS = String(HTTP_RATE_LIMIT_STATUS,);
 
-/** Pi's OpenAI Responses adapter formats extracted statuses as `OpenAI API error (<status>):`. */
+/**
+ Pi's OpenAI Responses adapter formats extracted statuses as `OpenAI API error (<status>):`.
+ */
 const OPENAI_RESPONSES_RATE_LIMIT = `openai api error (${RATE_LIMIT_STATUS}):`;
 
-/** Distinguishes OpenAI's policy stop from a 429 that only mentions risk. */
+/**
+ Distinguishes OpenAI's policy stop from a 429 that only mentions risk.
+ */
 const OPENAI_POLICY_OPENING = 'this content was flagged for possible ';
 
 /**
@@ -106,9 +110,15 @@ function startsWithRateLimit(value: string,): boolean {
  Match policy text without misreading an HTTP 429 that merely mentions a policy or risk.
 
  @param message - failed provider message
+ 
  @param rateLimited - whether the adapter text or response supplied a 429 status
 
  @returns whether Pi should see a non-retryable policy error
+
+ @example
+ ```ts
+ isPolicyStop({ message: { stopReason: 'error', errorMessage: 'Possible risk' }, rateLimited: false });
+ ```
  */
 export function isPolicyStop({
   message,
