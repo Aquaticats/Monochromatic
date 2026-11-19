@@ -40154,7 +40154,22 @@ says plainly. Eleven new lows N1 to N11 (among them N4: any bookmark on a clone 
 item 16 searched only local images; N3: stale revision timestamps; N8/N9: wording that ranks or presents the coupled pair
 inconsistently). Sixteen open choices named. NEXT: after item 17 lands (it edits the same two files now), one DeepSeek
 fold-in of N1 to N11, the M4/L7 partials and the destroy-at-once sentence; then the choices to the owner in the morning.
-Check text in the agent's final message, summarised here; not saved as a file.
+Check text saved to `~/temp/agent/zfs-worktree-design-proposal-fold-in-2026-11-18/keep/third-delta-check.md`.
+
+**Item 17 measured (2026-11-19, DeepSeek run-3, 122 turns; `64cdbc5263` to `9a1a47e190`):** the delegated account,
+with exactly item 12's grants, submitted one `ZFS_IOC_DESTROY_SNAPS` batch of a clone's own snapshots through item 14's
+direct path: accepted (return 0, one ioctl, both own snapshots gone, transferred ones untouched); with a dependent clone
+on one named snapshot: `EEXIST` for that name alone and nothing deleted; root's control matched. Guest kernel
+`6.8.0-147-generic` with OpenZFS `2.4.4-1` (not the host kernel; item 16). VM destroyed (`item-17/keep/mvm-destroy.log`
+05:43:01Z; the session libvirt list is empty). The proposal sentences that called the permission unmeasured now state
+it. GOING: `pi-zfs-worktree-design-proposal-third-fold-in-1` (DeepSeek on Neuralwatt, run-7): the destroy-at-once
+sentence, N4's bookmark cost, item 17 into the identity choice's facts, the veto-open defaults in one place, N1 to N3 and
+N5 to N11, the broken backtick spans.
+
+**Provider writer run-7** hit its 200-turn cap after 16 min with nine commits (`cb7d6a66ab` to `dbc6f57268`: OpenAI out
+of the writer pool, the move gated on OpenAI's opening, a set-aside policy stop yielded instead of a later 429, the
+producer-less prefixes dropped, stand-ins labelled); worktree clean. Resumed as `...-without-openai-2` (run-8) for
+medium 2, lows 4, 8, 10, 11 and the README, then its report.
 
 The third prewarm run ended `idle` (77 turns, no new commit; report updated): through a built wrapper with the fill's
 staging and target replaced mid-clone, the tip left the other command's files at both names byte for byte and said why
