@@ -626,8 +626,18 @@ the later head destroy. Neither a successful batch nor a dependency refusal esta
     fit, or the error left an unknown outcome, stop rather than retrying by name. Before every chunk, verify prior
     outcomes and reprove the full remaining inventory and lineage, not just that chunk. A split reopens the
     inspection-to-use window and can leave partial cleanup across requests; item 14 did not test limits or a split.
-    Holds and dependencies are named, not bypassed. Stop on a changed inventory and reprove scope before authorizing
-    any revised plan. Print what actually disappeared and what remains, and retain per-name results for recovery.
+    Holds and dependencies are named, not bypassed. An inventory change invalidates the submitted plan for any
+    future request. If the only change is newly created own snapshots, the wrapper, not an operator, reruns all
+    lineage and unmount checks, records the amended plan, prints the additional names and proceeds without a prompt.
+    This includes a proven own sanoid snapshot; a missing or changed recorded identity, unproved new history, or
+    unknown prior outcome stops the attempt. After each known batch outcome, enumerate again before head destroy.
+    A snapshot created after the final enumeration can still block head destroy (`module/zfs/dsl_destroy.c:783`
+    to `:789`, OpenZFS `zfs-2.4.4`); retry only after identifying the new own snapshot and reproving the plan, not
+    on unexplained `EBUSY`. Before head destroy, also refuse a deferred-destroy origin; that head destroy can
+    reap the origin outside the separate origin-cleanup step (`dsl_destroy.c:800` to `:805`). Bound replanning by
+    the same removal deadline, without restarting it. Print what disappeared and what remains and keep per-name
+    results. This is proposed handling for recursive sanoid coverage ([project decision][answers], lines 365 to
+    371) and the separate batch and head requests ([VM item 14][vm-batch]); the interleavings are unmeasured.
 4.  For separate origin cleanup, prove the exact recorded origin dataset and snapshot GUIDs and confirm that
     the snapshot still belongs to that dataset. Apply the same identity rule using the authority the project
     selects. The kernel's `snapshot has dependent clones` refusal is the dependency check, not a scan of
@@ -1169,8 +1179,11 @@ only for unused slots. These are unrun acceptance requirements, not evidence fro
   a changed inventory between chunks, and interruption before and after the separate head destroy. For the root
   option prove batch-equivalent refusal, including bounded program execution; item 12 did not test it.
 - Kill removal across unmount, snapshot destruction, clone and origin cleanup, and Git and directory cleanup.
-  Verify busy and staged mounts, nested datasets, same-name replacements, held or new sanoid snapshots and another
-  clone pinning the origin each block the unsafe next action. Check the before-destroy inventory and final loss
+  Verify busy and staged mounts, nested datasets, same-name replacements, held snapshots and another clone
+  pinning the origin each block the unsafe next action. Inject a new own sanoid snapshot between proof and batch
+  and again before head destroy; verify automatic re-proof and reporting without prompting, deadline exhaustion,
+  and refusal for unknown or foreign changes. Include a deferred-destroy origin as a negative control for the
+  head request (unrun). Check the before-destroy inventory and final loss
   report on successful and partial removals, with both manual and sanoid snapshots. Distinguish completed clone
   removal from origin or Git cleanup still owed. Verify safe retries under the actual request and mount state.
   After a post-unmount refusal, test that restart honors the standing intent, `doctor` shows it, and explicit
