@@ -262,9 +262,9 @@ and the kernel accepts the reflink. Use held descriptors and existing clone, ind
 Choose it if managed setup or a safe mount is unavailable before mutation, the caller cannot clone in its namespace,
 or the requested path is outside the managed anchor. For a refused `FICLONE`, cross-dataset path, or unproved
 source, continue to **rung 3**, Git's checkout plus the existing ignored-state behavior. The
-[ZFS planning record][zfs-plan], lines 14 to 30, records `EXDEV` across datasets despite block cloning being enabled. Do not hide
-an ordinary byte copy inside rung 2. A managed path cannot be filled without its mount, because the anchor is
-root-owned; print the requirement and the option to retry at an ordinary path. After migration, that ordinary path
+[ZFS planning record][zfs-plan], lines 14 to 30, records `EXDEV` across datasets despite block cloning being enabled.
+Do not hide an ordinary byte copy inside rung 2. A managed path needs its mount because the anchor is root-owned.
+Print the requirement and the option to retry at an ordinary path. After migration, that ordinary path
 must be under the source's dataset to reflink. A same-pool path in home is no longer enough.
 
 The fallback still walks and clones files and runs the existing Git checks and dependency preparation; it does not
@@ -329,8 +329,10 @@ lines 369 to 385 and 400 to 437, and `snapshot-blocklist-candidates-measured-202
 `zfs-space-guard` currently scopes pruning to its configured dataset, `zpcachyos/ROOT/cos/home` by default, and the
 `autosnap_` prefix (`/usr/local/sbin/zfs-space-guard:6` and `:44`). It will not prune the main or clone hourlies or any
 `cli-git-origin-` snapshots. Sanoid keeps and prunes its own hourlies; normal worktree removal deletes that clone's
-snapshot history. Origin blocks may be pinned until the last dependent clone is gone. Pool pressure will not be
-fixed by a guard that can no longer reach much of the churn. Do not expand the guard's deletion authority implicitly.
+snapshot history. An hourly snapshot is not a publication marker: it can capture a clone during add or removal.
+Account for those intermediate snapshots in the retention and recovery checks. Origin blocks may be pinned until
+no clone depends on them. A home-only guard cannot reclaim blocks held only by descendant snapshots.
+Do not expand the guard's deletion authority implicitly.
 
 ### What doctor checks and prints
 
