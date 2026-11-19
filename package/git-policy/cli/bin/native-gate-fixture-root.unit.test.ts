@@ -35,7 +35,7 @@ await describe({
       },
     }),
     it({
-      name: 'takes the variable name the Rust fixtures read, so the mount and the tests cannot name it differently',
+      name: 'names the fixture root variable CLI_GIT_TEST_ROOT',
       fn: async () => {
         expect(gateFixtureRootVariable,).toBe('CLI_GIT_TEST_ROOT',);
       },
