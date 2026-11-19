@@ -440,8 +440,9 @@ proposed ordering from the register-first sequence and descriptor controls of [i
 [2][vm-refusals], not a measurement of handler timing. Treat the claim and pointer as untrusted; check only a
 bounded, regular, no-follow pointer file and never resolve a path from its contents as root. Record and recheck
 device, inode, UID, permissions and access/default ACLs from opened folders. Keep records in
-`/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities` under root control. Never refresh a slot identity just because a new inode or permissions appeared there. The
-handler uses the verified slot descriptors for mount management, not privileged writes into the account's tree.
+`/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities` under root control. Never refresh a slot
+identity just because a new inode or permissions appeared there. The handler uses the verified slot descriptors
+for mount management, not privileged writes into the account's tree.
 
 Only an administrator may explicitly adopt a legitimate replacement after checkout restore or folder recreation.
 The installed root tool's `adopt-worktree-parent` mode runs with managed operations quiesced. Starting from the
@@ -881,8 +882,8 @@ status. `doctor` does not start a service, create a test dataset, repair registr
   For a blocked removal, show standing `unmount` intent, the last verified loss and remaining objects, and whether
   guarded cancellation, resume or administrator recovery is available (proposed recovery state, not measured).
   Report snapshot retention using named ZFS accounting fields where measurable; do not sum shared blocks as if each
-  clone owned them. Explain retained underlays in checkout snapshots. Print the applicable guarded resume or link-repair steps, not a
-  blanket destroy or a guessed registration.
+  clone owned them. Explain retained underlays in checkout snapshots. Print the applicable guarded resume or
+  link-repair steps, not a blanket destroy or a guessed registration.
 - Report whether the configured backup job can see the checkout and whether filesystem boundaries are known to
   be enforced. A walker that crosses into a clone may protect the same contents again under the checkout path.
   `kopia-snapshot-all.service` was inactive with a missing executable here; another host's recorded ignore
@@ -898,7 +899,8 @@ There are 14 open choices, including the two alternatives under
 [Clone removal identity protection](#clone-removal-identity-protection) as one choice. They do not reopen
 checkout path, account ownership, ZED, the fallback or recursive snapshot policy. No option is selected or ranked.
 At the owner handoff, present each decision separately in the question tool with its options, pros and cons, and a
-recommendation that explains each adjacent pair in the ranking. Use the VM findings and identify what remains unmeasured; a ranking is not a decision.
+recommendation that explains each adjacent pair in the ranking. Use the VM findings and identify what remains
+unmeasured; a ranking is not a decision.
 
 - Checkout boot mount protection. Keep an ordinary checkout mountpoint and verify an immutable covered entry, or
   use `mountpoint=legacy` with a descriptor boot service that verifies the checkout underlay.
