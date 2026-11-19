@@ -173,8 +173,9 @@ pi --mode json --no-extensions --extension "${EXT}" --model rate-limit-fallback/
 
 The first member's refusal is NeuralWatt's captured overage 429 (see "Fixture provenance"). Pi's
 own classifier calls that text **non**-retryable, because the body names `billing`
-(`@earendil-works/pi-ai` `dist/utils/retry.js:18`, tested before the retry patterns at line 212), so
-the stream's silence cannot show where the refusal was consumed. This package's own log does: it reads
+(`@earendil-works/pi-ai` `dist/utils/retry.js:18`; `isRetryableAssistantError` tests that list at
+line 212 before the retry patterns), so the stream's silence cannot show where the refusal was
+consumed. This package's own log does: it reads
 `dispatching to hybrid-probe-member/refuses-neuralwatt-429`, then
 `returned HTTP 429 before output`, then `dispatching to hybrid-probe-member/answers`, all inside the
 one `dispatchRequest`.
