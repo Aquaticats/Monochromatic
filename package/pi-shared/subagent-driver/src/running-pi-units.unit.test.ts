@@ -34,17 +34,22 @@ type Question = {
 };
 
 /**
- Microseconds in one minute, which is the unit systemd counts the start of a unit in.
+ Microseconds in one minute, the elapsed interval between the fixture's start stamps and reading.
  */
 const MICROSECONDS_PER_MINUTE = 60_000_000;
 
 /**
- Two units systemd printed, one of them running and one of them finished, followed by a unit that is still starting.
+ Microseconds systemd counts in each millisecond of reported age.
+ */
+const MICROSECONDS_PER_MILLISECOND = 1_000;
+
+/**
+ A numbered active unit, an ended unit, and an unnumbered unit activating again after having been active.
  */
 const SHOWN = [
-  'Id=pi-alpha.service',
+  'Id=pi-alpha@1.service',
   'ActiveState=active',
-  'ActiveEnterTimestampMonotonic=1000000',
+  `ActiveEnterTimestampMonotonic=${String(MICROSECONDS_PER_MINUTE,)}`,
   'MainPID=4242',
   '',
   'Id=pi-finished.service',
@@ -54,12 +59,22 @@ const SHOWN = [
   '',
   'Id=pi-starting.service',
   'ActiveState=activating',
-  'ActiveEnterTimestampMonotonic=0',
+  `ActiveEnterTimestampMonotonic=${String(MICROSECONDS_PER_MINUTE,)}`,
   'MainPID=0',
   '',
 ].join(
   '\n',
 );
+
+/**
+ Systemd's clock when the fixture is read, one minute after its active-enter stamps.
+ */
+const READING_MICROSECONDS = MICROSECONDS_PER_MINUTE + MICROSECONDS_PER_MINUTE;
+
+/**
+ Elapsed time since either recorded active-enter stamp.
+ */
+const FIXTURE_AGE_MILLISECONDS = MICROSECONDS_PER_MINUTE / MICROSECONDS_PER_MILLISECOND;
 
 await describe({
   name: parseRunningPiUnits.name,
@@ -72,23 +87,23 @@ await describe({
          */
         const units = parseRunningPiUnits({
           shown: SHOWN,
-          nowMicroseconds: 1_000_000 + (5 * MICROSECONDS_PER_MINUTE),
+          nowMicroseconds: READING_MICROSECONDS,
         },);
-        expect(units.map(function fewerFields(unit,) {
-          return {
-            name: unit.name,
-            unitName: unit.unitName,
-            elapsedMilliseconds: unit.elapsedMilliseconds,
-            mainPid: unit.mainPid,
-            state: unit.state,
-          };
-        },),).toEqual([
+        expect(units,).toEqual([
           {
             name: 'alpha',
-            unitName: 'pi-alpha.service',
-            elapsedMilliseconds: 5 * 60_000,
+            unitName: 'pi-alpha@1.service',
+            runNumber: 1,
+            elapsedMilliseconds: FIXTURE_AGE_MILLISECONDS,
             mainPid: 4_242,
             state: 'active',
+          },
+          {
+            name: 'starting',
+            unitName: 'pi-starting.service',
+            elapsedMilliseconds: FIXTURE_AGE_MILLISECONDS,
+            mainPid: 0,
+            state: 'activating',
           },
         ],);
       },
@@ -203,17 +218,13 @@ await describe({
         const units = startRunningPiUnits({
           run,
           nowMicroseconds: function standInClock() {
-            return 1_000_000 + (2 * MICROSECONDS_PER_MINUTE);
+            return READING_MICROSECONDS;
           },
         },);
-        expect(await units(),).toEqual([
-          {
-            name: 'alpha',
-            unitName: 'pi-alpha.service',
-            elapsedMilliseconds: 2 * 60_000,
-            mainPid: 4_242,
-          },
-        ],);
+        expect(await units(),).toEqual(parseRunningPiUnits({
+          shown: SHOWN,
+          nowMicroseconds: READING_MICROSECONDS,
+        },),);
         expect(asked,).toHaveLength(1,);
         expect(asked[0]?.command,).toBe('systemctl',);
         expect(asked[0]?.words,).toContain('pi-*.service',);
@@ -268,11 +279,11 @@ await describe({
       },
     },),
     it({
-      name: 'keeps a unit name that is already whole, and adds only what it is missing',
+      name: 'preserves a run name starting with pi- instead of mistaking it for a unit name',
       fn: async () => {
-        expect(unitNameOfGiven({ name: 'pi-copy-route.service', },),).toBe('pi-copy-route.service',);
-        expect(unitNameOfGiven({ name: 'pi-copy-route', },),).toBe('pi-copy-route.service',);
-        expect(unitNameOfGiven({ name: '  copy-route.service  ', },),).toBe('pi-copy-route.service',);
+        const runNumber = 2;
+        expect(unitNameOfGiven({ name: 'pi-copy-route', runNumber, },),)
+          .toBe(`pi-pi-copy-route@${String(runNumber,)}.service`,);
       },
     },),
   ],

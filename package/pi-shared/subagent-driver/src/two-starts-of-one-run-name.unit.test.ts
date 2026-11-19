@@ -784,7 +784,7 @@ await describe({
       },
     },),
     it({
-      name: 'never uses a worktree whose making did not finish, and clears it only once the making own bound has passed',
+      name: 'keeps an unfinished worktree while its maker is alive or unknown, and replaces it once the maker is gone',
       fn: async () => {
         await using folder = await makeFolder();
         /**
@@ -805,28 +805,40 @@ await describe({
         await runGit(fixture.checkout, ['worktree', 'add', '-b', 'feat/shared', worktree, 'main',],);
         await rm(join(worktree, 'tracked.txt',), { force: true, },);
         /**
-         The proof that making left, which says its making has not finished and was written a moment ago.
+         The prior start already claimed its own number; the launcher under test cannot claim that same number.
+         */
+        const priorRunFolder = `${RUN_NAME}-${String(FIRST_RUN_NUMBER,)}`;
+        await mkdir(join(fixture.runs, priorRunFolder,),);
+        /**
+         The proof that making left, with an old timestamp so age alone cannot explain a refusal.
          */
         const proofFile = proofFileOf(worktree,);
-        function proofOfTheMaking(maker: {
+        function proofOfTheMaking(maker?: {
           readonly pid: number;
           readonly startedAt: string;
         },): string {
           return JSON.stringify({
             path: worktree,
             runName: RUN_NAME,
-            runFolder: `${RUN_NAME}-1`,
+            runFolder: priorRunFolder,
             branch: 'feat/shared',
             state: 'making',
             writtenAt: new Date(0,).toISOString(),
             maker,
           },);
         }
-        // A making whose process this test is, which the kernel holds: it may still be making the worktree, so nothing is removed.
-        await writeFile(proofFile, proofOfTheMaking({
-          pid: process.pid,
-          startedAt: '1',
-        },),);
+        /**
+         Start ticks at proc stat field 22, after the PID and parenthesized process name.
+         */
+        const startTicksIndexAfterName = 19;
+        const stat = await readFile('/proc/self/stat', 'utf8',);
+        const startedAt = stat.slice(stat.lastIndexOf(')',) + 1,).trim().split(' ',).at(startTicksIndexAfterName,);
+        if (startedAt === undefined) {
+          throw new Error('test process has no start ticks in /proc/self/stat',);
+        }
+        // The test process stays alive across the launcher call, so an old proof is still not permission to delete.
+        const liveProof = proofOfTheMaking({ pid: process.pid, startedAt, },);
+        await writeFile(proofFile, liveProof,);
         /**
          What one start that finds that worktree ended with.
          */
@@ -840,21 +852,20 @@ await describe({
         expect(whileItMayStillBeMade.output,).toContain(worktree,);
         // The half-written worktree is left exactly as it is, so a person can look at what that making left.
         expect((await runGit(worktree, ['status', '--porcelain',],)).trim(),).toContain('D tracked.txt',);
-        // The same proof, naming a process the kernel no longer holds, names a making that ended: its partial checkout is cleared and
-        // the worktree is made again, so the run name is not blocked by a making that can never finish.
-        await writeFile(proofFile, proofOfTheMaking({
-          pid: 999_999_999,
-          startedAt: '1',
-        },),);
-        /**
-         What one start that finds a making given up ended with.
-         */
-        const onceItsBoundPassed = await startOf({
-          fixture,
-          startId: 'after-the-bound',
-          branch: 'feat/shared',
-        },);
-        expect(onceItsBoundPassed.status,).toBe(0,);
+        expect(await readFile(proofFile, 'utf8',),).toBe(liveProof,);
+
+        const unknownProof = proofOfTheMaking();
+        await writeFile(proofFile, unknownProof,);
+        const unknownMaker = await startOf({ fixture, startId: 'no-maker-record', branch: 'feat/shared', },);
+        expect(unknownMaker.status,).not.toBe(0,);
+        expect(unknownMaker.output,).toContain('the proof names no maker',);
+        expect(await readFile(proofFile, 'utf8',),).toBe(unknownProof,);
+        expect((await runGit(worktree, ['status', '--porcelain',],)).trim(),).toContain('D tracked.txt',);
+
+        // No Linux PID can be this large, so the entry is absent without depending on a child PID not being recycled.
+        await writeFile(proofFile, proofOfTheMaking({ pid: Number.MAX_SAFE_INTEGER, startedAt, },),);
+        const afterTheMakerIsGone = await startOf({ fixture, startId: 'maker-gone', branch: 'feat/shared', },);
+        expect(afterTheMakerIsGone.status,).toBe(0,);
         expect((await runGit(worktree, ['status', '--porcelain',],)).trim(),).toBe('',);
         expect((await runGit(worktree, ['branch', '--show-current',],)).trim(),).toBe('feat/shared',);
       },
