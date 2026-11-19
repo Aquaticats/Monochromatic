@@ -47,10 +47,10 @@ Second delta fold-in, tip `68690e60be` (2026-11-19T00:30:21-05:00), answering th
 `defer` key from the snapshot batch request, because the kernel reads deferral from the key's presence; limited the
 whole-request precheck to check failures and named the state after one batch "planned snapshots all gone with the
 head refused"; had item 14 run as root; began naming the observables that prove absence; gave the bookmark inventory
-a pass and refuse rule; and said how the fresh scans are requested. Item 17 landed after that tip. It made
-kernel-release readiness and blocked-removal cancellation owner choices, coupled the identity choice to origin
-cleanup authority, and marked the receipts, the second binary and the refusal of an implicit remount as adopted
-defaults open to veto.
+a pass and refuse rule; and said how the fresh scans are requested. Item 17 landed after that tip. That revision
+made kernel-release readiness and blocked-removal cancellation owner choices, coupled the identity choice to
+origin cleanup authority, and marked the receipts, the second binary and the refusal of an implicit remount as
+adopted defaults open to veto.
 
 The delta gate revision (`aeb7d6c0a8`, 2026-11-18T23:30:12-05:00) answered findings on `652b51d74d` and folded in
 [VM items 12 to 16][vm-delta], including the dropped private-ancestor requirement:
