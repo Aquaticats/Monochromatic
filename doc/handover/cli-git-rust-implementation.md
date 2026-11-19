@@ -39959,6 +39959,11 @@ What follows from them, as work:
   `doc/decision/cli-git-zfs-worktree-design.md` written (Status, Decision, What still gates shipping). GOING: its short
   review on the Qwen plan, `pi-zfs-design-acceptance-fold-in-short-review-on-the-qwen-plan`, in the fold-in worktree
   detached at the tip; folder `~/temp/agent/zfs-design-acceptance-fold-in-short-review-on-the-qwen-plan-2026-11-19/`.
+  NEXT once it clears and the branch is in `main`: the implementation plan (nothing of the route is built yet: no
+  `package/zfs/`), brief ready at `~/temp/agent/zfs-worktree-implementation-plan-2026-11-19/prompt.md`, run in the
+  fold-in worktree's slot; then the plan to the owner and its first step. By the owner's answers of
+  2026-11-19T17:10:00-05:00 (questions file) the LFS review and the provider rebuild finish and nothing else off the
+  ZFS path starts, and owner questions off the ZFS path wait in the questions file (new rule `QWP`).
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
   `pi-zfs-proposal-fold-in-short-review-on-the-qwen-plan` (turn cap 540, a quarter above the longest of 672 finished
   review runs, 431), in its own detached worktree
