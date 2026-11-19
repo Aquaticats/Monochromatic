@@ -679,9 +679,9 @@ a test asserts that the encoded request has no `defer` key.
     Require fresh root all-namespace verification before the first snapshot delete. Reprove lineage and candidate
     identities immediately before submitting the full verified snapshot set in one `ZFS_IOC_DESTROY_SNAPS` request
     that omits the `defer` key; retain the per-name error list (direct route run as root, [item 14][vm-batch]).
-    Under the grants in [Scoped delegation](#scoped-delegation), the delegated account submitted the clone's own
-    snapshots in one request and it returned 0, and a name with a dependent clone returned `EEXIST` with both kept
-    ([item 17][vm-17] on OpenZFS `2.4.4-1`).
+    Item 12's grant set, which [Scoped delegation](#scoped-delegation) proposes except for the checkout's local
+    `snapshot`, let the delegated account submit the clone's own snapshots in one request: it returned 0, and a name
+    with a dependent clone returned `EEXIST` with both kept ([item 17][vm-17] on OpenZFS `2.4.4-1`).
     If root conditional destruction is selected, require equivalent whole-batch checks and per-name results inside
     its single channel program request, not an external name-based ioctl after a conditional check (unmeasured).
     Skip the snapshot request for an empty set. Only then destroy the verified unmounted head under the selected
