@@ -162,3 +162,46 @@ Two fixture attempts are not the comparison: the first bind accidentally left `/
 mounts, and the staging assertion mistook the staging bind for a surviving clone (`item-3-exact.log`). The next
 attempt reused a readiness marker (`item-3-corrected.log`). The recorded run separated the peer groups, checked the
 clone's mount ID after unmount, and deleted each arm's readiness, completion and result files before launching it.
+
+## 4. Unmount from a fresh process
+
+Guest: `6.8.0-147-generic`, OpenZFS userspace/module `2.4.4-1` (`item-4-exact.log`). The kernel differs from the
+host; the module release matches. The attach process recorded the mounted root and closed its descriptors.
+A new process opened the slot relative to the checkout, keeping the no-cross-device flag on the parent walk
+but removing it for the final component. The attach flags on that final component had the expected `EXDEV`.
+The new process matched mount ID from its own descriptor record, device and inode from `fstat`, and filesystem
+and dataset source from its own mountinfo. With those values equal it called `move_mount` with the two
+descriptors, closed them, then ran `umount` at the private staging path.
+
+```text
+attacher process 57766 has closed its mount descriptors
+attach-side flags on mounted clone: openat2: EXDEV
+276     62 zfsowed4/home/worktree-clone-datasets/mount-to-remove private     rw,nosuid,nodev,relatime
+clone mount ID 276 absent from mountinfo after unmount
+```
+
+In the synchronized substitution arm the account renamed the ancestor after the fresh process opened the clone,
+then recreated a plain slot. A second canonical walk saw the checkout dataset instead of the clone. The fixture
+refused to move anything and verified the clone remained at the renamed path with its held identity unchanged.
+A separate different-clone control put another ZFS mount at the canonical slot. The old record missed only the
+dataset source: **mount ID 276, device 48 and inode 34 were reused**. The fixture refused the stale record
+and left that clone mounted. With its own record, the replacement then unmounted normally.
+
+```text
+REFUSED before move: mounted identity differs
+276    274 zfsowed4/home/worktree-clone-datasets/different-clone private     rw,nosuid,nodev,relatime
+```
+
+A separate busy-holder arm moved the verified clone to staging while a process kept its working directory there.
+Staging `umount` refused, the clone remained visible at staging, and a retry after the holder exited succeeded.
+
+```text
+umount: /var/lib/zfs-acceptance-fixtures/item-4/staging: target is busy.
+276     62 zfsowed4/home/worktree-clone-datasets/mount-to-remove private     rw,nosuid,nodev,relatime
+```
+
+Open and verify the actual mounted object in each handler process; do not treat an old mount ID, even together
+with device and inode, as durable identity. Check the source and the live dataset GUID from the binding before
+moving or destroying; the probe did not substitute a new dataset under the same dataset name. Recheck the canonical
+relationship without using it as the action operand. Keep explicit staged state after a busy refusal; absence
+at the slot is not absence from the namespace. The probe did not exercise reattach or staged-state crash recovery.
