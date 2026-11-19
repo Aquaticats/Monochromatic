@@ -273,3 +273,22 @@ The lock guards registration against normal pruning even when the account delete
 authority boundary and is not a substitute for the clone binding or the wrapper's separate move refusal.
 If the design uses a managed lock, distinguish it from a user lock and release it only as part of a verified
 removal, not by forwarding force. Preserve both pointer copies; the lock does not repair either.
+
+## 7. Setuid execution on the clone
+
+Guest: `6.8.0-147-generic`, OpenZFS userspace/module `2.4.4-1` (`item-7-exact.log`). The kernel differs from the
+host; the module release matches. The account installed a compiled executable that only prints its real and
+effective UIDs. Root supplied ownership and mode `4755` for the positive control: a setuid program owned by
+the executing account would not elevate even with no mount restriction. The probe ran the same executable as the
+account on the same clone mounted first with no added VFS restrictions, then with `nosuid,nodev` via `fsmount`.
+
+```text
+276    274 zfsowed7/home/worktree-clone-datasets/privilege-probe private     rw,relatime
+real=1000 effective=0
+276    274 zfsowed7/home/worktree-clone-datasets/privilege-probe private     rw,nosuid,nodev,relatime
+real=1000 effective=1000
+```
+
+The second run did not gain privilege despite unchanged root ownership and setuid mode. Enforce and verify the
+mount flag independently of dataset properties; the control deliberately let setuid work at the dataset level.
+This measures the setuid half of gate 5 for the descriptor primitive, not the installed handler.
