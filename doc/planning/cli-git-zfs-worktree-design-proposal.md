@@ -151,8 +151,14 @@ until the checkout, linked worktrees and nested mounts pass verification. Reopen
 The account can replace `~/Monochromatic` while it is unmounted, regardless of the entry's owner. Never use an
 unprotected privileged mount by path. The [checkout boot protection choice](#open-project-choices) remains open;
 the installation must prove the selected protection before enabling the checkout mount and make the checkout
-available before account sessions and clone reconciliation. An absent or wrong checkout mount blocks clone attach,
-including when pool import, encrypted key loading or mounting fails. Do not fall back to mounting clones into home.
+available before account sessions and clone reconciliation. Inventory **every dataset mounted under the checkout
+path**, regardless of ZFS ancestry, including the independently mounted vm-builder output. No such dataset may
+attach until the checkout mount is verified. An absent or wrong checkout mount must leave the home underlay free
+of nested mounts and mountpoint folders, even when import, key loading or mounting fails. In the legacy option,
+exclude every nonclone nested dataset from the automatic scan (candidate: `canmount=noauto`); for the vm-builder
+output and any other nested dataset, order its explicit mount unit after and require the verified descriptor
+checkout provider. Do not rely on a later checkout mount to hide an earlier attach. The actual
+`zfs mount -a` ordering and failed-checkout controls are pending in the [VM measurement record][measurements].
 
 ### Scoped delegation
 
@@ -591,11 +597,12 @@ working setup. This proposal has neither installed nor run the root-once command
 The choices do not reopen the checkout path, account ownership, ZED, the fallback or recursive snapshot policy.
 No option here is selected by this revision.
 
-- Checkout boot mount protection. Keep an ordinary checkout mountpoint and use `chattr +i` on the covered entry,
-  if the guest proves that the flag survives rename, unlink and reboot checks; or use `mountpoint=legacy` for the
-  checkout with a dedicated descriptor-based boot attach that validates the underlay identity. The first keeps
-  ordinary ZFS boot ordering but needs immutable-entry and rollback proof. The second keeps privileged attachment
-  off the pathname but adds a checkout boot service. Both must reject an unverified target before account sessions.
+- Checkout boot mount protection. Keep an ordinary checkout mountpoint and use `chattr +i` on the covered entry
+  (immutable-entry and rollback proof pending in the [VM record][measurements]); or use `mountpoint=legacy` with a
+  descriptor boot service that verifies the checkout underlay. The first retains normal checkout mounting if all
+  nested mounts can be gated on verified success. The second avoids a privileged checkout attach by pathname but
+  needs a separate provider and explicit ordering of the vm-builder output and all other nonclone datasets
+  under the checkout. Both must prevent automatic mounts into the home underlay if checkout mounting fails.
 - Shared ancestor policy. On this host, `findmnt --output TARGET,PROPAGATION` read `shared` for `/`, `/home` and
   the ZFS mounts under `/home`, including `~/.cache` and the vm-builder output. The new checkout mount does not
   exist here yet; inheriting shared propagation from `/home` is an inference, not a reading of that mount.
@@ -663,6 +670,11 @@ until the wrapper is built. The [VM measurement record][measurements] is being p
 - Have a fresh process with no inherited mount descriptors reopen and verify an already-attached clone and
   move it to staging. Include wrong-mount and changed-path controls. The nested-clone guest used the original
   `fsmount` descriptor for the move (`guest-extra-commands.txt:158` and `:171` to `:175`).
+- Exercise both checkout boot shapes with a nonclone dataset nested by path only, like the vm-builder output.
+  Record `zfs mount -a` parent IDs and ordering with a delayed or failed checkout mount, plus a legacy checkout
+  with its explicit nested-mount provider ordering. For the ordinary checkout option, test `chattr +i` on the
+  underlay against rename and unlink by the account, reboot, home rollback and ordinary mounting. These are
+  pending results, not authorization to use either boot option.
 - Run on an encrypted file-backed pool shaped like this host. Read-only `zfs get` reported `aes-256-gcm`,
   encryption root `zpcachyos`, `recordsize=32K` and `compression=zstd-3` for home. Use the VM's own pool,
   key and corresponding inherited properties, never the host's key or device. Test loaded and unloaded key
@@ -708,10 +720,14 @@ host. These gates carry the [handover's H1 and H2 disposition][handover] and the
 
 ### Boot, shutdown and setup
 
-- Perform an actual reboot and shutdown with idle and busy legacy clones. Prove the selected boot protection of the
-  checkout at the unchanged path. Delay or fail import, key loading and checkout mounting; no clone may appear on
-  the home underlay. Verify startup reconciliation runs after checkout identity is established, and test the possible
-  `zfs mount -a` ordering race at boot. Ordinary clone mountpoints are not part of the shipped setup.
+- Perform an actual reboot and shutdown with idle and busy legacy clones. Prove the selected protection at the
+  unchanged checkout path and verify startup and stop ordering of `reconcile-git-worktree-clone-mounts.service`.
+  Include every nested dataset, including a nonclone fixture like the vm-builder output. Delay or fail import,
+  key loading and checkout mounting; assert no nested dataset attaches or creates mountpoint folders in the
+  home underlay. Check mount parent IDs and visibility after success. For the legacy checkout, verify the
+  nonclone mount is excluded from the automatic scan and the explicit unit cannot start before verified checkout
+  success. Repeat the selected ordering with real boot units; ordinary clone mountpoints are a negative control,
+  not a shipped setup.
 - Enable real ZED in the guest and exercise the configured ordering, replay, dropped events with and without a live
   caller, concurrent zedlets, stale receipts, and pending unmount across restart. Measure elapsed stages and use
   readiness/refusal controls with the handler absent, ABI unsupported and ZED stopped. Repeat with a second host's
