@@ -40130,7 +40130,29 @@ What follows from them, as work:
   the tmpfs fixture root sized from a measured whole-suite run, Clippy taking the locked toolchain itself, the helper
   test onto the fixture root, the two `ioctl` tests derived from the fixture's file system, README and SPEC passages;
   brief under `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-fix-2026-11-19/`. Then its short review and
-  an integration pass; the target is the Btrfs host's result: only the standing and load-dependent failures.
+  an integration pass; the target is the Btrfs host's result: only the standing and load-dependent failures. The run
+  ended `idle` after 310 turns with commits `ddec538f27` and `967085d3d3` but no final report: its last words were that
+  its second whole gate run was in its test phase and it would resume when that exited. The driver had ended it on a
+  fault of its own (`workProblem` "Error: ESRCH: no such process, read '/proc/3160413/comm'": `commandNameIn` in
+  `package/pi-shared/subagent-driver/src/wake-a-run-whose-work-outlives-its-turn.ts` treats a missing path and
+  `ENOTDIR` as a process that ended, not `ESRCH`), so the unit stopped, killing the run's watcher; the gate container
+  (`b2733be77ff7`, outside the unit) ran on unwatched. The coordinator waited for it, saved its output from the journal
+  to that folder's `scratch/gate-run-2-whole-output-from-the-journal.log` (37,062 lines) and removed the run's exited
+  diagnostic container `git-policy-fix-diag`. RESULT: "9173 tests run: 9171 passed (5 slow), 2 failed, 28 skipped",
+  the two being the standing `service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing`
+  and `repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone`; the
+  target is met on this run. GOING: the same session resumed as
+  `pi-git-policy-cli-container-gate-on-a-zfs-host-fix-resumed` (run folder `run-2`, `--session` of the first run,
+  cap 200) to read that output and write its final report, with no new whole gate run. Then its short review (Qwen,
+  watched) and the integration pass. The driver defect is a run of its own, GOING:
+  `pi-driver-a-process-that-ends-mid-scan-is-gone` (DeepSeek on Neuralwatt, cap 450) in
+  `.claude/worktrees/pi-driver-a-process-that-ends-mid-scan-is-gone` on
+  `fix/pi-shared-subagent-driver-a-process-that-ends-while-the-scan-reads-it-is-gone-not-a-failed-read`: every
+  `/proc/<pid>/` read on the left-running and wake paths counts `ESRCH` as a process gone, a failing test first for
+  each, the README's line on what counts as ended; the README's rule that a truly failed read ends the run with
+  `workProblem` stays, and whether it should retry within the wait's bound instead is asked as a suggestion only;
+  brief under `~/temp/agent/pi-driver-a-process-that-ends-mid-scan-is-gone-2026-11-19/`. Until it is in main any run
+  that ends its turn while its own work runs can be cut the same way, and a container it started outlives it.
 - **GOING**: the hybrid provider prototype (the owner's "Hybrid, prototype first"), unit
   `pi-rate-limit-fallback-hybrid-prototype` (DeepSeek on Neuralwatt, turn cap 380, a quarter above the longest
   finished run on this package, 301; wall 300 minutes, the longest took 260), in
@@ -40234,9 +40256,16 @@ What follows from them, as work:
   prototype page still claims dropped exports and has a 129-character line; `doc/captures.md` misses five fixture
   texts; two "on reentry" wordings; three exports with no importer. A corrective comment was posted on `e85e016e57`
   (https://github.com/Aquaticats/Monochromatic/commit/e85e016e570b620775dca876a63612dbe4317d40#commitcomment-210940272);
-  the review worktree was removed. GOING: the fix round `pi-rate-limit-fallback-hybrid-review-findings-fixed`
-  (DeepSeek on Neuralwatt, cap 635) in the rebuild worktree, findings 1 to 3 and 5 to 8; brief under
-  `~/temp/agent/rate-limit-fallback-hybrid-review-findings-fixed-2026-11-19/`. Then the coordinator's check, the merge
+  the review worktree was removed. The fix round `pi-rate-limit-fallback-hybrid-review-findings-fixed` (DeepSeek on
+  Neuralwatt) ended `idle` after 166 turns at `462cc725a2` (commits `5825b51390`, `48dc5d061c`, `a521cf4046` with a
+  corrective note, `462cc725a2`): each of findings 1 to 3 and 5 to 8 applied with a check red first (finding 1
+  chronologically; the zero-ceiling probes against the pristine `e880cd4ed3` artifact afterwards); a 503 carrying
+  OpenAI's opening still stops at the head; package tasks all exit 0 (transient refusals now 14 cases); it disagrees
+  with finding 7's literal wording for the test name, because there the renewal is learned by the refusal's own read;
+  report in that folder's `keep/report.md`. GOING: its delta short review on the Qwen plan,
+  `pi-rate-limit-fallback-hybrid-fixes-delta-short-review-on-the-qwen-plan` (watched to its end), in
+  `.claude/worktrees/pi-qwen-review-rate-limit-fallback-hybrid-fixes-at-462cc725a2`; brief under
+  `~/temp/agent/rate-limit-fallback-hybrid-fixes-delta-short-review-on-the-qwen-plan-2026-11-19/`. Then the merge
   and the installed dist's rebuild, then the live quota check (task 396). The driver pool table (task 383)
   waits on more than a slot: it changes `pool-limits.ts`, as the unmerged `ecec388cdb` does (13 files; its review
   queued 2026-11-16 and never started), and the entry of 2026-11-16 on the second timing of the two pools puts
