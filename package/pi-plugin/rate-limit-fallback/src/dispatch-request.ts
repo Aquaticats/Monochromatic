@@ -15,7 +15,7 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { capacityOf, noteRateLimit, refreshCapacity, type MemberCapacity, } from './member-capacity.ts';
 import { POOLS, } from './model-pools.ts';
 import type { RoutingRegistry, } from './quota-endpoints.ts';
-import { headerReset, isRateLimit, recommendedReset, } from './rate-limit-evidence.ts';
+import { headerReset, isPolicyStop, isRateLimit, recommendedReset, } from './rate-limit-evidence.ts';
 
 //region Session state and routing errors
 
@@ -75,7 +75,7 @@ function memberOptions({
  @param context - full Pi transcript to give each attempt
  @param options - caller options including abort signal and observers
  @returns normalized events from exactly one member, or a terminal setup failure
- @throws {PoolDispatchError} when routing is impossible or a provider omits its terminal event
+ @throws PoolDispatchError when routing is impossible or a provider omits its terminal event
  */
 export async function* dispatchRequest({
   session,
@@ -118,6 +118,8 @@ export async function* dispatchRequest({
     const ceiling = capacity.overage?.concurrency ?? capacity.evidence.concurrency;
     if (ceiling !== undefined && capacity.active >= ceiling) {
       rl.debug(`${id}: ${label} local concurrency reached published or observed cap ${ceiling}`,);
+      if (ceiling === 0)
+        capacity.needsProbe = true;
       localsFull = true;
       continue;
     }
@@ -131,11 +133,12 @@ export async function* dispatchRequest({
         ...forwarded,
         async onResponse(response, responseModel,) {
           status = response.status;
-          if (status === 429) {
+          if (status === 429 || (status >= 200 && status < 300)) {
             responseReset = headerReset({
               provider: physical.provider,
               headers: new Headers(response.headers,),
               now: Date.now(),
+              status,
             },);
           }
           await forwarded.onResponse?.(response, responseModel,);
@@ -148,6 +151,13 @@ export async function* dispatchRequest({
         if (event.type === 'start') {
           start = event;
           continue;
+        }
+        if (event.type === 'error' && isPolicyStop(event.error,)) {
+          if (start !== undefined)
+            yield start;
+          // Remove incidental retry wording so Pi's own retry classifier does not restart this request.
+          yield { ...event, error: { ...event.error, errorMessage: 'The provider stopped the request under its content policy.', }, };
+          return;
         }
         if (event.type === 'error' && !committed && event.error.content.length === 0
           && isRateLimit({ message: event.error, status, },))
@@ -172,6 +182,8 @@ export async function* dispatchRequest({
           yield start;
           start = undefined;
         }
+        if (event.type === 'done' && responseReset > Date.now())
+          capacity.retryAt = Math.max(capacity.retryAt, responseReset,);
         yield event;
         if (event.type === 'done' || event.type === 'error')
           return;

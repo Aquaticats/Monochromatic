@@ -20,6 +20,15 @@ const HTTP_429 = /^(?:HTTP[ \t]+|status(?: code)?:[ \t]*)?429(?:[ \t:]|$)/iu;
 const POLICY_STOP = /possible risk|content[_ -]filter|safety[_ -](?:policy|violation)|policy[_ -]violation/iu;
 
 /**
+ Match a model-service policy stop, independently of coincidental status or retry text.
+ @param message - failed provider message
+ @returns whether Pi should see a non-retryable policy error
+ */
+export function isPolicyStop(message: AssistantMessage,): boolean {
+  return message.stopReason === 'error' && POLICY_STOP.test(message.errorMessage ?? '',);
+}
+
+/**
  Identify a terminal HTTP rate limit without treating text that merely mentions 429 as a status.
  @param message - terminal assistant result, which never represents a successful reply here
  @param status - actual HTTP status when Pi's adapter exposed it
@@ -33,7 +42,6 @@ export function isRateLimit({
   status: number | undefined;
 },): boolean {
   return message.stopReason === 'error'
-    && !POLICY_STOP.test(message.errorMessage ?? '',)
     && (status === 429 || (status === undefined && HTTP_429.test(message.errorMessage ?? '',)));
 }
 
@@ -131,30 +139,35 @@ function resetDuration(value: string,): number {
  @param provider - provider whose quota contract applies
  @param headers - case-insensitive response headers, scoped to this attempt
  @param now - time response arrived
+ @param status - HTTP status, so Retry-After is interpreted only on a refusal
  @returns latest reset time named by a depleted limit, or zero
  */
 export function headerReset({
   provider,
   headers,
   now,
+  status,
 }: {
   provider: string;
   headers: Headers;
   now: number;
+  status: number;
 },): number {
-  const retryAfter = headers.get('retry-after',) ?? '';
+  const retryAfter = status === 429 ? headers.get('retry-after',) ?? '' : '';
   const retryReset = /^\d+$/u.test(retryAfter,)
     ? now + Number(retryAfter,) * SECOND_MS
     : resetTime(retryAfter,);
+  const validRetry = Number.isFinite(new Date(retryReset,).getTime(),) ? retryReset : 0;
   if (provider !== 'openai')
-    return Number.isFinite(retryReset,) ? retryReset : 0;
+    return validRetry;
   const requests = headers.get('x-ratelimit-remaining-requests',) === '0'
     ? now + resetDuration(headers.get('x-ratelimit-reset-requests',) ?? '',)
     : 0;
   const tokens = headers.get('x-ratelimit-remaining-tokens',) === '0'
     ? now + resetDuration(headers.get('x-ratelimit-reset-tokens',) ?? '',)
     : 0;
-  return Math.max(Number.isFinite(retryReset,) ? retryReset : 0, requests, tokens,);
+  const reset = Math.max(validRetry, requests, tokens,);
+  return Number.isFinite(new Date(reset,).getTime(),) ? reset : validRetry;
 }
 
 /**

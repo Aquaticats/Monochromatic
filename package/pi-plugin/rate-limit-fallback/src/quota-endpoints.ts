@@ -68,7 +68,7 @@ async function requestQuota({
     }
     return await response.json();
   } catch (error) {
-    if (error !== undefined && !signal?.aborted)
+    if (error !== undefined && signal?.aborted !== true)
       rl.debug('Quota response unavailable',);
     return undefined;
   }
@@ -143,7 +143,7 @@ export async function probeQuota({
     return neuralWattEvidence({ limits, quota, },);
   } catch (error) {
     // Do not log raw credential-resolution errors.
-    if (error !== undefined && !signal?.aborted)
+    if (error !== undefined && signal?.aborted !== true)
       rl.debug(`${provider} registry auth for quota read unavailable`,);
     return {};
   }

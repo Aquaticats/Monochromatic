@@ -5,6 +5,7 @@
 
 import {
   createAssistantMessageEventStream,
+  normalizeContext,
   type Api,
   type AssistantMessage,
   type AssistantMessageEvent,
@@ -40,12 +41,12 @@ export const TARGETS = [
 ] as const;
 
 /** Transcript that must survive fallback unchanged. */
-export const TRANSCRIPT: TranscriptContext = {
+export const TRANSCRIPT: TranscriptContext = normalizeContext({
   messages: [
     { role: 'system', content: 'Fixture system instruction', timestamp: 0, },
     { role: 'user', content: 'Fixture request', timestamp: 0, },
   ],
-};
+},);
 
 /** Catalog records used by both stand-in registry and SDK fixtures. */
 export const PHYSICAL_MODELS: readonly Model<Api>[] = TARGETS.map(function toModel(target,) {
@@ -85,7 +86,7 @@ export function assistant({
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, },
     },
     stopReason: errorMessage === undefined ? 'stop' : 'error',
-    errorMessage,
+    ...(errorMessage === undefined ? {} : { errorMessage, }),
     timestamp: Date.now(),
   };
 }
@@ -102,6 +103,8 @@ export function finish({
   stream: AssistantMessageEventStream;
   message: AssistantMessage;
 },): void {
+  if (message.stopReason === 'pending')
+    throw new Error('Test message must be terminal',);
   stream.push(message.stopReason === 'error' || message.stopReason === 'aborted'
     ? { type: 'error', reason: message.stopReason, error: message, }
     : { type: 'done', reason: message.stopReason, message, },);
@@ -131,7 +134,7 @@ export async function collect(stream: AssistantMessageEventStream,): Promise<{
 export type MemberCall = {
   readonly model: Model<Api>;
   readonly context: TranscriptContext;
-  readonly options?: SimpleStreamOptions;
+  readonly options: SimpleStreamOptions | undefined;
 };
 
 /**
@@ -207,7 +210,7 @@ export function immediate({
   errorMessage?: string;
 },): AssistantMessageEventStream {
   const stream = createAssistantMessageEventStream();
-  const message = assistant({ model, errorMessage, },);
+  const message = assistant({ model, ...(errorMessage === undefined ? {} : { errorMessage, }), },);
   stream.push({ type: 'start', partial: message, },);
   finish({ stream, message, },);
   return stream;

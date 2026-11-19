@@ -82,6 +82,8 @@ export async function refreshCapacity({
 },): Promise<void> {
   async function refresh(): Promise<void> {
     capacity.needsProbe = false;
+    if (capacity.retryAt <= Date.now())
+      capacity.retryAt = 0;
     const evidence = await probeQuota({
       registry,
       model,
@@ -153,7 +155,7 @@ export function noteRateLimit({
   retryAt: number;
 },): void {
   capacity.needsProbe = true;
-  capacity.retryAt = retryAt;
+  capacity.retryAt = Math.max(capacity.retryAt, retryAt,);
   if (provider !== 'neuralwatt' || !errorMessage.includes(OVERAGE_NOTICE,))
     return;
   const concurrency = Number(OVERAGE_CONCURRENCY.exec(errorMessage,)?.[1],);

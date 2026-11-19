@@ -3,7 +3,7 @@
  @module
  */
 
-import { createAssistantMessageEventStream, lazyStream, } from '@earendil-works/pi-ai';
+import { createAssistantMessageEventStream, isRetryableAssistantError, lazyStream, } from '@earendil-works/pi-ai';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import extension, { PROVIDER_ID, } from '../dist/final/node/index.mjs';
 import {
@@ -101,7 +101,11 @@ await describe({
           },);
           const model = poolModel({ provider, id: 'writer', },);
           const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-          expect(result.errorMessage,).toBe(errorMessage,);
+          expect(result.errorMessage,).toBe(errorMessage === POLICY
+            ? 'The provider stopped the request under its content policy.'
+            : errorMessage,);
+          if (errorMessage === POLICY)
+            expect(isRetryableAssistantError(result,),).toBe(false,);
           expect(calls.map(call => call.model.provider,),).toEqual(['openai',],);
         },
       },);

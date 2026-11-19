@@ -61,6 +61,38 @@ await describe({
       },
     },),
     it({
+      name: 'uses OpenAI zero-remaining headers seen on a successful response',
+      fn: async function openAiRemaining(ctx,) {
+        const clock = { now: Date.now(), };
+        ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
+        const { provider, calls, options, } = await fixture({
+          extension,
+          play({ model, options: member, }) {
+            if (calls.length !== 1)
+              return immediate({ model, },);
+            return lazyStream(model, async function reply() {
+              await member?.onResponse?.({
+                status: 200,
+                headers: {
+                  'x-ratelimit-remaining-tokens': '0',
+                  'x-ratelimit-reset-tokens': `${WINDOW_SECONDS}s`,
+                },
+              }, model,);
+              return immediate({ model, },);
+            },);
+          },
+        },);
+        const model = poolModel({ provider, id: 'writer', },);
+        const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        const beforeReset = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        clock.now += WINDOW_MS;
+        const afterReset = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect([first.result.provider, beforeReset.result.provider, afterReset.result.provider,],).toEqual([
+          'openai', 'qwen-token-plan-individual', 'openai',
+        ],);
+      },
+    },),
+    it({
       name: 'reads Synthetic on first use and at reset, not on every request',
       fn: async function syntheticWindow(ctx,) {
         const clock = { now: Date.now(), };
@@ -111,6 +143,44 @@ await describe({
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(result.provider,).toBe('synthetic',);
         expect(touched,).toBe(false,);
+      },
+    },),
+    it({
+      name: 'admits only the reported flex ceiling, not the standard concurrency ceiling',
+      fn: async function flexCeiling() {
+        const ready = Promise.withResolvers<void>();
+        const held = createAssistantMessageEventStream();
+        const { provider, calls, options, } = await fixture({
+          extension,
+          models: PHYSICAL_MODELS.filter(model => model.provider === 'neuralwatt',),
+          play({ model, }) {
+            if (calls.length !== 1)
+              return immediate({ model, },);
+            ready.resolve();
+            return held;
+          },
+          async fetchQuota(input,) {
+            return String(input,).includes('/v1/rate_limits',)
+              ? Response.json({ models: [{ effective_concurrency: PUBLISHED_CAP, flex_floor: 1, },], },)
+              : Response.json({});
+          },
+        },);
+        const model = poolModel({ provider, id: 'reviewer', },);
+        const pending = provider.streamSimple(model, TRANSCRIPT, options,);
+        await ready.promise;
+        try {
+          const denied = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+          expect(denied.result.errorMessage,).toContain('local provider concurrency ceiling',);
+          expect(calls.length,).toBe(1,);
+        } finally {
+          const physical = PHYSICAL_MODELS.find(candidate => candidate.provider === 'neuralwatt',);
+          if (physical === undefined)
+            throw new Error('Missing physical fixture model',);
+          finish({ stream: held, message: assistant({ model: physical, },), },);
+          await collect(pending,);
+        }
+        const again = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(again.result.provider,).toBe('neuralwatt',);
       },
     },),
     it({
