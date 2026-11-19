@@ -30,6 +30,11 @@ const QWEN_WAIT_MS = 60_000;
 /** Duration of the stand-in Synthetic quota window, chosen independently of the Qwen recommendation. */
 const SYNTHETIC_WINDOW_MS = 3_600_000;
 
+/**
+ Requests the subscription stand-in allows in its window, one, so a single request depletes it.
+ */
+const SUBSCRIPTION_REQUEST_LIMIT = 1;
+
 await describe({
   name: 'quota reentry',
   children: [
@@ -111,7 +116,7 @@ await describe({
         const clock = { now: Date.now(), };
         ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
         const end = clock.now + SYNTHETIC_WINDOW_MS;
-        const limit = 1;
+        const limit = SUBSCRIPTION_REQUEST_LIMIT;
         const { provider, options, } = await fixture({
           extension,
           models: SYNTHETIC_AND_BACKUP,

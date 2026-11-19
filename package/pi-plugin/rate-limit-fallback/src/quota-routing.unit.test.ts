@@ -65,6 +65,21 @@ const RECORDED_DELAY_MS = 1_000;
 const COMPOUND_SECONDS = 90;
 
 /**
+ Share of a quota window a depleted reading reports.
+ */
+const DEPLETED_PERCENT = 0;
+
+/**
+ Share of a quota window a full reading reports.
+ */
+const FULL_PERCENT = 100;
+
+/**
+ One concurrency slot, the stand-in ceiling a single open stream fills.
+ */
+const SINGLE_SLOT = 1;
+
+/**
  Writer head, the NeuralWatt standard lane that asks the same endpoint for its own ceiling.
  */
 const [NEURALWATT_STANDARD,] = WRITER_TARGETS;
@@ -213,7 +228,7 @@ await describe({
               throw new Error('Quota fetch permits redirects',);
             endpoints.push(quotaUrl(input,),);
             return syntheticWeeklyWindow({
-              percentRemaining: clock.now < end ? 0 : 100,
+              percentRemaining: clock.now < end ? DEPLETED_PERCENT : FULL_PERCENT,
               nextRegenAt: new Date(end,).toISOString(),
             },);
           },
@@ -545,7 +560,7 @@ await describe({
             },
           };
           await ready.promise;
-          const ceiling = 1;
+          const ceiling = SINGLE_SLOT;
           const denied = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           expect(denied.result.errorMessage,).toContain(`local concurrency ceiling (${ceiling} of ${ceiling} in use)`,);
           subscription.inOverage = false;

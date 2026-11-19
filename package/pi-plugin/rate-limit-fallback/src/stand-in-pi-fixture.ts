@@ -110,6 +110,17 @@ export const TRANSCRIPT: TranscriptContext = normalizeContext({
 },);
 
 /**
+ Window every stand-in member reports: large enough for a short transcript, small enough to stay a
+ stand-in rather than a provider claim.
+ */
+const STAND_IN_CONTEXT_WINDOW = 16_000;
+
+/**
+ Output limit every stand-in member reports.
+ */
+const STAND_IN_MAX_TOKENS = 256;
+
+/**
  Catalog records used by both stand-in registry and SDK fixtures.
  */
 export const PHYSICAL_MODELS: readonly Model<Api>[] = TARGETS.map(function toModel(target,) {
@@ -124,8 +135,8 @@ export const PHYSICAL_MODELS: readonly Model<Api>[] = TARGETS.map(function toMod
       cacheWrite: 0,
     },
     reasoning: false,
-    contextWindow: 16_000,
-    maxTokens: 256,
+    contextWindow: STAND_IN_CONTEXT_WINDOW,
+    maxTokens: STAND_IN_MAX_TOKENS,
   };
 },);
 
