@@ -40220,8 +40220,19 @@ What follows from them, as work:
   image build at its limit (pre-existing, reported). GOING: its short review on the Qwen plan,
   `pi-git-policy-cli-container-gate-on-a-zfs-host-short-review-on-the-qwen-plan` (watched), in
   `.claude/worktrees/pi-qwen-review-container-gate-on-a-zfs-host-at-deed732fc1`; brief under
-  `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-short-review-on-the-qwen-plan-2026-11-19/`. Then the
-  integration pass.
+  `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-short-review-on-the-qwen-plan-2026-11-19/`. It ended
+  `idle` (83 turns, no rate-limit error; that folder's `keep/review.md`): no high; product behaviour unchanged (every
+  Rust hunk is a test or test-support comment except the `may_clone` move); the root under `/work` reproduced (an
+  offline `serde` workspace resolves only there); the Clippy controls go red when their code is removed; the two
+  remaining failures carry cause H verbatim. Medium F1: four Rust doc comments still say the gate runs on an overlay.
+  Lows: the `1500m` tmpfs cannot fill before the 2 GiB memory bound kills the run, so the promised `ENOSPC` never comes;
+  the `ioctl` sweep skips without the `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED` bargain; one test name overpromises; run 1's
+  own output was not kept; the cause accounting misses one named test,
+  `package_repair::pnpm_runs_in_the_new_worktree_only`, not two. The review worktree was removed. GOING: the second
+  round `pi-git-policy-cli-container-gate-on-a-zfs-host-review-findings-fixed` (DeepSeek on Neuralwatt, cap 450) in the
+  gate worktree; brief under
+  `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-review-findings-fixed-2026-11-19/`. Then the integration
+  pass (a gate review on Sonnet) and the merge.
 - **GOING**: the hybrid provider prototype (the owner's "Hybrid, prototype first"), unit
   `pi-rate-limit-fallback-hybrid-prototype` (DeepSeek on Neuralwatt, turn cap 380, a quarter above the longest
   finished run on this package, 301; wall 300 minutes, the longest took 260), in
