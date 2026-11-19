@@ -15,9 +15,8 @@
    own unit and which descends from the run's own process: a `systemd-run --scope` the agent made leaves the unit's control group
    and keeps the parent that started it, so it is visible there, and a process another session, another run or the person
    started descends from that and never from this run;
- - the unit a command names with `--unit=`, asked of the manager for work whose process the tool recorded but whose number has
-   gone, and whatever the tool's last answer says about the client that named it: a service of its own starts from the manager
-   rather than from the run, so its number is not the tool's to keep, and a client that has ended says nothing of the unit.
+ - the unit a command names with `--unit=`, asked of the manager, for work whose process the tool recorded but whose number has
+   gone: a service of its own starts from the manager rather than from the run, so its number is not the tool's to keep.
 
  What none of them can show is not guessed at: a process whose folder or parent chain cannot be read counts for nothing, and a run
  whose work nothing names ends as it ended before this existed.
@@ -42,7 +41,6 @@ import {
   processesNamedIn,
 } from './processes-a-tool-answer-names.ts';
 import { isRecord, } from './read-pi-fields.ts';
-import { unitKeepsTheRun, } from './units-a-command-starts.ts';
 import { descendsFrom, } from './processes-descended-from-a-process.ts';
 import {
   type RunCommand,
@@ -70,26 +68,27 @@ const LIVE_STATUSES: ReadonlySet<string> = new Set<string>([
  */
 const COMMAND_CHARACTERS = 160;
 
-
-
 /**
- Reads every process the run's `process` tool last reported, whatever it last said about it.
+ Reads the processes a run's own `process` tool last reported as running.
 
- A status is what the tool says about the process it holds, and the client that started a unit of its own says nothing about that
- unit: a `systemd-run --user --unit=<name>` client exits while the unit it asked for runs on, so a reader that kept only the
- processes a later answer calls running would never ask the manager about the unit. The record of a client is read whole, and what
- the run waits for is decided on the number, the folder and the unit it names.
+ The records are the feed's own: every start, update and list the tool answered is a `processes` record holding that answer whole,
+ so what the tool holds is read without asking Pi, whose session may already be over. A feed written before those records existed
+ is read from its `tool_end` lines instead, where the answer is kept only as a preview: text the feed cut is no record and says
+ nothing about the call either way.
+
+ A feed being written ends in a line the writer has not finished, which is no record yet and is skipped. A whole line that is not
+ JSON is damage, and the caller learns of it rather than reading the run's work as none.
 
  @param feedShown - the run's feed, one JSON record per line
 
- @returns every process the tool's last answer named, ended or not
+ @returns the processes the tool reported and did not later report as ended
 
  @example
  ```ts
- const recorded = processesTheToolReportedIn({ feedShown: await readFile(feedFile, 'utf8',), },);
+ const running = workTheToolReportedIn({ feedShown: await readFile(feedFile, 'utf8',), },);
  ```
  */
-function processesTheToolReportedIn({ feedShown, }: { readonly feedShown: string },): readonly WorkOfARun[] {
+export function workTheToolReportedIn({ feedShown, }: { readonly feedShown: string },): readonly WorkOfARun[] {
   /**
    The last status the tool reported for each process, by the tool's name for it.
    */
@@ -146,34 +145,9 @@ function processesTheToolReportedIn({ feedShown, }: { readonly feedShown: string
       }
     }
   }
-  return [...reported.values(),];
-}
-
-/**
- Reads the processes a run's own `process` tool last reported as running.
-
- The records are the feed's own: every start, update and list the tool answered is a `processes` record holding that answer whole,
- so what the tool holds is read without asking Pi, whose session may already be over. A feed written before those records existed
- is read from its `tool_end` lines instead, where the answer is kept only as a preview: text the feed cut is no record and says
- nothing about the call either way.
-
- A feed being written ends in a line the writer has not finished, which is no record yet and is skipped. A whole line that is not
- JSON is damage, and the caller learns of it rather than reading the run's work as none.
-
- @param feedShown - the run's feed, one JSON record per line
-
- @returns the processes the tool reported and did not later report as ended
-
- @example
- ```ts
- const running = workTheToolReportedIn({ feedShown: await readFile(feedFile, 'utf8',), },);
- ```
- */
-export function workTheToolReportedIn({ feedShown, }: { readonly feedShown: string },): readonly WorkOfARun[] {
-  return processesTheToolReportedIn({ feedShown, },)
-    .filter(function stillRuns(work,) {
-      return work.status === undefined ? false : LIVE_STATUSES.has(work.status,);
-    },);
+  return [...reported.values()].filter(function stillRuns(work,) {
+    return work.status === undefined ? false : LIVE_STATUSES.has(work.status,);
+  },);
 }
 
 /**
@@ -249,6 +223,44 @@ async function processIsThere({
 }
 
 /**
+ Reads the unit a command starts, when it starts one of its own.
+
+ A command started with `systemd-run --user --unit=<name>` runs in a unit of its own, which outlives the command that asked for
+ it, so the number the `process` tool holds stops naming the work while the unit still runs it.
+
+ @param command - the command the tool started
+
+ @returns the unit's name, or nothing when the command names none
+
+ @example
+ ```ts
+ const unit = unitNamedBy({ command: 'systemd-run --user --unit=pi-build true', },);
+ ```
+ */
+export function unitNamedBy({ command, }: { readonly command: string },): { readonly unit?: string } {
+  /**
+   The words the command was written with, which whitespace of any width separates.
+   */
+  const words = command.split(' ',)
+    .filter(function isAWord(word,) {
+      return word !== '';
+    },);
+  for (const [at, word,] of words.entries()) {
+    if (word.startsWith('--unit=',)) {
+      return { unit: word.slice('--unit='.length,), };
+    }
+    /**
+     The word after `--unit`, which names the unit when it stands apart.
+     */
+    const named = words[at + 1];
+    if ((word === '--unit') && (named !== undefined)) {
+      return { unit: named, };
+    }
+  }
+  return {};
+}
+
+/**
  Reads what a process works on, as a line a reader needs.
 
  @param work - the process, and the name the tool gave it
@@ -287,21 +299,13 @@ function lineOf({ work, }: { readonly work: WorkOfARun },): string {
 
  @param ownProcess - process number of the run's own process, which every process the run started descends from
 
- @param runStartedAt - when the run's own process started, in milliseconds since the epoch: a unit that left the inactive state
- before that cannot be this run's work, which is what a record read before the tool records a start time falls back to
-
- @param settled - units the manager has already answered about, which this call adds to and never asks about twice: the caller
- keeps it for the run, since every look of the run asks this question again
-
- @param managerProgram - the program that answers for the manager, `systemctl` here, which a run's environment may name another
-
  @param run - how a command is run, which a test replaces
 
  @returns one line per process the run still has going, empty when it has none the driver can see
 
  @example
  ```ts
- const work = await workOutlivingTheTurnIn({ runFolder: '/runs/a-1', workingFolder: '/repo/.claude/worktrees/pi-a', processFolder: '/proc', ownProcess: 486601, runStartedAt: 1_795_000_000_000, settled: new Set(), },);
+ const work = await workOutlivingTheTurnIn({ runFolder: '/runs/a-1', workingFolder: '/repo/.claude/worktrees/pi-a', processFolder: '/proc', ownProcess: 486601, },);
  ```
  */
 export async function workOutlivingTheTurnIn({
@@ -309,18 +313,12 @@ export async function workOutlivingTheTurnIn({
   workingFolder,
   processFolder,
   ownProcess,
-  runStartedAt,
-  settled,
-  managerProgram = 'systemctl',
   run = runCommandWithChildProcess,
 }: {
   readonly runFolder: string;
   readonly workingFolder: string;
   readonly processFolder: string;
   readonly ownProcess: number;
-  readonly runStartedAt: number;
-  readonly settled: Set<string>;
-  readonly managerProgram?: string;
   readonly run?: RunCommand;
 },): Promise<readonly string[]> {
   /**
@@ -331,10 +329,9 @@ export async function workOutlivingTheTurnIn({
     'feed.jsonl',
   ),);
   /**
-   Every process the tool's last answer named, whether it called that process running or ended: the tool says what became of the
-   process it holds, and the client that started a unit of its own has ended while that unit runs on.
+   What the tool reported and did not report as ended.
    */
-  const recorded = processesTheToolReportedIn({ feedShown, },);
+  const reported = workTheToolReportedIn({ feedShown, },);
   /**
    The control group of the run's own unit, which is where the driver and Pi run and no work of the agent's does.
    */
@@ -350,37 +347,35 @@ export async function workOutlivingTheTurnIn({
    The process numbers already named, so a process is not named twice.
    */
   const named = new Set<number>();
-  for (const work of recorded) {
+  for (const work of reported) {
     /**
-     Whether the tool's last answer still calls this process going, which is the only status its number may be waited on: a number
-     a recorded client has given up can belong to a process nobody here started.
+     Whether the number the tool holds is still a process.
      */
-    const live = (work.status === undefined) ? false : LIVE_STATUSES.has(work.status,);
+    // oxlint-disable-next-line eslint/no-await-in-loop -- one process after another, each read before the next is asked about; a handful of processes at most; see doc/lint/sequential-awaits.md
+    const alive = (work.pid === undefined) ? false : await processIsThere({
+      processFolder,
+      pid: work.pid,
+    },);
     /**
-     Whether the number the tool holds is still a process, while the tool still calls that process going.
+     Whether the unit the command names still runs it.
      */
-    let alive = false;
-    if (live && (work.pid !== undefined)) {
-      // oxlint-disable-next-line eslint/no-await-in-loop -- one process after another, each read before the next is asked about; a handful of processes at most; see doc/lint/sequential-awaits.md
-      alive = await processIsThere({
-        processFolder,
-        pid: work.pid,
-      },);
-    }
+    const { unit, } = alive ? {} : unitNamedBy({ command: work.command, },);
     /**
-     Whether a unit of this run's own still runs the work, which is what a client that started one has left behind.
+     What the manager says about that unit.
      */
-    let unitRuns = false;
-    if (!alive) {
+    const unitRuns = (unit === undefined)
+      ? false
       // oxlint-disable-next-line eslint/no-await-in-loop -- the same handful of processes, each asked once; see doc/lint/sequential-awaits.md
-      unitRuns = await unitKeepsTheRun({
-        run,
-        program: managerProgram,
-        command: work.command,
-        startedAt: work.startedAt ?? runStartedAt,
-        settled,
-      },);
-    }
+      : (await run({
+        command: 'systemctl',
+        words: [
+          '--user',
+          'is-active',
+          unit,
+        ],
+      },)).stdout
+        .trim()
+        === 'active';
     if ((!alive) && (!unitRuns)) {
       continue;
     }

@@ -193,6 +193,16 @@ export {
 } from './watch-for-overdue-runs.ts';
 
 /**
+ Whether one process is descended from another, which tells the work a run started from the work of the session, run or person
+ that started it.
+ */
+export {
+  NO_PARENT_RECORD,
+  descendsFrom,
+  parentOfProcess,
+} from './processes-descended-from-a-process.ts';
+
+/**
  The step a launcher takes after its unit ended: an agent that ended its turn while work it started still runs is waited for, then
  resumed with a short note. The launcher `start-pi-run-in-a-worktree.ts` takes it.
  */
@@ -212,35 +222,13 @@ export {
   wakeResumeWordsOf,
   workWaitMillisecondsOf,
 } from './wake-a-run-whose-work-outlives-its-turn.ts';
-
-/**
- Whether one process is descended from another, which tells the work a run started from the work of the session, run or person
- that started it.
- */
-export {
-  NO_PARENT_RECORD,
-  descendsFrom,
-  parentOfProcess,
-} from './processes-descended-from-a-process.ts';
-
-/**
- The work a run left running, which the driver keeps the run for: the run's own `process` tool, the process table for work descended
- from the run, and the units the run named.
- */
 export {
   cgroupOf,
+  unitNamedBy,
   wakeMessageOf,
   workOutlivingTheTurnIn,
   workTheToolReportedIn,
 } from './work-the-run-left-running.ts';
-
-/**
- What a recorded command says about the units it names, and what the manager's answer about one says.
- */
-export {
-  unitKeepsTheRun,
-  unitNamedBy,
-} from './units-a-command-starts.ts';
 
 /**
  A batch started as its own systemd user unit, so it outlives the process that asked for it: `start-a-batch-in-its-own-unit.ts`.

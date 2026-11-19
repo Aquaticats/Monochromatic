@@ -1,6 +1,6 @@
 /**
- What one answer of the run's own `process` tool says it holds: the tool's name for the process, the number it started, when it
- started, the folder it works in and the command it runs.
+ What one answer of the run's own `process` tool says it holds: the tool's name for the process, the number it started, the folder
+ it works in and the command it runs.
 
  Kept apart from the reader that asks the machine what still runs, because two places need the same reading: the feed's writer,
  which keeps the answer whole as one record of its own, and the reader of that record. The `tool_end` line of the feed carries
@@ -61,12 +61,6 @@ export type WorkOfARun = {
    The status the tool last reported, when a record named one.
    */
   readonly status?: string;
-
-  /**
-   When the tool started it, as milliseconds since the epoch, when the tool recorded that: a unit a client started can only be the
-   run's own work when it began after this moment.
-   */
-  readonly startedAt?: number;
 };
 
 /**
@@ -96,7 +90,6 @@ function processesInOne({ value, }: { readonly value: unknown },): readonly Work
     command: ((typeof value.command) === 'string') ? value.command : '',
     cwd: ((typeof value.cwd) === 'string') ? value.cwd : '',
     ...((typeof value.status) === 'string' ? { status: value.status, } : {}),
-    ...((typeof value.startTime) === 'number' ? { startedAt: value.startTime, } : {}),
   },];
 }
 
