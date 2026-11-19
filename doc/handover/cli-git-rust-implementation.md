@@ -40243,6 +40243,16 @@ the known `secret-values` fixture flake. Noted: `format:dprint` fails with "No f
 package (pre-existing, its own follow-up); about 2,875 old `stand-in-session-*.jsonl` files sit in the home folder from
 the suite's earlier fallback (task 364's correction; new runs now write them into the kept folder). GOING: a DeepSeek
 short review on Synthetic (`pi-review-...-temporary-folder-at-b0324ec24b-1`).
+Review back (102 turns): **0 high, 1 medium, 8 low**; failing-first confirmed (3 of 3 fail with `main`'s supervisor,
+6 of 6 pass at the tip); every start path (driver, pool gate, worktree launcher, batch, retrying start, resumed run)
+reaches the folder; the second-start refusal holds. Medium: the suite was red once on
+`drive-pi-subagent.unit.test.ts:2218` (not a known flake), green alone at the tip and at `main`. Lows: the maker follows
+a planted link and `chmod`s its target; a raw error with no summary when the folder cannot be made; two test names
+over-claim; no test for the new refusal case or the maker's failure; a self-made run folder comes out `0700`; the skill
+still passes `TMPDIR`; one module doc still says the system temporary folder. GOING: the writer's session resumed for 1
+to 7 and 9 (`...-temporary-folder-inside-its-run-2`, run-2); the medium gets a file-level reproduction at tip and at
+`main`, then a fix or a record in the host-load troubleshooting doc. The skill line (low 8) is the coordinator's after
+the merge.
 
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed
