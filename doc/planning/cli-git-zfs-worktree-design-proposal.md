@@ -298,7 +298,10 @@ GUIDs and `createtxg` values, pointer bytes, request nonce and progress. At crea
 inventory of snapshots through the origin snapshot's transaction group and the origin dataset's bookmarks, by
 kind, name, GUID and `createtxg`. Record the clone's initial inventory separately; an empty new clone inventory
 cannot identify transferred history. This is a proposed proof record based on the transfer in [VM item 13][vm-13].
-[Removal and recovery](#removal-and-recovery) defines how to use it.
+[Removal and recovery](#removal-and-recovery) defines how to use it. This draft does not name where that binding and
+lineage record lives: only the per-add claim record has a named home, the account-owned Git common directory, and
+the account can write whichever store holds the binding. Root's conditional destruction therefore has to keep its
+own copy of the identities it checks ([Clone removal identity protection](#clone-removal-identity-protection)).
 On resume distinguish a claimed empty slot, registration without a dataset (including a possible origin only),
 an unmounted clone, a mounted but unfinished clone and a verified checkout. Recheck recorded identities, the mount
 and the visible pointer before resuming; never use names, properties or a matching result alone to prove ownership.
@@ -1056,7 +1059,9 @@ unmeasured; a ranking is not a decision.
   prove origin identity and lineage before submission; a dependency refusal does not protect other snapshots.
   Delegated origin `destroy` also lets the account mark a checkout snapshot for deferred destroy, so this choice
   is coupled to [clone removal identity protection](#clone-removal-identity-protection): the pair with delegated
-  clone destruction is excluded until that option's origin rule is proved for the account.
+  clone destruction is excluded until that option's origin rule is proved for the account. Where that rule comes
+  from, and which host programs may pass a deferred destroy, is cited under
+  [Clone removal identity protection](#clone-removal-identity-protection).
 - Space-pressure pruning. Keep the guard's current scope and report its limits, or extend it to an explicit
   managed-descendant allowlist for sanoid hourlies with newest-per-dataset retention. Expansion can release more
   blocks, but deletes some living worktree history before normal expiry. The [VM record][vm-limits] does not
