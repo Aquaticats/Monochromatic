@@ -37,7 +37,9 @@ other non-429 errors do not trigger fallback. When an adapter does not expose a
 response status, the pool reads it from the adapter's own wording: the
 Responses adapter's `<provider> API error (429): …` label, which spells the
 label `OpenAI` only for the provider named `openai`, or the Completions
-adapter's `429: …`.
+adapter's `429: …`. Recorded provider refusals also appear in a quoted form,
+`429 "…"`, which the same leading-status reading accepts; a number that merely
+starts with `429`, such as `4290 tokens`, is not a refusal.
 
 A policy stop follows the same exposure rule, and only the OpenAI provider can
 move a request on. A member registered as provider `openai` whose refusal opens
@@ -66,19 +68,18 @@ fails without one; the capture fixes the text alone, not the wire event that
 carried it. No policy move has been observed on a real provider yet; the
 extension check covers the 429 handoff only.
 
-OpenAI's `This content was flagged for possible`
-sentence takes precedence over a 429 wherever it sits in the text, even if the
-advisory following it is truncated or changes punctuation, so a 429 body that
-quotes it ends the request instead of moving it. The shorter `possible risk`
-wording and generic policy labels identify a stop only when there is no 429
-status, and they never move a request on: such a stop ends it.
-A stop that ends the request names the member and preserves the advisory,
-including OpenAI's
-remediation. It replaces only the spans matched by Pi's transient-error
-classifier, such as standalone retryable status numbers, `rate limit`, and
-`please retry your request`, with `[omitted]`. The surrounding wording and
-punctuation are kept. This prevents Pi's outer retry from restarting a policy stop; a
-move to the next member never reaches that classifier at all.
+OpenAI's `This content was flagged for possible` sentence takes precedence over
+a 429 wherever it sits in the text, even if the advisory following it is
+truncated or changes punctuation, so a 429 body that quotes it ends the request
+instead of moving it. The shorter `possible risk` wording and generic policy
+labels identify a stop only when there is no 429 status, and they never move a
+request on: such a stop ends it. A stop that ends the request names the member
+and preserves the advisory, including OpenAI's remediation. It replaces only the
+spans matched by Pi's transient-error classifier, such as standalone retryable
+status numbers, `rate limit`, and `please retry your request`, with `[omitted]`.
+The surrounding wording and punctuation are kept. This prevents Pi's outer retry
+from restarting a policy stop; a move to the next member never reaches that
+classifier at all.
 
 When no member answers, the pool returns a failure rather than a fallback. A
 policy stop it set aside comes first, attributed to the member that stopped the
@@ -86,10 +87,10 @@ request: that run ends there, even though the later members were only
 rate-limited, because returning their 429 would let Pi's outer retry restart at
 the member that refused. With no stop set aside, the pool returns the last
 member's 429 as it arrived. When no member was attempted, the pool names the held
-members and their state: a published zero flex
-floor, a local concurrency ceiling with the count in use, or a hold until
-a provider-derived time. These local admission results do not carry a
-fabricated 429 and are not retried by Pi: generic retry backoff cannot be
+members and their state: a published zero flex floor, a local concurrency
+ceiling with the count in use, or a hold until a provider-derived time. These
+local admission results do not carry a fabricated 429 and are not retried by Pi:
+generic retry backoff cannot be
 aligned to a local slot freeing, a provider reset, or a plan change. Pi's
 configured SDK and agent retry layers still apply to physical errors they see. This plugin does not
 change the subagent driver's retry or pool accounting.
@@ -177,8 +178,8 @@ this extension. The offline verification does not measure endpoint latency.
   If a 429 names that exception and reports a lower concurrency,
   the lower of the published flex ceiling and the cap observed on that
   request governs until the period ends or a quota read confirms the
-  exception cleared. The program does not hard-code
-  the historical cap or extrapolate it to another provider or lane.
+  exception cleared. The program does not hard-code the historical cap or
+  extrapolate it to another provider or lane.
 
 ## Credentials and turn records
 
