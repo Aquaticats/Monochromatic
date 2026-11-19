@@ -1704,8 +1704,10 @@ TAE:
  Before prescribing tool/API behavior in prompts,
  docs,
  configs,
- or CI scripts,
- test it with a real invocation,
+ CI scripts
+ or test fixtures,
+ take it from a real invocation
+ or the producer's source,
  never from how it should work.
 
 ## When committing or documenting
