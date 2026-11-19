@@ -190,7 +190,7 @@ Not final and not approved: this session's own account.
   folder; H2 the checkout as a dataset at the same path, a boot-mount guard, the nested dataset
   `zpcachyos/nosnap/vm-builder-output` mounted at `package/vm-builder/cli/output`, and the pnpm consequence; H3 an
   unmounted clone loses its Git registration to `git worktree prune`; H4 an unbounded request property names a root
-  write path); weighed by the coordinator at 2026-11-18T20:20-05:00 (read H3 to L6 whole; H1 and H2 wait for the two
+  write path); weighed by the coordinator in b05a0e83a7 at 2026-11-18T20:07:38-05:00 (read H3 to L6 whole; H1 and H2 wait for the two
   research documents): every one of H3, H4, M1 to M5 and L1 to L6 is accepted for the fold-in, none dismissed; H3 is
   reproduced by the ZFS research's VM log (`guest-exact-zfs.log` lines 42 to 44: a `.git` pointer left in the
   checkout layer keeps `git worktree prune` from removing the registration, and without it prune removes it), and L5
