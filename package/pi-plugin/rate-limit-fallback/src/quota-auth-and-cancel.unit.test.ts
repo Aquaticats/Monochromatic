@@ -29,7 +29,7 @@ await describe({
           play({ model, }) { return immediate({ model, },); },
           async fetchQuota(_url, init,) {
             const headers = new Headers(init?.headers,);
-            if (headers.get('authorization',) !== HEADER_ONLY_BEARER || headers.has('cookie',))
+            if ((headers.get('authorization',) !== HEADER_ONLY_BEARER) || headers.has('cookie',))
               throw new Error('Unexpected quota authorization',);
             const nextRegenAt = new Date(Date.now() + 60_000,).toISOString();
             return Response.json({ planWeeklyLimit: { percentRemaining: 0, nextRegenAt, }, },);

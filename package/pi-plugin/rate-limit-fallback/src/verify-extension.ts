@@ -3,11 +3,12 @@
  @module
  */
 
-import { execFile, } from 'node:child_process';
+import { spawn, } from 'node:child_process';
+import { once, } from 'node:events';
 import { mkdtempDisposable, } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { text, } from 'node:stream/consumers';
 import { fileURLToPath, } from 'node:url';
-import { promisify, } from 'node:util';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 /**
@@ -18,8 +19,10 @@ await using home = await mkdtempDisposable(join(
   'pi-rate-limit-fallback-host-',
 ),);
 
-/** Child result, isolated from the harness's credential environment and resource discovery. */
-const { stdout, stderr, } = await promisify(execFile,)(
+/**
+ Verifier child with only the disposable home and the parent's Node policy.
+ */
+const child = spawn(
   process.execPath,
   [fileURLToPath(new URL(
     'verify-pi-session.ts',
@@ -30,6 +33,8 @@ const { stdout, stderr, } = await promisify(execFile,)(
     env: {
       PATH: process.env
         .PATH,
+      NODE_OPTIONS: process.env
+        .NODE_OPTIONS,
       HOME: home.path,
       XDG_CONFIG_HOME: home.path,
       XDG_CACHE_HOME: home.path,
@@ -38,7 +43,34 @@ const { stdout, stderr, } = await promisify(execFile,)(
       TMPDIR: home.path,
       PI_OFFLINE: '1',
     },
+    stdio: [
+      'ignore',
+      'pipe',
+      'pipe',
+    ],
   },
 );
-process.stdout.write(stdout,);
-process.stderr.write(stderr,);
+/**
+ Drain both pipes and keep the home alive until the child is closed.
+ */
+const [
+  ,
+  stdout,
+  stderr,
+] = await Promise.all([
+  once(child, 'close',),
+  text(child.stdout,),
+  text(child.stderr,),
+],);
+if (child.exitCode !== 0)
+  throw new Error('Pi verifier did not exit successfully.', {
+    cause: {
+      exitCode: child.exitCode,
+      signal: child.signalCode,
+      stderr,
+    },
+  },);
+process.stdout
+  .write(stdout,);
+process.stderr
+  .write(stderr,);

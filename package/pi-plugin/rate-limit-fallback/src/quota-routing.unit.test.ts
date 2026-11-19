@@ -36,7 +36,7 @@ const OVERAGE_CAP = 6;
  @returns URL to check against the quota contract
  */
 function quotaUrl(input: Parameters<typeof globalThis.fetch>[0],): string {
-  if (typeof input === 'string')
+  if ((typeof input) === 'string')
     return input;
   if (input instanceof URL)
     return input.href;
@@ -143,26 +143,29 @@ await describe({
     it({
       name: 'does not send a credential to a quota endpoint after a registry origin override',
       fn: async function credentialsStayOnOrigin() {
-        let touched = false;
+        const probe = { invoked: false, };
         const { provider, options, } = await fixture({
           extension,
           models: PHYSICAL_MODELS.filter(model => model.provider === 'synthetic',),
           resolvedBaseUrl: 'https://stand-in-proxy.example/v2',
           play({ model, }) { return immediate({ model, },); },
           async fetchQuota() {
-            touched = true;
+            probe.invoked = true;
             return Response.json({});
           },
         },);
         const model = poolModel({ provider, id: 'reviewer', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(result.provider,).toBe('synthetic',);
-        expect(touched,).toBe(false,);
+        expect(probe.invoked,).toBe(false,);
       },
     },),
     it({
       name: 'admits only the reported flex ceiling, not the standard concurrency ceiling',
       fn: async function flexCeiling() {
+        const physical = PHYSICAL_MODELS.find(candidate => candidate.provider === 'neuralwatt',);
+        if (physical === undefined)
+          throw new Error('Missing physical fixture model',);
         const reading = { flex: 1, };
         const ready = Promise.withResolvers<void>();
         const held = createAssistantMessageEventStream();
@@ -183,20 +186,20 @@ await describe({
         },);
         const model = poolModel({ provider, id: 'reviewer', },);
         const pending = provider.streamSimple(model, TRANSCRIPT, options,);
-        await ready.promise;
-        try {
+        {
+          await using cleanup: AsyncDisposable = {
+            async [Symbol.asyncDispose](): Promise<void> {
+              finish({ stream: held, message: assistant({ model: physical, },), },);
+              await collect(pending,);
+            },
+          };
+          await ready.promise;
           const denied = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           expect(denied.result.errorMessage,).toContain('local provider concurrency ceiling',);
           expect(calls.length,).toBe(1,);
           reading.flex += 1;
           const afterIncrease = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           expect(afterIncrease.result.stopReason,).toBe('stop',);
-        } finally {
-          const physical = PHYSICAL_MODELS.find(candidate => candidate.provider === 'neuralwatt',);
-          if (physical === undefined)
-            throw new Error('Missing physical fixture model',);
-          finish({ stream: held, message: assistant({ model: physical, },), },);
-          await collect(pending,);
         }
         const again = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(again.result.provider,).toBe('neuralwatt',);
@@ -253,8 +256,17 @@ await describe({
         const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(first.result.errorMessage,).toContain('overage with auto-renew off',);
         const inFlight = Array.from({ length: OVERAGE_CAP, }, () => provider.streamSimple(model, TRANSCRIPT, options,),);
+        await using cleanup: AsyncDisposable = {
+          async [Symbol.asyncDispose](): Promise<void> {
+            for (const release of held)
+              release();
+            await Promise.all(inFlight.map(function consume(stream,) {
+              return collect(stream,);
+            },),);
+          },
+        };
         await ready.promise;
-        try {
+        {
           const limited = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           expect(limited.result.errorMessage,).toContain('local provider concurrency ceiling',);
           expect(calls.length,).toBe(1 + OVERAGE_CAP,);
@@ -265,11 +277,6 @@ await describe({
           expect(endpoints,).toEqual([
             '/v1/rate_limits', '/v1/quota', '/v1/rate_limits', '/v1/quota', '/v1/rate_limits', '/v1/quota',
           ],);
-        } finally {
-          for (const release of held)
-            release();
-          for (const stream of inFlight)
-            await collect(stream,);
         }
       },
     },),

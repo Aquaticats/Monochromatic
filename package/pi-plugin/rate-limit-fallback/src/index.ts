@@ -7,12 +7,13 @@ import {
   lazyStream,
   type Api,
   type ApiStreamOptions,
+  type AssistantMessageEvent,
   type AssistantMessageEventStream,
   type Model,
   type Provider,
+  type SimpleStreamOptions,
   type TranscriptContext,
 } from '@earendil-works/pi-ai';
-import type { ExtensionAPI, } from '@earendil-works/pi-coding-agent';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   dispatchRequest,
@@ -24,7 +25,39 @@ import {
   PROVIDER_ID,
 } from './model-pools.ts';
 
+import type { RoutingRegistry, } from './quota-endpoints.ts';
+
 export { PROVIDER_ID, } from './model-pools.ts';
+
+/**
+ Request-time catalog supplied by each started session.
+ */
+type SessionContext = {
+  /**
+   Registry operations needed by the pool.
+   */
+  readonly modelRegistry: RoutingRegistry;
+};
+
+/**
+ Host capabilities used by this extension, without unrelated command or UI operations.
+ */
+type FallbackHost = {
+  /**
+   Make the pool available for model selection.
+   */
+  readonly registerProvider: (provider: Provider) => void;
+  /**
+   Bind the registry supplied by the active session.
+   */
+  readonly on: (
+    event: 'session_start',
+    handler: (
+      event: unknown,
+      context: SessionContext
+    ) => void
+  ) => () => void;
+};
 
 //region Register the provider before startup model selection
 
@@ -38,8 +71,13 @@ const l = tagged({ tag: 'rate-limit-fallback', },);
  Both stream entry points use provider-neutral options because the picker cannot know a member's protocol.
 
  @param pi - host extension API
+
+ @example
+ ```ts
+ rateLimitFallbackExtension(pi); // Called by Pi's extension loader.
+ ```
  */
-export default function rateLimitFallbackExtension(pi: ExtensionAPI,): void {
+export default function rateLimitFallbackExtension(pi: FallbackHost,): void {
   /**
    Tagged logger that names the current operation without exposing credentials.
    */
@@ -63,27 +101,31 @@ export default function rateLimitFallbackExtension(pi: ExtensionAPI,): void {
 
    @returns stream of the eventual member, with no events from discarded attempts
    */
-  const route: Provider['streamSimple'] = function route(
+  function route({
     model,
     context,
     options,
-  ): AssistantMessageEventStream {
+  }: {
+    readonly model: Model<Api>;
+    readonly context: TranscriptContext;
+    readonly options?: SimpleStreamOptions;
+  },): AssistantMessageEventStream {
     return lazyStream(
       model,
-      async function prepare() {
+      function prepare(): Promise<AsyncIterable<AssistantMessageEvent>> {
         if (binding.session === undefined)
-          throw new PoolDispatchError('The rate-limit-fallback provider requires a started Pi session.',);
-        return dispatchRequest({
+          return Promise.reject(new PoolDispatchError('The rate-limit-fallback provider requires a started Pi session.',),);
+        return Promise.resolve(dispatchRequest({
           session: binding.session,
           model,
           context,
           ...(options === undefined ? {} : { options, }),
-        },);
+        },),);
       },
       undefined,
       options?.signal,
     );
-  };
+  }
 
   /**
    Provider object registered with the host.
@@ -94,11 +136,11 @@ export default function rateLimitFallbackExtension(pi: ExtensionAPI,): void {
     auth: {
       apiKey: {
         name: 'Keyless pool',
-        async resolve() {
-          return {
+        resolve() {
+          return Promise.resolve({
             auth: {},
             source: PROVIDER_ID,
-          };
+          },);
         },
       },
     },
@@ -126,10 +168,10 @@ export default function rateLimitFallbackExtension(pi: ExtensionAPI,): void {
         maxRetryDelayMs,
         sessionId,
       } = options ?? {};
-      return route(
+      return route({
         model,
         context,
-        {
+        options: {
           ...(signal === undefined ? {} : { signal, }),
           ...(onPayload === undefined ? {} : { onPayload, }),
           ...(onResponse === undefined ? {} : { onResponse, }),
@@ -141,9 +183,19 @@ export default function rateLimitFallbackExtension(pi: ExtensionAPI,): void {
           ...(maxRetryDelayMs === undefined ? {} : { maxRetryDelayMs, }),
           ...(sessionId === undefined ? {} : { sessionId, }),
         },
-      );
+      },);
     },
-    streamSimple: route,
+    streamSimple(
+      model,
+      context,
+      options,
+    ) {
+      return route({
+        model,
+        context,
+        ...(options === undefined ? {} : { options, }),
+      },);
+    },
   };
   pi.registerProvider(provider,);
   rl.debug(`Registered ${PROVIDER_ID}`,);

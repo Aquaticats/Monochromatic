@@ -9,8 +9,6 @@ import { fileURLToPath, } from 'node:url';
 import {
   InMemoryCredentialStore,
   type AssistantMessage,
-  type Model,
-  type Api,
   type Provider,
 } from '@earendil-works/pi-ai';
 import {
@@ -50,19 +48,43 @@ const modelRuntime = await ModelRuntime.create({
 const calls: string[] = [];
 
 /**
- Register a real Pi provider object with a scripted, no-network transport.
-
- @param model - exact fixture member to register
-
- @param refused - whether that member reports a rate limit
+ First two writer members, registered as stand-ins before extension loading.
  */
-async function registerStandIn({
-  model,
-  refused,
-}: {
-  readonly model: Model<Api>;
-  readonly refused: boolean;
-},): Promise<void> {
+const [head, fallback,] = PHYSICAL_MODELS;
+assert.ok(head,);
+assert.ok(fallback,);
+
+/**
+ Verified catalog records used by the registration helper.
+ */
+const members = {
+  preferred: head,
+  backup: fallback,
+};
+
+/**
+ The pool has no need for the fixture's API-specific request path.
+
+ @throws Error when verification reaches the wrong request path
+ */
+function streamUnsupported(): never {
+  throw new Error('Unexpected API-specific request',);
+}
+
+/**
+ Register one scripted Pi provider, in the same order as the two writer members.
+
+ @param role - preferred member refuses; backup answers
+ */
+async function registerStandIn(role: 'preferred' | 'backup',): Promise<void> {
+  /**
+   The preferred member refuses once per handoff exercise.
+   */
+  const refused = role === 'preferred';
+  /**
+   Exact writable catalog record that Pi receives.
+   */
+  const model = members[role];
   /**
    Provider object registered with the host.
    */
@@ -83,9 +105,7 @@ async function registerStandIn({
         },
       },
     },
-    stream: function streamUnsupported(): never {
-      throw new Error('Unexpected API-specific request',);
-    },
+    stream: streamUnsupported,
     streamSimple(
       physical: ModelIdentity,
       _context: unknown,
@@ -107,20 +127,8 @@ async function registerStandIn({
   );
 }
 
-/**
- First two writer members, registered as stand-ins before extension loading.
- */
-const [head, fallback,] = PHYSICAL_MODELS;
-assert.ok(head,);
-assert.ok(fallback,);
-await registerStandIn({
-  model: head,
-  refused: true,
-},);
-await registerStandIn({
-  model: fallback,
-  refused: false,
-},);
+await registerStandIn('preferred',);
+await registerStandIn('backup',);
 
 /**
  Pool provider the verifier expects from Pi's extension loader.
@@ -224,7 +232,9 @@ assert.equal(
    */
   const answers: AssistantMessage[] = [];
   for (const entry of sessionManager.getBranch()) {
-    if ((entry.type === 'message') && (entry.message.role === 'assistant'))
+    if ((entry.type === 'message') && (entry.message
+      .role
+      === 'assistant'))
       answers.push(entry.message,);
   }
   assert.equal(

@@ -59,6 +59,11 @@ export type MemberCapacity = {
  @param label - exact provider and model
 
  @returns mutable member state used only within the session
+
+ @example
+ ```ts
+ const capacity = capacityOf({ members: new Map(), label: 'neuralwatt/model' });
+ ```
  */
 export function capacityOf({
   members,
@@ -149,8 +154,19 @@ async function waitForCapacity({
   /**
    Releases the abort listener when the waiter completes for any reason.
    */
-  using watch = { [Symbol.dispose](): void { stopWaiting.abort(); }, };
-  await Promise.race([pending, once(signal, 'abort', { signal: stopWaiting.signal, },),],);
+  using watch = {
+    [Symbol.dispose](): void {
+      stopWaiting.abort();
+    },
+  };
+  await Promise.race([
+    pending,
+    once(
+      signal,
+      'abort',
+      { signal: stopWaiting.signal, },
+    ),
+  ],);
   signal.throwIfAborted();
 }
 
@@ -164,6 +180,11 @@ async function waitForCapacity({
  @param model - exact physical member
 
  @param options - probe transport and cancellation
+
+ @example
+ ```ts
+ await refreshCapacity({ capacity, registry, model });
+ ```
  */
 export async function refreshCapacity({
   capacity,
@@ -183,7 +204,11 @@ export async function refreshCapacity({
     /**
      Clears the pending lookup only when its own read has settled.
      */
-    using owner = { [Symbol.dispose](): void { delete capacity.pending; }, };
+    using owner = {
+      [Symbol.dispose](): void {
+        delete capacity.pending;
+      },
+    };
     capacity.needsProbe = false;
     if (capacity.retryAt <= Date.now())
       capacity.retryAt = 0;
@@ -243,7 +268,10 @@ export async function refreshCapacity({
    */
   const cancellation = signal === undefined ? {} : { signal, };
   if (capacity.pending !== undefined) {
-    await waitForCapacity({ pending: capacity.pending, ...cancellation, },);
+    await waitForCapacity({
+      pending: capacity.pending,
+      ...cancellation,
+    },);
     return;
   }
   if ((!capacity.needsProbe) && (capacity.retryAt !== 0)
@@ -256,7 +284,10 @@ export async function refreshCapacity({
   if (!capacity.needsProbe)
     return;
   capacity.pending = refresh();
-  await waitForCapacity({ pending: capacity.pending, ...cancellation, },);
+  await waitForCapacity({
+    pending: capacity.pending,
+    ...cancellation,
+  },);
 }
 
 /**
@@ -279,7 +310,7 @@ const OVERAGE_HEAD = 'Concurrent limit reached for ';
 function describedConcurrency(value: string,): number {
   for (
     let head = value.indexOf(OVERAGE_HEAD,);
-    head !== -1;
+    head !== (-1);
   ) {
     /**
      Beginning of the model field following the introduction.
@@ -289,27 +320,52 @@ function describedConcurrency(value: string,): number {
      Exclusive end of the model field before a colon or line ending.
      */
     const next = { offset: modelStart, };
-    while (next.offset < value.length && value[next.offset] !== ':' && value[next.offset] !== '\r'
-      && value[next.offset] !== '\n')
+    while ((next.offset < value.length) && (value[next.offset] !== ':')
+      && (value[next.offset] !== '\r')
+      && (value[next.offset] !== '\n'))
       next.offset += 1;
-    if (next.offset > modelStart && value.startsWith(': ', next.offset,)) {
+    if ((next.offset > modelStart) && value.startsWith(
+      ': ',
+      next.offset,
+    )) {
       /**
        End of the current-slot count, before the slash.
        */
       const inUseStart = next.offset + ': '.length;
-      const inUseEnd = digitsEnd({ value, offset: inUseStart, },);
-      if (inUseEnd !== inUseStart && value[inUseEnd] === '/') {
+      /**
+       Slash position when the in-use count is valid.
+       */
+      const inUseEnd = digitsEnd({
+        value,
+        offset: inUseStart,
+      },);
+      if ((inUseEnd !== inUseStart) && (value[inUseEnd] === '/')) {
         /**
          Span of the ceiling count, followed by the known units.
          */
         const ceilingStart = inUseEnd + 1;
-        const ceilingEnd = digitsEnd({ value, offset: ceilingStart, },);
-        if (ceilingEnd !== ceilingStart && value.startsWith(' slots in use', ceilingEnd,))
-          return Number(value.slice(ceilingStart, ceilingEnd,),);
+        /**
+         End of the ceiling count before the required units.
+         */
+        const ceilingEnd = digitsEnd({
+          value,
+          offset: ceilingStart,
+        },);
+        if ((ceilingEnd !== ceilingStart) && value.startsWith(
+          ' slots in use',
+          ceilingEnd,
+        ))
+          return Number(value.slice(
+            ceilingStart,
+            ceilingEnd,
+          ),);
       }
     }
     // Another introduction in this model field would have the same terminator and counts.
-    head = value.indexOf(OVERAGE_HEAD, next.offset + 1,);
+    head = value.indexOf(
+      OVERAGE_HEAD,
+      next.offset + 1,
+    );
   }
   return Number.NaN;
 }
@@ -324,6 +380,11 @@ function describedConcurrency(value: string,): number {
  @param errorMessage - terminal refusal text; never logged
 
  @param retryAt - known retry window, or zero if no timing evidence
+
+ @example
+ ```ts
+ noteRateLimit({ capacity, provider: 'synthetic', errorMessage: '429 limited', retryAt: 0 });
+ ```
  */
 export function noteRateLimit({
   capacity,

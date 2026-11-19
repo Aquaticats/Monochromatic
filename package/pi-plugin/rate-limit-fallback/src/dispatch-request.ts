@@ -18,7 +18,11 @@ import {
   refreshCapacity,
   type MemberCapacity,
 } from './member-capacity.ts';
-import { POOLS, } from './model-pools.ts';
+import {
+  POOLS,
+  type Member,
+} from './model-pools.ts';
+import { HTTP_RATE_LIMIT_STATUS, } from './provider-wire-text.ts';
 import type { RoutingRegistry, } from './quota-endpoints.ts';
 import {
   headerReset,
@@ -46,7 +50,22 @@ export type RoutingSession = {
 /**
  Failure before any member could produce a terminal event.
  */
-export class PoolDispatchError extends Error {}
+export class PoolDispatchError extends Error {
+  /**
+   Distinguishes pool dispatch failures from errors raised by member adapters.
+   */
+  override readonly name = 'PoolDispatchError';
+}
+
+/**
+ First HTTP success status.
+ */
+const HTTP_SUCCESS_START = 200;
+
+/**
+ First HTTP status outside the success class.
+ */
+const HTTP_SUCCESS_END = 300;
 
 /**
  Logger for dispatch decisions; raw provider messages and credentials are not logged.
@@ -124,6 +143,11 @@ function memberOptions({
  @returns normalized events from exactly one member, or a terminal setup failure
 
  @throws PoolDispatchError when routing is impossible or a provider omits its terminal event
+
+ @example
+ ```ts
+ for await (const event of dispatchRequest({ session, model, context })) render(event);
+ ```
  */
 export async function* dispatchRequest({
   session,
@@ -157,11 +181,17 @@ export async function* dispatchRequest({
    Observations to report if the pool cannot answer.
    */
   const unavailable: {
-    /** Last discarded 429. */
+    /**
+     Last discarded 429.
+     */
     lastRateLimit?: Extract<AssistantMessageEvent, { type: 'error'; }>;
-    /** Earliest known reset among held members. */
+    /**
+     Earliest known reset among held members.
+     */
     nextRetryAt: number;
-    /** Whether local concurrency prevented admission. */
+    /**
+     Whether local concurrency prevented admission.
+     */
     localsFull: boolean;
   } = {
     nextRetryAt: Infinity,
@@ -171,23 +201,35 @@ export async function* dispatchRequest({
    Options to share with request preparation, omitting an absent argument.
    */
   const supplied = options === undefined ? {} : { options, };
-  for (const member of POOLS[id]) {
+  /**
+   Admit and stream one physical member before the pool checks any later member.
+
+   @param member - next provider and model from the ordered pool
+
+   @returns whether the stream emitted a result that ends this logical request
+   */
+  async function* tryMember(member: Member,): AsyncGenerator<AssistantMessageEvent, boolean> {
     signal?.throwIfAborted();
     /**
      Exact member from Pi's current model registry.
      */
-    const physical = session.registry
-      .find(
+    const resolveModel = session.registry
+      .find
+      .bind(session.registry,);
+    /**
+     Physical model resolved by Pi or undefined when the member is not configured.
+     */
+    const physical = resolveModel(
       member.provider,
       member.id,
-      );
+    );
     /**
      Lookup key for the exact provider and model, not the selected pool alias.
      */
     const label = `${member.provider}/${member.id}`;
     if (physical === undefined) {
       rl.debug(`${id}: missing registry model ${label}`,);
-      continue;
+      return false;
     }
     if ((physical.provider !== member.provider) || (physical.id !== member.id))
       throw new PoolDispatchError(`Pi registry returned a different model for ${label}`,);
@@ -212,20 +254,24 @@ export async function* dispatchRequest({
         unavailable.nextRetryAt,
         capacity.retryAt,
       );
-      continue;
+      return false;
     }
     /**
      Most restrictive credible ceiling among published and observed values.
      */
     const ceiling = Math.min(
-      capacity.overage?.concurrency ?? Infinity,
-      capacity.evidence.concurrency ?? Infinity,
+      capacity.overage
+        ?.concurrency
+        ?? Infinity,
+      capacity.evidence
+        .concurrency
+        ?? Infinity,
     );
     if (capacity.active >= ceiling) {
       rl.debug(`${id}: ${label} local concurrency reached published or observed cap ${ceiling}`,);
       capacity.needsProbe = true;
       unavailable.localsFull = true;
-      continue;
+      return false;
     }
     rl.debug(`${id}: dispatching to ${label}`,);
     /**
@@ -239,9 +285,13 @@ export async function* dispatchRequest({
      Response evidence shared between the callback and stream consumer.
      */
     const evidence: {
-      /** Provider-supplied deadline, or zero if unavailable. */
+      /**
+       Provider-supplied deadline, or zero if unavailable.
+       */
       resetAt: number;
-      /** HTTP status exposed by the physical adapter. */
+      /**
+       HTTP status exposed by the physical adapter.
+       */
       status?: number;
     } = { resetAt: 0, };
     capacity.active += 1;
@@ -281,7 +331,9 @@ export async function* dispatchRequest({
              */
             const { status, } = response;
             evidence.status = status;
-            if ((status === 429) || ((status >= 200) && (status < 300))) {
+            if ((status === HTTP_RATE_LIMIT_STATUS)
+              || ((status >= HTTP_SUCCESS_START) && (status < HTTP_SUCCESS_END)))
+              {
               evidence.resetAt = headerReset({
                 provider: physical.provider,
                 headers: new Headers(response.headers,),
@@ -304,10 +356,6 @@ export async function* dispatchRequest({
        Whether a content event from this attempt has been exposed.
        */
       let committed = false;
-      /**
-       Distinguishes intentional handoff from a malformed stream closing early.
-       */
-      let limited = false;
       for await (const event of stream) {
         if (event.type === 'start') {
           buffered.start = event;
@@ -325,7 +373,7 @@ export async function* dispatchRequest({
               errorMessage: 'The provider stopped the request under its content policy.',
             },
           };
-          return;
+          return true;
         }
         if ((event.type === 'error') && (!committed)
           && (event.error
@@ -362,8 +410,7 @@ export async function* dispatchRequest({
           },);
           rl.debug(`${id}: ${label} returned HTTP 429 before output`,);
           unavailable.lastRateLimit = event;
-          limited = true;
-          break;
+          return false;
         }
         if (buffered.start !== undefined) {
           yield buffered.start;
@@ -377,14 +424,17 @@ export async function* dispatchRequest({
         if ((event.type === 'done') || (event.type === 'error')) {
           lease.release();
           yield event;
-          return;
+          return true;
         }
         yield event;
         committed = true;
       }
-      if (!limited)
-        throw new PoolDispatchError(`${label} closed without a terminal assistant event`,);
+      throw new PoolDispatchError(`${label} closed without a terminal assistant event`,);
     }
+  }
+  for (const member of POOLS[id]) {
+    if (yield* tryMember(member,))
+      return;
   }
   if (unavailable.lastRateLimit !== undefined) {
     yield unavailable.lastRateLimit;

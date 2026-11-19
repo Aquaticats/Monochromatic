@@ -19,11 +19,19 @@ import {
   type TranscriptContext,
 } from '@earendil-works/pi-ai';
 import type {
-  ExtensionAPI,
-  ExtensionHandler,
   ModelRegistry,
-  SessionStartEvent,
 } from '@earendil-works/pi-coding-agent';
+import type builtExtension from '../dist/final/node/index.mjs';
+
+/**
+ Only the host capabilities requested by the built extension.
+ */
+type FallbackHost = Parameters<typeof builtExtension>[0];
+
+/**
+ Session handler passed to the stand-in host.
+ */
+type SessionBinding = Parameters<FallbackHost['on']>[1];
 
 //region Fixtures for real Pi shapes
 
@@ -115,6 +123,11 @@ export type ModelIdentity = Pick<Readonly<Model<Api>>, 'api' | 'id' | 'provider'
  @param errorMessage - terminal refusal when supplied
 
  @returns physical assistant message
+
+ @example
+ ```ts
+ const answer = assistant({ model });
+ ```
  */
 export function assistant({
   model,
@@ -155,6 +168,11 @@ export function assistant({
  @param stream - destination physical stream
 
  @param message - result to record and expose
+
+ @example
+ ```ts
+ finish({ stream, message: assistant({ model }) });
+ ```
  */
 export function finish({
   stream,
@@ -185,6 +203,11 @@ export function finish({
  @param stream - stream under test
 
  @returns ordered events and final message
+
+ @example
+ ```ts
+ const { events, result } = await collect(stream);
+ ```
  */
 export async function collect(stream: AssistantMessageEventStream,): Promise<{
   readonly events: AssistantMessageEvent[];
@@ -216,6 +239,18 @@ export type MemberCall = {
 };
 
 /**
+ Return the default fixture quota response when a test does not script quota data.
+
+ @returns unavailable quota response without touching the network
+ */
+function quotaUnavailable(): Promise<Response> {
+  return Promise.resolve(new Response(
+    null,
+    { status: 503, },
+  ),);
+}
+
+/**
  Build a fake Pi host that exposes its live registry on session start.
 
  @param extension - built Pi factory
@@ -231,19 +266,21 @@ export type MemberCall = {
  @param resolvedHeaders - header-only registry credential when supplied
 
  @returns provider, request history and controls for the fixture
+
+ @example
+ ```ts
+ const host = await fixture({ extension, play: ({ model }) => immediate({ model }) });
+ ```
  */
-export async function fixture({
+export function fixture({
   extension,
   play,
   models = PHYSICAL_MODELS,
-  fetchQuota = async function quotaUnavailable() { return new Response(
-    null,
-    { status: 503, },
-  ); },
+  fetchQuota = quotaUnavailable,
   resolvedBaseUrl,
   resolvedHeaders,
 }: {
-  extension: (pi: ExtensionAPI) => void;
+  extension: typeof builtExtension;
   play: (call: MemberCall) => AssistantMessageEventStream;
   models?: readonly Model<Api>[];
   fetchQuota?: FetchFunction;
@@ -262,10 +299,14 @@ export async function fixture({
    Owner of registrations received from the factory.
    */
   const registration: {
-    /** Provider captured by the fake host. */
+    /**
+     Provider captured by the fake host.
+     */
     provider?: Provider;
-    /** Handler captured for the active session. */
-    start?: ExtensionHandler<SessionStartEvent>;
+    /**
+     Handler captured for the active session.
+     */
+    start?: SessionBinding;
   } = {};
   extension({
     registerProvider(value: Provider,) {
@@ -273,18 +314,21 @@ export async function fixture({
     },
     on(
       _event: string,
-      callback: ExtensionHandler<SessionStartEvent>,
+      handler: SessionBinding,
     ) {
-      registration.start = callback;
+      registration.start = handler;
       return function unsubscribe(): void {
         delete registration.start;
       };
     },
-  } as unknown as ExtensionAPI,);
+  },);
   /**
    Extension entry points required before starting the stand-in session.
    */
-  const { provider, start, } = registration;
+  const {
+    provider,
+    start,
+  } = registration;
   if ((provider === undefined) || (start === undefined))
     throw new Error('Expected provider registration and session binding',);
   /**
@@ -325,20 +369,20 @@ export async function fixture({
       return play(call,);
     },
   };
-  await start(
+  start(
     {
       type: 'session_start',
       reason: 'startup',
     },
     {
       modelRegistry: registry,
-    } as unknown as Parameters<typeof start>[1],
+    },
   );
-  return {
+  return Promise.resolve({
     calls,
     provider,
     options: { fetch: fetchQuota, },
-  };
+  },);
 }
 
 /**
@@ -349,6 +393,11 @@ export async function fixture({
  @param errorMessage - refusal text when fixture is not a success
 
  @returns stream with a start and a single terminal event
+
+ @example
+ ```ts
+ const stream = immediate({ model, errorMessage: '429 fixture limit' });
+ ```
  */
 export function immediate({
   model,
@@ -387,6 +436,11 @@ export function immediate({
  @param id - id to verify and retrieve
 
  @returns registered chat model
+
+ @example
+ ```ts
+ const writer = poolModel({ provider, id: 'writer' });
+ ```
  */
 export function poolModel({
   provider,

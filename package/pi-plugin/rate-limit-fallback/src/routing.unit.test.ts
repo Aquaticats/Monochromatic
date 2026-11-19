@@ -113,7 +113,7 @@ await describe({
     it({
       name: 'does not replay after a tool event or when the terminal 429 already contains content',
       fn: async function partialOutput() {
-        for (const publish of [true, false,]) {
+        await Promise.all([true, false,].map(async function verifyOutputBoundary(publish,): Promise<void> {
           const { provider, calls, options, } = await fixture({
             extension,
             play({ model, }) {
@@ -134,7 +134,7 @@ await describe({
           expect(result.errorMessage,).toBe(LIMITED,);
           expect(events.map(event => event.type,),).toEqual(publish ? ['start', 'toolcall_start', 'error',] : ['error',],);
           expect(calls.map(call => call.model.provider,),).toEqual(['openai',],);
-        }
+        },),);
       },
     },),
     it({

@@ -7,9 +7,15 @@ import type { AssistantMessage, } from '@earendil-works/pi-ai';
 import {
   digitsEnd,
   foldProviderText,
+  HTTP_RATE_LIMIT_STATUS,
 } from './provider-wire-text.ts';
 
 //region Provider error and timestamp formats
+
+/**
+ Failure fields used for evidence decisions, independent of mutability of the original Pi message.
+ */
+type FailureEvidence = Pick<Readonly<AssistantMessage>, 'errorMessage' | 'stopReason'>;
 
 /**
  Milliseconds per second, for HTTP and header timestamps.
@@ -19,12 +25,12 @@ const SECOND_MS = 1_000;
 /**
  Alibaba Cloud's suggested pause for a request-rate error, not a quota cap.
  */
-const QWEN_REQUEST_RATE_WAIT_MS = 60 * SECOND_MS;
+const QWEN_REQUEST_RATE_WAIT_MS = 60_000;
 
 /**
  Status text used by adapters when no structured status is available.
  */
-const RATE_LIMIT_STATUS = '429';
+const RATE_LIMIT_STATUS = String(HTTP_RATE_LIMIT_STATUS,);
 
 /**
  Policy labels preserve single separators and the exact spacing of the possible-risk message.
@@ -51,7 +57,11 @@ function startsWithRateLimit(value: string,): boolean {
   /**
    Status prefixes accepted by the adapter boundary.
    */
-  const prefixes = ['status code:', 'status:', 'http',] as const;
+  const prefixes = [
+    'status code:',
+    'status:',
+    'http',
+  ] as const;
   /**
    Matched prefix, absent if the message starts directly with the status.
    */
@@ -62,18 +72,24 @@ function startsWithRateLimit(value: string,): boolean {
    Start of the horizontal whitespace following the prefix.
    */
   const afterPrefix = prefix?.length ?? 0;
-  if (prefix === 'http' && message[afterPrefix] !== ' ' && message[afterPrefix] !== '\t')
+  if ((prefix === 'http') && (message[afterPrefix] !== ' ')
+    && (message[afterPrefix] !== '\t'))
     return false;
   for (let offset = afterPrefix; offset <= message.length; offset += 1) {
-    if (prefix !== undefined && (message[offset] === ' ' || message[offset] === '\t'))
+    if ((prefix !== undefined) && ((message[offset] === ' ') || (message[offset] === '\t')))
       continue;
-    if (!message.startsWith(RATE_LIMIT_STATUS, offset,))
+    if (!message.startsWith(
+      RATE_LIMIT_STATUS,
+      offset,
+    ))
       return false;
     /**
      Boundary after the status, to exclude codes with additional digits or letters.
      */
     const boundary = message[offset + RATE_LIMIT_STATUS.length];
-    return boundary === undefined || boundary === ':' || boundary === ' ' || boundary === '\t';
+    return (boundary === undefined) || (boundary === ':')
+      || (boundary === ' ')
+      || (boundary === '\t');
   }
   return false;
 }
@@ -84,8 +100,13 @@ function startsWithRateLimit(value: string,): boolean {
  @param message - failed provider message
 
  @returns whether Pi should see a non-retryable policy error
+
+ @example
+ ```ts
+ isPolicyStop({ stopReason: 'error', errorMessage: 'Request flagged as a possible risk' }); // true
+ ```
  */
-export function isPolicyStop(message: AssistantMessage,): boolean {
+export function isPolicyStop(message: FailureEvidence,): boolean {
   if (message.stopReason !== 'error')
     return false;
   /**
@@ -97,7 +118,14 @@ export function isPolicyStop(message: AssistantMessage,): boolean {
   /**
    The other policy labels also accept a single underscore or hyphen separator.
    */
-  const labels = text.replaceAll('_', ' ',).replaceAll('-', ' ',);
+  const labels = text.replaceAll(
+    '_',
+    ' ',
+  )
+    .replaceAll(
+    '-',
+    ' ',
+    );
   return POLICY_LABELS.some(function matchesPolicy(label,) {
     return labels.includes(label,);
   },);
@@ -111,16 +139,21 @@ export function isPolicyStop(message: AssistantMessage,): boolean {
  @param status - actual HTTP status when Pi's adapter exposed it
 
  @returns whether dispatch may consider another provider
+
+ @example
+ ```ts
+ isRateLimit({ message: { stopReason: 'error', errorMessage: 'HTTP 429: limited' } }); // true
+ ```
  */
 export function isRateLimit({
   message,
   status,
 }: {
-  message: AssistantMessage;
-  status?: number;
+  readonly message: FailureEvidence;
+  readonly status?: number;
 },): boolean {
   return (message.stopReason === 'error')
-    && ((status === 429) || ((status === undefined) && startsWithRateLimit(message.errorMessage ?? '',)));
+    && ((status === HTTP_RATE_LIMIT_STATUS) || ((status === undefined) && startsWithRateLimit(message.errorMessage ?? '',)));
 }
 
 /**
@@ -129,6 +162,11 @@ export function isRateLimit({
  @param value - candidate date
 
  @returns epoch milliseconds, or zero for unavailable evidence
+
+ @example
+ ```ts
+ resetTime('1970-01-01T00:00:01Z'); // 1000
+ ```
  */
 export function resetTime(value: unknown,): number {
   if ((typeof value) !== 'string')
@@ -146,6 +184,11 @@ export function resetTime(value: unknown,): number {
  @param value - untrusted JSON value
 
  @returns finite number, or NaN if the value is not a finite number
+
+ @example
+ ```ts
+ finiteNumber('7'); // NaN
+ ```
  */
 export function finiteNumber(value: unknown,): number {
   return ((typeof value) === 'number') && Number.isFinite(value,) ? value : Number.NaN;
@@ -159,6 +202,11 @@ export function finiteNumber(value: unknown,): number {
  @param key - property to inspect
 
  @returns field if present
+
+ @example
+ ```ts
+ field({ value: { remaining: 0 }, key: 'remaining' }); // 0
+ ```
  */
 export function field({
   value,
@@ -183,6 +231,11 @@ export function field({
  @param quota - parsed response or response-header body
 
  @returns latest reported retry time among exhausted windows
+
+ @example
+ ```ts
+ syntheticReset({ planWeeklyLimit: { percentRemaining: 1 } }); // 0
+ ```
  */
 export function syntheticReset(quota: unknown,): number {
   /**
@@ -250,17 +303,29 @@ export function syntheticReset(quota: unknown,): number {
 //region Response header evidence
 
 /**
+ Milliseconds per minute in a reset duration.
+ */
+const MINUTE_MS = 60_000;
+
+/**
+ Milliseconds per hour in a reset duration.
+ */
+const HOUR_MS = 3_600_000;
+
+/**
+ Milliseconds per day in a reset duration.
+ */
+const DAY_MS = 86_400_000;
+
+/**
  Per-unit multipliers for durations such as OpenAI's `6m0s`.
  */
 const RESET_UNITS = {
   ms: 1,
   s: SECOND_MS,
-  m: 60 * SECOND_MS,
-  h: 60 * 60
-    * SECOND_MS,
-  d: 24 * 60
-    * 60
-    * SECOND_MS,
+  m: MINUTE_MS,
+  h: HOUR_MS,
+  d: DAY_MS,
 } as const;
 
 /**
@@ -274,29 +339,48 @@ function resetDuration(value: string,): number {
   /**
    Position of the next component and total milliseconds of all accepted components.
    */
-  const scan = { offset: 0, total: 0, };
+  const scan = {
+    offset: 0,
+    total: 0,
+  };
   while (scan.offset < value.length) {
     /**
      End of the mandatory integer part.
      */
-    const wholeEnd = digitsEnd({ value, offset: scan.offset, },);
+    const wholeEnd = digitsEnd({
+      value,
+      offset: scan.offset,
+    },);
     if (wholeEnd === scan.offset)
       return 0;
     /**
      End of the number, including any fractional digits.
      */
     const amountEnd = value[wholeEnd] === '.'
-      ? digitsEnd({ value, offset: wholeEnd + 1, },)
+      ? digitsEnd({
+        value,
+        offset: wholeEnd + 1,
+      },)
       : wholeEnd;
-    if (value[wholeEnd] === '.' && amountEnd === wholeEnd + 1)
+    if ((value[wholeEnd] === '.') && (amountEnd === (wholeEnd
+      + 1)))
       return 0;
     /**
      Unit suffix, with milliseconds taking precedence over minutes.
      */
-    const unit = value.startsWith('ms', amountEnd,) ? 'ms' : value[amountEnd];
-    if (unit !== 'ms' && unit !== 's' && unit !== 'm' && unit !== 'h' && unit !== 'd')
+    const unit = value.startsWith(
+      'ms',
+      amountEnd,
+    ) ? 'ms' : value[amountEnd];
+    if ((unit !== 'ms') && (unit !== 's')
+      && (unit !== 'm')
+      && (unit !== 'h')
+      && (unit !== 'd'))
       return 0;
-    scan.total += Number(value.slice(scan.offset, amountEnd,),) * RESET_UNITS[unit];
+    scan.total += Number(value.slice(
+      scan.offset,
+      amountEnd,
+    ),) * RESET_UNITS[unit];
     scan.offset = amountEnd + unit.length;
   }
   return Number.isFinite(scan.total,) ? scan.total : 0;
@@ -314,6 +398,11 @@ function resetDuration(value: string,): number {
  @param status - HTTP status, so Retry-After is interpreted only on a refusal
 
  @returns latest reset time named by a depleted limit, or zero
+
+ @example
+ ```ts
+ headerReset({ provider: 'synthetic', headers: new Headers({ 'Retry-After': '1' }), now: 0, status: 429 });
+ ```
  */
 export function headerReset({
   provider,
@@ -329,11 +418,14 @@ export function headerReset({
   /**
    Explicit retry hint, valid only on a refused HTTP request.
    */
-  const retryAfter = status === 429 ? headers.get('retry-after',) ?? '' : '';
+  const retryAfter = status === HTTP_RATE_LIMIT_STATUS ? headers.get('retry-after',) ?? '' : '';
   /**
    Retry-After converted to an absolute timestamp.
    */
-  const retryReset = retryAfter.length !== 0 && digitsEnd({ value: retryAfter, offset: 0, },) === retryAfter.length
+  const retryReset = (retryAfter.length > 0) && (digitsEnd({
+    value: retryAfter,
+    offset: 0,
+  },) === retryAfter.length)
     ? now + (Number(retryAfter,)
       * SECOND_MS)
     : resetTime(retryAfter,);
@@ -376,18 +468,24 @@ export function headerReset({
  @param now - time refusal arrived
 
  @returns retry time, or zero when the guide does not apply
+
+ @example
+ ```ts
+ recommendedReset({ provider: 'openai', message: { stopReason: 'error' }, now: 0 }); // 0
+ ```
  */
 export function recommendedReset({
   provider,
   message,
   now,
 }: {
-  provider: string;
-  message: AssistantMessage;
-  now: number;
+  readonly provider: string;
+  readonly message: FailureEvidence;
+  readonly now: number;
 },): number {
   return (provider === 'qwen-token-plan-individual')
-    && foldProviderText(message.errorMessage ?? '',).includes('requests rate limit exceeded',)
+    && foldProviderText(message.errorMessage ?? '',)
+      .includes('requests rate limit exceeded',)
     ? now + QWEN_REQUEST_RATE_WAIT_MS
     : 0;
 }

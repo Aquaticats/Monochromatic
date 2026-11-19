@@ -42,7 +42,7 @@ const REVIEWER = [
 /**
  Physical model being considered for a request.
  */
-type Member = Readonly<{
+export type Member = Readonly<{
   provider: string;
   id: string
 }>;

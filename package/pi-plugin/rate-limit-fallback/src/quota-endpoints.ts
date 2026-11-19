@@ -178,7 +178,7 @@ function neuralWattEvidence({
   },);
   return {
     ...(Number.isSafeInteger(concurrency,) && (concurrency >= 0) ? { concurrency, } : {}),
-    ...((typeof inOverage === 'boolean') && (typeof autoRenew === 'boolean')
+    ...(((typeof inOverage) === 'boolean') && ((typeof autoRenew) === 'boolean')
       ? { overage: inOverage && (!autoRenew), }
       : {}),
     periodEnd: resetTime(field({
@@ -200,6 +200,11 @@ function neuralWattEvidence({
  @param signal - parent request cancellation and its timeout, when supplied
 
  @returns usable limit facts, or an empty object when no evidence is available
+
+ @example
+ ```ts
+ const evidence = await probeQuota({ registry, model, fetchQuota });
+ ```
  */
 export async function probeQuota({
   registry,
@@ -243,21 +248,30 @@ export async function probeQuota({
      */
     const auth = await registry.getApiKeyAndHeaders(model,);
     signal?.throwIfAborted();
-    if (!auth.ok || URL.parse(auth.baseUrl ?? model.baseUrl,)?.origin !== origin)
+    if ((!auth.ok) || (URL.parse(auth.baseUrl ?? model.baseUrl,)
+      ?.origin
+      !== origin))
       return {};
     /**
      An authorization override, including explicit suppression.
      */
-    const explicit = Object.entries(auth.headers ?? {},).find(function isAuthorization([header,]: readonly [string, unknown],) {
-      return header.toLowerCase() === 'authorization';
-    },);
+    const explicit = Object.entries(auth.headers ?? {},)
+      .find(function isAuthorization([header,]: readonly [
+        string,
+        unknown
+      ],) {
+        return header.toLowerCase() === 'authorization';
+      },);
     /**
      Bearer value permitted by the quota endpoints.
      */
     const bearer = explicit === undefined
-      ? (auth.apiKey === undefined || auth.apiKey === '' ? '' : `Bearer ${auth.apiKey}`)
+      ? ((auth.apiKey === undefined) || (auth.apiKey === '') ? '' : `Bearer ${auth.apiKey}`)
       : (explicit[1] ?? '');
-    if (!bearer.toLowerCase().startsWith('bearer ',) || bearer.trimEnd().length <= 'Bearer '.length)
+    if ((!bearer.toLowerCase()
+      .startsWith('bearer ',)) || (bearer.trimEnd()
+        .length
+        <= 'Bearer '.length))
       return {};
     /**
      Transport and authorized header shared by the member's quota GETs.

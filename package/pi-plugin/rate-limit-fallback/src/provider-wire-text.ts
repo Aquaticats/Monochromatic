@@ -4,11 +4,20 @@
  @module
  */
 
-/** First ASCII decimal digit. */
-const ZERO = '0'.charCodeAt(0,);
+/**
+ First ASCII decimal digit.
+ */
+const ZERO = '0';
 
-/** Last ASCII decimal digit. */
-const NINE = '9'.charCodeAt(0,);
+/**
+ Last ASCII decimal digit.
+ */
+const NINE = '9';
+
+/**
+ HTTP status indicating a rate limit.
+ */
+export const HTTP_RATE_LIMIT_STATUS = 429;
 
 /**
  Fold the ASCII comparisons the wire grammars make, including the Unicode equivalents of `k` and `s`.
@@ -16,9 +25,18 @@ const NINE = '9'.charCodeAt(0,);
  @param value - provider message to compare without case
 
  @returns comparison text
+
+ @example
+ ```ts
+ foldProviderText('HTTP 429'); // 'http 429'
+ ```
  */
 export function foldProviderText(value: string,): string {
-  return value.toLowerCase().replaceAll('ſ', 's',);
+  return value.toLowerCase()
+    .replaceAll(
+    'ſ',
+    's',
+    );
 }
 
 /**
@@ -29,6 +47,11 @@ export function foldProviderText(value: string,): string {
  @param offset - first character to inspect
 
  @returns exclusive end, or offset when there are no digits
+
+ @example
+ ```ts
+ digitsEnd({ value: '12ms', offset: 0 }); // 2
+ ```
  */
 export function digitsEnd({
   value,
@@ -38,9 +61,12 @@ export function digitsEnd({
   readonly offset: number;
 },): number {
   for (let cursor = offset; cursor < value.length; cursor += 1) {
-    /** Code unit to compare against the ASCII digit range. */
-    const digit = value.charCodeAt(cursor,);
-    if (digit < ZERO || digit > NINE)
+    /**
+     Character to compare against the ordered ASCII digit range.
+     */
+    const digit = value[cursor];
+    if ((digit === undefined) || (digit < ZERO)
+      || (digit > NINE))
       return cursor;
   }
   return value.length;
