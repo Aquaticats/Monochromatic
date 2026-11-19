@@ -40217,6 +40217,17 @@ is `main`'s plus the descent condition (five hunks); `units-a-command-starts.ts`
 again; one new real-process test for the recommended route; 209 passes (the only failure the documented `secret-values`
 flake); lint clean; no test asks the real manager. GOING: a final narrow DeepSeek check of `main...32b9da675a`
 (`...-at-32b9da675a-1`), including a real `systemd-run --scope` descent probe; merge on a clean check.
+Final check (ended on its 120-turn cap, review file complete): **0 high, 0 medium, 4 low**; the file differs from
+`main` by the descent condition alone (five hunks); probes A and B: a `systemd-run --user --scope` payload started from
+a shell, including one started the way the `process` tool starts one, stays a descendant, so the recommended route is
+counted. **IN MAIN** as `2365f8e55f` (fast-forward after merging `main`, which had not touched the driver); worktree
+removed by hand after the wrapper held it for `kscreenlocker_greet` again; branch deleted locally and on `origin`; the
+removed worktree's journal kept at `~/.local/state/monochromatic-git-policy-cli/service/32022fce4c8a6cadc4c76b86fe23cd76`
+(`rules-repository`). **Follow-ups, low:** the new test is a positive case that passes without the descent condition
+(the foreign-process test is the one that fails without it); "the one route no table keeps" and "a command the `process`
+tool starts is a child of the run's Pi" need exact wording; the fixture's trailing `; :` needs its comment
+(`change-reviews/...-at-32b9da675a/review.md` L1 to L4). **Observed:** while the screen is locked, `kscreenlocker_greet`
+(hides its folder, started after the worktrees) holds every automatic worktree removal, inside the owner's accepted gap.
 
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed
