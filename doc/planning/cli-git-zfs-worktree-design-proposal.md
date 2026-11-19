@@ -723,7 +723,8 @@ a test asserts that the encoded request has no `defer` key.
     that omits the `defer` key; retain the per-name error list (direct route run as root, [item 14][vm-batch]).
     Item 12's grant set, which [Scoped delegation](#scoped-delegation) proposes except for the checkout's local
     `snapshot`, let the delegated account submit the clone's own snapshots in one request: it returned 0, and a name
-    with a dependent clone returned `EEXIST` with both kept ([item 17][vm-17] on OpenZFS `2.4.4-1`).
+    with a dependent clone returned `EEXIST` with both kept ([item 17][vm-17] on OpenZFS `2.4.4-1`;
+    [item 18][vm-18] repeated it on an unpromoted clone with the same returns).
     If root conditional destruction is selected, require equivalent whole-batch checks and per-name results inside
     its single channel program request, not an external name-based ioctl after a conditional check (unmeasured).
     Skip the snapshot request for an empty set. Only then destroy the verified unmounted head under the selected
@@ -1163,7 +1164,9 @@ the account's attempt with a matching tuple was denied. The substitutions were s
 Item 17's delegated arm, under the grants this draft proposes except the checkout's local `snapshot`
 ([Scoped delegation](#scoped-delegation)), sent one `ZFS_IOC_DESTROY_SNAPS` request naming two of the clone's own
 snapshots: it returned 0 and deleted both, a name with a dependent clone returned `EEXIST` with both kept, and root's
-control request matched ([VM item 17][vm-17] on OpenZFS `2.4.4-1`). Beside those measured results stand the two things
+control request matched ([VM item 17][vm-17] on OpenZFS `2.4.4-1`). [Item 18][vm-18] sent the same three requests on
+an unpromoted clone, the shape removal destroys, and got the same returns and kept sets, with the checkout's own
+snapshots unchanged. Beside those measured results stand the two things
 the root option still lacks: where root records the origin-side lineage inventory at add time, since the claim
 record has a named home in the account-owned Git common directory, the binding record's home is unnamed, and the
 handler records slot identity rather than lineage; and how the unprivileged wrapper reaches a root removal
@@ -1215,9 +1218,9 @@ The [planning record][answers] requires the descriptor refusals to be measured a
 before design acceptance. The [VM measurement record][measurements] reports that repeat and the other fixture
 results, not acceptance of the design. Each item ran on a separate encrypted file-backed pool with OpenZFS
 `2.4.4-1` and guest kernel `6.8.0-147-generic`; the Git tests used `2.43.0`. See the [fixture][vm-fixture] for the
-read-only host comparison and the [remaining limits][vm-limits]. Items 12 through 15 and 17 repeat selected cases on
-the same guest kernel and OpenZFS release; item 16 records the separate exact-kernel image search, and item 17 ran
-in a guest of its own with the same releases.
+read-only host comparison and the [remaining limits][vm-limits]. Items 12 through 15, 17 and 18 repeat selected cases
+on the same guest kernel and OpenZFS release; item 16 records the separate exact-kernel image search, and items 17
+and 18 ran in guests of their own with the same releases.
 
 - [Item 1][vm-register], measured: register first, snapshot, clone, attach by descriptor and fill in the verified
   Git context. The underlay pointer survived. Moving copied `.git` aside did not measure deletion or recovery.
@@ -1270,6 +1273,10 @@ in a guest of its own with the same releases.
   one `ZFS_IOC_DESTROY_SNAPS` request, which returned 0; a name with a dependent clone returned `EEXIST` and
   neither snapshot was deleted; root's control request returned 0. A user hold, a held or larger set, request
   limits, the binding and the head destroy that follows remain unmeasured.
+- [Item 18][vm-18], measured: the same three requests on an unpromoted clone, the shape removal destroys,
+  returned the same results: 0 for the account's two clone-own snapshots and for root's control, `EEXIST` with
+  both kept for the name with a dependent clone, and the checkout's three snapshots unchanged. A user hold, a held
+  or larger set, request limits, the binding and the head destroy that follows remain unmeasured.
 
 ### Open measurements
 
@@ -1403,11 +1410,11 @@ Ubuntu guest.
   print the loss in the same invocation. Refusal controls test unsafe cases; a route that only refuses does not pass.
 - Repeat the [VM item 14][vm-batch] mixed and own-snapshot batch controls through the binding, including per-name
   errors, GUID preservation and an assertion that the encoded request carries no `defer` key. Run the same batch
-  as the delegated account under the planned grants; item 14 ran it as root, and [VM item 17][vm-17]
-  measured the account's own-snapshot batch in the fixture, not through the binding. Exercise the selected execution
-  route and its supported size limit, a split with a changed inventory between chunks, and interruption before
-  and after the separate head destroy. For the root option prove batch-equivalent refusal, including bounded
-  program execution; item 12 did not test it.
+  as the delegated account under the planned grants; item 14 ran it as root, and [VM items 17][vm-17] and
+  [18][vm-18] measured the account's own-snapshot batch on a promoted and an unpromoted clone in the fixture, not
+  through the binding. Exercise the selected execution route and its supported size limit, a split with a changed
+  inventory between chunks, and interruption before and after the separate head destroy. For the root option prove
+  batch-equivalent refusal, including bounded program execution; item 12 did not test it.
 - Kill removal across unmount, snapshot destruction, clone and origin cleanup, and Git and directory cleanup.
   Verify busy and staged mounts, nested datasets, same-name replacements, held snapshots and another clone
   pinning the origin each block the unsafe next action. Inject a new own sanoid snapshot between proof and batch
@@ -1532,6 +1539,7 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
 [vm-13]: cli-git-zfs-measurements-owed-before-acceptance.md#13-creation-transaction-groups-and-a-bookmark-after-promote
 [vm-batch]: cli-git-zfs-measurements-owed-before-acceptance.md#14-one-snapshot-destroy-request-after-promote
 [vm-17]: cli-git-zfs-measurements-owed-before-acceptance.md#17-delegated-snapshot-batch-2026-11-19t004401-0500
+[vm-18]: cli-git-zfs-measurements-owed-before-acceptance.md#18-delegated-batch-unpromoted-clone-2026-11-19t012534-0500
 [vm-namespaces]: cli-git-zfs-measurements-owed-before-acceptance.md#15-mount-namespaces-created-after-attach
 [vm-kernel]: cli-git-zfs-measurements-owed-before-acceptance.md#16-availability-of-a-guest-with-the-host-kernel
 [vm-delta-limits]: cli-git-zfs-measurements-owed-before-acceptance.md#what-this-repeat-did-not-show
