@@ -101,7 +101,7 @@ await describe({
         const endpoints: string[] = [];
         const { provider, calls, options, } = await fixture({
           extension,
-          models: PHYSICAL_MODELS.filter(model => model.provider === 'synthetic' || model.provider === 'opencode-go',),
+          models: PHYSICAL_MODELS.filter(model => (model.provider === 'synthetic') || (model.provider === 'opencode-go'),),
           play({ model, }) { return immediate({ model, },); },
           async fetchQuota(input, init,) {
             // Assert credentials inside the test without printing or returning them.
@@ -148,6 +148,7 @@ await describe({
     it({
       name: 'admits only the reported flex ceiling, not the standard concurrency ceiling',
       fn: async function flexCeiling() {
+        const reading = { flex: 1, };
         const ready = Promise.withResolvers<void>();
         const held = createAssistantMessageEventStream();
         const { provider, calls, options, } = await fixture({
@@ -161,7 +162,7 @@ await describe({
           },
           async fetchQuota(input,) {
             return String(input,).includes('/v1/rate_limits',)
-              ? Response.json({ models: [{ effective_concurrency: PUBLISHED_CAP, flex_floor: 1, },], },)
+              ? Response.json({ models: [{ effective_concurrency: PUBLISHED_CAP, flex_floor: reading.flex, },], },)
               : Response.json({});
           },
         },);
@@ -172,6 +173,9 @@ await describe({
           const denied = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           expect(denied.result.errorMessage,).toContain('local provider concurrency ceiling',);
           expect(calls.length,).toBe(1,);
+          reading.flex += 1;
+          const afterIncrease = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+          expect(afterIncrease.result.stopReason,).toBe('stop',);
         } finally {
           const physical = PHYSICAL_MODELS.find(candidate => candidate.provider === 'neuralwatt',);
           if (physical === undefined)

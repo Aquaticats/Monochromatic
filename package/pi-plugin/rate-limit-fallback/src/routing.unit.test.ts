@@ -56,7 +56,7 @@ await describe({
         expect(calls.map(call => [call.model.provider, call.model.id,],),).toEqual(
           TARGETS.map(target => [target.provider, target.id,],),
         );
-        expect(calls.every(call => call.context === TRANSCRIPT && call.options?.maxTokens === call.model.maxTokens,),)
+        expect(calls.every(call => (call.context === TRANSCRIPT) && (call.options?.maxTokens === call.model.maxTokens),),)
           .toBe(true,);
         expect(events.map(event => event.type,),).toEqual(['start', 'done',],);
         expect([result.provider, result.model,],).toEqual([TARGETS.at(-1)?.provider, TARGETS.at(-1)?.id,],);

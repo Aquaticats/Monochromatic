@@ -45,8 +45,8 @@ evidence, it can be retried on the next request. The plugin neither
 sleeps on a refused member nor permanently demotes it.
 
 Authenticated quota endpoints are read on the first eligible attempt
-and before returning to the member after a refusal or known reset.
-There is no timer. Probing immediately on a 429 would make fallback wait
+and before returning to the member after a refusal, a known reset, or
+a local concurrency rejection. There is no timer. Probing immediately on a 429 would make fallback wait
 on another request to the same provider; the plugin uses any response
 timing first and probes on reentry instead. Concurrent requests in one
 session share a pending lookup. A failed read does not count as
@@ -93,8 +93,9 @@ permission, a new quota reset, or a refusal.
   The [account-level guide][nw-account] confirms the pay-as-you-go
   exception when a subscription is in overage with auto-renew off.
   If a 429 names that exception and reports a lower concurrency,
-  the refusal's cap wins until the known period ends or a later quota
-  read reports the exception cleared. The program does not hard-code
+  the lower of the published flex ceiling and the cap observed on that
+  request governs until the period ends or a quota read confirms the
+  exception cleared. The program does not hard-code
   the historical cap or extrapolate it to another provider or lane.
 
 ## Credentials and turn records
@@ -104,7 +105,8 @@ from `ModelRegistry.streamSimple`. The virtual provider never forwards its
 caller-supplied key, headers, or scoped environment. For quota GETs it uses
 `ModelRegistry.getApiKeyAndHeaders`, only sends the bearer to the same
 official origin as the configured model and resolved authentication, and
-forbids redirects. No production code reads credential files or logs
+forbids redirects. Registry-resolved bearer headers are accepted; other
+  resolved headers are not forwarded to quota endpoints. No production code reads credential files or logs
 credential values, raw quota bodies, or transcripts.
 
 Pi records the physical provider and model in the assistant message's
@@ -124,8 +126,8 @@ another vendor.
 
 ## Verification
 
-- `mise run //package/pi-plugin/rate-limit-fallback:test:unit` runs both
-  suites against the built entry with stand-in providers and quota endpoints.
+- `mise run //package/pi-plugin/rate-limit-fallback:test:unit` runs the
+  unit suites against the built entry with stand-in providers and quota endpoints.
 - `mise run //package/pi-plugin/rate-limit-fallback:verify:extension` loads
   the built extension in a real Pi session, in a disposable offline home,
   and checks request-time registry auth and persisted physical identity.
