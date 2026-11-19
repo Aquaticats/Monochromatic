@@ -42,15 +42,17 @@ function serverSentEvents(events: readonly {
 }
 
 /**
- Build OpenAI's policy stop through the installed Responses adapter, over a stream
- that answered HTTP 200 as the recorded runs observed.
+ Build OpenAI's policy stop through the installed Responses adapter, over a stream that answers HTTP
+ 200.
 
-The SDK throws for an SSE `error` event (`openai/core/streaming.mjs:111`), and Pi
-formats that failure without a status prefix because the response carried no
-status (`@earendil-works/pi-ai/dist/utils/error-body.js:139-145`). Run against the
-installed adapter, this body reports the recorded text byte for byte, where a
-`response.failed` event would report it as `unknown: …` and an `incomplete`
-response as `Response incomplete: content_filter`.
+The 200 is a construction choice, not an observation: the installed adapter reports the text with no
+ status prefix only when the response carried no status, so a 200 stream is the shape that makes the
+ recorded text come back byte for byte (the captures fix the text, not the wire event). The SDK
+ throws for an SSE `error` event (`openai/core/streaming.mjs:111`), and Pi formats that failure
+ without a status prefix because the response carried no status
+ (`@earendil-works/pi-ai/dist/utils/error-body.js:139-145`). Run against the installed adapter, this
+ body reports the recorded text byte for byte, where a `response.failed` event would report it as
+ `unknown: …` and an `incomplete` response as `Response incomplete: content_filter`.
 
  @param model - physical model whose adapter reads the body
 
