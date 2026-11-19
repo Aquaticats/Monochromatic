@@ -3,7 +3,7 @@
 **Non-final draft by an agent, unapproved.** Fourth delta fold-in: this revision answers the bounded check of
 `9a1a47e190` to `b26aa27f3c`, its residues and its bookmark verdict, and folds in [item 18][vm-18]. This file's own
 revision stamp is what `git log --format=%cI -1` prints for the file, which before this revision's commit reported
-2026-11-19T01:34:22-05:00 at `af3c963a30`; a section heading's stamp is the commit time of the commit that landed
+2026-11-19T01:34:34-05:00 at `f6a7fc368b`; a section heading's stamp is the commit time of the commit that landed
 that section.
 
 This revision changes these statements. The rule that refused removal wherever the namespace exclusion cannot be
@@ -1086,7 +1086,8 @@ ranking between them. Use the VM findings and identify what remains unmeasured; 
   tested. Do not silently change propagation. Two facts belong to this choice: a deployment that can show the
   exclusion still accepts planned snapshots all gone with the head refused when a copy survives the scan (the
   outcome [VM item 15][vm-namespaces] measured), and the draft's rule refuses before the first snapshot delete
-  when the deployment cannot show it. No option here, and no deployment this draft names, can show that exclusion today:
+  when the deployment cannot show it. No option here, and no deployment this draft names, can show that
+  exclusion today:
   [VM item 15][vm-namespaces] found no complete namespace or mount-reference exclusion, and this draft adds none.
   The first two options therefore take the refusing arm, and the third has no named arrangement to test, so none
   reaches the decided "B: Destroy at once"; whether removal may proceed without that showing is the
