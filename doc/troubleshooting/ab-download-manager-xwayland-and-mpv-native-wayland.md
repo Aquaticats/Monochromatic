@@ -180,3 +180,32 @@ items that did not fit. In separate idle captures, `--osd-font-size=48` increase
 height from 14 to 24 pixels. That option also changes the size of regular OSD text.
 mpv's own screenshot command requires a decoded frame, so the menu captures used a generated black
 video and the idle captures used Spectacle on the test window. Both probes used disposable profiles.
+
+### Platform differences and upstream reports
+
+On 2026-11-18T21:22:36-05:00, the owner approved saving the menu and OSD settings.
+A fresh launch with the installed desktop entry's `--player-operation-mode=pseudo-gui` option
+read `~/.config/mpv/mpv.conf` with `osd-font-size=48`, loaded
+`~/.config/mpv/script-opts/context_menu.conf` with `scale_with_window=no`,
+and selected `waylandvk`. The idle buffer still measured 960 × 540.
+
+The overlay is drawn inside the player. Its author explained that shrinking it helps more rows
+fit, since the overlay cannot extend past the edge of the player. Another user reported Wayland
+menu scaling in the right-click binding PR. Their comment does not specify window dimensions or
+display scale, so it establishes a related report rather than a duplicate of the measured case.
+[Menu author's explanation](https://github.com/mpv-player/mpv/pull/16726#issuecomment-3226817332)
+[Wayland scaling report](https://github.com/mpv-player/mpv/pull/18057#issuecomment-6703374928)
+
+In v0.42.0, `options/options.c:1039-1041` enables the Lua menu by default when `_WIN32`
+is absent. Windows can use the system popup through `video/out/win32/menu.c:212-229`.
+The native macOS context menu was a separate open proposal as of this check.
+The Wayland and X11 builds can both use the Lua menu. For that overlay, doubling the video area
+height doubles the default menu font size. These platform findings came from source inspection.
+[Windows popup source](https://github.com/mpv-player/mpv/blob/b0841e8c4d156b8403dc1876c4cbd9011eb583f3/video/out/win32/menu.c#L212-L229)
+[macOS context menu proposal](https://github.com/mpv-player/mpv/pull/18849)
+
+```c
+// video/out/win32/menu.c
+TrackPopupMenuEx(ctx->menu, TPM_LEFTALIGN | TPM_LEFTBUTTON, pt.x, pt.y,
+                 hwnd, NULL);
+```
