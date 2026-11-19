@@ -363,7 +363,8 @@ race the clone sweep. Run both modes in the host mount namespace. Order startup 
 need the checkout rather than relying on login ordering alone.
 
 - `ExecStart` runs the installed `mount-git-worktree-clone-datasets boot-reconcile`. It verifies ABI, keys,
-  checkout and selected propagation before reconciling current intent and publishing this boot's readiness.
+  checkout and selected propagation, and establishes [private staging](#descriptor-mount-and-unmount) before
+  reconciling current intent and publishing this boot's readiness (proposed from [item 3][vm-propagation]).
   A failed prerequisite authorizes no attachment. Report per-clone failures without discarding the unit's
   stop action for mounts that did succeed.
 - `ExecStopPost` runs `mount-git-worktree-clone-datasets shutdown-unmount`, including after a failed or interrupted
@@ -479,6 +480,12 @@ Verify the source's live dataset GUID from the binding as well, and prove this i
 for this boot, not an unrelated bind. The wrong-clone control did not replace a dataset under the same name.
 Refuse mismatches and ambiguous identity, including an interrupted attach lacking adequate evidence.
 
+For private staging, propose a root-owned `0700` bind at `/run/git-worktree-clone-mount-staging`, outside the
+checkout and account-owned paths. The root boot reconciliation unit creates and makes it private in the host mount
+namespace each boot. Reuse only a verified staging mount on subsequent sweeps; validate its identity and private
+propagation before each move. [VM item 3][vm-propagation] used a private bind of a directory on the guest root
+filesystem, not this location or boot setup. The location and lifecycle are untested product requirements.
+
 Recheck the canonical lookup before moving. The synchronized substitution in [VM item 4][vm-unmount] was
 caught by that check; the move uses the verified descriptor, not a new slot path lookup. Move to root-owned
 private staging, verify the mount there, release descriptors that would hold it busy, then unmount without
@@ -510,8 +517,11 @@ claiming a safe unmount; a clean scan alone is not proof for an unverified arran
 
 [VM item 3][vm-propagation] measured the move refusing with `EINVAL` when its immediate parent, the checkout,
 was shared. Making **only the checkout mount private** let the fresh process move to private staging and unmount;
-`/` and both home ancestors stayed shared. This route requires a verified non-shared immediate parent and
-verified private staging, not private ancestors of the checkout. The tested private checkout stopped delivery
+`/` and both home ancestors stayed shared. This descriptor route requires a verified private immediate parent and
+verified private staging, not private ancestors of the checkout. Other non-shared propagation was not measured.
+The clone mount rows also read `private` in the descriptor trials of items [2][vm-refusals] and [4][vm-unmount]
+(`item-2-exact.log:73` and `item-4-exact.log:42`); do not infer those results transfer to a shared checkout.
+The tested private checkout stopped delivery
 of the later clone mount to a reader whose already-running unit had a separate mount namespace. Check the
 caller's actual visibility and refuse managed attach where safe unmount and staging topology are unproved.
 The [checkout propagation policy](#open-project-choices) remains open.
@@ -809,7 +819,8 @@ status. `doctor` does not start a service, create a test dataset, repair registr
   with the actual account and datasets, only for grants in the selected policy. Do not grant origin cleanup more
   broadly just to make an interrupted command pass.
 - Check the handler installation, config and root-owned state and result directories, ZED and service wiring,
-  latest readiness and reconciliation, and unresolved requests. Print root install/enable commands and the
+  latest readiness and reconciliation, and unresolved requests. Check the proposed staging directory and the
+  propagation of its live bind separately from the checkout ([VM item 3][vm-propagation]). Print root install/enable commands and the
   journal queries for `zfs-zed.service` and `reconcile-git-worktree-clone-mounts.service`. Show other enabled zedlets
   before recommending ZED enablement, including
   applicable syslog, notification, enclosure or scrub effects.
@@ -849,9 +860,11 @@ in the ranking. Use the VM findings and identify what remains unmeasured; a rank
   boot remain unmeasured.
 - Checkout propagation policy. The [VM record's host inventory][vm-fixture] observed `shared` for `/`, `/home`
   and `~/.cache`; the checkout does not yet have a separate mount, so its propagation is not measured here.
-  Either require the administrator to make the checkout mount private before enabling the route, make only
-  the verified checkout private in the installed boot unit before enabling clone mounts at each boot, or
-  require a different explicit isolation arrangement with its own unmount and visibility proof.
+  Require the administrator to make the checkout mount private on each new mount instance before enabling
+  the route, or have the installed boot unit apply it to the verified checkout at boot and repeat after a
+  replacement mount, or require a different isolation arrangement with its own unmount and visibility proof.
+  The manual option does not persist across reboot or replacement of the checkout mount: propagation belongs
+  to a mount instance (`mount_namespaces(7)`, "Shared subtrees"). Recheck it regardless of who sets it.
   [VM item 3][vm-propagation] measured successful staging with only the checkout private, and loss of late
   delivery to the already-confined reader in that arm. The shared arm preserved delivery but could not move
   the clone to staging. [VM item 15][vm-namespaces] measured post-attach namespaces holding the clone after private
@@ -1042,7 +1055,9 @@ only for unused slots. These are unrun acceptance requirements, not evidence fro
   unrelated mount is touched; an attach on a moved recorded inode is detected by the post-attach mount-ID check.
   Verify the selected policy for rollback or retention and the stranded report. Test the post-attach check itself,
   not just the open-time checks. [VM item 2][vm-refusals] measured synchronized rollback in a private namespace,
-  not the built handler's behavior under free-running changes or rollback failure.
+  not the built handler's behavior under free-running changes or rollback failure. Test staging setup at
+  boot and refuse shared or replaced staging and checkout mounts until the selected private setup is verified
+  (proposed controls from [item 3][vm-propagation]).
 - H1 gate 5 recheck: verify mount flags in `/proc/self/mountinfo` and enforce both `nosuid` and `nodev` in the VM
   even where dataset properties would permit them. Repeat the [VM item 7][vm-nosuid] setuid control and the
   nested research's device refusal (`guest-exact-zfs.log:222` to `:223`) with the built handler.
