@@ -45,11 +45,21 @@ export const NEURALWATT_OVERAGE_REFUSAL: string = '429: {"type":"rate_limit_erro
  read 2026-11-19). A proxied API returns that page to the SDK, and Pi formats a status it has no
  body for as `<status>: <text>` (`@earendil-works/pi-ai` dist/utils/error-body.js:139-145).
 
- The 522 heading reads "Connection timed out", whose text matches Pi's own `timed? out` retry
- pattern (`dist/utils/retry.js`), so 522 would be retried by Pi and would not show a refusal Pi calls
- non-retryable; 523's heading matches no pattern.
+ The heading matches no retry pattern, so Pi ends the turn on it after one attempt.
  */
 export const CLOUDFLARE_523_REFUSAL: string = '523: Error 523: origin is unreachable';
+
+/**
+ Cloudflare 522 as Cloudflare's own error page heads it.
+
+ Source, not a capture: the page heading "Error 522: connection timed out"
+ (`https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-522/`,
+ read 2026-11-19). Same `<status>: <text>` shape as the 523 text above.
+
+ Its words match Pi's `timed? out` retry pattern (`@earendil-works/pi-ai` dist/utils/retry.js:76,
+ case-insensitive), so Pi retries this status instead of ending the turn on it.
+ */
+export const CLOUDFLARE_522_REFUSAL: string = '522: Error 522: connection timed out';
 
 /**
  The overflow body an OpenAI-compatible member returns when the input exceeds its window.

@@ -15,6 +15,7 @@ import {
   type TranscriptContext,
 } from '@earendil-works/pi-ai';
 import {
+  CLOUDFLARE_522_REFUSAL,
   CLOUDFLARE_523_REFUSAL,
   NEURALWATT_OVERAGE_REFUSAL,
   overflowRefusal,
@@ -34,8 +35,10 @@ import {
 export const STAND_IN_PROVIDER_ID = 'hybrid-probe-member';
 
 /**
- Window every stand-in member declares, matching the real members' catalog window so Pi's
- pre-flight compaction leaves the probe's transcript alone.
+ Window every stand-in member declares, equal to the catalog window of the writer pool's
+ `opencode-go/deepseek-v4.1-flash` member (`@earendil-works/pi-ai`
+ `dist/providers/data/opencode-go.json`, the `openai-completions` catalog's `deepseek-v4.1-flash`
+ entry, `contextWindow: 1000000`), so Pi's pre-flight compaction leaves the probe's transcript alone.
  */
 const DECLARED_CONTEXT_WINDOW = 1_000_000;
 
@@ -76,6 +79,11 @@ export const OVERAGE_REFUSING_MEMBER = 'refuses-neuralwatt-429';
 export const TIMEOUT_REFUSING_MEMBER = 'refuses-cloudflare-523';
 
 /**
+ Stand-in member that refuses like Cloudflare's timed-out origin.
+ */
+export const TIMED_OUT_REFUSING_MEMBER = 'refuses-cloudflare-522';
+
+/**
  Behavior each stand-in member id selects.
  */
 const BEHAVIORS = [
@@ -84,6 +92,7 @@ const BEHAVIORS = [
   QUOTA_REFUSING_MEMBER,
   OVERAGE_REFUSING_MEMBER,
   TIMEOUT_REFUSING_MEMBER,
+  TIMED_OUT_REFUSING_MEMBER,
 ] as const;
 
 //endregion Identity and limits
@@ -410,6 +419,12 @@ function playStandInMember({
     return refusalStream({
       model,
       errorMessage: CLOUDFLARE_523_REFUSAL,
+    },);
+  }
+  if (model.id === TIMED_OUT_REFUSING_MEMBER) {
+    return refusalStream({
+      model,
+      errorMessage: CLOUDFLARE_522_REFUSAL,
     },);
   }
   if ((model.id === SMALL_WINDOW_MEMBER) && (chars > SMALL_WINDOW_ACCEPTS_CHARS)) {
