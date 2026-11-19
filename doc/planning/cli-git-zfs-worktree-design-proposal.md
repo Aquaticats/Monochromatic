@@ -206,10 +206,13 @@ acceptance; the built wrapper must still exercise it.
 3.  Snapshot the checkout, then clone that fresh origin, never a sanoid snapshot. Record the actual snapshot and
     clone GUIDs as each is confirmed. Request `mount` via the local desired-state user property described in
     [ZED reconciliation and mount safety](#zed-reconciliation-and-mount-safety), not via `mountpoint`. Send it in
-    clone `props` only if the delegated creation path is verified. If that path refuses and no clone exists,
-    create it without `props`, then set the local property with `ZFS_IOC_SET_PROP`. If a matching clone already
-    exists, verify it before setting the property and do not issue another clone request. If the outcome is
-    unknown, inspect state before any retry. A clone without a valid local request is not mounted.
+    clone `props` only if the delegated creation path is verified. OpenZFS `zfs-2.4.4` creates the clone before
+    applying `props` and attempts to destroy the new clone if property setting fails
+    (`module/zfs/zfs_ioctl.c:3844` to `:3872`). This is not atomic: a crash between the steps may leave a clone
+    without the request, and failed cleanup is not proof of absence. If the path refuses and inspection proves
+    no clone exists, create it without `props`, then set the local property with `ZFS_IOC_SET_PROP`. If a matching
+    clone already exists, verify it before setting the property and do not issue another clone request. If the
+    outcome is unknown, inspect state before any retry. A clone without a valid local request is not mounted.
 4.  Wait for the matching mount and verify it is visible and writable at the slot in the caller's namespace.
     The clone still holds the checkout's copied `.git` directory. Compare the frozen index and tracked content
     in the clone itself against the captured proof, without running Git against that directory. The in-snapshot
