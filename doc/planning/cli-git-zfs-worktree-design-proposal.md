@@ -33,7 +33,8 @@ Use `package/zfs/request-to-openzfs-kernel-device`, with Cargo package
 `@monochromatic-dev/zfs-request-to-openzfs-kernel-device` where workspace naming applies. Its README explains
 `/dev/zfs` and ioctl (kernel request) to a Git user. The location and names follow `AGENTS.md` rules `MKY`, `VGW`,
 `AP1`, `AP2` and `SGD`; use the standalone Cargo workspace, path dependencies, `README.md`, package `mise.toml`,
-[Rust dependency catalog][rust-catalog], and `uses/` layout (`LYD`). Reuse `libc` and, for profile digests, `sha2`.
+[Rust dependency catalog][rust-catalog], and `uses/` layout (`LYD`). Reuse `libc`. Select any profile-checking
+dependency only once the verification method is chosen.
 Do not add a C build step, link or load OpenZFS's CDDL libraries, or invoke the `zfs` program from the binding,
 wrapper or handler. The vet's "Where the wrapper ships and what it links today" explains why the wrapper must
 start even when OpenZFS is absent. Administrative commands printed by `doctor` do not run inside the wrapper.
@@ -165,16 +166,17 @@ checkout provider. Do not let the checkout mount cover a nested mount on the hom
 ### Scoped delegation
 
 Root configuration pins the account UID, the checkout path, pool and dataset names and GUIDs. The proposed
-unprivileged lifecycle needs `mount,snapshot` local to the checkout dataset, `clone,mount` on its descendants
-(snapshots count as descendants), `create,mount` local to the clone parent, and `mount,destroy,userprop` on the
-clone parent's descendants. Checkout-origin deletion is separately open: adding `destroy` on checkout descendants
+unprivileged lifecycle needs `snapshot` local to the checkout dataset, `clone` on its descendants (snapshots count
+as descendants), `create,mount` local to the clone parent, and `mount,destroy,userprop` on the clone parent's
+descendants. Checkout-origin deletion is separately open: adding `mount,destroy` on checkout descendants
 lets the account destroy **any checkout snapshot**, not just wrapper origins, but not the checkout dataset itself.
 Do not assume those snapshots protect against that account or put unrelated ZFS descendants there.
 
 The `mount` grant is an ioctl prerequisite, not Linux mount-namespace authority. Do not grant `mountpoint`,
 `canmount`, `setuid`, `devices`, `rename`, `promote` or permissions over the whole home tree.
 OpenZFS `zfs-2.4.4` sources: `man/man8/zfs-allow.8:110` to `:120`,
-`module/zfs/dsl_deleg.c:574` to `:582`, and `module/zfs/zfs_ioctl.c:826` to `:832` and `:1128` to `:1148`.
+`module/zfs/dsl_deleg.c:574` to `:582`, and `module/zfs/zfs_ioctl.c:826` to `:832`, `:1005` to `:1037` and
+`:1128` to `:1148`.
 
 ## Add and Git registration
 
@@ -658,7 +660,7 @@ No option here is selected by this revision.
 - Lost last event without a waiter. Reconcile on startup, events and caller nudges only, or add a periodic scoped
   sweep. The first avoids idle scans but delays recovery until another trigger. The second needs scan-cost and
   recovery measurements before choosing a shipped interval.
-- Origin cleanup authority. Add descendants-only `destroy` delegation on the checkout, or use a separate root-owned
+- Origin cleanup authority. Add descendants-only `mount,destroy` delegation on the checkout, or use a root-owned
   cleanup operation limited to proven wrapper origins. Delegation keeps privilege out of the handler but allows
   the account to destroy any checkout snapshot. Separate cleanup needs its own privileged ownership and recovery
   proof; it is not implied by the ZED mount handler.
