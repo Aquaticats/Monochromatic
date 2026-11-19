@@ -1334,12 +1334,25 @@ asked of the manager,
 for work whose number has gone.
 Descent is how the driver tells the work the run started from the work of everyone else:
 a command the run's own `process` tool starts is a child of the run's Pi,
-and a `systemd-run --scope` the agent makes keeps the parent that started it,
+and a `systemd-run --scope` the agent runs in the foreground keeps the parent that started it,
 while a process another session, another run or the person started descends from that and never from this run.
 A process whose folder or parent chain cannot be read counts for nothing.
+
+Work that has left the run's own process tree is waited for by the other two answers and not by the process table.
+A `systemd-run --scope` the agent puts in the background,
+a `setsid`, or a double fork hands its process to the service manager when its parent exits,
+so the chain then ends at the manager instead of at the run,
+and the process table names nothing even though the work still runs in the run's folder.
+The run's own `process` tool keeps such work, because the record it writes carries the number,
+and a command that names a unit with `--unit=` keeps it, because the manager is asked about the unit.
+So an agent starts work that outlives its turn with the `process` tool,
+or as a named unit with `systemd-run --user --unit=<name>`,
+and never as a backgrounded scope whose caller exits:
+that last shape is not waited for, and the run ends `idle` while the work goes on.
 Before 2026-11-19 the folder and the control group were the whole test,
-and two runs started with `--working-folder` pointing at the main checkout
-waited out their whole wall clock on another session's `codex` and `claude`,
+which counted that backgrounded scope as the run's work,
+and counted every other session's process in the main checkout too:
+two runs started with `--working-folder` there waited out their whole wall clock on another session's `codex` and `claude`,
 on other runs' `pi`, and on the scopes of both.
 What none of them can show is not guessed at,
 and a run with nothing running ends `idle` as it always did.
