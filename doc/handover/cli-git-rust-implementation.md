@@ -39762,8 +39762,10 @@ Make this a standing rule in AGENTS.md . Use "possible risk" instead of anything
 Written as `AGENTS.md` rule `RKD` beside `XVW` (DeepSeek through Pi, never the official `deepseek` provider, as
 `KRV` already says), and in `.agents/skills/pi-as-subagent/SKILL.md` under the writer bullet (the follow-up of step 7
 with `--session` on the reviewer pool's DeepSeek, same worktree), mirrors copied by hand. The ZFS-clones research had
-already been resumed on GPT before this answer (unit `pi-zfs-clones-under-the-checkout-research-2`); it got past the
-filter, so it keeps going on GPT, and a second stop moves it to DeepSeek by this rule.
+already been resumed on GPT before this answer (unit `pi-zfs-clones-under-the-checkout-research-2`, past the filter,
+6 turns, nothing written); read as a correction of that resume, so run-2 was ended with its stop file and the session
+(`run-2/resumed-session.jsonl`, the copy the driver makes on resume) goes on under
+`pi-zfs-clones-under-the-checkout-research-3` on Synthetic `hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`.
 
 ### Reviewers: DeepSeek stays for short, frequent reviews; Sonnet for long reviews and audits, rare (2026-11-18, evening)
 
