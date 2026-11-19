@@ -39810,6 +39810,20 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### The queue runs again, reviews on the Qwen plan first (2026-11-18T21:18:17-05:00)
+
+Nothing had restarted the queue after the shutdown of 2026-11-17 and the boot of 2026-11-18 12:27; nothing recorded held
+it. The starter (`~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/start-the-next-entry-of-the-resume-queue.ts`;
+the Synthetic-first copy in `keep/before-reviews-go-to-the-qwen-plan-first-2026-11-18/`) now starts reviews on
+`qwen-token-plan-individual` `deepseek-v4.1-flash-1017`, and starts a review that goes on from its session
+(`review-…` with `sessionOf`) on the reviewer's model, where it used to fall to the writer's. The rate-limit put-back
+stays off (it resumes on the same provider; its marker file names the closed Kimi route). The nine runs the shutdown
+stopped (eight reviews, the killed-lock watch writer) are back at the head of the queue to go on from their sessions
+with `~/temp/agent/pi-runs/go-on-with-a-run-stopped-for-the-shutdown-of-2026-11-17-prompt.md`; their worktrees had been
+removed, so each is made again from its branch. The reviewer bench's runs had finished after the shutdown (`-2` folders,
+`idle`); the bench is closed. The probe and the filling unit (level 19, the Sonnet gate review being the twentieth
+agent) are under "Level 20 again" in `doc/handover/agents-at-once-on-this-machine.md`.
+
 ### The virtual Pi provider is built now, beside the restarted queue (2026-11-18, about 21:30)
 
 The owner, in plain text: "If you feel like doing the virual provider first is faster, tell me." Asked through the

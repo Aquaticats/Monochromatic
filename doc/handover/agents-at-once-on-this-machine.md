@@ -248,6 +248,18 @@ one line a minute in `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026
   Synthetic answered `429 "Too many concurrent requests"` with about ten DeepSeek runs going,
   which is what kept the level from filling.
 
+### Level 20 again, started 2026-11-18T21:18:17-05:00
+
+- The probe unit `disk-ceiling-probe-new-zfs-drive-level-20-20261118T211817` started for eight hours, same script and
+  readings file.
+- The filling unit `fill-free-places-at-level-19-on-the-new-drive-20261118T211817` started at the same moment for eight
+  hours at level 19, because one agent at the level is a Claude Code subagent (the ZFS proposal's Sonnet gate review)
+  that its `pi-*` count does not see; three GPT writers were already going (the env-local-json fixture, the virtual
+  provider of issue 6314, both started by hand; the fold-in writer had ended).
+- Reviews now start on the Qwen plan (`qwen-token-plan-individual` `deepseek-v4.1-flash-1017`, the owner's order of
+  2026-11-18); a review a 429 ends moves to the next provider by hand until the virtual provider replaces that.
+- The nine runs stopped for the shutdown were put back at the head of the queue to go on from their sessions.
+
 ## Readings
 
 Probe readings on the old drives,
