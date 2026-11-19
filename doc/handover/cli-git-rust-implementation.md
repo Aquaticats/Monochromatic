@@ -39969,7 +39969,12 @@ handed to another model overnight; **for the owner, when back:** the owner's ans
 the writer's objection is that the coordinator's per-case look before a resume (rule `RKD` by hand) disappears;
 confirm, or keep the stop terminal. A fresh GPT writer
 (`pi-provider-classifies-the-real-possible-risk-wording-1`) fixes the classification only, failing test first with the
-verbatim stop text, policy unchanged. The coreutils sync change's DeepSeek review returned (78 turns, final; 0 high,
+verbatim stop text, policy unchanged. It ended `idle` (31 turns): `1364b3e01c` (verbatim fixture, another truncation,
+straight quotes, a 429 control; three failed before the fix) and `b9bbe7e894` (scan for "This content was flagged for
+possible cybersecurity risk", README); types, unit suites, oxlint 0/0 and the Pi session check pass. The package's
+DeepSeek review (`pi-review-pi-plugin-rate-limit-fallback-at-b9bbe7e894-1`, read-only in the writer's worktree, no live
+provider calls) is going; install into `~/.pi/agent/settings.json` stays for the owner. The coreutils sync change's
+DeepSeek review returned (78 turns, final; 0 high,
 1 medium, 5 low; `~/temp/agent/change-reviews/node-sync-calls-go-through-coreutils-sync-at-e5c61b8af2/review.md`): every
 site keeps its promises, each new test fails with its site reverted, the reported suite failures are in untouched files;
 accepted for the author: M1 (no deadline on the `sync` child in `git-policy/cli` and `cli-cargo-mutants`, one under a
