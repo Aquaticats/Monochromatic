@@ -40093,7 +40093,17 @@ What follows from them, as work:
   ruled out; a setup-time probe dataset added as Way 5 and ranked first; owner questions now Q1 (which start), Q2 (what a
   failed arm disables, per arm), Q3 (unexercised arm enables or not), Q4 (missed deadline fails closed), Q5 (setup
   dataset), Q6 (account companion); disagreements argued. GOING: a Sonnet gate re-check of the revision (brief under
-  `~/temp/agent/zfs-start-probe-design-revision-gate-recheck-2026-11-19/`). LAYOUT CHECKER REVIEW BACK (that folder's
+  `~/temp/agent/zfs-start-probe-design-revision-gate-recheck-2026-11-19/`). STAGING FIX ROUND ENDED (`idle`, 130 turns,
+  `ff0a4019d9` and `3972d4bf90`, 1,042 lines; report in its folder's `keep/report.md`): G1 to G21 answered; the unmount
+  is anchored on a descriptor (`umount2` on `/proc/self/fd/<n>` reaches the topmost mount through `LOOKUP_MOUNTPOINT`),
+  which meets the decided wording and the plan's forbidden line, so the old Q1 is a writer's settlement; `EBUSY` is
+  local to a namespace, so the wrapper checks `/proc/self/ns/mnt` before any removal; a separate claim suffix and
+  subfolder no existing pass reads; Ways D, E and F designed and ranked; owner questions now Q1 (target shape, A > D > E
+  > F), Q2 (a bind whose folder another namespace renamed), Q3 (who creates the folder), Q4 (how long the bind lives),
+  Q5 (a staged mount the check cannot find), Q6 (a bound on a staged mount outliving its removal); disagreements argued,
+  one citing a "late independent review" no record holds (the committed design names only the Sonnet gate review).
+  GOING: a Sonnet gate re-check of the revision (brief under
+  `~/temp/agent/zfs-staging-under-cache-design-revision-gate-recheck-2026-11-19/`). LAYOUT CHECKER REVIEW BACK (that folder's
   `keep/review.md`): no high; mediums F1 (the pre-scan's "string section ends the file" refuses this host's own vmlinux,
   whose layout section sits between types and strings at v7.3), F2 and F3 (2.2.2 differs from 2.4.4 also by the
   anonymous union and `dds_flags`, and its version string stops the gate before the layout compare, so owed measurement
