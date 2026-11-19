@@ -40256,6 +40256,12 @@ corrected; record entries fixed. Disagreed: no fifth veto-open default (the draf
 imprecise (`061c6d7392` carries a literal `'`; `f5f20bf445` says "ontology"), not amended, corrective commit comments
 posted. Eighteen open choices now. GOING: a narrow last Sonnet check (each fifth-check item answered, the two choices'
 facts, new problems only); the loop ends there and the choices go to the owner.
+The narrow check came back (saved as `keep/sixth-delta-check.md`): most items answered, cited sources hold; left: options
+A and B contradict each other on which rule `b26aa27f3c` held (git: live-only; `9a1a47e190` held the recorded-tuple
+rule); "item 15 ran one scan per arm" is false (three per arm, `item-15-exact.log`); three sentences still read the
+refusal as in force; "needs no plan" conflicts with step 3; a pronoun, an inventory mismatch, a control outcome wrong for
+option C, wording. GOING: a sixth fold-in fixing exactly those eight, `pi-zfs-worktree-design-proposal-sixth-fold-in-1`
+(run-10); the coordinator then checks those lines by `rg` (no further review round) and the choices go to the owner.
 
 **Provider writer run-7** hit its 200-turn cap after 16 min with nine commits (`cb7d6a66ab` to `dbc6f57268`: OpenAI out
 of the writer pool, the move gated on OpenAI's opening, a set-aside policy stop yielded instead of a later 429, the
