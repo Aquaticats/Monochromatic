@@ -439,3 +439,4 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
 
 - Which Rust crate drives ZFS: settled by the owner's answers of 2026-11-18 as a small binding of this repository
   over `/dev/zfs`; where it lives and what it is named belong to the design proposal.
+- [ZFS worktree design proposal](cli-git-zfs-worktree-design-proposal.md)
