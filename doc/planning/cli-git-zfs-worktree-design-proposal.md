@@ -2,7 +2,7 @@
 
 **Non-final draft by an agent, unapproved.** Fifth delta fold-in: this revision answers the bounded check of
 `b26aa27f3c` to `1975c5c4cc`. This file's own revision stamp is what `git log --format=%cI -1` prints for the file,
-which before this revision's commit reported 2026-11-19T01:57:55-05:00 at `061c6d7392`; a section heading's stamp
+which before this revision's commit reported 2026-11-19T01:59:02-05:00 at `f5f20bf445`; a section heading's stamp
 is the commit time of the commit that landed that section.
 
 This revision changes these statements. The refusal of removal while the namespace exclusion cannot be shown is
@@ -622,9 +622,9 @@ administrative changes, not Linux namespace changes (`man/man8/zfs-program.8:35`
 Item 15 showed no exclusion that keeps an unrestricted caller, such as a rootless container started after
 attach, from attaching the clone after a scan, so a clean scan alone does not qualify that deployment. It found no
 complete namespace or mount-reference exclusion: its scan saw readable, live representatives of the observed
-namespaces only, and does not generalize to pinned namespaces or racing task changes ([VM delta
-limits][vm-delta-limits], "What this repeat did not show"). Nothing this draft describes shows one either, because
-the descriptor checks and the namespace scan act on what root can observe (reasoning from
+namespaces only, and does not generalize to pinned namespaces or racing task changes
+([VM delta limits][vm-delta-limits], "What this repeat did not show"). Nothing this draft describes shows one
+either, because the descriptor checks and the namespace scan act on what root can observe (reasoning from
 [item 15][vm-namespaces], not a measured interleaving). What removal does in that state is therefore the
 [Removal when the namespace exclusion cannot be shown](#open-project-choices) choice, and this draft states no
 removal rule until the owner answers it: a refusal is one option of that choice, described there, and neither arm
@@ -1334,16 +1334,16 @@ a clone that carried a bookmark.
   administrator does it, since the account holds no destroy authority there (source reading, not a measured
   account run). What this option still needs is stated here rather than settled. The plan's home is unnamed and
   its writer follows the identity option: the wrapper runs as the account, so the account writes the plan under
-  delegated destruction, and a same-account writer could forge a tuple, which is the same-account residual that
-  option already accepts ([Clone removal identity protection](#clone-removal-identity-protection)); under root
-  destruction, root persists the verified plan under root control. An amended plan keeps every earlier tuple and
-  its outcome ([Removal and recovery](#removal-and-recovery), step 3), or a later chunk would refuse the bookmark
-  of a snapshot an earlier chunk destroyed. The plan records each snapshot tuple the removal verified and
-  submitted, with that tuple's outcome, and never a bookmark. The comparison relies on an unknown prior outcome
-  stopping the attempt before the recheck ([Removal and recovery](#removal-and-recovery), step 3), so an
+  delegated destruction, and a same-account writer could forge a tuple (reasoning), which is the same-account
+  residual that option already accepts ([Clone removal identity protection](#clone-removal-identity-protection));
+  under root destruction, root persists the verified plan under root control. An amended plan keeps every earlier
+  tuple and its outcome ([Removal and recovery](#removal-and-recovery), step 3), or a later chunk would refuse the
+  bookmark of a snapshot an earlier chunk destroyed (reasoning). The plan records each snapshot tuple the removal
+  verified and submitted, with that tuple's outcome, and never a bookmark. The comparison relies on an unknown prior
+  outcome stopping the attempt before the recheck ([Removal and recovery](#removal-and-recovery), step 3), so an
   unexplained gap is never read as a pass. After a first chunk the stranded state is the partial snapshot set, and
-  "planned snapshots all gone with the head refused" needs the whole batch. The acceptance control must force a
-  split or a replan, because a one-batch removal passes under every option here
+  "planned snapshots all gone with the head refused" needs the whole batch (reasoning). The acceptance control must
+  force a split or a replan, because a one-batch removal passes under every option here
   ([Acceptance tests the build still owes](#acceptance-tests-the-build-still-owes)).
 - Read live clone snapshots only, the rule this draft used through revision `b26aa27f3c`. It needs no plan and no
   recorded tuple for a bookmark. It strands a removal after its first mutation: the first chunk or the replan
