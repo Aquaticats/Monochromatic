@@ -1569,8 +1569,11 @@ Ubuntu guest.
   bookmark identity survives. Repeat the `origin`, `createtxg` and transferred-bookmark controls of
   [VM item 13][vm-13], including reverse promotion. Add the own-bookmark controls for the selected bookmark rule:
   a bookmark made from a clone snapshot the plan includes passes and lets the removal finish; a bookmark whose
-  snapshot was already destroyed gives that option's stated outcome before the first snapshot delete and names the
-  bookmark; and one control forces a split or a replan, by a request budget that splits the set into two chunks or
+  snapshot was already destroyed refuses before the first snapshot delete and names the bookmark under the first
+  option and under the second, whose pass needs a live clone snapshot, and passes under the third, which refuses no
+  stale bookmark (reasoning from each option's own statement in
+  [Bookmarks on a clone being removed](#bookmarks-on-a-clone-being-removed), not measured); and one control forces
+  a split or a replan, by a request budget that splits the set into two chunks or
   by a new own sanoid snapshot injected after the first chunk, with the bookmark on a snapshot the first chunk
   destroyed. A one-batch removal passes under every option, so the split or replan control is the one that tells
   them apart. Include a verified unpromoted clone with manual and sanoid snapshots as the removal control. Test
