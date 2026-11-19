@@ -240,3 +240,36 @@ ZED test zedlet: uid=0 keystatus=unavailable; action=defer without mount
 encryption root and report an unavailable key separately from mount identity or permission failures, before
 attaching. Reconcile after key load and verified checkout mount rather than relying on another add request.
 The root CLI probe did not exercise delegated clone permission with the key unloaded or automatic post-load retry.
+
+## 6. Deleted underlay pointer, prune and lock
+
+Guest: `6.8.0-147-generic`, OpenZFS userspace/module `2.4.4-1`, Git `2.43.0` (`item-6-exact.log`). The kernel
+and Git releases differ from the host; the ZFS module release matches. No `gc.worktreePruneExpire` override
+was set. In each arm the account registered and filled a clone-backed worktree, root unmounted the clone
+and checked the slot was not a mountpoint, then the account unlinked its underlay `.git`. The locked arm ran
+`git worktree lock --reason 'ZFS test underlay' <slot>` before unlink. The probe ran real
+`git worktree prune --verbose`, not a dry run, then `--expire now`, and checked the administrative directory.
+
+```text
+Removing worktrees/unlocked: gitdir file points to non-existent location
+registration after default prune: False
+registration after --expire now: False
+locked ZFS test underlay
+registration after default prune: True
+registration after --expire now: True
+```
+
+With the locked arm's pointer restored and the clone still unmounted, Git refused both normal and
+single-`--force` move and remove. With `--force --force` each operation exited 0, and the dataset still existed
+after Git removed the registration.
+
+```text
+fatal: cannot move a locked working tree, lock reason: ZFS test underlay
+fatal: cannot remove a locked working tree, lock reason: ZFS test underlay
+zfsowed6/home/worktree-clone-datasets/locked
+```
+
+The lock guards registration against normal pruning even when the account deletes the pointer. It is not an
+authority boundary and is not a substitute for the clone binding or the wrapper's separate move refusal.
+If the design uses a managed lock, distinguish it from a user lock and release it only as part of a verified
+removal, not by forwarding force. Preserve both pointer copies; the lock does not repair either.
