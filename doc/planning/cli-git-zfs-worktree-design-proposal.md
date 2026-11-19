@@ -590,10 +590,14 @@ history.
 [VM item 14][vm-batch] sent the mixed `@earliest` and `@origin` batch through both paths. The CLI refused a
 snapshot with a dependent clone before issuing any `ZFS_IOC_DESTROY_SNAPS` ioctl. The direct request returned
 `EEXIST`, named only `@origin` in the error list, and kept both snapshots. The own-snapshot control deleted both
-own snapshots in one ioctl. The kernel prechecks the whole request before deleting
-(OpenZFS `zfs-2.4.4`, `module/zfs/dsl_destroy.c:598` to `:600` and `:630` to `:653`). The request is still
-name-based, ignores missing snapshot names (`lib/libzfs_core/libzfs_core.c:442` to `:456`), and is not atomic with
-the later head destroy. Neither a successful batch nor a dependency refusal establishes provenance.
+own snapshots in one ioctl. The kernel prechecks the whole request before deleting when a check fails
+(OpenZFS `zfs-2.4.4`, `module/zfs/dsl_destroy.c:598` to `:600` and `:630` to `:653`). That guarantee covers check
+failures only: a program error returns the errno with no per-name list (`dsl_destroy.c:662` to `:671`), and an
+exhausted program can leave partial effects (`man/man8/zfs-program.8:152` to `:155`). The kernel's own batch runs
+with an instruction limit of 0, which means no limit (`module/zfs/zcp.c:796`), so only the memory limit applies;
+a root program chooses its own limits. The request is still name-based, ignores missing snapshot names
+(`lib/libzfs_core/libzfs_core.c:442` to `:456`), and is not atomic with the later head destroy. Neither a
+successful batch nor a dependency refusal establishes provenance.
 
 The kernel reads a snapshot's deferral from the presence of a `defer` key in the request, whatever its value
 (OpenZFS `zfs-2.4.4`, `module/zfs/zfs_ioctl.c:4119` and `:4132`), and `libzfs_core` adds that key only when it
@@ -675,7 +679,7 @@ therefore omits the key, and a test asserts that the encoded request has no `def
 Resume against the persisted destruction plan and the live mount, dataset, snapshot and Git identities. Settle
 recorded destroys only after proving the expected objects are gone, not from a missing name alone. If interruption
 left an outcome unprovable, retain it as unresolved and stop; never regenerate an authorized set from whatever
-names are left. Distinguish unmount pending or staged, clone still present after partial snapshot cleanup, clone
+names are left. Distinguish unmount pending or staged, planned snapshots all gone with the head refused, clone
 gone with its recorded origin retained, and Git or empty-folder cleanup still owed. Report specific
 blockers: `EBUSY` and holder if known, snapshot history at risk, a hold, nested dataset or mount, dependent clone,
 a mismatched identity or a missing or pruned registration. Never let a stale acknowledgement authorize cleanup.
