@@ -207,7 +207,7 @@ Not final and not approved: this session's own account.
   `~/temp/agent/zfs-nested-checkout-mounts-2026-11-18-scratch/keep/`, no guest left and nothing committed; resumed from
   its session to write the document, unit `pi-zfs-clones-under-the-checkout-research-2`, run folder `run-2`, with the
   path-safety section asked as requirements rather than probe steps; main's driver refuses `--idle-seconds=0` until the
-  idle branch lands, so it runs with 1; if the filter stops it again, Daybreak access is the owner's to apply for); and pnpm and other tools with the
+  idle branch lands, so it runs with 1; then moved to DeepSeek by rule `RKD`, recorded under the dig's landing below); and pnpm and other tools with the
   checkout as its own dataset (unit `pi-checkout-dataset-and-pnpm-research-1`, worktree
   `.claude/worktrees/checkout-dataset-and-pnpm-research`, doc `doc/planning/cli-git-zfs-checkout-dataset-and-pnpm.md`;
   it may leave a measurement folder under `~/.cache` that it must delete). **Next:** read the three, weigh the review,

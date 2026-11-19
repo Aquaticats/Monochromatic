@@ -447,8 +447,11 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   [cli-git-zfs-checkout-dataset-and-pnpm.md](cli-git-zfs-checkout-dataset-and-pnpm.md)): "A: Own dataset
   (Recommended)". `~/Monochromatic` becomes a ZFS dataset of its own mounted at the same path, moved once by root with
   every session in the checkout stopped; the pnpm store stays in home. `du --summarize --block-size=1M` over the
-  checkout gave 27,899 MiB at 2026-11-18T20:23:56-05:00, an upper bound on that copy that also counts the worktrees
-  under `.claude/worktrees/` and the nested `zpcachyos/nosnap/vm-builder-output` mount.
+  checkout gave 27,899 MiB at 2026-11-18T20:23:56-05:00: allocated (compressed) blocks, not the logical bytes the move
+  copies, and counting the worktrees under `.claude/worktrees/` and the nested `zpcachyos/nosnap/vm-builder-output`
+  mount; the size of the move itself is still to be measured (`du --apparent-size --one-file-system`). The question put
+  to the owner called the boundary ratios "inside" the control spread of 1.091; the highest, 1.101, is just above it, as
+  the pnpm document says ("comparable"), and the ratios went both ways.
 - **Where worktrees live** (plain text, same evening): "surely there is a rule mandating putting worktrees in
   ./.claude ?" Every worktree of this repository, clones included, lives under `~/Monochromatic/.claude/worktrees/`.
   No rule in `AGENTS.md` has said so at any point (its history searched on 2026-11-18 back to 964883fd94); the place
