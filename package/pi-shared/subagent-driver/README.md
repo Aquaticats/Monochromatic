@@ -1326,11 +1326,21 @@ What the driver asks is in `work-the-run-left-running.ts`:
 the run's own `process` tool, whose every answer that names processes is a `processes` line of the feed,
 carrying the process number,
 the folder it started in and the command it runs;
-the machine's process table, for a process working in the run's worktree or run folder whose control group is not the run's own unit,
-which is how a `systemd-run --scope` the agent made is found;
+the machine's process table, for a process working in the run's worktree or run folder,
+whose control group is not the run's own unit,
+and which descends from the run's own process;
 and the unit a command names with `--unit=`,
 asked of the manager,
 for work whose number has gone.
+Descent is how the driver tells the work the run started from the work of everyone else:
+a command the run's own `process` tool starts is a child of the run's Pi,
+and a `systemd-run --scope` the agent makes keeps the parent that started it,
+while a process another session, another run or the person started descends from that and never from this run.
+A process whose folder or parent chain cannot be read counts for nothing.
+Before 2026-11-19 the folder and the control group were the whole test,
+and two runs started with `--working-folder` pointing at the main checkout
+waited out their whole wall clock on another session's `codex` and `claude`,
+on other runs' `pi`, and on the scopes of both.
 What none of them can show is not guessed at,
 and a run with nothing running ends `idle` as it always did.
 

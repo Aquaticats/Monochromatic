@@ -212,6 +212,21 @@ export {
   wakeResumeWordsOf,
   workWaitMillisecondsOf,
 } from './wake-a-run-whose-work-outlives-its-turn.ts';
+
+/**
+ Whether one process is descended from another, which tells the work a run started from the work of the session, run or person
+ that started it.
+ */
+export {
+  NO_PARENT_RECORD,
+  descendsFrom,
+  parentOfProcess,
+} from './processes-descended-from-a-process.ts';
+
+/**
+ The work a run left running, which the driver keeps the run for: the run's own `process` tool, the process table for work descended
+ from the run, and the units the run named.
+ */
 export {
   cgroupOf,
   unitNamedBy,

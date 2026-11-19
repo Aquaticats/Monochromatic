@@ -12,13 +12,18 @@
  - the run's own `process` tool, whose every start, update and list is a record of the run's feed, and whose records carry the
    process number, the folder it was started in and the command it runs;
  - the machine's process table, for a process working in the run's worktree or run folder whose control group is not the run's
-   own unit: a `systemd-run --scope` the agent made leaves the unit's control group, so it is visible there and the unit itself
-   is not;
+   own unit and which descends from the run's own process: a `systemd-run --scope` the agent made leaves the unit's control group
+   and keeps the parent that started it, so it is visible there, and a process another session, another run or the person
+   started descends from that and never from this run;
  - the unit a command names with `--unit=`, asked of the manager, for work whose process the tool recorded but whose number has
    gone: a service of its own starts from the manager rather than from the run, so its number is not the tool's to keep.
 
- What none of them can show is not guessed at: a process whose folder cannot be read counts for nothing, and a run whose work
- nothing names ends as it ended before this existed.
+ What none of them can show is not guessed at: a process whose folder or parent chain cannot be read counts for nothing, and a run
+ whose work nothing names ends as it ended before this existed.
+
+ Before 2026-11-19 the process table was asked for any process working in the run's folders outside the run's own unit, whatever
+ started it: two runs that worked in the main checkout, which the pi-as-subagent skill allows for small runs, waited out their
+ whole wall clock on another session's `codex` and `claude`, on other runs' `pi`, and on the scopes of both.
 
  @module
  */
@@ -36,6 +41,7 @@ import {
   processesNamedIn,
 } from './processes-a-tool-answer-names.ts';
 import { isRecord, } from './read-pi-fields.ts';
+import { descendsFrom, } from './processes-descended-from-a-process.ts';
 import {
   type RunCommand,
   runCommandWithChildProcess,
@@ -291,24 +297,28 @@ function lineOf({ work, }: { readonly work: WorkOfARun },): string {
 
  @param processFolder - the folder holding one entry per process, `/proc` here
 
+ @param ownProcess - process number of the run's own process, which every process the run started descends from
+
  @param run - how a command is run, which a test replaces
 
  @returns one line per process the run still has going, empty when it has none the driver can see
 
  @example
  ```ts
- const work = await workOutlivingTheTurnIn({ runFolder: '/runs/a-1', workingFolder: '/repo/.claude/worktrees/pi-a', processFolder: '/proc', },);
+ const work = await workOutlivingTheTurnIn({ runFolder: '/runs/a-1', workingFolder: '/repo/.claude/worktrees/pi-a', processFolder: '/proc', ownProcess: 486601, },);
  ```
  */
 export async function workOutlivingTheTurnIn({
   runFolder,
   workingFolder,
   processFolder,
+  ownProcess,
   run = runCommandWithChildProcess,
 }: {
   readonly runFolder: string;
   readonly workingFolder: string;
   readonly processFolder: string;
+  readonly ownProcess: number;
   readonly run?: RunCommand;
 },): Promise<readonly string[]> {
   /**
@@ -383,7 +393,8 @@ export async function workOutlivingTheTurnIn({
       continue;
     }
     /**
-     Whether it works in one of the run's own folders, which is the run's work however it was started.
+     Whether it works in one of the run's own folders, which is where the run's work works and no evidence by itself of who started
+     it: in the main checkout every session's processes work here too.
      */
     const worksInOwnFolder = [
       workingFolder,
@@ -408,6 +419,20 @@ export async function workOutlivingTheTurnIn({
     // made leaves that unit, and a service of its own never joins it. A control group nobody can read is no evidence either
     // way, so it is not counted.
     if ((cgroup === '') || (cgroup === ownCgroup)) {
+      continue;
+    }
+    /**
+     Whether the run's own process started it, which is what makes it the run's work rather than the work of the session, run or
+     person that started it: another session's process works in this folder and sits in a scope of its own just the same, and
+     nothing of it descends from this run.
+     */
+    // oxlint-disable-next-line eslint/no-await-in-loop -- one process after another, each read once; a handful at most
+    const own = await descendsFrom({
+      processFolder,
+      pid: process.pid,
+      rootPid: ownProcess,
+    },);
+    if (!own) {
       continue;
     }
     lines.push(`${String(process.pid,)} ${process.command}`,);

@@ -341,6 +341,7 @@ export async function startsOfARun({
           processFolder: process.env
             .PI_RUNS_PROCESS_FOLDER
             ?? '/proc',
+          ownProcess: process.pid,
           run: runCommandWithChildProcess,
         },);
       },

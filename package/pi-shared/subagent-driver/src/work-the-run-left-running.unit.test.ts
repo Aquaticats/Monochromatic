@@ -1,11 +1,15 @@
 /**
- The work a run left running: what its own `process` tool reported, what the machine's process table shows in the run's folders
- outside the run's own unit, and the message that sends the agent back to it. Nothing here starts a process or a unit.
+ The work a run left running: what its own `process` tool reported, what the machine's process table shows of the work descended
+ from the run in its folders, and the message that sends the agent back to it. The tests that put another session's process in the
+ run's folder start real processes and end them themselves.
 
  @module
  */
 
+import { spawn, } from 'node:child_process';
+import { once, } from 'node:events';
 import {
+  chmod,
   mkdir,
   mkdtemp,
   readFile,
@@ -23,10 +27,13 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   type CommandOutput,
   FEED_PREVIEW_CHARACTERS,
+  NO_PARENT_RECORD,
   preview,
   type PiRecord,
   type RunCommand,
   cgroupOf,
+  descendsFrom,
+  parentOfProcess,
   startRecordOfPiRun,
   unitNamedBy,
   wakeMessageOf,
@@ -246,6 +253,253 @@ async function makeFolder(): Promise<{
 }
 
 /**
+ The folder this machine keeps one entry per process in. A test reads the records of the processes it starts from here, and never
+ lists the machine's processes from it.
+ */
+const REAL_PROCESS_FOLDER = '/proc';
+
+/**
+ Where a parent's process number sits in the fields that follow the program's name on a `/proc/<pid>/stat` line.
+ */
+const PARENT_AFTER_NAME = 1;
+
+/**
+ The first process an account's own processes descend from, where a chain of parents ends.
+ */
+const FIRST_PROCESS = 1;
+
+/**
+ How long a process these tests start lasts, which is far longer than a test takes: the process is there when the driver reads the
+ process folder, and the test ends it by the number it was given.
+ */
+const REAL_PROCESS_SECONDS = 60;
+
+/**
+ The records the kernel keeps of one process, which a test copies from the real process folder into its fixture.
+ */
+const RECORDS_OF_A_PROCESS: readonly string[] = [
+  'stat',
+  'cgroup',
+  'comm',
+];
+
+/**
+ Reads the process number of the process that started one real process, from this machine's own record of it.
+
+ The test builds its fixture from what the kernel wrote rather than with the reader under test, so a fault in that reader cannot
+ hide itself in a fixture built by it.
+
+ @param pid - the real process
+
+ @returns the process number of the process that started it
+
+ @example
+ ```ts
+ const parent = await realParentOf({ pid: 486667, },);
+ ```
+ */
+async function realParentOf({ pid, }: { readonly pid: number },): Promise<number> {
+  /**
+   The kernel's own record of the process.
+   */
+  const stat = await readFile(
+    join(
+      REAL_PROCESS_FOLDER,
+      String(pid,),
+      'stat',
+    ),
+    'utf8',
+  );
+  /**
+   The fields that follow the program's name, of which the second is the parent.
+   */
+  const afterName = stat.slice(stat.lastIndexOf(')',) + 1,)
+    .trim();
+  return Number(afterName.split(' ',)[PARENT_AFTER_NAME],);
+}
+
+/**
+ A real process a test starts and ends itself: the `sleep` program, ended by the number the test was given when it started it.
+
+ @param folder - the folder it works in
+
+ @returns its process number, and what ends it
+
+ @example
+ ```ts
+ await using other = await startARealProcess({ folder: '/home/user/temp/agent/x/worktree', },);
+ ```
+ */
+async function startARealProcess({ folder, }: { readonly folder: string },): Promise<{
+  readonly pid: number;
+  readonly [Symbol.asyncDispose]: () => Promise<void>
+}> {
+  /**
+   The process, started from this test's own conversation.
+   */
+  const started = spawn(
+    'sleep',
+    [String(REAL_PROCESS_SECONDS,),],
+    {
+      cwd: folder,
+      stdio: 'ignore',
+    },
+  );
+  /**
+   The number the operating system gave it.
+   */
+  const { pid, } = started;
+  if (pid === undefined) {
+    throw new Error('the operating system started no process, so this test has none to read',);
+  }
+  return {
+    pid,
+    async [Symbol.asyncDispose]() {
+      started.kill('SIGKILL',);
+      if ((started.exitCode === null) && (started.signalCode === null)) {
+        await once(
+          started,
+          'exit',
+        );
+      }
+    },
+  };
+}
+
+/**
+ Writes what the kernel records for one real process into a process folder a test owns.
+
+ The process is real and each record is the one the kernel wrote for it; only the folder they are read from is the test's, which is
+ the seam the driver has for every read of a process folder. A working folder is the fixture's, so a process working where the run
+ does not is written the same way.
+
+ @param folder - the process folder a test owns
+
+ @param pid - the real process
+
+ @param worksIn - the folder it works in, when the test's listing is to hold it
+
+ @returns nothing
+
+ @example
+ ```ts
+ await writeRecordsOfRealProcess({ folder: '/x/proc', pid: 486667, worksIn: '/x/worktree', },);
+ ```
+ */
+async function writeRecordsOfRealProcess({
+  folder,
+  pid,
+  worksIn,
+}: {
+  readonly folder: string;
+  readonly pid: number;
+  readonly worksIn?: string;
+},): Promise<void> {
+  /**
+   The entry one process has in that folder.
+   */
+  const entry = join(
+    folder,
+    String(pid,),
+  );
+  await mkdir(entry, { recursive: true, },);
+  await Promise.all(RECORDS_OF_A_PROCESS.map(async function copied(record,) {
+    await writeFile(
+      join(entry, record,),
+      await readFile(
+        join(
+          REAL_PROCESS_FOLDER,
+          String(pid,),
+          record,
+        ),
+        'utf8',
+      ),
+    );
+  },),);
+  if (worksIn !== undefined) {
+    await symlink(
+      worksIn,
+      join(entry, 'cwd',),
+      'dir',
+    );
+  }
+}
+
+/**
+ Reads the whole chain of processes that started one real process, from this machine's own records of them.
+
+ @param pid - the real process
+
+ @returns every process that started it, the one nearest it first, and never the first process itself
+
+ @example
+ ```ts
+ const ancestors = await ancestorsOf({ pid: 486667, },);
+ ```
+ */
+async function ancestorsOf({ pid, }: { readonly pid: number },): Promise<readonly number[]> {
+  /**
+   The chain read so far, whose last entry is the process whose parent is read next.
+   */
+  const chain = [pid,];
+  for (;;) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- each link names the process whose parent is read next
+    const parent = await realParentOf({ pid: chain.at(-1,) ?? pid, },);
+    if (parent <= FIRST_PROCESS) {
+      return chain.slice(1,);
+    }
+    chain.push(parent,);
+  }
+}
+
+/**
+ Writes the record of every process that started the one given, so a fixture holds the whole chain a reader follows.
+
+ An ancestor carries no working folder, so the listing of a fixture never counts one as a process working somewhere: only the chain
+ of parents a reader walks is complete.
+
+ @param folder - the process folder a test owns
+
+ @param pid - the real process whose ancestors are written
+
+ @returns nothing
+
+ @example
+ ```ts
+ await writeParentChainOf({ folder: '/x/proc', pid: 486667, },);
+ ```
+ */
+async function writeParentChainOf({
+  folder,
+  pid,
+}: {
+  readonly folder: string;
+  readonly pid: number;
+},): Promise<void> {
+  await Promise.all((await ancestorsOf({ pid, },)).map(async function wrote(ancestor,) {
+    /**
+     The entry that ancestor has in the fixture.
+     */
+    const entry = join(
+      folder,
+      String(ancestor,),
+    );
+    await mkdir(entry, { recursive: true, },);
+    await writeFile(
+      join(entry, 'stat',),
+      await readFile(
+        join(
+          REAL_PROCESS_FOLDER,
+          String(ancestor,),
+          'stat',
+        ),
+        'utf8',
+      ),
+    );
+  },),);
+}
+
+/**
  Writes one process into a process folder a test owns.
 
  @param folder - the process folder
@@ -258,12 +512,13 @@ async function makeFolder(): Promise<{
 
  @param command - the program the kernel names for it
 
+ @param parentPid - the process that started it, which a chain of parents follows
 
  @returns nothing
 
  @example
  ```ts
- await writeProcess({ folder: '/proc', pid: 12, cgroup: '0::/a.scope', worksIn: '/repo', command: 'bash', },);
+ await writeProcess({ folder: '/proc', pid: 12, cgroup: '0::/a.scope', worksIn: '/repo', command: 'bash', parentPid: 11, },);
  ```
  */
 async function writeProcess({
@@ -272,12 +527,14 @@ async function writeProcess({
   cgroup,
   worksIn,
   command,
+  parentPid = FIRST_PROCESS,
 }: {
   readonly folder: string;
   readonly pid: number;
   readonly cgroup: string;
   readonly worksIn: string;
   readonly command: string;
+  readonly parentPid?: number;
 },): Promise<void> {
   await mkdir(join(
     folder,
@@ -307,6 +564,16 @@ async function writeProcess({
       'cwd',
     ),
     'dir',
+  );
+  // The record of who started it, as the kernel writes its first four fields: the number, the program's name in parentheses, the
+  // state, and the process that started it. A real one is `/proc/<pid>/stat`.
+  await writeFile(
+    join(
+      folder,
+      String(pid,),
+      'stat',
+    ),
+    `${String(pid,)} (${command}) S ${String(parentPid,)}\n`,
   );
 }
 
@@ -555,6 +822,7 @@ await describe({
               folder: processes,
               cgroup: theRunsUnit(),
             },);
+            // The run's own Pi, which the run's unit holds and which started the work below it.
             await writeProcess({
               folder: processes,
               pid: 100,
@@ -562,13 +830,15 @@ await describe({
               worksIn: aWorktree(),
               command: 'node',
             },);
-            // The build the agent started in a scope of its own, which left the run's unit and kept the run's folder.
+            // The build the agent started in a scope of its own, which left the run's unit and kept the run's folder and the
+            // parent that started it.
             await writeProcess({
               folder: processes,
               pid: 101,
               cgroup: aScopeOfItsOwn(),
               worksIn: aWorktree(),
               command: 'bash',
+              parentPid: 100,
             },);
             await writeProcess({
               folder: processes,
@@ -576,11 +846,13 @@ await describe({
               cgroup: aScopeOfItsOwn(),
               worksIn: '/elsewhere',
               command: 'sleep',
+              parentPid: 100,
             },);
             expect(await workOutlivingTheTurnIn({
               runFolder: folder.path,
               workingFolder: aWorktree(),
               processFolder: processes,
+              ownProcess: 100,
               run: async function answered() {
                 return {
                   status: 1,
@@ -626,6 +898,7 @@ await describe({
               runFolder: folder.path,
               workingFolder: aWorktree(),
               processFolder: processes,
+              ownProcess: 100,
               run: async function answered() {
                 return {
                   status: 1,
@@ -671,6 +944,7 @@ await describe({
               runFolder: folder.path,
               workingFolder: aWorktree(),
               processFolder: processes,
+              ownProcess: 100,
               run: holding,
             },),).toEqual(['proc_7adb (native-build-2) 999999 systemd-run --user --unit=pi-build-2 -- mise run build',],);
             expect(asked,).toEqual([[
@@ -689,8 +963,355 @@ await describe({
               runFolder: folder.path,
               workingFolder: aWorktree(),
               processFolder: processes,
+              ownProcess: 100,
               run: holdingNothing,
             },),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'keeps a real process descended from the run that works in the run folder in a control group other than the run own unit',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The folder the run works in.
+             */
+            const workingFolder = join(folder.path, 'worktree',);
+            await mkdir(workingFolder, { recursive: true, },);
+            /**
+             The process folder a test writes, whose own entry is the run's unit.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeSelf({
+              folder: processes,
+              cgroup: theRunsUnit(),
+            },);
+            // The work the run started: a real process this test starts, which descends from this test's own process. The test's
+            // own number plays the run's own, as the driver's number does for a run. The run's unit is a stand-in, since no test of
+            // this repository may make a unit, and the control group is the one the kernel reports for that process.
+            await using build = await startARealProcess({ folder: workingFolder, },);
+            await writeRecordsOfRealProcess({
+              folder: processes,
+              pid: build.pid,
+              worksIn: workingFolder,
+            },);
+            expect(await workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder,
+              processFolder: processes,
+              ownProcess: process.pid,
+              run: async function answered() {
+                return {
+                  status: 1,
+                  stdout: 'inactive\n',
+                  stderr: '',
+                };
+              },
+            },),).toEqual([`${String(build.pid,)} sleep`,],);
+          },
+        },),
+        it({
+          name: 'never counts a real process another session started that works in the run folder, which held two runs of 2026-11-19 on their wall clocks',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The folder the run works in.
+             */
+            const workingFolder = join(folder.path, 'worktree',);
+            await mkdir(workingFolder, { recursive: true, },);
+            /**
+             The process folder a test writes, whose own entry is the run's unit.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeSelf({
+              folder: processes,
+              cgroup: theRunsUnit(),
+            },);
+            // The run's own process: a real process of this test's that stands beside the other one rather than above it, as the
+            // driver of a run stands beside another session's.
+            await using theRun = await startARealProcess({ folder: folder.path, },);
+            // The process another session started: a real process of this test's, working in the run's own folder, which descends
+            // from this test and never from the run.
+            await using anotherSession = await startARealProcess({ folder: workingFolder, },);
+            await writeRecordsOfRealProcess({
+              folder: processes,
+              pid: anotherSession.pid,
+              worksIn: workingFolder,
+            },);
+            // The whole chain above it, so the reader that follows parents reads a chain that ends at the first process rather than
+            // one the fixture left short.
+            await writeParentChainOf({
+              folder: processes,
+              pid: anotherSession.pid,
+            },);
+            expect(await workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder,
+              processFolder: processes,
+              ownProcess: theRun.pid,
+              run: async function answered() {
+                return {
+                  status: 1,
+                  stdout: 'inactive\n',
+                  stderr: '',
+                };
+              },
+            },),).toEqual([],);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: descendsFrom.name,
+      children: [
+        it({
+          name: 'reaches the run own process along a chain of parents, and answers nothing for a root the chain never names',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeProcess({
+              folder: processes,
+              pid: 300,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: aWorktree(),
+              command: 'bash',
+              parentPid: 200,
+            },);
+            await writeProcess({
+              folder: processes,
+              pid: 200,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: aWorktree(),
+              command: 'systemd-run',
+              parentPid: 100,
+            },);
+            await writeProcess({
+              folder: processes,
+              pid: 100,
+              cgroup: theRunsUnit(),
+              worksIn: aWorktree(),
+              command: 'node',
+              parentPid: 99,
+            },);
+            expect(await descendsFrom({
+              processFolder: processes,
+              pid: 300,
+              rootPid: 100,
+            },),).toBe(true,);
+            expect(await descendsFrom({
+              processFolder: processes,
+              pid: 300,
+              rootPid: 99,
+            },),).toBe(true,);
+            expect(await descendsFrom({
+              processFolder: processes,
+              pid: 300,
+              rootPid: 777,
+            },),).toBe(false,);
+            // A process is no descendant of itself, which is what keeps the run's own process out of its own work.
+            expect(await descendsFrom({
+              processFolder: processes,
+              pid: 100,
+              rootPid: 100,
+            },),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'ends at a record it cannot read rather than naming a process the run never started',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeProcess({
+              folder: processes,
+              pid: 300,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: aWorktree(),
+              command: 'bash',
+              parentPid: 200,
+            },);
+            // The record of the process that started it is not there: one that ended while the read was under way leaves the same
+            // hole in a process folder, and no chain then says where the process came from.
+            expect(await descendsFrom({
+              processFolder: processes,
+              pid: 300,
+              rootPid: 100,
+            },),).toBe(false,);
+            expect(await descendsFrom({
+              processFolder: processes,
+              pid: 404,
+              rootPid: 100,
+            },),).toBe(false,);
+            await writeProcess({
+              folder: processes,
+              pid: 200,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: aWorktree(),
+              command: 'systemd-run',
+              parentPid: 100,
+            },);
+            // Another account's process, whose folder this one may not read: the folder a link is in decides whether the link may
+            // be read, so an unsearchable one is what such a process looks like from here. It is searchable again when this test
+            // ends, whether it ends well or not, so the folder it made can be removed.
+            await chmod(join(
+              processes,
+              '200',
+            ), 0o000,);
+            await using madeReadableAgain = {
+              async [Symbol.asyncDispose]() {
+                await chmod(join(
+                  processes,
+                  '200',
+                ), 0o700,);
+              },
+            };
+            expect(await descendsFrom({
+              processFolder: processes,
+              pid: 300,
+              rootPid: 100,
+            },),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'ends rather than following a record that names a process as its own ancestor, or two as each other',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeProcess({
+              folder: processes,
+              pid: 300,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: aWorktree(),
+              command: 'bash',
+              parentPid: 300,
+            },);
+            await writeProcess({
+              folder: processes,
+              pid: 301,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: aWorktree(),
+              command: 'bash',
+              parentPid: 302,
+            },);
+            await writeProcess({
+              folder: processes,
+              pid: 302,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: aWorktree(),
+              command: 'bash',
+              parentPid: 301,
+            },);
+            // A process that names itself as the one that started it, and is the run's own process besides: no descendant of
+            // itself either way.
+            await writeProcess({
+              folder: processes,
+              pid: 500,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: aWorktree(),
+              command: 'bash',
+              parentPid: 500,
+            },);
+            expect(await descendsFrom({
+              processFolder: processes,
+              pid: 300,
+              rootPid: 100,
+            },),).toBe(false,);
+            expect(await descendsFrom({
+              processFolder: processes,
+              pid: 301,
+              rootPid: 100,
+            },),).toBe(false,);
+            expect(await descendsFrom({
+              processFolder: processes,
+              pid: 500,
+              rootPid: 500,
+            },),).toBe(false,);
+            expect(await descendsFrom({
+              processFolder: processes,
+              pid: 500,
+              rootPid: 100,
+            },),).toBe(false,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: parentOfProcess.name,
+      children: [
+        it({
+          name: 'reads the parent from the fields after the program name, which may hold a space and a parenthesis of its own',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeProcess({
+              folder: processes,
+              pid: 300,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: aWorktree(),
+              command: 'node',
+              parentPid: 200,
+            },);
+            expect(await parentOfProcess({
+              processFolder: processes,
+              pid: 300,
+            },),).toBe(200,);
+            await writeFile(
+              join(
+                processes,
+                '300',
+                'stat',
+              ),
+              '300 (a name with a space and a ) in it) S 201\n',
+            );
+            expect(await parentOfProcess({
+              processFolder: processes,
+              pid: 300,
+            },),).toBe(201,);
+          },
+        },),
+        it({
+          name: 'names no parent for a record that holds none, for the first process, and for a process the folder does not hold',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes.
+             */
+            const processes = join(folder.path, 'proc',);
+            await mkdir(join(processes, '300',), { recursive: true, },);
+            await writeFile(join(
+              processes,
+              '300',
+              'stat',
+            ), 'not a record the kernel writes\n',);
+            await mkdir(join(processes, '301',), { recursive: true, },);
+            // The first process, which the kernel names no parent for.
+            await writeFile(join(
+              processes,
+              '301',
+              'stat',
+            ), '301 (init) S 0\n',);
+            expect(await parentOfProcess({
+              processFolder: processes,
+              pid: 300,
+            },),).toBe(NO_PARENT_RECORD,);
+            expect(await parentOfProcess({
+              processFolder: processes,
+              pid: 301,
+            },),).toBe(NO_PARENT_RECORD,);
+            expect(await parentOfProcess({
+              processFolder: processes,
+              pid: 404,
+            },),).toBe(NO_PARENT_RECORD,);
           },
         },),
       ],
