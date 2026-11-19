@@ -39931,6 +39931,16 @@ What follows from them, as work:
   (38,685 entries for the prototype's). Waiting on that: the live quota-endpoint check (task 396, which can run in
   the prototype's worktree once it ends), the driver pool table (task 383) and the driver's four uncaptured fixtures
   (task 391).
+- **Scratch size (rule `SZR`), 2026-11-19 afternoon:** `du --max-depth=1` of `~/temp/agent` (bounded at 30 minutes,
+  exit 0, no errors) gives 3,351 MiB; the largest folders are
+  `prewarm-acts-only-on-the-entry-it-checked-2026-11-16-scratch` (743 MiB),
+  `watch-for-a-killed-gits-lock-costs-nothing-per-folder-2026-11-16-scratch` (439), `change-reviews` (390),
+  `getting-the-machine-ready-for-a-reboot-2026-11-16` (330), `reviewer-bench-deepseek-against-sonnet-2026-11-17` (259)
+  and `zfs-fast-route-design-facts-2026-11-17` (258). Listing in
+  `~/temp/agent/scratch-size-report-2026-11-19/keep/du-depth-1-in-mib.txt`. A note of this session's had widened the
+  briefs' ban on searching the scratch root as a whole (an agent's `rg` there ran 15.5 hours, in the 2026-11-15 entry
+  on silent runs) into a ban on measuring it; the measurement is the coordinator's by rule `SZR`, and earlier passes
+  ran it.
 
 ### The Qwen plan's terms fit the Pi runs on it (2026-11-19T11:20:00-05:00)
 
