@@ -40214,6 +40214,14 @@ provider name `openai` though the adapter builds the prefix from any provider (`
 `429 "…"` shape; the verifier's no-request property rests on one constant; a stale "HTTP 200 observed" comment; the
 writer's case count is 66, not 72. All accepted (7 is a record fix). GOING: the writer's session resumed for 1 to 6,
 `pi-provider-answers-its-third-review-1` (run-9); then a delta check and merge into main.
+It ended `idle` (80 turns) at `2070948ce4`, seven commits from `87569e86ef`: the policy move anchored with `startsWith`
+(two tests failed first); the `isRateLimit` example in the producer's form; the Responses 429 read under any provider
+label (`openai-responses.js:177`; a routing case failed first); a verbatim recorded `429 "…"` Synthetic refusal pinned
+(its path named); the verifier's `globalThis.fetch` throws and is asserted empty (shown failing with the real origin);
+the fixture's 200 called a construction choice. Mutants `Y1`, `X8`, `X9`, `X3`, `X1` each fail a suite; 69 cases by count.
+All three reviews so far were same-vendor short reviews, so before `main` (the owner's option A: "switching the queue to
+it once it is in main") a Claude Sonnet gate review of the whole package (`a115bc023d..2070948ce4`, 40 commits) is GOING
+as a background Agent. Merge on a clean gate; installing it into `~/.pi/agent/settings.json` stays with the owner.
 
 **Reviewer speed result (2026-11-19, four interleaved rounds, model time from the feeds' prompt-sent to settled,
 `keep/runs.jsonl`):** Qwen-plan DeepSeek 9.4, 10.8, 6.3, 17.7 s; its same-model control 18.9, 13.5, 11.9, 8.3 s (Qwen
