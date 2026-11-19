@@ -259,6 +259,30 @@ Each rule is the project's own requirement.
   and mutation campaigns are paused:
   run none.
 
+## What another program prints
+
+- A constant,
+  fixture or test string that stands for another program's output
+  (an error message,
+  a status line,
+  an API response,
+  a log line,
+  a command's output)
+  is copied from a real capture or built the way the producer's source builds it,
+  and the line beside it says which:
+  the capture's file path,
+  or the producer's installed `path:line`.
+  A stand-in written by hand says it is a stand-in where it is defined,
+  and no claim about real behaviour rests on it.
+  On 2026-11-18 a writer's tests used refusal messages no installed Pi adapter produces,
+  its README claimed on their strength that a real OpenAI refusal would hand off,
+  and its review found the adapter's own form (`OpenAI API error (429): ...`,
+  built by `formatProviderError` in `@earendil-works/pi-ai`) was not recognised.
+- A review checks each such constant against its producer
+  (the installed source or a real capture)
+  and reports each one that has neither,
+  and each claim about real behaviour that rests only on a stand-in.
+
 ## Where the run works
 
 The working folder is the worktree the run was started in.
@@ -286,6 +310,12 @@ each commit hash,
 what was run and its results,
 each disagreement with the brief's reading,
 and anything that could not be done.
+Mark each claim about behaviour,
+in the report and in any README or document the run writes,
+with what it rests on:
+a real invocation,
+the producer's source,
+or a stand-in.
 A run cannot ask questions while it works,
 so open questions go in the report.
 

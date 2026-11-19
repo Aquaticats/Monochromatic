@@ -39,6 +39,10 @@ The kernel must expose the selected sensors under `/sys/class/hwmon` and CPUFreq
 Install the binary and the unit after creating the sensor configuration. The installed command name is
 `setMaxCpuTemp` and the Cargo binary name is `set-max-cpu-temp`.
 
+The manual installation at `/usr/local/bin/setMaxCpuTemp` is temporary. After `mpm-shadow` can prefer system
+toolchains, move the executable to the path managed by `mpm` and update the systemd watcher and release commands.
+[Move setMaxCpuTemp to an mpm-managed installation](https://github.com/Aquaticats/Monochromatic/issues/6317)
+
 ```bash
 # Monochromatic/
 sudo install --mode=755 package/cpu-temperature/cli/target/release/set-max-cpu-temp /usr/local/bin/setMaxCpuTemp

@@ -39847,6 +39847,15 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### The owner is away overnight; shut down when nothing is left (2026-11-18T23:25:00-05:00)
+
+The owner, plain text: "I'm gonna go to bed. You keep working and try not to block on me. Whenever you run out of
+things you can do w/o me, shutdown the entire system." So: every run going finishes and is handled (reviews, merges
+of reviewed non-wrapper work, the next step of each item); questions for the owner are written here, ranked, and asked
+when the owner is back, never waited on; and once no run is going and nothing more can move without the owner,
+everything is committed and pushed (rule `RBT`), every unit and worktree this session started is stopped or removed,
+and the machine is powered off. The queue stays stopped (no heavy worktree use before the ZFS route).
+
 ### Runs that ended after the filling stopped (2026-11-18T22:25:00-05:00)
 
 Three reviews returned (all `idle`, no rate-limit error); each found what the branch brings, so each goes to its
@@ -39916,6 +39925,221 @@ Owner answers of 2026-11-18 (question tool):
   first run's refusal and makes rule `RKD`'s hand resume automatic for runs on the provider. It is a separate task from
   the lint run now going (`pi-provider-that-falls-back-across-providers-2`), so it goes to a fresh writer in the same
   worktree after that run ends, then the package's DeepSeek review.
+
+The ZFS VM measurement run ended `idle` (83 turns; branch `docs/planning-cli-git-zfs-measurements-owed-before-acceptance`
+at `657d8c0011`, one commit per item; its worktree removed after checking it clean and pushed): all eleven items ran on
+encrypted file-backed pools, OpenZFS 2.4.4-1, guest kernel `6.8.0-147-generic`. Two results change the design: making
+only the checkout private was enough for the staging move (item 3), and after a promote an explicit snapshot delete
+erased checkout history before the origin dependency stopped removal (item 11). Not shown: host kernel and Git runtime,
+the product handler, unattended boot reconciliation, free-running races, same-name replacement, recovery after an
+interruption. Runs started at about 23:05-05:00, each in an existing or single new worktree:
+`pi-zfs-worktree-design-proposal-fold-in-the-vm-measurements-1` (GPT, the proposal's worktree; then the Sonnet delta
+review), `pi-node-sync-calls-go-through-coreutils-sync-1` (GPT, new worktree
+`.claude/worktrees/node-sync-calls-go-through-coreutils-sync`), `pi-provider-that-falls-back-across-providers-2` (GPT,
+oxlint to zero), `pi-prewarm-of-a-new-worktree-acts-only-on-the-entry-it-checked-2` (DeepSeek on the Qwen plan).
+
+The sync writer's first run ended `pi-exited` after nine turns: Pi 1.5.2 itself crashed. Its `codemode` tool read
+several files, one did not exist (ENOENT), the script's end aborted the other reads, and the aborted `ReadStream` raised
+an `error` event with no listener (`ABORT_ERR`), which ends Node; the summary then holds no session file
+(`sessionStats` is the text "pi exited"), so the session was found under
+`~/.pi/agent/sessions/--home-user-Monochromatic-.claude-worktrees-node-sync-calls-go-through-coreutils-sync--/` and
+resumed as `pi-node-sync-calls-go-through-coreutils-sync-2`, told to list a folder before reading inside `codemode`.
+Not recorded in `doc/troubleshooting/` before; a GPT writer (`pi-pi-codemode-abort-crash-troubleshooting-1`, main
+checkout, one new doc) traces it in upstream `earendil-works/pi` at 1.5.2 under the troubleshooting skill, files nothing.
+It hit OpenAI's "possible risk" stop after 17 turns, went on on DeepSeek (rule `RKD`), and landed
+`doc/troubleshooting/pi-codemode-abort-crashes-pi-on-an-open-read.md` in `main` (`2c5fc7e735`, `b4323352fb`):
+`Execution.finish()` aborts every pending nested call's signal, and the `read` tool passes that signal into
+`createReadStream` with no `error` listener; reproduced three ways (bare stream, Pi's own read tool, Pi's own codemode
+sandbox), fixed upstream by PR #12025 (`ef9361ab70`, 2026-11-11, issue #11956 closed with four duplicates), not yet in
+a release (npm's latest is 1.5.2, which crashes; 1.5.0 does not); workarounds `Promise.allSettled` or reads one at a
+time. Nothing filed. The repository's Markdown gate did not run (`monochromatic-lint: command not found`, the toolchain
+binary is not installed here); a `markdown-it` render stood in. When a Pi release after 1.5.2 carries the fix,
+upgrade Pi and drop the brief line about listing before reading.
+
+The virtual provider's lint run ended `idle` (63 turns; `f4fe08b7f4`, `c1e00ca741`, `62185c4080`): oxlint "Found 0
+warnings and 0 errors." with no rule loosened or suppressed, regex literals replaced by scans checked against the old
+behaviour over 1,589 cases, the host interface narrowed; types, 20 unit cases and the Pi session check pass; each touched
+guard removed in turn gave its named failure. A fresh writer (`pi-provider-possible-risk-falls-back-to-the-next-member-1`,
+same worktree) was briefed to build the owner's "Fall back automatically". **It declined (5 turns, no change)**:
+sending the same transcript to another provider because the first flagged it "would let an unattended agent continue a
+potentially offensive workflow past that stop". It found a real defect: `src/rate-limit-evidence.ts:116` scans for the
+contiguous phrase `possible risk` while OpenAI's stop says "possible cybersecurity risk" (fixture
+`src/routing.unit.test.ts:24` uses the short form), so the real stop is not recognised. The refused task was **not**
+handed to another model overnight; **for the owner, when back:** the owner's answer stands ("Fall back automatically"),
+the writer's objection is that the coordinator's per-case look before a resume (rule `RKD` by hand) disappears;
+confirm, or keep the stop terminal. A fresh GPT writer
+(`pi-provider-classifies-the-real-possible-risk-wording-1`) fixes the classification only, failing test first with the
+verbatim stop text, policy unchanged. It ended `idle` (31 turns): `1364b3e01c` (verbatim fixture, another truncation,
+straight quotes, a 429 control; three failed before the fix) and `b9bbe7e894` (scan for "This content was flagged for
+possible cybersecurity risk", README); types, unit suites, oxlint 0/0 and the Pi session check pass. The package's
+DeepSeek review (`pi-review-pi-plugin-rate-limit-fallback-at-b9bbe7e894-1`, read-only in the writer's worktree, no live
+provider calls) returned final (94 turns; 1 high, 2 medium, 5 low;
+`~/temp/agent/change-reviews/pi-plugin-rate-limit-fallback-at-b9bbe7e894/review.md`): **high, a real OpenAI 429 is not
+recognised** (the `openai-responses` adapter writes `OpenAI API error (429): ...` and never calls `onResponse` on a
+refusal, so the writer would stop on its first member; every test refusal string was invented); medium, a policy stop
+replaces the provider's whole message (the remediation text is lost); medium, a quota read's only deadline is the model
+request's (300 s by default, none without `timeoutMs`); lows: bare `possible risk` in a 429 ends the run, a failed
+first quota read is never retried, local admission failures reported as an invented `HTTP 429`, unreached branches,
+three sibling conventions. All eight accepted; the writer's next run (`pi-provider-answers-its-review-1`, GPT, same
+session) answers them with adapter-built refusal strings. Install into `~/.pi/agent/settings.json` stays for the owner.
+The owner, 2026-11-19, on the invented refusal strings: "'their refusal messages were made up ' - lol. You meant
+hallucinated." **For the owner's morning batch (rule `GAP`), a proposed `AGENTS.md` edit tightening `TAE`:** "Before
+prescribing tool/API behavior in prompts, docs, configs, CI scripts or test fixtures, take it from a real invocation or
+the producer's source, never from how it should work." (Today's text covers prompts, docs, configs and CI scripts, not
+fixtures, which is where this slipped through.)
+Checked at 2026-11-19 after the owner asked who to thank: the strings came in with `5b963acdee` (21:35:51-05:00) in the
+package's first run (`gpt-6.2-sol`, 21:16 to 22:00); that run's feed names the adapter sources twice in all. The
+review's high finding holds from source, read here: an HTTP 429 is thrown before streaming and formatted at
+`@earendil-works/pi-ai` 1.5.2 `dist/api/openai-responses.js:175-177` with `dist/utils/error-body.js:139-145`, which
+prefixes `OpenAI API error (429): ` whenever the error has a status; a policy stop arrives inside an HTTP 200 stream and
+is rethrown as a plain error (line 170), so it has no prefix, matching both real stops on disk. **Correction:** no
+OpenAI 429 is on record here (every recorded 429 is Neuralwatt, Qwen or Synthetic, as `429: {...}` or `429 "..."`), so
+my earlier "what OpenAI actually sends" overstated a source reading; the writer's `429 Too many requests` is close to
+Synthetic's real `429 "Too many concurrent requests"`.
+
+**Owner answers of 2026-11-19 (question tool), on what to do about it.** The owner first: "No, it's not on you. We
+have a reasonable expectation for subordinates to not be outright lying or making things up. This looks like a
+GPT-specific failure mode." Then: remedies "Brief rule (Recommended), Review check, Claim labels" (the install gate was
+not chosen); the `TAE` edit "Adopt wording (Recommended)"; "Audit now (Recommended)"; and on OpenAI's possible-risk
+stop "Automatic (Recommended)", built by a DeepSeek writer since GPT declined. Done: `TAE` now covers test fixtures and
+takes behaviour "from a real invocation or the producer's source" (`AGENTS.md`, `CLAUDE.md` regenerated by hand as the
+preamble plus `AGENTS.md` after checking `HEAD` matched that concat, as `file-enforcer` is not installed here);
+`package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md` gained "What another program prints" (fixtures
+name their capture or producer `path:line`, stand-ins say so and back no claim, reviews check each) and the report rule
+to label each behaviour claim (real invocation, producer source, stand-in). Going: a Sonnet audit (background Agent,
+read-only) counting fixtures with no producer behind them in GPT writer runs since 2026-11-17 against an equal sample of
+earlier DeepSeek runs (`~/temp/agent/fixture-provenance-audit-by-model-2026-11-19/keep/report.md`). Next for the
+provider: when `pi-provider-answers-its-review-1` ends, a DeepSeek writer in the same worktree builds the automatic
+move on a possible-risk stop, then one DeepSeek review of both. `pi-provider-answers-its-review-1` ended `idle` (74
+turns; `cd088202d1` to `defc6be2ab`): the OpenAI 429 form recognised, refusal fixtures now built by sending in-memory
+HTTP refusals through both installed adapters (which caught one more mismatch: the SDK unwraps the body's `error`
+field); the policy message keeps the provider's advisory and names the member, only Pi's retry phrases replaced; quota
+reads bounded at a provisional 2 s, capped at half a positive caller timeout, to be set from the live endpoint check;
+local admission failures in words, not retried by Pi; branch tests added; sibling conventions followed; types, unit,
+oxlint 0/0 and the Pi session check pass. The DeepSeek writer (`pi-provider-moves-on-after-a-policy-stop-1`, Qwen plan,
+fresh session) now builds the automatic move, its fixture built through the adapter and citing the two real stops.
+
+The third prewarm run ended `idle` (77 turns, no new commit; report updated): through a built wrapper with the fill's
+staging and target replaced mid-clone, the tip left the other command's files at both names byte for byte and said why
+("holds no claim of this job ... left as it is found"); `main` did not delete the replacement in that run either (its
+no-claim removal was not shown meeting one); interleaved `git worktree add`, eight rounds, tip against a same-binary
+control 0.994 (tip against `main` per round 0.94 to 1.10). Its review waits with the queue.
+The coreutils sync change's
+DeepSeek review returned (78 turns, final; 0 high,
+1 medium, 5 low; `~/temp/agent/change-reviews/node-sync-calls-go-through-coreutils-sync-at-e5c61b8af2/review.md`): every
+site keeps its promises, each new test fails with its site reverted, the reported suite failures are in untouched files;
+accepted for the author: M1 (no deadline on the `sync` child in `git-policy/cli` and `cli-cargo-mutants`, one under a
+campaign lock), L1 (a created `wg` rule file is never synced while the README now promises every write), L2 (wrong
+error family), L3 (helper written three times beside existing runners), L4 (no boundary tests for `--` and the
+argument array); recorded, not changed: L5 (a failed directory sync on claim release is logged and the run still
+succeeds; older behaviour). The author's third run (`pi-node-sync-calls-go-through-coreutils-sync-3`) answered them
+(46 turns, `idle`; `42980fc2ec` failing-first tests, `671d103f99` fixes; pushed): a 60-second sync deadline reusing
+`wg-quicker`'s runner bound, the created OpenSnitch rule file and its directory synced, each package's own error
+class, the duplicate helpers removed for each package's runner, boundary tests (removing `--` fails the OpenSnitch
+argument test); L5 unchanged; focused tests and types pass, changed-file oxlint 0/0 (Git's whole-package oxlint still
+41 errors outside the change). Its delta review (`pi-review-node-sync-calls-go-through-coreutils-sync-at-671d103f99-1`,
+DeepSeek, read-only in the worktree) checks first whether a measurement stands behind the reused 60 seconds; then the
+merge. It returned (136 turns; 0 high, 0 medium, 3 low; each earlier finding confirmed by a revert that failed its
+test): the evidence cited beside the 60 s timed `ip`, `wg`, `nft` and `sysctl`, never `sync`; the bound is five
+literal `60_000`s with no exported constant; each stall test spends the full minute. All three accepted; the author's
+fourth run (`pi-node-sync-calls-go-through-coreutils-sync-4`, GPT) cites this machine's write-and-sync readings (72 ms
+and 2,564 ms on the ZFS drive, 15,512 ms on the earlier drive under 18 agents), names one constant per package and
+gives the tests a short bound; then the merge.
+
+The prewarm writer's DeepSeek resume ended `idle` (214 turns) at `4ebfded328`, not final
+(`~/temp/agent/prewarm-acts-only-on-the-entry-it-checked-2026-11-16-scratch/keep/report.md`): one held-name module
+(`package_repair_prewarm_a_held_name.rs`: a held directory, take aside with `RENAME_NOREPLACE`, identity and claim read
+again before the act); each of the review's four findings rebuilt as a committed control (the review's
+`reproductions/` was not on disk), each failing with its fix taken out; findings 1 and 2 are not on `main`, findings 3
+and 4 are on `main` in a worse shape; `main` merged with no conflicts; clippy clean; the one ZFS `utf8only` control
+(`EILSEQ`) cannot run on this host. Not done by it: the run through a built wrapper with a mid-fill replacement and
+the interleaved `git worktree add` cost ratio. Its third run
+(`pi-prewarm-of-a-new-worktree-acts-only-on-the-entry-it-checked-3`, same worktree, DeepSeek) does those two in
+fixtures under its scratch; its review waits with the queue.
+
+The queue's last run going, mpm-shadow removal of old versions (`-6`, GPT, 172 turns, `idle`), ended not final at
+`23047b7e40` on its branch (pushed; its worktree removed by the launcher; report
+`~/temp/agent/mpm-shadow-removal-of-old-versions-state-model-finished-with-its-controls-in-a-fresh-run-2026-11-14T2130-scratch/keep/report-of-the-tenth-review-continuation.md`):
+each of the four guards cut out alone fails its control; `main` (`c58780bd26`) merged with no conflicts; the owner's
+cleanup decisions built (two newest version names plus every pin, the hidden-process age rule, obsolete flat downloads
+by age and holder, a damaged lock named and blocking); clippy and 138 of 138 selected module tests pass. **Cost, one
+interleaved round of `install --frozen-lockfile` on a fixture with a pending-cleanup hint: 33.918 to 34.782 times
+`main` when nothing is removed, 50.183 to 53.927 times with one removal, 1.702 to 2.069 times the sixth-review tip;
+the same-binary control spread 0.187 to 1.344.** By rule `SLW` that cost is ours to remove: its next run splits the
+total by logged steps, then removes it, makes it cheaper or moves it off the install's waiting path, measured over
+more rounds than one. That run needs a new worktree, so it waits with the queue.
+
+The Sonnet delta gate review of the ZFS proposal at `652b51d74d` returned
+(`~/temp/agent/zfs-worktree-design-proposal-delta-gate-review-2026-11-18/review.md`; 1 high, 4 medium, 10 low; GM1 to
+GM10 and most lows resolved; GH1 and GL4 partly). All five weighed findings accepted:
+DH1 (high), the removal step's identity precondition cannot be met under the delegated grants (no identity-conditional
+destroy in the request list; the account can replace a dataset at a name; channel programs are root-only), so every
+removal would refuse and the owner's "Destroy at once" could not run; a revision removed the earlier explicit acceptance
+of that residual without asking (`e5c2428898`). **For the owner:** scope to the measured threat and accept the
+account-versus-itself residual again, or add a root-run conditional destroy through a channel program; either way the
+acceptance wording stops counting "refusal" as a pass. DM1, "created on this clone" names no observable (`createtxg`
+proposed, needs a positive control; bookmarks move on promote too). DM2, destroy the verified snapshot set in one
+all-or-nothing `ZFS_IOC_DESTROY_SNAPS` request. DM3, a mount namespace made after the attach keeps a private copy of
+the clone mount, so the clone's destroy fails `EBUSY` after its snapshots are gone. DM4, the kernel readiness gate has no
+criterion and no owed run on the host kernel. The review counts thirteen open choices, not twelve. Next, one task each:
+`pi-zfs-measurements-for-the-delta-gate-review-1` (GPT, the proposal's worktree, a throwaway VM) measures items 12 to 16
+(same-name replacement and a channel program, `createtxg` after promote, one batch destroy, a namespace made after the
+attach, the host kernel) into the record; then a fresh writer revises the proposal for the review and the new items;
+then the owner's choices go through the question tool, ranked. The measurement run ended `idle` (68 turns; one VM
+made and destroyed; `cc87958f37` to `666d6e2617`): 12, the delegated account destroyed an unmounted clone and reused
+its name (GUID changed), `zfs program` refused the account, root's program destroyed only on an identity match; 13,
+transferred snapshots kept their GUIDs with `createtxg` at or below the origin's, the clone's own snapshot above the
+clone's, and the bookmark moved; 14, the CLI refused a mixed batch before any ioctl, one direct
+`ZFS_IOC_DESTROY_SNAPS` returned `EEXIST` and kept both, an own-snapshot batch deleted both in one ioctl; 15, after the
+private move and unmount both later namespaces still held the clone, the root scan found both, the clone's destroy
+returned "dataset is busy"; 16, no `mvm` image runs `7.3.5-1-cachyos` with OpenZFS 2.4.4. The revision writer
+(`pi-zfs-worktree-design-proposal-delta-gate-review-revision-1`, GPT, fresh, same worktree) writes DH1 as an open
+choice with both ways out and answers DM1 to DM4 and the lows. The review itself was the one going
+(`pi-review-node-sync-calls-go-through-coreutils-sync-at-e5c61b8af2-1`, in the writer's worktree).
+
+The work-record review `1d5ad2597d` returned (85 turns, `idle`): four reads that wait for ever on a named pipe
+(`worktree/worktree_remove_hand_over.rs:761` on every `failed/` entry, reproduced; `landing/service_handoff.rs:663` on an
+aged `pending` record, reproduced, exit 137 at the 20 s bound; `landing/work_item_recovery.rs:345` on a claim in
+`recovering`, by reading; `landing/work_item.rs:611` and `:625`, a link to a pipe gives `FilesystemLoop` and the
+fallback open follows it, which `main` has too), against the branch's own `SPEC.md:17971` sentence that a pipe is a
+record it cannot read rather than a wait; its two `#[ignore]`d tests admit the first two. Goes to its author with the queue.
+
+The two-starts writer (driver package, branch
+`fix/pi-shared-subagent-driver-two-starts-of-one-run-name-never-share-a-run-folder-or-remove-each-others-worktree`)
+ended `idle` at `db8a6d84f9` (fourth run, 148 turns; worktree removed by its launcher): `main` merged in (`a9e4bacca4`,
+four conflicts resolved), the review's four findings answered with a failing-first test each, oxlint 0 warnings and 0
+errors, build and `lint:types` pass, unit task 67 of 70 files (three excluded, named in its report). Its review needs a
+new worktree, so it waits with the queue. **Two questions for the owner, from its report, to ask when the owner is
+back:** how long a worktree with no proof of its maker is kept (now 24 hours from first sighting; shorter frees the run
+name sooner and can delete live work sooner), and whether a worktree whose maker cannot be identified falls back to
+age (recovers unattended retries, can delete live work) or is kept until someone checks it (no fallback added).
+
+By 03:24:49Z three more ended `idle`; each next step needs a new worktree, so each waits with the queue:
+
+- Masking limits page and stray test files (138 turns, branch tip `c1aa6b042d`, not merged; report under
+  `~/temp/agent/masking-limits-page-and-stray-test-files-2026-11-16-scratch/keep/report.md`): the limits page now says
+  what the code does (truncated-output path accepted, resumed sessions masked only when the driver finds the file, the
+  rename window's real checks, the preview taken before masking), and both test launchers give the stand-in session a
+  `TMPDIR` they remove (the new check failed first in a disposable home); build, types, lint, focused suite and one full
+  package pass (207 passes). Next: its review.
+- Review of the empty-last-answer driver branch `d525bcf531` (124 turns, final): a keep on a filesystem with no hard links
+  copies straight into the final kept name, so a kill mid-copy leaves a partial `.failed-<name>`
+  (`keeping-a-message-aside.ts:386-420`); `README.md:1043` promises one kept name per message where the copy path and
+  `doc/states-of-a-claimed-message.md:148` allow two (reproduced); a doubled `/**` in `driver-types.ts:176-177` ships in
+  the built types. Goes to its author.
+- Killed Git's lock watch (fresh run, 152 turns, branch clean at `f6dce5b9f7`, not merged): finding 5 (start cost with
+  many folders) answered, 3,000 folders 1.04 times `main` after against 1.58 before, `main` against itself 1.00; **finding
+  4 still blocks the merge**: from Git's death to the wrapper's exit at 6% CPU quota, 100 locks take 350.88 ms against
+  1.06 ms on `main` (327.66 times) and 200 locks 545.76 ms against 1.45 ms. Next: its author's run on finding 4.
+
+The ZFS fold-in ended `idle` (49 turns; seven commits `d85903c386` to `652b51d74d` on
+`docs/planning-cli-git-zfs-worktree-design-proposal`, worktree clean): all eleven measurements folded in, the measurement
+page merged unchanged; design changes: only the checkout mount made private (item 3), a separate key check and
+reconciliation after key load (item 5), and removal proves the lineage of the whole snapshot set before the first delete
+and revalidates each target (item 11); 106 same-page and 98 cross-page links resolve. The Sonnet delta gate review (rule
+`LHZ`) is going as a background Claude subagent: range `71fa25ece8..652b51d74d` on the two planning docs, read whole,
+output `~/temp/agent/zfs-worktree-design-proposal-delta-gate-review-2026-11-18/review.md`. After it: weigh it, a revision
+run if it finds what the design must change, then the twelve open choices go to the owner, ranked, when the owner is back.
 
 ### No heavy worktree use before the wrapper's ZFS route (2026-11-18T21:47:42-05:00)
 
