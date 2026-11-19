@@ -711,8 +711,9 @@ a test asserts that the encoded request has no `defer` key.
       to `:728` reports them as the bookmark's `guid` and `createtxg`, OpenZFS `zfs-2.4.4`; [VM item 13][vm-13]
       saw the tuple unchanged after a move). Pass a bookmark therefore when its GUID and `createtxg` equal those of
       a clone snapshot that passes the snapshot rule in this check, or those of a tuple the destruction plan
-      records once step 3 has persisted it, and no origin-side tuple matches it. This asks for no recorded bookmark: the recorded
-      clone-side inventory is written once at add and the third check forbids updating it, so the rule this draft
+      records once step 3 has persisted it, and no origin-side tuple matches it. This asks for no recorded
+      bookmark: the recorded clone-side inventory is written once at add and the third check forbids updating it,
+      so the rule this draft
       used through revision `b26aa27f3c`, which required the bookmark's own recorded tuple, would have refused the
       removal of any clone that someone had bookmarked. Refuse destruction when a bookmark's tuple matches neither
       a live clone snapshot that passes the snapshot rule nor a recorded plan tuple, when it matches the
