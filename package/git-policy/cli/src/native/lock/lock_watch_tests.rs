@@ -948,8 +948,9 @@ fn a_drain_that_reaches_its_bound_records_nothing() {
 #[test]
 fn a_git_the_bounded_runner_started_binds_the_lock_it_took() {
     let common: PathBuf = a_watched_git_directory("watch-bounded-start");
-    let directory: PathBuf = common.join("bounded");
-    std::fs::create_dir(directory.as_path()).expect("the bounded step's directory");
+    // A bounded step can update a reference in this namespace, not in an arbitrary root child.
+    let directory: PathBuf = common.join("refs/heads/bounded");
+    std::fs::create_dir_all(directory.as_path()).expect("the bounded step's reference namespace");
     let fake_git: PathBuf = a_fake_git_that_takes_a_lock_and_is_killed(common.as_path(), "fake-git-bounded");
     let outcome = crate::forwarding::run_real_git_until(
         fake_git.as_path(),
@@ -995,8 +996,9 @@ fn a_git_the_bounded_runner_started_binds_the_lock_it_took() {
 #[test]
 fn a_git_the_awaiting_runner_started_binds_the_lock_it_took() {
     let common: PathBuf = a_watched_git_directory("watch-awaiting-start");
-    let directory: PathBuf = common.join("awaiting");
-    std::fs::create_dir(directory.as_path()).expect("the awaiting step's directory");
+    // The awaiting runner's lock stands in the reference tree the repository watch covers.
+    let directory: PathBuf = common.join("refs/heads/awaiting");
+    std::fs::create_dir_all(directory.as_path()).expect("the awaiting step's reference namespace");
     let fake_git: PathBuf = a_fake_git_that_takes_a_lock_and_is_killed(common.as_path(), "fake-git-awaiting");
     let mut command: Command = Command::new(fake_git.as_path());
     command.args(pointed_at(directory.as_path())).stdin(Stdio::null());
