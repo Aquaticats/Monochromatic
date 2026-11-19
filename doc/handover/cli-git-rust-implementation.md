@@ -259,8 +259,18 @@ Not final and not approved: this session's own account.
   `~/temp/agent/env-local-json-fixture-waits-for-close-review-2026-11-18/review.md`): F1 medium, the new wait for
   `close` has no deadline, so a tool that leaves a holder on its output pipe hangs the suite; F2 to F5 low (every
   failure reported as an install problem with standard error dropped; the control at 12d8c199bf cannot pass at the
-  tip; the wait implemented twice in the package; no test for `runCommand`'s failure paths); F6 a note. Not yet
-  weighed; the author's next run takes what survives.
+  tip; the wait implemented twice in the package; no test for `runCommand`'s failure paths); F6 a note. **Weighed by
+  the coordinator:** F1, F2, F5 and F6 accepted as one change to `runCommand`'s contract (F2 predates the branch but
+  sits in the function the branch exports and F1 edits); F3 needs no code, the control committed at 12d8c199bf was red
+  on any code (its document parsed to `{ values: ... }`) and became a control only with b1452b7407; F4, one capture
+  shared by the reader and the fixture, is a separate follow-up, not briefed yet. Also not briefed:
+  `SOPS_TIMEOUT_MS = 15_000` in `package/env-local-json/core/src/constants.ts` cites no measurement (rule `LQM`).
+  **A fresh GPT writer is going** (the author's run of 2026-11-16 predates the migration and the writer change): unit
+  `pi-env-local-json-fixture-runner-bounded-and-truthful-1`, worktree
+  `.claude/worktrees/env-local-json-fixture-runner-bounded-and-truthful` on
+  `fix/env-local-json-core-fixture-joins-the-output-of-a-program-only-after-its-pipe-has-closed` with main merged
+  (cfdd31665e), brief `~/temp/agent/env-local-json-fixture-runner-bounded-and-truthful-2026-11-18/prompt.md`, turn cap
+  450, wall 5400 s. The review's worktree is removed; its scratch stays until this run is reviewed.
 - **Driver idle window defaults to 0: in main** as 5b53cd90f2 (decision entry "Driver: the idle window defaults to
   0"; behaviour in `package/pi-shared/subagent-driver/README.md`, the default in the pi-as-subagent skill's step 5).
   Its DeepSeek review (179 turns, `idle`; file
