@@ -64,6 +64,10 @@ const RECORDED_QUOTED_REFUSAL: string = `429 "You've exceeded your subscription 
 /**
  Other non-capacity failures are returned unchanged.
 
+ All four are made up: no capture of a 401, a bare timeout phrase or an overflow body exists on this
+ machine. Boundaries: a mention of 429, a timeout phrase, an overflow body and a number that merely
+ begins with 429 are none of them a refusal (`doc/captures.md`, "Made-up texts").
+
  The last entry is a hand-written number that merely begins with `429`: another package's tests hold
  the same shape (`package/pi-shared/subagent-driver/src/retries-of-a-model-error.unit.test.ts`),
  and a digit after the status token means the text is not a refusal.
@@ -182,6 +186,9 @@ await describe({
       fn: async function unreadableBody() {
         /**
          Refusal whose body opens a brace but carries no JSON, so reading a delay from it throws.
+
+         Made up: boundary is the unreadable body, which names no delay
+         (`doc/captures.md`, "Made-up texts").
          */
         const unreadable = '429: {not json';
         const { provider, calls, options, } = await fixture({
@@ -246,6 +253,8 @@ await describe({
           },
         },);
         const model = poolModel({ provider, id: 'reviewer-pool', },);
+        // Made up stand-ins: boundary is that nothing the caller supplies as a credential reaches a
+        // member (`doc/captures.md`, "Made-up texts").
         const requestOptions = {
           ...options,
           apiKey: 'stand-in-outer-key',
@@ -289,6 +298,8 @@ await describe({
             play({ model, }) {
               const stream = createAssistantMessageEventStream();
               const message = assistant({ model, errorMessage: rateLimitRefusal({ model, },), },);
+              // A made-up tool call: boundary is that output exposed before a failure keeps the
+              // request at that member (`doc/captures.md`, "Made-up texts").
               const toolCall = { type: 'toolCall', id: 'tool-fixture', name: 'fixtureTool', arguments: {}, } as const;
               message.content.push(toolCall,);
               if (publish) {
@@ -373,6 +384,8 @@ await describe({
                 status: calls.length === FIRST_ATTEMPT ? RATE_LIMIT_STATUS : 400,
                 headers: {},
               }, model,);
+              // Made up text naming no status: boundary is that the exposed status decides
+              // (`doc/captures.md`, "Made-up texts").
               return immediate({ model, errorMessage: 'Provider returned an error', },);
             },);
           },

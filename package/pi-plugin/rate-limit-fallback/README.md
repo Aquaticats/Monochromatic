@@ -158,10 +158,12 @@ taken from those limits, so a compaction it decides fits every member. Before a
 session binds, both carry Pi's own fallback for a model that declares no window,
 128,000 tokens and 16,384 output.
 
-Pi applies the limits of the physical model that produced the latest answer from
-the next request on, and sizes each request's output limit from the routed model
-clamped to the member. So the declared pair is a floor, not a promise about the
-member that answers.
+After the first answer, Pi measures context usage, and compacts on the threshold,
+against the model the router returned: the pool model, which carries the
+smallest registered member's limits, so a compaction Pi decides still fits every
+member. Each request's output limit is sized from that routed model and then
+clamped to the member that receives it. The declared pair is therefore a floor
+for the selection, not a promise about the member that answers.
 
 The route is what restores Pi's context-overflow recovery. An assistant message
 records the member that produced it. Under a virtual selection Pi resolves that

@@ -94,6 +94,9 @@ export const TARGETS = [
 
 /**
  Transcript that must survive fallback unchanged.
+
+ Made up: the wording is this fixture's own. Boundary: the exact transcript object reaches a member
+ (`doc/captures.md`, "Made-up texts").
  */
 export const TRANSCRIPT: TranscriptContext = normalizeContext({
   messages: [
@@ -113,6 +116,9 @@ export const TRANSCRIPT: TranscriptContext = normalizeContext({
 /**
  Window every stand-in member reports: large enough for a short transcript, small enough to stay a
  stand-in rather than a provider claim.
+
+ Made up: no provider publishes this window. Boundary: the limits the pool advertises and the
+ catalog case that computes them (`doc/captures.md`, "Made-up texts").
  */
 const STAND_IN_CONTEXT_WINDOW = 16_000;
 
@@ -148,6 +154,9 @@ export type ModelIdentity = Pick<Readonly<Model<Api>>, 'api' | 'id' | 'provider'
 
 /**
  Compose a refusal in the forms Pi's installed adapters build.
+
+ The default body message is made up; boundary: the adapter's own formatting, which
+ `src/adapter-refusal.unit.test.ts` compares byte for byte (`doc/captures.md`, "Made-up texts").
 
  The Responses adapter labels a failure it formats as `<Provider> API error (<status>): <body>`, with
  `OpenAI` standing in for the provider id `openai` and the bare provider id for every other provider
