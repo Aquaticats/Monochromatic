@@ -39944,8 +39944,14 @@ What follows from them, as work:
   zfs parts for the git wrapper." (2026-11-18):** four worktrees are in use now (the fold-in's, kept until its gate
   review; the short review's; the LFS audit's; the prototype's), and each new one copies the checkout's ignored files
   (38,685 entries for the prototype's). Waiting on that: the live quota-endpoint check (task 396, which can run in
-  the prototype's worktree once it ends), the driver pool table (task 383) and the driver's four uncaptured fixtures
-  (task 391).
+  the prototype's worktree once it ends). The driver's four uncaptured fixtures (task 391) took the slot the short
+  review freed: GOING as `pi-driver-model-error-fixtures-from-captured-refusals` (DeepSeek on Neuralwatt, turn cap 590,
+  a quarter above the longest of 107 finished driver runs, 471), branch
+  `fix/pi-shared-subagent-driver-model-error-fixtures-come-from-captured-refusals`, brief and run folder under
+  `~/temp/agent/driver-model-error-fixtures-from-captured-refusals-2026-11-19/`. The driver pool table (task 383)
+  waits on more than a slot: it changes `pool-limits.ts`, as the unmerged `ecec388cdb` does (13 files; its review
+  queued 2026-11-16 and never started), and the entry of 2026-11-16 on the second timing of the two pools puts
+  follow-ups to that file on top of `ecec388cdb` once it is reviewed and in `main`; that review waits with the queue.
 - **Scratch size (rule `SZR`), 2026-11-19 afternoon:** `du --max-depth=1` of `~/temp/agent` (bounded at 30 minutes,
   exit 0, no errors) gives 3,351 MiB; the largest folders are
   `prewarm-acts-only-on-the-entry-it-checked-2026-11-16-scratch` (743 MiB),
