@@ -1070,6 +1070,9 @@ the launcher that builds the session's environment asks it, once, before it make
   then rename it to one without the dot,
   because any other name is read at once.
   Pi gets it as a steer while it works and as a new prompt while it rests.
+  A message is read only while the driver is up:
+  with the default idle window of `0` a settled run ends within one look of the folder,
+  so a run that must be steered after it settles needs a positive `--idle-seconds`.
   An entry must be an ordinary file:
   a named pipe is set aside instead of waited on.
   A message Pi refused stays as `.failed-<name>`,

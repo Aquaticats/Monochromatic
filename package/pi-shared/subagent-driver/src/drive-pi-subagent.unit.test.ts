@@ -835,6 +835,9 @@ await describe({
         expect(run.commands,).toContain('get_session_stats',);
       },
     },),
+    // This holds the end-to-end delivery path; the race of a settle read between the inbox
+    // scan and the decision is held by `checks the inbox again when Pi settled after the watch
+    // read it` in `watch-pi-run.unit.test.ts`.
     it({
       name: 'a zero idle window still lets Pi answer a message already queued when it settles',
       fn: async () => {
