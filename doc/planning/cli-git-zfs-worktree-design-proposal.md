@@ -58,8 +58,9 @@ wrapper or handler. The vet's "Where the wrapper ships and what it links today" 
 start even when OpenZFS is absent. Administrative commands printed by `doctor` do not run inside the wrapper.
 
 This draft puts `mount-git-worktree-clone-datasets` in `package/git-policy/cli` as a separate Linux Rust binary
-alongside `monochromatic-git-policy-cli`, rather than making a second package. Both use the same binding and
-compatibility gate, even for reads.
+alongside `monochromatic-git-policy-cli`, rather than making a second package. That placement is an adopted default
+open to veto: it shares the binding and the compatibility gate with the wrapper without adding a package. Both use
+the same binding and compatibility gate, even for reads.
 The handler uses child enumeration and dataset/property reads for its sweep and Linux mount calls for the actual
 attachment and removal. It has no Git, pool administration, or dataset destruction operation.
 
@@ -417,20 +418,22 @@ origin never authorizes work on another mount. Recheck desired state and identit
 parallel handlers can sweep at once but cannot take conflicting actions on the same mount.
 
 This draft uses atomic `/run` receipts, not root-written acknowledgement properties, so a result does not create
-another ZED event. Publish in `/run/git-worktree-clone-mount-results`, using only the canonical numeric dataset GUID
-as the receipt filename. The root-owned directory is mode `0755`; receipts are root-owned mode `0644`, read-only to
-the wrapper, and opened relative to the trusted directory. Nonces appear only as validated data in the receipt,
-never in a filename. Include the operation, matching nonce, outcome, mount identity and failed step/errno where
-applicable. Readiness also records the current boot, pool, checkout and sweep state. The runtime files are a cache,
-not authority to act; rebuild them from live state and durable intent. Do not write acknowledgement properties from
-root. A waiter may change the local `org.monochromatic:git-worktree-clone-mount-sweep-nonce` as often as it
-needs on the verified managed clone it is waiting for, not on the clone parent. The nudge uses the same hex format
-and is not a mount instruction. The handler cannot limit the nudge to one write: the account owns that property
-and may change it repeatedly, and each change may start a sweep that scans every task, so bound the work of one
-sweep instead of counting nudges. This fits the proposed descendant `userprop` grant without expanding it to the
-parent. The [ZFS planning probes][zfs-plan], lines 208 to 213, used a parent property for lost-event recovery
-under their setup; [VM item 5][vm-key] delivered a clone property event to a test zedlet. Neither measured the
-product's delegated clone-local nudge or recovery of the lost last event without another trigger.
+another ZED event. That is an adopted default open to veto: acknowledgement properties are the alternative, and each
+one would create the event the receipts avoid. Publish in `/run/git-worktree-clone-mount-results`, using only the
+canonical numeric dataset GUID as the receipt filename. The root-owned directory is mode `0755`; receipts are
+root-owned mode `0644`, read-only to the wrapper, and opened relative to the trusted directory. Nonces appear only as
+validated data in the receipt, never in a filename. Include the operation, matching nonce, outcome, mount identity and
+failed step/errno where applicable. Readiness also records the current boot, pool, checkout and sweep state. The
+runtime files are a cache, not authority to act; rebuild them from live state and durable intent. Do not write
+acknowledgement properties from root. A waiter may change the local
+`org.monochromatic:git-worktree-clone-mount-sweep-nonce` as often as it needs on the verified managed clone it is
+waiting for, not on the clone parent. The nudge uses the same hex format and is not a mount instruction. The handler
+cannot limit the nudge to one write: the account owns that property and may change it repeatedly, and each change may
+start a sweep that scans every task, so bound the work of one sweep instead of counting nudges. This fits the proposed
+descendant `userprop` grant without expanding it to the parent. The [ZFS planning probes][zfs-plan], lines 208 to 213,
+used a parent property for lost-event recovery under their setup; [VM item 5][vm-key] delivered a clone property event
+to a test zedlet. Neither measured the product's delegated clone-local nudge or recovery of the lost last event
+without another trigger.
 
 Removal needs a fresh scan three times: for the removal-ready unmount report, immediately before the snapshot
 batch, and immediately before the head destroy. The wrapper asks for each scan by writing a new
@@ -714,12 +717,14 @@ a mismatched identity or a missing or pruned registration. Never let a stale ack
 
 ### Cancel a blocked removal
 
-A refusal after setting `unmount` leaves removal intent in force. Do not implicitly remount on failure or restart.
-Propose a guarded `cancel-worktree-removal <slot>` recovery action, invoked explicitly by the account operator
-through the wrapper. Under the per-slot claim, settle all outstanding destroy requests, including the root request
-if selected, and prove the clone, original lineage, Git registration, mount state and exact destruction outcomes
-before reversing intent. Report any confirmed history loss before cancellation and retain that report; cancellation
-cannot restore destroyed snapshots. If a destroy outcome is unknown, the head is gone, or a staged mount cannot yet
+A refusal after setting `unmount` leaves removal intent in force. Do not implicitly remount on failure or restart;
+that is an adopted default open to veto, because an implicit remount would race the standing unmount intent and any
+staged mount. The draft proposes a guarded `cancel-worktree-removal <slot>` recovery action, listed in
+[Open project choices](#open-project-choices), invoked explicitly by the account operator through the wrapper.
+Under the per-slot claim, settle all outstanding destroy requests, including the root request if selected, and prove
+the clone, original lineage, Git registration, mount state and exact destruction outcomes before reversing intent.
+Report any confirmed history loss before cancellation and retain that report; cancellation cannot restore
+destroyed snapshots. If a destroy outcome is unknown, the head is gone, or a staged mount cannot yet
 be recovered under the selected busy-unmount policy, do not issue `mount`. Report the matching resume step or
 administrator recovery required. Otherwise record the reversal and issue a fresh, nonce-bound local `mount` intent
 for the same binding and verify its result. This is proposed recovery reasoning from the staged holder and
@@ -974,6 +979,11 @@ unmeasured; a ranking is not a decision.
   untested releases and leaves unmeasured behaviour to appear on the host, where the failure is a refused mount or
   a misplaced one it did not detect. Both keep the runtime module gate; neither authorizes a path mount, and both
   preserve existing bindings and intent while the route is unavailable.
+- Blocked-removal cancellation. Offer an explicit `cancel-worktree-removal <slot>` command that settles outstanding
+  requests and reverses intent only for a proven surviving binding; or report the resume step and leave reversal to
+  administrator recovery. A command gives the operator one supported way back; report-only keeps the caller
+  surface small but leaves reversal to documented manual steps. [VM item 4][vm-unmount] and
+  [VM item 15][vm-namespaces] measured the staged and namespace cases a reversal must survive, not the reversal.
 - Managed path interface. Accept the canonical path from ordinary `git worktree add <path>` only, with fallback at
   the same slot; or also add an opt-in named allocator that reports the chosen path under `.claude/worktrees`.
   [VM item 1][vm-register] used an explicit canonical path under that parent, not an allocator or the wrapper's
