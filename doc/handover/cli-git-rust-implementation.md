@@ -39952,7 +39952,13 @@ What follows from them, as work:
   narrow fold-in `pi-zfs-proposal-acceptance-and-last-three-answers-fold-in` (DeepSeek on Neuralwatt, cap 635) in the
   fold-in worktree, which also writes `doc/decision/cli-git-zfs-worktree-design.md`; folder
   `~/temp/agent/zfs-proposal-acceptance-and-last-three-answers-fold-in-2026-11-19/`. Then a short review, the merge of
-  the branch into `main`, the questions file's folded sections removed, and the fold-in worktree removed.
+  the branch into `main`, the questions file's folded sections removed, and the fold-in worktree removed. The fold-in
+  ended `idle` (132 turns) at `0113aebc3f` (`35f67a1156`, `1ca6457ecf`, `872d1f662e`, `0113aebc3f`): the proposal opens as
+  accepted, the three answers are stated where the proposal treats them, two open items added (how the caller's session
+  is told apart from other holders; what the kept cancel command proves and does) and two reworded, and
+  `doc/decision/cli-git-zfs-worktree-design.md` written (Status, Decision, What still gates shipping). GOING: its short
+  review on the Qwen plan, `pi-zfs-design-acceptance-fold-in-short-review-on-the-qwen-plan`, in the fold-in worktree
+  detached at the tip; folder `~/temp/agent/zfs-design-acceptance-fold-in-short-review-on-the-qwen-plan-2026-11-19/`.
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
   `pi-zfs-proposal-fold-in-short-review-on-the-qwen-plan` (turn cap 540, a quarter above the longest of 672 finished
   review runs, 431), in its own detached worktree
@@ -39992,7 +39998,13 @@ What follows from them, as work:
   to `git lfs install` in a repository and prints why no hook is written; L1 and L2 answered. No unit test could run
   (no `cargo-nextest`), so failing-first rests on the audit's reproductions before and after. GOING: its short review
   on the Qwen plan, `pi-git-policy-cli-lfs-audit-fixes-short-review-on-the-qwen-plan`, in the same worktree detached
-  at the tip; folder `~/temp/agent/git-policy-cli-lfs-audit-fixes-short-review-on-the-qwen-plan-2026-11-19/`.
+  at the tip; folder `~/temp/agent/git-policy-cli-lfs-audit-fixes-short-review-on-the-qwen-plan-2026-11-19/`. **The
+  owner answered H1 and M4** (questions file, section "Answered in the question tool, recorded
+  2026-11-19T16:58:00-05:00"): H1 "Hide long words only" (path words of 20 or more unbroken lowercase letters print as
+  `<credentials>`); M4, in the owner's words, "Avoid ever asking for someone to type a username or password.", so no
+  command the wrapper runs or forwards prompts for a credential, terminal or not, superseding `SPEC.md`'s "A command the
+  person typed is forwarded with the prompting Git has" for credentials (an SSH passphrase read as a password, veto
+  open). Both go into the branch's next round together with what the short review finds.
 - **The wrapper's container gate cannot pass on this ZFS host.** The LFS writer ran the gate's body
   (`node bin/test-native-container.ts`; the mise task's first step needs `cargo-shadow`, not installed here) twice:
   `9189 tests run: 9002 passed, 187 failed`, against 6 of 9,173 on the old Btrfs host. By its reading about 109 fail on
