@@ -1627,8 +1627,8 @@ parts works.
   record or lets the removal cancel itself. The window between the check and the destroy,
   which a same-account process can use to mark the origin, is the residual the delegated answer accepts rather than
   a gap this section asks anyone to close
-  ([Clone removal identity protection](#clone-removal-identity-protection)). The refusal itself is the second VM
-  measurement the build owes ([Forced removal and deferred origins](#forced-removal-and-deferred-origins)).
+  ([Clone removal identity protection](#clone-removal-identity-protection)). The refusal itself is one of the VM
+  measurements the build owes ([Forced removal and deferred origins](#forced-removal-and-deferred-origins)).
   A separate choice for the owner is whether that deferred-destroy check should also run before the first snapshot
   delete, where a refusal would still leave the snapshots: the record places it just before the head destroy and says
   nothing about an earlier position.
