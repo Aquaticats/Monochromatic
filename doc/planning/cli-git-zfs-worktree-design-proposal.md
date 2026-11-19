@@ -18,6 +18,9 @@ validation and registration, the unprivileged snapshot and clone lifecycle, and 
 The root-installed ZFS Event Daemon (ZED) handler and its lifecycle unit own clone mount and unmount, not Git
 or automatic deletion.
 The Rust binding owns the `/dev/zfs` request format, not ownership policy for Git worktrees or snapshots.
+The [handover][handover] records that the ZFS route comes first among wrapper work and that neither old drive
+is wiped before the ZFS wrapper has full parity and is built, reviewed and released. The VM results do not
+satisfy that condition.
 
 The checkout stays at `~/Monochromatic`, on its own dataset after a one-time move. Every worktree of this repository
 is directly under `~/Monochromatic/.claude/worktrees/` (`AGENTS.md` rule `WTU`); the account owns the directory and
@@ -496,8 +499,9 @@ not for background space reclamation.
 the promoted clone refused and left the snapshot set unchanged. But an explicit delete erased the relocated
 older checkout snapshot before the kernel refused to delete the relocated origin with `snapshot has dependent
 clones`. Promoting back did not restore the lost snapshot. The dependent-destroy dry run included the checkout
-and its later snapshot. Never issue recursive or dependent-clone destruction; a dependency refusal protects the
-specific snapshot it names, not the rest of the history.
+and its later snapshot (`item-11-exact.log:69` to `:94` and `:123` to `:135`). Never issue recursive or
+dependent-clone destruction; a dependency refusal protects the specific snapshot it names, not the rest of the
+history.
 
 1.  Prove the live pool, clone dataset, origin dataset and origin snapshot match the recorded GUIDs, and that
     the clone still has its original direct origin relationship. Inventory the full snapshot set by name, GUID
@@ -745,7 +749,7 @@ working setup. This proposal has neither installed nor run the root-once command
 The choices do not reopen the checkout path, account ownership, ZED, the fallback or recursive snapshot policy.
 No option here is selected or ranked by this revision. At the owner handoff, present each decision separately
 in the question tool with its options, pros and cons, and a recommendation that explains each adjacent pair
-in the ranking. Use the pending measurements where they affect the options; a ranking is not a decision.
+in the ranking. Use the VM findings and identify what remains unmeasured; a ranking is not a decision.
 
 - Checkout boot mount protection. Keep an ordinary checkout mountpoint and verify an immutable covered entry, or
   use `mountpoint=legacy` with a descriptor boot service that verifies the checkout underlay.
@@ -764,7 +768,8 @@ in the ranking. Use the pending measurements where they affect the options; a ra
   the clone to staging. No alternative unmount mechanism was tested. Do not silently change propagation.
 - Managed path interface. Accept the canonical path from ordinary `git worktree add <path>` only, with fallback at
   the same slot; or also add an opt-in named allocator that reports the chosen path under `.claude/worktrees`.
-  The allocator could simplify driver integration but adds a caller-facing command.
+  [VM item 1][vm-register] used an explicit canonical path under that parent, not an allocator or the wrapper's
+  command forms. The allocator could simplify driver integration but adds a caller-facing command.
 - Eligible clone origins. Keep only the main checkout as a snapshot source; or also permit linked clone origins.
   A linked origin preserves that worktree's ignored state but chains dependencies and can block origin cleanup.
   [VM item 11][vm-promote] measured how promotion transfers custody and reverses a dependency, not a safe
@@ -772,7 +777,8 @@ in the ranking. Use the pending measurements where they affect the options; a ra
   Do not substitute a different origin from the one the caller supplied.
 - ABI verification. Require exact approved kernel/module BTF profiles per target, or verify the field layout at
   runtime against the approved release/request contract. Exact profiles can disable clones after a rebuild;
-  runtime checking can accept more builds but adds a parser and a larger compatibility test surface.
+  runtime checking can accept more builds but adds a parser and a larger compatibility test surface. Neither
+  verifier was exercised by [the fixture][vm-fixture]; the test plus runtime gate decision stands.
 - Lost last event without a waiter. Reconcile on startup, events and caller nudges only, or add a periodic scoped
   sweep. [VM item 5][vm-key] delivered one property event to a test zedlet; it did not show retry after key load or
   recovery from a lost event. Measure both and the cost of a sweep before choosing a shipped interval.
@@ -783,7 +789,8 @@ in the ranking. Use the pending measurements where they affect the options; a ra
   prove origin identity and lineage before submission; a dependency refusal does not protect other snapshots.
 - Space-pressure pruning. Keep the guard's current scope and report its limits, or extend it to an explicit
   managed-descendant allowlist for sanoid hourlies with newest-per-dataset retention. Expansion can release more
-  blocks, but deletes some living worktree history before normal expiry; measure what it would reclaim first.
+  blocks, but deletes some living worktree history before normal expiry. The [VM record][vm-limits] does not
+  measure host storage performance or what the guard would reclaim.
 - Misplaced attach. Attempt immediate rollback of the exact mount by verified descriptor, retaining and reporting
   it only if rollback fails; or leave it attached and report both paths and its identity for administrator
   cleanup. [VM item 2][vm-refusals] measured successful rollback in synchronized trials in a private namespace,
@@ -805,64 +812,69 @@ in the ranking. Use the pending measurements where they affect the options; a ra
 - Git registration when origin cleanup is blocked. Keep the registration until the recorded origin is cleaned up;
   or settle the registration after clone destruction and keep an independent durable origin cleanup record. The
   first preserves Git visibility but reserves the slot until cleanup; the second frees the slot but requires
-  recovery without its Git entry.
+  recovery without its Git entry. [VM item 11][vm-promote] showed a dependency blocking a snapshot delete, not
+  either registration policy. If clone lineage itself is unproved, removal refuses and keeps the registration.
 
-## Measurements due before design acceptance
+## Pre-acceptance VM measurements
 
-The [planning record][answers] says of the account-owned slot design: "every refusal there is measured again with
-account ownership before the design is accepted". That is a condition on accepting this proposal, not work to defer
-until the wrapper is built. The [VM measurement record][measurements] is being prepared on
-`docs/planning-cli-git-zfs-measurements-owed-before-acceptance`. The link names its intended repository path; the
-file and its results are not present in this worktree yet.
+The [planning record][answers] requires the descriptor refusals to be measured again with account-owned slots
+before design acceptance. The [VM measurement record][measurements] reports that repeat and the other fixture
+results, not acceptance of the design. Each item ran on a separate encrypted file-backed pool with OpenZFS
+`2.4.4-1` and guest kernel `6.8.0-147-generic`; the Git tests used `2.43.0`. See the [fixture][vm-fixture] for the
+read-only host comparison and the [remaining limits][vm-limits].
 
-- Run the [item 7 sequence][nested] end to end: register first with account-owned slots, snapshot and clone,
-  attach by descriptor, discard copied Git administration, install the pointer and check the common directory
-  and worktree state. The nested research's 2026-11-18 correction identifies the untested combination.
-- On the descriptor-mounted clone, verify `nosuid` with a setuid execution control, alongside `nodev` and
-  mountinfo. The nested probe measured the device refusal, not setuid execution (`guest-exact-zfs.log:222`
-  to `:223`). The built handler repeats the control.
-- Re-run **every item 3 refusal** with the account owning `.claude/worktrees` and the slots: a link at `.claude`, at
-  `.claude/worktrees` and at the slot; an account-planted link inside the parent, created there or renamed in;
-  a parent escape, magic link and bind mount with the same device and inode; replaced inode, wrong UID and widened
-  mode. The handler must refuse, not the filesystem permissions from the root-owned fixture. Include access
-  and default ACL drift, a target already mounted, and a valid account-owned attach control.
-  Assert refusals identify the component or field and do not attach a clone or disturb an existing mount.
-  Include the bounded rename/replacement race and post-attach check in item 3's unmeasured cases.
-- Compare a shared checkout (move-back refusal control) with a private checkout under a shared parent
-  (staging and unmount control). Start a confined consumer before clone attach in both states; measure visibility
-  and writability with the parent outside every `Read*Paths=`, and with the read-only bind control.
-- Have a fresh process with no inherited mount descriptors reopen and verify an already-attached clone and
-  move it to staging. Include wrong-mount and changed-path controls. The nested-clone guest used the original
-  `fsmount` descriptor for the move (`guest-extra-commands.txt:158` and `:171` to `:175`).
-- Run `zfs mount <clone>` on a disposable legacy clone. Verify the `legacy mountpoint` refusal and no attached
-  mount; use an ordinary, mountable dataset as the success control.
-- Exercise both checkout boot shapes with a nonclone dataset nested by path only, like the vm-builder output.
-  Record `zfs mount -a` parent IDs and ordering with a delayed or failed checkout mount, plus a legacy checkout
-  with its explicit nested-mount provider ordering. For the ordinary checkout option, test `chattr +i` on the
-  underlay against rename and unlink by the account, reboot, home rollback and ordinary mounting. These are
-  pending results, not authorization to use either boot option.
-- Run on an encrypted file-backed pool shaped like this host. Read-only `zfs get` reported `aes-256-gcm`,
-  encryption root `zpcachyos`, `recordsize=32K` and `compression=zstd-3` for home. Use the VM's own pool,
-  key and corresponding inherited properties, never the host's key or device. Test loaded and unloaded key
-  states for handler readiness, attach and clone fill, with same-dataset reflink and cross-dataset controls
-  that distinguish a shared data key from separately created data keys. The nested-clone probe used an
-  unencrypted pool; matching behavior on the encrypted fixture is pending in the [VM record][measurements].
-- With the clone unmounted, remove the pointer in the fixture and test `git worktree lock` against `prune`,
-  with an unlocked missing-pointer positive control and an intact-pointer baseline. Check whether the lock can
-  be installed or recovered with the pointer already absent, and its effects on removal and move.
-- Promote a disposable checkout clone in the VM. Record origin/dependency reversal, exact snapshot names and GUIDs
-  before and after, and destruction refusals. Do not treat that VM operation as permission to promote live clones.
+- [Item 1][vm-register], measured: register first, snapshot, clone, attach by descriptor and fill in the verified
+  Git context. The underlay pointer survived. Moving copied `.git` aside did not measure deletion or recovery.
+- [Item 2][vm-refusals], measured: account-owned symlinks were created and refused by the walk, not by permissions.
+  The probe rejected escapes, a procfs magic link, bind and ZFS mount crossings, changed inode, UID, mode, and
+  access and default ACLs. A valid target attached. The bounded rename trials detected and removed misplaced
+  attaches in a private namespace; no renamed-in link or free-running substitution schedule was demonstrated.
+- [Item 3][vm-propagation], measured: a shared checkout delivered the later clone to the confined reader but
+  blocked staging; making only the checkout private permitted staging and unmount but stopped delivery. The
+  reader did not test consumer writes, a read-only worktrees bind, or a different unmount mechanism.
+- [Item 4][vm-unmount], measured: a fresh process reopened the attached clone and moved it to staging. A changed
+  path and wrong dataset source refused, even with reused mount ID, device and inode in the latter control. A
+  busy unmount left the mount staged until retry. Same-name dataset replacement, reattach and crash recovery
+  remain open.
+- [Item 5][vm-key], measured: the fixture matched the recorded encryption, record size and compression values,
+  not the host topology, feature flags or I/O. Root cloned with the key unloaded; detached mount setup refused,
+  a test zedlet deferred, and attach worked after manual key load and checkout mount. Delegated clone, product
+  readiness and automatic retry were not measured.
+- [Item 6][vm-prune], measured: a Git lock set before pointer loss prevented prune; the unlocked entry was
+  pruned. Double force bypassed the lock for move and remove after pointer restoration. No Git `2.56.1` runtime
+  check, post-loss lock setup or recovery, or immutable-pointer control was run.
+- [Item 7][vm-nosuid], measured: `nosuid` stopped setuid elevation with an unrestricted positive control on the
+  same clone. This did not test the built handler's mount flags or device use in that arm.
+- [Item 8][vm-immutable], measured: the immutable checkout underlay refused account rename and removal, allowed
+  ordinary mounting and survived reboot. Rollback to the pre-flag parent snapshot removed the protection.
+  Manual import and key load did not test unattended boot or ancestor replacement.
+- [Item 9][vm-nested-boot], measured: a path descendant mounted on the home underlay and was hidden by the
+  later legacy checkout mount, not unmounted. Failed ordinary checkout mounting and explicit provider units
+  were not exercised.
+- [Item 10][vm-legacy], measured: explicit `zfs mount` on the legacy clone refused without attaching; descriptor
+  attach on the same clone was the success control. This did not test automated product mounting or boot.
+- [Item 11][vm-promote], measured: promotion moved the origin and older snapshots without changing GUIDs.
+  Recursive destroy refused, but an explicit delete lost checkout history before its origin's dependency
+  refused. The dependent destroy listing was a dry run. Reversal with name conflicts, other encrypted lineage
+  shapes or additional dependents, and the wrapper's pre-delete refusal are still unmeasured.
+
+### Open measurements
+
+The [VM record's limits][vm-limits] remain open: execution with the host kernel and Git `2.56.1`, the product
+wrapper, Rust binding and ZED handler, confinement variants and unattended boot and shutdown reconciliation,
+free-running races, same-name dataset replacement, failed rollback or reattach, and recovery after interruption.
+Measure host storage costs separately from guest semantics. The acceptance tests name the product controls;
+none of the VM observations authorizes host-pool changes.
 
 ## Acceptance tests the build still owes
 
 Run with the built wrapper and handler on a disposable VM's file-backed pool, without passing through the host's
-pool or `/dev/zfs`. Repeat the [host-shaped encrypted fixture](#measurements-due-before-design-acceptance) with the
-built programs, including an unloaded-key control for the handler and clone fill. Test root installation and then
-the account with only the proposed delegation. Capture versions, assertions and controls, not just logs. Make the
-VM recipe reproducible: retry the documented `mvm` template route that failed with
-`guest agent on template-setup did not respond within 120s`, or verify and document the disposable QEMU recipe
-using the same OpenZFS version. Retain evidence of guest and pool teardown, not system changes on the
-host. These gates carry the [handover's H1 and H2 disposition][handover] and the nested study's
+pool or `/dev/zfs`. Repeat the [host-shaped encrypted fixture][vm-key] with the built programs, including an
+unloaded-key control for the handler and clone fill. Test root installation and then the account with only the
+proposed delegation. Distinguish same-dataset reflink from cross-dataset copies with the same or different data
+keys. Capture versions, assertions and controls, not just logs. Start from the [VM fixture][vm-fixture] and make
+its disposable `mvm` recipe reproducible for the built programs. Retain evidence of guest and pool teardown, not
+system changes on the host. These gates carry the [handover's H1 and H2 disposition][handover] and the nested study's
 [What I could not show and why][nested-limits].
 
 ### Descriptor safety and mount authority
@@ -870,20 +882,21 @@ host. These gates carry the [handover's H1 and H2 disposition][handover] and the
 - H1 gate 1: reproduce the old check-then-path-mount behavior as a positive control, using only a disposable decoy
   inside the VM. A path mount reached a decoy in the research; that did not test a substitution after the check.
   Prove the harness observes attachment outside the intended slot before trusting any no-mount assertion.
+- Repeat [VM item 2][vm-refusals] with the handler and account-owned slots. Add the link renamed into the slot
+  and assert every refusal names the component or field and leaves existing mounts alone.
 - H1 gate 3: exercise repeated, bounded concurrent slot renames and replacements during real mounts. Assert no
   unrelated mount is touched; an attach on a moved recorded inode is detected by the post-attach mount-ID check.
   Verify the selected policy for rollback or retention and the stranded report. Test the post-attach check itself,
-  not just the open-time checks. In `guest-extra-commands.txt:191` to `:195`, the deterministic rename probe
-  moved the mount to staging by its descriptor and unmounted it. It did not assert the resulting mount-table
-  state at the relocated path.
+  not just the open-time checks. [VM item 2][vm-refusals] measured synchronized rollback in a private namespace,
+  not the built handler's behavior under free-running changes or rollback failure.
 - H1 gate 5 recheck: verify mount flags in `/proc/self/mountinfo` and enforce both `nosuid` and `nodev` in the VM
-  even where dataset properties would permit them. The research measured the device refusal but not a setuid
-  execution control. Use the built handler, not the probe's mount command.
+  even where dataset properties would permit them. Repeat the [VM item 7][vm-nosuid] setuid control and the
+  nested research's device refusal (`guest-exact-zfs.log:222` to `:223`) with the built handler.
 - H1 gate 6: run unmount from a handler invocation that did not attach the clone. Change a path between resolution
   and unmount; assert no unrelated mount unmounts. Use a real busy holder and exercise move to staging, busy refusal,
-  and the selected policy for reattach or retention. Test interruption there. Repeat the shared-checkout and
-  private-checkout controls with the built programs and the selected policy. A held procfd's `EBUSY` does not
-  exercise an independent busy holder.
+  and the selected policy for reattach or retention. Test interruption there. [VM item 4][vm-unmount] measured
+  an independent busy holder, not reattach or recovery. Repeat the [VM item 3][vm-propagation] shared and private
+  checkout controls with the built programs and selected policy.
 - H1 gate 7: exercise a confined user namespace without extra authority. Show that it cannot attach the clone with
   different flags despite OpenZFS's `FS_USERNS_MOUNT` declaration. Exercise a permitted host mount as the control,
   verify late-mount visibility in confined consumers under shared and private checkout propagation (with and
@@ -902,7 +915,8 @@ host. These gates carry the [handover's H1 and H2 disposition][handover] and the
 - Enable real ZED in the guest and exercise the configured ordering, replay, dropped events with and without a live
   caller, concurrent zedlets, stale receipts, and pending unmount across restart. Measure elapsed stages and use
   readiness/refusal controls with the handler absent, ABI unsupported and ZED stopped. Repeat with a second host's
-  sanoid and ZED configuration in isolation. The [nested-clone guest][nested-limits] did not start ZED.
+  sanoid and ZED configuration in isolation. [VM item 5][vm-key] used real ZED with a test zedlet, not the product;
+  check automatic reconciliation after key load without another add request.
 - Verify direct checkout/home unmount names held clones, idle export/import with a clone succeeds and recovers, and
   busy export fails without a forced teardown. Record root's exact-version behavior on destroy of a mounted clone
   in the guest; the wrapper must refuse before attempting it regardless of the tool result.
@@ -921,15 +935,17 @@ host. These gates carry the [handover's H1 and H2 disposition][handover] and the
   post-create `ZFS_IOC_SET_PROP`. Test malformed, oversized or inherited mount intent and stale results with no
   unauthorized filesystem action. Verify the release wrapper starts without OpenZFS and has no CDDL dependency.
 - Drive the full register-first add at exactly `.claude/worktrees/<name>` with descriptor mounting and account-owned
-  slots. Use Git 2.56.1 at runtime; the nested guest used 2.43.0. Recheck empty vs. non-empty registration, the
+  slots. Repeat [VM item 1][vm-register] on Git `2.56.1`; the guest used `2.43.0`. Recheck empty vs. non-empty
+  registration, the
   common directory and index, boundary-safe ignored cleanup, nested path omissions and mounted/unmounted `move`.
   Use ordinary Git and same-dataset reflink controls and a cross-dataset negative control. Cover recognized and
   rejected forms, dirty sources and a tracked write between preflight and snapshot that the frozen proof refuses.
 - Kill add at each of item 7's five points and around the origin and clone identity writes. Test `ENOSPC` at
   snapshot and clone; report what survives, resume only proven objects and never fall through onto a pending slot.
   With the clone unmounted, verify `prune` keeps the registration with the pointer intact, and exercise the
-  selected protection with the pointer missing. Check that operator locks continue to refuse removal. Test link
-  repair with surviving admin data, and already-pruned admin state with and without a verified backup.
+  selected protection with the pointer missing. [VM item 6][vm-prune] did not exercise installing or
+  recovering the Git lock after loss; test it if that protection is selected. Check that operator locks continue
+  to refuse removal. Test repair with surviving admin data and already-pruned state, with and without backup.
 - Repeat [VM item 11][vm-promote] against the binding's promote primitive. With the built wrapper, refuse a
   promoted or mismatched clone before the first snapshot delete, and assert that every protected snapshot GUID
   survives. Include a verified unpromoted clone with manual and sanoid snapshots as the removal control. Test
@@ -956,8 +972,8 @@ host. These gates carry the [handover's H1 and H2 disposition][handover] and the
 - Compare clone-add and fallback stages against ordinary Git under the same real workload and interleaved control.
   Separate Git fill, mount/request wait, discarding the copied `.git` and `.claude/worktrees` stubs, and downstream
   preparation. Report disposal as a contribution against the same ordinary Git control's total; it has no matching
-  stage in that arm. The nested probe only moved `.git` aside (`keep/probe.ts:83`), so it provides no deletion
-  measurement. Use measured reconciliation and shutdown workloads to size any
+  stage in that arm. [VM item 1][vm-register] and the earlier probe only moved `.git` aside, so neither measures
+  deletion. Use measured reconciliation and shutdown workloads to size any
   shipped deadline or optional scan interval. Prior isolated mount latency is not a prediction of ready-to-use
   worktree time.
 
@@ -1019,8 +1035,8 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
   [Boot, shutdown and setup](#boot-shutdown-and-setup) tests delayed and failed mount order.
 - Item 3, planted links and descriptor operations: [Descriptor mount and unmount](#descriptor-mount-and-unmount)
   adopts the named requirements and records the propagation limit and rollback failure state.
-  [Measurements due before design acceptance](#measurements-due-before-design-acceptance) requires every refusal
-  under account ownership; [Descriptor safety and mount authority](#descriptor-safety-and-mount-authority) tests
+  [Pre-acceptance VM measurements](#pre-acceptance-vm-measurements) records the refusal repeat
+  under account ownership and its limits; [Descriptor safety and mount authority](#descriptor-safety-and-mount-authority) tests
   the built handler.
 - Item 4, sanoid coverage and retention: [Snapshots and setup reporting](#snapshots-and-setup-reporting) defines
   coverage and order; [What doctor checks and prints](#what-doctor-checks-and-prints) reports origins and retention;
@@ -1032,8 +1048,8 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
   cleanup and resume; [Binding, Git and lifecycle](#binding-git-and-lifecycle) tests interruption.
 - Item 7, registration and fill: [Add and Git registration](#add-and-git-registration) defines the order,
   copied `.git` rule and durable record; [Unmounted, pruned or moved worktrees](#unmounted-pruned-or-moved-worktrees)
-  refuses moves. [Measurements due before design acceptance](#measurements-due-before-design-acceptance) requires
-  the combined sequence; [Binding, Git and lifecycle](#binding-git-and-lifecycle) tests the built flow and kill points.
+  refuses moves. [VM item 1][vm-register] measured
+  the combined fixture sequence; [Binding, Git and lifecycle](#binding-git-and-lifecycle) tests the built flow and kill points.
 
 [measurements]: cli-git-zfs-measurements-owed-before-acceptance.md
 [vm-register]: cli-git-zfs-measurements-owed-before-acceptance.md#1-register-snapshot-attach-and-fill
@@ -1048,6 +1064,7 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
 [vm-nested-boot]: cli-git-zfs-measurements-owed-before-acceptance.md#9-automatic-mounts-below-a-legacy-checkout
 [vm-legacy]: cli-git-zfs-measurements-owed-before-acceptance.md#10-explicit-zfs-mount-of-a-legacy-clone
 [vm-promote]: cli-git-zfs-measurements-owed-before-acceptance.md#11-promote-and-the-checkouts-snapshot-history
+[vm-limits]: cli-git-zfs-measurements-owed-before-acceptance.md#what-this-did-not-show
 [answers]: cli-git-zfs-worktree.md#owners-answers-of-2026-11-18
 [zfs-plan]: cli-git-zfs-worktree.md
 [handover]: ../handover/cli-git-rust-implementation.md
