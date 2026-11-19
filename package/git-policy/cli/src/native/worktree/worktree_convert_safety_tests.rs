@@ -298,8 +298,8 @@ fn a_difference_keeps_the_old_tree_and_nothing_is_copied() {
     // Which difference the walk meets first is no file system's promise, and the file only the old tree holds is
     // one; settle that one and ask again, so the contents difference itself is the one reported.
     std::fs::remove_file(converting.join("late.txt")).expect("settled");
-    let message: String = failure_of(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0);
-    assert!(message.contains("README.md") && message.contains("differs") && message.contains("kept"), "{message}");
+    let settled: String = failure_of(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0);
+    assert!(settled.contains("README.md") && settled.contains("differs") && settled.contains("kept"), "{settled}");
     // The person settles the rest by hand; the next run then removes the old tree.
     std::fs::copy(worktree.join("README.md"), converting.join("README.md")).expect("settled");
     let mtime = std::fs::metadata(worktree.join("README.md")).expect("metadata").modified().expect("mtime");
