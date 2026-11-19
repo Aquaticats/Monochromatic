@@ -159,7 +159,7 @@ attach until the checkout mount is verified. An absent or wrong checkout mount m
 of nested mounts and mountpoint folders, even when import, key loading or mounting fails. In the legacy option,
 exclude every nonclone nested dataset from the automatic scan (candidate: `canmount=noauto`); for the vm-builder
 output and any other nested dataset, order its explicit mount unit after and require the verified descriptor
-checkout provider. Do not rely on a later checkout mount to hide an earlier attach. The actual
+checkout provider. Do not let the checkout mount cover a nested mount on the home underlay. The actual
 `zfs mount -a` ordering and failed-checkout controls are pending in the [VM measurement record][measurements].
 
 ### Scoped delegation
@@ -182,7 +182,9 @@ Follow item 7 of the [nested-clone research][nested]: register while the slot is
 then install the same Git pointer in the clone. Git accepts an existing empty slot, not a populated clone root.
 The research's 2026-11-18 correction confirms account ownership for the registration probe. The actual guest
 script (`keep/probe.ts:71` to `:91`) took the origin snapshot before registering and used `mount -t zfs` in that
-sequence. The descriptor attach was a separate probe. The combined ordered wrapper flow is still an acceptance test.
+sequence. The descriptor attach was a separate probe. The register-first, descriptor-mounted order has never
+run end to end with account ownership. The [VM measurement record][measurements] is testing the sequence before
+acceptance; the built wrapper must still exercise it.
 
 1.  Share preflight with `doctor`. Before a claim, slot, registration, snapshot or clone is written, verify the
     supported Git form, eligible source and canonical destination, the checkout mount and caller's visibility,
@@ -325,8 +327,8 @@ never in a filename. Include the operation, matching nonce, outcome, mount ident
 applicable. Readiness also records the current boot, pool, checkout and sweep state. The runtime files are a cache,
 not authority to act; rebuild them from live state and durable intent. Do not write acknowledgement properties from
 root. A waiter can change the local `org.monochromatic:git-worktree-clone-mount-sweep-nonce` once to wake a new sweep;
-The nudge uses the same hex format and is not a mount instruction. The [ZFS planning probes][zfs-plan] show replay
-after a ZED stop and recovery on a later property change, not recovery from a lost last event with no new event.
+The nudge uses the same hex format and is not a mount instruction. The [ZFS planning probes][zfs-plan], lines 208 to 213, saw replay after restarting ZED and recovery when a user property on the parent was set. They did not
+show recovery of the lost last event without another trigger.
 
 ### Descriptor mount and unmount
 
@@ -564,8 +566,8 @@ Set `com.sun:auto-snapshot=false` on each exclusion, including `/var/cache`, whi
 This marker does not implement sanoid's exclusion. Sanoid reads sections in file order: an `autosnap = no`
 section before a recursive ancestor can be overwritten, and `recursive = zfs` offers no per-child exclusion.
 Both versions tested reproduced the order effect. The current exclusions are outside the home subtree; name and
-order them explicitly so a later move under recursion does not silently include them ([nested-clone research][nested],
-item 4, and [planning record][answers]).
+order them explicitly so moving an exclusion under a recursive ancestor does not silently include it
+([nested-clone research][nested], item 4, and [planning record][answers]).
 
 Each living clone pins its checkout origin, retaining blocks changed in the checkout since the snapshot. Persist
 and report the exact origin and measured retention where available. Checkout snapshots contain only underlays,
@@ -687,6 +689,12 @@ account ownership before the design is accepted". That is a condition on accepti
 until the wrapper is built. The [VM measurement record][measurements] is being prepared on
 `docs/planning-cli-git-zfs-measurements-owed-before-acceptance`. Its results are pending here.
 
+- Run the [item 7 sequence][nested] end to end: register first with account-owned slots, snapshot and clone,
+  attach by descriptor, discard copied Git administration, install the pointer and check the common directory
+  and worktree state. The nested research's 2026-11-18 correction identifies the untested combination.
+- On the descriptor-mounted clone, verify `nosuid` with a setuid execution control, alongside `nodev` and
+  mountinfo. The nested probe measured the device refusal, not setuid execution (`guest-exact-zfs.log:222`
+  to `:223`). The built handler repeats the control.
 - Re-run **every item 3 refusal** with the account owning `.claude/worktrees` and the slots: a link at `.claude`, at
   `.claude/worktrees` and at the slot; a link created by the account inside the parent; a parent escape, magic link
   and bind mount with the same device and inode; replaced inode, wrong UID and widened mode. The account can plant
@@ -739,7 +747,9 @@ host. These gates carry the [handover's H1 and H2 disposition][handover] and the
 - H1 gate 3: exercise repeated, bounded concurrent slot renames and replacements during real mounts. Assert no
   unrelated mount is touched; an attach on a moved recorded inode is detected by the post-attach mount-ID check.
   Verify the selected policy for rollback or retention and the stranded report. Test the post-attach check itself,
-  not just the open-time checks. The previous single rename did not verify this rollback.
+  not just the open-time checks. In `guest-extra-commands.txt:191` to `:195`, the deterministic rename probe
+  moved the mount to staging by its descriptor and unmounted it. It did not assert the resulting mount-table
+  state at the relocated path.
 - H1 gate 5 recheck: verify mount flags in `/proc/self/mountinfo` and enforce both `nosuid` and `nodev` in the VM
   even where dataset properties would permit them. The research measured the device refusal but not a setuid
   execution control. Use the built handler, not the probe's mount command.
@@ -766,7 +776,7 @@ host. These gates carry the [handover's H1 and H2 disposition][handover] and the
 - Enable real ZED in the guest and exercise the configured ordering, replay, dropped events with and without a live
   caller, concurrent zedlets, stale receipts, and pending unmount across restart. Measure elapsed stages and use
   readiness/refusal controls with the handler absent, ABI unsupported and ZED stopped. Repeat with a second host's
-  sanoid and ZED configuration in isolation; earlier nested-clone tests did not start ZED in the guest.
+  sanoid and ZED configuration in isolation. The [nested-clone guest][nested-limits] did not start ZED.
 - Verify direct checkout/home unmount names held clones, idle export/import with a clone succeeds and recovers, and
   busy export fails without a forced teardown. Record root's exact-version behavior on destroy of a mounted clone
   in the guest; the wrapper must refuse before attempting it regardless of the tool result.
