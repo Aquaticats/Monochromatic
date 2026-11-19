@@ -1600,13 +1600,12 @@ both in `@earendil-works/pi-ai/dist/utils/retry.js` in Pi 1.5.2:
 - a `429` is retried,
   with the rate-limit, "rate.?limit" and "too many requests" wording that carries it:
   a rate limit, a concurrency or flex-request limit, and a provider asking for a slower caller all count.
-  Those words are the retried pattern's own: `RETRYABLE_PROVIDER_ERROR_PATTERN` in `retry.js`,
+  Those words and statuses are the retried pattern's own: `RETRYABLE_PROVIDER_ERROR_PATTERN` in `retry.js`,
   `"rate.?limit"` at line 36,
   `"too many requests"` at line 37,
-  and the status list `429|500|502|503|504|520|524` at line 39,
+  and `429|500|502|503|504|520|524` at line 39,
   each status counted only where no letter or digit touches it;
-  no recorded refusal on this machine words a 429 that way,
-  so this list rests on Pi's source rather than on a capture;
+  this list therefore rests on Pi's source, not on one captured refusal;
 - the overload, `5xx`, timeout, dropped-connection and interrupted-stream texts are retried beside it;
 - a quota, a plan and a billing limit are not,
   even when a provider sends one as a `429`:
