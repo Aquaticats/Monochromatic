@@ -1650,7 +1650,9 @@ before the error Pi's retry gave up on can settle.
 The driver neither re-prompts a 429 nor waits one out,
 whether the provider sent a rate limit, a concurrency limit or a quota.
 A 429 counts wherever the text names it whole,
-even behind a word (`HTTP 429: upstream request failed`),
+not only where the text starts with it:
+the prefix Pi's own composer writes leaves the digits whole
+(`OpenAI API error (429): ...`, built by `formatProviderError` in `@earendil-works/pi-ai/dist/utils/error-body.js:139-146`),
 while the same digits inside a longer number are a count, a request number or a stated limit, and no status.
 Once Pi settles on one, the run ends `model-error` on the next look,
 with that error's own text standing:
