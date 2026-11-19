@@ -43,9 +43,11 @@ const PROVIDER_NOT_CONFIGURED = 'Provider is not configured: neuralwatt';
 const OPERATION_ABORTED = 'This operation was aborted';
 
 /**
- A rate limit, shaped as gateways send it.
+ The concurrency 429 a Synthetic review run met on 2026-11-17, word for word from
+ `pi-runs/deepseek-review-bench-drawn-shadow-tree-at-3822c44c2f-run-1-1/summary.json`, and from Pi's own `auto_retry_end`
+ line in that folder's `feed.jsonl`, which records it as `finalError`.
  */
-const TOO_MANY_REQUESTS = '429 {"error":{"message":"Too many requests"}}';
+const SYNTHETIC_CONCURRENT_429 = '429 "Too many concurrent requests"';
 
 /**
  The same status with words in front of it, which some gateways and clients write.
@@ -64,6 +66,24 @@ const QUOTA_EXCEEDED = '429 {"error":{"code":"insufficient_quota","message":"You
  */
 const NEURALWATT_FLEX_429 =
   `429: {"type":"rate_limit_error","code":"lowpri_budget_exceeded","message":"You've hit your concurrent flex request limit for moonshotai/Kimi-K3.1-Pro (max 22 in flight at once). Flex requests have a separate per-account concurrency limit from standard requests. Retry with backoff, reduce your concurrency, or send the request as standard instead.","retry_strategy":{"type":"lowpri_capacity","suggested_initial_delay_s":10,"max_delay_s":120,"backoff":"exponential","backoff_base":2,"jitter":true},"retryable":true,"context":{"budget":22,"in_flight":0,"model":"moonshotai/Kimi-K3.1-Pro","limit_type":"concurrent","tpm_window_tokens":0,"tpm_limit":15728640,"floor":15,"burst":20,"burst_shed":false}}`;
+
+/**
+ A made-up boundary input, standing for no program's output: a rate-limit phrase in a text that names no `429` at all, so
+ the rule that leaves a 429 to Pi never fires and the driver keeps the attempt it had.
+ */
+const RATE_LIMIT_WORD_AND_NO_429 = '503 Service Unavailable: rate limit exceeded';
+
+/**
+ A made-up boundary input, standing for no program's output: a token count whose `429` sits inside a longer number, so no
+ status stands whole and no limit is named.
+ */
+const TOKEN_COUNT_HOLDING_4290 = 'the request held 4290 tokens';
+
+/**
+ A made-up boundary input, standing for no program's output: a token count of exactly `429` between spaces, which the
+ digit boundary reads as the status it spells even though the sentence counts tokens.
+ */
+const TOKEN_COUNT_OF_429 = 'the request held 429 tokens';
 
 await describe({
   name: kindOfModelError.name,
@@ -88,7 +108,7 @@ await describe({
     it({
       name: 'reads a rate limit apart from other failures, whether or not another attempt can fix it',
       fn: async () => {
-        expect(kindOfModelError(TOO_MANY_REQUESTS,),).toBe('throttled',);
+        expect(kindOfModelError(SYNTHETIC_CONCURRENT_429,),).toBe('throttled',);
         expect(kindOfModelError(QUOTA_EXCEEDED,),).toBe('quota-reached',);
         expect(isRateLimit('throttled',),).toBe(true,);
         expect(isRateLimit('quota-reached',),).toBe(true,);
@@ -111,9 +131,9 @@ await describe({
         expect(driverRetries({ kind: 'permanent', problem: PROVIDER_NOT_CONFIGURED, },),).toBe(false,);
         // A rate limit word in a failure that names no 429 keeps the attempt it had before, and a number that is no status
         // names no limit at all.
-        expect(driverRetries({ kind: 'throttled', problem: '503 Service Unavailable: rate limit exceeded', },),).toBe(true,);
-        expect(driverRetries({ kind: 'transient', problem: 'the request held 4290 tokens', },),).toBe(true,);
-        expect(driverRetries({ kind: 'transient', problem: 'the request held 429 tokens', },),).toBe(false,);
+        expect(driverRetries({ kind: 'throttled', problem: RATE_LIMIT_WORD_AND_NO_429, },),).toBe(true,);
+        expect(driverRetries({ kind: 'transient', problem: TOKEN_COUNT_HOLDING_4290, },),).toBe(true,);
+        expect(driverRetries({ kind: 'transient', problem: TOKEN_COUNT_OF_429, },),).toBe(false,);
       },
     },),
     it({

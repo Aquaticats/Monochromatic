@@ -1599,7 +1599,14 @@ both in `@earendil-works/pi-ai/dist/utils/retry.js` in Pi 1.5.2:
 
 - a `429` is retried,
   with the rate-limit, "rate.?limit" and "too many requests" wording that carries it:
-  a rate limit, a concurrency or flex-request limit, and a provider asking for a slower caller all count;
+  a rate limit, a concurrency or flex-request limit, and a provider asking for a slower caller all count.
+  Those words are the retried pattern's own: `RETRYABLE_PROVIDER_ERROR_PATTERN` in `retry.js`,
+  `"rate.?limit"` at line 36,
+  `"too many requests"` at line 37,
+  and the status list `429|500|502|503|504|520|524` at line 39,
+  each status counted only where no letter or digit touches it;
+  no recorded refusal on this machine words a 429 that way,
+  so this list rests on Pi's source rather than on a capture;
 - the overload, `5xx`, timeout, dropped-connection and interrupted-stream texts are retried beside it;
 - a quota, a plan and a billing limit are not,
   even when a provider sends one as a `429`:
@@ -1689,8 +1696,11 @@ in the shape the providers write it:
 
 One case stays as it was, and costs a retry of Pi's as well as one of the driver's:
 an error that names no 429 keeps the attempt it had,
-even when its own words name a rate limit,
-so `503 Service Unavailable: rate limit exceeded` is answered by the driver as it always was.
+even when its own words name a rate limit.
+The tests put that boundary in a made-up input,
+`503 Service Unavailable: rate limit exceeded`,
+which no recorded refusal here holds,
+and the driver answers it as it always did.
 Only a 429 itself is left to Pi.
 
 A status is read only where the error text starts with one,
