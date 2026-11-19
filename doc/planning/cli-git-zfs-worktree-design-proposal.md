@@ -1325,8 +1325,9 @@ a clone that carried a bookmark.
   (`module/zfs/dsl_dataset.c:1203` to `:1204` and `:1768` to `:1769`, OpenZFS `zfs-2.4.4`), so the matching pair
   identifies the bookmarked snapshot of this clone in practice, not against a 64-bit collision. This asks for no
   recorded bookmark: the recorded clone-side inventory is written once at add and the third check forbids updating
-  it, so the rule this draft used through revision `b26aa27f3c`, which required the bookmark's own recorded tuple,
-  would have refused the removal of any clone that someone had bookmarked. Its cost is a bookmark whose snapshot
+  it. Revision `9a1a47e190` held the earlier rule, which required the bookmark's own recorded tuple, and that rule
+  would have refused the removal of any clone that someone had bookmarked; revision `b26aa27f3c` held the
+  live-only rule, the second option here. Its cost is a bookmark whose snapshot
   was already gone when the plan was made: that refuses before the first delete, the clone, its remaining
   snapshots, the registration and the underlay stay, and every retry refuses the same way, because nothing in this
   design destroys a bookmark. A person destroys it with `zfs destroy <clone>#<bookmark>`
