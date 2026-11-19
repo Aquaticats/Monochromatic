@@ -535,15 +535,17 @@ $ node prototype-check.ts
 ```
 
 The script still reports the missing file, and the process survives.
- The copy lives at `${HOME}/temp/agent/pi-fix-prototype-2026-11-19.7JHaZc5o/`,
- disposable and never used as a workaround.
+ The copy lived at `${HOME}/temp/agent/pi-fix-prototype-2026-11-19.7JHaZc5o/`,
+ disposable and never used as a workaround;
+ it is deleted after the run, and the change above reproduces it.
 
 ### The 1.5.0 arm
 
 `1.5.0` (2026-11-02) predates the streaming read that pull request #11750 added,
  and its `dist/core/tools/read.js` has no `createReadStream` at all
  (`readFile: (path) => fsReadFile(path)`).
- The incident script was run against it with the same codemode runtime:
+ The incident script was run against a scratch install of it,
+ with the same codemode runtime (the tree is deleted after the run, so the command names it as `pi150`):
 
 ```console
 $ npm install --prefix .../pi150 --ignore-scripts --no-audit --no-fund @earendil-works/pi-coding-agent@1.5.0
