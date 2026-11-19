@@ -39897,7 +39897,22 @@ What follows from them, as work:
   `### Forced removal and deferred origins`. Its stated disagreements: the heading and anchor renames, and three
   sentences changed as consequences (the linked-source sentence, "the selected source eligibility policy", item 4's
   "reattach remains open"). Not done by it, being outside its one file: the handover's note and `doc/decision/`.
-- **GOING**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
+- **The short review of the fold-in returned** (`idle`, 76 turns, 11 min, no rate-limit refusal on the Qwen plan;
+  report `~/temp/agent/zfs-proposal-fold-in-short-review-on-the-qwen-plan-2026-11-19/report.md`): every decision
+  present and quoted verbatim, the eight open items recorded and undesigned, both VM items listed, 165 same-file
+  links and 33 cross-file targets resolve, no measured fact, citation or item number lost. Ten findings, three medium
+  that this session reread and confirmed: F1 the `--force` exception reads as waiving a missing or mismatched
+  unmount, which ends no holder; F2 "The decided setup qualifies" turned an open obligation into a claim; F3 choice
+  14 called "against the ranking" though the question as asked marked reattach "(Recommended)". Seven low: the
+  handover file named as the decisions' record although that file's rule moves answers out (F4), leftover "No option
+  here" framing, a doctor bullet that asserts instead of checking, a verbless sentence, "Neither alternative",
+  relative-position pointers (`WR5`), and five dropped details of kept alternatives. All ten go to a fix run; the
+  review's worktree is removed.
+- **GOING**: the fix run, unit `pi-zfs-proposal-fold-in-short-review-findings-fixed` (DeepSeek on Neuralwatt, turn
+  cap 635, a quarter above the longest of 331 finished finding-fix runs, 508), in the fold-in worktree; brief and run
+  folder under `~/temp/agent/zfs-proposal-fold-in-short-review-findings-fixed-2026-11-19/`. Then the Sonnet gate
+  review of the whole fold-in before the owner's acceptance.
+- **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
   `pi-zfs-proposal-fold-in-short-review-on-the-qwen-plan` (turn cap 540, a quarter above the longest of 672 finished
   review runs, 431), in its own detached worktree
   `.claude/worktrees/pi-qwen-review-zfs-proposal-owner-answers-fold-in-at-53187c9c61`; brief, frozen copy of the answer
