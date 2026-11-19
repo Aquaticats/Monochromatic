@@ -18,6 +18,29 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Answered in the question tool, recorded 2026-11-19T16:22:16-05:00
+
+The ZFS proposal after its gate review and the fix round, at `227b2af580` on branch
+`docs/planning-cli-git-zfs-worktree-design-proposal`. Each was asked with its ranking, pros, cons and a worked
+example; the owner picked the recommended option every time. These go into the proposal in one narrow fold-in, and
+then the accepted design goes to `doc/decision/`.
+
+- Acceptance of the decided proposal: "Accept now (Recommended)": the design is accepted with its open items still
+  open; the two owed VM measurements still gate shipping the forced arm, and they decide only the sentences already
+  conditional on them.
+- Explicit cancel command (gate finding F4): "Keep the command (Recommended)": a guarded
+  `cancel-worktree-removal <slot>` stays as the manual way back, including for a removal whose wrapper was killed
+  after it recorded the unmount or that ran past its deadline; it reports any snapshots already destroyed and cannot
+  restore them.
+- Deferred-destroy check position (gate finding F8): "Also check first (Recommended)": the check that the origin is
+  not marked for deferred destroy also runs before the first snapshot delete, so such a removal refuses before
+  deleting anything; the check before the head destroy stays, and a mark set between the two remains the accepted
+  residual.
+- The never-end set of a `--force` removal: "Spare the caller (Recommended)": the removal never ends the caller and
+  the processes of its session (the shell that ran the command and that shell's other jobs); when the caller's
+  session holds the clone it refuses and says to leave the folder and run the command again. Other holders are still
+  ended, as the answer "Kill or otherwise remove or destroy the holders whenever --force is specified" says.
+
 ## Answered in the question tool, started 2026-11-19T11:30:00-05:00
 
 The ZFS answers go into the proposal (`doc/planning/cli-git-zfs-worktree-design-proposal.md` on branch
