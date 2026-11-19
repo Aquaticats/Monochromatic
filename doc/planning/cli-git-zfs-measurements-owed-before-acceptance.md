@@ -3,7 +3,7 @@
 **Non-final draft by an agent, unapproved.** It records guest observations and design implications, not design
 acceptance. A section heading's stamp is the commit time of the commit that landed that section. This file's own
 revision stamp is what `git log --format=%cI -1` prints for the file, which before this revision's commit reported
-2026-11-19T01:25:34-05:00 at `9b2cd94680`. The account ownership decision in the
+2026-11-19T01:25:41-05:00 at `a6b0ec5913`. The account ownership decision in the
 [planning record](cli-git-zfs-worktree.md#owners-answers-of-2026-11-18) makes the refusal repeat a pre-acceptance
 condition, not something to postpone until implementation.
 
@@ -872,7 +872,7 @@ refusal.
   only the clone's own snapshots; what the same account could do to a transferred one under these grants was not
   measured.
 
-## 18. Delegated snapshot batch on an unpromoted clone, 2026-11-19T01:25:34-05:00
+## 18. Delegated batch, unpromoted clone, 2026-11-19T01:25:34-05:00
 
 This non-final, unapproved section answers the third bullet of item 17's "What item 17 did not show" and the
 unpromoted-clone limitation item 17 states under its item 1: removal destroys verified unpromoted clones, and no
