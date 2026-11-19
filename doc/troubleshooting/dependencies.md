@@ -1661,6 +1661,84 @@ See `doc/decision/proper-lockfile-removal.md` for the decision rationale
 (why a shim was preferred over silent stub or pure removal) and
 `doc/dependency-blocklist.md` for the policy reference.
 
+#### A dangling workspace override after `git worktree add`
+
+Reproduced at 2026-11-18T21:59:55-05:00 with pnpm `12.21.0`,
+the version resolved by `mise exec -- pnpm --version`.
+A new worktree can report that its package-manager state was repaired,
+then Node fails to import Pi:
+
+```text
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'proper-lockfile'
+```
+
+The shim exists in the worktree.
+The dangling symlink is beside Pi in the global virtual store,
+not the `node_modules` entry that points to Pi.
+In pnpm `12.21.0` (`b8d388835f9a40ee1ac53fbc2d4b58c3ebfa5600`),
+`pnpm/crates/deps-restorer/src/create_symlink_layout.rs:49-67` sends the workspace override and store slot path
+through `symlink_package` to the link writer.
+`pnpm/crates/fs/src/symlink_dir.rs:30-34,118-121` computes `crate::relative_path(parent, original)`
+using `link.parent()` as spelled,
+then stores that relative string.
+The kernel follows any symlink in the parent path before interpreting the relative target.
+If the spelled and physical parent differ,
+the target can climb the wrong number of levels or point at the wrong subtree.
+A repeated install with the same spelling can leave the bad link unchanged:
+`pnpm/crates/fs/src/symlink_dir/reuse.rs:34-47` compares paths lexically without following the parent aliases.
+This is pnpm's link writer, not the Git wrapper or the shim.
+
+**Minimal offline reproduction.** In a throwaway directory,
+make a real home at `physical/deeper/home` and a symlink `home-link` to it.
+Put a project in `physical/deeper/home/project`.
+Its `package.json` declares `consumer: file:consumer.tgz` under `dependencies`.
+Create that tarball from a `package/` directory holding a manifest with name `consumer`, version `1.0.0`,
+`type: module`, `main: index.js`, and dependency `proper-lockfile: 1.0.0`.
+The consumer's `index.js` is `export { default } from 'proper-lockfile';`.
+Give `shim/` a manifest with name `proper-lockfile`, version `1.0.0`, `type: module`, and `main: index.js`;
+its `index.js` is `export default 'shim loaded';`.
+Use these workspace settings:
+
+```yaml
+# project/pnpm-workspace.yaml
+storeDir: ${HOME}/.local/share/pnpm/store
+virtualStoreType: global
+overrides:
+  proper-lockfile: link:shim
+```
+
+With standalone pnpm in that project and no separate store-directory override,
+run `HOME="$linked_home" pnpm install --offline`,
+where `linked_home` is the absolute path to the throwaway `home-link`.
+Resolve `node_modules/consumer` with `realpath` and read the `proper-lockfile` symlink beside it.
+The install succeeds, but that link does not resolve and importing `consumer` fails.
+Remove just that fixture link and run `HOME="$physical_home" pnpm install --offline --frozen-lockfile`,
+where `physical_home` is the absolute path to the real fixture home.
+This uses the same physical store;
+`proper-lockfile` now resolves to `project/shim` and importing `consumer` loads it.
+See [the pnpm symlinked-store record](./pnpm-symlinked-store-path.md) for the public reproduction and upstream issue draft.
+
+**Repair an existing worktree.** From the affected worktree root,
+resolve `package/pi-shared/subagent-driver/node_modules/@earendil-works/pi-coding-agent` to its store slot with `realpath`.
+The `proper-lockfile` symlink is in the slot's `node_modules`, beside the `@earendil-works` directory.
+Use `readlink` to confirm that the dangling link names this worktree's shim.
+Do not remove it if it names another checkout, or if you cannot establish that it belongs to this worktree.
+Unlink only the confirmed dangling link, never a slot or the shared store.
+Then use `HOME="$(cd -- "$HOME" && pwd -P)" pnpm install --offline --frozen-lockfile`.
+If you supply a separate store setting, it must also name the physical path to the same store.
+Confirm the link resolves to this worktree's shim and retry the import that failed.
+
+**Workaround and removal condition.** The Git wrapper still runs the `pnpm` from the add's `PATH`
+with `install --offline --frozen-lockfile` in the new worktree.
+Only that child gets the physical spelling of `HOME` when the wrapper can resolve it within the tool-start bound.
+When the commit service runs the repair, this is the service's home;
+in the inline fallback it is the add's home.
+The workaround does not change the store chosen by the workspace,
+resolve aliases independent of `HOME`, or remove existing store entries.
+It also does not force pnpm to replace a source slot reused by a same-depth copy;
+that is a separate observed problem even with a physical home path.
+Remove the workaround when supported pnpm releases pass the linked-store control without it.
+
 ### `convert-source-map` (throwing stub; never loaded by Stryker)
 
 This is the one pre-emptive ban that has since entered the resolved graph.
