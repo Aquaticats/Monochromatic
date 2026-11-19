@@ -40036,8 +40036,26 @@ What follows from them, as work:
   functions as sibling crates write them, against `ST9`; `cargo package` excludes `uses/`; Dylint's closure rule could
   not run. GOING: its short review on the Qwen plan, `pi-zfs-step-1-short-review-on-the-qwen-plan` (watched), in
   `.claude/worktrees/pi-qwen-review-zfs-step-1-at-80046e3640`; brief under
-  `~/temp/agent/zfs-step-1-short-review-on-the-qwen-plan-2026-11-19/`. Then its merge on its own package checks in a
-  container, and step 2. ENDED: the start-probe
+  `~/temp/agent/zfs-step-1-short-review-on-the-qwen-plan-2026-11-19/`. It ended `idle` (178 turns, no rate-limit
+  error; that folder's `keep/review.md`): the package does what step 1 asks; every size and offset of `zfs_cmd_t` matches
+  OpenZFS 2.4.4; an independent encoder written from `nvpair.c` matched the codec byte for byte over seven pair shapes;
+  four tests shown red against mutations. Mediums: three adapted files lack the attribution notice; the README's failure
+  example is not a line the crate prints; `file-enforcer check` needs the network (it fetches `caniuse-lite`), so the
+  merge line cannot be met offline; the gate base image cannot be rebuilt. Lows: `DmuObjsetStats` lacks 2.4.4's
+  `dds_flags`; reply and buffer limits cite the wrong source or none; the `ENOMEM` hint; the nesting bound 64 against the
+  module's 20; unknown types re-pack lossily; the linter README's dated sentence; no golden vectors; `PROVENANCE.md`
+  gaps; one test module declared from the folder index; the fuzz smoke keeps no artifacts; the fuzz nightly typed
+  twice. It found `ST9` is a TypeScript rule that never bound this crate. GOING: the fix round
+  `pi-zfs-step-1-review-findings-fixed` (DeepSeek on Neuralwatt, cap 500) in the step's worktree, every finding but the
+  base image (its own run, below) and the plan note; brief under `~/temp/agent/zfs-step-1-review-findings-fixed-2026-11-19/`.
+  THE GATE BASE IMAGE (task 401): on this host pacman's `git 2.56.1-1.1` (`cachyos-extra-znver4`) ships
+  `githooks.5.gz`, so the reviewer's guess of a newer git without the page does not hold and the cause is unknown;
+  GOING: `pi-git-policy-cli-gate-base-image-githooks-page` (DeepSeek on Neuralwatt, cap 400) in
+  `.claude/worktrees/git-policy-cli-gate-base-image-githooks-page` on
+  `fix/git-policy-cli-gate-base-image-finds-the-githooks-page`: reproduce, diagnose inside the image, fix so the
+  `hooks_off_tests` guard still reads an installed copy, a red check, a troubleshooting section; brief under
+  `~/temp/agent/git-policy-cli-gate-base-image-githooks-page-2026-11-19/`. Then step 1's merge on its own package checks
+  in a container, and step 2. ENDED: the start-probe
   design (`idle`, 124 turns, `4167f50724`, 791 lines; recommends a root probe that mounts a read-only snapshot in a
   private mount namespace, no pool write; four owner questions; ten owed VM measurements) and the staging design
   (`idle`, 108 turns, `a709cd7f58` and `2258de74d8`, 645 lines), and the runtime layout checker design (`idle`, 220
@@ -40199,7 +40217,13 @@ What follows from them, as work:
   `/proc/<pid>/` read on the left-running and wake paths counts `ESRCH` as a process gone, a failing test first for
   each, the README's line on what counts as ended; the README's rule that a truly failed read ends the run with
   `workProblem` stays, and whether it should retry within the wait's bound instead is asked as a suggestion only;
-  brief under `~/temp/agent/pi-driver-a-process-that-ends-mid-scan-is-gone-2026-11-19/`. Until it is in main any run
+  brief under `~/temp/agent/pi-driver-a-process-that-ends-mid-scan-is-gone-2026-11-19/`. It ended `idle` (251 turns)
+  at `8a61b9043e` (one commit, report in that folder's `keep/report.md`): `comm` answers `?`, `cgroup` answers no group
+  and `stat` no parent on `ESRCH`, every other failure still reaches `workProblem`; the `cwd` link is left because the
+  kernel answers `ENOENT` there (`proc_cwd_link`); a read seam injects the error; each test red on the parent commit;
+  213 suites pass; a troubleshooting page with pinned kernel links; no general retry (argued). GOING: its short review on
+  the Qwen plan, `pi-qwen-review-driver-esrch-at-8a61b9043e` (watched), in the worktree of that name; brief under
+  `~/temp/agent/pi-driver-esrch-fix-short-review-on-the-qwen-plan-2026-11-19/`. Until it is in main any run
   that ends its turn while its own work runs can be cut the same way, and a container it started outlives it. The first
   resume ended `prompt-rejected` after 42 turns on a second driver fault: when the agent's background Clippy job ended,
   Pi started a turn of its own and 33 ms later the driver's wake note met "Agent is already processing. Specify
@@ -40369,8 +40393,16 @@ What follows from them, as work:
   on `feat/pi-plugin-rate-limit-fallback-quota-read-deadline-from-a-live-endpoint-measurement`: real quota reads
   through the package's own code and Pi's registry, interleaved with a same-host control, the deadline
   `QUOTA_READ_TIMEOUT_MS` set from it with the measurement cited beside the value, no credential printed; brief under
-  `~/temp/agent/rate-limit-fallback-quota-read-deadline-live-measurement-2026-11-19/`. Then its short review, the merge
-  and the installed dist's rebuild, then the live quota check (task 396). The driver pool table (task 383)
+  `~/temp/agent/rate-limit-fallback-quota-read-deadline-live-measurement-2026-11-19/`. It ended `idle` (116 turns) at
+  `0bcf0e055b` (two documentation commits; report in that folder's `keep/report.md`, raw records under its
+  `scratch/keep/`): a 250 ms positive control first; Synthetic 20 rounds (highest 69.6 ms), NeuralWatt standard 20
+  rounds (highest 464.4 ms, p95 402.7 ms) and flex 6 rounds, each against a same-host listing control; all 118 requests
+  answered 200 and no read reached the deadline; `QUOTA_READ_TIMEOUT_MS` stays 2,000 ms with the measurement beside it,
+  the README's provisional wording replaced, and a new `doc/quota-read-latency.md`; the Qwen-plan and `opencode-go`
+  members have no quota endpoint to time. GOING: its short review on the Qwen plan,
+  `pi-qwen-review-quota-read-deadline-at-0bcf0e055b` (watched); brief under
+  `~/temp/agent/rate-limit-fallback-quota-read-deadline-short-review-on-the-qwen-plan-2026-11-19/`. Then the merge and
+  the installed dist's rebuild (task 396). The driver pool table (task 383)
   waits on more than a slot: it changes `pool-limits.ts`, as the unmerged `ecec388cdb` does (13 files; its review
   queued 2026-11-16 and never started), and the entry of 2026-11-16 on the second timing of the two pools puts
   follow-ups to that file on top of `ecec388cdb` once it is reviewed and in `main`; that review waits with the queue.
