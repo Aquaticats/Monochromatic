@@ -475,14 +475,14 @@ acknowledgement properties from root. A waiter may change the local
 `org.monochromatic:git-worktree-clone-mount-sweep-nonce` as often as it needs on the verified managed clone it is
 waiting for, not on the clone parent. The nudge uses the same hex format and is not a mount instruction. The handler
 cannot limit the nudge to one write: the account owns that property and may change it repeatedly, and each change may
-start a sweep that scans every task, so bound the work of one sweep instead of counting nudges. How sweeps coalesce,
-and how many may run in a period across every clone, is unspecified here: a rule would have to merge the nudges
-pending for one clone into a single sweep and cap sweeps per unit time, and nothing measured sizes either
-(see [Lost last event without a waiter](#open-project-choices)). This fits the proposed
-descendant `userprop` grant without expanding it to the parent. The [ZFS planning probes][zfs-plan], lines 208 to 213,
-used a parent property for lost-event recovery under their setup; [VM item 5][vm-key] delivered a clone property event
-to a test zedlet. Neither measured the product's delegated clone-local nudge or recovery of the lost last event
-without another trigger.
+start a sweep that scans every task, so bound the work of one sweep instead of counting nudges. How sweeps
+coalesce, and how many may run in a period across every clone, is unspecified here: a rule would have to merge
+the nudges pending for one clone into a single sweep and cap sweeps per unit time, and nothing measured sizes
+either. The [Lost last event without a waiter](#open-project-choices) choice carries that gap and its cost. This
+fits the proposed descendant `userprop` grant without expanding it to the parent. The [ZFS planning probes][zfs-plan],
+lines 208 to 213, used a parent property for lost-event recovery under their setup; [VM item 5][vm-key]
+delivered a clone property event to a test zedlet. Neither measured the product's delegated clone-local nudge or
+recovery of the lost last event without another trigger.
 
 Removal needs a fresh all-namespace scan at each point where the removal workflow opens a destructive step: the
 removal-ready unmount report, every snapshot-destroy request, whether it carries the first chunk or a later one, and
@@ -1057,8 +1057,8 @@ adopts on its own, which a veto can change, are listed
 separately under [Adopted defaults open to veto](#adopted-defaults-open-to-veto).
 At the owner handoff, ask one question per decision in the question tool, each with its options, pros, cons and a
 recommendation that explains every adjacent pair in the ranking. The two choices this draft couples are asked as two
-questions, and each states the coupling and the excluded combination as a fact of the grants, never as a ranking
-between them. Use the VM findings and identify what remains unmeasured; a ranking is not a decision.
+questions, and each states the coupling and the excluded combination that follows from the grants, never as a
+ranking between them. Use the VM findings and identify what remains unmeasured; a ranking is not a decision.
 
 - Checkout boot mount protection. Keep an ordinary checkout mountpoint and verify an immutable covered entry, or
   use `mountpoint=legacy` with a descriptor boot service that verifies the checkout underlay.
@@ -1140,8 +1140,14 @@ between them. Use the VM findings and identify what remains unmeasured; a rankin
   caller nudges only, or add a periodic scoped sweep. Both require the proposed provider hook for delayed key and
   checkout readiness, not another add. [VM item 5][vm-key] delivered one property event to a test zedlet; it did
   not show automatic retry after key load or recovery from a lost last event. Without a sweep, an event lost after
-  readiness can leave intent waiting for the next trigger (unmeasured inference). Measure both and the cost of a
-  sweep before choosing a shipped interval.
+  readiness can leave intent waiting for the next trigger (unmeasured inference), and that is this option's own
+  cost: the worktree stays unavailable until something else triggers a sweep. A periodic sweep brings the
+  coalescing and rate gap this draft states under [Requests, results and ordering](#requests-results-and-ordering):
+  how the nudges pending for one clone merge into a single sweep, and how many sweeps may run in a period across
+  every clone, is unspecified, and nothing measured sizes either. Without such a cap a repeated nudge can start a
+  sweep that scans every task as often as the account writes the property (reasoning from the property event
+  [VM item 5][vm-key] delivered, not measured). Measure both and the cost of a sweep before choosing a shipped
+  interval.
 - Origin cleanup authority. Add descendants-only `mount,destroy` delegation on the checkout, or use a root-owned
   cleanup operation limited to proven wrapper origins. Delegation keeps privilege out of the handler but allows
   the account to destroy any checkout snapshot. Separate cleanup needs its own privileged ownership and recovery
@@ -1211,9 +1217,9 @@ These two alternatives are one open project choice. It is not independent of
 becomes an allowed actor that can mark a checkout snapshot for deferred destroy, and the delegated option forbids
 any allowed actor doing that while removal is admitted. Ask the two choices as separate questions, and treat
 delegated clone destruction with delegated origin `destroy` as excluded until the origin rule is proved for the
-account itself; that excluded combination is a fact of the grant model, not a ranking between the two options.
-That last step is reasoning from the grant model and from what the `defer` key does
-(`lib/libzfs_core/libzfs_core.c:442` to `:451`, OpenZFS `zfs-2.4.4`), not a measured account-run deferred destroy.
+account itself; that excluded combination is reasoning from the grant model and from what the `defer` key does
+(`lib/libzfs_core/libzfs_core.c:442` to `:451`, OpenZFS `zfs-2.4.4`), not a measured account-run deferred destroy,
+and it is not a ranking between the two options.
 Of the two programs that prune snapshots on this host, neither passes a deferred destroy
 (`/usr/bin/sanoid:399`, `/usr/local/sbin/zfs-space-guard:50`); other callers were not inspected, so the grant is
 the one this design can account for. Neither option changes "B: Destroy at once"

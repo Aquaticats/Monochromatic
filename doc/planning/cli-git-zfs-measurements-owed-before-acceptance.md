@@ -492,7 +492,14 @@ Permission denied. Channel programs must be run as root.
 ```
 
 As root, the stale original tuple against the plain replacement exited 1 with an `identity mismatch` diagnostic
-naming the replacement's GUID, origin and `createtxg`. The account then replaced that filesystem
+naming the replacement's GUID, `origin=-` and `createtxg` (`item-12-exact.log:93`):
+
+```text
+# item-12-exact.log:93, the plain replacement's refusal
+[string "channel program"]:36: identity mismatch: guid=7645651087564023451 origin=- createtxg=21
+```
+
+The account then replaced that filesystem
 with a new clone of the **same** origin. The root program again exited 1 on the original tuple, and the new clone
 was unchanged. With its actual tuple it exited 0; `zfs list` then exited 1 with `dataset does not exist`:
 
