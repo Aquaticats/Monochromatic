@@ -271,6 +271,15 @@ Not final and not approved: this session's own account.
   `fix/env-local-json-core-fixture-joins-the-output-of-a-program-only-after-its-pipe-has-closed` with main merged
   (cfdd31665e), brief `~/temp/agent/env-local-json-fixture-runner-bounded-and-truthful-2026-11-18/prompt.md`, turn cap
   450, wall 5400 s. The review's worktree is removed; its scratch stays until this run is reviewed.
+  **The writer ended `idle`** (52 turns) with one commit, 945ff70a94: a 2,000 ms default deadline (overridable;
+  streams destroyed and the direct child sent SIGKILL on expiry, helpers not killed), `FixtureCommandError` naming the
+  tool and arguments with up to 4 KiB of standard error, install advice only on `ENOENT` for `sops` or `age-keygen`,
+  tests for every failure path with each guard shown failing without its code, and a README section. Its deadline rests
+  on calls of 6 to 21 ms measured with few agents running; the drive probe saw a 2,564 ms write-and-sync at level 20 on
+  2026-11-17, so whether 2,000 ms fails suites falsely at load is the first check of **its DeepSeek review, going**
+  (Qwen plan, unit `pi-review-env-local-json-fixture-runner-bounded-at-945ff70a94`, worktree
+  `.claude/worktrees/env-local-json-fixture-runner-bounded-review`, brief and review in
+  `~/temp/agent/env-local-json-fixture-runner-bounded-review-2026-11-18/`). The writer's worktree is removed.
 - **Driver idle window defaults to 0: in main** as 5b53cd90f2 (decision entry "Driver: the idle window defaults to
   0"; behaviour in `package/pi-shared/subagent-driver/README.md`, the default in the pi-as-subagent skill's step 5).
   Its DeepSeek review (179 turns, `idle`; file
