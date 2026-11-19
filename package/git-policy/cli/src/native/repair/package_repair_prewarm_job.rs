@@ -1039,12 +1039,14 @@ fn publish_what_this_run_holds(directory: &TheDirectory, held: &TheNameThisRunHo
 ///  Publish the staging copy under the workspace's build directory name,
 /// or say that something else is already there.
 /// Why:
-///   A control of this module's calls this directly with the names it made.
+/// A control of this module's calls this directly with the names it made,
+/// so a release builds no second way to publish.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const publish = (names, destination) => renameNoReplace(entry(names.directory, names.staging), entry(names.directory, destination));
 /// ```
+#[cfg(test)]
 fn publish(names: &TheNames, destination: &Path) -> Result<bool, String> {
     let staging: &Path = names.staging.as_path();
     return match rename_noreplace(names.directory.along(staging).as_path(), names.directory.along(destination).as_path()) {
