@@ -96,6 +96,26 @@ here so a reader never mistakes it for evidence.
 - `503: {"error":{"message":"Service temporarily unavailable","type":"server_error"}}`
   (`src/transient-refusal.unit.test.ts`, `src/verify-stand-in-member-extension.ts`): a provider's
   capacity 503. Boundary: the status a refusal opens with, which is the only part the pool reads.
+- `523: Error 523: origin is unreachable` and `522: Error 522: connection timed out`
+  (`src/transient-refusal.unit.test.ts`, `src/verify-stand-in-member-extension.ts`): the Cloudflare
+  origin error headings, which no capture records. Boundary: the status a refusal opens with, so the
+  pool moves the request on before Pi's own classifier reads `timed out`. The wording is
+  Cloudflare's published error page for each status
+  (https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/,
+  read 2026-11-19), and the `<status>: ` prefix is the installed adapter's formatting.
+- `429: OpenAI API error (523): upstream unavailable` and
+  `429:openai api error (523): upstream unavailable` (`src/transient-refusal.unit.test.ts`):
+  boundary: the refusal's own leading 429 decides, so a body that quotes a Responses failure label
+  for a Cloudflare status stays a rate limit instead of becoming transient. The unspaced spelling
+  writes the same quote with no space after the 429's colon, which no adapter writes.
+- `standin API error (523): origin is unreachable` (`src/transient-refusal.unit.test.ts`): a
+  Responses failure label for a non-OpenAI provider. Boundary: the label opens the text, so the pool
+  reads the status from it with no response exposed by the adapter.
+- The `Retry-After` hold (`src/transient-refusal.unit.test.ts`, the `transientHold` case) drives a
+  hand-made `onResponse` call on a 503. No installed adapter makes that call, because each reports a
+  failed response through the hook only after a successful one, as `README.md` states under
+  "Changing limits". Boundary: the header path the plugin keeps for an adapter that starts exposing
+  failed responses.
 - `401 Unauthorized: contact support with request 429`, `Request timed out`,
   `400 Context window exceeded`, `4290 tokens exceeded the window`
   (`src/routing.unit.test.ts` `TERMINAL_ERRORS`): boundary: a failure is not a refusal unless it

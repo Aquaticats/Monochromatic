@@ -112,6 +112,19 @@ const QUOTED_LABEL_IN_429 = '429: OpenAI API error (523): upstream unavailable';
 const TIGHT_QUOTED_LABEL_IN_429 = `429:openai api error (523): upstream unavailable`;
 
 /**
+ 503 bodies that also carry content-policy wording.
+
+ Made up: the boundary is that the transient status the refusal opens with decides the handoff, so a
+ policy label or the `possible risk` phrase inside the body cannot turn a provider's capacity 503
+ into a stop that ends the request at that member. The review of the hybrid rebuild measured both
+ bodies against the built artifact.
+ */
+const POLICY_WORDED_503S = {
+  'a safety-policy label': '503: {"error":{"message":"Request blocked by safety policy","type":"server_error"}}',
+  'the possible-risk phrase': '503: {"error":{"message":"Upstream says a possible risk applies","type":"server_error"}}',
+} as const;
+
+/**
  Every transient refusal the suite replays, named by its source class.
  */
 const TRANSIENT_REFUSALS = {
@@ -146,6 +159,27 @@ await describe({
             expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(HEAD,), labelOf(SECOND,),],);
             expect(result.provider,).toBe(SECOND.provider,);
             expect(result.model,).toBe(SECOND.id,);
+            expect(result.stopReason,).toBe('stop',);
+          },
+        },);
+      },),
+    ...Object.entries(POLICY_WORDED_503S,)
+      .map(function policyWording([name, errorMessage,],) {
+        return it({
+          name: `moves on from a 503 whose body carries ${name}`,
+          fn: async function transientWithPolicyWording() {
+            const { provider, calls, options, } = await fixture({
+              extension,
+              play({ model, }) {
+                return calls.length === FIRST_ATTEMPT
+                  ? immediate({ model, errorMessage, },)
+                  : immediate({ model, },);
+              },
+            },);
+            const model = poolModel({ provider, id: 'writer-pool', },);
+            const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+            expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(HEAD,), labelOf(SECOND,),],);
+            expect(result.provider,).toBe(SECOND.provider,);
             expect(result.stopReason,).toBe('stop',);
           },
         },);
@@ -279,6 +313,9 @@ await describe({
         expect(result.errorMessage,).toBe(TIMED_OUT_522,);
       },
     },),
+    // Stand-in shape, recorded in `doc/captures.md`: the `onResponse` call in this case is made by
+    // hand on a failed response, which no installed adapter does, so this covers the header path
+    // alone.
     it({
       name: 'holds a member that refused with a Retry-After until that time',
       fn: async function transientHold(ctx,) {

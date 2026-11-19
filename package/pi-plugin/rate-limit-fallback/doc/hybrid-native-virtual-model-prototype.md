@@ -54,11 +54,13 @@ loop. Its pool id check is `Object.hasOwn(pools, id)`, so a key inherited from `
 (`constructor`, `toString`, `__proto__`) is refused with `PoolDispatchError` instead of reaching the
 member loop. The rebuild removed that table: the shipped pool lookup reads the package's own pool
 definitions (`poolMembers`), so an unknown id, an inherited key included, is refused by the same
-error without a parameter for a caller to supply. Beside that, two changes ship for the package's own tests and its lint cap: the
-caller-options projection moved unchanged into `src/member-attempt-options.ts`, to keep
-`src/dispatch-request.ts` under the repository's 300-line cap (rule `MXL`), and `src/index.ts`
-re-exports `dispatchRequest`, `PoolDispatchError`, `RoutingSession` and `Member` as `@internal` so a
-built-artifact test can reach the pool table.
+error without a parameter for a caller to supply. Beside that, two changes shipped for the
+package's own tests and its lint cap: the caller-options projection moved unchanged into
+`src/member-attempt-options.ts`, to keep `src/dispatch-request.ts` under the repository's 300-line
+cap (rule `MXL`), and `src/index.ts` re-exported `dispatchRequest`, `PoolDispatchError`,
+`RoutingSession` and `Member` as `@internal` so a built-artifact test could reach the pool table.
+The rebuild dropped that re-export with the prototype test it existed for, leaving the entry
+module's virtual-model, timing and quota-interval exports.
 
 Sessions load the prototype by `--no-extensions --extension <path>`, which is the only per-session
 option Pi offers for this; the installed package in `~/.pi/agent/settings.json` stays untouched and

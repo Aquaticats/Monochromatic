@@ -134,9 +134,9 @@ request: that run ends there, even though the later members were only
 rate-limited, because returning their 429 would let Pi's outer retry restart at
 the member that refused. With no stop set aside, the pool returns the last
 refusal it set aside, as it arrived: a 429 or a transient status. When no member
-was attempted, the pool names the held members and their state: a published zero
-flex floor, a local concurrency ceiling with the count in use, or a hold until a
-provider-derived time. These local admission results do not carry a fabricated
+was attempted, the pool names the held members and their state: a published
+concurrency ceiling of zero, a local concurrency ceiling with the count in use,
+or a hold until a provider-derived time. These local admission results do not carry a fabricated
 429 and are not retried by Pi: generic retry
 backoff cannot be aligned to a local slot freeing, a provider reset, or a plan change. Each member
 attempt runs with provider-level retries off, so a 429 reaches the pool on the first attempt and the
@@ -215,12 +215,15 @@ of reads, and concurrent requests in one session share a pending lookup. A faile
 evidence in place, and the next refusal reads again. A transient 503 or
 Cloudflare status is not a quota signal and reads nothing.
 
-A reading that reports a ceiling of zero, such as a plan with no flex lane,
-excludes that member for the rest of the session: admission refuses it without
-dispatching, so no later refusal can trigger the fresh reading that would lift
-it. The next session reads again at its first refusal. A 429's own hold is never
-permanent: it carries the time the provider named, and once that time passes the
-member is asked again.
+A reading that reports a ceiling of zero, such as a plan with no capacity for
+that lane, excludes that member for the rest of the session: admission refuses
+it without dispatching, so no later refusal can trigger the fresh reading that
+would lift it, and the plugin logs the exclusion at `info` with the member, the
+reported ceiling and the reading's time. When another member answers the request
+instead, the turn itself says nothing about the exclusion. The next session
+reads again at its first refusal. A 429's own hold is never permanent: it
+carries the time the provider named, and once that time passes the member is
+asked again.
 
 The quota read has its own provisional deadline of two seconds, capped at
 half a positive caller-supplied model timeout (rounded down). The read

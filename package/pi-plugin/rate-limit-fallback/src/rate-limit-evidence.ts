@@ -122,25 +122,32 @@ export function hasOpenAiPolicyOpening(message: FailureEvidence,): boolean {
 }
 
 /**
- Match policy text without misreading an HTTP 429 that merely mentions a policy or risk.
+ Match policy text without misreading a refusal that merely mentions a policy or risk.
+
+ A 429 and a transient provider failure are refusals the pool hands to the next member, so neither
+ may become a stop through wording inside a body: only OpenAI's opening outranks them.
 
  @param message - failed provider message
 
  @param rateLimited - whether the adapter text or response supplied a 429 status
 
+ @param transient - whether the adapter text or response supplied a 503 or Cloudflare 52x status
+
  @returns whether Pi should see a non-retryable policy error
 
  @example
  ```ts
- isPolicyStop({ message: { stopReason: 'error', errorMessage: 'Possible risk' }, rateLimited: false });
+ isPolicyStop({ message: { stopReason: 'error', errorMessage: 'Possible risk' }, rateLimited: false, transient: false });
  ```
  */
 export function isPolicyStop({
   message,
   rateLimited,
+  transient,
 }: {
   readonly message: FailureEvidence;
   readonly rateLimited: boolean;
+  readonly transient: boolean;
 },): boolean {
   if (message.stopReason !== 'error')
     return false;
@@ -152,7 +159,7 @@ export function isPolicyStop({
   // quotes it is a non-retryable stop rather than a rate limit; only the move needs it at the start.
   if (text.includes(OPENAI_POLICY_OPENING,))
     return true;
-  if (rateLimited)
+  if (rateLimited || transient)
     return false;
   if (text.includes('possible risk',))
     return true;

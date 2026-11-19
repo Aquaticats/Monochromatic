@@ -460,7 +460,7 @@ await describe({
       },
     },),
     it({
-      name: 'reports the named NeuralWatt member and a published flex floor of zero without retrying',
+      name: 'reports the named NeuralWatt member and a published concurrency ceiling of zero without retrying',
       fn: async function zeroFlexFloor() {
         const redirects: RequestRedirect[] = [];
         const { provider, calls, options, } = await fixture({
@@ -480,7 +480,7 @@ await describe({
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(calls.length,).toBe(FIRST_ATTEMPT,);
         expect(redirects,).toEqual(['error', 'error',],);
-        expect(result.errorMessage,).toContain(`${NEURALWATT_FLEX.provider}/${NEURALWATT_FLEX.id} has a published flex floor of zero`,);
+        expect(result.errorMessage,).toContain(`${NEURALWATT_FLEX.provider}/${NEURALWATT_FLEX.id} has a published concurrency ceiling of zero`,);
         expect(isRetryableAssistantError(result,),).toBe(false,);
       },
     },),
@@ -532,7 +532,7 @@ await describe({
       },
     },),
     it({
-      name: `a NeuralWatt overage 429 overrides ${PUBLISHED_CAP} with ${OVERAGE_CAP} until a renewal learned on reentry`,
+      name: `a NeuralWatt overage 429 overrides ${PUBLISHED_CAP} with ${OVERAGE_CAP} until the renewal its refusal read`,
       fn: async function overageCap(ctx,) {
         const clock = { now: Date.now(), };
         ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);

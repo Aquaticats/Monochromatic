@@ -216,10 +216,17 @@ export async function* dispatchRequest({
      */
     const ceiling = Number.isNaN(observed,) ? (published ?? Infinity) : observed;
     if (capacity.active >= ceiling) {
+      if (ceiling === 0) {
+        // A reading that reports no capacity excludes the member for the rest of the session, because
+        // admission never dispatches it again and so no later refusal reads a fresh ceiling. The turn
+        // says nothing about this when another member answers, so the record names the member, the
+        // ceiling and the reading's time at a level a person reads.
+        rl.info(`${id}: ${label} is excluded for the rest of this session: the reading at ${new Date(capacity.lastReadAt,).toISOString()} reported a concurrency ceiling of zero`,);
+      }
       rl.debug(`${id}: ${label} local concurrency reached published or observed cap ${ceiling}`,);
       unavailable.admissionStops
         .push(ceiling === 0
-          ? `${label} has a published flex floor of zero`
+          ? `${label} has a published concurrency ceiling of zero`
           : `${label} is at its local concurrency ceiling (${capacity.active} of ${ceiling} in use)`,);
       return false;
     }
@@ -310,15 +317,26 @@ export async function* dispatchRequest({
           continue;
         }
         /**
-         A 429 status takes precedence over generic policy labels, but not OpenAI's policy opening.
+         A 429 or a transient status takes precedence over generic policy labels, but not OpenAI's
+         policy opening.
          */
         const rateLimited = (event.type === 'error') && isRateLimit({
           message: event.error,
           ...(evidence.status === undefined ? {} : { status: evidence.status, }),
         },);
+        /**
+         Whether this attempt refused with a transient provider status.
+         */
+        const transient = (event.type === 'error')
+          && (!rateLimited)
+          && isTransientRefusal({
+            message: event.error,
+            ...(evidence.status === undefined ? {} : { status: evidence.status, }),
+          },);
         if ((event.type === 'error') && isPolicyStop({
           message: event.error,
           rateLimited,
+          transient,
         },)) {
           /**
            Terminal record naming the member and keeping the advisory, with retry wording removed so
@@ -365,15 +383,6 @@ export async function* dispatchRequest({
          A provider that cannot serve this request now, but may serve the next: the owner's decision
          of 2026-11-19 moves it on like a 429, so Pi's own retry never restarts at that member.
          */
-        /**
-         Whether this attempt refused with a transient provider status.
-         */
-        const transient = (event.type === 'error')
-          && (!rateLimited)
-          && isTransientRefusal({
-            message: event.error,
-            ...(evidence.status === undefined ? {} : { status: evidence.status, }),
-          },);
         if (transient && (!committed)
           && (event.error
             .content

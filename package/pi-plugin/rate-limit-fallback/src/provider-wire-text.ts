@@ -26,12 +26,12 @@ export const HTTP_RATE_LIMIT_STATUS = 429;
  (https://docs.neuralwatt.com/guides/rate-limits.md), and the owner's decision of 2026-11-19 moves the
  request to the next member when it arrives, like a 429.
  */
-export const HTTP_UNAVAILABLE_STATUS = 503;
+const HTTP_UNAVAILABLE_STATUS = 503;
 
 /**
  First Cloudflare origin status, "Web server is returning an unknown error".
  */
-export const CLOUDFLARE_ORIGIN_STATUS_START = 520;
+const CLOUDFLARE_ORIGIN_STATUS_START = 520;
 
 /**
  Last Cloudflare origin status, "Error 526: invalid SSL certificate".
@@ -40,7 +40,7 @@ export const CLOUDFLARE_ORIGIN_STATUS_START = 520;
  (https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/),
  and the owner's decision of 2026-11-19 moves the request to the next member for all of them.
  */
-export const CLOUDFLARE_ORIGIN_STATUS_END = 526;
+const CLOUDFLARE_ORIGIN_STATUS_END = 526;
 
 /**
  Status token a Responses adapter prints inside its failure label, after the provider word.
