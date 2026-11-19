@@ -64,3 +64,47 @@ underlay pointer unchanged after unmount
 The specified order works in this fixture. Keep both pointer copies, recheck the canonical mount before fill, and
 never run Git against the copied administration. Moving that directory aside did not measure the deletion cost or
 prove recovery after interruption.
+
+## 2. Refusals with account-owned parent and slot
+
+Guest: `6.8.0-147-generic`, OpenZFS userspace/module `2.4.4-1` (`item-2-exact.log`). The kernel differs from the host;
+the module release matches. Both recorded owners were UID 1000, both modes 0755. The account created the links,
+replaced the slot and changed its mode and ACL. Root supplied the unexpected owner and the bind mount controls.
+The attach control reused the item 1 descriptor checks.
+
+```text
+account link at .claude: openat2: ELOOP
+account link at .claude/worktrees: openat2: ELOOP
+account link at .claude/worktrees/checked: openat2: ELOOP
+account-created link in owned parent (creation succeeded): openat2: ELOOP
+parent escape ..: openat2: EXDEV
+procfs magic link: openat2: ELOOP
+bind mount with unchanged dev/inode/owner/mode/ACL: openat2: EXDEV
+new inode with same owner and mode: recorded slot differs: inode
+wrong slot owner: recorded slot differs: owner
+widened mode: recorded slot differs: mode
+ACL u:nobody:r-x with unchanged permission bits: recorded slot differs: ACL
+ACL d:u:nobody:r-x with unchanged permission bits: recorded slot differs: ACL
+already attached ZFS clone: openat2: EXDEV
+post-attach identity: ['361', 48, 34, 'zfs', 'zfsowed2/home/worktree-clone-datasets/checked']
+```
+
+The account-created link is a changed result: creation now **succeeds** and the descriptor walk refuses it. The
+magic-link arm used a real procfs descriptor link; it did not make procfs reachable below the checkout. The ACL
+arms changed the access and default ACL separately while preserving mode bits. Mode alone missed both changes.
+
+In a bounded rename loop, each trial synchronized one account rename of `.claude` between opening and attaching.
+`move_mount` succeeded onto the held inode, not the canonical path. Each fresh walk from the checkout refused,
+and the probe confirmed the clone at the renamed path, moved that mount to staging and unmounted it. It asserted
+no mount remained at the canonical slot or staging; the final undisturbed descriptor attach worked.
+
+```text
+rename trial 1: canonical post-check: openat2: ENOENT
+rename trial 6: canonical post-check: openat2: ENOENT
+6 synchronized rename interleavings: misplaced attaches detected and removed; final control passed
+```
+
+Refuse identity changes without adopting them. A held parent descriptor can move with its ancestor, so only a fresh
+canonical walk catches this case. The post-check and rollback are necessary; this is not a proof of atomic placement
+or coverage of every free-running interleaving. The rollback was in a private namespace; item 3 measures the
+propagation precondition.
