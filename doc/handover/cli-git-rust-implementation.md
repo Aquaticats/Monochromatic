@@ -40051,9 +40051,33 @@ audit (background Agent, read-only) compares GPT 6.2 Sol and DeepSeek V4.1 Flash
 kinds: unbacked fixtures, report claims contradicted by commits, real invocations or reviews, declined work, policy
 stops, and high or medium review findings per run, with each pre-switch run's model taken from a record or left
 unknown (`~/temp/agent/writer-reliability-by-model-across-topics-2026-11-19/`). No new GPT writer starts until it is
-back. **What a cull costs, to weigh with it:** with DeepSeek writing and DeepSeek reviewing, a short review is no longer
-by another vendor (rule `IRW`), so short reviews would need another reviewer model, which changes rule `KRV` and is the
-owner's to approve.
+back; DeepSeek writers run meanwhile. **Superseded the same night:** I had written that a cull would need another
+reviewer model for short reviews (rule `IRW`) and a `KRV` change for the owner. The owner, 2026-11-19: "Short reviews
+don't, because we're running long reviews and audits (with other vendor(s)) anyway." So a cull changes no reviewer: a
+DeepSeek short review of DeepSeek work is labelled a second pass (rule `IRW`), and independence comes from the Sonnet
+gate reviews and audits (rule `LHZ`). The coordinator's lean, told to the owner: cull when the audit lands unless it
+surprises.
+
+**Second ZFS delta review (Sonnet, 2026-11-19T00:06:18-05:00): 0 high, 5 medium, 8 low**, all accepted by the
+coordinator; the writer's disagreement with the first delta review is upheld. Saved from the reviewer's final message to
+`~/temp/agent/zfs-worktree-design-proposal-fold-in-2026-11-18/keep/second-delta-review.md`. M3 checked by the
+coordinator in the `zfs-2.4.4` clone: `zfs_ioctl.c:4132` `defer = nvlist_exists(innvl, "defer");` and
+`libzfs_core.c:475-476` add the key only when deferring, so a `"defer": false` key defers. M2 (the kernel-release
+allowlist chosen in the body: no VM image runs `7.3.5-1-cachyos`, so the route could not be enabled today, and each
+kernel update disables it) becomes an owner choice. L6 (item 14's batch ran as root) leaves a measurement owed before
+the identity choice goes to the owner: the delegated account's snapshot batch under the planned grants, in the VM.
+Fold-in going: `pi-zfs-worktree-design-proposal-second-delta-review-fold-in-1` (DeepSeek on Neuralwatt, run-5, worktree
+`zfs-worktree-design-proposal-fold-in`); the next Sonnet pass checks only whether each finding is answered.
+
+**Provider review of `b9bbe7e894..a4b227503a` (DeepSeek, 151 turns): 0 high, 3 medium, 8 low**
+(`~/temp/agent/change-reviews/pi-plugin-rate-limit-fallback-at-a4b227503a/review.md`; seven of the eight first-round
+answers have a test a mutant kills). Accepted: the retry resend (medium 1; with the owner's `retry.maxRetries` 8, read
+from `~/.pi/agent/settings.json`, a policy stop followed by later 429s resends to OpenAI up to nine times per turn, not
+the reviewer's four, which assumed Pi's default 3), the unpinned 429 gate (medium 2), the move covering every vendor's
+policy stop (medium 3; the decision was about OpenAI's filter), the unbacked Qwen wording, legacy prefixes and
+NeuralWatt field names, labels, and the unreached branches. Dismissed: pinning the provisional 2 s value in a test (a
+test repeating the constant pins nothing; the live check sets it). The writer brief WAITS for the GPT decision: if GPT
+goes, the writer pool loses its OpenAI head and mediums 1 and 3 change shape.
 
 **Owner, 2026-11-19, on a quota-free reviewer:** "Also check Synthetic's infinite:small:vision for reviewer. It's the
 same model as deepseek v4.1 flash 1017, just much slower, but it doesn't drain my quota. You might need to benchmark it
