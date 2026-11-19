@@ -9594,7 +9594,7 @@ in-process reader can) gives every value of the multi-valued keys.
   as a line that starts with `monochromatic-git-policy-cli: <program> <subcommand> is waiting for the server`
   (`git push`,
   `git fetch` or `git-lfs push`) in the run's output and in the diagnostic log;
-  the diagnostic line names this program once in its own prefix,
+  the diagnostic line names this program once in its own prefix and tags the wait itself (`wait_with_clock`),
   so the words it carries start at the program and the subcommand,
   and the attempt's own line puts the name in front of them
   (`wait_line_words` and `wait_line` in `src/native/push/bounded_push.rs`).

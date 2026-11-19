@@ -345,7 +345,9 @@ async fn wait_with_clock(
         }
         if let Some(report) = clock.take_wait_note() {
             // Said as the wait begins, so a long wait is read while it lasts (the service's log, or the person's terminal).
-            warn(TAG, &wait_line_words(label, &report));
+            // Tagged with the step that says it, as every diagnostic of a function boundary is: the line's own words carry the
+            //  program the run is, so the logger's fixed name stands beside them once and not twice.
+            warn("wait_with_clock", &wait_line_words(label, &report));
             waits.push(report);
         }
     }

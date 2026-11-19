@@ -590,6 +590,10 @@ fn the_words_of_a_wait_name_the_program_once() {
     assert!(!words.contains("monochromatic-git-policy-cli"), "the words carry no program name: {words}");
     let line: String = wait_line("git push", &report);
     assert_eq!(line.matches("monochromatic-git-policy-cli").count(), 1, "the line names the program once: {line}");
+    // The diagnostic names this program once in its own prefix and tags the wait itself, so no name is printed twice in a row.
+    let diagnostic: String = crate::diagnostic_log::diagnostic_line("warn", "2026-11-19T00:00:00.000Z", "wait_with_clock", &words);
+    assert_eq!(diagnostic.matches("monochromatic-git-policy-cli").count(), 1, "the diagnostic names the program once: {diagnostic}");
+    assert!(diagnostic.contains("[wait_with_clock]"), "the wait itself is the tag: {diagnostic}");
     assert!(line.ends_with(words.as_str()), "the line is the words with the name in front: {line}");
 }
 
