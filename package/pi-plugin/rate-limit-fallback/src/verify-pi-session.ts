@@ -21,10 +21,10 @@ import {
 import {
   immediate,
   MEMBER_KEY,
-  PHYSICAL_MODELS,
   rateLimitRefusal,
   type ModelIdentity,
 } from './stand-in-pi-fixture.ts';
+import { WRITER_TARGETS, } from './member-order-fixture.ts';
 
 /**
  Working directory in the disposable verification home.
@@ -44,24 +44,39 @@ const modelRuntime = await ModelRuntime.create({
   allowModelNetwork: false,
 },);
 /**
- Physical requests, including discarded attempts, captured by the fixture.
+ Physical requests, including discarded attempts, captured by the fixture, as `provider/id`.
  */
 const calls: string[] = [];
 
 /**
  First two writer members, registered as stand-ins before extension loading.
  */
-const [head, fallback,] = PHYSICAL_MODELS;
-assert.ok(head,);
-assert.ok(fallback,);
+const [refusingMember, answeringMember,] = WRITER_TARGETS;
 
 /**
- Verified catalog records used by the registration helper.
+ Stand-in origin for both members: the extension refuses a quota read whose model origin is not
+ NeuralWatt's, so verification makes no request to a provider endpoint.
+ */
+const STAND_IN_ORIGIN = 'http://127.0.0.1:0/v1';
+
+/**
+ Verified catalog records used by the registration helper, pointed at the stand-in origin.
  */
 const members = {
-  preferred: head,
-  backup: fallback,
+  refusing: { ...refusingMember, baseUrl: STAND_IN_ORIGIN, },
+  answering: { ...answeringMember, baseUrl: STAND_IN_ORIGIN, },
 };
+
+/**
+ Exact member label, so two members of one provider stay distinguishable in the call record.
+
+ @param model - physical member Pi dispatched
+
+ @returns `provider/id`
+ */
+function labelOfMember(model: ModelIdentity,): string {
+  return `${model.provider}/${model.id}`;
+}
 
 /**
  The pool has no need for the fixture's API-specific request path.
@@ -73,26 +88,16 @@ function streamUnsupported(): never {
 }
 
 /**
- Register one scripted Pi provider, in the same order as the two writer members.
-
- @param role - preferred member refuses; backup answers
+ Register one scripted Pi provider holding both writer members: the first refuses, the next answers.
  */
-async function registerStandIn(role: 'preferred' | 'backup',): Promise<void> {
-  /**
-   The preferred member refuses once per handoff exercise.
-   */
-  const refused = role === 'preferred';
-  /**
-   Exact writable catalog record that Pi receives.
-   */
-  const model = members[role];
+async function registerWriterProvider(): Promise<void> {
   /**
    Provider object registered with the host.
    */
   const provider: Provider = {
-    id: model.provider,
-    name: model.provider,
-    getModels() { return [model,]; },
+    id: refusingMember.provider,
+    name: refusingMember.provider,
+    getModels() { return [members.refusing, members.answering,]; },
     auth: {
       apiKey: {
         name: 'Stand-in credential',
@@ -114,22 +119,21 @@ async function registerStandIn(role: 'preferred' | 'backup',): Promise<void> {
     ) {
       if (options?.apiKey !== MEMBER_KEY)
         throw new Error('Pi registry did not resolve the stand-in credential',);
-      calls.push(physical.provider,);
+      calls.push(labelOfMember(physical,),);
       return immediate({
         model: physical,
-        ...(refused ? { errorMessage: rateLimitRefusal({ model: physical, },), } : {}),
+        ...(physical.id === members.refusing.id ? { errorMessage: rateLimitRefusal({ model: physical, },), } : {}),
       },);
     },
   };
   modelRuntime.registerNativeProvider(provider,);
   await modelRuntime.setRuntimeApiKey(
-    model.provider,
+    provider.id,
     MEMBER_KEY,
   );
 }
 
-await registerStandIn('preferred',);
-await registerStandIn('backup',);
+await registerWriterProvider();
 
 /**
  Pool provider the verifier expects from Pi's extension loader.
@@ -224,8 +228,8 @@ assert.equal(
   assert.deepEqual(
     calls,
     [
-      head.provider,
-      fallback.provider,
+      labelOfMember(members.refusing,),
+      labelOfMember(members.answering,),
     ],
   );
   /**
@@ -245,12 +249,12 @@ assert.equal(
   assert.equal(
     answers[0]
       ?.provider,
-    fallback.provider,
+    answeringMember.provider,
   );
   assert.equal(
     answers[0]
       ?.model,
-    fallback.id,
+    answeringMember.id,
   );
   assert.equal(
     answers[0]
