@@ -1,5 +1,6 @@
 {
   "extends": "@monochromatic-dev/config-typescript/dom",
+  "files": ["task.ts"],
   "compilerOptions": {
     "types": ["node"]
   }

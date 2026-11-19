@@ -58,18 +58,24 @@ const [
   stdout,
   stderr,
 ] = await Promise.all([
-  once(child, 'close',),
+  once(
+    child,
+    'close',
+  ),
   text(child.stdout,),
   text(child.stderr,),
 ],);
 if (child.exitCode !== 0)
-  throw new Error('Pi verifier did not exit successfully.', {
-    cause: {
-      exitCode: child.exitCode,
-      signal: child.signalCode,
-      stderr,
+  throw new Error(
+    'Pi verifier did not exit successfully.',
+    {
+      cause: {
+        exitCode: child.exitCode,
+        signal: child.signalCode,
+        stderr,
+      },
     },
-  },);
+  );
 process.stdout
   .write(stdout,);
 process.stderr
