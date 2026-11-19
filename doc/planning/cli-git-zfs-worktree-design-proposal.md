@@ -106,8 +106,8 @@ Evidence: [vet][vet], lines 429 to 449, and its `keep/running-kernel-zfs-cmd-lay
 The [project decided][answers] "A: Test plus runtime gate (Recommended)" for a changed ZFS module. Keep the BTF
 test. At start, before the first ioctl, both binaries must prove compatibility with the loaded module and target
 ABI, including module release, architecture, endianness, request contract and kernel/module BTF layout. A missing
-device, missing required BTF or mismatch disables raw requests, including reads; no force flag. Unverified architectures, including
-`linux-arm64` until separately tested, still run the ordinary checkout route. Whether verification uses exact
+device, missing required BTF or mismatch disables raw requests, including reads; no force flag. Unverified
+architectures, including `linux-arm64` until separately tested, still use the ordinary checkout route. Whether verification uses exact
 approved BTF digests or compares fields at runtime is an [open choice](#open-project-choices). The gate must report
 what failed, also when an update makes existing clones temporarily unavailable. A failed gate does not authorize
 an unrelated mount or cleanup; keep registrations and durable recovery state intact.
@@ -166,7 +166,8 @@ of import, key loading or checkout mount must not add mounts or mountpoint folde
 For a legacy checkout, exclude every nonclone nested dataset from the automatic scan (candidate: `canmount=noauto`).
 For the vm-builder output and any other nested dataset, order its explicit mount unit after and require the
 verified descriptor checkout provider. Do not let the checkout mount cover a nested mount on the home underlay.
-The actual `zfs mount -a` ordering and failed-checkout controls are pending in the [VM measurement record][measurements].
+The actual `zfs mount -a` ordering and failed-checkout controls are pending in the
+[VM measurement record][measurements].
 If ordinary path ordering cannot fail closed, explicitly gate the nonclone nested mounts on verified checkout
 success even with an ordinary checkout. Do not enable either boot option that fails this condition.
 
@@ -201,7 +202,8 @@ acceptance; the built wrapper must still exercise it.
     root-owned handler and configuration, live ZED, and usable root-owned status/results. Require a current
     handler readiness report for the actual pool, checkout and boot, not just a present executable. Check the
     selected source eligibility policy and capture the index/tree verification inputs. On refusal, name the check
-    and choose the applicable fallback without leaving a managed object. Never substitute the main checkout for a linked source.
+    and choose the applicable fallback without leaving a managed object. Never substitute the main checkout for a
+    linked source.
 2.  Claim the destination as the account with an exclusive per-add record in the Git common directory. Write
     the proposed clone name and unique `git-worktree-clone-origin-<nonce>` snapshot name before any mutation
     beyond the claim. Create or verify an empty account-owned slot, then run Git's supported
@@ -306,8 +308,9 @@ selected by the open boot choice:
 - Legacy checkout: the proposed `mount-monochromatic-checkout-by-descriptor.service`.
 
 The selected provider must require the actual home and key-loading providers and order after them and
-`zfs-import.target`. Order reconciliation after those providers as well. Run both modes in the host mount
-namespace. Order startup before `systemd-user-sessions.service`; install the checkout provider dependency
+`zfs-import.target`. Order reconciliation after those providers as well, and after `home.mount` and
+`home-user-Monochromatic.mount` when systemd tracks those mounts separately, so their stop jobs cannot
+race the clone sweep. Run both modes in the host mount namespace. Order startup before `systemd-user-sessions.service`; install the checkout provider dependency
 for services of the account that need the checkout rather than relying on login ordering alone.
 
 - `ExecStart` runs the installed `mount-git-worktree-clone-datasets boot-reconcile`. It verifies ABI, keys,
@@ -315,8 +318,8 @@ for services of the account that need the checkout rather than relying on login 
   A failed prerequisite authorizes no attachment. Report per-clone failures without discarding the unit's
   stop action for mounts that did succeed.
 - `ExecStopPost` runs `mount-git-worktree-clone-datasets shutdown-unmount`, including after a failed or interrupted
-  start (`systemd.service(5)`, `ExecStopPost=`). Withdraw readiness and close admission
-  to new ZED attaches before draining in-flight slot operations. Unmount the verified managed mounts only;
+  start (`systemd.service(5)`, `ExecStopPost=`). Withdraw readiness and close admission to new ZED attaches
+  before draining in-flight slot operations. Unmount the verified managed mounts only;
   do not change durable intent. Reverse stop ordering puts the sweep before the checkout/home providers
   stop and before key unload and pool export. Use `Before=umount.target` with `Conflicts=umount.target`;
   when a host has a separate export job, order its teardown after the stop pass. Ordering does not turn a
@@ -347,7 +350,7 @@ the wrapper, and opened relative to the trusted directory. Nonces appear only as
 never in a filename. Include the operation, matching nonce, outcome, mount identity and failed step/errno where
 applicable. Readiness also records the current boot, pool, checkout and sweep state. The runtime files are a cache,
 not authority to act; rebuild them from live state and durable intent. Do not write acknowledgement properties from
-root. A waiter can change the local `org.monochromatic:git-worktree-clone-mount-sweep-nonce` once to wake a new sweep;
+root. A waiter can change the local `org.monochromatic:git-worktree-clone-mount-sweep-nonce` once to wake a new sweep.
 The nudge uses the same hex format and is not a mount instruction. The [ZFS planning probes][zfs-plan], lines
 208 to 213, saw replay after restarting ZED and recovery when a user property on the parent was set. They did
 not show recovery of the lost last event without another trigger.
@@ -368,10 +371,11 @@ handler uses the verified slot descriptors for mount management, not privileged 
 
 Only an administrator may explicitly adopt a legitimate replacement after checkout restore or folder recreation.
 The installed root tool's `adopt-worktree-parent` mode runs with managed operations quiesced. Starting from the
-pinned checkout mount, walk the canonical components with the no-crossing, no-follow resolver. Verify the intended
-replacement's owner, mode and access/default ACLs against policy and the administrator's verified identity;
-record them and the device and inode from the held descriptor. First reconcile all affected bindings against live
-and staged mounts, claims and Git registrations. If any cannot be resolved, refuse adoption and report what needs
+pinned checkout mount, walk the canonical components with the no-crossing, no-follow resolver. The administrator
+must identify the intended replacement by device and inode, independently verified from the restored checkout or
+controlled recreation. Check the held descriptor against those values and its owner, mode and access/default ACLs
+against policy. Reconcile all affected bindings against live and staged mounts, claims and Git registrations, then
+check a fresh canonical lookup matches the held descriptor before recording its identity. If any cannot be resolved, refuse adoption and report what needs
 recovery. Never overwrite surviving slot identities or adopt a replacement for an existing binding implicitly.
 Until adoption, refuse managed mutations on the mismatched parent. On an otherwise unused and verified slot,
 ordinary same-dataset reflink (rung 2), or native Git when reflink does not qualify (rung 3), remains available
@@ -380,8 +384,8 @@ without root. Never use fallback to write over an unresolved managed slot.
 The syscall floor is Linux 5.6 for `openat2`; the other mount APIs used here start at 5.2 (`openat2(2)`,
 `fsmount(2)` and `move_mount(2)`, "History"). The demonstrated guest baseline is `6.8.0-147-generic` with
 OpenZFS 2.4.4 ([nested-clone research][nested], "What was checked and how" and item 3). That validates the
-exercised calls on that build, not the complete mechanism on all kernels at or beyond the syscall floor. Check the actual kernel
-and required operations at handler readiness, separately from the ioctl ABI gate. If unverified, refuse managed
+exercised calls on that build, not the complete mechanism on all kernels at or beyond the syscall floor. Check the
+actual kernel and required operations at handler readiness, separately from the ioctl ABI gate. If unverified, refuse managed
 mounts and report the applicable reflink or Git route.
 
 Use the research's descriptor-relative `openat2` constraints, `fsmount` with enforced `nosuid,nodev`, and
@@ -395,23 +399,25 @@ path-based attach or unmount on the account-controlled tree.
 For unmount, the process that attached the clone is usually gone. The [VM measurement record][measurements] is
 testing this candidate, not an established unmount mechanism: reopen the recorded parent from the verified
 checkout using the same no-crossing `openat2` walks. In a separate `openat2` call, open only the final slot from
-that parent with `O_PATH | O_DIRECTORY` and `RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_MAGICLINKS`. Omit `RESOLVE_NO_XDEV` only for that hop so
-the open can cross into the attached mount. Verify that the descriptor is the mount root: compare its mount ID
-and `st_dev` with the matching host `mountinfo` entry, which must show the expected slot, parent mount ID, ZFS
+that parent with `O_PATH | O_DIRECTORY` and `RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_MAGICLINKS`.
+Omit `RESOLVE_NO_XDEV` only for that hop to cross into the attached mount. Verify that the descriptor is the
+mount root: compare its mount ID from `fdinfo` and `st_dev` with the matching host `mountinfo` entry, which must
+show the expected slot, parent mount ID, ZFS
 root and source. Compare the source's live dataset GUID with the binding and prove the observed mount ID is
 that of the handler's attachment for this boot. A matching dataset name or device alone does not distinguish
 an unrelated bind of the clone root. Refuse mismatches and ambiguous identities; an interrupted attach lacking
 adequate evidence needs recovery. Recheck the canonical lookup before moving. The move takes the verified
 descriptor, not a lookup of the slot path. Move the mount to root-owned private staging. Verify it there,
-release descriptors that would hold it busy, then unmount in staging without force or lazy detach. The guest's move out of a shared checkout refused
-with `EINVAL` (`guest-exact-zfs.log:230`); `move_mount(2)` identifies the source mount's immediate parent as the
+release descriptors that would hold it busy, then unmount in staging without force or lazy detach. The guest's
+move out of a shared checkout refused with `EINVAL` (`guest-exact-zfs.log:230`); `move_mount(2)` identifies the
+source mount's immediate parent as the
 constraint. Do not attach where safe unmount and staging propagation have not been verified. The exact propagation
 checks and supported topologies are pending in the [VM measurement record][measurements]; see
 [Shared ancestor policy](#open-project-choices). If final unmount is busy after the move, the choice of trying
 reattach or retaining it staged is [open](#open-project-choices). Track and report staged identity and location
-across handler interruption so no subsequent pass treats a mount missing from the
-slot as gone. Publish success only after checking actual mount state, not path absence. The runtime test must prove
-this for busy mounts and propagation peers; the probe did not combine the descriptor move with a busy unmount.
+across handler interruption so no pass treats a mount missing from the slot as gone. Publish success only after
+checking actual mount state, not path absence. Test busy mounts and propagation peers; the nested probe did not
+combine a descriptor move with a busy unmount.
 
 ### Waiting and refusal
 
@@ -777,8 +783,7 @@ file and its results are not present in this worktree yet.
 Run with the built wrapper and handler on a disposable VM's file-backed pool, without passing through the host's
 pool or `/dev/zfs`. Repeat the [host-shaped encrypted fixture](#measurements-due-before-design-acceptance) with the
 built programs, including an unloaded-key control for the handler and clone fill. Test root installation and then
-the account with only the proposed delegation. Capture versions,
-assertions and controls, not just logs. Make the VM recipe reproducible: retry the documented `mvm` template route
+the account with only the proposed delegation. Capture versions, assertions and controls, not just logs. Make the VM recipe reproducible: retry the documented `mvm` template route
 that failed with `guest agent on template-setup did not respond within 120s`, or verify and document the disposable
 QEMU recipe using the same OpenZFS version. Retain evidence of guest and pool teardown, not system changes on the
 host. These gates carry the [handover's H1 and H2 disposition][handover] and the nested study's
@@ -801,12 +806,12 @@ host. These gates carry the [handover's H1 and H2 disposition][handover] and the
 - H1 gate 6: run unmount from a handler invocation that did not attach the clone. Change a path between resolution
   and unmount; assert no unrelated mount unmounts. Use a real busy holder and exercise move to staging, busy refusal,
   and the selected policy for reattach or retention. Test interruption there. Repeat the shared-checkout and
-  private-checkout controls with the built programs and the selected policy. A held procfd's `EBUSY` is not the busy-holder test.
+  private-checkout controls with the built programs and the selected policy. A held procfd's `EBUSY` does not
+  exercise an independent busy holder.
 - H1 gate 7: exercise a confined user namespace without extra authority. Show that it cannot attach the clone with
   different flags despite OpenZFS's `FS_USERNS_MOUNT` declaration. Exercise a permitted host mount as the control,
   verify late-mount visibility in confined consumers under shared and private checkout propagation (with and
-  without the read-only parent bind), and run the same-dataset reflink fallback
-  in the actual confined consumer context.
+  without the read-only parent bind), and run the same-dataset reflink fallback in the actual confined consumer.
 
 ### Boot, shutdown and setup
 
