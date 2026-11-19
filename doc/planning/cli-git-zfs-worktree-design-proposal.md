@@ -1236,7 +1236,8 @@ is approved, released or implemented: this file remains a non-final draft.
   now owes ([Forced removal and deferred origins](#forced-removal-and-deferred-origins)).
 - Managed path interface. Decided: "Canonical path only (Recommended)". The route accepts the canonical path from
   ordinary `git worktree add <path>` only, with fallback at the same slot; the unselected opt-in named allocator
-  would have reported a chosen path under `.claude/worktrees` and added a caller-facing command.
+  would have reported a chosen path under `.claude/worktrees` and could simplify driver integration, at the cost of
+  a caller-facing command.
   [VM item 1][vm-register] used an explicit canonical path under that parent, not an allocator or the wrapper's
   command forms.
 - Eligible clone origins. Decided: "Main checkout only (Recommended)". A linked origin would preserve that
@@ -1281,9 +1282,9 @@ is approved, released or implemented: this file remains a non-final draft.
   grant model (`lib/libzfs_core/libzfs_core.c:442` to `:451`, OpenZFS `zfs-2.4.4`), not a measured account-run
   deferred destroy ([Clone removal identity protection](#clone-removal-identity-protection)).
 - Space-pressure pruning. Decided: "Current scope (Recommended)". The guard keeps its current scope and the route
-  reports its limits; the unselected managed-descendant allowlist for sanoid hourlies would have released more
-  blocks while deleting some living worktree history before normal expiry. The [VM record][vm-limits] does not
-  measure host storage performance or what the guard would reclaim.
+  reports its limits; the unselected managed-descendant allowlist for sanoid hourlies with newest-per-dataset
+  retention would have released more blocks while deleting some living worktree history before normal expiry. The
+  [VM record][vm-limits] does not measure host storage performance or what the guard would reclaim.
 - Misplaced attach. Decided: "Roll back at once (Recommended)", immediate rollback of the exact mount by verified
   descriptor, retaining and reporting it only if rollback fails. [VM item 2][vm-refusals] measured successful
   rollback in synchronized trials in a private namespace,
@@ -1382,8 +1383,8 @@ from the grant model and from what the `defer` key does
 (`lib/libzfs_core/libzfs_core.c:442` to `:451`, OpenZFS `zfs-2.4.4`), not a measured account-run deferred destroy.
 Of the two programs that prune snapshots on this host, neither passes a deferred destroy
 (`/usr/bin/sanoid:399`, `/usr/local/sbin/zfs-space-guard:50`); other callers were not inspected, so the grant is
-the one this design can account for. Neither alternative changes "B: Destroy at once"
-([project decision][answers], lines 491 to 494).
+the one this design can account for. Neither the decided route nor the root alternative changes "B: Destroy at
+once" ([project decision][answers], lines 491 to 494).
 
 [VM item 12][vm-replacement] measured the delegated account destroying an unmounted clone and reusing its name,
 including with another clone of the same origin. A fresh GUID read can see a replacement but does not bind a later
