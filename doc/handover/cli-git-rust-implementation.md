@@ -39917,6 +39917,18 @@ Owner answers of 2026-11-18 (question tool):
   the lint run now going (`pi-provider-that-falls-back-across-providers-2`), so it goes to a fresh writer in the same
   worktree after that run ends, then the package's DeepSeek review.
 
+The ZFS VM measurement run ended `idle` (83 turns; branch `docs/planning-cli-git-zfs-measurements-owed-before-acceptance`
+at `657d8c0011`, one commit per item; its worktree removed after checking it clean and pushed): all eleven items ran on
+encrypted file-backed pools, OpenZFS 2.4.4-1, guest kernel `6.8.0-147-generic`. Two results change the design: making
+only the checkout private was enough for the staging move (item 3), and after a promote an explicit snapshot delete
+erased checkout history before the origin dependency stopped removal (item 11). Not shown: host kernel and Git runtime,
+the product handler, unattended boot reconciliation, free-running races, same-name replacement, recovery after an
+interruption. Runs started at about 23:05-05:00, each in an existing or single new worktree:
+`pi-zfs-worktree-design-proposal-fold-in-the-vm-measurements-1` (GPT, the proposal's worktree; then the Sonnet delta
+review), `pi-node-sync-calls-go-through-coreutils-sync-1` (GPT, new worktree
+`.claude/worktrees/node-sync-calls-go-through-coreutils-sync`), `pi-provider-that-falls-back-across-providers-2` (GPT,
+oxlint to zero), `pi-prewarm-of-a-new-worktree-acts-only-on-the-entry-it-checked-2` (DeepSeek on the Qwen plan).
+
 ### No heavy worktree use before the wrapper's ZFS route (2026-11-18T21:47:42-05:00)
 
 The owner, in plain text: "We shouldn't use worktrees heavily before we implement the zfs parts for the git wrapper."
