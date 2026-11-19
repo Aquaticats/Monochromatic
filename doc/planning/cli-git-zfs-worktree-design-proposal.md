@@ -260,8 +260,8 @@ never in a filename. Include the operation, matching nonce, outcome, mount ident
 applicable. Readiness also records the current boot, pool, checkout and sweep state. The runtime files are a cache,
 not authority to act; rebuild them from live state and durable intent. Do not write acknowledgement properties from
 root. A waiter can change the local `org.monochromatic:git-worktree-clone-mount-sweep-nonce` once to wake a new sweep;
-it uses the same hex format and is not an instruction to mount. The [ZFS planning probes][zfs-plan] show replay after a ZED stop and recovery of
-a lost event on a later property change, not recovery from a lost last event with no new event.
+The nudge uses the same hex format and is not a mount instruction. The [ZFS planning probes][zfs-plan] show replay
+after a ZED stop and recovery on a later property change, not recovery from a lost last event with no new event.
 
 ### Descriptor mount and unmount
 
@@ -362,8 +362,8 @@ blocks cloning, or a valid slot does not meet the clone-name grammar and no mana
 Do not recast an ordinary byte copy as a successful reflink. **Rung 3** is the existing Git checkout and ignored
 state behavior when a reflink is refused, cross-dataset, or unproved. In particular, `FICLONE` returns `EXDEV`
 across datasets, but a successful `copy_file_range` can share blocks across datasets with the same data key.
-An encryption root alone is not the same key; this does not qualify a cross-dataset copy for rung 2 ([pnpm study][pnpm],
-"When a copy still shares blocks").
+An encryption root alone is not the same key, and a cross-dataset copy does not qualify for rung 2.
+See the [pnpm study][pnpm], "When a copy still shares blocks".
 
 The Pi driver already creates its worktree before starting the confined unit
 (`package/pi-shared/subagent-driver/src/start-pi-run-in-a-worktree.ts:238`). The planning probes found a confined
@@ -395,8 +395,8 @@ checkout or built clone route ([pnpm study][pnpm], "Where pnpm writes" and "Offl
 
 - A clone inherits relative store links at the source's depth. Keep the wrapper's
   `pnpm install --offline --frozen-lockfile` repair when a lockfile and real `node_modules` are present, queued
-  when the service answers and inline otherwise. Skip the separate ignored-file copy only after successful clone fill; raw clone symlinks
-  were not rebased by the ignored-copy path. The ordinary path still stages and publishes ignored files using its
+  when the service answers and inline otherwise. Skip the separate ignored-file copy only after successful clone
+  fill. Raw clone symlinks were not rebased by the ignored-copy path. The ordinary path still stages and publishes ignored files using its
   existing reflink, hard-link and explicit copy fallbacks. A clone source or mounted destination can separate
   source, stage and destination. Rebased links alone do not repair a path-specific global-store graph.
 - Cargo intermediate output already lives under `~/.cargo/build` on a different dataset, keyed by workspace path.
@@ -550,40 +550,104 @@ No option here is selected by this revision.
   managed-descendant allowlist for sanoid hourlies with newest-per-dataset retention. Expansion can release more
   blocks, but deletes some living worktree history before normal expiry; measure what it would reclaim first.
 
-### Measurements and checks still needed
+## Acceptance tests the build still owes
 
-- On the VM's file-backed pool, run the wrapper end to end. Cover recognized and rejected add forms, clean and
-  dirty sources, ignored/staged data and nested mounts, birth with local clone properties, boot import/key delay,
-  dropped events including after a caller exits, busy unmount, caller confinement, GUID/name replacement,
-  held snapshots, and sanoid racing removal. Include an ordinary Git and a same-dataset reflink control.
-- Measure `pnpm install` with the same lockfile and store in home, interleaving the same-dataset control and the
-  moved main and clone datasets. Record cold and warm store/cache state, elapsed stages, clone attempts and
-  copies, link targets, and dataset/pool space deltas. `packageImportMethod: clone-or-copy` and
-  `virtualStoreType: global` (`pnpm-workspace.yaml:548` and `:591`) make cross-dataset copy plausible, but links to
-  `<storeDir>/links` need no copy into the clone. Count both and distinguish paths, physical blocks and timing.
-- Measure an hourly interval containing real builds in a **living** worktree. Attribute changes and retained bytes
-  to `node_modules`, `dist`, caches and other outputs; contrast a no-build interval and the separate cost of add and
-  remove. Check bytes pinned by the origin, what sanoid and the guard can free, and what remains after removal.
-  The planning page's `17:00` to `18:00` sample was dominated by creation and deletion and had no build in a living
-  worktree ([ZFS planning record][zfs-plan], lines 386 to 425). It cannot answer this question.
-- Check that the backup includes the new mount paths and root-once config, that recovery works with origin snapshots
-  still in use, and that a failed migration can return to the previous Git registration layout. None was tested here.
+Run with the built wrapper and handler on a disposable VM's file-backed pool, without passing through the host's
+pool or `/dev/zfs`. Test root installation and then the account with only the proposed delegation. Capture versions,
+assertions and controls, not just logs. Make the VM recipe reproducible: retry the documented `mvm` template route
+that failed with `guest agent on template-setup did not respond within 120s`, or verify and document the disposable
+QEMU recipe using the same OpenZFS version. Retain evidence of guest and pool teardown, not system changes on the
+host. These gates carry the [handover's H1 and H2 disposition][handover] and the nested study's
+[What I could not show and why][nested-limits].
 
-### Relationship to the planning record
+### Descriptor safety and mount authority
 
-Keep the recommended clones, ZED, reflink fallback and root-owned parent. Replace the recommendation's `zfs`
-program driver with the owner's Rust `/dev/zfs` decision. Do not reopen sudoers, a mount broker or overlay as the
-production mount mechanism. The probe's ordinary inherited mountpoint and result property demonstrated the workflow,
-not the final boot or trust contract; this design instead proposes inherited `legacy`, persistent desired state,
-root-owned results and startup/periodic reconciliation. It specifies a safe managed path rather than privileged
-mounting at arbitrary `git worktree add` paths. Snapshotting living clones follows the owner, not the draft's
-throwaway framing; removal deliberately deletes their own snapshots and only their confirmed origin. Performance,
-mount-path validation and boot behavior for this exact design have not been demonstrated.
+- H1 gate 1: reproduce the old check-then-path-mount behavior as a positive control, using only a disposable decoy
+  inside the VM. A path mount reached a decoy in the research; that did not test a substitution after the check.
+  Prove the harness observes attachment outside the intended slot before trusting any no-mount assertion.
+- Repeat **every item 3 refusal** with the account owning `.claude/worktrees` and the slots: a link at `.claude`, at
+  `.claude/worktrees` and at the slot; a link created by the account inside the parent; a parent escape, magic link
+  and bind mount with the same device and inode; replaced inode, wrong UID and widened mode. Under this ownership
+  the account can plant a link; the required refusal is by the handler, not the old filesystem permission denial.
+  Include access and default ACL drift, a target already mounted, and a valid account-owned attach control. Assert
+  refusals identify the component or field and do not attach a clone or disturb an existing mount.
+- H1 gate 3: exercise repeated, bounded concurrent slot renames and replacements during real mounts. Assert no
+  unrelated mount is touched; an attach on a moved recorded inode is detected by the post-attach mount-ID check and
+  rolled back by descriptor or precisely reported as stranded if rollback fails. Test the post-attach check itself,
+  not just the open-time checks. The previous single rename did not verify this rollback.
+- H1 gate 5 recheck: verify mount flags in `/proc/self/mountinfo` and enforce both `nosuid` and `nodev` in the VM
+  even where dataset properties would permit them. The research measured the device refusal but not a setuid
+  execution control. Use the built handler, not the probe's mount command.
+- H1 gate 6: change a path between resolution and unmount; assert no unrelated mount unmounts. Test descriptor
+  unmount with a real busy holder, including move to staging, busy refusal, safe reattach and failed reattach with a
+  reported staged mount. Test interruption there. Show a shared ancestor is refused before attach, and exercise the
+  staging move-back failure control under shared propagation. A held procfd's `EBUSY` is not the busy-holder test.
+- H1 gate 7: exercise a confined user namespace without extra authority. Show that it cannot attach the clone with
+  different flags despite OpenZFS's `FS_USERNS_MOUNT` declaration. Exercise a permitted host mount as the control,
+  verify caller visibility (including the read-only parent bind case), and run the same-dataset reflink fallback
+  in the actual confined consumer context.
+
+### Boot, shutdown and setup
+
+- Perform an actual reboot and shutdown with idle and busy legacy clones. Prove the selected boot protection of the
+  checkout at the unchanged path. Delay or fail import, key loading and checkout mounting; no clone may appear on
+  the home underlay. Verify startup reconciliation runs after checkout identity is established, and test the possible
+  `zfs mount -a` ordering race at boot. Ordinary clone mountpoints are not part of the shipped setup.
+- Enable real ZED in the guest and exercise the configured ordering, replay, dropped events with and without a live
+  caller, concurrent zedlets, stale receipts, and pending unmount across restart. Measure elapsed stages and use
+  readiness/refusal controls with the handler absent, ABI unsupported and ZED stopped. Repeat with a second host's
+  sanoid and ZED configuration in isolation; earlier nested-clone tests did not start ZED in the guest.
+- Verify direct checkout/home unmount names held clones, idle export/import with a clone succeeds and recovers, and
+  busy export fails without a forced teardown. Record root's exact-version behavior on destroy of a mounted clone
+  in the guest; the wrapper must refuse before attempting it regardless of the tool result.
+- Exercise migration and rollback on the disposable layout, including linked Git pointers, an independently mounted
+  vm-builder output dataset, ignored underlay files and a recoverable backup. Check that `doctor` reports partial
+  reads and prints the tested root-once commands for the selected setup, without mutating it. Test which paths the
+  actual Kopia job can see, whether it crosses a ZFS boundary, and restoration of the checkout and configuration
+  with origins still pinned. An unavailable job is an unknown, not proof of exclusion.
+
+### Binding, Git and lifecycle
+
+- Verify exact ioctl values and Rust layout against the running module's BTF; exercise native nvlist encoding,
+  resizing, permissions and property sources. Test both accepted and refused creation-time user properties plus
+  post-create `ZFS_IOC_SET_PROP`. Test malformed, oversized or inherited mount intent and stale results with no
+  unauthorized filesystem action. Verify the release wrapper starts without OpenZFS and has no CDDL dependency.
+- Drive the full register-first add at exactly `.claude/worktrees/<name>` with descriptor mounting and account-owned
+  slots. Use Git 2.56.1 at runtime; the nested guest used 2.43.0. Recheck empty vs. non-empty registration, the
+  common directory and index, boundary-safe ignored cleanup, nested path omissions and mounted/unmounted `move`.
+  Use ordinary Git and same-dataset reflink controls and a cross-dataset negative control. Cover recognized and
+  rejected forms, dirty sources and a tracked write between preflight and snapshot that the frozen proof refuses.
+- Kill add at each of item 7's five points and around the origin and clone identity writes. Test `ENOSPC` at
+  snapshot and clone; report what survives, resume only proven objects and never fall through onto a pending slot.
+  With the clone unmounted, verify `prune` keeps the underlay pointer with a missing-pointer positive control.
+  Test link repair with surviving admin data, and already-pruned admin state with and without a verified backup.
+- Kill removal across unmount, snapshot destruction, clone and origin cleanup, and Git and directory cleanup.
+  Verify busy and staged mounts, nested datasets, same-name replacements, held or new sanoid snapshots and another
+  clone pinning the origin each block the unsafe next action. Distinguish completed clone removal from an origin or
+  Git cleanup still owed. Verify safe retries under the actual request and mount state.
+
+### Tooling, retention and performance
+
+- Exercise sanoid 2.3.0, including prune behavior not tested by the 2.2.0 guest. Confirm recursive coverage, explicit
+  exclusions, section-order and `recursive = zfs` controls, and separate retention for checkout underlays, clone
+  snapshots and pinned origins. Measure a living worktree with real builds versus a no-build interval, separate
+  from add and removal churn. Attribute retained bytes to real output and verified ZFS accounting; measure what
+  expiration, removal and the current guard can free.
+- Test real dependency preparation after add and after migration. Interleave the same-dataset control with the new
+  checkout and mounted clone using the same lockfile and home store. Separate payload imports, relink, elapsed
+  stages and allocation; use `project` virtual store as a copy-detecting control. Check queued and inline repair,
+  Cargo prewarm and cross-filesystem lock recovery, mise and launcher repair, and watch rebinding in the editor.
+  The research did not measure the shipped wrapper, complete toolchain install, cold registry fetch or editor GUI.
+- Compare clone-add and fallback stages against ordinary Git under the same real workload. Separate Git fill,
+  mount/request wait, and downstream preparation. Use measured reconciliation and shutdown workloads to size any
+  shipped deadline or optional scan interval. Prior isolated mount latency is not a prediction of ready-to-use
+  worktree time.
 
 [answers]: cli-git-zfs-worktree.md#owners-answers-of-2026-11-18
 [zfs-plan]: cli-git-zfs-worktree.md
 [handover]: ../handover/cli-git-rust-implementation.md
 [nested]: cli-git-zfs-clones-mounted-under-the-checkout.md
+[nested-limits]: cli-git-zfs-clones-mounted-under-the-checkout.md#what-i-could-not-show-and-why
 [pnpm]: cli-git-zfs-checkout-dataset-and-pnpm.md
 [vet]: ../audit/tech-rust-crate-for-openzfs-vet-2026-11-18.md
 [btrfs-plan]: cli-git-btrfs-worktree.md
