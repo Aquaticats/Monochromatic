@@ -173,7 +173,7 @@ export function isPolicyStop({
 
  @example
  ```ts
- isRateLimit({ message: { stopReason: 'error', errorMessage: 'HTTP 429: limited' } }); // true
+ isRateLimit({ message: { stopReason: 'error', errorMessage: '429: {"message":"Too many requests"}' } }); // true
  ```
  */
 export function isRateLimit({
