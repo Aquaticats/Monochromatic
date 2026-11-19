@@ -21,14 +21,14 @@ const REVIEWER = [
   { provider: 'neuralwatt', id: 'deepseek-v4.1-flash-flex', },
 ] as const;
 
+/** Physical model being considered for a request. */
+type Member = Readonly<{ provider: string; id: string; }>;
+
 /** Physical routes by public model id. */
-export const POOLS = {
+export const POOLS: Readonly<Record<'writer' | 'reviewer', readonly Member[]>> = {
   writer: [{ provider: 'openai', id: 'gpt-6.2-sol', }, ...REVIEWER,],
   reviewer: REVIEWER,
-} as const;
-
-/** Physical model being considered for a request. */
-export type Member = typeof POOLS.writer[number];
+};
 
 /**
  Catalog available before an extension receives its session registry.

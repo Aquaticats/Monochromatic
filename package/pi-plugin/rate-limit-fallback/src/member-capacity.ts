@@ -78,7 +78,7 @@ export async function refreshCapacity({
   capacity: MemberCapacity;
   registry: RoutingRegistry;
   model: Model<Api>;
-  options?: SimpleStreamOptions;
+  options: SimpleStreamOptions | undefined;
 },): Promise<void> {
   async function refresh(): Promise<void> {
     capacity.needsProbe = false;
@@ -88,7 +88,7 @@ export async function refreshCapacity({
       fetchQuota: options?.fetch ?? globalThis.fetch,
       signal: quotaSignal(options,),
     },);
-    if (options?.signal?.aborted) {
+    if (options?.signal?.aborted === true) {
       capacity.needsProbe = true;
       return;
     }
@@ -96,7 +96,9 @@ export async function refreshCapacity({
     capacity.evidence = {
       concurrency: evidence.concurrency ?? capacity.evidence.concurrency,
       overage: evidence.overage ?? capacity.evidence.overage,
-      periodEnd: evidence.periodEnd || capacity.evidence.periodEnd,
+      periodEnd: evidence.periodEnd === undefined || evidence.periodEnd === 0
+        ? capacity.evidence.periodEnd
+        : evidence.periodEnd,
     };
     capacity.retryAt = Math.max(capacity.retryAt, evidence.retryAt ?? 0,);
     if (capacity.overage !== undefined) {

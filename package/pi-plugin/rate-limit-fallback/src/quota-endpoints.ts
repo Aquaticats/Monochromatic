@@ -26,13 +26,13 @@ const NEURALWATT_QUOTA = 'https://api.neuralwatt.com/v1/quota';
 /** Only the provider-published facts that affect routing. */
 export type QuotaEvidence = {
   /** When a reported exhausted window can first be checked again. */
-  readonly retryAt?: number;
+  readonly retryAt?: number | undefined;
   /** Published ceiling for the requested model and lane, not free slots. */
-  readonly concurrency?: number;
+  readonly concurrency?: number | undefined;
   /** Whether the known pay-as-you-go exception is currently active. */
-  readonly overage?: boolean;
+  readonly overage?: boolean | undefined;
   /** End of the provider's current subscription period. */
-  readonly periodEnd?: number;
+  readonly periodEnd?: number | undefined;
 };
 
 /**
@@ -52,14 +52,14 @@ async function requestQuota({
   url: string | URL;
   key: string;
   fetchQuota: FetchFunction;
-  signal?: AbortSignal;
+  signal: AbortSignal | undefined;
 },): Promise<unknown> {
   const rl = tagged({ tag: requestQuota.name, l, },);
   try {
     const response = await fetchQuota(url, {
       headers: { authorization: `Bearer ${key}`, },
       redirect: 'error',
-      signal,
+      ...(signal === undefined ? {} : { signal, }),
     },);
     if (!response.ok) {
       await response.body?.cancel();
@@ -115,7 +115,7 @@ export async function probeQuota({
   registry: RoutingRegistry;
   model: Model<Api>;
   fetchQuota: FetchFunction;
-  signal?: AbortSignal;
+  signal: AbortSignal | undefined;
 },): Promise<QuotaEvidence> {
   const rl = tagged({ tag: probeQuota.name, l, },);
   const { provider, } = model;
@@ -128,7 +128,8 @@ export async function probeQuota({
       return {};
     const auth = await registry.getApiKeyAndHeaders(model,);
     signal?.throwIfAborted();
-    if (!auth.ok || !auth.apiKey || URL.parse(auth.baseUrl ?? model.baseUrl,)?.origin !== origin)
+    if (!auth.ok || auth.apiKey === undefined || auth.apiKey === ''
+      || URL.parse(auth.baseUrl ?? model.baseUrl,)?.origin !== origin)
       return {};
     const request = { key: auth.apiKey, fetchQuota, signal, };
     if (provider === 'synthetic')

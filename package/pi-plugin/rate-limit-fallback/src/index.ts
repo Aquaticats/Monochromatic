@@ -6,6 +6,7 @@
 import {
   lazyStream,
   type Api,
+  type ApiStreamOptions,
   type AssistantMessageEventStream,
   type Model,
   type Provider,
@@ -66,7 +67,29 @@ export default function rateLimitFallbackExtension(pi: ExtensionAPI,): void {
     getModels() {
       return MODELS;
     },
-    stream: route,
+    stream: function streamPool<T extends Api>(
+      model: Model<T>,
+      context: TranscriptContext,
+      options?: ApiStreamOptions<T>,
+    ): AssistantMessageEventStream {
+      // API-specific controls have no meaning on a pool. Keep only shared request options.
+      const {
+        signal, onPayload, onResponse, onProviderStreamEvent, maxTokens, fetch, timeoutMs,
+        maxRetries, maxRetryDelayMs, sessionId,
+      } = options ?? {};
+      return route(model, context, {
+        ...(signal === undefined ? {} : { signal, }),
+        ...(onPayload === undefined ? {} : { onPayload, }),
+        ...(onResponse === undefined ? {} : { onResponse, }),
+        ...(onProviderStreamEvent === undefined ? {} : { onProviderStreamEvent, }),
+        ...(maxTokens === undefined ? {} : { maxTokens, }),
+        ...(fetch === undefined ? {} : { fetch, }),
+        ...(timeoutMs === undefined ? {} : { timeoutMs, }),
+        ...(maxRetries === undefined ? {} : { maxRetries, }),
+        ...(maxRetryDelayMs === undefined ? {} : { maxRetryDelayMs, }),
+        ...(sessionId === undefined ? {} : { sessionId, }),
+      },);
+    },
     streamSimple: route,
   };
   pi.registerProvider(provider,);

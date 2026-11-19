@@ -30,7 +30,7 @@ export function isRateLimit({
   status,
 }: {
   message: AssistantMessage;
-  status?: number;
+  status: number | undefined;
 },): boolean {
   return message.stopReason === 'error'
     && !POLICY_STOP.test(message.errorMessage ?? '',)
@@ -117,7 +117,9 @@ function resetDuration(value: string,): number {
     const match = token.exec(value,);
     if (match === null)
       return 0;
-    const unit = match[2] as keyof typeof RESET_UNITS;
+    const unit = match[2];
+    if (unit !== 'ms' && unit !== 's' && unit !== 'm' && unit !== 'h' && unit !== 'd')
+      return 0;
     duration += Number(match[1],) * RESET_UNITS[unit];
     cursor = token.lastIndex;
   }

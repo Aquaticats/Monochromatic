@@ -48,7 +48,7 @@ function memberOptions({
   options,
 }: {
   model: Model<Api>;
-  options?: SimpleStreamOptions;
+  options: SimpleStreamOptions | undefined;
 },): SimpleStreamOptions {
   const { apiKey, headers, env, maxTokens, reasoning, ...neutral } = options ?? {};
   void apiKey;
@@ -57,10 +57,10 @@ function memberOptions({
   const clamped = clampThinkingLevel(model, reasoning ?? 'off',);
   return {
     ...neutral,
-    maxTokens: maxTokens !== undefined && model.maxTokens > 0
-      ? Math.min(maxTokens, model.maxTokens,)
-      : maxTokens,
-    reasoning: clamped === 'off' ? undefined : clamped,
+    ...(maxTokens === undefined ? {} : {
+      maxTokens: model.maxTokens > 0 ? Math.min(maxTokens, model.maxTokens,) : maxTokens,
+    }),
+    ...(clamped === 'off' ? {} : { reasoning: clamped, }),
   };
 }
 
@@ -86,7 +86,7 @@ export async function* dispatchRequest({
   session: RoutingSession;
   model: Model<Api>;
   context: TranscriptContext;
-  options?: SimpleStreamOptions;
+  options: SimpleStreamOptions | undefined;
 },): AsyncGenerator<AssistantMessageEvent> {
   const rl = tagged({ tag: dispatchRequest.name, l, },);
   const { id, } = model;
