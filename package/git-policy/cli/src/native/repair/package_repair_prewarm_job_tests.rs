@@ -1701,3 +1701,260 @@ fn no_seam_leaves_another_commands_entry_removed_or_written_into() {
         remove(root.as_path());
     }
 }
+
+//region The four findings of the review at `85a9f8523f`, as controls
+
+/// What:
+///  A stand-in Cargo that writes down the build directory it was given and whether that path is
+///  there, which is the question finding 1 asks of the child.
+/// Why:
+///   The wrapper holds the directory open and builds a path through its descriptor;
+/// the child resolves `/proc/self` as itself, so only running a child proves which process a path names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cargoThatRecords = (root) => executable(join(root, 'cargo-that-records'), script)
+/// ```
+fn cargo_that_records_the_path_it_was_given(root: &Path) -> PathBuf {
+    let program: PathBuf = root.join("cargo-that-records");
+    crate::test_support::executable(
+        program.as_path(),
+        b"#!/bin/sh\nhere=$(dirname \"$0\")\nprintf '%s\\n' \"$CARGO_BUILD_BUILD_DIR\" > \"$here/the-build-directory-it-was-given\"\nif [ -e \"$CARGO_BUILD_BUILD_DIR\" ]; then printf 'reachable\\n' >> \"$here/the-build-directory-it-was-given\"; else printf 'unreachable\\n' >> \"$here/the-build-directory-it-was-given\"; fi\nexit 0\n",
+    );
+    return program;
+}
+
+/// What:
+///  The path the clean's child is given names the directory this run holds,
+///  and the child can reach it.
+/// Why:
+///   Finding 1: `CARGO_BUILD_BUILD_DIR=/proc/self/fd/<the wrapper's descriptor>` is read by Cargo,
+/// where `/proc/self` is Cargo and the descriptor was opened close-on-exec,
+/// so the ordinary `--locked` clean fails and the filling takes the mirror path.
+///   This control runs the real `clean_the_copy` with a child that writes down what it met.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const run = cleanTheCopy(fillWithRecordingCargo, entry, names); expect(theChildReachedTheDirectory()).toBe(true)
+/// ```
+#[test]
+fn the_clean_is_given_a_path_its_child_can_itself_reach() {
+    let root: PathBuf = fixture("prewarm-child-path");
+    let worktree: PathBuf = root.join("worktree");
+    std::fs::create_dir_all(worktree.as_path()).expect("the worktree");
+    let destination: PathBuf = worktree.join("build");
+    let names: TheNames = super::names_for(destination.as_path(), None).expect("the names this filling took");
+    // The clone makes the staging copy, and the target is the directory `names_for` made.
+    std::fs::create_dir_all(names.directory.along(names.staging.as_path())).expect("the staging copy the clone makes");
+    let entry: PrewarmEntry = PrewarmEntry {
+        root: worktree.clone(),
+        from: Some(root.join("source-build")),
+        to: destination.clone(),
+        members: vec![String::from("own")],
+        staged_in: None,
+    };
+    let fill: Fill = Fill {
+        cargo: cargo_that_records_the_path_it_was_given(root.as_path()),
+        limits: ToolLimits { window: core::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE },
+        kept_in: None,
+        worktree: worktree.clone(),
+        filling: String::from("a-child-path-control"),
+    };
+    let run: ToolRun = crate::lazy_runtime::run_on_runtime(super::clean_the_copy(&fill, &entry, &names)).expect("the clean runs");
+    assert_eq!(run.end, ToolEnd::Succeeded, "the stand-in Cargo succeeded");
+    let recorded: String =
+        std::fs::read_to_string(root.join("the-build-directory-it-was-given")).expect("the child wrote down the path it was given");
+    let mut lines = recorded.lines();
+    let given: PathBuf = PathBuf::from(lines.next().expect("the path the child was given"));
+    assert_eq!(lines.next(), Some("reachable"), "the child can resolve the path it is given for the build directory: {}", given.display());
+    assert_eq!(given, names.directory.along(names.staging.as_path()), "the path names the staging directory this run holds");
+    remove(root.as_path());
+}
+
+/// What:
+///  A claimed directory another command replaced after its claim was read is left where it stands,
+///  and the removal says it was left.
+/// Why:
+///   Finding 3: `remove_the_claimed_directory` read the claim, then removed the name again.
+/// The seam is placed before the act, after the claim was read, so the control tests the act.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// plantAnotherCommandsDirectoryAtTheSeam(); expect(removeTheClaimedDirectory(...)).toBe(Left); expect(itsFile).toExist()
+/// ```
+#[test]
+fn a_claimed_directory_replaced_before_the_removal_is_left_where_it_stands() {
+    let root: PathBuf = fixture("prewarm-claimed-directory-replaced");
+    let worktree: PathBuf = root.join("worktree");
+    std::fs::create_dir_all(worktree.as_path()).expect("the worktree");
+    let destination: PathBuf = worktree.join("build");
+    let staging: PathBuf = staging_of(destination.as_path());
+    a_claimed_directory(staging.as_path(), destination.as_path(), "a-filling");
+    let directory: super::TheDirectory = super::TheDirectory::of(worktree.as_path()).expect("the directory the names live in");
+    let planted: std::rc::Rc<std::cell::RefCell<Option<PathBuf>>> = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let into_the_hook = std::rc::Rc::clone(&planted);
+    let staged: PathBuf = staging.clone();
+    super::THE_STEP_HOOK.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move |reached: AStep| {
+            if reached != AStep::BeforeTheClaimedDirectoryIsTakenAside || into_the_hook.borrow().is_some() {
+                return false;
+            }
+            let _replaced = std::fs::remove_dir_all(staged.as_path());
+            std::fs::create_dir_all(staged.as_path()).expect("the other command's directory");
+            let its_file: PathBuf = staged.join("another-commands-file");
+            std::fs::write(its_file.as_path(), b"another command's data").expect("the other command's file");
+            *into_the_hook.borrow_mut() = Some(its_file);
+            return false;
+        }));
+    });
+    let answer: Result<TheRemoval, String> = super::remove_the_claimed_directory(&directory, staging.as_path(), destination.as_path());
+    super::THE_STEP_HOOK.with(|hook| { *hook.borrow_mut() = None; });
+    let its_file: PathBuf = planted.borrow_mut().take().expect("the seam was reached, so the control proves something");
+    assert_eq!(answer, Ok(TheRemoval::Left), "the removal says the entry it met was not this run's");
+    assert_eq!(
+        std::fs::read(its_file.as_path()).ok(),
+        Some(b"another command's data".to_vec()),
+        "the other command's file still stands at {}",
+        its_file.display()
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A marker another command renamed over after its identity was checked is left where its writer put it,
+///  and taking the marker back says it was left.
+/// Why:
+///   Finding 4: `take_the_marker_back` compared the identity, then unlinked the name.
+/// The seam is placed before the unlink, after the check.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// plantAFileOverTheMarkerAtTheSeam(); expect(takeTheMarkerBack(marker, read)).toBe(Left); expect(itsFile).toExist()
+/// ```
+#[test]
+fn a_marker_replaced_before_the_unlink_is_left_where_its_writer_put_it() {
+    let root: PathBuf = fixture("prewarm-marker-replaced");
+    let worktree: PathBuf = root.join("worktree");
+    std::fs::create_dir_all(worktree.as_path()).expect("the worktree");
+    let destination: PathBuf = worktree.join("build");
+    let staging: PathBuf = staging_of(destination.as_path());
+    let marker: PathBuf = marker_of(staging.as_path());
+    write_marker(marker.as_path(), destination.as_path(), WhatTheMarkerRecords::TheStaging, "a-run").expect("this job's marker");
+    let TheMarkerThere::ThisJobs(claim) = the_marker_there(marker.as_path()) else {
+        panic!("the marker this control wrote is this job's");
+    };
+    let planted: std::rc::Rc<std::cell::RefCell<Option<PathBuf>>> = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let into_the_hook = std::rc::Rc::clone(&planted);
+    let note: PathBuf = root.join("another-commands-note");
+    let at_the_marker: PathBuf = marker.clone();
+    super::THE_STEP_HOOK.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move |reached: AStep| {
+            if reached != AStep::BeforeTheMarkerIsTakenAside || into_the_hook.borrow().is_some() {
+                return false;
+            }
+            std::fs::write(note.as_path(), b"another command's data").expect("the other command's file");
+            std::fs::rename(note.as_path(), at_the_marker.as_path()).expect("the other command's file is renamed over the marker");
+            *into_the_hook.borrow_mut() = Some(at_the_marker.clone());
+            return false;
+        }));
+    });
+    let answer: Result<TheRemoval, String> = take_the_marker_back(marker.as_path(), claim.read);
+    super::THE_STEP_HOOK.with(|hook| { *hook.borrow_mut() = None; });
+    let its_file: PathBuf = planted.borrow_mut().take().expect("the seam was reached, so the control proves something");
+    assert_eq!(answer, Ok(TheRemoval::Left), "taking the marker back says the entry it met was not this job's");
+    assert_eq!(
+        std::fs::read(its_file.as_path()).ok(),
+        Some(b"another command's data".to_vec()),
+        "the other command's file still stands at {}",
+        its_file.display()
+    );
+    remove(root.as_path());
+}
+
+/// A stand-in Cargo that fails its first run and, on the mirror's run, deletes a file from the
+/// build directory it is given, as `cargo clean` deletes from one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cargoThatFailsOnceThenCleans = (root) => executable(join(root, 'cargo-that-fails-once'), script)
+/// ```
+fn cargo_that_fails_once_then_cleans(root: &Path) -> PathBuf {
+    let program: PathBuf = root.join("cargo-that-fails-once");
+    crate::test_support::executable(
+        program.as_path(),
+        b"#!/bin/sh\nhere=$(dirname \"$0\")\ncalls=\"$here/how-many-times-it-was-started\"\nn=0\nif [ -f \"$calls\" ]; then n=$(cat \"$calls\"); fi\nn=$((n + 1))\nprintf '%s\\n' \"$n\" > \"$calls\"\nif [ \"$n\" -eq 1 ]; then exit 1; fi\nprintf '%s\\n' \"$CARGO_BUILD_BUILD_DIR\" > \"$here/the-build-directory-of-the-mirror-clean\"\nrm -f \"$CARGO_BUILD_BUILD_DIR/another-commands-file\"\nexit 0\n",
+    );
+    return program;
+}
+
+/// What:
+///  The mirror's clean is never started on a staging name that another command put its directory at
+///  after this run's claim was read, and the filling says what it met.
+/// Why:
+///   Finding 2: when the first clean failed, the fallback was given the absolute staging and target
+/// names with no check between, and Cargo deleted from whatever stood there.
+/// The seam is placed before the mirror's child runs, which is the act the paths belong to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// plantAtTheMirrorSeam(); expect(theFillingSaysWhatItMet()); expect(itsFile).toExist()
+/// ```
+#[test]
+fn the_mirror_clean_never_deletes_from_a_staging_name_that_replaced_this_runs() {
+    let root: PathBuf = fixture("prewarm-mirror-replaced");
+    let worktree: PathBuf = root.join("worktree");
+    let workspace: PathBuf = worktree.join("ws");
+    std::fs::create_dir_all(workspace.join("src")).expect("the workspace");
+    std::fs::write(workspace.join("Cargo.toml"), b"[workspace]\nmembers = [\".\"]\n\n[package]\nname = \"own\"\nversion = \"0.1.0\"\nedition = \"2024\"\n").expect("the manifest");
+    std::fs::write(workspace.join("src/lib.rs"), b"pub fn own() -> &'static str { \"own\" }\n").expect("the crate");
+    let source: PathBuf = root.join("source-build");
+    std::fs::create_dir_all(source.join("debug/deps")).expect("the source's directories");
+    std::fs::write(source.join("debug/deps/libserde.rlib"), b"the source's artifact").expect("the source's artifact");
+    let destination: PathBuf = worktree.join("build");
+    let entry: PrewarmEntry = PrewarmEntry {
+        root: workspace.clone(),
+        from: Some(source),
+        to: destination.clone(),
+        members: vec![String::from("own")],
+        staged_in: None,
+    };
+    let fill: Fill = Fill {
+        cargo: cargo_that_fails_once_then_cleans(root.as_path()),
+        limits: ToolLimits { window: core::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE },
+        kept_in: Some(root.join("git-dir")),
+        worktree: worktree.clone(),
+        filling: String::from("a-mirror-control"),
+    };
+    let staging: PathBuf = staging_of(destination.as_path());
+    let planted: std::rc::Rc<std::cell::RefCell<Option<PathBuf>>> = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let into_the_hook = std::rc::Rc::clone(&planted);
+    let staged: PathBuf = staging.clone();
+    super::THE_STEP_HOOK.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move |reached: AStep| {
+            if reached != AStep::BeforeTheMirrorClean || into_the_hook.borrow().is_some() {
+                return false;
+            }
+            let _replaced = std::fs::remove_dir_all(staged.as_path());
+            std::fs::create_dir_all(staged.as_path()).expect("the other command's directory");
+            let its_file: PathBuf = staged.join("another-commands-file");
+            std::fs::write(its_file.as_path(), b"another command's data").expect("the other command's file");
+            *into_the_hook.borrow_mut() = Some(its_file);
+            return false;
+        }));
+    });
+    let answer: Result<Filled, String> = super::fill_one_in_a_control(&fill, &entry);
+    super::THE_STEP_HOOK.with(|hook| { *hook.borrow_mut() = None; });
+    let its_file: PathBuf = planted.borrow_mut().take().expect("the seam was reached, so the control proves something");
+    let reason: String = answer.expect_err("the filling stops when the staging copy is no longer this run's");
+    assert!(reason.contains("no longer holds this run's claim"), "the filling says what it met: {reason}");
+    assert_eq!(
+        std::fs::read(its_file.as_path()).ok(),
+        Some(b"another command's data".to_vec()),
+        "the other command's file still stands at {}",
+        its_file.display()
+    );
+    assert!(!root.join("the-build-directory-of-the-mirror-clean").exists(), "no mirror clean was started on the replacement");
+    remove(root.as_path());
+}
+
+//endregion

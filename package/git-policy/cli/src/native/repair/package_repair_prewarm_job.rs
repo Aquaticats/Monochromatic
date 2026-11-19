@@ -226,8 +226,29 @@ pub(crate) enum AStep {
     AfterTheClone,
     /// Before the clean runs.
     BeforeTheClean,
+    /// Before the clean's child is given the two paths it deletes from,
+    /// which is the act the paths belong to.
+    BeforeTheChildIsGivenItsPaths,
     /// After the clean came to its answer.
     AfterTheClean,
+    /// Before the mirror's clean runs,
+    /// which is the second child this filling starts with the same two names.
+    BeforeTheMirrorClean,
+    /// Before the claimed directory the act will remove is taken aside.
+    BeforeTheClaimedDirectoryIsTakenAside,
+    /// Before the directory this run took aside is removed.
+    BeforeTheHeldDirectoryIsRemoved,
+    /// Before the marker the act will take back is taken aside.
+    BeforeTheMarkerIsTakenAside,
+    /// Before the file this run took aside at the marker's name is unlinked.
+    BeforeTheHeldMarkerIsRemoved,
+    /// Before the claim file a failed move aside wrote is taken aside.
+    BeforeTheClaimInsideIsTakenAside,
+    /// Before the marker a failed move aside wrote is taken back by name.
+    BeforeTheMarkerOfAFailedMoveIsTakenBack,
+    /// Before the staging copy is taken aside for the publish,
+    /// which is the act that moves whatever stands at the name.
+    BeforeThePublishTakesTheCopyAside,
     /// Before the staging copy is published.
     BeforeThePublish,
     /// After the publish came to its answer.
@@ -241,9 +262,11 @@ pub(crate) enum AStep {
 }
 
 impl AStep {
-    /// Every step of a filling, in the order the filling reaches them.
+    /// Every step of a filling a successful one reaches, in the order the filling reaches them.
+    /// The mirror's clean and the failed move aside's removals are reached only on a path a control
+    /// takes on purpose, and their own controls reach them.
     #[cfg(test)]
-    pub(crate) const EVERY: [AStep; 14] = [
+    pub(crate) const EVERY: [AStep; 18] = [
         AStep::BeforeTheNamesAreTaken,
         AStep::AfterTheLeaseIsTaken,
         AStep::AfterTheMarkerIsRead,
@@ -252,7 +275,11 @@ impl AStep {
         AStep::BeforeTheClone,
         AStep::AfterTheClone,
         AStep::BeforeTheClean,
+        AStep::BeforeTheChildIsGivenItsPaths,
         AStep::AfterTheClean,
+        AStep::BeforeTheClaimedDirectoryIsTakenAside,
+        AStep::BeforeTheMarkerIsTakenAside,
+        AStep::BeforeThePublishTakesTheCopyAside,
         AStep::BeforeThePublish,
         AStep::AfterThePublish,
         AStep::BeforeTheNamesAreGivenBack,
@@ -297,6 +324,21 @@ fn a_step(step: AStep) -> bool {
         let _ = step;
         return false;
     }
+}
+
+/// What:
+///  The same boundary, for the marker module, whose removals are steps of this filling.
+/// Why:
+///   A control plants the entry at the act, and the act of taking a marker back lives in the marker file;
+/// this is the one hook both files read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const aStepFromTheMarker = (step) => aStep(step);
+/// ```
+#[cfg(test)]
+pub(crate) fn a_step_from_the_marker(step: AStep) -> bool {
+    return a_step(step);
 }
 
 /// What:
@@ -420,6 +462,9 @@ fn remove_the_claimed_directory(directory: &TheDirectory, named: &Path, to: &Pat
         );
         return Ok(TheRemoval::Left);
     }
+    if a_step(AStep::BeforeTheClaimedDirectoryIsTakenAside) {
+        return Err(stop_words());
+    }
     remove_if_any(at.as_path())?;
     return Ok(TheRemoval::Removed);
 }
@@ -441,6 +486,9 @@ fn remove_the_claim_of(claim: &Path, written: Option<TheEntry>) -> Option<TheRem
         && TheEntry::at(claim) != Some(was)
     {
         return Some(TheRemoval::Left);
+    }
+    if a_step(AStep::BeforeTheClaimInsideIsTakenAside) {
+        return None;
     }
     return match std::fs::remove_file(claim) {
         Ok(()) => Some(TheRemoval::Removed),
@@ -1254,12 +1302,18 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
             // Something took the staging name between the check and the move: it is not this job's to replace, and the marker
             //  claims a name nothing was moved into, so it goes back, and so does the claim written in the state that stayed.
             let _claim: Option<TheRemoval> = remove_the_claim_of(directory.along(claim.as_path()).as_path(), claim_entry);
+            if a_step(AStep::BeforeTheMarkerOfAFailedMoveIsTakenBack) {
+                return Err(stop_words());
+            }
             let _taken_back = directory.remove_the_file(marker.as_path());
             Err(what_stands_at_the_names(staging.as_path(), destination))
         }
         Err(error) => {
             // Nothing moved, so the marker claims a name nothing is in; take it back and say the state stays where it is.
             let _claim: Option<TheRemoval> = remove_the_claim_of(directory.along(claim.as_path()).as_path(), claim_entry);
+            if a_step(AStep::BeforeTheMarkerOfAFailedMoveIsTakenBack) {
+                return Err(stop_words());
+            }
             let _taken_back = directory.remove_the_file(marker.as_path());
             Err(format!(
                 "the copied build state at {} could not be moved aside ({error}), so it stays where it is; run `cargo clean --offline --package <member>` in that worktree instead",
@@ -1689,12 +1743,18 @@ async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -
             ));
         }
     }
+    if a_step(AStep::BeforeTheChildIsGivenItsPaths) {
+        return Err(stop_words());
+    }
     // The clean is given `--locked` here, so it never writes the worktree's lock: a lock it refuses is what sends this step to
     // a mirror of the workspace, where one clean resolves as it does in the worktree and writes the mirror's own lock, and
     // the person's file is never written, renamed or exchanged. Nothing of theirs is displaced, so no kill can strand their
     // bytes and nothing has to be put back.
     let mut run: ToolRun = clean_the_copy(fill, entry, names).await;
     if !matches!(run.end, ToolEnd::Succeeded) {
+        if a_step(AStep::BeforeTheMirrorClean) {
+            return Err(stop_words());
+        }
         run = match clean_in_a_mirror(MirrorClean {
             tool: CargoTool { program: fill.cargo.clone(), limits: fill.limits },
             worktree: fill.worktree.clone(),
@@ -1737,6 +1797,9 @@ async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -
             names.staging.display(),
             names.to.display()
         ));
+    }
+    if a_step(AStep::BeforeThePublishTakesTheCopyAside) {
+        return Err(stop_words());
     }
     let published: Result<bool, String> = publish(names, entry.to.as_path());
     if a_step(AStep::AfterThePublish) {

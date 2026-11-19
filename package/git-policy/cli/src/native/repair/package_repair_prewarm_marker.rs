@@ -447,6 +447,9 @@ pub(crate) fn take_the_marker_back(marker: &Path, read: Option<TheEntry>) -> Res
     {
         return Ok(TheRemoval::Left);
     }
+    if a_step_of_the_marker(crate::package_repair_prewarm_job::AStep::BeforeTheMarkerIsTakenAside) {
+        return Err(String::from("the marker was left where it is for a control"));
+    }
     return match std::fs::remove_file(marker) {
         Ok(()) => Ok(TheRemoval::Removed),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(TheRemoval::Left),
@@ -455,6 +458,23 @@ pub(crate) fn take_the_marker_back(marker: &Path, read: Option<TheEntry>) -> Res
             marker.display()
         )),
     };
+}
+
+/// What:
+///  Whether a control stops the filling at this boundary of the marker's own removal.
+/// Why:
+///   The marker is taken back by a step of the filling,
+/// so its boundaries are the filling's and a control reads them from there.
+fn a_step_of_the_marker(step: crate::package_repair_prewarm_job::AStep) -> bool {
+    #[cfg(test)]
+    {
+        return crate::package_repair_prewarm_job::a_step_from_the_marker(step);
+    }
+    #[cfg(not(test))]
+    {
+        let _ = step;
+        return false;
+    }
 }
 
 /// What a removal came to.
