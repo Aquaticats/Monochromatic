@@ -455,7 +455,11 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   every session in the checkout stopped; the pnpm store stays in home. `du --summarize --block-size=1M` over the
   checkout gave 27,899 MiB at 2026-11-18T20:23:56-05:00: allocated (compressed) blocks, not the logical bytes the move
   copies, and counting the worktrees under `.claude/worktrees/` and the nested `zpcachyos/nosnap/vm-builder-output`
-  mount; the size of the move itself is still to be measured (`du --apparent-size --one-file-system`). The question put
+  mount. Measured at 2026-11-18T21:05:28-05:00 with `--one-file-system` (so without the nested mount): the checkout
+  holds 32,604 MiB of logical bytes (29,970 MiB allocated), of which `.claude/worktrees/` holds 27,058 MiB (23,300 MiB
+  allocated), so the checkout without its worktrees is about 5,546 MiB; most of what the move copies is worktrees, and
+  removing finished ones before the move shrinks it most (readings in
+  `~/temp/agent/checkout-logical-size-2026-11-18/keep/du-readings.txt`). The question put
   to the owner called the boundary ratios "inside" the control spread of 1.091; the highest, 1.101, is just above it, as
   the pnpm document says ("comparable"), and the ratios went both ways.
 - **Who owns `.claude/worktrees`** (question tool, same evening): "B: Account owns it (Recommended)". The account
@@ -469,12 +473,33 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   ./.claude ?" Every worktree of this repository, clones included, lives under `~/Monochromatic/.claude/worktrees/`.
   No rule in `AGENTS.md` has said so at any point (its history searched on 2026-11-18 back to 964883fd94); the place
   entered the Pi skill on 2026-11-08 (1a907ccfb9) and the driver's launcher, and a rule is proposed to the owner.
+  A second, wider search the same evening (GPT through Pi; every ref, every stored version of `AGENTS.md`, `CLAUDE.md`
+  and the skills, unreachable objects and the 66 retired codes, with a positive control; report and evidence in
+  `~/temp/agent/agents-md-worktree-place-rule-search-2026-11-18/keep/`) found the same: `WTU` (d507a55f0e) is the first
+  repository-wide rule, and nothing was added and later removed. It found where the memory comes from: the handover of
+  2026-11-04 (031cfafaa6) records that briefs and a trace script put worktrees there, that an `AGENTS.md` rule was
+  proposed, and the answer "Wrapper fix only" with the note "What do you mean \"wrapper fix\" here?". The rule was
+  proposed because an add outside `.claude/worktrees/` was a byte copy (each such add read about 52 GB and wrote about
+  49.5 GB, measured that day) while the same add under `.claude/worktrees/` was a snapshot in seconds. The old drives
+  were not mounted during that search, so their copies were not read.
   A clone mounted there sits in a folder the account owns, which the finding under "A planted symlink redirects both
   mechanisms" makes dangerous for a mount that follows paths: the design has to mount without
   following anything the account can change, and the VM has to prove it.
 - **Names** (plain text, same evening): "both you and GPT just saying monochromatic-worktrees means you've both missed
   at least an AGENTS.md rule." The rule the owner meant is the worktree place just quoted; every name the design
   makes up also follows `AGENTS.md` rules `MKY` and `VGW`.
+- **A removed worktree's snapshots** (question tool, late evening, after the Sonnet gate review of the proposal at
+  71fa25ece8 found removal destroying history by default with no choice put): "B: Destroy at once". Removal destroys
+  the clone and its own snapshots immediately and prints what was lost. Offered and declined: keep the hidden clone
+  until its newest snapshot leaves sanoid's retention (recommended), or refuse without an explicit flag.
+- **`promote` in the binding** (question tool, same round; the record above said "maybe promote", the proposal left it
+  out): "B: Include promote". The binding speaks `ZFS_IOC_PROMOTE`. The question stated, from `zfs-promote(8)`, that
+  promoting a worktree clone makes the checkout a clone of it and moves the checkout's snapshots up to the origin into
+  the worktree, so the design has to say when promote is used and how the checkout's own history is kept out of a
+  worktree that may be destroyed. Declined: leaving promote out (recommended).
+- **Guarding against a changed ZFS module** (question tool, same round; the record above said a BTF check "in a
+  test"): "A: Test plus runtime gate (Recommended)". Keep the test, and both programs also check the running module at
+  start and refuse the ZFS route on a mismatch, falling back to the plain Git or reflink route, with no override flag.
 
 ## Open choices for the owner
 

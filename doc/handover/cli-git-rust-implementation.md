@@ -201,7 +201,13 @@ Not final and not approved: this session's own account.
   (a user namespace attaching the clone, `FS_USERNS_MOUNT`) stay open. H2's dataset and path are the owner's answer A,
   its pnpm consequence is measured; still owed are the checkout dataset's own boot mount (an entry the account can
   replace while unmounted: `chattr +i` or `mountpoint=legacy` with the descriptor attach) and a rule for nested
-  datasets such as `zpcachyos/nosnap/vm-builder-output` under the checkout. The owner then added `AGENTS.md` rule `WTU` (d507a55f0e) and
+  datasets such as `zpcachyos/nosnap/vm-builder-output` under the checkout. Corrections of 2026-11-18 from the Sonnet
+  gate review of the proposal (`~/temp/agent/zfs-worktree-design-proposal-gate-review-2026-11-18/review.md`, check B):
+  item 7's sequence never ran end to end (the probe snapshotted before registering and mounted with `mount -t zfs`;
+  dated note in the clones document); gate 5's setuid half is open too (only a device open was refused); the review's
+  H1 sentence about detecting a renamed slot after attach is answered by the clones document (the attach reached the
+  old inode), its H2 point 4 is wrong (`vm-builder-output` sits under `zpcachyos/nosnap`, nested by path only), and its
+  H2 point 5 is wrong for `virtualStoreType: global` (zero payload bytes in the checkout). The owner then added `AGENTS.md` rule `WTU` (d507a55f0e) and
   the wrapper refusal for later (issue 6313), and asked for three digs, all GPT 6.2 Sol through Pi, **going since
   2026-11-18T19:46:28-05:00, 19:47:23 and 19:47:48 in this order**: the search for an earlier `AGENTS.md` worktree-place rule (unit
   `pi-agents-md-worktree-place-rule-search-1`, read-only in the main checkout, report
@@ -231,7 +237,55 @@ Not final and not approved: this session's own account.
   zero payload bytes into the checkout and four paired offline installs took 0.984 to 1.101 times their home controls
   (control spread 1.091); a clone's links into the home store break by path depth and the wrapper's relink repairs
   them; ranking shared home store > in-tree store > separate cache store. The checkout-as-dataset question goes to the
-  owner with these results. The AGENTS.md search is still running.
+  owner with these results (answered A; then "who owns .claude/worktrees" answered B; decision entries below). The
+  AGENTS.md search ended on its wall clock (67 turns) after writing its report at 20:09: no rule before `WTU`, none
+  removed; the 2026-11-04 handover (031cfafaa6) shows a rule was proposed and answered "Wrapper fix only" (recorded in
+  the planning page, "Where worktrees live"). **The old drives are not mounted:** the machine booted at
+  2026-11-18T12:27:21-05:00 and `/mnt/old-sata` and `/mnt/old-nvme` are empty folders; `lsblk` shows `sda` and
+  `nvme1n1p2`/`nvme1n1p6` as LUKS with nothing opened, so they are intact but locked. Unlocking needs the owner; they
+  are needed for task 386's comparisons before the wipe, not for anything going now.
+  **The fold-in writer ended `idle`** (GPT 6.2 Sol through Pi, 67 turns, no model error or "possible risk" stop):
+  13 commits f8e584add6 to 71fa25ece8 (2026-11-18T20:43:36-05:00 to 20:57:15-05:00) on the proposal branch in
+  `.claude/worktrees/zfs-worktree-design-proposal-fold-in`, which stays until the gate review returns; the proposal is
+  732 lines. Brief, summary and final report in
+  `~/temp/agent/zfs-worktree-design-proposal-fold-in-2026-11-18/keep/`. Its report says it disagreed with no decision
+  and dropped no finding, but contests the research in three places, which the gate review settles from the probe
+  logs: (1) the clones document's item 7 combined probe took the snapshot before registration and mounted with
+  `mount -t zfs`, the descriptor attach ran separately; (2) a descriptor attach reached a renamed slot's inode, so the
+  design needs detection and rollback; (3) `vm-builder-output` is nested by path, not by dataset ancestry. If (1) or
+  (2) holds, the clones document and the registration sequence recorded here need a dated correction and the owner is
+  told. It lists eight open choices (checkout boot-mount protection, shared-ancestor policy, a named allocator, linked
+  clone origins, ABI verification, recovery from a lost last event, origin-cleanup authority, space-pressure pruning).
+  **The Sonnet gate review is going** (rule `LHZ`; a Claude Code subagent on Sonnet), brief
+  `~/temp/agent/zfs-worktree-design-proposal-gate-review-2026-11-18/prompt.md`, review to `review.md` there: appendix
+  substance per finding, the disputes settled from `keep/`, choices made in the body without a record, the open
+  choices sorted into preference, measurable or already decided, the brief's done criteria, and correctness. Then the
+  owner's acceptance through the question tool.
+  The env-local-json fixture branch 74dbe1200e had its DeepSeek review (89 turns, `idle`; file
+  `~/temp/agent/env-local-json-fixture-waits-for-close-review-2026-11-18/review.md`): F1 medium, the new wait for
+  `close` has no deadline, so a tool that leaves a holder on its output pipe hangs the suite; F2 to F5 low (every
+  failure reported as an install problem with standard error dropped; the control at 12d8c199bf cannot pass at the
+  tip; the wait implemented twice in the package; no test for `runCommand`'s failure paths); F6 a note. **Weighed by
+  the coordinator:** F1, F2, F5 and F6 accepted as one change to `runCommand`'s contract (F2 predates the branch but
+  sits in the function the branch exports and F1 edits); F3 needs no code, the control committed at 12d8c199bf was red
+  on any code (its document parsed to `{ values: ... }`) and became a control only with b1452b7407; F4, one capture
+  shared by the reader and the fixture, is a separate follow-up, not briefed yet. Also not briefed:
+  `SOPS_TIMEOUT_MS = 15_000` in `package/env-local-json/core/src/constants.ts` cites no measurement (rule `LQM`).
+  **A fresh GPT writer is going** (the author's run of 2026-11-16 predates the migration and the writer change): unit
+  `pi-env-local-json-fixture-runner-bounded-and-truthful-1`, worktree
+  `.claude/worktrees/env-local-json-fixture-runner-bounded-and-truthful` on
+  `fix/env-local-json-core-fixture-joins-the-output-of-a-program-only-after-its-pipe-has-closed` with main merged
+  (cfdd31665e), brief `~/temp/agent/env-local-json-fixture-runner-bounded-and-truthful-2026-11-18/prompt.md`, turn cap
+  450, wall 5400 s. The review's worktree is removed; its scratch stays until this run is reviewed.
+  **The writer ended `idle`** (52 turns) with one commit, 945ff70a94: a 2,000 ms default deadline (overridable;
+  streams destroyed and the direct child sent SIGKILL on expiry, helpers not killed), `FixtureCommandError` naming the
+  tool and arguments with up to 4 KiB of standard error, install advice only on `ENOENT` for `sops` or `age-keygen`,
+  tests for every failure path with each guard shown failing without its code, and a README section. Its deadline rests
+  on calls of 6 to 21 ms measured with few agents running; the drive probe saw a 2,564 ms write-and-sync at level 20 on
+  2026-11-17, so whether 2,000 ms fails suites falsely at load is the first check of **its DeepSeek review, going**
+  (Qwen plan, unit `pi-review-env-local-json-fixture-runner-bounded-at-945ff70a94`, worktree
+  `.claude/worktrees/env-local-json-fixture-runner-bounded-review`, brief and review in
+  `~/temp/agent/env-local-json-fixture-runner-bounded-review-2026-11-18/`). The writer's worktree is removed.
 - **Driver idle window defaults to 0: in main** as 5b53cd90f2 (decision entry "Driver: the idle window defaults to
   0"; behaviour in `package/pi-shared/subagent-driver/README.md`, the default in the pi-as-subagent skill's step 5).
   Its DeepSeek review (179 turns, `idle`; file
@@ -39770,6 +39824,44 @@ Timestamps are the commit times at which the decision was first written into the
 the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
+
+### The queue runs again, reviews on the Qwen plan first (2026-11-18T21:18:17-05:00)
+
+Nothing had restarted the queue after the shutdown of 2026-11-17 and the boot of 2026-11-18 12:27; nothing recorded held
+it. The starter (`~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/start-the-next-entry-of-the-resume-queue.ts`;
+the Synthetic-first copy in `keep/before-reviews-go-to-the-qwen-plan-first-2026-11-18/`) now starts reviews on
+`qwen-token-plan-individual` `deepseek-v4.1-flash-1017`, and starts a review that goes on from its session
+(`review-…` with `sessionOf`) on the reviewer's model, where it used to fall to the writer's. The rate-limit put-back
+stays off (it resumes on the same provider; its marker file names the closed Kimi route). The nine runs the shutdown
+stopped (eight reviews, the killed-lock watch writer) are back at the head of the queue to go on from their sessions
+with `~/temp/agent/pi-runs/go-on-with-a-run-stopped-for-the-shutdown-of-2026-11-17-prompt.md`; their worktrees had been
+removed, so each is made again from its branch. The reviewer bench's runs had finished after the shutdown (`-2` folders,
+`idle`); the bench is closed. The probe and the filling unit (level 19, the Sonnet gate review being the twentieth
+agent) are under "Level 20 again" in `doc/handover/agents-at-once-on-this-machine.md`.
+
+### The virtual Pi provider is built now, beside the restarted queue (2026-11-18, about 21:30)
+
+The owner, in plain text: "If you feel like doing the virual provider first is faster, tell me." Asked through the
+question tool (Pi 1.5.2's `ModelRegistry` has `find(provider, modelId)` and `getApiKeyAndHeaders(model)`, so a
+provider plugin can fall back per request mid-session; its build time is unmeasured), the owner answered "A. And a lot
+of these providers limit rates according to weather, so we need to account for that as well." Option A was: restart
+the queue now with fallback by hand (Qwen plan first), and build issue 6314 now with one GPT writer and a DeepSeek
+review, switching the queue to it once it is in main. This session's reading of the second sentence, open to the
+owner's veto: a provider's limit changes over time, so the virtual provider holds no fixed number as a member's limit,
+and after a refusal moves on and later tries the preferred member again rather than demoting it for good.
+Then, in plain text: "Some providers do have published rate limits or end points. These should be preferred and called
+at key times." Read as: a member's published limit or limit endpoint is used over guessing from refusals, and called at
+the moments that decide something (before returning to a member that refused, when a refusal arrives, when a provider is
+first used), with the member order unchanged; open to the owner's veto. Sent to the running writer through its inbox
+with the endpoints this repository records (Neuralwatt `/v1/quota` and `/v1/rate_limits`, Synthetic `/v2/quotas`).
+
+### A virtual Pi provider with models writer and reviewer, deferred (2026-11-18, evening)
+
+In plain text: "Open an issue saying the GPT -> Qwen -> Synthetic -> opencode-go -> Neuralwatt flex fallback chain
+should be a new model "writer" under a new virtural provider. And the new virtural provider should have "reviewer" too.
+This specific issue+implementation can wait." Opened as issue 6314, labelled `needs-triage` and marked deferred; its
+`reviewer` chain is read as the current DeepSeek reviewer pool (Qwen, Synthetic, `opencode-go`, Neuralwatt flex), to be
+confirmed when it is taken up. Not started; task 383 (the driver's pool table) stays as it is until then.
 
 ### ZFS route: the account keeps owning .claude/worktrees (2026-11-18, evening)
 
