@@ -798,8 +798,10 @@ a test asserts that the encoded request has no `defer` key.
     back automatically, or invoke ordinary Git removal to clear the slot. For a proven set, record removal
     intent and print the slot, dataset and exact snapshot names to be lost. Release local handles and request
     `unmount`. Require the root handler's [all-namespace unmount check](#mounts-held-by-other-namespaces) and
-    verify the request, clone GUID, underlay identity and Git registration still match. A missing, mismatched
-    or busy unmount blocks destruction, even when the slot is clear (proposed from [item 15][vm-namespaces]).
+    verify the request, clone GUID, underlay identity and Git registration still match. A busy unmount blocks
+    destruction even when the slot is clear, until its holders end, by `--force` or by themselves; a missing or
+    mismatched unmount blocks it outright (proposed from [item 15][vm-namespaces], with the `--force` meaning under
+    [Blocked-removal cancellation](#project-decisions)).
 3.  After unmount, persist the verified inventory and expected clone identity as the destruction plan. That inventory
     is step 1's, which lists bookmarks as well as snapshots; the plan records each snapshot tuple this removal
     verified and submitted for destruction, with that tuple's outcome, and no bookmark entry. Require fresh root
@@ -1184,9 +1186,10 @@ is approved, released or implemented: this file remains a non-final draft.
   (`item-15-exact.log:126` to `:138`), while a holder the kept scan missed, and one that attached after a clean
   scan, are both unmeasured. The route keeps the scan: it still needs the fresh root
   all-namespace verification before the first snapshot delete and before the head destroy
-  ([Requests, results and ordering](#requests-results-and-ordering)), and a missing, mismatched or busy unmount
-  still blocks destruction even when the slot is clear ([Removal and recovery](#removal-and-recovery), step 2),
-  unless `--force` ends the holders (the cancellation decision below).
+  ([Requests, results and ordering](#requests-results-and-ordering)), and a busy unmount still blocks destruction
+  even when the slot is clear, until its holders end, by `--force` or by themselves, while a missing or mismatched
+  unmount blocks it outright ([Removal and recovery](#removal-and-recovery), step 2, and
+  [Blocked-removal cancellation](#project-decisions)).
   That scan is proposed protocol; item 15 ran three root scans per arm, after attach, after the host unmount
   and after the readers stopped (`item-15-exact.log:87`, `:126`, `:153`; `:237`, `:273`, `:290`), and did not
   exercise repeat requests. The alternative the project did not select, refusing before the first snapshot delete,
