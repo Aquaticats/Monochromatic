@@ -221,7 +221,10 @@ and of the driver package,
   ("Synthetic and C and B, as a pool with preference."):
   `--provider=synthetic --model=hf:deepseek-ai/DeepSeek-V4.1-Flash-1017` first,
   then `--provider=opencode-go --model=deepseek-v4.1-flash`,
-  then `--provider=neuralwatt --model=deepseek-v4.1-flash-flex` with the doubled wall clock flex runs get.
+  then `--provider=neuralwatt --model=deepseek-v4.1-flash-flex` with the doubled wall clock flex runs get,
+  then `--provider=qwen-token-plan-individual --model=deepseek-v4.1-flash-1017`
+  (the owner, 2026-11-18: "Add my qwen individual token plan deepseek-v4.1-flash-1017 to the deepseek pool.";
+  placed last so the order the owner gave for the first three stands, and how many runs it takes at once is unmeasured).
 - **The provider `deepseek` is never used**, for any run.
 - **Gate reviews and long-horizon audits** stay on Claude Sonnet,
   by whatever route the harness offers, outside Pi

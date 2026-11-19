@@ -39764,6 +39764,14 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### The DeepSeek reviewer pool gains the Qwen individual token plan (2026-11-18, evening)
+
+In plain text: "Add my qwen individual token plan deepseek-v4.1-flash-1017 to the deepseek pool." Pi lists it as
+provider `qwen-token-plan-individual`, model `deepseek-v4.1-flash-1017` (1M context); one `pi --print --no-session`
+prompt answered "OK". Written into `.agents/skills/pi-as-subagent/SKILL.md`, "Who writes and who reviews", as the
+fourth pool after Synthetic, `opencode-go` and Neuralwatt flex, so the order the owner gave for those three stands;
+how many runs it takes at once is unmeasured, and the driver's pool table (task 383) does not list it yet.
+
 ### ZFS route: the checkout becomes its own dataset at the same path (2026-11-18, evening)
 
 Through the question tool, with the pnpm measurements of `doc/planning/cli-git-zfs-checkout-dataset-and-pnpm.md`
