@@ -47,6 +47,7 @@ export const RATE_LIMIT_STATUS = 429;
 
 /**
  Independently pin each expected setup, including authenticated quota origins.
+ The OpenAI entry serves the installed-adapter fixtures only: no pool has an OpenAI member.
  */
 export const TARGETS = [
   {
@@ -72,6 +73,12 @@ export const TARGETS = [
     api: 'openai-completions',
     id: 'deepseek-v4.1-flash',
     baseUrl: 'https://opencode.ai/inference/go/v1',
+  },
+  {
+    provider: 'neuralwatt',
+    api: 'openai-completions',
+    id: 'deepseek-v4.1-flash',
+    baseUrl: 'https://api.neuralwatt.com/v1',
   },
   {
     provider: 'neuralwatt',
@@ -123,6 +130,67 @@ export const PHYSICAL_MODELS: readonly Model<Api>[] = TARGETS.map(function toMod
  Model fields the fake assistant response uses, without holding a writable catalog entry.
  */
 export type ModelIdentity = Pick<Readonly<Model<Api>>, 'api' | 'id' | 'provider'>;
+
+/**
+ Catalog record for one physical member named by its exact provider and model.
+
+ @param provider - provider id as Pi reports it
+
+ @param id - physical model id
+
+ @returns catalog model the stand-in registry would return
+
+ @throws Error when the fixture has no such target
+ */
+function targetOf(provider: string, id: string,): Model<Api> {
+  for (const model of PHYSICAL_MODELS) {
+    if ((model.provider === provider) && (model.id === id))
+      return model;
+  }
+  throw new Error(`No fixture model for ${provider}/${id}`,);
+}
+
+/**
+ Writer members in the order the project chose on 2026-11-19
+ (`.agents/skills/pi-as-subagent/SKILL.md`, "Who writes and who reviews").
+ Spelled out here rather than read from the package's pool table, so a pool change fails a test.
+ */
+export const WRITER_TARGETS: readonly [Model<Api>, Model<Api>, Model<Api>] = [
+  targetOf(
+    'neuralwatt',
+    'deepseek-v4.1-flash',
+  ),
+  targetOf(
+    'neuralwatt',
+    'deepseek-v4.1-flash-flex',
+  ),
+  targetOf(
+    'opencode-go',
+    'deepseek-v4.1-flash',
+  ),
+] as const;
+
+/**
+ Reviewer members in preference order, unchanged by the 2026-11-19 writer decision.
+ */
+export const REVIEWER_TARGETS: readonly [Model<Api>, Model<Api>, Model<Api>, Model<Api>] = [
+  targetOf(
+    'qwen-token-plan-individual',
+    'deepseek-v4.1-flash-1017',
+  ),
+  targetOf(
+    'synthetic',
+    'hf:deepseek-ai/DeepSeek-V4.1-Flash-1017',
+  ),
+  targetOf(
+    'opencode-go',
+    'deepseek-v4.1-flash',
+  ),
+  targetOf(
+    'neuralwatt',
+    'deepseek-v4.1-flash-flex',
+  ),
+] as const;
 
 /**
  Compose a refusal body in the forms produced by Pi's OpenAI Responses and Completions adapters.

@@ -18,12 +18,17 @@ import {
   type MemberCall,
   poolModel,
   rateLimitRefusal,
+  REVIEWER_TARGETS,
   TARGETS,
   TRANSCRIPT,
+  WRITER_TARGETS,
 } from './stand-in-pi-fixture.ts';
 
-/** Physical writer head and reviewer head, followed by the reviewer's backup. */
+/** OpenAI catalog entry used by the installed Responses adapter, not a pool member. */
 const [OPENAI, QWEN, SYNTHETIC,] = TARGETS;
+
+/** Writer pool's last member, which an exhausted pool returns. */
+const WRITER_LAST = WRITER_TARGETS.at(-1,);
 
 /** Wording that identifies a policy stop without HTTP status evidence. */
 const POLICY_MESSAGES = {
@@ -158,7 +163,7 @@ await describe({
         /**
          Last physical member the writer pool asks.
          */
-        const last = TARGETS.at(-1,);
+        const last = WRITER_LAST;
         if (last === undefined)
           throw new Error('Expected a physical pool member',);
         const { provider, calls, options, } = await fixture({
@@ -167,7 +172,7 @@ await describe({
         },);
         const model = poolModel({ provider, id: 'writer', },);
         const { events, result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(calls.map(call => call.model.provider,),).toEqual(TARGETS.map(target => target.provider,),);
+        expect(calls.map(call => call.model.provider,),).toEqual(WRITER_TARGETS.map(target => target.provider,),);
         expect(events.map(event => event.type,),).toEqual(['error',],);
         expect(result.provider,).toBe(last.provider,);
         expect(result.errorMessage,).toBe(`${stoppedBy(last,)} ${POLICY_STOP_TEXT}`,);
@@ -226,7 +231,7 @@ await describe({
           /**
            Last member the writer pool asks.
            */
-          const last = TARGETS.at(-1,);
+          const last = WRITER_LAST;
           if (last === undefined)
             throw new Error('Expected a physical pool member',);
           const { provider, options, } = await fixture({
@@ -290,8 +295,7 @@ await describe({
         const model = poolModel({ provider, id: 'reviewer', },);
         await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(calls.map(call => `${call.model.provider}/${call.model.id}`,),).toEqual(
-          TARGETS.slice(1,)
-            .map(target => `${target.provider}/${target.id}`,),
+          REVIEWER_TARGETS.map(target => `${target.provider}/${target.id}`,),
         );
       },
     },),

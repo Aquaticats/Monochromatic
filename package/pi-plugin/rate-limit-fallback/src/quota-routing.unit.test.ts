@@ -17,8 +17,12 @@ import {
   poolModel,
   rateLimitRefusal,
   RATE_LIMIT_STATUS,
+  REVIEWER_TARGETS,
   TRANSCRIPT,
 } from './stand-in-pi-fixture.ts';
+
+/** Empty flex lane; a positive standard ceiling must not let it admit any requests. */
+const NO_FLEX_REQUESTS = 0;
 
 /** A quota window in the fixture clock, not a plugin cooldown. */
 const WINDOW_MS = 60_000;
@@ -30,8 +34,11 @@ const WINDOW_SECONDS = WINDOW_MS / 1_000;
 const PUBLISHED_CAP = 20;
 const OVERAGE_CAP = 6;
 
-/** Empty flex lane; a positive standard ceiling must not let it admit any requests. */
-const NO_FLEX_REQUESTS = 0;
+/**
+ Reviewer's NeuralWatt member, the only NeuralWatt model either pool asks,
+ with the full catalog record the stand-in registry returns.
+ */
+const NEURALWATT_FLEX = REVIEWER_TARGETS[3];
 
 /**
  Read the URL from each fetch input form without stringifying an arbitrary object.
@@ -177,10 +184,9 @@ await describe({
       name: 'reports the named NeuralWatt member and a published flex floor of zero without retrying',
       fn: async function zeroFlexFloor() {
         const redirects: RequestRedirect[] = [];
-        const physical = PHYSICAL_MODELS.filter(model => model.provider === 'neuralwatt',);
         const { provider, calls, options, } = await fixture({
           extension,
-          models: physical,
+          models: [NEURALWATT_FLEX,],
           play({ model, }) { return immediate({ model, },); },
           async fetchQuota(input, init,) {
             if (init?.redirect !== undefined)
@@ -194,22 +200,20 @@ await describe({
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(calls,).toEqual([],);
         expect(redirects,).toEqual(['error', 'error',],);
-        expect(result.errorMessage,).toContain(`${physical[0]?.provider}/${physical[0]?.id} has a published flex floor of zero`,);
+        expect(result.errorMessage,).toContain(`${NEURALWATT_FLEX.provider}/${NEURALWATT_FLEX.id} has a published flex floor of zero`,);
         expect(isRetryableAssistantError(result,),).toBe(false,);
       },
     },),
     it({
       name: 'admits only the reported flex ceiling, not the standard concurrency ceiling',
       fn: async function flexCeiling() {
-        const physical = PHYSICAL_MODELS.find(candidate => candidate.provider === 'neuralwatt',);
-        if (physical === undefined)
-          throw new Error('Missing physical fixture model',);
+        const physical = NEURALWATT_FLEX;
         const reading = { flex: 1, };
         const ready = Promise.withResolvers<void>();
         const held = createAssistantMessageEventStream();
         const { provider, calls, options, } = await fixture({
           extension,
-          models: PHYSICAL_MODELS.filter(model => model.provider === 'neuralwatt',),
+          models: [physical,],
           play({ model, }) {
             if (calls.length !== 1)
               return immediate({ model, },);
@@ -255,7 +259,7 @@ await describe({
         const held: (() => void)[] = [];
         const { provider, calls, options, } = await fixture({
           extension,
-          models: PHYSICAL_MODELS.filter(model => model.provider === 'neuralwatt',),
+          models: [NEURALWATT_FLEX,],
           play({ model, }) {
             if (calls.length === 1) {
               return immediate({

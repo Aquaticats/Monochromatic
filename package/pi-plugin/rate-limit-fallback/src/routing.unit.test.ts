@@ -15,9 +15,13 @@ import {
   poolModel,
   rateLimitRefusal,
   RATE_LIMIT_STATUS,
-  TARGETS,
+  REVIEWER_TARGETS,
   TRANSCRIPT,
+  WRITER_TARGETS,
 } from './stand-in-pi-fixture.ts';
+
+/** Writer head, the member every request starts at. */
+const [HEAD,] = WRITER_TARGETS;
 
 /** Other non-capacity failures are returned unchanged. */
 const TERMINAL_ERRORS = [
@@ -37,7 +41,8 @@ await describe({
           play({ model, }) {
             return immediate({
               model,
-              ...(model.provider === TARGETS.at(-1)?.provider ? {} : { errorMessage: rateLimitRefusal({ model, },), }),
+              ...(model.provider === WRITER_TARGETS.at(-1,)
+                ?.provider ? {} : { errorMessage: rateLimitRefusal({ model, },), }),
             },);
           },
         },);
@@ -49,12 +54,17 @@ await describe({
           maxTokens: Number.MAX_SAFE_INTEGER,
         },),);
         expect(calls.map(call => [call.model.provider, call.model.id,],),).toEqual(
-          TARGETS.map(target => [target.provider, target.id,],),
+          WRITER_TARGETS.map(target => [target.provider, target.id,],),
         );
         expect(calls.every(call => (call.context === TRANSCRIPT) && (call.options?.maxTokens === call.model.maxTokens),),)
           .toBe(true,);
         expect(events.map(event => event.type,),).toEqual(['start', 'done',],);
-        expect([result.provider, result.model,],).toEqual([TARGETS.at(-1)?.provider, TARGETS.at(-1)?.id,],);
+        expect([result.provider, result.model,],).toEqual([
+          WRITER_TARGETS.at(-1,)
+            ?.provider,
+          WRITER_TARGETS.at(-1,)
+            ?.id,
+        ],);
       },
     },),
     it({
@@ -97,7 +107,7 @@ await describe({
           const model = poolModel({ provider, id: 'writer', },);
           const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           expect(result.errorMessage,).toBe(errorMessage,);
-          expect(calls.map(call => call.model.provider,),).toEqual(['openai',],);
+          expect(calls.map(call => call.model.provider,),).toEqual([HEAD.provider,],);
         },
       },);
     },),
@@ -122,9 +132,9 @@ await describe({
           },);
           const model = poolModel({ provider, id: 'writer', },);
           const { events, result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-          expect(result.errorMessage,).toBe(rateLimitRefusal({ model: TARGETS[0], },),);
+          expect(result.errorMessage,).toBe(rateLimitRefusal({ model: HEAD, },),);
           expect(events.map(event => event.type,),).toEqual(publish ? ['start', 'toolcall_start', 'error',] : ['error',],);
-          expect(calls.map(call => call.model.provider,),).toEqual(['openai',],);
+          expect(calls.map(call => call.model.provider,),).toEqual([HEAD.provider,],);
         },),);
       },
     },),
@@ -145,7 +155,7 @@ await describe({
         const model = poolModel({ provider, id: 'writer', },);
         const { events, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(events.map(event => event.type,),).toEqual(['start', 'text_start', 'error',],);
-        expect(calls.map(call => call.model.provider,),).toEqual(['openai',],);
+        expect(calls.map(call => call.model.provider,),).toEqual([HEAD.provider,],);
       },
     },),
     it({
@@ -164,7 +174,7 @@ await describe({
           ...options, signal: controller.signal,
         },),);
         expect(result.stopReason,).toBe('aborted',);
-        expect(calls.map(call => call.model.provider,),).toEqual(['openai',],);
+        expect(calls.map(call => call.model.provider,),).toEqual([HEAD.provider,],);
       },
     },),
     it({
@@ -176,9 +186,10 @@ await describe({
         },);
         const model = poolModel({ provider, id: 'reviewer', },);
         const { events, result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(calls.map(call => call.model.provider,),).toEqual(TARGETS.slice(1,).map(target => target.provider,),);
+        expect(calls.map(call => call.model.provider,),).toEqual(REVIEWER_TARGETS.map(target => target.provider,),);
         expect(events.map(event => event.type,),).toEqual(['error',],);
-        expect(result.provider,).toBe(TARGETS.at(-1)?.provider,);
+        expect(result.provider,).toBe(REVIEWER_TARGETS.at(-1,)
+          ?.provider,);
         expect(result.errorMessage,).toBe(rateLimitRefusal({ model: result, },),);
       },
     },),
@@ -190,7 +201,7 @@ await describe({
           play({ model, options: member, }) {
             return lazyStream(model, async function reply() {
               await member?.onResponse?.({
-                status: model.provider === 'openai' ? RATE_LIMIT_STATUS : 400,
+                status: calls.length === 1 ? RATE_LIMIT_STATUS : 400,
                 headers: {},
               }, model,);
               return immediate({ model, errorMessage: 'Provider returned an error', },);
@@ -199,8 +210,12 @@ await describe({
         },);
         const model = poolModel({ provider, id: 'writer', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(result.provider,).toBe('qwen-token-plan-individual',);
-        expect(calls.map(call => call.model.provider,),).toEqual(['openai', 'qwen-token-plan-individual',],);
+        expect(result.provider,).toBe(WRITER_TARGETS[1].provider,);
+        expect(result.model,).toBe(WRITER_TARGETS[1].id,);
+        expect(calls.map(call => call.model.provider,),).toEqual([
+          WRITER_TARGETS[0].provider,
+          WRITER_TARGETS[1].provider,
+        ],);
       },
     },),
     it({
@@ -217,7 +232,7 @@ await describe({
         const model = poolModel({ provider, id: 'writer', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(result.errorMessage,).toContain('closed without a terminal assistant event',);
-        expect(calls.map(call => call.model.provider,),).toEqual(['openai',],);
+        expect(calls.map(call => call.model.provider,),).toEqual([HEAD.provider,],);
       },
     },),
   ],
