@@ -386,9 +386,11 @@ reversal. Periodic reconciliation without a waiter depends on the [lost-event ch
 `fsconfig(create)` failing with `EACCES` before attachment, and a root test zedlet receiving a history event
 and deferring. After manual key load and verified home and checkout mounts, descriptor attach worked. Before
 attach, check the encryption root and key availability and report an unavailable key separately from identity
-or permission refusal. Preserve durable intent and reconcile after key load and verified checkout readiness,
-without requiring another add request. The test zedlet did not exercise the product handler, delegated clone
-with the key unloaded, or automatic post-load recovery.
+or permission refusal. Preserve durable intent. For either lost-event option, the selected checkout provider must
+trigger the root handler's reconciliation after successful post-key-load checkout readiness, including after boot;
+a key-load event before the checkout is ready does not qualify. This proposed provider hook reuses the lifecycle
+handler and requires no new add request, waiter or periodic sweep. Item 5 used manual key load and checkout mount;
+it did not exercise the hook, product handler, delegated clone with the key unloaded, or automatic post-load recovery.
 
 ### Requests, results and ordering
 
@@ -891,9 +893,12 @@ in the ranking. Use the VM findings and identify what remains unmeasured; a rank
   runtime against the approved release/request contract. Exact profiles can disable clones after a rebuild;
   runtime checking can accept more builds but adds a parser and a larger compatibility test surface. Neither
   verifier was exercised by [the fixture][vm-fixture]; the test plus runtime gate decision stands.
-- Lost last event without a waiter. Reconcile on startup, events and caller nudges only, or add a periodic scoped
-  sweep. [VM item 5][vm-key] delivered one property event to a test zedlet; it did not show retry after key load or
-  recovery from a lost event. Measure both and the cost of a sweep before choosing a shipped interval.
+- Lost last event without a waiter. Reconcile on startup, verified checkout-provider readiness, ZED events and
+  caller nudges only, or add a periodic scoped sweep. Both require the proposed provider hook for delayed key and
+  checkout readiness, not another add. [VM item 5][vm-key] delivered one property event to a test zedlet; it did
+  not show automatic retry after key load or recovery from a lost last event. Without a sweep, an event lost after
+  readiness can leave intent waiting for the next trigger (unmeasured inference). Measure both and the cost of a
+  sweep before choosing a shipped interval.
 - Origin cleanup authority. Add descendants-only `mount,destroy` delegation on the checkout, or use a root-owned
   cleanup operation limited to proven wrapper origins. Delegation keeps privilege out of the handler but allows
   the account to destroy any checkout snapshot. Separate cleanup needs its own privileged ownership and recovery
@@ -1098,8 +1103,9 @@ only for unused slots. These are unrun acceptance requirements, not evidence fro
 - Enable real ZED in the guest and exercise the configured ordering, replay, dropped events with and without a live
   caller, concurrent zedlets, stale receipts, and pending unmount across restart. Measure elapsed stages and use
   readiness/refusal controls with the handler absent, ABI unsupported and ZED stopped. Repeat with a second host's
-  sanoid and ZED configuration in isolation. [VM item 5][vm-key] used real ZED with a test zedlet, not the product;
-  check automatic reconciliation after key load without another add request.
+  sanoid and ZED configuration in isolation. [VM item 5][vm-key] used real ZED with a test zedlet, not the product.
+  With no waiter or timer, deliver a key-load event before the checkout mounts and show the readiness refusal.
+  Then verify the provider's post-mount hook reconciles the pending clone without another add request (unrun).
 - Verify direct checkout/home unmount names held clones, idle export/import with a clone succeeds and recovers, and
   busy export fails without a forced teardown. Record root's exact-version behavior on destroy of a mounted clone
   in the guest; the wrapper must refuse before attempting it regardless of the tool result.
