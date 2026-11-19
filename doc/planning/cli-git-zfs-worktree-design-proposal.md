@@ -516,34 +516,39 @@ status. `doctor` does not start a service, create a test dataset, repair registr
 The command text, service ordering and findings are tested in a disposable VM before presenting commands as
 working setup. This proposal has neither installed nor run the root-once commands.
 
-## Acceptance gates
+## Open project choices
 
-### Choices for the owner
+The choices do not reopen the checkout path, account ownership, ZED, the fallback or recursive snapshot policy.
+No option here is selected by this revision.
 
-- **Managed path interface.** An explicit canonical path such as `linked/run-a/checkout` keeps Git's path contract
-  and needs no new allocator, but the caller must opt in and supply a different writable path to use fallback
-  if setup is missing. A separate opt-in named allocator could accept `run-a` plus an explicit fallback path and
-  return the actual path after choosing one; it would help the Pi driver, but adds a new user-facing command and
-  caller integration. Ranking: **explicit path > named allocator** for the first release, because it changes no
-  argument's meaning. The allocator can follow without changing the existing command.
-- **Eligible origin sources.** Main-only keeps each worktree independently removable; an add invoked in a linked
-  clone cannot inherit that clone's ignored state via rung 1. Linked origins preserve more of that state, but a
-  worktree with a dependent clone cannot be fully removed and snapshotted rollback gets more tangled.
-  Ranking: **main-only > linked origins** until there is an accepted retention and removal design for those chains.
-- **ABI coverage.** Exact verified profiles versus runtime layout discovery, ranked under "ABI gate and tests".
-- **Lost events without a waiter.** Startup, events and caller nudges avoid background scans, but a lost last event
-  after an interrupted caller waits for another wakeup. Adding a periodic scoped reconcile has background cost but
-  repairs that state without a caller. Ranking: **periodic plus startup and nudges > startup and nudges alone**
-  for recovery of living worktrees. Measure the scan cost before choosing the interval.
-- **Origin cleanup privilege.** Descendants-only delegation makes the wrapper finish its origin cleanup without
-  giving root a delete path, but gives the account the snapshot rights named in "One-time migration and permissions".
-  A separate root-owned reaper that deletes only proven wrapper origins preserves other snapshots against that
-  account, but adds privileged deletion, durable ownership and recovery work. Ranking: **scoped delegation > root
-  reaper** for a checkout owned by the same account, provided the owner accepts that snapshot trust boundary.
-- **Space-pressure pruning.** Keep the guard unchanged and surface its limits, or extend it to an explicit allowlist
-  of managed descendants and their sanoid hourlies while retaining the newest per dataset. The second reaches more
-  retained blocks but makes early deletion of living worktree history normal under pressure, without measured
-  benefit. Ranking: **keep and report > expand pruning** until the retention and space measurements justify a change.
+- Checkout boot mount protection. Keep an ordinary checkout mountpoint and use `chattr +i` on the covered entry,
+  if the guest proves that the flag survives rename, unlink and reboot checks; or use `mountpoint=legacy` for the
+  checkout with a dedicated descriptor-based boot attach that validates the underlay identity. The first keeps
+  ordinary ZFS boot ordering but needs immutable-entry and rollback proof. The second keeps privileged attachment
+  off the pathname but adds a checkout boot service. Both must reject an unverified target before account sessions.
+- Shared ancestor policy. Refuse on a shared ancestor and ask the administrator to restore private propagation;
+  or support an explicit, administrator-configured isolation arrangement after proving checkout/worktree visibility,
+  staging and unmount behavior with affected consumers. Neither option silently changes propagation or lets the
+  handler operate on an unverified shared hierarchy.
+- Managed path interface. Accept the canonical path from ordinary `git worktree add <path>` only, with fallback at
+  the same slot; or also add an opt-in named allocator that reports the chosen path under `.claude/worktrees`.
+  The allocator could simplify driver integration but adds a caller-facing command.
+- Eligible clone origins. Keep only the main checkout as a snapshot source; or also permit linked clone origins.
+  A linked origin preserves that worktree's ignored state but chains dependencies and complicates retention and
+  removal. Do not substitute a different origin from the one the caller supplied.
+- ABI verification. Require exact approved kernel/module BTF profiles per target, or verify the field layout at
+  runtime against the approved release/request contract. Exact profiles can disable clones after a rebuild;
+  runtime checking can accept more builds but adds a parser and a larger compatibility test surface.
+- Lost last event without a waiter. Reconcile on startup, events and caller nudges only, or add a periodic scoped
+  sweep. The first avoids idle scans but delays recovery until another trigger. The second needs scan-cost and
+  recovery measurements before choosing a shipped interval.
+- Origin cleanup authority. Add descendants-only `destroy` delegation on the checkout, or use a separate root-owned
+  cleanup operation limited to proven wrapper origins. Delegation keeps privilege out of the handler but allows
+  the account to destroy any checkout snapshot. Separate cleanup needs its own privileged ownership and recovery
+  proof; it is not implied by the ZED mount handler.
+- Space-pressure pruning. Keep the guard's current scope and report its limits, or extend it to an explicit
+  managed-descendant allowlist for sanoid hourlies with newest-per-dataset retention. Expansion can release more
+  blocks, but deletes some living worktree history before normal expiry; measure what it would reclaim first.
 
 ### Measurements and checks still needed
 
