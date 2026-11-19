@@ -302,6 +302,12 @@ Not final and not approved: this session's own account.
   (Qwen plan, unit `pi-review-env-local-json-fixture-runner-bounded-at-945ff70a94`, worktree
   `.claude/worktrees/env-local-json-fixture-runner-bounded-review`, brief and review in
   `~/temp/agent/env-local-json-fixture-runner-bounded-review-2026-11-18/`). The writer's worktree is removed.
+  **The review returned** (96 turns, `idle`; 0 high, 2 medium, 2 low): the 2,000 ms default holds under today's load
+  (slowest call 129.6 ms, whole fixture 101 ms at `CPUQuota=25%`; the residual risk is a disk stall, not CPU); R1 the
+  kill and the stream destroys are unasserted (removing either leaves the suite green), R2 three new error branches and
+  the default constant have no test, R3 a helper the tool left keeps running after the deadline (a process-group kill
+  as in `package/git-policy/cli/e2e/process-fixture.ts:188` would stop it), R4 `STAND_IN_VALUES` repeats
+  `STORE_TAIL`'s digits (rule `MGN`). All four accepted by the coordinator for the author's next run, not yet briefed.
 - **Driver idle window defaults to 0: in main** as 5b53cd90f2 (decision entry "Driver: the idle window defaults to
   0"; behaviour in `package/pi-shared/subagent-driver/README.md`, the default in the pi-as-subagent skill's step 5).
   Its DeepSeek review (179 turns, `idle`; file
