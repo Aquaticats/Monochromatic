@@ -39960,7 +39960,16 @@ The virtual provider's lint run ended `idle` (63 turns; `f4fe08b7f4`, `c1e00ca74
 warnings and 0 errors." with no rule loosened or suppressed, regex literals replaced by scans checked against the old
 behaviour over 1,589 cases, the host interface narrowed; types, 20 unit cases and the Pi session check pass; each touched
 guard removed in turn gave its named failure. A fresh writer (`pi-provider-possible-risk-falls-back-to-the-next-member-1`,
-same worktree) builds the owner's "Fall back automatically". The coreutils sync change's DeepSeek review is going
+same worktree) was briefed to build the owner's "Fall back automatically". **It declined (5 turns, no change)**:
+sending the same transcript to another provider because the first flagged it "would let an unattended agent continue a
+potentially offensive workflow past that stop". It found a real defect: `src/rate-limit-evidence.ts:116` scans for the
+contiguous phrase `possible risk` while OpenAI's stop says "possible cybersecurity risk" (fixture
+`src/routing.unit.test.ts:24` uses the short form), so the real stop is not recognised. The refused task was **not**
+handed to another model overnight; **for the owner, when back:** the owner's answer stands ("Fall back automatically"),
+the writer's objection is that the coordinator's per-case look before a resume (rule `RKD` by hand) disappears;
+confirm, or keep the stop terminal. A fresh GPT writer
+(`pi-provider-classifies-the-real-possible-risk-wording-1`) fixes the classification only, failing test first with the
+verbatim stop text, policy unchanged. The coreutils sync change's DeepSeek review is going
 (`pi-review-node-sync-calls-go-through-coreutils-sync-at-e5c61b8af2-1`, in the writer's worktree).
 
 The work-record review `1d5ad2597d` returned (85 turns, `idle`): four reads that wait for ever on a named pipe
