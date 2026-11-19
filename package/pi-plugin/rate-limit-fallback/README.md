@@ -46,6 +46,12 @@ moves the request on automatically ("Automatic (Recommended)"). That makes
 rule `RKD` of [`AGENTS.md`][agents-md] automatic for runs on this provider;
 resuming such a run on DeepSeek is the same move, done by hand.
 
+These rules rest on unit tests that drive the built plugin against stand-in
+members, and on the installed Responses adapter reporting the recorded stop
+text byte for byte over an in-memory HTTP 200 stream. No policy move has been
+observed on a real provider yet; the extension check covers the 429 handoff
+only.
+
 OpenAI's `This content was flagged for possible`
 opening takes precedence over a 429, even if the advisory following it is
 truncated or changes punctuation. The shorter `possible risk` wording and

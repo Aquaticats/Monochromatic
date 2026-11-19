@@ -18,6 +18,7 @@ import { MEMBER_KEY, } from './stand-in-pi-fixture.ts';
  `pi-runs/prewarm-of-a-new-worktree-acts-only-on-the-entry-it-checked-1/summary.json`
  and `pi-codemode-abort-crash-troubleshooting-2026-11-18/run-1/summary.json`,
  both under `${HOME}/temp/agent`, field `modelError`.
+ The captures fix the text alone, not the wire event that carried it.
  */
 export const POLICY_STOP_TEXT: string = 'This content was flagged for possible cybersecurity risk. If this seems wrong, '
   + 'try rephrasing your request. If you’re doing authorized security work that requires more cyber permissive '
@@ -43,6 +44,13 @@ function serverSentEvents(events: readonly {
 /**
  Build OpenAI's policy stop through the installed Responses adapter, over a stream
  that answered HTTP 200 as the recorded runs observed.
+
+The SDK throws for an SSE `error` event (`openai/core/streaming.mjs:111`), and Pi
+formats that failure without a status prefix because the response carried no
+status (`@earendil-works/pi-ai/dist/utils/error-body.js:139-145`). Run against the
+installed adapter, this body reports the recorded text byte for byte, where a
+`response.failed` event would report it as `unknown: …` and an `incomplete`
+response as `Response incomplete: content_filter`.
 
  @param model - physical model whose adapter reads the body
 
