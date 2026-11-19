@@ -39956,6 +39956,13 @@ time. Nothing filed. The repository's Markdown gate did not run (`monochromatic-
 binary is not installed here); a `markdown-it` render stood in. When a Pi release after 1.5.2 carries the fix,
 upgrade Pi and drop the brief line about listing before reading.
 
+The virtual provider's lint run ended `idle` (63 turns; `f4fe08b7f4`, `c1e00ca741`, `62185c4080`): oxlint "Found 0
+warnings and 0 errors." with no rule loosened or suppressed, regex literals replaced by scans checked against the old
+behaviour over 1,589 cases, the host interface narrowed; types, 20 unit cases and the Pi session check pass; each touched
+guard removed in turn gave its named failure. A fresh writer (`pi-provider-possible-risk-falls-back-to-the-next-member-1`,
+same worktree) builds the owner's "Fall back automatically". The coreutils sync change's DeepSeek review is going
+(`pi-review-node-sync-calls-go-through-coreutils-sync-at-e5c61b8af2-1`, in the writer's worktree).
+
 The work-record review `1d5ad2597d` returned (85 turns, `idle`): four reads that wait for ever on a named pipe
 (`worktree/worktree_remove_hand_over.rs:761` on every `failed/` entry, reproduced; `landing/service_handoff.rs:663` on an
 aged `pending` record, reproduced, exit 137 at the 20 s bound; `landing/work_item_recovery.rs:345` on a claim in
