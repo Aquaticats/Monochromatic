@@ -836,8 +836,10 @@ host. These gates carry the [handover's H1 and H2 disposition][handover] and the
   stages and allocation; use `project` virtual store as a copy-detecting control. Check queued and inline repair,
   Cargo prewarm and cross-filesystem lock recovery, mise and launcher repair, and watch rebinding in the editor.
   The research did not measure the shipped wrapper, complete toolchain install, cold registry fetch or editor GUI.
-- Compare clone-add and fallback stages against ordinary Git under the same real workload. Separate Git fill,
-  mount/request wait, and downstream preparation. Use measured reconciliation and shutdown workloads to size any
+- Compare clone-add and fallback stages against ordinary Git under the same real workload and interleaved control.
+  Separate Git fill, mount/request wait, discarding the copied `.git` and `.claude/worktrees` stubs, and downstream
+  preparation. Report disposal separately against the same control arm; it has no counterpart on ordinary Git add.
+  The nested probe only moved `.git` aside (`keep/probe.ts:83`), so it provides no deletion measurement. Use measured reconciliation and shutdown workloads to size any
   shipped deadline or optional scan interval. Prior isolated mount latency is not a prediction of ready-to-use
   worktree time.
 
