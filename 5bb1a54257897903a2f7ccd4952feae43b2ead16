@@ -1,0 +1,2 @@
+Corrective note: the commit message body lost the file name to shell expansion; it should read
+  itself, so index.ts no longer re-exports the dispatch loop, its error or its session type.
