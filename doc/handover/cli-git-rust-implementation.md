@@ -40228,6 +40228,49 @@ removed worktree's journal kept at `~/.local/state/monochromatic-git-policy-cli/
 tool starts is a child of the run's Pi" need exact wording; the fixture's trailing `; :` needs its comment
 (`change-reviews/...-at-32b9da675a/review.md` L1 to L4). **Observed:** while the screen is locked, `kscreenlocker_greet`
 (hides its folder, started after the worktrees) holds every automatic worktree removal, inside the owner's accepted gap.
+**TMPDIR fix (task 392) GOING:** worktree `.claude/worktrees/pi-driver-gives-pi-a-temporary-folder-inside-its-run`,
+branch `fix/pi-shared-subagent-driver-gives-pi-a-temporary-folder-inside-its-run` from `main` at `2365f8e55f`'s
+successor; run `pi-driver-gives-pi-a-temporary-folder-inside-its-run-1` (brief and run folders under
+`~/temp/agent/pi-driver-gives-pi-a-temporary-folder-inside-its-run-2026-11-19/`): the driver makes a `0700` folder inside
+the run folder after its emptiness check and starts Pi with `TMPDIR` naming it, with a test that fails first. Then a
+DeepSeek short review and the merge; the skill's launch line then drops `--setenv=TMPDIR`.
+The writer ended `idle` (190 turns) at `b0324ec24b` (three commits): `src/temporary-folder-of-a-run.ts` makes
+`temporary-files-pi-wrote` (`0700`, `chmod` after `mkdir` for the umask) after the emptiness check
+(`supervise-pi-run.ts:190-195`); Pi starts with `TMPDIR`, `TMP` and `TEMP` naming it, overriding the caller's (Node 26.13.1
+reads them in that order, probed); the test failed first (`expected '/tmp' to equal ...`); the folder is kept after the
+run; README and `doc/troubleshooting/secret-values-reaching-a-model.md` updated; lint clean; the full suite fails only on
+the known `secret-values` fixture flake. Noted: `format:dprint` fails with "No files found to format" for this and another
+package (pre-existing, its own follow-up); about 2,875 old `stand-in-session-*.jsonl` files sit in the home folder from
+the suite's earlier fallback (task 364's correction; new runs now write them into the kept folder). GOING: a DeepSeek
+short review on Synthetic (`pi-review-...-temporary-folder-at-b0324ec24b-1`).
+Review back (102 turns): **0 high, 1 medium, 8 low**; failing-first confirmed (3 of 3 fail with `main`'s supervisor,
+6 of 6 pass at the tip); every start path (driver, pool gate, worktree launcher, batch, retrying start, resumed run)
+reaches the folder; the second-start refusal holds. Medium: the suite was red once on
+`drive-pi-subagent.unit.test.ts:2218` (not a known flake), green alone at the tip and at `main`. Lows: the maker follows
+a planted link and `chmod`s its target; a raw error with no summary when the folder cannot be made; two test names
+over-claim; no test for the new refusal case or the maker's failure; a self-made run folder comes out `0700`; the skill
+still passes `TMPDIR`; one module doc still says the system temporary folder. GOING: the writer's session resumed for 1
+to 7 and 9 (`...-temporary-folder-inside-its-run-2`, run-2); the medium gets a file-level reproduction at tip and at
+`main`, then a fix or a record in the host-load troubleshooting doc. The skill line (low 8) is the coordinator's after
+the merge.
+Run-2 ended `idle` (120 turns) at `9f815bc830` (`afc7013d39` fix, `789f2a9c63` tests, `9f815bc830` docs): an `lstat`
+guard after `mkdir` refuses a planted link or non-directory before any `chmod` (`FileHandle.chmod` is refused here: "fchmod
+API is disabled when Permission Model is enabled", so a window between `lstat` and `chmod` remains);
+`TemporaryFolderNotMadeError`; the stand-in reports whether the folder existed when it started; a refusal test for a run
+folder holding only the new folder; README and module doc. The medium did not reproduce in four file-level runs (two at
+the tip, two with `main`'s supervisor) and is now a section of `doc/troubleshooting/subagent-driver-suite-fails-under-host-load.md`,
+mechanism labelled inferred. **New dependency edge** `@monochromatic-dev/caught-value-core` (one lockfile importer entry):
+after the merge the main checkout needs `pnpm install --offline --frozen-lockfile`, because every Pi run starts the driver
+from source there; then a real short run from `main` to see the folder made. GOING: a narrow DeepSeek delta check on
+Synthetic (`pi-review-...-temporary-folder-at-9f815bc830-1`).
+Delta check back (95 turns): **0 high, 2 medium, 3 low**. Medium: the README says the mode is set through a descriptor
+and an outside folder "never becomes Pi's", while the code `lstat`s then `chmod`s by path (a swap between them measured);
+the suite was red at the tip on `createSopsFixture` cases (`.env.local.json is not the JSON a sops store is`), which no
+troubleshooting doc records (my earlier briefs called it recorded; it is recorded only here, lines 280-281, with the
+unmerged close-wait branch `74dbe1200e`). Lows: no `cause` on the new error; the `chmod`-failure arm untested; the main
+checkout's link. GOING: the last narrow round (`...-temporary-folder-inside-its-run-3`, run-3): README wording, the sops
+section in the host-load doc, `cause`, the `chmod` arm if a seam fits. Then the coordinator reads the diff and merges,
+with no further review round (the loop-ending rule of the ZFS fold-ins).
 
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed

@@ -124,6 +124,18 @@ staging at `/run/git-worktree-clone-mount-staging` (needs a boot unit to create 
   inference each opened a new way to end or hold a run, while a scope keeps the work in the run's process tree, where
   the new descent rule already sees it.
 
+### To tell the owner in the morning, no answer needed
+
+- Fixture provenance audit by model (Claude Sonnet, read-only; record in
+  `doc/handover/cli-git-rust-implementation.md`, entry "Fixture provenance audit by model"). Of 9 GPT 6.2 Sol writer
+  runs, 3 added 22 fixtures of another program's output with no producer or capture behind them, all in
+  `package/pi-plugin/rate-limit-fallback`; the other 6 took fixtures from the real tool or labelled stand-ins. No run
+  before 2026-11-17 has a `feed.jsonl`, so the DeepSeek comparison arm is empty and the counts cannot say whether the
+  rate differs by model; they fit "a remote API with no local capture gets invented strings". The driver package holds
+  4 such fixtures (`src/retries-of-a-model-error.unit.test.ts`) and a README example resting on one; both are follow-ups.
+- Merged overnight: the virtual Pi provider (`58756ee7fe`) and the driver's wait for left work counting only its own
+  process tree (`2365f8e55f`).
+
 ## Asked while the owner is away, started 2026-11-09T01:16:11-05:00
 
 The owner:
