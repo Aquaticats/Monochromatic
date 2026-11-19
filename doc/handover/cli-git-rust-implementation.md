@@ -39969,7 +39969,15 @@ handed to another model overnight; **for the owner, when back:** the owner's ans
 the writer's objection is that the coordinator's per-case look before a resume (rule `RKD` by hand) disappears;
 confirm, or keep the stop terminal. A fresh GPT writer
 (`pi-provider-classifies-the-real-possible-risk-wording-1`) fixes the classification only, failing test first with the
-verbatim stop text, policy unchanged. The coreutils sync change's DeepSeek review is going
+verbatim stop text, policy unchanged. The coreutils sync change's DeepSeek review returned (78 turns, final; 0 high,
+1 medium, 5 low; `~/temp/agent/change-reviews/node-sync-calls-go-through-coreutils-sync-at-e5c61b8af2/review.md`): every
+site keeps its promises, each new test fails with its site reverted, the reported suite failures are in untouched files;
+accepted for the author: M1 (no deadline on the `sync` child in `git-policy/cli` and `cli-cargo-mutants`, one under a
+campaign lock), L1 (a created `wg` rule file is never synced while the README now promises every write), L2 (wrong
+error family), L3 (helper written three times beside existing runners), L4 (no boundary tests for `--` and the
+argument array); recorded, not changed: L5 (a failed directory sync on claim release is logged and the run still
+succeeds; older behaviour). The author's third run (`pi-node-sync-calls-go-through-coreutils-sync-3`) answers them;
+then a delta review and the merge. The review itself was the one going
 (`pi-review-node-sync-calls-go-through-coreutils-sync-at-e5c61b8af2-1`, in the writer's worktree).
 
 The work-record review `1d5ad2597d` returned (85 turns, `idle`): four reads that wait for ever on a named pipe
