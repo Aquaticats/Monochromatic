@@ -40253,6 +40253,16 @@ still passes `TMPDIR`; one module doc still says the system temporary folder. GO
 to 7 and 9 (`...-temporary-folder-inside-its-run-2`, run-2); the medium gets a file-level reproduction at tip and at
 `main`, then a fix or a record in the host-load troubleshooting doc. The skill line (low 8) is the coordinator's after
 the merge.
+Run-2 ended `idle` (120 turns) at `9f815bc830` (`afc7013d39` fix, `789f2a9c63` tests, `9f815bc830` docs): an `lstat`
+guard after `mkdir` refuses a planted link or non-directory before any `chmod` (`FileHandle.chmod` is refused here: "fchmod
+API is disabled when Permission Model is enabled", so a window between `lstat` and `chmod` remains);
+`TemporaryFolderNotMadeError`; the stand-in reports whether the folder existed when it started; a refusal test for a run
+folder holding only the new folder; README and module doc. The medium did not reproduce in four file-level runs (two at
+the tip, two with `main`'s supervisor) and is now a section of `doc/troubleshooting/subagent-driver-suite-fails-under-host-load.md`,
+mechanism labelled inferred. **New dependency edge** `@monochromatic-dev/caught-value-core` (one lockfile importer entry):
+after the merge the main checkout needs `pnpm install --offline --frozen-lockfile`, because every Pi run starts the driver
+from source there; then a real short run from `main` to see the folder made. GOING: a narrow DeepSeek delta check on
+Synthetic (`pi-review-...-temporary-folder-at-9f815bc830-1`).
 
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed
