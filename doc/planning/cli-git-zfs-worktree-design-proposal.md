@@ -585,11 +585,12 @@ no design yet ([Open items the decisions leave](#open-items-the-decisions-leave)
 runtime gate", covers the ZFS module check rather than a kernel-release list, and that gate stays. The unselected
 allowlist would qualify a release only by passing built handler attach, staging unmount, refusal and namespace
 controls on that release, compared
-independently of the ZFS ioctl ABI gate; fixture results alone do not qualify it, and `doctor` and preflight report
-the running release and any missing qualification. It would also keep the managed route disabled on
-`7.3.5-1-cachyos` until a passing run exists there: the applicable same-dataset reflink or ordinary Git path for
-unused slots, and preserve existing bindings and intent rather than falling back over them. This is proposed
-fail-closed behavior, not a measured readiness gate ([VM item 16][vm-kernel]). The probe admits untested releases
+independently of the ZFS ioctl ABI gate; fixture results alone do not qualify it, and under that allowlist `doctor`
+and preflight would report the running release and any missing qualification. It would also keep the managed route
+disabled on `7.3.5-1-cachyos` until one of the allowlist's own qualification runs passes there. That fallback uses
+the applicable same-dataset reflink or ordinary Git path for unused slots and preserves existing bindings and
+intent rather than falling back over them. This is proposed fail-closed behavior, not a measured readiness gate
+([VM item 16][vm-kernel]). The probe admits untested releases
 and leaves unmeasured behaviour to appear on the host, where a failure shows as a refused mount or as one the probe
 did not detect (reasoning); its own design is not described here, and neither is the allowlist's qualification run,
 which is named under [Acceptance tests the build still owes](#acceptance-tests-the-build-still-owes).
@@ -1088,9 +1089,10 @@ status. `doctor` does not start a service, create a test dataset, repair registr
   recreated parent, print the administrator's verified `adopt-worktree-parent` command and prerequisites, any
   binding that needs separate recovery, and the applicable fallback for an unused slot. Inspect effective
   delegation including ancestor grants, account groups and grants to everyone. For managed removal, check that
-  `promote`, `rename`, `receive` and `receive:append` are absent; the delegated `destroy` grants the project decided
-  are present and scoped, and the deferred-origin check the paired answer requires is described
-  ([Clone removal identity protection](#clone-removal-identity-protection)). The check that the account cannot
+  `promote`, `rename`, `receive` and `receive:append` are absent, and that the delegated `destroy` grants the
+  project decided are present and scoped; report the deferred-origin check the paired answer requires as not yet
+  designed ([Clone removal identity protection](#clone-removal-identity-protection) and
+  [Open items the decisions leave](#open-items-the-decisions-leave)). The check that the account cannot
   destroy managed clones belongs to the root alternative the project did not select (proposed checks for
   [item 12][vm-replacement]).
   Print scoped commands such as `zfs allow -l -u` and `zfs allow -d -u`
