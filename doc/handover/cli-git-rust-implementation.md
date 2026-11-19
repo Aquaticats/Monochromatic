@@ -40129,6 +40129,18 @@ as Synthetic's `hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`). Benchmark going (unit
 task (two `git show` reads at `7d10dc5f88`, three questions), four rounds in rotated order of the Qwen-plan DeepSeek arm,
 the `infinite:small:vision` arm and a second Qwen arm as the same-model control; each run's wall time, turns and output
 tokens, read as ratios to the control arm of its own round.
+**Round 1 (2026-11-19, from the feeds' own offsets):** the Qwen arm answered in 14.5 s (prompt sent at 3.6 s, settled
+at 18.1 s) and `infinite:small:vision` in 322.7 s, both in three turns: about 22 times slower, one sample, no spread yet.
+Both runs were then held to the 30-minute wall clock by a **driver defect**: with `--working-folder` the main checkout,
+the left-running-work wait counts every process whose folder is in it and whose control group is not the run's
+(`work-the-run-left-running.ts:17-19`, `README.md:1329-1330`), so another session's `codex` and `claude`, `ssh` and
+other runs' `pi` held them. Round 1 kept as evidence under `keep/first-attempt-stalled-by-the-left-running-work-scan/`;
+the benchmark restarted (unit `...-20261119-third`) with an empty working folder per run and the task's `git show` naming
+the repository, timing from the feed. Owner: "Fix the driver too." GOING:
+`pi-driver-work-left-running-counts-only-its-own-1` (DeepSeek on Neuralwatt, worktree
+`pi-driver-work-left-running-counts-only-its-own`, branch
+`fix/pi-shared-subagent-driver-work-left-running-counts-only-processes-the-run-started`): the wait counts only work the
+run started, with a failing-first test on a real outside process; the TMPDIR fix follows as its own run.
 
 The third prewarm run ended `idle` (77 turns, no new commit; report updated): through a built wrapper with the fill's
 staging and target replaced mid-clone, the tip left the other command's files at both names byte for byte and said why
