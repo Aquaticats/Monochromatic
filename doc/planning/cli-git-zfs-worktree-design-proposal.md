@@ -1326,8 +1326,8 @@ is approved, released or implemented: this file remains a non-final draft.
 
 These were the draft's own defaults. The project answered all four on 2026-11-19, so each is now a decision, stated
 with the words recorded for it, keeping the section that uses it, its evidence and its own cost. The answer to the
-staging default replaced the draft's default with an account-owned place, and what that gives up is stated plainly
-below.
+staging default replaced the draft's default with an account-owned place, and what that gives up is stated beside
+the staging default.
 
 - Receipts as atomic files under `/run/git-worktree-clone-mount-results`, rather than root-written
   acknowledgement properties: kept, answering "Keep receipt files (Recommended)"
@@ -1456,9 +1456,9 @@ here.
 
 ### Bookmarks on a clone being removed
 
-The project decided this choice on 2026-11-19, answering "A: Live or planned (Recommended)": the first option
-below is the rule removal applies ([Removal and recovery](#removal-and-recovery), step 1), and the other two are
-the alternatives it did not select, kept with their facts and costs. A bookmark carries the tuple of the snapshot it
+The project decided this choice on 2026-11-19, answering "A: Live or planned (Recommended)": that rule is the one
+removal applies ([Removal and recovery](#removal-and-recovery), step 1), and the other two rules are the
+alternatives it did not select, kept with their facts and costs. A bookmark carries the tuple of the snapshot it
 was made from, and a dataset's bookmarks are destroyed with its head
 (`module/zfs/dsl_destroy.c:1123` to `:1154`, OpenZFS
 `zfs-2.4.4`), so a bookmark on a clone is explained by a snapshot or it is not. The kernel keeps a bookmark whose
