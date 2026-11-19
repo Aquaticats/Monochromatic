@@ -2,8 +2,10 @@
 
 **Non-final draft by an agent, unapproved.** Decision fold-in: this revision states the project's answers of
 2026-11-19 to every open choice and every default this file listed, quoting the words recorded for each answer.
-Those words are in `doc/handover/questions-for-the-owner.md`, section "Answered in the question tool, started
-2026-11-19T11:30:00-05:00", which is their record. This file's own revision stamp is what
+Those words are in the round's section "Answered in the question tool, started 2026-11-19T11:30:00-05:00" as it
+stood at `dfe7d53980`; this proposal carries them now, because the handover file that held the section,
+`doc/handover/questions-for-the-owner.md`, moves an answered question out once it is folded in. This file's own
+revision stamp is what
 `git log --format=%cI -1` prints for the file; this revision began from `b5294a7325`
 (2026-11-19T02:21:09-05:00), and a section heading's stamp is the commit time of the commit that landed that
 section.
@@ -417,7 +419,7 @@ use
 `--force` to bypass a lock. An operator or unexplained lock still refuses removal. A verified wrapper lock
 would be released only at the authorized registration-cleanup step, after clone destruction and subject to the
 origin-cleanup policy; a missing pointer still needs recovery. Installing or recovering the lock after pointer loss
-stays unmeasured with the item 6 gap above.
+stays unmeasured ([VM item 6][vm-prune] did not test it).
 
 Refuse `git worktree move` for a bound managed clone whether mounted or not: report that the slot is fixed and
 must not be renamed. The mounted guest control failed with `Device or resource busy`; a wrapper refusal also covers
@@ -1128,8 +1130,8 @@ working setup. This proposal has neither installed nor run the root-once command
 ## Project decisions
 
 The project decided every choice and every default this file listed, answering in the question tool on 2026-11-19.
-The words recorded for each answer are in `doc/handover/questions-for-the-owner.md`, section "Answered in the
-question tool, started 2026-11-19T11:30:00-05:00"; each item below quotes its own answer and keeps the measured
+The words recorded for each answer are in the round's section "Answered in the question tool, started
+2026-11-19T11:30:00-05:00", read at `dfe7d53980`; each item here quotes its own answer and keeps the measured
 facts, citations and measurement item numbers the item already carried. The answers do not reopen checkout path,
 account ownership, ZED, the fallback or recursive snapshot policy. The four defaults are stated separately under
 [Decided defaults](#decided-defaults). The two alternatives under
@@ -1241,7 +1243,7 @@ is approved, released or implemented: this file remains a non-final draft.
   of linked origins. Neither route makes promotion automatic.
   Do not substitute a different origin from the one the caller supplied.
 - ABI verification. Decided: "Runtime layout check (Recommended)": verification of the field layout at runtime
-  against the approved release and request contract, re-ranked after the probe-at-start answer above. Exact
+  against the approved release and request contract, re-ranked after the kernel-release readiness answer. Exact
   approved kernel/module BTF profiles were the alternative the project did not select, and they would have
   disabled clones after a rebuild. Runtime checking can accept more builds but adds a parser and a larger
   compatibility test surface, and that checker has no design yet
@@ -1520,7 +1522,7 @@ a clone that carried a bookmark.
 
 ## Open items the decisions leave
 
-Each item below is a part an answer created or left with no design. This section states what has no design, in plain
+Each item here is a part an answer created or left with no design. This section states what has no design, in plain
 words, with the answer's own words beside it, and it designs none of them; nothing in this draft claims one of these
 parts works.
 
