@@ -1,16 +1,18 @@
 # Measurements owed before accepting the ZFS worktree design
 
 **Non-final draft by an agent, unapproved.** This records guest observations and design implications, not design
-acceptance. The account ownership decision in the [planning record](cli-git-zfs-worktree.md#owners-answers-of-2026-11-18)
-makes the refusal repeat a pre-acceptance condition, not something to postpone until implementation.
+acceptance. The account ownership decision in the
+[planning record](cli-git-zfs-worktree.md#owners-answers-of-2026-11-18) makes the refusal repeat a pre-acceptance
+condition, not something to postpone until implementation.
 
 ## Fixture and evidence
 
 The 2026-11-18 gate review of proposal `71fa25ece8` and the dated corrections in the
 [clones research](cli-git-zfs-clones-mounted-under-the-checkout.md) supplied the open measurements. The guest probe
 reused the descriptor calls from that research's `guest-extra-commands.txt`. Full commands, output and assertions
-are in `~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/keep/`, in `guest-probe.py` and the per-item logs.
-Each item uses a separate encrypted file-backed pool in `zfs-acceptance-mvm`, an Ubuntu 24.04 `mvm` libvirt guest.
+are in `~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/keep/`, in `guest-probe.py` and the
+per-item logs. Each item uses a separate encrypted file-backed pool in `zfs-acceptance-mvm`, an Ubuntu 24.04 `mvm`
+libvirt guest.
 The checkout and worktree clone parent are sibling datasets under the guest home dataset. The Git fixtures use
 plain `git` in the guest, with a disposable `HOME` and `XDG_RUNTIME_DIR`. The guest Git is `2.43.0`; the host wrapper
 reports Git `2.56.1`. The probe is not an execution of the proposed Rust binding or product handler.
@@ -362,9 +364,10 @@ use mount(8) to mount this filesystem
 ```
 
 The descriptor attach of that same dataset succeeded, with `rw,nosuid,nodev,relatime`. This confirms the
-explicit-mount branch of `zfs-2.4.4`'s `cmd/zfs/zfs_main.c:7240` to `:7248`. The proposal's citation at
-lines 118 to 119 points at the unmount branch instead. Treat the refusal as expected: an inherited legacy
-property does not name a target slot, and the design must not fall back to a path-based mount.
+explicit-mount branch of `zfs-2.4.4`'s `cmd/zfs/zfs_main.c:7240` to `:7248`. The proposal's citation at the time
+(its lines 118 to 119) pointed at the unmount branch instead; the current proposal cites this branch. Treat the
+refusal as expected: an inherited legacy property does not name a target slot, and the design must not fall back
+to a path-based mount.
 
 ## 11. Promote and the checkout's snapshot history
 
@@ -418,11 +421,13 @@ history, other encryption roots or other clone relationships.
 
 ## Differences from the proposal and gate review
 
-- The account-owned-parent refusal repeat belongs before design acceptance, as GH1 says. The earlier filesystem
-  permission denial is not part of this layout: link creation worked; the descriptor walk refused it.
-- GM1's shared-checkout prediction held and its narrower private-checkout control worked. The proposal and clones
-  research required private ancestors too, which the measurement disproved for this move. Its cost is the loss
-  of propagation into an already-confined reader.
+- The account-owned-parent refusal repeat belongs before design acceptance, as GH1 says. The permission denial
+  GH1 predicted for account-created links is not part of this layout: link creation worked; the descriptor walk
+  refused it.
+- GM1's shared-checkout prediction held and its narrower private-checkout control worked. The proposal and the
+  clones research then required private ancestors too; this item disproved that requirement for the move, and the
+  current proposal requires only a verified private immediate parent. The cost is the loss of propagation into an
+  already-confined reader.
 - GM4 and GM5 reviewed a version before the project selected inclusion of `promote` and immediate destruction
   of the removed worktree's own snapshots. Those decisions stand; the measurements show why inherited checkout
   history must not be mistaken for the worktree's own history.

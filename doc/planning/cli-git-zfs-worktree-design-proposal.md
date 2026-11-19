@@ -86,8 +86,10 @@ at line 1525.
   request omits the `defer` key, so no snapshot is marked for deferred destroy.
 - `ZFS_IOC_CLONE` (`0x5a42`): place the target in `zc_name` and send `origin` and optional `props` in the nvlist.
   The contract is in `lib/libzfs_core/libzfs_core.c:328` and `module/zfs/zfs_ioctl.c:3844` at `zfs-2.4.4`.
-- `ZFS_IOC_GET_BOOKMARKS` (`0x5a44`, `include/sys/fs/zfs.h:1552`): enumerate one dataset's bookmarks and request
-  their GUIDs and creation transaction groups (`module/zfs/zfs_ioctl.c:7619` to `:7624`, OpenZFS `zfs-2.4.4`).
+- `ZFS_IOC_GET_BOOKMARKS` (`0x5a44`, `include/sys/fs/zfs.h:1552`): enumerate one dataset's bookmarks. The
+  registration (`module/zfs/zfs_ioctl.c:7621` to `:7624`, OpenZFS `zfs-2.4.4`) shows the read policy and an
+  optional wildcard property list (`zfs_keys_get_bookmarks`, `:4192` to `:4194`); [VM item 13][vm-13] read each
+  bookmark's GUID and creation transaction group.
 
 The [project decided][answers] "B: Include promote". Promoting a clone of the checkout makes the checkout a
 clone of the promoted dataset and transfers the origin snapshot and the checkout's older snapshots into the
@@ -922,7 +924,7 @@ working setup. This proposal has neither installed nor run the root-once command
 
 ## Open project choices
 
-There are 14 open choices, including the two alternatives under
+The list below holds the open choices, with the two alternatives under
 [Clone removal identity protection](#clone-removal-identity-protection) as one choice. They do not reopen
 checkout path, account ownership, ZED, the fallback or recursive snapshot policy. No option is selected or ranked.
 At the owner handoff, present each decision separately in the question tool with its options, pros and cons, and a
