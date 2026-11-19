@@ -34,8 +34,10 @@ has been exposed, or a terminal message already contains content, the
 plugin returns that member's error instead of replacing its partial
 answer or mixing events. Cancellation, transport errors, bad inputs, and
 other non-429 errors do not trigger fallback. When an adapter does not expose a
-response status, the pool reads it from Pi's `OpenAI API error (429): …`
-(Responses) or `429: …` (Completions) wording.
+response status, the pool reads it from the adapter's own wording: the
+Responses adapter's `<provider> API error (429): …` label, which spells the
+label `OpenAI` only for the provider named `openai`, or the Completions
+adapter's `429: …`.
 
 A policy stop follows the same exposure rule, and only OpenAI's own sentence
 moves a request on. A member whose refusal opens with `This content was

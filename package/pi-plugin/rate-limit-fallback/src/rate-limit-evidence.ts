@@ -37,9 +37,12 @@ const QWEN_REQUEST_RATE_WAIT_MS = 60_000;
 const RATE_LIMIT_STATUS = String(HTTP_RATE_LIMIT_STATUS,);
 
 /**
- Pi's OpenAI Responses adapter formats extracted statuses as `OpenAI API error (<status>):`.
+ Pi's OpenAI Responses adapter labels every failure it formats as `<Provider> API error (<status>):`,
+ with `OpenAI` standing in for the provider id `openai` and the bare provider id for any other
+ (`@earendil-works/pi-ai` dist/api/openai-responses.js:177; `formatProviderError` renders the label
+ and status in dist/utils/error-body.js).
  */
-const OPENAI_RESPONSES_RATE_LIMIT = `openai api error (${RATE_LIMIT_STATUS}):`;
+const RESPONSES_ERROR_SUFFIX = ` api error (${RATE_LIMIT_STATUS}):`;
 
 /**
  Distinguishes OpenAI's policy stop from a 429 that only mentions risk.
@@ -61,6 +64,39 @@ const POLICY_LABELS = [
 ] as const;
 
 /**
+ Whether the folded text opens with a Responses adapter failure label carrying HTTP 429.
+
+ @param message - case-folded terminal message
+
+ @returns whether the text starts with `<provider> API error (429):`
+ */
+function startsWithResponsesRateLimit(message: string,): boolean {
+  /**
+   Offset where the adapter's fixed suffix begins, or minus one when absent.
+   */
+  const suffixAt = message.indexOf(RESPONSES_ERROR_SUFFIX,);
+  if (suffixAt <= 0)
+    return false;
+  // The adapter's label is one word, so whitespace before the suffix means the text is not one.
+  for (let index = 0; index < suffixAt; index += 1) {
+    /**
+     Case-folded character at the current label position.
+     */
+    const character = message[index];
+    /**
+     Whether that character is any whitespace a label cannot hold.
+     */
+    const whitespace = (character === ' ')
+      || (character === '\t')
+      || (character === '\n')
+      || (character === '\r');
+    if (whitespace)
+      return false;
+  }
+  return true;
+}
+
+/**
  Check the leading status token, without treating an unrelated mention of 429 as a failure status.
 
  A recorded provider message begins `429 "…"` as well as `429: {…}`, so a space, tab, colon or the
@@ -75,7 +111,7 @@ function startsWithRateLimit(value: string,): boolean {
    Case-folded terminal message, with no leading whitespace removed.
    */
   const message = foldProviderText(value,);
-  if (message.startsWith(OPENAI_RESPONSES_RATE_LIMIT,))
+  if (startsWithResponsesRateLimit(message,))
     return true;
   if (!message.startsWith(RATE_LIMIT_STATUS,))
     return false;
