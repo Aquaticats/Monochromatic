@@ -113,3 +113,33 @@ use case. No app-level fix was prototyped, and the existing Skiko report has the
 already. No filing artifact is needed.
 [AB Download Manager issue](https://github.com/amir1376/ab-download-manager/issues/427#issuecomment-2883120375)
 [Skiko tracking issue](https://youtrack.jetbrains.com/issue/SKIKO-28)
+
+## mpv idle window sizing
+
+On 2026-11-18T21:07:34-05:00, the supplied screenshot showed the `No file` window.
+The live process used `--player-operation-mode=pseudo-gui`, as does the installed desktop entry.
+With no video, mpv 0.42.0 configures a 960 × 540 placeholder in `player/playloop.c:1084-1095`.
+[mpv source](https://github.com/mpv-player/mpv/blob/b0841e8c4d156b8403dc1876c4cbd9011eb583f3/player/playloop.c#L1084-L1095)
+
+```c
+// player/playloop.c
+int w = 960;
+int h = 540;
+```
+
+The default probe drew a 960 × 540 buffer with a 480 × 270 Wayland viewport at 200% display scale.
+This is about 44% of the portrait display's 1080 logical pixels of width.
+The screenshot's black surface agrees with that default. The desktop launcher uses the same code path.
+
+```sh
+# Terminal, launch the desktop entry's mpv mode with Wayland tracing
+env WAYLAND_DEBUG=client timeout --foreground 3s mpv --no-config --player-operation-mode=pseudo-gui
+```
+
+`--geometry=65%` increased the measured width to 702 logical pixels, or 1404 physical pixels, on the
+same output. Setting `geometry=65%` in `mpv.conf` applies the sizing to normal launches and also affects
+the initial size of windows opened for media. The placeholder size is documented behavior, and the local
+geometry option covers the reported use case without a filing.
+
+AB Download Manager 1.11.4-1 was subsequently removed with Pacman.
+The package, system desktop entry, executable, and stale login and browser registrations were checked.
