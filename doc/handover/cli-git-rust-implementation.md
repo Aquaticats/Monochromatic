@@ -40016,7 +40016,17 @@ What follows from them, as work:
   `<credentials>`); M4, in the owner's words, "Avoid ever asking for someone to type a username or password.", so no
   command the wrapper runs or forwards prompts for a credential, terminal or not, superseding `SPEC.md`'s "A command the
   person typed is forwarded with the prompting Git has" for credentials; asked separately, an SSH key's passphrase
-  counts too ("Passphrases count too (Recommended)": a key not in ssh-agent fails at once, saying to run `ssh-add`). Both go into the branch's next round together with what the short review finds.
+  counts too ("Passphrases count too (Recommended)": a key not in ssh-agent fails at once, saying to run `ssh-add`).
+  Both go into the branch's next round together with what the short review finds. The short review ended `idle`
+  (124 turns; report `report.md` in its folder): not yet fit for an integration pass. H2, M1, M2, M3 and the command
+  status of M6 hold under the audit's reproductions, and no secret reached any output it read. M5 does not hold: a
+  connected stop names a server the upload never contacted when `lfs.url` and `remote.<name>.lfsurl` disagree, when
+  `lfs.pushurl` is set (not read at all), and when git-lfs prints another host's URL first (two high, one medium).
+  Also a doubled period in every typed stop paragraph, and the `git lfs install` notice claiming global keys for
+  `--local`, `--worktree` and `--file` (medium), and four lows (`SPEC.md` 10096 to 10112 and 11831, the `--manual`
+  instructions, three report claims). **HELD** by the owner's "Finish, then hold" (2026-11-19T17:10:00-05:00): the
+  next LFS round (these findings, H1 and M4) starts only once the ZFS implementation is moving. The branch stays at
+  `81e7d18375` (pushed); its worktree was removed.
 - **The wrapper's container gate cannot pass on this ZFS host.** The LFS writer ran the gate's body
   (`node bin/test-native-container.ts`; the mise task's first step needs `cargo-shadow`, not installed here) twice:
   `9189 tests run: 9002 passed, 187 failed`, against 6 of 9,173 on the old Btrfs host. By its reading about 109 fail on
