@@ -1,6 +1,6 @@
 # Measurements owed before accepting the ZFS worktree design
 
-**Non-final draft by an agent, unapproved.** Last revised 2026-11-19T00:21:41-05:00. It records guest
+**Non-final draft by an agent, unapproved.** Last revised 2026-11-19T00:43:27-05:00. It records guest
 observations and design implications, not design acceptance. The account ownership decision in the
 [planning record](cli-git-zfs-worktree.md#owners-answers-of-2026-11-18) makes the refusal repeat a pre-acceptance
 condition, not something to postpone until implementation.
@@ -704,3 +704,162 @@ release in the Ubuntu guest does not establish that the host kernel passes the c
   snapshots under the `-d` grants is unmeasured.
 - No complete namespace or mount-reference exclusion. The guest scan had readable, live representatives
   for the observed namespaces; the result does not generalize to pinned namespaces or racing task changes.
+
+## 17. One snapshot batch from the delegated account, 2026-11-19T00:43:27-05:00
+
+This non-final, unapproved section answers finding L6 of the second delta review of `68690e60be`: item 14's batch
+ran as root, and the delegated account had been measured destroying only a head (item 12). It also answers the
+delta section's "What this repeat did not show" bullet about a delegated batch. The guest was
+`zfs-item-17-measurements`, an Ubuntu 24.04 `mvm` libvirt VM, destroyed after the run
+(`item-17/keep/mvm-destroy.log`). Scripts are in
+`~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/item-17/`: `guest-probe.py` and
+`guest-delta-items.py` are unchanged copies of the kept harness, `guest-item-17-items.py` adds the arms and
+`run-item-17.ts` runs them through `mvm exec` in a private mount namespace, and `keep/item-17-exact-3.log` holds
+every command and output quoted here. The host, read-only, still reported `7.3.5-1-cachyos` from
+`uname --kernel-release` and `2.4.4-1` from `/sys/module/zfs/version`.
+
+The run printed its own versions before any pool existed:
+
+```text
+# item-17-exact-3.log
+$ uname -r
+6.8.0-147-generic
+$ cat /sys/module/zfs/version
+2.4.4-1
+$ zfs version
+zfs-2.4.4-1
+zfs-kmod-2.4.4-1
+```
+
+The guest kernel differs from the host's. OpenZFS userspace and module came from the `zfs-2.4.4` release
+tarball built against that guest kernel, and their release matches the host module's.
+
+### Item 1: one batch by the delegated account
+
+The pool was `zfsowed17` in the fixture layout above: `aes-256-gcm` with a raw key file, `recordsize=32K`,
+`compression=zstd-3`, a `legacy`, `canmount=off` clone parent, and the checkout dataset mounted under the guest
+home. Root set item 12's four `zfs allow` commands and no others, then printed them:
+
+```text
+# item-17-exact-3.log
+$ zfs allow zfsowed17/home/worktree-clone-datasets
+---- Permissions on zfsowed17/home/worktree-clone-datasets -----------
+Local permissions:
+	user ubuntu create
+Descendent permissions:
+	user ubuntu destroy,userprop
+Local+Descendent permissions:
+	user ubuntu mount
+$ runuser --preserve-environment -u ubuntu -- id
+uid=1000(ubuntu) gid=1000(ubuntu) groups=1000(ubuntu)
+```
+
+The proposal's delegation section also lists local `snapshot` on the checkout dataset. It was not set, as in item
+12, because root made every snapshot and a local checkout grant cannot bear on a clone's snapshots: the kernel
+checks a snapshot's permissions as descendant grants only (`module/zfs/dsl_deleg.c:576`, `zfs-2.4.4`).
+
+Root then made the clone as items 11 and 14 do, with `@earliest`, `@origin` and `@checkout-later` on the checkout,
+`zfs clone <checkout>@origin <clone>`, `@worktree-own` and `@worktree-own-next` on the clone, and
+`zfs promote <clone>`. The clone was never mounted, and the promotion left the checkout as a clone of it:
+
+```text
+# item-17-exact-3.log, before the batch
+zfsowed17/home/checkout	origin	zfsowed17/home/worktree-clone-datasets/removal@origin
+zfsowed17/home/worktree-clone-datasets/removal	mounted	no
+zfsowed17/home/worktree-clone-datasets/removal@earliest	17	5119344664520718075
+zfsowed17/home/worktree-clone-datasets/removal@origin	18	11828178329495998103
+zfsowed17/home/worktree-clone-datasets/removal@worktree-own	21	14418906836479561164
+zfsowed17/home/worktree-clone-datasets/removal@worktree-own-next	22	6709834886922075821
+```
+
+The account then ran one `python3` process under `strace -X raw -e trace=ioctl`. It submitted both
+`@worktree-own` and `@worktree-own-next` through `lzc_destroy_snaps` with `defer=false`, the same direct path item
+14 used (`guest-delta-items.py:164`); `libzfs_core` adds no `defer` key for that value
+(`lib/libzfs_core/libzfs_core.c:475` to `:476`, `zfs-2.4.4`). Its output, with the names elided in the middle:
+
+```text
+# item-17-exact-3.log
+batch process uid=1000
+lzc_destroy_snaps([... '@worktree-own', ... '@worktree-own-next'], defer=false): 0 (Success)
+ioctl(3, 0x5a3b, 0x7ffddc554040)        = 0
+ZFS_IOC_DESTROY_SNAPS (0x5a3b) count: 1
+```
+
+No per-name error line appears, because the helper prints one only when the kernel returned an error list
+(`guest-delta-items.py:168` to `:172`). The snapshot list afterwards:
+
+```text
+# item-17-exact-3.log, both named snapshots gone
+item 1 process exit: 0
+item 1 named snapshots still present: []
+zfsowed17/home/worktree-clone-datasets/removal@earliest	17	5119344664520718075
+zfsowed17/home/worktree-clone-datasets/removal@origin	18	11828178329495998103
+```
+
+It shows that the account holding exactly these grants destroyed both snapshots made on the clone in one kernel
+request, with return value 0 and one `ZFS_IOC_DESTROY_SNAPS` call, and that the transferred origin history stayed.
+It does not show a held snapshot, a `defer` key, names from more than one dataset, a set larger than two, an
+unpromoted clone, another OpenZFS release, or the host kernel. Why the grants allow it is a source reading, not
+this run: the request's policy requires `mount` and `destroy` for each name (`module/zfs/zfs_ioctl.c:824` to
+`:834` and `:843` to `:877`), and a snapshot is checked for descendant grants only
+(`module/zfs/dsl_deleg.c:576`), which the clone parent's `-d mount,destroy` supplies.
+
+### Item 2: one named snapshot has a dependent clone
+
+Root created `@with-dependent` and `@without-dependent` on the clone and cloned `@with-dependent` as
+`zfsowed17/home/worktree-clone-datasets/dependent`; the log quotes that clone's `origin` and `mounted no`. The
+account then sent the same direct batch naming both snapshots:
+
+```text
+# item-17-exact-3.log
+batch process uid=1000
+lzc_destroy_snaps([...], defer=false): 17 (File exists)
+zfsowed17/home/worktree-clone-datasets/removal@with-dependent: 17 (File exists)
+ioctl(3, 0x5a3b, 0x7ffc9c27ddf0)        = -1 EEXIST (File exists)
+ZFS_IOC_DESTROY_SNAPS (0x5a3b) count: 1
+item 2 process exit: 17
+item 2 named snapshots still present: ['...@with-dependent', '...@without-dependent']
+```
+
+It shows that the account's batch kept the all-or-nothing result item 14 measured as root: one dependent clone made
+the request return `EEXIST`, the per-name error named only the dependent snapshot, one request was sent, and the
+snapshot without a dependent was not deleted either. It does not show a user hold instead of a clone, several
+dependent names in one request, or a name outside the account's grants.
+
+### Item 3: the same request as root
+
+After item 1, root created `@root-control-one` and `@root-control-two` and ran the same helper and trace as
+`uid=0`:
+
+```text
+# item-17-exact-3.log
+batch process uid=0
+lzc_destroy_snaps([...], defer=false): 0 (Success)
+ioctl(3, 0x5a3b, 0x7ffc3a904b90)        = 0
+ZFS_IOC_DESTROY_SNAPS (0x5a3b) count: 1
+item 3 process exit: 0
+item 3 named snapshots still present: []
+```
+
+It is the control that the request the account sent is well formed on this guest: the same call shape returned 0 and
+deleted both names as root too. It does not show a root-only refusal for a name outside a grant.
+
+### Item 4: not needed
+
+Item 1 was accepted, so no refusal had a permission to name and no grant was added. The log records
+`item 4: not run, item 1 was accepted`. Which permission such a refusal would name, and whether adding only a
+descendant `destroy` grant on each clone would change it, remain unmeasured: no run in this record produced that
+refusal.
+
+### What item 17 did not show
+
+- No user hold, `defer` key, larger set, split or batch limit. Item 14's request limits stand and were not
+  repeated here.
+- No route through the proposed binding, the root handler or a conditional channel program; the helper is the
+  fixture item 14 used, called as the account.
+- No unpromoted clone, other clone topology or encryption root, other OpenZFS release, or `7.3.5-1-cachyos`.
+- No head destroy after the batch, no interleaving with a snapshot created between inspection and request, and
+  no interleaving with a mount or unmount. Items 14 and 15's limits stand.
+- No request naming a transferred snapshot, a foreign snapshot or one outside the clone parent. The design names
+  only the clone's own snapshots; what the same account could do to a transferred one under these grants was not
+  measured.
