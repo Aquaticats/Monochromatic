@@ -39995,8 +39995,14 @@ accepted for the author: M1 (no deadline on the `sync` child in `git-policy/cli`
 campaign lock), L1 (a created `wg` rule file is never synced while the README now promises every write), L2 (wrong
 error family), L3 (helper written three times beside existing runners), L4 (no boundary tests for `--` and the
 argument array); recorded, not changed: L5 (a failed directory sync on claim release is logged and the run still
-succeeds; older behaviour). The author's third run (`pi-node-sync-calls-go-through-coreutils-sync-3`) answers them;
-then a delta review and the merge.
+succeeds; older behaviour). The author's third run (`pi-node-sync-calls-go-through-coreutils-sync-3`) answered them
+(46 turns, `idle`; `42980fc2ec` failing-first tests, `671d103f99` fixes; pushed): a 60-second sync deadline reusing
+`wg-quicker`'s runner bound, the created OpenSnitch rule file and its directory synced, each package's own error
+class, the duplicate helpers removed for each package's runner, boundary tests (removing `--` fails the OpenSnitch
+argument test); L5 unchanged; focused tests and types pass, changed-file oxlint 0/0 (Git's whole-package oxlint still
+41 errors outside the change). Its delta review (`pi-review-node-sync-calls-go-through-coreutils-sync-at-671d103f99-1`,
+DeepSeek, read-only in the worktree) checks first whether a measurement stands behind the reused 60 seconds; then the
+merge.
 
 The prewarm writer's DeepSeek resume ended `idle` (214 turns) at `4ebfded328`, not final
 (`~/temp/agent/prewarm-acts-only-on-the-entry-it-checked-2026-11-16-scratch/keep/report.md`): one held-name module
