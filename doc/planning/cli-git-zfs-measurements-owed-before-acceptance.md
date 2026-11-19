@@ -26,7 +26,7 @@ Host, read-only: `uname --kernel-release` printed `7.3.5-1-cachyos` and `/sys/mo
 
 `findmnt --target /home/user/Monochromatic` resolves to `/home`, not a dedicated checkout mount yet.
 `zfs get` on the host home dataset returned `aes-256-gcm`, encryption root `zpcachyos`, key `available`,
-`recordsize=32K` and `compression=zstd-3`. No host filesystem state or propagation was changed.
+`recordsize=32K` and `compression=zstd-3`. No host pool, filesystem mount or propagation was changed.
 
 ## 1. Register, snapshot, attach and fill
 
@@ -292,3 +292,32 @@ real=1000 effective=1000
 The second run did not gain privilege despite unchanged root ownership and setuid mode. Enforce and verify the
 mount flag independently of dataset properties; the control deliberately let setuid work at the dataset level.
 This measures the setuid half of gate 5 for the descriptor primitive, not the installed handler.
+
+## 8. Immutable underlay, boot and parent rollback
+
+Guest before and after reboot: `6.8.0-147-generic`, OpenZFS userspace/module `2.4.4-1` (`item-8-pre-exact.log`,
+`guest-reboot.log`, `item-8-post-exact.log`). The kernel differs from the host; the module release matches.
+
+With the checkout **unmounted**, the account could rename its underlay folder and create a replacement at
+the original path. Root snapshotted the parent dataset and ran `chattr +i` on the underlay directory.
+With the same ownership and now an immutable directory, the account's `mv --no-target-directory` and
+`rmdir` both exited 1, ending with `Operation not permitted`. `zfs mount -a` still mounted the checkout there;
+after unmount, `lsattr -d` still reported `----i-----------------`.
+
+The probe exported the file-backed pool, rebooted the VM, reloaded the exact module, imported with `-N`,
+loaded the key and mounted only the parent. The boot ID changed from
+`00ee24e6-a78a-4f9c-aeef-cd896fa0763b` to `df936c8d-fd5b-4b35-b763-ecbd06b8349e`. The flag remained and
+the account's rename and remove still refused. Next, root cleared the flag, rolled back to the snapshot
+that contained it, then rolled back again to the pre-flag snapshot:
+
+```text
+flag persisted through mount -a
+rollback to flag-bearing snapshot restored immutable
+rollback to pre-flag snapshot removed immutable
+```
+
+The account again renamed and replaced the unprotected folder after the second rollback. An immutable
+entry is a viable protection for this directory under that ancestor layout, but not an invariant after a
+parent rollback. Verify the underlay protection and intended mount identity before an automated checkout
+attach, and after reimport or rollback. This was persistence across a normal reboot with manual import and
+key load, not a test of the production boot service or of replacing an ancestor of the protected entry.
