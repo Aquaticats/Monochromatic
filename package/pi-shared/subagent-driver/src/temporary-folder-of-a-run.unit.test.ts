@@ -23,6 +23,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  errorCodeOf,
   makeTemporaryFolderOfARun,
   TEMPORARY_FOLDER_MODE,
   TEMPORARY_FOLDER_NAME,
@@ -98,6 +99,32 @@ function temporaryFolderIn(runFolder: string,): string {
     runFolder,
     TEMPORARY_FOLDER_NAME,
   );
+}
+
+/**
+ The failure a mode set that the operating system refuses answers with.
+
+ This is a stand-in: a folder this account owns keeps whatever mode it is given on this machine's own volume, so no provocation makes
+ `chmod` refuse one, and the maker is handed this failure instead. It carries a `code` of its own, which is what a caller of the
+ maker reads.
+ */
+class ModeRefusedError extends Error {
+  /**
+   The name printed with the message.
+   */
+  override readonly name = 'ModeRefusedError';
+
+  /**
+   The code the operating system answers a refused mode set with.
+   */
+  readonly code = 'EPERM';
+
+  /**
+   Builds the stand-in failure.
+   */
+  constructor() {
+    super('EPERM: operation not permitted, chmod',);
+  }
 }
 
 await describe({
@@ -233,8 +260,45 @@ await describe({
             expect((caught as TemporaryFolderNotMadeError).folder,).toBe(fileInTheWay,);
             expect((caught as Error).message,).toContain(fileInTheWay,);
             expect((caught as Error).message,).toContain('EEXIST',);
+            // The caught value is kept, so a caller reads the operating system's own code rather than the words of the message.
+            expect(errorCodeOf((caught as Error).cause,),).toBe('EEXIST',);
             // The file the maker refused is left as its writer made it.
             expect(await readFile(fileInTheWay, 'utf8',),).toBe('not a folder\n',);
+          },
+        },),
+        it({
+          name: 'refuses a folder whose mode it cannot set, naming the folder and keeping the failure as the cause',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The run folder this test's run was given.
+             */
+            const runFolder = join(
+              folder.path,
+              'run',
+            );
+            /**
+             What the maker threw.
+             */
+            let caught: unknown;
+            try {
+              await makeTemporaryFolderOfARun({
+                runFolder,
+                // This account's own volume keeps every mode it is given, so the refused mode set is handed in rather than provoked.
+                setTheMode: async function refusesTheMode() {
+                  throw new ModeRefusedError();
+                },
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(TemporaryFolderNotMadeError,);
+            expect((caught as TemporaryFolderNotMadeError).folder,).toBe(temporaryFolderIn(runFolder,),);
+            expect((caught as Error).message,).toContain('EPERM',);
+            expect(errorCodeOf((caught as Error).cause,),).toBe('EPERM',);
+            // The folder itself was made, so what failed is the mode set and not the making.
+            expect((await lstat(temporaryFolderIn(runFolder,))).isDirectory(),).toBe(true,);
           },
         },),
       ],

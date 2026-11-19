@@ -32,6 +32,7 @@ export type {
   NoFurtherStart,
   PiStartFailure,
 } from './driver-types.ts';
+export { errorCodeOf, } from './error-code-of.ts';
 export {
   type RunPutAway,
   putTheRunAway,

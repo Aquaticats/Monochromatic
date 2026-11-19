@@ -7,8 +7,10 @@
  `${HOME}/temp/agent`. So a run's Pi is given a folder of its own inside the run folder, with mode `0700`, and the variables that
  name it, so no caller passes `TMPDIR` by hand and one run's files live in one folder.
 
- The folder is looked at after it is made, without following anything: a link planted under the name is refused rather than followed,
- so a folder outside the run folder never becomes Pi's.
+ The folder is made, then read without following anything: a link or anything else that is not a folder under the name is refused
+ before any mode is set through it. An entry traded for a link between that reading and the mode set is followed by the mode set,
+ because the call that would act on an opened folder (`FileHandle.chmod`) is refused by this machine's Node, which runs with the
+ permission model; a link planted before the reading never reaches Pi.
 
  The folder is kept when its run ends: the run's session transcript names the files Pi wrote there, so a reader of that transcript
  follows those paths to what Pi kept.
@@ -60,6 +62,8 @@ export class TemporaryFolderNotMadeError extends Error {
 
    @param reason - what the operating system answered, in words that name no value
 
+   @param cause - the caught value, so a caller can read its `code` rather than parse the message
+
    @example
    ```ts
    throw new TemporaryFolderNotMadeError({ folder: '/runs/a-1/temporary-files-pi-wrote', reason: 'EEXIST: file already exists', },);
@@ -68,14 +72,17 @@ export class TemporaryFolderNotMadeError extends Error {
   constructor({
     folder,
     reason,
+    cause,
   }: {
     readonly folder: string;
-    readonly reason: string
+    readonly reason: string;
+    readonly cause?: unknown
   },) {
     super(
       `the folder ${folder} for the files this run's Pi writes its temporary files in could not be made, so no Pi was started: ${
         reason
       }`,
+      (cause === undefined) ? undefined : { cause, },
     );
     this.folder = folder;
   }
@@ -87,10 +94,13 @@ export class TemporaryFolderNotMadeError extends Error {
  The driver calls this after it has checked that the run folder holds nothing of an earlier attempt, because that check refuses a
  run folder holding any entry at all: a folder made before the check would refuse every run of its own.
 
- The folder is looked at after it is made and before anything is set through it: a link planted under the name is refused rather
- than followed, so a folder outside the run folder never becomes Pi's.
+ The folder is read after it is made and before anything is set through it: a link or anything else that is not a folder under
+ the name is refused. An entry traded for a link between that reading and the mode set is not covered, because the call that would
+ cover it, `FileHandle.chmod`, is refused by this machine's Node (the permission model forbids `fchmod`).
 
  @param runFolder - the folder this run writes into
+
+ @param setTheMode - what sets the folder's mode, which a test takes over to make that step fail
 
  @returns the folder, made and given `TEMPORARY_FOLDER_MODE`
 
@@ -102,7 +112,21 @@ export class TemporaryFolderNotMadeError extends Error {
  const { folder } = await makeTemporaryFolderOfARun({ runFolder: '/runs/copy-route-4', },);
  ```
  */
-export async function makeTemporaryFolderOfARun({ runFolder, }: { readonly runFolder: string },): Promise<{
+export async function makeTemporaryFolderOfARun({
+  runFolder,
+  setTheMode = chmod,
+}: {
+  readonly runFolder: string;
+
+  /**
+   What sets the folder's mode, which a test takes over to make that step fail: this machine has no way to make `chmod` refuse a
+   folder this account owns, so the failure arm would otherwise have no test.
+   */
+  readonly setTheMode?: (
+    path: string,
+    mode: number,
+  ) => Promise<void>;
+},): Promise<{
   readonly folder: string
 }> {
   /**
@@ -134,7 +158,7 @@ export async function makeTemporaryFolderOfARun({ runFolder, }: { readonly runFo
     // `mkdir` applies the mode through the umask, so a shell that starts the driver can still take bits away: the mode this package
     // states is set here rather than left to whatever started the run. The mode is set by path rather than through an open descriptor
     // because this machine's Node runs with the permission model, which forbids `fchmod` (`process.permission` is present).
-    await chmod(
+    await setTheMode(
       folder,
       TEMPORARY_FOLDER_MODE,
     );
@@ -148,6 +172,8 @@ export async function makeTemporaryFolderOfARun({ runFolder, }: { readonly runFo
       folder,
       // The caught value's own text, which for a failure of the operating system names the call and the path it was about.
       reason: caughtValueText(error,),
+      // The value itself, so a caller reads `code` from the failure rather than out of its message.
+      cause: error,
     },);
   }
   return { folder, };

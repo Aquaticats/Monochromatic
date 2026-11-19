@@ -1080,9 +1080,13 @@ the launcher that builds the session's environment asks it, once, before it make
   a launcher makes the run folder first at the default mode,
   so this reaches a driver started by hand.
   A link planted under the folder's name is refused rather than followed:
-  the driver opens the folder without following a link and sets its mode through that descriptor,
-  so a folder outside the run folder never becomes Pi's,
-  and a run that cannot make the folder stops before it starts Pi,
+  the driver makes the folder, reads the name without following anything,
+  and refuses a link or anything else that is not a folder before it sets any mode through that name.
+  An entry traded for a link between that reading and the mode set is not covered:
+  the call that would set the mode on an opened folder, `FileHandle.chmod`,
+  is refused by this machine's Node, which runs with the permission model,
+  so a folder outside the run folder can become Pi's only if somebody swaps the entry in that moment.
+  A run that cannot make the folder stops before it starts Pi,
   with `TemporaryFolderNotMadeError` naming the folder and what the operating system answered.
   The folder is kept once the run ends:
   the run's session transcript names the files in it,
