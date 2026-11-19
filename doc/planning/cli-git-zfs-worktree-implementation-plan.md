@@ -1,15 +1,16 @@
 # cli-git ZFS worktree implementation plan
 
-**Non-final plan,
-written by an agent,
-unapproved.**
+**Accepted by the owner on 2026-11-19T17:45:53-05:00,
+answering "Accept (Recommended)" in the question tool,
+at commit `9137efc5b4`.**
+Written by an agent and revised after a Sonnet gate review
+(32 findings, all applied in `55cab4075e`).
 This file puts the accepted design in build order,
 so each step can be handed to one writer as one task and reviewed on its own.
 It adds no decision of its own:
 every statement about the design names the design heading it comes from,
 and where the design states no order the entry says the order is this plan's suggestion.
-Only the owner declares a plan final or approved,
-so this one is neither.
+A change to the order is a plan edit the owner sees.
 
 ## Status and sources
 
@@ -2126,15 +2127,14 @@ behind step 9, staging,
 sit step 9 and steps 14 to 23.
 
 Parallel writers here need a worktree each.
-The plan assumes at most four at once:
-one for step 1,
-one for step 3's host half,
-one for step 4 and one for step 5,
-beside the three design documents, which need none.
 [handover][]'s entry "No heavy worktree use before the wrapper's ZFS route"
 (2026-11-18T21:47:42-05:00) records the owner's words
-"We shouldn't use worktrees heavily before we implement the zfs parts for the git wrapper",
-and the plan stays inside that bound.
+"We shouldn't use worktrees heavily before we implement the zfs parts for the git wrapper".
+For the ZFS build steps themselves the owner answered on 2026-11-19,
+asked how many worktrees they may use at once:
+"Up to 64".
+Every run still counts against the cap in `doc/handover/agents-at-once-on-this-machine.md`,
+and the held queue of other work stays held.
 
 ## Integration
 
