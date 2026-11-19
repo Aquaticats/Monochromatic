@@ -1,6 +1,21 @@
 # ZFS worktree design proposal for the Git wrapper
 
-**Non-final draft by an agent, unapproved.** Decision fold-in: this revision states the project's answers of
+**Accepted by the project on 2026-11-19 in the question tool, with its open items still open.** The acceptance is
+recorded under "Answered in the question tool, recorded 2026-11-19T16:22:16-05:00" in the round's questions file,
+`doc/handover/questions-for-the-owner.md`, and the accepted design has its own record,
+[`doc/decision/cli-git-zfs-worktree-design.md`](../decision/cli-git-zfs-worktree-design.md). This file stays the
+planning record and keeps the evidence. The two owed VM measurements still gate shipping the forced arm, and they
+decide only the sentences already conditional on them.
+
+Acceptance fold-in (2026-11-19), after the gate review and its fix round: this revision states the project's three
+remaining answers with their words, everywhere this file treats them. The guarded `cancel-worktree-removal <slot>`
+command stays as the manual way back. The check that the origin is not marked for deferred destroy also runs before
+the first snapshot delete. A `--force` removal never ends its caller or the processes of that caller's session. The
+parts those answers leave without a design stay, or become, open items in plain words beside the answers' words
+([Open items the decisions leave](#open-items-the-decisions-leave)), and the behaviours the answers decide gain the
+acceptance items they owe. It changes no other decision and no measured fact, citation or measurement item number.
+
+Decision fold-in: this revision states the project's answers of
 2026-11-19 to every open choice and every default this file listed, quoting the words recorded for each answer.
 Those words are in the round's section "Answered in the question tool, started 2026-11-19T11:30:00-05:00"
 as it stood at `dfe7d53980`; this proposal carries them now, because the handover file that held the section,
@@ -9,7 +24,7 @@ revision stamp is what `git log --format=%cI -1` prints for the file; this revis
 (2026-11-19T02:21:09-05:00), and a section heading's stamp is the commit time of the commit that landed that
 section.
 
-A gate review of this revision (2026-11-19, unapproved and non-final like the rest) raised findings F1 to F14,
+A gate review of this revision (2026-11-19, unapproved and non-final at that time) raised findings F1 to F14,
 answered here without changing a decision. The answer separates what a destroy-anyway residual costs a removal
 that resumes from what it costs one that auto-cancels, says the post-move unmount acts on the held descriptor,
 makes the forced arm conditional on the VM item that measures it, and stops stating that the record drops the
@@ -748,7 +763,12 @@ conflicting request without verifying and recording recovery.
 Reuse the wrapper's Git registration/back-link, lock, clean and held-directory boundary checks. The project gave one
 supported `--force` a second meaning beside waiving cleanliness: it ends the holders of the clone (the cancellation
 decision under [Project decisions](#project-decisions)), once the owed VM item shows it works
-([Forced removal and deferred origins](#forced-removal-and-deferred-origins)). It does not waive an operator or
+([Forced removal and deferred origins](#forced-removal-and-deferred-origins)). The never-end set the project decided
+on 2026-11-19, answering "Spare the caller (Recommended)": the removal never ends the caller and the processes of its
+session, the shell that ran the command and that shell's other jobs; when the caller's session holds the clone, the
+removal refuses and says to leave the folder and run the command again; other holders are still ended. How the
+wrapper tells its caller's session apart from the other holders has no design yet
+([Open items the decisions leave](#open-items-the-decisions-leave)). It does not waive an operator or
 unexplained lock, mount
 boundary or identity check. Because the project decided the Git lock mechanism, handle a proven wrapper lock only
 as specified in
@@ -832,10 +852,10 @@ a test asserts that the encoded request has no `defer` key.
     intent and print the slot, dataset and exact snapshot names to be lost. Release local handles and request
     `unmount`. Require the root handler's [all-namespace unmount check](#mounts-held-by-other-namespaces) and
     verify the request, clone GUID, underlay identity and Git registration still match. A busy unmount blocks
-    destruction even when the slot is clear: `--force` clears it by ending the holders, once the owed VM item shows
-    that works, and without `--force` the blocked removal cancels itself; a missing or mismatched unmount blocks it
-    outright (proposed from [item 15][vm-namespaces], with the `--force` meaning under
-    [Blocked-removal cancellation](#project-decisions)).
+    destruction even when the slot is clear: `--force` clears it by ending the holders other than the caller and its
+    session, once the owed VM item shows that works, and without `--force` the blocked removal cancels itself; a
+    missing or mismatched unmount blocks it outright (proposed from [item 15][vm-namespaces], with the `--force`
+    meaning under [Blocked-removal cancellation](#project-decisions)).
 3.  After unmount, persist the verified inventory and expected clone identity as the destruction plan. That inventory
     is step 1's, which lists bookmarks as well as snapshots; the plan records each snapshot tuple this removal
     verified and submitted for destruction, with that tuple's outcome, and no bookmark entry. Require fresh root
@@ -871,15 +891,19 @@ a test asserts that the encoded request has no `defer` key.
     unknown prior outcome stops the attempt. After each known batch outcome, enumerate again before head destroy.
     A snapshot created after the final enumeration can still block head destroy (`module/zfs/dsl_destroy.c:783`
     to `:790`, OpenZFS `zfs-2.4.4`); retry only after identifying the new own snapshot and reproving the plan, not
-    on unexplained `EBUSY`. Before head destroy, also run the check the paired answer requires, "Keep both, check
-    first (Recommended)": that the clone and its origin are the planned ones and that the origin is not marked for
-    deferred destroy, refusing otherwise, because
-    destroying the last clone can reap an origin already marked for deferred destroy outside the separate
-    origin-cleanup step (`dsl_destroy.c:1028` to `:1037` and `:1168` to `:1172`). That check runs after the
-    snapshot batch, so a refusal there leaves the clone without its own snapshots: the head and the registration
-    survive at that moment, the history does not come back, and whether the refusal then keeps the removal record
-    or lets the removal cancel itself is under [Open items the decisions leave](#open-items-the-decisions-leave).
-    The check has no design yet, and a same-account mark between the check and the destroy stays inside the accepted
+    on unexplained `EBUSY`. Run the check the paired answer requires, "Keep both, check first (Recommended)",
+    before the first snapshot delete and again before the head destroy: that the clone and its origin are the planned
+    ones and that the origin is not marked for deferred destroy, refusing otherwise, because destroying the last
+    clone can reap an origin already marked for deferred destroy outside the separate origin-cleanup step
+    (`dsl_destroy.c:1028` to `:1037` and `:1168` to `:1172`). The project placed the check before the first snapshot
+    delete on 2026-11-19, answering "Also check first (Recommended)", so a removal whose origin is marked refuses
+    before deleting anything: the clone, its snapshots and the registration stay. The check before the head destroy
+    stays, and a mark set between the two checks remains the accepted residual. The check before the head destroy
+    runs after the snapshot batch, so a refusal there leaves the clone without its own snapshots: the head and the
+    registration survive at that moment, the history does not come back, and whether the refusal then keeps the
+    removal record or lets the removal cancel itself is under
+    [Open items the decisions leave](#open-items-the-decisions-leave). Neither check has a design yet, and a
+    same-account mark between the check before the head destroy and the destroy stays inside the accepted
     residual
     ([Open items the decisions leave](#open-items-the-decisions-leave)). Bound replanning by
     the same removal deadline, without restarting it. Print what disappeared and what remains and keep per-name
@@ -918,12 +942,19 @@ authorize cleanup.
 ### Cancelling a blocked removal
 
 A refusal after setting `unmount` leaves removal intent in force, and the project decided what happens next in
-two parts, in the owner's words: "Kill or otherwise remove or destroy the holders whenever --force is specified,
+two parts, in the record's words: "Kill or otherwise remove or destroy the holders whenever --force is specified,
 auto-cancel if not." With `--force`, removal ends the holders and goes on, once the owed VM item shows it works;
-without it, the blocked removal cancels itself. The record does not say whether an explicit
-`cancel-worktree-removal <slot>` command stays as a manual path: the draft at `b5294a7325` offered that guarded
-command and report-only recovery as this choice's two options, and the answer of 2026-11-19 decides what happens
-without `--force` without choosing between them. Whether such a command stays is an open item for the owner
+without it, the blocked removal cancels itself. The never-end set the project decided on 2026-11-19, answering
+"Spare the caller (Recommended)": the removal never ends the caller and the processes of its session, the shell that
+ran the command and that shell's other jobs; when the caller's session holds the clone, the removal refuses and says
+to leave the folder and run the command again; other holders are still ended. How the wrapper tells its caller's
+session apart from the other holders has no design yet
+([Open items the decisions leave](#open-items-the-decisions-leave)).
+
+A guarded `cancel-worktree-removal <slot>` command stays as the manual way back, answering "Keep the command
+(Recommended)": it serves a removal whose wrapper was killed after it recorded the unmount or that ran past its
+deadline, it reports any snapshots already destroyed, and it cannot restore them. What "guarded" means here, and so
+how the command proves the slot it names is the slot it may reverse, has no design yet
 ([Open items the decisions leave](#open-items-the-decisions-leave)).
 
 Auto-cancellation can happen after the removal has already destroyed history. The project's "B: Destroy at once"
@@ -942,11 +973,13 @@ the route rests on that measurement working
 ([Forced removal and deferred origins](#forced-removal-and-deferred-origins)). Who ends a holder that is not a
 process of the account, and by what authority, has no design yet either
 ([Open items the decisions leave](#open-items-the-decisions-leave)). A removal that runs past its deadline, or
-whose wrapper is killed after the `unmount` intent is recorded, is neither case: it does not auto-cancel at once
-and no designed path returns it, so that state is an open item too.
+whose wrapper is killed after the `unmount` intent is recorded, is neither case: it does not auto-cancel at once,
+and the kept cancel command is the manual way back for it, reporting any snapshots already destroyed and restoring
+none. What state that command finds, what it reconciles before it reverses anything, and what it tells the caller
+stay open ([Open items the decisions leave](#open-items-the-decisions-leave)).
 
-What the guarded reversal the draft at `b5294a7325` offered had to prove still applies to whatever restores a
-cancelled removal:
+What the guarded reversal the draft at `b5294a7325` offered had to prove applies to whatever reverses a removal,
+the kept command included:
 under the per-slot claim, settle all outstanding destroy requests and prove the clone, original lineage, Git
 registration, mount state and exact destruction outcomes before reversing intent. Report any confirmed history loss
 before doing so and retain that report. If a destroy outcome is unknown or the head is gone, do not issue `mount`;
@@ -1157,7 +1190,9 @@ status. `doctor` does not start a service, create a test dataset, repair registr
   matched source and path, and report incomplete coverage as unknown. Do not require root in the `doctor` caller.
   For a blocked removal, show standing `unmount` intent, the last verified loss and remaining objects, whether the
   removal will cancel itself without `--force` or end the holders with it once the owed VM item shows that works,
-  and which resume or administrator recovery step remains (proposed recovery state, not measured).
+  name the caller and its session among the processes it spares, and name the kept `cancel-worktree-removal <slot>`
+  command as the way back, reporting any snapshots already destroyed; what that command prints is undesigned
+  ([Open items the decisions leave](#open-items-the-decisions-leave)) (proposed recovery state, not measured).
   Report snapshot retention using named ZFS accounting fields where measurable; do not sum shared blocks as if each
   clone owned them. Explain retained underlays in checkout snapshots. Print the applicable guarded resume or
   link-repair steps, not a blanket destroy or a guessed registration.
@@ -1185,7 +1220,7 @@ couple them; the pair's answer adds a check rather than a ranking between them. 
 identity decision, because the plan every rule persists is written by the program that decision puts in charge and
 the decided bookmark rule reads it (reasoning). Parts an answer created with no design yet are listed under
 [Open items the decisions leave](#open-items-the-decisions-leave). Nothing here
-is approved, released or implemented: this file remains a non-final draft.
+is implemented or released: this file remains the planning record, and the open items it lists stay open.
 
 - Checkout boot mount protection. Decided: "Immutable entry (Recommended)", the ordinary checkout mountpoint plus
   an immutable covered entry. [VM item 8][vm-immutable] showed the flag surviving ordinary mount and reboot, but
@@ -1236,14 +1271,16 @@ is approved, released or implemented: this file remains a non-final draft.
   scan, are both unmeasured. The route keeps the scan: it still needs the fresh root
   all-namespace verification before the first snapshot delete and before the head destroy
   ([Requests, results and ordering](#requests-results-and-ordering)), and a busy unmount still blocks destruction
-  even when the slot is clear: `--force` clears it by ending the holders, once the owed VM item shows that works,
-  while without `--force` the blocked removal cancels itself, and a missing or mismatched unmount blocks it outright
+  even when the slot is clear: `--force` clears it by ending the holders other than the caller and its session, once
+  the owed VM item shows that works, while without `--force` the blocked removal cancels itself, and a missing or
+  mismatched unmount blocks it outright
   ([Removal and recovery](#removal-and-recovery), step 2, and
   [Blocked-removal cancellation](#project-decisions)).
   That scan is proposed protocol; item 15 ran three root scans per arm, after attach, after the host unmount
   and after the readers stopped (`item-15-exact.log:87`, `:126`, `:153`; `:237`, `:273`, `:290`), and did not
-  exercise repeat requests. The alternative the project did not select, refusing before the first snapshot delete,
-  would leave the decided "B: Destroy at once" ([project decision][answers], lines 491 to 494) unreached for every
+  exercise repeat requests. The alternative the project did not select, refusing whenever the namespace exclusion
+  cannot be shown, before the first snapshot delete, would leave the decided "B: Destroy at once"
+  ([project decision][answers], lines 491 to 494) unreached for every
   deployment whose arrangement this draft describes, and an authorized removal would be destroyable only through
   action outside the wrapper (reasoning). The project declined a refusal of that kind once: when it chose
   "B: Destroy at once", the offered "refuse without an explicit flag" was declined
@@ -1267,14 +1304,18 @@ is approved, released or implemented: this file remains a non-final draft.
   as a refused mount or as one the probe did not detect (reasoning). The decided route
   neither authorizes a path mount nor withdraws the runtime module gate, and it preserves existing bindings and
   intent while the route is unavailable.
-- Blocked-removal cancellation. Decided, in the owner's words: "Kill or otherwise remove or destroy the holders
+- Blocked-removal cancellation. Decided, in the record's words: "Kill or otherwise remove or destroy the holders
   whenever --force is specified, auto-cancel if not." So `--force` gains a second meaning beside waiving
-  cleanliness: the holders are ended. Without it, a blocked removal reverts by itself. The record does not say
-  whether an explicit `cancel-worktree-removal <slot>` command stays as a manual path: the draft at `b5294a7325`
-  offered the guarded command and report-only recovery as this choice's two options, and the answer decides
-  auto-cancellation without choosing between them. That question is open for the owner
-  ([Open items the decisions leave](#open-items-the-decisions-leave)). The second part of the answer is a
-  measurement, "Measure in a VM (Recommended)", and the forced arm is adopted only if it works. Who ends a holder
+  cleanliness: the holders are ended. Without it, a blocked removal reverts by itself. Two further answers of
+  2026-11-19 settle the parts this item left. The never-end set, "Spare the caller (Recommended)": the removal
+  never ends the caller and the processes of its session, the shell that ran the command and that shell's other
+  jobs; when the caller's session holds the clone, the removal refuses and says to leave the folder and run the
+  command again; other holders are still ended. The manual way back, "Keep the command (Recommended)": a guarded
+  `cancel-worktree-removal <slot>` stays, including for a removal whose wrapper was killed after it recorded the
+  unmount or that ran past its deadline, reports any snapshots already destroyed, and cannot restore them. How the
+  wrapper tells its caller's session apart from other holders, and what the command proves before it acts, have no
+  design yet ([Open items the decisions leave](#open-items-the-decisions-leave)). The second part of the answer is
+  a measurement, "Measure in a VM (Recommended)", and the forced arm is adopted only if it works. Who ends a holder
   that is not a process of the account, and by what authority, has no design yet, and neither does what the
   auto-cancellation restores once the clone's own snapshots are already destroyed: both are under
   [Open items the decisions leave](#open-items-the-decisions-leave). [VM item 4][vm-unmount] and
@@ -1324,8 +1365,10 @@ is approved, released or implemented: this file remains a non-final draft.
   prove origin identity and lineage before submission; a dependency refusal does not protect other snapshots.
   Delegated origin `destroy` also lets the account mark a checkout snapshot for deferred destroy, so this decision
   is the one that pairs with [clone removal identity protection](#clone-removal-identity-protection); the project
-  answered that pair "Keep both, check first (Recommended)", and the check it asked for has no design yet
-  ([Open items the decisions leave](#open-items-the-decisions-leave)). Neither of the two
+  answered that pair "Keep both, check first (Recommended)", and on 2026-11-19 placed the check "Also check first
+  (Recommended)": it runs before the first snapshot delete as well as before the head destroy, so a marked origin
+  refuses before anything is deleted, and a mark set between the two checks remains the accepted residual. Neither
+  check has a design yet ([Open items the decisions leave](#open-items-the-decisions-leave)). Neither of the two
   programs on this host that prune snapshots passes a deferred destroy (`/usr/bin/sanoid:399`,
   `/usr/local/sbin/zfs-space-guard:50`), other callers were not inspected, and that exposure is reasoning from the
   grant model (`lib/libzfs_core/libzfs_core.c:442` to `:451`, OpenZFS `zfs-2.4.4`), not a measured account-run
@@ -1342,7 +1385,7 @@ is approved, released or implemented: this file remains a non-final draft.
   account-selected location.
 - Busy unmount after a staging move. Decided: "Reattach when safe (Recommended)", asked as following from the
   cancellation decision, where without `--force` the removal auto-cancels and, once the owed VM item shows it
-  works, with it the holders are ended. The
+  works, with it the holders other than the caller and its session are ended. The
   overnight list ranked staged retention first; the question as re-asked recommended reattach. It moves the same
   mount back to the original slot only after revalidation, and retains it staged otherwise. Reattach restores the
   worktree's visibility but adds a second attach and a race; the unselected alternative keeps it staged until
@@ -1421,10 +1464,12 @@ beside the staging default.
 
 The project decided both questions on 2026-11-19: clone destruction is delegated, answering "Delegated destroy
 (Recommended)", and the pair with [Origin cleanup authority](#project-decisions), asked again because the grants
-couple them, is admitted with a check, answering "Keep both, check first (Recommended)". Just before the head
-destroy, removal checks that the clone and its origin are the planned ones and that the origin is not marked for
-deferred destroy, refusing otherwise. That check has no design yet, and a same-account mark between the check and
-the destroy stays inside the account-versus-itself residual the delegated option already accepts
+couple them, is admitted with a check, answering "Keep both, check first (Recommended)". Removal checks, before the
+first snapshot delete and again just before the head destroy, that the clone and its origin are the planned ones and
+that the origin is not marked for deferred destroy, refusing otherwise; the position before the first snapshot delete
+is the further answer "Also check first (Recommended)" of 2026-11-19, so a removal whose origin is marked refuses
+before deleting anything, and the check before the head destroy stays. Neither check has a design yet, and a mark set
+between the two stays inside the account-versus-itself residual the delegated option already accepts
 ([Open items the decisions leave](#open-items-the-decisions-leave)). With descendants `mount,destroy` on the
 checkout, the account becomes an allowed actor that can mark a checkout snapshot for deferred destroy; the draft at
 `b5294a7325` excluded the pair until an origin rule was proved across the cloneable scope, and this answer admits it
@@ -1467,12 +1512,15 @@ here.
   residual: a noncooperating
   process of the same account can substitute its own objects between a check and a named delete. It neither
   prevents that loss nor protects against an administrator who bypasses quiescence.
-  The pair's answer, "Keep both, check first", replaces the invariant this paragraph used to require across the
-  cloneable scope. Removal now checks, just before the head destroy, that the clone and its origin are the planned
-  ones and that the origin is not marked for deferred destroy, and refuses otherwise. A replacement whose different
-  origin is marked for deferred destroy is caught by that check, because the clone itself is not the planned one.
-  What the check does not catch is a mark made by a same-account process between the check and the destroy, which
-  stays the residual this option accepts, and the check itself has no design yet
+  The pair's answers, "Keep both, check first" and "Also check first", replace the invariant this paragraph used to
+  require across the cloneable scope. Removal now checks, before the first snapshot delete and again just before the
+  head destroy, that the clone and its origin are the planned ones and that the origin is not marked for deferred
+  destroy, and refuses otherwise; the check before the first snapshot delete stops such a removal before it deletes
+  anything. A replacement
+  whose different origin is marked for deferred destroy is caught by those checks, because the clone itself is not
+  the planned one. What the checks do not catch is a mark made by a same-account process between the check before the
+  head destroy and the destroy, which stays the residual this option accepts, and the checks themselves have no
+  design yet
   ([Open items the decisions leave](#open-items-the-decisions-leave)). This is reasoning from the head destroy
   path (`dsl_destroy.c:1028` to `:1037` and `:1168` to `:1172`), not a measured race or a claim that the grants in
   item 12 already enforce the invariant.
@@ -1595,10 +1643,14 @@ parts works.
   refusal rule would contradict the answer. The design settles none of these parts. Identification: a namespace ID
   and a representative PID from a root scan say nothing about PID reuse, so nothing yet proves the process ended is
   the process seen. The receiving path: how an unprivileged wrapper is handed root's finding, when a receipt is
-  read-only and names no holder. The never-end set: which processes are never ended at all, and whether the
-  wrapper's caller and its session, whose working directory may be the clone, are among them, given an answer that
-  ends the holders. What such a holder itself sees is the thing the owed VM
+  read-only and names no holder. What such a holder itself sees is the thing the owed VM
   measurement records ([Forced removal and deferred origins](#forced-removal-and-deferred-origins)).
+- How the wrapper tells its caller's session apart from the other holders. The answer's words: "Spare the caller
+  (Recommended)": the removal never ends the caller and the processes of its session, the shell that ran the
+  command and that shell's other jobs, and when the caller's session holds the clone the removal refuses and says
+  to leave the folder and run the command again; other holders are still ended. Which process the wrapper knows as
+  its caller, how it identifies that caller's session and the jobs in it, how it tells those from another job that
+  happens to hold the clone, and what it prints on the refusal are undesigned, and nothing measures such a refusal.
 - What a cancelled removal restores. The answer's words: "Kill or otherwise remove or destroy the holders whenever
   --force is specified, auto-cancel if not." Cancellation happens after the order "B: Destroy at once" keeps: the
   clone's own snapshots go first and the head destroy is the step a holder blocks, so a cancelled removal can find
@@ -1607,31 +1659,33 @@ parts works.
   snapshots do not come back, and the reattach the busy-unmount answer allows restores visibility, not history
   ([Cancelling a blocked removal](#cancelling-a-blocked-removal) and
   [Busy unmount after a staging move](#project-decisions)).
-- Whether an explicit cancel command stays as a manual path. The answer's words: "Kill or otherwise remove or
-  destroy the holders whenever --force is specified, auto-cancel if not." The record decides what happens without
-  `--force` and does not say whether a `cancel-worktree-removal <slot>` command remains for a person to run, or
-  what it would do that auto-cancellation does not. The draft at `b5294a7325` offered that guarded command and
-  report-only recovery as its two options, and the answer of 2026-11-19 settles neither of them.
-- What returns a worktree whose removal timed out or whose wrapper was killed. The answer's words: "Kill or
-  otherwise remove or destroy the holders whenever --force is specified, auto-cancel if not." A deadline is not
-  cancellation, and the recorded `unmount` intent stands across a restart
-  ([Waiting and refusal](#waiting-and-refusal)), so a removal that runs past its deadline, or a wrapper killed
-  after `unmount` was recorded, is established as neither a cancelled removal nor a finished one: a deadline is not
-  cancellation, and the durable request may still act. Nothing says what state the clone and any staged mount are
-  in, who reconciles it, what the caller is told, or how the worktree is returned to use. That is an open item for
-  the owner, and the item for a removal that cancels itself is separate.
-- The check before the head destroy. The pair's answer: "Keep both, check first (Recommended)". Where the check
-  reads the planned clone and origin identities, how it reads the origin's deferred-destroy mark, what it prints on
-  refusal, and which refusals keep the removal record are undesigned. That check runs after the snapshot batch, so a
-  refusal leaves the clone without its own snapshots, and nothing says whether such a refusal keeps the removal
-  record or lets the removal cancel itself. The window between the check and the destroy,
-  which a same-account process can use to mark the origin, is the residual the delegated answer accepts rather than
-  a gap this section asks anyone to close
-  ([Clone removal identity protection](#clone-removal-identity-protection)). The refusal itself is one of the VM
-  measurements the build owes ([Forced removal and deferred origins](#forced-removal-and-deferred-origins)).
-  A separate choice for the owner is whether that deferred-destroy check should also run before the first snapshot
-  delete, where a refusal would still leave the snapshots: the record places it just before the head destroy and says
-  nothing about an earlier position.
+- What the kept cancel command proves and does. The answer's words: "Keep the command (Recommended)": a guarded
+  `cancel-worktree-removal <slot>` stays as the manual way back, including for a removal whose wrapper was killed
+  after it recorded the unmount or that ran past its deadline, reports any snapshots already destroyed, and cannot
+  restore them. What "guarded" means here is undesigned: how the command proves the slot it names is the slot it
+  may reverse under the per-slot claim, how it settles outstanding destroy requests, what it prints when an outcome
+  is unknown or the head is gone, and how it relates to auto-cancellation, which acts with no person present.
+- What a timed-out or killed removal leaves besides its manual way back. The answers' words: "Keep the command
+  (Recommended)", whose command "stays as the manual way back, including for a removal whose wrapper was killed
+  after it recorded the unmount or that ran past its deadline", and "Kill or otherwise remove or destroy the
+  holders whenever --force is specified, auto-cancel if not." A deadline is not cancellation, and the recorded
+  `unmount` intent stands across a restart ([Waiting and refusal](#waiting-and-refusal)), so such a removal is
+  neither cancelled nor finished: the durable request may still act. The kept command gives a person a way back,
+  but nothing says what state the clone and any staged mount are in, who reconciles them, what the caller is told,
+  or how the worktree is returned to use. The item for a removal that cancels itself is separate.
+- How the deferred-destroy checks are designed. The answers' words: the pair's "Keep both, check first
+  (Recommended)", and "Also check first (Recommended)", which puts the same check before the first snapshot delete
+  as well, so such a removal refuses before deleting anything, while the check before the head destroy stays.
+  Where the checks read the planned clone and origin identities, how they read the origin's deferred-destroy mark,
+  what each prints on refusal, and which refusals keep the removal record are undesigned. The check before the head
+  destroy runs after the snapshot batch, so a refusal there leaves the clone without its own snapshots, and
+  nothing says whether such a refusal keeps the removal record or lets the removal cancel itself. The window
+  between the check before the head destroy and the destroy, which a same-account process can use to mark the origin,
+  is the residual the delegated answer accepts rather than a gap this section asks anyone to close; the answer
+  leaves a mark set between the two checks inside that same residual
+  ([Clone removal identity protection](#clone-removal-identity-protection)). The refusal before the head destroy
+  is one of the VM measurements the build owes
+  ([Forced removal and deferred origins](#forced-removal-and-deferred-origins)).
 - The record that carries origin cleanup. The answer's words: "Settle + own record": the Git registration is
   settled once the clone is destroyed and a separate durable record carries the origin cleanup. That record has no
   home, no writer, no fields and no state machine, and nothing says what a settled registration means while the
@@ -1804,6 +1858,17 @@ test cannot be written until that part exists. None of them is a test for an opt
 - Re-applying checkout propagation. Replace the checkout mount without a reboot and assert the checkout is private
   again. Nothing re-applies the setting yet ([Open items the decisions leave](#open-items-the-decisions-leave)),
   so this test waits on that design.
+- The caller and its session spared when `--force` ends other holders. Hold the clone from the caller's session and
+  assert the removal refuses, names the folder to leave, and says to run the command again; then hold it from
+  another session, run the removal with `--force`, and assert that holder ends while the caller and its session's
+  other jobs live on ([Cancelling a blocked removal](#cancelling-a-blocked-removal)). How the wrapper tells the
+  caller's session apart from the other holders has no design yet
+  ([Open items the decisions leave](#open-items-the-decisions-leave)), so this waits on it.
+- The kept cancel command. After a removal whose wrapper was killed once `unmount` was recorded, and after one that
+  ran past its deadline, run `cancel-worktree-removal <slot>` and assert it reverses only the slot it proves, prints
+  every snapshot already destroyed, restores none of them, and refuses a slot it cannot prove or whose head is
+  gone ([Cancelling a blocked removal](#cancelling-a-blocked-removal)). What the command proves has no design yet
+  ([Open items the decisions leave](#open-items-the-decisions-leave)), so this waits on it.
 - No holder ended without `--force`. Run the same busy holder the forced item under
   [Forced removal and deferred origins](#forced-removal-and-deferred-origins) runs with `--force`, without that
   flag, and assert it is still alive after the removal cancels
@@ -1817,19 +1882,23 @@ The decisions of 2026-11-19 that rest on a VM measurement each place an item on 
   (Recommended)", with the rule adopted only if it works. Extend [VM item 15][vm-namespaces]'s post-attach readers
   and [VM item 4][vm-unmount]'s busy holder: with `--force`, force-unmount or end the holders in each namespace
   kind and destroy the clone, recording what each holder sees (an error, a vanished mount, stale content, or a
-  signal) and whether the destroy then succeeds. If the holder survives or the head destroy still refuses
+  signal) and whether the destroy then succeeds, with the wrapper's caller and its session's other jobs alive
+  through the arm. If the holder survives or the head destroy still refuses
   `dataset is busy`, the answer has nothing behind it, and this document reads that as the rule going back to the
   owner rather than shipping; the record itself says only "adopted only if it works". A force-unmount result would
   change two statements in this file: the busy-teardown rule that reports which clone holds the mount and never
   forces or detaches it ([Boot and shutdown unit](#boot-and-shutdown-unit)), and the staging step's unmount without
   force or lazy detach ([Descriptor mount and unmount](#descriptor-mount-and-unmount)).
-- The refusal of a removal whose origin is marked for deferred destroy. The paired answer "Keep both, check
-  first (Recommended)" asks for a VM item showing the refusal. Mark a checkout snapshot for deferred destroy with
-  the `defer` key, point the planned clone (or a same-name replacement) at it, and run removal to the head
-  destroy: record that the check refuses before that request, that the origin and the marked snapshot still
-  exist, that the removal record and the Git registration survive, and what the caller and `doctor` see. The
-  same-account mark made between the check and the destroy is the accepted residual, not a case this item has to
-  close ([Clone removal identity protection](#clone-removal-identity-protection)).
+- The refusal of a removal whose origin is marked for deferred destroy. The pair's answer "Keep both, check
+  first (Recommended)" and the further "Also check first (Recommended)" ask for a VM item showing the refusal.
+  Mark a checkout snapshot for deferred destroy with the `defer` key, point the planned clone (or a same-name
+  replacement) at it, and run removal: record that the check before the first snapshot delete refuses, with the
+  clone, its snapshots, the origin and the marked snapshot still there, and what the caller and `doctor` see. Then
+  set the mark between that check and the head destroy and record that the check before the head destroy refuses
+  before the head request, with the origin and the marked snapshot still there and the removal record and the Git
+  registration surviving. A same-account mark set between the check before the head destroy and the destroy is the
+  accepted residual, not a case this item has to close
+  ([Clone removal identity protection](#clone-removal-identity-protection)).
 
 ### Descriptor safety and mount authority
 
@@ -1856,7 +1925,8 @@ The decisions of 2026-11-19 that rest on a VM measurement each place an item on 
   and the decided reattach rule. Test interruption there. [VM item 4][vm-unmount] measured
   an independent busy holder, not reattach or recovery. Repeat the [VM item 3][vm-propagation] shared and private
   checkout controls with the built programs and the decided propagation.
-- The forced arm belongs to this gate's busy holder: with `--force`, end the holder and record what it sees, as
+- The forced arm belongs to this gate's busy holder: with `--force`, end the holder, one outside the caller's
+  session, and record what it sees, as
   [Forced removal and deferred origins](#forced-removal-and-deferred-origins) states.
 - Repeat [VM item 15][vm-namespaces] with the built handler, starting both readers and the confined Pi consumer
   after attach. Prove a host-only detach with another namespace holding the source blocks the first snapshot request
@@ -1954,8 +2024,9 @@ The decisions of 2026-11-19 that rest on a VM measurement each place an item on 
   pinning the origin each block the unsafe next action. Inject a new own sanoid snapshot between proof and batch
   and again before head destroy; verify automatic re-proof and reporting without prompting, deadline exhaustion,
   and refusal for unknown or foreign changes. Include a replacement clone whose different origin is marked
-  for deferred destroy: the check before the head destroy must refuse it, and the run records what the caller and
-  `doctor` see (unrun; the second measurement under
+  for deferred destroy: the deferred-destroy check before the first snapshot delete must refuse it when the
+  replacement is already in place, the check before the head destroy must refuse it otherwise, and the run records
+  what the caller and `doctor` see (unrun; the second measurement under
   [Forced removal and deferred origins](#forced-removal-and-deferred-origins)). Check the before-destroy inventory
   and final loss
   report on successful and partial removals, with both manual and sanoid snapshots. Distinguish completed clone
