@@ -32,6 +32,12 @@ const QWEN_REQUEST_RATE_WAIT_MS = 60_000;
  */
 const RATE_LIMIT_STATUS = String(HTTP_RATE_LIMIT_STATUS,);
 
+/** Pi's OpenAI Responses adapter formats extracted statuses as `OpenAI API error (<status>):`. */
+const OPENAI_RESPONSES_RATE_LIMIT = `openai api error (${RATE_LIMIT_STATUS}):`;
+
+/** Distinguishes OpenAI's policy stop from a 429 that only mentions risk. */
+const OPENAI_POLICY_OPENING = 'this content was flagged for possible ';
+
 /**
  Policy labels that accept a single space, underscore, or hyphen as the separator.
  */
@@ -54,6 +60,8 @@ function startsWithRateLimit(value: string,): boolean {
    Case-folded terminal message, with no leading whitespace removed.
    */
   const message = foldProviderText(value,);
+  if (message.startsWith(OPENAI_RESPONSES_RATE_LIMIT,))
+    return true;
   /**
    Status prefixes accepted by the adapter boundary.
    */
@@ -95,27 +103,32 @@ function startsWithRateLimit(value: string,): boolean {
 }
 
 /**
- Match a model-service policy stop, independently of coincidental status or retry text.
+ Match policy text without misreading an HTTP 429 that merely mentions a policy or risk.
 
  @param message - failed provider message
+ @param rateLimited - whether the adapter text or response supplied a 429 status
 
  @returns whether Pi should see a non-retryable policy error
-
- @example
- ```ts
- isPolicyStop({ stopReason: 'error', errorMessage: 'Request flagged as a possible risk' }); // true
- ```
  */
-export function isPolicyStop(message: FailureEvidence,): boolean {
+export function isPolicyStop({
+  message,
+  rateLimited,
+}: {
+  readonly message: FailureEvidence;
+  readonly rateLimited: boolean;
+},): boolean {
   if (message.stopReason !== 'error')
     return false;
   /**
    Case-folded text with original spacing for the OpenAI refusal wording.
    */
   const text = foldProviderText(message.errorMessage ?? '',);
-  // The stock opening identifies the refusal without relying on the advisory text or where it was cut.
-  if (text.includes('possible risk',)
-    || text.includes('this content was flagged for possible cybersecurity risk',))
+  // The stock opening is the only policy text that takes precedence over an explicit HTTP 429.
+  if (text.includes(OPENAI_POLICY_OPENING,))
+    return true;
+  if (rateLimited)
+    return false;
+  if (text.includes('possible risk',))
     return true;
   /**
    The other policy labels also accept a single underscore or hyphen separator.

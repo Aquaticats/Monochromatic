@@ -26,17 +26,27 @@ until the attempt commits or successfully finishes. Once a content event
 has been exposed, or a terminal message already contains content, the
 plugin returns that member's error instead of replacing its partial
 answer or mixing events. Cancellation, transport errors, bad inputs, and
-other non-429 errors do not trigger fallback. A provider policy stop ends
-the request. The plugin recognizes OpenAI's opening
-`This content was flagged for possible cybersecurity risk` even when the
-advisory text that follows is truncated or changes punctuation. It still
-recognizes the shorter `possible risk` wording. The plugin removes
-incidental retry wording from recognized policy errors before passing them
-to Pi, so even a misleading 429 prefix does not trigger Pi's outer retry.
+other non-429 errors do not trigger fallback. When an adapter does not expose a
+response status, the pool reads it from Pi's `OpenAI API error (429): …`
+(Responses) or `429: …` (Completions) wording.
+
+A policy stop ends the request. OpenAI's `This content was flagged for possible`
+opening takes precedence over a 429, even if the advisory following it is
+truncated or changes punctuation. The shorter `possible risk` wording and
+generic policy labels identify a stop only when there is no 429 status.
+The error names the member and preserves the advisory, including OpenAI's
+remediation. It replaces only the spans matched by Pi's transient-error
+classifier, such as standalone retryable status numbers, `rate limit`, and
+`please retry your request`, with `[omitted]`. The surrounding wording and
+punctuation are kept. This prevents Pi's outer retry from restarting a policy stop.
 
 If the pool cannot answer, the last attempted member's 429 is returned,
-or the pool reports why no member was eligible. Pi's configured SDK and
-agent retry layers still apply to errors they see. This plugin does not
+or the pool names the held members and their state: a published zero flex
+floor, a local concurrency ceiling with the count in use, or a hold until
+a provider-derived time. These local admission results do not carry a
+fabricated 429 and are not retried by Pi: generic retry backoff cannot be
+aligned to a local slot freeing, a provider reset, or a plan change. Pi's
+configured SDK and agent retry layers still apply to physical errors they see. This plugin does not
 change the subagent driver's retry or pool accounting.
 
 ## Changing limits
@@ -49,11 +59,19 @@ sleeps on a refused member nor permanently demotes it.
 
 Authenticated quota endpoints are read on the first eligible attempt
 and before returning to the member after a refusal, a known reset, or
-a local concurrency rejection. There is no timer. Probing immediately on a 429 would make fallback wait
-on another request to the same provider; the plugin uses any response
-timing first and probes on reentry instead. Concurrent requests in one
-session share a pending lookup. A failed read does not count as
-permission, a new quota reset, or a refusal.
+a local concurrency rejection. There is no background polling. Probing
+immediately on a 429 would make fallback wait on another request to the
+same provider; the plugin uses response timing first and probes on reentry
+instead. Concurrent requests in one session share a pending lookup.
+A failed or timed-out read leaves existing evidence in place and calls for
+another read on the next eligible attempt.
+
+The quota read has its own provisional deadline of two seconds, capped at
+half a positive caller-supplied model timeout (rounded down). The read
+stops holding up dispatch at that deadline even if the transport is slow
+to acknowledge cancellation. The model request retains its own timeout.
+Set the provisional bound from the live endpoint check before installing
+this extension. The offline verification does not measure endpoint latency.
 
 ### Provider sources
 

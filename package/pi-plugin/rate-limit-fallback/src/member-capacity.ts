@@ -99,13 +99,19 @@ export function capacityOf({
 //region Live quota reads and local ceiling
 
 /**
- Use the caller's timeout for an optional quota read without aborting the model request.
+ Provisional pre-install bound for optional quota reads on the inference path. Set it from the live endpoint
+ check before install; there is no endpoint latency measurement from this offline work.
+ */
+const QUOTA_READ_TIMEOUT_MS = 2_000;
+
+/**
+ Bound the optional quota read independently of inference and below any valid model timeout.
 
  @param options - caller cancellation and transport timing policy
 
  @returns quota request cancellation
  */
-function quotaSignal(options?: SimpleStreamOptions,): { readonly signal?: AbortSignal; } {
+function quotaSignal(options?: SimpleStreamOptions,): AbortSignal {
   /**
    Caller cancellation and timeout settings used by the quota lookup.
    */
@@ -113,19 +119,43 @@ function quotaSignal(options?: SimpleStreamOptions,): { readonly signal?: AbortS
     signal,
     timeoutMs,
   } = options ?? {};
-  if ((timeoutMs === undefined) || (!Number.isSafeInteger(timeoutMs,))
-    || (timeoutMs <= 0))
-    return signal === undefined ? {} : { signal, };
   /**
-   Deadline for the quota lookup, independent from the member's request.
+   Reserve at least half the caller's model budget for inference rather than spending it on optional evidence.
    */
-  const timeout = AbortSignal.timeout(timeoutMs,);
-  return {
-    signal: signal === undefined ? timeout : AbortSignal.any([
-      signal,
-      timeout,
-    ],),
-  };
+  const budget = ((timeoutMs === undefined) || (!Number.isSafeInteger(timeoutMs,)) || (timeoutMs <= 0))
+    ? QUOTA_READ_TIMEOUT_MS
+    : Math.min(QUOTA_READ_TIMEOUT_MS, Math.floor(timeoutMs / 2,),);
+  const timeout = AbortSignal.timeout(budget,);
+  return signal === undefined ? timeout : AbortSignal.any([signal, timeout,],);
+}
+
+/**
+ Stop waiting even if credential resolution or an injected transport does not observe the quota signal.
+ The signal still reaches the quota operations so cooperative transports can cancel their work.
+
+ @param request - quota lookup and its independent deadline
+ @returns evidence only when lookup completes before cancellation
+ */
+async function readQuotaWithinDeadline(request: Parameters<typeof probeQuota>[0] & { readonly signal: AbortSignal; },): Promise<QuotaEvidence | undefined> {
+  const { signal, } = request;
+  if (signal.aborted)
+    return undefined;
+  /**
+   Listener cleanup for a read that completes before its deadline.
+   */
+  const stopWaiting = new AbortController();
+  /**
+   Resolve without quota evidence once the deadline or the owning request aborts.
+   */
+  async function stopOnAbort(): Promise<undefined> {
+    await once(signal, 'abort', { signal: stopWaiting.signal, },);
+    return undefined;
+  }
+  try {
+    return await Promise.race([stopOnAbort(), probeQuota(request,),],);
+  } finally {
+    stopWaiting.abort();
+  }
 }
 
 /**
@@ -215,11 +245,11 @@ export async function refreshCapacity({
     /**
      Fresh quota facts that may supersede previous capacity or retry hints.
      */
-    const evidence = await probeQuota({
+    const reading = await readQuotaWithinDeadline({
       registry,
       model,
       fetchQuota: options?.fetch ?? globalThis.fetch,
-      ...quotaSignal(options,),
+      signal: quotaSignal(options,),
     },);
     if (options?.signal
       ?.aborted
@@ -227,6 +257,12 @@ export async function refreshCapacity({
       capacity.needsProbe = true;
       return;
     }
+    if (reading === undefined)
+      capacity.needsProbe = true;
+    /**
+     Leave existing evidence in place after an unavailable read, but still expire past deadlines.
+     */
+    const evidence = reading ?? {};
     /**
      Observation time used to compare provider deadlines.
      */

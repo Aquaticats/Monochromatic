@@ -197,9 +197,9 @@ function neuralWattEvidence({
 
  @param fetchQuota - request transport, injectable by the consumer
 
- @param signal - parent request cancellation and its timeout, when supplied
+ @param signal - quota deadline and parent request cancellation
 
- @returns usable limit facts, or an empty object when no evidence is available
+ @returns usable limit facts, empty facts when no quota contract applies, or undefined when a supported read is unavailable
 
  @example
  ```ts
@@ -216,7 +216,7 @@ export async function probeQuota({
   model: Model<Api>;
   fetchQuota: FetchFunction;
   signal?: AbortSignal;
-},): Promise<QuotaEvidence> {
+},): Promise<QuotaEvidence | undefined> {
   /**
    Probe diagnostics, excluding credentials and raw provider responses.
    */
@@ -242,7 +242,7 @@ export async function probeQuota({
     if (URL.parse(model.baseUrl,)
       ?.origin
       !== origin)
-      return {};
+      return undefined;
     /**
      Member credentials and endpoint overrides as resolved by Pi.
      */
@@ -251,7 +251,7 @@ export async function probeQuota({
     if ((!auth.ok) || (URL.parse(auth.baseUrl ?? model.baseUrl,)
       ?.origin
       !== origin))
-      return {};
+      return undefined;
     /**
      An authorization override, including explicit suppression.
      */
@@ -272,7 +272,7 @@ export async function probeQuota({
       .startsWith('bearer ',)) || (bearer.trimEnd()
         .length
         <= 'Bearer '.length))
-      return {};
+      return undefined;
     /**
      Transport and authorized header shared by the member's quota GETs.
      */
@@ -281,11 +281,10 @@ export async function probeQuota({
       fetchQuota,
       ...(signal === undefined ? {} : { signal, }),
     };
-    if (provider === 'synthetic')
-      return { retryAt: syntheticReset(await requestQuota({
-        url,
-        ...request,
-      },),), };
+    if (provider === 'synthetic') {
+      const quota = await requestQuota({ url, ...request, },);
+      return quota === undefined ? undefined : { retryAt: syntheticReset(quota,), };
+    }
     /**
      Rate-limit lookup scoped to the exact model and lane.
      */
@@ -308,14 +307,11 @@ export async function probeQuota({
         ...request,
       },),
     ],);
-    return neuralWattEvidence({
-      limits,
-      quota,
-    },);
+    return (limits === undefined) && (quota === undefined) ? undefined : neuralWattEvidence({ limits, quota, },);
   } catch (error) {
     // Do not log raw credential-resolution errors.
     if ((error !== undefined) && (signal?.aborted !== true))
       rl.debug(`${provider} registry auth for quota read unavailable`,);
-    return {};
+    return undefined;
   }
 }

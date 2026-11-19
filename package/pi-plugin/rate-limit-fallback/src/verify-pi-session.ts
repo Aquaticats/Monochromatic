@@ -1,6 +1,6 @@
 /**
  Verify discovery, request-time registry authentication and the actual session record.
- Invoked only by verify-extension.ts, in a disposable offline home.
+ Invoked only by mise.verify-extension.ts, in a disposable offline home.
  @module
  */
 
@@ -22,6 +22,7 @@ import {
   immediate,
   MEMBER_KEY,
   PHYSICAL_MODELS,
+  rateLimitRefusal,
   type ModelIdentity,
 } from './stand-in-pi-fixture.ts';
 
@@ -116,7 +117,7 @@ async function registerStandIn(role: 'preferred' | 'backup',): Promise<void> {
       calls.push(physical.provider,);
       return immediate({
         model: physical,
-        ...(refused ? { errorMessage: 'HTTP 429: Stand-in capacity', } : {}),
+        ...(refused ? { errorMessage: rateLimitRefusal({ model: physical, },), } : {}),
       },);
     },
   };

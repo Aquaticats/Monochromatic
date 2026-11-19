@@ -22,6 +22,7 @@ import {
   POOLS,
   type Member,
 } from './model-pools.ts';
+import { policyStopMessage, } from './policy-stop-message.ts';
 import { HTTP_RATE_LIMIT_STATUS, } from './provider-wire-text.ts';
 import type { RoutingRegistry, } from './quota-endpoints.ts';
 import {
@@ -186,17 +187,10 @@ export async function* dispatchRequest({
      */
     lastRateLimit?: Extract<AssistantMessageEvent, { type: 'error'; }>;
     /**
-     Earliest known reset among held members.
+     Named reasons that registered members were not admitted.
      */
-    nextRetryAt: number;
-    /**
-     Whether local concurrency prevented admission.
-     */
-    localsFull: boolean;
-  } = {
-    nextRetryAt: Infinity,
-    localsFull: false,
-  };
+    admissionStops: string[];
+  } = { admissionStops: [], };
   /**
    Options to share with request preparation, omitting an absent argument.
    */
@@ -250,10 +244,7 @@ export async function* dispatchRequest({
     signal?.throwIfAborted();
     if (capacity.retryAt > Date.now()) {
       rl.debug(`${id}: ${label} has a provider-reported retry window`,);
-      unavailable.nextRetryAt = Math.min(
-        unavailable.nextRetryAt,
-        capacity.retryAt,
-      );
+      unavailable.admissionStops.push(`${label} is held until ${new Date(capacity.retryAt,).toISOString()}`,);
       return false;
     }
     /**
@@ -270,7 +261,9 @@ export async function* dispatchRequest({
     if (capacity.active >= ceiling) {
       rl.debug(`${id}: ${label} local concurrency reached published or observed cap ${ceiling}`,);
       capacity.needsProbe = true;
-      unavailable.localsFull = true;
+      unavailable.admissionStops.push(ceiling === 0
+        ? `${label} has a published flex floor of zero`
+        : `${label} is at its local concurrency ceiling (${capacity.active} of ${ceiling} in use)`,);
       return false;
     }
     rl.debug(`${id}: dispatching to ${label}`,);
@@ -361,7 +354,14 @@ export async function* dispatchRequest({
           buffered.start = event;
           continue;
         }
-        if ((event.type === 'error') && isPolicyStop(event.error,)) {
+        /**
+         A 429 status takes precedence over generic policy labels, but not OpenAI's policy opening.
+         */
+        const rateLimited = (event.type === 'error') && isRateLimit({
+          message: event.error,
+          ...(evidence.status === undefined ? {} : { status: evidence.status, }),
+        },);
+        if ((event.type === 'error') && isPolicyStop({ message: event.error, rateLimited, },)) {
           if (buffered.start !== undefined)
             yield buffered.start;
           // Remove incidental retry wording so Pi's own retry classifier does not restart this request.
@@ -370,20 +370,12 @@ export async function* dispatchRequest({
             ...event,
             error: {
               ...event.error,
-              errorMessage: 'The provider stopped the request under its content policy.',
+              errorMessage: policyStopMessage({ memberLabel: label, message: event.error.errorMessage ?? '', },),
             },
           };
           return true;
         }
-        if ((event.type === 'error') && (!committed)
-          && (event.error
-            .content
-            .length
-            === 0)
-          && isRateLimit({
-            message: event.error,
-            ...(evidence.status === undefined ? {} : { status: evidence.status, }),
-          },))
+        if (rateLimited && (!committed) && (event.error.content.length === 0))
           {
           signal?.throwIfAborted();
           /**
@@ -440,10 +432,8 @@ export async function* dispatchRequest({
     yield unavailable.lastRateLimit;
     return;
   }
-  if (Number.isFinite(unavailable.nextRetryAt,))
-    throw new PoolDispatchError(`HTTP 429: no eligible ${id} member until ${new Date(unavailable.nextRetryAt,).toISOString()}`,);
-  if (unavailable.localsFull)
-    throw new PoolDispatchError(`HTTP 429: ${id} reached its local provider concurrency ceiling`,);
+  if (unavailable.admissionStops.length > 0)
+    throw new PoolDispatchError(`There is no eligible ${id} member: ${unavailable.admissionStops.join('; ',)}.`,);
   throw new PoolDispatchError(`No ${id} member is registered in Pi. Check the member model catalogs.`,);
 }
 
