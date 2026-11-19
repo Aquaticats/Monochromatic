@@ -206,16 +206,24 @@ async fn physical_home_for_pnpm() -> Option<PathBuf> {
     if !home.is_absolute() {
         return None;
     }
-    // A lookup on an unresponsive filesystem must not hold up the relink or occupy a runtime worker.
-    let lookup = tokio::time::timeout(crate::wait_ceilings::REPAIR_TOOL_START_CEILING, tokio::fs::canonicalize(&home)).await;
+    // Use the wrapper's pool runner so a refused thread is a result, not a panic; a late lookup is read-only.
+    let resolve = crate::blocking_job::run_blocking_job(move || -> std::io::Result<Option<PathBuf>> {
+        let physical: PathBuf = std::fs::canonicalize(&home)?;
+        return Ok((physical.as_os_str() != home.as_os_str()).then_some(physical));
+    });
+    let lookup = tokio::time::timeout(crate::wait_ceilings::REPAIR_TOOL_START_CEILING, resolve).await;
     return match lookup {
-        Ok(Ok(physical)) if physical.as_os_str() != home.as_os_str() => {
+        Ok(Ok(Ok(Some(physical)))) => {
             crate::diagnostic_log::debug("packageRepairPnpm", "using the physical home path for pnpm's store setting");
             Some(physical)
         }
-        Ok(Ok(_unchanged)) => None,
-        Ok(Err(error)) => {
+        Ok(Ok(Ok(None))) => None,
+        Ok(Ok(Err(error))) => {
             crate::diagnostic_log::debug("packageRepairPnpm", format!("could not resolve the home directory for pnpm: {error}").as_str());
+            None
+        }
+        Ok(Err(error)) => {
+            crate::diagnostic_log::debug("packageRepairPnpm", format!("could not run the home directory lookup for pnpm: {error}").as_str());
             None
         }
         Err(_elapsed) => {
