@@ -418,12 +418,21 @@ the wrapper, and opened relative to the trusted directory. Nonces appear only as
 never in a filename. Include the operation, matching nonce, outcome, mount identity and failed step/errno where
 applicable. Readiness also records the current boot, pool, checkout and sweep state. The runtime files are a cache,
 not authority to act; rebuild them from live state and durable intent. Do not write acknowledgement properties from
-root. A waiter may change the local `org.monochromatic:git-worktree-clone-mount-sweep-nonce` once on the verified
-managed clone it is waiting for, not on the clone parent. The nudge uses the same hex format and is not a mount
-instruction. This fits the proposed descendant `userprop` grant without expanding it to the parent. The
-[ZFS planning probes][zfs-plan], lines 208 to 213, used a parent property for lost-event recovery under their setup;
-[VM item 5][vm-key] delivered a clone property event to a test zedlet. Neither measured the product's delegated
-clone-local nudge or recovery of the lost last event without another trigger.
+root. A waiter may change the local `org.monochromatic:git-worktree-clone-mount-sweep-nonce` as often as it
+needs on the verified managed clone it is waiting for, not on the clone parent. The nudge uses the same hex format
+and is not a mount instruction. The handler cannot limit the nudge to one write: the account owns that property
+and may change it repeatedly, and each change may start a sweep that scans every task, so bound the work of one
+sweep instead of counting nudges. This fits the proposed descendant `userprop` grant without expanding it to the
+parent. The [ZFS planning probes][zfs-plan], lines 208 to 213, used a parent property for lost-event recovery
+under their setup; [VM item 5][vm-key] delivered a clone property event to a test zedlet. Neither measured the
+product's delegated clone-local nudge or recovery of the lost last event without another trigger.
+
+Removal needs a fresh scan three times: for the removal-ready unmount report, immediately before the snapshot
+batch, and immediately before the head destroy. The wrapper asks for each scan by writing a new
+`v1:<nonce>:unmount` intent on the clone it removes, and the handler answers under that same nonce, so a receipt
+always names the scan that produced it and no receipt is reused for a later one. The handler repeats its
+all-namespace check under each request rather than trusting an earlier clear result. This is a proposed protocol;
+[VM item 15][vm-namespaces] ran one scan per arm and did not exercise repeat requests.
 
 ### Descriptor mount and unmount
 
@@ -612,9 +621,12 @@ therefore omits the key, and a test asserts that the encoded request has no `def
       origin snapshot `createtxg` values against the live ones as well.
     - Independent check: inventory all clone snapshots and bookmarks by kind, name, GUID, owning dataset GUID
       and `createtxg`. Require each snapshot's `createtxg` to be strictly greater than the clone's own. Include
-      manual and sanoid snapshots. Treat a bookmark's transaction group as evidence about the history it points
-      to, not proof of when the bookmark was made. Account for every bookmark before destroying the clone;
-      OpenZFS destroys its bookmark entries with the head (`module/zfs/dsl_destroy.c:1123` to `:1154`, `zfs-2.4.4`).
+      manual and sanoid snapshots. Pass a bookmark only when the recorded clone-side inventory holds its name,
+      GUID and `createtxg` and no origin-side tuple matches it. Refuse destruction when a bookmark is unrecorded,
+      when its tuple matches the origin-side inventory, or when the bookmark list could not be read completely, and
+      name each refused bookmark. OpenZFS destroys a dataset's bookmark entries with the head
+      (`module/zfs/dsl_destroy.c:1123` to `:1154`, `zfs-2.4.4`), so an unaccounted bookmark goes with it. Treat a
+      bookmark's transaction group as evidence about the history it points to, not proof of when it was made.
     - Third check: compare the live clone inventory against the recorded origin-side GUID inventory, including
       snapshots and bookmarks. Any origin-side hit or unproved provenance refuses destruction. Never update the
       recorded lineage to match an external change.
@@ -679,10 +691,12 @@ therefore omits the key, and a test asserts that the encoded request has no `def
     not surviving live worktree data.
 
 Resume against the persisted destruction plan and the live mount, dataset, snapshot and Git identities. Settle
-recorded destroys only after proving the expected objects are gone, not from a missing name alone. If interruption
-left an outcome unprovable, retain it as unresolved and stop; never regenerate an authorized set from whatever
-names are left. Distinguish unmount pending or staged, planned snapshots all gone with the head refused, clone
-gone with its recorded origin retained, and Git or empty-folder cleanup still owed. Report specific
+recorded destroys only after proving the expected objects are gone, never from a missing name alone. For each
+planned snapshot, require the clone head to answer with its recorded live GUID and an empty live snapshot list.
+For the head, require the name to be absent and no child of the pinned parent to carry the recorded GUID. If
+interruption left an outcome unprovable, retain it as unresolved and stop; never regenerate an authorized set
+from whatever names are left. Distinguish unmount pending or staged, planned snapshots all gone with the head
+refused, clone gone with its recorded origin retained, and Git or empty-folder cleanup still owed. Report specific
 blockers: `EBUSY` and holder if known, snapshot history at risk, a hold, nested dataset or mount, dependent clone,
 a mismatched identity or a missing or pruned registration. Never let a stale acknowledgement authorize cleanup.
 
