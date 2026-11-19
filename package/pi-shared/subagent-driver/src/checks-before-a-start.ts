@@ -253,7 +253,7 @@ export function answersIn(answers: readonly PiStartAnswer[],): StartChecks {
 
  @param runName - the run's name
 
- @param runFolder - the folder this run would write into
+ @param runFolder - explicitly requested folder, when the caller pins a number
 
  @param sessionPath - the `PATH` the session's own processes get, which the question about Pi is asked with
 
@@ -288,9 +288,9 @@ export async function startRefusalsIn({
   readonly runName: string;
 
   /**
-   The folder this run would write into.
+   The folder a pinned number names, absent when the launcher will claim a new number.
    */
-  readonly runFolder: string;
+  readonly runFolder?: string;
 
   /**
    The `PATH` the session's own processes get, which the question about Pi is asked with.
@@ -321,7 +321,7 @@ export async function startRefusalsIn({
       run,
       runName,
     },),
-    earlierAttemptProblemIn({ runFolder, },),
+    runFolder === undefined ? {} : earlierAttemptProblemIn({ runFolder, },),
   ],);
   /**
    What the question about Pi answered, which is asked even when another check refuses, so a reader fixes them all at once.

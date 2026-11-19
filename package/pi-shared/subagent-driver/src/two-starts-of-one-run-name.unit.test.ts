@@ -45,6 +45,11 @@ import {
 const LAUNCHER = new URL('start-pi-run-in-a-worktree.ts', import.meta.url,).pathname;
 
 /**
+ Built entry that supplies the driver's own run-folder refusal to the stand-in.
+ */
+const BUILT_DRIVER = new URL('../dist/final/node/index.mjs', import.meta.url,).href;
+
+/**
  The line the policy wrapper's help starts with, which is the one identity signal the launcher's preflight reads.
  */
 const WRAPPER_HELP_LINE = 'Usage: git monochromatic-git-policy-cli <command> [options]';
@@ -318,6 +323,11 @@ async function fixtureIn(folder: string, withARealRepository: boolean, holdsUnit
           'done',
         ]
         : []),
+      // Exercise the actual driver check before writing any record, exactly where the driver would first see the claim.
+      `if ! '${process.execPath}' --input-type=module -e 'import { refuseWhenTheFolderHoldsAnEarlierAttempt } from "${BUILT_DRIVER}"; await refuseWhenTheFolderHoldsAnEarlierAttempt({ runFolder: process.argv[1] });' "$runFolder"; then`,
+      `  rmdir '${folder}/unit-names/'"$unit"`,
+      '  exit 1',
+      'fi',
       'branch=$(git -C "$workingFolder" branch --show-current 2>/dev/null || true)',
       'status=$(git -C "$workingFolder" status --porcelain 2>/dev/null || true)',
       `printf '%s\\n' '{"endReason":"pi-exited","startId":"'"$PI_START_ID"'","branch":"'"$branch"'","statusLines":"'"$(printf '%s' "$status" | tr '\\n' ';')"'"}' > "$runFolder/${SUMMARY_FILE_NAME}"`,
@@ -403,10 +413,12 @@ async function startOf({
   fixture,
   startId,
   branch,
+  runNumber,
 }: {
   readonly fixture: Fixture;
   readonly startId: string;
   readonly branch: string;
+  readonly runNumber?: number;
 }): Promise<Started> {
   try {
     /**
@@ -424,6 +436,7 @@ async function startOf({
       '--turn-cap=10',
       `--runs-folder=${fixture.runs}`,
       `--checkout-folder=${fixture.checkout}`,
+      ...(runNumber === undefined ? [] : [`--run=${String(runNumber,)}`,]),
     ], {
       cwd: fixture.checkout,
       env: {
@@ -574,6 +587,26 @@ async function unitRequestsIn(file: string,): Promise<readonly { readonly startI
 await describe({
   name: 'two starts of one run name',
   children: [
+    it({
+      name: 'hands an empty claim to the driver and refuses a pinned folder holding an earlier attempt',
+      fn: async () => {
+        await using folder = await makeFolder();
+        const fixture = await fixtureIn(folder.path, false, false,);
+        const runNumber = FIRST_RUN_NUMBER;
+        const runFolder = `${RUN_NAME}-${String(runNumber,)}`;
+        const fresh = await startOf({ fixture, startId: 'fresh', branch: 'none', runNumber, },);
+        expect(fresh.output,).toContain('claimed by making it',);
+        expect(fresh.status,).toBe(0,);
+        const summary = await summaryIn({ runsFolder: fixture.runs, folder: runFolder, },);
+        expect(summary,).toContain('"startId":"fresh"',);
+
+        const refused = await startOf({ fixture, startId: 'refused', branch: 'none', runNumber, },);
+        expect(refused.status,).not.toBe(0,);
+        expect(refused.output,).toContain('holds what an earlier attempt',);
+        expect(refused.output,).toContain(SUMMARY_FILE_NAME,);
+        expect(await summaryIn({ runsFolder: fixture.runs, folder: runFolder, },),).toBe(summary,);
+      },
+    },),
     it({
       name: 'refuses a run folder number past the largest a run can be counted to, and a number after it, where each is read',
       fn: async () => {

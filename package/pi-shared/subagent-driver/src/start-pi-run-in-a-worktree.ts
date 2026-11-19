@@ -21,7 +21,10 @@ import {
   StartRefusedError,
   startRefusalsIn,
 } from './checks-before-a-start.ts';
-import { claimRunFolder, } from './claim-a-run-folder.ts';
+import {
+  claimRunFolder,
+  pathForRunNumber,
+} from './claim-a-run-folder.ts';
 import { finishTheRun, } from './finish-a-run.ts';
 import { gitRunnerOf, } from './git-command.ts';
 import { refuseUnlessTheWrapperAnswersGit, } from './git-wrapper-preflight.ts';
@@ -199,7 +202,13 @@ const {
   base: options.base,
   run: runCommandWithChildProcess,
   runName: options.name,
-  runFolder,
+  ...(options.runNumber === undefined ? {} : {
+    runFolder: pathForRunNumber({
+      runsFolder: options.runsFolder,
+      runName: options.name,
+      runNumber: options.runNumber,
+    },),
+  }),
   sessionPath,
   home: env.HOME ?? '',
   runsFolder: options.runsFolder,

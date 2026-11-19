@@ -52,6 +52,26 @@ export type ClaimedRunFolder = {
 };
 
 /**
+ Names a run folder without taking it, so the pinned-number preflight and the claim check the same path.
+
+ @param runsFolder - parent directory that holds every run folder
+ @param runName - name used as the folder prefix
+ @param runNumber - number used as the folder suffix
+ @returns path the launcher checks or claims
+ @example
+ ```ts
+ const folder = pathForRunNumber({ runsFolder: '/runs', runName: 'copy-route', runNumber: 4, },);
+ ```
+ */
+export function pathForRunNumber({ runsFolder, runName, runNumber, }: {
+  readonly runsFolder: string;
+  readonly runName: string;
+  readonly runNumber: number;
+},): string {
+  return join(runsFolder, `${runName}-${String(runNumber,)}`,);
+}
+
+/**
  Makes one run folder and answers it, or says the operating system gave that name to somebody else.
 
  @param runsFolder - folder the runs live in
@@ -79,10 +99,7 @@ async function folderForNumber({
   /**
    The folder this number names.
    */
-  const runFolder = join(
-    runsFolder,
-    `${runName}-${String(runNumber,)}`,
-  );
+  const runFolder = pathForRunNumber({ runsFolder, runName, runNumber, },);
   try {
     // No `recursive`: a folder that is already there is the answer, not something to write into.
     await mkdir(runFolder,);
@@ -150,10 +167,7 @@ export async function claimRunFolder({
       return named.claimed;
     }
     throw new RunFolderTakenError(
-      `${join(
-        runsFolder,
-        `${runName}-${String(wantedNumber,)}`,
-      )} is already there, so a run named ${runName} cannot write there: one run folder holds one run, and a start writes over nothing another start wrote. Start this run without --run=${String(wantedNumber,)} and it takes the next free number.`,
+      `${pathForRunNumber({ runsFolder, runName, runNumber: wantedNumber, },)} is already there, so a run named ${runName} cannot write there: one run folder holds one run, and a start writes over nothing another start wrote. Start this run without --run=${String(wantedNumber,)} and it takes the next free number.`,
     );
   }
   /**
