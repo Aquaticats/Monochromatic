@@ -641,8 +641,9 @@ the later head destroy. Neither a successful batch nor a dependency refusal esta
     unknown prior outcome stops the attempt. After each known batch outcome, enumerate again before head destroy.
     A snapshot created after the final enumeration can still block head destroy (`module/zfs/dsl_destroy.c:783`
     to `:789`, OpenZFS `zfs-2.4.4`); retry only after identifying the new own snapshot and reproving the plan, not
-    on unexplained `EBUSY`. Before head destroy, also refuse a deferred-destroy origin; that head destroy can
-    reap the origin outside the separate origin-cleanup step (`dsl_destroy.c:800` to `:805`). Bound replanning by
+    on unexplained `EBUSY`. Before head destroy, also enforce the selected policy's deferred-origin protection:
+    destroying the last clone can reap an origin already marked for deferred destroy outside the separate
+    origin-cleanup step (`dsl_destroy.c:1028` to `:1037` and `:1168` to `:1172`). Bound replanning by
     the same removal deadline, without restarting it. Print what disappeared and what remains and keep per-name
     results. This is proposed handling for recursive sanoid coverage ([project decision][answers], lines 365 to
     371) and the separate batch and head requests ([VM item 14][vm-batch]); the interleavings are unmeasured.
@@ -991,6 +992,13 @@ the account's attempt with a matching tuple was denied. The substitutions were s
   lineage or delegations. This option explicitly accepts the account-versus-itself residual: a noncooperating
   process of the same account can substitute its own objects between a check and a named delete. It neither
   prevents that loss nor protects against an administrator who bypasses quiescence.
+  The guarantee also needs an origin rule: no foreign origin in the account's effective clone scope may be
+  marked for deferred destroy, and no allowed actor may mark one while removal is admitted. Checking only the
+  expected origin is insufficient, because a replacement could have a different origin. Verify this invariant
+  across the cloneable scope before enabling the route, and ensure the chosen origin grants do not let the
+  account break it. Broad origin `destroy` or linked origins need proof against that rule, not an exemption.
+  This is reasoning from the head destroy path (`dsl_destroy.c:1028` to `:1037` and `:1168` to `:1172`), not a
+  measured race or a claim that the grants in item 12 already enforce the invariant.
 - Use root-run identity-conditional destruction. Remove effective account `destroy` for managed clones and their
   snapshots; the delegated route does not destroy them. Propose a separate root-installed managed removal operation,
   owned by the wrapper's removal workflow, not the mount handler. Its sole input is a request to remove a recorded
@@ -1007,6 +1015,8 @@ the account's attempt with a matching tuple was denied. The substitutions were s
   mutation (`module/zfs/dsl_destroy.c:630` to `:653` is the kernel's batch pattern). Prove no-loss refusal and
   per-name results for snapshot precheck failures. Run a separate conditional head request after verifying the
   snapshot outcome: the head check would refuse while own snapshots remain (`dsl_destroy.c:783` to `:789`).
+  Check the actual origin's identity and deferred-destroy state inside the head program and refuse a deferred
+  origin, so the head request cannot implicitly reap it (proposed from `dsl_destroy.c:1028` to `:1037`).
   Before enabling this option, prove execution and result budgets for a whole snapshot batch and exercise failure
   at those limits. An exhausted program can leave partial effects (`man/man8/zfs-program.8:146` to `:155`);
   neither an error nor a lost response proves no mutation. Item 12 proved only a single conditional clone destroy,
@@ -1205,8 +1215,9 @@ only for unused slots. These are unrun acceptance requirements, not evidence fro
   Verify busy and staged mounts, nested datasets, same-name replacements, held snapshots and another clone
   pinning the origin each block the unsafe next action. Inject a new own sanoid snapshot between proof and batch
   and again before head destroy; verify automatic re-proof and reporting without prompting, deadline exhaustion,
-  and refusal for unknown or foreign changes. Include a deferred-destroy origin as a negative control for the
-  head request (unrun). Check the before-destroy inventory and final loss
+  and refusal for unknown or foreign changes. Include a replacement clone whose different origin is marked
+  for deferred destroy: exercise rejection by the delegated deployment's origin rule or by the conditional
+  head program, depending on the selected option (unrun). Check the before-destroy inventory and final loss
   report on successful and partial removals, with both manual and sanoid snapshots. Distinguish completed clone
   removal from origin or Git cleanup still owed. Verify safe retries under the actual request and mount state.
   After a post-unmount refusal, test that restart honors the standing intent, `doctor` shows it, and explicit
