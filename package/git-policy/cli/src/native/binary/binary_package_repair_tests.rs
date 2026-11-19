@@ -543,6 +543,9 @@ fn real_pnpm_relinks_a_global_virtual_store_install() {
     remove(&fixture);
 }
 
+#[path = "binary_package_repair_pnpm_linked_store_tests.rs"]
+mod linked_store;
+
 /// The registry crate the Cargo fixture depends on,
 /// so a build shows what is reused.
 const REGISTRY_CRATE: &str = "itoa-1.0.18";
