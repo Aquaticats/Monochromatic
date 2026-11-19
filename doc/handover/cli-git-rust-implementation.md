@@ -40147,7 +40147,18 @@ field 4, a work list with a cycle guard); the new test with a real outside `slee
 (`expected [ '3568781 sleep' ] to deeply equal []`) and passes at the tip; 209 unit passes; lint clean. Narrowing to weigh:
 a process the agent detached so it was reparented no longer keeps the run by the process table (its tool record or
 `--unit` name still can). GOING: DeepSeek short review on Synthetic,
-`pi-review-pi-shared-subagent-driver-work-left-running-at-14a49acc24-1`; merge into main if clean.
+`pi-review-pi-shared-subagent-driver-work-left-running-at-14a49acc24-1`; merge into main if clean. Review back (85
+turns): **0 high, 1 medium, 3 low**; verified the failing-first run, the live main-checkout scan (base names 21 foreign
+processes, the fix none, per look 8 to 13 ms against 6 to 11 ms, inside the spread), and every README case's evidence.
+Medium F1: a `systemd-run --scope ... &` whose shell exited is reparented to the user manager (probe B, `ppid=1585`) and
+no longer waited for, while README line 1337 still promises the scope; the `process` tool's record and a `--unit=` name
+still keep such work (probes C, D). **Coordinator's weighing, open to the owner's veto:** answered by documentation and
+real-process tests, not a second rule (keeping detached unnamed scopes would need a different design, and the repo's own
+rule for long background work already names units); the brief rules gain a line saying detached work goes through the
+`process` tool or a named unit. Lows: the scope test is a stand-in chain; two suppressions lack the
+`doc/lint/sequential-awaits.md` citation (the doc exists, contrary to the author's report); two helper examples name
+`/proc`. GOING: the writer's session resumed, `pi-driver-work-left-running-counts-only-its-own-2` (run-2); then the
+coordinator runs the package tasks on the delta and merges.
 
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed
