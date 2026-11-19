@@ -129,10 +129,12 @@ entries, not the live clone bytes. Each clone needs its own snapshots ([nested-c
 
 Clones must inherit `mountpoint=legacy`. The container's `canmount=off` is local; the probe saw `canmount=on` on
 its child. No clone gets an automatic mount or an `fstab` entry. `zfs mount -a` and the systemd ZFS mount generator
-skip legacy datasets, and `zfs mount <clone>` refuses a legacy mountpoint rather than deriving a path. An ordinary
-clone mountpoint would reopen the early-mount hazard even if only root could set it. See item 2 of the
-[nested-clone research][nested] and OpenZFS `zfs-2.4.4`: `lib/libzfs/libzfs_mount.c:295` to `:297`,
-`etc/systemd/system-generators/zfs-mount-generator.c:430` to `:432` and `cmd/zfs/zfs_main.c:7863` to `:7867`.
+skip legacy datasets. The OpenZFS `zfs-2.4.4` source shows that explicit `zfs mount <clone>` refuses a legacy
+mountpoint rather than deriving a path (`cmd/zfs/zfs_main.c:7240` to `:7248`, the mount branch). The runtime
+control is pending in the [VM measurement record][measurements]. An ordinary clone mountpoint would reopen the
+early-mount hazard even if only root could set it. See item 2 of the [nested-clone research][nested] and the
+skip paths in `lib/libzfs/libzfs_mount.c:295` to `:297` and
+`etc/systemd/system-generators/zfs-mount-generator.c:430` to `:432`.
 
 ### One-time move and checkout boot protection
 
@@ -698,6 +700,8 @@ until the wrapper is built. The [VM measurement record][measurements] is being p
 - Have a fresh process with no inherited mount descriptors reopen and verify an already-attached clone and
   move it to staging. Include wrong-mount and changed-path controls. The nested-clone guest used the original
   `fsmount` descriptor for the move (`guest-extra-commands.txt:158` and `:171` to `:175`).
+- Run `zfs mount <clone>` on a disposable legacy clone. Verify the `legacy mountpoint` refusal and no attached
+  mount; use an ordinary, mountable dataset as the success control.
 - Exercise both checkout boot shapes with a nonclone dataset nested by path only, like the vm-builder output.
   Record `zfs mount -a` parent IDs and ordering with a delayed or failed checkout mount, plus a legacy checkout
   with its explicit nested-mount provider ordering. For the ordinary checkout option, test `chattr +i` on the
