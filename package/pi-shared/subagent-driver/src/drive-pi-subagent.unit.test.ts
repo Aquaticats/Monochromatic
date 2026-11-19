@@ -53,6 +53,7 @@ import {
   PRINTS_A_VALUE_SCENARIO,
   WITHOUT_MASKING_SCENARIO,
 } from './stand-in-pi-masking-fixture.ts';
+import { MESSAGE_BEFORE_SETTLE, } from './stand-in-pi-prompt-plays-fixture.ts';
 import {
   REPORTED_PROCESS_ID,
 } from './stand-in-pi-scenario-plays-fixture.ts';
@@ -769,6 +770,7 @@ async function runDriver(
       PATH: withoutPi ? withoutExecutables : pathWithStandIn,
       HOME: process.env.HOME,
       STAND_IN_PI_SCENARIO: scenario,
+      STAND_IN_PI_INBOX_FILE: join(runFolder, 'inbox', 'before-settle.txt',),
       STAND_IN_PI_LOG: log,
       STAND_IN_PI_START_COUNT_FILE: startCount,
       ...environment,
@@ -836,19 +838,11 @@ await describe({
     it({
       name: 'a zero idle window still lets Pi answer a message already queued when it settles',
       fn: async () => {
-        const message = 'follow up before ending';
-        const run = await runDriver({
-          scenario: 'normal',
-          idleSeconds: 0,
-          prepare: async ({ runFolder, },) => {
-            await mkdir(join(runFolder, 'inbox',), { recursive: true, },);
-            await dropInInbox({ runFolder, text: message, },);
-          },
-        },);
+        const run = await runDriver({ scenario: 'inbox-before-settle', idleSeconds: 0, },);
         expect(run.standardError,).toBe('',);
         expect(run.summary.endReason,).toBe('idle',);
         expect(run.inbox,).toEqual([],);
-        expect(run.sentCommands.some((command,) => (command.type === 'prompt') && (command.message === message)),)
+        expect(run.sentCommands.some((command,) => (command.type === 'prompt') && (command.message === MESSAGE_BEFORE_SETTLE)),)
           .toBe(true,);
         // A prompt rather than a steer shows that the first settle came before delivery.
         expect(run.feed.find((entry,) => entry.kind === 'inbox')?.sentAs,).toBe('prompt',);
