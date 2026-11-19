@@ -39966,9 +39966,12 @@ What follows from them, as work:
   "outside the caller's session"; thirteen live "this draft" references); fit to merge after M1. Weighed as all worth
   fixing. GOING: the narrow round `pi-zfs-design-acceptance-fold-in-review-findings-fixed` in the fold-in worktree;
   then the coordinator's `rg` check and the merge.
-  NEXT once it clears and the branch is in `main`: the implementation plan (nothing of the route is built yet: no
-  `package/zfs/`), brief ready at `~/temp/agent/zfs-worktree-implementation-plan-2026-11-19/prompt.md`, run in the
-  fold-in worktree's slot; then the plan to the owner and its first step. By the owner's answers of
+  GOING beside it, in the slot the LFS worktree freed: the implementation plan (nothing of the route is built yet: no
+  `package/zfs/`), `pi-zfs-worktree-implementation-plan` (DeepSeek on Neuralwatt, cap 635, wall 180 min) in
+  `.claude/worktrees/zfs-worktree-implementation-plan` on `docs/planning-cli-git-zfs-worktree-implementation-plan` from
+  `main`, reading the design from its branch and citing it by heading because the wording round moves its lines;
+  brief under `~/temp/agent/zfs-worktree-implementation-plan-2026-11-19/`. Then its short review, the plan to the owner,
+  and its first step. By the owner's answers of
   2026-11-19T17:10:00-05:00 (questions file) the LFS review and the provider rebuild finish and nothing else off the
   ZFS path starts, and owner questions off the ZFS path wait in the questions file (new rule `QWP`).
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
