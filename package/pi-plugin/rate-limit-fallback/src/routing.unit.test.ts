@@ -20,12 +20,21 @@ import {
 /** Stand-in HTTP refusal in Pi SDK error format. */
 const LIMITED = '429 Too many requests';
 
-/** Explicit policy refusal also containing a misleading HTTP 429 prefix. */
-const POLICY = '429 Request flagged as a possible risk';
+/** OpenAI policy refusal, verbatim as truncated in the Pi driver's summary. */
+const OPENAI_POLICY = 'This content was flagged for possible cybersecurity risk. If this seems wrong, '
+  + 'try rephrasing your request. If you’re doing authorized security work that requires more cyber permissive '
+  + 'safeguards, apply for Daybreak access via https://platform.openai.com/settings/organization/status-and-access befor';
 
-/** Non-capacity failures are never retried down the pool. */
+/** Policy wording variants that must stop the pool and suppress Pi's outer retry. */
+const POLICY_ERRORS = {
+  'legacy wording with a misleading HTTP 429 prefix': '429 Request flagged as a possible risk',
+  'verbatim OpenAI wording with a curly apostrophe': OPENAI_POLICY,
+  'OpenAI wording truncated after the first sentence': 'This content was flagged for possible cybersecurity risk.',
+  'OpenAI wording with a straight apostrophe': OPENAI_POLICY.replace('’', '\'',),
+} as const;
+
+/** Other non-capacity failures are returned unchanged. */
 const TERMINAL_ERRORS = [
-  POLICY,
   '401 Unauthorized: contact support with request 429',
   'Request timed out',
   '400 Context window exceeded',
@@ -91,6 +100,22 @@ await describe({
         }
       },
     },),
+    ...Object.entries(POLICY_ERRORS,).map(function policyError([label, errorMessage,],) {
+      return it({
+        name: `stops on a policy refusal with ${label}`,
+        fn: async function policyStop() {
+          const { provider, calls, options, } = await fixture({
+            extension,
+            play({ model, }) { return immediate({ model, errorMessage, },); },
+          },);
+          const model = poolModel({ provider, id: 'writer', },);
+          const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+          expect(result.errorMessage,).toBe('The provider stopped the request under its content policy.',);
+          expect(isRetryableAssistantError(result,),).toBe(false,);
+          expect(calls.map(call => call.model.provider,),).toEqual(['openai',],);
+        },
+      },);
+    },),
     ...TERMINAL_ERRORS.map(function terminalError(errorMessage,) {
       return it({
         name: `does not move on from ${errorMessage}`,
@@ -101,14 +126,30 @@ await describe({
           },);
           const model = poolModel({ provider, id: 'writer', },);
           const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-          expect(result.errorMessage,).toBe(errorMessage === POLICY
-            ? 'The provider stopped the request under its content policy.'
-            : errorMessage,);
-          if (errorMessage === POLICY)
-            expect(isRetryableAssistantError(result,),).toBe(false,);
+          expect(result.errorMessage,).toBe(errorMessage,);
           expect(calls.map(call => call.model.provider,),).toEqual(['openai',],);
         },
       },);
+    },),
+    it({
+      name: 'continues to the next member on a 429 that only mentions cybersecurity risk',
+      fn: async function riskMentionInRateLimit() {
+        const { provider, calls, options, } = await fixture({
+          extension,
+          play({ model, }) {
+            return immediate({
+              model,
+              ...(model.provider === 'openai'
+                ? { errorMessage: '429 Too many requests while we assess possible cybersecurity risk', }
+                : {}),
+            },);
+          },
+        },);
+        const model = poolModel({ provider, id: 'writer', },);
+        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(result.stopReason,).toBe('stop',);
+        expect(calls.map(call => call.model.provider,),).toEqual(['openai', 'qwen-token-plan-individual',],);
+      },
     },),
     it({
       name: 'does not replay after a tool event or when the terminal 429 already contains content',
