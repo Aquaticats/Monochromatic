@@ -40349,6 +40349,16 @@ rare at 1M windows; joins the native-virtual-models owner question). Cheap fixes
 test; three `Error.isError` calls that fail on Node 22 (Pi declares `>=22.19.0`); no guard on the `session_start`
 re-registration (removing it still passed the verifier). GOING: the writer's session resumed for those and the smaller
 items, `pi-provider-answers-its-gate-delta-check-1` (run-11); then the coordinator runs the four tasks and merges.
+Run-11 ended `idle` (99 turns) at `9f9f0299da`: `DEBUG` lines gone; `src/error-class-name.ts` replaces `Error.isError`
+(three non-`Error` throw cases, failing under a Node 22 emulation before); a held-model arm in `verify:extension`
+(fails with the `session_start` re-registration removed); provisional pair now Pi's own fallback, 128,000 / 16,384
+(`provider-composer.js` `modelFromJson`); a body-given delay capped at 60 s (the largest documented `max_delay_s`);
+the README states the scoped-list case and the overflow gap; all four tasks exit 0 (`test:unit` seven suites,
+`lint:oxlint` 0 and 0, `verify:extension` PASS). **IN MAIN** as `58756ee7fe` by fast-forward after merging `main`
+(documents only); worktree removed (the wrapper first held it for process 3463759, which is `kscreenlocker_greet`, the
+screen locker, not a worktree user); branch deleted locally and on `origin`. The removed worktree's service journal was
+kept by the wrapper at `~/.local/state/monochromatic-git-policy-cli/service/6ec754329e57647b6c12954c8b2f67ab`
+(claim-watch); left in place. Installing it into `~/.pi/agent/settings.json` is the owner's (in the prepared questions).
 
 **Reviewer speed result (2026-11-19, four interleaved rounds, model time from the feeds' prompt-sent to settled,
 `keep/runs.jsonl`):** Qwen-plan DeepSeek 9.4, 10.8, 6.3, 17.7 s; its same-model control 18.9, 13.5, 11.9, 8.3 s (Qwen
