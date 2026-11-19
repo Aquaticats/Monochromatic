@@ -40103,7 +40103,8 @@ Neuralwatt, run-7, the provider worktree). It removes `openai` from the writer p
 gates the policy-stop move on OpenAI's own opening (medium 3: the "Automatic" decision was about OpenAI's filter), so the
 move is kept but has no member to fire on, yields the attributed stop instead of a later 429 (medium 1), pins the 429 gate
 (medium 2), deletes the Qwen hold and legacy prefixes unless a capture or fetched documentation backs them, swaps the
-overage fixture for the recorded capture, labels the rest, and pins mutants `M12` and `M13`.
+overage fixture for the recorded capture, labels the rest, and pins mutants `M12` and `M13`. Owner, 2026-11-19, on the
+gated move: "Keep it gated (Recommended)" (asked against removing it), so the brief stands as written.
 
 **Provider review of `b9bbe7e894..a4b227503a` (DeepSeek, 151 turns): 0 high, 3 medium, 8 low**
 (`~/temp/agent/change-reviews/pi-plugin-rate-limit-fallback-at-a4b227503a/review.md`; seven of the eight first-round
