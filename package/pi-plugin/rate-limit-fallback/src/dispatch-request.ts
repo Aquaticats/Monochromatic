@@ -59,11 +59,11 @@ const l = tagged({ tag: 'rate-limit-fallback', },);
 
 /**
  Project caller options onto a physical request without leaking virtual-provider credentials.
- 
+
  @param model - member to dispatch
- 
+
  @param options - outer request options
- 
+
  @returns credential-free options; registry adds credentials for this member
  */
 function memberOptions({
@@ -71,7 +71,7 @@ function memberOptions({
   options,
 }: {
   model: Model<Api>;
-  options: SimpleStreamOptions | undefined;
+  options?: SimpleStreamOptions;
 },): SimpleStreamOptions {
   /**
    Separate virtual-provider credentials and member-specific constraints from neutral options.
@@ -112,17 +112,17 @@ function memberOptions({
 
 /**
  Start each request at the head of its pool and retry only uncommitted HTTP 429s.
- 
+
  @param session - source of the live model catalog and previous quota evidence
- 
+
  @param model - selected pool model
- 
+
  @param context - full Pi transcript to give each attempt
- 
+
  @param options - caller options including abort signal and observers
- 
+
  @returns normalized events from exactly one member, or a terminal setup failure
- 
+
  @throws PoolDispatchError when routing is impossible or a provider omits its terminal event
  */
 export async function* dispatchRequest({
@@ -134,7 +134,7 @@ export async function* dispatchRequest({
   session: RoutingSession;
   model: Model<Api>;
   context: TranscriptContext;
-  options: SimpleStreamOptions | undefined;
+  options?: SimpleStreamOptions;
 },): AsyncGenerator<AssistantMessageEvent> {
   /**
    Tagged logger that names the current operation without exposing credentials.
@@ -154,17 +154,23 @@ export async function* dispatchRequest({
    */
   const { signal, } = options ?? {};
   /**
-   Last discarded 429 to return if nobody in the pool can answer.
+   Observations to report if the pool cannot answer.
    */
-  let lastRateLimit: Extract<AssistantMessageEvent, { type: 'error'; }> | undefined;
+  const unavailable: {
+    /** Last discarded 429. */
+    lastRateLimit?: Extract<AssistantMessageEvent, { type: 'error'; }>;
+    /** Earliest known reset among held members. */
+    nextRetryAt: number;
+    /** Whether local concurrency prevented admission. */
+    localsFull: boolean;
+  } = {
+    nextRetryAt: Infinity,
+    localsFull: false,
+  };
   /**
-   Earliest known reset among temporarily held members.
+   Options to share with request preparation, omitting an absent argument.
    */
-  let nextRetryAt = Infinity;
-  /**
-   Whether any member was unavailable due to local concurrency.
-   */
-  let localsFull = false;
+  const supplied = options === undefined ? {} : { options, };
   for (const member of POOLS[id]) {
     signal?.throwIfAborted();
     /**
@@ -197,13 +203,13 @@ export async function* dispatchRequest({
         capacity,
         registry: session.registry,
         model: physical,
-        options,
+        ...supplied,
       },);
     signal?.throwIfAborted();
     if (capacity.retryAt > Date.now()) {
       rl.debug(`${id}: ${label} has a provider-reported retry window`,);
-      nextRetryAt = Math.min(
-        nextRetryAt,
+      unavailable.nextRetryAt = Math.min(
+        unavailable.nextRetryAt,
         capacity.retryAt,
       );
       continue;
@@ -218,7 +224,7 @@ export async function* dispatchRequest({
     if (capacity.active >= ceiling) {
       rl.debug(`${id}: ${label} local concurrency reached published or observed cap ${ceiling}`,);
       capacity.needsProbe = true;
-      localsFull = true;
+      unavailable.localsFull = true;
       continue;
     }
     rl.debug(`${id}: dispatching to ${label}`,);
@@ -227,29 +233,30 @@ export async function* dispatchRequest({
      */
     const forwarded = memberOptions({
       model: physical,
-      options,
+      ...supplied,
     },);
     /**
-     Provider-supplied deadline to use if the current attempt is limited.
+     Response evidence shared between the callback and stream consumer.
      */
-    let responseReset = 0;
-    /**
-     HTTP status exposed by the physical adapter, when available.
-     */
-    let status: number | undefined;
+    const evidence: {
+      /** Provider-supplied deadline, or zero if unavailable. */
+      resetAt: number;
+      /** HTTP status exposed by the physical adapter. */
+      status?: number;
+    } = { resetAt: 0, };
     capacity.active += 1;
     /**
      Local admission held until that physical stream terminates.
      */
     const seat = {
       occupied: true,
-      release() {
+      release(): void {
         if (!seat.occupied)
           return;
         seat.occupied = false;
         capacity.active -= 1;
       },
-      [Symbol.dispose]() { seat.release(); },
+      [Symbol.dispose](): void { seat.release(); },
     };
     /**
      Idempotent cleanup for cancellation, error, and terminal output.
@@ -269,9 +276,13 @@ export async function* dispatchRequest({
             response,
             responseModel,
           ) {
-            status = response.status;
+            /**
+             Status observed on this callback, before awaiting the caller's callback.
+             */
+            const { status, } = response;
+            evidence.status = status;
             if ((status === 429) || ((status >= 200) && (status < 300))) {
-              responseReset = headerReset({
+              evidence.resetAt = headerReset({
                 provider: physical.provider,
                 headers: new Headers(response.headers,),
                 now: Date.now(),
@@ -288,7 +299,7 @@ export async function* dispatchRequest({
       /**
        Start event held before a physical attempt emits output.
        */
-      let start: Extract<AssistantMessageEvent, { type: 'start'; }> | undefined;
+      const buffered: { start?: Extract<AssistantMessageEvent, { type: 'start'; }>; } = {};
       /**
        Whether a content event from this attempt has been exposed.
        */
@@ -299,12 +310,12 @@ export async function* dispatchRequest({
       let limited = false;
       for await (const event of stream) {
         if (event.type === 'start') {
-          start = event;
+          buffered.start = event;
           continue;
         }
         if ((event.type === 'error') && isPolicyStop(event.error,)) {
-          if (start !== undefined)
-            yield start;
+          if (buffered.start !== undefined)
+            yield buffered.start;
           // Remove incidental retry wording so Pi's own retry classifier does not restart this request.
           lease.release();
           yield {
@@ -323,7 +334,7 @@ export async function* dispatchRequest({
             === 0)
           && isRateLimit({
             message: event.error,
-            status,
+            ...(evidence.status === undefined ? {} : { status: evidence.status, }),
           },))
           {
           signal?.throwIfAborted();
@@ -334,8 +345,8 @@ export async function* dispatchRequest({
           /**
            Earliest time this member should be reconsidered after the refusal.
            */
-          const retryAt = responseReset > now
-            ? responseReset
+          const retryAt = evidence.resetAt > now
+            ? evidence.resetAt
             : recommendedReset({
               provider: physical.provider,
               message: event.error,
@@ -350,18 +361,18 @@ export async function* dispatchRequest({
             retryAt,
           },);
           rl.debug(`${id}: ${label} returned HTTP 429 before output`,);
-          lastRateLimit = event;
+          unavailable.lastRateLimit = event;
           limited = true;
           break;
         }
-        if (start !== undefined) {
-          yield start;
-          start = undefined;
+        if (buffered.start !== undefined) {
+          yield buffered.start;
+          delete buffered.start;
         }
-        if ((event.type === 'done') && (responseReset > Date.now()))
+        if ((event.type === 'done') && (evidence.resetAt > Date.now()))
           capacity.retryAt = Math.max(
             capacity.retryAt,
-            responseReset,
+            evidence.resetAt,
           );
         if ((event.type === 'done') || (event.type === 'error')) {
           lease.release();
@@ -375,13 +386,13 @@ export async function* dispatchRequest({
         throw new PoolDispatchError(`${label} closed without a terminal assistant event`,);
     }
   }
-  if (lastRateLimit !== undefined) {
-    yield lastRateLimit;
+  if (unavailable.lastRateLimit !== undefined) {
+    yield unavailable.lastRateLimit;
     return;
   }
-  if (Number.isFinite(nextRetryAt,))
-    throw new PoolDispatchError(`HTTP 429: no eligible ${id} member until ${new Date(nextRetryAt,).toISOString()}`,);
-  if (localsFull)
+  if (Number.isFinite(unavailable.nextRetryAt,))
+    throw new PoolDispatchError(`HTTP 429: no eligible ${id} member until ${new Date(unavailable.nextRetryAt,).toISOString()}`,);
+  if (unavailable.localsFull)
     throw new PoolDispatchError(`HTTP 429: ${id} reached its local provider concurrency ceiling`,);
   throw new PoolDispatchError(`No ${id} member is registered in Pi. Check the member model catalogs.`,);
 }

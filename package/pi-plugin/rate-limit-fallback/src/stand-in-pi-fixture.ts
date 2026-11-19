@@ -10,6 +10,7 @@ import {
   type AssistantMessage,
   type AssistantMessageEvent,
   type AssistantMessageEventStream,
+  type Context,
   type FetchFunction,
   type Model,
   type Provider,
@@ -20,6 +21,7 @@ import {
 import type {
   ExtensionAPI,
   ExtensionHandler,
+  ModelRegistry,
   SessionStartEvent,
 } from '@earendil-works/pi-coding-agent';
 
@@ -101,20 +103,25 @@ export const PHYSICAL_MODELS: readonly Model<Api>[] = TARGETS.map(function toMod
 },);
 
 /**
+ Model fields the fake assistant response uses, without holding a writable catalog entry.
+ */
+export type ModelIdentity = Pick<Readonly<Model<Api>>, 'api' | 'id' | 'provider'>;
+
+/**
  Build a physical answer using the identity from the registry, just as Pi adapters do.
- 
+
  @param model - provider and model recorded on the response
- 
+
  @param errorMessage - terminal refusal when supplied
- 
+
  @returns physical assistant message
  */
 export function assistant({
   model,
   errorMessage,
 }: {
-  model: Model<Api>;
-  errorMessage?: string;
+  readonly model: ModelIdentity;
+  readonly errorMessage?: string;
 },): AssistantMessage {
   return {
     role: 'assistant',
@@ -144,9 +151,9 @@ export function assistant({
 
 /**
  Finish a test stream with a normalized result.
- 
+
  @param stream - destination physical stream
- 
+
  @param message - result to record and expose
  */
 export function finish({
@@ -174,9 +181,9 @@ export function finish({
 
 /**
  Read the events as well as the terminal result, so a hidden duplicate start is detectable.
- 
+
  @param stream - stream under test
- 
+
  @returns ordered events and final message
  */
 export async function collect(stream: AssistantMessageEventStream,): Promise<{
@@ -204,25 +211,25 @@ export async function collect(stream: AssistantMessageEventStream,): Promise<{
  */
 export type MemberCall = {
   readonly model: Model<Api>;
-  readonly context: TranscriptContext;
-  readonly options: SimpleStreamOptions | undefined;
+  readonly context: Context;
+  readonly options?: SimpleStreamOptions;
 };
 
 /**
  Build a fake Pi host that exposes its live registry on session start.
- 
+
  @param extension - built Pi factory
- 
+
  @param play - scripted member behavior
- 
+
  @param models - current registry catalog
- 
+
  @param fetchQuota - scripted quota responses, defaults to unavailable
- 
+
  @param resolvedBaseUrl - registry auth endpoint override
- 
+
  @param resolvedHeaders - header-only registry credential when supplied
- 
+
  @returns provider, request history and controls for the fixture
  */
 export async function fixture({
@@ -252,48 +259,59 @@ export async function fixture({
    */
   const calls: MemberCall[] = [];
   /**
-   Provider object registered with the host.
+   Owner of registrations received from the factory.
    */
-  let provider: Provider | undefined;
-  /**
-   Session-start handler captured from the extension factory.
-   */
-  let start: ExtensionHandler<SessionStartEvent> | undefined;
+  const registration: {
+    /** Provider captured by the fake host. */
+    provider?: Provider;
+    /** Handler captured for the active session. */
+    start?: ExtensionHandler<SessionStartEvent>;
+  } = {};
   extension({
     registerProvider(value: Provider,) {
-      provider = value;
+      registration.provider = value;
     },
     on(
       _event: string,
       callback: ExtensionHandler<SessionStartEvent>,
     ) {
-      start = callback;
-      return () => {};
+      registration.start = callback;
+      return function unsubscribe(): void {
+        delete registration.start;
+      };
     },
   } as unknown as ExtensionAPI,);
+  /**
+   Extension entry points required before starting the stand-in session.
+   */
+  const { provider, start, } = registration;
   if ((provider === undefined) || (start === undefined))
     throw new Error('Expected provider registration and session binding',);
   /**
    Test implementation of the extension's registry boundary.
    */
-  const registry = {
+  const registry: Pick<ModelRegistry, 'find' | 'getApiKeyAndHeaders' | 'streamSimple'> = {
     find(
-      providerId: string,
-      id: string,
+      providerId,
+      id,
     ) {
-      return models.find(model => (model.provider === providerId) && (model.id === id),);
+      for (const model of models) {
+        if ((model.provider === providerId) && (model.id === id))
+          return model;
+      }
+      return undefined;
     },
-    async getApiKeyAndHeaders() {
-      return {
+    getApiKeyAndHeaders() {
+      return Promise.resolve({
         ok: true,
         ...(resolvedHeaders === undefined ? { apiKey: MEMBER_KEY, } : { headers: resolvedHeaders, }),
-        baseUrl: resolvedBaseUrl,
-      };
+        ...(resolvedBaseUrl === undefined ? {} : { baseUrl: resolvedBaseUrl, }),
+      },);
     },
     streamSimple(
-      model: Model<Api>,
-      context: TranscriptContext,
-      options?: SimpleStreamOptions,
+      model,
+      context,
+      options,
     ) {
       /**
        Captured physical request delivered to the scripted member.
@@ -301,7 +319,7 @@ export async function fixture({
       const call = {
         model,
         context,
-        options,
+        ...(options === undefined ? {} : { options, }),
       };
       calls.push(call,);
       return play(call,);
@@ -325,19 +343,19 @@ export async function fixture({
 
 /**
  Emit a completed response or refusal without using a network.
- 
+
  @param model - physical model
- 
+
  @param errorMessage - refusal text when fixture is not a success
- 
+
  @returns stream with a start and a single terminal event
  */
 export function immediate({
   model,
   errorMessage,
 }: {
-  model: Model<Api>;
-  errorMessage?: string;
+  readonly model: ModelIdentity;
+  readonly errorMessage?: string;
 },): AssistantMessageEventStream {
   /**
    Normalized stream whose terminal event decides whether to stop or hand off.
@@ -363,11 +381,11 @@ export function immediate({
 
 /**
  Select a catalog model supplied by the extension.
- 
+
  @param provider - registered pool provider
- 
+
  @param id - id to verify and retrieve
- 
+
  @returns registered chat model
  */
 export function poolModel({
@@ -377,16 +395,11 @@ export function poolModel({
   provider: Provider;
   id: string
 },): Model<Api> {
-  /**
-   Selected pool model from the extension's catalog.
-   */
-  const model = provider.getModels()
-    .find(function matches(candidate,): candidate is Model<Api> {
-      return ((candidate.type === undefined) || (candidate.type === 'chat')) && (candidate.id === id);
-    },);
-  if (model === undefined)
-    throw new Error(`Missing pool model ${id}`,);
-  return model;
+  for (const candidate of provider.getModels()) {
+    if (((candidate.type === undefined) || (candidate.type === 'chat')) && (candidate.id === id))
+      return candidate;
+  }
+  throw new Error(`Missing pool model ${id}`,);
 }
 
 //endregion Stand-in extension host

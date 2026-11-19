@@ -14,6 +14,7 @@ import {
   type QuotaEvidence,
   type RoutingRegistry,
 } from './quota-endpoints.ts';
+import { digitsEnd, } from './provider-wire-text.ts';
 
 //region One live view per exact member
 
@@ -52,11 +53,11 @@ export type MemberCapacity = {
 
 /**
  Get or initialize one member's state.
- 
+
  @param members - session-owned capacity map
- 
+
  @param label - exact provider and model
- 
+
  @returns mutable member state used only within the session
  */
 export function capacityOf({
@@ -94,12 +95,12 @@ export function capacityOf({
 
 /**
  Use the caller's timeout for an optional quota read without aborting the model request.
- 
+
  @param options - caller cancellation and transport timing policy
- 
+
  @returns quota request cancellation
  */
-function quotaSignal(options: SimpleStreamOptions | undefined,): AbortSignal | undefined {
+function quotaSignal(options?: SimpleStreamOptions,): { readonly signal?: AbortSignal; } {
   /**
    Caller cancellation and timeout settings used by the quota lookup.
    */
@@ -109,15 +110,17 @@ function quotaSignal(options: SimpleStreamOptions | undefined,): AbortSignal | u
   } = options ?? {};
   if ((timeoutMs === undefined) || (!Number.isSafeInteger(timeoutMs,))
     || (timeoutMs <= 0))
-    return signal;
+    return signal === undefined ? {} : { signal, };
   /**
    Deadline for the quota lookup, independent from the member's request.
    */
   const timeout = AbortSignal.timeout(timeoutMs,);
-  return signal === undefined ? timeout : AbortSignal.any([
-    signal,
-    timeout,
-  ],);
+  return {
+    signal: signal === undefined ? timeout : AbortSignal.any([
+      signal,
+      timeout,
+    ],),
+  };
 }
 
 /**
@@ -146,20 +149,20 @@ async function waitForCapacity({
   /**
    Releases the abort listener when the waiter completes for any reason.
    */
-  using watch = { [Symbol.dispose]() { stopWaiting.abort(); }, };
+  using watch = { [Symbol.dispose](): void { stopWaiting.abort(); }, };
   await Promise.race([pending, once(signal, 'abort', { signal: stopWaiting.signal, },),],);
   signal.throwIfAborted();
 }
 
 /**
  Refresh quota at first use and on reentry after a refusal or exhausted window.
- 
+
  @param capacity - state shared by the member's requests
- 
+
  @param registry - registry used for the quota credential
- 
+
  @param model - exact physical member
- 
+
  @param options - probe transport and cancellation
  */
 export async function refreshCapacity({
@@ -171,7 +174,7 @@ export async function refreshCapacity({
   capacity: MemberCapacity;
   registry: RoutingRegistry;
   model: Model<Api>;
-  options: SimpleStreamOptions | undefined;
+  options?: SimpleStreamOptions;
 },): Promise<void> {
   /**
    Read and publish fresh evidence, releasing the shared lookup when settled.
@@ -180,7 +183,7 @@ export async function refreshCapacity({
     /**
      Clears the pending lookup only when its own read has settled.
      */
-    using owner = { [Symbol.dispose]() { delete capacity.pending; }, };
+    using owner = { [Symbol.dispose](): void { delete capacity.pending; }, };
     capacity.needsProbe = false;
     if (capacity.retryAt <= Date.now())
       capacity.retryAt = 0;
@@ -191,7 +194,7 @@ export async function refreshCapacity({
       registry,
       model,
       fetchQuota: options?.fetch ?? globalThis.fetch,
-      signal: quotaSignal(options,),
+      ...quotaSignal(options,),
     },);
     if (options?.signal
       ?.aborted
@@ -204,16 +207,10 @@ export async function refreshCapacity({
      */
     const now = Date.now();
     capacity.evidence = {
-      concurrency: evidence.concurrency
-        ?? capacity.evidence
-          .concurrency,
-      overage: evidence.overage
-        ?? capacity.evidence
-          .overage,
-      periodEnd: (evidence.periodEnd === undefined) || (evidence.periodEnd === 0)
-        ? capacity.evidence
-          .periodEnd
-        : evidence.periodEnd,
+      ...capacity.evidence,
+      ...(evidence.concurrency === undefined ? {} : { concurrency: evidence.concurrency, }),
+      ...(evidence.overage === undefined ? {} : { overage: evidence.overage, }),
+      ...((evidence.periodEnd === undefined) || (evidence.periodEnd === 0) ? {} : { periodEnd: evidence.periodEnd, }),
     };
     capacity.retryAt = Math.max(
       capacity.retryAt,
@@ -268,19 +265,64 @@ export async function refreshCapacity({
 const OVERAGE_NOTICE = 'Your subscription is in overage with auto-renew off';
 
 /**
- Concurrent slots reported by the admission service, not the catalog endpoint.
+ Introduction to the reported concurrency counts.
  */
-const OVERAGE_CONCURRENCY = /Concurrent limit reached for [^:\r\n]+: \d+\/(\d+) slots in use/u;
+const OVERAGE_HEAD = 'Concurrent limit reached for ';
+
+/**
+ Scan an admission error for the first well-formed concurrent-slots report.
+
+ @param value - terminal error without changes to spacing
+
+ @returns reported ceiling, or NaN when the counts are absent
+ */
+function describedConcurrency(value: string,): number {
+  for (
+    let head = value.indexOf(OVERAGE_HEAD,);
+    head !== -1;
+  ) {
+    /**
+     Beginning of the model field following the introduction.
+     */
+    const modelStart = head + OVERAGE_HEAD.length;
+    /**
+     Exclusive end of the model field before a colon or line ending.
+     */
+    const next = { offset: modelStart, };
+    while (next.offset < value.length && value[next.offset] !== ':' && value[next.offset] !== '\r'
+      && value[next.offset] !== '\n')
+      next.offset += 1;
+    if (next.offset > modelStart && value.startsWith(': ', next.offset,)) {
+      /**
+       End of the current-slot count, before the slash.
+       */
+      const inUseStart = next.offset + ': '.length;
+      const inUseEnd = digitsEnd({ value, offset: inUseStart, },);
+      if (inUseEnd !== inUseStart && value[inUseEnd] === '/') {
+        /**
+         Span of the ceiling count, followed by the known units.
+         */
+        const ceilingStart = inUseEnd + 1;
+        const ceilingEnd = digitsEnd({ value, offset: ceilingStart, },);
+        if (ceilingEnd !== ceilingStart && value.startsWith(' slots in use', ceilingEnd,))
+          return Number(value.slice(ceilingStart, ceilingEnd,),);
+      }
+    }
+    // Another introduction in this model field would have the same terminator and counts.
+    head = value.indexOf(OVERAGE_HEAD, next.offset + 1,);
+  }
+  return Number.NaN;
+}
 
 /**
  Mark a genuine pre-output HTTP 429 and, only for NeuralWatt's named exception, retain its cap.
- 
+
  @param capacity - admitted member's per-session state
- 
+
  @param provider - member whose admission service produced the response
- 
+
  @param errorMessage - terminal refusal text; never logged
- 
+
  @param retryAt - known retry window, or zero if no timing evidence
  */
 export function noteRateLimit({
@@ -304,7 +346,7 @@ export function noteRateLimit({
   /**
    Provider-dependent simultaneous request ceiling, not available slots.
    */
-  const concurrency = Number(OVERAGE_CONCURRENCY.exec(errorMessage,)?.[1],);
+  const concurrency = describedConcurrency(errorMessage,);
   if (Number.isSafeInteger(concurrency,) && (concurrency > 0)) {
     /**
      Last known subscription boundary for an observed overage cap.

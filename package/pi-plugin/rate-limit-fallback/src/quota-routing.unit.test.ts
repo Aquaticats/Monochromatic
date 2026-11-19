@@ -28,6 +28,21 @@ const WINDOW_SECONDS = WINDOW_MS / 1_000;
 const PUBLISHED_CAP = 20;
 const OVERAGE_CAP = 6;
 
+/**
+ Read the URL from each fetch input form without stringifying an arbitrary object.
+
+ @param input - quota fetch destination in the fixture
+
+ @returns URL to check against the quota contract
+ */
+function quotaUrl(input: Parameters<typeof globalThis.fetch>[0],): string {
+  if (typeof input === 'string')
+    return input;
+  if (input instanceof URL)
+    return input.href;
+  return input.url;
+}
+
 await describe({
   name: 'provider quota evidence',
   children: [
@@ -109,7 +124,7 @@ await describe({
               throw new Error('Incorrect stand-in bearer',);
             if (init?.redirect !== 'error')
               throw new Error('Quota fetch permits redirects',);
-            endpoints.push(String(input,),);
+            endpoints.push(quotaUrl(input,),);
             return Response.json({
               planWeeklyLimit: { percentRemaining: clock.now < end ? 0 : 100, nextRegenAt: new Date(end,).toISOString(), },
             },);
@@ -161,7 +176,7 @@ await describe({
             return held;
           },
           async fetchQuota(input,) {
-            return String(input,).includes('/v1/rate_limits',)
+            return quotaUrl(input,).includes('/v1/rate_limits',)
               ? Response.json({ models: [{ effective_concurrency: PUBLISHED_CAP, flex_floor: reading.flex, },], },)
               : Response.json({});
           },
@@ -218,7 +233,7 @@ await describe({
             return stream;
           },
           async fetchQuota(input,) {
-            const url = new URL(String(input,),);
+            const url = new URL(quotaUrl(input,),);
             endpoints.push(url.pathname,);
             if (url.pathname === '/v1/rate_limits') {
               if (url.searchParams.get('model',) !== 'deepseek-v4.1-flash-flex')

@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { fileURLToPath, } from 'node:url';
 import {
   InMemoryCredentialStore,
+  type AssistantMessage,
   type Model,
   type Api,
   type Provider,
@@ -23,6 +24,7 @@ import {
   immediate,
   MEMBER_KEY,
   PHYSICAL_MODELS,
+  type ModelIdentity,
 } from './stand-in-pi-fixture.ts';
 
 /**
@@ -49,17 +51,17 @@ const calls: string[] = [];
 
 /**
  Register a real Pi provider object with a scripted, no-network transport.
- 
+
  @param model - exact fixture member to register
- 
+
  @param refused - whether that member reports a rate limit
  */
 async function registerStandIn({
   model,
   refused,
 }: {
-  model: Model<Api>;
-  refused: boolean;
+  readonly model: Model<Api>;
+  readonly refused: boolean;
 },): Promise<void> {
   /**
    Provider object registered with the host.
@@ -71,7 +73,7 @@ async function registerStandIn({
     auth: {
       apiKey: {
         name: 'Stand-in credential',
-        resolve({ credential, }) {
+        resolve({ credential, }: { readonly credential?: { readonly key?: string; }; }) {
           return Promise.resolve(credential?.key === undefined
             ? undefined
             : {
@@ -81,10 +83,12 @@ async function registerStandIn({
         },
       },
     },
-    stream: () => { throw new Error('Unexpected API-specific request',); },
+    stream: function streamUnsupported(): never {
+      throw new Error('Unexpected API-specific request',);
+    },
     streamSimple(
-      physical,
-      _context,
+      physical: ModelIdentity,
+      _context: unknown,
       options,
     ) {
       if (options?.apiKey !== MEMBER_KEY)
@@ -173,7 +177,13 @@ assert.equal(
     .length,
   0,
 );
-try {
+{
+  /**
+   Dispose Pi's session and runtime bindings on every exit from the check.
+   */
+  using cleanup: Disposable = {
+    [Symbol.dispose](): void { session.dispose(); },
+  };
   await session.bindExtensions({
     onError() { throw new Error('Pi reported an extension error',); },
   },);
@@ -212,11 +222,11 @@ try {
   /**
    Assistant entries from the active session branch, excluding non-message entries.
    */
-  const answers = sessionManager.getBranch()
-    .flatMap(entry =>
-      (entry.type === 'message') && (entry.message
-        .role
-        === 'assistant') ? [entry.message,] : [],);
+  const answers: AssistantMessage[] = [];
+  for (const entry of sessionManager.getBranch()) {
+    if ((entry.type === 'message') && (entry.message.role === 'assistant'))
+      answers.push(entry.message,);
+  }
   assert.equal(
     answers.length,
     1,
@@ -243,6 +253,4 @@ try {
   );
   process.stdout
     .write('PASS Pi session: built catalog, registry-authenticated 429 handoff, physical member in assistant record, pool still selected\n',);
-} finally {
-  session.dispose();
 }

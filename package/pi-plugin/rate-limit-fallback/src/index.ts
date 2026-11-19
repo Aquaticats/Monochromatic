@@ -10,7 +10,6 @@ import {
   type AssistantMessageEventStream,
   type Model,
   type Provider,
-  type SimpleStreamOptions,
   type TranscriptContext,
 } from '@earendil-works/pi-ai';
 import type { ExtensionAPI, } from '@earendil-works/pi-coding-agent';
@@ -37,7 +36,7 @@ const l = tagged({ tag: 'rate-limit-fallback', },);
 /**
  Register the keyless pool provider and bind it to the current Pi session.
  Both stream entry points use provider-neutral options because the picker cannot know a member's protocol.
- 
+
  @param pi - host extension API
  */
 export default function rateLimitFallbackExtension(pi: ExtensionAPI,): void {
@@ -51,40 +50,40 @@ export default function rateLimitFallbackExtension(pi: ExtensionAPI,): void {
   /**
    Registry and quota cache belonging to the current Pi session.
    */
-  let session: RoutingSession | undefined;
+  const binding: { session?: RoutingSession; } = {};
 
   /**
    Bridge Pi's synchronous stream entry to asynchronous member dispatch.
-   
+
    @param model - selected pool model
-   
+
    @param context - normalized transcript
-   
+
    @param options - request options
-   
+
    @returns stream of the eventual member, with no events from discarded attempts
    */
-  function route(
-    model: Model<Api>,
-    context: TranscriptContext,
-    options?: SimpleStreamOptions,
+  const route: Provider['streamSimple'] = function route(
+    model,
+    context,
+    options,
   ): AssistantMessageEventStream {
     return lazyStream(
       model,
       async function prepare() {
-        if (session === undefined)
+        if (binding.session === undefined)
           throw new PoolDispatchError('The rate-limit-fallback provider requires a started Pi session.',);
         return dispatchRequest({
-          session,
+          session: binding.session,
           model,
           context,
-          options,
+          ...(options === undefined ? {} : { options, }),
         },);
       },
       undefined,
       options?.signal,
     );
-  }
+  };
 
   /**
    Provider object registered with the host.
@@ -151,10 +150,10 @@ export default function rateLimitFallbackExtension(pi: ExtensionAPI,): void {
   pi.on(
     'session_start',
     function bindRegistry(
-      _event,
+      _event: unknown,
       context,
-    ) {
-      session = {
+    ): void {
+      binding.session = {
         registry: context.modelRegistry,
         members: new Map(),
       };

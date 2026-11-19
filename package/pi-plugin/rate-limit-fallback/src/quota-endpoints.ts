@@ -49,32 +49,32 @@ export type QuotaEvidence = {
   /**
    When a reported exhausted window can first be checked again.
    */
-  readonly retryAt?: number | undefined;
+  readonly retryAt?: number;
   /**
    Published ceiling for the requested model and lane, not free slots.
    */
-  readonly concurrency?: number | undefined;
+  readonly concurrency?: number;
   /**
    Whether the known pay-as-you-go exception is currently active.
    */
-  readonly overage?: boolean | undefined;
+  readonly overage?: boolean;
   /**
    End of the provider's current subscription period.
    */
-  readonly periodEnd?: number | undefined;
+  readonly periodEnd?: number;
 };
 
 /**
  Fetch one official endpoint without letting redirects, errors or body samples disclose credentials.
- 
+
  @param url - fixed provider endpoint
- 
+
  @param bearer - registry-resolved authorization value
- 
+
  @param fetchQuota - request transport
- 
+
  @param signal - probe cancellation
- 
+
  @returns parsed quota body; unavailable evidence is undefined
  */
 async function requestQuota({
@@ -86,7 +86,7 @@ async function requestQuota({
   url: string | URL;
   bearer: string;
   fetchQuota: FetchFunction;
-  signal: AbortSignal | undefined;
+  signal?: AbortSignal;
 },): Promise<unknown> {
   /**
    Logger siblings can correlate with this quota request without reading its authorization.
@@ -123,11 +123,11 @@ async function requestQuota({
 
 /**
  Interpret only the requested lane: NeuralWatt documents a separate flex ceiling.
- 
+
  @param limits - one model's rate-limit response
- 
+
  @param quota - account quota response
- 
+
  @returns qualified ceiling and subscription state
  */
 function neuralWattEvidence({
@@ -177,13 +177,10 @@ function neuralWattEvidence({
     key: 'auto_renew',
   },);
   return {
-    concurrency: (concurrency !== undefined) && Number.isSafeInteger(concurrency,)
-      && (concurrency >= 0)
-      ? concurrency
-      : undefined,
-    overage: ((typeof inOverage) === 'boolean') && ((typeof autoRenew) === 'boolean')
-      ? inOverage && (!autoRenew)
-      : undefined,
+    ...(Number.isSafeInteger(concurrency,) && (concurrency >= 0) ? { concurrency, } : {}),
+    ...((typeof inOverage === 'boolean') && (typeof autoRenew === 'boolean')
+      ? { overage: inOverage && (!autoRenew), }
+      : {}),
     periodEnd: resetTime(field({
       value: subscription,
       key: 'current_period_end',
@@ -193,15 +190,15 @@ function neuralWattEvidence({
 
 /**
  Check quota only when it belongs to the configured model's origin.
- 
+
  @param registry - sole credential resolver
- 
+
  @param model - physical model found in Pi
- 
+
  @param fetchQuota - request transport, injectable by the consumer
- 
+
  @param signal - parent request cancellation and its timeout, when supplied
- 
+
  @returns usable limit facts, or an empty object when no evidence is available
  */
 export async function probeQuota({
@@ -213,7 +210,7 @@ export async function probeQuota({
   registry: RoutingRegistry;
   model: Model<Api>;
   fetchQuota: FetchFunction;
-  signal: AbortSignal | undefined;
+  signal?: AbortSignal;
 },): Promise<QuotaEvidence> {
   /**
    Probe diagnostics, excluding credentials and raw provider responses.
@@ -251,7 +248,7 @@ export async function probeQuota({
     /**
      An authorization override, including explicit suppression.
      */
-    const explicit = Object.entries(auth.headers ?? {},).find(function isAuthorization([header,],) {
+    const explicit = Object.entries(auth.headers ?? {},).find(function isAuthorization([header,]: readonly [string, unknown],) {
       return header.toLowerCase() === 'authorization';
     },);
     /**
@@ -268,7 +265,7 @@ export async function probeQuota({
     const request = {
       bearer,
       fetchQuota,
-      signal,
+      ...(signal === undefined ? {} : { signal, }),
     };
     if (provider === 'synthetic')
       return { retryAt: syntheticReset(await requestQuota({
