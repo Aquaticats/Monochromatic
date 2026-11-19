@@ -1215,8 +1215,9 @@ The [planning record][answers] requires the descriptor refusals to be measured a
 before design acceptance. The [VM measurement record][measurements] reports that repeat and the other fixture
 results, not acceptance of the design. Each item ran on a separate encrypted file-backed pool with OpenZFS
 `2.4.4-1` and guest kernel `6.8.0-147-generic`; the Git tests used `2.43.0`. See the [fixture][vm-fixture] for the
-read-only host comparison and the [remaining limits][vm-limits]. Items 12 through 15 repeat selected cases on the
-same guest kernel and OpenZFS release; item 16 records the separate exact-kernel image search.
+read-only host comparison and the [remaining limits][vm-limits]. Items 12 through 15 and 17 repeat selected cases on
+the same guest kernel and OpenZFS release; item 16 records the separate exact-kernel image search, and item 17 ran
+in a guest of its own with the same releases.
 
 - [Item 1][vm-register], measured: register first, snapshot, clone, attach by descriptor and fill in the verified
   Git context. The underlay pointer survived. Moving copied `.git` aside did not measure deletion or recovery.
