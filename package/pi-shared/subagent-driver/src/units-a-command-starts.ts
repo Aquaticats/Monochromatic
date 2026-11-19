@@ -312,74 +312,6 @@ function unitStartedBy({ command, }: { readonly command: string },): { readonly 
 }
 
 /**
- Says whether the unit a command starts is this run's own work that still runs, asking the manager about a unit it has not settled.
-
- A command that starts no unit, a unit already answered about, and a unit that runs nothing or began before the command did all keep
- no run. A unit answered so is settled: the caller keeps the settled units for the run, so every later look reads that answer
- instead of asking the manager again.
-
- @param run - how a command is run, which a test replaces
-
- @param program - the program that answers for the manager
-
- @param command - the command the tool recorded
-
- @param startedAt - when the command started, in milliseconds since the epoch
-
- @param settled - units already answered about, which this adds to
-
- @returns whether the run is kept for the unit that command started
-
- @example
- ```ts
- const keeps = await unitKeepsTheRun({ run, program: 'systemctl', command: 'systemd-run --user --unit=pi-build -- mise run build', startedAt: Date.now(), settled: new Set(), },);
- ```
- */
-export async function unitKeepsTheRun({
-  run,
-  program,
-  command,
-  startedAt,
-  settled,
-}: {
-  readonly run: RunCommand;
-  readonly program: string;
-  readonly command: string;
-  readonly startedAt: number;
-  readonly settled: Set<string>;
-},): Promise<boolean> {
-  /**
-   The unit the command starts, when it starts one.
-   */
-  const { unit, } = unitStartedBy({ command, },);
-  if ((unit === undefined) || settled.has(unit,)) {
-    return false;
-  }
-  /**
-   What the manager says about that unit, in one question.
-   */
-  const state = unitStateIn({ shown: (await run({
-    command: program,
-    words: [
-      ...QUESTION_ABOUT_A_UNIT,
-      unit,
-    ],
-  },)).stdout, },);
-  /**
-   Whether the unit began after the command did, which is the only way a unit of that name is this run's own.
-   */
-  const beganAfterTheCommand = (state.startedAt !== undefined) && (state.startedAt >= startedAt);
-  /**
-   Whether the run is kept for it.
-   */
-  const keeps = state.runs && beganAfterTheCommand;
-  if (!keeps) {
-    settled.add(unit,);
-  }
-  return keeps;
-}
-
-/**
  What the manager's answer about one unit says: whether its work is going, and when the unit left the inactive state.
  */
 type UnitState = {
@@ -492,4 +424,72 @@ function unitStateIn({ shown, }: { readonly shown: string },): UnitState {
     runs: STATES_WHOSE_WORK_RUNS.has(active,) && (!heldAfterTheWork),
     ...((typeof startedAt) === 'symbol' ? {} : { startedAt, }),
   };
+}
+
+/**
+ Says whether the unit a command starts is this run's own work that still runs, asking the manager about a unit it has not settled.
+
+ A command that starts no unit, a unit already answered about, and a unit that runs nothing or began before the command did all keep
+ no run. A unit answered so is settled: the caller keeps the settled units for the run, so every later look reads that answer
+ instead of asking the manager again.
+
+ @param run - how a command is run, which a test replaces
+
+ @param program - the program that answers for the manager
+
+ @param command - the command the tool recorded
+
+ @param startedAt - when the command started, in milliseconds since the epoch
+
+ @param settled - units already answered about, which this adds to
+
+ @returns whether the run is kept for the unit that command started
+
+ @example
+ ```ts
+ const keeps = await unitKeepsTheRun({ run, program: 'systemctl', command: 'systemd-run --user --unit=pi-build -- mise run build', startedAt: Date.now(), settled: new Set(), },);
+ ```
+ */
+export async function unitKeepsTheRun({
+  run,
+  program,
+  command,
+  startedAt,
+  settled,
+}: {
+  readonly run: RunCommand;
+  readonly program: string;
+  readonly command: string;
+  readonly startedAt: number;
+  readonly settled: Set<string>;
+},): Promise<boolean> {
+  /**
+   The unit the command starts, when it starts one.
+   */
+  const { unit, } = unitStartedBy({ command, },);
+  if ((unit === undefined) || settled.has(unit,)) {
+    return false;
+  }
+  /**
+   What the manager says about that unit, in one question.
+   */
+  const state = unitStateIn({ shown: (await run({
+    command: program,
+    words: [
+      ...QUESTION_ABOUT_A_UNIT,
+      unit,
+    ],
+  },)).stdout, },);
+  /**
+   Whether the unit began after the command did, which is the only way a unit of that name is this run's own.
+   */
+  const beganAfterTheCommand = (state.startedAt !== undefined) && (state.startedAt >= startedAt);
+  /**
+   Whether the run is kept for it.
+   */
+  const keeps = state.runs && beganAfterTheCommand;
+  if (!keeps) {
+    settled.add(unit,);
+  }
+  return keeps;
 }
