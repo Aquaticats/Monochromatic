@@ -567,9 +567,10 @@ Proposed check based on item 15: the root mount handler groups live tasks by `/p
 `mountinfo` for each distinct namespace and checks ZFS filesystem and exact dataset source, not slot spelling or cwd.
 Before reporting removal-ready unmount, exclude new managed attaches with the standing `unmount` intent and return
 holders and incomplete reads in a fresh, nonce- and GUID-bound result. Removal requires this check immediately before
-snapshot destruction and again before a later chunk or the head destroy. Report unreadable or racing entries rather
-than treating them as clear. The scan only detected process-visible holders in the VM; it does not prove race-free
-absence, coverage of pinned namespaces without a visible task, or coverage through different process root directories.
+every snapshot-destroy request, the first chunk or a later one, and again before the head destroy. Report unreadable
+or racing entries rather than treating them as clear. The scan only detected process-visible holders in the VM; it
+does not prove race-free absence, coverage of pinned namespaces without a visible task, or coverage through different
+process root directories.
 For a managed-consumer deployment, propose that the wrapper and consumer launcher close per-worktree admission and
 finish draining consumers and namespace handles before the root handler scans. Keep admission closed through the
 head destroy. The deployment must also exclude untracked copies and pinned handles and prevent independent new
