@@ -408,36 +408,48 @@ exercised calls on that build, not the complete mechanism on all kernels at or b
 actual kernel and required operations at handler readiness, separately from the ioctl ABI gate. If unverified,
 refuse managed mounts and report the applicable reflink or Git route.
 
-Use the research's descriptor-relative `openat2` constraints, `fsmount` with enforced `nosuid,nodev`, and
-`move_mount` onto the opened target. Report the failing component or mismatched identity field. After attach, prove
-both that the held identity received the expected mount and that the canonical slot exposes that mount ID. A moved
-inode can receive the mount at another account-controlled location. Treat that as a refusal, not a worktree.
-Record its mount identity and canonical and observed paths. Whether to attempt descriptor rollback immediately
-or retain the mount for administrator recovery is an [open choice](#open-project-choices). Never substitute a
-path-based attach or unmount on the account-controlled tree.
+Use descriptor-relative `openat2`, `fsmount` with enforced `nosuid,nodev`, and `move_mount` onto the opened target.
+[VM item 2][vm-refusals] measured the account creating links successfully and the descriptor walk refusing
+links, escapes, mount crossings and recorded identity changes. Access and default ACL drift each passed a mode-only
+check, so compare both ACLs. Report the failing component or field; an identity change is not permission to adopt
+it. [VM item 7][vm-nosuid] measured a root-owned setuid executable gaining effective UID 0 without the mount
+restrictions and retaining the account UID with them. Enforce and verify mount flags independently of dataset
+properties; the probe did not execute the handler or test device use in that arm.
 
-For unmount, the process that attached the clone is usually gone. The [VM measurement record][measurements] is
-testing this candidate, not an established unmount mechanism: reopen the recorded parent from the verified
-checkout using the same no-crossing `openat2` walks. In a separate `openat2` call, open only the final slot from
-that parent with `O_PATH | O_DIRECTORY` and `RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_MAGICLINKS`.
-Omit `RESOLVE_NO_XDEV` only for that hop to cross into the attached mount. Verify that the descriptor is the
-mount root: compare its mount ID from `fdinfo` and `st_dev` with the matching host `mountinfo` entry, which must
-show the expected slot, parent mount ID, ZFS
-root and source. Compare the source's live dataset GUID with the binding and prove the observed mount ID is
-that of the handler's attachment for this boot. A matching dataset name or device alone does not distinguish
-an unrelated bind of the clone root. Refuse mismatches and ambiguous identities; an interrupted attach lacking
-adequate evidence needs recovery. Recheck the canonical lookup before moving. The move takes the verified
-descriptor, not a lookup of the slot path. Move the mount to root-owned private staging. Verify it there,
-release descriptors that would hold it busy, then unmount in staging without force or lazy detach. The guest's
-move out of a shared checkout refused with `EINVAL` (`guest-exact-zfs.log:230`); `move_mount(2)` identifies the
-source mount's immediate parent as the constraint. Do not attach where safe unmount and staging propagation
-have not been verified. The exact checks and supported topologies are pending in the
-[VM measurement record][measurements]; see
-[Shared ancestor policy](#open-project-choices). If final unmount is busy after the move, the choice of trying
-reattach or retaining it staged is [open](#open-project-choices). Track and report staged identity and location
-across handler interruption so no pass treats a mount missing from the slot as gone. Publish success only after
-checking actual mount state, not path absence. Test busy mounts and propagation peers; the nested probe did not
-combine a descriptor move with a busy unmount.
+After attach, prove both that the held identity received the expected mount and that a fresh walk from the checkout
+finds that mount at the canonical slot. In [VM item 2][vm-refusals], a held descriptor moved with a renamed `.claude`
+and the attach landed there; the fresh walk detected it. That is a refusal, not a worktree. The synchronized
+trials in a private namespace moved the exact mount to staging, unmounted it and verified absence at the canonical
+slot and staging. They do not prove atomic placement or cover free-running interleavings. Record the mount identity
+and canonical and observed paths. Immediate descriptor rollback or administrator recovery remains an
+[open choice](#open-project-choices). Never substitute a path-based attach or unmount on the account-controlled tree.
+
+For unmount, the process that attached the clone is usually gone. [VM item 4][vm-unmount] measured reopening
+and moving an already-attached clone from a fresh process. Reopen the recorded parent from the verified
+checkout using the no-crossing `openat2` walk. In a separate `openat2` call, open only the final slot from that
+parent with `O_PATH | O_DIRECTORY` and `RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_MAGICLINKS`.
+Omit `RESOLVE_NO_XDEV` only for that hop; the attach-side flags refused it with `EXDEV`. Compare mount ID from
+`fdinfo`, device and inode from `fstat`, and the expected slot, parent mount ID, ZFS root and source in the
+handler's `mountinfo`. The wrong-clone control reused mount ID, device and inode; only the source differed.
+Verify the source's live dataset GUID from the binding as well, and prove this is the handler's attachment
+for this boot, not an unrelated bind. The wrong-clone control did not replace a dataset under the same name.
+Refuse mismatches and ambiguous identity, including an interrupted attach lacking adequate evidence.
+
+Recheck the canonical lookup before moving. The synchronized substitution in [VM item 4][vm-unmount] was
+caught by that check; the move uses the verified descriptor, not a new slot path lookup. Move to root-owned
+private staging, verify the mount there, release descriptors that would hold it busy, then unmount without
+force or lazy detach. The busy-holder arm moved the clone successfully but unmount refused until the holder
+exited. Track and report staged identity and location across interruption: absence at the slot does not mean
+the mount is gone. Publish success only after verifying absence from the mount namespace. Reattach or staged
+retention remains [open](#open-project-choices); neither reattach nor staged recovery after a crash was measured.
+
+[VM item 3][vm-propagation] measured the move refusing with `EINVAL` when its immediate parent, the checkout,
+was shared. Making **only the checkout mount private** let the fresh process move to private staging and unmount;
+`/` and both home ancestors stayed shared. This route requires a verified non-shared immediate parent and
+verified private staging, not private ancestors of the checkout. The tested private checkout stopped delivery
+of the later clone mount to a reader whose already-running unit had a separate mount namespace. Check the
+caller's actual visibility and refuse managed attach where safe unmount and staging topology are unproved.
+The [checkout propagation policy](#open-project-choices) remains open.
 
 ### Waiting and refusal
 
@@ -538,9 +550,12 @@ See the [pnpm study][pnpm], "When a copy still shares blocks".
 The Pi driver already creates its worktree before starting the confined unit
 (`package/pi-shared/subagent-driver/src/start-pi-run-in-a-worktree.ts:238`). The planning probes found a confined
 user namespace could not see the source dataset through `/dev/zfs`, while same-dataset reflinking worked.
-A read-only bind of the worktrees parent can hide a mount made after a unit starts. Do not relax confinement
-or infer mount visibility from host success. Prefer creating the worktree outside the unit as the driver already
-does, and verify visibility and writability in the consumer's actual context.
+A read-only bind of the worktrees parent can hide a mount made after a unit starts. Without that bind, the
+already-confined reader in [VM item 3][vm-propagation] saw the later clone and its marker with a shared checkout,
+not with a private checkout. The marker was written by the mounting process, so the control showed reader
+visibility, not consumer writability. Do not relax confinement or infer mount visibility from host success.
+Prefer creating the worktree outside the unit as the driver already does, and verify visibility and writability
+in the consumer's actual context.
 
 ### Walks and Git clean
 
@@ -705,17 +720,14 @@ in the ranking. Use the pending measurements where they affect the options; a ra
   nested mounts can be gated on verified success. The second avoids a privileged checkout attach by pathname but
   needs a separate provider and explicit ordering of the vm-builder output and all other nonclone datasets
   under the checkout. Both must prevent automatic mounts into the home underlay if checkout mounting fails.
-- Shared ancestor policy. On this host, `findmnt --output TARGET,PROPAGATION` read `shared` for `/`, `/home` and
-  the ZFS mounts under `/home`, including `~/.cache` and the vm-builder output. The new checkout mount does not
-  exist here yet; inheriting shared propagation from `/home` is an inference, not a reading of that mount.
-  Options: refuse the managed route until an administrator makes the checkout and its ancestors private (no
-  product-driven propagation change, but needs broad host changes here); use `mount --make-private` on only
-  the checkout mount in the root-installed boot unit, after verifying it and before enabling clone mounts,
-  reapplying on each boot (leaves `/` and `/home` alone); or support a different explicit isolation arrangement
-  configured by the administrator (can fit other consumers, but needs its own staging and visibility proof).
-  A private checkout is expected not to propagate new clone mounts into another already-running mount namespace
-  (`mount_namespaces(7)`); that could lose the visibility the planning probes saw without a read-only parent
-  bind. The [VM measurement record][measurements] is testing both states. Do not silently change propagation.
+- Checkout propagation policy. The [VM record's host inventory][vm-fixture] observed `shared` for `/`, `/home`
+  and `~/.cache`; the checkout does not yet have a separate mount, so its propagation is not measured here.
+  Either require the administrator to make the checkout mount private before enabling the route, make only
+  the verified checkout private in the installed boot unit before enabling clone mounts at each boot, or
+  require a different explicit isolation arrangement with its own unmount and visibility proof.
+  [VM item 3][vm-propagation] measured successful staging with only the checkout private, and loss of late
+  delivery to the already-confined reader in that arm. The shared arm preserved delivery but could not move
+  the clone to staging. No alternative unmount mechanism was tested. Do not silently change propagation.
 - Managed path interface. Accept the canonical path from ordinary `git worktree add <path>` only, with fallback at
   the same slot; or also add an opt-in named allocator that reports the chosen path under `.claude/worktrees`.
   The allocator could simplify driver integration but adds a caller-facing command.
@@ -737,12 +749,14 @@ in the ranking. Use the pending measurements where they affect the options; a ra
   blocks, but deletes some living worktree history before normal expiry; measure what it would reclaim first.
 - Misplaced attach. Attempt immediate rollback of the exact mount by verified descriptor, retaining and reporting
   it only if rollback fails; or leave it attached and report both paths and its identity for administrator
-  cleanup. Rollback can recover without intervention but adds another privileged mount operation in a race.
-  Retention avoids that operation but leaves a mount stranded at an account-selected location.
+  cleanup. [VM item 2][vm-refusals] measured successful rollback in synchronized trials in a private namespace,
+  not free-running interleavings or failed rollback. Retention avoids another privileged move but leaves the
+  mount at an account-selected location.
 - Busy unmount after a staging move. Attempt reattach of the same mount to the original slot only if it is
   revalidated and safe, retaining it staged otherwise; or keep it staged until administrator recovery. Reattach
-  can restore the worktree's visibility but adds a second attach and race; retaining it keeps the mount under
-  root control but leaves the worktree unavailable. Both require interruption tracking.
+  can restore the worktree's visibility but adds a second attach and race; retaining it leaves the worktree
+  unavailable. [VM item 4][vm-unmount] measured busy refusal in staging and successful retry after the holder
+  exited, not reattach or interruption recovery. Both require staged-state tracking.
 - Dirty source on rung 1. Require a clean source, using the applicable fallback for a dirty checkout; or implement
   a verified dirty-main restore comparable to Btrfs. A clean-only route narrows the proof but loses clone speed on
   a dirty main checkout. Dirty support needs a defined Git/index and ignored-state restore, with a frozen proof.
@@ -981,8 +995,13 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
 
 [measurements]: cli-git-zfs-measurements-owed-before-acceptance.md
 [vm-register]: cli-git-zfs-measurements-owed-before-acceptance.md#1-register-snapshot-attach-and-fill
+[vm-fixture]: cli-git-zfs-measurements-owed-before-acceptance.md#fixture-and-evidence
+[vm-refusals]: cli-git-zfs-measurements-owed-before-acceptance.md#2-refusals-with-account-owned-parent-and-slot
+[vm-propagation]: cli-git-zfs-measurements-owed-before-acceptance.md#3-shared-propagation-and-a-confined-reader
+[vm-unmount]: cli-git-zfs-measurements-owed-before-acceptance.md#4-unmount-from-a-fresh-process
 [vm-key]: cli-git-zfs-measurements-owed-before-acceptance.md#5-encrypted-fixture-and-an-unloaded-key
 [vm-prune]: cli-git-zfs-measurements-owed-before-acceptance.md#6-deleted-underlay-pointer-prune-and-lock
+[vm-nosuid]: cli-git-zfs-measurements-owed-before-acceptance.md#7-setuid-execution-on-the-clone
 [answers]: cli-git-zfs-worktree.md#owners-answers-of-2026-11-18
 [zfs-plan]: cli-git-zfs-worktree.md
 [handover]: ../handover/cli-git-rust-implementation.md
