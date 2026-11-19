@@ -174,13 +174,27 @@ Not final and not approved: this session's own account.
   `passt.avx2`; the owner then had it allowed permanently and asked for the matching `mvm` switch, filed as issue 6312
   (`doc/troubleshooting/rootless-podman-traffic-reaches-opensnitch-as-pasta.md`).
   The blocklist was answered the same evening (decision entry "ZFS snapshots: an explicit blocklist of seven
-  datasets"). **Going since 19:20-05:00:** the design proposal's writer, GPT 6.2 Sol through Pi, unit
-  `pi-zfs-worktree-design-proposal-writer-1`, run folder
-  `~/temp/agent/zfs-worktree-design-proposal-writer-2026-11-18/run-1` (brief `prompt.md` beside it), worktree
-  `.claude/worktrees/zfs-worktree-design-proposal` on branch `docs/planning-cli-git-zfs-worktree-design-proposal`,
-  writing `doc/planning/cli-git-zfs-worktree-design-proposal.md`. **Next:** read its report and commits, then a
-  cross-vendor re-review of the proposal (DeepSeek through Pi), fold the findings in, then the owner's acceptance;
+  datasets"). The design proposal's writer (GPT 6.2 Sol through Pi, unit
+  `pi-zfs-worktree-design-proposal-writer-1`) ended `idle` at 2026-11-18T19:22:10-05:00 after 29 turns ($0.83), with
+  `doc/planning/cli-git-zfs-worktree-design-proposal.md` on branch `docs/planning-cli-git-zfs-worktree-design-proposal`
+  (commits 78f445a56a, 5ba0cb06dd, 4203040346; pushed; marked non-final); its worktree is removed. Its report names
+  six choices for the owner (managed path interface, main-only origins, exact ABI profiles, periodic reconcile, scoped
+  delegation that lets the account destroy any snapshot of the main dataset, keep the space guard as it is) and notes
+  the blocklist answer's label said "seven" while the list it named has eight. The proposal also moves the main
+  checkout into a dataset mounted under a root-owned anchor (`/var/lib/monochromatic-worktrees/monochromatic/main`),
+  which changes the checkout's path: to be put to the owner. **Going since about 19:26-05:00:** its cross-vendor
+  review, DeepSeek V4.1 Flash on Synthetic through Pi, unit `pi-zfs-worktree-design-proposal-review-1`, run folder
+  `~/temp/agent/zfs-worktree-design-proposal-review-2026-11-18/run-1`, detached worktree
+  `.claude/worktrees/zfs-worktree-design-proposal-review` at 4203040346, writing `review.md` beside the run folder.
+  **Next:** weigh its findings, fold them in with a writer run, then the owner's acceptance through the question tool;
   the binding's tests run on a file-backed pool inside a throwaway VM.
+- **Driver idle window defaults to 0:** going since about 19:30-05:00, GPT 6.2 Sol through Pi, unit
+  `pi-driver-idle-window-defaults-to-zero-writer-1`, run folder
+  `~/temp/agent/driver-idle-window-defaults-to-zero-writer-2026-11-18/run-1`, worktree
+  `.claude/worktrees/pi-shared-subagent-driver-idle-window-defaults-to-zero` on branch
+  `fix/pi-shared-subagent-driver-idle-window-defaults-to-zero` (decision entry "Driver: the idle window defaults to 0").
+  Then a DeepSeek review, merge, and the pi-as-subagent skill's example (`--idle-seconds=60`) updated. Until it lands,
+  launches pass `--idle-seconds=1` (0 is refused today).
 - **Reviewer bench (task 387):** all four resumed reviews ended `idle` on `opencode-go` with no rate-limit error
   (`a13faa0d55` runs 1 and 2: 92 and 152 turns; `3822c44c2f` run 1: 33; `915ef30e09` run 2: 49); all six now have a
   review. Nothing is scored yet.
@@ -39703,7 +39717,21 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### Driver: the idle window defaults to 0 (2026-11-18, about 19:28-05:00)
+
+After a "Pi agent finished" notification came a minute before the coordinator woke, the owner asked "What even is the
+idle window for?" and then "And shouldn't it be defaulted to 0?". Adopted: `--idle-seconds` becomes optional with
+default 0, in `drive-pi-subagent` and in `start-pi-run-in-a-worktree` (whose default was 120). The window's only
+documented use is a steering message for a Pi that has settled (`package/pi-shared/subagent-driver/README.md:972-973`);
+the driver's settle is Pi's `agent_settled`, which comes after Pi's retries and compaction recovery
+(`package/pi-plugin/agent-settled-notification/README.md:17-21`); a coordinator woken by the unit's end can never steer
+inside the window, and follows up with `--session` instead. No recorded failure rests on the window's length.
+
 ### ZFS snapshots: an explicit blocklist of seven datasets, the pnpm store stays in home, passt allowed (2026-11-18, evening)
+
+Note added 2026-11-18T19:35-05:00: the option's label said "seven", but its description, and the list here, name
+eight datasets (`/var/cache`, `zpcachyos/nosnap` and its six children); the label was the session's miscount, and the
+named list is what was chosen. This goes to the owner with the design proposal.
 
 Three answers, quoted in `doc/planning/cli-git-zfs-worktree.md` ("What the snapshots hold today" and "What the
 blocklist names"): the pnpm store must not become its own dataset ("not being able to take advantage of clones";
