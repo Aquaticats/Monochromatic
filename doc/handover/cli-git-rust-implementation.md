@@ -40169,6 +40169,49 @@ review probe D is the real-manager evidence). GOING: `pi-driver-work-left-runnin
 seen: two of its full suite runs failed `drive-pi-subagent.unit.test.ts` `createSopsFixture` cases that pass alone; the
 recorded mechanism (`env-local-json/core/src/fixture.ts:217`) is the known fixture flake the env-local-json fixture run
 owns, and a run without the new file passed; not yet shown unrelated to the new tests' load (one sample each way).
+Run-3 ended `idle` (45 turns) at `33c214d45d`: both manager-dependent tests and their helpers removed; one real-process
+test (a shell backgrounds `sleep 60` and exits; asserted alive, out of the test's tree, not named) replaces them; no test
+in the package spawns the real `systemd-run` or `systemctl` (every hit is a stand-in written onto a test's own `PATH`);
+209 passes, the only failure `secret-values-of-this-machine.unit.test.ts`, the documented fixture flake. GOING: a DeepSeek
+delta review on Synthetic, `pi-review-pi-shared-subagent-driver-work-left-running-at-33c214d45d-1`; merge on a clean
+delta. Delta review back (98 turns): **0 high, 1 medium, 4 low**; all four first-review findings answered; the new test
+fails at the producer of `4e00a2c1f9` (`expected [ '4051431 sleep' ] to deeply equal []`) and passes at the tip; no test
+starts the real manager (enumerated, 70 hits read). M1: the new README and brief-rule text recommends a named unit, but
+`work-the-run-left-running.ts:149` drops a recorded command whose last status is `exited` before asking the manager, so a
+named unit started through the `process` tool loses the run after one look at the tool (probe: `P1-record-says-exited
+lines=[] asked=[]` against the control); a unit started from a `bash` call has no record at all. Taken by the reviewer's
+first remedy (code matches the sentence: ask the manager about a recorded named unit whatever the client's status), text
+narrowed to the `process` tool; L1, L2, L4 in the same round. GOING: `pi-driver-work-left-running-counts-only-its-own-4`
+(run-4). **Follow-up, its own run later:** `watch-pi-run.unit.test.ts:999-1001` reads `feed.jsonl` before the write
+stream flushes (failed twice in the full suite, passes alone; review L3).
+Run-4 ended `idle` (57 turns; `317de29035`, `4b08423a61`): a recorded command naming a unit now asks the manager whatever
+the record's last status; its test failed first on the pre-fix source (`expected [] to deeply equal [ Array(1) ]`); L1,
+L2, L4 answered; README and brief rules say the `process` tool is the route; full suite exit 0, 209 passes. GOING: a
+second delta review of `33c214d45d..4b08423a61` on Synthetic (unit `...-at-4b08423a61-1`); merge on a clean delta.
+Second delta back (89 turns): **1 medium, 8 low**; the last review's four answered. M1: the manager is asked by unit
+name alone, so a recorded `journalctl --user --unit=x` or a text search naming a unit, or a same-named unit another
+session owns, keeps the run to its wall clock (probes P3, P4, P4b), the harm this change removed on the process side;
+lows: quoted names, only the word `active` counts, tab-separated words, two README sentences, a manager question per
+stale record on every 300 ms look, no seam for the end-to-end path, a stale number hiding a live process's line. Weighed:
+M1 by the reviewer's remedies 1 and 2 (only a `systemd-run` command, and only a unit active since that command
+started), state read as `ActiveState`/`SubState`, L1 to L6 fixed, L8 if small, L7 is the recorded host-load class.
+GOING: `pi-driver-work-left-running-counts-only-its-own-5` (run-5).
+Run-5 ended `idle` (89 turns) at `1988f31f2f` (four commits): new `src/units-a-command-starts.ts`; a `--unit=` counts
+only for a `systemd-run` command and only for a unit whose `InactiveExitTimestamp` (the writer's choice over the
+review's field) is at or after the record's `startedAt` (from the tool's `startTime`, else the driver's own start);
+`activating`/`reloading` count, `active`+`exited` does not; quotes and any whitespace handled; settled records asked once
+(100 questions became 1); `PI_RUNS_MANAGER_PROGRAM` seam; README and brief rules match; five tests failed first; 209
+passes, failures only in the known `createSopsFixture` cases. L8 left (not small). GOING: a third delta review on
+Synthetic (`...-at-1988f31f2f-1`), checking the timestamp field against `org.freedesktop.systemd1(5)`.
+Third delta back (79 turns): **0 high, 2 medium, 4 low**, all in the named-unit path and new: any prefix before
+`systemd-run` (`cd x &&`, `env`, `nohup`, `bash -c`) is never asked about, and a settled unit name is never asked again
+in the run; plus failed manager answers settled as no work, a realtime comparison a clock step flips, a same-named unit
+started after the command, fixture digits. **Coordinator's decision, open to the owner's veto:** three rounds of
+inferring a unit's owner from command text each opened a new hole, so the branch returns the named-unit path to exactly
+`main`'s behaviour (asked only while the record's status is live) and changes only the descent condition; the README and
+brief rules say what the code does and send agents to the robust route (work through the `process` tool, wrapped in
+`systemd-run --user --scope` for limits, which keeps it in the run's tree, review probe A). GOING:
+`pi-driver-work-left-running-counts-only-its-own-6` (run-6).
 
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed
@@ -40222,6 +40265,37 @@ its cost and the veto sentence. Disagreements: "the full text is in the fence" i
 restored anyway); a bookmark's normal use is a `zfs send` source (`zfs-bookmark.8:48-50`). GOING: a fifth Sonnet check
 of `b26aa27f3c..1975c5c4cc` (background Agent), which also writes each open choice and default in plain words for the
 owner's questions in the morning.
+The fifth check came back (saved as `keep/fifth-delta-check.md`, which also holds the plain-words input for every open
+choice and default): the fourth check nearly all answered; new: refusal still worded as operative and the new choice's
+pointer circular; option 2 overstates item 15 (no read through the mount was measured); **option 1 (refuse) is stricter
+than the "refuse without an explicit flag" the owner declined when choosing "B: Destroy at once"** (`cli-git-zfs-worktree.md`
+lines 491 to 494), a fact for the question; the writer's bookmark rule is stated as settled with gaps (plan home unnamed
+for the delegated option, amended plans, the control forces no split); default costs N5 to N7; record lows. GOING: a
+fifth fold-in, `pi-zfs-worktree-design-proposal-fifth-fold-in-1` (run-9), making the bookmark rule an open choice (A
+plan tuple, B live only, C createtxg ordering). The open choices then go to the owner by question tool in the morning.
+It ended `idle` (131 turns) at `c0bdcc8f21` (six commits): the refusal worded as one arm of its open choice with no rule
+in force until the owner answers, the declined-refusal fact beside option 1, option 2 restated to item 15's measured facts;
+the new open choice "Bookmarks on a clone being removed" (A, B, C) with option A's gaps closed or stated; default costs
+corrected; record entries fixed. Disagreed: no fifth veto-open default (the draft adopts neither arm). Two commit messages
+imprecise (`061c6d7392` carries a literal `'`; `f5f20bf445` says "ontology"), not amended, corrective commit comments
+posted. Eighteen open choices now. GOING: a narrow last Sonnet check (each fifth-check item answered, the two choices'
+facts, new problems only); the loop ends there and the choices go to the owner.
+The narrow check came back (saved as `keep/sixth-delta-check.md`): most items answered, cited sources hold; left: options
+A and B contradict each other on which rule `b26aa27f3c` held (git: live-only; `9a1a47e190` held the recorded-tuple
+rule); "item 15 ran one scan per arm" is false (three per arm, `item-15-exact.log`); three sentences still read the
+refusal as in force; "needs no plan" conflicts with step 3; a pronoun, an inventory mismatch, a control outcome wrong for
+option C, wording. GOING: a sixth fold-in fixing exactly those eight, `pi-zfs-worktree-design-proposal-sixth-fold-in-1`
+(run-10); the coordinator then checks those lines by `rg` (no further review round) and the choices go to the owner.
+It ended `idle` (105 turns) at `b5294a7325` (nine commits). Coordinator's `rg` check of those lines: each earlier bookmark
+rule named by its revision (`9a1a47e190` recorded tuple, `b26aa27f3c` live only); item 15 "ran three root scans per
+arm" at P:503 and P:1115; the one remaining "no route passes" sentence (P:1595) is scoped to the refusal arm; "needs no
+plan", "citations above" and "this check proposed" gone; no line over 120 outside fences; no dashes; `git diff --check`
+clean. **The proposal is ready for the owner's questions at `b5294a7325`** (eighteen open choices, four veto-open
+defaults; plain-words input in `keep/fifth-delta-check.md`, corrected by `keep/sixth-delta-check.md` item 1).
+**NEXT SESSION, FIRST:** ask the questions in `doc/handover/questions-for-the-owner.md`, section "Prepared overnight
+for the question tool, 2026-11-19T03:30:00-05:00" (the eighteen ZFS choices, the four defaults, the Qwen plan terms,
+`infinite:small:vision`'s place, the provider's four open points and its install), ranked as written, through the
+question tool four at a time, and record each answer where that section says.
 
 **Provider writer run-7** hit its 200-turn cap after 16 min with nine commits (`cb7d6a66ab` to `dbc6f57268`: OpenAI out
 of the writer pool, the move gated on OpenAI's opening, a set-aside policy stop yielded instead of a later 429, the
@@ -40258,6 +40332,23 @@ captures kept only in scratch, untested branches, magic numbers, quota read rate
 session resumed, `pi-provider-answers-its-gate-review-1` (run-10), after merging `main` in. Four owner questions the
 gate named stay open: refusal-time endpoint read, the overage ceiling's minimum, 503 and 52x ending at the member, Pi's
 native virtual models.
+Run-10 ended `idle` (276 turns) at `df69b9dbbd`: `main` merged in at `bcde9f8a65` with no conflict and no change to the
+package; High 1 answered by advertising the smallest registered member's window and output limit (provisional pair
+1,048,576 / 65,536 before a session binds), with the provider registered again inside `session_start`, and pinned by the
+verifier running a real Pi 1.5.2 session over five large turns asserting no compaction (fails with the zero window);
+NeuralWatt ceiling by lane; a 429's delay read from its body (`retry_strategy.suggested_initial_delay_s`), the two
+`onResponse` 429 tests labelled stand-ins; member attempts with `maxRetries: 0`; the policy move also requires
+`physical.provider === 'openai'`; captures kept in the package's `doc/captures.md`; untested branches covered; a
+one-second minimum between quota reads per member, cited from NeuralWatt's guide. On Pi's native virtual models: they
+would take the member's window per answered message but `createVirtualModel` defaults the pool's own window to 0 too.
+GOING: a Sonnet gate delta check of `2070948ce4..df69b9dbbd` (background Agent); merge on a clean check.
+The gate delta check (saved as `change-reviews/pi-plugin-rate-limit-fallback-at-df69b9dbbd/gate-delta-check.md`):
+**nothing blocks merging on the owner's configuration**; threshold compaction fixed (pool 0 compaction events in five
+large turns, old build 8); mediums answered; a member's real overflow gets no compact-and-retry with the pool (measured,
+rare at 1M windows; joins the native-virtual-models owner question). Cheap fixes before the merge: `DEBUG` lines in a
+test; three `Error.isError` calls that fail on Node 22 (Pi declares `>=22.19.0`); no guard on the `session_start`
+re-registration (removing it still passed the verifier). GOING: the writer's session resumed for those and the smaller
+items, `pi-provider-answers-its-gate-delta-check-1` (run-11); then the coordinator runs the four tasks and merges.
 
 **Reviewer speed result (2026-11-19, four interleaved rounds, model time from the feeds' prompt-sent to settled,
 `keep/runs.jsonl`):** Qwen-plan DeepSeek 9.4, 10.8, 6.3, 17.7 s; its same-model control 18.9, 13.5, 11.9, 8.3 s (Qwen
