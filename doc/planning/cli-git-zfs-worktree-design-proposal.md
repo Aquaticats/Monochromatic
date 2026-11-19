@@ -38,8 +38,9 @@ Do not add a C build step, link or load OpenZFS's CDDL libraries, or invoke the 
 wrapper or handler. The vet's "Where the wrapper ships and what it links today" explains why the wrapper must
 start even when OpenZFS is absent. Administrative commands printed by `doctor` do not run inside the wrapper.
 
-Build `mount-git-worktree-clone-datasets` as a separate Linux Rust binary target of `package/git-policy/cli`,
-alongside `monochromatic-git-policy-cli`. Both use the same binding and compatibility gate, even for reads.
+This draft puts `mount-git-worktree-clone-datasets` in `package/git-policy/cli` as a separate Linux Rust binary
+alongside `monochromatic-git-policy-cli`, rather than making a second package. Both use the same binding and
+compatibility gate, even for reads.
 The handler uses child enumeration and dataset/property reads for its sweep and Linux mount calls for the actual
 attachment and removal. It has no Git, pool administration, or dataset destruction operation.
 
@@ -47,14 +48,17 @@ attachment and removal. It has no Git, pool administration, or dataset destructi
 
 The initial interface is Linux only. Expose typed operations, not a general-purpose ioctl or property setter.
 Numbers are for OpenZFS `zfs-2.4.4`, `include/sys/fs/zfs.h:1502` to `:1550`.
-The vet's "Result and the owner's decision" records the core set. The cross-vendor review checked
-`SNAPSHOT_LIST_NEXT` at line 1505 and `GET_FSACL` at line 1525 of that header.
+The vet's "Result and the owner's decision" records the core set. This draft adds `OBJSET_STATS` for identity
+and property sources, `SNAPSHOT_LIST_NEXT` and `DESTROY_SNAPS` for exact removal accounting, and `GET_FSACL`
+for `doctor`. The cross-vendor review checked `SNAPSHOT_LIST_NEXT` at line 1505 and `GET_FSACL` at line 1525.
 
 - `ZFS_IOC_OBJSET_STATS` (`0x5a12`): inspect dataset type, identity, origin, and the values and sources of properties.
 - `ZFS_IOC_DATASET_LIST_NEXT` (`0x5a14`): enumerate immediate children via the kernel's cursor.
 - `ZFS_IOC_SNAPSHOT_LIST_NEXT` (`0x5a15`): enumerate snapshots of one dataset for removal and recovery.
 - `ZFS_IOC_SET_PROP` (`0x5a16`): change only the wrapper's desired state and sweep nonce on a named clone.
 - `ZFS_IOC_DESTROY` (`0x5a18`): destroy one named, unmounted worktree dataset.
+- `ZFS_IOC_PROMOTE` (`0x5a22`): name a clone in `zc_name`; preserve any conflicting snapshot name in the error
+  (`module/zfs/zfs_ioctl.c:6350` to `:6355`). It is not a mount operation.
 - `ZFS_IOC_SNAPSHOT` (`0x5a23`): create a named origin; the request names the pool and carries a `snaps` nvlist
   (the kernel's name/value list), not a recursive flag.
 - `ZFS_IOC_GET_FSACL` (`0x5a29`): read delegations for `doctor`; inspect grants on ancestors too.
@@ -63,7 +67,17 @@ The vet's "Result and the owner's decision" records the core set. The cross-vend
 - `ZFS_IOC_CLONE` (`0x5a42`): place the target in `zc_name` and send `origin` and optional `props` in the nvlist.
   The contract is in `lib/libzfs_core/libzfs_core.c:328` and `module/zfs/zfs_ioctl.c:3844` at `zfs-2.4.4`.
 
-Do not ship `ZFS_IOC_PROMOTE` (`0x5a22`), which can change the snapshot dependencies that removal relies on.
+The [project decided][answers] "B: Include promote". `zfs-promote(8)` says promoting a checkout clone makes
+the checkout depend on the promoted dataset and moves the checkout's origin and all older snapshots into it.
+Checkout history must never move into a worktree that ordinary removal can destroy. Neither normal add,
+reconciliation nor removal calls promote; grant no `promote` delegation to the account. Keep any blocked origin
+and report its dependency rather than promoting a managed clone to clear it.
+
+Exercise the binding's promote operation in the disposable VM. A possible live use is explicit administrator
+recovery onto a protected clone outside the removable worktree tree, never promotion of a disposable worktree
+of the checkout. No production procedure is authorized by this draft. The [VM measurement record][measurements]
+is testing dependency reversal, which snapshot names and GUIDs move, and what destruction then refuses. The
+exact promotion and recovery rule waits on that result; adding linked origins does not by itself authorize promote.
 There are no pool management, dataset rename, or generic dataset creation requests. Mounts use Linux system calls,
 not a dataset ioctl.
 
@@ -87,8 +101,9 @@ headers, including nested structs, array extents and union members. Use
 and compare fields in a test, not just the printed total. Verify the request values against the matching headers.
 Evidence: [vet][vet], lines 429 to 449, and its `keep/running-kernel-zfs-cmd-layout-from-btf.txt`.
 
-Before the first ioctl, both binaries must prove compatibility with the loaded module and target ABI, including
-module release, architecture, endianness, request contract and kernel/module BTF layout. A missing device, missing
+The [project decided][answers] "A: Test plus runtime gate (Recommended)" for a changed ZFS module. Keep the BTF
+test. At start, before the first ioctl, both binaries must prove compatibility with the loaded module and target
+ABI, including module release, architecture, endianness, request contract and kernel/module BTF layout. A missing device, missing
 required BTF or mismatch disables raw requests, including reads; no force flag. Unverified architectures, including
 `linux-arm64` until separately tested, still run the ordinary checkout route. Whether verification uses exact
 approved BTF digests or compares fields at runtime is an [open choice](#open-project-choices). The gate must report
@@ -166,7 +181,7 @@ sequence. The descriptor attach was a separate probe. The combined ordered wrapp
     `/dev/zfs` access, ABI, effective grants, slot parent identity and owner, mount propagation, installed
     root-owned handler and configuration, live ZED, and usable root-owned status/results. Require a current
     handler readiness report for the actual pool, checkout and boot, not just a present executable. Check the
-    clean source and capture its index/tree verification inputs. On refusal, name the check and choose the
+    selected source eligibility policy and capture the index/tree verification inputs. On refusal, name the check and choose the
     applicable fallback without leaving a managed object. Never substitute the main checkout for a linked source.
 2.  Claim the destination as the account with an exclusive per-add record in the Git common directory. Write
     the proposed clone name and unique `git-worktree-clone-origin-<nonce>` snapshot name before any mutation
@@ -279,7 +294,8 @@ hyphens, bounded by the slot component limit and the remaining dataset-name budg
 origin never authorizes work on another mount. Recheck desired state and identities under a per-slot root claim;
 parallel handlers can sweep at once but cannot take conflicting actions on the same mount.
 
-Publish an atomic receipt in `/run/git-worktree-clone-mount-results`, using only the canonical numeric dataset GUID
+This draft uses atomic `/run` receipts, not root-written acknowledgement properties, so a result does not create
+another ZED event. Publish in `/run/git-worktree-clone-mount-results`, using only the canonical numeric dataset GUID
 as the receipt filename. The root-owned directory is mode `0755`; receipts are root-owned mode `0644`, read-only to
 the wrapper, and opened relative to the trusted directory. Nonces appear only as validated data in the receipt,
 never in a filename. Include the operation, matching nonce, outcome, mount identity and failed step/errno where
@@ -306,9 +322,10 @@ handler uses the verified slot descriptors for mount management, not privileged 
 Use the research's descriptor-relative `openat2` constraints, `fsmount` with enforced `nosuid,nodev`, and
 `move_mount` onto the opened target. Report the failing component or mismatched identity field. After attach, prove
 both that the held identity received the expected mount and that the canonical slot exposes that mount ID. A moved
-inode can receive the mount at another account-controlled location. Treat that as a refusal, not a worktree: roll
-back the exact attached mount by descriptor, or report and retain its identity and both paths if rollback cannot
-finish. Never substitute a path-based attach or unmount on the account-controlled tree.
+inode can receive the mount at another account-controlled location. Treat that as a refusal, not a worktree.
+Record its mount identity and canonical and observed paths. Whether to attempt descriptor rollback immediately
+or retain the mount for administrator recovery is an [open choice](#open-project-choices). Never substitute a
+path-based attach or unmount on the account-controlled tree.
 
 For unmount, the process that attached the clone is usually gone. The [VM measurement record][measurements] is
 testing this candidate, not an established unmount mechanism: reopen the recorded parent from the verified
@@ -324,9 +341,9 @@ or lazy detach. The guest's move out of a shared checkout refused
 with `EINVAL` (`guest-exact-zfs.log:230`); `move_mount(2)` identifies the source mount's immediate parent as the
 constraint. Do not attach where safe unmount and staging propagation have not been verified. The exact propagation
 checks and supported topologies are pending in the [VM measurement record][measurements]; see
-[Shared ancestor policy](#open-project-choices). If the final unmount is busy after the move, restore
-only the same mount to the revalidated original slot if safe. Otherwise retain and report its staged identity and
-location. Track a staged move across handler interruption so no subsequent pass treats a mount missing from the
+[Shared ancestor policy](#open-project-choices). If final unmount is busy after the move, the choice of trying
+reattach or retaining it staged is [open](#open-project-choices). Track and report staged identity and location
+across handler interruption so no subsequent pass treats a mount missing from the
 slot as gone. Publish success only after checking actual mount state, not path absence. The runtime test must prove
 this for busy mounts and propagation peers; the probe did not combine the descriptor move with a busy unmount.
 
@@ -365,9 +382,9 @@ slot. See the [wrapper specification][spec], lines 2932 to 2943 and 3064 to 3190
 3.  Check the exact recorded origin identity before attempting single-snapshot cleanup, using the authority the
     project selects. The kernel's `snapshot has dependent clones` refusal is the check, not a scan of immediate
     children or a name test. Leave a refused origin and report it; never destroy a dependent clone to free it.
-    Preserve the incomplete cleanup record even if the clone and Git registration can now be settled.
-4.  After clone destruction is proven and origin cleanup is attempted or recorded as blocked, settle only the
-    matching Git registration and pointer. Remove the leftover underlay folder as the account only after checking
+    Preserve the incomplete cleanup record while an origin remains.
+4.  Settle only the matching Git registration and pointer after clone destruction is proven. Whether to settle
+    them while origin cleanup is blocked remains an [open choice](#open-project-choices). Remove the leftover underlay folder as the account only after checking
     it has the recorded identity and is empty. Do not remove an unfamiliar entry, a replacement registration or
     any mounted tree. Legacy dataset destruction does not remove the slot. Older checkout snapshots can still
     hold that underlay and pointer until they expire; this is not surviving live worktree data.
@@ -385,8 +402,9 @@ removal and resumption in the guest.
 
 **Rung 1** is the ZFS snapshot clone alongside the existing Btrfs route. Keep `git worktree add <path>` semantics
 and the ladder's already recognized forms ([wrapper specification][spec], lines 1121 to 1189). The described add
-uses the configured clean main checkout as origin. A dirty or otherwise unproved source is refused for this rung;
-this is not Btrfs's dirty-main restore. Reuse held-path and mount-fact helpers and the current Git index, attribute,
+uses the configured main checkout as origin. An unproved source never qualifies. Whether to require a clean source
+or support verified dirty-main restoration as Btrfs does is an [open choice](#open-project-choices). Reuse held-path
+and mount-fact helpers and the current Git index, attribute,
 conversion and publication checks. Respect Btrfs's main-checkout leave-out policy for ignored state, but verify
 ZFS-specific mounts and identities instead of assuming Btrfs's inode/subvolume semantics. If tracked output would
 occupy an omitted mount location, refuse the clone fill rather than writing through a boundary. See the
@@ -583,8 +601,8 @@ No option here is selected by this revision.
   the same slot; or also add an opt-in named allocator that reports the chosen path under `.claude/worktrees`.
   The allocator could simplify driver integration but adds a caller-facing command.
 - Eligible clone origins. Keep only the main checkout as a snapshot source; or also permit linked clone origins.
-  A linked origin preserves that worktree's ignored state but chains dependencies and complicates retention and
-  removal. Do not substitute a different origin from the one the caller supplied.
+  A linked origin preserves that worktree's ignored state but chains dependencies and can block origin cleanup.
+  Neither option makes promotion automatic. Do not substitute a different origin from the one the caller supplied.
 - ABI verification. Require exact approved kernel/module BTF profiles per target, or verify the field layout at
   runtime against the approved release/request contract. Exact profiles can disable clones after a rebuild;
   runtime checking can accept more builds but adds a parser and a larger compatibility test surface.
@@ -598,6 +616,22 @@ No option here is selected by this revision.
 - Space-pressure pruning. Keep the guard's current scope and report its limits, or extend it to an explicit
   managed-descendant allowlist for sanoid hourlies with newest-per-dataset retention. Expansion can release more
   blocks, but deletes some living worktree history before normal expiry; measure what it would reclaim first.
+- Misplaced attach. Attempt immediate rollback of the exact mount by verified descriptor, retaining and reporting
+  it only if rollback fails; or leave it attached and report both paths and its identity for administrator
+  cleanup. Rollback can recover without intervention but adds another privileged mount operation in a race.
+  Retention avoids that operation but leaves a mount stranded at an account-selected location.
+- Busy unmount after a staging move. Attempt reattach of the same mount to the original slot only if it is
+  revalidated and safe, retaining it staged otherwise; or keep it staged until administrator recovery. Reattach
+  can restore the worktree's visibility but adds a second attach and race; retaining it keeps the mount under
+  root control but leaves the worktree unavailable. Both require interruption tracking.
+- Dirty source on rung 1. Require a clean source, using the applicable fallback for a dirty checkout; or implement
+  a verified dirty-main restore comparable to Btrfs. A clean-only route narrows the proof but loses clone speed on
+  a dirty main checkout. Dirty support needs a defined Git/index and ignored-state restore, with a frozen proof.
+  Neither option accepts an unproved source.
+- Git registration when origin cleanup is blocked. Keep the registration until the recorded origin is cleaned up;
+  or settle the registration after clone destruction and keep an independent durable origin cleanup record. The
+  first preserves Git visibility but reserves the slot until cleanup; the second frees the slot but requires
+  recovery without its Git entry.
 
 ## Measurements due before design acceptance
 
@@ -619,6 +653,8 @@ until the wrapper is built. The [VM measurement record][measurements] is being p
 - Have a fresh process with no inherited mount descriptors reopen and verify an already-attached clone and
   move it to staging. Include wrong-mount and changed-path controls. The nested-clone guest used the original
   `fsmount` descriptor for the move (`guest-extra-commands.txt:158` and `:171` to `:175`).
+- Promote a disposable checkout clone in the VM. Record origin/dependency reversal, exact snapshot names and GUIDs
+  before and after, and destruction refusals. Do not treat that VM operation as permission to promote live clones.
 
 ## Acceptance tests the build still owes
 
@@ -636,8 +672,8 @@ host. These gates carry the [handover's H1 and H2 disposition][handover] and the
   inside the VM. A path mount reached a decoy in the research; that did not test a substitution after the check.
   Prove the harness observes attachment outside the intended slot before trusting any no-mount assertion.
 - H1 gate 3: exercise repeated, bounded concurrent slot renames and replacements during real mounts. Assert no
-  unrelated mount is touched; an attach on a moved recorded inode is detected by the post-attach mount-ID check and
-  rolled back by descriptor or precisely reported as stranded if rollback fails. Test the post-attach check itself,
+  unrelated mount is touched; an attach on a moved recorded inode is detected by the post-attach mount-ID check.
+  Verify the selected policy for rollback or retention and the stranded report. Test the post-attach check itself,
   not just the open-time checks. The previous single rename did not verify this rollback.
 - H1 gate 5 recheck: verify mount flags in `/proc/self/mountinfo` and enforce both `nosuid` and `nodev` in the VM
   even where dataset properties would permit them. The research measured the device refusal but not a setuid
