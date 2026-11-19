@@ -25,8 +25,11 @@ so any of them can be undone.
   unlocked.
 - How many worktrees the ZFS build steps may use at once (the plan had assumed up to four under the owner's
   "We shouldn't use worktrees heavily before we implement the zfs parts for the git wrapper"): "Up to 64". Written into
-  the plan; every run still counts against the cap in `doc/handover/agents-at-once-on-this-machine.md`, and the held
-  queue of other work stays held.
+  the plan, and the held queue of other work stays held. The first wording here said every run still counts against
+  "the cap" in `doc/handover/agents-at-once-on-this-machine.md`; the owner answered "The real limit is the agent cap?
+  Didn't I say the 20 is not really a cap on this new disk? We talked about this at least 3 times." On the new drive
+  20 is the search's first level, not a cap; runs are bounded by each provider pool's measured limit, and that file
+  now says so first.
 
 ## Answered in the question tool, recorded 2026-11-19T17:36:44-05:00
 

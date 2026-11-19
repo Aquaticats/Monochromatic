@@ -2133,8 +2133,10 @@ Parallel writers here need a worktree each.
 For the ZFS build steps themselves the owner answered on 2026-11-19,
 asked how many worktrees they may use at once:
 "Up to 64".
-Every run still counts against the cap in `doc/handover/agents-at-once-on-this-machine.md`,
-and the held queue of other work stays held.
+Runs are bounded by each provider pool's measured limit;
+on this drive 20 is the first level of the search in `doc/handover/agents-at-once-on-this-machine.md`,
+not a cap.
+The held queue of other work stays held.
 
 ## Integration
 
