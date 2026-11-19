@@ -40203,6 +40203,15 @@ review's field) is at or after the record's `startedAt` (from the tool's `startT
 (100 questions became 1); `PI_RUNS_MANAGER_PROGRAM` seam; README and brief rules match; five tests failed first; 209
 passes, failures only in the known `createSopsFixture` cases. L8 left (not small). GOING: a third delta review on
 Synthetic (`...-at-1988f31f2f-1`), checking the timestamp field against `org.freedesktop.systemd1(5)`.
+Third delta back (79 turns): **0 high, 2 medium, 4 low**, all in the named-unit path and new: any prefix before
+`systemd-run` (`cd x &&`, `env`, `nohup`, `bash -c`) is never asked about, and a settled unit name is never asked again
+in the run; plus failed manager answers settled as no work, a realtime comparison a clock step flips, a same-named unit
+started after the command, fixture digits. **Coordinator's decision, open to the owner's veto:** three rounds of
+inferring a unit's owner from command text each opened a new hole, so the branch returns the named-unit path to exactly
+`main`'s behaviour (asked only while the record's status is live) and changes only the descent condition; the README and
+brief rules say what the code does and send agents to the robust route (work through the `process` tool, wrapped in
+`systemd-run --user --scope` for limits, which keeps it in the run's tree, review probe A). GOING:
+`pi-driver-work-left-running-counts-only-its-own-6` (run-6).
 
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed
