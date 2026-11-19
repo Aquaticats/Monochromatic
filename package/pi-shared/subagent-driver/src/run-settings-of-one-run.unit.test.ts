@@ -942,7 +942,6 @@ await describe({
               readonly time: number;
               readonly reason: string;
             }): Promise<void> {
-              let refusal: unknown;
               try {
                 await makeWorktree({
                   ...request,
@@ -951,12 +950,13 @@ await describe({
                 },);
               }
               catch (error) {
-                refusal = error;
+                expect(error,).toBeInstanceOf(WorktreeTakenError,);
+                expect(String(error,),).toContain(reason,);
+                expect(await readFile(leftBehind, 'utf8',),).toBe('files with no proof',);
+                expect(git.asked,).toEqual([],);
+                return;
               }
-              expect(refusal,).toBeInstanceOf(WorktreeTakenError,);
-              expect(String(refusal,),).toContain(reason,);
-              expect(await readFile(leftBehind, 'utf8',),).toBe('files with no proof',);
-              expect(git.asked,).toEqual([],);
+              throw new Error('the launcher took an unproven worktree before the grace period elapsed',);
             }
             await expectPreserved({
               runFolderName: 'a-1',
