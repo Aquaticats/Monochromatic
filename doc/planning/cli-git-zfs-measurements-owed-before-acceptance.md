@@ -443,3 +443,67 @@ history, other encryption roots or other clone relationships.
 - Promotion reversal with name collisions, other encrypted lineage shapes, or dependents beyond the fixture.
   The dependent-destroy variant ran as a dry run only, because the deletion set, not destroying the checkout,
   was the relevant evidence.
+
+## Delta gate measurements, 2026-11-18T23:03:28-05:00
+
+This non-final, unapproved repeat addresses the delta gate review of proposal `652b51d74d`. The guest was
+`zfs-delta-measurements`, an Ubuntu 24.04 `mvm` libvirt VM. Each probe reused the encrypted file-backed fixture:
+`aes-256-gcm`, raw key, `recordsize=32K`, `compression=zstd-3`, checkout and clone parent under the same home dataset.
+Scripts and logs are in `~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/delta-review-items/keep/`.
+The project decisions to destroy the worktree and its own snapshots at once and to include `promote` still stand.
+
+### 12. Same-name replacement with delegated grants
+
+Guest: `6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-12-exact.log`). Root enabled pool
+`delegation`, set `zfs allow -l -u ubuntu create,mount` on the clone parent, `-d -u ubuntu clone` on the checkout,
+and `-d -u ubuntu mount,destroy,userprop` on the clone parent. No other ZFS grants were set. The proposal also
+lists local checkout `snapshot`; the DH1 repeat deliberately omitted it as requested, and root made the origin.
+`id` under `runuser` returned `uid=1000(ubuntu) gid=1000(ubuntu) groups=1000(ubuntu)`.
+
+The account cloned `zfsowed12/home/checkout@replacement` to `zfsowed12/home/worktree-clone-datasets/replacement`.
+It ran `zfs destroy` (exit 0), then `zfs create` at the same name (exit 0). A `zfs get` before and after saw:
+
+```text
+# item-12-exact.log, selected property rows
+zfsowed12/home/worktree-clone-datasets/replacement	mounted	no
+zfsowed12/home/worktree-clone-datasets/replacement	guid	15139342543771036697
+zfsowed12/home/worktree-clone-datasets/replacement	createtxg	18
+zfsowed12/home/worktree-clone-datasets/replacement	mounted	no
+zfsowed12/home/worktree-clone-datasets/replacement	guid	7645651087564023451
+zfsowed12/home/worktree-clone-datasets/replacement	createtxg	21
+```
+
+`identity-destroy.lua` reads `guid`, `origin` and `createtxg` using `zfs.get_prop`, and calls `zfs.sync.destroy`
+only if all match. `zfs program -- <pool> <script> <dataset> <guid> <origin> <createtxg>` as `ubuntu` with the
+original clone's matching tuple exited 1, with the clone unchanged:
+
+```text
+# item-12-exact.log
+Channel program execution failed:
+Permission denied. Channel programs must be run as root.
+```
+
+As root, the stale original tuple against the plain replacement exited 1 with `identity mismatch:
+guid=7645651087564023451 origin=- createtxg=21` in the diagnostic. The account then replaced that filesystem
+with a new clone of the **same** origin. The root program again exited 1 on the original tuple, and the new clone
+was unchanged. With its actual tuple it exited 0; `zfs list` then exited 1 with `dataset does not exist`:
+
+```text
+# item-12-exact.log, selected output
+[string "channel program"]:36: identity mismatch: guid=5278023353963548225 origin=zfsowed12/home/checkout@replacement createtxg=24
+Channel program fully executed and produced output:
+    return:
+        createtxg: '24'
+        destroyed: 'zfsowed12/home/worktree-clone-datasets/replacement'
+        guid: '5278023353963548225'
+        origin: 'zfsowed12/home/checkout@replacement'
+```
+
+The probe passed GUIDs as exact signed 64-bit decimal strings to match Lua's representation of unsigned ZFS
+GUID bits. The `--` prevents a negative GUID from being parsed as a CLI option. Two setup attempts caught
+that argument issue and that `delegation` is a `zpool set` property, not a `zfs set` property.
+
+This confirms DH1's same-name replacement with the three grants and the root-only conditional destroy on this
+release. A GUID read identifies the object at the time of the read; even matching the old origin name does not
+identify a replacement. The test does not demonstrate the timing of a concurrent replacement, verify a product
+removal path, or authorize a new privileged destroy service.
