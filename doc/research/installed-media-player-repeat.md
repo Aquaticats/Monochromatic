@@ -34,14 +34,13 @@ The question was which installed graphical music or video players can repeat one
 
 - **Telegram Desktop 7.4.4**. Its chat music player cycles through repeat off, repeat one and repeat all.
   The end-of-track handler restarts the same song in repeat-one mode.
-  [Repeat button](https://github.com/telegramdesktop/tdesktop/blob/v7.4.4/Telegram/SourceFiles/media/player/media_player_widget.cpp#L149-L159)
-  [End-of-track handler](https://github.com/telegramdesktop/tdesktop/blob/v7.4.4/Telegram/SourceFiles/media/player/media_player_instance.cpp#L1478-L1491)
+  [Repeat button][telegram-control] [End-of-track handler][telegram-eof]
 - **Audacity** loops the selected region when Loop is on. Select the whole imported track to play it repeatedly.
-  [Audacity Transport Toolbar](https://manual.audacityteam.org/man/playing_and_recording.html#:~:text=loop%2Dplay%20the%20current%20looping%20region%20over%20and%20over)
+  [Audacity Transport Toolbar][audacity-loop]
 - **DaVinci Resolve** has **Playback → Loop/Unloop**.
   Its shipped reference manual, chapter 40, page 815, describes continuously looping a source clip or timeline.
 - **OBS Studio** can loop a local file through a Media Source using the **Loop** option.
-  [OBS FFmpeg source properties](https://github.com/obsproject/obs-studio/blob/33.0.1/plugins/obs-ffmpeg/obs-ffmpeg-source.c#L167-L175)
+  [OBS FFmpeg source properties][obs-loop]
 
 ## Inventory and checks
 
@@ -59,3 +58,12 @@ The question was which installed graphical music or video players can repeat one
   [Wine wmplayer source](https://github.com/wine-mirror/wine/blob/wine-11.22/programs/wmplayer/main.c#L20-L31)
 - The list covers conventional installed app locations and discovered players with a built-in repeat mode.
   The browser inventory did not include arbitrary websites or extensions.
+
+[telegram-control]:
+  https://github.com/telegramdesktop/tdesktop/blob/v7.4.4/Telegram/SourceFiles/media/player/media_player_widget.cpp#L153
+[telegram-eof]:
+  https://github.com/telegramdesktop/tdesktop/blob/v7.4.4/Telegram/SourceFiles/media/player/media_player_instance.cpp#L1482
+[audacity-loop]:
+  https://manual.audacityteam.org/man/playing_and_recording.html#:~:text=loop%2Dplay%20the%20current%20looping%20region
+[obs-loop]:
+  https://github.com/obsproject/obs-studio/blob/33.0.1/plugins/obs-ffmpeg/obs-ffmpeg-source.c#L167-L175
