@@ -30,18 +30,37 @@ other non-429 errors do not trigger fallback. When an adapter does not expose a
 response status, the pool reads it from Pi's `OpenAI API error (429): …`
 (Responses) or `429: …` (Completions) wording.
 
-A policy stop ends the request. OpenAI's `This content was flagged for possible`
+A policy stop follows the same exposure rule. OpenAI's
+`This content was flagged for possible cybersecurity risk` advisory, which
+arrives inside a stream that already answered HTTP 200, moves the request to
+the next member with the same transcript when no output was exposed. Once
+text, thinking, or tool output was shown, the stop ends the request and the
+message names the member and keeps the advisory. Either way the plugin logs
+the move with the member's name and the stop's text, worded apart from a
+rate-limit move, and the assistant record names the member that answered. If
+every member stops before output, the request ends with the last stopped
+member's attributed advisory.
+
+The project decided this on 2026-11-19 for [issue 6314][issue-6314]: the stop
+moves the request on automatically ("Automatic (Recommended)"). That makes
+rule `RKD` of [`AGENTS.md`][agents-md] automatic for runs on this provider;
+resuming such a run on DeepSeek is the same move, done by hand.
+
+OpenAI's `This content was flagged for possible`
 opening takes precedence over a 429, even if the advisory following it is
 truncated or changes punctuation. The shorter `possible risk` wording and
 generic policy labels identify a stop only when there is no 429 status.
-The error names the member and preserves the advisory, including OpenAI's
+A stop that ends the request names the member and preserves the advisory,
+including OpenAI's
 remediation. It replaces only the spans matched by Pi's transient-error
 classifier, such as standalone retryable status numbers, `rate limit`, and
 `please retry your request`, with `[omitted]`. The surrounding wording and
-punctuation are kept. This prevents Pi's outer retry from restarting a policy stop.
+punctuation are kept. This prevents Pi's outer retry from restarting a policy stop; a
+move to the next member never reaches that classifier at all.
 
-If the pool cannot answer, the last attempted member's 429 is returned,
-or the pool names the held members and their state: a published zero flex
+If the pool cannot answer, the last attempted member's failure is returned: its
+429 as it arrived, or a policy stop attributed to that member.
+Otherwise the pool names the held members and their state: a published zero flex
 floor, a local concurrency ceiling with the count in use, or a hold until
 a provider-derived time. These local admission results do not carry a
 fabricated 429 and are not retried by Pi: generic retry backoff cannot be
@@ -134,7 +153,8 @@ credential values, raw quota bodies, or transcripts.
 Pi records the physical provider and model in the assistant message's
 `provider` and `model` fields. A summary can read those fields for every
 assistant response, including tool continuations, rather than reading
-the current selection. Discarded 429 attempts have no assistant record.
+the current selection. Discarded attempts, a 429 or a policy stop that moved
+on, have no assistant record.
 While the session is open, its active selection remains the pool. Pi
 1.5.2 may restore the last physical answer in a reopened session instead;
 explicitly select `rate-limit-fallback/writer` or `rate-limit-fallback/reviewer`
@@ -150,7 +170,8 @@ another vendor.
 
 - `mise run //package/pi-plugin/rate-limit-fallback:test:unit` runs the
   unit suites against the built entry with stand-in providers and quota endpoints.
-  It also checks the installed adapters' refusal strings through an in-memory transport.
+  It also checks the installed adapters' refusal strings through an in-memory transport,
+  including the recorded OpenAI policy stop, which reaches Pi without a status prefix.
 - `mise run //package/pi-plugin/rate-limit-fallback:verify:extension` loads
   the built extension in a real Pi session, in a disposable offline home,
   and checks request-time registry auth and persisted physical identity.
@@ -158,6 +179,8 @@ another vendor.
   `mise run //package/pi-plugin/rate-limit-fallback:lint:oxlint` check the package.
 
 [openai-limits]: https://developers.openai.com/api/docs/guides/rate-limits
+[issue-6314]: https://github.com/Aquaticat/Monochromatic/issues/6314
+[agents-md]: ../../../AGENTS.md
 [openai-admin]: https://developers.openai.com/api/reference/resources/admin/subresources/organization
 [openai-codex]: https://developers.openai.com/codex/app-server
 [qwen]: https://www.alibabacloud.com/help/en/model-studio/token-plan-faq
