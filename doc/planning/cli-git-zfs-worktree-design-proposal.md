@@ -2,11 +2,10 @@
 
 **Non-final draft by an agent, unapproved.** Decision fold-in: this revision states the project's answers of
 2026-11-19 to every open choice and every default this file listed, quoting the words recorded for each answer.
-Those words are in the round's section "Answered in the question tool, started 2026-11-19T11:30:00-05:00" as it
-stood at `dfe7d53980`; this proposal carries them now, because the handover file that held the section,
+Those words are in the round's section "Answered in the question tool, started 2026-11-19T11:30:00-05:00"
+as it stood at `dfe7d53980`; this proposal carries them now, because the handover file that held the section,
 `doc/handover/questions-for-the-owner.md`, moves an answered question out once it is folded in. This file's own
-revision stamp is what
-`git log --format=%cI -1` prints for the file; this revision began from `b5294a7325`
+revision stamp is what `git log --format=%cI -1` prints for the file; this revision began from `b5294a7325`
 (2026-11-19T02:21:09-05:00), and a section heading's stamp is the commit time of the commit that landed that
 section.
 
@@ -802,8 +801,9 @@ a test asserts that the encoded request has no `defer` key.
     intent and print the slot, dataset and exact snapshot names to be lost. Release local handles and request
     `unmount`. Require the root handler's [all-namespace unmount check](#mounts-held-by-other-namespaces) and
     verify the request, clone GUID, underlay identity and Git registration still match. A busy unmount blocks
-    destruction even when the slot is clear, until its holders end, by `--force` or by themselves; a missing or
-    mismatched unmount blocks it outright (proposed from [item 15][vm-namespaces], with the `--force` meaning under
+    destruction even when the slot is clear: `--force` clears it by ending the holders, and without `--force` the
+    blocked removal cancels itself; a missing or mismatched unmount blocks it outright (proposed from
+    [item 15][vm-namespaces], with the `--force` meaning under
     [Blocked-removal cancellation](#project-decisions)).
 3.  After unmount, persist the verified inventory and expected clone identity as the destruction plan. That inventory
     is step 1's, which lists bookmarks as well as snapshots; the plan records each snapshot tuple this removal
@@ -1192,8 +1192,9 @@ is approved, released or implemented: this file remains a non-final draft.
   scan, are both unmeasured. The route keeps the scan: it still needs the fresh root
   all-namespace verification before the first snapshot delete and before the head destroy
   ([Requests, results and ordering](#requests-results-and-ordering)), and a busy unmount still blocks destruction
-  even when the slot is clear, until its holders end, by `--force` or by themselves, while a missing or mismatched
-  unmount blocks it outright ([Removal and recovery](#removal-and-recovery), step 2, and
+  even when the slot is clear: `--force` clears it by ending the holders, while without `--force` the blocked
+  removal cancels itself, and a missing or mismatched unmount blocks it outright
+  ([Removal and recovery](#removal-and-recovery), step 2, and
   [Blocked-removal cancellation](#project-decisions)).
   That scan is proposed protocol; item 15 ran three root scans per arm, after attach, after the host unmount
   and after the readers stopped (`item-15-exact.log:87`, `:126`, `:153`; `:237`, `:273`, `:290`), and did not
