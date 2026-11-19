@@ -196,8 +196,8 @@ export async function askAboutItsWork({
     watch.record
       .note({
         kind: 'problem',
-        problem: 'Pi was already in a turn of its own when the message that names the ended work went, so the agent is awake and '
-          + 'nothing was refused: the run stays up until that turn settles',
+        problem: 'Pi was already in a turn of its own when the message that names the ended work went, so the message was not '
+          + 'taken: the run stays up until that turn settles, and the agent was not told by it that its work ended',
       },);
     waited.wokenAtSettle = settledBefore;
     return 'resumed';
