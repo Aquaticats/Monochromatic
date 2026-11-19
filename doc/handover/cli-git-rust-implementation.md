@@ -40288,7 +40288,14 @@ exit-not-close read (branch `74dbe1200e`, unmerged) still reddens the suite at t
 branch holds a commit `origin` lacks; no `pi-*`, `reviewer-*`, `fill-*`, `wait-*` or `launch-*` unit; no VM (`mvm
 --backend libvirt list`); no container; no other live session (`ListAgents`). The main checkout holds four files with
 other sessions' uncommitted edits (the standing state, task 210), left untouched and saved as a patch at
-`~/temp/agent/other-sessions-uncommitted-edits-saved-before-poweroff-2026-11-19/keep/` with the commit it applies to.
+`~/temp/agent/other-sessions-uncommitted-edits-saved-before-poweroff-2026-11-19/keep/` with the commit it applies to
+(the patch sits on the same drive, so it guards against a mistaken checkout, not against losing the drive). Checked
+before poweroff: `git rev-parse main` equals `git ls-remote origin refs/heads/main`; the commit service's `pending/` and
+`claimed/` are empty (`failed/` holds old `maintenance-*` entries); the seven remaining worktrees are clean
+(`status --porcelain` empty) and each head is on `origin`; an unfiltered list of running user services and scopes shows
+desktop apps, two commit services, a podman pause scope, and `run-p935017-i924268.scope`, an
+`agent-browser --session wayland-source-audit doctor` started 2026-11-18 20:54 and still running eight hours later
+(not this night's work; a hang worth a look when someone next uses `agent-browser`).
 `~/temp/agent` measured 3.3 GiB by the last writer run (largest: `prewarm-acts-only-on-the-entry-it-checked-2026-11-16-scratch`
 743 MiB, `watch-for-a-killed-gits-lock-costs-nothing-per-folder-2026-11-16-scratch` 439 MiB, `change-reviews` 390 MiB).
 **NEXT SESSION, FIRST:** the questions in `doc/handover/questions-for-the-owner.md`, section "Prepared overnight for the
