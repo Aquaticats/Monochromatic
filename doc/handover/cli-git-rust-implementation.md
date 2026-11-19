@@ -39914,6 +39914,17 @@ What follows from them, as work:
   `.claude/worktrees/sonnet-audit-lfs-path-of-main-at-a4c0436ed1`; brief, reproductions and report under
   `~/temp/agent/lfs-path-of-main-audit-on-sonnet-2026-11-19/`. Scope: `src/native/lfs/` and its callers, held to the
   LFS passages of the wrapper's `SPEC.md`.
+- **GOING**: the hybrid provider prototype (the owner's "Hybrid, prototype first"), unit
+  `pi-rate-limit-fallback-hybrid-prototype` (DeepSeek on Neuralwatt, turn cap 380, a quarter above the longest
+  finished run on this package, 301; wall 300 minutes, the longest took 260), in
+  `.claude/worktrees/pi-rate-limit-fallback-hybrid-prototype` on
+  `feat/pi-plugin-rate-limit-fallback-hybrid-prototype-native-virtual-model-routes-to-the-pool`; brief and run folder
+  under `~/temp/agent/rate-limit-fallback-hybrid-prototype-2026-11-19/`. It must show five things by real sessions:
+  the hybrid answers a turn; a forced member overflow recovers under the hybrid and not with the package's provider
+  selected directly (the control arm); in-request fallback still moves on; the limits before and after the first
+  reply; refusals Pi calls non-retryable still move on. Points 1 to 3 and 5 (with `README.md` lines 114 to 121 and
+  178 to 182 they overrule) are named in the brief as decided for the rebuild that follows, not built by it; the
+  fixture rule (`TAE`) is quoted.
 
 ### The Qwen plan's terms fit the Pi runs on it (2026-11-19T11:20:00-05:00)
 
