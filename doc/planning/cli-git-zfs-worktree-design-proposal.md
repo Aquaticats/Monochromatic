@@ -621,10 +621,10 @@ head destroy. The deployment must also exclude untracked copies and pinned handl
 mounts during that interval; stopping the managed consumers alone does not do that. A channel program excludes ZFS
 administrative changes, not Linux namespace changes (`man/man8/zfs-program.8:35` to `:40`).
 
-Item 15 showed no exclusion that keeps an unrestricted caller, such as a rootless container started after
-attach, from attaching the clone after a scan, so a clean scan alone does not qualify that deployment. It found no
-complete namespace or mount-reference exclusion: its scan saw readable, live representatives of the observed
-namespaces only, and does not generalize to pinned namespaces or racing task changes
+Item 15 ran no rootless container: an unrestricted caller such as a container attaching the clone after a scan is
+unmeasured, and nothing it ran shows an exclusion that keeps one out, so a clean scan alone does not qualify that
+deployment. It found no complete namespace or mount-reference exclusion: its scan saw readable, live representatives
+of the observed namespaces only, and does not generalize to pinned namespaces or racing task changes
 ([VM delta limits][vm-delta-limits], "What this repeat did not show"). Nothing this draft describes shows one
 either, because the descriptor checks and the namespace scan act on what root can observe (reasoning from
 [item 15][vm-namespaces], not a measured interleaving). What removal does in that state is therefore the
@@ -1094,17 +1094,21 @@ is not a decision.
     "B: Destroy at once" ([project decision][answers], lines 491 to 494) stays unreached for every deployment
     whose arrangement this draft describes, and an authorized removal is destroyable only through action outside
     the wrapper (reasoning). The project declined a refusal of this kind once: when it chose "B: Destroy at once",
-    the offered "refuse without an explicit flag" was declined ([project decision][answers], lines 491 to 494). This
-    arm has no flag path at all, because the wrapper's one supported `--force` waives cleanliness, not a mount
-    boundary or identity check ([Removal and recovery](#removal-and-recovery)), so it is stricter than the refusal
-    the project declined (reasoning).
+    the offered "refuse without an explicit flag" was declined ([project decision][answers], lines 491 to 494).
+    Reading that as this arm's precedent is reasoning, with a limit: the declined refusal was about keeping the
+    clone's snapshots, not about a namespace exclusion ([project decision][answers], lines 491 to 494). This arm has
+    no flag path at all, because the wrapper's one supported `--force` waives cleanliness, not a mount boundary or
+    identity check ([Removal and recovery](#removal-and-recovery)), so it is stricter than the refusal the project
+    declined (reasoning).
   - Destroy the clone's own snapshots and then the head anyway, accepting the residual. Item 15 measured this much:
     with a private checkout, the host unmounted while both post-attach readers still held a ZFS row for the clone
     in `mountinfo` and neither worked in the clone directory, a disposable own snapshot was destroyed while they
     were alive, and the head destroy refused `dataset is busy` until both stopped ([item 15][vm-namespaces]). No
     read through the mount was measured. The rest is reasoning: the snapshots this arm destroys are gone for good,
-    so the removal ends in "planned snapshots all gone with the head refused" until the holder lets go, and a
-    holder that attaches after a clean scan is unmeasured. This arm keeps the scan: it still needs the fresh root
+    so the removal ends in "planned snapshots all gone with the head refused" until the holder lets go. Its measured
+    facts are about holders the scan sees: both of item 15's readers appeared in its scan with a hit
+    (`item-15-exact.log:126` to `:138`), while a holder the kept scan missed, and one that attached after a clean
+    scan, are both unmeasured. This arm keeps the scan: it still needs the fresh root
     all-namespace verification before the first snapshot delete and before the head destroy
     ([Requests, results and ordering](#requests-results-and-ordering)), and a missing, mismatched or busy unmount
     still blocks destruction even when the slot is clear ([Removal and recovery](#removal-and-recovery), step 2).
@@ -1211,8 +1215,10 @@ by answering the question that lists it.
 
 - Receipts as atomic files under `/run/git-worktree-clone-mount-results`, rather than root-written
   acknowledgement properties ([Requests, results and ordering](#requests-results-and-ordering)). Evidence: reasoning
-  from the property event [VM item 5][vm-key] delivered, not a measured receipt. Cost: entries go stale and nothing
-  in this draft removes them. The directory is root-owned mode `0755` and each receipt is root-owned mode `0644`,
+  from the property event [VM item 5][vm-key] delivered, not a measured receipt. Cost: the receipt of a clone the
+  removal destroyed stays after its GUID is gone, and nothing in this draft removes that entry; a live clone's next
+  result overwrites its own entry, because the filename is its GUID. The directory is root-owned mode `0755` and each
+  receipt is root-owned mode `0644`;
   read-only to the wrapper, so the caller cannot reap them, and no handler step, timer or install action is assigned
   that role; an acknowledgement property would ride reads the handler already makes. The owner vetoes it by
   answering the question that lists it.
@@ -1320,10 +1326,12 @@ This is one open project choice with three options, and removal applies whicheve
 ([Removal and recovery](#removal-and-recovery), step 1). A bookmark carries the tuple of the snapshot it was made
 from, and a dataset's bookmarks are destroyed with its head (`module/zfs/dsl_destroy.c:1123` to `:1154`, OpenZFS
 `zfs-2.4.4`), so a bookmark on a clone is explained by a snapshot or it is not. The kernel keeps a bookmark whose
-snapshot it destroys: it clears that bookmark's snapshot-exists flag
-and keeps the entry (`module/zfs/dsl_bookmark.c:1383` to `:1397`, OpenZFS `zfs-2.4.4`), so a bookmark outlives the
-snapshot it marks (source reading), and the page calls a bookmark the point in time its snapshot was created and an
-incremental source for `zfs send` (`man/man8/zfs-bookmark.8:48` to `:51`). No option here is measured:
+snapshot it destroys: for a bookmark carrying `ZBM_FLAG_HAS_FBN`, which an ordinary bookmark on a pool with the
+`bookmark_written` feature sets (`module/zfs/dsl_bookmark.c:371` to `:375`, OpenZFS `zfs-2.4.4`), it clears
+`ZBM_FLAG_SNAPSHOT_EXISTS` and keeps the entry, and a bookmark without that flag is passed over unchanged
+(`:1386` to `:1397`), so a bookmark outlives the snapshot it marks (source reading), and the page calls a bookmark
+the point in time its snapshot was created and an incremental source for `zfs send`
+(`man/man8/zfs-bookmark.8:48` to `:51`). No option here is measured:
 [VM item 13][vm-13] moved a bookmark with an unchanged tuple, and no arm destroyed a bookmarked snapshot or removed
 a clone that carried a bookmark.
 
@@ -1361,18 +1369,19 @@ a clone that carried a bookmark.
   ([Removal and recovery](#removal-and-recovery), step 3). It strands a removal after its first mutation: the first
   chunk or the replan destroys the snapshot a bookmark matches, the next lineage proof refuses, and the head, the
   standing `unmount` intent and the remaining snapshots stay while the destroyed ones are gone (reasoning from the
-  citations above, not measured). After a split that stranded state is the partial snapshot set; after a whole
-  batch it is planned snapshots all gone with the head refused.
-- Judge by transaction group and the origin side, the option this check proposed rather than one this draft ever
-  stated: pass a bookmark whose tuple is ordered after the clone's own creation and matches no origin-side tuple.
-  It reads no plan for a bookmark, though every option persists one ([Removal and recovery](#removal-and-recovery),
-  step 3), and it refuses no stale bookmark. Its basis is a source reading: a bookmark's source
-  snapshot must be an earlier point in its dataset's timeline (`module/zfs/dsl_bookmark.c:250` to `:256`, OpenZFS
-  `zfs-2.4.4`), and promotion moves bookmarks by creation transaction group into the promoted dataset
-  (`module/zfs/dsl_dataset.c:3747` to `:3757`, OpenZFS `zfs-2.4.4`; [VM item 13][vm-13] saw a bookmark move with
-  an unchanged tuple). Its limit is the one step 1 states: transaction-group order is not proof for other
-  topologies, encryption roots, lineage changes or objects created in the same transaction group
-  ([Removal and recovery](#removal-and-recovery), step 1). It is unmeasured.
+  kernel keeping the bookmark after its snapshot goes, `module/zfs/dsl_bookmark.c:1386` to `:1397`, and this
+  option's live-snapshot pass, not measured). After a split that stranded state is the partial snapshot set; after a
+  whole batch it is planned snapshots all gone with the head refused.
+- Judge by transaction group and the origin side, an option a check of this draft proposed rather than one the
+  draft ever stated: pass a bookmark whose tuple is ordered after the clone's own creation and matches no
+  origin-side tuple. It reads no plan for a bookmark, though every option persists one
+  ([Removal and recovery](#removal-and-recovery), step 3), and it refuses no stale bookmark. Its basis is a source
+  reading: a bookmark's source snapshot must be an earlier point in its dataset's timeline
+  (`module/zfs/dsl_bookmark.c:250` to `:256`, OpenZFS `zfs-2.4.4`), and promotion moves bookmarks by creation
+  transaction group into the promoted dataset (`module/zfs/dsl_dataset.c:3747` to `:3757`, OpenZFS `zfs-2.4.4`;
+  [VM item 13][vm-13] saw a bookmark move with an unchanged tuple). Its limit is the one step 1 states:
+  transaction-group order is not proof for other topologies, encryption roots, lineage changes or objects created
+  in the same transaction group ([Removal and recovery](#removal-and-recovery), step 1). It is unmeasured.
 
 ## Pre-acceptance VM measurements
 
