@@ -237,12 +237,24 @@ Not final and not approved: this session's own account.
   the planning page, "Where worktrees live"). **The old drives are not mounted:** the machine booted at
   2026-11-18T12:27:21-05:00 and `/mnt/old-sata` and `/mnt/old-nvme` are empty folders; `lsblk` shows `sda` and
   `nvme1n1p2`/`nvme1n1p6` as LUKS with nothing opened, so they are intact but locked. Unlocking needs the owner; they
-  are needed for task 386's comparisons before the wipe, not for anything going now. **The fold-in writer is going:** GPT 6.2 Sol through Pi, unit
-  `pi-zfs-worktree-design-proposal-fold-in-1`, worktree `.claude/worktrees/zfs-worktree-design-proposal-fold-in` on the
-  proposal branch with main merged (fb6702e8a9), brief
-  `~/temp/agent/zfs-worktree-design-proposal-fold-in-2026-11-18/prompt.md`; on a "possible risk" stop it resumes on
-  the DeepSeek pool by rule `RKD`. Then the Sonnet gate review (rule `LHZ`), naming the proposal, both research
-  documents, the probe logs in `keep/`, the review and the planning page; then the owner's acceptance.
+  are needed for task 386's comparisons before the wipe, not for anything going now.
+  **The fold-in writer ended `idle`** (GPT 6.2 Sol through Pi, 67 turns, no model error or "possible risk" stop):
+  13 commits f8e584add6 to 71fa25ece8 (2026-11-18T20:43:36-05:00 to 20:57:15-05:00) on the proposal branch in
+  `.claude/worktrees/zfs-worktree-design-proposal-fold-in`, which stays until the gate review returns; the proposal is
+  732 lines. Brief, summary and final report in
+  `~/temp/agent/zfs-worktree-design-proposal-fold-in-2026-11-18/keep/`. Its report says it disagreed with no decision
+  and dropped no finding, but contests the research in three places, which the gate review settles from the probe
+  logs: (1) the clones document's item 7 combined probe took the snapshot before registration and mounted with
+  `mount -t zfs`, the descriptor attach ran separately; (2) a descriptor attach reached a renamed slot's inode, so the
+  design needs detection and rollback; (3) `vm-builder-output` is nested by path, not by dataset ancestry. If (1) or
+  (2) holds, the clones document and the registration sequence recorded here need a dated correction and the owner is
+  told. It lists eight open choices (checkout boot-mount protection, shared-ancestor policy, a named allocator, linked
+  clone origins, ABI verification, recovery from a lost last event, origin-cleanup authority, space-pressure pruning).
+  **The Sonnet gate review is going** (rule `LHZ`; a Claude Code subagent on Sonnet), brief
+  `~/temp/agent/zfs-worktree-design-proposal-gate-review-2026-11-18/prompt.md`, review to `review.md` there: appendix
+  substance per finding, the disputes settled from `keep/`, choices made in the body without a record, the open
+  choices sorted into preference, measurable or already decided, the brief's done criteria, and correctness. Then the
+  owner's acceptance through the question tool.
   The env-local-json fixture branch 74dbe1200e had its DeepSeek review (89 turns, `idle`; file
   `~/temp/agent/env-local-json-fixture-waits-for-close-review-2026-11-18/review.md`): F1 medium, the new wait for
   `close` has no deadline, so a tool that leaves a holder on its output pipe hangs the suite; F2 to F5 low (every
