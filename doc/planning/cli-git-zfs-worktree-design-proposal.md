@@ -1116,8 +1116,10 @@ ranking between them. Use the VM findings and identify what remains unmeasured; 
   query the remote catalog, and the guests this record used boot `6.8.0-147-generic`; the custom-template route named
   under [Acceptance tests the build still owes](#acceptance-tests-the-build-still-owes) stays open. A functional
   probe admits untested releases and leaves unmeasured behaviour to appear on the host, where a failure would show
-  as a refused mount or as one the probe did not detect (reasoning). Both keep the runtime module gate, neither
-  authorizes a path mount, and both preserve existing bindings and intent while the route is unavailable.
+  as a refused mount or as one the probe did not detect (reasoning). The functional probe's steps, its side
+  effects at start and the way it refuses are not described in this draft, and the allowlist's qualification run is
+  the one those acceptance tests name. Both keep the runtime module gate, neither authorizes a path mount, and
+  both preserve existing bindings and intent while the route is unavailable.
 - Blocked-removal cancellation. Offer an explicit `cancel-worktree-removal <slot>` command that settles outstanding
   requests and reverses intent only for a proven surviving binding; or report the resume step and leave reversal to
   administrator recovery. A command gives the operator one supported way back; report-only keeps the caller
@@ -1155,9 +1157,11 @@ ranking between them. Use the VM findings and identify what remains unmeasured; 
   prove origin identity and lineage before submission; a dependency refusal does not protect other snapshots.
   Delegated origin `destroy` also lets the account mark a checkout snapshot for deferred destroy, so this choice
   is coupled to [clone removal identity protection](#clone-removal-identity-protection): the pair with delegated
-  clone destruction is excluded until that option's origin rule is proved for the account. Where that rule comes
-  from, and which host programs may pass a deferred destroy, is cited under
-  [Clone removal identity protection](#clone-removal-identity-protection).
+  clone destruction is excluded until that option's origin rule is proved for the account. Neither of the two
+  programs on this host that prune snapshots passes a deferred destroy (`/usr/bin/sanoid:399`,
+  `/usr/local/sbin/zfs-space-guard:50`), other callers were not inspected, and that exclusion is reasoning from the
+  grant model (`lib/libzfs_core/libzfs_core.c:442` to `:451`, OpenZFS `zfs-2.4.4`), not a measured account-run
+  deferred destroy ([Clone removal identity protection](#clone-removal-identity-protection)).
 - Space-pressure pruning. Keep the guard's current scope and report its limits, or extend it to an explicit
   managed-descendant allowlist for sanoid hourlies with newest-per-dataset retention. Expansion can release more
   blocks, but deletes some living worktree history before normal expiry. The [VM record][vm-limits] does not
@@ -1194,21 +1198,30 @@ ranking between them. Use the VM findings and identify what remains unmeasured; 
 ### Adopted defaults open to veto
 
 These are the draft's own defaults, not owner decisions. Each is adopted so the rest of the design has a concrete
-shape, and each is listed here for a veto, with the section that uses it.
+shape, and each is listed here for a veto, with the section that uses it, its evidence and its own cost. The owner
+handoff round asks one question per default, listing the default and its alternative, so the owner vetoes a default
+by answering the question that lists it.
 
 - Receipts as atomic files under `/run/git-worktree-clone-mount-results`, rather than root-written
-  acknowledgement properties: an acknowledgement property would raise the ZED event the receipt exists to avoid
-  ([Requests, results and ordering](#requests-results-and-ordering); reasoning from the property event
-  [VM item 5][vm-key] delivered).
+  acknowledgement properties ([Requests, results and ordering](#requests-results-and-ordering)). Evidence: reasoning
+  from the property event [VM item 5][vm-key] delivered, not a measured receipt. Cost: a caller reads and reaps
+  files in a runtime directory whose entries can go stale, where an acknowledgement property would ride reads the
+  handler already makes. The owner vetoes it by answering the question that lists it.
 - The mount handler as a second Linux binary inside `package/git-policy/cli`, rather than a package of its own: it
   shares the binding and the ABI gate without adding a package
-  ([Binding crate and compatibility](#binding-crate-and-compatibility)).
+  ([Binding crate and compatibility](#binding-crate-and-compatibility)). Evidence: none measured; this is a
+  placement choice about this repository's packages, not a compatibility result. Cost: the same build is installed
+  at two root-owned paths, so an upgrade or a verification has to cover both. The owner vetoes it by answering the
+  question that lists it.
 - No implicit remount after a failure or restart: an implicit remount would race the standing `unmount` intent and
-  any staged mount ([Cancel a blocked removal](#cancel-a-blocked-removal); reasoning, not measured).
+  any staged mount ([Cancel a blocked removal](#cancel-a-blocked-removal)). Evidence: reasoning, not measured.
+  Cost: a worktree whose removal failed stays unmounted until the cancel command or administrator recovery runs.
+  The owner vetoes it by answering the question that lists it.
 - Private staging at `/run/git-worktree-clone-mount-staging`, rather than staging under the checkout or another
-  account-owned path: the mount has to be unmounted outside trees the account controls, and the location and its
-  boot lifecycle are untested ([Descriptor mount and unmount](#descriptor-mount-and-unmount); a veto may place it
-  elsewhere).
+  account-owned path: the mount has to be unmounted outside trees the account controls
+  ([Descriptor mount and unmount](#descriptor-mount-and-unmount)). Evidence: the location and its boot lifecycle are
+  untested (unmeasured). Cost: a boot unit has to create and make the directory private, and an install that misses
+  it leaves staging unverified and blocks the move. The owner vetoes it by answering the question that lists it.
 
 ### Clone removal identity protection
 
