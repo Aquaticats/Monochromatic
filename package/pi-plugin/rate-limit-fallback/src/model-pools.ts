@@ -40,6 +40,26 @@ const REVIEWER = [
 ] as const;
 
 /**
+ Writer membership in preference order, decided 2026-11-19
+ (`main:.agents/skills/pi-as-subagent/SKILL.md`, section "Who writes and who reviews"):
+ DeepSeek V4.1 Flash on NeuralWatt's standard lane, then its flex lane, then OpenCode Go.
+ */
+const WRITER = [
+  {
+    provider: 'neuralwatt',
+    id: 'deepseek-v4.1-flash',
+  },
+  {
+    provider: 'neuralwatt',
+    id: 'deepseek-v4.1-flash-flex',
+  },
+  {
+    provider: 'opencode-go',
+    id: 'deepseek-v4.1-flash',
+  },
+] as const;
+
+/**
  Physical model being considered for a request.
  */
 export type Member = Readonly<{
@@ -51,13 +71,7 @@ export type Member = Readonly<{
  Physical routes by public model id.
  */
 export const POOLS: Readonly<Record<'writer' | 'reviewer', readonly Member[]>> = {
-  writer: [
-    {
-      provider: 'openai',
-      id: 'gpt-6.2-sol',
-    },
-    ...REVIEWER,
-  ],
+  writer: WRITER,
   reviewer: REVIEWER,
 };
 

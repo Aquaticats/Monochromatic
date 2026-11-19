@@ -9,8 +9,15 @@ It does not install itself or change your settings.
 
 ## Order and refusal policy
 
-The `writer` pool starts with `openai/gpt-6.2-sol`, then uses the
-`reviewer` pool. The `reviewer` pool tries these members in order:
+The project chose these writers on 2026-11-19 in [its subagent skill][writers]
+(section "Who writes and who reviews"), which dropped GPT 6.2 Sol as a
+writer. The `writer` pool asks these members in order:
+
+- `neuralwatt/deepseek-v4.1-flash`
+- `neuralwatt/deepseek-v4.1-flash-flex`
+- `opencode-go/deepseek-v4.1-flash`
+
+The `reviewer` pool tries these members in order:
 
 - `qwen-token-plan-individual/deepseek-v4.1-flash-1017`
 - `synthetic/hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`
@@ -187,6 +194,7 @@ another vendor.
 [openai-limits]: https://developers.openai.com/api/docs/guides/rate-limits
 [issue-6314]: https://github.com/Aquaticat/Monochromatic/issues/6314
 [agents-md]: ../../../AGENTS.md
+[writers]: ../../../.agents/skills/pi-as-subagent/SKILL.md
 [openai-admin]: https://developers.openai.com/api/reference/resources/admin/subresources/organization
 [openai-codex]: https://developers.openai.com/codex/app-server
 [qwen]: https://www.alibabacloud.com/help/en/model-studio/token-plan-faq
