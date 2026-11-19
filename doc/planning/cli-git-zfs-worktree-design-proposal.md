@@ -11,7 +11,9 @@ described the companion boot and shutdown unit.
 This revision keeps every previous answer and changes these statements. The snapshot batch request omits the
 `defer` key, because the kernel reads deferral from the key's presence. The whole-request precheck covers check
 failures only, and the state after one batch is named "planned snapshots all gone with the head refused". Item 14
-ran as root, so the delegated account's batch permission stays owed. Removal names the observables that prove
+ran as root; [item 17][vm-17] then measured the delegated account submitting one
+`ZFS_IOC_DESTROY_SNAPS` request that named the clone's own snapshots, which returned 0 and deleted them, while a
+name with a dependent clone returned `EEXIST` with both kept. Removal names the observables that prove
 absence, gives the bookmark inventory a pass and refuse rule, and says how the second and third fresh scans are
 requested. Kernel-release readiness and blocked-removal cancellation become owner choices; the identity choice is
 coupled to origin cleanup authority; the receipts, the second binary and refusal of an implicit remount are
@@ -677,8 +679,9 @@ a test asserts that the encoded request has no `defer` key.
     Require fresh root all-namespace verification before the first snapshot delete. Reprove lineage and candidate
     identities immediately before submitting the full verified snapshot set in one `ZFS_IOC_DESTROY_SNAPS` request
     that omits the `defer` key; retain the per-name error list (direct route run as root, [item 14][vm-batch]).
-    The delegated account's permission to submit that batch under the proposed grants is unmeasured; the only
-    delegated destroy item 12 measured is a head destroy.
+    Under the grants this section proposes, the delegated account submitted the clone's own snapshots in one
+    request and it returned 0, and a name with a dependent clone returned `EEXIST` with both kept
+    ([item 17][vm-17] on OpenZFS `2.4.4-1`).
     If root conditional destruction is selected, require equivalent whole-batch checks and per-name results inside
     its single channel program request, not an external name-based ioctl after a conditional check (unmeasured).
     Skip the snapshot request for an empty set. Only then destroy the verified unmounted head under the selected
@@ -1312,7 +1315,8 @@ Ubuntu guest.
   print the loss in the same invocation. Refusal controls test unsafe cases; a route that only refuses does not pass.
 - Repeat the [VM item 14][vm-batch] mixed and own-snapshot batch controls through the binding, including per-name
   errors, GUID preservation and an assertion that the encoded request carries no `defer` key. Run the same batch
-  as the delegated account under the planned grants; item 14 ran it as root. Exercise the selected execution
+  as the delegated account under the planned grants; item 14 ran it as root, and [VM item 17][vm-17]
+  measured the account's own-snapshot batch in the fixture, not through the binding. Exercise the selected execution
   route and its supported size limit, a split with a changed inventory between chunks, and interruption before
   and after the separate head destroy. For the root option prove batch-equivalent refusal, including bounded
   program execution; item 12 did not test it.
@@ -1439,6 +1443,7 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
 [vm-replacement]: cli-git-zfs-measurements-owed-before-acceptance.md#12-same-name-replacement-with-delegated-grants
 [vm-13]: cli-git-zfs-measurements-owed-before-acceptance.md#13-creation-transaction-groups-and-a-bookmark-after-promote
 [vm-batch]: cli-git-zfs-measurements-owed-before-acceptance.md#14-one-snapshot-destroy-request-after-promote
+[vm-17]: cli-git-zfs-measurements-owed-before-acceptance.md#17-delegated-snapshot-batch-2026-11-19t004401-0500
 [vm-namespaces]: cli-git-zfs-measurements-owed-before-acceptance.md#15-mount-namespaces-created-after-attach
 [vm-kernel]: cli-git-zfs-measurements-owed-before-acceptance.md#16-availability-of-a-guest-with-the-host-kernel
 [vm-delta-limits]: cli-git-zfs-measurements-owed-before-acceptance.md#what-this-repeat-did-not-show
