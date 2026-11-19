@@ -6,9 +6,10 @@ This file designs one open item of the accepted ZFS worktree design,
 [Open items the decisions leave][design-open-items],
 which blocks step 6 of [the implementation plan][plan-file],
 "The start-time compatibility gate and the start probe".
-It was written on 2026-11-19 by a Pi coding agent session
+It was written on 2026-11-19T18:10:30-05:00 by a Pi coding agent session
 on branch `docs/planning-cli-git-zfs-runtime-layout-checker-design`,
-made from `main` at `73eaad0846`.
+made from `main` at `73eaad0846`, and revised on 2026-11-19T18:53:08-05:00
+as [Revisions](#revisions) records.
 It read the sources named under [Sources read](#sources-read),
 ran the read-only host probes named under
 [What was run, and what was not](#what-was-run-and-what-was-not),
@@ -46,7 +47,32 @@ The candidate work and the ranked options are
 under [The profile-checking dependency](#the-profile-checking-dependency);
 the pick is not made here.
 
+### Revisions
+
+- `2026-11-19T18:10:30-05:00`, commit `3ac4d96ae3`: the first version.
+- `2026-11-19T18:53:08-05:00`: this revision, answering the independent gate review of the
+  first version, kept at
+  `/home/user/temp/agent/zfs-runtime-layout-checker-design-gate-review-2026-11-19/keep/review.md`.
+  It is a review, not an approval, and the reviewer is independent of this file's author
+  (rule `IRW`). This revision applies every finding it raised:
+  the pre-scan's section order now accepts this host's own vmlinux (F1);
+  the 2.2.2 to 2.4.4 differences are listed in full, and the Way 1 over Way 2 reason,
+  owed measurement 2 and the comparison's order rest on them (F2, F3);
+  Way 5 is bounded out and Way 2 is stated not to meet the answer (F4);
+  the owner questions are rebuilt (F5, F9, F10);
+  the scoring, the sensitivity sentence, the license gate and the discovery record are
+  corrected (F6, F7, F8);
+  the step 2 handoff is written (F11);
+  and the low findings on the kernel versions, the file caps, the nested interiors, the
+  reader independence, the timestamps, the measurement lists, the controls and the probe
+  route are applied (F12 to F19).
+  No accepted decision and no plan step changes.
+
 ### Sources read
+
+Logs under `~/temp/agent` that this file cites are the author's session scratch.
+Scratch is not durable, so a fact that only a scratch log shows is a lead for a guest
+run, not proof, and [Owed measurements](#owed-measurements) re-runs each one.
 
 The design records, read at `73eaad0846`:
 
@@ -78,8 +104,12 @@ The Linux kernel, at tag `v6.8`, files fetched from the tagged tree:
 `include/uapi/linux/btf.h`, `include/linux/btf.h`, `kernel/bpf/btf.c`,
 `kernel/bpf/sysfs_btf.c`, `fs/sysfs/file.c`, `lib/Kconfig.debug`,
 `scripts/Makefile.modfinal`, `Documentation/bpf/btf.rst`.
-The current `include/uapi/linux/btf.h` on the default branch,
-fetched 2026-11-19, for the header's later fields.
+The same files at tag `v7.3`, which is the release this host's kernel is built from
+(`7.3.5-1-cachyos`), read through the gate review's tree:
+`include/uapi/linux/btf.h`, `kernel/bpf/btf.c`, `kernel/bpf/btf_relocate.c`,
+`kernel/bpf/sysfs_btf.c`, `lib/Kconfig.debug`, `scripts/Makefile.modfinal`,
+`tools/lib/bpf/btf.c` and `tools/lib/bpf/btf_relocate.c`.
+Where the two releases differ, a fact below names both.
 
 The wrapper's code the plan's "Wrapper code the design reuses" lists,
 read for the pattern this design follows:
@@ -114,15 +144,16 @@ with `git remote set-url --push origin DISABLED` before any other command:
 - `libbpf/libbpf-rs` at `6d771ee9835fcf517dbcf1d29e25a97480425d45` (crate `libbpf-rs` 0.27.2).
 
 Registry evidence: the crates.io API for those crates' metadata and versions,
-and three searches recorded under
+and the query schedule recorded under
 [Discovery record](#discovery-record).
 
 ### What was run, and what was not
 
 Run on this host, read only:
 
-- `stat`, `cat` and `od` on `/sys/module/zfs/version`,
-  `/sys/kernel/btf/vmlinux` and `/sys/kernel/btf/zfs`, plus `uname --kernel-release`.
+- `stat`, `cat`, `od` and `uname --kernel-release` against `/sys/module/zfs/version`,
+  `/sys/kernel/btf/vmlinux` and `/sys/kernel/btf/zfs`.
+  The `od` read of the first 32 bytes of each BTF file is what the header facts below rest on.
 - `pahole --version` and `pahole --btf_base /sys/kernel/btf/vmlinux -C ... /sys/kernel/btf/zfs`
   for `zfs_cmd`, `zfs_ioc`, `dmu_objset_stats` and `zfs_cmd_t`.
 - `bpftool version` and `bpftool btf dump file /sys/kernel/btf/zfs format raw`
@@ -134,6 +165,10 @@ Run on this host, read only:
   that parses `/sys/kernel/btf/vmlinux` with the mmap backend and
   `/sys/kernel/btf/zfs` as a split file with the cached backend,
   then prints the `zfs_cmd`, `dmu_objset_stats` and `zfs_ioc` types.
+  That route is not the product's: the loader reads bounded bytes and calls
+  `Btf::from_bytes` and `Btf::from_split_bytes`.
+  The gate review re-ran this second route on this host and its claims held, so the facts below
+  rest on the route the proposal designs.
 - The same program on truncated prefixes of the module file,
   to see whether the reader refuses or stalls.
 - A small Node script that reads the two BTF headers and checks
@@ -192,11 +227,17 @@ These decisions bound what the checker may do:
   It is not an allowlist of kernel releases: the project chose "Probe at start" for that, and
   "The runtime module gate of "A: Test plus runtime gate" stays"
   ([Kernel-release readiness][design-project-decisions]).
-- The reader lives in the binding. The project chose "Our own small binding (Recommended)",
+- The reader lives in the binding, as a proposal the owner may veto. The project chose
+  "Our own small binding (Recommended)",
   with `package/zfs/request-to-openzfs-kernel-device`, and both binaries "use the same binding and compatibility
   gate, even for reads". The binding "owns the `/dev/zfs` request format", and the verification method is decided
   while "the profile-checking dependency that checker needs is chosen with its design, which has none yet"
   ([Binding crate and compatibility][design-binding]).
+  The record does not decide where the reader lives: both binaries are one cargo package,
+  `package/git-policy/cli`, so a reader in the binding and a reader in the wrapper package both satisfy the
+  record. Rule `OWK` makes placement across components the named owner's, so
+  [The seam and the placement](#the-seam-and-the-placement) states it as a proposal with a veto, and the
+  binding's ownership of the request format is the reason proposed.
 - The approved release is OpenZFS `zfs-2.4.4`; the request numbers and struct layout are the ones in its headers
   ([Requests and input ownership](cli-git-zfs-worktree-design-proposal.md#requests-and-input-ownership)).
 - The test-time BTF comparison the design keeps is separate: it compares the binding's compiled layout with the
@@ -262,6 +303,8 @@ a probe is a command this session ran, listed under
   (`kernel/bpf/btf.c:7390`), it skips a module whose `btf_data_size` is zero (`:7418-7422`),
   parses the module BTF (`:7435`), and registers a `0444` bin attribute of that size
   (`:7466-7478`). Unloading the module removes it (`:7503-7506`).
+  Those lines are Linux `v6.8`; the same notifier at `v7.3` registers the same `0444` attribute
+  (`:8612-8625`) and adds no `.mmap` to it, so a module file is read the same way on both.
   The symbol is `def_bool y` under `DEBUG_INFO_BTF && MODULES && PAHOLE_HAS_SPLIT_BTF`
   (`lib/Kconfig.debug:410-414`).
 - `CONFIG_MODULE_ALLOW_BTF_MISMATCH` can load a module whose BTF does not match vmlinux
@@ -278,7 +321,8 @@ a probe is a command this session ran, listed under
 
 - A module BTF is split BTF. `btf_parse_module` sets its base to the vmlinux BTF,
   its first type id to `base_btf->nr_types`, and its first string offset to
-  `base_btf->hdr.str_len` (`kernel/bpf/btf.c:5985-5987`).
+  `base_btf->hdr.str_len` (`kernel/bpf/btf.c:5985-5987`, Linux `v6.8`; the same three assignments
+  sit at `:6573-6575`, `v7.3`).
   Name lookup walks to the base when an offset is smaller than that start
   (`kernel/bpf/btf.c:748-772`), so a module's own names are encoded past the base's
   string length and its type ids are past the base's type count.
@@ -299,10 +343,11 @@ a probe is a command this session ran, listed under
 
 - Linux `v6.8`'s header is 24 bytes: magic `0xeB9F`, version 1, flags, `hdr_len`,
   then `type_off`, `type_len`, `str_off`, `str_len`
-  (`include/uapi/linux/btf.h:8-22`). Its `info` word packs 16 bits of `vlen` and
+  (`include/uapi/linux/btf.h:8-22`, `v6.8`). Its `info` word packs 16 bits of `vlen` and
   5 bits of kind (`:34-57`).
-- The current default branch's header is 32 bytes: it adds `layout_off` and `layout_len`,
-  and a layout section describes each kind's element sizes (`include/uapi/linux/btf.h:12-34`).
+- The header at `v7.3` is 32 bytes: it adds `layout_off` and `layout_len`,
+  and a layout section describes each kind's element sizes
+  (`include/uapi/linux/btf.h:12-34`, `v7.3`).
   Its `info` word packs 24 bits of `vlen` and 7 bits of kind (`:51,70-72`).
 - Probe on this host: both files report `hdr_len` 32 and version 1.
   `/sys/kernel/btf/vmlinux` reports type length 3,789,716, string offset 3,789,796,
@@ -311,13 +356,31 @@ a probe is a command this session ran, listed under
   `/sys/kernel/btf/zfs` reports type length 329,244, string offset 329,244,
   string length 240,958 and zero layout offset and length, and its sections sum to the file size.
   A reader that assumes `hdr_len` is 24 misreads both files.
-- The kernel's own header check accepts a longer `hdr_len` only as far as it understands,
-  requires extra bytes to be zero in `v6.8` (`kernel/bpf/btf.c:5249-5294`),
-  and the section check requires contiguous, non-overlapping sections that end at the file size
-  (`:5195-5245`).
+- The header's field order is type, string, layout, but the sections inside a file are not
+  required to follow it. The kernel sorts the sections it knows by their offset and requires
+  them to be contiguous, with no gap and no overlap, ending at the read length
+  (`kernel/bpf/btf.c:5697-5735`, `v7.3`; `:5196-5247`, `v6.8`).
+  libbpf writes the layout section between the types and the strings
+  (`tools/lib/bpf/btf.c:360`, `v7.3`), and this host's vmlinux is laid out that way:
+  type at 0, layout at 3,789,716, strings at 3,789,796.
+- The string section ends the file only on the older header: at `v6.8` the check is
+  unconditional (`kernel/bpf/btf.c:5160-5164`), while at `v7.3` it applies only when `hdr_len`
+  is below the 32-byte header (`:5625-5629`), and a 32-byte header's string section may sit
+  before the layout section. A rule that requires strings last would refuse this host's vmlinux.
+- The kernel's own header check accepts a longer `hdr_len` only as far as it understands and
+  requires extra bytes to be zero in `v6.8` (`kernel/bpf/btf.c:5249-5294`), which is the
+  24-byte header's path.
 - The header's shape follows the tool that emitted the BTF, not the kernel that loaded it:
   the current tool writes the 32-byte header this host's files carry, and an older one wrote 24.
   The checker accepts both and does not infer a kernel release from the header.
+- `v7.3` adds two things the reader must survive and the checker must not assume away.
+  `/sys/kernel/btf/vmlinux` gains a `.mmap` file operation (`kernel/bpf/sysfs_btf.c:19-46`),
+  absent at `v6.8`, so a loader must not depend on mmap being refused or allowed.
+  And a module may carry a distilled `.BTF.base`; `v7.3`'s `btf_parse_module` parses it,
+  relocates the module BTF in place against vmlinux and clears it
+  (`kernel/bpf/btf.c:6533-6611`, `:6604-6610`), so the file the kernel exposes is the relocated
+  split form and this file's id and string-offset statement holds for it.
+  libbpf writes `hdr_len = sizeof(struct btf_header)` (`tools/lib/bpf/btf.c:1253`, `v7.3`).
 
 ### What the BTF carries
 
@@ -335,12 +398,19 @@ a probe is a command this session ran, listed under
   holding `zc_pad1[352]`, `zc_defer_destroy` at 13,648, `zc_flags` at 13,652 and
   `zc_action_handle` at 13,656.
   `dmu_objset_stats` is 288 bytes with `dds_creation_txg` at bit 64,
-  `dds_guid` at bit 128, `dds_type` at bit 192, `dds_is_snapshot` at bit 224 and
-  `dds_origin` at bit 248 with size 256.
-  `enum zfs_ioc` has 104 values, including `ZFS_IOC_FIRST = 23040`,
+  `dds_guid` at bit 128, `dds_type` at bit 192, `dds_is_snapshot` at bit 224,
+  `dds_origin` at bit 248 with size 256 and `dds_flags` at bit 2,296 with size 1.
+  `dds_flags` occupies the byte that was tail padding in 2.2.2, so adding it moved nothing
+  and left the total at 288 (`include/sys/dmu.h:1032-1042`; 2.2.2 `:951-960`).
+  `enum zfs_ioc` has 104 values at 2.4.4, including `ZFS_IOC_FIRST = 23040`,
   `ZFS_IOC_OBJSET_STATS = 23058`, `ZFS_IOC_DESTROY_SNAPS = 23099`,
   `ZFS_IOC_CLONE = 23106`, `ZFS_IOC_GET_BOOKMARKS = 23108`,
   `ZFS_IOC_CHANNEL_PROGRAM = 23112` and `ZFS_IOC_LAST = 23177`.
+- 2.4.4 has 104 enumerators where 2.2.2 has 102: 2.2.2 lacks
+  `ZFS_IOC_POOL_PREFETCH` (23,128) and `ZFS_IOC_DDT_PRUNE` (23,129), which 2.4.4 appended inside
+  the core block's reserved numbers (`include/sys/fs/zfs.h:1474-1590`).
+  Both releases keep `ZFS_IOC_PLATFORM` at 23,168 and `ZFS_IOC_LAST` at 23,177, so the range
+  endpoints and every request the binding sends are identical in the two releases.
 - The anonymous union and struct members have an empty BTF name,
   so a reader cannot find `zc_defer_destroy` by walking named members alone:
   it must descend into the anonymous member by kind and position.
@@ -358,16 +428,23 @@ a probe is a command this session ran, listed under
   into a table sized `ZFS_IOC_LAST - ZFS_IOC_FIRST`
   (`module/zfs/zfs_ioctl.c:7442-7449`).
 - The struct is declared at `include/sys/zfs_ioctl.h:509-562`, and the module asserts its size
-  is `(MAXPATHLEN*3)+MAXNAMELEN+1200` (`:565-575`).
+  is `(MAXPATHLEN*3)+MAXNAMELEN+1200` (`:573-576`).
   On Linux `MAXPATHLEN` is 4096 and `MAXNAMELEN` is 256
   (`include/os/linux/spl/sys/sysmacros.h:68-69`), which is 13,744 bytes.
 - The request numbers are `enum zfs_ioc` at `include/sys/fs/zfs.h:1474-1590`;
   `ZFS_IOC_FIRST` is `('Z' << 8)` on Linux (`:1480-1481`).
-- The 2.2.2 to 2.4.4 change kept the struct size and moved the defer fields into a union with a
-  `zinject_record_t` that grew from 352 to 368 bytes
-  ([the vet][vet], "Layout against OpenZFS 2.4.4",
-  lines 430-446). A check that compares the total size and the named offsets alone
-  accepts that pair; a check that also compares member type sizes refuses it.
+- The 2.2.2 to 2.4.4 change kept the struct's total size and every named offset the two
+  releases share, and changed three things a checker can see
+  (`include/sys/zfs_ioctl.h:509-562` and `:407-427` at 2.4.4, `:484-525` and `:410-428` at 2.2.2):
+  2.4.4 moves `zc_inject_record`, `zc_defer_destroy`, `zc_flags` and `zc_action_handle` into an
+  anonymous union holding an anonymous struct, where 2.2.2 has all four as direct members of
+  `zfs_cmd_t`; `zinject_record_t` grew from 352 to 368 bytes with `zi_match_count` and
+  `zi_inject_count`, and the union's anonymous struct keeps `zc_pad1[352]`, so no offset moves;
+  and `dmu_objset_stats` gained `dds_flags` in the byte that was tail padding.
+  A check that compares the total size and the offsets alone accepts all three differences;
+  a check that also compares member type sizes, the anonymous container's kind and position, and
+  `dds_flags` refuses them ([the vet][vet], "Layout against OpenZFS 2.4.4", lines 430-446,
+  which names the union and the grown record but not `dds_flags`).
 
 ### When the module carries no BTF
 
@@ -401,8 +478,12 @@ a probe is a command this session ran, listed under
   required once the module file leaves `/sys/kernel/btf`.
 - `btf-rs` 2.0.1, built in the scratch folder, parses the pair and returns the type,
   name and member data listed under [What the BTF carries](#what-the-btf-carries).
-  With the base through the mmap backend and the module through `from_split_file`,
-  it resolves a module type by name.
+  The product's route reads both files into bounded buffers and calls `from_bytes` for the base and
+  `from_split_bytes` for the module, which is the cached backend
+  (`btf-rs/src/btf.rs:85-107`), and it resolves a module type by name without a file path or a mmap.
+  The first version's probe used the mmap backend for the base instead; the gate review re-ran the
+  product's route on this host and the same facts held, so no fact here rests on the mmap route,
+  which a `v6.8` guest does not offer.
 - The same program on truncated module prefixes refuses each one with
   `Could not parse string: data provided does not contain a nul`;
   it neither panics nor stalls.
@@ -458,6 +539,10 @@ a probe is a command this session ran, listed under
   and the fallback is the design's.
 - Alignment is not in BTF. Equality of size, member offsets and member sizes is the proof,
   and it is the same evidence the kernel's copy needs.
+- The compared set stops at the interiors of nested structs the codec only passes through:
+  the members of `drr_begin`, `zfs_stat_t`, `zfs_share_t` and `dmu_objset_stats` beyond the
+  fields under [The expectations](#the-expectations) are unchecked. A change inside one of
+  them that leaves its size and the checked offsets alone passes.
 - The checker's expectations are only as good as the binding's struct.
   A wrong expectation refuses a good module; a missing expectation passes an unproven field.
 - The 32-byte header path is proven on this host's files by three readers,
@@ -487,6 +572,11 @@ including reads, and the command takes the design's fallback for an unused slot.
 There is no force flag and no environment override.
 The refusal keeps registrations and recovery state.
 
+Request contract is the one proof the 2.2.2 module would also pass: its enumerators, endpoints and
+every request the binding sends hold the same values, since 2.4.4 only appended two requests into
+the core block's reserved numbers. The request comparison therefore cannot tell the two releases
+apart, and the layout comparison is what does.
+
 ## Ways to meet it
 
 Each way is a different way to prove the five items under
@@ -505,7 +595,8 @@ Pros:
 - The whole proof runs in the wrapper's address space: no external program, no root PATH surface,
   and a refusal is a value the caller renders.
 - The comparison is exact where the kernel's copy is exact: size, every offset and every size.
-  It refuses the 2.2.2 shape even though its total size and named offsets would pass.
+  It refuses all three 2.2.2 to 2.4.4 differences, including the anonymous union and the
+  `dds_flags` member that moved no offset.
 - Both binaries share it, as the design requires.
 - The refused facts are structured, so `doctor` and the caller print the same evidence.
 
@@ -525,9 +616,10 @@ Cost to build and test:
 - The same shape with an in-house reader adds the reader and its model,
   about 700 to 1,000 lines of source and 400 to 600 lines of tests.
 
-What it needs measured: items 1, 2, 3, 4, 6, 7, 9 and 10 under
-[Owed measurements](#owed-measurements): a pass, the true-positive refusal on the 2.2.2 shape,
-a missing module BTF, the header variants, the reload race and the start cost.
+What it needs measured: items 1 to 12 under
+[Owed measurements](#owed-measurements): a pass, the true-positive refusal on the patched 2.4.4
+shape, a missing module BTF, the header variants, a short read, the request contract, the
+architecture and endianness refusals, the reload race and the start cost.
 
 ### Way 2: parse in process and compare a narrow set
 
@@ -542,9 +634,12 @@ Pros:
 
 Cons:
 
-- It accepts the 2.2.2 shape: its total size and named offsets match 2.4.4, while
-  `zinject_record` is 352 rather than 368 bytes and the anonymous union does not exist there.
-  The kernel still copies 13,744 bytes, so the accepted shape is not the approved one.
+- It does not meet the answer. Its compared set sees none of the three 2.2.2 to 2.4.4
+  differences: it compares no member size, no anonymous container and no `dds_flags`, and all
+  three leave the total size and every offset it does compare unchanged.
+  Whether it even accepts a 2.2.2 module needs an assumption the design must state: that a
+  member of the approved profile which sits inside the anonymous container may be matched by a
+  flattened name, and that a member the module lacks is not checked. Neither is stated today.
 - A nested type change that moves no direct member passes, which is the class of change
   the runtime check exists to catch.
 
@@ -553,9 +648,10 @@ Cost to build and test:
 - About 250 to 400 lines of source and 200 to 300 lines of tests with a reader dependency.
 - The same reader and loader cost as Way 1, so the saving is small against the loss.
 
-What it needs measured: item 2, where the 2.2.2 shape must pass for this way to be described
-honestly (and does, because the offsets match), plus items 1 and 10. That result is the reason
-this way is ranked second, not a reason to trust it.
+What it needs measured: item 2 and item 16, where the narrow comparison must accept the patched
+module that the full comparison refuses, plus items 1 and 10.
+That result is why this way is not ranked: it is the cheaper variant the comparison under
+[The comparison](#the-comparison) rules out, and the saving is small against the loss.
 
 ### Way 3: start an external tool
 
@@ -644,6 +740,14 @@ Cost to build and test:
 What it needs measured: item 16, where a moved field of the same size must be shown passing it,
 and the buffer bound it can claim. A pass alone says nothing.
 
+This way is bounded out by the gate's order, not only by its own cons. The accepted gate says
+"At start, before the first ioctl, both binaries must prove compatibility"
+([ABI gate and tests][design-abi-gate]), and Way 5 obtains its proof by sending an ioctl.
+The proof itself is smaller than its name claims: the kernel copies a fixed
+`sizeof (zfs_cmd_t)` (`module/os/linux/zfs/zfs_ioctl_os.c:139-150`), so a success shows only that
+`/dev/zfs` exists and that dispatch reached a handler.
+It is listed so the boundary is visible, and it is not ranked.
+
 ### Way 6: keep the release string check only
 
 Refuse when the module version is not the approved string, and do not check the layout.
@@ -669,18 +773,23 @@ must be shown passing it. No reason to build it otherwise.
 
 ### Ranking
 
-Ranking among the ways the decision leaves open: Way 1 > Way 2 > Way 3 > Way 5.
+Ranking: Way 1 > Way 3. These two prove the five items before the first ioctl and compare the
+declared layout, so these two meet the answer.
 
-- Way 1 beats Way 2 because the kernel copies the whole struct and the 2.2.2 to 2.4.4 change
-  kept the total size and named offsets while changing `zinject_record` from 352 to 368 bytes.
-  Way 2 accepts that shape; Way 1 refuses it for one more comparison per member.
-- Way 2 beats Way 3 because Way 2 keeps the proof in process, with no runtime program and no
-  root PATH surface, and the tool's text formats need a resolver in the wrapper anyway.
-- Way 3 beats Way 5 because Way 3 proves field offsets and member sizes; Way 5 proves only the
-  copied size and dispatch, and it needs the device.
+- Way 1 beats Way 3 because the proof stays in the wrapper's address space: no runtime program
+  for the product to find, verify and version, no root-spawned binary whose path and library
+  resolution join the privileged boundary, and no text format to parse back into members.
+  Way 3 proves the same facts and pays those three costs for them.
 
-Way 4 and Way 6 are bounded out by the accepted answer, so they are not ranked.
-Way 4 would refuse every rebuild, and Way 6 is the gate the answer replaced.
+Four further ways are not ranked, each for a stated reason:
+
+- Way 2 does not meet the answer. It compares no member size, no anonymous container and no
+  `dds_flags`, so the three 2.2.2 to 2.4.4 differences go uncompared, and with the flattening
+  assumption it needs they all pass it.
+- Way 4 is bounded out by the accepted answer: it would refuse every rebuild.
+- Way 5 is bounded out by the gate's order, since it obtains its proof by sending the ioctl the
+  gate must precede, and it proves only that the caller's buffer covers the copy.
+- Way 6 is the gate the answer replaced: it omits the layout check the answer added.
 
 The reader inside Way 1 is the owner's pick;
 the ranked reader options are
@@ -696,19 +805,26 @@ and the rest of the shape stays the same.
 
 The binding package owns the request format, the `zfs_cmd` representation and the codec
 ([Binding crate and compatibility][design-binding]),
-so the binding owns:
+so the design proposes that the binding owns:
 
 - the bounded file loader and the pre-scan;
 - the expectations derived from its `#[repr(C)]` type and its request list;
 - the comparison and its refusal value.
 
-The wrapper and the handler own:
+and that the wrapper and the handler own:
 
 - the three paths, the read order and the per-process cache;
 - the target allowlist (architecture) and the module release rule the owner picks;
 - the words the caller and `doctor` print.
 
 Both binaries call the same entry point, as the design requires for reads as well as writes.
+This placement is a proposal the owner may veto, not a decision. The record decides that the
+binding owns the request format and that both binaries share the binding and the gate; both
+binaries live in one cargo package, so it does not decide which crate holds the reader
+([Binding crate and compatibility][design-binding]).
+Rule `OWK` makes a cross-component placement the named owner's.
+If the owner moves the reader into `package/git-policy/cli`, the binding keeps the expectations and
+the wrapper package holds the loader and the parser, and nothing else in this file changes.
 
 ### The read order and the reload race
 
@@ -719,14 +835,17 @@ The gate, for a caller that needs the device:
 2.  Read `/sys/module/zfs/version` once, bound to one page, and strip one trailing newline.
 3.  Read the two BTF files, each opened with `O_RDONLY | O_CLOEXEC | O_NOFOLLOW`,
     each read to a bounded size, each checked against its own header and file size.
-4.  Read the version file again. If it differs, retry the whole check once,
-    then refuse with "module changed while checking".
+4.  Read the version file again. If it differs, retry the whole check once; refuse with
+    "module changed while checking" only when the retry's own two version reads also differ.
 
 `doctor` runs the same facts without step 1, so it can report what a caller would meet.
 
 The second version read closes the window in which the module unloads or is replaced between
 the first read and the BTF reads. It does not close the window during a single read;
 the header and size checks refuse a short or inconsistent file.
+The retry is what keeps a reload that has already settled from reading as a refusal: only a
+second attempt that also sees two different version reads refuses, and a second attempt that sees
+one module passes.
 
 ### The bounded pre-scan
 
@@ -734,9 +853,13 @@ Before any parser sees the bytes, the loader checks:
 
 - the magic is `0xeB9F` in one byte order, the version is 1, and the flags are zero;
 - `hdr_len` is at least the 24 bytes of the oldest header and at most the read bound;
-- the type, string and, if present, layout sections are in the header's order, contiguous
-  with no gap or overlap, and end at the read length;
-- the string section ends the file, as the kernel requires (`kernel/bpf/btf.c:5160-5178`);
+- the type, string and, if present, layout sections, sorted by offset, are contiguous with no gap
+  and no overlap, and the last of them ends at the read length. That is the order `v7.3` accepts
+  (`kernel/bpf/btf.c:5697-5735`), and this host's vmlinux is laid out under it as type, then
+  layout, then strings;
+- with a 24-byte header the string section ends the file, which `v6.8`'s checker requires
+  unconditionally (`kernel/bpf/btf.c:5160-5164`) and `v7.3` still requires below the 32-byte
+  header (`:5625-5629`);
 - every type entry's length is computable with the widest encoding
   (24-bit `vlen`, 7-bit kind), and any value the chosen reader cannot represent is a refusal,
   not a misread.
@@ -803,10 +926,25 @@ The comparison stops at the first mismatch and reports its path, expected and ac
 It also reports a missing type, a missing enumerator, and a member the expectations do not cover
 when the table's count check fails.
 
-Size comparison is not decoration: the 2.2.2 module has the same total size and the same named
-offsets for the defer fields, and only `zinject_record`'s size separates it from 2.4.4
-([the vet][vet], lines 430-446).
-A checker that compares offsets only would pass it.
+The order the comparison walks is what makes the refusal's first finding predictable, and the
+2.2.2 to 2.4.4 differences land at different steps:
+
+- A 2.2.2 module has no anonymous union where the expectations place one, so a walk that checks
+  the expected container's kind and bit offset before descending refuses there, at `Type`.
+  A walk that compared named members first would refuse at `Member` instead, naming `dds_flags`
+  missing or `zc_inject_record`'s 352 against 368 bytes, depending on the order.
+  The documented order is container, then member name, then member offset, then member size, so a
+  2.2.2 module's first refusal is the container, at `Type`.
+- `zinject_record_t`'s size is the difference no offset shows: 352 against 368 bytes, with
+  `zc_defer_destroy` at 13,648 in both. Only a member size comparison refuses it.
+- `dds_flags` is the difference no size or offset of any other member shows: it is one byte at
+  2,296 bits, filling the byte that was tail padding, and `dmu_objset_stats` stays 288 bytes.
+  Only an expectation that names `dds_flags` at all refuses it.
+- The request contract refuses none of the three: every request the binding sends and both
+  endpoints hold the same value in 2.2.2, so the layout comparison is what carries the refusal.
+
+A checker that compares total size and offsets only therefore accepts the 2.2.2 shape
+([the vet][vet], lines 430-446, which names the union and the grown record but not `dds_flags`).
 
 ### The refusal
 
@@ -829,13 +967,21 @@ It never offers a bypass. `doctor` prints the same facts, with the healthy case 
 ### The cache
 
 The result is cached per process in a `OnceLock`, following
-`git_version.rs`. Before each use, the cache's identity is rechecked against the version text and
-the two files' identity (device, inode, size and modification time); a change re-runs the check.
+`git_version.rs` (`package/git-policy/cli/src/native/invocation/git_version.rs:23-60`).
+Before each use, the cache's identity is rechecked against the version text and the two files'
+identity (device, inode, size and modification time); a change re-runs the check.
+Per-process caching with no disk cache is writer-settled: it needs no owner choice while the
+start cost is unmeasured.
 
-No verdict is written to disk. A disk cache of a compatibility verdict would have to be bound to
-the boot, the module instance and the binary's build, and a forged one in the account's own cache
-would enable raw requests on a mismatched module. If the measured start cost is too high,
-[Q3](#q3-may-a-verification-be-cached-across-processes) puts the alternatives to the owner.
+The wrapper already writes one disk cache: a private per-user file holding the text `git version`
+prints, keyed by the executable's canonical path, size, modification time, change time, device and
+inode (`package/git-policy/cli/src/native/invocation/git_version_cache.rs:1-30`).
+That precedent does not carry over. The cached `git version` text is descriptive, and a wrong
+entry changes a warning; a compatibility verdict is the gate that enables raw requests, so a
+forged or stale entry in the account's own cache would authorize requests on a module whose layout
+nothing compared. That is a different trust class, so this design writes no verdict to disk.
+[Owed measurements](#owed-measurements) item 10 measures the cost, and
+[Q3](#q3-may-a-verification-be-cached-across-processes) is held until it runs.
 
 ### What the shape does not cover
 
@@ -994,13 +1140,16 @@ re-admit `libbpf-rs` and a `dlopen` of `libbpf`, which is a choice for the owner
 
 - Discovery: crates.io query `libbpf`, and repository precedent.
 - Version and revision: 0.27.2, `libbpf/libbpf-rs` at
-  `6d771ee9835fcf517dbcf1d29e25a97480425d45`. License `LGPL-2.1-only OR BSD-2-Clause`.
+  `6d771ee9835fcf517dbcf1d29e25a97480425d45`. License `LGPL-2.1-only OR BSD-2-Clause`, read from
+  the crates.io metadata for 0.27.2; its `libbpf-sys` dependency is `BSD-2-Clause`.
 - Source audit: the safe wrapper around `libbpf-sys`; its default feature is
   `libbpf-sys/vendored-libbpf`, and the manifest says it "requires other necessary libs to be
   present on the system" (`libbpf-rs/Cargo.toml:20-26`).
-- Gates: H2 fail for the `LGPL-2.1-only` arm, and H3 fail (C build and system libraries).
+- Gates: H2 pass, because a dual-licensed crate may be taken under its `BSD-2-Clause` arm, which
+  is compatible with the wrapper's `LGPL-3.0-or-later`. H3 fail: the default feature runs
+  libbpf's C build and needs the system's libraries.
   A `dlopen` of the system's `libbpf` avoids the link but keeps the native provenance and adds a
-  privileged library load in the handler, so H3 and H6 fail there too. Exit.
+  privileged library load in the handler, so H3 and H6 fail there too. Exit on H3.
 
 #### bpftool 7.8.0
 
@@ -1037,7 +1186,8 @@ re-admit `libbpf-rs` and a `dlopen` of `libbpf`, which is a choice for the owner
   "A custom implementation is eligible only when every existing tool fails a named hard constraint."
   `btf-rs` passes, so this candidate is eligible only as a fallback if the owner rejects the
   dependency on a named ground.
-- Conditional finalist, scored for comparison.
+- Conditional candidate, priced in the scored comparison so the owner can weigh it, and not a
+  finalist while `btf-rs` passes every hard constraint.
 
 #### Not candidates
 
@@ -1049,28 +1199,141 @@ re-admit `libbpf-rs` and a `dlopen` of `libbpf`, which is a choice for the owner
 
 ### Discovery record
 
-- crates.io `https://crates.io/api/v1/crates?q=btf&per_page=50`:
-  50 rows returned of 81 total; new candidates: `btf`, `btf-rs`, `btfparse`, `btfdump`,
-  `aya-obj`, `padlock-dwarf`; screening survivors: `btf-rs`, `btfparse`, `btfdump`, `aya-obj`.
-- crates.io `?q=split%20btf&per_page=30`: 17 rows of 17; no new candidate beyond `btf-rs`
-  and `aya-obj`.
-- crates.io `?q=btf%20kernel&per_page=30`: 30 rows of 50; no new parser candidate.
-- GitHub repository search `BTF parser in:name,description language:rust`: 7 rows;
-  new: `luzhixing12345/btfparser` (a C function-declaration parser, not a Rust BTF library),
-  `genksome/kxray` (an Android offsets tool); no new survivor.
-- GitHub code search `from_split_bytes language:rust`: only `retis-org/btf-rs` held split BTF
-  code; `likewhatevs/ktstr` has a vmlinux-only struct-field resolver in a larger tool, with no
-  module base, and the other hits were unrelated `split_*` helpers.
-- Web search `Rust crate parse BTF split BTF module vmlinux base BTF parser library`:
-  44 result lines, 10 shown by the provider; new candidates: `bpf-compatible-rs` (builds
-  BPF-compatible binaries, not a BTF parser) and `btf-derive` (macros for the `btf` crate);
-  no new parser survivor. The search also surfaced the `btf-rs` README's statement that
-  `Backend::Mmap` is only supported for base BTF files.
-- Repository sources: the OpenZFS vet, the design's `pahole` command, the repo's `zfsdev`
-  reuse. These are the incumbent and prior-report class.
-- Saturation: the parser class is saturated for crates and GitHub at the recorded queries;
-  the tool class is the two programs named. A later search could add a new crate, so the
-  ledger is dated by this file's commit.
+The skill asks for a frozen query schedule, a page rule, a count and the new candidates per query,
+and one terminal result. The first version read 50 of 81 rows at `per_page=50`, which is a provider
+cap, so this revision completes each registry query at the maximum page size and records every row.
+The tagging below comes from a crate's name and description only, except where a source audit
+exists in [Candidate ledger](#candidate-ledger).
+
+- Class 1, the crates.io registry. `https://crates.io/api/v1/crates?q=btf&per_page=100` returned
+  all 81 rows of 81 at `per_page=100`, so this query is complete.
+  New candidates among the 31 rows the first version did not read: none that is a parser
+  (`padlock-cli` is the padlock analyzer's command, and `btf-derive` is a macro crate).
+  All 81 rows:
+
+```text
+# crates.io q=btf, per_page=100, 81 of 81 rows, read 2026-11-19
+1. btf 0.5.1 (parser, H1 fail)
+2. btf-rs 2.0.1 (parser, finalist)
+3. ebeepf 0.1.0 (eBPF loader, reads BTF as an input)
+4. corelox-build 0.1.0 (CO-RE relocations, reads BTF as an input)
+5. btf-derive 0.3.2 (macros for the btf crate, not a parser)
+6. btfparse 1.3.9 (parser, H1 fail)
+7. btfdump 0.0.5 (parser and tool, H1 fail as a library)
+8. btf-rs-derive 2.0.1 (macros for btf-rs, not a parser)
+9. breda-btf-data-gen 0.0.0 (reserved)
+10. breda-btf-generator 0.0.0 (reserved)
+11. libarena-rs 0.3.4 (BPF arena allocator, not a parser)
+12. aya-obj 0.6.0 (parser with no base, H1 fail)
+13. profile-bee-aya-obj 0.2.2 (fork of aya-obj, same H1 fail)
+14. zejtron 80.2.2 (host evidence ledger that reads BTF, a tool)
+15. aya-friday-obj 0.2.2 (fork of aya-obj, same H1 fail)
+16. aya-obj-nightly 0.0.0 (same as aya-obj)
+17. bpf-linker 0.13.0 (BPF linker, reads BTF as an input)
+18. btf2wit 0.1.2 (prints BTF as wit, a tool)
+19. ntpsec-rs-xdp 0.3.50 (XDP program, not a parser)
+20. whytime 0.1.2 (timing profiler, not a parser)
+21. padlock-dwarf 0.82.0 (parser in a DWARF analyzer, H1 fail)
+22. aa-ebpf 0.0.1-rc.7 (kernel monitoring, not a parser)
+23. orb8-proto 0.0.6 (protocol definitions, not a parser)
+24. orb8-common 0.0.6 (observability toolkit, not a parser)
+25. orb8-cli 0.0.6 (observability toolkit, not a parser)
+26. fsblame 0.1.1 (file-change attribution, not a parser)
+27. mquire 1.4.1 (memory forensics that reads BTF, a tool)
+28. orb8 0.0.6 (observability toolkit, not a parser)
+29. orb8-agent 0.0.6 (observability toolkit, not a parser)
+30. sipnab-bpf-types 0.1.3 (record layout shared with a BPF program, not a parser)
+31. suitesparse_sys 0.1.4 (sparse matrix bindings, not a parser)
+32. sipnab 0.5.267 (SIP capture, not a parser)
+33. redbpf 2.3.0 (eBPF runtime, reads BTF as an input)
+34. rustnet-host 0.6.0 (socket inventory, not a parser)
+35. ghostscope-platform 0.1.5 (kernel and BTF quirks behind a debugger, not a parser)
+36. linprov-common 0.2.0 (types for linprov, not a parser)
+37. linprov 0.4.0 (file policy, not a parser)
+38. mem4n6 0.2.0 (memory forensics that reads BTF, a tool)
+39. aya 0.16.0 (eBPF library, reads BTF as an input)
+40. rvf-types 0.3.1 (vector format types, not a parser)
+41. memf-symbols 0.2.4 (symbol backends that read BTF, a tool)
+42. procinsh 0.1.20 (process inspector, not a parser)
+43. profile-bee-aya 0.13.2 (fork of aya)
+44. bioformats 0.1.8 (image format translation, not a parser)
+45. bpf-script 0.5.4 (eBPF scripting, reads BTF as an input)
+46. aya-friday 0.13.2 (fork of aya)
+47. scx_pandemonium 5.23.1 (sched_ext scheduler, not a parser)
+48. bpf-api 0.3.1 (eBPF bindings, reads BTF as an input)
+49. assayist-capture-resident 0.1.3 (residency capture, not a parser)
+50. aya-nightly 0.0.0 (eBPF library, reads BTF as an input)
+51. rvf-runtime 0.5.6 (vector format runtime, not a parser)
+52. prevail 0.2.6 (eBPF verifier, reads BTF as an input)
+53. zelynic 80.4.0 (rate limiter, not a parser)
+54. zylaxion 80.2.3 (keyboard sounds, not a parser)
+55. ltop 0.2.13 (network TUI, not a parser)
+56. padlock-cli 0.82.0 (the padlock analyzer command, not a parser)
+57. ebpf-ifc-engine 0.1.8 (eBPF policy engine, not a parser)
+58. nalgebra_block_triangularization 0.1.0 (matrix decomposition, not a parser)
+59. actplane-ifc-compiler 0.1.8 (eBPF policy compiler, not a parser)
+60. bpfix 0.1.15 (verifier diagnostics, reads BTF as an input)
+61. tracekit-wire 0.1.0 (kernel and user ABI types, not a parser)
+62. actplane-runtime 0.1.8 (eBPF policy engine, not a parser)
+63. actplane 0.1.8 (eBPF policy engine, not a parser)
+64. wits 2.2.3 (profiler that reads BTF, a tool)
+65. bpfdoctor 0.1.0 (BPF doctor, reads BTF as an input)
+66. procctx 0.1.0 (process context for eBPF tools, not a parser)
+67. bpf-script-derive 0.5.4 (macros for bpf-script)
+68. scx_cake 1.2.2 (sched_ext scheduler, not a parser)
+69. iodyne 0.9.0 (disk IO TUI, not a parser)
+70. arena-linker 0.2.0 (BPF linker, not a parser)
+71. compendium 0.2.1 (strace viewer, not a parser)
+72. ebpfsieve 0.1.6 (eBPF offload, not a parser)
+73. electric-eyed 0.1.0 (activity monitor, not a parser)
+74. snitchit 0.1.0 (session recorder, not a parser)
+75. btfm-api-structs 0.3.1 (Discord bot API, not a parser)
+76. btfs 0.0.4 (in-memory filesystem, not a parser)
+77. allenap-libtftp 0.2.2 (TFTP library, not a parser)
+78. btfm 0.21.1 (Discord bot, not a parser)
+79. btfm-cli 0.7.0 (Discord bot command, not a parser)
+80. libtftp 0.1.2 (TFTP server, not a parser)
+81. redoubtful 0.0.1 (sandbox runner, not a parser)
+```
+
+  `?q=split%20btf&per_page=100` returned all 17 rows of 17; the only BTF parser in it is `btf-rs`,
+  and the rest are `aya-obj`'s forks and eBPF tooling.
+  `?q=btf%20kernel&per_page=100` returned all 50 rows of 50; no new parser candidate.
+- Class 2, the repository host. GitHub repository search
+  `BTF parser in:name,description language:rust` returns one row today, `retis-org/btf-rs`.
+  The first version recorded seven rows at the same filters and named
+  `luzhixing12345/btfparser` (a C function-declaration parser, not a Rust BTF library) and
+  `genksome/kxray` (an Android offsets tool) among them, so the two runs disagree on a provider
+  whose index changes under the same query; both runs are recorded.
+  The wider query `btf in:name,description language:rust` returned 37 rows.
+  New names, screened by name and description only: `vobst/btf2json`, `eunomia-bpf/btf2wit`,
+  `vadorovsky/aya-btf-map`, `eunomia-bpf/rust-struct-bindgen`, `kuopinghsu/BTFViewer-rust`,
+  `flier/rust-btf`, `sysdiglabs/corelox`, `vadorovsky/aya-btf`, `eurecom-s3/lemon-btf2json`,
+  `leonardogiovannoni/BTF2LLVM` and `buffalojoec/btf-dumps`.
+  Each is a single-blob reader, a BTF printer, or a generator that consumes one blob; none names a
+  split base, and none is audited here.
+  GitHub code search `from_split_bytes language:rust` returned 25 rows.
+  Only `retis-org/btf-rs` is a BTF reader with a split constructor; `likewhatevs/ktstr` holds a
+  vmlinux-only struct-field resolver in a larger tool with no module base, and the rest are
+  unrelated `split_*` helpers (`quickwit`, `paimon`, `loams`).
+- Class 3, broader web search. The literal query `Rust crate parse BTF split BTF module vmlinux
+  base BTF parser library` returned 44 result lines, of which the provider showed 10, in the first
+  version and again through the second provider used for this revision.
+  A provider cap is not exhaustion, so this class is blocked.
+  Independent enumeration of what it would add: the crates.io listing above and the code search
+  for the split constructor.
+  New names it surfaced, screened by description only: `bpf-compatible-rs` (builds BPF-compatible
+  binaries, not a BTF parser) and `btf-derive` (macros for the `btf` crate); no parser survivor.
+  It also surfaced the `btf-rs` README's statement that `Backend::Mmap` is only supported for base
+  BTF files.
+- Class 4, this repository. The OpenZFS vet, the design's `pahole` command, the repo's `zfsdev`
+  reuse. These are the incumbent and prior-report class, and the vet already names both tools.
+
+Terminal result: blocked by an unenumerable required source, since class 3 cannot be exhausted at
+its provider. The skill's rule is that discovery is saturated only when every required source
+class is saturated, so nothing here is called saturated, the ledger is dated by this file's commit,
+and [The vet artifacts this brief could not write](#the-vet-artifacts-this-brief-could-not-write)
+records why no candidate is recommended.
 
 ### Scored comparison
 
@@ -1084,11 +1347,17 @@ Criteria and weights, frozen before the ratings:
 - C6. Integration and test cost, weight 3 (higher is cheaper).
 - C7. Start cost, weight 2, low confidence because it is unmeasured.
 
+Only `btf-rs`, `pahole` and `bpftool` are finalists: each passes every hard constraint.
+The in-house reader passes H1 to H6 by construction but is not eligible as a candidate while an
+existing tool passes them, which is the skill's existing-tools rule and the reason
+[Candidate ledger](#candidate-ledger) calls it conditional.
+It is still scored, so the owner can price the alternative Q1 offers.
+
 Ratings, 0 to 4, with confidence:
 
-- `btf-rs` 2.0.1: C1 3 high, C2 4 high, C3 4 high, C4 4 high, C5 3 medium, C6 4 medium,
+- `btf-rs` 2.0.1: C1 3 high, C2 4 high, C3 4 high, C4 4 high, C5 3 medium, C6 3 medium,
   C7 2.5 low (range 2 to 3).
-- In-house reader: C1 4 high, C2 4 high, C3 4 high, C4 4 high, C5 3 medium, C6 1 medium,
+- In-house reader: C1 4 high, C2 4 high, C3 4 high, C4 4 high, C5 3 medium, C6 2 medium,
   C7 2.5 low (range 2 to 3).
 - `bpftool` 7.8.0: C1 3 medium, C2 1 high, C3 1 high, C4 2 medium, C5 4 high, C6 3 medium,
   C7 1.5 low (range 1 to 2).
@@ -1112,56 +1381,95 @@ Evidence for the ratings:
 - C5: `btf-rs` is active but small, with two open items and a release branch behind its main (3);
   the tools follow their projects' release cadence (4); in-house depends on this repository's own
   review (3).
-- C6: `btf-rs` needs a loader, a pre-scan, a table and tests (4); in-house needs the reader too (1);
-  the tools need a spawn wrapper and output parsing plus packaging (3).
+- C6: the two library routes share most of the work, so the difference is small and both are
+  rated close. The shared part is the bounded loader, the pre-scan and its widest-encoding walk
+  over every kind, the expectation table with its path grammar, the comparison, the refusal value
+  and their tests: the 350 to 550 source lines and 300 to 450 test lines Way 1 prices with a
+  dependency. The dependency route adds a resolver the crate does not carry: `btf-rs` gives a
+  `size()` per type and `resolve_chained_type` (`btf-rs/src/btf.rs:213-226`), but its array type
+  exposes only `len()` (`:499-521`), so array byte sizes and typedef chains are the binding's own
+  walk. The in-house route adds the reader and its model, about 350 to 450 source lines and 100 to
+  150 test lines on the same shape, plus its fuzz target and its review.
+  About two to one in effort, not four to one, so 3 and 2.
+  The tools need a spawn wrapper and an output parser each, plus the packaging and the version
+  matrix (3).
 - C7: unmeasured; `btf-rs` parses the base's type offsets and the module's types;
   in-house can read lazily; the tools pay a process start and a full dump.
 
 Arithmetic:
 
-- `btf-rs`: 5*3 + 5*4 + 4*4 + 4*4 + 3*3 + 3*4 + 2*2.5 = 93 of 104, 89.4.
-- In-house: 5*4 + 5*4 + 4*4 + 4*4 + 3*3 + 3*1 + 2*2.5 = 89 of 104, 85.6.
+- `btf-rs`: 5*3 + 5*4 + 4*4 + 4*4 + 3*3 + 3*3 + 2*2.5 = 90 of 104, 86.5.
+- In-house: 5*4 + 5*4 + 4*4 + 4*4 + 3*3 + 3*2 + 2*2.5 = 92 of 104, 88.5.
 - `pahole`: 5*3 + 5*1 + 4*1 + 4*3 + 3*4 + 3*3 + 2*1.5 = 60 of 104, 57.7.
 - `bpftool`: 5*3 + 5*1 + 4*1 + 4*2 + 3*4 + 3*3 + 2*1.5 = 56 of 104, 53.8.
 
-Low-signal endpoint totals:
+Low-signal endpoint totals, over every combination of the ranges' endpoints:
 
-- `btf-rs`: 92 to 94 (88.5 to 90.4).
-- In-house: 88 to 90 (84.6 to 86.5).
+- `btf-rs`: 89 to 91 (85.6 to 87.5).
+- In-house: 91 to 93 (87.5 to 89.4).
 - `pahole`: 59 to 61 (56.7 to 58.7).
 - `bpftool`: 55 to 57 (52.9 to 54.8).
 
+The weights, the ratings, the confidence levels and the ranges above are every input the
+arithmetic uses, and the arithmetic and the matrix under [Sensitivity](#sensitivity) follow from
+them.
+
 ### Sensitivity
 
-One input at a time, as the skill requires:
+One input at a time, as the skill requires: every weight from 1 to 5, every medium-confidence
+rating one step down and up, and both endpoints of every low-signal range (the endpoints are the
+plausible values, so no step is taken outside a range).
+Twelve tests change an order, and they fall in two groups.
 
-- Raising or lowering every weight from 1 to 5 leaves `btf-rs` first in every run except one:
-  with C6 (integration cost) at weight 1, the in-house reader leads, 90.6 to 88.5.
-  The controlling preference is therefore how much integration and test cost weighs against the
-  parser's bound, and that is the owner's.
-- Moving the medium and low ratings one step each, and the low-signal endpoints, flips only the
-  third and fourth places: `pahole` and `bpftool` trade places when C4 or C7 moves.
-  `btf-rs` stays first and the in-house reader stays second in every such run.
-- Because one adjacent pair (`btf-rs` and in-house) flips on a weight the owner sets, and the
-  tools' pair is a near-tie, this section gives a conditional ranking and recommends none,
-  as the skill's sensitivity outcome requires.
+Eight move the library pair, and each move puts `btf-rs` first:
+
+- weight C1 at 1, 2 or 3;
+- weight C6 at 5;
+- `btf-rs` C5 from 3 to 4;
+- `btf-rs` C6 from 3 to 4;
+- in-house C5 from 3 to 2;
+- in-house C6 from 2 to 1.
+
+Four move the tools pair, and each puts `bpftool` third and `pahole` fourth:
+
+- `bpftool` C1 from 3 to 4;
+- `bpftool` C4 from 2 to 3;
+- `pahole` C1 from 3 to 2;
+- `pahole` C4 from 3 to 2.
+
+No test moves a tool past a library, and no test changes the library pair's distance from the
+tools. So the tools' order is unresolved by the evidence, and so is the library pair: the baseline
+puts the in-house fallback two points of 104 ahead, and one step on C6 reverses it.
+Stability here does not cover simultaneous multi-input changes, and this document makes no claim
+it does.
+
+The skill's instruction when a test changes the order is to gather decisive evidence or ask only
+the controlling preference. The controlling preference is the owner's, not a weight on this
+writer's scale: whether to keep about 350 to 450 source lines and 100 to 150 test lines plus a fuzz
+target of our own, or to take an `LGPL-2.1-or-later` dependency whose release lags its own main.
+[Q1](#q1-which-reader-parses-the-module-btf) asks it in those words.
+The evidence that would settle the ratings instead is owed:
+`btf-rs`'s own test suite, which was not run, would settle C5 and C6, and
+[Owed measurements](#owed-measurements) item 10 would settle C7.
+Until then this section gives a conditional ranking and recommends none.
 
 ### Ranking and pros and cons
 
-Ranking: `btf-rs` 2.0.1 > in-house reader > `pahole` 1.32 > `bpftool` 7.8.0,
-with the first pair conditional on C6's weight and the last pair conditional on C4 and C7.
+Ranking: `btf-rs` 2.0.1 > in-house reader > `pahole` 1.32 > `bpftool` 7.8.0.
 
-- `btf-rs` beats the in-house reader because it already holds the split model, the type kinds and
-  the tests that the check needs, and its two named residuals (the missing section check and the
-  old masks in the release) are closed by the pre-scan this proposal already requires.
-  The in-house reader buys a stronger bound at the cost of a parser, its fuzz target and its
-  review; the skill's existing-tools rule keeps it second while `btf-rs` passes.
-  If the owner weighs integration cost at 1, the arithmetic puts in-house first.
-- The in-house reader beats `pahole` because a root-spawned program and a text format cost more
-  than the parser it replaces, and the check must run in both binaries, including the handler.
+- `btf-rs` beats the in-house reader because it is the only eligible library: the skill's
+  existing-tools rule admits a custom implementation only when every existing tool fails a named
+  hard constraint, and `btf-rs` passes all six. The arithmetic does not decide this pair: the
+  fallback's corrected 92 of 104 leads `btf-rs`'s 90, the two are two points apart, and one step
+  on C6 reverses them ([Sensitivity](#sensitivity)). The two points do not make the fallback
+  eligible, and the choice between them is the owner's, asked in plain words in
+  [Q1](#q1-which-reader-parses-the-module-btf).
+- The in-house reader beats `pahole` because a root-spawned program, a text format and a runtime
+  package cost more than the reader they replace, and the check must run in both binaries,
+  including the handler. The arithmetic agrees, 92 against 60.
 - `pahole` beats `bpftool` because its `-C` output carries the compared members directly, while
-  `bpftool`'s raw dump needs a type-id resolver in the wrapper; the pair is close, and the
-  sensitivity run under [Sensitivity](#sensitivity) shows it flipping on the medium ratings.
+  `bpftool`'s raw dump needs a type-id resolver in the wrapper before it can compare anything.
+  The arithmetic agrees, 60 against 56, and the pair flips on C1 or C4.
 
 Pros and cons follow each ledger entry. No candidate is chosen here.
 
@@ -1171,226 +1479,296 @@ The skill asks for a vet report under `doc/audit/` when an evaluation crosses it
 with a fingerprint, a lock, the full evidence records and the pre-discovery check-in.
 This brief allows edits to this file only and allows no questions, so:
 
-- the ledger, gates, source audits, arithmetic and sensitivity are here instead;
+- the ledger, gates, source audits, arithmetic, sensitivity and the full discovery listing are
+  here instead;
 - the `doc/audit/tech-...-vet-YYYY-MM-DD.md` report is owed before any dependency is adopted;
 - the finalist validation is incomplete: `btf-rs` was built and probed, not run through its own
   test suite, and the two tools were exercised by hand, not through a repeatable harness. The
   skill's rule that an unvalidated finalist cannot be recommended is why this section recommends
   none; the ranking is an input to the owner's pick, not a recommendation;
-- the check-in that lets the owner delegate discovery to a model of their choosing is
-  [Q4](#q4-is-this-discovery-the-one-the-vet-should-use);
+- discovery's terminal result is blocked, not saturated
+  ([Discovery record](#discovery-record)), which is a second reason no candidate is recommended
+  and a reason a later round may add a candidate;
+- the check-in that lets the owner delegate discovery to a model of their choosing is recorded
+  under [Discovery record](#discovery-record) as a known gap, not carried as the owner question the
+  first version made of it;
 - no candidate is adopted and no crate is added to a manifest.
 
 ## Owed measurements
 
 None of these ran. Each runs in a throwaway VM with a file-backed pool, never this host's pool and
-never with the host's `/dev/zfs`. Each names its control, because a pass alone does not show the
-checker can fail.
+never with the host's `/dev/zfs`, except items 5 and 10, which are device-free and run on a
+throwaway host build with no ZFS path at all.
+Each names its control, because a pass alone does not show the checker can fail.
+Every measurement stays owed, and no item here touches this host's pool or modules.
 
-1.  A compatible module passes. Build or install a module 2.4.4 with BTF in the guest, run the
-    built gate, and assert it reports compatible and that a real read request then runs.
-    Control: the same binary on a module without BTF must refuse, so a pass is not a vacuous pass.
-2.  A changed layout refuses, with the 2.2.2 shape as the true positive. If the guest's packaged
-    2.2.2 module carries BTF, run the gate on it and assert it refuses at `zinject_record`'s
-    size (352 against 368) while the struct's total size and the defer offsets match.
-    Control: the 2.4.4 module passes the same binary, and the refusal names the field and both
-    values. If the packaged module has no BTF, patch `zfs_cmd` in the 2.4.4 source, rebuild, and
-    use the patched module instead, with the unpatched one as the control.
-3.  A missing module BTF refuses and falls back. Use the tarball build path that skipped BTF
-    (`guest-openzfs-build.log:834-838`) or hide the base file from the checker's namespace,
-    and assert raw requests are disabled, that the fallback is offered for an unused slot,
-    and that registrations and recovery state survive.
+1.  A compatible module passes, in the guest. Build or install a module 2.4.4 with BTF in the
+    guest, run the built gate, and assert it reports compatible and that a real read request then
+    runs. Control: the same binary on a module without BTF must refuse, so a pass is not vacuous.
+2.  A changed layout refuses, in the guest. Primary arm: patch the 2.4.4 source so
+    `zinject_record_t` is 352 bytes again by dropping `zi_match_count` and `zi_inject_count`, leave
+    `META` untouched, and build with BTF. That module still reports `2.4.4-1`, so the release rule
+    passes and the comparison runs; the union's anonymous struct still sizes the union at 368, so
+    the total stays 13,744 and no offset moves.
+    Assert the gate refuses at `Member` with the path of `zc_inject_record` at 13,296, expected 368
+    bytes and actual 352, while the struct's total size and the defer offsets match.
+    Control: the unpatched module from the same build passes the same binary.
+    Second arm, only if the guest's packaged 2.2.2 module carries BTF: it reports
+    `2.2.2-0ubuntu9.5`, which the release rule refuses at `Version` before any BTF file is read, so
+    a layout refusal from that module is unreachable without a seam, and the first version's
+    assertion could never hold. With a test seam that skips only the release rule, assert the
+    refusal names the anonymous container's expected kind and bit offset, or the missing
+    `dds_flags`, and record which. Without the seam, record that the arm proves the release rule
+    only. Either way the refusal names the field and both values.
+3.  A missing module BTF refuses and falls back, in the guest. Use the tarball build path that
+    skipped BTF (`guest-openzfs-build.log:834-838`) or hide the base file from the checker's
+    namespace, and assert raw requests are disabled, that the fallback is offered for an unused
+    slot, and that registrations and recovery state survive.
     Control: the same guest after providing the base and rebuilding with BTF passes.
-4.  A missing or unreadable file refuses. Hide `/sys/kernel/btf` from a mount namespace or an
-    unreadable copy, and assert the refusal names the file and the step.
+4.  A missing or unreadable file refuses, in the guest. Hide `/sys/kernel/btf` from a mount
+    namespace or make a copy unreadable, and assert the refusal names the file and the step.
     Control: the same binary in the same guest with the file readable passes.
-5.  A short read refuses. A test seam fed a truncated module and base pair must refuse with the
-    section or header step, not stall; the unit test and the fuzz target carry this, and the VM
-    arm repeats it through the product's loader only if a seam exists.
+5.  A short read refuses, device-free. A test harness fed a truncated module and base pair must
+    refuse with the section or header step, not stall; the unit test and the fuzz target carry
+    this, and the guest arm repeats it through the product's loader only if a seam exists.
     Control: the untruncated pair passes.
-6.  The header variants both pass. A module whose BTF an older tool emitted with the 24-byte
-    header, and a module whose BTF reports `hdr_len` 32 (the host's kernel is
+6.  The header variants both pass, in the guest. A module whose BTF an older tool emitted with the
+    24-byte header, and a module whose BTF reports `hdr_len` 32 (the host's kernel is
     `7.3.5-1-cachyos`, unqualified for the product until step 23), must both parse and compare.
-    The design's `6.8.0-147-generic` guest emitted no module BTF for its tarball build, so this
-    arm needs a build route that emits one, with the 24-byte header as its own case.
-    Control: a file with `hdr_len` 16 or with non-contiguous sections must refuse.
-7.  The request contract is checked. Renumber one `zfs_ioc` value in a patched module and assert
-    the refusal names the request and both values.
-    Control: the unpatched module passes, and the patched module still has the same struct layout,
-    so the refusal can only come from the request comparison.
-8.  Architecture and endianness refuse. On an `aarch64` guest (unqualified) the gate must refuse
-    before any ioctl; on a big-endian BTF fixture the endianness step must refuse.
+    The design's `6.8.0-147-generic` guest emitted no module BTF for its tarball build, so this arm
+    needs a build route that emits one, with the 24-byte header as its own case.
+    Control: a file with `hdr_len` 16, and a file whose sections overlap, must refuse.
+7.  The request contract is checked, in the guest. Renumber one `zfs_ioc` value in a patched module
+    and assert the refusal names the request and both values. Control: the unpatched module passes,
+    and the patched module still has the same struct layout, so the refusal can only come from the
+    request comparison.
+8.  Architecture and endianness refuse, in the guest. On an `aarch64` guest (unqualified) the gate
+    must refuse before any ioctl; on a big-endian BTF fixture the endianness step must refuse.
     Control: the `x86_64` little-endian guest passes.
-9.  A module reload between reads is caught. Unload and load a different module between the gate's
-    first and second version reads, through a test seam or a scripted guest, and assert the
-    checker retries once and then refuses rather than passing on a mixed pair.
-    Control: a single load passes.
-10. Start cost and memory. Measure the built gate's wall time and peak memory on the approved
-    module, interleaved with a same-binary control that does the same command without the ZFS
-    path, and report the ratio and run-to-run spread, per the repository's timing rule.
-    Also measure the base parse and the module parse separately.
-    Control: the base-free case, and the no-op path, in the same round.
-11. The guest fixture for step 6. The tarball module the design's guest built carries no BTF.
-    Repeat item 1 with a packaged module that carries BTF or with a tarball build given a
-    `vmlinux` in its build directory, and record which route produced the BTF and its release
-    string.
-12. The refused state in `doctor`. With a mismatched module loaded, assert `doctor` names the
-    loaded module, the target and the file, keeps its exit status, and does not print a bypass;
-    then with a compatible module assert it prints the compatible line.
+9.  A module reload between reads is caught, in the guest. Unload and load a different module
+    between the gate's first and second version reads, through a test seam or a scripted guest,
+    and assert the checker retries once and refuses only when the retry's own two version reads
+    differ as well.
+    Control: a single load passes, and a reload that has settled before the retry passes, which is
+    the arm that shows the retry is not a refusal in disguise.
+10. Start cost and memory, device-free on a throwaway host build. Measure the built gate's wall
+    time and peak memory against this host's copied BTF files, interleaved with a same-binary
+    control that runs the same code without the ZFS path, and report the ratio and the run-to-run
+    spread, per the repository's timing rule. Measure the base parse and the module parse
+    separately, and the handler's start as a one-process-per-ZED-event child as well as the
+    wrapper's longer process, because the two pay the parse differently.
+    Control: the no-op path in the same round, and a version-file-only run, which reads no BTF and
+    so separates the read cost from the parse cost.
+11. The guest fixture for step 6, in the guest. The tarball module the design's guest built carries
+    no BTF. Repeat item 1 with a packaged module that carries BTF or with a tarball build given a
+    `vmlinux` in its build directory, record which route produced the BTF and its release string,
+    and record whether the guest exposes `/sys/kernel/btf/vmlinux`, which nothing records today.
+    Control: the same guest's module built without BTF, which must refuse with the missing-BTF step
+    and offer the fallback.
+    Handoff to step 2's writer: step 2's layout comparison test needs module BTF
+    (step 2 of [the implementation plan][plan-file]), so the guest recipe must produce a 2.4.4
+    module with BTF, and this item is the run that proves the recipe does.
+12. The refused state in `doctor`, in the guest. With a mismatched module loaded, assert `doctor`
+    names the loaded module, the target and the file, keeps its exit status, and does not print a
+    bypass; then with a compatible module assert it prints the compatible line.
     Control: both states in the same guest.
-13. A tool-based checker's output and absence (Way 3). With the tool's packaged version, run the
-    tool arm on a compatible and on a mismatched module, and assert the refusal names the member
-    and both values. Then remove the tool from the guest and assert the refusal names the missing
-    program and its version, not the ABI. Repeat with a second tool version.
+13. A tool-based checker's output and absence (Way 3), in the guest. With the tool's packaged
+    version, run the tool arm on a compatible and on a mismatched module, and assert the refusal
+    names the member and both values. Then remove the tool from the guest and assert the refusal
+    names the missing program and its version, not the ABI. Repeat with a second tool version.
     Control: the same module with the tool present and matching passes.
-14. The root handler's tool path (Way 3). As root, run the handler with a writable `PATH`
-    containing a decoy `pahole` or `bpftool`, and assert the handler uses a verified absolute path
-    or refuses, never the decoy.
+14. The root handler's tool path (Way 3), in the guest. As root, run the handler with a writable
+    `PATH` containing a decoy `pahole` or `bpftool`, and assert the handler uses a verified absolute
+    path or refuses, never the decoy.
     Control: the verified tool at its absolute path passes, and the decoy is never executed.
-15. The digest way's cost (Way 4). Rebuild the same 2.4.4 source with a different compiler or flag
-    set, record whether the module BTF bytes differ, and assert the digest refuses while the full
-    layout check passes. If the bytes are identical, use a patched source change that keeps the
-    layout.
-    Control: the full check on the same two modules passes both.
-16. The blind spots of Ways 2, 5 and 6. Use a module whose `zinject_record` is 352 rather than 368
-    and a module with one same-size field moved, and assert the narrow comparison, the request
-    probe and the release-string-only check accept both while the full comparison refuses them.
-    Control: the full comparison on the unmodified 2.4.4 module passes.
+15. The digest way's cost (Way 4), in the guest. Rebuild the same 2.4.4 source with a different
+    compiler or flag set, record whether the module BTF bytes differ, and assert the digest refuses
+    while the full layout check passes. If the bytes are identical, use a patched source change that
+    keeps the layout. Control: the full check on the same two modules passes both.
+16. The blind spots of Ways 2, 5 and 6, in the guest. Use the patched module whose
+    `zinject_record` is 352 rather than 368 and a module with one same-size field moved, and assert
+    the narrow comparison, the request probe and the release-string-only check accept both while
+    the full comparison refuses them. Control: the full comparison on the unmodified 2.4.4 module
+    passes.
 
 ## Questions for the owner
 
-Each question is ready for the question tool. Options are ranked, best first, with the reason for
-the adjacent order. The pick is the owner's.
+Each question is ready for the question tool. Options are ranked, best first, and each option says
+why it sits where it does. The pick is the owner's.
 
 ### Q1: which reader parses the module BTF
 
-Recommended first: `btf-rs` 2.0.1, because no hard gate fails on the source evidence read and it holds the split
-model and tests; this proposal's pre-scan closes its two residuals.
-The label is the question's ranking; the vet section records why it makes no adoption
-recommendation until its finalist validation is complete.
+Ranked first: `btf-rs` 2.0.1, on eligibility and not on validation.
+No hard gate fails on the source evidence read, and the crate holds the split model, the type kinds
+and the tests the check needs; this proposal's pre-scan closes its two named residuals.
+Its finalist validation is outstanding: nobody ran its own test suite, and the pair of library
+options flips on one criterion ([Sensitivity](#sensitivity)), which does not cover simultaneous
+multi-input changes.
+
+In plain words, the choice between options 1 and 2 is this: take an `LGPL-2.1-or-later` dependency
+whose 2.0.1 release lags its own main branch on the widened BTF masks, or write about 350 to 450
+source lines and 100 to 150 test lines of our own reader, plus a fuzz target and a review of it,
+and add no new dependency.
 
 Options:
 
-1.  `btf-rs` 2.0.1 (Recommended). Pros: split BTF and the type kinds this check needs; pure Rust;
-    a small dependency tree with default features off; a documented API and tests; the probe
-    parses this host's files and walks the anonymous union. Cons: `LGPL-2.1-or-later` adds a
-    copyleft-family dependency; no section validation in the crate, so the binding keeps the
-    pre-scan; its release's masks lag its main branch; small maintainer group.
-    Cost: about 350 to 550 lines of source and 300 to 450 of tests, plus one fuzz target.
-2.  An in-house reader in the binding. Pros: exact bounds and refusal semantics in one place;
-    no new dependency or license; can read lazily. Cons: a parser of kernel bytes is ours to
-    review, fuzz and maintain; the skill's existing-tools rule keeps it behind `btf-rs` while
-    `btf-rs` passes; about 700 to 1,000 lines of source and 400 to 600 of tests.
-    It ranks first only if the owner weighs integration cost at 1 or rejects the dependency on a
-    named ground.
-3.  `pahole` 1.32 as a start-time program. Pros: the command the design already names for the
-    test-time comparison; `-C` prints the compared members; no new Rust dependency.
+1.  `btf-rs` 2.0.1, ranked first, finalist validation outstanding.
+    Pros: split BTF and the type kinds this check needs; pure Rust with default features off;
+    a documented API and tests; the probe parses this host's files and walks the anonymous union.
+    Cons: `LGPL-2.1-or-later` adds a copyleft-family dependency; no section validation in the crate,
+    so the binding keeps the pre-scan; its release's masks lag its main branch; a small maintainer
+    group; its own test suite is unrun.
+    Cost: the shared shape, about 350 to 550 lines of source and 300 to 450 of tests, plus the
+    resolver for arrays and typedef chains and one fuzz target.
+    Why here: it is the only eligible library, since the skill admits a custom implementation only
+    when every existing tool fails a hard constraint; its 90 of 104 trails the in-house reader's 92
+    by two points, inside a band one step on C6 reverses.
+2.  An in-house reader in the binding, ranked second.
+    Pros: exact bounds and refusal semantics in one place; no new dependency or license; can read
+    lazily; no resolver shim, since the reader owns array and typedef sizes.
+    Cons: a parser of kernel bytes is ours to review, fuzz and maintain; the skill's existing-tools
+    rule keeps it behind `btf-rs` while `btf-rs` passes.
+    Cost: the same shared shape plus about 350 to 450 lines of reader source and 100 to 150 of
+    tests, and its own fuzz target.
+    Why here: its 92 of 104 leads `btf-rs`'s 90, and it stays second because a score does not
+    override the eligibility rule; it is first only if the owner weighs or rejects the dependency
+    on a named ground.
+3.  `pahole` 1.32 as a start-time program, ranked third.
+    Pros: the command the design already names for the test-time comparison; `-C` prints the
+    compared members; no new Rust dependency.
     Cons: a runtime package; a root-spawned program in the handler; a text format; three
     invocations for the struct, the nested type and the enum.
-4.  `bpftool` 7.8.0 as a start-time program. Pros: libbpf's reader; a documented base option and a
-    raw type listing. Cons: the same runtime-program and root-path costs; the raw listing needs a
-    type-id resolver in the wrapper before it can compare members; the tool's version tracks the
-    kernel's tools, not the distribution's.
+    Why here: 60 of 104, and a runtime program costs the deployment and privilege points that
+    options 1 and 2 do not.
+4.  `bpftool` 7.8.0 as a start-time program, ranked fourth.
+    Pros: libbpf's reader; a documented base option and a raw type listing.
+    Cons: the same runtime-program and root-path costs; the raw listing needs a type-id resolver
+    in the wrapper before it can compare a member; the tool's version tracks the kernel's tools,
+    not the distribution's.
+    Why here: 56 of 104, the lowest of the four, for the resolver its output needs and its
+    medium diagnostic rating.
 
 Not offered: `btfparse` (no split base), `aya-obj` (no base, ELF-oriented), `btf` 0.5.1
 (unmaintained, no base), `btfdump` (no base, tool first), `padlock-dwarf` (no base, wrong fit),
-`libbpf-rs` and `libbpf` (C build or privileged library load), and a BTF digest (the answer the
-project did not select).
+`libbpf-rs` and `libbpf` (C build), and a BTF digest (the answer the project did not select).
 
 ### Q2: which module release strings qualify
 
-Recommended first: accept the `2.4.4` version with any release suffix, because the layout check is
-the substantive proof and the answer's stated reason for rejecting exact profiles was that a
-rebuild must not disable clones.
+Settled by the record, adopted with a veto: the version `2.4.4` with any release suffix.
+The record's reason for rejecting exact profiles was that a rebuild must not disable clones
+([ABI verification][design-project-decisions]), and an exact `2.4.4-1` match is that rejected cost
+in another form, so this file does not ask about it.
+Adopted rule: the string qualifies when it is exactly `2.4.4` or begins `2.4.4-`; the release
+suffix is ignored for the decision but printed whole by `doctor`. That rule cannot match
+`2.4.40-1`, because the character after `2.4.4` is `0` there rather than `-` or the end.
+The writer implements it, and the owner may veto it here.
+
+The open part is a build from a git checkout. `config/zfs-meta.m4:73-88` replaces the release with
+`git describe`'s suffix through `tr - _` when a matching tag exists, so such a build reports strings
+like `2.4.4-5_g1a2b3c4`: commits past the tag, then `_g` and the commit. The layout check runs
+either way; what differs is whether a build whose source is ahead of the tag is named as the
+approved release.
 
 Options:
 
-1.  Version `2.4.4`, any release suffix (Recommended). Pros: the tarball `2.4.4-1`, a git build's
-    `2.4.4-<suffix>` and a distribution's `2.4.4-<distro>` all reach the layout check; a rebuild
-    with the approved layout keeps working, which is the answer's stated reason for the runtime
-    check. Cons: the release string no longer identifies the build; a patched module with the
-    approved layout passes, which is outside the check's proof but still a patched module;
-    `doctor` must print the full string so a person sees what is loaded.
-2.  Exact `2.4.4-1`. Pros: literal match with the approved `META` pair; simple; the guest's
-    tarball build and this host's module both pass. Cons: a distribution build of 2.4.4 that sets
-    its own release, in the shape the guest's packaged module shows (`0ubuntu9.5`, though that one
-    is 2.2.2), would fail, and a future security rebuild with a suffix would disable the managed
-    route until the owner approves it, which is the rejected exact-profile cost in another form.
-3.  An owner-maintained allowlist of full release strings. Pros: exact identity for each approved
-    build. Cons: a list to maintain; an unlisted rebuild still disables the route; it buys little
-    over option 1, because the layout comparison is what detects ABI drift.
+1.  Accept a git-snapshot suffix like any other, ranked first.
+    Pros: one rule for every build; a checkout build with the approved layout keeps the managed
+    route, which is the record's reason for the runtime check; the layout comparison remains the
+    proof. Cons: the loaded module may come from source ahead of the tag, and a patch that keeps
+    the layout already passes; `doctor` has to say plainly that the build is not the release.
+    Why here: it is the same rule the record already adopted, so it adds no second case to explain,
+    test or print.
+2.  Refuse a suffix of the form `<digits>_g<hex>`, ranked second.
+    Pros: the managed route then means a release build, since a checkout at the tag reports
+    `2.4.4-1` through the `META` fallback and only a build past the tag grows the suffix.
+    Cons: a checkout build even one commit past the tag disables raw requests until it is rebuilt
+    at the tag, which is the exact-profile cost the record rejected, in a narrower form, and it
+    refuses a build whose compared layout is identical.
+    Why here: it buys a release-string distinction the layout comparison already makes on the facts
+    this check can see, at the cost the record rejected.
 
 ### Q3: may a verification be cached across processes
 
-Recommended first: no disk cache now, because the start cost is unmeasured and a cached verdict
-is a new forgeable or stale input.
+Held until [Owed measurements](#owed-measurements) item 10 measures the start cost.
+Nothing needs the answer before that run: per-process caching with no disk cache is writer-settled,
+so the gate works the moment it is built.
+The question returns only if item 10 shows a cost the owner will not pay, and it returns with two
+options:
 
-Options:
+1.  No disk cache, ranked first while the cost is unmeasured.
+    Pros: no stale verdict, no new state, no new privilege question; the identity recheck stays
+    inside the process. Cons: every ZFS command pays the parse.
+    Why here: it is the only option that adds no new input to the gate, and nothing measured says
+    the parse needs saving.
+2.  A per-boot cache bound to the boot id, the module version, both BTF files' device, inode, size
+    and modification time, and the binary's build id, ranked second.
+    Pros: the parse is paid once per boot. Cons: a forged entry in the account's own cache would
+    enable raw requests on a mismatched module, so the file must be root-owned for the handler and
+    validated before use, and that validation is the identity check again.
+    Why here: it saves a cost not yet measured, and it needs a root-owned file and an extra trust
+    argument before it saves anything.
 
-1.  Per process only, no disk cache (Recommended). Pros: no stale verdict, no new state, no new
-    privilege question; the cache identity is rechecked in the process. Cons: every ZFS command
-    pays the parse; if the measurement shows the cost is too high, this answer changes.
-2.  A per-boot cache bound to the boot id, the module version, both BTF files' device, inode,
-    size and modification time, and the binary's own build id. Pros: the parse cost is paid once
-    per boot. Cons: a forged cache in an account's own directory could enable raw requests on a
-    mismatched module; the file must be root-owned for the handler and validated before use;
-    the binding still needs the identity check that makes it safe.
-3.  A cache of the parsed base BTF in memory only. Pros: no verdict cache. Cons: it helps only a
-    long-lived process, and the wrapper's gate runs in short-lived ones.
-
-This question changes only if [Owed measurements](#owed-measurements) item 10 shows a cost the
-owner will not pay. The writer records the measurement result beside this question.
-
-### Q4: is this discovery the one the vet should use
-
-Recommended first: accept this ledger and its source classes, because the parser class saturated
-at the recorded queries and the one split-capable crate was found and probed.
-
-Options:
-
-1.  Accept the ledger (Recommended). Pros: the candidates are named with versions and sources,
-    the hard gates and a probe decided the finalists, and the class has no other split-capable
-    crate in the recorded sources. Cons: the check-in the skill asks for was not made, and a later
-    crate or fork could change the ledger.
-2.  Delegate a fresh discovery to a model the owner names. Pros: satisfies the skill's check-in
-    and may find a newer crate. Cons: cost, and the ledger here is already dated and sourced;
-    a fresh run would start from this file.
+The wrapper's disk cache of the `git version` text is not a precedent for this one: it holds a
+descriptive string, and a wrong entry changes a warning, while a verdict here gates raw requests
+([The cache](#the-cache)). That difference in trust class, not the parse cost, is why the first
+version made this choice; the cost is what may reopen it.
 
 ## What a writer can settle without asking
 
-- The checker lives in the binding (`package/zfs/request-to-openzfs-kernel-device`),
-  because the design gives the binding the request format and the `zfs_cmd` representation and
-  requires both binaries to share the gate. The wrapper module supplies the paths, the target
-  allowlist, the release rule and the wording.
+- The placement is a proposal the owner may veto, not a writer's choice: the checker is proposed
+  to live in the binding (`package/zfs/request-to-openzfs-kernel-device`), because the design gives
+  the binding the request format and the `zfs_cmd` representation and requires both binaries to
+  share the gate. The wrapper module supplies the paths, the target allowlist, the release rule and
+  the wording. If the owner moves the reader, only the crate boundary moves.
 - The gate runs after the device check and before the first ioctl; `doctor` runs the facts without
   the device check.
 - The read order and the second version read, with one retry, as
   [The read order and the reload race](#the-read-order-and-the-reload-race) states.
-- The file bounds: a page for the version, 64 MiB for the base BTF and 16 MiB for the module BTF.
-  Both caps are at least ten times the sizes measured here (6,579,400 and 570,234 bytes), so an
-  ordinary debug kernel fits; a file that exceeds its cap is a refusal until the constant and its
-  measurement are raised.
-- The pre-scan rules, including the widest-encoding walk and the refusal of a value the chosen
-  reader cannot represent.
+- The pre-scan rules, including the sorted-by-offset section check, the widest-encoding walk and the
+  refusal of a value the chosen reader cannot represent.
+- The file bounds, as proposals pending [Owed measurements](#owed-measurements) item 10:
+  a page for the version, 64 MiB for the base BTF and 16 MiB for the module BTF.
+  The caps are at least ten times the sizes measured here (6,579,400 and 570,234 bytes), so an
+  ordinary debug kernel fits, but the only memory measurement is that reading and caching the pair
+  of 7,159,634 bytes peaked at 57,808 kB resident, about eight bytes of memory per input byte, so a
+  64 MiB base could reach hundreds of MiB. A file that exceeds its cap is a refusal until item 10
+  measures the real peak and the constant is set from it.
 - The compared set: the struct size, every direct member's offset and size, the anonymous
-  containers and their members, the `dmu_objset_stats` fields the codec reads, the base integer
-  sizes, and every request constant plus `ZFS_IOC_FIRST` and `ZFS_IOC_LAST`.
+  containers and their members, the `dmu_objset_stats` fields the codec reads including `dds_flags`,
+  the base integer sizes, and every request constant plus `ZFS_IOC_FIRST` and `ZFS_IOC_LAST`.
+  The interiors of `drr_begin`, `zfs_stat_t`, `zfs_share_t` and of `dmu_objset_stats` members the
+  codec does not read stay unchecked, as [Limits](#limits) says.
 - The expectations come from the Rust `#[repr(C)]` type where `offset_of!` reaches, with literals
   for the anonymous containers and union members, guarded by an exhaustiveness test.
-- The refusal value, its steps, and the words the caller and `doctor` print, including the
-  loaded module, the target, the file and the first mismatch, and no bypass.
-- The per-process `OnceLock` and the identity recheck; no disk cache until Q3 says otherwise.
+- The refusal value, its steps, the order the comparison walks and the words the caller and
+  `doctor` print, including the loaded module, the target, the file and the first mismatch, and no
+  bypass.
+- The per-process `OnceLock` and the identity recheck, and no disk cache; Q3 waits on item 10.
 - The architecture allowlist: `x86_64` only until an `aarch64` guest qualifies the managed route.
 - Endianness from the BTF magic against the target.
 - The test placement and fixtures: device-free unit tests with small generated BTF blobs, the
   exhaustiveness tests, the diagnostic tests, the `doctor` rendering test, and the fuzz target for
   the loader and pre-scan.
+- The reader Q1 picks serves step 2 as well, because step 2's layout test compares the compiled
+  layout with the running module's BTF and that is the same comparison. That test keeps its own
+  reader: the plan's `pahole --btf_base` command, or another reader that is not the one the binding
+  ships, so the proof does not depend on the parser it checks.
+- The step 2 handoff: step 2's guest recipe must produce a 2.4.4 module that carries BTF.
+  Its tarball build skipped module BTF for want of a `vmlinux` in the build directory
+  (`guest-openzfs-build.log:834-838`), and step 2's layout comparison test needs the module BTF to
+  exist (step 2 of [the implementation plan][plan-file]).
+  The recipe either builds with a `vmlinux` present or installs a packaged module that carries BTF,
+  and it records which route produced it and whether the guest exposes
+  `/sys/kernel/btf/vmlinux`, which is unrecorded today.
+  [Owed measurements](#owed-measurements) item 11 is the run that proves it.
 - The refusal's interaction with the design's fallback for an unused slot and the failure path for
   a bound clone; the design decides the behaviour, the writer writes the words.
 - The check's placement in step 6, beside the start probe, and the step-2 test remaining the
   proof that the compiled layout matches the pinned headers.
-- No external program, no C build, no `zfs` invocation, no `/dev/zfs` read for the layout check
-  itself, and no force flag or environment override.
+- No external program if Q1 picks a library, no C build, no `zfs` invocation, no `/dev/zfs` read
+  for the layout check itself, and no force flag or environment override.
+  If Q1 picks a tool, the external program is that tool and
+  [Owed measurements](#owed-measurements) items 13 and 14 qualify it.
 
 ## What this proposal does not do
 
