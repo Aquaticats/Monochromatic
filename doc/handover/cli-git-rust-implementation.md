@@ -40228,6 +40228,12 @@ removed worktree's journal kept at `~/.local/state/monochromatic-git-policy-cli/
 tool starts is a child of the run's Pi" need exact wording; the fixture's trailing `; :` needs its comment
 (`change-reviews/...-at-32b9da675a/review.md` L1 to L4). **Observed:** while the screen is locked, `kscreenlocker_greet`
 (hides its folder, started after the worktrees) holds every automatic worktree removal, inside the owner's accepted gap.
+**TMPDIR fix (task 392) GOING:** worktree `.claude/worktrees/pi-driver-gives-pi-a-temporary-folder-inside-its-run`,
+branch `fix/pi-shared-subagent-driver-gives-pi-a-temporary-folder-inside-its-run` from `main` at `2365f8e55f`'s
+successor; run `pi-driver-gives-pi-a-temporary-folder-inside-its-run-1` (brief and run folders under
+`~/temp/agent/pi-driver-gives-pi-a-temporary-folder-inside-its-run-2026-11-19/`): the driver makes a `0700` folder inside
+the run folder after its emptiness check and starts Pi with `TMPDIR` naming it, with a test that fails first. Then a
+DeepSeek short review and the merge; the skill's launch line then drops `--setenv=TMPDIR`.
 
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed
