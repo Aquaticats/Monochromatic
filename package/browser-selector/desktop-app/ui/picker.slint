@@ -1,0 +1,108 @@
+import { ListView, Palette } from "std-widgets.slint";
+
+export component Picker inherits Window {
+    in property <string> target;
+    in property <[string]> choices;
+    in-out property <string> message;
+    private property <int> selected: 0;
+    private property <length> row-height: 48px;
+
+    callback open-choice(int);
+    callback cancel;
+
+    title: "Browser Selector";
+    min-width: 280px;
+    preferred-width: 400px;
+    background: Palette.background;
+    forward-focus: keys;
+
+    function select-row(index: int) {
+        if choices.length == 0 { return; }
+        selected = max(0, min(index, choices.length - 1));
+        if selected * row-height + browser-list.content-y < 0px {
+            browser-list.content-y = -selected * row-height;
+        }
+        if (selected + 1) * row-height + browser-list.content-y > browser-list.visible-height {
+            browser-list.content-y = browser-list.visible-height - (selected + 1) * row-height;
+        }
+    }
+
+    keys := FocusScope {
+        key-pressed(event) => {
+            if event.text == Key.UpArrow {
+                root.select-row(root.selected - 1);
+                return accept;
+            }
+            if event.text == Key.DownArrow {
+                root.select-row(root.selected + 1);
+                return accept;
+            }
+            if event.text == Key.Return && root.choices.length > 0 {
+                root.open-choice(root.selected);
+                return accept;
+            }
+            if event.text == Key.Escape {
+                root.cancel();
+                return accept;
+            }
+            return reject;
+        }
+
+        VerticalLayout {
+            padding: 12px;
+            spacing: 8px;
+
+            if root.target != "" : Text {
+                text: root.target;
+                color: Palette.foreground;
+                overflow: elide;
+                accessible-role: text;
+            }
+
+            browser-list := ListView {
+                preferred-height: min(6, root.choices.length) * root.row-height;
+                min-height: root.choices.length > 0 ? root.row-height : 0px;
+                content-height: root.choices.length * root.row-height;
+
+                for name[index] in root.choices : Rectangle {
+                    width: browser-list.visible-width;
+                    height: root.row-height;
+                    y: index * root.row-height;
+                    background: index == root.selected || row-touch.has-hover
+                        ? Palette.alternate-background : Palette.background;
+                    border-width: index == root.selected || row-touch.pressed ? 1px : 0px;
+                    border-color: Palette.foreground;
+                    border-radius: 5px;
+                    accessible-role: button;
+                    accessible-label: name;
+                    accessible-action-default => { root.open-choice(index); }
+
+                    HorizontalLayout {
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        Text {
+                            text: name;
+                            color: Palette.foreground;
+                            font-weight: index == root.selected ? 600 : 400;
+                            overflow: elide;
+                            vertical-alignment: center;
+                        }
+                    }
+                    row-touch := TouchArea {
+                        clicked => {
+                            root.select-row(index);
+                            root.open-choice(index);
+                        }
+                    }
+                }
+            }
+
+            if root.message != "" : Text {
+                text: root.message;
+                color: Palette.foreground;
+                wrap: word-wrap;
+                accessible-role: text;
+            }
+        }
+    }
+}

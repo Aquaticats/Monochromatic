@@ -7,5 +7,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "files": ["launcher.ts"]
+  "files": ["launcher.ts", "check-metrics-mapping-on-throwaway-profile.ts"]
 }

@@ -63,6 +63,10 @@ mise run //package/kwin/key-helper:binary
 ```
 
 This produces `key-helper-service` in the package directory.
+Rebuilding while the daemon runs is safe:
+the binary is built under `dist/` and renamed over the old one,
+so the running daemon keeps executing the old file until it is restarted,
+and a failed build leaves the old binary in place.
 
 ## Install
 

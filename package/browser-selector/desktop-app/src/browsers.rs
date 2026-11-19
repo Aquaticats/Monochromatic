@@ -1,0 +1,196 @@
+//! Discovers registered browsers and sends the target to the selected launcher.
+
+/// Imports containers, native paths, and the direct process launcher.
+use std::{collections::BTreeMap, ffi::OsString, path::PathBuf, process::Command};
+
+/// Imports the extension methods GIO adds to registered applications.
+use gio::prelude::AppInfoExt;
+
+/// Imports profile readers for the native browser installations that advertise profile choices.
+use crate::profiles;
+
+/// Desktop file ID used to exclude the selector from its own list of choices.
+const SELECTOR_ID: &str = "monochromatic.browser-selector.desktop";
+
+/// What: Holds a registered executable and the fixed arguments before its URL field.
+/// Why: A wrapper can need these arguments to start the browser correctly.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ProfileLauncher = { program: Path; fixedArguments: NativeString[] };
+/// ```
+#[derive(Clone)]
+struct ProfileLauncher {
+    /// Resolved executable to start directly.
+    program: PathBuf,
+    /// Arguments copied from the desktop entry before the URL field.
+    fixed_arguments: Vec<OsString>,
+}
+
+/// What: The selector can dispatch through a desktop entry or a browser with profile arguments.
+/// Why: Plain choices preserve native launcher behavior while named choices select an exact profile.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Launch = { app: AppInfo } | { program: Path; arguments: NativeString[] };
+/// ```
+enum Launch {
+    /// Run the desktop entry through GIO using its ordinary behavior.
+    Desktop(gio::AppInfo),
+    /// Pass the profile and target as individual arguments to a supported native executable.
+    Profile { launcher: ProfileLauncher, profile: profiles::Profile },
+}
+
+/// What: The row label and its launch operation stay coupled as one record.
+/// Why: The UI can choose an index without reconstructing destinations from labels.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Choice = { label: string; launch: Launch };
+/// ```
+pub(crate) struct Choice {
+    /// Browser name, with profile name for a named choice.
+    pub(crate) label: String,
+    /// Operation this choice will perform.
+    launch: Launch,
+}
+
+impl Choice {
+    /// What: Opens one URI in the choice's application or profile.
+    /// Why: Launching a specific browser bypasses the selector's installed default association.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// choice.open(uri);
+    /// ```
+    pub(crate) fn open(&self, uri: &str) -> anyhow::Result<()> {
+        // Each branch attaches the target after routing to a specific installed browser.
+        match &self.launch {
+            Launch::Desktop(app) => {
+                app.launch_uris(&[uri], gio::AppLaunchContext::NONE)?;
+            }
+            Launch::Profile { launcher, profile } => {
+                anyhow::ensure!(profile.directory.is_dir(), "The profile directory is no longer available.");
+                // Preserve wrapper arguments before appending the browser's profile flags and target.
+                Command::new(&launcher.program)
+                    .args(&launcher.fixed_arguments)
+                    .args(&profile.arguments)
+                    .arg(uri)
+                    .spawn()?;
+            }
+        }
+        return Ok(());
+    }
+}
+
+/// What: Recognises the registered Firefox channels with automatic profile support.
+/// Why: Other registered browsers remain available through their own desktop entries.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isFirefox(id: string): boolean;
+/// ```
+fn is_firefox(id: &str) -> bool {
+    return matches!(id, "firefox.desktop" | "firefox-esr.desktop" | "firefox-developer-edition.desktop");
+}
+
+/// What: Splits a desktop command with one terminal URL field into an executable and fixed arguments.
+/// Why: Substituting that field can add profile flags while leaving GIO to handle other field codes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function profileLauncher(app: AppInfo): ProfileLauncher | undefined;
+/// ```
+fn profile_launcher(app: &gio::AppInfo) -> Option<ProfileLauncher> {
+    // GLib reads the quoting already parsed from the desktop key file into individual OS arguments.
+    let mut arguments = gio::glib::shell_parse_argv(app.commandline()?).ok()?;
+    let url_field = arguments.pop()?;
+    if url_field != "%u" && url_field != "%U" {
+        return None;
+    }
+    // Other field codes need GIO expansion and remain available on the plain browser row.
+    if arguments.iter().any(|argument| return argument.as_encoded_bytes().contains(&b'%')) {
+        return None;
+    }
+    let program = gio::glib::find_program_in_path(arguments.first()?)?;
+    let fixed_arguments = arguments.split_off(1);
+    return Some(ProfileLauncher { program, fixed_arguments });
+}
+
+/// What: Reads web scheme handlers and adds profile rows for the supported native launchers.
+/// Why: HTML associations can include editors, while web scheme handlers identify browser choices.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function discover(): Choice[];
+/// ```
+pub(crate) fn discover() -> Vec<Choice> {
+    let mut browsers = BTreeMap::new();
+    for scheme in ["x-scheme-handler/http", "x-scheme-handler/https"] {
+        for app in gio::AppInfo::all_for_type(scheme) {
+            let Some(id) = app.id() else { continue; };
+            if id == SELECTOR_ID || !app.should_show() || !app.supports_uris() {
+                continue;
+            }
+            browsers.insert(id.to_string(), app);
+        }
+    }
+
+    // Remember which Firefox installs have straightforward profile-capable launchers.
+    let mut firefox = BTreeMap::new();
+    for (id, app) in &browsers {
+        if is_firefox(id) && let Some(launcher) = profile_launcher(app) && launcher.fixed_arguments.is_empty() {
+            firefox.insert(id.clone(), launcher);
+        }
+    }
+    let firefox_profiles = if firefox.is_empty() { Vec::new() } else { profiles::firefox_profiles() };
+
+    let mut choices = Vec::new();
+    for (id, app) in browsers {
+        let name = app.display_name().to_string();
+        if let Some(launcher) = firefox.get(&id) {
+            for profile in profiles::profiles_for_firefox(&firefox_profiles, &launcher.program, firefox.len() == 1) {
+                choices.push(Choice {
+                    label: format!("{name} · {}", profile.name),
+                    launch: Launch::Profile { launcher: launcher.clone(), profile },
+                });
+            }
+        } else if id == "helium.desktop" && let Some(launcher) = profile_launcher(&app) {
+            for profile in profiles::helium_profiles(&profiles::helium_root()) {
+                choices.push(Choice {
+                    label: format!("{name} · {}", profile.name),
+                    launch: Launch::Profile { launcher: launcher.clone(), profile },
+                });
+            }
+        }
+        choices.push(Choice { label: name, launch: Launch::Desktop(app) });
+    }
+    choices.sort_by_cached_key(|choice| return choice.label.to_lowercase());
+    return choices;
+}
+
+/// Verifies that a launcher can keep its fixed arguments before the URL field.
+#[cfg(test)]
+mod tests {
+    use super::profile_launcher;
+
+    /// What: Builds a GIO command with the same argument layout as a browser wrapper.
+    /// Why: Removing or splitting a fixed argument can hide profiles or break the wrapper.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// assert.deepEqual(profileLauncher(app).fixedArguments, [script, argument]);
+    /// ```
+    #[test]
+    fn helium_wrapper_keeps_its_fixed_arguments() -> anyhow::Result<()> {
+        let application = gio::AppInfo::create_from_commandline(
+            "/usr/bin/env \"wrapper script.ts\" \"fixed argument\"",
+            Some("Wrapped browser"),
+            gio::AppInfoCreateFlags::SUPPORTS_URIS,
+        )?;
+        let launcher = profile_launcher(&application).ok_or_else(|| anyhow::anyhow!("Expected a profile launcher"))?;
+        assert_eq!(launcher.program, std::path::Path::new("/usr/bin/env"));
+        assert_eq!(launcher.fixed_arguments, ["wrapper script.ts", "fixed argument"]);
+        return Ok(());
+    }
+}

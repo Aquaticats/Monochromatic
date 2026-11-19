@@ -1,5 +1,5 @@
 /**
- Fixed values of the driver, each with where it comes from. The limits of a run are options, so none is shipped here.
+ Fixed values of the driver, each with where it comes from.
 
  @module
  */
@@ -21,7 +21,13 @@ export const NESTED_RUN_VARIABLE = 'MONOCHROMATIC_PI_SUBAGENT_DRIVER_RUNNING';
 export const MILLISECONDS_PER_SECOND = 1_000;
 
 /**
- Milliseconds between looks at the inbox, the stop file and the limits. Only how soon a steer or a stop is noticed depends on it.
+ The idle window both commands use unless told otherwise. Zero adds no wait for a new steering message after Pi settles,
+ as decided on 2026-11-18.
+ */
+export const IDLE_SECONDS_OF_A_RUN = 0;
+
+/**
+ Milliseconds between looks at the inbox, the stop file, and whether the run is ready to end.
  */
 export const POLL_MILLISECONDS = 300;
 

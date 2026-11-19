@@ -146,6 +146,48 @@ Each rule is the project's own requirement.
   and everything a command prints is sent to the model provider.
   To learn one variable,
   name it (`printenv CARGO_TARGET_DIR`).
+  That ban stands as before,
+  and a run does not rely on it alone:
+  see the next rule.
+- A run that cannot read a place that holds a credential does not start:
+  a store that is there and cannot be read,
+  a file of Pi's that cannot be read,
+  a start-up file whose credential line the driver cannot read exactly,
+  or an age identity the machine declares and this code cannot read.
+  "Not there" and "could not be read" are told apart by the operating system's own answer alone,
+  so a folder that denies the way is a stop, never "nothing there",
+  and the message names the file and, for a start-up file, the line.
+- A run that resumes a session masks it into a copy first and resumes that copy;
+  the session file it was given is left exactly as it was,
+  which is the stated limit of resuming:
+  the old file keeps whatever it holds,
+  and nothing of it reaches a request.
+  A free-form Pi argument that names or resumes a session is refused,
+  because only the driver's own `--session` is masked before the start.
+- What a run's Pi masks for you
+  (the driver reads these values once, in its own process,
+  and never writes them anywhere):
+  every value the checkout's `.env.local.json` declares,
+  the provider keys of Pi's own `~/.pi/agent/auth.json` and `~/.pi/agent/models.json`,
+  a token the shell start-up files export
+  (`~/.bashrc`, `~/.bash_profile`, `~/.profile`),
+  the age key that decrypts the store,
+  and a credential-named variable of the driver's own environment.
+  They are replaced in each tool result,
+  in every message Pi keeps in its session,
+  in the whole transcript before every model request,
+  in the run's feed,
+  its summary and Pi's standard error,
+  and in the session file once the run is over,
+  by a marker that names where the value came from,
+  as `[masked secret value of MISE_GITHUB_TOKEN]`:
+  seeing that marker means the value you asked for was there and was taken out,
+  so read the name and go on without the value.
+  What is masked is the value alone and its JSON-escaped,
+  percent-encoded and base64 forms;
+  a value inside a message or a file someone encoded some other way
+  is not one of those forms,
+  which is why the ban above is unchanged.
 - Never write to this repository's Git config (`git remote set-url`,
   `git config` outside a throwaway repository):
   the worktree shares it with every other agent and the main checkout.
@@ -161,7 +203,7 @@ Each rule is the project's own requirement.
   `cargo metadata` names a folder the build does not use;
   to learn where a build put its output,
   ask cargo with `--message-format=json`.
-- Never walk `/var/mnt/encrypted/cargo-build`,
+- Never walk `~/.cargo/build`,
   the build directory every agent shares:
   no `find`,
   `du`,
@@ -172,17 +214,15 @@ Each rule is the project's own requirement.
   (one `find` for a dependency's source ran twenty-eight minutes on 2026-11-12 before it was ended).
   A dependency's source is under `~/.cargo/registry/src/`,
   and `cargo metadata --format-version=1 --locked --offline` gives each one's `manifest_path`.
-- A workaround for a defect of the driver,
-  to be removed when the driver keeps a run that waits for its own work:
-  a run that ends its turn is ended about two minutes later,
-  whatever it started is still running
-  (on 2026-11-12 an integration run ended a turn with its build running in a `process` job,
+- On 2026-11-12 an integration run ended a turn with its build running in a `process` job,
   expecting to be brought back,
-  and was closed as `idle` 129 seconds later).
-  Until then,
-  run a build,
-  a test or any other step whose result the next step needs as a foreground command with a bound of its own,
-  and end a turn only when nothing of yours that matters is still running.
+  and was closed as `idle` 129 seconds later.
+  The driver now keeps the run while it can see work the agent left running,
+  and sends the agent back to read the result when that work ends.
+  The default idle window is `0`: when Pi has settled and nothing else holds the run,
+  the driver does not wait for a new steering message.
+  If the next step needs a result from work the driver cannot detect,
+  run that work as a foreground command with a bound of its own.
 - A workaround for a defect of the Git wrapper that is fixed in the installed release (0.6.1-alpha.15) and in `main`
   since commit `afc0545123`,
   and that a wrapper built from a branch without that commit still has:
@@ -252,7 +292,7 @@ so open questions go in the report.
 ## Nothing shows on the desktop
 
 Start a program that opens a window only in its own headless mode,
-or inside `/var/home/user/Monochromatic/.cache/toolchain-bin/monochromatic-nested-wayland-session --headless`.
+or inside `~/Monochromatic/.cache/toolchain-bin/monochromatic-nested-wayland-session --headless`.
 Probe a CLI that can launch a terminal or a browser only with a disposable `HOME` and a `PATH` without `terminal-exec`.
 Desktop notifications are the exception and are wanted:
 never disable,

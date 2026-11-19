@@ -43,28 +43,23 @@ await describe({
   name: 'claude-cpu-watch.service',
   children: [
     it({
-      name: 'checks the repository link before it starts, with the same node as the daemon and a bounded wait, and retries without ending in a failed state',
-      fn: async function startsOnlyWhenTheRepositoryIsThere() {
+      name: 'starts the daemon from this checkout with the node on the user manager\'s PATH, and restarts it thirty seconds after a failure',
+      fn: async function startsWithTheNodeOnThePath() {
         const service = sectionLines({ text: await readFile(UNIT, 'utf8',), section: 'Service', },);
         expect(service,).toContain(
-          'ExecStartPre=%h/.local/share/mise/installs/node/latest/bin/node %h/.local/share/monochromatic-dev/repository-link/check.mjs',
+          'ExecStart=/usr/bin/env node %h/Monochromatic/package/claude-cpu-cap/daemon/src/cpu-watch.ts',
         );
-        expect(service,).toContain('TimeoutStartSec=20s',);
         expect(service,).toContain('Restart=on-failure',);
         expect(service,).toContain('RestartSec=30',);
-        expect(service.some((line,) => line.startsWith('ExecStart=%h/.local/share/mise/installs/node/latest/bin/node ',),),).toBe(true,);
       },
     },),
     it({
-      name: 'never reaches a permanent failed state: no start limit in the unit section, and the check comes before the daemon',
+      name: 'never reaches a permanent failed state: no start limit in the unit section, no check before the daemon, and no restart of a clean exit',
       fn: async function neverGivesUp() {
         const text = await readFile(UNIT, 'utf8',);
         expect(sectionLines({ text, section: 'Unit', },),).toContain('StartLimitIntervalSec=0',);
         const service = sectionLines({ text, section: 'Service', },);
-        const pre = service.findIndex((line,) => line.startsWith('ExecStartPre=',),);
-        const start = service.findIndex((line,) => line.startsWith('ExecStart=',),);
-        expect(pre,).toBeGreaterThanOrEqual(0,);
-        expect(pre,).toBeLessThan(start,);
+        expect(service.some((line,) => line.startsWith('ExecStartPre=',),),).toBe(false,);
         expect(service,).not.toContain('Restart=always',);
       },
     },),

@@ -46,13 +46,31 @@ description = "Embed the built ESM bundle into a Node SEA binary (key-helper-ser
 shell = "node --input-type=module-typescript -e"
 run = """
 import { execFileSync, } from 'node:child_process'
-import { chmodSync, } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync, } from 'node:fs'
+import { basename, join, resolve, } from 'node:path'
 
 // Node 26 --build-sea does blob generation + injection in one step, loading the
-// ESM main directly via "mainFormat": "module" in sea-config.json.
-execFileSync(process.execPath, ['--build-sea', 'sea-config.json',], { stdio: 'inherit', },)
-chmodSync('key-helper-service', 0o755,)
-console.log('built key-helper-service',)
+// ESM main directly via "mainFormat": "module" in sea-config.json. It writes the
+// output path in place, which fails with "text file is busy" while the daemon is
+// running from that file. So the build goes to a scratch folder under dist/,
+// through a copy of sea-config.json with its paths made absolute, and the result
+// is renamed over the old binary: a rename swaps the directory entry, the running
+// daemon keeps executing the file it opened, and a failed build leaves the old
+// binary untouched.
+const config = JSON.parse(readFileSync('sea-config.json', 'utf8',),)
+mkdirSync('dist', { recursive: true, },)
+const scratch = mkdtempSync(join('dist', 'sea-build-',),)
+try {
+  const builtPath = resolve(scratch, basename(config.output,),)
+  const scratchConfigPath = join(scratch, 'sea-config.json',)
+  writeFileSync(scratchConfigPath, JSON.stringify({ ...config, main: resolve(config.main,), output: builtPath, },),)
+  execFileSync(process.execPath, ['--build-sea', scratchConfigPath,], { stdio: 'inherit', },)
+  chmodSync(builtPath, 0o755,)
+  renameSync(builtPath, config.output,)
+} finally {
+  rmSync(scratch, { recursive: true, force: true, },)
+}
+console.log(`built ${config.output}`,)
 """
 
 [tasks.binary]

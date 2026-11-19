@@ -20,7 +20,17 @@ minimumReleaseAgeStrict = true
 trustPolicy = "no-downgrade"
 # Reviewed and approved by the owner on 2026-10-29 (issue #1806): first releases by publishers who are
 # listed crate owners or publish through the owning team.
-trustPolicyExclude = ["wayland-server@0.31.14", "defmt-parser@1.1.0"]
+trustPolicyExclude = [
+    "wayland-server@0.31.14",
+    "defmt-parser@1.1.0",
+    # Approved on 2026-11-17. Verified the published files against upstream Git.
+    # See doc/planning/browser-selector.md for the release commits and the policy findings.
+    "dlib@0.5.3",
+    "icu_locale_fallback@2.4.0",
+    "icu_locale_fallback_data@2.4.0",
+    "tiny-skia@0.12.0",
+    "tiny-skia-path@0.12.0",
+]
 trustPolicyExcludePrune = true
 # 365 days in minutes (owner decision, 2026-10-29): a release more than a year old cannot be a fresh takeover,
 # and minimumReleaseAge already holds back new ones.
@@ -54,6 +64,7 @@ futures-util = ">=0.3.34"
 getrandom = ">=0.4.3"
 gix-hash = ">=0.28.1"
 gix-index = ">=0.58.0"
+gio = ">=0.22.11"
 globset = ">=0.4.21"
 gtk4 = ">=0.11.5"
 helix-core = { git = "https://github.com/helix-editor/helix", rev = "ba40e547426b0f9896c8bdc699a4ab11f2b37dbc" }
@@ -67,7 +78,7 @@ i-slint-backend-winit = ">=1.18.1"
 icu_provider = ">=2.4.0"
 ignore = ">=0.4.34"
 image = ">=0.25.10"
-jiff = ">=0.2.43"
+jiff = ">=0.2.45"
 jni = ">=0.22.4"
 jsonschema = ">=0.61.2"
 libc = ">=0.2.191"
@@ -95,6 +106,7 @@ regex-automata = ">=0.4.18"
 rfd = ">=0.18.0"
 ringbuf = ">=0.6.0"
 rustix = ">=1.1.6"
+rusqlite = ">=0.43.0"
 rustls = ">=0.23.46"
 schemars = ">=1.2.3"
 serde = ">=1.0.229"

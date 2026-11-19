@@ -9,8 +9,9 @@ Pi is a second subagent runtime here,
 beside Claude Code native subagents,
 and a rule that says "subagent" without naming a runtime binds it too.
 
-Drive `pi --mode rpc --provider neuralwatt --model deepseek-v4.1-flash` through the driver package,
+Drive `pi --mode rpc` through the driver package,
 `package/pi-shared/subagent-driver`,
+with the writer and reviewer models of the section "Who writes and who reviews",
 started in the repository,
 where Pi loads `AGENTS.md` (from another folder rule `ATH` was not in its context).
 Real coding tasks always go through the driver;
@@ -114,8 +115,12 @@ On 2026-11-11 from 01:19Z,
 "Concurrent limit reached for deepseek-ai/DeepSeek-V4.1-Flash: 6/6 slots in use. ...
 Your subscription is in overage with auto-renew off,
 so pay-as-you-go limits apply until it renews."
-The rate-limit endpoint still answered `effective_concurrency` 20 then,
-so the 429 is what tells;
+The rate-limit endpoint still answered `effective_concurrency` 20 then;
+the owner, 2026-11-18:
+"that was probably an undocumented bug.
+The bug happens if my auto renew for Neuralwatt isn't turned on."
+So the endpoint's number holds while auto-renew is on,
+and only in that overage state does the 429's own number tell;
 Pi ends the run on it instead of retrying.
 The owner's `retry` group was read again on 2026-11-11 at 22:33Z and holds
 `enabled` true,
@@ -165,52 +170,6 @@ after free slots had been filled with other packages' issues
 (scope recorded in `doc/handover/cli-git-rust-implementation.md`).
 A tool that slows down with dozens of agents running has a defect to fix;
 the number of agents is never the explanation and never a reason to start fewer.
-Audits and reviews sit outside that limit and use other models.
-Reviews of a change run on Kimi K3.1 Pro alone,
-and long audits on Claude Sonnet and Kimi K3.1 Pro side by side:
-rules `KRV` and `LHZ` in `AGENTS.md`,
-from the owner's "Kimi alone" and "Both side by side (Recommended)"
-after the trial in `doc/planning/kimi-as-auditor-and-reviewer-trial.md`.
-Kimi runs through Pi on Synthetic,
-under the owner's "Kimi trials don't count within 20 slots because 20 is neuralwatt's effective concurrency and kimi runs on Synthetic."
-When Synthetic answers 429,
-the run moves to Neuralwatt's Kimi flex model and resumes its session there
-(`--provider=neuralwatt --model=kimi-k3.1-pro-flex`, with the doubled wall clock flex runs get),
-under the owner's "Use neuralwatt/kimi-k3.1-pro-flex whenever Synthetic 429s." (2026-11-10).
-Those runs take no DeepSeek slots,
-because "Neuralwatt rate limits are per model." (the owner,
-2026-11-10).
-Neuralwatt's rate-limit endpoint (`https://api.neuralwatt.com/v1/rate_limits`,
-read 2026-11-10) gives `moonshotai/Kimi-K3.1-Pro` an `effective_concurrency` of 20 and lists no `-flex` model;
-the Kimi flex pool holds 22 runs of its own,
-under the owner's "Use 22 against Kimi K3.1 Pro flex from neuralwatt for now, until upstream clarifies or we hit something." (2026-11-10).
-Default runs never take the Kimi pool;
-only a run that names that model does.
-Synthetic sets no limit on runs at once;
-its 429 means the quota is spent ("Synthetic doesn't have a concurrent limit. The Synthetic quota got blown once again."),
-so retrying on Synthetic fails until the quota comes back.
-The owner also wrote "Kimi K3.1 Pro has a tendency to cheat.",
-and the trial caught none,
-so rerun a finding's reproduction before believing it,
-and have its brief forbid `ps` with `args`,
-the one channel through which the trial's runs saw other runs' names.
-
-Small GPT audits also sit outside the limit.
-The owner on 2026-11-09:
-"Please use gpt-6.1-sol with the openai provider for audits and reviews.
-Those don't count within the 20 limit."
-They run through `codex`,
-not through Pi.
-The owner,
-later that day:
-"Use `codex` to run openAI reviews and audits instead.
-`--dangerously-bypass-approvals-and-sandbox` has to be passed to codex because codex's auto mode has tons of issues which I'm not listing here."
-and
-"Still pass in xhigh explicitly for codex."
-The command is rule `XVW` in `AGENTS.md`.
-The owner then limited those runs:
-"Keep GPT runs small.
-GPT models cannot be trusted on any long horizon work."
 
 Each run is its own driver process with its own run folder and unit name.
 Runs in one checkout share its files,
@@ -240,6 +199,71 @@ A quiet feed is usually a long test run.
 A message in `inbox/` reaches Pi only between tool calls,
 so a tool call that will never return gets the message first,
 and then has its hung process ended by process number.
+
+## Who writes and who reviews
+
+Writers and reviewers both run through Pi and this driver,
+each on its own model.
+The owner,
+2026-11-17:
+"Also, I'm now making GPT 6.2 Sol as writer and deepseek as reviewer.",
+then
+"Once again, /pi-as-subagent . GPT and deepseek should both be in it now. And don't use the deepseek official provider.",
+and of the driver package,
+"We already have a package about pi as subagents in the workspace."
+
+- **A writer**, a run that changes code or documents,
+  is `--provider=openai --model=gpt-6.2-sol`,
+  the provider the owner picked ("A: openai (Recommended)").
+  When OpenAI ends a run with a `modelError` flagging its content as a possible risk,
+  start the follow-up of step 7 with `--session=<its session file>` on the reviewer pool's DeepSeek,
+  in the same worktree and with a prompt that says where the work stopped.
+  The owner, 2026-11-18:
+  "Whenever a "possible risk" is triggered from OAI, switch to deepseek resuming the session."
+- **A reviewer**, a run that reviews a change outside a gate (the short, frequent kind),
+  is DeepSeek V4.1 Flash from one pool in the owner's order:
+  `--provider=qwen-token-plan-individual --model=deepseek-v4.1-flash-1017` first
+  (the owner, 2026-11-18: "Add my qwen individual token plan deepseek-v4.1-flash-1017 to the deepseek pool."
+  and "Orderings: qwen individual token plan first."; how many runs it takes at once is unmeasured),
+  then the earlier order ("Synthetic and C and B, as a pool with preference."):
+  `--provider=synthetic --model=hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`,
+  then `--provider=opencode-go --model=deepseek-v4.1-flash`,
+  then `--provider=neuralwatt --model=deepseek-v4.1-flash-flex` with the doubled wall clock flex runs get.
+- **The provider `deepseek` is never used**, for any run.
+- **Gate reviews and long-horizon audits** stay on Claude Sonnet,
+  by whatever route the harness offers, outside Pi
+  (rule `LHZ`; the owner, 2026-11-17: "Rewrite, audits stay sonnet", and 2026-11-18:
+  "Short reviews are supposed to be frequent. Long reviews and audits are supposed to have Sonnet and be rare.",
+  with long meaning a review at a gate: an integration pass before main, a release, or a design put to the owner).
+
+A writer and its reviewer come from different vendors,
+so such a review is independent in the sense rule `IRW` gives.
+This replaces reviews on Claude Sonnet subagents and GPT runs through `codex`
+(rules `KRV` and `XVW` in `AGENTS.md`).
+The provider order belongs in the driver package:
+once its pool table holds these pools,
+this list shrinks to a pointer there.
+
+How many GPT runs `openai` answers at once is not measured;
+the first 429 on it sets that number,
+as a measured refusal sets every pool's.
+Synthetic now refuses on concurrency too:
+on 2026-11-17, with about ten DeepSeek runs going, it answered `429 "Too many concurrent requests"`;
+two of six bench reviews ended on it after 93 and 127 turns,
+and the four that finished met it 31 to 74 times each
+(the owner had written earlier "Synthetic doesn't have a concurrent limit. The Synthetic quota got blown once again.").
+So a review that ends on a Synthetic 429 moves to the next pool and resumes its session there
+with `--session=<session file>`,
+and how many runs Synthetic takes at once is still to be measured.
+The driver's pool table (`package/pi-shared/subagent-driver/src/pool-limits.ts`) does not list these pools yet:
+until it does,
+a run naming them is in no pool and nothing counts it,
+so count them before starting more.
+The DeepSeek pool order in the paragraphs on the 20-run limit is for runs that name no model;
+a writer always names GPT.
+The Kimi pool is closed,
+and its numbers stay in that table's comments.
+Rerun a reviewer's reproduction before believing a finding.
 
 ## Start a run
 
@@ -293,7 +317,10 @@ which `mise run toolchain:install` makes.
     and exit with its status;
     following `MainPID` with `tail --pid` waited out its whole timeout on a unit that had already finished.
     The entry file uses only Node built-ins,
-    so it runs from source with no build and no `node_modules`:
+    so it runs from source with no build and no `node_modules`.
+    The example starts a writer;
+    a reviewer names the provider and model its pool gives
+    (section "Who writes and who reviews"):
 
     ```sh
     # run from ~/Monochromatic
@@ -303,8 +330,8 @@ which `mise run toolchain:install` makes.
       "$(mise exec -- bash --noprofile --norc -c 'command -v node')" \
       "$PWD/package/pi-shared/subagent-driver/src/drive-pi-subagent.ts" \
       --run-folder=<run> --working-folder=<its worktree, or "$PWD"> --prompt-file=<prompt-file> \
-      --provider=neuralwatt --model=deepseek-v4.1-flash \
-      --wall-seconds=2400 --idle-seconds=60 --turn-cap=<sized from past runs>
+      --provider=openai --model=gpt-6.2-sol \
+      --wall-seconds=2400 --turn-cap=<sized from past runs>
     ```
 
     Size `--turn-cap` to the task from past runs at every launch.
@@ -340,6 +367,10 @@ which `mise run toolchain:install` makes.
     because the driver reads any other name at once.
     Pi gets it as a steer while it runs and as a new prompt while it is idle,
     and `--idle-seconds` is how long the driver stays up for one after Pi settles.
+    It defaults to 0, by the owner's "And shouldn't it be defaulted to 0?" of 2026-11-18:
+    a coordinator woken by the run's end could never steer inside a window,
+    and a message already in `inbox/` when Pi settles is still delivered.
+    Pass a positive value only when you will steer a settled run.
     An entry must be an ordinary file:
     a named pipe is set aside rather than waited on.
     A message Pi refused,
