@@ -130,7 +130,9 @@ function quotaSignal(options?: SimpleStreamOptions,): AbortSignal {
       QUOTA_READ_TIMEOUT_MS,
       Math.floor(timeoutMs / 2,),
     );
-  /** Independent, abortable quota deadline. */
+  /**
+   Independent, abortable quota deadline.
+   */
   const timeout = AbortSignal.timeout(budget,);
   return signal === undefined ? timeout : AbortSignal.any([
     signal,
@@ -143,11 +145,13 @@ function quotaSignal(options?: SimpleStreamOptions,): AbortSignal {
  The signal still reaches the quota operations so cooperative transports can cancel their work.
 
  @param request - quota lookup and its independent deadline
- 
+
  @returns evidence only when lookup completes before cancellation
  */
 async function readQuotaWithinDeadline(request: Parameters<typeof probeQuota>[0] & { readonly signal: AbortSignal; },): Promise<QuotaEvidence | typeof QUOTA_UNAVAILABLE> {
-  /** Deadline combined with the owning request's cancellation. */
+  /**
+   Deadline combined with the owning request's cancellation.
+   */
   const { signal, } = request;
   if (signal.aborted)
     return QUOTA_UNAVAILABLE;
@@ -155,8 +159,14 @@ async function readQuotaWithinDeadline(request: Parameters<typeof probeQuota>[0]
    Listener cleanup for a read that completes before its deadline.
    */
   const stopWaiting = new AbortController();
-  /** Release the temporary abort listener when either side of the race settles. */
-  using watch = { [Symbol.dispose](): void { stopWaiting.abort(); }, };
+  /**
+   Release the temporary abort listener when either side of the race settles.
+   */
+  using watch = {
+    [Symbol.dispose](): void {
+      stopWaiting.abort();
+    },
+  };
   /**
    Stop the wait once the deadline or the owning request aborts.
 

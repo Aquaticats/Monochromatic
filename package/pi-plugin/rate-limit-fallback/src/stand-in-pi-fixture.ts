@@ -128,9 +128,9 @@ export type ModelIdentity = Pick<Readonly<Model<Api>>, 'api' | 'id' | 'provider'
  Compose a refusal body in the forms produced by Pi's OpenAI Responses and Completions adapters.
 
  @param model - API selection that formats the refusal
- 
+
  @param message - provider's error text inside the HTTP body
- 
+
  @returns terminal SDK error text
 
  @example
@@ -145,7 +145,9 @@ export function rateLimitRefusal({
   readonly model: Pick<ModelIdentity, 'api'>;
   readonly message?: string;
 },): string {
-  /** The OpenAI SDK unwraps the HTTP body's `error` field before Pi serializes it. */
+  /**
+   The OpenAI SDK unwraps the HTTP body's `error` field before Pi serializes it.
+   */
   const body = JSON.stringify({ message, },);
   return model.api === 'openai-responses'
     ? `OpenAI API error (${RATE_LIMIT_STATUS}): ${body}`
@@ -301,11 +303,11 @@ function quotaUnavailable(): Promise<Response> {
  @param resolvedBaseUrl - registry auth endpoint override
 
  @param resolvedHeaders - header-only registry credential when supplied
- 
+
  @param resolveAuth - registry authorization override for error-path tests
- 
+
  @param findModel - catalog lookup override for registry-contract tests
- 
+
  @param startSession - whether the registration has received a session binding
 
  @returns provider, request history and controls for the fixture

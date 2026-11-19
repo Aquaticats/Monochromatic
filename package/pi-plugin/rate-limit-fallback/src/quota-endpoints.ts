@@ -22,7 +22,9 @@ import {
  */
 export type RoutingRegistry = Pick<ModelRegistry, 'find' | 'getApiKeyAndHeaders' | 'streamSimple'>;
 
-/** A supported provider's read failed or could not be attempted; try again on reentry. */
+/**
+ A supported provider's read failed or could not be attempted; try again on reentry.
+ */
 export const QUOTA_UNAVAILABLE: unique symbol = Symbol('Quota reading unavailable',);
 
 /**
@@ -285,7 +287,9 @@ export async function probeQuota({
       ...(signal === undefined ? {} : { signal, }),
     };
     if (provider === 'synthetic') {
-      /** Response body when the quota transport and JSON read succeeded. */
+      /**
+       Response body when the quota transport and JSON read succeeded.
+       */
       const quota = await requestQuota({
         url,
         ...request,

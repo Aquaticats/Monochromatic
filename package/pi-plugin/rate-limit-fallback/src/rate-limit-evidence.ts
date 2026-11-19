@@ -110,7 +110,7 @@ function startsWithRateLimit(value: string,): boolean {
  Match policy text without misreading an HTTP 429 that merely mentions a policy or risk.
 
  @param message - failed provider message
- 
+
  @param rateLimited - whether the adapter text or response supplied a 429 status
 
  @returns whether Pi should see a non-retryable policy error

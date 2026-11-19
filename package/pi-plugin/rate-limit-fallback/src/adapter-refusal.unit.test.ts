@@ -23,32 +23,32 @@ const MESSAGE = 'Request allowance exhausted for the current window';
 
 await describe({
   name: 'installed adapter refusal text',
-  children: [
-    ...['openai-responses', 'openai-completions',].map(function adapter(api,) {
-      return it({
-        name: `matches the ${api} 429 fixture without a response hook`,
-        fn: async function actualAdapterRefusal() {
-          const counts = { fetch: 0, response: 0, };
-          const options = {
-            apiKey: MEMBER_KEY,
-            maxRetries: 0,
-            async fetch() {
-              counts.fetch += 1;
-              return Response.json({ error: { message: MESSAGE, }, }, { status: RATE_LIMIT_STATUS, },);
-            },
-            onResponse() { counts.response += 1; },
-          };
-          const isResponses = api === 'openai-responses';
-          const physical = isResponses ? OPENAI : QWEN;
-          const model = { ...physical, baseUrl: 'http://127.0.0.1:0/v1', };
-          const stream = isResponses
-            ? streamResponses({ ...model, api: 'openai-responses', }, TRANSCRIPT, options,)
-            : streamCompletions({ ...model, api: 'openai-completions', }, TRANSCRIPT, options,);
-          const { result, } = await collect(stream,);
-          expect(counts,).toEqual({ fetch: 1, response: 0, },);
-          expect(result.errorMessage,).toBe(rateLimitRefusal({ model: physical, message: MESSAGE, },),);
-        },
-      },);
-    },),
-  ],
+  children: ['openai-responses', 'openai-completions',].map(function adapter(api,) {
+    return it({
+      name: `matches the ${api} 429 fixture without a response hook`,
+      fn: async function actualAdapterRefusal() {
+        const counts = { fetch: 0, response: 0, };
+        const options = {
+          apiKey: MEMBER_KEY,
+          maxRetries: 0,
+          async fetch() {
+            counts.fetch += 1;
+            return Response.json({ error: { message: MESSAGE, }, }, { status: RATE_LIMIT_STATUS, },);
+          },
+          onResponse() { counts.response += 1; },
+        };
+        const isResponses = api === 'openai-responses';
+        const physical = isResponses ? OPENAI : QWEN;
+        if (physical === undefined)
+          throw new Error(`No fixture model for ${api}`,);
+        const model = { ...physical, baseUrl: 'http://127.0.0.1:0/v1', };
+        const stream = isResponses
+          ? streamResponses({ ...model, api: 'openai-responses', }, TRANSCRIPT, options,)
+          : streamCompletions({ ...model, api: 'openai-completions', }, TRANSCRIPT, options,);
+        const { result, } = await collect(stream,);
+        expect(counts,).toEqual({ fetch: 1, response: 0, },);
+        expect(result.errorMessage,).toBe(rateLimitRefusal({ model: physical, message: MESSAGE, },),);
+      },
+    },);
+  },),
 },);

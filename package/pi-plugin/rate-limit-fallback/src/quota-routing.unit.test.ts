@@ -53,10 +53,10 @@ await describe({
   children: [
     ...[false, true,].map(function retryAfterFormat(asDate,) {
       return it({
-      name: `uses ${asDate ? 'HTTP-date' : 'numeric'} 429 Retry-After and resumes at the reported reset`,
-      fn: async function retryWindow(ctx,) {
-        const clock = { now: Date.now(), };
-        ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
+        name: `uses ${asDate ? 'HTTP-date' : 'numeric'} 429 Retry-After and resumes at the reported reset`,
+        fn: async function retryWindow(ctx,) {
+          const clock = { now: Date.now(), };
+          ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
           const deadline = new Date(clock.now + WINDOW_MS,);
           const retryAfter = asDate ? deadline.toUTCString() : String(WINDOW_SECONDS,);
           const { provider, calls, options, } = await fixture({
@@ -81,8 +81,8 @@ await describe({
           expect([first.result.provider, beforeReset.result.provider, afterReset.result.provider,],).toEqual([
             'qwen-token-plan-individual', 'qwen-token-plan-individual', 'openai',
           ],);
-      },
-    },);
+        },
+      },);
     },),
     it({
       name: 'uses the later compound OpenAI reset when both zero-remaining headers are seen on success',

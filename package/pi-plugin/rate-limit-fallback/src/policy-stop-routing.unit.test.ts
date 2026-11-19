@@ -96,7 +96,9 @@ await describe({
           const { provider, options, } = await fixture({
             extension,
             play({ model, }) {
-              expect(isRetryableAssistantError(assistant({ model, errorMessage, },),),).toBe(true,);
+              expect(
+                isRetryableAssistantError(assistant({ model, errorMessage, },),),
+              ).toBe(true,);
               return immediate({ model, errorMessage, },);
             },
           },);
