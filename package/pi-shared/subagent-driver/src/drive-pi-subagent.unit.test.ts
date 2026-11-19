@@ -359,6 +359,12 @@ type Finished = {
   readonly temporaryFolder: string;
 
   /**
+   Whether the folder the stand-in's own `os.tmpdir()` named was already there when it started, which tells a folder the driver
+   made before the start from one it made later.
+   */
+  readonly temporaryFolderWasThere: boolean;
+
+  /**
    What the folder Pi's temporary files go in is once the run ended, which is what the run left behind.
    */
   readonly temporaryFolderAfterTheRun: KindOfAPath;
@@ -867,6 +873,8 @@ async function runDriver(
       JSON.parse(line.slice('arguments '.length,),) as string[]
     ),
     temporaryFolder,
+    temporaryFolderWasThere: (logged.find((line,) => line.startsWith('temporary-folder-was-there '))
+      ?.slice('temporary-folder-was-there '.length,) === 'yes'),
     temporaryFolderAfterTheRun: await kindOf(temporaryFolder,),
     runFolder,
     standInStarts: logged.filter((line,) => line.startsWith('arguments ',)).length,
@@ -1899,7 +1907,7 @@ await describe({
       },
     },),
     it({
-      name: 'gives Pi a temporary folder inside the run folder, made before the first start and kept after the run',
+      name: 'gives Pi a temporary folder inside the run folder before its first start, at mode 0700, and keeps it after the run',
       fn: async () => {
         const run = await runDriver({ scenario: 'normal', },);
         /**
@@ -1911,6 +1919,9 @@ await describe({
         );
         // Pi's own process resolved this folder, so the variables the driver hands it name the folder and not `/tmp`.
         expect(run.temporaryFolder,).toBe(temporaryFolder,);
+        // Pi found the folder already there when it started, so the driver made it before the first start rather than during or after
+        // the run.
+        expect(run.temporaryFolderWasThere,).toBe(true,);
         // The run is over, so this is what it left: a run keeps the folder its session transcript points into.
         expect(run.summary.endReason,).toBe('idle',);
         expect(run.temporaryFolderAfterTheRun,).toEqual({
@@ -2050,6 +2061,73 @@ await describe({
           ),
           'utf8',
         ),).toBe(earlierStandardError,);
+      },
+    },),
+    it({
+      name: 'refuses a run folder that holds only the temporary folder of an earlier start, and leaves that folder as it was',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The folder this run was given, which holds only the folder a start before it made for Pi's temporary files.
+         */
+        const runFolder = join(
+          folder.path,
+          'run',
+        );
+        /**
+         The prompt file the run names, which the refusal never reads.
+         */
+        const promptFile = join(
+          folder.path,
+          'prompt.md',
+        );
+        /**
+         What the earlier start's Pi left in that folder, which no later start may write over.
+         */
+        const keptFile = join(
+          runFolder,
+          TEMPORARY_FOLDER_NAME,
+          'pi-output-0123456789abcdef.txt',
+        );
+        /**
+         What that file holds.
+         */
+        const keptText = 'what the earlier start left\n';
+        await mkdir(
+          join(
+            runFolder,
+            TEMPORARY_FOLDER_NAME,
+          ),
+          { recursive: true, },
+        );
+        await writeFile(promptFile, 'hello',);
+        await writeFile(keptFile, keptText,);
+        /**
+         The status the driver ended with, and what it printed.
+         */
+        const [status, standardError,] = await exitOf(execFileAsync(process.execPath, [
+          DRIVER,
+          `--run-folder=${runFolder}`,
+          `--working-folder=${folder.path}`,
+          `--prompt-file=${promptFile}`,
+          '--provider=stand-in',
+          '--model=stand-in-model',
+          '--wall-seconds=60',
+          '--idle-seconds=1',
+          '--turn-cap=2',
+        ], {
+          env: {
+            PATH: [dirname(process.execPath,), '/usr/bin',].join(delimiter,),
+            HOME: process.env.HOME,
+          },
+          encoding: 'utf8',
+        },),);
+        expect(status,).toBe(FAILED_STATUS,);
+        expect(standardError,).toContain('RunFolderHoldsAnEarlierAttemptError',);
+        expect(standardError,).toContain(TEMPORARY_FOLDER_NAME,);
+        // The run stopped before it made anything, so the folder holds the one entry the start before it made, and nothing of this run.
+        expect(await readdir(runFolder,),).toEqual([TEMPORARY_FOLDER_NAME,],);
+        expect(await readFile(keptFile, 'utf8',),).toBe(keptText,);
       },
     },),
     it({
