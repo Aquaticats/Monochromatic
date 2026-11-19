@@ -152,7 +152,10 @@ so no consumer rewrite or Git repair is needed solely for relocation. Keep the o
 until the checkout, linked worktrees and nested mounts pass verification. Reopen watches on the replaced directory.
 
 The account can replace `~/Monochromatic` while it is unmounted, regardless of the entry's owner. Never use an
-unprotected privileged mount by path. The [checkout boot protection choice](#open-project-choices) remains open;
+unprotected privileged checkout mount by path. The [planning record][zfs-plan] notes the same path-substitution
+exposure for existing dataset mountpoints inside account-owned home paths, including `~/.cache`, `~/.npm`,
+`~/.cargo/build`, `~/.cargo/registry` and the vm-builder output. Hardening those existing mount targets is outside
+this proposal; gating all mounts nested under the checkout on checkout readiness is not. The [checkout boot protection choice](#open-project-choices) remains open;
 the installation must prove the selected protection before enabling the checkout mount and make the checkout
 available before account sessions and clone reconciliation. Inventory **every dataset mounted under the checkout
 path**, regardless of ZFS ancestry, including the independently mounted vm-builder output. No such dataset may
