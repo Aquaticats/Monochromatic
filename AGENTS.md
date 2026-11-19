@@ -728,6 +728,12 @@ APQ:
  never in any `git worktree add` folder of this repo,
  which shares its `.git/config`.
 
+WTU:
+ Every worktree of this repository,
+ Git's own or a Btrfs or ZFS clone,
+ lives under `.claude/worktrees/` in the main checkout;
+ designs and briefs name that place.
+
 BOP:
  `~` in shell output is a display-only home-dir substitution by the `bash-output-filter` hook;
  bypass it with `eval`,
