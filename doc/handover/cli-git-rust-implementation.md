@@ -40018,6 +40018,17 @@ reads bounded at a provisional 2 s, capped at half a positive caller timeout, to
 local admission failures in words, not retried by Pi; branch tests added; sibling conventions followed; types, unit,
 oxlint 0/0 and the Pi session check pass. The DeepSeek writer (`pi-provider-moves-on-after-a-policy-stop-1`, Qwen plan,
 fresh session) now builds the automatic move, its fixture built through the adapter and citing the two real stops.
+It ended `idle` (145 turns; `f35456f2e2` to `a4b227503a`): a policy stop before output hands the same transcript to the
+next member, exposed output keeps today's ending; `src/policy-stop-fixture.ts` runs the installed Responses adapter over
+an in-memory HTTP 200 stream; all four package tasks pass (22 tests failed before the fix). **Correction to my brief:**
+the stop's text reaches Pi through the stream's `error` event (`openai/core/streaming.mjs:111`, formatted without a
+prefix at `error-body.js:139-145`), not the line-170 rethrow I named; it probed three shapes (`error`, `response.failed`
+gives `unknown: ...`, `incomplete` gives `Response incomplete: content_filter`). Hazards it names: the replay sends
+OpenAI-refused content, tool output included, to another vendor on every such request; a textual false positive now
+retransmits across vendors; after a policy stop, if every remaining member answers 429, Pi's outer retry starts at the
+head again and sends the flagged transcript to OpenAI once per round. One DeepSeek review of both rounds
+(`pi-review-pi-plugin-rate-limit-fallback-at-a4b227503a-1`) checks the eight answers, every fixture against its
+producer or a capture (with the audit's list), the move, and that retry sequence.
 
 The third prewarm run ended `idle` (77 turns, no new commit; report updated): through a built wrapper with the fill's
 staging and target replaced mid-clone, the tip left the other command's files at both names byte for byte and said why
