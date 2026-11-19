@@ -27,28 +27,32 @@ the root-once setup and prints concrete commands for the administrator without r
 
 The owner chose "A Rust crate", "Kernel interface (Recommended)", "Out (Recommended)" for crates that run `zfs`,
 and "Our own small binding (Recommended)" ([ZFS planning record][zfs-plan], lines 343 to 361).
-Use `package/zfs/kernel-interface`, the location in the vet answer's preview. `zfs` is the category,
-`kernel-interface` is singular and names what the crate does, and its README will explain `/dev/zfs` and ioctl
-(kernel request) to a Git user. The package's path-derived name is `@monochromatic-dev/zfs-kernel-interface`
-where workspace naming applies; the Cargo package is `monochromatic-zfs-kernel-interface`, following the wrapper's
-Rust naming precedent (`package/git-policy/cli/Cargo.toml:1`). This follows `AGENTS.md:1079` and `AGENTS.md:1457`.
-Give it the standalone Cargo workspace, path dependency, `README.md`, and package `mise.toml` used by Rust siblings;
-use the [Rust catalog decision][rust-catalog] for external dependencies and the `uses/` layout for source folders.
-Reuse the existing `libc` and `sha2` dependencies for system calls and ABI fingerprints. Do not add a C build step,
-link or load CDDL libraries, or run a ZFS CLI from the binding, wrapper or zedlet. The vet's section "Where the wrapper
-ships and what it links today" explains why the binary must still start without OpenZFS installed.
+Use `package/zfs/request-to-openzfs-kernel-device`, with Cargo package
+`monochromatic-zfs-request-to-openzfs-kernel-device` and path-derived workspace name
+`@monochromatic-dev/zfs-request-to-openzfs-kernel-device` where workspace naming applies. Its README explains
+`/dev/zfs` and ioctl (kernel request) to a Git user. The location and names follow `AGENTS.md` rules `MKY`, `VGW`,
+`AP1`, `AP2` and `SGD`; use the standalone Cargo workspace, path dependencies, `README.md`, package `mise.toml`,
+[Rust dependency catalog][rust-catalog], and `uses/` layout (`LYD`). Reuse `libc` and, for profile digests, `sha2`.
+Do not add a C build step, link or load OpenZFS's CDDL libraries, or invoke the `zfs` program from the binding,
+wrapper or handler. The vet's "Where the wrapper ships and what it links today" explains why the wrapper must
+start even when OpenZFS is absent. Administrative commands printed by `doctor` do not run inside the wrapper.
+
+Build `mount-git-worktree-clone-datasets` as a separate Linux Rust binary target of `package/git-policy/cli`,
+alongside `monochromatic-git-policy-cli`. Both use the same binding and compatibility gate, even for reads.
+The handler uses child enumeration and dataset/property reads for its sweep and Linux mount calls for the actual
+attachment and removal. It has no Git, pool administration, or dataset destruction operation.
 
 ### Requests and input ownership
 
 The initial interface is Linux only. Expose typed operations, not a general-purpose ioctl or property setter.
 Numbers are for OpenZFS `zfs-2.4.4`, `include/sys/fs/zfs.h:1502` to `:1550`.
-The vet's "Result and the owner's decision" records the core set;
-`SNAPSHOT_LIST_NEXT` and `GET_FSACL` were checked separately in the same header.
+The vet's "Result and the owner's decision" records the core set. The cross-vendor review checked
+`SNAPSHOT_LIST_NEXT` at line 1505 and `GET_FSACL` at line 1525 of that header.
 
 - `ZFS_IOC_OBJSET_STATS` (`0x5a12`): inspect dataset type, identity, origin, and the values and sources of properties.
 - `ZFS_IOC_DATASET_LIST_NEXT` (`0x5a14`): enumerate immediate children via the kernel's cursor.
 - `ZFS_IOC_SNAPSHOT_LIST_NEXT` (`0x5a15`): enumerate snapshots of one dataset for removal and recovery.
-- `ZFS_IOC_SET_PROP` (`0x5a16`): change only the wrapper's user properties on a named clone.
+- `ZFS_IOC_SET_PROP` (`0x5a16`): change only the wrapper's desired state and sweep nonce on a named clone.
 - `ZFS_IOC_DESTROY` (`0x5a18`): destroy one named, unmounted worktree dataset.
 - `ZFS_IOC_SNAPSHOT` (`0x5a23`): create a named origin; the request names the pool and carries a `snaps` nvlist
   (the kernel's name/value list), not a recursive flag.
@@ -82,14 +86,13 @@ headers, including nested structs, array extents and union members. Use
 and compare fields in a test, not just the printed total. Verify the request values against the matching headers.
 Evidence: [vet][vet], lines 429 to 449, and its `keep/running-kernel-zfs-cmd-layout-from-btf.txt`.
 
-Before the first ioctl, require a validated profile for the loaded module and target ABI: exact module version,
-architecture, endianness and kernel/module BTF digests from a passing VM image. A missing device, BTF or profile,
-or a mismatch, makes raw ZFS requests unavailable in both binaries, including reads. There is no force flag;
-a new profile needs a passing layout check and live tests. Leave `linux-arm64` disabled for raw ZFS until separately
-verified; the ordinary checkout route still runs. Exact profiles are conservative and can drop the clone route after
-an update. A runtime field-by-field BTF check with a matching release/request policy would accept more rebuilds,
-but adds a parser and trusts more unexercised builds. Ranking: **exact profiles > runtime layout discovery** for
-first release, because an unchecked build gets a fallback, not a guessed kernel contract.
+Before the first ioctl, both binaries must prove compatibility with the loaded module and target ABI, including
+module release, architecture, endianness, request contract and kernel/module BTF layout. A missing device, missing
+required BTF or mismatch disables raw requests, including reads; no force flag. Unverified architectures, including
+`linux-arm64` until separately tested, still run the ordinary checkout route. Whether verification uses exact
+approved BTF digests or compares fields at runtime is an [open choice](#open-project-choices). The gate must report
+what failed, also when an update makes existing clones temporarily unavailable. A failed gate does not authorize
+an unrelated mount or cleanup; keep registrations and durable recovery state intact.
 
 Test the codec, request packing, bounded decoding, and the fail-closed gate without a device. Fuzz the adapted codec.
 Run every live ioctl, migration, handler and fault test against a file-backed pool inside a disposable VM, never
