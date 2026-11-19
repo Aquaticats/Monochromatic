@@ -3,6 +3,7 @@
  @module
  */
 
+import { setImmediate, } from 'node:timers/promises';
 import { syntheticWeeklyWindow, } from './synthetic-quota-fixture.ts';
 import { createAssistantMessageEventStream, isRetryableAssistantError, lazyStream, } from '@earendil-works/pi-ai';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
@@ -328,6 +329,9 @@ await describe({
         const now = Date.parse('2026-11-19T00:00:00Z',);
         /**
          Malformed durations the endpoint's reset field can carry.
+
+         Made up: boundary is that a partially parsed duration names no deadline
+         (`doc/captures.md`, "Made-up texts").
          */
         const malformed = [
           'six minutes',
@@ -665,29 +669,69 @@ await describe({
          Subscription state the quota endpoint reports, flipped once the exception clears.
          */
         const subscription = { inOverage: true, };
+        /**
+         Reads of the rate-limit endpoint, which one refusal makes.
+         */
+        const reads = { count: 0, };
+        /**
+         Streams the case holds open, released when it finishes.
+         */
+        const held: (() => void)[] = [];
         const { provider, calls, options, } = await fixture({
           extension,
           models: [NEURALWATT_FLEX,],
           play({ model, }) {
-            return calls.length === FIRST_ATTEMPT
-              ? immediate({ model, errorMessage: singleSlot, },)
-              : immediate({ model, },);
+            if (calls.length === FIRST_ATTEMPT)
+              return immediate({ model, errorMessage: singleSlot, },);
+            // The exception cleared, so this refusal is an ordinary 429 that no longer names it.
+            if (calls.length === (SECOND_ATTEMPT + 1))
+              return immediate({ model, errorMessage: rateLimitRefusal({ model, },), },);
+            const stream = createAssistantMessageEventStream();
+            held.push(() => finish({ stream, message: assistant({ model, },), },),);
+            return stream;
           },
           async fetchQuota(input,) {
-            return quotaUrl(input,).includes('/v1/rate_limits',)
-              ? rateLimitsReading({ flex: PUBLISHED_CAP, },)
-              : quotaReading({ inOverage: subscription.inOverage, },);
+            if (quotaUrl(input,).includes('/v1/rate_limits',)) {
+              reads.count += 1;
+              return rateLimitsReading({ flex: PUBLISHED_CAP, },);
+            }
+            return quotaReading({ inOverage: subscription.inOverage, },);
           },
         },);
         const model = poolModel({ provider, id: 'reviewer-pool', },);
-        await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        // The exception has cleared, and the next refusal's reading says so.
-        subscription.inOverage = false;
-        clock.now += QUOTA_READ_INTERVAL_MS;
-        await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        const admitted = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(admitted.result.stopReason,).toBe('stop',);
-        expect(admitted.result.provider,).toBe('neuralwatt',);
+        const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(first.result.errorMessage,).toContain('overage with auto-renew off',);
+        const inFlight = provider.streamSimple(model, TRANSCRIPT, options,);
+        {
+          // Every stream this case holds open is released however it ends.
+          using open = {
+            [Symbol.dispose](): void {
+              for (const release of held)
+                release();
+            },
+          };
+          await setImmediate();
+          {
+            const denied = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+            expect(denied.result.errorMessage,).toContain(`local concurrency ceiling (${SINGLE_SLOT} of ${SINGLE_SLOT} in use)`,);
+          }
+          // The exception cleared before this refusal, and the read made for it says so.
+          subscription.inOverage = false;
+          clock.now += QUOTA_READ_INTERVAL_MS;
+          held[0]?.();
+          await collect(inFlight,);
+          await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+          // With the cap gone, the published ceiling admits more than one seat at a time.
+          const seatOne = provider.streamSimple(model, TRANSCRIPT, options,);
+          const seatTwo = provider.streamSimple(model, TRANSCRIPT, options,);
+          await setImmediate();
+          expect(held.length,).toBe(3,);
+          expect(calls.length,).toBe(FIRST_ATTEMPT + 4,);
+          expect(reads.count,).toBe(2,);
+          for (const release of held)
+            release();
+          await Promise.all([collect(seatOne,), collect(seatTwo,),],);
+        }
       },
     },),
   ],

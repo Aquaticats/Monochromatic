@@ -74,6 +74,44 @@ const UNREACHABLE_523 = `${UNREACHABLE_STATUS}: Error ${UNREACHABLE_STATUS}: ori
 const TIMED_OUT_522 = `${TIMED_OUT_STATUS}: Error ${TIMED_OUT_STATUS}: connection timed out`;
 
 /**
+ Path of NeuralWatt's rate-limit endpoint, the one read a refusal makes for that member.
+
+ The member's quota read also fetches `/v1/quota`, so the count below names the rate-limit request the
+ read starts with.
+ */
+const RATE_LIMITS_PATH = '/v1/rate_limits';
+
+/**
+ Read the URL from a fetch input without stringifying an arbitrary object.
+
+ @param input - quota fetch destination in the fixture
+
+ @returns URL string to compare
+ */
+function quotaUrl(input: Parameters<typeof globalThis.fetch>[0],): string {
+  if ((typeof input) === 'string')
+    return input;
+  if (input instanceof URL)
+    return input.href;
+  return input.url;
+}
+
+/**
+ A 429 whose body quotes a Responses failure label for a Cloudflare status.
+
+ Made up: boundary is that the refusal's own leading status decides, so a 429 body cannot be
+ reclassified as transient by what it quotes (`doc/captures.md`, "Made-up texts").
+ */
+const QUOTED_LABEL_IN_429 = '429: OpenAI API error (523): upstream unavailable';
+
+/**
+ The same quote with no space after the 429's colon, which an adapter never writes.
+
+ Made up: boundary is the same one, at the tightest spelling a reader might meet.
+ */
+const TIGHT_QUOTED_LABEL_IN_429 = `429:openai api error (523): upstream unavailable`;
+
+/**
  Every transient refusal the suite replays, named by its source class.
  */
 const TRANSIENT_REFUSALS = {
@@ -112,6 +150,71 @@ await describe({
           },
         },);
       },),
+    ...[
+      {
+        name: 'a 429 whose body quotes a Responses failure label',
+        errorMessage: QUOTED_LABEL_IN_429,
+      },
+      {
+        name: 'a 429 whose body quotes one with no space after its colon',
+        errorMessage: TIGHT_QUOTED_LABEL_IN_429,
+      },
+    ].map(function quotedLabel(entry,) {
+      return it({
+        name: `reads ${entry.name} as the rate limit it opens with`,
+        fn: async function leadingStatusWins() {
+          const reads = { count: 0, };
+          const { provider, calls, options, } = await fixture({
+            extension,
+            play({ model, }) {
+              return calls.length === FIRST_ATTEMPT
+                ? immediate({ model, errorMessage: entry.errorMessage, },)
+                : immediate({ model, },);
+            },
+            async fetchQuota(input,) {
+              if (quotaUrl(input,).includes(RATE_LIMITS_PATH,))
+                reads.count += 1;
+              return Response.json({});
+            },
+          },);
+          const model = poolModel({ provider, id: 'writer-pool', },);
+          const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+          // A 429 reads the member's quota endpoint; a transient status reads nothing.
+          expect(reads.count,).toBe(1,);
+          expect(result.stopReason,).toBe('stop',);
+          expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(HEAD,), labelOf(SECOND,),],);
+        },
+      },);
+    },),
+    it({
+      name: 'moves on from a Responses failure label that opens the text',
+      fn: async function labelForm() {
+        /**
+         Refusal in the Responses adapter's label form, as a non-OpenAI provider's failure is
+         formatted.
+         */
+        const labelled = 'standin API error (523): origin is unreachable';
+        const reads = { count: 0, };
+        const { provider, calls, options, } = await fixture({
+          extension,
+          play({ model, }) {
+            return calls.length === FIRST_ATTEMPT
+              ? immediate({ model, errorMessage: labelled, },)
+              : immediate({ model, },);
+          },
+          async fetchQuota(input,) {
+            if (quotaUrl(input,).includes(RATE_LIMITS_PATH,))
+              reads.count += 1;
+            return Response.json({});
+          },
+        },);
+        const model = poolModel({ provider, id: 'writer-pool', },);
+        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(reads.count,).toBe(0,);
+        expect(result.stopReason,).toBe('stop',);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(HEAD,), labelOf(SECOND,),],);
+      },
+    },),
     it({
       name: 'moves on from a transient status its adapter exposed without text',
       fn: async function exposedStatus() {

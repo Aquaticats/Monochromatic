@@ -179,75 +179,71 @@ export function leadingStatus(value: string,): number {
    Case-folded terminal message, with no leading whitespace removed.
    */
   const message = foldProviderText(value,);
+  // An anchored status is the refusal's own, so a body that quotes a label cannot change it.
+  /**
+   Status at the very start of the text, before any body.
+   */
+  const leading = numberAt({
+    value: message,
+    offset: 0,
+  },);
+  if (!Number.isNaN(leading,)) {
+    /**
+     Digits of that status, as the message carries them.
+     */
+    const leadingDigits = String(leading,);
+    /**
+     Character after the status token, absent when the status is the whole message.
+     */
+    const boundary = message[leadingDigits.length];
+    if ((boundary === undefined)
+      || (boundary === ':')
+      || (boundary === ' ')
+      || (boundary === '\t'))
+      return leading;
+  }
   /**
    Offset where a Responses adapter's failure label begins, or minus one when absent.
    */
   const labelAt = message.indexOf(RESPONSES_LABEL,);
-  if (labelAt > 0) {
-    // The adapter's label is one word, so whitespace before it means the text is not one.
-    for (let index = 0; index < labelAt; index += 1) {
-      /**
-       Case-folded character at the current label position.
-       */
-      const character = message[index];
-      /**
-       Whether that character is any whitespace a label cannot hold.
-       */
-      const whitespace = (character === ' ')
-        || (character === '\t')
-        || (character === '\n')
-        || (character === '\r');
-      if (whitespace)
-        return NO_STATUS;
-    }
+  if (labelAt <= 0)
+    return NO_STATUS;
+  // The adapter's label is one word, so whitespace before it means the text is not one.
+  for (let index = 0; index < labelAt; index += 1) {
     /**
-     Offset of the first status digit inside the label.
+     Case-folded character at the current label position.
      */
-    const digitsAt = labelAt + RESPONSES_LABEL.length;
+    const character = message[index];
     /**
-     Status the label carries.
+     Whether that character is any whitespace a label cannot hold.
      */
-    const status = numberAt({
-      value: message,
-      offset: digitsAt,
-    },);
-    if (Number.isNaN(status,))
+    const whitespace = (character === ' ')
+      || (character === '\t')
+      || (character === '\n')
+      || (character === '\r');
+    if (whitespace)
       return NO_STATUS;
-    /**
-     Digits of that status, as the label carries them.
-     */
-    const statusDigits = String(status,);
-    /**
-     Offset just past the digits.
-     */
-    const closeAt = digitsAt + statusDigits.length;
-    return (message[closeAt] === ')') && (message[closeAt + 1] === ':') ? status : NO_STATUS;
   }
   /**
-   Status at the very start of the text, before any body.
+   Offset of the first status digit inside the label.
+   */
+  const digitsAt = labelAt + RESPONSES_LABEL.length;
+  /**
+   Status the label carries.
    */
   const status = numberAt({
     value: message,
-    offset: 0,
+    offset: digitsAt,
   },);
   if (Number.isNaN(status,))
     return NO_STATUS;
   /**
-   Digits of that status, as the message carries them.
+   Digits of that status, as the label carries them.
    */
   const statusDigits = String(status,);
   /**
-   Offset of the character after the status token.
+   Offset just past the digits.
    */
-  const boundaryAt = statusDigits.length;
-  /**
-   Character after the status token, absent when the status is the whole message.
-   */
-  const boundary = message[boundaryAt];
-  if ((boundary === undefined)
-    || (boundary === ':')
-    || (boundary === ' ')
-    || (boundary === '\t'))
-    return status;
-  return NO_STATUS;
+  const closeAt = digitsAt + statusDigits.length;
+  return (message[closeAt] === ')') && (message[closeAt + 1] === ':') ? status : NO_STATUS;
 }

@@ -63,7 +63,8 @@ until the attempt commits or successfully finishes. Once a content event
 has been exposed, or a terminal message already contains content, the
 plugin returns that member's error instead of replacing its partial
 answer or mixing events. Cancellation, transport errors, bad inputs, and
-other non-429 errors do not trigger fallback. When an adapter does not expose a
+other errors that are neither a 429 nor a transient provider status do not
+trigger fallback. When an adapter does not expose a
 response status, the pool reads it from the adapter's own wording: the
 Responses adapter's `<provider> API error (429): …` label, which spells the
 label `OpenAI` only for the provider named `openai`, or the Completions
@@ -79,7 +80,10 @@ origin failures. Those statuses are read the same way as a 429: from the
 response the adapter exposed when it exposed one, and otherwise from the
 status the refusal text opens with. Cloudflare's 522 page heads itself
 "connection timed out", and Pi's own retry classifier matches `timed out`, so
-the pool consumes that refusal before Pi sees it and retries nothing. A
+the pool consumes that refusal before Pi sees it whenever another member
+answers. When every member refuses transiently, the pool returns the last
+refusal unchanged, as described under "When no member answers", and Pi's own
+retry may then apply to it. A
 transient refusal's `Retry-After`, when a response carries one, holds that
 member for the time it names. A status that arrives after output was exposed
 ends the request at that member, like a 429.
@@ -196,15 +200,25 @@ output triggers one read of that member's endpoint, bounded by the read's own
 deadline. Nothing is read on admission, on the first eligible attempt, or on
 reentry; the evidence a read produces governs later admissions. The owner
 decided this on 2026-11-19 ("Read at refusal, quota endpoints have separate
-extremely high rate limits"), and both endpoints the plugin reads document such
-a limit: Synthetic's quota page says "/quotas requests do not count against your
-subscription limits", and NeuralWatt's guide states that `/v1/rate_limits` is
-"rate-limited to 2 requests per second per customer" and asks clients to poll at
-most once per second. The plugin still reads one member at most once per second, so a burst
-of refusals does not become a burst of reads, and concurrent requests in one
-session share a pending lookup. A failed or timed-out read leaves existing
+extremely high rate limits"). The sources read do not price the three endpoints
+the same way. NeuralWatt documents a numeric limit on its rate-limit endpoint:
+`/v1/rate_limits` is "rate-limited to 2 requests per second per customer" and
+clients are asked to poll at most once per second. Synthetic documents an
+accounting exemption rather than a number: its quota page says "/quotas requests
+do not count against your subscription limits". No source read states a limit
+for NeuralWatt's `/v1/quota`, which a refusal's read also asks for its
+subscription facts. The plugin therefore keeps its own floor: one read of a
+member at most once per second, so a burst of refusals does not become a burst
+of reads, and concurrent requests in one session share a pending lookup. A failed or timed-out read leaves existing
 evidence in place, and the next refusal reads again. A transient 503 or
 Cloudflare status is not a quota signal and reads nothing.
+
+A reading that reports a ceiling of zero, such as a plan with no flex lane,
+excludes that member for the rest of the session: admission refuses it without
+dispatching, so no later refusal can trigger the fresh reading that would lift
+it. The next session reads again at its first refusal. A 429's own hold is never
+permanent: it carries the time the provider named, and once that time passes the
+member is asked again.
 
 The quota read has its own provisional deadline of two seconds, capped at
 half a positive caller-supplied model timeout (rounded down). The read
@@ -295,10 +309,13 @@ not the pool and not the virtual model. A summary can read those fields for ever
 assistant response, including tool continuations, rather than reading
 the current selection. Discarded attempts, a 429, a transient status or a policy
 stop that moved on, have no assistant record.
-While the session is open, its active selection remains the virtual model. Pi
-1.5.2 may restore the last physical answer in a reopened session instead;
-explicitly select `rate-limit-fallback/writer` or `rate-limit-fallback/reviewer`
-again when resuming into the pool.
+While the session is open, its active selection remains the virtual model, and a
+reopened session restores it from the `model_change` entry: Pi keeps a virtual
+change even though the answers after it name physical members, as long as that
+virtual model is still registered. The pool models selected directly do not
+survive a resume that way, because Pi sees only the physical answer; select
+`rate-limit-fallback/writer` or `rate-limit-fallback/reviewer` again in that
+case.
 
 The pool advertises text input and no price. Its context window and output
 limit, and the virtual models' declared pair, are the smallest its registered
