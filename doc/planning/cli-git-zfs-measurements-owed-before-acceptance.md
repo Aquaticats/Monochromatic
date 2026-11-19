@@ -583,3 +583,61 @@ Positive control: `zfs destroy <promoted-clone>@worktree-own,worktree-own-next` 
 DM2's all-or-nothing result for this kernel request, but not its premise that the refused CLI command issues it.
 It does not prove ownership, make the subsequent dataset destroy atomic with the batch, test batch limits,
 or establish safety if an unprotected foreign snapshot appears in a submitted set.
+
+### 15. Mount namespaces created after attach
+
+Guest: `6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-15-exact.log`). Both arms ran in the
+VM boot namespace so that PID 1 could start the reader unit after attach. `/`, `/home` and the fixture home
+were shared; staging was private. After attaching with the descriptor calls from item 3, the probe started
+`unshare --mount --propagation unchanged -- sleep 65` and a bounded `systemd-run` unit with
+`--property=PrivateMounts=yes`. Both readers inherited the clone; neither worked in the clone directory.
+`unchanged` preserves peer propagation for the shared control instead of making that reader recursively private.
+
+With a private checkout, a fresh process moved the clone mount to staging and unmounted it. The clone vanished
+from the first namespace, but **both** readers' `/proc/<pid>/mountinfo` still had a ZFS row for the clone at the
+slot. As guest root, the probe grouped PIDs by `/proc/<pid>/ns/mnt`, read a representative `mountinfo` for each,
+and matched the filesystem and source. After unmount it found both remaining holders:
+
+```text
+# item-15-exact.log, selected rows after private-checkout move and unmount
+clone mount ID 366 absent from mountinfo after unmount
+private checkout descriptor move/unmount result: 0
+first namespace after removal: mnt:[4026531841] /proc/127917/mountinfo; hits=0
+unshare after removal: mnt:[4026532396] /proc/127996/mountinfo; hits=1
+service after removal: mnt:[4026532397] /proc/127998/mountinfo; hits=1
+root scan: inspected 11 distinct namespaces; 0 unreadable or vanished PID entries
+root scan: mnt:[4026532396] representative /proc/127996/mountinfo; hits=1
+root scan: mnt:[4026532397] representative /proc/127998/mountinfo; hits=1
+```
+
+With the readers alive, the probe created and destroyed a disposable own snapshot (both exit 0), and confirmed
+it was gone. `zfs destroy` of the clone then exited 1. After stopping both readers, no scanned namespace still
+listed it and retrying the same clone destroy exited 0:
+
+```text
+# item-15-exact.log, selected destroy output while readers were alive
+cannot open 'zfsowed15private/home/worktree-clone-datasets/post-attach@worktree-own': dataset does not exist
+cannot destroy 'zfsowed15private/home/worktree-clone-datasets/post-attach': dataset is busy
+private checkout destroy with readers alive: 1
+```
+
+With a shared checkout, the `unshare` reader was a peer and the unit's copy had a `master` pointing to the
+first namespace's group. The descriptor move refused with `EINVAL`, as in item 3. A plain path `umount` in
+the first namespace was used only as the shared propagation control. While both readers were still alive:
+
+```text
+# item-15-exact.log, selected shared-checkout control output
+move_mount: EINVAL
+shared checkout descriptor move/unmount result: 22
+shared control: path umount after refused move
+unshare after removal: mnt:[4026532396] /proc/128086/mountinfo; hits=0
+service after removal: mnt:[4026532397] /proc/128088/mountinfo; hits=0
+root scan: inspected 11 distinct namespaces; 0 unreadable or vanished PID entries
+shared checkout destroy with readers alive: 0
+```
+
+All scanned namespaces had zero hits after the shared unmount. DM3's distinction holds: a private move and
+unmount can succeed locally while another namespace keeps the clone busy, and snapshot destruction can succeed
+before the clone destroy refuses. The scan detected the live, process-visible holders in this VM. It was not
+a race-free proof of absence and did not test namespace references without a visible member PID, processes
+with different root directories, the default `unshare --mount` propagation, or the installed Pi driver.
