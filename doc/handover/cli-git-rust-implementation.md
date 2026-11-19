@@ -40024,7 +40024,12 @@ What follows from them, as work:
   (worktrees `.claude/worktrees/zfs-start-probe-design`, `zfs-runtime-layout-checker-design`,
   `zfs-staging-under-cache-design`, made with `--no-worktree-copy`). Briefs under `~/temp/agent/zfs-*-2026-11-19/`.
   Steps 3 and 4 wait for step 2's guest fixture (their VM arms) and their merges for the gate fix. Each design then
-  gets a Sonnet gate review and the owner's acceptance before step 6 or step 9 builds on it. By the owner's answers of
+  gets a Sonnet gate review and the owner's acceptance before step 6 or step 9 builds on it. ENDED: the start-probe
+  design (`idle`, 124 turns, `4167f50724`, 791 lines; recommends a root probe that mounts a read-only snapshot in a
+  private mount namespace, no pool write; four owner questions; ten owed VM measurements) and the staging design
+  (`idle`, 108 turns, `a709cd7f58` and `2258de74d8`, 645 lines); reports under each folder's `keep/`. GOING: a Sonnet
+  gate review of each (briefs under `~/temp/agent/zfs-start-probe-design-gate-review-2026-11-19/` and
+  `~/temp/agent/zfs-staging-under-cache-design-gate-review-2026-11-19/`). By the owner's answers of
   2026-11-19T17:10:00-05:00 (questions file) the LFS review and the provider rebuild finish and nothing else off the
   ZFS path starts, and owner questions off the ZFS path wait in the questions file (new rule `QWP`).
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
