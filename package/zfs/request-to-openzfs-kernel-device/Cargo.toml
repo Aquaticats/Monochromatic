@@ -8,6 +8,9 @@ edition = "2024"
 homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/zfs/request-to-openzfs-kernel-device"
 include = [
   "src/**/*.rs",
+  # A `uses/` link is a folder-tree aid; cargo follows symlinks, so without
+  # this negation the package would hold a copy of the tree under every link.
+  "!src/**/uses/**",
   "Cargo.toml",
   "Cargo.lock",
   "README.md",

@@ -37,8 +37,8 @@ fn check_round_trip(list: &NvList) {
     assert!(packed == repacked, "pack is not a fixed point");
     for pair in list.iter() {
         match &pair.data {
-            NvData::List(inner) => check_round_trip(inner),
-            NvData::ListArray(lists) => {
+            NvData::List { value } => check_round_trip(value),
+            NvData::ListArray { value: lists } => {
                 for inner in lists {
                     check_round_trip(inner);
                 }
