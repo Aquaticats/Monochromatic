@@ -40262,6 +40262,12 @@ rule); "item 15 ran one scan per arm" is false (three per arm, `item-15-exact.lo
 refusal as in force; "needs no plan" conflicts with step 3; a pronoun, an inventory mismatch, a control outcome wrong for
 option C, wording. GOING: a sixth fold-in fixing exactly those eight, `pi-zfs-worktree-design-proposal-sixth-fold-in-1`
 (run-10); the coordinator then checks those lines by `rg` (no further review round) and the choices go to the owner.
+It ended `idle` (105 turns) at `b5294a7325` (nine commits). Coordinator's `rg` check of those lines: each earlier bookmark
+rule named by its revision (`9a1a47e190` recorded tuple, `b26aa27f3c` live only); item 15 "ran three root scans per
+arm" at P:503 and P:1115; the one remaining "no route passes" sentence (P:1595) is scoped to the refusal arm; "needs no
+plan", "citations above" and "this check proposed" gone; no line over 120 outside fences; no dashes; `git diff --check`
+clean. **The proposal is ready for the owner's questions at `b5294a7325`** (eighteen open choices, four veto-open
+defaults; plain-words input in `keep/fifth-delta-check.md`, corrected by `keep/sixth-delta-check.md` item 1).
 
 **Provider writer run-7** hit its 200-turn cap after 16 min with nine commits (`cb7d6a66ab` to `dbc6f57268`: OpenAI out
 of the writer pool, the move gated on OpenAI's opening, a set-aside policy stop yielded instead of a later 429, the
