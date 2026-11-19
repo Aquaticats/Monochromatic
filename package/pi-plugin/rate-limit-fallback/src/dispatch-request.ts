@@ -3,15 +3,15 @@
  @module
  */
 
-import {
-  clampThinkingLevel,
-  type Api,
-  type AssistantMessageEvent,
-  type Model,
-  type SimpleStreamOptions,
-  type TranscriptContext,
+import type {
+  Api,
+  AssistantMessageEvent,
+  Model,
+  SimpleStreamOptions,
+  TranscriptContext,
 } from '@earendil-works/pi-ai';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { memberOptions, } from './member-attempt-options.ts';
 import {
   capacityOf,
   noteRateLimit,
@@ -78,64 +78,6 @@ const l = tagged({ tag: 'rate-limit-fallback', },);
 
 //endregion Session state and routing errors
 
-//region Attempt options
-
-/**
- Project caller options onto a physical request without leaking virtual-provider credentials.
-
- @param model - member to dispatch
-
- @param options - outer request options
-
- @returns credential-free options; registry adds credentials for this member
- */
-function memberOptions({
-  model,
-  options,
-}: {
-  model: Model<Api>;
-  options?: SimpleStreamOptions;
-},): SimpleStreamOptions {
-  /**
-   Separate virtual-provider credentials, caller retry policy and member-specific constraints from
-   neutral options. Provider-level retries stay off: one attempt per member keeps the pool the owner
-   of retry and fallback, and the pool itself never sleeps on a refused member.
-   */
-  const {
-    apiKey,
-    headers,
-    env,
-    maxTokens,
-    reasoning,
-    maxRetryDelayMs,
-    ...neutral
-  } = options ?? {};
-  void apiKey;
-  void headers;
-  void env;
-  void maxRetryDelayMs;
-  /**
-   Requested reasoning level after applying the physical model's capabilities.
-   */
-  const clamped = clampThinkingLevel(
-    model,
-    reasoning ?? 'off',
-  );
-  return {
-    ...neutral,
-    maxRetries: 0,
-    ...(maxTokens === undefined ? {} : {
-      maxTokens: model.maxTokens > 0 ? Math.min(
-        maxTokens,
-        model.maxTokens,
-      ) : maxTokens,
-    }),
-    ...(clamped === 'off' ? {} : { reasoning: clamped, }),
-  };
-}
-
-//endregion Attempt options
-
 //region Request stream
 
 /**
@@ -184,9 +126,14 @@ export async function* dispatchRequest({
    */
   const { id, } = model;
   /**
-   Ordered members of the selected pool, or undefined when no pool carries that id.
+   Ordered members the table itself carries for that id, never one its prototype chain carries.
    */
-  const members = pools[id];
+  const members = Object.hasOwn(
+    pools,
+    id,
+  )
+    ? pools[id]
+    : undefined;
   if (members === undefined)
     throw new PoolDispatchError(`Unknown rate-limit-fallback model: ${id}`,);
   /**

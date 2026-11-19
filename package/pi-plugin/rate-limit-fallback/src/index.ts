@@ -47,6 +47,25 @@ export { headerReset, } from './rate-limit-evidence.ts';
 export { QUOTA_READ_INTERVAL_MS, } from './member-capacity.ts';
 
 /**
+ Dispatch loop over one pool's ordered members, exported so the built-artifact tests reach the pool
+ table boundary a caller supplies.
+
+ @internal
+ */
+export {
+  dispatchRequest,
+  PoolDispatchError,
+  type RoutingSession,
+} from './dispatch-request.ts';
+
+/**
+ Physical member record a pool lists, exported so the pool table tests name the same shape.
+
+ @internal
+ */
+export type { Member, } from './model-pools.ts';
+
+/**
  Reads one member's limits from the session registry.
 
  @param registry - the session's live model registry

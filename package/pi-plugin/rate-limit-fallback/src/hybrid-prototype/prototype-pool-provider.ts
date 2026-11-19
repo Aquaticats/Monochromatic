@@ -108,11 +108,19 @@ function poolLimits({
   };
   if (registry === undefined)
     return smallest;
+  /**
+   Catalog lookup bound to its own registry: `ModelRegistry.find` takes two strings, and a bare
+   `find(` call with two arguments reads like an array callback reference to the repository's
+   array-method rules. `src/index.ts` binds the same lookup for the same reason.
+   */
+  const findModel = registry
+    .find
+    .bind(registry,);
   for (const member of members) {
     /**
      Catalog record Pi holds for that member.
      */
-    const found = registry.find(
+    const found = findModel(
       member.provider,
       member.id,
     );
