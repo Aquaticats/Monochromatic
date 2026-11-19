@@ -41,6 +41,7 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   continuationPromptOf,
   FEED_PREVIEW_CHARACTERS,
+  fieldsOf,
   NESTED_RUN_VARIABLE,
   POLL_MILLISECONDS,
   PROCESSES_RECORD_KIND,
@@ -829,16 +830,14 @@ await describe({
         /**
          The session the stand-in actually reported, which must not survive fixture disposal either.
          */
-        const { sessionStats, } = run.summary;
-        if ((typeof sessionStats !== 'object') || (sessionStats === null)
-          || !('sessionFile' in sessionStats) || (typeof sessionStats.sessionFile !== 'string'))
-        {
+        const { sessionFile, } = fieldsOf(run.summary.sessionStats,);
+        if (typeof sessionFile !== 'string') {
           throw new Error('the stand-in did not report the fresh session it wrote',);
         }
         expect(
-          isStandInSession(basename(sessionStats.sessionFile,),),
+          isStandInSession(basename(sessionFile,),),
         ).toBe(true,);
-        expect(await exists(sessionStats.sessionFile,),).toBe(false,);
+        expect(await exists(sessionFile,),).toBe(false,);
       },
     },),
     // This holds the end-to-end delivery path; the race of a settle read between the inbox
