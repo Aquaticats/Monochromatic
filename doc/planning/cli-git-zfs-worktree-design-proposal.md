@@ -379,8 +379,9 @@ need the checkout rather than relying on login ordering alone.
 Verify the live checkout before every event action, not just at service start. A busy clone can block normal
 teardown or export: report which clone holds the mount, and never force or detach it. Legacy clones have no
 systemd mount units and `zfs unmount -a` skips them. Idle export/import must still work, and boot must recover
-without an old event queue. A recorded `unmount` remains in effect across restart until destruction or explicit
-reversal. Periodic reconciliation without a waiter depends on the [lost-event choice](#open-project-choices).
+without an old event queue. A recorded `unmount` remains in effect across restart until destruction or
+[guarded cancellation](#cancel-a-blocked-removal). Periodic reconciliation without a waiter depends on the
+[lost-event choice](#open-project-choices).
 
 [VM item 5][vm-key] observed an unavailable key on a successfully created encrypted clone, detached mount
 `fsconfig(create)` failing with `EACCES` before attachment, and a root test zedlet receiving a history event
@@ -648,6 +649,19 @@ gone with its recorded origin retained, and Git or empty-folder cleanup still ow
 blockers: `EBUSY` and holder if known, snapshot history at risk, a hold, nested dataset or mount, dependent clone,
 a mismatched identity or a missing or pruned registration. Never let a stale acknowledgement authorize cleanup.
 
+### Cancel a blocked removal
+
+A refusal after setting `unmount` leaves removal intent in force. Do not implicitly remount on failure or restart.
+Propose a guarded `cancel-worktree-removal <slot>` recovery action, invoked explicitly by the account operator
+through the wrapper. Under the per-slot claim, settle all outstanding destroy requests, including the root request
+if selected, and prove the clone, original lineage, Git registration, mount state and exact destruction outcomes
+before reversing intent. Report any confirmed history loss before cancellation and retain that report; cancellation
+cannot restore destroyed snapshots. If a destroy outcome is unknown, the head is gone, or a staged mount cannot yet
+be recovered under the selected busy-unmount policy, do not issue `mount`. Report the matching resume step or
+administrator recovery required. Otherwise record the reversal and issue a fresh, nonce-bound local `mount` intent
+for the same binding and verify its result. This is proposed recovery reasoning from the staged holder and
+namespace cases in [VM items 4][vm-unmount] and [15][vm-namespaces], not a tested reversal.
+
 ## Ladder and fallback
 
 ### Rung 1: Snapshot clone
@@ -840,7 +854,9 @@ status. `doctor` does not start a service, create a test dataset, repair registr
 - Report unmounted and staged clones, busy checkout teardown with the holding clones named, interrupted actions,
   damaged or pruned Git registrations, and each living clone's recorded origin. For the proposed root scan from
   [VM item 15][vm-namespaces], name each namespace holding the clone by namespace ID and representative PID, with
-  matched source and path, and report incomplete coverage as unknown. Do not require root in the `doctor` caller. Report snapshot retention using
+  matched source and path, and report incomplete coverage as unknown. Do not require root in the `doctor` caller.
+  For a blocked removal, show standing `unmount` intent, the last verified loss and remaining objects, and whether
+  guarded cancellation, resume or administrator recovery is available (proposed recovery state, not measured). Report snapshot retention using
   named ZFS accounting fields where measurable; do not sum shared blocks as if each clone owned them. Explain
   retained underlays in checkout snapshots. Print the applicable guarded resume or link-repair steps, not a
   blanket destroy or a guessed registration.
@@ -1157,6 +1173,8 @@ only for unused slots. These are unrun acceptance requirements, not evidence fro
   clone pinning the origin each block the unsafe next action. Check the before-destroy inventory and final loss
   report on successful and partial removals, with both manual and sanoid snapshots. Distinguish completed clone
   removal from origin or Git cleanup still owed. Verify safe retries under the actual request and mount state.
+  After a post-unmount refusal, test that restart honors the standing intent, `doctor` shows it, and explicit
+  cancellation restores mount intent only for a surviving, verified binding with known outcomes (unrun).
 
 ### Tooling, retention and performance
 
