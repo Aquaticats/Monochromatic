@@ -681,56 +681,6 @@ pub fn holder_numbers_that_stand(common_dir: &Path) -> Vec<i64> {
 }
 
 /// What:
-///  The locks of `candidates` that a record of this repository already pins,
-///  read with one look at the records folder.
-/// Why:
-///  A caller that publishes the records a late watcher owed needs to know which takes already have one,
-///  and asking that of each lock in turn reads the whole folder once per lock:
-///  with a few hundred held locks that is a few hundred directory reads on the path a person waits on
-///  (a review of `bbda166ce2`,
-///  finding 4).
-///  One look groups the pins by the path digest their names begin with, and each candidate then costs one stat of
-///  its own file and one of the pin that names it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// locksARecordPins(commonDir, candidates) // [path, …] of the candidates a pin holds the inode of
-/// ```
-pub fn locks_a_record_pins(common_dir: &Path, candidates: &[PathBuf]) -> Vec<PathBuf> {
-    let folder: PathBuf = folder_of(common_dir);
-    let mut by_digest: std::collections::HashMap<String, Vec<PathBuf>> = std::collections::HashMap::new();
-    let Ok(entries) = std::fs::read_dir(folder.as_path()) else {
-        return Vec::new();
-    };
-    for entry in entries.flatten() {
-        let name: std::borrow::Cow<'_, str> = entry.file_name().to_string_lossy().into_owned().into();
-        let Some((digest, rest)) = name.split_once('.') else {
-            continue;
-        };
-        if !rest.ends_with(HOLD_SUFFIX) {
-            continue;
-        }
-        by_digest.entry(digest.to_owned()).or_default().push(entry.path());
-    }
-    let mut pinned: Vec<PathBuf> = Vec::new();
-    for lock in candidates {
-        let digest: String = digest_of_path(lock.as_path());
-        let Some(pins) = by_digest.get(digest.as_str()) else {
-            continue;
-        };
-        let Ok(Some(standing)) = crate::index_lock_evidence::read_lock_metadata(lock.as_path()) else {
-            continue;
-        };
-        if pins.iter().any(|pin| {
-            return matches!(crate::index_lock_evidence::read_lock_metadata(pin.as_path()), Ok(Some(held)) if held.device == standing.device && held.inode == standing.inode);
-        }) {
-            pinned.push(lock.clone());
-        }
-    }
-    return pinned;
-}
-
-/// What:
 ///  Remove the record `written` describes.
 /// Why:
 ///  A lock that was cleared needs no record,

@@ -1464,7 +1464,7 @@ pub fn wait_and_bind(
     identity: &str,
 ) -> std::io::Result<std::process::ExitStatus> {
     watch.follow(child.id());
-    let mut binding: Binding = Binding { tracker: Tracker::new(), bound: Vec::new(), common_dir: common_dir.to_path_buf(), child_pid: i64::from(child.id()), identity: identity.to_owned(), reported: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())) };
+    let mut binding: Binding = Binding { tracker: Tracker::new(), bound: std::collections::HashMap::new(), common_dir: common_dir.to_path_buf(), child_pid: i64::from(child.id()), identity: identity.to_owned(), reported: SharedReport::default() };
     loop {
         if let Some(status) = child.try_wait()? {
             binding.drain(&mut watch);
@@ -1476,6 +1476,25 @@ pub fn wait_and_bind(
         binding.look(&mut watch);
     }
 }
+
+/// What: The file identities the watcher has reported but not yet pinned.
+/// Why: A successful pin removes just that take from the caller's work. There is no directory
+///  walk or per-lock check for the caller when the watcher has finished writing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PendingReport = { reportedTake: boolean; pending: Map<string, [number, number]> };
+/// ```
+#[derive(Default)]
+struct PendingReport {
+    /// Whether the last look reported a take, even if its pin was already written.
+    reported_take: bool,
+    /// The remaining takes by path, with the device and inode of the file seen at each path.
+    pending: std::collections::HashMap<PathBuf, (u64, u64)>,
+}
+
+/// Both threads access the report without doing filesystem work under its lock.
+type SharedReport = std::sync::Arc<std::sync::Mutex<PendingReport>>;
 
 /// What:
 ///  What one run's watch has been turned into so far:
@@ -1498,18 +1517,16 @@ pub fn wait_and_bind(
 struct Binding {
     /// What the events read so far say about every name.
     tracker: Tracker,
-    /// The records this run wrote and still holds.
-    bound: Vec<Written>,
+    /// The records this run wrote and still holds, by lock path.
+    bound: std::collections::HashMap<PathBuf, Written>,
     /// The common Git directory the records are written under.
     common_dir: PathBuf,
     /// The Git this run may write records about.
     child_pid: i64,
     /// That Git's birth identity, read while it ran.
     identity: String,
-    /// The locks the tracker reports for this child, each with the file the watcher saw standing at its path,
-    ///  which the caller reads when its wait outlasts the record, and which are published here before any record
-    ///  is written.
-    reported: std::sync::Arc<std::sync::Mutex<Vec<(PathBuf, (u64, u64))>>>,
+    /// Outstanding records of what the tracker reports, offered to the caller before pinning.
+    reported: SharedReport,
 }
 
 impl Binding {
@@ -1561,20 +1578,20 @@ impl Binding {
         // Why:  The caller publishes a record later, and a lock removed and taken again in between is another file
         //       that may carry an earlier holder's PID file; the inode the watcher saw is what tells the two apart
         //       (a review of `bbda166ce2`, finding 6).
-        let reported: Vec<(PathBuf, (u64, u64))> = self
-            .tracker
-            .locks_taken(self.child_pid)
-            .into_iter()
-            .filter_map(|lock| {
-                let seen = crate::index_lock_evidence::read_lock_metadata(lock.as_path()).ok().flatten()?;
-                return Some((lock, (seen.device, seen.inode)));
-            })
-            .collect();
-        if let Ok(mut held) = self.reported.lock() {
-            *held = reported;
-        }
-        bind_what_the_child_took(&self.tracker, watch, self.common_dir.as_path(), self.child_pid, self.identity.as_str(), &mut self.bound);
+        let locks: Vec<PathBuf> = self.tracker.locks_taken(self.child_pid);
         forget_what_the_child_finished(&mut self.bound);
+        let pending = locks.iter().filter_map(|lock| {
+            if self.bound.contains_key(lock) {
+                return None;
+            }
+            let seen = crate::index_lock_evidence::read_lock_metadata(lock.as_path()).ok().flatten()?;
+            return Some((lock.clone(), (seen.device, seen.inode)));
+        }).collect();
+        if let Ok(mut held) = self.reported.lock() {
+            held.reported_take = !locks.is_empty();
+            held.pending = pending;
+        }
+        bind_what_the_child_took(locks, watch, self);
     }
 }
 
@@ -1607,8 +1624,8 @@ pub struct Binder {
     ended: Option<std::sync::mpsc::Receiver<()>>,
     /// The watcher thread itself, so it is not waited for when the caller left its child running.
     thread: Option<std::thread::JoinHandle<()>>,
-    /// The locks the watcher has reported and may not have written a record for yet.
-    reported: std::sync::Arc<std::sync::Mutex<Vec<(PathBuf, (u64, u64))>>>,
+    /// Locks of the child the watcher still owes a pin for.
+    reported: SharedReport,
     /// The common Git directory the caller writes a record under when the watcher was too late.
     common_dir: PathBuf,
     /// The Git the records are about.
@@ -1646,7 +1663,7 @@ impl Binder {
         //       armed in every finish would end the wrapper there, before the command reached its lock
         //       (a review of `bbda166ce2`).
         //       A finish with no take has nothing for the caller to publish and is no step of this walk.
-        let a_take_was_reported: bool = self.reported.lock().map(|held| { return !held.is_empty(); }).unwrap_or(false);
+        let a_take_was_reported: bool = self.reported.lock().map(|held| { return held.reported_take; }).unwrap_or(false);
         if a_take_was_reported {
             // A control reaches here to act as the wrapper killed between its wait and its own publication.
             crate::service_fault::reach(A_FINISH_OUTLASTED_THE_BINDER);
@@ -1671,32 +1688,23 @@ impl Binder {
     ///  finding 6).
     ///  A record that cannot be written leaves the lock to the proof that does not need one, and the person is told
     ///  which lock it is and what clears it, so nothing is dropped in silence.
-    ///  The locks that already have a record are asked of the records folder once, not once per lock:
-    ///  with a few hundred held locks that read is the difference between one directory read and a few hundred.
+    ///  Successful writes are acknowledged by path and never require a directory scan. A write that races the
+    ///  caller has the same pin name; the exact link check in `write` handles that race.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const unrecorded = reported.filter(([lock, ino]) => standingInode(lock) === ino && !locksARecordPins(common, [lock]).length)
-    /// for (const [lock] of unrecorded) writeBinding(lock) ?? warn(lock)
+    /// for (const [lock, ino] of pending) if (standingInode(lock) === ino) writeBinding(lock) ?? warn(lock);
     /// ```
     fn publish_what_the_watcher_reported(&self) {
-        let reported: Vec<(PathBuf, (u64, u64))> = match self.reported.lock() {
-            Ok(held) => held.clone(),
+        let pending = match self.reported.lock() {
+            Ok(mut held) => std::mem::take(&mut held.pending),
             Err(_poisoned) => return,
         };
-        let candidates: Vec<PathBuf> = reported
-            .iter()
-            .filter_map(|(lock, seen)| {
-                let standing = crate::index_lock_evidence::read_lock_metadata(lock.as_path()).ok().flatten()?;
-                if (standing.device, standing.inode) != *seen {
-                    return None;
-                }
-                return Some(lock.clone());
-            })
-            .collect();
-        let already_recorded: Vec<PathBuf> = crate::lock_bindings::locks_a_record_pins(self.common_dir.as_path(), candidates.as_slice());
-        for lock in candidates {
-            if already_recorded.contains(&lock) {
+        for (lock, seen) in pending {
+            let Ok(Some(standing)) = crate::index_lock_evidence::read_lock_metadata(lock.as_path()) else {
+                continue;
+            };
+            if (standing.device, standing.inode) != seen {
                 continue;
             }
             let Some(folder) = lock.parent() else {
@@ -1759,8 +1767,8 @@ pub fn bind_while_the_caller_waits(watched: Option<(Watch, Watched)>, child_pid:
     let identity: String = crate::lock_holder_records::identity_of_process(child_pid_named)?;
     watch.follow(child_pid);
     let (ended, listened) = std::sync::mpsc::channel::<()>();
-    let reported: std::sync::Arc<std::sync::Mutex<Vec<(PathBuf, (u64, u64))>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-    let reported_by_the_watcher: std::sync::Arc<std::sync::Mutex<Vec<(PathBuf, (u64, u64))>>> = std::sync::Arc::clone(&reported);
+    let reported: SharedReport = SharedReport::default();
+    let reported_by_the_watcher: SharedReport = std::sync::Arc::clone(&reported);
     let common_dir: PathBuf = about.common_dir.clone();
     let identity_for_the_caller: String = identity.clone();
     let thread: std::thread::JoinHandle<()> = std::thread::Builder::new()
@@ -1792,10 +1800,10 @@ fn bind_until_the_child_ends(
     about: Watched,
     child_pid: i64,
     identity: String,
-    reported: std::sync::Arc<std::sync::Mutex<Vec<(PathBuf, (u64, u64))>>>,
+    reported: SharedReport,
     ended: std::sync::mpsc::Sender<()>,
 ) {
-    let mut binding: Binding = Binding { tracker: Tracker::new(), bound: Vec::new(), common_dir: about.common_dir, child_pid, identity, reported };
+    let mut binding: Binding = Binding { tracker: Tracker::new(), bound: std::collections::HashMap::new(), common_dir: about.common_dir, child_pid, identity, reported };
     loop {
         binding.look(&mut watch);
         if binding.tracker.nothing_more_can_be_recorded() || the_child_has_ended(&watch, child_pid, binding.identity.as_str()) {
@@ -1842,10 +1850,15 @@ fn the_child_has_ended(watch: &Watch, child_pid: i64, identity: &str) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const lock of tracker.locksTaken(pid)) if (!written.some(w => w.name === nameOf(lock))) writeBinding(lock)
+/// for (const lock of locks) if (!bound.has(lock)) pinAndAcknowledge(lock);
 /// ```
-fn bind_what_the_child_took(tracker: &Tracker, watch: &Watch, common_dir: &Path, child_pid: i64, identity: &str, written: &mut Vec<Written>) {
-    for lock in tracker.locks_taken(child_pid) {
+fn bind_what_the_child_took(locks: Vec<PathBuf>, watch: &Watch, binding: &mut Binding) {
+    let holder: (i64, String) = (binding.child_pid, binding.identity.clone());
+    for lock in locks {
+        // The preceding forget pass kept only pins that still hold their exact file.
+        if binding.bound.contains_key(&lock) {
+            continue;
+        }
         // What: The folder standing at the lock's path must still be the folder this watch opened there.
         // Why:  An event names a watch descriptor and a name in that folder, and the path is what this module remembers.
         //       A folder renamed away keeps its descriptor and goes on reporting, under the remembered path, what happens
@@ -1861,18 +1874,16 @@ fn bind_what_the_child_took(tracker: &Tracker, watch: &Watch, common_dir: &Path,
         let Ok(Some(identity_of_the_folder)) = crate::index_lock_evidence::read_lock_metadata(folder) else {
             continue;
         };
-        // A take of this path this run has already recorded, and whose record still names the file standing there, is
-        //  recorded once: a Git that renames its lock away and takes the path again is a different file and is written
-        //  again (`a_child_that_takes_the_same_lock_again_is_recorded_again`).
-        if written.iter().any(|held| { return held.lock == lock && lock_bindings::pin_holds_the_lock(held); }) {
-            continue;
-        }
         // A control reaches here, with the take reported and its record not yet pinned, to act as the Git finishing
         //  the take and another Git taking the path in the gap.
         crate::service_fault::reach(BEFORE_A_TAKE_IS_PINNED);
         let folder_named: (u64, u64) = (identity_of_the_folder.device, identity_of_the_folder.inode);
-        if let Some(recorded) = lock_bindings::write(common_dir, lock.as_path(), &(child_pid, identity.to_owned()), folder_named) {
-            written.push(recorded);
+        if let Some(recorded) = lock_bindings::write(binding.common_dir.as_path(), lock.as_path(), &holder, folder_named) {
+            // Let the caller stop counting this take only after its pin is reachable.
+            if let Ok(mut held) = binding.reported.lock() {
+                let _published = held.pending.remove(&lock);
+            }
+            let _previous = binding.bound.insert(lock, recorded);
         }
     }
 }
@@ -1909,9 +1920,9 @@ fn bind_what_the_child_took(tracker: &Tracker, watch: &Watch, common_dir: &Path,
 /// ```ts
 /// for (const written of bound) if (!pinHoldsTheLock(written)) { removeBinding(written); bound.delete(written) }
 /// ```
-fn forget_what_the_child_finished(bound: &mut Vec<Written>) {
+fn forget_what_the_child_finished(bound: &mut std::collections::HashMap<PathBuf, Written>) {
     let mut finished: Vec<Written> = Vec::new();
-    bound.retain(|written| {
+    bound.retain(|_path, written| {
         if lock_bindings::pin_holds_the_lock(written) {
             return true;
         }
