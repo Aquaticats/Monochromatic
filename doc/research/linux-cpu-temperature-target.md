@@ -65,6 +65,17 @@ Nearby code provides scale. The file-enforcer argument excerpt at lines 43 to 10
 the bash-limit Linux resource controls have 114, and the scope registry that updates live cgroup limits has 188.
 [Clap arguments][clap-arguments] · [Linux resource controls][linux-limits] · [Live limit registry][limit-registry]
 
+## Implemented controller
+
+At `717c0cdae0` on 2026-11-18T21:51:57-05:00 the Rust and Clap package includes the live target command,
+sensor selection, CPUFreq feedback, and an installable systemd unit. The implementation has 449 nonblank,
+noncomment lines of production Rust and 931 with comments. The test source has 211 nonblank lines.
+
+Clippy, the release build, and all five nextest cases passed. The staged command accepted `80`, `95`, and
+`off`, preserved the request file on invalid input, and ran empty-journal cleanup. `systemd-analyze verify`
+checked the staged unit. Workstation actuation and thermal tuning remain open.
+[Package and installation instructions][implementation]
+
 [amd-7950x]: https://www.amd.com/en/products/processors/desktops/ryzen/7000-series/amd-ryzen-9-7950x.html
 [hwmon-temps]: https://docs.kernel.org/hwmon/sysfs-interface.html#temperatures
 [k10temp]: https://docs.kernel.org/hwmon/k10temp.html#:~:text=Tctl%20is%20the%20processor%20temperature%20control%20value
@@ -82,3 +93,4 @@ the bash-limit Linux resource controls have 114, and the scope registry that upd
 [clap-arguments]: ../../package/file-enforcer/cli/src/args.rs
 [linux-limits]: ../../package/codex-plugin/bash-limit/src/limits.rs
 [limit-registry]: ../../package/wg/cli-quicker-exempt/src/scope_registry.rs
+[implementation]: ../../package/cpu-temperature/cli/README.md
