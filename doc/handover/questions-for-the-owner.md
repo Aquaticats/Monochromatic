@@ -18,6 +18,79 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Answered in the question tool, started 2026-11-19T11:30:00-05:00
+
+The ZFS answers go into the proposal (`doc/planning/cli-git-zfs-worktree-design-proposal.md` on branch
+`docs/planning-cli-git-zfs-worktree-design-proposal`, last read at `b5294a7325`) in one fold-in once the round ends;
+until then this list is their record. Each was asked with the ranking and facts of the overnight list.
+
+- ZFS choice 1, checkout boot mount protection: "Immutable entry (Recommended)": the ordinary mountpoint plus an
+  immutable covered entry.
+- ZFS choice 2, checkout propagation policy: "Boot unit sets it (Recommended)".
+- ZFS choice 3, removal when the namespace exclusion cannot be shown: "Destroy anyway (Recommended)": the scan that
+  refuses holders it sees stays, then the clone's snapshots and the head are destroyed.
+- ZFS choice 4, bookmarks on a clone being removed: "A: Live or planned (Recommended)".
+- ZFS choice 5, kernel-release readiness: "Probe at start" (against the ranking, which put the exact allowlist first).
+  The functional probe's steps, its side effects at start and how it refuses are not yet designed; the runtime module
+  gate of "A: Test plus runtime gate" stays.
+- ZFS choice 6, blocked-removal cancellation: the owner answered with a question, "What? Shouldn't it auto-cancel
+  then? And we're supposed to remove even if busy anyway." Asked again in two parts with the measured facts (proposal
+  lines 591 to 608: unmount without force or lazy detach; the head destroy refused `dataset is busy` while another
+  namespace held the clone).
+  - First part, what happens when the final destroy is refused: "Kill or otherwise remove or destroy the holders
+    whenever --force is specified, auto-cancel if not." So `--force` gains a second meaning beside waiving
+    cleanliness (the holders are ended), and without it a blocked removal reverts by itself. The fold-in has to say
+    what auto-cancel restores when the clone's own snapshots are already gone under choice 3's destroy-anyway order,
+    and this answer narrows the veto-open default "no implicit remount after a failure or restart".
+  - Second part, forced removal of a busy clone: "Measure in a VM (Recommended)": a VM item force-unmounts or ends
+    the holders in each namespace and destroys the clone, recording what the holder sees; adopted only if it works.
+- ZFS choice 7, managed path interface: "Canonical path only (Recommended)".
+- ZFS choice 8, eligible clone origins: "Main checkout only (Recommended)".
+- ZFS choice 9, ABI verification: "Runtime layout check (Recommended)" (re-ranked after choice 5's answer; overnight it
+  ranked exact profiles first).
+- ZFS choice 10, lost last event without a waiter: "Triggers only, and we control the triggers, which makes the con of
+  "unavailable until next trigger" moot."
+- ZFS choice 11, origin cleanup authority: "Account grant" (against the ranking, which put root-owned cleanup first):
+  descendants-only `mount,destroy` on the checkout.
+- ZFS choice 12, space-pressure pruning: "Current scope (Recommended)".
+- ZFS choice 13, misplaced attach: "Roll back at once (Recommended)".
+- ZFS choice 18, clone removal identity protection: "Delegated destroy (Recommended)". With choice 11 this is the
+  pair the proposal excludes until the origin rule is proved for the account (proposal lines 1164 to 1175 and 1289
+  to 1295); asked again as one question with the ways out.
+  - The pair, asked again: "Keep both, check first (Recommended)": just before the head destroy, removal checks that
+    the clone and its origin are the planned ones and that the origin is not marked for deferred destroy, refusing
+    otherwise, with a VM item showing the refusal; a same-account mark between the check and the destroy stays inside
+    the account-versus-itself residual choice 18 accepts.
+- ZFS choice 14, busy unmount after a staging move: "Reattach when safe (Recommended)", asked as following from choice
+  6 (without `--force` the removal auto-cancels; with it the holders are ended).
+- ZFS choice 15, dirty main checkout on the first rung: "Verified restore (Recommended)".
+- ZFS choice 16, prune protection while unmounted: "Git lock + pointers (Recommended)".
+- ZFS choice 17, Git registration when origin cleanup is blocked: "Settle + own record" (against the ranking): the
+  registration is settled once the clone is destroyed, and a separate durable record carries the origin cleanup.
+- ZFS default 1, receipts as files under `/run`: "Keep receipt files (Recommended)".
+- ZFS default 2, the mount handler as a second binary in `package/git-policy/cli`: "Keep inside cli (Recommended)".
+- ZFS default 3, no implicit remount: "Keep, one exception (Recommended)": the one exception is the checked reattach
+  of a removal that auto-cancels without `--force` (choices 6 and 14).
+- ZFS default 4, private staging at `/run/git-worktree-clone-mount-staging`: "Account-owned place" (against the
+  ranking; vetoes the default). The fold-in has to state what replaces the protection the proposal gave staging
+  outside account-controlled trees (proposal lines 1239 to 1243 and the "Descriptor mount and unmount" section).
+- Synthetic `infinite:small:vision` in the short-reviewer order: "Not used".
+- Installing the virtual Pi provider into `~/.pi/agent/settings.json`: "Install now (Recommended)". Done by the
+  coordinator, recorded under "Owner decisions in force" in the handover.
+- The driver's named-unit path (decided overnight, veto open): "Keep the decision (Recommended)": `main`'s named-unit
+  handling stays and agents start long work through the `process` tool inside `systemd-run --user --scope`.
+- Virtual provider point 1, 503 and Cloudflare 52x: "Move on (Recommended)": the request moves to the next member.
+- Virtual provider point 2, the overage ceiling: "Refusal's number (Recommended)": the cap the 429 reports governs, not
+  the minimum of it and the published flex ceiling (a change from the code in `main`).
+- Virtual provider point 3, when the quota endpoint is read: "Read at refusal, quota endpoints have separate extremely
+  high rate limits." (against the ranking; a change from the code in `main`, which reads on re-entry; the change cites
+  each provider's documented quota-endpoint limit).
+- Virtual provider point 4, the package's own provider against Pi's native virtual models: the owner answered "What? I
+  don't understand. You certainly didn't research well here. And you shouldn't assume 1M context never runs out. And
+  you shouldn't assume the native path can't set context windows." Retracted: "rare at 1M-token windows" (an
+  assumption carried from the gate delta check) and the native path's window as a con (taken from a handover note, not
+  from Pi's source). Asked again after reading Pi's virtual-model source.
+
 ## Prepared overnight for the question tool, 2026-11-19T03:30:00-05:00
 
 The owner went to bed on 2026-11-19 choosing "Shut down when done", so these were not asked in that session.
