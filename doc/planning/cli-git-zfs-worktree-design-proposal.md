@@ -419,9 +419,11 @@ occupy an omitted mount location, refuse the clone fill rather than writing thro
 
 **Rung 2** uses `FICLONE` of eligible files only on a proven same dataset, with the existing clean source, held
 files and index checks. Add ZFS recognition where `fs_kind.rs` and `worktree_snapshot_source.rs` currently limit
-the route. The main checkout and an ordinary slot on its filesystem, under `.claude/worktrees/`, can use it.
-A mounted clone and a slot in the checkout dataset cannot, and a path elsewhere in home is not on the checkout
-filesystem. Choose the applicable fallback at the same requested slot if managed preflight fails, confinement
+the route. With the main checkout as the source, an ordinary destination slot in the checkout dataset can use
+rung 2. A mounted clone at the destination cannot, because its files are on a different dataset. A destination
+elsewhere in home, outside the checkout dataset, cannot either. A mounted clone used as the source also cannot
+reflink to a slot in the checkout dataset. Choose the applicable fallback at the same requested slot if managed
+preflight fails, confinement
 blocks cloning, or a valid slot does not meet the clone-name grammar and no managed mutation has started.
 Do not recast an ordinary byte copy as a successful reflink. **Rung 3** is the existing Git checkout and ignored
 state behavior when a reflink is refused, cross-dataset, or unproved. In particular, `FICLONE` returns `EXDEV`
