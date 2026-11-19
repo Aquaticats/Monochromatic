@@ -278,7 +278,10 @@ and wrote `org.monochromatic:unmount-result=failed` when an unmount failed.
   so a child dataset holding the checkout would drop out of the hourly snapshots unless sanoid names it too.
 - `zfs-space-guard` destroys only `<dataset>@autosnap_*` of its own dataset (`/usr/local/sbin/zfs-space-guard`, line 44),
   so it leaves the wrapper's own snapshots alone.
-- Reflinks fail across datasets, so the fallback works only for a worktree in the source's own dataset.
+- Reflinks fail across datasets, so the fallback works only for a worktree in the source's own dataset. (Note of
+  2026-11-18: `FICLONE` gives `EXDEV` across datasets, but `copy_file_range` can still share blocks between datasets
+  with the same data key, such as an encrypted dataset and its own clone; independently created encrypted siblings
+  share none. Measured in `doc/planning/cli-git-zfs-checkout-dataset-and-pnpm.md`, "When a copy still shares blocks".)
 
 ## Recommendation (this session's, not decided)
 
@@ -413,6 +416,9 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
     Still to measure for the clone route itself: a worktree clone is a dataset of its own too, so a `pnpm install`
     inside one imports across that boundary; with `virtualStoreType: global` its `node_modules` holds links into
     `<storeDir>/links`, so how much is copied rather than linked is the open question (to run in the VM test).
+    Measured since (`doc/planning/cli-git-zfs-checkout-dataset-and-pnpm.md`): with the global virtual store pnpm
+    imports payload only inside the home store, and a checkout across the boundary got zero imported package files;
+    a clone's links into the store break by path depth and the wrapper's offline-install repair fixes them.
   - The owner, same answer: "some cache folders are already their separate datasets but not necessarily already in
     the blocklist." Measured the same day: `zpcachyos/ROOT/cos/varcache` (`/var/cache`) is a dataset of its own that
     sanoid leaves alone only because its config does not name it (its comment says so), and it lacks the
@@ -424,7 +430,9 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   stay held by home's snapshots for up to 25 hours.
   This corrects the page's earlier framing of worktrees as throwaway copies.
 - **What the blocklist names** (question tool, 2026-11-18, after the corrections quoted under "What the snapshots hold
-  today"): "Explicit list of all seven (Recommended)". The blocklist names every dataset that must never be
+  today"): "Explicit list of all seven (Recommended)". (Note added 2026-11-18T19:28:35-05:00: the label miscounted; the
+  option's description named the eight datasets listed here, and that list is what was chosen.) The blocklist names
+  every dataset that must never be
   snapshotted, explicitly, so a recursive parent or a later move cannot pull one in: `zpcachyos/ROOT/cos/varcache`
   (`/var/cache`), `zpcachyos/nosnap`, and its children `cargo-build` (`~/.cargo/build`), `cargo-registry`
   (`~/.cargo/registry`), `npm` (`~/.npm`), `user-cache` (`~/.cache`), `vm-builder-output` (the vm-builder output
@@ -434,6 +442,39 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   pnpm store stay snapshotted. Adopted with the answer, open to veto: `doctor` checks this list (each entry present,
   below its parent, property set) and prints the commands that fix drift, since the owner's earlier answer has
   `doctor` report the root-once setup and print its commands.
+  `~/.cache` is on it as `zpcachyos/nosnap/user-cache` (measured 2026-11-18: mounted at `/home/user/.cache`,
+  `com.sun:auto-snapshot=false`, no snapshots); the owner asked whether it was, because the list named datasets
+  without their folders, so every list of these datasets gives each one's folder.
+- **Where the main checkout stays** (plain text, 2026-11-18, after reading the design proposal's first draft): "We need
+  to keep ~/Monochromatic where it is." The proposal's move of the checkout under a root-owned folder is withdrawn.
+  A clone is made from a snapshot of one dataset, so the checkout still becomes a dataset of its own, mounted at
+  `~/Monochromatic` (the session's reading, put to the owner the same evening).
+- **The checkout becomes its own dataset** (question tool, 2026-11-18, after the pnpm measurements in
+  [cli-git-zfs-checkout-dataset-and-pnpm.md](cli-git-zfs-checkout-dataset-and-pnpm.md)): "A: Own dataset
+  (Recommended)". `~/Monochromatic` becomes a ZFS dataset of its own mounted at the same path, moved once by root with
+  every session in the checkout stopped; the pnpm store stays in home. `du --summarize --block-size=1M` over the
+  checkout gave 27,899 MiB at 2026-11-18T20:23:56-05:00: allocated (compressed) blocks, not the logical bytes the move
+  copies, and counting the worktrees under `.claude/worktrees/` and the nested `zpcachyos/nosnap/vm-builder-output`
+  mount; the size of the move itself is still to be measured (`du --apparent-size --one-file-system`). The question put
+  to the owner called the boundary ratios "inside" the control spread of 1.091; the highest, 1.101, is just above it, as
+  the pnpm document says ("comparable"), and the ratios went both ways.
+- **Who owns `.claude/worktrees`** (question tool, same evening): "B: Account owns it (Recommended)". The account
+  keeps owning `.claude/worktrees` and each slot, so plain `git worktree add`, the reflink fallback and Git's
+  registration need no root step; the root mount's safety rests on the descriptor checks of
+  [cli-git-zfs-clones-mounted-under-the-checkout.md](cli-git-zfs-clones-mounted-under-the-checkout.md), item 3
+  (`openat2` with `RESOLVE_NO_SYMLINKS | RESOLVE_BENEATH | RESOLVE_NO_XDEV | RESOLVE_NO_MAGICLINKS`, the recorded
+  identity, `fsmount` and `move_mount` onto the opened folder, the check after attach), and every refusal there is
+  measured again with account ownership before the design is accepted.
+- **Where worktrees live** (plain text, same evening): "surely there is a rule mandating putting worktrees in
+  ./.claude ?" Every worktree of this repository, clones included, lives under `~/Monochromatic/.claude/worktrees/`.
+  No rule in `AGENTS.md` has said so at any point (its history searched on 2026-11-18 back to 964883fd94); the place
+  entered the Pi skill on 2026-11-08 (1a907ccfb9) and the driver's launcher, and a rule is proposed to the owner.
+  A clone mounted there sits in a folder the account owns, which the finding under "A planted symlink redirects both
+  mechanisms" makes dangerous for a mount that follows paths: the design has to mount without
+  following anything the account can change, and the VM has to prove it.
+- **Names** (plain text, same evening): "both you and GPT just saying monochromatic-worktrees means you've both missed
+  at least an AGENTS.md rule." The rule the owner meant is the worktree place just quoted; every name the design
+  makes up also follows `AGENTS.md` rules `MKY` and `VGW`.
 
 ## Open choices for the owner
 

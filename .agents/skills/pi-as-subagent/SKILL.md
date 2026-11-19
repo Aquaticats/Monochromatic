@@ -211,16 +211,26 @@ and of the driver package,
 - **A writer**, a run that changes code or documents,
   is `--provider=openai --model=gpt-6.2-sol`,
   the provider the owner picked ("A: openai (Recommended)").
-- **A reviewer**, a run that reviews a change,
-  is DeepSeek V4.1 Flash from one pool in the owner's order
-  ("Synthetic and C and B, as a pool with preference."):
-  `--provider=synthetic --model=hf:deepseek-ai/DeepSeek-V4.1-Flash-1017` first,
+  When OpenAI ends a run with a `modelError` flagging its content as a possible risk,
+  start the follow-up of step 7 with `--session=<its session file>` on the reviewer pool's DeepSeek,
+  in the same worktree and with a prompt that says where the work stopped.
+  The owner, 2026-11-18:
+  "Whenever a "possible risk" is triggered from OAI, switch to deepseek resuming the session."
+- **A reviewer**, a run that reviews a change outside a gate (the short, frequent kind),
+  is DeepSeek V4.1 Flash from one pool in the owner's order:
+  `--provider=qwen-token-plan-individual --model=deepseek-v4.1-flash-1017` first
+  (the owner, 2026-11-18: "Add my qwen individual token plan deepseek-v4.1-flash-1017 to the deepseek pool."
+  and "Orderings: qwen individual token plan first."; how many runs it takes at once is unmeasured),
+  then the earlier order ("Synthetic and C and B, as a pool with preference."):
+  `--provider=synthetic --model=hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`,
   then `--provider=opencode-go --model=deepseek-v4.1-flash`,
   then `--provider=neuralwatt --model=deepseek-v4.1-flash-flex` with the doubled wall clock flex runs get.
 - **The provider `deepseek` is never used**, for any run.
-- **Long-horizon audits** stay on Claude Sonnet,
+- **Gate reviews and long-horizon audits** stay on Claude Sonnet,
   by whatever route the harness offers, outside Pi
-  (rule `LHZ`; the owner, 2026-11-17: "Rewrite, audits stay sonnet").
+  (rule `LHZ`; the owner, 2026-11-17: "Rewrite, audits stay sonnet", and 2026-11-18:
+  "Short reviews are supposed to be frequent. Long reviews and audits are supposed to have Sonnet and be rare.",
+  with long meaning a review at a gate: an integration pass before main, a release, or a design put to the owner).
 
 A writer and its reviewer come from different vendors,
 so such a review is independent in the sense rule `IRW` gives.
@@ -317,7 +327,7 @@ which `mise run toolchain:install` makes.
       "$PWD/package/pi-shared/subagent-driver/src/drive-pi-subagent.ts" \
       --run-folder=<run> --working-folder=<its worktree, or "$PWD"> --prompt-file=<prompt-file> \
       --provider=openai --model=gpt-6.2-sol \
-      --wall-seconds=2400 --idle-seconds=60 --turn-cap=<sized from past runs>
+      --wall-seconds=2400 --turn-cap=<sized from past runs>
     ```
 
     Size `--turn-cap` to the task from past runs at every launch.
@@ -353,6 +363,10 @@ which `mise run toolchain:install` makes.
     because the driver reads any other name at once.
     Pi gets it as a steer while it runs and as a new prompt while it is idle,
     and `--idle-seconds` is how long the driver stays up for one after Pi settles.
+    It defaults to 0, by the owner's "And shouldn't it be defaulted to 0?" of 2026-11-18:
+    a coordinator woken by the run's end could never steer inside a window,
+    and a message already in `inbox/` when Pi settles is still delivered.
+    Pass a positive value only when you will steer a settled run.
     An entry must be an ordinary file:
     a named pipe is set aside rather than waited on.
     A message Pi refused,

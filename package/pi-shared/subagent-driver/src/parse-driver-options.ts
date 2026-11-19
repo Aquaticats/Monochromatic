@@ -1,11 +1,12 @@
 /**
- Reads the driver's command line. Every limit is required, so a run is always bounded and no default stands in for a decision.
+ Reads the driver's command line. The wall clock and turn cap are required, so a run is always bounded.
 
  @module
  */
 
 import { parseArgs, } from 'node:util';
 import {
+  IDLE_SECONDS_OF_A_RUN,
   MILLISECONDS_PER_SECOND,
   MODEL_ERROR_RETRY_BASE_SECONDS,
   MODEL_ERROR_RETRY_CAP,
@@ -14,6 +15,7 @@ import {
 import type { DriverOptions, } from './driver-types.ts';
 import {
   type RequiredOption,
+  requiredNonNegativeSeconds,
   requiredPositiveNumber,
   requiredSeconds,
   requiredText,
@@ -23,7 +25,7 @@ import {
  The driver's command line, for the error message.
  */
 export const DRIVER_USAGE =
-  'drive-pi-subagent --run-folder=<folder> --working-folder=<folder> --prompt-file=<file> --provider=<name> --model=<name> --wall-seconds=<n> --idle-seconds=<n> --turn-cap=<n> [--session=<file>] [--retry-cap=<n>] [--retry-base-seconds=<n>] [--start-pause-seconds=<n>] [--pi-argument=<word>]...';
+  'drive-pi-subagent --run-folder=<folder> --working-folder=<folder> --prompt-file=<file> --provider=<name> --model=<name> --wall-seconds=<n> --turn-cap=<n> [--idle-seconds=<n>] [--session=<file>] [--retry-cap=<n>] [--retry-base-seconds=<n>] [--start-pause-seconds=<n>] [--pi-argument=<word>]...';
 
 /**
  A command line the driver cannot use.
@@ -198,10 +200,12 @@ export function parseDriverOptions(commandLine: readonly string[],): DriverOptio
         value: values['wall-seconds'],
         name: 'wall-seconds',
       },),),
-      idleSeconds: requiredSeconds(optionOf({
-        value: values['idle-seconds'],
-        name: 'idle-seconds',
-      },),),
+      idleSeconds: (values['idle-seconds'] === undefined)
+        ? IDLE_SECONDS_OF_A_RUN
+        : requiredNonNegativeSeconds(optionOf({
+          value: values['idle-seconds'],
+          name: 'idle-seconds',
+        },),),
       turnCap: requiredPositiveNumber(optionOf({
         value: values['turn-cap'],
         name: 'turn-cap',

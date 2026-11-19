@@ -325,10 +325,12 @@ or start a run it would refuse.
   how many model turns the run may start.
   Without it the cap is a quarter above the longest finished run of the same kind,
   and a runs folder with no finished run refuses the launch rather than guess.
+- `--idle-seconds`:
+  how long to wait for a new steering message after Pi settles.
+  It defaults to `0`, with no extra wait when nothing else holds the run.
 - `--session`,
   `--provider`,
   `--model`,
-  `--idle-seconds`,
   `--runs-folder`,
   and `--checkout-folder`.
 
@@ -970,7 +972,11 @@ each written as `--name=value`:
   A value whose milliseconds would be infinite is refused,
   because a deadline of `Infinity` is no deadline.
 - `--idle-seconds`:
-  how long the driver stays up for a steering message after Pi comes to rest.
+  how long the driver stays up for a new steering message after Pi comes to rest.
+  It is optional and defaults to `0`, so a settled run ends without waiting for a new message.
+  A message already in `inbox/` still goes first, and work the run left running or a pending retry still keeps it up.
+  A failure Pi settled on still determines the ending if it is not recovered.
+  Use a positive value to leave time for a new message.
 - `--turn-cap`:
   how many model turns the run may start.
   An attempt of Pi's own automatic retry is a turn too,
@@ -1005,7 +1011,7 @@ each written as `--name=value`:
   one more word for Pi's command line.
   Repeat it for more words.
 
-The first eight options are required,
+`--run-folder`, `--working-folder`, `--prompt-file`, `--provider`, `--model`, `--wall-seconds` and `--turn-cap` are required,
 so a run is always bounded.
 Putting the run away has its own bound after the wall limit:
 the last two answers,
@@ -1064,6 +1070,9 @@ the launcher that builds the session's environment asks it, once, before it make
   then rename it to one without the dot,
   because any other name is read at once.
   Pi gets it as a steer while it works and as a new prompt while it rests.
+  A message is read only while the driver is up:
+  with the default idle window of `0` a settled run ends within one look of the folder,
+  so a run that must be steered after it settles needs a positive `--idle-seconds`.
   An entry must be an ordinary file:
   a named pipe is set aside instead of waited on.
   A message Pi refused stays as `.failed-<name>`,

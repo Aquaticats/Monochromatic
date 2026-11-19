@@ -403,7 +403,8 @@ and say how long it waited.
   and it removed nothing on 2026-11-12 because every tree belonged to a working run.
   A per-run tree that ends with its run needs the run to say when it ends,
   which the driver does not do today:
-  a run that ends its turn is closed about two minutes later,
+  a run that ends its turn is closed within one look of a few hundred milliseconds once nothing else holds it
+  (about two minutes before the driver's idle window defaulted to 0 on 2026-11-18),
   and the tree is left.
 - A shared cache of compiled dependencies.
   The dependency rlibs and rmeta are 759 MiB of the 5885 MiB tree,

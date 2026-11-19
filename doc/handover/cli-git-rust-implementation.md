@@ -173,11 +173,85 @@ Not final and not approved: this session's own account.
   A container build of `zfsdev` was stopped at the host firewall: rootless podman's traffic reaches OpenSnitch as
   `passt.avx2`; the owner then had it allowed permanently and asked for the matching `mvm` switch, filed as issue 6312
   (`doc/troubleshooting/rootless-podman-traffic-reaches-opensnitch-as-pasta.md`).
-  **Next:** the snapshot blocklist question, then the design proposal with the binding's place and name, the
-  cross-vendor re-review, acceptance; the binding's tests run on a file-backed pool inside a throwaway VM.
+  The blocklist was answered the same evening (decision entry "ZFS snapshots: an explicit blocklist of seven
+  datasets"). The design proposal's writer (GPT 6.2 Sol through Pi, unit
+  `pi-zfs-worktree-design-proposal-writer-1`) ended `idle` at 2026-11-18T19:22:10-05:00 after 29 turns ($0.83), with
+  `doc/planning/cli-git-zfs-worktree-design-proposal.md` on branch `docs/planning-cli-git-zfs-worktree-design-proposal`
+  (commits 78f445a56a, 5ba0cb06dd, 4203040346; pushed; marked non-final); its worktree is removed. Its report names
+  six choices for the owner (managed path interface, main-only origins, exact ABI profiles, periodic reconcile, scoped
+  delegation that lets the account destroy any snapshot of the main dataset, keep the space guard as it is) and notes
+  the blocklist answer's label said "seven" while the list it named has eight. The proposal also moved the main
+  checkout under a root-owned anchor (`/var/lib/monochromatic-worktrees/monochromatic/main`) and put clones there; the
+  owner answered that `~/Monochromatic` stays and worktrees live under its `.claude/worktrees/` (decision entry
+  "ZFS route: ~/Monochromatic stays, worktrees live under its .claude/worktrees"). Its cross-vendor review
+  (DeepSeek V4.1 Flash on Synthetic through Pi, steered mid-run with the owner's corrections) ended `idle` after 87
+  turns ($0.72): `~/temp/agent/zfs-worktree-design-proposal-review-2026-11-18/review.md`, 4 high, 5 medium, 6 low (H1
+  clones under `.claude/worktrees` need a descriptor-based mount and a new fill because Git refuses a non-empty
+  folder; H2 the checkout as a dataset at the same path, a boot-mount guard, the nested dataset
+  `zpcachyos/nosnap/vm-builder-output` mounted at `package/vm-builder/cli/output`, and the pnpm consequence; H3 an
+  unmounted clone loses its Git registration to `git worktree prune`; H4 an unbounded request property names a root
+  write path); weighed by the coordinator in b05a0e83a7 at 2026-11-18T20:07:38-05:00 (read H3 to L6 whole; H1 and H2 wait for the two
+  research documents): every one of H3, H4, M1 to M5 and L1 to L6 is accepted for the fold-in, none dismissed; H3 is
+  reproduced by the ZFS research's VM log (`guest-exact-zfs.log` lines 42 to 44: a `.git` pointer left in the
+  checkout layer keeps `git worktree prune` from removing the registration, and without it prune removes it), and L5
+  too (lines 40 to 41: `git worktree move` of a mounted clone fails "Device or resource busy"); its worktree is removed.
+  H1 and H2 weighed after the two research documents landed (read whole, review lines 19 to 206): both accepted. H1's
+  location is decided, its fill is the clones document's item 7 sequence, its descriptor attach is measured in item 3;
+  its VM gates 1 (the path-mount control), 3 (a rename loop over many mounts), 6 (a path swapped before unmount) and 7
+  (a user namespace attaching the clone, `FS_USERNS_MOUNT`) stay open. H2's dataset and path are the owner's answer A,
+  its pnpm consequence is measured; still owed are the checkout dataset's own boot mount (an entry the account can
+  replace while unmounted: `chattr +i` or `mountpoint=legacy` with the descriptor attach) and a rule for nested
+  datasets such as `zpcachyos/nosnap/vm-builder-output` under the checkout. The owner then added `AGENTS.md` rule `WTU` (d507a55f0e) and
+  the wrapper refusal for later (issue 6313), and asked for three digs, all GPT 6.2 Sol through Pi, **going since
+  2026-11-18T19:46:28-05:00, 19:47:23 and 19:47:48 in this order**: the search for an earlier `AGENTS.md` worktree-place rule (unit
+  `pi-agents-md-worktree-place-rule-search-1`, read-only in the main checkout, report
+  `~/temp/agent/agents-md-worktree-place-rule-search-2026-11-18/report.md`); whether clones under
+  `.claude/worktrees` conflict with ZFS (unit `pi-zfs-clones-under-the-checkout-research-1`, worktree
+  `.claude/worktrees/zfs-clones-under-the-checkout-research`, doc
+  `doc/planning/cli-git-zfs-clones-mounted-under-the-checkout.md`, VM probes; it ended `model-error` after 77 turns at
+  2026-11-18T20:03:08-05:00 on OpenAI's filter, "This content was flagged for possible cybersecurity risk", right after
+  reading its own log of the planted-link probes; its VM probes had all run, with results in
+  `~/temp/agent/zfs-nested-checkout-mounts-2026-11-18-scratch/keep/`, no guest left and nothing committed; resumed from
+  its session to write the document, unit `pi-zfs-clones-under-the-checkout-research-2`, run folder `run-2`, with the
+  path-safety section asked as requirements rather than probe steps; main's driver refuses `--idle-seconds=0` until the
+  idle branch lands, so it runs with 1; then moved to DeepSeek by rule `RKD`, recorded under the dig's landing below); and pnpm and other tools with the
+  checkout as its own dataset (unit `pi-checkout-dataset-and-pnpm-research-1`, worktree
+  `.claude/worktrees/checkout-dataset-and-pnpm-research`, doc `doc/planning/cli-git-zfs-checkout-dataset-and-pnpm.md`;
+  it may leave a measurement folder under `~/.cache` that it must delete). **Next:** read the three, weigh the review,
+  fold everything into the proposal with a writer run, then a Sonnet gate review of the folded proposal (rule `LHZ`:
+  a design put to the owner is a gate), then the owner's acceptance through the question tool; the checkout-as-dataset
+  choice waits for the pnpm answer (owner: "I'm not sure yet").
+- **Two of the three ZFS digs landed in main:** `doc/planning/cli-git-zfs-clones-mounted-under-the-checkout.md`
+  (merge of `docs/planning-zfs-clones-mounted-under-the-checkout`, 6e175a8d09; probes by GPT, written by DeepSeek
+  under rule `RKD`, 41 turns; logs and scripts in `~/temp/agent/zfs-nested-checkout-mounts-2026-11-18-scratch/keep/`;
+  the guest was made by hand with qemu because the mvm template build failed, and is gone) and
+  `doc/planning/cli-git-zfs-checkout-dataset-and-pnpm.md` (merge of `docs/planning-checkout-dataset-and-pnpm`,
+  7b646d71e9 and df9304ed19; GPT, 117 turns; it left nothing under `~/.cache`). The pnpm result: with the global
+  virtual store, pnpm imports package payload only inside the home store, so a checkout dataset at the same path moved
+  zero payload bytes into the checkout and four paired offline installs took 0.984 to 1.101 times their home controls
+  (control spread 1.091); a clone's links into the home store break by path depth and the wrapper's relink repairs
+  them; ranking shared home store > in-tree store > separate cache store. The checkout-as-dataset question goes to the
+  owner with these results. The AGENTS.md search is still running.
+- **Driver idle window defaults to 0: in main** as 5b53cd90f2 (decision entry "Driver: the idle window defaults to
+  0"; behaviour in `package/pi-shared/subagent-driver/README.md`, the default in the pi-as-subagent skill's step 5).
+  Its DeepSeek review (179 turns, `idle`; file
+  `~/temp/agent/driver-idle-window-defaults-to-zero-review-2026-11-18/review.md`) found no high, one medium and three
+  low, weighed by the coordinator: the medium (the `env-local-json` fixture joins output at `exit`) is outside the
+  change and is what branch 74dbe1200e already fixes; the README's `inbox/` bullet and the drive test's pointer to
+  the watch test that holds the settle race were fixed on the branch (88331e1d32), and `git-policy`'s
+  `doc/development-profile-measurements.md` no longer says "about two minutes"; the `1e-400` underflow nit dismissed.
+  After merging main into the branch, `lint:types` for the driver package exited 0; the suites are the writer's (849
+  cases by its report). The skill's example no longer passes `--idle-seconds`.
 - **Reviewer bench (task 387):** all four resumed reviews ended `idle` on `opencode-go` with no rate-limit error
   (`a13faa0d55` runs 1 and 2: 92 and 152 turns; `3822c44c2f` run 1: 33; `915ef30e09` run 2: 49); all six now have a
-  review. Nothing is scored yet.
+  review. Scored by a Claude Sonnet subagent (a second pass, same vendor as one side):
+  `~/temp/agent/reviewer-bench-deepseek-against-sonnet-2026-11-17/keep/scoring-of-the-six-deepseek-reviews-against-sonnet.md`;
+  of Sonnet's 26 headed findings over 52 run pairs DeepSeek found 3, partly 2, missed 47 (7 of them read and called
+  sound); 7 DeepSeek-only findings, none contradicted by source; the two runs of a case shared no headline finding; no
+  run read Sonnet's review or the handover; neither side caught pass 58's five failing controls. Two of its claims were
+  spot-checked against the review files and hold. Put to the owner as a challenge; answered (decision entry
+  "Reviewers: DeepSeek stays for short, frequent reviews; Sonnet for long reviews and audits, rare"). The bench is
+  closed; its run folders stay because the scoring report cites their review files.
 - **Queue runs and agent cap:** unchanged since the entry of 2026-11-17T19:28:50-05:00.
 
 ### ZED against the regex sudoers rule, probed on the owner's question (2026-11-18T17:15:00-05:00)
@@ -39697,7 +39771,83 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### ZFS route: the account keeps owning .claude/worktrees (2026-11-18, evening)
+
+Through the question tool: "B: Account owns it (Recommended)" over "A: Root owns it". Recorded in
+`doc/planning/cli-git-zfs-worktree.md`, "Owner's answers of 2026-11-18". Found while checking the clones document
+against its probe: registration was proven with an account-owned `.claude/worktrees` and the mount refusals with a
+root-owned one, never together, and the document's step 1 said otherwise (corrected in place). The fold-in carries the
+re-measurement of every item 3 refusal under account ownership as an acceptance test.
+
+### The DeepSeek reviewer pool gains the Qwen individual token plan (2026-11-18, evening)
+
+In plain text: "Add my qwen individual token plan deepseek-v4.1-flash-1017 to the deepseek pool." Pi lists it as
+provider `qwen-token-plan-individual`, model `deepseek-v4.1-flash-1017` (1M context); one `pi --print --no-session`
+prompt answered "OK". Then: "Orderings: qwen individual token plan first." Written into
+`.agents/skills/pi-as-subagent/SKILL.md`, "Who writes and who reviews", as the first pool, before Synthetic,
+`opencode-go` and Neuralwatt flex in their earlier order; how many runs it takes at once is unmeasured (its first 429
+sets it), and the driver's pool table (task 383) does not list it yet. Reviews started from now take it first.
+
+### ZFS route: the checkout becomes its own dataset at the same path (2026-11-18, evening)
+
+Through the question tool, with the pnpm measurements of `doc/planning/cli-git-zfs-checkout-dataset-and-pnpm.md`
+put beside it: "A: Own dataset (Recommended)" over "C: Decide after the gate review" and "B: Stay a plain folder".
+Recorded in `doc/planning/cli-git-zfs-worktree.md`, "Owner's answers of 2026-11-18". The design proposal's fold-in
+writes one layout: the checkout dataset at `~/Monochromatic`, clones under `.claude/worktrees/`, the pnpm store in
+home.
+
+### A run OpenAI stops as a "possible risk" resumes on DeepSeek (2026-11-18, evening)
+
+In plain text, after the ZFS-clones research ended on OpenAI's filter:
+"Whenever a "possible risk" is triggered from OAI, switch to deepseek resuming the session.
+Make this a standing rule in AGENTS.md . Use "possible risk" instead of anything more specific."
+Written as `AGENTS.md` rule `RKD` beside `XVW` (DeepSeek through Pi, never the official `deepseek` provider, as
+`KRV` already says), and in `.agents/skills/pi-as-subagent/SKILL.md` under the writer bullet (the follow-up of step 7
+with `--session` on the reviewer pool's DeepSeek, same worktree), mirrors copied by hand. The ZFS-clones research had
+already been resumed on GPT before this answer (unit `pi-zfs-clones-under-the-checkout-research-2`, past the filter,
+6 turns, nothing written); read as a correction of that resume, so run-2 was ended with its stop file and the session
+(`run-2/resumed-session.jsonl`, the copy the driver makes on resume) goes on under
+`pi-zfs-clones-under-the-checkout-research-3` on Synthetic `hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`.
+
+### Reviewers: DeepSeek stays for short, frequent reviews; Sonnet for long reviews and audits, rare (2026-11-18, evening)
+
+Through the question tool, after the reviewer bench was put to the owner as a challenge (scoring report
+`~/temp/agent/reviewer-bench-deepseek-against-sonnet-2026-11-17/keep/scoring-of-the-six-deepseek-reviews-against-sonnet.md`;
+of Sonnet's 17 findings a reader of the code and brief could reach, DeepSeek's two runs per case found 3; DeepSeek made
+7 Sonnet missed): "Keep deepseek. Short reviews are supposed to be frequent. Long reviews and audits are supposed to
+have Sonnet and be rare." Declined: both reviewers per change, a re-bench with equal inputs, two DeepSeek runs per
+change, Sonnet alone. Where short ends and long begins, answered the same evening: "Long = at a gate (Recommended)": a
+Sonnet review only at an integration pass before main, a release, or a design put to the owner; every other review is
+short and goes to DeepSeek. Declined: long meaning a review that builds or reproduces, or one above a size. Written into
+`AGENTS.md` rules `KRV` and `LHZ` and the pi-as-subagent skill's section "Who writes and who reviews" the same evening.
+
+### ZFS route: ~/Monochromatic stays, worktrees live under its .claude/worktrees (2026-11-18, evening)
+
+Plain text after the design proposal's first draft: "We need to keep ~/Monochromatic where it is."; "surely there is a
+rule mandating putting worktrees in ./.claude ?"; and, of the proposal's `/var/lib/monochromatic-worktrees/` anchor,
+"both you and GPT just saying monochromatic-worktrees means you've both missed at least an AGENTS.md rule." Recorded in
+`doc/planning/cli-git-zfs-worktree.md`, section "Owner's answers of 2026-11-18" (entries "Where the main checkout
+stays", "Where worktrees live", "Names"). No `AGENTS.md` line ever named the worktree place (its history searched back
+to 964883fd94); it entered the Pi skill in 1a907ccfb9 with the owner's "Feel free to use worktrees.", and a rule is put
+to the owner. Both points went to the running proposal review as steering messages; the fold-in writer gets them as
+requirements. The owner also asked whether `~/.cache` is on the snapshot blocklist: it is, as
+`zpcachyos/nosnap/user-cache` (measured), and lists of those datasets now give each one's folder.
+
+### Driver: the idle window defaults to 0 (2026-11-18, said before 19:27:38-05:00)
+
+After a "Pi agent finished" notification came a minute before the coordinator woke, the owner asked "What even is the
+idle window for?" and then "And shouldn't it be defaulted to 0?". Adopted: `--idle-seconds` becomes optional with
+default 0, in `drive-pi-subagent` and in `start-pi-run-in-a-worktree` (whose default was 120). The window's only
+documented use is a steering message for a Pi that has settled (`package/pi-shared/subagent-driver/README.md:972-973`);
+the driver's settle is Pi's `agent_settled`, which comes after Pi's retries and compaction recovery
+(`package/pi-plugin/agent-settled-notification/README.md:17-21`); a coordinator woken by the unit's end can never steer
+inside the window, and follows up with `--session` instead. No recorded failure rests on the window's length.
+
 ### ZFS snapshots: an explicit blocklist of seven datasets, the pnpm store stays in home, passt allowed (2026-11-18, evening)
+
+Note added 2026-11-18T19:28:35-05:00: the option's label said "seven", but its description, and the list here, name
+eight datasets (`/var/cache`, `zpcachyos/nosnap` and its six children); the label was the session's miscount, and the
+named list is what was chosen. This goes to the owner with the design proposal.
 
 Three answers, quoted in `doc/planning/cli-git-zfs-worktree.md` ("What the snapshots hold today" and "What the
 blocklist names"): the pnpm store must not become its own dataset ("not being able to take advantage of clones";
@@ -40396,7 +40546,7 @@ Recovery after the hold (committed at 2026-11-16T10:25:11-05:00; an earlier word
 - **The review of the branch that makes a retiring service end within a bound is back (`1bb658349d`, its own four commits over the landing branch; 8 of 8 files; independent; three wrapper builds and three variants; the committed controls and a probe in sealed namespaces; the stand-in manager programs recorded no call by the wrapper).** What the four commits fix, each failing on the base and on `main` and passing on the tip: a retire with a sync held ends in 2.01 s (still there at 30 s before); with the slow lane held in 0.04 s to 0.17 s; the idle exit with a sync held ends where it was still there at 200 s; a commit made during the retirement lands in 1.55 s where it never landed. Both controls fail with the fix taken out.
   It brings one thing, in the tests: neither control fails when the release of the waiting batch alone is taken out, and no unit test covers the leave logic. `main` has too: the bound is the service's decision to leave and not the end of the process, since an `fsync` in the kernel holds the exiting process past it (seen only with four probes at once, 2.25 s to 4.25 s; `main` waits with no bound at all); a push cut off by a retire is taken up again only after about 120 s.
   So its code is at the bar, and two things hold it: it stands on the landing branch, which is not in `main`, and the drain-ceiling branch (`f350db8065`, under review) changes the same two files. Its author's brief waits for that review, so that one brief settles both.
-- **Two more runs ended at 16:19.** The author of the push of a branch that is not checked out ended its thirteenth run at `a38c6dbcc7` and reports it **incomplete**: of the review's findings the first, fourth, sixth, seventh and eighth are fixed and the fifth closed in code; a staged `git rm` is still restored, `git rm --cached` still makes every command in that worktree exit 2, and four of the branch's own reconcile controls fail since its last rule change. A thirteenth run that stopped short gets a fresh run on a new branch from its tip. The fixture run for `env-local-json` ended at `74dbe1200e` (two files): the fixture joined a program's output at `exit` where the pipe closes later, the mechanism behind the driver suite's occasional "is not the JSON a sops store is"; a cut store reproduces that text, and 120 rounds cut none, so the rate stays unmeasured. Its review is to be queued.
+- **Two more runs ended at 16:19.** The author of the push of a branch that is not checked out ended its thirteenth run at `a38c6dbcc7` and reports it **incomplete**: of the review's findings the first, fourth, sixth, seventh and eighth are fixed and the fifth closed in code; a staged `git rm` is still restored, `git rm --cached` still makes every command in that worktree exit 2, and four of the branch's own reconcile controls fail since its last rule change. A thirteenth run that stopped short gets a fresh run on a new branch from its tip. The fixture run for `env-local-json` ended at `74dbe1200e` (two files): the fixture joined a program's output at `exit` where the pipe closes later, the mechanism behind the driver suite's occasional "is not the JSON a sops store is"; a cut store reproduces that text, and 120 rounds cut none, so the rate stays unmeasured. Its review is to be queued. The idle-window review measured the rate on main on 2026-11-18 (its `keep/probes/`): that test file alone failed 5 of 6 rounds with 6 of 18 stores empty for their whole life, and a probe of the fixture's own shape with eight children in flight captured nothing in 4 of 80 waits for `exit` and the whole document in 80 of 80 waits for `close`.
 - Routed at 16:27: the fresh run that finishes the push-of-a-branch review is queued eighth (16:27:32; a new branch from `a38c6dbcc7`): the four failing reconcile controls first, then the review's scripts made to run here, then a staged `git rm` left alone, `git rm --cached` stopping no command, and the claim race with a stand-in Git that pauses; its brief says to commit before every revert, since the last author lost fixes twice to a `git restore`. The review of the `env-local-json` fixture change is queued third (16:26:47). Two reviews started in the freed places: the copy-owner branch as a delta since its last reviewed tip (three commits, 21 files), and the first of three parts of the queue of runs as a folder (the folder's mechanics, 24 files; the filling and starting, and the tests, follow as places free).
 - **Part two of the review of the driver's main-checkout branch is back, so the review covers all 33 files, and the author's ninth run is queued first (`e16721a36d`; the 11 test files; independent; an unchanged copy passed all eleven before each claimed behaviour was taken out of it).** What the tests hold: the read-only checkout (five files fail without it), the manager asked at all, the path encoding one escape at a time, the record of a killed start, the bounds on named-pipe reads. What they do not: nothing ties the launcher to the confinement (seven removals at that level survive, among them a unit handed no file system at all); the seven read-only entries of the shared Git directory are held only by a comparison against a copy of the source's own list; the socket rule has no test and its fixture's length check is wrong; the second answer, the ten-second bound and the asking itself can each be taken out with every test passing; **all four files that start real units pass having run nothing when no manager answers.** It confirms part one: the failing unit test is the branch's own regression.
   The brief has the author first measure, in a unit of its own beside one built by `main`'s code, what the confinement costs ordinary work (`podman`, `newuidmap`, `git push -u`, a commit through the installed wrapper, `pnpm install`, a Cargo build, `rename()` and `link()` across the mounted folders), then answer the user namespace, the `EXDEV` and the `EBUSY` together as one matter of how the unit's file system is put together. **If no arrangement keeps both the protection and that ordinary work, it is told not to choose and to lay the arrangements out with their costs: that would be the owner's to weigh, since this repository requires runs to use `podman` and the branch's unit cannot.** The review's worktree is removed.
