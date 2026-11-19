@@ -325,6 +325,17 @@ ACLs from opened folders. Keep records in `/var/lib/monochromatic-git-policy-cli
 under root control. Never refresh a slot identity just because a new inode or permissions appeared there. The
 handler uses the verified slot descriptors for mount management, not privileged writes into the account's tree.
 
+Only an administrator may explicitly adopt a legitimate replacement after checkout restore or folder recreation.
+The installed root tool's `adopt-worktree-parent` mode runs with managed operations quiesced. Starting from the
+pinned checkout mount, walk the canonical components with the no-crossing, no-follow resolver. Verify the intended
+replacement's owner, mode and access/default ACLs against policy and the administrator's verified identity;
+record them and the device and inode from the held descriptor. First reconcile all affected bindings against live
+and staged mounts, claims and Git registrations. If any cannot be resolved, refuse adoption and report what needs
+recovery. Never overwrite surviving slot identities or adopt a replacement for an existing binding implicitly.
+Until adoption, refuse managed mutations on the mismatched parent. On an otherwise unused and verified slot,
+ordinary same-dataset reflink (rung 2), or native Git when reflink does not qualify (rung 3), remains available
+without root. Never use fallback to write over an unresolved managed slot.
+
 Use the research's descriptor-relative `openat2` constraints, `fsmount` with enforced `nosuid,nodev`, and
 `move_mount` onto the opened target. Report the failing component or mismatched identity field. After attach, prove
 both that the held identity received the expected mount and that the canonical slot exposes that mount ID. A moved
@@ -565,7 +576,9 @@ status. `doctor` does not start a service, create a test dataset, repair registr
   cutover and rollback steps, commands to create the datasets and install the protection selected by the project,
   and paths with the actual owner and expected properties. Do not propose chowning the account's slots to root.
   On ABI refusal name the loaded module and target plus the supported compatibility evidence, not a bypass.
-- Check recorded parent and slot identities and name the failing field or path component. Inspect effective
+- Check recorded parent and slot identities and name the failing field or path component. For a legitimately
+  recreated parent, print the administrator's verified `adopt-worktree-parent` command and prerequisites, any
+  binding that needs separate recovery, and the applicable fallback for an unused slot. Inspect effective
   delegation including ancestor grants. Print scoped commands such as `zfs allow -l -u` and `zfs allow -d -u`
   with the actual account and datasets, only for grants in the selected policy. Do not grant origin cleanup more
   broadly just to make an interrupted command pass.
@@ -737,7 +750,9 @@ host. These gates carry the [handover's H1 and H2 disposition][handover] and the
   in the guest; the wrapper must refuse before attempting it regardless of the tool result.
 - Exercise migration and rollback on the disposable layout, including linked Git pointers, an independently mounted
   vm-builder output dataset, ignored underlay files and a recoverable backup. Check that `doctor` reports partial
-  reads and prints the tested root-once commands for the selected setup, without mutating it. Test which paths the
+  reads and prints the tested root-once commands for the selected setup, without mutating it. Test parent adoption
+  after recreation or rollback, and refuse it with a link, boundary, ACL mismatch or unresolved live/staged binding.
+  Verify ordinary fallback on an unused slot and no fallback over a binding. Test which paths the
   actual Kopia job can see, whether it crosses a ZFS boundary, and restoration of the checkout and configuration
   with origins still pinned. An unavailable job is an unknown, not proof of exclusion.
 
