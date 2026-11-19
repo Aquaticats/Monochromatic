@@ -3,7 +3,7 @@
 **Non-final draft by an agent, unapproved.** Fourth delta fold-in: this revision answers the bounded check of
 `9a1a47e190` to `b26aa27f3c`, its residues and its bookmark verdict, and folds in [item 18][vm-18]. This file's own
 revision stamp is what `git log --format=%cI -1` prints for the file, which before this revision's commit reported
-2026-11-19T01:55:25-05:00 at `9c3d3f698d`; a section heading's stamp is the commit time of the commit that landed
+2026-11-19T01:57:34-05:00 at `cb6026e5ed`; a section heading's stamp is the commit time of the commit that landed
 that section.
 
 This revision changes these statements. The rule that refused removal wherever the namespace exclusion cannot be
@@ -1192,19 +1192,26 @@ by answering the question that lists it.
 
 - Receipts as atomic files under `/run/git-worktree-clone-mount-results`, rather than root-written
   acknowledgement properties ([Requests, results and ordering](#requests-results-and-ordering)). Evidence: reasoning
-  from the property event [VM item 5][vm-key] delivered, not a measured receipt. Cost: a caller reads and reaps
-  files in a runtime directory whose entries can go stale, where an acknowledgement property would ride reads the
-  handler already makes. The owner vetoes it by answering the question that lists it.
+  from the property event [VM item 5][vm-key] delivered, not a measured receipt. Cost: entries go stale and nothing
+  in this draft removes them. The directory is root-owned mode `0755` and each receipt is root-owned mode `0644`,
+  read-only to the wrapper, so the caller cannot reap them, and no handler step, timer or install action is assigned
+  that role; an acknowledgement property would ride reads the handler already makes. The owner vetoes it by
+  answering the question that lists it.
 - The mount handler as a second Linux binary inside `package/git-policy/cli`, rather than a package of its own: it
   shares the binding and the ABI gate without adding a package
   ([Binding crate and compatibility](#binding-crate-and-compatibility)). Evidence: none measured; this is a
-  placement choice about this repository's packages, not a compatibility result. Cost: the same build is installed
-  at two root-owned paths, so an upgrade or a verification has to cover both. The owner vetoes it by answering the
-  question that lists it.
+  placement choice about this repository's packages, not a compatibility result. Cost: the handler's code, tests
+  and release move with the wrapper, so a wrapper change can alter what root runs, a wrapper rollback also changes
+  the mount handler, and the handler cannot be released or pinned apart from the wrapper; a package of its own
+  would version and gate separately at the price of one more package. The two root-owned install paths belong to
+  either placement ([ZED reconciliation and mount safety](#zed-reconciliation-and-mount-safety)). The owner vetoes
+  it by answering the question that lists it.
 - No implicit remount after a failure or restart: an implicit remount would race the standing `unmount` intent and
   any staged mount ([Cancel a blocked removal](#cancel-a-blocked-removal)). Evidence: reasoning, not measured.
-  Cost: a worktree whose removal failed stays unmounted until the cancel command or administrator recovery runs.
-  The owner vetoes it by answering the question that lists it.
+  Cost: a worktree whose removal failed stays unmounted until recovery, and what recovery is depends on the answer
+  to [Blocked-removal cancellation](#open-project-choices): `cancel-worktree-removal <slot>` once its checks pass
+  under the command, or the printed resume step and administrator recovery under report-only, and neither restores
+  destroyed snapshots. The owner vetoes it by answering the question that lists it.
 - Private staging at `/run/git-worktree-clone-mount-staging`, rather than staging under the checkout or another
   account-owned path: the mount has to be unmounted outside trees the account controls
   ([Descriptor mount and unmount](#descriptor-mount-and-unmount)). Evidence: the location and its boot lifecycle are
