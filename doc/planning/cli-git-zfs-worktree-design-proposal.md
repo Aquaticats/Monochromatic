@@ -431,9 +431,10 @@ Because the project decided the Git lock, `doctor` must distinguish the wrapper'
 operator lock, a missing or changed lock, and a missing pointer. Never treat the reason text alone as ownership or
 use
 `--force` to bypass a lock. An operator or unexplained lock still refuses removal. A verified wrapper lock is
-released when the registration is settled, in the authorized registration-cleanup step, which the settle-and-own
-answer separates from a blocked origin cleanup: settling does not wait for the origin, and the separate durable
-record carries that cleanup ([Removal and recovery](#removal-and-recovery), step 5). A missing pointer still needs
+released when the registration is settled, in the authorized registration-cleanup step, and only after clone
+destruction is proven. The settle-and-own answer separates that settlement from a blocked origin cleanup: settling
+does not wait for the origin, and the separate durable record carries that cleanup
+([Removal and recovery](#removal-and-recovery), step 5). A missing pointer still needs
 recovery. Installing or recovering the lock after pointer loss stays unmeasured ([VM item 6][vm-prune] did not
 test it).
 
@@ -685,9 +686,10 @@ Proposed check based on item 15: the root mount handler groups live tasks by `/p
 Before reporting removal-ready unmount, exclude new managed attaches with the standing `unmount` intent and return
 holders and incomplete reads in a fresh, nonce- and GUID-bound result. Removal requires this check immediately before
 every snapshot-destroy request, the first chunk or a later one, and again before the head destroy. Report unreadable
-or racing entries rather than treating them as clear: such a report is printed and does not by itself refuse, because
-the destroy-anyway decision already accepts a holder the scan cannot show, and a holder that is really there then
-shows up as the head destroy's `dataset is busy` refusal. The scan only detected process-visible holders in the VM; it
+or racing entries rather than treating them as clear. This document reads such a report as not refusing by itself,
+because the destroy-anyway decision already accepts a holder the scan cannot show, and a holder the scan could not
+see may then show up as the head destroy's `dataset is busy` refusal, which is unmeasured; a missing or mismatched
+unmount still blocks removal outright. The scan only detected process-visible holders in the VM; it
 does not prove race-free absence, coverage of pinned namespaces without a visible task, or coverage through different
 process root directories.
 For a managed-consumer deployment, propose that the wrapper and consumer launcher close per-worktree admission and
@@ -874,10 +876,11 @@ a test asserts that the encoded request has no `defer` key.
     deferred destroy, refusing otherwise, because
     destroying the last clone can reap an origin already marked for deferred destroy outside the separate
     origin-cleanup step (`dsl_destroy.c:1028` to `:1037` and `:1168` to `:1172`). That check runs after the
-    snapshot batch, so a refusal there leaves the clone without its own snapshots: the head, the registration and
-    the removal record survive, the history does not come back, and whether that refusal keeps the record or lets
-    the removal cancel itself is under [Open items the decisions leave](#open-items-the-decisions-leave). The check
-    has no design yet, and a same-account mark between the check and the destroy stays inside the accepted residual
+    snapshot batch, so a refusal there leaves the clone without its own snapshots: the head and the registration
+    survive at that moment, the history does not come back, and whether the refusal then keeps the removal record
+    or lets the removal cancel itself is under [Open items the decisions leave](#open-items-the-decisions-leave).
+    The check has no design yet, and a same-account mark between the check and the destroy stays inside the accepted
+    residual
     ([Open items the decisions leave](#open-items-the-decisions-leave)). Bound replanning by
     the same removal deadline, without restarting it. Print what disappeared and what remains and keep per-name
     results. This is proposed handling for recursive sanoid coverage ([project decision][answers], lines 365 to
@@ -916,11 +919,11 @@ authorize cleanup.
 
 A refusal after setting `unmount` leaves removal intent in force, and the project decided what happens next in
 two parts, in the owner's words: "Kill or otherwise remove or destroy the holders whenever --force is specified,
-auto-cancel if not." With `--force`, removal ends the holders and goes on; without it, the blocked removal cancels
-itself. The record does not say whether an explicit `cancel-worktree-removal <slot>` command stays as a manual
-path: the draft at `b5294a7325` offered that guarded command and report-only recovery as this choice's two
-options, and the answer of 2026-11-19 decides what happens without `--force` without choosing between them.
-Whether such a command stays is an open item for the owner
+auto-cancel if not." With `--force`, removal ends the holders and goes on, once the owed VM item shows it works;
+without it, the blocked removal cancels itself. The record does not say whether an explicit
+`cancel-worktree-removal <slot>` command stays as a manual path: the draft at `b5294a7325` offered that guarded
+command and report-only recovery as this choice's two options, and the answer of 2026-11-19 decides what happens
+without `--force` without choosing between them. Whether such a command stays is an open item for the owner
 ([Open items the decisions leave](#open-items-the-decisions-leave)).
 
 Auto-cancellation can happen after the removal has already destroyed history. The project's "B: Destroy at once"
@@ -1592,8 +1595,9 @@ parts works.
   refusal rule would contradict the answer. The design settles none of these parts. Identification: a namespace ID
   and a representative PID from a root scan say nothing about PID reuse, so nothing yet proves the process ended is
   the process seen. The receiving path: how an unprivileged wrapper is handed root's finding, when a receipt is
-  read-only and names no holder. The never-end set: the wrapper's caller and its session, whose working directory may
-  be the clone, are never ended. What such a holder itself sees is the thing the owed VM
+  read-only and names no holder. The never-end set: which processes are never ended at all, and whether the
+  wrapper's caller and its session, whose working directory may be the clone, are among them, given an answer that
+  ends the holders. What such a holder itself sees is the thing the owed VM
   measurement records ([Forced removal and deferred origins](#forced-removal-and-deferred-origins)).
 - What a cancelled removal restores. The answer's words: "Kill or otherwise remove or destroy the holders whenever
   --force is specified, auto-cancel if not." Cancellation happens after the order "B: Destroy at once" keeps: the
@@ -1612,9 +1616,10 @@ parts works.
   otherwise remove or destroy the holders whenever --force is specified, auto-cancel if not." A deadline is not
   cancellation, and the recorded `unmount` intent stands across a restart
   ([Waiting and refusal](#waiting-and-refusal)), so a removal that runs past its deadline, or a wrapper killed
-  after `unmount` was recorded, is neither an auto-cancelled removal nor a finished one. Nothing says what state
-  the clone and any staged mount are in, who resumes the removal, what the caller is told, or how the worktree is
-  returned to use. That is an open item for the owner, and the item for a removal that cancels itself is separate.
+  after `unmount` was recorded, is established as neither a cancelled removal nor a finished one: a deadline is not
+  cancellation, and the durable request may still act. Nothing says what state the clone and any staged mount are
+  in, who reconciles it, what the caller is told, or how the worktree is returned to use. That is an open item for
+  the owner, and the item for a removal that cancels itself is separate.
 - The check before the head destroy. The pair's answer: "Keep both, check first (Recommended)". Where the check
   reads the planned clone and origin identities, how it reads the origin's deferred-destroy mark, what it prints on
   refusal, and which refusals keep the removal record are undesigned. That check runs after the snapshot batch, so a
@@ -1791,16 +1796,18 @@ test cannot be written until that part exists. None of them is a test for an opt
   settles the Git registration and pointer while the separate durable record keeps the origin, and that `doctor`
   reports what remains ([Git registration when origin cleanup is blocked](#project-decisions)). That record has no
   design yet ([Open items the decisions leave](#open-items-the-decisions-leave)).
-- The wrapper's staging cleanup. After a completed removal and after an interrupted one, assert the staging folder
-  holds no mount and no entry a recursive delete could reach a worktree through, and that cleanup stops at any mount.
-  The cleanup has no design yet ([Open items the decisions leave](#open-items-the-decisions-leave)).
+- The wrapper's staging cleanup. After a completed removal, assert the staging folder holds no mount and no entry a
+  recursive delete could reach a worktree through. After an interrupted one, assert cleanup deletes nothing under a
+  mounted tree and that any retained staged mount is tracked and reported, since retaining it is the state the
+  busy-unmount decision allows. The cleanup has no design yet
+  ([Open items the decisions leave](#open-items-the-decisions-leave)).
 - Re-applying checkout propagation. Replace the checkout mount without a reboot and assert the checkout is private
   again. Nothing re-applies the setting yet ([Open items the decisions leave](#open-items-the-decisions-leave)),
   so this test waits on that design.
 - No holder ended without `--force`. Run the same busy holder the forced item under
   [Forced removal and deferred origins](#forced-removal-and-deferred-origins) runs with `--force`, without that
-  flag, and assert it is still alive after the removal cancels, and that the wrapper's caller is never the process
-  ended ([Cancelling a blocked removal](#cancelling-a-blocked-removal)).
+  flag, and assert it is still alive after the removal cancels
+  ([Cancelling a blocked removal](#cancelling-a-blocked-removal)).
 
 ### Forced removal and deferred origins
 
