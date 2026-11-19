@@ -19,6 +19,11 @@ import type { GitRunner, } from './worktree-git.ts';
 import type { RunCommand, } from './run-command.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import {
+  SUMMARY_FILE_NAME,
+  isThere,
+} from './newest-finished-run-of-a-name.ts';
+import { earlierAttemptProblemIn, } from './write-summary.ts';
+import {
   type PiStartAnswer,
   piProblemIn,
   rememberPiStartCheck,
@@ -248,6 +253,8 @@ export function answersIn(answers: readonly PiStartAnswer[],): StartChecks {
 
  @param runName - the run's name
 
+ @param runFolder - the folder this run would write into
+
  @param sessionPath - the `PATH` the session's own processes get, which the question about Pi is asked with
 
  @param home - the `HOME` the session runs with, whose settings name the extensions Pi loads
@@ -258,7 +265,7 @@ export function answersIn(answers: readonly PiStartAnswer[],): StartChecks {
 
  @example
  ```ts
- const { refusals, warnings } = await startRefusalsIn({ promptFile: '/runs/a-prompt.md', git, checkoutFolder: '/repo', base: 'main', run, runName: 'a', sessionPath: '/bin', home: '/home/a', runsFolder: '/runs', },);
+ const { refusals, warnings } = await startRefusalsIn({ promptFile: '/runs/a-prompt.md', git, checkoutFolder: '/repo', base: 'main', run, runName: 'a', runFolder: '/runs/a-1', sessionPath: '/bin', home: '/home/a', runsFolder: '/runs', },);
  ```
  */
 export async function startRefusalsIn({
@@ -268,6 +275,7 @@ export async function startRefusalsIn({
   base,
   run,
   runName,
+  runFolder,
   sessionPath,
   home,
   runsFolder,
@@ -278,6 +286,11 @@ export async function startRefusalsIn({
   readonly base: string;
   readonly run: RunCommand;
   readonly runName: string;
+
+  /**
+   The folder this run would write into.
+   */
+  readonly runFolder: string;
 
   /**
    The `PATH` the session's own processes get, which the question about Pi is asked with.
@@ -295,9 +308,9 @@ export async function startRefusalsIn({
   readonly runsFolder: string;
 },): Promise<StartChecks> {
   /**
-   What the three checks about the run itself found, in the order a reader needs them.
+   What the checks about the run itself found, in the order a reader needs them.
    */
-  const [promptAnswer, baseAnswer, nameAnswer] = await Promise.all([
+  const [promptAnswer, baseAnswer, nameAnswer, recordsAnswer,] = await Promise.all([
     promptProblemIn({ path: promptFile, },),
     baseProblemIn({
       git,
@@ -308,6 +321,7 @@ export async function startRefusalsIn({
       run,
       runName,
     },),
+    earlierAttemptProblemIn({ runFolder, },),
   ],);
   /**
    What the question about Pi answered, which is asked even when another check refuses, so a reader fixes them all at once.
@@ -327,6 +341,7 @@ export async function startRefusalsIn({
     promptAnswer,
     baseAnswer,
     nameAnswer,
+    recordsAnswer,
     pi,
   ],);
   // A refused start makes nothing, not even a memory: the answer about Pi is kept only once every check has passed.

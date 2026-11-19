@@ -1,6 +1,6 @@
 /**
- Readings of command-line options that both commands of this package refuse the same way: a value that is missing, empty, not a
- number above zero, or a duration whose deadline would not be finite is never allowed to stand.
+ Shared readings of command-line options: missing or empty text, numbers outside the allowed range, and durations too large
+ to use all get an error with the calling command's usage.
 
  @module
  */
@@ -198,6 +198,57 @@ export function requiredSeconds({
   const milliseconds = seconds * MILLISECONDS_PER_SECOND;
   if ((!Number.isFinite(milliseconds,)) || (!Number.isFinite(Date.now() + milliseconds,))) {
     throw errorOf(`--${name} must be a number of seconds whose milliseconds stay finite; it was "${String(seconds,)}".\nUsage: ${usage}`,);
+  }
+  return seconds;
+}
+
+/**
+ Reads a duration that may be zero. An idle window is compared with elapsed time, so it needs finite milliseconds, not a deadline.
+
+ @param value - the option's value as the command line parser read it
+
+ @param name - the option's name, without the leading dashes
+
+ @param usage - the command's usage, for the message
+
+ @param errorOf - builds the error this command answers a refused option with
+
+ @returns the option's number of seconds
+
+ @throws the error the caller builds when the option is missing, not a number, negative, or too large to express in milliseconds
+
+ @example
+ ```ts
+ const idleSeconds = requiredNonNegativeSeconds({ value: '0', name: 'idle-seconds', usage, errorOf, },);
+ ```
+ */
+export function requiredNonNegativeSeconds({
+  value,
+  name,
+  usage,
+  errorOf,
+}: RequiredOption,): number {
+  /**
+   The option's text.
+   */
+  const text = requiredText({
+    value,
+    name,
+    usage,
+    errorOf,
+  },);
+  /**
+   The option's seconds.
+   */
+  const seconds = Number(text,);
+  if ((text.trim() === '') || Number.isNaN(seconds,)) {
+    throw errorOf(`--${name} must be a number of seconds; it was "${text}".\nUsage: ${usage}`,);
+  }
+  if (seconds < 0) {
+    throw errorOf(`--${name} must be zero or more seconds; it was "${text}".\nUsage: ${usage}`,);
+  }
+  if (!Number.isFinite(seconds * MILLISECONDS_PER_SECOND,)) {
+    throw errorOf(`--${name} must be a number of seconds whose milliseconds stay finite; it was "${text}".\nUsage: ${usage}`,);
   }
   return seconds;
 }

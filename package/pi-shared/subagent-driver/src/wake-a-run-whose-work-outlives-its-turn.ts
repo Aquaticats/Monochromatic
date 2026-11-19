@@ -22,6 +22,7 @@ import {
 import { join, } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
 import { entriesOrNothingIn, } from './newest-finished-run-of-a-name.ts';
+import { writtenWordsIn, } from './parse-worktree-launcher-options.ts';
 import { isDigitsOnly, } from './text-of-an-option.ts';
 import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
 
@@ -352,70 +353,22 @@ export function wakePromptOf({
 }
 
 /**
- The launcher's own options a resumed launch replaces, whatever form they were written in: the note's file replaces the first
- prompt, the session file replaces the session, and a run folder's number goes so the resumed run claims one of its own.
+ The options a wake replaces: the prompt its agent reads, the session it continues, and the number of the folder it writes. A
+ resumed run that kept a folder number would write into the folder of the run before it, over the summary that run left there.
  */
-const REPLACED_OPTION_NAMES: ReadonlySet<string> = new Set<string>([
-  '--prompt',
-  '--session',
-  '--run',
-],);
-
-/**
- Reads the launcher's own words without the options a resumed launch replaces.
-
- An option is written either as one word with `=` between its name and its value, or as its name with the value in the word after
- it, and both forms are one option to the command line parser. A value written after its option is dropped with it, because it
- would otherwise stand alone as a word the parser cannot read; the name alone is compared, because `--runs-folder` starts with the
- letters of `--run` and is a different option.
-
- @param commandLine - the launcher's own words
-
- @returns the words a resumed launch keeps, in the order they were written
-
- @example
- ```ts
- const kept = wordsWithoutTheOptionsReplaced(['--name=a', '--run', '5'],);
- ```
- */
-function wordsWithoutTheOptionsReplaced(commandLine: readonly string[],): readonly string[] {
-  /**
-   The words kept so far.
-   */
-  const kept: string[] = [];
-  for (let index = 0; index < commandLine.length; index += 1) {
-    /**
-     The word being read, and the option name it writes.
-     */
-    const word = commandLine[index] ?? '';
-    /**
-     Where this word's option name ends, which is where its value starts when it is attached.
-     */
-    const equals = word.indexOf('=',);
-    /**
-     The option this word writes, which is the whole word when no value is attached.
-     */
-    const option = (equals === (-1)) ? word : word.slice(
-      0,
-      equals,
-    );
-    if (!REPLACED_OPTION_NAMES.has(option,)) {
-      kept.push(word,);
-      continue;
-    }
-    if (equals === (-1)) {
-      index += 1;
-    }
-  }
-  return kept;
-}
+const REPLACED_BY_A_WAKE: readonly string[] = [
+  'prompt',
+  'session',
+  'run',
+];
 
 /**
  Reads the words a launcher is run again with to resume a run's session.
 
- The prompt, the session and the run folder's number are replaced, and each in either form it was written: the resumed run writes
- a folder of its own and never writes over the summary the first run wrote, whether the first launch named its number as
- `--run=<number>` or as `--run <number>`.
+ The prompt and the session are replaced, and the run's folder number is dropped so the resumed run writes a folder of its own and
+ never writes over the summary the first run wrote. Every other option is carried with the value the launcher read from it: the
+ words are built from what the launcher's own command line parser understood, so an option written attached, detached, twice, or
+ after the others reaches the resumed run the same way, and only `REPLACED_BY_A_WAKE` options are left out.
 
  @param commandLine - the launcher's own words
 
@@ -424,6 +377,8 @@ function wordsWithoutTheOptionsReplaced(commandLine: readonly string[],): readon
  @param sessionFile - the session file the resumed run continues
 
  @returns the words for the resumed launch
+
+ @throws WorktreeLauncherOptionsError when a word is no option this launcher reads, or an option it reads has no value
 
  @example
  ```ts
@@ -440,7 +395,10 @@ export function wakeResumeWordsOf({
   readonly sessionFile: string;
 },): readonly string[] {
   return [
-    ...wordsWithoutTheOptionsReplaced(commandLine,),
+    ...writtenWordsIn({
+      commandLine,
+      leavingOut: REPLACED_BY_A_WAKE,
+    },),
     `--prompt=${wakePrompt}`,
     `--session=${sessionFile}`,
   ];

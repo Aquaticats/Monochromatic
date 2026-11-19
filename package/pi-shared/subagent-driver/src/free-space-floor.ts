@@ -6,13 +6,22 @@
  build folders held 372 GB for about 40 agent worktrees, so about 9 GB an agent. A new run starts only while
  `FREE_SPACE_FLOOR_BYTES` are free, about eleven agents' builds, and the line says why it waits.
 
+ That volume was the 860 drive at `/var/mnt/encrypted` until the 2026-11-17 move to CachyOS, which put the repository, its agent
+ worktrees and their build folders in the home folder's volume.
+
  @module
  */
 
+import { homedir, } from 'node:os';
+
 /**
- The volume that holds the repository, every agent worktree and every build folder, whose room a new run needs.
+ The volume that holds the repository, every agent worktree and every build folder, whose room a new run needs: the home folder's
+ volume, read through the home folder of whoever runs the command, because a path that does not exist makes `statfs` throw
+ `ENOENT` and stops every run from starting. The value is read once, when the module loads, from `HOME`: a gate started under a
+ disposable `HOME` measures that folder's volume instead, so the gate runs with the real one, and a test that gives it another
+ `HOME` also gives it the room through `PI_RUNS_FREE_SPACE_BYTES`.
  */
-export const BUILD_VOLUME: string = '/var/mnt/encrypted';
+export const BUILD_VOLUME: string = homedir();
 
 /**
  How many bytes one kibibyte is, which is the unit the bigger ones are counted in.

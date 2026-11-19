@@ -7,7 +7,30 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-At most **20** agents run on this machine at once since 2026-11-15T10:50:46-05:00,
+**On the new drive the cap is found again by the search under "What counts as the ceiling",
+and until the search ends the cap is the level it is testing.**
+Every number below this paragraph was measured on the old drives (the SATA 860 EVO and the old NVMe),
+whose stalls set it, and none of them holds on the new drive.
+The home folder now sits on the ZFS pool `zpcachyos` on the Intel 3.5 TB NVMe.
+The owner on 2026-11-17:
+"The cap shouldn't be 20. The 20 cap was set because my old disk was slow, and we're on the new disk now."
+and, when a session read that as no cap at all,
+"I didn't tell you to outright remove the cap. You're meant to bisect for it."
+The owner then wrote "Start from 20 instead.",
+so the search starts at twenty and doubles until a level fails,
+then halves the gap between the last level that held and the one that failed,
+with the same failing criteria and the same hour per level.
+Should twenty itself fail,
+the levels halve downward until one holds and the gap is then halved the same way
+(this session's reading of the method for that case, open to the owner's veto).
+Its readings go under `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026-11-17/keep/`,
+and each level gets its own heading under "Readings on the new drive".
+Each provider's own measured refusal still limits its pool beside this cap
+(`package/pi-shared/subagent-driver/src/pool-limits.ts` and the skill `pi-as-subagent`).
+What follows is the old drives' record,
+kept as it was written.
+
+At most **20** agents ran on this machine at once from 2026-11-15T10:50:46-05:00 until the move,
 by the owner's answer of that morning
 ("Step to 20 with the probe (Recommended)",
 asked whether the cap stays at 17 until the new drive,
@@ -194,9 +217,52 @@ The search is done again after the new drive is in
 (expected 2026-11-17;
 the owner said on 2026-11-14 at about 14:39 that the arrival slipped from 2026-11-15).
 
+## Readings on the new drive
+
+The probe writes and syncs 4 KiB once a minute in two datasets of the pool `zpcachyos`:
+the snapshotted home dataset `zpcachyos/ROOT/cos/home`
+(in the search's own folder, where every run's scratch lives too;
+`~/.cache` is the snapshot-free `zpcachyos/nosnap/user-cache`)
+and the snapshot-free `zpcachyos/nosnap/cargo-build` (`~/.cargo/build/disk-ceiling-probe-file`),
+one line a minute in `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026-11-17/keep/probe-readings.jsonl`.
+
+### Level 20, started 2026-11-17T18:54:13-05:00
+
+- The probe unit `disk-ceiling-probe-new-zfs-drive-level-20-20261117` started at 18:54:13 for eight hours;
+  its first reading, with no agent unit going, took 0 ms on both datasets (both `sync=standard`).
+- Two canary runs (GPT 6.2 Sol on `openai`, DeepSeek V4.1 Flash on Synthetic) each ended `idle` after three turns
+  and about two and a half minutes: the wrapper answered as `git`, a worktree was made on ZFS, `cargo` and `node` ran.
+- The work at this level: six DeepSeek reviews of the reviewer bench (batch started 18:59:17),
+  the queue's first review (started by hand at 18:59:38), and the filling unit
+  `fill-free-places-at-level-20-on-the-new-drive-20261117` from 19:00:13 for eight hours,
+  which starts queue entries into free places under twenty every 150 s
+  (reviews on Synthetic DeepSeek, writers on GPT 6.2 Sol, by the starter's change of 2026-11-17).
+- Six `codex` processes and one `claude` process of other sessions were going when the level began; the probe counts `pi-*` units only.
+- Cut short, not finished: the owner asked for a shutdown at night ("shutdown the entire system after you finish A THOROUGH RESEARCH. I'm going to bed."),
+  so the filling unit was stopped about 19:26, every going run was ended through its stop file at 19:28:09,
+  and the probe was stopped at 19:28:50-05:00.
+  Its 35 readings (23:54:13Z to 00:28:17Z) saw at most 13 `pi-*` units going, never twenty;
+  the slowest write-and-sync took 72 ms on the home dataset and 2,564 ms on `cargo-build`, none over 5 s.
+  The runs' first-answer times and the disk error log were not read before the stop.
+  Level 20 was neither held an hour nor filled, so it neither passed nor failed: the search starts at twenty again.
+  Synthetic answered `429 "Too many concurrent requests"` with about ten DeepSeek runs going,
+  which is what kept the level from filling.
+
+### Level 20 again, started 2026-11-18T21:18:17-05:00
+
+- The probe unit `disk-ceiling-probe-new-zfs-drive-level-20-20261118T211817` started for eight hours, same script and
+  readings file.
+- The filling unit `fill-free-places-at-level-19-on-the-new-drive-20261118T211817` started at the same moment for eight
+  hours at level 19, because one agent at the level is a Claude Code subagent (the ZFS proposal's Sonnet gate review)
+  that its `pi-*` count does not see; three GPT writers were already going (the env-local-json fixture, the virtual
+  provider of issue 6314, both started by hand; the fold-in writer had ended).
+- Reviews now start on the Qwen plan (`qwen-token-plan-individual` `deepseek-v4.1-flash-1017`, the owner's order of
+  2026-11-18); a review a 429 ends moves to the next provider by hand until the virtual provider replaces that.
+- The nine runs stopped for the shutdown were put back at the head of the queue to go on from their sessions.
+
 ## Readings
 
-Probe readings,
+Probe readings on the old drives,
 one line a minute:
 `~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/probe-readings.jsonl`.
 

@@ -7,12 +7,14 @@
 import { homedir, } from 'node:os';
 import { parseArgs, } from 'node:util';
 import { join, } from 'node:path';
+import { IDLE_SECONDS_OF_A_RUN, } from './driver-constants.ts';
 import {
   MODEL_OF_A_RUN_NAMING_NONE,
   PROVIDER_OF_A_RUN_NAMING_NONE,
 } from './pool-limits.ts';
 import {
   type RequiredOption,
+  requiredNonNegativeSeconds,
   requiredPositiveNumber,
   requiredSeconds,
   requiredText,
@@ -49,12 +51,6 @@ const WORKTREE_FOLDER_IN_CHECKOUT: readonly string[] = [
  The prefix every worktree of a Pi run carries, so the folder says which run works there.
  */
 export const WORKTREE_PREFIX = 'pi-';
-
-/**
- Seconds the driver stays up for a steering message after Pi comes to rest, which is what a coordinator needs to steer a run that
- has settled before it is read. The scratch launcher wrote this value for every run it started.
- */
-export const IDLE_SECONDS_OF_A_RUN = 120;
 
 /**
  The parts of the coordinator's runs folder below the home directory of whoever runs this.
@@ -284,7 +280,7 @@ export function parseWorktreeLauncherOptions({
     },),), }),
     idleSeconds: (parsed['idle-seconds'] === undefined)
       ? IDLE_SECONDS_OF_A_RUN
-      : requiredSeconds(optionOf({
+      : requiredNonNegativeSeconds(optionOf({
         value: parsed['idle-seconds'],
         name: 'idle-seconds',
       },),),
@@ -396,4 +392,48 @@ function writtenValuesIn(commandLine: readonly string[],): WrittenValues {
       { cause: error, },
     );
   }
+}
+
+/**
+ Reads the options a command line wrote as one word each, in the attached form this command's own parser reads.
+
+ Node's parser reads an option as `--name=value` and as `--name value`, reads the last of a repeated one, and knows no other
+ spelling of it, so a word built here says what that command line said. A caller that replaces an option leaves its name out, and
+ no spelling of it reaches the words.
+
+ @param commandLine - arguments after the program name
+
+ @param leavingOut - the options the caller replaces, by their names without the leading dashes
+
+ @returns one `--name=value` word per option the command line wrote, in the order the parser first met them
+
+ @throws WorktreeLauncherOptionsError when an option is unknown, or a value cannot be parsed
+
+ @example
+ ```ts
+ const words = writtenWordsIn({ commandLine: ['--name', 'a', '--run=5',], leavingOut: ['run',], },);
+ ```
+ */
+export function writtenWordsIn({
+  commandLine,
+  leavingOut = [],
+}: {
+  readonly commandLine: readonly string[];
+  readonly leavingOut?: readonly string[];
+},): readonly string[] {
+  /**
+   The names the caller replaces, which no spelling of theirs may reach the words.
+   */
+  const replaced: ReadonlySet<string> = new Set(leavingOut,);
+  /**
+   One word per option the command line wrote and the caller keeps, in the order the parser first met them.
+   */
+  const words: string[] = [];
+  for (const [name, value,] of Object.entries(writtenValuesIn(commandLine,),)) {
+    if ((value === undefined) || replaced.has(name,)) {
+      continue;
+    }
+    words.push(`--${name}=${value}`,);
+  }
+  return words;
 }

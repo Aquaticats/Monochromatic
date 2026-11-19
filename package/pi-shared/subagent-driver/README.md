@@ -130,6 +130,24 @@ In the order a run that names no model of its own takes them:
   "Remove Qwen hosted Deepseek from the pool."
   It took 18 runs before.
   The runs already on it are still counted there and finish there.
+- `opencode-go`:
+  20 runs,
+  which a run that names no model of its own takes first.
+  Its account has a weekly limit.
+  The owner,
+  2026-11-11:
+  "Be careful with opencode go as it has a weekly limit and I'm 99% through the weekly limit."
+  It was closed from then until the owner wrote,
+  on 2026-11-16:
+  "My opencode-go limits have been reset."
+  It stands before both Neuralwatt pools because the owner ranked it so the same day:
+  "Prefer opencode-go over neuralwatt because opencode-go uses my less versatile sub."
+  That reverses the ranking of 2026-11-11
+  ("In practice, opencode-go may have worse inference quality and worse speed than neuralwatt's flex, so prefer neuralwatt."),
+  whose words about its speed are why a run moved there gets twice the wall clock it asked for, as on flex,
+  until this pool's own runs have been timed.
+  `PI_RUNS_POOL_LIMITS=opencode-go=0` closes it when its week is spent again,
+  and default runs then go to `neuralwatt-flex`.
 - `neuralwatt`:
   standard DeepSeek,
   closed to new runs (limit 0),
@@ -141,14 +159,9 @@ In the order a run that names no model of its own takes them:
 - `neuralwatt-flex`:
   DeepSeek flex,
   20 runs,
-  which a run that names no model of its own takes first now.
+  which a run that names no model of its own takes when `opencode-go` is full or closed.
   Flex answers about 100% slower,
   so a run moved there gets twice the wall clock it asked for.
-- `opencode-go`:
-  closed to new runs (limit 0) until the owner says its week has reset.
-  The owner,
-  2026-11-11:
-  "Be careful with opencode go as it has a weekly limit and I'm 99% through the weekly limit."
 - `neuralwatt-kimi-flex`:
   Kimi K3.1 Pro flex,
   taken only by a run that names that model,
@@ -181,7 +194,7 @@ In the order a run that names no model of its own takes them:
 
 A closed pool takes no new run at all,
 and keeps its place in the table,
-so the count prints it at zero room (`opencode-go 0/0`) and the runs already on it are still counted where they are.
+so the count prints it at zero room (`neuralwatt-kimi-flex 0/0`) and the runs already on it are still counted where they are.
 Every pool's limit can be set for one command without a code change,
 which is how a pool with a weekly or monthly quota is closed and reopened:
 `PI_RUNS_POOL_LIMITS` holds `<pool name>=<n>` pairs separated by commas,
@@ -189,8 +202,8 @@ a limit of zero closes the pool,
 and any number above zero is the room it takes again.
 
 ```sh
-# reopen OpenCode Go once the owner says the week has reset
-PI_RUNS_POOL_LIMITS=opencode-go=20 start-pi-run-when-a-pool-has-room --counts-only
+# close OpenCode Go when its week is spent
+PI_RUNS_POOL_LIMITS=opencode-go=0 start-pi-run-when-a-pool-has-room --counts-only
 # reopen Neuralwatt's Kimi flex pool, which the owner closed on 2026-11-15, for one command
 PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=20 start-pi-run-when-a-pool-has-room --counts-only
 # close the qwen plan's `qwen4-max-preview` pool for the day
@@ -296,23 +309,23 @@ or start a run it would refuse.
   a review names the commit it reviews.
 - `--run`:
   the run folder's number.
-  A run folder is claimed by making it,
-  so one number belongs to one start:
-  without `--run` the next free number is taken,
-  and a number named here that another start already holds refuses the launch
-  rather than writing over that run's summary.
-  A number past the largest a run can be counted to
-  (9007199254740991)
-  is refused where it is read,
-  because adding one to a larger number changes nothing and no folder could follow it.
+  A run folder is claimed by making it, so one number belongs to one start.
+  Without `--run`, the next free number is taken.
+  An existing folder, even an empty one, prevents another launcher from claiming its number.
+  The launcher checks for earlier records at an explicitly requested number,
+  and the driver independently refuses a folder holding any entry, even if there is no summary.
+  To keep those records, omit `--run`, use a separate runs folder, or move the old folder aside when nobody needs it.
+  A number greater than `9007199254740991` is refused because it cannot be safely incremented.
 - `--turn-cap`:
   how many model turns the run may start.
   Without it the cap is a quarter above the longest finished run of the same kind,
   and a runs folder with no finished run refuses the launch rather than guess.
+- `--idle-seconds`:
+  how long to wait for a new steering message after Pi settles.
+  It defaults to `0`, with no extra wait when nothing else holds the run.
 - `--session`,
   `--provider`,
   `--model`,
-  `--idle-seconds`,
   `--runs-folder`,
   and `--checkout-folder`.
 
@@ -427,9 +440,10 @@ Now the launcher waits for that work,
 at most the run's own wall clock,
 then resumes the agent's session with a short note naming what it left running,
 at most five wakes per run name.
-A resumed run claims a folder number of its own,
-so it never writes over the summary the first run wrote:
-the number is dropped from the resumed words whether the first launch wrote `--run=<number>` or `--run <number>`.
+A resumed run claims a folder number of its own, so it never writes over the summary the first run wrote.
+The number is dropped whether it was written as `--run=5` or `--run 5`.
+The wake builds its command line from the values the launcher's parser read,
+carrying each option it does not replace with its parsed value.
 
 A process counts as the run's own work only when its working folder is the run's worktree or run folder,
 or when one whole path component of that folder is the run's own name.
@@ -976,7 +990,11 @@ each written as `--name=value`:
   A value whose milliseconds would be infinite is refused,
   because a deadline of `Infinity` is no deadline.
 - `--idle-seconds`:
-  how long the driver stays up for a steering message after Pi comes to rest.
+  how long the driver stays up for a new steering message after Pi comes to rest.
+  It is optional and defaults to `0`, so a settled run ends without waiting for a new message.
+  A message already in `inbox/` still goes first, and work the run left running or a pending retry still keeps it up.
+  A failure Pi settled on still determines the ending if it is not recovered.
+  Use a positive value to leave time for a new message.
 - `--turn-cap`:
   how many model turns the run may start.
   An attempt of Pi's own automatic retry is a turn too,
@@ -1011,7 +1029,7 @@ each written as `--name=value`:
   one more word for Pi's command line.
   Repeat it for more words.
 
-The first eight options are required,
+`--run-folder`, `--working-folder`, `--prompt-file`, `--provider`, `--model`, `--wall-seconds` and `--turn-cap` are required,
 so a run is always bounded.
 Putting the run away has its own bound after the wall limit:
 the last two answers,
@@ -1039,6 +1057,13 @@ the launcher that builds the session's environment asks it, once, before it make
 - `summary.json`:
   appears whole and last,
   so its presence means the driver has finished.
+  A folder holds one summary and no run writes over one:
+  the file takes its name by a link of a file already written whole,
+  so a name that is taken makes the run refuse instead of replacing the record there.
+  That file is written under a name of its own made from random bytes
+  and created rather than opened,
+  so a writer killed between two of its steps
+  leaves a name no later write can derive or truncate.
   `piExit` is there only when Pi's exit was seen,
   so a summary naming `pi-not-stopped` omits it and claims nothing about Pi having gone.
   `feedProblem` names why the feed is incomplete when it is,
@@ -1063,6 +1088,9 @@ the launcher that builds the session's environment asks it, once, before it make
   then rename it to one without the dot,
   because any other name is read at once.
   Pi gets it as a steer while it works and as a new prompt while it rests.
+  A message is read only while the driver is up:
+  with the default idle window of `0` a settled run ends within one look of the folder,
+  so a run that must be steered after it settles needs a positive `--idle-seconds`.
   An entry must be an ordinary file:
   a named pipe is set aside instead of waited on.
   A message Pi refused stays as `.failed-<name>`,

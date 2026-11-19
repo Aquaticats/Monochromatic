@@ -5,9 +5,5 @@
       directory='$PROJECT_DIR$'
       vcs='Git'
     />
-    <mapping
-      directory='/var/home/user/Monochromatic'
-      vcs='Git'
-    />
   </component>
 </project>

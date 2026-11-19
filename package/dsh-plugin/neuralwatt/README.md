@@ -172,7 +172,7 @@ concern.
 
 ## Wiring
 
-`engines.dsh` declares the verified host version `0.2.2-rc.1` explicitly.
+`engines.dsh` declares the verified host version `0.2.2-rc.3` explicitly.
 The exact prerelease limits the compatibility claim to the tested host;
 revalidate activation before changing it.
 DSH reads this field before peer dependencies,

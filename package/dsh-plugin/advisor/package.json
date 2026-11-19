@@ -5,7 +5,7 @@
   "private": true,
   "version": "0.0.1",
   "engines": {
-    "dsh": "0.2.2-rc.1"
+    "dsh": "0.2.2-rc.3"
   },
   "repository": {
     "type": "git",
@@ -84,6 +84,7 @@
     "@deepseek-ai/dsh-attachment": "catalog:",
     "@deepseek-ai/dsh-brand": "catalog:",
     "@deepseek-ai/dsh-commands": "catalog:",
+    "@deepseek-ai/dsh-error": "catalog:",
     "@deepseek-ai/dsh-fs": "catalog:",
     "@deepseek-ai/dsh-llm": "catalog:",
     "@deepseek-ai/dsh-ptc-runtime": "catalog:",

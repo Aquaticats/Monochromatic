@@ -24,7 +24,6 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   ALREADY_RUNNING_EXIT_STATUS,
-  BUILD_VOLUME,
   BYTES_IN_A_GIBIBYTE,
   FREE_SPACE_FLOOR_BYTES,
   LAUNCHER_ENTRY_NAMES,
@@ -148,19 +147,24 @@ function openDefaultPools(): readonly ProviderPool[] {
 
  @param freeSpaceBytes - the room the test gave the build volume
 
+ @param volume - the build volume the gate names, which is the home folder the test gave it, because the gate reads the volume
+ through the home folder of whoever runs it
+
  @example
  ```ts
- expectCountsLine({ line: ran.stdout.trim(), counts: new Map([[NEURALWATT_STANDARD.name, 1]]), freeSpaceBytes: roomToSpareBytes() });
+ expectCountsLine({ line: ran.stdout.trim(), counts: new Map([[NEURALWATT_STANDARD.name, 1]]), freeSpaceBytes: roomToSpareBytes(), volume: folder.path });
  ```
  */
 function expectCountsLine({
   line,
   counts,
   freeSpaceBytes,
+  volume,
 }: {
   readonly line: string;
   readonly counts: ReadonlyMap<string, number>;
   readonly freeSpaceBytes: string;
+  readonly volume: string;
 },): void {
   /**
    The pools, and the room the volume has, which the line names after a semicolon.
@@ -175,7 +179,7 @@ function expectCountsLine({
     expect(entries[index],).toBe(`${pool.name} ${String(counts.get(pool.name,) ?? 0,)}/${String(roomIn(pool,),)}`,);
   }
   expect(room,).toBe(freeSpaceTextOf({
-    volume: BUILD_VOLUME,
+    volume,
     freeBytes: Number(freeSpaceBytes,),
   },),);
 }
@@ -503,6 +507,7 @@ await describe({
           line: ran.stdout.trim(),
           counts: new Map([[NEURALWATT_STANDARD.name, 1,],],),
           freeSpaceBytes: folder.freeSpaceBytes,
+          volume: folder.path,
         },);
         expect(await programsAsked(folder,),).toEqual([
           'systemctl --user list-units --state=active,activating --no-legend --plain pi-*.service',
@@ -668,7 +673,7 @@ await describe({
         expect(ran.status,).toBe(NO_SLOT_EXIT_STATUS,);
         expect(ran.stdout.trim(),).toBe(
           `NO SLOT: ${freeSpaceTextOf({
-            volume: BUILD_VOLUME,
+            volume: folder.path,
             freeBytes: Number(roomUnderTheFloorBytes(),),
           },)}, under the floor of ${freeSpaceFloorTextOf()}; not started: copy-route`,
         );
@@ -721,7 +726,7 @@ await describe({
           execStart: '',
         },);
         /**
-         The counts as the gate ships them, with the pool the owner set aside closed.
+         The counts as the gate ships them, with the pool the owner closed at no room.
          */
         const closed = await runTheGate({
           folder,
@@ -732,22 +737,26 @@ await describe({
           line: closed.stdout.trim(),
           counts: new Map(),
           freeSpaceBytes: folder.freeSpaceBytes,
+          volume: folder.path,
         },);
+        expect(closed.stdout.trim(),).toContain(`${NEURALWATT_KIMI_FLEX.name} 0/0`,);
+        expect(closed.stdout.trim(),).toContain(`${OPENCODE_GO.name} 0/${String(OPENCODE_GO.limit,)}`,);
         /**
-         The room a caller gives the set-aside pool, which is another open pool's own limit rather than a number of the test's.
+         The room a caller gives the closed pool, which is another open pool's own limit rather than a number of the test's.
          */
         const reopenedRoom = NEURALWATT_DEEPSEEK_FLEX.limit;
         /**
-         The counts with that pool reopened by the caller, and another pool closed in its place.
+         The counts with that pool reopened by the caller, and the pool with a weekly limit closed as a caller closes it when its
+         week is spent.
          */
         const reopened = await runTheGate({
           folder,
           words: ['--counts-only', '--runs-folder=/nowhere',],
-          poolLimits: `${OPENCODE_GO.name}=${String(reopenedRoom,)},${NEURALWATT_STANDARD.name}=0`,
+          poolLimits: `${NEURALWATT_KIMI_FLEX.name}=${String(reopenedRoom,)},${OPENCODE_GO.name}=0`,
         },);
         expect(reopened.status,).toBe(0,);
-        expect(reopened.stdout.trim(),).toContain(`${OPENCODE_GO.name} 0/${String(reopenedRoom,)}`,);
-        expect(reopened.stdout.trim(),).toContain(`${NEURALWATT_STANDARD.name} 0/0`,);
+        expect(reopened.stdout.trim(),).toContain(`${NEURALWATT_KIMI_FLEX.name} 0/${String(reopenedRoom,)}`,);
+        expect(reopened.stdout.trim(),).toContain(`${OPENCODE_GO.name} 0/0`,);
         /**
          What a limits setting the gate cannot read answers with, so a mistyped pool name is never counted as a closed pool.
          */
@@ -784,6 +793,7 @@ await describe({
             return [pool.name, 1,] as const;
           },),),
           freeSpaceBytes: folder.freeSpaceBytes,
+          volume: folder.path,
         },);
         expect(ran.stderr,).toContain('pool of unit pi-copy-route.service not read',);
       },

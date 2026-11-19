@@ -1338,7 +1338,7 @@ await describe({
       name: parseWorktreeLauncherOptions.name,
       children: [
         it({
-          name: 'reads every required option, and takes the pool defaults a launcher has always had',
+          name: 'reads the required options and defaults to a zero idle window',
           fn: async () => {
             /**
              What a complete command line asks for.
@@ -1366,7 +1366,7 @@ await describe({
               wallSeconds: 7_200,
               provider: NEURALWATT_STANDARD.provider,
               model: NEURALWATT_STANDARD.model,
-              idleSeconds: IDLE_SECONDS_OF_A_RUN,
+              idleSeconds: 0,
               runsFolder: join(process.env.HOME ?? '', 'temp', 'agent', 'pi-runs',),
               checkoutFolder: '/repo',
             },);
@@ -1447,6 +1447,24 @@ await describe({
               commandLine: [...usable, '--run=1.5',],
               checkoutFolder: '/repo',
             },),).toThrow('whole number a run can count to',);
+          },
+        },),
+        it({
+          name: 'accepts an explicit zero idle window',
+          fn: async () => {
+            expect(parseWorktreeLauncherOptions({
+              commandLine: [
+                '--name=a',
+                '--branch=none',
+                '--prompt=p.md',
+                '--cpu=8',
+                '--memory=1G',
+                '--tasks=10',
+                '--wall=60',
+                '--idle-seconds=0',
+              ],
+              checkoutFolder: '/repo',
+            },).idleSeconds,).toBe(0,);
           },
         },),
         it({

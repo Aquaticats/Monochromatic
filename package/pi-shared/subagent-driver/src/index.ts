@@ -22,6 +22,7 @@ export {
 export {
   COMMAND_ANSWER_MILLISECONDS,
   FEED_PREVIEW_CHARACTERS,
+  IDLE_SECONDS_OF_A_RUN,
   MODEL_ERROR_RETRY_BASE_SECONDS,
   MODEL_ERROR_RETRY_CAP,
   MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS,
@@ -346,6 +347,27 @@ export {
   startLineSplitter,
   type SplitPiOutputRequest,
 } from './split-pi-output.ts';
+
+/**
+ The summary a writer of a summary that stops between its steps publishes, exported so the test that kills that writer can name the
+ bytes it would have left.
+ @internal
+ */
+export { summaryTheStoppingWriterPublishes, } from './summary-the-stopping-writer-publishes-for-tests.ts';
+
+/**
+ A run's summary, which a folder holds once: written whole or not at all, refused when a summary is already there, and refused at
+ the start of a run that was given the folder of one.
+ */
+export {
+  type BetweenSummaryWriteSteps,
+  type SummaryWriteStep,
+  RunFolderHoldsAnEarlierAttemptError,
+  earlierAttemptProblemIn,
+  earlierAttemptProblemOf,
+  refuseWhenTheFolderHoldsAnEarlierAttempt,
+  writeSummary,
+} from './write-summary.ts';
 
 /**
  The library surface of reading a run's own records, kept in a file of its own for the same reason.
