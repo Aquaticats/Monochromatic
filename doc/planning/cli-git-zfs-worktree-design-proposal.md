@@ -1,13 +1,15 @@
 # ZFS worktree design proposal for the Git wrapper
 
-**Non-final draft by an agent, unapproved.** This revision (2026-11-18T20:40:28-05:00) replaces the previous draft's
-root-owned anchor, `checkout` subdirectory and directory exchange with the checkout at its existing path and
-account-owned slots mounted directly over their Git registrations. It folds in the project's decisions in
-[Owner's answers of 2026-11-18][answers], the accepted [cross-vendor review and its disposition][handover],
-the [nested-clone research][nested], and the [checkout-dataset and pnpm research][pnpm]. The Rust binding vet,
-Btrfs design, wrapper specification and probe records support specific parts of the design. This is a documentation
-revision, not an implementation or a pool change. The proposal still owes pre-acceptance measurements, the build
-still owes acceptance tests, and the project still owns the listed open choices.
+**Non-final draft by an agent, unapproved.** Gate review fold-in (2026-11-18T21:55:35-05:00): this revision
+answers the accepted findings on `71fa25ece8`, incorporates the three [project decisions][answers] on removal,
+promote and the runtime module gate, and distinguishes [pre-acceptance measurements][measurements] from tests
+the build still owes. It records the companion boot/shutdown unit and leaves the listed choices to the project.
+
+The design keeps the checkout at its existing path and uses account-owned slots over their Git registrations,
+not the first draft's root-owned anchor, `checkout` subdirectory or directory exchange. It draws on the
+[earlier cross-vendor review and its disposition][handover], the [nested-clone research][nested] and the
+[checkout-dataset and pnpm research][pnpm], including the nested-clone record's dated corrections.
+This revision changes documentation only; it does not install, implement or alter a pool.
 
 ## Requirements and module ownership
 
@@ -107,8 +109,9 @@ The [project decided][answers] "A: Test plus runtime gate (Recommended)" for a c
 test. At start, before the first ioctl, both binaries must prove compatibility with the loaded module and target
 ABI, including module release, architecture, endianness, request contract and kernel/module BTF layout. A missing
 device, missing required BTF or mismatch disables raw requests, including reads; no force flag. Unverified
-architectures, including `linux-arm64` until separately tested, still use the ordinary checkout route. Whether verification uses exact
-approved BTF digests or compares fields at runtime is an [open choice](#open-project-choices). The gate must report
+architectures, including `linux-arm64` until separately tested, do not qualify. On gate refusal the wrapper
+uses the applicable same-dataset reflink or ordinary Git route for an unused slot. Whether verification uses
+exact approved BTF digests or compares fields at runtime is an [open choice](#open-project-choices). The gate must report
 what failed, also when an update makes existing clones temporarily unavailable. A failed gate does not authorize
 an unrelated mount or cleanup; keep registrations and durable recovery state intact.
 
@@ -310,8 +313,9 @@ selected by the open boot choice:
 The selected provider must require the actual home and key-loading providers and order after them and
 `zfs-import.target`. Order reconciliation after those providers as well, and after `home.mount` and
 `home-user-Monochromatic.mount` when systemd tracks those mounts separately, so their stop jobs cannot
-race the clone sweep. Run both modes in the host mount namespace. Order startup before `systemd-user-sessions.service`; install the checkout provider dependency
-for services of the account that need the checkout rather than relying on login ordering alone.
+race the clone sweep. Run both modes in the host mount namespace. Order startup before
+`systemd-user-sessions.service`; install the checkout provider dependency for services of the account that
+need the checkout rather than relying on login ordering alone.
 
 - `ExecStart` runs the installed `mount-git-worktree-clone-datasets boot-reconcile`. It verifies ABI, keys,
   checkout and selected propagation before reconciling current intent and publishing this boot's readiness.
@@ -375,8 +379,8 @@ pinned checkout mount, walk the canonical components with the no-crossing, no-fo
 must identify the intended replacement by device and inode, independently verified from the restored checkout or
 controlled recreation. Check the held descriptor against those values and its owner, mode and access/default ACLs
 against policy. Reconcile all affected bindings against live and staged mounts, claims and Git registrations, then
-check a fresh canonical lookup matches the held descriptor before recording its identity. If any cannot be resolved, refuse adoption and report what needs
-recovery. Never overwrite surviving slot identities or adopt a replacement for an existing binding implicitly.
+check a fresh canonical lookup matches the held descriptor before recording its identity. Refuse adoption if
+any binding cannot be resolved and report what needs recovery. Never overwrite surviving slot identities or adopt a replacement for an existing binding implicitly.
 Until adoption, refuse managed mutations on the mismatched parent. On an otherwise unused and verified slot,
 ordinary same-dataset reflink (rung 2), or native Git when reflink does not qualify (rung 3), remains available
 without root. Never use fallback to write over an unresolved managed slot.
@@ -385,8 +389,8 @@ The syscall floor is Linux 5.6 for `openat2`; the other mount APIs used here sta
 `fsmount(2)` and `move_mount(2)`, "History"). The demonstrated guest baseline is `6.8.0-147-generic` with
 OpenZFS 2.4.4 ([nested-clone research][nested], "What was checked and how" and item 3). That validates the
 exercised calls on that build, not the complete mechanism on all kernels at or beyond the syscall floor. Check the
-actual kernel and required operations at handler readiness, separately from the ioctl ABI gate. If unverified, refuse managed
-mounts and report the applicable reflink or Git route.
+actual kernel and required operations at handler readiness, separately from the ioctl ABI gate. If unverified,
+refuse managed mounts and report the applicable reflink or Git route.
 
 Use the research's descriptor-relative `openat2` constraints, `fsmount` with enforced `nosuid,nodev`, and
 `move_mount` onto the opened target. Report the failing component or mismatched identity field. After attach, prove
@@ -689,9 +693,9 @@ in the ranking. Use the pending measurements where they affect the options; a ra
   the ZFS mounts under `/home`, including `~/.cache` and the vm-builder output. The new checkout mount does not
   exist here yet; inheriting shared propagation from `/home` is an inference, not a reading of that mount.
   Options: refuse the managed route until an administrator makes the checkout and its ancestors private (no
-  product-driven propagation change, but needs broad host changes here); make only the checkout mount private
-  in the root-installed boot unit after verifying the checkout and before enabling clone mounts, reapplying on
-  each boot (leaves `/` and `/home` alone); or support a different explicit administrator-configured isolation
+  product-driven propagation change, but needs broad host changes here); use `mount --make-private` on only
+  the checkout mount in the root-installed boot unit, after verifying it and before enabling clone mounts,
+  reapplying on each boot (leaves `/` and `/home` alone); or support a different explicit administrator-configured isolation
   arrangement (can fit other consumers, but needs its own staging and visibility proof). A private checkout is
   expected not to propagate new clone mounts into another already-running mount namespace
   (`mount_namespaces(7)`); that could lose the visibility the planning probes saw without a read-only parent
@@ -747,8 +751,8 @@ file and its results are not present in this worktree yet.
   mountinfo. The nested probe measured the device refusal, not setuid execution (`guest-exact-zfs.log:222`
   to `:223`). The built handler repeats the control.
 - Re-run **every item 3 refusal** with the account owning `.claude/worktrees` and the slots: a link at `.claude`, at
-  `.claude/worktrees` and at the slot; a link created by the account inside the parent; a parent escape, magic link
-  and bind mount with the same device and inode; replaced inode, wrong UID and widened mode. The account can plant
+  `.claude/worktrees` and at the slot; an account-planted link inside the parent, created there or renamed in;
+  a parent escape, magic link and bind mount with the same device and inode; replaced inode, wrong UID and widened mode. The account can plant
   a link under this ownership, so the handler must refuse, not the filesystem permissions from the root-owned
   fixture. Include access and default ACL drift, a target already mounted, and a valid account-owned attach control.
   Assert refusals identify the component or field and do not attach a clone or disturb an existing mount.
@@ -783,8 +787,8 @@ file and its results are not present in this worktree yet.
 Run with the built wrapper and handler on a disposable VM's file-backed pool, without passing through the host's
 pool or `/dev/zfs`. Repeat the [host-shaped encrypted fixture](#measurements-due-before-design-acceptance) with the
 built programs, including an unloaded-key control for the handler and clone fill. Test root installation and then
-the account with only the proposed delegation. Capture versions, assertions and controls, not just logs. Make the VM recipe reproducible: retry the documented `mvm` template route
-that failed with `guest agent on template-setup did not respond within 120s`, or verify and document the disposable
+the account with only the proposed delegation. Capture versions, assertions and controls, not just logs. Make the
+VM recipe reproducible: retry the documented `mvm` template route that failed with `guest agent on template-setup did not respond within 120s`, or verify and document the disposable
 QEMU recipe using the same OpenZFS version. Retain evidence of guest and pool teardown, not system changes on the
 host. These gates carry the [handover's H1 and H2 disposition][handover] and the nested study's
 [What I could not show and why][nested-limits].
