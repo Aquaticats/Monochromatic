@@ -1352,7 +1352,8 @@ that last shape is not waited for, and the run ends `idle` while the work goes o
 Before 2026-11-19 the folder and the control group were the whole test,
 which counted that backgrounded scope as the run's work,
 and counted every other session's process in the main checkout too:
-two runs started with `--working-folder` there waited out their whole wall clock on another session's `codex` and `claude`,
+two runs started with `--working-folder` there waited out their whole wall clock
+on another session's `codex` and `claude`,
 on other runs' `pi`, and on the scopes of both.
 What none of them can show is not guessed at,
 and a run with nothing running ends `idle` as it always did.
