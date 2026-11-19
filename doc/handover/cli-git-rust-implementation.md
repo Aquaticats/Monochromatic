@@ -40178,6 +40178,13 @@ change it flagged; item 17 and the root option's unknowns in the identity choice
 veto" (receipts under `/run`, the handler as a second binary, no implicit remount, private staging); N1 to N3, N5 to N11
 answered; 123 anchors, none missing. GOING: a bounded Sonnet check of `9a1a47e190..b26aa27f3c` (background Agent), the
 bookmark rule against its source first. Then the open choices to the owner in the morning.
+The check came back (saved as `keep/fourth-delta-check.md`): nearly every item answered; foreign history cannot pass the
+bookmark rule (by snapshot ordering, `dsl_bookmark.c:250-256`, `dsl_dataset.c:3747-3749`, not the writer's GUID reason);
+open: an own bookmark whose snapshot was deleted is refused with the cost unstated, a possible stranding of a bookmarked
+clone between chunks (reasoning), item 17's promoted topology against the design's unpromoted clones, and the refusal rule
+under "B: Destroy at once" offered nowhere as a choice. GOING: item 18 measures the account's batch on an unpromoted clone
+(`pi-zfs-measurement-item-18-unpromoted-clone-batch-1`, run-4, VM); then one last fold-in (the refusal rule as an open
+choice, the bookmark costs and stranding, item 18, the lows); then the choices to the owner.
 
 **Provider writer run-7** hit its 200-turn cap after 16 min with nine commits (`cb7d6a66ab` to `dbc6f57268`: OpenAI out
 of the writer pool, the move gated on OpenAI's opening, a set-aside policy stop yielded instead of a later 429, the
