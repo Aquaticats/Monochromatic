@@ -262,8 +262,10 @@ one line a minute in `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026
 - No verdict again. The probe exited at its first reading: every user unit inherits `NODE_OPTIONS=--permission-audit`
   since 2026-11-18T19:35:41-05:00, and Node 26.13.1 then refuses `fsyncSync` ("fsync API is disabled when Permission
   Model is enabled"). The owner turned the model on and, same evening: "we should figure out how to work with it, not
-  disable it." So a later probe keeps the model and syncs another way that the model allows (not yet found or
-  measured; clearing `NODE_OPTIONS` for the probe's unit is ruled out). The level
+  disable it." Then: "Shouldn't the probe be in rust with hyperfine anyway?" So the next probe is a small Rust program
+  that writes 4 KiB and syncs it in each dataset, timed by hyperfine (2.0.0, installed at `/usr/bin/hyperfine` by the
+  system, not in the repository's tool list), with a control arm in the same round; Node's permission model does not
+  apply to it, and clearing `NODE_OPTIONS` is ruled out. It is built when the search resumes. The level
   never filled (6 to 18 runs). At 21:47:42 the owner's "We shouldn't use worktrees heavily before we implement the zfs
   parts for the git wrapper." stopped the filling, so the search waits for the wrapper's ZFS route.
 

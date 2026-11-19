@@ -39859,9 +39859,15 @@ waits with it: its probe had not run anyway, because since 2026-11-18T19:35:41-0
 `NODE_OPTIONS=--permission-audit` (`doc/research/node-permission-default-with-npm.md`, "Persistent audit default on
 CachyOS"), and under it Node 26.13.1 refuses `fsyncSync` ("fsync API is disabled when Permission Model is enabled"),
 which the probe calls; no TypeScript file under `package/` calls `fsync`, so this repository's code does not meet that
-refusal (third-party tools the runs call are not checked). The owner, plain text: "I turned on the permission model by
-default. And we should figure out how to work with it, not disable it." So nothing here clears `NODE_OPTIONS`; the
-probe is to be changed to sync in a way the model allows, found and measured before the cap search resumes.
+refusal. Of the installed third-party JavaScript (pnpm's global store under `~/.local/share/pnpm/store/v11/links`, read
+2026-11-18 at about 21:50), these call `fsync`: Pi 1.5.2 only in an example extension
+(`examples/extensions/doom-overlay/doom/build/doom.js`, not on a run's path), `atomically`, `stubborn-fs`, `postject`,
+`prettier`'s experimental CLI, `socket`, `typescript-language-server`, `unenv`, `@loaders.gl/textures`,
+`@deepseek-ai/libreoffice-kit-wasm`, and npm's own `write-file-atomic` (`/usr/lib/node_modules/npm/node_modules/write-file-atomic/lib/index.js:228`);
+which of them a run reaches under the model is not yet measured. The owner, plain text: "I turned on the permission
+model by default. And we should figure out how to work with it, not disable it." and "Shouldn't the probe be in rust
+with hyperfine anyway?" So nothing here clears `NODE_OPTIONS`, and the disk probe becomes a Rust program timed by
+hyperfine (cap page, "Level 20 again").
 
 ### The queue runs again, reviews on the Qwen plan first (2026-11-18T21:18:17-05:00)
 
