@@ -115,8 +115,12 @@ On 2026-11-11 from 01:19Z,
 "Concurrent limit reached for deepseek-ai/DeepSeek-V4.1-Flash: 6/6 slots in use. ...
 Your subscription is in overage with auto-renew off,
 so pay-as-you-go limits apply until it renews."
-The rate-limit endpoint still answered `effective_concurrency` 20 then,
-so the 429 is what tells;
+The rate-limit endpoint still answered `effective_concurrency` 20 then;
+the owner, 2026-11-18:
+"that was probably an undocumented bug.
+The bug happens if my auto renew for Neuralwatt isn't turned on."
+So the endpoint's number holds while auto-renew is on,
+and only in that overage state does the 429's own number tell;
 Pi ends the run on it instead of retrying.
 The owner's `retry` group was read again on 2026-11-11 at 22:33Z and holds
 `enabled` true,
