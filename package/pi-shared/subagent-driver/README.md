@@ -1355,6 +1355,30 @@ which names every process it waits for;
 when the work is gone the driver sends the agent a message naming what ended and asking it to read the result with the `process` tool,
 notes a `wake` line with Pi's answer,
 and goes on.
+
+The message is sent with `streamingBehavior: 'steer'`,
+because Pi's agent may already be in a turn of its own when the work ends:
+Pi starts a turn by itself when a tool it ran in the background reports,
+which is the same moment the driver stops waiting.
+Pi refuses a prompt that meets a running agent when the prompt names no streaming behaviour,
+and queues it into that turn when one is named
+(`prompt()` in `dist/core/agent-session.js` of Pi 1.5.2):
+that refusal is not a refusal of the message,
+and a driver that read it as one ended the run of 2026-11-19 `prompt-rejected`
+while the agent was in a turn of its own,
+cutting that turn off.
+With the behaviour named,
+the wake joins the running turn before its next request,
+so the wake costs no second turn and that turn's reply is the run's last answer.
+Pi ignores the behaviour while its agent rests,
+so a wake sent to a resting Pi starts a turn as it always did.
+Pi's answer that its agent is already processing is never read as a refusal either:
+it says the agent is awake,
+so the run stays up for the turn it is in,
+and the feed gains a `problem` line saying so.
+`doc/troubleshooting/pi-refuses-a-prompt-while-its-agent-is-already-processing.md` walks Pi's own source for that answer
+and lists the driver's other prompts that can meet it.
+
 A run the driver woke does not end as `idle` until the reply to that message settles:
 the silence spent waiting for the work is not the silence of an agent with nothing left,
 so a driver that ended the run one look after sending the message cut off the agent it had just woken.
