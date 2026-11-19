@@ -1,4 +1,4 @@
-# cli-git ZFS worktrees
+# cli-git ZFS worktree design
 
 ## Status
 
