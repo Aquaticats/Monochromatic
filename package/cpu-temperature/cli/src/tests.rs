@@ -219,5 +219,10 @@ fn validates_command_line_and_service_configuration() {
     ]).is_ok());
     assert!(Cli::try_parse_from(["setMaxCpuTemp", "release"]).is_ok());
     let fixture = Fixture::new();
+    // The global runtime directory can precede the service action.
+    let runtime = fixture.runtime().to_str().expect("UTF-8 test runtime");
+    let release = Cli::try_parse_from(["setMaxCpuTemp", "--runtime-dir", runtime, "release"])
+        .expect("parse release with explicit runtime directory");
+    run(release).expect("release from the fixture's empty journal");
     assert_eq!(read_target(fixture.runtime()).expect("default target"), Target::Off);
 }

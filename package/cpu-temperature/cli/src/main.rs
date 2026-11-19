@@ -39,7 +39,7 @@ const HWMON: &str = "/sys/class/hwmon";
 
 /// Change the CPU temperature target of the running Linux service.
 #[derive(Parser)]
-#[command(name = "setMaxCpuTemp", version, subcommand_negates_reqs = true, args_conflicts_with_subcommands = true)]
+#[command(name = "setMaxCpuTemp", version, subcommand_negates_reqs = true)]
 struct Cli {
     /// Requested temperature in whole degrees Celsius, or off.
     #[arg(value_parser = target::parse_target, required = true, value_name = "CELSIUS|off")]
@@ -81,6 +81,10 @@ enum Service {
 
 /// Dispatch the parsed operation without changing the target on a service stop.
 fn run(cli: Cli) -> io::Result<()> {
+    if cli.target.is_some() && cli.service.is_some() {
+        // A target update must not accidentally dispatch a systemd entry point.
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "supply a target or a service command"));
+    }
     // What
     // `match` selects the entry point and binds the values carried by that case.
     // Why
