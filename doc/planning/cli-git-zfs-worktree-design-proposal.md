@@ -749,9 +749,10 @@ a test asserts that the encoded request has no `defer` key.
     `unmount`. Require the root handler's [all-namespace unmount check](#mounts-held-by-other-namespaces) and
     verify the request, clone GUID, underlay identity and Git registration still match. A missing, mismatched
     or busy unmount blocks destruction, even when the slot is clear (proposed from [item 15][vm-namespaces]).
-3.  After unmount, persist the verified inventory and expected clone identity as the destruction plan. It records
-    each snapshot tuple this removal verified and submitted for destruction, with that tuple's outcome, and never
-    a bookmark. Require fresh root all-namespace verification before the first snapshot delete. Reprove lineage and
+3.  After unmount, persist the verified inventory and expected clone identity as the destruction plan. That inventory
+    is step 1's, which lists bookmarks as well as snapshots; the plan records each snapshot tuple this removal
+    verified and submitted for destruction, with that tuple's outcome, and no bookmark entry. Require fresh root
+    all-namespace verification before the first snapshot delete. Reprove lineage and
     candidate identities immediately before submitting the full verified snapshot set in one
     `ZFS_IOC_DESTROY_SNAPS` request that omits the `defer` key; retain the per-name error list (direct route run as
     root, [item 14][vm-batch]).
