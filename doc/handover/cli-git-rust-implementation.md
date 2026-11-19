@@ -39919,7 +39919,23 @@ What follows from them, as work:
   a background Claude Code subagent on Sonnet, read-only through `git show` and `git diff` in the main repository;
   given the document, the diff `b5294a7325..4a451701c9`, the frozen record and the fold-in brief, not the short
   review's findings, so its reading is its own; brief and report under
-  `~/temp/agent/zfs-proposal-decided-answers-gate-review-on-sonnet-2026-11-19/`. Then the owner's acceptance.
+  `~/temp/agent/zfs-proposal-decided-answers-gate-review-on-sonnet-2026-11-19/` (the harness refused the subagent's
+  file write; the coordinator saved its returned text as `report.md`).
+- **The gate review returned "not ready"**: two high (F1 "loses no history" stands although an auto-cancelled removal
+  leaves a living worktree without its own snapshots; F2 the staging unmount still leans on the root ownership the
+  `~/.cache` answer removed, with no word on whether it acts on the held descriptor), eight medium (F3 the forced arm
+  read as operative in four places though the record says "adopted only if it works"; F4 the explicit cancel command
+  and report-only recovery declared gone beyond the record, and a timed-out or killed removal after `unmount` returned
+  by nothing; F5 "repeats after a replacement mount" undesigned; F6 ending the account's holders presented as settled;
+  F7 no lock step for choice 16 and no open item for choice 15's dirty-main restore, against my brief's reading; F8
+  a refusal at the pre-destroy origin check loses the snapshots, unsaid; F9 staging presented as designed, with no
+  `~/.cache` mount ordering and no "cleanup stops at a mount"; F10 decided behaviours with no test or owed item, and
+  tests owed for unselected options) and four low. Each fix is a sentence or an open item and none changes a decision.
+  Coordinator's weighing: all fourteen earn a fix; F4's "does an explicit cancel command stay" and F8's "run the
+  deferred-mark check before the first delete too" go to the owner at acceptance as questions. By the loop-ending rule
+  of the ZFS fold-ins (one narrow round, then the coordinator's `rg` check, no further review), GOING: the fix run
+  `pi-zfs-proposal-gate-review-findings-fixed` (DeepSeek on Neuralwatt, cap 635) in the fold-in worktree; folder
+  `~/temp/agent/zfs-proposal-gate-review-findings-fixed-2026-11-19/`. Then the `rg` check and the owner's acceptance.
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
   `pi-zfs-proposal-fold-in-short-review-on-the-qwen-plan` (turn cap 540, a quarter above the longest of 672 finished
   review runs, 431), in its own detached worktree
@@ -39969,9 +39985,12 @@ What follows from them, as work:
   label; `OPERATION_ABORTED`'s cited `feed.jsonl` is gone and its summary does not hold the text) and three low (two
   more cited feeds gone though their summaries hold the text; the rules-doc paragraph counts a dated quote in a skill
   or handover as a capture, wider than `TAE`; the file's top doc says all its texts are recorded). All weighed as worth
-  fixing; GOING: the fix run `pi-driver-model-error-fixtures-review-findings-fixed` (DeepSeek on Neuralwatt, cap 635)
-  in `.claude/worktrees/pi-driver-model-error-fixtures-review-findings-fixed` on the same branch; folder
-  `~/temp/agent/driver-model-error-fixtures-review-findings-fixed-2026-11-19/`.
+  fixing. The fix run ended `idle` (85 turns) at `d2f3a23b7d` (`c96f5a000a`, `d2f3a23b7d`; four files, the source
+  file's change doc comments only: "a gateway may write a word in front of it" became a citation of Pi's composer,
+  `error-body.js:139-146`). GOING: its delta review on the Qwen plan,
+  `pi-driver-model-error-fixtures-delta-review-on-the-qwen-plan`, in the detached worktree
+  `.claude/worktrees/pi-qwen-review-driver-model-error-fixtures-at-d2f3a23b7d`; folder
+  `~/temp/agent/driver-model-error-fixtures-delta-review-on-the-qwen-plan-2026-11-19/`. Then the merge.
 - **A defect both runs met:** in a fresh worktree `mise run //package/pi-shared/subagent-driver:lint:types` fails on
   files the change did not touch until `mise run //package/pi-shared/subagent-driver:build` runs, because the unit
   tests import `../dist/final/node/index.mjs` and the worktree's `dist` is the main checkout's copied ignored build,
