@@ -58,8 +58,7 @@ const RUN_MILLISECONDS = 2 * POLL_MILLISECONDS;
 const HOLD_MILLISECONDS = 3 * POLL_MILLISECONDS;
 
 /**
- Seconds of silence after which a settled run would end. Every run here is one Pi is at work on, so this never decides anything;
- the wall clock, which each test sets, is what ends them.
+ Seconds of silence after which a settled run can end, if no work or failure still holds it.
  */
 const IDLE_SECONDS = 0;
 
@@ -193,13 +192,14 @@ function optionsOf({
 
  @returns the run, and the folder that goes with it
  */
-async function startRun(): Promise<RunUnderTest> {
+async function startRun(now?: () => number,): Promise<RunUnderTest> {
   const folder = await makeFolder();
   const runFolder = folder.path;
   const inbox = join(runFolder, 'inbox',);
   await mkdir(inbox,);
   const record = startRecordOfPiRun({
     feedFile: join(runFolder, 'feed.jsonl',),
+    ...(now === undefined ? {} : { now, }),
     mask: MASKING_NOTHING,
   },);
   return {
@@ -541,6 +541,29 @@ await describe({
         // The keep-it-aside path is what makes a stalled message neither lost nor sent again.
         expect(await readdir(run.inbox,),).toEqual([`.failed-${MESSAGE_NAME}`,],);
         expect(await readFile(join(run.inbox, `.failed-${MESSAGE_NAME}`,), 'utf8',),).toBe(MESSAGE_TEXT,);
+      },
+    },),
+    it({
+      name: 'ends with a zero idle window even when the settle and the idle check share a clock tick',
+      fn: async () => {
+        const settledAt = Date.now();
+        // Keep only the record's clock still. The watch's real deadline still bounds a run that does not end idle.
+        await using run = await startRun(function sameTick() {
+          return settledAt;
+        },);
+        run.record.observe({
+          event: { type: 'agent_settled', },
+          declineDialog: refuseDialog,
+        },);
+        expect(run.record.silentMilliseconds(),).toBe(0,);
+        const endReason = await watchUntilEnded({
+          connection: answeringConnection(),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + HOLD_MILLISECONDS,
+        },);
+        expect(endReason,).toBe('idle',);
       },
     },),
     it({

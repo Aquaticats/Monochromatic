@@ -17,16 +17,17 @@ import {
   START_PAUSE_MILLISECONDS,
 } from '../dist/final/node/index.mjs';
 
-const COMPLETE = [
+const REQUIRED = [
   '--run-folder=/run',
   '--working-folder=/work',
   '--prompt-file=/prompt',
   '--provider=p',
   '--model=m',
   '--wall-seconds=60',
-  '--idle-seconds=1.5',
   '--turn-cap=80',
 ] as const;
+
+const COMPLETE = [...REQUIRED, '--idle-seconds=1.5',] as const;
 
 /**
  Milliseconds in a second, so a limit the options state in seconds is derived from the value the driver ships.
@@ -82,9 +83,9 @@ await describe({
       },
     },),
     it({
-      name: 'requires every limit, so a run is always bounded',
+      name: 'requires the wall clock and turn cap, so a run is always bounded',
       fn: async () => {
-        for (const name of ['wall-seconds', 'idle-seconds', 'turn-cap',]) {
+        for (const name of ['wall-seconds', 'turn-cap',]) {
           expect(
             errorOf(COMPLETE.filter((option,) => !option.startsWith(`--${name}`,)),),
           ).toContain(`--${name} is required`,);
@@ -94,7 +95,7 @@ await describe({
     it({
       name: 'refuses a limit that is not a number above zero',
       fn: async () => {
-        for (const name of ['wall-seconds', 'idle-seconds', 'turn-cap',]) {
+        for (const name of ['wall-seconds', 'turn-cap',]) {
           for (const value of ['0', '-1', 'soon', 'Infinity',]) {
             expect(
               errorOf([...COMPLETE.filter((option,) => !option.startsWith(`--${name}`,)), `--${name}=${value}`,],),
@@ -113,6 +114,38 @@ await describe({
             ).toContain('must be a number of seconds whose milliseconds stay finite',);
           }
         }
+      },
+    },),
+    it({
+      name: 'defaults the idle window to zero when no option is given',
+      fn: async () => {
+        expect(parseDriverOptions(REQUIRED,).idleSeconds,).toBe(0,);
+      },
+    },),
+    it({
+      name: 'accepts an explicit zero idle window',
+      fn: async () => {
+        expect(parseDriverOptions([...REQUIRED, '--idle-seconds=0',],).idleSeconds,).toBe(0,);
+      },
+    },),
+    it({
+      name: 'tells the user a negative idle window is outside the allowed range',
+      fn: async () => {
+        expect(errorOf([...REQUIRED, '--idle-seconds=-1',],),).toContain('--idle-seconds must be zero or more',);
+      },
+    },),
+    it({
+      name: 'tells the user an idle window that is not a number is invalid',
+      fn: async () => {
+        expect(errorOf([...REQUIRED, '--idle-seconds=soon',],),)
+          .toContain('--idle-seconds must be a number of seconds; it was "soon".',);
+      },
+    },),
+    it({
+      name: 'tells the user an infinite idle window would have infinite milliseconds',
+      fn: async () => {
+        expect(errorOf([...REQUIRED, '--idle-seconds=Infinity',],),)
+          .toContain('--idle-seconds must be a number of seconds whose milliseconds stay finite',);
       },
     },),
     it({

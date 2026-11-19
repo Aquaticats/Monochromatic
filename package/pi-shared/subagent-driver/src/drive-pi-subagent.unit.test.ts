@@ -820,9 +820,10 @@ await describe({
   name: 'drive-pi-subagent',
   children: [
     it({
-      name: 'a run that settles and goes quiet ends idle, exits 0 and keeps the reply whole',
+      name: 'a run that settles with a zero idle window ends idle, exits 0 and keeps the reply whole',
       fn: async () => {
-        const run = await runDriver({ scenario: 'normal', },);
+        const run = await runDriver({ scenario: 'normal', idleSeconds: 0, },);
+        expect(run.standardError,).toBe('',);
         expect(run.status,).toBe(CLEAN_STATUS,);
         expect(run.summary.endReason,).toBe('idle',);
         expect(run.summary.lastAssistantText,).toBe('done',);
@@ -830,6 +831,28 @@ await describe({
         expect(run.summary.turns,).toBe(1,);
         expect(run.summary.piExit?.code,).toBe(0,);
         expect(run.commands,).toContain('get_session_stats',);
+      },
+    },),
+    it({
+      name: 'a zero idle window still lets Pi answer a message already queued when it settles',
+      fn: async () => {
+        const message = 'follow up before ending';
+        const run = await runDriver({
+          scenario: 'normal',
+          idleSeconds: 0,
+          prepare: async ({ runFolder, },) => {
+            await mkdir(join(runFolder, 'inbox',), { recursive: true, },);
+            await dropInInbox({ runFolder, text: message, },);
+          },
+        },);
+        expect(run.standardError,).toBe('',);
+        expect(run.summary.endReason,).toBe('idle',);
+        expect(run.inbox,).toEqual([],);
+        expect(run.sentCommands.some((command,) => (command.type === 'prompt') && (command.message === message)),)
+          .toBe(true,);
+        // A prompt rather than a steer shows that the first settle came before delivery.
+        expect(run.feed.find((entry,) => entry.kind === 'inbox')?.sentAs,).toBe('prompt',);
+        expect(run.summary.settled,).toBe(2,);
       },
     },),
     it({
@@ -913,10 +936,10 @@ await describe({
       },
     },),
     it({
-      name: 'keeps a run whose agent ended its turn with a build still running, sends the agent back when the build ends, and'
-        + ' reads its reply',
+      name: 'with a zero idle window, keeps a run until its build ends, sends the agent back and reads its reply',
       fn: async () => {
-        const run = await runDriver({ scenario: 'leaves-work-running', },);
+        const run = await runDriver({ scenario: 'leaves-work-running', idleSeconds: 0, },);
+        expect(run.standardError,).toBe('',);
         expect(run.status,).toBe(CLEAN_STATUS,);
         expect(run.summary.endReason,).toBe('idle',);
         // The agent was woken, and its reply is what the run ended with rather than the turn it had already finished.
@@ -1240,9 +1263,9 @@ await describe({
       },
     },),
     it({
-      name: 'a final reply that ended in a model error does not end clean',
+      name: 'a final reply that settled on a model error still ends on that failure with a zero idle window',
       fn: async () => {
-        const run = await runDriver({ scenario: 'model-error', },);
+        const run = await runDriver({ scenario: 'model-error', idleSeconds: 0, },);
         expect(run.status,).toBe(FAILED_STATUS,);
         expect(run.summary.endReason,).toBe('model-error',);
         expect(String(run.summary.modelError,),).toContain(MODEL_ERROR_TEXT,);
@@ -1258,10 +1281,11 @@ await describe({
       },
     },),
     it({
-      name: 'a transient model error is answered with another attempt, and the run goes on',
+      name: 'a zero idle window does not end a run during the wait to retry a transient model error',
       fn: async () => {
         const run = await runDriver({
           scenario: 'transient-error-then-success',
+          idleSeconds: 0,
           extraOptions: [`--retry-base-seconds=${String(RETRY_BASE_SECONDS,)}`,],
         },);
         expect(run.status,).toBe(CLEAN_STATUS,);
