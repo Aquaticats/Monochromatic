@@ -39944,7 +39944,15 @@ What follows from them, as work:
   `check-the-gate-findings-at-227b2af580.ts` in that folder, with a positive control at `4a451701c9`; the one miss,
   "stops at any mount", is the same words across a line break at 1661 to 1662). NEXT: the owner's acceptance through
   the question tool, with the review's two owner questions (F4 whether an explicit cancel command stays; F8 whether the
-  deferred-mark check also runs before the first snapshot delete) and the never-end set.
+  deferred-mark check also runs before the first snapshot delete) and the never-end set. **The owner accepted the
+  design at 2026-11-19T16:22:16-05:00** and picked the recommended answer to all three (record: the questions file,
+  section "Answered in the question tool, recorded 2026-11-19T16:22:16-05:00", `cff64adfa0`): keep a guarded
+  `cancel-worktree-removal <slot>` as the manual way back; run the deferred-mark check before the first snapshot delete
+  too; a `--force` removal never ends its caller's session and refuses when that session holds the clone. GOING: the
+  narrow fold-in `pi-zfs-proposal-acceptance-and-last-three-answers-fold-in` (DeepSeek on Neuralwatt, cap 635) in the
+  fold-in worktree, which also writes `doc/decision/cli-git-zfs-worktree-design.md`; folder
+  `~/temp/agent/zfs-proposal-acceptance-and-last-three-answers-fold-in-2026-11-19/`. Then a short review, the merge of
+  the branch into `main`, the questions file's folded sections removed, and the fold-in worktree removed.
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
   `pi-zfs-proposal-fold-in-short-review-on-the-qwen-plan` (turn cap 540, a quarter above the longest of 672 finished
   review runs, 431), in its own detached worktree
@@ -39976,7 +39984,27 @@ What follows from them, as work:
   Neuralwatt, cap 635, wall 240 min) in `.claude/worktrees/pi-git-policy-cli-lfs-audit-findings-fixed` on
   `fix/git-policy-cli-lfs-audit-findings-of-2026-11-19` from `main` (the audit worktree swapped for it), all but H1 and
   M4, a failing-first test per finding, proof by the audit's reproductions, one container gate run; brief under
-  `~/temp/agent/git-policy-cli-lfs-audit-findings-fixed-2026-11-19/`.
+  `~/temp/agent/git-policy-cli-lfs-audit-findings-fixed-2026-11-19/`. It ended `idle` (408 turns) at `81e7d18375`
+  (`c3ffafa18b`, `3d13c56fe7`, `81e7d18375`; report `report.md` in that folder): H2 relays whole lines only and says
+  when output was cut; M1 names a found program that cannot start with the OS error; M2 keeps the signal on the
+  bounded face (the bounded push too); M3 `SSH_ASKPASS_REQUIRE=never` for the service's children only, a typed command
+  left as `SPEC.md` decides; M5 names the LFS server from the plan's settings query; M6 the wrapper adds `--skip-repo`
+  to `git lfs install` in a repository and prints why no hook is written; L1 and L2 answered. No unit test could run
+  (no `cargo-nextest`), so failing-first rests on the audit's reproductions before and after. GOING: its short review
+  on the Qwen plan, `pi-git-policy-cli-lfs-audit-fixes-short-review-on-the-qwen-plan`, in the same worktree detached
+  at the tip; folder `~/temp/agent/git-policy-cli-lfs-audit-fixes-short-review-on-the-qwen-plan-2026-11-19/`.
+- **The wrapper's container gate cannot pass on this ZFS host.** The LFS writer ran the gate's body
+  (`node bin/test-native-container.ts`; the mise task's first step needs `cargo-shadow`, not installed here) twice:
+  `9189 tests run: 9002 passed, 187 failed`, against 6 of 9,173 on the old Btrfs host. By its reading about 109 fail on
+  file names that are not UTF-8 (`/home` is `zpcachyos/ROOT/cos/home` with `utf8only=on`, `normalization=formD`, and
+  podman's `overlay` storage is under it, both read by the coordinator), 11 on a missing birth time, 16 on the image
+  Git's `core.fsmonitor`, the rest on mount evidence and paths; the two standing failures are among them. The Clippy
+  step fails with `E0514` (the image's build against the host's mounted `rustc`). No gate result on this host means
+  anything until this is fixed, so every wrapper integration pass waits on it. GOING: the investigation
+  `pi-git-policy-cli-container-gate-on-the-zfs-host-investigation` (DeepSeek on Neuralwatt, cap 635, no host change
+  allowed) in `.claude/worktrees/pi-git-policy-cli-container-gate-on-the-zfs-host` from `main`; folder
+  `~/temp/agent/git-policy-cli-container-gate-on-the-zfs-host-investigation-2026-11-19/`. A fix that changes the host
+  (for example a dataset with `utf8only=off` for podman's storage) goes to the owner with its measurements.
 - **GOING**: the hybrid provider prototype (the owner's "Hybrid, prototype first"), unit
   `pi-rate-limit-fallback-hybrid-prototype` (DeepSeek on Neuralwatt, turn cap 380, a quarter above the longest
   finished run on this package, 301; wall 300 minutes, the longest took 260), in
@@ -40045,8 +40073,17 @@ What follows from them, as work:
   paragraph on kept captures does not match them. Five low. GOING: the fix writer
   `pi-rate-limit-fallback-hybrid-prototype-review-findings-fixed` (DeepSeek on Neuralwatt, cap 635) in the same
   worktree, switched to the prototype branch; brief under
-  `~/temp/agent/rate-limit-fallback-hybrid-prototype-review-findings-fixed-2026-11-19/`. Then the rebuild (points 1 to 3
-  and 5, the hybrid wiring, the 22 uncaptured fixtures). The driver pool table (task 383)
+  `~/temp/agent/rate-limit-fallback-hybrid-prototype-review-findings-fixed-2026-11-19/`. It ended `idle` (191 turns) at
+  `7248e95a00`, all nine answered: `dispatch-request.ts` split by rule `MXL` and `lint:oxlint` at 0 warnings and 0
+  errors (the gate denies warnings, so the four "acceptable" warnings were failures too); item 2 rerun from one folder
+  (both arms 56172, 100514, 148179; hybrid compacts and finishes, control does not); the retryable claim dropped; an
+  own-key guard on the `pools` table with a test shown red first; a 522 member committed. GOING: the rebuild
+  `pi-rate-limit-fallback-hybrid-rebuild` (DeepSeek on Neuralwatt, cap 635, wall 300 min) in
+  `.claude/worktrees/pi-rate-limit-fallback-hybrid-rebuild` on the new branch
+  `feat/pi-plugin-rate-limit-fallback-hybrid-native-virtual-model-routes-to-the-pool` from `7248e95a00` (the prototype
+  worktree swapped for it): the hybrid as the shipped route, points 1, 2, 3 and 5 with the README lines they overrule,
+  the uncaptured fixtures, what an install needs for member extensions; the quota read's deadline stays provisional
+  until the live check (task 396). Brief under `~/temp/agent/rate-limit-fallback-hybrid-rebuild-2026-11-19/`. The driver pool table (task 383)
   waits on more than a slot: it changes `pool-limits.ts`, as the unmerged `ecec388cdb` does (13 files; its review
   queued 2026-11-16 and never started), and the entry of 2026-11-16 on the second timing of the two pools puts
   follow-ups to that file on top of `ecec388cdb` once it is reviewed and in `main`; that review waits with the queue.
