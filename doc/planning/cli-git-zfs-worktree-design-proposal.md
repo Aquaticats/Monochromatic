@@ -710,14 +710,16 @@ a test asserts that the encoded request has no `defer` key.
       made from, not its own (`module/zfs/dsl_bookmark.c:352` to `:353` copies them from the snapshot and `:719`
       to `:728` reports them as the bookmark's `guid` and `createtxg`, OpenZFS `zfs-2.4.4`; [VM item 13][vm-13]
       saw the tuple unchanged after a move). Pass a bookmark therefore when its GUID and `createtxg` equal those of
-      a live clone snapshot that passes the snapshot rule in this check, and no origin-side tuple matches it. This
-      asks for no recorded bookmark: the recorded clone-side inventory is written once at add and the third check
-      forbids updating it, so the earlier rule, which required the bookmark's own recorded tuple, would have refused
-      the removal of any clone that someone had bookmarked. Refuse destruction when a bookmark's snapshot is no
-      longer live on the clone, when its tuple matches the origin-side inventory, or when the bookmark list could
-      not be read completely, and name each refused bookmark; this pass rule is proposed, not a measured
-      sufficiency proof. Dataset GUIDs are random (`module/zfs/dsl_dataset.c:1203` to `:1204` and `:1768` to
-      `:1769`, `zfs-2.4.4`), so the matching pair identifies the bookmarked snapshot of this clone in practice, not
+      a clone snapshot that passes the snapshot rule in this check, or those of a tuple the destruction plan
+      records once step 3 has persisted it, and no origin-side tuple matches it. This asks for no recorded bookmark: the recorded
+      clone-side inventory is written once at add and the third check forbids updating it, so the rule this draft
+      used through revision `b26aa27f3c`, which required the bookmark's own recorded tuple, would have refused the
+      removal of any clone that someone had bookmarked. Refuse destruction when a bookmark's tuple matches neither
+      a live clone snapshot that passes the snapshot rule nor a recorded plan tuple, when it matches the
+      origin-side inventory, or when the bookmark list could not be read completely, and name each refused
+      bookmark; this pass rule is proposed, not a measured sufficiency proof. Dataset GUIDs are random
+      (`module/zfs/dsl_dataset.c:1203` to `:1204` and `:1768` to `:1769`, `zfs-2.4.4`), so the matching pair
+      identifies the bookmarked snapshot of this clone in practice, not
       against a 64-bit collision. A bookmark's transaction group is the bookmarked snapshot's birth group, so it
       says nothing about when the bookmark itself was made. OpenZFS destroys a dataset's bookmark entries with the
       head (`module/zfs/dsl_destroy.c:1123` to `:1154`, `zfs-2.4.4`), so an unaccounted bookmark goes with it.
@@ -730,6 +732,28 @@ a test asserts that the encoded request has no `defer` key.
     clone, the clone lost its direct origin, and the bookmark moved with an unchanged tuple. These are layered
     proposed checks, not a proof that transaction groups establish provenance for other topologies, encryption
     roots, lineage changes or objects created in the same transaction group.
+
+    The plan comparison keeps what the recheck exists for. A removal persists the tuples it verified, each with
+    its outcome, and the kernel keeps a bookmark whose snapshot it destroys: it clears that bookmark's
+    snapshot-exists flag and keeps the entry (`module/zfs/dsl_bookmark.c:1383` to `:1397`, OpenZFS `zfs-2.4.4`),
+    and a bookmark stands in for the snapshot it marks (`man/man8/zfs-bookmark.8:48` to `:50`). Read against live
+    snapshots alone, the rule strands a removal after its first mutation: the first chunk or the replan destroys
+    the snapshot a bookmark matches, the next lineage proof refuses, and the head, the standing `unmount` intent
+    and an empty snapshot list remain, which is the resume state this section calls planned snapshots all gone
+    with the head refused (reasoning from those citations, not measured). Comparing against the persisted plan as
+    well still refuses every bookmark whose tuple the removal never recorded, an origin-side or foreign one
+    included, because the plan holds only tuples this removal proved and submitted and the origin-side comparison
+    still uses the recorded origin inventory. The one case the plan comparison stops refusing is a snapshot this
+    same removal recorded and destroyed.
+    A bookmark whose snapshot was already gone when the plan was made therefore refuses before the first delete,
+    and that refusal has a cost. A bookmark outlives the snapshot it marks, so a snapshot that sanoid,
+    `zfs-space-guard` or a person destroyed leaves the bookmark behind, matching no live snapshot and no plan
+    tuple. Removal then cannot proceed at all: the clone, its remaining snapshots, the registration and the
+    underlay stay, and every retry refuses the same way, because nothing in this design destroys a bookmark. A
+    person destroys the bookmark with `zfs destroy <clone>#<bookmark>` (`man/man8/zfs-destroy.8:180` to `:182`)
+    and retries; under the delegated option that request checks the account's descendant `destroy` grant
+    (`module/zfs/zfs_ioctl.c:1092` to `:1093`), and under the root option an administrator does it, since the
+    account holds no destroy authority there (source reading, not a measured account run).
 2.  If lineage, ownership or the safety of the destructive operation cannot be proved, refuse before the
     first delete. Name the mismatched dataset, snapshot or dependency, keep the registration and removal
     record, and report the need for administrator lineage recovery before retry. Do not try a subset, promote
@@ -738,8 +762,9 @@ a test asserts that the encoded request has no `defer` key.
     `unmount`. Require the root handler's [all-namespace unmount check](#mounts-held-by-other-namespaces) and
     verify the request, clone GUID, underlay identity and Git registration still match. A missing, mismatched
     or busy unmount blocks destruction, even when the slot is clear (proposed from [item 15][vm-namespaces]).
-3.  After unmount, persist the verified inventory and expected clone identity as the destruction plan.
-    Require fresh root all-namespace verification before the first snapshot delete. Reprove lineage and candidate
+3.  After unmount, persist the verified inventory and expected clone identity as the destruction plan, which
+    keeps each tuple it submits with that tuple's outcome. Require fresh root all-namespace verification before
+    the first snapshot delete. Reprove lineage and candidate
     identities immediately before submitting the full verified snapshot set in one `ZFS_IOC_DESTROY_SNAPS` request
     that omits the `defer` key; retain the per-name error list (direct route run as root, [item 14][vm-batch]).
     Item 12's grant set, which [Scoped delegation](#scoped-delegation) proposes except for the checkout's local
@@ -1445,8 +1470,10 @@ Ubuntu guest.
 - Repeat [VM item 11][vm-promote] against the binding's promote primitive. With the built wrapper, refuse a
   promoted or mismatched clone before the first snapshot delete, and assert that every protected snapshot and
   bookmark identity survives. Repeat the `origin`, `createtxg` and transferred-bookmark controls of
-  [VM item 13][vm-13], including reverse promotion. Include a verified unpromoted clone with manual and
-  sanoid snapshots as the removal control. Test
+  [VM item 13][vm-13], including reverse promotion. Add the two own-bookmark controls: a bookmark made from a clone
+  snapshot the plan includes passes and lets the removal finish, and a bookmark whose snapshot was already
+  destroyed refuses before the first snapshot delete and names the bookmark. Include a verified unpromoted clone
+  with manual and sanoid snapshots as the removal control. Test
   proof invalidation after administrator lineage changes. Repeat [VM item 12][vm-replacement] for the selected
   [identity policy](#clone-removal-identity-protection): verify absence of the lineage-changing grants for delegated
   destruction and exercise the declared same-account residual; or prove conditional refusal for a stale identity,
