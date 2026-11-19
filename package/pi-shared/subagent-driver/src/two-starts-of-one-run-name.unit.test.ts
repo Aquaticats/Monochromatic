@@ -292,12 +292,20 @@ async function fixtureIn(folder: string, withARealRepository: boolean, holdsUnit
     name: 'mise',
     body: `case "$*" in\n  'exec -- printenv PATH')\n    printf '%s\\n' '${fixture.sessionBin}${delimiter}/usr/bin'\n    exit 0 ;;\n  *'command -v node')\n    printf '%s\\n' '${process.execPath}'\n    exit 0 ;;\nesac\nrmdir '${folder}/unit-names/'"$unit" 2>/dev/null || true\nexit 0\n`,
   },);
-  // The manager the launcher asks about a unit's state, and about the units of a run's name. It holds no unit, because a unit of a
-  // real name cannot be made from a test without a manager; the unit stand-in below is what holds a name to one start.
+  // Preflight sees no ongoing units so simultaneous claims exercise the filesystem, not the courtesy check. An exact state
+  // query must not say the fake unit has ended until it has finished the driver check and any summary write.
   await writeProgram({
     folder: fixture.launcherBin,
     name: 'systemctl',
-    body: `sleep 0.1\nprintf '%s\\n' 'not-found'\nexit 0\n`,
+    body: [
+      'if [ "$2" = show ]; then',
+      `  if [ -f '${folder}/unit-names/'"$3.done" ]; then`,
+      "    printf '%s\\n' 'not-found'",
+      '  else',
+      "    printf '%s\\n' 'active'",
+      '  fi',
+      'fi',
+    ].join('\n',),
   },);
   // The unit manager: one unit per name, refused the second time as the real manager refuses, and the summary a driver writes into
   // the folder the unit is told to write into, saying which start wrote it and which branch its worktree was on. A name is released
@@ -333,12 +341,14 @@ async function fixtureIn(folder: string, withARealRepository: boolean, holdsUnit
       'fi',
       // Exercise the actual driver check before writing a summary, exactly where the driver would first see the claim.
       `if ! '${process.execPath}' --input-type=module -e 'import { refuseWhenTheFolderHoldsAnEarlierAttempt } from "${BUILT_DRIVER}"; await refuseWhenTheFolderHoldsAnEarlierAttempt({ runFolder: process.argv[1] });' "$runFolder"; then`,
+      `  touch '${folder}/unit-names/'"$unit.done"`,
       `  rmdir '${folder}/unit-names/'"$unit"`,
       '  exit 1',
       'fi',
       'branch=$(git -C "$workingFolder" branch --show-current 2>/dev/null || true)',
       'status=$(git -C "$workingFolder" status --porcelain 2>/dev/null || true)',
       `printf '%s\\n' '{"endReason":"pi-exited","startId":"'"$PI_START_ID"'","branch":"'"$branch"'","statusLines":"'"$(printf '%s' "$status" | tr '\\n' ';')"'"}' > "$runFolder/${SUMMARY_FILE_NAME}"`,
+      `touch '${folder}/unit-names/'"$unit.done"`,
       `rmdir '${folder}/unit-names/'"$unit" 2>/dev/null || true`,
       'exit 0',
       '',
@@ -628,6 +638,7 @@ await describe({
           writeBeforeDriver: true,
         },);
         expect(contaminated.output,).toContain('claimed by making it',);
+        expect(contaminated.status,).not.toBe(0,);
         expect(contaminated.output,).toContain('RunFolderHoldsAnEarlierAttemptError',);
         expect(contaminated.output,).toContain(EARLIER_ATTEMPT_RECORD,);
         expect(await readdir(join(fixture.runs, nextFolder,),),).toEqual([EARLIER_ATTEMPT_RECORD,],);
