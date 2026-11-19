@@ -6,12 +6,11 @@
 import { streamSimple as streamCompletions, } from '@earendil-works/pi-ai/api/openai-completions';
 import { streamSimple as streamResponses, } from '@earendil-works/pi-ai/api/openai-responses';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
+import { POLICY_STOP_TEXT, policyStopStream, } from './policy-stop-fixture.ts';
 import {
   collect,
   MEMBER_KEY,
   PHYSICAL_MODELS,
-  POLICY_STOP_TEXT,
-  policyStopStream,
   rateLimitRefusal,
   RATE_LIMIT_STATUS,
   TRANSCRIPT,

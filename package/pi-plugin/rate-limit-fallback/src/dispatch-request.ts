@@ -131,7 +131,8 @@ function memberOptions({
 //region Request stream
 
 /**
- Start each request at the head of its pool and retry only uncommitted HTTP 429s.
+ Start each request at the head of its pool, and hand off only a 429 or a policy stop
+ that arrived before output.
 
  @param session - source of the live model catalog and previous quota evidence
 
@@ -183,9 +184,10 @@ export async function* dispatchRequest({
    */
   const unavailable: {
     /**
-     Last discarded 429.
+     Last terminal failure the pool discarded: a 429 as it arrived, or a policy stop
+     that already names the member which stopped the request.
      */
-    lastRateLimit?: Extract<AssistantMessageEvent, { type: 'error'; }>;
+    lastStop?: Extract<AssistantMessageEvent, { type: 'error'; }>;
     /**
      Named reasons that registered members were not admitted.
      */
@@ -367,11 +369,11 @@ export async function* dispatchRequest({
           message: event.error,
           rateLimited,
         },)) {
-          if (buffered.start !== undefined)
-            yield buffered.start;
-          // Remove incidental retry wording so Pi's own retry classifier does not restart this request.
-          lease.release();
-          yield {
+          /**
+           Terminal record naming the member and keeping the advisory, with retry wording removed so
+           Pi's own retry classifier does not restart this request.
+           */
+          const stopped = {
             ...event,
             error: {
               ...event.error,
@@ -383,6 +385,22 @@ export async function* dispatchRequest({
               },),
             },
           };
+          if ((!committed) && (event.error
+            .content
+            .length
+            === 0))
+            {
+            // Pi has seen no output, so the same transcript may still be answered further along.
+            rl.debug(`${id}: ${label} stopped the request under its content policy before output; trying the next member: ${event.error
+              .errorMessage
+              ?? ''}`,);
+            unavailable.lastStop = stopped;
+            return false;
+          }
+          if (buffered.start !== undefined)
+            yield buffered.start;
+          lease.release();
+          yield stopped;
           return true;
         }
         if (rateLimited && (!committed)
@@ -415,7 +433,7 @@ export async function* dispatchRequest({
             retryAt,
           },);
           rl.debug(`${id}: ${label} returned HTTP 429 before output`,);
-          unavailable.lastRateLimit = event;
+          unavailable.lastStop = event;
           return false;
         }
         if (buffered.start !== undefined) {
@@ -442,8 +460,12 @@ export async function* dispatchRequest({
     if (yield* tryMember(member,))
       return;
   }
-  if (unavailable.lastRateLimit !== undefined) {
-    yield unavailable.lastRateLimit;
+  /**
+   Last failure the pool discarded, which is what it owes the caller when no member answered.
+   */
+  const { lastStop, } = unavailable;
+  if (lastStop !== undefined) {
+    yield lastStop;
     return;
   }
   if (unavailable.admissionStops

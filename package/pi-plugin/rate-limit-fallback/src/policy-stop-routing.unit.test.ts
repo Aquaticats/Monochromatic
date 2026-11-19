@@ -9,14 +9,13 @@ import {
 } from '@earendil-works/pi-ai';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import extension from '../dist/final/node/index.mjs';
+import { POLICY_STOP_TEXT, policyStopStream, } from './policy-stop-fixture.ts';
 import {
   assistant,
   collect,
   fixture,
   immediate,
   type MemberCall,
-  POLICY_STOP_TEXT,
-  policyStopStream,
   poolModel,
   rateLimitRefusal,
   TARGETS,
@@ -64,7 +63,7 @@ const TRANSIENT_SPANS = [
 const RETAINED_DETAIL = 'Reference İ😀abc429xyz, 1503, and rate\nlimit.';
 
 /**
- Build the policy stop through the installed adapter, forwarding the pool's member options.
+ Build the policy stop through the installed adapter for the transcript under test.
 
  @param call - member request the pool dispatched
 
@@ -73,11 +72,7 @@ const RETAINED_DETAIL = 'Reference İ😀abc429xyz, 1503, and rate\nlimit.';
  @returns physical stream from the installed Responses adapter
  */
 function adapterStop({
-  call: {
-    model,
-    context,
-    options,
-  },
+  call: { model, options, },
   exposedText,
 }: {
   readonly call: MemberCall;
@@ -85,7 +80,7 @@ function adapterStop({
 },): AssistantMessageEventStream {
   return policyStopStream({
     model,
-    context,
+    context: TRANSCRIPT,
     ...(options === undefined ? {} : { options, }),
     ...(exposedText === undefined ? {} : { exposedText, }),
   },);
@@ -117,7 +112,7 @@ await describe({
       fn: async function answeredAfterMove() {
         const { provider, calls, options, } = await fixture({
           extension,
-          play({ model, options: forwarded, }) {
+          play({ model, }) {
             if (model.provider === QWEN.provider)
               return immediate({ model, errorMessage: POLICY_STOP_TEXT, },);
             return immediate({ model, },);
