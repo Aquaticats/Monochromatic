@@ -500,7 +500,9 @@ the head destroy. The wrapper asks for each scan by writing a new
 `v1:<nonce>:unmount` intent on the clone it removes, and the handler answers under that same nonce, so a receipt
 always names the scan that produced it and no receipt is reused for a later one. The handler repeats its
 all-namespace check under each request rather than trusting an earlier clear result. This is a proposed protocol;
-[VM item 15][vm-namespaces] ran one scan per arm and did not exercise repeat requests or a split.
+[VM item 15][vm-namespaces] ran three root scans per arm, after attach, after the host unmount with both readers
+still holding the clone, and after the readers stopped (`item-15-exact.log:87`, `:126`, `:153` for the private arm;
+`:237`, `:273`, `:290` for the shared one), and did not exercise repeat requests or a split.
 
 ### Descriptor mount and unmount
 
@@ -1102,7 +1104,9 @@ is not a decision.
     all-namespace verification before the first snapshot delete and before the head destroy
     ([Requests, results and ordering](#requests-results-and-ordering)), and a missing, mismatched or busy unmount
     still blocks destruction even when the slot is clear ([Removal and recovery](#removal-and-recovery), step 2).
-    That scan is proposed protocol; item 15 ran one scan per arm and did not exercise repeat requests.
+    That scan is proposed protocol; item 15 ran three root scans per arm, after attach, after the host unmount
+    and after the readers stopped (`item-15-exact.log:87`, `:126`, `:153`; `:237`, `:273`, `:290`), and did not
+    exercise repeat requests.
 - Bookmarks on a clone being removed. Pass a bookmark whose tuple a live passing clone snapshot or a recorded plan
   tuple explains, read live clone snapshots only, or judge by transaction group and the origin side. The three
   options, their facts, their costs and what the first option still needs are under
