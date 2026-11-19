@@ -15,8 +15,9 @@ Each item below names the session that showed it, the command that started it, t
 capture. Captures are folders under
 `${HOME}/temp/agent/rate-limit-fallback-hybrid-prototype-2026-11-19/scratch/`; each holds the Pi event
 stream verbatim (`records.jsonl`, or `turn-N.jsonl` for a multi-turn run), `stderr.log` with the
-prototype's evidence lines, and `package-decision-log.jsonl`, this package's own log for the same
-session. Every cited run used `pi` 1.5.2 and plain CLI options; no script drove it.
+prototype's evidence lines, and this package's own log for the same session
+(`package-decision-log.jsonl`, or `package-decision-log-turn-N.jsonl` where one turn is one process).
+Every cited run used `pi` 1.5.2 and plain CLI options; no script drove it.
 
 ## What the prototype is
 
@@ -42,9 +43,12 @@ Files, all in `package/pi-plugin/rate-limit-fallback/src/hybrid-prototype/`:
 - `captured-refusal-text.ts`: every refusal body, each with its capture or source;
 - `prototype-evidence.ts`: the stderr evidence line and the limit projection.
 
-One change touches shipped code: `src/dispatch-request.ts` takes an optional `pools` table, defaulting
-to `POOLS`, so the prototype's probe pool can reuse the package's exact dispatch loop. Its pool id check
-is now "the table carries this id".
+The prototype's only change to shipped code is `src/dispatch-request.ts` taking an optional `pools`
+table, defaulting to `POOLS`, so the prototype's probe pool can reuse the package's exact dispatch
+loop. Its pool id check is `Object.hasOwn(pools, id)`, so a key inherited from `Object.prototype`
+(`constructor`, `toString`, `__proto__`) is refused with `PoolDispatchError` instead of reaching the
+member loop. The caller-options projection moved unchanged into `src/member-attempt-options.ts` to
+keep `src/dispatch-request.ts` under the repository's 300-line lint cap (rule `MXL`).
 
 Sessions load the prototype by `--no-extensions --extension <path>`, which is the only per-session
 option Pi offers for this; the installed package in `~/.pi/agent/settings.json` stays untouched and
@@ -87,55 +91,64 @@ Capture: `cli-item1-hybrid-real-writer-opencode-only/`.
 Forcing a real member's overflow was not affordable. The cheapest real member window in the pools is
 Synthetic's 524.3 thousand tokens, and Pi compacts before sending whenever the routed model's window is
 too small, so a real overflow costs hundreds of thousands of input tokens on a subscription plan. The
-probe therefore forces the overflow on a stand-in member whose declared window is a real member's while
-its enforced window is smaller, the way a provider reserves output room. The overflow body is the one
-Pi's own detector documents for an OpenAI-compatible member (see "Fixture provenance").
+probe therefore forces the overflow on a stand-in member whose declared window is the writer pool's
+`opencode-go/deepseek-v4.1-flash` member's (`contextWindow: 1000000` in the installed catalog,
+`@earendil-works/pi-ai` `dist/providers/data/opencode-go.json`) while its enforced window is smaller,
+the way a provider reserves output room. The overflow body is the one Pi's own detector documents for
+an OpenAI-compatible member (see "Fixture provenance").
 
 Three prompts, in one session per arm: two quiet padded turns, then a padded third turn that pushes the
 request past the stand-in's enforced window.
 
 ```sh
 # package/pi-plugin/rate-limit-fallback/doc/hybrid-native-virtual-model-prototype.md
-# one prompt per line; n runs over 1 2 3, one process each, same session id
+# One run folder for both arms, so both system prompts carry the same cwd section and the two
+# transcripts hold identical request sizes at every turn. One process per prompt, three prompts,
+# one session id per arm; prompt-turn-1.txt to prompt-turn-3.txt sit in the run folder.
 export PI_HYBRID_PROBE_MEMBERS='[{"provider":"hybrid-probe-member","id":"small-window"},
 {"provider":"hybrid-probe-member","id":"answers"}]'
 for n in 1 2 3; do
   # arm A, hybrid:
   pi --mode json --no-extensions --extension "${EXT}" --model rate-limit-fallback/hybrid-probe \
     --no-tools --no-context-files --no-skills --no-prompt-templates --no-mcp \
-    --session-dir "$PWD/sessions" --session-id cli-hybrid-overflow "$(cat "prompt-turn-${n}.txt")" \
-    > "turn-${n}.jsonl" 2>> stderr.log
+    --session-dir "$PWD/hybrid/sessions" --session-id cli-hybrid-overflow \
+    "$(cat "prompt-turn-${n}.txt")" > "hybrid/turn-${n}.jsonl" 2>> hybrid/stderr.log
   # arm B, control, the same pool provider selected directly:
   pi --mode json --no-extensions --extension "${EXT}" --model rate-limit-fallback-probe/probe \
     --no-tools --no-context-files --no-skills --no-prompt-templates --no-mcp \
-    --session-dir "$PWD/sessions" --session-id cli-control-overflow "$(cat "prompt-turn-${n}.txt")" \
-    > "turn-${n}.jsonl" 2>> stderr.log
+    --session-dir "$PWD/control/sessions" --session-id cli-control-overflow \
+    "$(cat "prompt-turn-${n}.txt")" > "control/turn-${n}.jsonl" 2>> control/stderr.log
 done
 ```
 
 Arm A, the hybrid, produced this event order: the third request fails with
-`400: {"error":{"message":"Input length (148195) exceeds model's maximum context length (140000)."…`,
+`400: {"error":{"message":"Input length (148179) exceeds model's maximum context length (140000)."…`,
 then `entry_appended` (a `context_edit` with `replacement: null`, Pi omitting the failed attempt),
 then `compaction_start` with `reason: "overflow"`, `compaction_end` with `willRetry: true`,
-`tokensBefore: 36767` and `estimatedTokensAfter: 23284`, then a fresh run whose router evidence line
+`tokensBefore: 36764` and `estimatedTokensAfter: 23281`, then a fresh run whose router evidence line
 reads `reason: "retry"`, `failedModel: "hybrid-probe-member/small-window"`,
 `failedStopReason: "error"`. The compaction's own summary request is the `reason: "direct"` line
-before it, 55405 characters. That retried request carries 93997 characters, under the stand-in's
+before it, 55405 characters. That retried request carries 93985 characters, under the stand-in's
 140000, and the member answers `stop`. Four assistant messages: two answers, the overflow, the
 recovered answer.
 
-Arm B, the control, shows the same third-turn refusal with no `entry_appended`, no
+Arm B, the control, ran from the same folder and sent the same three requests: 56172, 100514 and
+148179 characters, the last refusing with the same body. It shows no `entry_appended`, no
 `compaction_start`, no retry and no fourth message: the turn ends on the member's error. Three
-assistant messages.
+assistant messages. The only difference between the arms is the selected model.
 
-Capture: `cli-item2-hybrid-overflow/` and `cli-item2-control-direct-pool/`.
+Capture: `item2-samecwd/hybrid/` and `item2-samecwd/control/`.
 
-The padding had to be shaped for Pi, not for the probe. Earlier two-turn attempts (kept in
-`item2-hybrid-overflow/` and `item2-control-direct-pool/`, from a driver whose per-prompt loop the
-plain commands replace) overflowed and then compacted nothing in either arm: when the first turn alone
-exceeds Pi's `keepRecentTokens` budget, `prepareCompaction` has nothing to summarize and returns
-nothing, so neither arm can retry. That is a transcript property, not a difference between the arms,
-and three turns with a mid-transcript cut point avoid it.
+The padding had to be shaped for Pi, not for the probe. Earlier two-turn attempts, kept as the first
+two sessions in `item2-hybrid-overflow/`, overflowed and then compacted nothing: 115663 then 180106
+characters, and 86963 then 161345, each ending on the 400 with no summary request and no
+`reason: "retry"` route line. When the first turn alone exceeds Pi's `keepRecentTokens` budget,
+`prepareCompaction` has nothing to summarize and returns nothing, so the failed turn cannot retry
+(`@earendil-works/pi-coding-agent` `dist/core/compaction/compaction.js:642-643`, with
+`findProjectedCutPoint` at line 628 placing the cut at the first user cut point of the oversized
+turn). Compaction runs in Pi before the pool is involved, so that is a transcript property, not a
+difference between the arms; `item2-control-direct-pool/` holds only its own three-turn run. Three
+turns with a mid-transcript cut point avoid it.
 
 **Verdict: passed, both arms as required.** The probe tells them apart: under the hybrid Pi compacts
 and retries and the turn completes; with the pool selected directly Pi does neither.
@@ -153,16 +166,19 @@ pi --mode json --no-extensions --extension "${EXT}" --model rate-limit-fallback/
   "Reply with the single word ready." > records.jsonl 2> stderr.log
 ```
 
-The first member's refusal is NeuralWatt's captured overage 429 (see "Fixture provenance"), which Pi's
-own classifier calls retryable, so any Pi retry would appear in the stream. The session shows one
-request to each member, one assistant message from `hybrid-probe-member/answers` with `stopReason:
-"stop"`, no `auto_retry_start`, no `compaction_start`, and one `agent_settled`. The refusal never
-reached Pi: the pool consumed it and handed the same transcript to the next member.
-
-Capture: `cli-item3-hybrid-member-refusal/`. Its `package-decision-log.jsonl` reads
+The first member's refusal is NeuralWatt's captured overage 429 (see "Fixture provenance"). Pi's
+own classifier calls that text **non**-retryable, because the body names `billing`
+(`@earendil-works/pi-ai` `dist/utils/retry.js:18`, tested before the retry patterns at line 212), so
+the stream's silence cannot show where the refusal was consumed. This package's own log does: it reads
 `dispatching to hybrid-probe-member/refuses-neuralwatt-429`, then
 `returned HTTP 429 before output`, then `dispatching to hybrid-probe-member/answers`, all inside the
 one `dispatchRequest`.
+
+The session shows one request to each member, one assistant message from `hybrid-probe-member/answers`
+with `stopReason: "stop"`, no `auto_retry_start`, no `compaction_start`, and one `agent_settled`. The
+refusal never reached Pi: the pool consumed it and handed the same transcript to the next member.
+
+Capture: `cli-item3-hybrid-member-refusal/`.
 
 The same shift is visible with the real pool in item 1's second run, but as admission rather than
 refusal: the two NeuralWatt lanes were absent from the catalog and the pool moved to the third member
@@ -173,19 +189,22 @@ refusal: provoking one needs either a burst past NeuralWatt's concurrent budget 
 subscription window, and this run kept real requests to the four sessions item 1 and the cost section
 name.
 
-## Item 4: the limits Pi applies before and after the first reply
+## Item 4: the limits Pi reports and enforces before and after the first reply
 
 Measured through Pi's own `getContextUsage()` on session start, on every turn end and on settle, plus
 the request options the pool and the member received.
 
-Before the first reply, Pi applies the virtual model's declared pair: `contextWindow: 200000`,
-`maxTokens: 8192` (`get_state` reports the same pair for the selection).
+Before the first reply, Pi reports the virtual model's declared pair for the selection,
+`contextWindow: 200000` and `maxTokens: 8192` (`get_state` reports the same pair), and enforces the
+declared window: `_limitsModel` returns the virtual model until a reply names the member that answered
+(`@earendil-works/pi-coding-agent` `dist/core/agent-session.js:365-367`).
 
 After the first reply, the pair Pi applies changes to the member that answered. In the real run that
 is `contextWindow: 1048560` (NeuralWatt's reported window) with 646 tokens counted. In the probe run
 it is `contextWindow: 1000000`, the stand-in's declared window.
 
-The request's own `maxTokens` does not come from the declared pair: Pi sizes it from the routed model.
+The request's own `maxTokens` does not come from the declared pair: Pi sizes it from the routed model
+and clamps it to that model's limit (`@earendil-works/pi-coding-agent` `dist/core/model-runtime.js:516`).
 The real writer pool model carries `maxTokens: 384000`; the probe pool model carries `16384`, which is
 exactly what the pool and the stand-in received on the wire, while the router had declared 8192.
 
@@ -195,7 +214,8 @@ Capture: `cli-item1-hybrid-real-writer/stderr.log` (context-usage lines, `contex
 declared pair for the selection).
 
 **Verdict: passed.** A rebuild should declare limits that make sense as a floor, not as a promise: Pi
-stops honouring them the moment a member answers.
+uses the answering member's window from the next request on, and the declared `maxTokens` never reaches
+a member.
 
 ## Item 5: a refusal Pi calls non-retryable
 
@@ -232,6 +252,9 @@ the decided change is not built), policy stop not shown.**
   with the run folder, date and length, and the tests already replay them.
 - Cloudflare 523's text is Cloudflare's own page heading, read 2026-11-19 from
   `https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-523/`.
+- Cloudflare 522's text is that page's sibling heading, read the same day from
+  `https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-522/`:
+  "Error 522: connection timed out".
 - The overflow body is neither a capture nor a member's own documentation: Pi's overflow detector lists
   the OpenAI-compatible shape with example values in
   `@earendil-works/pi-ai` `dist/utils/overflow.js`. The counts in the probe's body come from the request
@@ -266,20 +289,35 @@ network: its members were stand-ins, so those arms cost nothing.
 
 ## Checks run
 
-- `mise run //package/pi-plugin/rate-limit-fallback:lint:types`: passes.
-- `mise run //package/pi-plugin/rate-limit-fallback:lint:oxlint`: no errors, four warnings, all the
-  `ModelRegistry.find` false positives of the array-callback rules in the two new evidence call sites.
-- `mise run //package/pi-plugin/rate-limit-fallback:test:unit`: passes, including every
-  `dispatch-request` suite with the new optional `pools` argument.
+All five tasks were run after the last edit to the package, from this worktree, through
+`mise run //package/pi-plugin/rate-limit-fallback:<task>`.
+
+- `build`: passes.
+- `lint:types`: passes, with no diagnostics.
+- `lint:oxlint`: passes, with no errors and no warnings. The four `ModelRegistry.find` false positives
+  the first run reported are gone: both evidence call sites now bind the lookup before calling it, the
+  shape `src/index.ts` already used, so the array-callback rules no longer read the two strings as a
+  callback reference. The `eslint(max-lines)` error is gone too: `src/dispatch-request.ts` moved the
+  caller-options projection into `src/member-attempt-options.ts`, which is what rule `MXL` asks for.
+- `lint`: passes, the aggregate over the two lint tasks.
+- `test:unit`: passes, including the new `dispatch request pool tables` suite, which routes through a
+  caller-supplied table, refuses an id the table lacks, and refuses `constructor`, `toString` and
+  `__proto__` with `PoolDispatchError` instead of reaching the member loop.
 
 ## Where this brief's fact list is wrong
 
 - "under a native virtual model alone a policy stop, quota exhaustion and Cloudflare 521, 522, 523, 525
-  and 526 would end the turn": measured, a 522 whose text is Cloudflare's own "Connection timed out"
-  does not end the turn, because Pi's retry classifier matches `timed? out`. It retried eight times on
-  this machine before failing. Capture: `item5-hybrid-522-refusal/`, the one run here a small RPC
-  driver started (`pi-session-runner.ts` in the same scratch folder) because it sends one prompt; its
-  member was the same stand-in with Cloudflare's 522 heading as its body. 523 matches no retry pattern
-  and ends the turn after one attempt.
+  and 526 would end the turn": measured, a 522 whose body is Cloudflare's own "Error 522: connection
+  timed out" does not end the turn, because Pi's retry classifier matches `timed? out`
+  (`@earendil-works/pi-ai` `dist/utils/retry.js:76`, case-insensitive; `isRetryableAssistantError` at
+  line 208 tries the non-retryable limit list first). One prompt on the branch's
+  `refuses-cloudflare-522` stand-in member
+  made nine requests to that member and then failed: eight `auto_retry_start` events,
+  `auto_retry_end` with `success: false` and `attempt: 8`, then `agent_settled`. Capture:
+  `item5-hybrid-522-refusal-branch/`; its `package-decision-log.jsonl` records nine
+  `dispatching to hybrid-probe-member/refuses-cloudflare-522` lines. The earlier
+  `item5-hybrid-522-refusal/` capture came from a local member definition that never landed on the
+  branch, and its body left out the page's own "Error 522:" prefix; this run uses the branch's member
+  and the heading verbatim. 523 matches no retry pattern and ends the turn after one attempt.
 - "Pi retries only errors its classifier calls retryable" is right, but the classifier reads text, not
   status, so a 52x's outcome depends on the words its body carries.
