@@ -13,11 +13,13 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readlink,
   rm,
   symlink,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { setTimeout as wait, } from 'node:timers/promises';
 import {
   describe,
   expect,
@@ -34,6 +36,7 @@ import {
   cgroupOf,
   descendsFrom,
   parentOfProcess,
+  runCommandWithChildProcess,
   startRecordOfPiRun,
   unitNamedBy,
   wakeMessageOf,
@@ -275,6 +278,17 @@ const FIRST_PROCESS = 1;
 const REAL_PROCESS_SECONDS = 60;
 
 /**
+ Milliseconds between two looks while a test waits for this machine's user manager to answer, or for a process to be handed over.
+ */
+const LOOK_MILLISECONDS = 50;
+
+/**
+ How long a wait for this machine's user manager may last: a manager that never answers fails the test rather than holding the suite
+ open.
+ */
+const MANAGER_WAIT_MILLISECONDS = 20_000;
+
+/**
  The records the kernel keeps of one process, which a test copies from the real process folder into its fixture.
  */
 const RECORDS_OF_A_PROCESS: readonly string[] = [
@@ -363,6 +377,407 @@ async function startARealProcess({ folder, }: { readonly folder: string },): Pro
         );
       }
     },
+  };
+}
+
+/**
+ Work a test started as a scope or as a unit of its own, with what ends it.
+ */
+type StartedWork = {
+  /**
+   The unit this machine's user manager knows the work by.
+   */
+  readonly unit: string;
+
+  /**
+   The process number of the work itself.
+   */
+  readonly pid: number;
+
+  /**
+   The folder it works in, as the kernel reports it.
+   */
+  readonly folder: string;
+
+  /**
+   Asks the manager to stop the unit, which is the only way a test ends work: it never signals a process the kernel handed no
+   number to.
+   */
+  readonly stop: () => Promise<void>;
+
+  /**
+   The same, so a test that fails partway still stops what it started.
+   */
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+};
+
+/**
+ Asks this machine's user manager one question, through the runner the driver asks it with.
+
+ @param command - the program to run
+
+ @param words - what to pass it
+
+ @returns what it printed and the status it ended with
+
+ @example
+ ```ts
+ const answer = await askTheManager({ command: 'systemctl', words: ['--user', 'is-active', 'a.service',], },);
+ ```
+ */
+async function askTheManager({
+  command,
+  words,
+}: {
+  readonly command: string;
+  readonly words: readonly string[];
+},): Promise<CommandOutput> {
+  return await runCommandWithChildProcess({
+    command,
+    words,
+  },);
+}
+
+/**
+ Says whether this machine's user manager holds a unit now.
+
+ @param unit - the unit's name
+
+ @returns whether it is active
+
+ @example
+ ```ts
+ const holds = await theManagerHolds({ unit: 'pi-build-2.service', },);
+ ```
+ */
+async function theManagerHolds({ unit, }: { readonly unit: string },): Promise<boolean> {
+  /**
+   What the manager answered about it.
+   */
+  const answer = await askTheManager({
+    command: 'systemctl',
+    words: [
+      '--user',
+      'is-active',
+      unit,
+    ],
+  },);
+  return answer.stdout.trim() === 'active';
+}
+
+/**
+ Waits, bounded, until this machine's user manager holds a unit.
+
+ @param unit - the unit's name
+
+ @returns nothing
+
+ @throws when the manager still holds no such unit when the bound is spent
+
+ @example
+ ```ts
+ await waitUntilTheManagerHolds({ unit: 'pi-build-2.service', },);
+ ```
+ */
+async function waitUntilTheManagerHolds({ unit, }: { readonly unit: string },): Promise<void> {
+  /**
+   When this wait must be over.
+   */
+  const deadline = Date.now() + MANAGER_WAIT_MILLISECONDS;
+  for (;;) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- a look, then a pause, then the next look; see doc/lint/sequential-awaits.md
+    if (await theManagerHolds({ unit, },)) {
+      return;
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(`this machine's user manager never held ${unit}`,);
+    }
+    // oxlint-disable-next-line eslint/no-await-in-loop -- the same wait, one look at a time; see doc/lint/sequential-awaits.md
+    await wait(LOOK_MILLISECONDS,);
+  }
+}
+
+/**
+ Stops a unit a test started and clears what the manager remembers of it, so the machine is left as it was found.
+
+ @param unit - the unit's name
+
+ @returns nothing
+
+ @example
+ ```ts
+ await stopUnit({ unit: 'pi-build-2.service', },);
+ ```
+ */
+async function stopUnit({ unit, }: { readonly unit: string },): Promise<void> {
+  await askTheManager({
+    command: 'systemctl',
+    words: [
+      '--user',
+      'stop',
+      unit,
+    ],
+  },);
+  await askTheManager({
+    command: 'systemctl',
+    words: [
+      '--user',
+      'reset-failed',
+      unit,
+    ],
+  },);
+}
+
+/**
+ Waits, bounded, until the shell that started a scope has gone and the manager has taken the work in.
+
+ @param pid - the work's process number
+
+ @param from - the process number the shell that started it had
+
+ @returns nothing
+
+ @throws when the work is still that shell's child when the bound is spent
+
+ @example
+ ```ts
+ await waitToLeaveTheRun({ pid: 486667, from: 486601, },);
+ ```
+ */
+async function waitToLeaveTheRun({
+  pid,
+  from,
+}: {
+  readonly pid: number;
+  readonly from: number;
+},): Promise<void> {
+  /**
+   When this wait must be over.
+   */
+  const deadline = Date.now() + MANAGER_WAIT_MILLISECONDS;
+  for (;;) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- a look, then a pause, then the next look; see doc/lint/sequential-awaits.md
+    if ((await realParentOf({ pid, },)) !== from) {
+      return;
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(`${String(pid,)} is still the child of ${String(from,)}`,);
+    }
+    // oxlint-disable-next-line eslint/no-await-in-loop -- the same wait, one look at a time; see doc/lint/sequential-awaits.md
+    await wait(LOOK_MILLISECONDS,);
+  }
+}
+
+/**
+ Waits, bounded, until `systemd-run` has printed the name of the scope it made.
+
+ The file is written empty before the shell starts, so a look never fails on a path that is not there yet: the message whose name
+ this reads is `Running as unit: <name>; invocation ID: <id>`, as `systemd-run` prints it.
+
+ @param file - the file that run's output goes to
+
+ @returns the unit's name
+
+ @throws when no name is printed before the bound is spent
+
+ @example
+ ```ts
+ const unit = await waitForTheScopeName({ file: '/x/scope-output.txt', },);
+ ```
+ */
+async function waitForTheScopeName({ file, }: { readonly file: string },): Promise<string> {
+  /**
+   The text `systemd-run` puts before the unit's name.
+   */
+  const marker = 'Running as unit: ';
+  /**
+   When this wait must be over.
+   */
+  const deadline = Date.now() + MANAGER_WAIT_MILLISECONDS;
+  for (;;) {
+    /**
+     What the run has printed so far.
+     */
+    // oxlint-disable-next-line eslint/no-await-in-loop -- a look, then a pause, then the next look; see doc/lint/sequential-awaits.md
+    const shown = await readFile(file, 'utf8',);
+    /**
+     What follows the marker, which holds the name up to the semicolon after it, and nothing while no name is printed yet.
+     */
+    const after = shown.split(marker,)[1] ?? '';
+    /**
+     Where the name ends.
+     */
+    const endsAt = after.indexOf(';',);
+    if (endsAt > 0) {
+      return after.slice(
+        0,
+        endsAt,
+      )
+        .trim();
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(`systemd-run printed no unit name into ${file}`,);
+    }
+    // oxlint-disable-next-line eslint/no-await-in-loop -- the same wait, one look at a time; see doc/lint/sequential-awaits.md
+    await wait(LOOK_MILLISECONDS,);
+  }
+}
+
+/**
+ Starts a scope the way a bash tool call leaves one behind: a shell puts it in the background and exits at once, so the work it
+ started belongs to whatever took it in when that shell went.
+
+ The scope names no unit of its own, which is the shape the driver can only find through the process table.
+
+ @param folder - the folder the work runs in, and where the run's output and the job's number are written
+
+ @returns the unit, the work's process number and folder, and what stops it
+
+ @example
+ ```ts
+ await using backgrounded = await startAScopeInTheBackground({ folder: '/x/worktree', },);
+ ```
+ */
+async function startAScopeInTheBackground({ folder, }: { readonly folder: string },): Promise<StartedWork> {
+  /**
+   The file `systemd-run` prints the name it made into, written empty before the shell goes so a look never fails on it.
+   */
+  const shownFile = join(folder, 'scope-output.txt',);
+  await writeFile(shownFile, '',);
+  /**
+   The file the shell writes the background job's process number into, which the kernel gave it when it started that job.
+   */
+  const jobFile = join(folder, 'scope-job-pid.txt',);
+  /**
+   The shell that starts the scope and goes, as a bash tool call does.
+   */
+  const caller = spawn(
+    'sh',
+    [
+      '-c',
+      `systemd-run --user --scope -- sleep ${String(REAL_PROCESS_SECONDS,)} > ${shownFile} 2>&1 & echo $! > ${jobFile}`,
+    ],
+    {
+      cwd: folder,
+      stdio: 'ignore',
+    },
+  );
+  /**
+   The number the kernel gave that shell.
+   */
+  const { pid: callerPid, } = caller;
+  if (callerPid === undefined) {
+    throw new Error('the operating system started no shell, so no scope was asked for',);
+  }
+  await once(
+    caller,
+    'exit',
+  );
+  /**
+   The unit the manager made for it.
+   */
+  const unit = await waitForTheScopeName({ file: shownFile, },);
+  await waitUntilTheManagerHolds({ unit, },);
+  /**
+   The work's process number, which the shell got when it started the job and `systemd-run` kept by running the payload in its
+   own place.
+   */
+  const pid = Number((await readFile(jobFile, 'utf8',)).trim(),);
+  await waitToLeaveTheRun({
+    pid,
+    from: callerPid,
+  },);
+  /**
+   Ends the work, which is the manager's to do.
+   */
+  async function stop(): Promise<void> {
+    await stopUnit({ unit, },);
+  }
+  return {
+    unit,
+    pid,
+    folder: await readlink(join(
+      REAL_PROCESS_FOLDER,
+      String(pid,),
+      'cwd',
+    ),),
+    stop,
+    [Symbol.asyncDispose]: stop,
+  };
+}
+
+/**
+ Starts a service unit of the run's own by name, which this machine's manager runs, so its process belongs to the manager rather
+ than to the run.
+
+ The unit is collected, so the manager unloads it once it ends: a suite killed partway through this test leaves at most the `sleep`
+ it started, and no unit of its own.
+
+ @param name - the unit's name, which the test makes unique to itself
+
+ @returns the unit, the work's process number and folder, and what stops it
+
+ @example
+ ```ts
+ await using named = await startANamedUnit({ name: 'pi-work-left-unit-486601', },);
+ ```
+ */
+async function startANamedUnit({ name, }: { readonly name: string },): Promise<StartedWork> {
+  /**
+   What `systemd-run` answered when it asked the manager for the unit.
+   */
+  const started = await askTheManager({
+    command: 'systemd-run',
+    words: [
+      '--user',
+      '--collect',
+      `--unit=${name}`,
+      '--',
+      'sleep',
+      String(REAL_PROCESS_SECONDS,),
+    ],
+  },);
+  if (started.status !== 0) {
+    throw new Error(`systemd-run made no unit ${name}: ${started.stderr.trim()}`,);
+  }
+  await waitUntilTheManagerHolds({ unit: name, },);
+  /**
+   What the manager says about the process it runs for that unit.
+   */
+  const shown = await askTheManager({
+    command: 'systemctl',
+    words: [
+      '--user',
+      'show',
+      name,
+      '--property',
+      'MainPID',
+      '--value',
+    ],
+  },);
+  /**
+   The process number of the work the unit runs.
+   */
+  const pid = Number(shown.stdout.trim(),);
+  if ((!Number.isSafeInteger(pid,)) || (pid <= 0)) {
+    throw new Error(`this machine's user manager names no process for ${name}`,);
+  }
+  /**
+   Ends the work, which is the manager's to do.
+   */
+  async function stop(): Promise<void> {
+    await stopUnit({ unit: name, },);
+  }
+  return {
+    unit: name,
+    pid,
+    folder: await readlink(join(
+      REAL_PROCESS_FOLDER,
+      String(pid,),
+      'cwd',
+    ),),
+    stop,
+    [Symbol.asyncDispose]: stop,
   };
 }
 
@@ -518,7 +933,7 @@ async function writeParentChainOf({
 
  @example
  ```ts
- await writeProcess({ folder: '/proc', pid: 12, cgroup: '0::/a.scope', worksIn: '/repo', command: 'bash', parentPid: 11, },);
+ await writeProcess({ folder: '/x/proc', pid: 12, cgroup: '0::/a.scope', worksIn: '/repo', command: 'bash', parentPid: 11, },);
  ```
  */
 async function writeProcess({
@@ -588,7 +1003,7 @@ async function writeProcess({
 
  @example
  ```ts
- await writeSelf({ folder: '/proc', cgroup: theRunsUnit(), },);
+ await writeSelf({ folder: '/x/proc', cgroup: theRunsUnit(), },);
  ```
  */
 async function writeSelf({
@@ -1069,6 +1484,102 @@ await describe({
                 };
               },
             },),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'never names a scope the agent put in the background whose caller exited, though it works in the run folder',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The folder the run works in.
+             */
+            const workingFolder = join(folder.path, 'worktree',);
+            await mkdir(workingFolder, { recursive: true, },);
+            /**
+             The process folder a test writes, whose own entry is the run's unit.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeSelf({
+              folder: processes,
+              cgroup: theRunsUnit(),
+            },);
+            // The work: a real scope of the kind a bash call leaves behind when it puts `systemd-run --user --scope` in the
+            // background and returns, so the manager has taken the payload in and no chain reaches this test.
+            await using backgrounded = await startAScopeInTheBackground({ folder: workingFolder, },);
+            // The premise: it really works in the run's own folder, in a control group that is not the run's unit, and it
+            // descends from nothing here.
+            expect(backgrounded.folder,).toBe(workingFolder,);
+            expect(await descendsFrom({
+              processFolder: REAL_PROCESS_FOLDER,
+              pid: backgrounded.pid,
+              rootPid: process.pid,
+            },),).toBe(false,);
+            await writeRecordsOfRealProcess({
+              folder: processes,
+              pid: backgrounded.pid,
+              worksIn: workingFolder,
+            },);
+            expect(await workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder,
+              processFolder: processes,
+              ownProcess: process.pid,
+            },),).toEqual([],);
+            // The unit this test started is stopped, and the manager says so, rather than being left on the machine.
+            await backgrounded.stop();
+            expect(await theManagerHolds({ unit: backgrounded.unit, },),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'keeps the work a unit of the run own does, whose recorded number has gone, because the manager holds that unit',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The folder the run works in.
+             */
+            const workingFolder = join(folder.path, 'worktree',);
+            await mkdir(workingFolder, { recursive: true, },);
+            /**
+             The process folder a test writes, whose own entry is the run's unit.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeSelf({
+              folder: processes,
+              cgroup: theRunsUnit(),
+            },);
+            // The name a test keeps to itself, so a run of this suite beside it never shares a unit with it.
+            const name = `pi-work-left-unit-${String(process.pid,)}`;
+            // The work: a real service of the run's own, which the manager runs, so no chain reaches this test either.
+            await using named = await startANamedUnit({ name, },);
+            expect(await theManagerHolds({ unit: named.unit, },),).toBe(true,);
+            expect(await descendsFrom({
+              processFolder: REAL_PROCESS_FOLDER,
+              pid: named.pid,
+              rootPid: process.pid,
+            },),).toBe(false,);
+            /**
+             The command the run's own tool recorded, which names the unit, with the number the tool held now gone.
+             */
+            const command = `systemd-run --user --collect --unit=${named.unit} -- sleep ${String(REAL_PROCESS_SECONDS,)}`;
+            await writeFile(
+              join(folder.path, 'feed.jsonl',),
+              `${aToolAnswer({
+                action: 'start',
+                process: aProcess({
+                  command,
+                  pid: 999_999,
+                },),
+              },)}\n`,
+            );
+            // The manager is asked for real here, which is what names the work once the number the tool held has gone.
+            expect(await workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder,
+              processFolder: processes,
+              ownProcess: process.pid,
+            },),).toEqual([`proc_7adb (native-build-2) 999999 ${command}`,],);
+            await named.stop();
+            expect(await theManagerHolds({ unit: named.unit, },),).toBe(false,);
           },
         },),
       ],

@@ -227,7 +227,7 @@ export async function descendsFrom({
   for (;;) {
     // One link after another by nature: the record read here names the process whose record the next read is of, so these reads
     // cannot be asked at once.
-    // oxlint-disable-next-line eslint/no-await-in-loop -- each record names the process whose record is read next
+    // oxlint-disable-next-line eslint/no-await-in-loop -- each record names the process whose record is read next; see doc/lint/sequential-awaits.md
     const parent = await parentOfProcess({
       processFolder,
       pid: chain.at(-1,) ?? pid,

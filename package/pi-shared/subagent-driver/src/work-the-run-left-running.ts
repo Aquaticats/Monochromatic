@@ -426,7 +426,7 @@ export async function workOutlivingTheTurnIn({
      person that started it: another session's process works in this folder and sits in a scope of its own just the same, and
      nothing of it descends from this run.
      */
-    // oxlint-disable-next-line eslint/no-await-in-loop -- one process after another, each read once; a handful at most
+    // oxlint-disable-next-line eslint/no-await-in-loop -- one process after another, each read once; a handful at most; see doc/lint/sequential-awaits.md
     const own = await descendsFrom({
       processFolder,
       pid: process.pid,
