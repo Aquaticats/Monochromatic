@@ -40228,6 +40228,14 @@ its cost and the veto sentence. Disagreements: "the full text is in the fence" i
 restored anyway); a bookmark's normal use is a `zfs send` source (`zfs-bookmark.8:48-50`). GOING: a fifth Sonnet check
 of `b26aa27f3c..1975c5c4cc` (background Agent), which also writes each open choice and default in plain words for the
 owner's questions in the morning.
+The fifth check came back (saved as `keep/fifth-delta-check.md`, which also holds the plain-words input for every open
+choice and default): the fourth check nearly all answered; new: refusal still worded as operative and the new choice's
+pointer circular; option 2 overstates item 15 (no read through the mount was measured); **option 1 (refuse) is stricter
+than the "refuse without an explicit flag" the owner declined when choosing "B: Destroy at once"** (`cli-git-zfs-worktree.md`
+lines 491 to 494), a fact for the question; the writer's bookmark rule is stated as settled with gaps (plan home unnamed
+for the delegated option, amended plans, the control forces no split); default costs N5 to N7; record lows. GOING: a
+fifth fold-in, `pi-zfs-worktree-design-proposal-fifth-fold-in-1` (run-9), making the bookmark rule an open choice (A
+plan tuple, B live only, C createtxg ordering). The open choices then go to the owner by question tool in the morning.
 
 **Provider writer run-7** hit its 200-turn cap after 16 min with nine commits (`cb7d6a66ab` to `dbc6f57268`: OpenAI out
 of the writer pool, the move gated on OpenAI's opening, a set-aside policy stop yielded instead of a later 429, the
