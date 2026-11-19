@@ -38,6 +38,7 @@ import {
   descendsFrom,
   parentOfProcess,
   startRecordOfPiRun,
+  unitKeepsTheRun,
   unitNamedBy,
   wakeMessageOf,
   workOutlivingTheTurnIn,
@@ -276,6 +277,22 @@ const FIRST_PROCESS = 1;
  process folder, and the test ends it by the number it was given.
  */
 const REAL_PROCESS_SECONDS = 60;
+
+/**
+ When the command a fixture records started, as milliseconds since the epoch: a unit that left the inactive state before that
+ moment cannot be this run's work.
+ */
+const WHEN_THE_COMMAND_STARTED = 1_795_000_000_000;
+
+/**
+ One second, in milliseconds, which is long enough between a command's start and a unit's for the manager to have begun it.
+ */
+const A_SECOND = 1_000;
+
+/**
+ How many looks of one run's poll a test makes: the driver asks about the work every 300 ms, so this is 30 s of waiting.
+ */
+const LOOKS_OF_ONE_POLL = 100;
 
 /**
  Milliseconds between two looks while a test waits for a process to be handed over, or to be gone.
@@ -805,6 +822,66 @@ async function writeSelf({
 
 
 /**
+ One answer of `systemctl --user show`, in the shape this machine's manager printed for a real unit: a capture of it is
+ `scratch/keep/manager-answer-capture.txt` (2026-11-19), and the day's name it writes is not read.
+
+ @param state - what the manager answers as `ActiveState`
+
+ @param sub - what it answers as `SubState`
+
+ @param startedAt - when the unit left the inactive state, which the manager writes as `n/a` for a unit that never did
+
+ @returns what the manager printed
+
+ @example
+ ```ts
+ const shown = aUnitAnswer({ state: 'active', sub: 'running', startedAt: 1_795_000_001_000, },);
+ ```
+ */
+function aUnitAnswer({
+  state,
+  sub,
+  startedAt,
+}: {
+  readonly state: string;
+  readonly sub: string;
+  readonly startedAt?: number;
+}): string {
+  /**
+   The answer's fields, in the order the manager prints them.
+   */
+  const lines = [
+    `ActiveState=${state}`,
+    `SubState=${sub}`,
+    'InactiveExitTimestamp=n/a',
+  ];
+  if (startedAt !== undefined) {
+    lines[2] = `InactiveExitTimestamp=${aTimestampOf({ moment: startedAt, },)}`;
+  }
+  return `${lines.join('\n',)}\n`;
+}
+
+/**
+ Reads a moment as the timestamp form `--timestamp=us+utc` prints it, whose day's name is the only part the reader ignores.
+
+ @param moment - the moment, as milliseconds since the epoch
+
+ @returns the printed value
+
+ @example
+ ```ts
+ const printed = aTimestampOf({ moment: 1_795_000_001_000, },);
+ ```
+ */
+function aTimestampOf({ moment, }: { readonly moment: number },): string {
+  /**
+   The moment as ISO 8601 writes it, from which the date and the time with microseconds are taken.
+   */
+  const iso = new Date(moment,).toISOString();
+  return `Thu ${iso.slice(0, 10,)} ${iso.slice(11, 23,)} UTC`;
+}
+
+/**
  A manager that answers what it says about every unit it is asked about.
 
  @param request - what it answers, and where to note what it was asked
@@ -995,12 +1072,26 @@ await describe({
       name: unitNamedBy.name,
       children: [
         it({
-          name: 'reads the unit a command starts of its own, in either spelling, and answers nothing when it names none',
+          name: 'reads the unit a command names, in either spelling, and answers nothing when it names none',
           fn: async () => {
             expect(unitNamedBy({ command: 'systemd-run --user --unit=pi-build -- true', },),).toEqual({ unit: 'pi-build', },);
             expect(unitNamedBy({ command: 'systemd-run --user --unit pi-build -- true', },),).toEqual({ unit: 'pi-build', },);
             expect(unitNamedBy({ command: 'systemd-run --user --scope -- true', },),).toEqual({},);
             expect(unitNamedBy({ command: 'mise run build', },),).toEqual({},);
+          },
+        },),
+        it({
+          name: 'takes one pair of matching quotes off the name, reads words any whitespace separates, and names a unit a command only reads',
+          fn: async () => {
+            expect(unitNamedBy({ command: 'systemd-run --user --unit="pi-build" -- true', },),).toEqual({ unit: 'pi-build', },);
+            expect(unitNamedBy({ command: "systemd-run --user --unit='pi-build' -- true", },),).toEqual({ unit: 'pi-build', },);
+            expect(unitNamedBy({ command: 'systemd-run --user --unit pi-build -- true', },),).toEqual({ unit: 'pi-build', },);
+            expect(unitNamedBy({ command: 'systemd-run\t--user\t--unit=pi-build\t-- true', },),).toEqual({ unit: 'pi-build', },);
+            expect(unitNamedBy({ command: 'systemd-run  --user   --unit=pi-build -- true', },),).toEqual({ unit: 'pi-build', },);
+            // A name that only half a quote surrounds is no pair, so it is handed on as it was written.
+            expect(unitNamedBy({ command: 'systemd-run --user --unit="pi-build -- true', },),).toEqual({ unit: '"pi-build', },);
+            // A command that only reads a unit names it, which is why the reader of the unit a command starts is a separate one.
+            expect(unitNamedBy({ command: 'journalctl --user --unit=pi-build -n 20', },),).toEqual({ unit: 'pi-build', },);
           },
         },),
       ],
@@ -1051,6 +1142,8 @@ await describe({
               workingFolder: aWorktree(),
               processFolder: processes,
               ownProcess: 100,
+              runStartedAt: WHEN_THE_COMMAND_STARTED,
+              settled: new Set<string>(),
               run: async function answered() {
                 return {
                   status: 1,
@@ -1097,6 +1190,8 @@ await describe({
               workingFolder: aWorktree(),
               processFolder: processes,
               ownProcess: 100,
+              runStartedAt: WHEN_THE_COMMAND_STARTED,
+              settled: new Set<string>(),
               run: async function answered() {
                 return {
                   status: 1,
@@ -1108,66 +1203,7 @@ await describe({
           },
         },),
         it({
-          name: 'asks the manager about a unit the tool named when the number it held has gone, and answers nothing when that unit is not active',
-          fn: async () => {
-            await using folder = await makeFolder();
-            /**
-             The process folder a test writes, which holds no process of the run.
-             */
-            const processes = join(folder.path, 'proc',);
-            await mkdir(processes, { recursive: true, },);
-            await writeFile(
-              join(folder.path, 'feed.jsonl',),
-              `${aToolAnswer({
-                action: 'start',
-                process: aProcess({
-                  command: 'systemd-run --user --unit=pi-build-2 -- mise run build',
-                  pid: 999_999,
-                },),
-              },)}\n`,
-            );
-            /**
-             What the manager was asked, and what it answers.
-             */
-            const asked: string[][] = [];
-            /**
-             A manager that holds the unit.
-             */
-            const holding = aManagerAnswering({
-              status: 0,
-              stdout: 'active\n',
-              asked,
-            },);
-            expect(await workOutlivingTheTurnIn({
-              runFolder: folder.path,
-              workingFolder: aWorktree(),
-              processFolder: processes,
-              ownProcess: 100,
-              run: holding,
-            },),).toEqual(['proc_7adb (native-build-2) 999999 systemd-run --user --unit=pi-build-2 -- mise run build',],);
-            expect(asked,).toEqual([[
-              '--user',
-              'is-active',
-              'pi-build-2',
-            ],],);
-            /**
-             A manager that holds nothing.
-             */
-            const holdingNothing = aManagerAnswering({
-              status: 3,
-              stdout: 'inactive\n',
-            },);
-            expect(await workOutlivingTheTurnIn({
-              runFolder: folder.path,
-              workingFolder: aWorktree(),
-              processFolder: processes,
-              ownProcess: 100,
-              run: holdingNothing,
-            },),).toEqual([],);
-          },
-        },),
-        it({
-          name: 'asks the manager about the unit a record names even when the record says its client ended, and keeps the run while that unit is held',
+          name: 'keeps the run for the unit a record starts that began after the command, asking the manager about it in one question',
           fn: async () => {
             await using folder = await makeFolder();
             /**
@@ -1178,7 +1214,7 @@ await describe({
             /**
              The command the run's own tool recorded, whose client has ended while the unit it asked for runs on.
              */
-            const command = 'systemd-run --user --unit=pi-build-3 -- mise run build';
+            const command = 'systemd-run --user --unit=pi-build-2 -- mise run build';
             await writeFile(
               join(folder.path, 'feed.jsonl',),
               `${aToolAnswer({
@@ -1191,7 +1227,7 @@ await describe({
               },)}\n`,
             );
             /**
-             What the manager was asked about the unit, and that it holds it.
+             What the manager was asked, and that the unit began after the command did.
              */
             const asked: string[][] = [];
             expect(await workOutlivingTheTurnIn({
@@ -1199,28 +1235,350 @@ await describe({
               workingFolder: aWorktree(),
               processFolder: processes,
               ownProcess: 100,
+              runStartedAt: WHEN_THE_COMMAND_STARTED,
+              settled: new Set<string>(),
               run: aManagerAnswering({
                 status: 0,
-                stdout: 'active\n',
+                stdout: aUnitAnswer({
+                  state: 'active',
+                  sub: 'running',
+                  startedAt: WHEN_THE_COMMAND_STARTED + A_SECOND,
+                },),
                 asked,
               },),
             },),).toEqual([`proc_7adb (native-build-2) 999999 ${command}`,],);
             expect(asked,).toEqual([[
               '--user',
-              'is-active',
-              'pi-build-3',
+              'show',
+              '--timestamp=us+utc',
+              '--property=ActiveState,SubState,InactiveExitTimestamp',
+              'pi-build-2',
             ],],);
-            // The same record, with the manager holding nothing, keeps no run: the question is asked and its answer decides.
-            expect(await workOutlivingTheTurnIn({
-              runFolder: folder.path,
-              workingFolder: aWorktree(),
-              processFolder: processes,
-              ownProcess: 100,
-              run: aManagerAnswering({
-                status: 3,
-                stdout: 'inactive\n',
-              },),
-            },),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'keeps a unit whose work is still starting or reloading, and not one the manager holds after its work ended',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, which holds no process of the run.
+             */
+            const processes = join(folder.path, 'proc',);
+            await mkdir(processes, { recursive: true, },);
+            await writeFile(
+              join(folder.path, 'feed.jsonl',),
+              `${aToolAnswer({
+                action: 'start',
+                process: aProcess({
+                  command: 'systemd-run --user --unit=pi-build-4 -- mise run build',
+                  pid: 999_999,
+                  status: 'exited',
+                },),
+              },)}\n`,
+            );
+            for (const answered of [
+              {
+                state: 'activating',
+                sub: 'start',
+                keeps: true,
+              },
+              {
+                state: 'reloading',
+                sub: 'reload',
+                keeps: true,
+              },
+              {
+                state: 'active',
+                sub: 'exited',
+                keeps: false,
+              },
+            ]) {
+              /**
+               What the manager was asked about the unit, and that it began after the command did.
+               */
+              const asked: string[][] = [];
+              /**
+               Whether the run is kept for that unit.
+               */
+              // oxlint-disable-next-line eslint/no-await-in-loop -- one state after another, each read before the next is asked
+              const kept = await unitKeepsTheRun({
+                run: aManagerAnswering({
+                  status: 0,
+                  stdout: aUnitAnswer({
+                    state: answered.state,
+                    sub: answered.sub,
+                    startedAt: WHEN_THE_COMMAND_STARTED + A_SECOND,
+                  },),
+                  asked,
+                },),
+                program: 'systemctl',
+                command: 'systemd-run --user --unit=pi-build-4 -- mise run build',
+                startedAt: WHEN_THE_COMMAND_STARTED,
+                settled: new Set<string>(),
+              },);
+              expect(asked,).toHaveLength(1,);
+              // A unit is the run's work while it starts or reloads, and not once the manager holds it after that work ended.
+              expect(kept,).toBe(answered.keeps,);
+            }
+          },
+        },),
+        it({
+          name: 'keeps nothing for a unit that began before the command, or one that named no moment, and settles it so no later look asks again',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, which holds no process of the run.
+             */
+            const processes = join(folder.path, 'proc',);
+            await mkdir(processes, { recursive: true, },);
+            await writeFile(
+              join(folder.path, 'feed.jsonl',),
+              `${aToolAnswer({
+                action: 'start',
+                process: aProcess({
+                  command: 'systemd-run --user --unit=pi-build-5 -- mise run build',
+                  pid: 999_999,
+                  status: 'exited',
+                },),
+              },)}\n`,
+            );
+            for (const answered of [{ startedAt: WHEN_THE_COMMAND_STARTED - A_SECOND, }, {},]) {
+              /**
+               The units this run's looks have settled, which a test keeps across them as the driver does.
+               */
+              const settled = new Set<string>();
+              /**
+               What the manager was asked.
+               */
+              const asked: string[][] = [];
+              // oxlint-disable-next-line eslint/no-await-in-loop -- one look after another, as the watch makes them
+              expect(await workOutlivingTheTurnIn({
+                runFolder: folder.path,
+                workingFolder: aWorktree(),
+                processFolder: processes,
+                ownProcess: 100,
+                runStartedAt: WHEN_THE_COMMAND_STARTED,
+                settled,
+                run: aManagerAnswering({
+                  status: 0,
+                  stdout: aUnitAnswer({
+                    state: 'active',
+                    sub: 'running',
+                    ...answered,
+                  },),
+                  asked,
+                },),
+              },),).toEqual([],);
+              // A unit that began before the command, or names no moment at all, is no work this run left, and the run carries
+              // that answer: the next look of the same run reads it instead of asking again.
+              expect(asked,).toHaveLength(1,);
+              expect(settled,).toContain('pi-build-5',);
+            }
+          },
+        },),
+        it({
+          name: 'never asks the manager about a command that only names a unit, or one whose program starts no unit',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, which holds no process of the run.
+             */
+            const processes = join(folder.path, 'proc',);
+            await mkdir(processes, { recursive: true, },);
+            for (const command of [
+              'journalctl --user --unit=pi-build-6 -n 20',
+              'rg -- --unit=pi-build-6 notes/',
+              'mise run build --unit=pi-build-6',
+            ]) {
+              // oxlint-disable-next-line eslint/no-await-in-loop -- one command after another, each read before the next is asked
+              await writeFile(
+                join(folder.path, 'feed.jsonl',),
+                `${aToolAnswer({
+                  action: 'list',
+                  processes: [aProcess({
+                    command,
+                    pid: 999_999,
+                    status: 'exited',
+                  },),],
+                },)}\n`,
+              );
+              /**
+               What the manager was asked, which is nothing: these commands start no unit.
+               */
+              const asked: string[][] = [];
+              // oxlint-disable-next-line eslint/no-await-in-loop -- one command after another, each looked at before the next
+              expect(await workOutlivingTheTurnIn({
+                runFolder: folder.path,
+                workingFolder: aWorktree(),
+                processFolder: processes,
+                ownProcess: 100,
+                runStartedAt: WHEN_THE_COMMAND_STARTED,
+                settled: new Set<string>(),
+                run: aManagerAnswering({
+                  status: 0,
+                  stdout: aUnitAnswer({
+                    state: 'active',
+                    sub: 'running',
+                    startedAt: WHEN_THE_COMMAND_STARTED + A_SECOND,
+                  },),
+                  asked,
+                },),
+              },),).toEqual([],);
+              expect(asked,).toEqual([],);
+            }
+          },
+        },),
+        it({
+          name: 'reads the unit name whatever spelling the command has: quoted, tabbed, or through a path after an assignment',
+          fn: async () => {
+            for (const spelling of [
+              'systemd-run --user --unit="pi-build-7" -- mise run build',
+              "systemd-run --user --unit='pi-build-7' -- mise run build",
+              'systemd-run\t--user\t--unit=pi-build-7 -- mise run build',
+              'PI_TIMEOUT=600 /usr/bin/systemd-run --user --unit=pi-build-7 -- mise run build',
+              'systemd-run --user --unit pi-build-7 -- mise run build',
+            ]) {
+              /**
+               What the manager was asked about the unit, and that it began after the command did.
+               */
+              const asked: string[][] = [];
+              // oxlint-disable-next-line eslint/no-await-in-loop -- one spelling after another, each read before the next
+              expect(await unitKeepsTheRun({
+                run: aManagerAnswering({
+                  status: 0,
+                  stdout: aUnitAnswer({
+                    state: 'active',
+                    sub: 'running',
+                    startedAt: WHEN_THE_COMMAND_STARTED + A_SECOND,
+                  },),
+                  asked,
+                },),
+                program: 'systemctl',
+                command: spelling,
+                startedAt: WHEN_THE_COMMAND_STARTED,
+                settled: new Set<string>(),
+              },),).toBe(true,);
+              // The manager is asked about the name itself, with the quotes the shell wrote taken off.
+              expect(asked[0]?.at(-1,),).toBe('pi-build-7',);
+            }
+          },
+        },),
+        it({
+          name: 'asks the manager once for a unit it answered, not once for every look of the run',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, which holds no process of the run.
+             */
+            const processes = join(folder.path, 'proc',);
+            await mkdir(processes, { recursive: true, },);
+            await writeFile(
+              join(folder.path, 'feed.jsonl',),
+              `${aToolAnswer({
+                action: 'start',
+                process: aProcess({
+                  command: 'systemd-run --user --unit=pi-build-8 -- mise run build',
+                  pid: 999_999,
+                  status: 'exited',
+                },),
+              },)}\n`,
+            );
+            /**
+             What the manager was asked, and that the unit ended before the command did.
+             */
+            const asked: string[][] = [];
+            /**
+             The units the run has settled, which every look of one run shares.
+             */
+            const settled = new Set<string>();
+            for (let look = 0; look < LOOKS_OF_ONE_POLL; look += 1) {
+              // oxlint-disable-next-line eslint/no-await-in-loop -- one look after another, as the watch makes them
+              expect(await workOutlivingTheTurnIn({
+                runFolder: folder.path,
+                workingFolder: aWorktree(),
+                processFolder: processes,
+                ownProcess: 100,
+                runStartedAt: WHEN_THE_COMMAND_STARTED,
+                settled,
+                run: aManagerAnswering({
+                  status: 3,
+                  stdout: aUnitAnswer({
+                    state: 'inactive',
+                    sub: 'dead',
+                  },),
+                  asked,
+                },),
+              },),).toEqual([],);
+            }
+            // One question for the whole poll: every look after the first reads the answer the run already has.
+            expect(asked,).toHaveLength(1,);
+          },
+        },),
+        it({
+          name: 'reads the start time the tool recorded, and the run own start where a record predates that field',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, which holds no process of the run.
+             */
+            const processes = join(folder.path, 'proc',);
+            await mkdir(processes, { recursive: true, },);
+            /**
+             The command the run's own tool recorded.
+             */
+            const command = 'systemd-run --user --unit=pi-build-9 -- mise run build';
+            /**
+             A unit that began after the command did, and before the run's own process started.
+             */
+            const startedAt = WHEN_THE_COMMAND_STARTED - A_SECOND;
+            for (const recorded of [
+              {
+                startTime: WHEN_THE_COMMAND_STARTED - (2 * A_SECOND),
+              },
+              {},
+            ]) {
+              // oxlint-disable-next-line eslint/no-await-in-loop -- one record after another, each looked at before the next
+              await writeFile(
+                join(folder.path, 'feed.jsonl',),
+                `${aToolAnswer({
+                  action: 'start',
+                  process: aProcess({
+                    command,
+                    pid: 999_999,
+                    status: 'exited',
+                    ...recorded,
+                  },),
+                },)}\n`,
+              );
+              /**
+               What the run left, which the record's own start time decides where the tool wrote one.
+               */
+              // oxlint-disable-next-line eslint/no-await-in-loop -- one record after another, each looked at before the next
+              const kept = await workOutlivingTheTurnIn({
+                runFolder: folder.path,
+                workingFolder: aWorktree(),
+                processFolder: processes,
+                ownProcess: 100,
+                runStartedAt: WHEN_THE_COMMAND_STARTED,
+                settled: new Set<string>(),
+                run: aManagerAnswering({
+                  status: 0,
+                  stdout: aUnitAnswer({
+                    state: 'active',
+                    sub: 'running',
+                    startedAt,
+                  },),
+                },),
+              },);
+              // The tool's own start time is before the unit began, so the unit is this run's work; a record without one falls back
+              // to the run's own start, which is after the unit began, so nothing is kept.
+              if (recorded.startTime === undefined) {
+                expect(kept,).toEqual([],);
+              }
+              else {
+                expect(kept,).toEqual([`proc_7adb (native-build-2) 999999 ${command}`,],);
+              }
+            }
           },
         },),
         it({
@@ -1267,6 +1625,8 @@ await describe({
               workingFolder,
               processFolder: processes,
               ownProcess: process.pid,
+              runStartedAt: WHEN_THE_COMMAND_STARTED,
+              settled: new Set<string>(),
               run: async function answered() {
                 return {
                   status: 1,
@@ -1316,6 +1676,8 @@ await describe({
               workingFolder,
               processFolder: processes,
               ownProcess: theRun.pid,
+              runStartedAt: WHEN_THE_COMMAND_STARTED,
+              settled: new Set<string>(),
               run: async function answered() {
                 return {
                   status: 1,
@@ -1372,6 +1734,8 @@ await describe({
               workingFolder,
               processFolder: processes,
               ownProcess: process.pid,
+              runStartedAt: WHEN_THE_COMMAND_STARTED,
+              settled: new Set<string>(),
               run: aManagerAnswering({
                 status: 3,
                 stdout: 'inactive\n',

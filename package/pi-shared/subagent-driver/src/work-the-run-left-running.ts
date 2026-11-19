@@ -42,6 +42,7 @@ import {
   processesNamedIn,
 } from './processes-a-tool-answer-names.ts';
 import { isRecord, } from './read-pi-fields.ts';
+import { unitKeepsTheRun, } from './units-a-command-starts.ts';
 import { descendsFrom, } from './processes-descended-from-a-process.ts';
 import {
   type RunCommand,
@@ -68,6 +69,8 @@ const LIVE_STATUSES: ReadonlySet<string> = new Set<string>([
  The number of characters of a command a line carries, so a line stays a line.
  */
 const COMMAND_CHARACTERS = 160;
+
+
 
 /**
  Reads every process the run's `process` tool last reported, whatever it last said about it.
@@ -246,44 +249,6 @@ async function processIsThere({
 }
 
 /**
- Reads the unit a command starts, when it starts one of its own.
-
- A command started with `systemd-run --user --unit=<name>` runs in a unit of its own, which outlives the command that asked for
- it, so the number the `process` tool holds stops naming the work while the unit still runs it.
-
- @param command - the command the tool started
-
- @returns the unit's name, or nothing when the command names none
-
- @example
- ```ts
- const unit = unitNamedBy({ command: 'systemd-run --user --unit=pi-build true', },);
- ```
- */
-export function unitNamedBy({ command, }: { readonly command: string },): { readonly unit?: string } {
-  /**
-   The words the command was written with, which whitespace of any width separates.
-   */
-  const words = command.split(' ',)
-    .filter(function isAWord(word,) {
-      return word !== '';
-    },);
-  for (const [at, word,] of words.entries()) {
-    if (word.startsWith('--unit=',)) {
-      return { unit: word.slice('--unit='.length,), };
-    }
-    /**
-     The word after `--unit`, which names the unit when it stands apart.
-     */
-    const named = words[at + 1];
-    if ((word === '--unit') && (named !== undefined)) {
-      return { unit: named, };
-    }
-  }
-  return {};
-}
-
-/**
  Reads what a process works on, as a line a reader needs.
 
  @param work - the process, and the name the tool gave it
@@ -322,13 +287,21 @@ function lineOf({ work, }: { readonly work: WorkOfARun },): string {
 
  @param ownProcess - process number of the run's own process, which every process the run started descends from
 
+ @param runStartedAt - when the run's own process started, in milliseconds since the epoch: a unit that left the inactive state
+ before that cannot be this run's work, which is what a record read before the tool records a start time falls back to
+
+ @param settled - units the manager has already answered about, which this call adds to and never asks about twice: the caller
+ keeps it for the run, since every look of the run asks this question again
+
+ @param managerProgram - the program that answers for the manager, `systemctl` here, which a run's environment may name another
+
  @param run - how a command is run, which a test replaces
 
  @returns one line per process the run still has going, empty when it has none the driver can see
 
  @example
  ```ts
- const work = await workOutlivingTheTurnIn({ runFolder: '/runs/a-1', workingFolder: '/repo/.claude/worktrees/pi-a', processFolder: '/proc', ownProcess: 486601, },);
+ const work = await workOutlivingTheTurnIn({ runFolder: '/runs/a-1', workingFolder: '/repo/.claude/worktrees/pi-a', processFolder: '/proc', ownProcess: 486601, runStartedAt: 1_795_000_000_000, settled: new Set(), },);
  ```
  */
 export async function workOutlivingTheTurnIn({
@@ -336,12 +309,18 @@ export async function workOutlivingTheTurnIn({
   workingFolder,
   processFolder,
   ownProcess,
+  runStartedAt,
+  settled,
+  managerProgram = 'systemctl',
   run = runCommandWithChildProcess,
 }: {
   readonly runFolder: string;
   readonly workingFolder: string;
   readonly processFolder: string;
   readonly ownProcess: number;
+  readonly runStartedAt: number;
+  readonly settled: Set<string>;
+  readonly managerProgram?: string;
   readonly run?: RunCommand;
 },): Promise<readonly string[]> {
   /**
@@ -389,26 +368,19 @@ export async function workOutlivingTheTurnIn({
       },);
     }
     /**
-     Whether the unit the command names still runs it, whatever the tool's answer says about the client that named it: a client
-     that has ended says nothing about the unit it asked for.
+     Whether a unit of this run's own still runs the work, which is what a client that started one has left behind.
      */
-    const { unit, } = alive ? {} : unitNamedBy({ command: work.command, },);
-    /**
-     What the manager says about that unit.
-     */
-    const unitRuns = (unit === undefined)
-      ? false
+    let unitRuns = false;
+    if (!alive) {
       // oxlint-disable-next-line eslint/no-await-in-loop -- the same handful of processes, each asked once; see doc/lint/sequential-awaits.md
-      : (await run({
-        command: 'systemctl',
-        words: [
-          '--user',
-          'is-active',
-          unit,
-        ],
-      },)).stdout
-        .trim()
-        === 'active';
+      unitRuns = await unitKeepsTheRun({
+        run,
+        program: managerProgram,
+        command: work.command,
+        startedAt: work.startedAt ?? runStartedAt,
+        settled,
+      },);
+    }
     if ((!alive) && (!unitRuns)) {
       continue;
     }

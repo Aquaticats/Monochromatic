@@ -229,11 +229,18 @@ export {
  */
 export {
   cgroupOf,
-  unitNamedBy,
   wakeMessageOf,
   workOutlivingTheTurnIn,
   workTheToolReportedIn,
 } from './work-the-run-left-running.ts';
+
+/**
+ What a recorded command says about the units it names, and what the manager's answer about one says.
+ */
+export {
+  unitKeepsTheRun,
+  unitNamedBy,
+} from './units-a-command-starts.ts';
 
 /**
  A batch started as its own systemd user unit, so it outlives the process that asked for it: `start-a-batch-in-its-own-unit.ts`.
