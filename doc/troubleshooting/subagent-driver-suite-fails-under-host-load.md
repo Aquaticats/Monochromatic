@@ -297,7 +297,7 @@ so a run stopped while its failure is unanswered has not finished its task.
 A review of the temporary-folder change ran the whole package suite once and saw one test fail that
 this record did not name
 (`keep/unit-suite-at-tip.log` in
-`/home/user/temp/agent/change-reviews/pi-shared-subagent-driver-gives-pi-a-temporary-folder-inside-its-run-at-b0324ec24b/`):
+`/home/user/temp/agent/review-of-the-temporary-folder-a-run-gives-pi-2026-11-19/`):
 
 ```text
 [drive-pi-subagent] [leaves a session alone that Pi reports and this run did not make]
@@ -305,8 +305,10 @@ this record did not name
 @drive-pi-subagent.unit.test.ts:2254 expect(String(noted?.problem,),).toContain('other-run.jsonl',);
 ```
 
-The line numbers are those of the commit the review read (`b0324ec24b`);
-the test is named here, so a later reader finds it wherever it has moved to.
+The test is named here and nowhere by its line,
+because the lines move and the name does not:
+it is `leaves a session alone that Pi reports and this run did not make`
+in `src/drive-pi-subagent.unit.test.ts`.
 
 The test resumes a session and has its stand-in Pi report another run's session file,
 which a run must refuse and note as `session_at_rest` with the file's name.
@@ -333,8 +335,9 @@ of the package:
   (`keep/session-flake-control-run-1.log` and `keep/session-flake-control-run-2.log`).
 
 The review measured the same test green six times alone at the tip and three times at `main`,
-and measured it taking 3.6 s inside the suite against 1.6 s for the two tests alone,
-so the suite is about twice as slow per test there.
+and measured one test taking 3.6 s inside the suite against 1.6 s for the two tests alone,
+so the comparison is one test inside the suite against two tests alone,
+not a rate for one test in either place.
 
 The test did not reproduce in the four runs above,
 nor in the review's nine runs outside the suite.
@@ -344,6 +347,63 @@ which is the contention this record names rather than a defect a run can be poin
 A suite run that fails on this test alone is this record's subject,
 and a suite run that fails on it should keep the failing run's feed and stand-in log before anything
 is concluded.
+
+## A store read that is not JSON, seen in the suite on 2026-11-19
+
+Three tests of the package's suite failed this way on 2026-11-19,
+each of them building its store with `createSopsFixture`:
+
+```text
+SecretEnvironmentUnreadableError: the .env.local.json of … holds values of this machine's secret environment and cannot be read,
+so no value of it could be masked before it reached the model, and no run was started:
+.env.local.json is not the JSON a sops store is (the read failed with SyntaxError)
+```
+
+The three:
+
+- `reads the store, Pi own files, the shell start-up file and the environment, naming each source`
+  and `arms an OAuth credential Pi own schema names, a shell value with a comment after it, and a key that begins with a
+  slash`,
+  both children of `src/secret-values-of-this-machine.unit.test.ts`,
+  at the tip of the temporary-folder branch (`keep/full-suite-at-the-branch-head-b0324ec24b.log`)
+  and once at `40e906d6de`, an ancestor of `main`
+  (`keep/full-suite-at-base-commit-40e906d6de.log`),
+  while a later run at that same base passed
+  (`keep/full-suite-at-base-with-the-store-probe.log`);
+- `refuses to start a run whose secret environment cannot be read, naming the cause and starting no Pi`
+  in `src/drive-pi-subagent.unit.test.ts`,
+  in the review's one run of the suite at `9f815bc830`
+  (`keep/unit-suite.log` in `/home/user/temp/agent/review-answer-at-9f815bc830/`).
+
+Every one of them reads a store the fixture made,
+and the failure is the store's own text not being JSON,
+so what is short is the file the fixture wrote,
+not anything the run did with it.
+
+### The mechanism, inferred
+
+`createSopsFixture` writes its store from what its own `runCommand` captured,
+and `runCommand` awaits the child's `exit` event and then joins the chunks it has
+(`package/env-local-json/core/src/fixture.ts:215-234`).
+Node may still deliver a child's standard output after `exit`,
+so a store built from what had arrived can be short,
+and a short store does not parse.
+
+That this failure's text is what a cut store gives,
+and that the wait for `exit` is where the cut happens, was measured by the env-local-json fixture review of 2026-11-18:
+four of eighty waits for `exit` captured nothing,
+where eighty of eighty waits for `close` captured the whole document
+(`~/temp/agent/env-local-json-fixture-waits-for-close-review-2026-11-18/prompt.md`,
+and the entry naming branch `74dbe1200e` under `doc/handover/cli-git-rust-implementation.md`).
+Branch `74dbe1200e` changes the wait to `close`,
+and that change is not merged here.
+
+For the three failures above the mechanism is **inferred**, not measured:
+this branch's probes of the same shape did not reproduce a lost chunk,
+and the review's probe did not either.
+Nothing in the driver's store reader is implicated:
+it parses the file it was given, and the file was short.
+A suite run that fails this way should keep the fixture folder the message names before anything is concluded.
 
 ## Limits of this record
 
