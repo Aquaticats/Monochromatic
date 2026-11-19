@@ -39876,6 +39876,20 @@ What follows from them, as work:
 - **Reviewer order**: Synthetic `infinite:small:vision` is not used.
 - **Driver**: the named-unit path stays as `main` has it (veto not taken).
 - **`AGENTS.md`**: `SRC` covers recorded facts and `DCK` records an answer that turn (`5d1d62dd26`); `EXT` unchanged.
+- **Later answers the same morning**: the provider is a hybrid (a native virtual model routing to the package's pool),
+  prototyped first, because under native virtual models Pi re-routes only errors its classifier calls retryable, so
+  policy stops, quota exhaustion and Cloudflare 521-526 would end the turn (`pi-ai/dist/utils/retry.js:4-50`); ZFS
+  staging is under `~/.cache` with the wrapper cleaning after itself; the live quota check is owed (task 396).
+- **Dependency bumps in `package/browser-selector/desktop-app`** on the owner's "Look into the alert", "Bump windows
+  too", "Bump rustix" and "Bump slint": `tar` 0.4.46 for Dependabot alert 85 (`d6809fccfa`), `windows-sys` back to
+  0.61.2 for five dependents and to 0.59.0 for `rustix` 0.38 (`7f3248ebcd`), `slint` and `slint-build` 1.19.0 with 45
+  packages (`7760586f8a`); `rustix` is already at its newest (1.1.6; 0.38.44 is held by `winit` 0.30.13 under
+  `slint` 1.19, and `winit` 0.31 is in beta). The package's `lint` task (clippy with `--deny warnings`, then
+  `desktop-file-validate`) passes on `7760586f8a`.
+- **GOING**: the ZFS fold-in writer, unit `pi-zfs-proposal-owner-answers-fold-in` (DeepSeek on Neuralwatt, turn cap
+  225 from the longest finished ZFS writer run, 180), in `.claude/worktrees/zfs-worktree-design-proposal-fold-in`;
+  brief and run folder under `~/temp/agent/zfs-proposal-owner-answers-fold-in-2026-11-19/`. Next for it: a DeepSeek
+  short review (Qwen plan first, watched to the end), then a Sonnet gate review before the owner's acceptance.
 
 ### The Qwen plan's terms fit the Pi runs on it (2026-11-19T11:20:00-05:00)
 
