@@ -1,23 +1,33 @@
 # ZFS worktree design proposal for the Git wrapper
 
-**Non-final draft by an agent, unapproved.** Second delta fold-in (2026-11-19T00:21:41-05:00): this revision answers
-the second delta review of `7fe84c7be8`, including decisions that review showed the body made without the project.
-The delta gate revision (2026-11-18T23:30:12-05:00) answered findings on `652b51d74d` and folded in
-[VM items 12 to 16][vm-delta]. The VM evidence fold-in (2026-11-18T22:23:49-05:00) recorded items 1 to 11 and
-their limits. The gate review fold-in (2026-11-18T21:55:35-05:00) answered the accepted findings on
-`71fa25ece8`, incorporated the [project decisions][answers] on removal, promote and the runtime module gate, and
-described the companion boot and shutdown unit.
+**Non-final draft by an agent, unapproved.** Third delta fold-in: this revision answers the bounded check of
+`7fe84c7be8` to `68690e60be`, its findings N1 to N11 and one tension with the decided removal. This file's own
+revision stamp is what `git log --format=%cI -1` prints for the file, which before this revision's commit reported
+2026-11-19T00:47:40-05:00 at `f65862e5c7`; a section heading's stamp is the commit time of the commit that landed
+that section.
 
-This revision keeps every previous answer and changes these statements. The snapshot batch request omits the
-`defer` key, because the kernel reads deferral from the key's presence. The whole-request precheck covers check
-failures only, and the state after one batch is named "planned snapshots all gone with the head refused". Item 14
-ran as root; [item 17][vm-17] then measured the delegated account submitting one
-`ZFS_IOC_DESTROY_SNAPS` request that named the clone's own snapshots, which returned 0 and deleted them, while a
-name with a dependent clone returned `EEXIST` with both kept. Removal names the observables that prove
-absence, gives the bookmark inventory a pass and refuse rule, and says how the second and third fresh scans are
-requested. Kernel-release readiness and blocked-removal cancellation become owner choices; the identity choice is
-coupled to origin cleanup authority; the receipts, the second binary and refusal of an implicit remount are
-adopted defaults open to veto. The delta revision dropped the private-ancestor requirement:
+This revision keeps every previous answer and changes these statements. Where removal refuses for want of the
+namespace exclusion, it says that no option or deployment here can show that exclusion today, so no described setup
+reaches "B: Destroy at once". The bookmark check passes on a live clone snapshot's tuple instead of a recorded
+bookmark. Item 17's delegated snapshot batch and the root option's two unnamed mechanisms stand in the identity
+choice. The receipts, the second binary, the refusal of an implicit remount and the private staging path are listed
+as veto-open defaults. The sweep's coalescing is named unspecified, the fresh scans are counted once with the chunk
+rule, a partial snapshot set belongs to whichever program failed, the coupled pair has one presentation rule, and
+each file now dates its revision from its own commit.
+
+Second delta fold-in, tip `68690e60be` (2026-11-19T00:30:21-05:00), answering the second delta review of
+`7fe84c7be8`, including decisions that review showed the body made without the project: that revision omitted the
+`defer` key from the snapshot batch request, because the kernel reads deferral from the key's presence; limited the
+whole-request precheck to check failures and named the state after one batch "planned snapshots all gone with the
+head refused"; had item 14 run as root and then recorded [item 17][vm-17], where the delegated account submitted one
+`ZFS_IOC_DESTROY_SNAPS` request naming the clone's own snapshots, which returned 0 and deleted them while a name
+with a dependent clone returned `EEXIST` with both kept; began naming the observables that prove absence; gave the
+bookmark inventory a pass and refuse rule; and said how the fresh scans are requested. It made kernel-release
+readiness and blocked-removal cancellation owner choices, coupled the identity choice to origin cleanup authority,
+and marked the receipts, the second binary and the refusal of an implicit remount as adopted defaults open to veto.
+
+The delta gate revision (`aeb7d6c0a8`, 2026-11-18T23:30:12-05:00) answered findings on `652b51d74d` and folded in
+[VM items 12 to 16][vm-delta], including the dropped private-ancestor requirement:
 [VM item 3][vm-propagation] made only the checkout private and enabled staging, at the cost of late-mount
 visibility in the confined reader. It requires proof of snapshot lineage immediately before each destruction
 request: [VM item 11][vm-promote] lost older checkout history to an explicit delete despite the recursive refusal,
@@ -26,11 +36,16 @@ and [VM item 14][vm-batch] tested a single batch. It also requires live dataset 
 underlay protection and nested mount reachability (items 8 and 9). The other observations confirm fixture
 behavior, not the implementation.
 
+The VM evidence fold-in (`652b51d74d`, 2026-11-18T22:23:49-05:00) recorded items 1 to 11 and their limits. The gate
+review fold-in (`34e5fa8fc1`, 2026-11-18T21:55:35-05:00) answered the accepted findings on `71fa25ece8`,
+incorporated the [project decisions][answers] on removal, promote and the runtime module gate, and described the
+companion boot and shutdown unit.
+
 The design keeps the checkout at its existing path and uses account-owned slots over their Git registrations,
 not the first draft's root-owned anchor, `checkout` subdirectory or directory exchange. It draws on the
 [cross-vendor review of the original design and its disposition][handover], the [nested-clone research][nested]
 and the [checkout-dataset and pnpm research][pnpm], including the nested-clone record's dated corrections.
-This revision changes documentation only; it does not install, implement or alter a pool.
+This proposal changes documentation only; it does not install, implement or alter a pool.
 
 ## Requirements and module ownership
 
