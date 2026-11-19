@@ -39925,6 +39925,12 @@ What follows from them, as work:
   reply; refusals Pi calls non-retryable still move on. Points 1 to 3 and 5 (with `README.md` lines 114 to 121 and
   178 to 182 they overrule) are named in the brief as decided for the rebuild that follows, not built by it; the
   fixture rule (`TAE`) is quoted.
+- **Held until a worktree in use frees, by the owner's "We shouldn't use worktrees heavily before we implement the
+  zfs parts for the git wrapper." (2026-11-18):** four worktrees are in use now (the fold-in's, kept until its gate
+  review; the short review's; the LFS audit's; the prototype's), and each new one copies the checkout's ignored files
+  (38,685 entries for the prototype's). Waiting on that: the live quota-endpoint check (task 396, which can run in
+  the prototype's worktree once it ends), the driver pool table (task 383) and the driver's four uncaptured fixtures
+  (task 391).
 
 ### The Qwen plan's terms fit the Pi runs on it (2026-11-19T11:20:00-05:00)
 
