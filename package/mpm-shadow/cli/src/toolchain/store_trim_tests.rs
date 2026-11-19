@@ -2523,7 +2523,7 @@ fn recovery_rechecks_current_before_deleting() {
     // Make the interrupted deletion and the link entirely inside this test's store.
     fs::create_dir_all(&deleting).expect("make the interrupted deletion tree");
     fs::write(&payload, b"must remain").expect("write surviving data");
-    let link = fixture.root.join("node").join(crate::toolchain::store_versions::CURRENT_LINK_NAME);
+    let link = fixture.root.join("node").join(crate::toolchain::cargo_installs::CURRENT_LINK_NAME);
     // The link names the live path even when deletion has moved that path out of the way.
     std::os::unix::fs::symlink("20.0.0", &link).expect("point current at the interrupted version");
 
