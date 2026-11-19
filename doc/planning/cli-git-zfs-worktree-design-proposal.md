@@ -103,51 +103,53 @@ new crate, clone properties at creation, effective delegation and release-archiv
 
 ## Dataset and path layout
 
-The main checkout is a directory in `zpcachyos/ROOT/cos/home` today. A clone needs a dataset, and its destination
-cannot be nested inside the checkout's user-owned directory. The [ZFS planning record][zfs-plan], lines 135 to 155
-and 270 to 281, records why: a privileged mount followed a planted link in a user-owned parent. ZFS dataset ancestry
-and Linux path ancestry need not match. For this machine, propose sibling datasets
-`zpcachyos/ROOT/cos/home/monochromatic-main` and `zpcachyos/ROOT/cos/home/monochromatic-worktree`.
-Each clone is one immediate child of `monochromatic-worktree`; both siblings are covered by home recursion.
+Under `zpcachyos/ROOT/cos/home`, put two sibling datasets: `monochromatic-git-checkout`, mounted at
+`/home/user/Monochromatic` (the account's `~/Monochromatic`), and `monochromatic-git-worktree-clone-datasets`,
+an unmounted container with `mountpoint=legacy`, `canmount=off`, `setuid=off` and `devices=off`.
+Each managed clone is an immediate child of the container and mounts at the corresponding account-owned
+`~/Monochromatic/.claude/worktrees/<name>`. There is no intervening filesystem or directory at that slot.
+Home's sanoid recursion reaches both siblings and the clones; a checkout snapshot includes the slots' underlying
+entries, not the live clone bytes. Each clone needs its own snapshots ([nested-clone research][nested], items 1 and 4).
 
-Map them to a root-controlled anchor, for example `/var/lib/monochromatic-worktrees/monochromatic/`.
-Use a separate configured anchor and dataset pair per repository and account. Every ancestor and the unmounted slot
-folders are root-owned, not writable by the account (including via ACLs), and not symlinks. The main dataset mounts
-at `main` under the anchor. The clone parent dataset is an unmounted container with `canmount=off`,
-`mountpoint=legacy`, `setuid=off` and `devices=off`. Root owns its corresponding path `linked` under the anchor;
-root makes or verifies empty `linked/<slot>` mountpoints. A mounted dataset gives the user their writable tree;
-the user still cannot replace the mountpoint entry or its parent. The main and each clone have a `checkout` child,
-so a clone can stage a tree and still give Git an empty directory on the same filesystem.
+Clones must inherit `mountpoint=legacy`. The container's `canmount=off` is local; the probe saw `canmount=on` on
+its child. No clone gets an automatic mount or an `fstab` entry. `zfs mount -a` and the systemd ZFS mount generator
+skip legacy datasets; an ordinary clone mountpoint would reopen the early-mount hazard even if only root could
+set it. See [nested-clone research][nested], item 2, and OpenZFS `zfs-2.4.4`,
+`lib/libzfs/libzfs_mount.c:295` to `:297` and `etc/systemd/system-generators/zfs-mount-generator.c:430` to `:432`.
 
-Use inherited `mountpoint=legacy` on clones, with no `fstab` or other auto-mount entry for them. This avoids a race
-with boot-time `zfs mount -a`: the user's `clone -o canmount=noauto` was refused in the probe, so do not rely on it.
-OpenZFS `lib/libzfs/libzfs_dataset.c:2679` handles inherited `legacy`, `lib/libzfs/libzfs_mount.c:296` skips it,
-and `etc/systemd/system-generators/zfs-mount-generator.c:430` skips it too, at `zfs-2.4.4`. The handler uses a native
-Linux mount at the derived path with `nosuid,nodev` enforced, not the unprivileged `fstab` route that failed.
-The exact syscall and options, inheritance at clone creation, and real boot order (including encrypted pool import
-and key availability) are VM gates, not results from the probe.
+### One-time move and checkout boot protection
 
-### One-time migration and permissions
+Root moves the checkout once with every session in it stopped. Verify a recoverable backup and inventory linked
+worktrees, nested mounts and required free space. Measure logical bytes on the source filesystem, excluding nested
+mounts, before budgeting the copy; the [planning record][answers] measurement includes compressed allocation and
+nested data and is not the size of the copy. Copy across datasets preserving ownership, permissions, times, links,
+ACLs and xattrs. Stage and verify the new dataset before switching the mount at the same checkout path. Preserve
+nested mounts separately, including `zpcachyos/nosnap/vm-builder-output` at `package/vm-builder/cli/output`.
+That output dataset remains under `nosnap` in the ZFS tree; only its mount path is inside the checkout. Never copy
+its contents into the checkout or write through its mountpoint during the move. Verify the Git object database,
+tracked, untracked and eligible ignored state, and each linked pointer and back-link. The paths do not change,
+so no consumer rewrite or Git repair is needed solely for relocation. Keep the original tree and a tested rollback
+until the checkout, linked worktrees and nested mounts pass verification. Reopen watches on the replaced directory.
 
-With writers stopped, take or verify a recoverable backup, then create and mount the main dataset at its protected
-path. Copy the whole checkout into `main/checkout` without crossing unrelated mounts; preserve IDs, modes, times,
-links, ACLs and xattrs. Inventory nested mounts and linked worktrees first; preserve nested datasets independently
-and do not copy over or lose their mounts. This is a cross-dataset migration, not an atomic rename or a reflink.
-Verify the object database, status including untracked and ignored data, and each linked pointer and back-link.
-Switch consumers to the canonical path and use Git's worktree repair for registrations affected by the move.
-Keep the old tree and a reversal plan until verification succeeds; do not put a privileged mount beneath a writable
-home path to keep the old spelling. A compatibility link may point from the old path to the new checkout, but it
-is not an accepted managed mount target. The migration sequence and its repair/reversal need a disposable test.
+The account can replace `~/Monochromatic` while it is unmounted, regardless of the entry's owner. Never use an
+unprotected privileged mount by path. The [checkout boot protection choice](#open-project-choices) remains open;
+the installation must prove the selected protection before enabling the checkout mount and make the checkout
+available before account sessions and clone reconciliation. An absent or wrong checkout mount blocks clone attach,
+including when pool import, encrypted key loading or mounting fails. Do not fall back to mounting clones into home.
 
-Pin dataset names, GUIDs, anchor path and owner in root-owned configuration. Use a user grant local to the main
-dataset for `mount,snapshot`, a descendants-only grant there for `clone,mount,destroy` (snapshots count as
-descendants), a local `create,mount` grant on the clone parent, and `mount,destroy,userprop` on its descendants.
-The `mount` grant is an ioctl prerequisite, not permission to change the Linux mount namespace.
-Do not grant `mountpoint`, `canmount`, `setuid`, `devices`, `rename`, `promote` or permissions on the whole home tree.
-This proposal lets that account destroy **any main dataset snapshot**, not just wrapper origins; ZFS delegation
-cannot select an origin name prefix. It does not grant destroy on the main dataset itself. Use a checkout-only tree
-with no other descendants and do not treat its snapshots as protection from that account. Sources at `zfs-2.4.4`:
-`man/man8/zfs-allow.8:105`, `module/zfs/dsl_deleg.c:574` and `module/zfs/zfs_ioctl.c:826` and `:1128`.
+### Scoped delegation
+
+Root configuration pins the account UID, the checkout path, pool and dataset names and GUIDs. The proposed
+unprivileged lifecycle needs `mount,snapshot` local to the checkout dataset, `clone,mount` on its descendants
+(snapshots count as descendants), `create,mount` local to the clone parent, and `mount,destroy,userprop` on the
+clone parent's descendants. Checkout-origin deletion is separately open: adding `destroy` on checkout descendants
+lets the account destroy **any checkout snapshot**, not just wrapper origins, but not the checkout dataset itself.
+Do not assume those snapshots protect against that account or put unrelated ZFS descendants there.
+
+The `mount` grant is an ioctl prerequisite, not Linux mount-namespace authority. Do not grant `mountpoint`,
+`canmount`, `setuid`, `devices`, `rename`, `promote` or permissions over the whole home tree.
+OpenZFS `zfs-2.4.4` sources: `man/man8/zfs-allow.8:110` to `:120`,
+`module/zfs/dsl_deleg.c:574` to `:582`, and `module/zfs/zfs_ioctl.c:826` to `:832` and `:1128` to `:1148`.
 
 ## Add, mount and removal
 
