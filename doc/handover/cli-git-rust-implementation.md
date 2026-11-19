@@ -40042,6 +40042,16 @@ Owed, as the driver package's defect: the driver sets `TMPDIR` to a folder insid
 with a test, so no launch line can forget it. The review started just before this (`...-at-a4b227503a-1`) still spills
 to `/tmp`; it was left running.
 
+**Owner, 2026-11-19, on the writer model:** "Don't just look at the same topic. And if you think GPT is giving us too
+much trouble, cull it entirely." The decision is delegated to the coordinator's judgement on evidence. A second Sonnet
+audit (background Agent, read-only) compares GPT 6.2 Sol and DeepSeek V4.1 Flash writer runs across packages and task
+kinds: unbacked fixtures, report claims contradicted by commits, real invocations or reviews, declined work, policy
+stops, and high or medium review findings per run, with each pre-switch run's model taken from a record or left
+unknown (`~/temp/agent/writer-reliability-by-model-across-topics-2026-11-19/`). No new GPT writer starts until it is
+back. **What a cull costs, to weigh with it:** with DeepSeek writing and DeepSeek reviewing, a short review is no longer
+by another vendor (rule `IRW`), so short reviews would need another reviewer model, which changes rule `KRV` and is the
+owner's to approve.
+
 The third prewarm run ended `idle` (77 turns, no new commit; report updated): through a built wrapper with the fill's
 staging and target replaced mid-clone, the tip left the other command's files at both names byte for byte and said why
 ("holds no claim of this job ... left as it is found"); `main` did not delete the replacement in that run either (its
