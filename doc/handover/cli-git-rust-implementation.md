@@ -40088,8 +40088,22 @@ coordinator in the `zfs-2.4.4` clone: `zfs_ioctl.c:4132` `defer = nvlist_exists(
 allowlist chosen in the body: no VM image runs `7.3.5-1-cachyos`, so the route could not be enabled today, and each
 kernel update disables it) becomes an owner choice. L6 (item 14's batch ran as root) leaves a measurement owed before
 the identity choice goes to the owner: the delegated account's snapshot batch under the planned grants, in the VM.
-Fold-in going: `pi-zfs-worktree-design-proposal-second-delta-review-fold-in-1` (DeepSeek on Neuralwatt, run-5, worktree
-`zfs-worktree-design-proposal-fold-in`); the next Sonnet pass checks only whether each finding is answered.
+Fold-in DONE by DeepSeek on Neuralwatt: run-5 hit its 160-turn cap after 14 commits (`438534b2a4` to `b65bf56345`)
+with a wording pass uncommitted; run-6 resumed the session, committed it as `68690e60be` (8 turns) and reported; branch
+clean, both files still marked non-final. Every finding answered by its report; it disagreed in five places with
+sources. **Correction to M3 as I relayed it to the owner** ("sending the key with value false would actually defer"):
+the key is declared a bare flag (`zfs_ioctl.c:4119`, `{"defer", DATA_TYPE_BOOLEAN, ZK_OPTIONAL}`) and the input checker
+returns `ZFS_ERR_IOC_ARG_BADTYPE` for a pair of any other type (`:7922-7924`, read in the `zfs-2.4.4` clone), so a typed
+false is refused; only the bare flag's presence defers. "Omit the key" stands. GOING: a bounded Sonnet check (background
+Agent) of `7fe84c7be8..68690e60be`: each finding answered, the writer's disagreements against their sources, no fresh
+hunt. Then the L6 VM measurement, then the open choices to the owner.
+
+**Provider writer, without OpenAI (2026-11-19):** `pi-provider-answers-its-second-review-without-openai-1` (DeepSeek on
+Neuralwatt, run-7, the provider worktree). It removes `openai` from the writer pool (writer order as the skill gives),
+gates the policy-stop move on OpenAI's own opening (medium 3: the "Automatic" decision was about OpenAI's filter), so the
+move is kept but has no member to fire on, yields the attributed stop instead of a later 429 (medium 1), pins the 429 gate
+(medium 2), deletes the Qwen hold and legacy prefixes unless a capture or fetched documentation backs them, swaps the
+overage fixture for the recorded capture, labels the rest, and pins mutants `M12` and `M13`.
 
 **Provider review of `b9bbe7e894..a4b227503a` (DeepSeek, 151 turns): 0 high, 3 medium, 8 low**
 (`~/temp/agent/change-reviews/pi-plugin-rate-limit-fallback-at-a4b227503a/review.md`; seven of the eight first-round
