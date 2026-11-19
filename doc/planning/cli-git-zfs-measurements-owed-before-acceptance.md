@@ -552,10 +552,10 @@ lineage changes, different encryption roots, or creation of multiple objects in 
 
 ### 14. One snapshot destroy request after promote
 
-Guest: `6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-14-exact.log`). Every command in this
-item ran from the guest's root shell: the log runs `zfs destroy` and `/usr/bin/python3 /root/guest-delta-probe.py`,
-and the account appears only where the probe created its own fixture directory with `runuser`. The probe repeated
-item 11's promote with an extra worktree-owned snapshot for the positive control. It traced each destroy with
+Guest: `6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-14-exact.log`). This item ran as root:
+the log runs `zfs destroy` and `/usr/bin/python3 /root/guest-delta-probe.py` from the root shell, and drops to the
+account with `runuser` only to create its own fixture directory. The probe repeated item 11's promote with an
+extra worktree-owned snapshot for the positive control. It traced each destroy with
 `strace -X raw -e trace=ioctl` and counted `0x5a3b`, `ZFS_IOC_DESTROY_SNAPS` in OpenZFS `include/sys/fs/zfs.h`.
 `zfs destroy zfsowed14/home/worktree-clone-datasets/promotion@earliest,origin` exited 1:
 
