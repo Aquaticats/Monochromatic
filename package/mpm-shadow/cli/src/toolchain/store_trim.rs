@@ -1657,16 +1657,9 @@ pub fn finish_removals_with(run: &TrimRun, named: &NamedVersions) -> FinishOutco
     if markers.is_empty() {
         return outcome;
     }
-    // A read failure applies to the entire pass, including recovery paths that can delete without the new plan.
-    if let Some(reason) = &named.unreadable {
-        for marker in markers {
-            outcome.unfinished.insert(marker.root);
-        }
-        // Name the unreadable lock once rather than printing the same explanation for each marker.
-        outcome.lines.push(format!("mpm-shadow: deferred toolchain recovery: {reason}; the lock may name the pending entries"));
-        return outcome;
-    }
     let holders: StoreHolders = run.look();
+    // Incomplete lock evidence blocks all recovery deletions but not putting an intact tree back under a free name.
+    let lock_problem = || return named.unreadable.clone();
     for marker in markers {
         if run.started.elapsed() >= run.bounds.work_limit {
             outcome.unfinished.insert(marker.root.clone());
@@ -1708,9 +1701,9 @@ pub fn finish_removals_with(run: &TrimRun, named: &NamedVersions) -> FinishOutco
             continue;
         }
         match fs::symlink_metadata(&marker.version_marker) {
-            Ok(_) => restore_the_removal(&marker, locked.as_deref(), &holders, run.deadline(), &mut outcome),
+            Ok(_) => restore_the_removal(&marker, locked.as_deref(), &holders, run.deadline(), &lock_problem, &mut outcome),
             Err(error) if error.kind() == ErrorKind::NotFound => {
-                finish_without_a_version(&marker, &holders, run.deadline(), &mut outcome);
+                finish_without_a_version(&marker, &holders, run.deadline(), &lock_problem, &mut outcome);
             }
             // What: a path that cannot be read is not a path that is absent.
             // Why: reading a failed read as "gone" deleted a version's archives while it was there.
@@ -1754,6 +1747,12 @@ fn finish_the_deletion(
         outcome.lines.push(format!("mpm-shadow: kept {}: it could not be read in full at this moment", tree.display()));
         return;
     };
+    // Keep both a pin from the snapshot and its unreadable state, even if the files have changed by the late read.
+    if let Some(reason) = &named.unreadable {
+        outcome.unfinished.insert(root.to_path_buf());
+        outcome.lines.push(format!("mpm-shadow: kept {}: {reason}, so its deletion waits", tree.display()));
+        return;
+    }
     if let Some(lock) = named.naming_lock(tool, version) {
         outcome.unfinished.insert(root.to_path_buf());
         outcome.lines.push(format!("mpm-shadow: kept {}: the lock {lock} names it now, so its deletion waits", tree.display()));
@@ -1791,7 +1790,13 @@ fn finish_the_deletion(
 /// ```ts
 /// function finishWithoutAVersion(marker: RemovalMarker, holders: StoreHolders): void
 /// ```
-fn finish_without_a_version(marker: &RemovalMarker, holders: &StoreHolders, deadline: Instant, outcome: &mut FinishOutcome) {
+fn finish_without_a_version(
+    marker: &RemovalMarker,
+    holders: &StoreHolders,
+    deadline: Instant,
+    lock_problem: &dyn Fn() -> Option<String>,
+    outcome: &mut FinishOutcome,
+) {
     let Some(downloads) = &marker.downloads_marker else {
         outcome.lines.push(format!("mpm-shadow: nothing to remove under {}", marker.version_marker.display()));
         return;
@@ -1805,7 +1810,8 @@ fn finish_without_a_version(marker: &RemovalMarker, holders: &StoreHolders, dead
         }
     };
     if version_there {
-        match put_an_archive_back(marker, holders, deadline) {
+        // The helper may delete an archive only if the lock snapshot was readable.
+        match put_an_archive_back(marker, holders, deadline, lock_problem) {
             Ok(()) => outcome.lines.push(format!(
                 "mpm-shadow: kept {}: the version it belongs to is still there, so what a removal moved aside is put back",
                 downloads.display()
@@ -1823,7 +1829,8 @@ fn finish_without_a_version(marker: &RemovalMarker, holders: &StoreHolders, dead
         outcome.lines.push(format!("mpm-shadow: kept {}: it could not be read in full at this moment", downloads.display()));
         return;
     };
-    match settle(&ToSettle { path: downloads, target: downloads, judged: &judged, holders, recheck: None,
+    // Even an orphan cannot be discarded when a damaged lock might name its version.
+    match settle(&ToSettle { path: downloads, target: downloads, judged: &judged, holders, recheck: Some(lock_problem),
                 action: Settle::Delete, deadline }) {
         Settled::Done => outcome.lines.push(format!(
             "mpm-shadow: removed {} and finished a removal an earlier run started",
@@ -1872,7 +1879,12 @@ fn live_archives_are_finished(directory: &Path) -> bool {
 /// ```ts
 /// function putAnArchiveBack(marker: RemovalMarker, holders: StoreHolders): string | undefined
 /// ```
-fn put_an_archive_back(marker: &RemovalMarker, holders: &StoreHolders, deadline: Instant) -> Result<(), String> {
+fn put_an_archive_back(
+    marker: &RemovalMarker,
+    holders: &StoreHolders,
+    deadline: Instant,
+    lock_problem: &dyn Fn() -> Option<String>,
+) -> Result<(), String> {
     let (Some(archive), Some(live)) = (&marker.downloads_marker, &marker.downloads_directory) else {
         return Ok(());
     };
@@ -1889,7 +1901,8 @@ fn put_an_archive_back(marker: &RemovalMarker, holders: &StoreHolders, deadline:
                 live.display()
             ));
         }
-        return match settle(&ToSettle { path: archive, target: archive, judged: &judged, holders, recheck: None,
+        // Replacing an archive is not a restore; it can only proceed with a readable lock snapshot.
+        return match settle(&ToSettle { path: archive, target: archive, judged: &judged, holders, recheck: Some(lock_problem),
                 action: Settle::Delete, deadline }) {
             Settled::Done => Ok(()),
             Settled::Kept(reason) => Err(reason),
@@ -1913,7 +1926,14 @@ fn put_an_archive_back(marker: &RemovalMarker, holders: &StoreHolders, deadline:
 /// ```ts
 /// function restoreTheRemoval(marker: RemovalMarker, locked: string | undefined, holders: StoreHolders): void
 /// ```
-fn restore_the_removal(marker: &RemovalMarker, locked: Option<&str>, holders: &StoreHolders, deadline: Instant, outcome: &mut FinishOutcome) {
+fn restore_the_removal(
+    marker: &RemovalMarker,
+    locked: Option<&str>,
+    holders: &StoreHolders,
+    deadline: Instant,
+    lock_problem: &dyn Fn() -> Option<String>,
+    outcome: &mut FinishOutcome,
+) {
     let Some(judged) = judged_of_tree(&marker.version_marker, deadline) else {
         outcome.unfinished.insert(marker.root.clone());
         outcome.lines.push(format!("mpm-shadow: kept {}: it could not be read in full at this moment", marker.version_marker.display()));
@@ -1942,8 +1962,9 @@ fn restore_the_removal(marker: &RemovalMarker, locked: Option<&str>, holders: &S
         // What: the name holds something else now.
         // Why: this copy is deleted only when its record proves it whole and the name holds a finished copy of it.
         if whole && finished_copy_at(&marker.tool, &marker.version_directory) {
-            match settle(&ToSettle { path: &marker.version_marker, target: &marker.version_marker, judged: &judged, holders, recheck: None,
-                action: Settle::Delete, deadline }) {
+            // A complete live replacement is not enough when an unreadable lock still leaves deletion uncertain.
+            match settle(&ToSettle { path: &marker.version_marker, target: &marker.version_marker, judged: &judged, holders,
+                recheck: Some(lock_problem), action: Settle::Delete, deadline }) {
                 Settled::Done => {
                     let _ = fs::remove_file(record_of(&marker.version_directory));
                     outcome.lines.push(format!(
@@ -1992,7 +2013,7 @@ fn restore_the_removal(marker: &RemovalMarker, locked: Option<&str>, holders: &S
         Settled::Done => {
             let _ = fs::remove_file(record_of(&marker.version_directory));
             if marker.downloads_marker.is_some()
-                && let Err(archives_kept) = put_an_archive_back(marker, holders, deadline)
+                && let Err(archives_kept) = put_an_archive_back(marker, holders, deadline, lock_problem)
             {
                 outcome.unfinished.insert(marker.root.clone());
                 outcome.lines.push(format!("mpm-shadow: kept {}: it is still being removed: {archives_kept}", marker.version_marker.display()));

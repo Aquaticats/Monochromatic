@@ -1109,7 +1109,7 @@ The cleanup also keeps:
 - a write time inside a one-hour floor.
 
 The version this run installed is kept as well.
-If a lock cannot be read in full, cleanup names it and leaves pending removals alone as well as live versions.
+If a lock cannot be read in full, cleanup names it and does not delete live versions or finish pending deletions.
 Finished flat downloads recognized from the old layout can be removed even under the size bound,
 subject to the age and work limits and the checks for an active holder.
 

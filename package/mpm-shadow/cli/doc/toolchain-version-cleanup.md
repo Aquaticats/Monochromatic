@@ -135,7 +135,8 @@ the most specific first:
   and the machine scope's lock.
   A machine-scope pass also reads the worktree locks of the repository it can name;
   if it cannot name a repository, it removes nothing.
-  A lock that cannot be read in full keeps every version and defers recovery of pending removals.
+  A lock that cannot be read in full keeps every version and defers pending deletions.
+  It does not prevent putting a moved-aside tree back under its free name.
   The diagnostic names the file and the row when available.
 - **it is one of the newest two distinct version names for the tool**:
   the cleanup ranks live copies by last write across the visible stores.
