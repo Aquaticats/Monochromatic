@@ -63,8 +63,14 @@ const STAND_IN_ORIGIN = 'http://127.0.0.1:0/v1';
  Verified catalog records used by the registration helper, pointed at the stand-in origin.
  */
 const members = {
-  refusing: { ...refusingMember, baseUrl: STAND_IN_ORIGIN, },
-  answering: { ...answeringMember, baseUrl: STAND_IN_ORIGIN, },
+  refusing: {
+    ...refusingMember,
+    baseUrl: STAND_IN_ORIGIN,
+  },
+  answering: {
+    ...answeringMember,
+    baseUrl: STAND_IN_ORIGIN,
+  },
 };
 
 /**
@@ -97,7 +103,12 @@ async function registerWriterProvider(): Promise<void> {
   const provider: Provider = {
     id: refusingMember.provider,
     name: refusingMember.provider,
-    getModels() { return [members.refusing, members.answering,]; },
+    getModels() {
+      return [
+        members.refusing,
+        members.answering,
+      ];
+    },
     auth: {
       apiKey: {
         name: 'Stand-in credential',
@@ -120,9 +131,17 @@ async function registerWriterProvider(): Promise<void> {
       if (options?.apiKey !== MEMBER_KEY)
         throw new Error('Pi registry did not resolve the stand-in credential',);
       calls.push(labelOfMember(physical,),);
+      /**
+       Member the pool asks first, which refuses in this check.
+       */
+      const { refusing, } = members;
+      /**
+       Whether Pi dispatched the member that has to refuse before the handoff.
+       */
+      const refuses = physical.id === refusing.id;
       return immediate({
         model: physical,
-        ...(physical.id === members.refusing.id ? { errorMessage: rateLimitRefusal({ model: physical, },), } : {}),
+        ...(refuses ? { errorMessage: rateLimitRefusal({ model: physical, },), } : {}),
       },);
     },
   };
