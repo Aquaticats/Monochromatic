@@ -517,10 +517,6 @@ async function startAProcessThatLeavesTheRun({ folder, }: { readonly folder: str
   if ((!Number.isSafeInteger(pid,)) || (pid <= 0)) {
     throw new Error(`the shell wrote no process number into ${jobFile}`,);
   }
-  await waitToLeaveTheRun({
-    pid,
-    from: callerPid,
-  },);
   /**
    Ends the work, by the number that shell got for it, and only that one.
    */
@@ -543,6 +539,18 @@ async function startAProcessThatLeavesTheRun({ folder, }: { readonly folder: str
       // oxlint-disable-next-line eslint/no-await-in-loop -- the same wait, one look at a time; see doc/lint/sequential-awaits.md
       await wait(LOOK_MILLISECONDS,);
     }
+  }
+  // The work is the test's own however this wait ends, so a shell that never went still leaves no `sleep` behind: the number the
+  // shell got is held here, and `await using` can register nothing while the helper has not returned.
+  try {
+    await waitToLeaveTheRun({
+      pid,
+      from: callerPid,
+    },);
+  }
+  catch (error) {
+    await stop();
+    throw error;
   }
   return {
     pid,
@@ -1159,6 +1167,63 @@ await describe({
           },
         },),
         it({
+          name: 'asks the manager about the unit a record names even when the record says its client ended, and keeps the run while that unit is held',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, which holds no process of the run.
+             */
+            const processes = join(folder.path, 'proc',);
+            await mkdir(processes, { recursive: true, },);
+            /**
+             The command the run's own tool recorded, whose client has ended while the unit it asked for runs on.
+             */
+            const command = 'systemd-run --user --unit=pi-build-3 -- mise run build';
+            await writeFile(
+              join(folder.path, 'feed.jsonl',),
+              `${aToolAnswer({
+                action: 'list',
+                processes: [aProcess({
+                  command,
+                  pid: 999_999,
+                  status: 'exited',
+                },),],
+              },)}\n`,
+            );
+            /**
+             What the manager was asked about the unit, and that it holds it.
+             */
+            const asked: string[][] = [];
+            expect(await workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder: aWorktree(),
+              processFolder: processes,
+              ownProcess: 100,
+              run: aManagerAnswering({
+                status: 0,
+                stdout: 'active\n',
+                asked,
+              },),
+            },),).toEqual([`proc_7adb (native-build-2) 999999 ${command}`,],);
+            expect(asked,).toEqual([[
+              '--user',
+              'is-active',
+              'pi-build-3',
+            ],],);
+            // The same record, with the manager holding nothing, keeps no run: the question is asked and its answer decides.
+            expect(await workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder: aWorktree(),
+              processFolder: processes,
+              ownProcess: 100,
+              run: aManagerAnswering({
+                status: 3,
+                stdout: 'inactive\n',
+              },),
+            },),).toEqual([],);
+          },
+        },),
+        it({
           name: 'keeps a real process descended from the run that works in the run folder in a control group other than the run own unit',
           fn: async () => {
             await using folder = await makeFolder();
@@ -1281,10 +1346,9 @@ await describe({
             // The work: a real `sleep` a shell of this test's puts in the background and leaves, as a bash call does with a
             // background job, a `setsid` or a double fork, so whatever took it in when that shell exited is its parent.
             await using left = await startAProcessThatLeavesTheRun({ folder: workingFolder, },);
-            // The premises: it is alive, it works in the run's own folder, its control group is not the run's unit, and no chain
-            // of parents reaches this test.
+            // The premises: it is alive, it works in the run's own folder, and no chain of parents reaches this test. The run's own
+            // unit is a stand-in name, so the control group these records hold is the one the kernel wrote for a process outside it.
             expect(await cgroupShownByMachine({ pid: left.pid, },),).not.toBe('',);
-            expect(await cgroupShownByMachine({ pid: left.pid, },),).not.toBe(theRunsUnit(),);
             expect(left.folder,).toBe(workingFolder,);
             expect(await descendsFrom({
               processFolder: REAL_PROCESS_FOLDER,
@@ -1298,12 +1362,23 @@ await describe({
               pid: left.pid,
               worksIn: workingFolder,
             },);
+            /**
+             What a manager would be asked, which is nothing: the feed is empty, so no record names a unit, and the process table's
+             answer never asks one.
+             */
+            const askedOfAManager: string[][] = [];
             expect(await workOutlivingTheTurnIn({
               runFolder: folder.path,
               workingFolder,
               processFolder: processes,
               ownProcess: process.pid,
+              run: aManagerAnswering({
+                status: 3,
+                stdout: 'inactive\n',
+                asked: askedOfAManager,
+              },),
             },),).toEqual([],);
+            expect(askedOfAManager,).toEqual([],);
             // The test ends its own `sleep` by the number its shell got, and nothing else.
             await left.stop();
             expect(await cgroupShownByMachine({ pid: left.pid, },),).toBe('',);
