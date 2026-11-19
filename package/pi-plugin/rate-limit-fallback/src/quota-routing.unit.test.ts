@@ -159,6 +159,8 @@ const FIRST_ATTEMPT = 1;
 const SECOND_ATTEMPT = 2;
 await describe({
   name: 'provider quota evidence',
+  // These cases stub the shared clock, so one at a time keeps them from reading each other's time.
+  concurrency: 1,
   children: [
     ...[false, true,].map(function retryAfterFormat(asDate,) {
       return it({
@@ -184,7 +186,7 @@ await describe({
               },);
             },
           },);
-          const model = poolModel({ provider, id: 'writer', },);
+          const model = poolModel({ provider, id: 'writer-pool', },);
           const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           const beforeReset = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           clock.now = asDate ? Date.parse(retryAfter,) : deadline.getTime();
@@ -230,8 +232,8 @@ await describe({
       },
     },),
     it({
-      name: 'reads Synthetic on first use and at reset, not on every request',
-      fn: async function syntheticWindow(ctx,) {
+      name: 'asks the quota endpoint only when its member refuses',
+      fn: async function refusalOnlyRead(ctx,) {
         const clock = { now: Date.now(), };
         ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
         const end = clock.now + WINDOW_MS;
@@ -239,7 +241,11 @@ await describe({
         const { provider, calls, options, } = await fixture({
           extension,
           models: PHYSICAL_MODELS.filter(model => (model.provider === 'synthetic') || (model.provider === 'opencode-go'),),
-          play({ model, }) { return immediate({ model, },); },
+          play({ model, }) {
+            return (model.provider === 'synthetic') && (clock.now < end)
+              ? immediate({ model, errorMessage: rateLimitRefusal({ model, },), },)
+              : immediate({ model, },);
+          },
           async fetchQuota(input, init,) {
             // Assert credentials inside the test without printing or returning them.
             if (new Headers(init?.headers,).get('authorization',) !== `Bearer ${MEMBER_KEY}`)
@@ -253,23 +259,47 @@ await describe({
             },);
           },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
         await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(endpoints,).toEqual(['https://api.synthetic.new/v2/quotas',],);
         clock.now = end;
-        await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(endpoints,).toEqual(Array.from({ length: 2, }, () => 'https://api.synthetic.new/v2/quotas',),);
-        expect(calls.map(call => call.model.provider,),).toEqual(['opencode-go', 'opencode-go', 'synthetic', 'synthetic',],);
+        const renewed = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(renewed.result.provider,).toBe('synthetic',);
+        expect(calls.map(call => call.model.provider,),).toEqual(['synthetic', 'opencode-go', 'synthetic',],);
       },
     },),
     it({
-      name: 'admits the member when the limits lookup returns no single row',
+      name: 'answers a member without reading its quota endpoint',
+      fn: async function noReadBeforeDispatch() {
+        const reads = { count: 0, };
+        const { provider, calls, options, } = await fixture({
+          extension,
+          models: PHYSICAL_MODELS.filter(model => model.provider === 'synthetic',),
+          play({ model, }) { return immediate({ model, },); },
+          async fetchQuota() {
+            reads.count += 1;
+            return Response.json({},);
+          },
+        },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
+        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(result.provider,).toBe('synthetic',);
+        expect(result.stopReason,).toBe('stop',);
+        expect(reads.count,).toBe(0,);
+        expect(calls.length,).toBe(FIRST_ATTEMPT,);
+      },
+    },),
+    it({
+      name: 'holds nothing when the limits lookup returns no single row',
       fn: async function noSingleRow() {
         const { provider, calls, options, } = await fixture({
           extension,
           models: [NEURALWATT_FLEX,],
-          play({ model, }) { return immediate({ model, },); },
+          play({ model, }) {
+            return calls.length === FIRST_ATTEMPT
+              ? immediate({ model, errorMessage: rateLimitRefusal({ model, },), },)
+              : immediate({ model, },);
+          },
           async fetchQuota(input,) {
             return quotaUrl(input,).includes('/v1/rate_limits',)
               ? Response.json({
@@ -281,10 +311,12 @@ await describe({
               : Response.json({},);
           },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
-        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(NEURALWATT_FLEX,),],);
-        expect(result.stopReason,).toBe('stop',);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
+        const refused = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        const afterRead = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(refused.result.stopReason,).toBe('error',);
+        expect(afterRead.result.stopReason,).toBe('stop',);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(NEURALWATT_FLEX,), labelOf(NEURALWATT_FLEX,),],);
       },
     },),
     it({
@@ -334,15 +366,16 @@ await describe({
           extension,
           models: PHYSICAL_MODELS.filter(model => model.provider === 'synthetic',),
           resolvedBaseUrl: 'https://stand-in-proxy.example/v2',
-          play({ model, }) { return immediate({ model, },); },
+          play({ model, }) { return immediate({ model, errorMessage: rateLimitRefusal({ model, },), },); },
           async fetchQuota() {
             probe.invoked = true;
             return Response.json({});
           },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(result.provider,).toBe('synthetic',);
+        // The refusal asked for a read, and the origin check kept the credential home.
+        expect(result.stopReason,).toBe('error',);
         expect(probe.invoked,).toBe(false,);
       },
     },),
@@ -360,7 +393,7 @@ await describe({
               : immediate({ model, },);
           },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
         const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(first.result.errorMessage,).toContain('concurrent_budget_exceeded',);
         const held = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
@@ -387,7 +420,7 @@ await describe({
               : immediate({ model, },);
           },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
         const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(first.result.stopReason,).toBe('error',);
         const held = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
@@ -397,14 +430,17 @@ await describe({
       },
     },),
     it({
-      name: 'reads the standard lane’s own ceiling, not the flex floor, for the writer head',
-      fn: async function standardLaneCeiling() {
-        const { provider, calls, options, } = await fixture({
+      name: 'asks the rate-limit endpoint for the lane its member id names',
+      fn: async function standardLaneQuery() {
+        const queries: string[] = [];
+        const { provider, options, } = await fixture({
           extension,
-          models: [NEURALWATT_STANDARD, NEURALWATT_FLEX,],
-          play({ model, }) { return immediate({ model, },); },
+          models: [NEURALWATT_STANDARD,],
+          play({ model, }) { return immediate({ model, errorMessage: rateLimitRefusal({ model, },), },); },
           async fetchQuota(input,) {
-            return quotaUrl(input,).includes('/v1/rate_limits',)
+            const url = new URL(quotaUrl(input,),);
+            queries.push(url.searchParams.get('model',) ?? '',);
+            return url.pathname === '/v1/rate_limits'
               ? Response.json({
                 models: [
                   { effective_concurrency: PUBLISHED_CAP, flex_floor: NO_FLEX_REQUESTS, },
@@ -413,11 +449,10 @@ await describe({
               : Response.json({},);
           },
         },);
-        const model = poolModel({ provider, id: 'writer', },);
-        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(NEURALWATT_STANDARD,),],);
-        expect(result.provider,).toBe(NEURALWATT_STANDARD.provider,);
-        expect(result.stopReason,).toBe('stop',);
+        const model = poolModel({ provider, id: 'writer-pool', },);
+        await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        // The standard lane asks for the id the pool asked for, never the flexible lane's row.
+        expect(queries.filter(query => query !== '',),).toEqual([NEURALWATT_STANDARD.id,],);
       },
     },),
     it({
@@ -427,7 +462,7 @@ await describe({
         const { provider, calls, options, } = await fixture({
           extension,
           models: [NEURALWATT_FLEX,],
-          play({ model, }) { return immediate({ model, },); },
+          play({ model, }) { return immediate({ model, errorMessage: rateLimitRefusal({ model, },), },); },
           async fetchQuota(input, init,) {
             if (init?.redirect !== undefined)
               redirects.push(init.redirect,);
@@ -436,9 +471,10 @@ await describe({
               : Response.json({});
           },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
+        await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(calls,).toEqual([],);
+        expect(calls.length,).toBe(FIRST_ATTEMPT,);
         expect(redirects,).toEqual(['error', 'error',],);
         expect(result.errorMessage,).toContain(`${NEURALWATT_FLEX.provider}/${NEURALWATT_FLEX.id} has a published flex floor of zero`,);
         expect(isRetryableAssistantError(result,),).toBe(false,);
@@ -450,17 +486,20 @@ await describe({
         const clock = { now: Date.now(), };
         ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
         const physical = NEURALWATT_FLEX;
-        const reading = { flex: 1, };
+        const reading = { flex: SINGLE_SLOT, };
         const ready = Promise.withResolvers<void>();
         const held = createAssistantMessageEventStream();
         const { provider, calls, options, } = await fixture({
           extension,
           models: [physical,],
           play({ model, }) {
-            if (calls.length !== FIRST_ATTEMPT)
-              return immediate({ model, },);
-            ready.resolve();
-            return held;
+            if (calls.length === FIRST_ATTEMPT)
+              return immediate({ model, errorMessage: rateLimitRefusal({ model, },), },);
+            if (calls.length === SECOND_ATTEMPT) {
+              ready.resolve();
+              return held;
+            }
+            return immediate({ model, },);
           },
           async fetchQuota(input,) {
             return quotaUrl(input,).includes('/v1/rate_limits',)
@@ -468,7 +507,8 @@ await describe({
               : Response.json({});
           },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
+        await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         const pending = provider.streamSimple(model, TRANSCRIPT, options,);
         {
           await using cleanup: AsyncDisposable = {
@@ -479,14 +519,9 @@ await describe({
           };
           await ready.promise;
           const denied = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-          expect(denied.result.errorMessage,).toContain(`${physical.provider}/${physical.id} is at its local concurrency ceiling (1 of 1 in use)`,);
+          expect(denied.result.errorMessage,).toContain(`${physical.provider}/${physical.id} is at its local concurrency ceiling (${SINGLE_SLOT} of ${SINGLE_SLOT} in use)`,);
           expect(isRetryableAssistantError(denied.result,),).toBe(false,);
-          expect(calls.length,).toBe(FIRST_ATTEMPT,);
-          reading.flex += 1;
-          // The endpoint may be read again only after its documented interval.
-          clock.now += QUOTA_READ_INTERVAL_MS;
-          const afterIncrease = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-          expect(afterIncrease.result.stopReason,).toBe('stop',);
+          expect(calls.length,).toBe(SECOND_ATTEMPT,);
         }
         const again = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(again.result.provider,).toBe('neuralwatt',);
@@ -532,7 +567,7 @@ await describe({
             },);
           },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
         const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(first.result.errorMessage,).toContain('overage with auto-renew off',);
         // The refusal body names a one-second hold, which the member must observe before the cap runs.
@@ -557,14 +592,63 @@ await describe({
           const renewed = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           expect(renewed.result.provider,).toBe('neuralwatt',);
           expect(renewed.result.stopReason,).toBe('stop',);
-          expect(endpoints,).toEqual([
-            '/v1/rate_limits', '/v1/quota', '/v1/rate_limits', '/v1/quota', '/v1/rate_limits', '/v1/quota',
-          ],);
+          // One read, made at the refusal, supplies the cap and the renewal that ends it.
+          expect(endpoints,).toEqual(['/v1/rate_limits', '/v1/quota',],);
         }
       },
     },),
     it({
-      name: 'a quota read that confirms the overage cleared removes the observed cap',
+      name: `the refusal's ${OVERAGE_CAP} governs over a lower published flex ceiling of ${Math.floor(OVERAGE_CAP / 2)}`,
+      fn: async function refusalCapGoverns(ctx,) {
+        const clock = { now: Date.now(), };
+        ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
+        const end = clock.now + WINDOW_MS;
+        /**
+         Published flex ceiling, deliberately below the cap the refusal reports, so the two rules
+         disagree: the owner's 2026-11-19 answer takes the refusal's own number.
+         */
+        const publishedBelow = Math.floor(OVERAGE_CAP / 2,);
+        const held: (() => void)[] = [];
+        const { provider, calls, options, } = await fixture({
+          extension,
+          models: [NEURALWATT_FLEX,],
+          play({ model, }) {
+            if (calls.length === FIRST_ATTEMPT)
+              return immediate({ model, errorMessage: OVERAGE_REFUSAL, },);
+            const stream = createAssistantMessageEventStream();
+            held.push(() => finish({ stream, message: assistant({ model, },), },),);
+            return stream;
+          },
+          async fetchQuota(input,) {
+            return quotaUrl(input,).includes('/v1/rate_limits',)
+              ? rateLimitsReading({ flex: publishedBelow, },)
+              : quotaReading({ inOverage: true, periodEnd: end, },);
+          },
+        },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
+        const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(first.result.errorMessage,).toContain('overage with auto-renew off',);
+        // The refusal body names a one-second hold, which the member must observe first.
+        clock.now += RECORDED_DELAY_MS;
+        const inFlight = Array.from({ length: OVERAGE_CAP + 1, }, () => provider.streamSimple(model, TRANSCRIPT, options,),);
+        await using cleanup: AsyncDisposable = {
+          async [Symbol.asyncDispose](): Promise<void> {
+            for (const release of held)
+              release();
+            await Promise.all(inFlight.map(function consume(stream,) {
+              return collect(stream,);
+            },),);
+          },
+        };
+        const beyond = await collect(inFlight.at(-1,)
+          ?? provider.streamSimple(model, TRANSCRIPT, options,),);
+        // The published ceiling would have denied the fourth seat named here.
+        expect(beyond.result.errorMessage,).toContain(`local concurrency ceiling (${OVERAGE_CAP} of ${OVERAGE_CAP} in use)`,);
+        expect(held.length,).toBe(OVERAGE_CAP,);
+      },
+    },),
+    it({
+      name: 'a quota read at a later refusal removes an observed cap the exception cleared',
       fn: async function clearedOverage(ctx,) {
         const clock = { now: Date.now(), };
         ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
@@ -581,19 +665,13 @@ await describe({
          Subscription state the quota endpoint reports, flipped once the exception clears.
          */
         const subscription = { inOverage: true, };
-        const ready = Promise.withResolvers<void>();
-        const held = createAssistantMessageEventStream();
         const { provider, calls, options, } = await fixture({
           extension,
           models: [NEURALWATT_FLEX,],
           play({ model, }) {
-            if (calls.length === 1)
-              return immediate({ model, errorMessage: singleSlot, },);
-            if (calls.length === 2) {
-              ready.resolve();
-              return held;
-            }
-            return immediate({ model, },);
+            return calls.length === FIRST_ATTEMPT
+              ? immediate({ model, errorMessage: singleSlot, },)
+              : immediate({ model, },);
           },
           async fetchQuota(input,) {
             return quotaUrl(input,).includes('/v1/rate_limits',)
@@ -601,28 +679,15 @@ await describe({
               : quotaReading({ inOverage: subscription.inOverage, },);
           },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
-        const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(first.result.errorMessage,).toContain('overage with auto-renew off',);
-        const open = provider.streamSimple(model, TRANSCRIPT, options,);
-        {
-          await using cleanup: AsyncDisposable = {
-            async [Symbol.asyncDispose](): Promise<void> {
-              finish({ stream: held, message: assistant({ model: NEURALWATT_FLEX, },), },);
-              await collect(open,);
-            },
-          };
-          await ready.promise;
-          const ceiling = SINGLE_SLOT;
-          const denied = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-          expect(denied.result.errorMessage,).toContain(`local concurrency ceiling (${ceiling} of ${ceiling} in use)`,);
-          subscription.inOverage = false;
-          // The endpoint may be read again only after its documented interval.
-          clock.now += QUOTA_READ_INTERVAL_MS;
-          const cleared = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-          expect(cleared.result.stopReason,).toBe('stop',);
-          expect(cleared.result.provider,).toBe('neuralwatt',);
-        }
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
+        await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        // The exception has cleared, and the next refusal's reading says so.
+        subscription.inOverage = false;
+        clock.now += QUOTA_READ_INTERVAL_MS;
+        await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        const admitted = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(admitted.result.stopReason,).toBe('stop',);
+        expect(admitted.result.provider,).toBe('neuralwatt',);
       },
     },),
   ],

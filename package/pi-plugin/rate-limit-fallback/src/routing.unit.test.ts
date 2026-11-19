@@ -110,7 +110,7 @@ await describe({
             );
           },
         },);
-        const model = poolModel({ provider, id: 'writer', },);
+        const model = poolModel({ provider, id: 'writer-pool', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, {
           ...options,
           maxRetries: CALLER_RETRIES,
@@ -142,7 +142,7 @@ await describe({
               : immediate({ model, },);
           },
         },);
-        const model = poolModel({ provider, id: 'writer', },);
+        const model = poolModel({ provider, id: 'writer-pool', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(calls.map(call => labelOf(call.model,),),).toEqual([
           labelOf(responses,),
@@ -167,7 +167,7 @@ await describe({
             return immediate({ model, },);
           },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(calls.map(call => labelOf(call.model,),),).toEqual([
           labelOf(qwen,),
@@ -193,7 +193,7 @@ await describe({
               : immediate({ model, },);
           },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(calls.map(call => labelOf(call.model,),),).toEqual([
           labelOf(qwen,),
@@ -216,8 +216,8 @@ await describe({
           },
         },);
         expect(provider.id,).toBe(PROVIDER_ID,);
-        expect(provider.getModels().map(model => model.id,),).toEqual(['writer', 'reviewer',],);
-        const model = poolModel({ provider, id: 'writer', },);
+        expect(provider.getModels().map(model => model.id,),).toEqual(['writer-pool', 'reviewer-pool',],);
+        const model = poolModel({ provider, id: 'writer-pool', },);
         const { events, result, } = await collect(provider.stream(model, TRANSCRIPT, {
           ...options,
           maxTokens: Number.MAX_SAFE_INTEGER,
@@ -245,7 +245,7 @@ await describe({
             return calls.length === FIRST_ATTEMPT ? immediate({ model, errorMessage: rateLimitRefusal({ model, },), },) : immediate({ model, },);
           },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
         const requestOptions = {
           ...options,
           apiKey: 'stand-in-outer-key',
@@ -273,7 +273,7 @@ await describe({
             extension,
             play({ model, }) { return immediate({ model, errorMessage, },); },
           },);
-          const model = poolModel({ provider, id: 'writer', },);
+          const model = poolModel({ provider, id: 'writer-pool', },);
           const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           expect(result.errorMessage,).toBe(errorMessage,);
           expect(calls.map(call => call.model.provider,),).toEqual([HEAD.provider,],);
@@ -299,7 +299,7 @@ await describe({
               return stream;
             },
           },);
-          const model = poolModel({ provider, id: 'writer', },);
+          const model = poolModel({ provider, id: 'writer-pool', },);
           const { events, result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           expect(result.errorMessage,).toBe(rateLimitRefusal({ model: HEAD, },),);
           expect(events.map(event => event.type,),).toEqual(publish ? ['start', 'toolcall_start', 'error',] : ['error',],);
@@ -321,7 +321,7 @@ await describe({
             return stream;
           },
         },);
-        const model = poolModel({ provider, id: 'writer', },);
+        const model = poolModel({ provider, id: 'writer-pool', },);
         const { events, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(events.map(event => event.type,),).toEqual(['start', 'text_start', 'error',],);
         expect(calls.map(call => call.model.provider,),).toEqual([HEAD.provider,],);
@@ -338,7 +338,7 @@ await describe({
             return immediate({ model, errorMessage: rateLimitRefusal({ model, },), },);
           },
         },);
-        const model = poolModel({ provider, id: 'writer', },);
+        const model = poolModel({ provider, id: 'writer-pool', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, {
           ...options, signal: controller.signal,
         },),);
@@ -353,7 +353,7 @@ await describe({
           extension,
           play({ model, }) { return immediate({ model, errorMessage: rateLimitRefusal({ model, },), },); },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
         const { events, result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(calls.map(call => call.model.provider,),).toEqual(REVIEWER_TARGETS.map(target => target.provider,),);
         expect(events.map(event => event.type,),).toEqual(['error',],);
@@ -377,7 +377,7 @@ await describe({
             },);
           },
         },);
-        const model = poolModel({ provider, id: 'writer', },);
+        const model = poolModel({ provider, id: 'writer-pool', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(result.provider,).toBe(WRITER_TARGETS[1].provider,);
         expect(result.model,).toBe(WRITER_TARGETS[1].id,);
@@ -398,7 +398,7 @@ await describe({
             return stream;
           },
         },);
-        const model = poolModel({ provider, id: 'writer', },);
+        const model = poolModel({ provider, id: 'writer-pool', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(result.errorMessage,).toContain('closed without a terminal assistant event',);
         expect(calls.map(call => call.model.provider,),).toEqual([HEAD.provider,],);

@@ -19,6 +19,7 @@ import {
   type TranscriptContext,
 } from '@earendil-works/pi-ai';
 import type {
+  ExtensionVirtualModel,
   ModelRegistry,
 } from '@earendil-works/pi-coding-agent';
 import type builtExtension from '../dist/final/node/index.mjs';
@@ -370,6 +371,7 @@ export function fixture({
 },): Promise<{
   readonly calls: MemberCall[];
   readonly provider: Provider;
+  readonly virtualModels: ExtensionVirtualModel[];
   readonly options: SimpleStreamOptions;
 }> {
   /**
@@ -388,10 +390,18 @@ export function fixture({
      Handler captured for the active session.
      */
     start?: SessionBinding;
-  } = {};
+    /**
+     Virtual models the extension asked Pi to list, in registration order.
+     */
+    readonly virtualModels: ExtensionVirtualModel[];
+  } = { virtualModels: [], };
   extension({
     registerProvider(value: Provider,) {
       registration.provider = value;
+    },
+    registerVirtualModel(definition: ExtensionVirtualModel,) {
+      registration.virtualModels
+        .push(definition,);
     },
     on(
       _event: string,
@@ -470,6 +480,7 @@ export function fixture({
   return Promise.resolve({
     calls,
     provider,
+    virtualModels: registration.virtualModels,
     options: { fetch: fetchQuota, },
   },);
 }

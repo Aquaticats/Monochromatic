@@ -14,6 +14,7 @@ import {
   type SimpleStreamOptions,
   type TranscriptContext,
 } from '@earendil-works/pi-ai';
+import type { ExtensionVirtualModel, } from '@earendil-works/pi-coding-agent';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   dispatchRequest,
@@ -26,10 +27,25 @@ import {
   poolModels,
   PROVIDER_ID,
 } from './model-pools.ts';
-
 import type { RoutingRegistry, } from './quota-endpoints.ts';
+import {
+  type PoolVirtualModel,
+  registerVirtualModels,
+} from './virtual-models.ts';
 
 export { PROVIDER_ID, } from './model-pools.ts';
+
+/**
+ The native virtual models Pi selects, exported so the built-artifact tests reach the route.
+
+ @internal
+ */
+export {
+  PoolCatalogError,
+  registerVirtualModels,
+  virtualModelDefinitions,
+  type PoolVirtualModel,
+} from './virtual-models.ts';
 
 /**
  Response timing parsed into a reset time, exported so the built-artifact tests reach it.
@@ -47,8 +63,8 @@ export { headerReset, } from './rate-limit-evidence.ts';
 export { QUOTA_READ_INTERVAL_MS, } from './member-capacity.ts';
 
 /**
- Dispatch loop over one pool's ordered members, exported so the built-artifact tests reach the pool
- table boundary a caller supplies.
+ Dispatch loop over one pool's ordered members, exported so the built-artifact tests reach the
+ dispatch boundary on its own.
 
  @internal
  */
@@ -121,6 +137,10 @@ type FallbackHost = {
    Make the pool available for model selection.
    */
   readonly registerProvider: (provider: Provider) => void;
+  /**
+   Make the writer and reviewer virtual models selectable.
+   */
+  readonly registerVirtualModel: (definition: ExtensionVirtualModel) => void;
   /**
    Bind the registry supplied by the active session.
    */
@@ -280,6 +300,9 @@ export default function rateLimitFallbackExtension(pi: FallbackHost,): void {
     },
   };
   pi.registerProvider(provider,);
+  // Pi refuses a virtual model whose id a physical model of the same provider holds, so the pools
+  // live under their own ids beside the public selections (`model-pools.ts`).
+  registerVirtualModels({ host: pi, },);
   rl.debug(`Registered ${PROVIDER_ID}`,);
   pi.on(
     'session_start',
@@ -293,8 +316,13 @@ export default function rateLimitFallbackExtension(pi: FallbackHost,): void {
       };
       // Pi composes its model snapshot from getModels() when a provider is registered, so the pool
       // registers again now that the registry is known and the catalog can carry the smallest
-      // registered member's limits instead of the provisional ones.
+      // registered member's limits instead of the provisional ones. The virtual models carry the
+      // same limits, so Pi compacts on a threshold every member of the pool can honour.
       pi.registerProvider(provider,);
+      registerVirtualModels({
+        host: pi,
+        readMemberLimits: memberLimitsReader({ registry: context.modelRegistry, },),
+      },);
       rl.debug('Bound session model registry',);
     },
   );

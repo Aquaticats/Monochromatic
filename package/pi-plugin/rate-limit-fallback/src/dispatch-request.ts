@@ -15,15 +15,15 @@ import { memberOptions, } from './member-attempt-options.ts';
 import {
   capacityOf,
   noteRateLimit,
-  refreshCapacity,
+  observedCeiling,
+  readAtRefusal,
   type MemberCapacity,
 } from './member-capacity.ts';
 import {
-  POOLS,
+  poolMembers,
   type Member,
 } from './model-pools.ts';
 import { policyStopMessage, } from './policy-stop-message.ts';
-import { HTTP_RATE_LIMIT_STATUS, } from './provider-wire-text.ts';
 import type { RoutingRegistry, } from './quota-endpoints.ts';
 import {
   hasOpenAiPolicyOpening,
@@ -31,6 +31,7 @@ import {
   headerReset,
   isPolicyStop,
   isRateLimit,
+  isTransientRefusal,
 } from './rate-limit-evidence.ts';
 
 //region Session state and routing errors
@@ -60,16 +61,6 @@ export class PoolDispatchError extends Error {
 }
 
 /**
- First HTTP success status.
- */
-const HTTP_SUCCESS_START = 200;
-
-/**
- First HTTP status outside the success class.
- */
-const HTTP_SUCCESS_END = 300;
-
-/**
  Logger for dispatch decisions. It names members, decisions and the policy stop's own text; it never
  logs credentials, quota bodies or any other raw provider message. Pi writes these records as JSONL to
  the nearest `node_modules/.monochromatic/<day>/` or `~/.local/state/monochromatic/log`.
@@ -81,8 +72,8 @@ const l = tagged({ tag: 'rate-limit-fallback', },);
 //region Request stream
 
 /**
- Start each request at the head of its pool, and hand off only a 429 or a policy stop
- that arrived before output.
+ Start each request at the head of its pool, and hand off a 429, a transient provider failure (503 or
+ Cloudflare 520 to 526), or a policy stop that arrived before output.
 
  @param session - source of the live model catalog and previous quota evidence
 
@@ -106,13 +97,11 @@ export async function* dispatchRequest({
   model,
   context,
   options,
-  pools = POOLS,
 }: {
   session: RoutingSession;
   model: Model<Api>;
   context: TranscriptContext;
   options?: SimpleStreamOptions;
-  pools?: Readonly<Record<string, readonly Member[]>>;
 },): AsyncGenerator<AssistantMessageEvent> {
   /**
    Tagged logger that names the current operation without exposing credentials.
@@ -126,15 +115,10 @@ export async function* dispatchRequest({
    */
   const { id, } = model;
   /**
-   Ordered members the table itself carries for that id, never one its prototype chain carries.
+   Ordered members that pool id names, or undefined when the package offers no such pool.
    */
-  const members = Object.hasOwn(
-    pools,
-    id,
-  )
-    ? pools[id]
-    : undefined;
-  if (members === undefined)
+  const members = poolMembers(id,);
+  if (members.length === 0)
     throw new PoolDispatchError(`Unknown rate-limit-fallback model: ${id}`,);
   /**
    Cancellation that applies to every attempt of this logical request.
@@ -150,9 +134,9 @@ export async function* dispatchRequest({
      */
     policyStop?: Extract<AssistantMessageEvent, { type: 'error'; }>;
     /**
-     Last 429 the pool discarded, as it arrived.
+     Last refusal the pool set aside, a 429 or a transient provider failure, as it arrived.
      */
-    lastRateLimit?: Extract<AssistantMessageEvent, { type: 'error'; }>;
+    lastRefusal?: Extract<AssistantMessageEvent, { type: 'error'; }>;
     /**
      Named reasons that registered members were not admitted.
      */
@@ -201,34 +185,38 @@ export async function* dispatchRequest({
       members: session.members,
       label,
     },);
-    if (capacity.retryAt <= Date.now())
-      await refreshCapacity({
-        capacity,
-        registry: session.registry,
-        model: physical,
-        ...supplied,
-      },);
-    signal?.throwIfAborted();
-    if (capacity.retryAt > Date.now()) {
+    /**
+     Admission time, shared by the hold and observed-cap checks.
+     */
+    const admittedAt = Date.now();
+    if (capacity.retryAt > admittedAt) {
       rl.debug(`${id}: ${label} has a provider-reported retry window`,);
       unavailable.admissionStops
         .push(`${label} is held until ${new Date(capacity.retryAt,).toISOString()}`,);
       return false;
     }
     /**
-     Most restrictive credible ceiling among published and observed values.
+     A refusal's own cap when one is in force, else the published ceiling an earlier refusal read.
+
+     The observed cap governs alone: the refusal describes the account as it stands, while the
+     published number is the plan's promise, which an exception such as NeuralWatt's pay-as-you-go
+     mode overrides.
      */
-    const ceiling = Math.min(
-      capacity.overage
-        ?.concurrency
-        ?? Infinity,
-      capacity.evidence
-        .concurrency
-        ?? Infinity,
-    );
+    const observed = observedCeiling({
+      capacity,
+      now: admittedAt,
+    },);
+    /**
+     Published ceiling from an earlier refusal's reading, absent until then.
+     */
+    const published = capacity.evidence
+      .concurrency;
+    /**
+     Cap this admission must stay under; unbounded when nothing has been learned yet.
+     */
+    const ceiling = Number.isNaN(observed,) ? (published ?? Infinity) : observed;
     if (capacity.active >= ceiling) {
       rl.debug(`${id}: ${label} local concurrency reached published or observed cap ${ceiling}`,);
-      capacity.needsProbe = true;
       unavailable.admissionStops
         .push(ceiling === 0
           ? `${label} has a published flex floor of zero`
@@ -293,16 +281,14 @@ export async function* dispatchRequest({
              */
             const { status, } = response;
             evidence.status = status;
-            if ((status === HTTP_RATE_LIMIT_STATUS)
-              || ((status >= HTTP_SUCCESS_START) && (status < HTTP_SUCCESS_END)))
-              {
-              evidence.resetAt = headerReset({
-                provider: physical.provider,
-                headers: new Headers(response.headers,),
-                now: Date.now(),
-                status,
-              },);
-            }
+            // Every response supplies whatever timing it names: a success's depleted-window headers,
+            // and a refusal's Retry-After, which a 503 or Cloudflare status may carry as well as a 429.
+            evidence.resetAt = headerReset({
+              provider: physical.provider,
+              headers: new Headers(response.headers,),
+              now: Date.now(),
+              status,
+            },);
             await forwarded.onResponse?.(
               response,
               responseModel,
@@ -375,6 +361,39 @@ export async function* dispatchRequest({
           yield stopped;
           return true;
         }
+        /**
+         A provider that cannot serve this request now, but may serve the next: the owner's decision
+         of 2026-11-19 moves it on like a 429, so Pi's own retry never restarts at that member.
+         */
+        /**
+         Whether this attempt refused with a transient provider status.
+         */
+        const transient = (event.type === 'error')
+          && (!rateLimited)
+          && isTransientRefusal({
+            message: event.error,
+            ...(evidence.status === undefined ? {} : { status: evidence.status, }),
+          },);
+        if (transient && (!committed)
+          && (event.error
+            .content
+            .length
+            === 0))
+          {
+          signal?.throwIfAborted();
+          /**
+           Observation time used to compare provider deadlines.
+           */
+          const movedAt = Date.now();
+          if (evidence.resetAt > movedAt)
+            capacity.retryAt = Math.max(
+              capacity.retryAt,
+              evidence.resetAt,
+            );
+          rl.debug(`${id}: ${label} refused with a transient provider status before output; trying the next member`,);
+          unavailable.lastRefusal = event;
+          return false;
+        }
         if (rateLimited && (!committed)
           && (event.error
             .content
@@ -396,6 +415,15 @@ export async function* dispatchRequest({
               message: event.error,
               now,
             },);
+          // Read the provider's own quota now that it refused, bounded by the read's deadline. The
+          // evidence describes the plan at the moment of refusal and governs the next admission.
+          await readAtRefusal({
+            capacity,
+            registry: session.registry,
+            model: physical,
+            ...supplied,
+          },);
+          signal?.throwIfAborted();
           noteRateLimit({
             capacity,
             provider: physical.provider,
@@ -405,7 +433,7 @@ export async function* dispatchRequest({
             retryAt,
           },);
           rl.debug(`${id}: ${label} returned HTTP 429 before output`,);
-          unavailable.lastRateLimit = event;
+          unavailable.lastRefusal = event;
           return false;
         }
         if (buffered.start !== undefined) {
@@ -434,9 +462,9 @@ export async function* dispatchRequest({
   }
   /**
    The failure the pool owes: a stop it set aside, which ends the run so Pi's own retry cannot
-   restart at the member that refused, then the last rate limit as it arrived.
+   restart at the member that refused, then the last refusal as it arrived.
    */
-  const owed = unavailable.policyStop ?? unavailable.lastRateLimit;
+  const owed = unavailable.policyStop ?? unavailable.lastRefusal;
   if (owed !== undefined) {
     yield owed;
     return;
