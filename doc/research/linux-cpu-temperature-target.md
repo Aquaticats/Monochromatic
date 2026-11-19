@@ -89,6 +89,10 @@ The command succeeded by name through sudo and the running service's target file
 All 32 CPUFreq policies started at their hardware maxima. The first check after activation found all 32
 below those maxima. Sustained thermal behavior at the target remains open.
 
+The manual path `/usr/local/bin/setMaxCpuTemp` is temporary. The installation and the systemd unit will move to
+an `mpm`-managed path after the system-toolchain preference lands in `mpm-shadow`.
+[Installation migration][mpm-install] · [System-toolchain preference][mpm-preference]
+
 [amd-7950x]: https://www.amd.com/en/products/processors/desktops/ryzen/7000-series/amd-ryzen-9-7950x.html
 [hwmon-temps]: https://docs.kernel.org/hwmon/sysfs-interface.html#temperatures
 [k10temp]: https://docs.kernel.org/hwmon/k10temp.html#:~:text=Tctl%20is%20the%20processor%20temperature%20control%20value
@@ -107,3 +111,5 @@ below those maxima. Sustained thermal behavior at the target remains open.
 [linux-limits]: ../../package/codex-plugin/bash-limit/src/limits.rs
 [limit-registry]: ../../package/wg/cli-quicker-exempt/src/scope_registry.rs
 [implementation]: ../../package/cpu-temperature/cli/README.md
+[mpm-install]: https://github.com/Aquaticats/Monochromatic/issues/6317
+[mpm-preference]: https://github.com/Aquaticats/Monochromatic/issues/6316
