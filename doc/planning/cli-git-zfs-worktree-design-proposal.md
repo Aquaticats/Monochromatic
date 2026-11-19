@@ -443,18 +443,22 @@ acknowledgement properties from root. A waiter may change the local
 `org.monochromatic:git-worktree-clone-mount-sweep-nonce` as often as it needs on the verified managed clone it is
 waiting for, not on the clone parent. The nudge uses the same hex format and is not a mount instruction. The handler
 cannot limit the nudge to one write: the account owns that property and may change it repeatedly, and each change may
-start a sweep that scans every task, so bound the work of one sweep instead of counting nudges. This fits the proposed
+start a sweep that scans every task, so bound the work of one sweep instead of counting nudges. How sweeps coalesce,
+and how many may run in a period across every clone, is unspecified here: a rule would have to merge the nudges
+pending for one clone into a single sweep and cap sweeps per unit time, and nothing measured sizes either
+(see [Lost last event without a waiter](#open-project-choices)). This fits the proposed
 descendant `userprop` grant without expanding it to the parent. The [ZFS planning probes][zfs-plan], lines 208 to 213,
 used a parent property for lost-event recovery under their setup; [VM item 5][vm-key] delivered a clone property event
 to a test zedlet. Neither measured the product's delegated clone-local nudge or recovery of the lost last event
 without another trigger.
 
-Removal needs a fresh scan three times: for the removal-ready unmount report, immediately before the snapshot
-batch, and immediately before the head destroy. The wrapper asks for each scan by writing a new
+Removal needs a fresh all-namespace scan at each point where the removal workflow opens a destructive step: the
+removal-ready unmount report, every snapshot-destroy request, whether it carries the first chunk or a later one, and
+the head destroy. The wrapper asks for each scan by writing a new
 `v1:<nonce>:unmount` intent on the clone it removes, and the handler answers under that same nonce, so a receipt
 always names the scan that produced it and no receipt is reused for a later one. The handler repeats its
 all-namespace check under each request rather than trusting an earlier clear result. This is a proposed protocol;
-[VM item 15][vm-namespaces] ran one scan per arm and did not exercise repeat requests.
+[VM item 15][vm-namespaces] ran one scan per arm and did not exercise repeat requests or a split.
 
 ### Descriptor mount and unmount
 
