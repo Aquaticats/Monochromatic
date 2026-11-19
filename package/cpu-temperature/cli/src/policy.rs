@@ -40,7 +40,7 @@ fn is_policy(name: &str) -> bool {
         return false;
     };
     // Require decimal digits so a journal filename can only name a policy.
-    return !number.is_empty() && number.bytes().all(|byte| byte.is_ascii_digit());
+    return !number.is_empty() && number.as_bytes().iter().all(u8::is_ascii_digit);
 }
 
 /// Read a nonnegative frequency in kHz with the source path in any diagnostic.

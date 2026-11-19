@@ -38,8 +38,12 @@ impl Fixture {
         // Why
         // Failed fixture setup should report which step failed instead of reaching sysfs.
         // TypeScript pseudocode
-        // const directory = createDisposableDirectoryOrThrow();
-        let directory = TempDir::new().expect("create private CPU temperature fixture");
+        // const directory = createDisposableDirectoryOrThrow(join(packageRoot, "target"));
+        let build = Path::new(env!("CARGO_MANIFEST_DIR")).join("target");
+        // Individual fixtures are isolated under the existing build directory.
+        fs::create_dir_all(&build).expect("create fixture build directory");
+        // Pass the build directory to tempfile so no test state reaches the global temporary directory.
+        let directory = TempDir::new_in(build).expect("create private CPU temperature fixture");
         // Build paths inside the disposable directory.
         let chip = directory.path().join("hwmon/hwmon4");
         // Stage names and sensor values using the same attribute spellings as Linux.

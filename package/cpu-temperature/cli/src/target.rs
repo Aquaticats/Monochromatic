@@ -108,7 +108,10 @@ pub fn save_target(runtime: &Path, target: Target) -> io::Result<()> {
     // Readers see either a complete previous target or a complete new one.
     // TypeScript pseudocode
     // renameOrThrowIoError(temporary, join(runtime, TARGET_FILE));
-    temporary.persist(runtime.join(TARGET_FILE)).map_err(|error| error.error)?;
+    temporary.persist(runtime.join(TARGET_FILE)).map_err(|error| {
+        // Return the original rename failure.
+        return error.error;
+    })?;
     // The rename made the target visible.
     return Ok(());
 }
@@ -122,5 +125,8 @@ pub fn read_target(runtime: &Path) -> io::Result<Target> {
         Err(error) => return Err(error),
     };
     // Treat an invalid token as failed control input so the service retains its existing caps.
-    return parse_target(text.trim()).map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message));
+    return parse_target(text.trim()).map_err(|message| {
+        // Classify malformed contents separately from filesystem errors.
+        return io::Error::new(io::ErrorKind::InvalidData, message);
+    });
 }
