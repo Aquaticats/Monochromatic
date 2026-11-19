@@ -39954,6 +39954,16 @@ aged `pending` record, reproduced, exit 137 at the 20 s bound; `landing/work_ite
 fallback open follows it, which `main` has too), against the branch's own `SPEC.md:17971` sentence that a pipe is a
 record it cannot read rather than a wait; its two `#[ignore]`d tests admit the first two. Goes to its author with the queue.
 
+The two-starts writer (driver package, branch
+`fix/pi-shared-subagent-driver-two-starts-of-one-run-name-never-share-a-run-folder-or-remove-each-others-worktree`)
+ended `idle` at `db8a6d84f9` (fourth run, 148 turns; worktree removed by its launcher): `main` merged in (`a9e4bacca4`,
+four conflicts resolved), the review's four findings answered with a failing-first test each, oxlint 0 warnings and 0
+errors, build and `lint:types` pass, unit task 67 of 70 files (three excluded, named in its report). Its review needs a
+new worktree, so it waits with the queue. **Two questions for the owner, from its report, to ask when the owner is
+back:** how long a worktree with no proof of its maker is kept (now 24 hours from first sighting; shorter frees the run
+name sooner and can delete live work sooner), and whether a worktree whose maker cannot be identified falls back to
+age (recovers unattended retries, can delete live work) or is kept until someone checks it (no fallback added).
+
 ### No heavy worktree use before the wrapper's ZFS route (2026-11-18T21:47:42-05:00)
 
 The owner, in plain text: "We shouldn't use worktrees heavily before we implement the zfs parts for the git wrapper."
