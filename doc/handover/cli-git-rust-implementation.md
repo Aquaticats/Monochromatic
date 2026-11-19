@@ -40333,6 +40333,13 @@ NeuralWatt ceiling by lane; a 429's delay read from its body (`retry_strategy.su
 one-second minimum between quota reads per member, cited from NeuralWatt's guide. On Pi's native virtual models: they
 would take the member's window per answered message but `createVirtualModel` defaults the pool's own window to 0 too.
 GOING: a Sonnet gate delta check of `2070948ce4..df69b9dbbd` (background Agent); merge on a clean check.
+The gate delta check (saved as `change-reviews/pi-plugin-rate-limit-fallback-at-df69b9dbbd/gate-delta-check.md`):
+**nothing blocks merging on the owner's configuration**; threshold compaction fixed (pool 0 compaction events in five
+large turns, old build 8); mediums answered; a member's real overflow gets no compact-and-retry with the pool (measured,
+rare at 1M windows; joins the native-virtual-models owner question). Cheap fixes before the merge: `DEBUG` lines in a
+test; three `Error.isError` calls that fail on Node 22 (Pi declares `>=22.19.0`); no guard on the `session_start`
+re-registration (removing it still passed the verifier). GOING: the writer's session resumed for those and the smaller
+items, `pi-provider-answers-its-gate-delta-check-1` (run-11); then the coordinator runs the four tasks and merges.
 
 **Reviewer speed result (2026-11-19, four interleaved rounds, model time from the feeds' prompt-sent to settled,
 `keep/runs.jsonl`):** Qwen-plan DeepSeek 9.4, 10.8, 6.3, 17.7 s; its same-model control 18.9, 13.5, 11.9, 8.3 s (Qwen
