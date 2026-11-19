@@ -205,3 +205,38 @@ with device and inode, as durable identity. Check the source and the live datase
 moving or destroying; the probe did not substitute a new dataset under the same dataset name. Recheck the canonical
 relationship without using it as the action operand. Keep explicit staged state after a busy refusal; absence
 at the slot is not absence from the namespace. The probe did not exercise reattach or staged-state crash recovery.
+
+## 5. Encrypted fixture and an unloaded key
+
+Guest: `6.8.0-147-generic`, OpenZFS userspace/module `2.4.4-1` (`item-5-exact.log`). The kernel differs from the
+host; the module release matches. Every numbered item used a separate 1 GiB file-backed pool with an encryption root
+at the pool root, `encryption=aes-256-gcm`, `keyformat=raw` with a guest-local key file, `recordsize=32K` and
+`compression=zstd-3`. Each log records the inherited checkout properties. This matches the host values requested,
+not the host's storage topology, pool feature flags or physical I/O.
+
+For the unloaded-key arm the probe took the origin snapshot, unmounted checkout and fixture home, and ran
+`zfs unload-key zfsowed5`. With stdin closed, root's `zfs clone` still exited 0. The clone's `zfs get` output was:
+
+```text
+zfsowed5/home/worktree-clone-datasets/key-unavailable	encryption	aes-256-gcm
+zfsowed5/home/worktree-clone-datasets/key-unavailable	encryptionroot	zfsowed5
+zfsowed5/home/worktree-clone-datasets/key-unavailable	keystatus	unavailable
+zfsowed5/home/worktree-clone-datasets/key-unavailable	keylocation	none
+zfsowed5/home/worktree-clone-datasets/key-unavailable	recordsize	32K
+zfsowed5/home/worktree-clone-datasets/key-unavailable	compression	zstd-3
+detached mount while key unavailable: fsconfig(create): EACCES
+```
+
+The detached mount failed before `fsmount` or any target attach. The test set a user property on the clone;
+a guest ZED daemon delivered the history event to a root-owned test zedlet, which queried `keystatus` and
+recorded the following. The product handler does not yet exist.
+
+```text
+ZED test zedlet: uid=0 keystatus=unavailable; action=defer without mount
+```
+
+`zfs load-key zfsowed5` followed by mounting the fixture home and checkout changed clone `keystatus` to
+`available`; a descriptor attach then passed. A successful clone is not mount or fill readiness. Identify the
+encryption root and report an unavailable key separately from mount identity or permission failures, before
+attaching. Reconcile after key load and verified checkout mount rather than relying on another add request.
+The root CLI probe did not exercise delegated clone permission with the key unloaded or automatic post-load retry.
