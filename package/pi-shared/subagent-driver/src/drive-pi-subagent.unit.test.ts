@@ -835,6 +835,20 @@ await describe({
         expect(run.commands,).toContain('get_session_stats',);
       },
     },),
+    it({
+      name: 'removes the fresh stand-in session without leaving it in the home folder',
+      fn: async () => {
+        await using home = await makeFolder();
+        const run = await runDriver({ scenario: 'normal', environment: { HOME: home.path, }, },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect((await readdir(home.path,)).filter((name,) => /^stand-in-session-.*\.jsonl$/u.test(name,)),).toEqual([],);
+        const session = (run.summary.sessionStats as { readonly sessionFile?: string }).sessionFile;
+        if (session === undefined) {
+          throw new Error('the stand-in did not report the fresh session it wrote',);
+        }
+        expect(await exists(session,),).toBe(false,);
+      },
+    },),
     // This holds the end-to-end delivery path; the race of a settle read between the inbox
     // scan and the decision is held by `checks the inbox again when Pi settled after the watch
     // read it` in `watch-pi-run.unit.test.ts`.
