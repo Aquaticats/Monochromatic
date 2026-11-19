@@ -1,9 +1,18 @@
 # ZFS worktree design proposal for the Git wrapper
 
-**Non-final draft by an agent, unapproved.** Gate review fold-in (2026-11-18T21:55:35-05:00): this revision
-answers the accepted findings on `71fa25ece8`, incorporates the three [project decisions][answers] on removal,
-promote and the runtime module gate, and distinguishes [pre-acceptance measurements][measurements] from tests
-the build still owes. It records the companion boot/shutdown unit and leaves the listed choices to the project.
+**Non-final draft by an agent, unapproved.** VM evidence fold-in (2026-11-18T22:23:49-05:00): this revision records
+the fixture results and what remains open, without selecting or ranking the open choices. The gate review
+fold-in (2026-11-18T21:55:35-05:00) answered the accepted findings on `71fa25ece8`, incorporated the
+[project decisions][answers] on removal, promote and the runtime module gate, and described the companion
+boot and shutdown unit.
+
+This revision drops the private-ancestor requirement: [VM item 3][vm-propagation] made only the checkout private
+and enabled staging, at the cost of late-mount visibility in the confined reader. It requires proof of snapshot
+lineage before the first deletion and before every subsequent one: [VM item 11][vm-promote] lost older checkout
+history to an explicit delete despite the recursive refusal. It also requires live dataset identity and staged
+recovery state (item 4), separates clone creation from key and mount readiness (item 5), and requires boot-time
+verification of underlay protection and nested mount reachability (items 8 and 9). The other observations
+confirm fixture behavior, not the implementation.
 
 The design keeps the checkout at its existing path and uses account-owned slots over their Git registrations,
 not the first draft's root-owned anchor, `checkout` subdirectory or directory exchange. It draws on the
@@ -256,7 +265,7 @@ copies. It does not measure deletion of copied administration, delegated request
 The durable binding keys on repository and Git registration identity plus clone GUID, not spelling alone. Store
 its expected slot path and identity, pool GUID, origin dataset name and GUID, origin snapshot name and GUID,
 clone name and GUID, pointer bytes, request nonce and progress. Record the verified initial lineage and snapshot
-inventory when the clone is created; see [Removal and recovery](#removal-and-recovery) for proof required before destruction.
+inventory when the clone is created. [Removal and recovery](#removal-and-recovery) defines proof before destruction.
 On resume distinguish a claimed empty slot, registration without a dataset (including a possible origin only),
 an unmounted clone, a mounted but unfinished clone and a verified checkout. Recheck recorded identities, the mount
 and the visible pointer before resuming; never use names, properties or a matching result alone to prove ownership.
@@ -529,8 +538,9 @@ history.
     reprove scope before authorizing any revised plan. Print what actually disappeared and what remains,
     including on partial failure, and retain per-name results for recovery.
 4.  For separate origin cleanup, prove the exact recorded origin dataset and snapshot GUIDs and confirm that
-    the snapshot still belongs to that dataset. Apply the same identity rule using the authority the project selects. The kernel's
-    `snapshot has dependent clones` refusal is the dependency check, not a scan of children or a name test.
+    the snapshot still belongs to that dataset. Apply the same identity rule using the authority the project
+    selects. The kernel's `snapshot has dependent clones` refusal is the dependency check, not a scan of
+    children or a name test.
     Leave a refused origin and report it; never destroy a dependent clone to free it. Preserve the incomplete
     cleanup record while an origin remains.
 5.  Settle only the matching Git registration and pointer after clone destruction is proven. Whether to settle
@@ -712,8 +722,9 @@ status. `doctor` does not start a service, create a test dataset, repair registr
 - Check `/dev/zfs`, the ABI, the pinned pool and dataset identities, encryption root and key availability, clone
   parent and clone properties, checkout mount, checkout boot protection, propagation and caller visibility.
   Check path reachability of nested mounts; a mount-table entry alone can describe a hidden mount.
-  For the root-once move print the verified cutover and rollback steps, commands to create the datasets and install the protection selected by the project,
-  and paths with the actual owner and expected properties. Do not propose chowning the account's slots to root.
+  For the root-once move print the verified cutover and rollback steps, the selected dataset and protection
+  setup commands, and paths with the actual owner and expected properties. Do not propose chowning the
+  account's slots to root.
   On ABI refusal name the loaded module and target plus the supported compatibility evidence, not a bypass.
 - Check recorded parent and slot identities and name the failing field or path component. For a legitimately
   recreated parent, print the administrator's verified `adopt-worktree-parent` command and prerequisites, any
@@ -1036,8 +1047,8 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
 - Item 3, planted links and descriptor operations: [Descriptor mount and unmount](#descriptor-mount-and-unmount)
   adopts the named requirements and records the propagation limit and rollback failure state.
   [Pre-acceptance VM measurements](#pre-acceptance-vm-measurements) records the refusal repeat
-  under account ownership and its limits; [Descriptor safety and mount authority](#descriptor-safety-and-mount-authority) tests
-  the built handler.
+  under account ownership and its limits.
+  [Descriptor safety and mount authority](#descriptor-safety-and-mount-authority) tests the built handler.
 - Item 4, sanoid coverage and retention: [Snapshots and setup reporting](#snapshots-and-setup-reporting) defines
   coverage and order; [What doctor checks and prints](#what-doctor-checks-and-prints) reports origins and retention;
   [Removal and recovery](#removal-and-recovery) removes explicit snapshots and checks origin dependencies.
@@ -1048,8 +1059,8 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
   cleanup and resume; [Binding, Git and lifecycle](#binding-git-and-lifecycle) tests interruption.
 - Item 7, registration and fill: [Add and Git registration](#add-and-git-registration) defines the order,
   copied `.git` rule and durable record; [Unmounted, pruned or moved worktrees](#unmounted-pruned-or-moved-worktrees)
-  refuses moves. [VM item 1][vm-register] measured
-  the combined fixture sequence; [Binding, Git and lifecycle](#binding-git-and-lifecycle) tests the built flow and kill points.
+  refuses moves. [VM item 1][vm-register] measured the combined fixture sequence.
+  [Binding, Git and lifecycle](#binding-git-and-lifecycle) tests the built flow and kill points.
 
 [measurements]: cli-git-zfs-measurements-owed-before-acceptance.md
 [vm-register]: cli-git-zfs-measurements-owed-before-acceptance.md#1-register-snapshot-attach-and-fill
