@@ -91,16 +91,46 @@ const [refusingMember, answeringMember,] = WRITER_TARGETS;
 const STAND_IN_ORIGIN = 'http://127.0.0.1:0/v1';
 
 /**
- Verified catalog records used by the registration helper, pointed at the stand-in origin.
+ Window both stand-in members report, the size of a modern DeepSeek lane.
+ */
+const REAL_CONTEXT_WINDOW = 1_048_560;
+
+/**
+ Output limit both stand-in members report.
+ */
+const REAL_MAX_TOKENS = 65_536;
+
+/**
+ Phrases one long turn repeats, sized to the gate review's probe: about 34 thousand estimated tokens.
+ */
+const BIG_TURN_PHRASES = 5_000;
+
+/**
+ Long turns the compaction check sends, far below the advertised window in total.
+ */
+const TRANSCRIPT_TURNS = 5;
+
+/**
+ One long turn for the compaction check.
+ */
+const BIG_TURN = 'lorem ipsum dolor sit amet '.repeat(BIG_TURN_PHRASES,);
+
+/**
+ Verified catalog records used by the registration helper, pointed at the stand-in origin and
+ carrying the real limits the pool has to advertise.
  */
 const members = {
   refusing: {
     ...refusingMember,
     baseUrl: STAND_IN_ORIGIN,
+    contextWindow: REAL_CONTEXT_WINDOW,
+    maxTokens: REAL_MAX_TOKENS,
   },
   answering: {
     ...answeringMember,
     baseUrl: STAND_IN_ORIGIN,
+    contextWindow: REAL_CONTEXT_WINDOW,
+    maxTokens: REAL_MAX_TOKENS,
   },
 };
 
@@ -321,6 +351,76 @@ assert.equal(
     [],
     'Verification asked a provider endpoint instead of staying on the stand-in origin',
   );
+  // Pi compacts on a threshold taken from the selected model's window, so the pool must advertise
+  // the smallest registered member's limits rather than zero. The writer pool also asks a real
+  // built-in member, so the expectation is computed from the same registry the pool reads.
+  /**
+   Windows every registered writer member reports, as the registry resolves them.
+   */
+  const memberWindows: number[] = [];
+  /**
+   Output limits every registered writer member reports, as the registry resolves them.
+   */
+  const memberOutputLimits: number[] = [];
+  for (const target of WRITER_TARGETS) {
+    /**
+     Catalog record Pi resolves for that member, or undefined when it is not registered.
+     */
+    const member = modelRuntime.getModel(
+      target.provider,
+      target.id,
+    );
+    if (member === undefined)
+      continue;
+    if (member.contextWindow > 0)
+      memberWindows.push(member.contextWindow,);
+    if (member.maxTokens > 0)
+      memberOutputLimits.push(member.maxTokens,);
+  }
+  assert.ok(
+    memberWindows.length > 0,
+    'no writer member is registered, so there is no window to advertise',
+  );
+  assert.equal(
+    writer.contextWindow,
+    Math.min(...memberWindows,),
+    'the pool must advertise the smallest registered member window',
+  );
+  assert.equal(
+    writer.maxTokens,
+    Math.min(...memberOutputLimits,),
+    'the pool must advertise the smallest registered member output limit',
+  );
+  /**
+   Member calls before the long transcript, so the loop can prove the pool kept answering.
+   */
+  const callsBeforeTranscript = calls.length;
+  await Array.fromAsync(
+    { length: TRANSCRIPT_TURNS, },
+    async function sendTurn(
+      _unused: unknown,
+      index: number,
+    ): Promise<void> {
+      await session.prompt(`turn ${index + 1}: ${BIG_TURN}`,);
+    },
+  );
+  /**
+   Compaction records on the session branch, which must stay at zero on a transcript that fits.
+   */
+  let compactionEntries = 0;
+  for (const entry of sessionManager.getBranch()) {
+    if (entry.type === 'compaction')
+      compactionEntries += 1;
+  }
+  assert.equal(
+    compactionEntries,
+    0,
+    'Pi compacted a pool transcript whose advertised window fits it',
+  );
+  assert.ok(
+    calls.length > callsBeforeTranscript,
+    'the pool answered none of the long transcript turns',
+  );
   process.stdout
-    .write('PASS Pi session: built catalog, registry-authenticated 429 handoff, physical member in assistant record, pool still selected\n',);
+    .write('PASS Pi session: built catalog, registry-authenticated 429 handoff, physical member in assistant record, pool still selected, no threshold compaction on a long transcript\n',);
 }

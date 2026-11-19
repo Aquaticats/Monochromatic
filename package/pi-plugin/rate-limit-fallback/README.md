@@ -190,11 +190,12 @@ While the session is open, its active selection remains the pool. Pi
 explicitly select `rate-limit-fallback/writer` or `rate-limit-fallback/reviewer`
 again when resuming into the pool.
 
-The pool advertises text input and no fixed context budget or price;
-members' own output caps and usage are used on dispatch. Pi cannot
-preflight compaction against an unknown pool-wide context window. If a
-member rejects a context, the error is passed through, not replayed to
-another vendor.
+The pool advertises text input and no price. Its context window and output
+limit are the smallest its registered members report, read from the session
+registry each time Pi asks for the catalog, so Pi's compaction threshold fits
+every member; a provisional window stands in before a session binds. Members'
+own output caps and usage are used on dispatch. If a member rejects a context,
+the error is passed through, not replayed to another vendor.
 
 ## Verification
 

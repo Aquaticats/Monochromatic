@@ -21,7 +21,9 @@ import {
   type RoutingSession,
 } from './dispatch-request.ts';
 import {
-  MODELS,
+  type MemberLimitsReader,
+  NO_LIMITS,
+  poolModels,
   PROVIDER_ID,
 } from './model-pools.ts';
 
@@ -35,6 +37,44 @@ export { PROVIDER_ID, } from './model-pools.ts';
  @internal
  */
 export { headerReset, } from './rate-limit-evidence.ts';
+
+/**
+ Reads one member's limits from the session registry.
+
+ @param registry - the session's live model registry
+
+ @returns reader that zeroes a member the registry does not resolve
+ */
+function memberLimitsReader({ registry, }: { readonly registry: RoutingRegistry; },): MemberLimitsReader {
+  /**
+   Registry object the lookup belongs to.
+   */
+  const owner = registry;
+  /**
+   Registry lookup bound to its own object, so the reader can be called freely.
+   */
+  const resolve = owner
+    .find
+    .bind(owner,);
+  return function memberLimits(
+    provider: string,
+    id: string,
+  ): typeof NO_LIMITS {
+    /**
+     Catalog record Pi resolves for that member, or undefined when it has none.
+     */
+    const found = resolve(
+      provider,
+      id,
+    );
+    if (found === undefined)
+      return NO_LIMITS;
+    return {
+      contextWindow: found.contextWindow,
+      maxTokens: found.maxTokens,
+    };
+  };
+}
 
 /**
  Request-time catalog supplied by each started session.
@@ -152,7 +192,15 @@ export default function rateLimitFallbackExtension(pi: FallbackHost,): void {
       },
     },
     getModels() {
-      return MODELS;
+      // The smallest registered member's limits, so Pi's compaction threshold fits every
+      // member; model-pools' provisional limits stand in before a session binds.
+      /**
+       Session bound by the last session start, or undefined before one.
+       */
+      const { session, } = binding;
+      return session === undefined
+        ? poolModels()
+        : poolModels({ readMemberLimits: memberLimitsReader({ registry: session.registry, },), },);
     },
     stream: function streamPool<T extends Api>(
       model: Model<T>,
@@ -216,6 +264,10 @@ export default function rateLimitFallbackExtension(pi: FallbackHost,): void {
         registry: context.modelRegistry,
         members: new Map(),
       };
+      // Pi composes its model snapshot from getModels() when a provider is registered, so the pool
+      // registers again now that the registry is known and the catalog can carry the smallest
+      // registered member's limits instead of the provisional ones.
+      pi.registerProvider(provider,);
       rl.debug('Bound session model registry',);
     },
   );
