@@ -65,8 +65,8 @@ attachment and removal. It has no Git, pool administration, or dataset destructi
 The initial interface is Linux only. Expose typed operations, not a general-purpose ioctl or property setter.
 Numbers are for OpenZFS `zfs-2.4.4`, `include/sys/fs/zfs.h:1502` to `:1550`.
 The vet's "Result and the owner's decision" records the core set. This draft adds `OBJSET_STATS` for identity
-and property sources, `SNAPSHOT_LIST_NEXT` and `DESTROY_SNAPS` for exact removal accounting, and `GET_FSACL`
-for `doctor`. The cross-vendor review checked `SNAPSHOT_LIST_NEXT` at line 1505 and `GET_FSACL` at line 1525.
+and property sources, `SNAPSHOT_LIST_NEXT`, `GET_BOOKMARKS` and `DESTROY_SNAPS` for exact removal accounting,
+and `GET_FSACL` for `doctor`. The cross-vendor review checked `SNAPSHOT_LIST_NEXT` at line 1505 and `GET_FSACL` at line 1525.
 
 - `ZFS_IOC_OBJSET_STATS` (`0x5a12`): inspect dataset type, identity, origin, and the values and sources of properties.
 - `ZFS_IOC_DATASET_LIST_NEXT` (`0x5a14`): enumerate immediate children via the kernel's cursor.
@@ -82,6 +82,8 @@ for `doctor`. The cross-vendor review checked `SNAPSHOT_LIST_NEXT` at line 1505 
   preserving per-name failures.
 - `ZFS_IOC_CLONE` (`0x5a42`): place the target in `zc_name` and send `origin` and optional `props` in the nvlist.
   The contract is in `lib/libzfs_core/libzfs_core.c:328` and `module/zfs/zfs_ioctl.c:3844` at `zfs-2.4.4`.
+- `ZFS_IOC_GET_BOOKMARKS` (`0x5a44`, `include/sys/fs/zfs.h:1552`): enumerate one dataset's bookmarks and request
+  their GUIDs and creation transaction groups (`module/zfs/zfs_ioctl.c:7619` to `:7624`, OpenZFS `zfs-2.4.4`).
 
 The [project decided][answers] "B: Include promote". `zfs-promote(8)` says promoting a checkout clone makes
 the checkout a clone of the promoted dataset and transfers the origin snapshot and the checkout's older snapshots
@@ -239,7 +241,8 @@ copies. It does not measure deletion of copied administration, delegated request
     `worktree add --no-checkout` form. Record the reciprocal registration and exact `.git` pointer bytes; leave it in
     the slot on the checkout dataset. Have the handler verify and record the slot identity before any attach.
 3.  Snapshot the checkout, then clone that fresh origin, never a sanoid snapshot. Record the actual snapshot and
-    clone GUIDs as each is confirmed. A successful clone does not imply mount readiness: [VM item 5][vm-key]
+    clone GUIDs and their `createtxg` values as each is confirmed, as required by the removal proof proposed from
+    [VM item 13][vm-bookmark]. A successful clone does not imply mount readiness: [VM item 5][vm-key]
     created a clone with its encryption key unloaded, but detached mount setup refused with `EACCES`. Request
     `mount` via the local desired-state user property described in
     [ZED reconciliation and mount safety](#zed-reconciliation-and-mount-safety), not via `mountpoint`. Send it in
@@ -267,9 +270,12 @@ copies. It does not measure deletion of copied administration, delegated request
     which is neither the linked registration nor a success signal.
 
 The durable binding keys on repository and Git registration identity plus clone GUID, not spelling alone. Store
-its expected slot path and identity, pool GUID, origin dataset name and GUID, origin snapshot name and GUID,
-clone name and GUID, pointer bytes, request nonce and progress. Record the verified initial lineage and snapshot
-inventory when the clone is created. [Removal and recovery](#removal-and-recovery) defines proof before destruction.
+its expected slot path and identity, pool GUID, origin dataset name and GUID, origin snapshot and clone names,
+GUIDs and `createtxg` values, pointer bytes, request nonce and progress. At creation, record the origin-side
+inventory of snapshots through the origin snapshot's transaction group and the origin dataset's bookmarks, by
+kind, name, GUID and `createtxg`. Record the clone's initial inventory separately; an empty new clone inventory
+cannot identify transferred history. This is a proposed proof record based on the transfer in [VM item 13][vm-bookmark].
+[Removal and recovery](#removal-and-recovery) defines how to use it.
 On resume distinguish a claimed empty slot, registration without a dataset (including a possible origin only),
 an unmounted clone, a mounted but unfinished clone and a verified checkout. Recheck recorded identities, the mount
 and the visible pointer before resuming; never use names, properties or a matching result alone to prove ownership.
@@ -516,12 +522,24 @@ and its later snapshot (`item-11-exact.log:69` to `:94` and `:123` to `:135`). N
 dependent-clone destruction; a dependency refusal protects the specific snapshot it names, not the rest of the
 history.
 
-1.  Prove the live pool, clone dataset, origin dataset and origin snapshot match the recorded GUIDs, and that
-    the clone still has its original direct origin relationship. Inventory the full snapshot set by name, GUID
-    and owning dataset GUID, including manual and sanoid snapshots. Prove every candidate was created on this
-    clone, not transferred from an origin. Start from the verified inventory at creation and prove that no
-    lineage change has admitted foreign history since. A current name, location or matching direct origin
-    alone is not provenance. Never silently update the recorded lineage after an external change.
+1.  Prove the live pool, clone and origin dataset GUIDs match the binding. Then prove lineage in this order:
+    - Necessary check: read the clone's live `origin` and resolve it to the recorded origin dataset and origin
+      snapshot GUID. Require the recorded direct origin, not just a name match. Check the recorded clone and
+      origin snapshot `createtxg` values against the live ones as well.
+    - Independent check: inventory all clone snapshots and bookmarks by kind, name, GUID, owning dataset GUID
+      and `createtxg`. Require each snapshot's `createtxg` to be strictly greater than the clone's own. Include
+      manual and sanoid snapshots. Treat a bookmark's transaction group as evidence about the history it points
+      to, not proof of when the bookmark was made. Account for every bookmark before destroying the clone;
+      OpenZFS destroys its bookmark entries with the head (`module/zfs/dsl_destroy.c:1123` to `:1154`, `zfs-2.4.4`).
+    - Third check: compare the live clone inventory against the recorded origin-side GUID inventory, including
+      snapshots and bookmarks. Any origin-side hit or unproved provenance refuses destruction. Never update the
+      recorded lineage to match an external change.
+
+    [VM item 13][vm-bookmark] measured this separation only on OpenZFS `2.4.4-1`: the transferred snapshots kept
+    their GUIDs and transaction groups at or below the origin snapshot's, the own snapshot was newer than the
+    clone, the clone lost its direct origin, and the bookmark moved with an unchanged tuple. These are layered
+    proposed checks, not a proof that transaction groups establish provenance for other topologies, encryption
+    roots, lineage changes or objects created in the same transaction group.
 2.  If lineage, ownership or the safety of the destructive operation cannot be proved, refuse before the
     first delete. Name the mismatched dataset, snapshot or dependency, keep the registration and removal
     record, and report the need for administrator lineage recovery before retry. Do not try a subset, promote
@@ -996,8 +1014,10 @@ system changes on the host. These gates carry the [handover's H1 and H2 disposit
   recovering the Git lock after loss; test it if that protection is selected. Check that operator locks continue
   to refuse removal. Test repair with surviving admin data and already-pruned state, with and without backup.
 - Repeat [VM item 11][vm-promote] against the binding's promote primitive. With the built wrapper, refuse a
-  promoted or mismatched clone before the first snapshot delete, and assert that every protected snapshot GUID
-  survives. Include a verified unpromoted clone with manual and sanoid snapshots as the removal control. Test
+  promoted or mismatched clone before the first snapshot delete, and assert that every protected snapshot and
+  bookmark identity survives. Repeat the `origin`, `createtxg` and transferred-bookmark controls of
+  [VM item 13][vm-bookmark], including reverse promotion. Include a verified unpromoted clone with manual and
+  sanoid snapshots as the removal control. Test
   proof invalidation after administrator lineage changes. Repeat [VM item 12][vm-replacement] for the selected
   [identity policy](#clone-removal-identity-protection): verify absence of the lineage-changing grants for delegated
   destruction and exercise the declared same-account residual; or prove conditional refusal for a stale identity,
@@ -1119,6 +1139,7 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
 [vm-promote]: cli-git-zfs-measurements-owed-before-acceptance.md#11-promote-and-the-checkouts-snapshot-history
 [vm-limits]: cli-git-zfs-measurements-owed-before-acceptance.md#what-this-did-not-show
 [vm-replacement]: cli-git-zfs-measurements-owed-before-acceptance.md#12-same-name-replacement-with-delegated-grants
+[vm-bookmark]: cli-git-zfs-measurements-owed-before-acceptance.md#13-creation-transaction-groups-and-a-bookmark-after-promote
 [answers]: cli-git-zfs-worktree.md#owners-answers-of-2026-11-18
 [zfs-plan]: cli-git-zfs-worktree.md
 [handover]: ../handover/cli-git-rust-implementation.md
