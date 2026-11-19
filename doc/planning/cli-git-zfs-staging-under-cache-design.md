@@ -256,9 +256,10 @@ read-only reads named.
   design may claim a mount cannot be named after a rename.
 - F24. The account can hold a mount namespace of its own, and it can mount in the host namespace through a setuid
   helper: `/usr/bin/fusermount3` and `/usr/bin/fusermount` are mode `-rwsr-xr-x` owned by `root` on this host (read
-  2026-11-19 with `stat --format '%n %A %U'`). This host also allows unprivileged user namespaces. The premise "the
-  account cannot mount in the host namespace", which the reviewed draft's first question relied on, is therefore
-  unsupported, and FUSE stacking in the host namespace is possible.
+  2026-11-19 with `stat --format '%n %A %U'`). This host allows unprivileged user namespaces:
+  `/proc/sys/user/max_user_namespaces` reads `252369` and `/proc/sys/kernel/unprivileged_userns_clone` reads `1`
+  (read 2026-11-19). The premise "the account cannot mount in the host namespace", which the reviewed draft's first
+  question relied on, is therefore unsupported, and FUSE stacking in the host namespace is possible.
 - F25. A mount cannot be moved out of another namespace: `do_move_mount` refuses `EINVAL` unless the destination's
   mount is in the caller's namespace ("The mountpoint must be in our namespace",
   Linux `v6.8`, `fs/namespace.c:3141` to `:3142`) and unless an attached source mount is the caller's own
