@@ -86,18 +86,20 @@ and `GET_FSACL` for `doctor`. The cross-vendor review checked `SNAPSHOT_LIST_NEX
 - `ZFS_IOC_GET_BOOKMARKS` (`0x5a44`, `include/sys/fs/zfs.h:1552`): enumerate one dataset's bookmarks and request
   their GUIDs and creation transaction groups (`module/zfs/zfs_ioctl.c:7619` to `:7624`, OpenZFS `zfs-2.4.4`).
 
-The [project decided][answers] "B: Include promote". `zfs-promote(8)` says promoting a checkout clone makes
-the checkout a clone of the promoted dataset and transfers the origin snapshot and the checkout's older snapshots
-into the promoted dataset.
+The [project decided][answers] "B: Include promote". Promoting a clone of the checkout makes the checkout a
+clone of the promoted dataset and transfers the origin snapshot and the checkout's older snapshots into the
+promoted dataset (OpenZFS `zfs-2.4.4`, `man/man8/zfs-promote.8:53` to `:54`; [VM item 11][vm-promote]).
 Checkout history must never move into a worktree that ordinary removal can destroy. Neither normal add,
 reconciliation nor removal calls promote; grant no `promote` delegation to the account. Keep any blocked origin
 and report its dependency rather than promoting a managed clone to clear it.
 
 [VM item 11][vm-promote] measured the promoted worktree becoming independent and the checkout becoming its
 clone. The origin and older checkout snapshots moved to the worktree with unchanged GUIDs; later checkout
-snapshots and the worktree's own snapshot stayed put. Include the binding operation and test it in the disposable
-VM, but keep it out of ordinary add, reconciliation and removal. A possible live use is explicit administrator
-recovery onto a protected clone outside the removable worktree tree. Prove the ownership of affected snapshot
+snapshots and the worktree's own snapshot stayed put. In this draft, "include" means test-only use: expose the
+primitive in the binding and exercise it in the disposable VM; no production caller invokes it. For the owner
+handoff, distinguish inclusion in the binding from approval of a live operation. A possible future use is explicit
+administrator recovery onto a protected clone outside the removable worktree tree (unmeasured, not proposed for
+activation here). Prove the ownership of affected snapshot
 GUIDs, resulting dependencies and location of protected history before any explicit lineage change. The reverse
 promotion in the VM was a control, not a recovery guarantee; no production promote procedure is authorized here.
 Adding linked origins does not itself authorize promote.
