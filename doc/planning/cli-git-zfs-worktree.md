@@ -469,6 +469,13 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   ./.claude ?" Every worktree of this repository, clones included, lives under `~/Monochromatic/.claude/worktrees/`.
   No rule in `AGENTS.md` has said so at any point (its history searched on 2026-11-18 back to 964883fd94); the place
   entered the Pi skill on 2026-11-08 (1a907ccfb9) and the driver's launcher, and a rule is proposed to the owner.
+  A second, wider search the same evening (GPT through Pi; every ref, every stored version of `AGENTS.md`, `CLAUDE.md`
+  and the skills, unreachable objects and the 66 retired codes, with a positive control; report and evidence in
+  `~/temp/agent/agents-md-worktree-place-rule-search-2026-11-18/keep/`) found the same: `WTU` (d507a55f0e) is the first
+  repository-wide rule, and nothing was added and later removed. It found where the memory comes from: the handover of
+  2026-11-04 (031cfafaa6) records that briefs and a trace script put worktrees there, that an `AGENTS.md` rule was
+  proposed, and the answer "Wrapper fix only". The old drives were not mounted during that search, so their copies
+  were not read.
   A clone mounted there sits in a folder the account owns, which the finding under "A planted symlink redirects both
   mechanisms" makes dangerous for a mount that follows paths: the design has to mount without
   following anything the account can change, and the VM has to prove it.

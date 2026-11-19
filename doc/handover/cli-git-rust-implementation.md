@@ -232,7 +232,12 @@ Not final and not approved: this session's own account.
   (control spread 1.091); a clone's links into the home store break by path depth and the wrapper's relink repairs
   them; ranking shared home store > in-tree store > separate cache store. The checkout-as-dataset question goes to the
   owner with these results (answered A; then "who owns .claude/worktrees" answered B; decision entries below). The
-  AGENTS.md search is still running. **The fold-in writer is going:** GPT 6.2 Sol through Pi, unit
+  AGENTS.md search ended on its wall clock (67 turns) after writing its report at 20:09: no rule before `WTU`, none
+  removed; the 2026-11-04 handover (031cfafaa6) shows a rule was proposed and answered "Wrapper fix only" (recorded in
+  the planning page, "Where worktrees live"). **The old drives are not mounted:** the machine booted at
+  2026-11-18T12:27:21-05:00 and `/mnt/old-sata` and `/mnt/old-nvme` are empty folders; `lsblk` shows `sda` and
+  `nvme1n1p2`/`nvme1n1p6` as LUKS with nothing opened, so they are intact but locked. Unlocking needs the owner; they
+  are needed for task 386's comparisons before the wipe, not for anything going now. **The fold-in writer is going:** GPT 6.2 Sol through Pi, unit
   `pi-zfs-worktree-design-proposal-fold-in-1`, worktree `.claude/worktrees/zfs-worktree-design-proposal-fold-in` on the
   proposal branch with main merged (fb6702e8a9), brief
   `~/temp/agent/zfs-worktree-design-proposal-fold-in-2026-11-18/prompt.md`; on a "possible risk" stop it resumes on
