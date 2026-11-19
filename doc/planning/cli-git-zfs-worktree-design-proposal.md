@@ -6,8 +6,8 @@ account-owned slots mounted directly over their Git registrations. It folds in t
 [Owner's answers of 2026-11-18][answers], the accepted [cross-vendor review and its disposition][handover],
 the [nested-clone research][nested], and the [checkout-dataset and pnpm research][pnpm]. The Rust binding vet,
 Btrfs design, wrapper specification and probe records support specific parts of the design. This is a documentation
-revision, not an implementation or a pool change. The build still owes the acceptance tests; the project still
-owns the listed open choices.
+revision, not an implementation or a pool change. The proposal still owes pre-acceptance measurements, the build
+still owes acceptance tests, and the project still owns the listed open choices.
 
 ## Requirements and module ownership
 
@@ -555,6 +555,21 @@ No option here is selected by this revision.
   managed-descendant allowlist for sanoid hourlies with newest-per-dataset retention. Expansion can release more
   blocks, but deletes some living worktree history before normal expiry; measure what it would reclaim first.
 
+## Measurements due before design acceptance
+
+The [planning record][answers] says of the account-owned slot design: "every refusal there is measured again with
+account ownership before the design is accepted". That is a condition on accepting this proposal, not work to defer
+until the wrapper is built. The [VM measurement record][measurements] is being prepared on
+`docs/planning-cli-git-zfs-measurements-owed-before-acceptance`. Its results are pending here.
+
+- Re-run **every item 3 refusal** with the account owning `.claude/worktrees` and the slots: a link at `.claude`, at
+  `.claude/worktrees` and at the slot; a link created by the account inside the parent; a parent escape, magic link
+  and bind mount with the same device and inode; replaced inode, wrong UID and widened mode. The account can plant
+  a link under this ownership, so the handler must refuse, not the filesystem permissions from the root-owned
+  fixture. Include access and default ACL drift, a target already mounted, and a valid account-owned attach control.
+  Assert refusals identify the component or field and do not attach a clone or disturb an existing mount.
+  Include the bounded rename/replacement race and post-attach check in item 3's unmeasured cases.
+
 ## Acceptance tests the build still owes
 
 Run with the built wrapper and handler on a disposable VM's file-backed pool, without passing through the host's
@@ -570,12 +585,6 @@ host. These gates carry the [handover's H1 and H2 disposition][handover] and the
 - H1 gate 1: reproduce the old check-then-path-mount behavior as a positive control, using only a disposable decoy
   inside the VM. A path mount reached a decoy in the research; that did not test a substitution after the check.
   Prove the harness observes attachment outside the intended slot before trusting any no-mount assertion.
-- Repeat **every item 3 refusal** with the account owning `.claude/worktrees` and the slots: a link at `.claude`, at
-  `.claude/worktrees` and at the slot; a link created by the account inside the parent; a parent escape, magic link
-  and bind mount with the same device and inode; replaced inode, wrong UID and widened mode. Under this ownership
-  the account can plant a link; the required refusal is by the handler, not the old filesystem permission denial.
-  Include access and default ACL drift, a target already mounted, and a valid account-owned attach control. Assert
-  refusals identify the component or field and do not attach a clone or disturb an existing mount.
 - H1 gate 3: exercise repeated, bounded concurrent slot renames and replacements during real mounts. Assert no
   unrelated mount is touched; an attach on a moved recorded inode is detected by the post-attach mount-ID check and
   rolled back by descriptor or precisely reported as stranded if rollback fails. Test the post-attach check itself,
@@ -706,8 +715,9 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
   [Boot, shutdown and setup](#boot-shutdown-and-setup) tests delayed and failed mount order.
 - Item 3, planted links and descriptor operations: [Descriptor mount and unmount](#descriptor-mount-and-unmount)
   adopts the named requirements and records the propagation limit and rollback failure state.
-  [Descriptor safety and mount authority](#descriptor-safety-and-mount-authority) repeats all refusals with the
-  decided ownership and tests the previously unshown cases.
+  [Measurements due before design acceptance](#measurements-due-before-design-acceptance) requires every refusal
+  under account ownership; [Descriptor safety and mount authority](#descriptor-safety-and-mount-authority) tests
+  the built handler.
 - Item 4, sanoid coverage and retention: [Snapshots and setup reporting](#snapshots-and-setup-reporting) defines
   coverage and order; [What doctor checks and prints](#what-doctor-checks-and-prints) reports origins and retention;
   [Removal and recovery](#removal-and-recovery) removes explicit snapshots and checks origin dependencies.
@@ -720,6 +730,7 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
   copied `.git` rule and durable record; [Unmounted, pruned or moved worktrees](#unmounted-pruned-or-moved-worktrees)
   refuses moves. [Binding, Git and lifecycle](#binding-git-and-lifecycle) tests the combined sequence and kill points.
 
+[measurements]: cli-git-zfs-measurements-owed-before-acceptance.md
 [answers]: cli-git-zfs-worktree.md#owners-answers-of-2026-11-18
 [zfs-plan]: cli-git-zfs-worktree.md
 [handover]: ../handover/cli-git-rust-implementation.md
