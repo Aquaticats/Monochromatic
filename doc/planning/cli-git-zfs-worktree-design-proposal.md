@@ -1516,11 +1516,10 @@ here.
   require across the cloneable scope. Removal now checks, before the first snapshot delete and again just before the
   head destroy, that the clone and its origin are the planned ones and that the origin is not marked for deferred
   destroy, and refuses otherwise; the check before the first snapshot delete stops such a removal before it deletes
-  anything. A replacement
-  whose different origin is marked for deferred destroy is caught by those checks, because the clone itself is not
-  the planned one. What the checks do not catch is a mark made by a same-account process between the check before the
-  head destroy and the destroy, which stays the residual this option accepts, and the checks themselves have no
-  design yet
+  anything. A replacement whose different origin is marked for deferred destroy is caught by those checks, because
+  the clone itself is not the planned one. What the checks do not catch is a mark made by a same-account process
+  between the check before the head destroy and the destroy, which stays the residual this option accepts, and the
+  checks themselves have no design yet
   ([Open items the decisions leave](#open-items-the-decisions-leave)). This is reasoning from the head destroy
   path (`dsl_destroy.c:1028` to `:1037` and `:1168` to `:1172`), not a measured race or a claim that the grants in
   item 12 already enforce the invariant.
