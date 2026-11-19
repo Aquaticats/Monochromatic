@@ -202,6 +202,8 @@ TSK:
  one task-list item per major area,
  each independently verifiable;
  never one umbrella item.
+In progress means work or a run on it is live now;
+ waiting is pending.
 
 ### Pre-response checklist
 

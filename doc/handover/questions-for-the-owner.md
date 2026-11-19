@@ -114,6 +114,9 @@ until then this list is their record. Each was asked with the ranking and facts 
   "Run the live check (Recommended)".
 - The Dependabot alert reported on every push, and DCK's "next action" trimmed to "next step": "Look into the alert
   (Recommended)".
+- After the owner's "Avoid marking things that are actually pending as "in-progress" in your tasks list.", rule `TSK`
+  gains "In progress means work or a run on it is live now; waiting is pending.": "Tighten TSK (Recommended)". The task
+  list was corrected the same turn: only the ZFS fold-in (task 379), whose run is live, stays in progress.
 
 ## Prepared overnight for the question tool, 2026-11-19T03:30:00-05:00
 
