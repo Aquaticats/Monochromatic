@@ -183,12 +183,26 @@ Not final and not approved: this session's own account.
   the blocklist answer's label said "seven" while the list it named has eight. The proposal also moved the main
   checkout under a root-owned anchor (`/var/lib/monochromatic-worktrees/monochromatic/main`) and put clones there; the
   owner answered that `~/Monochromatic` stays and worktrees live under its `.claude/worktrees/` (decision entry
-  "ZFS route: ~/Monochromatic stays, worktrees live under its .claude/worktrees"). **Going since 2026-11-18T19:25:33-05:00:** its cross-vendor
-  review, DeepSeek V4.1 Flash on Synthetic through Pi, unit `pi-zfs-worktree-design-proposal-review-1`, run folder
-  `~/temp/agent/zfs-worktree-design-proposal-review-2026-11-18/run-1`, detached worktree
-  `.claude/worktrees/zfs-worktree-design-proposal-review` at 4203040346, writing `review.md` beside the run folder.
-  **Next:** weigh its findings, fold them in with a writer run, then the owner's acceptance through the question tool;
-  the binding's tests run on a file-backed pool inside a throwaway VM.
+  "ZFS route: ~/Monochromatic stays, worktrees live under its .claude/worktrees"). Its cross-vendor review
+  (DeepSeek V4.1 Flash on Synthetic through Pi, steered mid-run with the owner's corrections) ended `idle` after 87
+  turns ($0.72): `~/temp/agent/zfs-worktree-design-proposal-review-2026-11-18/review.md`, 4 high, 5 medium, 6 low (H1
+  clones under `.claude/worktrees` need a descriptor-based mount and a new fill because Git refuses a non-empty
+  folder; H2 the checkout as a dataset at the same path, a boot-mount guard, the nested dataset
+  `zpcachyos/nosnap/vm-builder-output` mounted at `package/vm-builder/cli/output`, and the pnpm consequence; H3 an
+  unmounted clone loses its Git registration to `git worktree prune`; H4 an unbounded request property names a root
+  write path); not yet weighed; its worktree is removed. The owner then added `AGENTS.md` rule `WTU` (d507a55f0e) and
+  the wrapper refusal for later (issue 6313), and asked for three digs, all GPT 6.2 Sol through Pi, **going since
+  2026-11-18T19:46:28-05:00, 19:47:23 and 19:47:48 in this order**: the search for an earlier `AGENTS.md` worktree-place rule (unit
+  `pi-agents-md-worktree-place-rule-search-1`, read-only in the main checkout, report
+  `~/temp/agent/agents-md-worktree-place-rule-search-2026-11-18/report.md`); whether clones under
+  `.claude/worktrees` conflict with ZFS (unit `pi-zfs-clones-under-the-checkout-research-1`, worktree
+  `.claude/worktrees/zfs-clones-under-the-checkout-research`, doc
+  `doc/planning/cli-git-zfs-clones-mounted-under-the-checkout.md`, VM probes); and pnpm and other tools with the
+  checkout as its own dataset (unit `pi-checkout-dataset-and-pnpm-research-1`, worktree
+  `.claude/worktrees/checkout-dataset-and-pnpm-research`, doc `doc/planning/cli-git-zfs-checkout-dataset-and-pnpm.md`;
+  it may leave a measurement folder under `~/.cache` that it must delete). **Next:** read the three, weigh the review,
+  fold everything into the proposal with a writer run, then the owner's acceptance through the question tool; the
+  checkout-as-dataset choice waits for the pnpm answer (owner: "I'm not sure yet").
 - **Driver idle window defaults to 0:** going since 2026-11-18T19:27:38-05:00, GPT 6.2 Sol through Pi, unit
   `pi-driver-idle-window-defaults-to-zero-writer-1`, run folder
   `~/temp/agent/driver-idle-window-defaults-to-zero-writer-2026-11-18/run-1`, worktree
@@ -198,7 +212,13 @@ Not final and not approved: this session's own account.
   launches pass `--idle-seconds=1` (0 is refused today).
 - **Reviewer bench (task 387):** all four resumed reviews ended `idle` on `opencode-go` with no rate-limit error
   (`a13faa0d55` runs 1 and 2: 92 and 152 turns; `3822c44c2f` run 1: 33; `915ef30e09` run 2: 49); all six now have a
-  review. Nothing is scored yet.
+  review. Scored by a Claude Sonnet subagent (a second pass, same vendor as one side):
+  `~/temp/agent/reviewer-bench-deepseek-against-sonnet-2026-11-17/keep/scoring-of-the-six-deepseek-reviews-against-sonnet.md`;
+  of Sonnet's 26 headed findings over 52 run pairs DeepSeek found 3, partly 2, missed 47 (7 of them read and called
+  sound); 7 DeepSeek-only findings, none contradicted by source; the two runs of a case shared no headline finding; no
+  run read Sonnet's review or the handover; neither side caught pass 58's five failing controls. **Next:** spot-check the
+  scoring against the review files, then put the result to the owner as a challenge through the question tool,
+  marked non-final.
 - **Queue runs and agent cap:** unchanged since the entry of 2026-11-17T19:28:50-05:00.
 
 ### ZED against the regex sudoers rule, probed on the owner's question (2026-11-18T17:15:00-05:00)
