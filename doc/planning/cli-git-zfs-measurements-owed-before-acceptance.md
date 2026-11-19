@@ -641,3 +641,51 @@ unmount can succeed locally while another namespace keeps the clone busy, and sn
 before the clone destroy refuses. The scan detected the live, process-visible holders in this VM. It was not
 a race-free proof of absence and did not test namespace references without a visible member PID, processes
 with different root directories, the default `unshare --mount` propagation, or the installed Pi driver.
+
+### 16. Availability of a guest with the host kernel
+
+The guest used for items 12 to 15 booted `6.8.0-147-generic` and printed `zfs-2.4.4-1` and `zfs-kmod-2.4.4-1`.
+The host, read-only, reported `7.3.5-1-cachyos` from `uname --kernel-release` and `2.4.4-1` from
+`/sys/module/zfs/version`. The package ownership and tool queries returned:
+
+```text
+# pacman --query --owns on the host kernel image and ZFS module
+/usr/lib/modules/7.3.5-1-cachyos/vmlinuz is owned by linux-cachyos 7.3.5-1
+/usr/lib/modules/7.3.5-1-cachyos/extramodules/zfs.ko.zst is owned by linux-cachyos-zfs 7.3.5-1
+# pacman --query linux-cachyos linux-cachyos-headers zfs-utils
+linux-cachyos 7.3.5-1
+linux-cachyos-headers 7.3.5-1
+zfs-utils 2.4.4-3
+```
+
+`mvm create --help` said `Image to use: ubuntu (default), fedora, alpine, windows, or a custom template name`.
+The [image documentation](../../package/mvm/cli/README.md#available-images) and `IMAGES` in
+`package/mvm/cli/src/registry.ts` resolve those to Ubuntu 24.04 LTS, Fedora 43 Cloud Base, Alpine 3.23 and
+Windows Server 2025. There is no `linux-cachyos` image in that libvirt registry. `ls --format=single-column`
+of `~/.local/share/mvm/images/`, the `resolveImage` custom-template directory, returned only:
+
+```text
+# ls --format=single-column -- ~/.local/share/mvm/images
+noble-server-cloudimg-amd64.img
+template-ubuntu.qcow2
+```
+
+No offered local image boots the target package combination. The Hetzner backend defines no CachyOS shorthand;
+its remote catalog and arbitrary image IDs were not queried or provisioned. The `mvm` custom-template route
+would need a bootable x86-64 CachyOS qcow2 with `linux-cachyos` `7.3.5-1`, its matching `linux-cachyos-zfs`
+module (or the same OpenZFS release built against the exact guest kernel headers), OpenZFS `2.4.4` userspace,
+and an enabled `qemu-guest-agent`. It must boot that kernel, not just have the package on disk. Verify
+`uname --kernel-release` and `zfs version` in that guest before repeating item 1 with a disposable encrypted
+file-backed pool. No exact-kernel guest was available, so item 1's calls were not rerun. Matching the module
+release in the Ubuntu guest does not establish that the host kernel passes the calls.
+
+### What this repeat did not show
+
+- No run on `7.3.5-1-cachyos`, because no built-in or locally supplied image booted it. No probe ran against
+  the host's `zpcachyos` pool.
+- No product-level removal, handler readiness gate, or concurrency guarantee. The same-name test sequenced
+  the substitution; the privileged program was a fixture, not a delegated primitive or a production service.
+- No universal transaction-group provenance rule, destroy batch limit or proof against a change between
+  inspection and use. Only the selected promote, batch and hold cases were exercised.
+- No complete namespace or mount-reference exclusion. The guest scan had readable, live representatives
+  for the observed namespaces; the result does not generalize to pinned namespaces or racing task changes.
