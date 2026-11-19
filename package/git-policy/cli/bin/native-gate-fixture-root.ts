@@ -17,8 +17,10 @@
  (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
 
  The size is a ceiling under the container's memory bound: tmpfs pages count against the container's memory, so a
- fixture tree that outgrows the ceiling fails with `ENOSPC` naming the fixture root. That keeps much more of the
- container's memory for its processes than the fixtures take, which is why the size is far below the memory bound
+ fixture tree that outgrows the ceiling fails with `ENOSPC` naming the fixture root instead of ending the run with an
+ out-of-memory kill. The measured whole-suite run held at most 994 MiB of process pages while its fixtures peaked at
+ 222 MiB, so the gate's 2048 MiB bound leaves about 1054 MiB for fixtures; this ceiling sits below that headroom, at
+ 38% of the bound, so a runaway fixture tree meets the ceiling first
  (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`, the section on the measured whole-suite run).
  */
 import { imagePackageRoot, } from './native-layered-build.ts';
@@ -36,11 +38,12 @@ export const gateFixtureRoot: string = `${imagePackageRoot}/${subjectCrate}/targ
 /**
  Size of the tmpfs mounted at {@link gateFixtureRoot}.
 
- Measured 2026-11-19: the whole gate suite peaked at 222 MiB of fixture bytes on this tmpfs (the run recorded in
- `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`), so this ceiling leaves 1278 MiB of headroom,
- and the suite's own container peaked at 1192 MiB of its 2 GiB bound.
+ Measured 2026-11-19: the whole gate suite held at most 994 MiB of process pages and peaked at 222 MiB of fixture bytes
+ on this tmpfs, so the gate's 2048 MiB bound leaves about 1054 MiB for fixtures (the run recorded in
+ `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`). This ceiling is 3.5 times the fixture peak and
+ 286 MiB below that headroom, so a fixture tree that outgrows it meets this ceiling before it meets the memory bound.
  */
-export const gateFixtureRootSize: string = '1500m';
+export const gateFixtureRootSize: string = '768m';
 
 /**
  Permission bits of {@link gateFixtureRoot}: every test process of the container writes below one root, whatever user

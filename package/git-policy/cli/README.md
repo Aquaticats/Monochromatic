@@ -6060,7 +6060,7 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
 - `native:test:host` runs the unit tests and `native:test:binary:host` runs the tests that start the built executable,
   both against the host's Git while iterating.
 - The gate's tests keep their fixtures on a tmpfs the test container makes:
-  `--tmpfs /work/package/git-policy/cli/target/gate-fixtures:rw,size=1500m,mode=1777` and
+  `--tmpfs /work/package/git-policy/cli/target/gate-fixtures:rw,size=768m,mode=1777` and
   `--env CLI_GIT_TEST_ROOT=/work/package/git-policy/cli/target/gate-fixtures`
   (`bin/native-gate-fixture-root.ts`),
   `CLI_GIT_TEST_ROOT` being the variable both faces of the suite already read to move their fixture root.
