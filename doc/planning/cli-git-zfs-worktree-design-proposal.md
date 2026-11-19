@@ -134,9 +134,10 @@ entries, not the live clone bytes. Each clone needs its own snapshots ([nested-c
 
 Clones must inherit `mountpoint=legacy`. The container's `canmount=off` is local; the probe saw `canmount=on` on
 its child. No clone gets an automatic mount or an `fstab` entry. `zfs mount -a` and the systemd ZFS mount generator
-skip legacy datasets. The OpenZFS `zfs-2.4.4` source shows that explicit `zfs mount <clone>` refuses a legacy
-mountpoint rather than deriving a path (`cmd/zfs/zfs_main.c:7240` to `:7248`, the mount branch). The runtime
-control is pending in the [VM measurement record][measurements]. An ordinary clone mountpoint would reopen the
+skip legacy datasets. [VM item 10][vm-legacy] measured explicit `zfs mount <clone>` exiting 1 with
+`legacy mountpoint` and leaving the slot unmounted despite `canmount=on`. The same clone attached by descriptor.
+This confirms the OpenZFS `zfs-2.4.4` mount branch (`cmd/zfs/zfs_main.c:7240` to `:7248`), not the unmount branch.
+Treat the refusal as expected; never substitute a path mount. An ordinary clone mountpoint would reopen the
 early-mount hazard even if only root could set it. See item 2 of the [nested-clone research][nested] and the
 skip paths in `lib/libzfs/libzfs_mount.c:295` to `:297` and
 `etc/systemd/system-generators/zfs-mount-generator.c:430` to `:432`.
@@ -160,19 +161,24 @@ unprotected privileged checkout mount by path. The [planning record][zfs-plan] n
 exposure for existing dataset mountpoints inside account-owned home paths, including `~/.cache`, `~/.npm`,
 `~/.cargo/build`, `~/.cargo/registry` and the vm-builder output. Hardening those existing mount targets is outside
 this proposal; gating mounts nested under the checkout on checkout readiness is not.
-The [checkout boot protection choice](#open-project-choices) remains open;
-the installation must prove the selected protection before enabling the checkout mount and make the checkout
-available before account sessions and clone reconciliation. Inventory **every dataset mounted under the checkout
-path**, regardless of ZFS ancestry. Read-only `zfs list` confirms the mounted vm-builder output is
-`zpcachyos/nosnap/vm-builder-output`. No such dataset may attach until the checkout mount is verified. A failure
-of import, key loading or checkout mount must not add mounts or mountpoint folders to the exposed home underlay.
-For a legacy checkout, exclude every nonclone nested dataset from the automatic scan (candidate: `canmount=noauto`).
-For the vm-builder output and any other nested dataset, order its explicit mount unit after and require the
-verified descriptor checkout provider. Do not let the checkout mount cover a nested mount on the home underlay.
-The actual `zfs mount -a` ordering and failed-checkout controls are pending in the
-[VM measurement record][measurements].
-If ordinary path ordering cannot fail closed, explicitly gate the nonclone nested mounts on verified checkout
-success even with an ordinary checkout. Do not enable either boot option that fails this condition.
+The [checkout boot protection choice](#open-project-choices) remains open. [VM item 8][vm-immutable] measured
+that an immutable checkout underlay refused account rename and removal while unmounted, still allowed ordinary
+mounting, and retained the flag across reboot with manual import and key load. Parent rollback to a pre-flag
+snapshot removed the protection and allowed substitution again. Verify the intended underlay identity and
+protection before automated checkout attach, including after reimport or rollback, not merely at installation.
+The selected protection must make the checkout available before account sessions and clone reconciliation.
+The probe did not replace an ancestor of the protected entry or exercise unattended boot.
+
+Inventory **every dataset mounted under the checkout path**, regardless of ZFS ancestry. The recorded host
+inventory identifies `zpcachyos/nosnap/vm-builder-output`. In [VM item 9][vm-nested-boot], `zfs mount -a` skipped
+the legacy checkout but attached its nonclone path descendant to the home underlay. The later checkout attach
+hid the output and its marker, but the mount ID remained and the marker returned after checkout unmount. Verify
+path reachability as well as mount-table membership. A failure of import, key load or checkout mount must not add
+mounts or mountpoint folders to the exposed home underlay. For a legacy checkout, exclude every nonclone path
+descendant from the automatic scan (candidate: `canmount=noauto`) and require the verified descriptor checkout
+provider before its explicit mount unit can run. For an ordinary checkout, explicitly gate nested mounts on
+verified success if path ordering cannot fail closed. A failed ordinary checkout mount was not measured;
+prove the failure control and production ordering for the selected option before enabling it.
 
 ### Scoped delegation
 
@@ -673,9 +679,10 @@ Use the same facts as managed preflight. Distinguish healthy, known drift and un
 name which add route remains available. Setup findings go to standard error and do not change `doctor`'s exit
 status. `doctor` does not start a service, create a test dataset, repair registrations or change configuration.
 
-- Check `/dev/zfs`, the ABI, the pinned pool and dataset identities, clone parent and clone properties, checkout
-  mount, checkout boot protection, propagation and caller visibility. For the root-once move print the verified
-  cutover and rollback steps, commands to create the datasets and install the protection selected by the project,
+- Check `/dev/zfs`, the ABI, the pinned pool and dataset identities, encryption root and key availability, clone
+  parent and clone properties, checkout mount, checkout boot protection, propagation and caller visibility.
+  Check path reachability of nested mounts; a mount-table entry alone can describe a hidden mount.
+  For the root-once move print the verified cutover and rollback steps, commands to create the datasets and install the protection selected by the project,
   and paths with the actual owner and expected properties. Do not propose chowning the account's slots to root.
   On ABI refusal name the loaded module and target plus the supported compatibility evidence, not a bypass.
 - Check recorded parent and slot identities and name the failing field or path component. For a legitimately
@@ -714,12 +721,13 @@ No option here is selected or ranked by this revision. At the owner handoff, pre
 in the question tool with its options, pros and cons, and a recommendation that explains each adjacent pair
 in the ranking. Use the pending measurements where they affect the options; a ranking is not a decision.
 
-- Checkout boot mount protection. Keep an ordinary checkout mountpoint and use `chattr +i` on the covered entry
-  (immutable-entry and rollback proof pending in the [VM record][measurements]); or use `mountpoint=legacy` with a
-  descriptor boot service that verifies the checkout underlay. The first retains normal checkout mounting if all
-  nested mounts can be gated on verified success. The second avoids a privileged checkout attach by pathname but
-  needs a separate provider and explicit ordering of the vm-builder output and all other nonclone datasets
-  under the checkout. Both must prevent automatic mounts into the home underlay if checkout mounting fails.
+- Checkout boot mount protection. Keep an ordinary checkout mountpoint and verify an immutable covered entry, or
+  use `mountpoint=legacy` with a descriptor boot service that verifies the checkout underlay.
+  [VM item 8][vm-immutable] showed the flag surviving ordinary mount and reboot, but not rollback to a pre-flag
+  parent snapshot. [VM item 9][vm-nested-boot] showed an automatically mounted path descendant hidden by a later
+  legacy checkout attach. Both options must gate all path descendants on verified checkout readiness; the legacy
+  option requires exclusion from automatic mounting and explicit ordering. Failed ordinary mount and unattended
+  boot remain unmeasured.
 - Checkout propagation policy. The [VM record's host inventory][vm-fixture] observed `shared` for `/`, `/home`
   and `~/.cache`; the checkout does not yet have a separate mount, so its propagation is not measured here.
   Either require the administrator to make the checkout mount private before enabling the route, make only
@@ -1002,6 +1010,9 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
 [vm-key]: cli-git-zfs-measurements-owed-before-acceptance.md#5-encrypted-fixture-and-an-unloaded-key
 [vm-prune]: cli-git-zfs-measurements-owed-before-acceptance.md#6-deleted-underlay-pointer-prune-and-lock
 [vm-nosuid]: cli-git-zfs-measurements-owed-before-acceptance.md#7-setuid-execution-on-the-clone
+[vm-immutable]: cli-git-zfs-measurements-owed-before-acceptance.md#8-immutable-underlay-boot-and-parent-rollback
+[vm-nested-boot]: cli-git-zfs-measurements-owed-before-acceptance.md#9-automatic-mounts-below-a-legacy-checkout
+[vm-legacy]: cli-git-zfs-measurements-owed-before-acceptance.md#10-explicit-zfs-mount-of-a-legacy-clone
 [answers]: cli-git-zfs-worktree.md#owners-answers-of-2026-11-18
 [zfs-plan]: cli-git-zfs-worktree.md
 [handover]: ../handover/cli-git-rust-implementation.md
