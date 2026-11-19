@@ -259,6 +259,11 @@ one line a minute in `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026
 - Reviews now start on the Qwen plan (`qwen-token-plan-individual` `deepseek-v4.1-flash-1017`, the owner's order of
   2026-11-18); a review a 429 ends moves to the next provider by hand until the virtual provider replaces that.
 - The nine runs stopped for the shutdown were put back at the head of the queue to go on from their sessions.
+- No verdict again. The probe exited at its first reading: every user unit inherits `NODE_OPTIONS=--permission-audit`
+  since 2026-11-18T19:35:41-05:00, and Node 26.13.1 then refuses `fsyncSync` ("fsync API is disabled when Permission
+  Model is enabled"); a later probe needs `NODE_OPTIONS` cleared for its own unit or another way to sync. The level
+  never filled (6 to 18 runs). At 21:47:42 the owner's "We shouldn't use worktrees heavily before we implement the zfs
+  parts for the git wrapper." stopped the filling, so the search waits for the wrapper's ZFS route.
 
 ## Readings
 

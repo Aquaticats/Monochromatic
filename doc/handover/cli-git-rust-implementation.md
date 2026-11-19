@@ -39847,6 +39847,19 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### No heavy worktree use before the wrapper's ZFS route (2026-11-18T21:47:42-05:00)
+
+The owner, in plain text: "We shouldn't use worktrees heavily before we implement the zfs parts for the git wrapper."
+So the queue's filling stopped: `fill-free-places-at-level-19-on-the-new-drive-20261118T211817` and the one-off
+`start-several-queue-entries-to-fill-level-20-20261118T214424` were stopped at 21:47:42 (each Pi run makes a worktree,
+and on ZFS the wrapper takes the plain route, a byte copy of the ignored files). The 18 runs going then finish by
+themselves and are not stopped. No queue entry starts until the ZFS route is in the wrapper; the ZFS route's own runs
+(measurement, revision) and the virtual provider's writer continue. The agent-cap search (level 20 on the new drive)
+waits with it: its probe had not run anyway, because since 2026-11-18T19:35:41-05:00 every user unit inherits
+`NODE_OPTIONS=--permission-audit` (`doc/research/node-permission-default-with-npm.md`, "Persistent audit default on
+CachyOS"), and under it Node 26.13.1 refuses `fsyncSync` ("fsync API is disabled when Permission Model is enabled"),
+which the probe calls; no TypeScript file under `package/` calls `fsync`, so runs are not affected by that refusal.
+
 ### The queue runs again, reviews on the Qwen plan first (2026-11-18T21:18:17-05:00)
 
 Nothing had restarted the queue after the shutdown of 2026-11-17 and the boot of 2026-11-18 12:27; nothing recorded held
