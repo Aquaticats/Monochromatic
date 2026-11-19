@@ -1057,3 +1057,49 @@ Neither says what form a reported result takes,
 Considered and not chosen by the owner the same day:
  a rule to time and test only on the runtimes this repository runs on,
  proposed after the same session had timed on Deno alone.
+
+#### Pre-response checklist: why RSN treats a stupid-looking choice as reasonable
+
+Recorded 2026-11-19T18:05:08-05:00.
+The owner asked for a rule worded
+ "Don't assume the user, owner, client, or yourself is an idiot",
+ and gave the reasoning:
+ "most atrocities in history are made by reasonable persons
+ due to how they thought or what they heard or whatever.
+ Therefore, not dismissing any stupidity as just that person being an idiot could be hugely beneficial."
+
+"Idiot" explains nothing an agent can act on:
+ it ends the search and leaves no doc,
+ rule,
+ brief or belief to change.
+"Reasonable given what they knew or heard" names a cause,
+ and the cause is what gets kept,
+ asked about or fixed.
+
+`RSN` states the positive claim, that everyone is reasonable from where they stand,
+ because the "Negative prompts" section of this doc steers away from "never assume X".
+
+Reasonable does not mean right.
+The rule covers real mistakes as well as choices that only look wrong,
+ and its last clause lists what happens to the cause once found:
+ a sound reason keeps the choice,
+ an unknown one gets asked about,
+ and a false or stale belief gets fixed at its source.
+Applied to the agent's own mistake,
+ "I was careless" is the same non-explanation,
+ so the agent names the input that led it there.
+
+The rule is about the reasons behind choices and mistakes.
+Facts still get measured,
+ and defects in things this repository controls still get fixed.
+
+"Client" means a person the work is for,
+ by the owner's answer the same day.
+
+Considered and not chosen by the owner the same day:
+ a separate rule on writing for a competent reader,
+ skipping explanations of what the reader has shown they know;
+ and a short maxim that named no action.
+Offered as a fallback and not taken:
+ splitting `RSN` into a rule for choices before overriding them
+ and a rule for mistakes after they happen.

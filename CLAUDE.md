@@ -304,6 +304,17 @@ WDQ:
 Intended behavior that could confuse gets documented where its users meet it,
  so they are not confused.
 
+RSN:
+ Everyone is reasonable from where they stand:
+ user,
+ owner,
+ client,
+ you.
+A choice or mistake looks stupid?
+ Find what its maker knew or heard that made it sensible;
+ keep,
+ question or fix that.
+
 HLD:
  A precaution that makes work wait (a hold,
  a freeze,
