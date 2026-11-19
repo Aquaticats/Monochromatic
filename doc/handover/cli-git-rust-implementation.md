@@ -39810,6 +39810,17 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### The virtual Pi provider is built now, beside the restarted queue (2026-11-18, about 21:30)
+
+The owner, in plain text: "If you feel like doing the virual provider first is faster, tell me." Asked through the
+question tool (Pi 1.5.2's `ModelRegistry` has `find(provider, modelId)` and `getApiKeyAndHeaders(model)`, so a
+provider plugin can fall back per request mid-session; its build time is unmeasured), the owner answered "A. And a lot
+of these providers limit rates according to weather, so we need to account for that as well." Option A was: restart
+the queue now with fallback by hand (Qwen plan first), and build issue 6314 now with one GPT writer and a DeepSeek
+review, switching the queue to it once it is in main. This session's reading of the second sentence, open to the
+owner's veto: a provider's limit changes over time, so the virtual provider holds no fixed number as a member's limit,
+and after a refusal moves on and later tries the preferred member again rather than demoting it for good.
+
 ### A virtual Pi provider with models writer and reviewer, deferred (2026-11-18, evening)
 
 In plain text: "Open an issue saying the GPT -> Qwen -> Synthetic -> opencode-go -> Neuralwatt flex fallback chain
