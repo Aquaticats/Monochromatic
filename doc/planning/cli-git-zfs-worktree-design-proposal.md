@@ -531,7 +531,8 @@ For private staging, propose a root-owned `0700` bind at `/run/git-worktree-clon
 checkout and account-owned paths. The root boot reconciliation unit creates and makes it private in the host mount
 namespace each boot. Reuse only a verified staging mount on subsequent sweeps; validate its identity and private
 propagation before each move. [VM item 3][vm-propagation] used a private bind of a directory on the guest root
-filesystem, not this location or boot setup. The location and lifecycle are untested product requirements.
+filesystem, not this location or boot setup. The location and lifecycle are untested product requirements, and the
+placement is an adopted default open to veto ([Adopted defaults open to veto](#adopted-defaults-open-to-veto)).
 
 Recheck the canonical lookup before moving. The synchronized substitution in [VM item 4][vm-unmount] was
 caught by that check; the move uses the verified descriptor, not a new slot path lookup. Move to root-owned
@@ -975,6 +976,8 @@ working setup. This proposal has neither installed nor run the root-once command
 The open choices are these, with the two alternatives under
 [Clone removal identity protection](#clone-removal-identity-protection) as one choice. They do not reopen
 checkout path, account ownership, ZED, the fallback or recursive snapshot policy. No option is selected or ranked.
+Defaults this draft adopts on its own, which a veto can change, are listed separately under
+[Adopted defaults open to veto](#adopted-defaults-open-to-veto).
 At the owner handoff, present each decision separately in the question tool with its options, pros and cons, and a
 recommendation that explains each adjacent pair in the ranking. Use the VM findings and identify what remains
 unmeasured; a ranking is not a decision.
@@ -1081,6 +1084,25 @@ unmeasured; a ranking is not a decision.
   first preserves Git visibility but reserves the slot until cleanup; the second frees the slot but requires
   recovery without its Git entry. [VM item 11][vm-promote] showed a dependency blocking a snapshot delete, not
   either registration policy. If clone lineage itself is unproved, removal refuses and keeps the registration.
+
+### Adopted defaults open to veto
+
+These are the draft's own defaults, not owner decisions. Each is adopted so the rest of the design has a concrete
+shape, and each is listed here for a veto; the section named with it is where it is used.
+
+- Receipts as atomic files under `/run/git-worktree-clone-mount-results`, rather than root-written
+  acknowledgement properties: an acknowledgement property would raise the ZED event the receipt exists to avoid
+  ([Requests, results and ordering](#requests-results-and-ordering); reasoning from the property event
+  [VM item 5][vm-key] delivered).
+- The mount handler as a second Linux binary inside `package/git-policy/cli`, rather than a package of its own: it
+  shares the binding and the ABI gate without adding a package
+  ([Binding crate and compatibility](#binding-crate-and-compatibility)).
+- No implicit remount after a failure or restart: an implicit remount would race the standing `unmount` intent and
+  any staged mount ([Cancel a blocked removal](#cancel-a-blocked-removal); reasoning, not measured).
+- Private staging at `/run/git-worktree-clone-mount-staging`, rather than staging under the checkout or another
+  account-owned path: the mount has to be unmounted outside trees the account controls, and the location and its
+  boot lifecycle are untested ([Descriptor mount and unmount](#descriptor-mount-and-unmount); a veto may place it
+  elsewhere).
 
 ### Clone removal identity protection
 
