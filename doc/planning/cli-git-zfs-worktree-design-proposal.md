@@ -629,7 +629,9 @@ working setup. This proposal has neither installed nor run the root-once command
 ## Open project choices
 
 The choices do not reopen the checkout path, account ownership, ZED, the fallback or recursive snapshot policy.
-No option here is selected by this revision.
+No option here is selected or ranked by this revision. At the owner handoff, present each decision separately
+in the question tool with its options, pros and cons, and a recommendation that explains each adjacent pair
+in the ranking. Use the pending measurements where they affect the options; a ranking is not a decision.
 
 - Checkout boot mount protection. Keep an ordinary checkout mountpoint and use `chattr +i` on the covered entry
   (immutable-entry and rollback proof pending in the [VM record][measurements]); or use `mountpoint=legacy` with a
