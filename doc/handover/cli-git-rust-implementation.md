@@ -40184,6 +40184,10 @@ first remedy (code matches the sentence: ask the manager about a recorded named 
 narrowed to the `process` tool; L1, L2, L4 in the same round. GOING: `pi-driver-work-left-running-counts-only-its-own-4`
 (run-4). **Follow-up, its own run later:** `watch-pi-run.unit.test.ts:999-1001` reads `feed.jsonl` before the write
 stream flushes (failed twice in the full suite, passes alone; review L3).
+Run-4 ended `idle` (57 turns; `317de29035`, `4b08423a61`): a recorded command naming a unit now asks the manager whatever
+the record's last status; its test failed first on the pre-fix source (`expected [] to deeply equal [ Array(1) ]`); L1,
+L2, L4 answered; README and brief rules say the `process` tool is the route; full suite exit 0, 209 passes. GOING: a
+second delta review of `33c214d45d..4b08423a61` on Synthetic (unit `...-at-4b08423a61-1`); merge on a clean delta.
 
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed
