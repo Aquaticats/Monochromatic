@@ -1286,12 +1286,14 @@ is approved, released or implemented: this file remains a non-final draft.
   not free-running interleavings or failed rollback. The unselected alternative, leaving the mount attached and
   reporting both paths and its identity, avoids another privileged move but leaves the mount at an
   account-selected location.
-- Busy unmount after a staging move. Decided: "Reattach when safe (Recommended)", against the ranking the question
-  round carried, which put staged retention first, and asked as following from the cancellation decision: it
-  moves the same mount back to the original slot only after revalidation, and retains it staged otherwise.
-  Reattach restores the worktree's visibility but adds a second attach and a race; the unselected alternative
-  leaves the worktree unavailable. [VM item 4][vm-unmount] measured busy refusal in staging and successful retry
-  after the holder exited, not reattach or interruption recovery. Both routes require staged-state tracking.
+- Busy unmount after a staging move. Decided: "Reattach when safe (Recommended)", asked as following from the
+  cancellation decision, where without `--force` the removal auto-cancels and with it the holders are ended. The
+  overnight list ranked staged retention first; the question as re-asked recommended reattach. It moves the same
+  mount back to the original slot only after revalidation, and retains it staged otherwise. Reattach restores the
+  worktree's visibility but adds a second attach and a race; the unselected alternative keeps it staged until
+  administrator recovery, so the worktree stays unavailable. [VM item 4][vm-unmount] measured busy refusal in
+  staging and successful retry after the holder exited, not reattach or interruption recovery. Both routes require
+  staged-state tracking.
 - Dirty source on rung 1. Decided: "Verified restore (Recommended)", a verified dirty-main restore comparable to
   Btrfs. The unselected clean-only route would have narrowed the proof but lost clone speed on a dirty main
   checkout, and the main checkout here usually holds other sessions' uncommitted edits. Dirty support needs a
