@@ -101,7 +101,9 @@ const waitingPromptPlays: ReadonlyMap<string, (id: unknown,) => Promise<void>> =
     'inbox-before-settle',
     async function finishWithAMessageWaiting(id,) {
       if (seen.prompts === 1) {
-        /** Inbox entry in the run folder the driver has already prepared. */
+        /**
+         Inbox entry in the run folder the driver has already prepared.
+         */
         const messageFile = env.STAND_IN_PI_INBOX_FILE;
         if (messageFile === undefined) {
           throw new Error('the inbox-before-settle scenario needs STAND_IN_PI_INBOX_FILE',);
