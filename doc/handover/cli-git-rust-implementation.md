@@ -40169,7 +40169,22 @@ N5 to N11, the broken backtick spans.
 **Provider writer run-7** hit its 200-turn cap after 16 min with nine commits (`cb7d6a66ab` to `dbc6f57268`: OpenAI out
 of the writer pool, the move gated on OpenAI's opening, a set-aside policy stop yielded instead of a later 429, the
 producer-less prefixes dropped, stand-ins labelled); worktree clean. Resumed as `...-without-openai-2` (run-8) for
-medium 2, lows 4, 8, 10, 11 and the README, then its report.
+medium 2, lows 4, 8, 10, 11 and the README, then its report. It ended `idle` (37 turns) at `87569e86ef`, clean: eleven
+commits from `a4b227503a`; all four package tasks pass (72 cases); each new test shown failing on its mutant (`M4`, `M7b`,
+`M3g`, `M1p`, `M12`, `M13`) in a scratch copy; the real 795-character overage capture is the fixture; it deleted the
+`http` prefix with the two named ones and kept `headerReset`'s now-unreachable OpenAI branch pinned by a direct call (both
+flagged). It kept the Qwen 60 s hold on the Token Plan FAQ; **the coordinator opened that page (2026-11-19) and it does
+carry "429 Requests rate limit exceeded" and "Wait about 1 minute before retrying"**. GOING: DeepSeek short review on
+Synthetic, `pi-review-pi-plugin-rate-limit-fallback-at-87569e86ef-1` (review file under
+`change-reviews/pi-plugin-rate-limit-fallback-at-87569e86ef/`).
+
+**For the owner (terms of the Qwen plan, found 2026-11-19 on that same FAQ page):** "Token Plan Personal Edition is for
+individual interactive development through officially designated tools (such as Cursor, Claude Code, and Windsurf).
+Using the API key for production automated services, batch scripts, or scheduled background tasks is not allowed." It
+also recommends 6 to 8 concurrent agents on the Pro tier. The reviewer pool puts `qwen-token-plan-individual` first (the
+owner's word of 2026-11-18), and the coordinator's Pi runs are scripted and run in systemd units. Whether that use fits
+those terms is the owner's call; no new run is started on the Qwen plan until then (the benchmark already going keeps
+its Qwen control arm).
 
 The third prewarm run ended `idle` (77 turns, no new commit; report updated): through a built wrapper with the fill's
 staging and target replaced mid-clone, the tip left the other command's files at both names byte for byte and said why
