@@ -39,7 +39,7 @@ use super::fault::{COMMIT_ARGUMENTS, Effect, Injection, When, staged_repository,
 use super::fault_limits::check_limited_run;
 use super::fault_run::{end_the_pressure, in_batches, run_unsettled, run_watched, spawn_watched, unbounded_wrapper, with_manager};
 use super::strace::{strace_available, strace_program};
-use super::support::{Fixture, ServiceLaunch, fixture, fixture_root, hermetic, service_runtime, wrapper_first_path};
+use super::support::{ABSENT_ACKNOWLEDGED_VARIABLE, Fixture, ServiceLaunch, fixture, fixture_root, hermetic, service_runtime, wrapper_first_path};
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -1185,10 +1185,21 @@ fn a_worktree_copy_killed_at_each_chmod_leaves_a_recoverable_repository() {
 /// (`may_clone`); every other file system has Git check the worktree out instead,
 /// so there is no `ioctl` to be killed at and the control says it did not run rather than passing as coverage it has
 /// not.
+/// It fails with the fixture root it found unless the run states that the absence is known
+/// (`CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED`,
+/// which the gate image sets because its fixture root is a tmpfs that shares no data blocks).
 #[test]
 fn a_worktree_copy_killed_at_each_ioctl_leaves_a_recoverable_repository() {
     let root: PathBuf = fixture_root();
     if !flow_makes(&copy_flow(), "ioctl", root.as_path()) {
+        let acknowledged: bool = std::env::var_os(ABSENT_ACKNOWLEDGED_VARIABLE).is_some_and(|value| { return !value.is_empty(); });
+        assert!(
+            acknowledged,
+            "the control needs a fixture root on a file system that shares data blocks between files, so the copy flow \
+             clones and makes an ioctl, but {} shares none; set CLI_GIT_TEST_ROOT to a directory on such a file system, \
+             or set {ABSENT_ACKNOWLEDGED_VARIABLE}=1 to state that this run has none",
+            root.display()
+        );
         eprintln!("skipped: the fixture root {} is on a file system that shares no data blocks between files, so the copy flow clones nothing and makes no ioctl", root.display());
         return;
     }
