@@ -8,8 +8,9 @@ boot and shutdown unit.
 
 This revision drops the private-ancestor requirement: [VM item 3][vm-propagation] made only the checkout private
 and enabled staging, at the cost of late-mount visibility in the confined reader. It requires proof of snapshot
-lineage before the first deletion and before every subsequent one: [VM item 11][vm-promote] lost older checkout
-history to an explicit delete despite the recursive refusal. It also requires live dataset identity and staged
+lineage immediately before each destruction request: [VM item 11][vm-promote] lost older checkout history to an
+explicit delete despite the recursive refusal, and [VM item 14][vm-batch] tested a single batch. It also requires
+live dataset identity and staged
 recovery state (item 4), separates clone creation from key and mount readiness (item 5), and requires boot-time
 verification of underlay protection and nested mount reachability (items 8 and 9). The other observations
 confirm fixture behavior, not the implementation.
@@ -522,6 +523,14 @@ and its later snapshot (`item-11-exact.log:69` to `:94` and `:123` to `:135`). N
 dependent-clone destruction; a dependency refusal protects the specific snapshot it names, not the rest of the
 history.
 
+[VM item 14][vm-batch] sent the mixed `@earliest` and `@origin` batch through both paths. The CLI refused a
+snapshot with a dependent clone before issuing any `ZFS_IOC_DESTROY_SNAPS` ioctl. The direct request returned
+`EEXIST`, named only `@origin` in the error list, and kept both snapshots. The own-snapshot control deleted both
+own snapshots in one ioctl. The kernel prechecks the whole request before deleting
+(OpenZFS `zfs-2.4.4`, `module/zfs/dsl_destroy.c:598` to `:600` and `:630` to `:653`). The request is still
+name-based, ignores missing snapshot names (`lib/libzfs_core/libzfs_core.c:442` to `:456`), and is not atomic with
+the later head destroy. Neither a successful batch nor a dependency refusal establishes provenance.
+
 1.  Prove the live pool, clone and origin dataset GUIDs match the binding. Then prove lineage in this order:
     - Necessary check: read the clone's live `origin` and resolve it to the recorded origin dataset and origin
       snapshot GUID. Require the recorded direct origin, not just a name match. Check the recorded clone and
@@ -547,16 +556,25 @@ history.
     intent and print the slot, dataset and exact snapshot names to be lost. Release local handles and request
     `unmount`. Verify the clone is unmounted, including in staging, and the request, clone GUID, underlay
     identity and Git registration still match. A missing, mismatched or busy unmount blocks destruction.
-3.  After unmount and before the first delete, reprove lineage and persist the verified snapshot inventory and
-    the expected clone identity as the destruction plan. Revalidate the recorded lineage and each candidate's
-    identity before each explicit snapshot destroy, then destroy only the verified unmounted clone. Address
-    [identity at destruction](#clone-removal-identity-protection) under the policy still to be selected. A per-slot
-    claim only serializes cooperating wrapper operations. [VM item 12][vm-replacement] shows that a second GUID read
-    alone cannot close the name-based check/use interval. Under either option, administrators must quiesce managed
-    operations before outside lineage changes and invalidate affected removal proofs (unmeasured operating rule).
-    Holds and dependencies are named, not bypassed. Stop on a changed inventory and
-    reprove scope before authorizing any revised plan. Print what actually disappeared and what remains,
-    including on partial failure, and retain per-name results for recovery.
+3.  After unmount, persist the verified inventory and expected clone identity as the destruction plan.
+    Reprove lineage and candidate identities immediately before submitting the full verified snapshot set in one
+    `ZFS_IOC_DESTROY_SNAPS` request with `defer=false`; retain the per-name error list (direct route, [item 14][vm-batch]).
+    If root conditional destruction is selected, require equivalent whole-batch checks and per-name results inside
+    its single channel program request, not an external name-based ioctl after a conditional check (unmeasured).
+    Skip the snapshot request for an empty set. Only then destroy the verified unmounted head under the selected
+    [identity policy](#clone-removal-identity-protection). A per-slot claim only serializes cooperating wrapper
+    operations. [VM item 12][vm-replacement] shows that another GUID read does not bind the later name-based request.
+    Under either option, administrators must quiesce managed operations before outside lineage changes and invalidate
+    affected removal proofs (unmeasured operating rule).
+
+    If the verified set exceeds the supported request budget, the proposed split is to sort by name and take the
+    largest fitting prefix of the remaining recorded tuples, repeatedly. Budget for encoded inputs and per-name
+    results, and for program limits on the root route. Establish those limits in the VM; if even one tuple cannot
+    fit, or the error left an unknown outcome, stop rather than retrying by name. Before every chunk, verify prior
+    outcomes and reprove the full remaining inventory and lineage, not just that chunk. A split reopens the
+    inspection-to-use window and can leave partial cleanup across requests; item 14 did not test limits or a split.
+    Holds and dependencies are named, not bypassed. Stop on a changed inventory and reprove scope before authorizing
+    any revised plan. Print what actually disappeared and what remains, and retain per-name results for recovery.
 4.  For separate origin cleanup, prove the exact recorded origin dataset and snapshot GUIDs and confirm that
     the snapshot still belongs to that dataset. Apply the same identity rule using the authority the project
     selects. The kernel's `snapshot has dependent clones` refusal is the dependency check, not a scan of
@@ -879,6 +897,10 @@ the account's attempt with a matching tuple was denied. The substitutions were s
   adds a privileged request and recovery surface. Before enabling it, prove scope against spoofed or replayed
   requests and same-name replacements. Persist the verified plan under root control before mutation; after a lost
   response or restart, prove which recorded identities survive or are gone before resuming, never replay by name.
+  Check the entire approved snapshot batch and all destroy prerequisites within the program before its first
+  mutation, following the precheck pattern in `module/zfs/dsl_destroy.c:630` to `:653`. Prove the same no-loss
+  refusal and per-name results as the direct batch, including program resource failures. Administrative exclusion
+  alone does not prove rollback after a program error (`man/man8/zfs-program.8:37` to `:40` and `:48` to `:54`).
   Item 12 proved only a single conditional clone destroy, not the request interface, multi-object destruction or
   recovery; those are unmeasured design requirements.
 
@@ -1024,6 +1046,10 @@ system changes on the host. These gates carry the [handover's H1 and H2 disposit
   successful destroy on a match, no delegated destroy, and recovery after interruption for root destruction.
   Under either policy an ordinary authorized removal must destroy the verified clone and its own snapshots and
   print the loss in the same invocation. Refusal controls test unsafe cases; a route that only refuses does not pass.
+- Repeat the [VM item 14][vm-batch] mixed and own-snapshot batch controls through the binding, including per-name
+  errors and GUID preservation. Exercise the selected execution route and its supported size limit, a split with
+  a changed inventory between chunks, and interruption before and after the separate head destroy. For the root
+  option prove batch-equivalent refusal, including bounded program execution; item 12 did not test it.
 - Kill removal across unmount, snapshot destruction, clone and origin cleanup, and Git and directory cleanup.
   Verify busy and staged mounts, nested datasets, same-name replacements, held or new sanoid snapshots and another
   clone pinning the origin each block the unsafe next action. Check the before-destroy inventory and final loss
@@ -1140,6 +1166,7 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
 [vm-limits]: cli-git-zfs-measurements-owed-before-acceptance.md#what-this-did-not-show
 [vm-replacement]: cli-git-zfs-measurements-owed-before-acceptance.md#12-same-name-replacement-with-delegated-grants
 [vm-bookmark]: cli-git-zfs-measurements-owed-before-acceptance.md#13-creation-transaction-groups-and-a-bookmark-after-promote
+[vm-batch]: cli-git-zfs-measurements-owed-before-acceptance.md#14-one-snapshot-destroy-request-after-promote
 [answers]: cli-git-zfs-worktree.md#owners-answers-of-2026-11-18
 [zfs-plan]: cli-git-zfs-worktree.md
 [handover]: ../handover/cli-git-rust-implementation.md
