@@ -359,6 +359,11 @@ type Finished = {
   readonly temporaryFolder: string;
 
   /**
+   What the folder Pi's temporary files go in is once the run ended, which is what the run left behind.
+   */
+  readonly temporaryFolderAfterTheRun: KindOfAPath;
+
+  /**
    The folder this run was given, whose path a test about what the run folder holds needs.
    */
   readonly runFolder: string;
@@ -440,6 +445,40 @@ async function exists(path: string,): Promise<boolean> {
   catch (error) {
     if (isMissingFile(error,)) {
       return false;
+    }
+    throw error;
+  }
+}
+
+/**
+ What a path is, read after a run so a test sees what the run left behind.
+ */
+type KindOfAPath =
+  | { readonly mode: number; readonly isDirectory: boolean }
+    | { readonly absent: true };
+
+/**
+ Reads what a path is, or that it is not there. The answer is taken here rather than handed a path, because a test's own scratch
+ folder is removed when the run that used it returns.
+
+ @param path - the path to read
+
+ @returns its permission bits and whether it is a folder, or that nothing is there
+ */
+async function kindOf(path: string,): Promise<KindOfAPath> {
+  try {
+    /**
+     What the operating system says about the path.
+     */
+    const stats = await lstat(path,);
+    return {
+      mode: stats.mode & 0o777,
+      isDirectory: stats.isDirectory(),
+    };
+  }
+  catch (error) {
+    if (isMissingFile(error,)) {
+      return { absent: true, };
     }
     throw error;
   }
@@ -805,6 +844,11 @@ async function runDriver(
     },) ?? Promise.resolve(),
   ],);
   const logged = await readLines(log,);
+  /**
+   The folder the stand-in's own `os.tmpdir()` named, which is where Pi's tools keep a tool output too long for a result.
+   */
+  const temporaryFolder = logged.find((line,) => line.startsWith('temporary-folder ',))
+    ?.slice('temporary-folder '.length,) ?? '';
   const sentCommands = logged.filter((line,) => line.startsWith('command ',))
     .map((line,) => JSON.parse(line.slice('command '.length,),) as Record<string, unknown>);
   return {
@@ -822,8 +866,8 @@ async function runDriver(
     piArguments: logged.filter((line,) => line.startsWith('arguments ',)).flatMap((line,) =>
       JSON.parse(line.slice('arguments '.length,),) as string[]
     ),
-    temporaryFolder: logged.find((line,) => line.startsWith('temporary-folder ',))
-      ?.slice('temporary-folder '.length,) ?? '',
+    temporaryFolder,
+    temporaryFolderAfterTheRun: await kindOf(temporaryFolder,),
     runFolder,
     standInStarts: logged.filter((line,) => line.startsWith('arguments ',)).length,
     inbox: await listInbox(join(runFolder, 'inbox',),),
@@ -1867,11 +1911,12 @@ await describe({
         );
         // Pi's own process resolved this folder, so the variables the driver hands it name the folder and not `/tmp`.
         expect(run.temporaryFolder,).toBe(temporaryFolder,);
-        // The run is over, so the folder is read after it ended: a run keeps the folder its session transcript points into.
+        // The run is over, so this is what it left: a run keeps the folder its session transcript points into.
         expect(run.summary.endReason,).toBe('idle',);
-        expect(await exists(temporaryFolder,),).toBe(true,);
-        expect((await lstat(temporaryFolder,)).mode & 0o777,).toBe(TEMPORARY_FOLDER_MODE,);
-        expect((await lstat(temporaryFolder,)).isDirectory(),).toBe(true,);
+        expect(run.temporaryFolderAfterTheRun,).toEqual({
+          mode: TEMPORARY_FOLDER_MODE,
+          isDirectory: true,
+        },);
         for (const name of TEMPORARY_FOLDER_VARIABLES) {
           expect(run.environmentNames,).toContain(name,);
         }

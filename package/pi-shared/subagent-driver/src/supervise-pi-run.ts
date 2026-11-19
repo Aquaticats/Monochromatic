@@ -65,6 +65,10 @@ import {
   refuseWhenTheFolderHoldsAnEarlierAttempt,
   writeSummary,
 } from './write-summary.ts';
+import {
+  makeTemporaryFolderOfARun,
+  variablesNamingTemporaryFolder,
+} from './temporary-folder-of-a-run.ts';
 
 /**
 
@@ -185,6 +189,11 @@ export async function supervisePiRun(
   // for nothing.
   await refuseWhenTheFolderHoldsAnEarlierAttempt({ runFolder: options.runFolder, },);
   /**
+   The folder this run's Pi writes its temporary files in, made after the check above: that check refuses a run folder holding any
+   entry at all, so a folder made before it would refuse every run of its own.
+   */
+  const { folder: temporaryFolder, } = await makeTemporaryFolderOfARun({ runFolder: options.runFolder, },);
+  /**
    The wall limit in milliseconds, which is what every deadline and timer is computed from.
    */
   const wallMilliseconds = options.wallSeconds * MILLISECONDS_PER_SECOND;
@@ -257,6 +266,14 @@ export async function supervisePiRun(
    what a command can reach: the credential stores stay where they are.
    */
   const givenToPi: EnvironmentWithoutCredentials = stripCredentialsFromEnvironment({ environment, },);
+  /**
+   What Pi is started with: the environment above, with the variables that name this run's temporary folder, so no caller passes
+   `TMPDIR` by hand and one run's files live in one folder.
+   */
+  const environmentForPi: NodeJS.ProcessEnv = {
+    ...givenToPi.environment,
+    ...variablesNamingTemporaryFolder({ folder: temporaryFolder, },),
+  };
   record.note({
     kind: 'environment',
     removedNames: givenToPi.removedNames,
@@ -356,7 +373,7 @@ export async function supervisePiRun(
     record,
     inbox,
     deadline,
-    environment: givenToPi.environment,
+    environment: environmentForPi,
     secretValues: values,
     maskingArguments,
     standardErrorFile,

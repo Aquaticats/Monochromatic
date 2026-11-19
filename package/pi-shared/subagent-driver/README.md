@@ -1064,6 +1064,22 @@ the launcher that builds the session's environment asks it, once, before it make
   A run whose Pi is started more than once adds each start's output to this one file,
   in the order the starts were made,
   and the summary's `piStartFailures` reads the lines of the start each one is about.
+- `temporary-files-pi-wrote/`:
+  where Pi's tools keep what is too long for a tool result.
+  Pi writes those files under `os.tmpdir()`
+  (`dist/utils/output-files.js` in Pi 1.5.2),
+  which is `/tmp` unless a variable names another folder,
+  and rule `ATH` keeps scratch out of `/tmp`.
+  The driver makes this folder after it has checked that the run folder holds nothing of an earlier attempt,
+  gives it mode `0700`,
+  and starts Pi with `TMPDIR`, `TMP` and `TEMP` naming it,
+  so no caller passes `TMPDIR` by hand.
+  The folder is kept once the run ends:
+  the run's session transcript names the files in it,
+  so a reader follows those paths to what Pi kept.
+  The folder is one entry of the run folder like any other,
+  so a run given the folder of an earlier attempt is refused,
+  and its name says what it holds to whoever lists the folder.
 - `inbox/`:
   drop a message here to steer the run.
   Write it under a name starting with a dot,
@@ -1141,6 +1157,21 @@ so they are worth one check before trusting the rule:
 in the environment that carried 38 credential-shaped variables,
 neither carrier held any of those values,
 compared rather than printed.
+
+Three variables Pi's environment gains are the driver's own, never inherited:
+`TMPDIR`, `TMP` and `TEMP` name the folder this run's temporary files go in,
+`temporary-files-pi-wrote/` under the run folder,
+so what Pi's tools spill lands there rather than in `/tmp`.
+All three are set because `os.tmpdir()` reads them in that order on this platform
+(measured on 2026-11-19 with this machine's Node 26.13.1:
+with none of them set it answered `/tmp`,
+with all three set it answered the `TMPDIR` value,
+with `TMPDIR` unset the `TMP` value,
+and with only `TEMP` set that),
+and a command Pi's `bash` tool starts may read any of them.
+A `TMPDIR` the caller's own environment holds does not survive:
+rule `ATH` wants one run's files in one folder,
+and every launcher used to pass one by hand.
 
 ## What is masked before it reaches the model
 
@@ -1268,6 +1299,7 @@ and a Pi that answers a list without it is sent no prompt,
 ending the run as `masking-not-armed`.
 
 Pi keeps the whole text of a truncated tool output in a file under its temporary folder,
+which for a run is `temporary-files-pi-wrote/` in the run folder,
 and the extension rewrites that file too,
 so a value masked in what the model reads is not left in what Pi wrote.
 
