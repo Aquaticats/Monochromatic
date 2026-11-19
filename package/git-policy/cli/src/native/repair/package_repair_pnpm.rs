@@ -184,10 +184,56 @@ pub(crate) fn need_of(destination: &Path, environment: &RepairEnvironment) -> Pn
     };
 }
 
-/// The relink,
-/// awaited on the runtime the caller runs on.
+/// The variable pnpm expands in a store setting such as `${HOME}/.local/share/pnpm/store`.
+const HOME: &str = "HOME";
+
+/// What:
+///  Resolve the launcher's home off the runtime thread and stop waiting at the tool-start ceiling.
+/// Why:
+///  Work around pnpm 12 writing shared-store links relative to the store path as spelled.
+///  Give only the pnpm child the physical home spelling, preserving the chosen directory and the rest of the settings.
+///  This does not cover aliases independent of `HOME` or clean existing links. Remove when supported pnpm releases
+///  pass the linked-store control without it (`doc/troubleshooting/dependencies.md`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const home = process.env.HOME;
+/// return home && isAbsolute(home) ? await realpathWithinStartCeiling(home) : undefined;
+/// ```
+async fn physical_home_for_pnpm() -> Option<PathBuf> {
+    // Use the home of the process running the install: the commit service for a queued repair, the add otherwise.
+    let home: PathBuf = PathBuf::from(std::env::var_os(HOME)?);
+    if !home.is_absolute() {
+        return None;
+    }
+    // A lookup on an unresponsive filesystem must not hold up the relink or occupy a runtime worker.
+    let lookup = tokio::time::timeout(crate::wait_ceilings::REPAIR_TOOL_START_CEILING, tokio::fs::canonicalize(&home)).await;
+    return match lookup {
+        Ok(Ok(physical)) if physical.as_os_str() != home.as_os_str() => {
+            crate::diagnostic_log::debug("packageRepairPnpm", "using the physical home path for pnpm's store setting");
+            Some(physical)
+        }
+        Ok(Ok(_unchanged)) => None,
+        Ok(Err(error)) => {
+            crate::diagnostic_log::debug("packageRepairPnpm", format!("could not resolve the home directory for pnpm: {error}").as_str());
+            None
+        }
+        Err(_elapsed) => {
+            crate::diagnostic_log::debug("packageRepairPnpm", "home directory lookup for pnpm reached the tool-start ceiling");
+            None
+        }
+    };
+}
+
+/// Wait for the install on the caller's runtime, with a child-only home override when needed.
 async fn relink_awaiting(work: &Relink) -> ToolRun {
-    return run_tool_awaiting(work.program.as_path(), &work.command, work.limits).await;
+    let Some(physical_home) = physical_home_for_pnpm().await else {
+        return run_tool_awaiting(work.program.as_path(), &work.command, work.limits).await;
+    };
+    // The cloned launch settings preserve the recorded PATH and apply the override to this install alone.
+    let mut command: ToolCommand = work.command.clone();
+    command.set.push((OsString::from(HOME), physical_home.into_os_string()));
+    return run_tool_awaiting(work.program.as_path(), &command, work.limits).await;
 }
 
 /// What the relink reports:
