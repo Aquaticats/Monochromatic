@@ -1091,10 +1091,12 @@ and the report prints `toolchain install: locked <id> <version> ...` for each.
 at the end of every sync that installed a version,
 without a command to remember.
 
-While the two stores keep more than 24 GiB of versions,
-the versions whose directories were written longest ago go first,
-until they are inside the bound.
-Four things keep a version whatever its age:
+While the two stores keep more than 24 GiB of versions and downloads,
+the versions written longest ago go first,
+until the stores are inside the bound or no eligible version remains.
+The newest two distinct version names per tool stay, ranked by the last write across the visible stores.
+Every pinned version stays in addition to those two.
+The cleanup also keeps:
 
 - a lock file that names it:
   this scope's lock,
@@ -1107,6 +1109,9 @@ Four things keep a version whatever its age:
 - a write time inside a one-hour floor.
 
 The version this run installed is kept as well.
+If a lock cannot be read in full, cleanup names it and leaves pending removals alone as well as live versions.
+Finished flat downloads recognized from the old layout can be removed even under the size bound,
+subject to the age and work limits and the checks for an active holder.
 
 A removal renames the version out of its name (`.mpm-shadow-removing.<version>`)
 before deleting anything,
@@ -1119,7 +1124,7 @@ and nothing on a pass that judges nothing.
 The bounds are set by `MPM_SHADOW_STORE_SIZE_BOUND`,
 `MPM_SHADOW_STORE_AGE_FLOOR`
 and `MPM_SHADOW_STORE_WORK_LIMIT`;
-`doc/toolchain-version-cleanup.md` gives the measurement each was sized from.
+[The cleanup rules](doc/toolchain-version-cleanup.md) give the approval and the evidence for the defaults.
 
 ## Cargo tool installs
 

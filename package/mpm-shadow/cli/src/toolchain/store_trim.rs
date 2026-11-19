@@ -5,7 +5,9 @@
 //! unless a lock names the version,
 //! this run installed it,
 //! the tool's `current` link names it,
-//! or a running process uses it.
+//! a running process uses it,
+//! or it is one of the tool's newest distinct versions by last write.
+//! Obsolete flat downloads can go even when the stores are inside the size bound.
 //! Why:
 //! mpm-shadow installs one directory per version and removed nothing but this repository's own tools,
 //! so on 2026-11-13 the two stores held 55.4 GiB,
@@ -267,6 +269,7 @@ const SECONDS_PER_DAY: u64 = 24 * SECONDS_PER_HOUR;
 /// The space both stores may keep before the versions written longest ago are removed:
 /// 24 GiB.
 /// Why:
+/// Approved on 2026-11-15 (`doc/handover/cli-git-rust-implementation.md`, "Owner decisions in force").
 /// Sized from the measurement this run made of this machine's stores
 /// (`doc/toolchain-version-cleanup.md`, "The measurement it was sized from"):
 /// the versions a visible lock names weighed 11.3 GiB across both roots,
@@ -283,8 +286,8 @@ pub const DEFAULT_SIZE_BOUND_BYTES: u64 = 24 * BYTES_PER_GIB;
 /// How recently a version must have been written to be kept whatever else is true:
 /// one hour.
 /// Why:
-/// A proposal, and the only bound here no measurement settles:
-/// an install writes its lock row before the version it installs,
+/// Approved on 2026-11-15 (`doc/handover/cli-git-rust-implementation.md`, "Owner decisions in force").
+/// An install writes its lock row before the version it installs,
 /// so a version a lock names is protected by that lock,
 /// and this floor exists only for a copy a person or another tool made by hand,
 /// which no lock names yet.
@@ -299,6 +302,7 @@ pub const DEFAULT_AGE_FLOOR_SECONDS: u64 = 60 * 60;
 /// How long one pass may spend removing versions:
 /// two seconds.
 /// Why:
+/// Approved on 2026-11-15 (`doc/handover/cli-git-rust-implementation.md`, "Owner decisions in force").
 /// Measured on this machine's store volume (2026-11-13,
 /// `keep/deletion-cost-home-volume.txt` of the run that added this):
 /// deleting a version costs about 30 microseconds per file
@@ -796,9 +800,9 @@ pub struct TrimPlan {
 
 /// What:
 /// The rule:
-/// nothing while the stores keep no more than the size bound;
-/// otherwise the versions written longest ago are removed until they do,
-/// and each one that stays says why.
+/// removes the oldest eligible versions while the stores exceed the size bound,
+/// and removes obsolete flat downloads regardless of the bound.
+/// Every entry it judges and keeps says why.
 /// Why:
 /// This is the whole decision, kept free of the file system,
 /// so the tests feed it plain lists and the reasons in force are the caller's.
@@ -807,7 +811,7 @@ pub struct TrimPlan {
 /// one this run installed,
 /// one a `current` link names,
 /// and one a running process uses are all kept,
-/// and the walk stops as soon as the space is inside the bound.
+/// and once the space is inside the bound only obsolete flat downloads are judged.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -820,14 +824,13 @@ pub fn plan_trim(
     protection: &dyn Fn(&TrimCandidate) -> Option<String>,
 ) -> TrimPlan {
     let total_bytes: u64 = candidates.iter().map(|candidate| return candidate.bytes).fold(0u64, u64::saturating_add);
-    if total_bytes <= bounds.size_bound_bytes {
-        return TrimPlan { total_bytes, over_bound: false, steps: Vec::new() };
-    }
+    let over_bound = total_bytes > bounds.size_bound_bytes;
     let mut remaining: u64 = total_bytes;
     let mut steps: Vec<TrimStep> = Vec::new();
     for candidate in candidates {
-        if remaining <= bounds.size_bound_bytes {
-            break;
+        // Old flat archives are unused by the versioned downloader, not fallback versions to preserve below budget.
+        if !candidate.leftover && remaining <= bounds.size_bound_bytes {
+            continue;
         }
         // What: the age is the age of the newest write anywhere inside the tree, read from the one place that says
         // when a tree was written.
@@ -854,7 +857,7 @@ pub fn plan_trim(
             }
         }
     }
-    return TrimPlan { total_bytes, over_bound: true, steps };
+    return TrimPlan { total_bytes, over_bound, steps };
 }
 
 /// The bounds, the clock and the store roots one pass runs with.
@@ -1654,6 +1657,15 @@ pub fn finish_removals_with(run: &TrimRun, named: &NamedVersions) -> FinishOutco
     if markers.is_empty() {
         return outcome;
     }
+    // A read failure applies to the entire pass, including recovery paths that can delete without the new plan.
+    if let Some(reason) = &named.unreadable {
+        for marker in markers {
+            outcome.unfinished.insert(marker.root);
+        }
+        // Name the unreadable lock once rather than printing the same explanation for each marker.
+        outcome.lines.push(format!("mpm-shadow: deferred toolchain recovery: {reason}; the lock may name the pending entries"));
+        return outcome;
+    }
     let holders: StoreHolders = run.look();
     for marker in markers {
         if run.started.elapsed() >= run.bounds.work_limit {
@@ -1742,13 +1754,6 @@ fn finish_the_deletion(
         outcome.lines.push(format!("mpm-shadow: kept {}: it could not be read in full at this moment", tree.display()));
         return;
     };
-    // What: a lock that cannot be read may name this version, so its deletion waits.
-    // Why: what the pass could not read it takes for present.
-    if let Some(reason) = &named.unreadable {
-        outcome.unfinished.insert(root.to_path_buf());
-        outcome.lines.push(format!("mpm-shadow: kept {}: {reason}, so its deletion waits", tree.display()));
-        return;
-    }
     if let Some(lock) = named.naming_lock(tool, version) {
         outcome.unfinished.insert(root.to_path_buf());
         outcome.lines.push(format!("mpm-shadow: kept {}: the lock {lock} names it now, so its deletion waits", tree.display()));
@@ -2135,6 +2140,32 @@ fn roots_to_trim(ctx: &Context) -> Vec<PathBuf> {
     return roots;
 }
 
+/// Number of distinct version names retained per tool, in addition to all pins.
+/// Approved on 2026-11-15 (`doc/handover/cli-git-rust-implementation.md`, "Owner decisions in force").
+const RETAINED_VERSION_NAMES_PER_TOOL: usize = 2;
+
+/// Picks the newest distinct live version names from the oldest-first inventory of both visible stores.
+/// Duplicate copies occupy one retention slot but still count individually toward the byte bound.
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function newestVersionNames(oldestFirst: readonly Candidate[]): Map<string, string[]>
+/// ```
+fn newest_version_names(oldest_first: &[TrimCandidate]) -> BTreeMap<&str, Vec<&str>> {
+    let mut retained: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    // Walk the already sorted list backward, so the first copy of each name is the one written most recently.
+    for candidate in oldest_first.iter().rev() {
+        if candidate.leftover {
+            continue;
+        }
+        let versions = retained.entry(candidate.tool.as_str()).or_default();
+        // Check the size first so this membership test examines at most the approved number of names.
+        if versions.len() < RETAINED_VERSION_NAMES_PER_TOOL && !versions.contains(&candidate.version.as_str()) {
+            versions.push(candidate.version.as_str());
+        }
+    }
+    return retained;
+}
+
 /// How a candidate is protected,
 /// given what the pass knows.
 fn protection_of(
@@ -2315,8 +2346,20 @@ pub fn trim_after_install_with(ctx: &Context, installed: &[(String, String)], ho
             return;
         }
         let candidates: Vec<TrimCandidate> = candidates_of(&roots, &tools, run.deadline(), bounds.age_floor);
+        let retained = newest_version_names(&candidates);
         let protection = |candidate: &TrimCandidate| -> Option<String> {
-            return protection_of(candidate, &named, &scan, &installed_set, &links.by_tool, &finished.put_back);
+            // A lock, current link or other independent reason still protects an older version.
+            let reason = protection_of(candidate, &named, &scan, &installed_set, &links.by_tool, &finished.put_back);
+            if reason.is_some() {
+                return reason;
+            }
+            // A flat archive does not stand for a version name, so it cannot be retained by this rule.
+            if !candidate.leftover
+                && retained.get(candidate.tool.as_str()).is_some_and(|names| return names.contains(&candidate.version.as_str()))
+            {
+                return Some("it is one of the tool's newest versions by last write".to_string());
+            }
+            return None;
         };
         let plan: TrimPlan = plan_trim(&candidates, &bounds, SystemTime::now(), &protection);
         let outcome: TrimOutcome = apply_trim(&plan, &run);

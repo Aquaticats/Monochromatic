@@ -2424,6 +2424,20 @@ fn run_trim(scope: &Scope, env: &EnvMap, runner: &FakeRunner) {
     trim_after_install_with(&context, &[("unrelated".to_string(), "1".to_string())], Some(StoreHolders::default()));
 }
 
+/// Makes the target older than the retention slots so only the intended guard can keep it.
+fn make_older_than_retention(store_tool: &Path, target: &Path, payload: &Path) {
+    let age = DEFAULT_AGE_FLOOR_SECONDS * 2;
+    // Age both the root and the payload; a new payload would make the target rank as a new write.
+    written_ago(payload, age);
+    written_ago(target, age);
+    // These version names are independent of every lock used by the two controls.
+    for name in ["newer-than-control", "newest-than-control"] {
+        let newer = store_tool.join(name);
+        fs::create_dir_all(&newer).expect("make a newer version");
+        fs::write(newer.join("program"), b"newer version").expect("make the newer version count toward the byte bound");
+    }
+}
+
 #[test]
 fn reproduction_cargo_package_id_cannot_escape_the_store() {
     let (_directory, scope, env) = sample_scope_on_disk();
@@ -2434,6 +2448,8 @@ fn reproduction_cargo_package_id_cannot_escape_the_store() {
     std::fs::create_dir_all(scope.toolchain_root.join("cargo").join("safe")).expect("make traversal prefix");
     std::fs::create_dir_all(user_data.parent().expect("data parent")).expect("make outside version");
     std::fs::write(&user_data, b"not owned by the toolchain store").expect("write outside data");
+    // The outside directory is still inside this test's disposable home.
+    make_older_than_retention(&outside, user_data.parent().expect("outside version"), &user_data);
     std::fs::write(
         &scope.lock_file,
         r#"{"tools":{"cargo:review":{"version":"locked","route":"cargo-binstall","packageId":"safe/../../../outside"}}}"#,
@@ -2459,6 +2475,9 @@ fn reproduction_disappearing_current_lock_keeps_the_loaded_pin() {
     let user_data = scope.toolchain_root.join("node").join(&node.version).join("user-data.txt");
     std::fs::create_dir_all(user_data.parent().expect("version parent")).expect("make pinned version");
     std::fs::write(&user_data, b"the version loaded from the current lock").expect("write pinned data");
+    let version = user_data.parent().expect("pinned version");
+    // Keep the disappearing pin, not the newest-two rule, as the only reason the target survives.
+    make_older_than_retention(version.parent().expect("tool folder"), version, &user_data);
 
     let global = global_scope(&env).expect("global scope");
     std::fs::create_dir_all(global.lock_file.parent().expect("global lock parent")).expect("make global lock parent");

@@ -116,10 +116,14 @@ Counting what it cannot remove would make the pass empty the store and stay over
 
 ## The rule
 
-While the stores keep more than the size bound,
-the versions written longest ago go first,
-until they are inside it.
-Every version that stays says why it stays.
+The project approved the 24 GiB size bound, one-hour age floor, and two-second work limit on 2026-11-15
+([Owner decisions in force](../../../../doc/handover/cli-git-rust-implementation.md#owner-decisions-in-force)).
+While the stores exceed the size bound, the versions written longest ago go first,
+until the stores are inside the bound or no eligible version remains.
+Every version the cleanup judges and keeps says why it stays.
+Finished flat downloads recognized from the old layout may be removed even inside the bound.
+The age and work limits and checks for a process holding the file still apply;
+a file ending in `.download` is never a leftover.
 
 A version is kept when any of these holds,
 the most specific first:
@@ -128,13 +132,15 @@ the most specific first:
   from a repository scope,
   this scope's lock,
   the lock of every worktree `git worktree list` reports,
-  and the machine scope's lock;
-  from the machine scope,
-  only the machine scope's lock,
-  because that scope knows no repository to list worktrees from,
-  so a global-store version that only a worktree's lock names can be removed by a global pass.
-  A lock that cannot be read keeps every version,
-  with the reason in the line.
+  and the machine scope's lock.
+  A machine-scope pass also reads the worktree locks of the repository it can name;
+  if it cannot name a repository, it removes nothing.
+  A lock that cannot be read in full keeps every version and defers recovery of pending removals.
+  The diagnostic names the file and the row when available.
+- **it is one of the newest two distinct version names for the tool**:
+  the cleanup ranks live copies by last write across the visible stores.
+  Two copies of one name occupy one retention slot but both count toward the byte bound.
+  A pin is independent and keeps an older version even outside the newest two.
 - **this run installed it**.
 - **the tool's `current` link names it**.
   The pass reads every link once,
