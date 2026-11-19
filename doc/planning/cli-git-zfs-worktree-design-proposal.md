@@ -370,15 +370,22 @@ inspection cannot prove its result, refuse instead of falling through to Git's r
 slot. See the [wrapper specification][spec], lines 2932 to 2943 and 3064 to 3190, and `find_boundary_below` in
 `package/git-policy/cli/src/native/subvolume/subvolume_remove_walk.rs`.
 
-1.  Record the removal intent and the affected snapshot history, including manual and sanoid snapshots. Name that
-    history as data this removal will destroy. Release local handles that keep the clone busy; request `unmount`.
-    Wait for the matching result, then verify the clone is not mounted, including in handler staging, and that the
+The [project decided][answers] "B: Destroy at once". A normal authorized removal destroys the clone and its own
+snapshots in that invocation. It does not prompt, require a separate snapshot-deletion flag, or wait out retention.
+It does wait for verified unmount within the handler deadline and for the destroy results, not for background
+space reclamation.
+
+1.  Record the removal intent and enumerate the clone's snapshot history, including manual and sanoid snapshots.
+    Before destruction, print the slot, clone dataset and exact snapshot names to be lost. Release local handles
+    that keep the clone busy and request `unmount`. Wait for the matching result, then verify the clone is not
+    mounted, including in handler staging, and that the
     request, recorded clone GUID, underlay identity and Git registration still match. An unavailable, mismatched
     or busy unmount blocks destruction; mount absence at the slot alone does not prove it is safe.
 2.  Recheck the named clone's snapshots and children. Destroy only that clone's explicitly enumerated snapshots,
     then the unmounted clone. Never pass a recursive dataset or dependent-clone destroy. If sanoid adds a snapshot
-    during removal, report the changed set and recheck the deletion authorization before continuing. Holds or
-    dependencies are named, not bypassed. Record partial deletes, including per-snapshot failures.
+    during removal, report the changed set and recheck its identity and removal scope before continuing. Holds or
+    dependencies are named, not bypassed. Print which snapshots and whether the clone were actually destroyed,
+    including on partial failure; name anything retained and why. Record per-snapshot failures for recovery.
 3.  Check the exact recorded origin identity before attempting single-snapshot cleanup, using the authority the
     project selects. The kernel's `snapshot has dependent clones` refusal is the check, not a scan of immediate
     children or a name test. Leave a refused origin and report it; never destroy a dependent clone to free it.
@@ -527,8 +534,9 @@ item 4, and [planning record][answers]).
 Each living clone pins its checkout origin, retaining blocks changed in the checkout since the snapshot. Persist
 and report the exact origin and measured retention where available. Checkout snapshots contain only underlays,
 including reflink/Git worktree data when those slots are ordinary directories; they do not contain live clone
-contents. Clone snapshots can capture an unfinished add or removal and are deliberately lost when that clone is
-removed. Neither hourly snapshots nor a mounted path imply a usable registration. Checkout and clone snapshots
+contents. Clone snapshots can capture an unfinished add or removal. The project's destroy-at-once policy removes
+those snapshots with the clone and [reports the loss](#removal-and-recovery), without keeping a last snapshot.
+Neither hourly snapshots nor a mounted path imply a usable registration. Checkout and clone snapshots
 capture pnpm symlink texts, not their external targets. Restore needs compatible home-store contents; an offline
 repair cannot fetch missing packages.
 
@@ -724,8 +732,9 @@ host. These gates carry the [handover's H1 and H2 disposition][handover] and the
   Test link repair with surviving admin data, and already-pruned admin state with and without a verified backup.
 - Kill removal across unmount, snapshot destruction, clone and origin cleanup, and Git and directory cleanup.
   Verify busy and staged mounts, nested datasets, same-name replacements, held or new sanoid snapshots and another
-  clone pinning the origin each block the unsafe next action. Distinguish completed clone removal from an origin or
-  Git cleanup still owed. Verify safe retries under the actual request and mount state.
+  clone pinning the origin each block the unsafe next action. Check the before-destroy inventory and final loss
+  report on successful and partial removals, with both manual and sanoid snapshots. Distinguish completed clone
+  removal from origin or Git cleanup still owed. Verify safe retries under the actual request and mount state.
 
 ### Tooling, retention and performance
 
