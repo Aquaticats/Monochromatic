@@ -39929,6 +39929,22 @@ review), `pi-node-sync-calls-go-through-coreutils-sync-1` (GPT, new worktree
 `.claude/worktrees/node-sync-calls-go-through-coreutils-sync`), `pi-provider-that-falls-back-across-providers-2` (GPT,
 oxlint to zero), `pi-prewarm-of-a-new-worktree-acts-only-on-the-entry-it-checked-2` (DeepSeek on the Qwen plan).
 
+The sync writer's first run ended `pi-exited` after nine turns: Pi 1.5.2 itself crashed. Its `codemode` tool read
+several files, one did not exist (ENOENT), the script's end aborted the other reads, and the aborted `ReadStream` raised
+an `error` event with no listener (`ABORT_ERR`), which ends Node; the summary then holds no session file
+(`sessionStats` is the text "pi exited"), so the session was found under
+`~/.pi/agent/sessions/--home-user-Monochromatic-.claude-worktrees-node-sync-calls-go-through-coreutils-sync--/` and
+resumed as `pi-node-sync-calls-go-through-coreutils-sync-2`, told to list a folder before reading inside `codemode`.
+Not recorded in `doc/troubleshooting/` before; a GPT writer (`pi-pi-codemode-abort-crash-troubleshooting-1`, main
+checkout, one new doc) traces it in upstream `earendil-works/pi` at 1.5.2 under the troubleshooting skill, files nothing.
+
+The work-record review `1d5ad2597d` returned (85 turns, `idle`): four reads that wait for ever on a named pipe
+(`worktree/worktree_remove_hand_over.rs:761` on every `failed/` entry, reproduced; `landing/service_handoff.rs:663` on an
+aged `pending` record, reproduced, exit 137 at the 20 s bound; `landing/work_item_recovery.rs:345` on a claim in
+`recovering`, by reading; `landing/work_item.rs:611` and `:625`, a link to a pipe gives `FilesystemLoop` and the
+fallback open follows it, which `main` has too), against the branch's own `SPEC.md:17971` sentence that a pipe is a
+record it cannot read rather than a wait; its two `#[ignore]`d tests admit the first two. Goes to its author with the queue.
+
 ### No heavy worktree use before the wrapper's ZFS route (2026-11-18T21:47:42-05:00)
 
 The owner, in plain text: "We shouldn't use worktrees heavily before we implement the zfs parts for the git wrapper."
