@@ -234,12 +234,27 @@ Keep the underlay pointer intact for `git worktree prune`, independent of the cl
 stub, not a checkout. `doctor` and wrapper commands that encounter it distinguish a known unmounted clone (ZED off,
 ABI refusal, mount failure or pending request) from a pending add or removal. Report the slot, dataset and next
 safe action instead of treating absent files as deleted tracked files or offering an ordinary add over them.
+The account can delete the underlay pointer while the clone is unmounted. The nested probe's unlocked
+registration was prunable with the pointer missing (`guest-exact-zfs.log:42` to `:44`).
+
+`git-worktree(1)` documents a lock in the common Git directory to prevent pruning when a worktree is unavailable.
+The candidate is to acquire it at registration and retain it through unmounts and restarts. A lock protects
+registration, not the pointer itself or an account deliberately deleting Git admin state. A root-set immutable
+pointer could hinder accidental deletion of that file, but adds privileged file handling in an account-owned tree,
+does not protect Git admin state, and needs removal and parent-rename proof. Neither is selected pending the
+[VM lock and missing-pointer controls][measurements].
 
 A damaged link with surviving admin state can use `git worktree repair <verified-slot>` from the main checkout.
 If Git already pruned the admin entry, repair does not reconstruct HEAD, index or lock state. Restore verified
 registration data from backup before repairing links; if there is none, report what is lost
 and require an explicit recovery or discard, never guessing from a branch or path. A removal whose recorded clone
 and origin are already gone can settle a missing registration only after proving there is no replacement.
+
+If the Git lock is adopted, `doctor` must distinguish the wrapper's recorded protection from an operator lock,
+a missing or changed lock, and a missing pointer. Never treat the reason text alone as ownership or use
+`--force` to bypass a lock. An operator or unexplained lock still refuses removal. A verified wrapper lock
+would be released only at the authorized registration-cleanup step, after clone destruction and subject to the
+origin-cleanup policy; a missing pointer still needs recovery. The lock procedure is pending with the mechanism.
 
 Refuse `git worktree move` for a bound managed clone whether mounted or not: report that the slot is fixed and
 must not be renamed. The mounted guest control failed with `Device or resource busy`; a wrapper refusal also covers
@@ -694,6 +709,9 @@ until the wrapper is built. The [VM measurement record][measurements] is being p
   states for handler readiness, attach and clone fill, with same-dataset reflink and cross-dataset controls
   that distinguish a shared data key from separately created data keys. The nested-clone probe used an
   unencrypted pool; matching behavior on the encrypted fixture is pending in the [VM record][measurements].
+- With the clone unmounted, remove the pointer in the fixture and test `git worktree lock` against `prune`,
+  with an unlocked missing-pointer positive control and an intact-pointer baseline. Check whether the lock can
+  be installed or recovered with the pointer already absent, and its effects on removal and move.
 - Promote a disposable checkout clone in the VM. Record origin/dependency reversal, exact snapshot names and GUIDs
   before and after, and destruction refusals. Do not treat that VM operation as permission to promote live clones.
 
@@ -769,8 +787,9 @@ host. These gates carry the [handover's H1 and H2 disposition][handover] and the
   rejected forms, dirty sources and a tracked write between preflight and snapshot that the frozen proof refuses.
 - Kill add at each of item 7's five points and around the origin and clone identity writes. Test `ENOSPC` at
   snapshot and clone; report what survives, resume only proven objects and never fall through onto a pending slot.
-  With the clone unmounted, verify `prune` keeps the underlay pointer with a missing-pointer positive control.
-  Test link repair with surviving admin data, and already-pruned admin state with and without a verified backup.
+  With the clone unmounted, verify `prune` keeps the registration with the pointer intact, and exercise the
+  selected protection with the pointer missing. Check that operator locks continue to refuse removal. Test link
+  repair with surviving admin data, and already-pruned admin state with and without a verified backup.
 - Kill removal across unmount, snapshot destruction, clone and origin cleanup, and Git and directory cleanup.
   Verify busy and staged mounts, nested datasets, same-name replacements, held or new sanoid snapshots and another
   clone pinning the origin each block the unsafe next action. Check the before-destroy inventory and final loss
