@@ -738,7 +738,8 @@ tarball built against that guest kernel, and their release matches the host modu
 
 The pool was `zfsowed17` in the fixture layout above: `aes-256-gcm` with a raw key file, `recordsize=32K`,
 `compression=zstd-3`, a `legacy`, `canmount=off` clone parent, and the checkout dataset mounted under the guest
-home. Root set item 12's three `zfs allow` grants and no others, then printed them:
+home. Guest: `6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-17-exact-3.log`). Root set item
+12's three `zfs allow` grants and no others, then printed them:
 
 ```text
 # item-17-exact-3.log
@@ -808,8 +809,9 @@ this run: the request's policy requires `mount` and `destroy` for each name (`mo
 ### Item 2: one named snapshot has a dependent clone
 
 Root created `@with-dependent` and `@without-dependent` on the clone and cloned `@with-dependent` as
-`zfsowed17/home/worktree-clone-datasets/dependent`; the log quotes that clone's `origin` and `mounted no`. The
-account then sent the same direct batch naming both snapshots:
+`zfsowed17/home/worktree-clone-datasets/dependent`; the log quotes that clone's `origin` and `mounted no`. Guest:
+`6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-17-exact-3.log`). The account then sent the
+same direct batch naming both snapshots:
 
 ```text
 # item-17-exact-3.log
@@ -830,7 +832,7 @@ dependent names in one request, or a name outside the account's grants.
 ### Item 3: the same request as root
 
 After item 1, root created `@root-control-one` and `@root-control-two` and ran the same helper and trace as
-`uid=0`:
+`uid=0`. Guest: `6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-17-exact-3.log`):
 
 ```text
 # item-17-exact-3.log
@@ -860,7 +862,7 @@ refusal.
   fixture item 14 used, called as the account.
 - No unpromoted clone, other clone topology or encryption root, other OpenZFS release, or `7.3.5-1-cachyos`.
 - No head destroy after the batch, no interleaving with a snapshot created between inspection and request, and
-  no interleaving with a mount or unmount. Items 14 and 15's limits stand.
+  no interleaving with a mount or unmount. The limits of items 14 and 15 stand.
 - No request naming a transferred snapshot, a foreign snapshot or one outside the clone parent. The design names
   only the clone's own snapshots; what the same account could do to a transferred one under these grants was not
   measured.
