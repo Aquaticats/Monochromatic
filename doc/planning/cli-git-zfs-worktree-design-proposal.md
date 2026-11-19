@@ -739,9 +739,9 @@ a test asserts that the encoded request has no `defer` key.
     and a bookmark marks the point in time its snapshot was created and can be the incremental source for
     `zfs send` (`man/man8/zfs-bookmark.8:48` to `:50`). Read against live snapshots alone, the rule strands a
     removal after its first mutation: the first chunk or the replan destroys the snapshot a bookmark matches, the
-    next lineage proof refuses, and the head, the standing `unmount` intent
-    and an empty snapshot list remain, which is the resume state this section calls planned snapshots all gone
-    with the head refused (reasoning from those citations, not measured). Comparing against the persisted plan as
+    next lineage proof refuses, and the head, the standing `unmount` intent and an empty snapshot list remain,
+    which is the resume state this section calls planned snapshots all gone with the head refused (reasoning from
+    those citations, not measured). Comparing against the persisted plan as
     well still refuses every bookmark whose tuple the removal never recorded, an origin-side or foreign one
     included, because the plan holds only tuples this removal proved and submitted and the origin-side comparison
     still uses the recorded origin inventory. The one case the plan comparison stops refusing is a snapshot this
