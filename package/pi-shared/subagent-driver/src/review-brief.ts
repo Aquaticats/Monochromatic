@@ -8,8 +8,11 @@
  @module
  */
 
+import { homedir, } from 'node:os';
+import { join, } from 'node:path';
 import { REVIEW_OF_A_CHANGE_TEMPLATE, } from './briefs/review-of-a-change-template.ts';
 import {
+  EARLIER_REVIEW_FOLDERS_IN_HOME,
   reproductionsFolderOfAReview,
   reviewFolderOf,
   reviewFileOfAReview,
@@ -27,6 +30,7 @@ import {
 export const REVIEW_BRIEF_PLACEHOLDERS: readonly string[] = [
   'RULES',
   'COMMIT',
+  'EARLIER_REVIEW_FOLDERS',
   'REVIEWS_FOLDER',
   'RUNS_FOLDER',
   'SCRATCH_FOLDER',
@@ -109,6 +113,16 @@ export function reviewBriefValues({
   return {
     RULES: rulesFile,
     COMMIT: commit,
+    // Read through the home folder of whoever runs the command, as the default reviews and runs folders are.
+    EARLIER_REVIEW_FOLDERS: EARLIER_REVIEW_FOLDERS_IN_HOME.map(function asACodeSpanBelowHome(parts,) {
+      return `\`${
+        join(
+          homedir(),
+          ...parts,
+        )
+      }\``;
+    },)
+      .join(', ',),
     REVIEWS_FOLDER: reviewsFolder,
     RUNS_FOLDER: runsFolder,
     SCRATCH_FOLDER: reviewFolderOf({

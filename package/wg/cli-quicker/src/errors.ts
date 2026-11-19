@@ -170,6 +170,192 @@ export class WatcherMissingError extends Error {
 }
 
 /**
+ Error raised when an `up` was interrupted by a signal between two of its steps.
+
+ A signal's default action ends the process without an exception,
+ so nothing would run the rollback that removes a half-configured tunnel;
+ this error is thrown at the next step boundary instead,
+ which the up's own rollback answers.
+
+ @example
+ ```ts
+ throw new UpInterruptedError({ signal: 'SIGINT', step: 'set the DNS servers' });
+ ```
+ */
+export class UpInterruptedError extends Error {
+  /**
+   Stable error type name rendered by Node.
+   */
+  override name = 'UpInterruptedError';
+
+  /**
+   The step the up was about to run when the signal arrived.
+   */
+  readonly step: string;
+
+  /**
+   Creates the error naming the signal and the step that did not run.
+
+   @param signal - The signal that arrived.
+
+   @param step - What the up was about to do.
+
+   @example
+   ```ts
+   new UpInterruptedError({ signal: 'SIGINT', step: 'add the addresses' });
+   ```
+   */
+  public constructor(
+    {
+      signal,
+      step,
+    }: {
+      readonly signal: NodeJS.Signals;
+      readonly step: string;
+    },
+  ) {
+    super(
+      `The up was interrupted by ${signal} before it could ${step}, so it is rolled back: what this up already created is being removed.`,
+    );
+    this.step = step;
+  }
+}
+
+/**
+ Error raised when an external command's program could not be started,
+ for example because it is not installed.
+ The command never ran,
+ so there is no exit code to report.
+
+ @example
+ ```ts
+ throw new CommandSpawnError({ command: 'wg', args: ['addconf'], reason: 'spawn wg ENOENT' });
+ ```
+ */
+export class CommandSpawnError extends Error {
+  /**
+   Stable error type name rendered by Node.
+   */
+  override name = 'CommandSpawnError';
+
+  /**
+   Executable whose program could not be started.
+   */
+  readonly command: string;
+
+  /**
+   Arguments the executable would have received.
+   */
+  readonly args: readonly string[];
+
+  /**
+   Creates the error naming the program and the system's reason.
+
+   @param command - Executable that could not be started.
+
+   @param args - Arguments the executable would have received.
+
+   @param reason - What the system said, such as `spawn wg ENOENT`.
+
+   @example
+   ```ts
+   new CommandSpawnError({ command: 'wg', args: [], reason: 'spawn wg ENOENT' });
+   ```
+   */
+  public constructor(
+    {
+      command,
+      args,
+      reason,
+    }: {
+      readonly command: string;
+      readonly args: readonly string[];
+      readonly reason: string;
+    },
+  ) {
+    /**
+     Fresh copy of the argument list so joining never reads a caller-owned array.
+     */
+    const rendered: readonly string[] = [
+      ...args,
+    ];
+    super(`Command could not be started: ${command} ${rendered.join(' ',)}\n${reason}`,);
+    this.command = command;
+    this.args = rendered;
+  }
+}
+
+/**
+ Error raised when an external command was still running at its deadline and was ended,
+ so the caller can report the call as unfinished instead of waiting for ever.
+
+ @example
+ ```ts
+ throw new CommandTimeoutError({ command: 'nft', args: ['list', 'ruleset'], deadlineMilliseconds: 60_000 });
+ ```
+ */
+export class CommandTimeoutError extends Error {
+  /**
+   Stable error type name rendered by Node.
+   */
+  override name = 'CommandTimeoutError';
+
+  /**
+   Executable that was ended.
+   */
+  readonly command: string;
+
+  /**
+   Arguments the executable received.
+   */
+  readonly args: readonly string[];
+
+  /**
+   The deadline that passed, in milliseconds.
+   */
+  readonly deadlineMilliseconds: number;
+
+  /**
+   Creates the error naming the command, its arguments and the deadline it passed.
+
+   @param command - Executable that was ended.
+
+   @param args - Arguments the executable received.
+
+   @param deadlineMilliseconds - The deadline that passed.
+
+   @example
+   ```ts
+   new CommandTimeoutError({ command: 'nft', args: [], deadlineMilliseconds: 60_000 });
+   ```
+   */
+  public constructor(
+    {
+      command,
+      args,
+      deadlineMilliseconds,
+    }: {
+      readonly command: string;
+      readonly args: readonly string[];
+      readonly deadlineMilliseconds: number;
+    },
+  ) {
+    /**
+     Fresh copy of the argument list so joining never reads a caller-owned array.
+     */
+    const rendered: readonly string[] = [
+      ...args,
+    ];
+    super(
+      `Command was still running after ${String(deadlineMilliseconds,)} ms and was ended: ${command} ${rendered.join(' ',)}`,
+    );
+    this.command = command;
+    this.args = rendered;
+    this.deadlineMilliseconds = deadlineMilliseconds;
+  }
+}
+
+/**
  Error raised when an external `ip`, `wg`, or `resolvectl` command exits non-zero.
  
  @example

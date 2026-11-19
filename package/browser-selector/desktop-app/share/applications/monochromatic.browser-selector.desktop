@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Browser Selector
+Comment=Choose a browser or browser profile for a link or HTML file
+Exec=monochromatic-browser-selector %u
+Icon=web-browser
+Terminal=false
+Categories=Network;WebBrowser;
+MimeType=x-scheme-handler/http;x-scheme-handler/https;text/html;application/xhtml+xml;

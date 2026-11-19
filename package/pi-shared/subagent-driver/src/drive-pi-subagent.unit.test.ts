@@ -11,6 +11,7 @@ import {
   execFile,
 } from 'node:child_process';
 import { once, } from 'node:events';
+import { existsSync, } from 'node:fs';
 import {
   chmod,
   lstat,
@@ -29,6 +30,7 @@ import {
 } from 'node:path';
 import { setTimeout as wait, } from 'node:timers/promises';
 import { promisify, } from 'node:util';
+import { createSopsFixture, } from '@monochromatic-dev/env-local-json-core/ts/fixture.ts';
 import {
   describe,
   expect,
@@ -41,11 +43,17 @@ import {
   NESTED_RUN_VARIABLE,
   POLL_MILLISECONDS,
   PROCESSES_RECORD_KIND,
+  SUMMARY_FILE_NAME,
   recordsIn,
   type RunSummary,
   START_ATTEMPTS,
   VARIABLES_KEPT_DESPITE_CREDENTIAL_NAME,
 } from '../dist/final/node/index.mjs';
+import {
+  PRINTS_A_VALUE_SCENARIO,
+  WITHOUT_MASKING_SCENARIO,
+} from './stand-in-pi-masking-fixture.ts';
+import { MESSAGE_BEFORE_SETTLE, } from './stand-in-pi-prompt-plays-fixture.ts';
 import {
   REPORTED_PROCESS_ID,
 } from './stand-in-pi-scenario-plays-fixture.ts';
@@ -60,6 +68,118 @@ import {
   START_FAILURE_TEXT,
   TRANSIENT_ERROR_TEXT,
 } from './stand-in-pi-records-fixture.ts';
+
+/**
+ Reads every file a run wrote, whole, so a test can ask what a run left behind without holding the folder it was in.
+
+ @param folder - the run's folder
+
+ @returns each file's text, by its name under the folder
+ */
+async function textsOfEveryFileIn({ folder, }: { readonly folder: string },): Promise<Readonly<Record<string, string>>> {
+  // A run that refused before making its folder wrote nothing, which is an empty answer rather than a failure.
+  if (!await exists(folder,)) {
+    return {};
+  }
+  /**
+   What the folder holds, of any depth.
+   */
+  const entries = await readdir(
+    folder,
+    { recursive: true, withFileTypes: true, },
+  );
+  /**
+   The files of the folder, each with the name it has under it.
+   */
+  const files = entries.filter(function isFile(entry,) {
+    return entry.isFile();
+  },);
+  /**
+   Each file's text, read in parallel because there are as many reads as the folder holds files.
+   */
+  const texts = await Promise.all(files.map(function readOne(entry,) {
+    return readFile(
+      join(
+        entry.parentPath,
+        entry.name,
+      ),
+      'utf8',
+    );
+  },),);
+  return Object.fromEntries(files.map(function textOf(entry, index,) {
+    return [entry.name, texts[index] ?? '',];
+  },),);
+}
+
+/**
+ An age identity file that opens nothing: a key of the right shape that no store was encrypted to.
+
+ It is built from parts so the file holds no text any scanner would take for a key, and it is not one: no store anywhere is
+ encrypted to it, and this machine has none.
+ */
+const NOT_A_KEY_FOR_THIS_STORE: string = `${['AGE', 'SECRET', 'KEY',].join('-',)}-1${'Q'.repeat(58,)}`.concat(String.fromCodePoint(10,),);
+
+/**
+ The folder holding `sops`, found on this machine's own PATH, which the two masking controls give the driver beside its stand-in.
+
+ The driver's PATH in these tests is the stand-in's folder and nothing else, so a store reader would find no sops there; a real
+ driver inherits the shell's PATH, which is what this adds.
+
+ @returns the folder holding sops, or none when this machine has none
+ */
+function folderOfSops(): readonly string[] {
+  /**
+   The folder of this machine's PATH that holds sops, if one does.
+   */
+  const folder = (process.env.PATH ?? '').split(delimiter,)
+    .find(function holdsSops(entry,) {
+      return existsSync(join(
+        entry,
+        'sops',
+      ),);
+    },);
+  return (folder === undefined) ? [] : [folder,];
+}
+
+/**
+ Takes a folder's permission to make a new file away for as long as the test's scope lasts, and gives it back after.
+
+ @param folder - the folder
+
+ @returns a disposer that gives the mode back
+ */
+async function refuseNewFiles({ folder, }: { readonly folder: string },): Promise<{
+  readonly [Symbol.asyncDispose]: () => Promise<void>
+}> {
+  await chmod(
+    folder,
+    0o500,
+  );
+  return {
+    async [Symbol.asyncDispose]() {
+      await chmod(
+        folder,
+        0o700,
+      );
+    },
+  };
+}
+
+/**
+ How long a run whose Pi answers nothing may last, in seconds: long enough for the start's own bound to end the wait for the
+ command list, and short enough that the test spends no minute on it.
+ */
+const SILENT_RUN_WALL_SECONDS = 2;
+
+/**
+ The stand-in value the two masking controls put in a store, long enough to be masked.
+ */
+const MASKED_STORE_VALUE = 'stand-in-store-value-0123456789';
+
+/**
+ The name the stand-in store declares for it.
+ */
+const MASKED_STORE_NAME = 'STAND_IN_API_KEY';
 
 /**
  Specialized promisified `execFile`, typed through Node's own adapter contract.
@@ -86,7 +206,11 @@ const SHORT_WALL_SECONDS = 1;
  Seconds a run may last when its subject is a compaction that outlives it: above the start-up and the three commands before the
  prompt, so the wall clock reaches the run while Pi is compacting, and short so the test is quick.
  */
-const COMPACTION_WALL_SECONDS = 3;
+/**
+ Seconds a compaction test may last, which leaves the start about twice the room it needs on a loaded host: a run whose clock is
+ gone before Pi takes the prompt ends without the compaction event the test reads.
+ */
+const COMPACTION_WALL_SECONDS = 8;
 /** Seconds of silence after which a settled run ends. */
 const IDLE_SECONDS = 0.2;
 /** Seconds of idle wait in tests that end the run with the stop file. */
@@ -143,8 +267,11 @@ const TEST_TEARDOWN_ALLOWANCE_SECONDS = 120;
 /**
  Seconds a run may last when its subject is work that outlives it: above the start-up and the turn that leaves the work, and
  short so the test is quick. The work itself is set far beyond this, so only the wall clock can end the run.
+
+ The start-up on a loaded host is several times a quiet one's, and a run whose clock is gone before Pi answers its command list
+ sends no prompt at all, so this leaves the start about three times the room a quiet host needs rather than the same second.
  */
-const WORK_OUTLASTED_WALL_SECONDS = 3;
+const WORK_OUTLASTED_WALL_SECONDS = 8;
 /** Characters in a file name that leave no room for a prefix, which most file systems cap at 255 bytes. */
 const LONGEST_FILE_NAME_CHARACTERS = 250;
 /**
@@ -231,6 +358,11 @@ type Finished = {
   readonly inboxContents: Readonly<Record<string, string>>;
   readonly logWasWritten: boolean;
   readonly runFolderWasMade: boolean;
+
+  /**
+   Every file the run wrote, whole, which is what a test of what a run leaves behind reads.
+   */
+  readonly runFiles: Readonly<Record<string, string>>;
 };
 
 type RunPaths = {
@@ -257,6 +389,11 @@ type RunRequest = {
    */
   readonly promptText?: string;
   readonly withoutPrompt?: boolean;
+
+  /**
+   Folders added to the driver's PATH after the stand-in's own, which a test of the store reader needs for sops.
+   */
+  readonly extraPathEntries?: readonly string[];
   readonly wallSeconds?: number;
   readonly idleSeconds?: number;
 
@@ -584,6 +721,7 @@ async function runDriver(
     withoutPi = false,
     promptText = 'hello',
     withoutPrompt = false,
+    extraPathEntries = [],
     wallSeconds = RUN_WALL_SECONDS,
     idleSeconds = IDLE_SECONDS,
     turnCap = TURN_CAP,
@@ -615,7 +753,7 @@ async function runDriver(
     promptFile,
     log,
   },);
-  const pathWithStandIn = [folder.path, dirname(process.execPath,), '/usr/bin',].join(delimiter,);
+  const pathWithStandIn = [folder.path, dirname(process.execPath,), '/usr/bin', ...extraPathEntries,].join(delimiter,);
   const running = execFileAsync(process.execPath, [
     DRIVER,
     `--run-folder=${runFolder}`,
@@ -632,6 +770,7 @@ async function runDriver(
       PATH: withoutPi ? withoutExecutables : pathWithStandIn,
       HOME: process.env.HOME,
       STAND_IN_PI_SCENARIO: scenario,
+      STAND_IN_PI_INBOX_FILE: join(runFolder, 'inbox', 'before-settle.txt',),
       STAND_IN_PI_LOG: log,
       STAND_IN_PI_START_COUNT_FILE: startCount,
       ...environment,
@@ -675,6 +814,7 @@ async function runDriver(
     inboxContents: await contentsOfInbox(join(runFolder, 'inbox',),),
     logWasWritten: logged.length > 0,
     runFolderWasMade: await exists(runFolder,),
+    runFiles: await textsOfEveryFileIn({ folder: runFolder, },),
   };
 }
 
@@ -682,9 +822,10 @@ await describe({
   name: 'drive-pi-subagent',
   children: [
     it({
-      name: 'a run that settles and goes quiet ends idle, exits 0 and keeps the reply whole',
+      name: 'a run that settles with a zero idle window ends idle, exits 0 and keeps the reply whole',
       fn: async () => {
-        const run = await runDriver({ scenario: 'normal', },);
+        const run = await runDriver({ scenario: 'normal', idleSeconds: 0, },);
+        expect(run.standardError,).toBe('',);
         expect(run.status,).toBe(CLEAN_STATUS,);
         expect(run.summary.endReason,).toBe('idle',);
         expect(run.summary.lastAssistantText,).toBe('done',);
@@ -692,6 +833,23 @@ await describe({
         expect(run.summary.turns,).toBe(1,);
         expect(run.summary.piExit?.code,).toBe(0,);
         expect(run.commands,).toContain('get_session_stats',);
+      },
+    },),
+    // This holds the end-to-end delivery path; the race of a settle read between the inbox
+    // scan and the decision is held by `checks the inbox again when Pi settled after the watch
+    // read it` in `watch-pi-run.unit.test.ts`.
+    it({
+      name: 'a zero idle window still lets Pi answer a message already queued when it settles',
+      fn: async () => {
+        const run = await runDriver({ scenario: 'inbox-before-settle', idleSeconds: 0, },);
+        expect(run.standardError,).toBe('',);
+        expect(run.summary.endReason,).toBe('idle',);
+        expect(run.inbox,).toEqual([],);
+        expect(run.sentCommands.some((command,) => (command.type === 'prompt') && (command.message === MESSAGE_BEFORE_SETTLE)),)
+          .toBe(true,);
+        // A prompt rather than a steer shows that the first settle came before delivery.
+        expect(run.feed.find((entry,) => entry.kind === 'inbox')?.sentAs,).toBe('prompt',);
+        expect(run.summary.settled,).toBe(2,);
       },
     },),
     it({
@@ -714,9 +872,11 @@ await describe({
           scenario: 'normal',
           extraOptions: ['--session=/a folder/with spaces.jsonl', '--pi-argument=--extension', '--pi-argument=/a folder/x.ts',],
         },);
-        expect(run.piArguments,).toEqual([
-          '--mode',
-          'rpc',
+        // The masking extension's own words come first, so the words a caller adds are read after them.
+        expect(run.piArguments.slice(0, 2,),).toEqual(['--mode', 'rpc',],);
+        expect(run.piArguments[2],).toBe('--extension',);
+        expect(run.piArguments[3],).toContain('secret-value-masking-extension',);
+        expect(run.piArguments.slice(4,),).toEqual([
           '--provider',
           'stand-in',
           '--model',
@@ -754,11 +914,14 @@ await describe({
           model: 'stand-in-model',
           thinkingLevel: 'xhigh',
         },);
-        expect(run.feed.find((entry,) => entry.kind === 'commands',)?.names,).toEqual(['bash', 'edit',],);
-        expect(run.summary.sessionStats,).toEqual({
-          sessionFile: 'stand-in-session.jsonl',
-          cost: 0.5,
-        },);
+        expect(run.feed.find((entry,) => entry.kind === 'commands',)?.names,).toEqual([
+          'bash',
+          'edit',
+          'secret-value-masking',
+        ],);
+        // The stand-in makes a session file of its own at its start, as Pi does for a fresh run, so the statistics name that file.
+        expect(run.summary.sessionStats,).toMatchObject({ cost: 0.5, },);
+        expect(String((run.summary.sessionStats as { readonly sessionFile?: string }).sessionFile,),).toContain('stand-in-session-',);
       },
     },),
     it({
@@ -770,10 +933,10 @@ await describe({
       },
     },),
     it({
-      name: 'keeps a run whose agent ended its turn with a build still running, sends the agent back when the build ends, and'
-        + ' reads its reply',
+      name: 'with a zero idle window, keeps a run until its build ends, sends the agent back and reads its reply',
       fn: async () => {
-        const run = await runDriver({ scenario: 'leaves-work-running', },);
+        const run = await runDriver({ scenario: 'leaves-work-running', idleSeconds: 0, },);
+        expect(run.standardError,).toBe('',);
         expect(run.status,).toBe(CLEAN_STATUS,);
         expect(run.summary.endReason,).toBe('idle',);
         // The agent was woken, and its reply is what the run ended with rather than the turn it had already finished.
@@ -1097,23 +1260,9 @@ await describe({
       },
     },),
     it({
-      name: 'a run whose feed cannot be written does not end clean',
+      name: 'a final reply that settled on a model error still ends on that failure with a zero idle window',
       fn: async () => {
-        const run = await runDriver({
-          scenario: 'normal',
-          prepare: async ({ runFolder, },) => {
-            await mkdir(join(runFolder, 'feed.jsonl',), { recursive: true, },);
-          },
-        },);
-        expect(run.status,).toBe(FAILED_STATUS,);
-        expect(run.summary.endReason,).toBe('driver-failed',);
-        expect(String(run.summary.feedProblem,),).toContain('EISDIR',);
-      },
-    },),
-    it({
-      name: 'a final reply that ended in a model error does not end clean',
-      fn: async () => {
-        const run = await runDriver({ scenario: 'model-error', },);
+        const run = await runDriver({ scenario: 'model-error', idleSeconds: 0, },);
         expect(run.status,).toBe(FAILED_STATUS,);
         expect(run.summary.endReason,).toBe('model-error',);
         expect(String(run.summary.modelError,),).toContain(MODEL_ERROR_TEXT,);
@@ -1129,10 +1278,11 @@ await describe({
       },
     },),
     it({
-      name: 'a transient model error is answered with another attempt, and the run goes on',
+      name: 'a zero idle window does not end a run during the wait to retry a transient model error',
       fn: async () => {
         const run = await runDriver({
           scenario: 'transient-error-then-success',
+          idleSeconds: 0,
           extraOptions: [`--retry-base-seconds=${String(RETRY_BASE_SECONDS,)}`,],
         },);
         expect(run.status,).toBe(CLEAN_STATUS,);
@@ -1686,6 +1836,485 @@ await describe({
         const noted = run.feed.find((entry,) => entry.kind === 'environment',);
         expect(noted?.removedNames,).toEqual([CREDENTIAL_SHAPED_VARIABLE,],);
         expect(JSON.stringify(run.feed,),).not.toContain(CREDENTIAL_VALUE,);
+      },
+    },),
+    it({
+      name: 'refuses a run folder that already holds a summary before it starts Pi, and leaves that summary as it was',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The folder this run was given, which holds what the run before it left.
+         */
+        const runFolder = join(
+          folder.path,
+          'run',
+        );
+        /**
+         The prompt file the run names, which the refusal never reads.
+         */
+        const promptFile = join(
+          folder.path,
+          'prompt.md',
+        );
+        /**
+         The summary the run before this one left in that folder.
+         */
+        const firstSummary = '{"endReason":"idle","lastAssistantText":"the first run said this"}\n';
+        await mkdir(runFolder, { recursive: true, },);
+        await writeFile(promptFile, 'hello',);
+        await writeFile(
+          join(
+            runFolder,
+            SUMMARY_FILE_NAME,
+          ),
+          firstSummary,
+        );
+        /**
+         The status the driver ended with, and what it printed.
+         */
+        const [status, standardError,] = await exitOf(execFileAsync(process.execPath, [
+          DRIVER,
+          `--run-folder=${runFolder}`,
+          `--working-folder=${folder.path}`,
+          `--prompt-file=${promptFile}`,
+          '--provider=stand-in',
+          '--model=stand-in-model',
+          '--wall-seconds=60',
+          '--idle-seconds=1',
+          '--turn-cap=2',
+        ], {
+          env: {
+            PATH: [dirname(process.execPath,), '/usr/bin',].join(delimiter,),
+            HOME: process.env.HOME,
+          },
+          encoding: 'utf8',
+        },),);
+        expect(status,).toBe(FAILED_STATUS,);
+        expect(standardError,).toContain('RunFolderHoldsAnEarlierAttemptError',);
+        expect(standardError,).toContain(runFolder,);
+        expect(standardError,).toContain(SUMMARY_FILE_NAME,);
+        // The run stopped before it made anything, so the folder holds the summary the run before it wrote and nothing else.
+        expect(await readdir(runFolder,),).toEqual([SUMMARY_FILE_NAME,],);
+        expect(await readFile(
+          join(
+            runFolder,
+            SUMMARY_FILE_NAME,
+          ),
+          'utf8',
+        ),).toBe(firstSummary,);
+      },
+    },),
+    it({
+      name: 'refuses a run folder that holds what an attempt killed before its summary left, and leaves that attempt standard error as it was',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The folder this run was given, which holds what an attempt at it left before it was killed.
+         */
+        const runFolder = join(
+          folder.path,
+          'run',
+        );
+        /**
+         The prompt file the run names, which the refusal never reads.
+         */
+        const promptFile = join(
+          folder.path,
+          'prompt.md',
+        );
+        /**
+         What the earlier attempt printed as it crashed, which no later attempt may truncate away.
+         */
+        const earlierStandardError = 'ORIGINAL-CRASHED-RUN-STDERR\n';
+        await mkdir(runFolder, { recursive: true, },);
+        await writeFile(promptFile, 'hello',);
+        await writeFile(
+          join(
+            runFolder,
+            'stderr.log',
+          ),
+          earlierStandardError,
+        );
+        /**
+         The status the driver ended with, and what it printed.
+         */
+        const [status, standardError,] = await exitOf(execFileAsync(process.execPath, [
+          DRIVER,
+          `--run-folder=${runFolder}`,
+          `--working-folder=${folder.path}`,
+          `--prompt-file=${promptFile}`,
+          '--provider=stand-in',
+          '--model=stand-in-model',
+          '--wall-seconds=60',
+          '--idle-seconds=1',
+          '--turn-cap=2',
+        ], {
+          env: {
+            PATH: [dirname(process.execPath,), '/usr/bin',].join(delimiter,),
+            HOME: process.env.HOME,
+          },
+          encoding: 'utf8',
+        },),);
+        expect(status,).toBe(FAILED_STATUS,);
+        expect(standardError,).toContain('stderr.log',);
+        // The run stopped before it started Pi, so the folder holds what the earlier attempt left and nothing of this run.
+        expect(await readdir(runFolder,),).toEqual(['stderr.log',],);
+        expect(await readFile(
+          join(
+            runFolder,
+            'stderr.log',
+          ),
+          'utf8',
+        ),).toBe(earlierStandardError,);
+      },
+    },),
+    it({
+      name: 'keeps a value a tool printed out of every file the run writes, and says on the feed what was masked',
+      fn: async () => {
+        /**
+         The stand-in store, which is the only place this value stands.
+         */
+        await using store = await createSopsFixture({ values: { [MASKED_STORE_NAME]: MASKED_STORE_VALUE, }, },);
+        const run = await runDriver({
+          scenario: PRINTS_A_VALUE_SCENARIO,
+          extraPathEntries: folderOfSops(),
+          environment: {
+            ENV_LOCAL_JSON_PATH: store.storePath,
+            SOPS_AGE_KEY_FILE: store.identityPath,
+          },
+        },);
+        expect(run.summary.endReason,).toBe('idle',);
+        /**
+         What the feed says the tool result held, which is a marker and not a value.
+         */
+        const ended = run.feed.find((entry,) => entry.kind === 'tool_end',);
+        expect(String(ended?.result,),).toContain(
+          `[masked secret value of ${MASKED_STORE_NAME}]`,
+        );
+        expect(JSON.stringify(run.feed,),).not.toContain(MASKED_STORE_VALUE,);
+        // Every file the run writes, read back: a value masked in what the model reads may not be left in one of them.
+        /**
+         The files the run wrote that hold the value, which may be none.
+         */
+        const holding = Object.entries(run.runFiles,)
+          .filter(function holdsIt([, text,],) {
+            return text.includes(MASKED_STORE_VALUE,);
+          },)
+          .map(function nameOf([name,],) {
+            return name;
+          },);
+        expect(holding,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'masks a value the store declares under a name no credential rule matches, printed as it is by a tool',
+      fn: async () => {
+        /**
+         A name the store declares that the rule about credential-shaped names does not match, which is the plain case: the store's
+         own declaration is what puts the value under the masking.
+         */
+        const declaredName = 'DEPLOYMENT';
+        /**
+         The stand-in value, which is this run's own.
+         */
+        const declaredValue = 'stand-in-deployment-value-0123456789';
+        await using store = await createSopsFixture({ values: { [declaredName]: declaredValue, }, },);
+        const run = await runDriver({
+          scenario: PRINTS_A_VALUE_SCENARIO,
+          extraPathEntries: folderOfSops(),
+          environment: {
+            ENV_LOCAL_JSON_PATH: store.storePath,
+            SOPS_AGE_KEY_FILE: store.identityPath,
+            // The driver's own environment already holds the name the store declares, which is the shape the fourth review found:
+            // a reader answering only fill-ins says nothing about this name at all.
+            [declaredName]: declaredValue,
+          },
+        },);
+        expect(run.summary.endReason,).toBe('idle',);
+        /**
+         What the feed says the tool result held, which is a marker naming the declared variable.
+         */
+        const ended = run.feed.find((entry,) => entry.kind === 'tool_end',);
+        expect(String(ended?.result,),).toContain(`[masked secret value of ${declaredName}]`,);
+        expect(JSON.stringify(run.feed,),).not.toContain(declaredValue,);
+        /**
+         Every file the run wrote that still holds the value, which must be none.
+         */
+        const holding = Object.entries(run.runFiles,)
+          .filter(function holdsIt([, text,],) {
+            return text.includes(declaredValue,);
+          },)
+          .map(function nameOf([name,],) {
+            return name;
+          },);
+        expect(holding,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'refuses to start a run whose secret environment cannot be read, naming the cause and starting no Pi',
+      fn: async () => {
+        /**
+         A stand-in store, which a second key does not open.
+         */
+        await using store = await createSopsFixture({ values: { [MASKED_STORE_NAME]: MASKED_STORE_VALUE, }, },);
+        /**
+         An identity file that is not the one the store was encrypted to.
+         */
+        await using otherIdentity = await makeFolder();
+        /**
+         The key of another identity.
+         */
+        const otherKey = join(otherIdentity.path, 'identity.txt',);
+        await writeFile(
+          otherKey,
+          NOT_A_KEY_FOR_THIS_STORE,
+        );
+        const run = await runDriver({
+          scenario: 'normal',
+          extraPathEntries: folderOfSops(),
+          environment: {
+            ENV_LOCAL_JSON_PATH: store.storePath,
+            SOPS_AGE_KEY_FILE: otherKey,
+          },
+        },);
+        expect(run.status,).not.toBe(CLEAN_STATUS,);
+        expect(run.standardError,).toContain('SecretEnvironmentUnreadableError',);
+        expect(run.standardError.toLowerCase(),).toContain('decrypt',);
+        expect(run.standardError,).not.toContain(MASKED_STORE_VALUE,);
+        // No Pi was started, so the stand-in wrote nothing: a run whose masking cannot be armed does not begin.
+        expect(run.logWasWritten,).toBe(false,);
+      },
+    },),
+    it({
+      name: 'masks the session a run resumes before Pi can read a value out of it',
+      fn: async () => {
+        await using store = await createSopsFixture({ values: { [MASKED_STORE_NAME]: MASKED_STORE_VALUE, }, },);
+        await using sessionFolder = await makeFolder();
+        /**
+         The session this run resumes, holding a value an earlier run left in it.
+         */
+        const sessionFile = join(sessionFolder.path, 'resumed.jsonl',);
+        await writeFile(
+          sessionFile,
+          `${JSON.stringify({ type: 'message', message: { role: 'user', content: `an old session holds ${MASKED_STORE_VALUE}`, }, },)}\n`,
+        );
+        const run = await runDriver({
+          scenario: 'normal',
+          extraOptions: [`--session=${sessionFile}`,],
+          extraPathEntries: folderOfSops(),
+          environment: {
+            ENV_LOCAL_JSON_PATH: store.storePath,
+            SOPS_AGE_KEY_FILE: store.identityPath,
+          },
+        },);
+        expect(run.summary.endReason,).toBe('idle',);
+        // What Pi was handed is a masked copy of the session, and that is what it resumes: its own compaction request is built from
+        // the copy, which holds no value.
+        /**
+         What the feed says about the session the run resumed.
+         */
+        const resumed = run.feed.find((entry,) => entry.kind === 'session_resumed',);
+        expect(resumed?.masked,).toBe('into-a-copy',);
+        expect(run.markers,).toContain('session-holds-armed-value no',);
+        // The file the run was given is another run's, and is left exactly as it was: that is the stated limit of a resumed session.
+        expect(await readFile(
+          sessionFile,
+          'utf8',
+        ),).toContain(MASKED_STORE_VALUE,);
+        /**
+         The copy Pi resumed, which is in the run folder's own files and holds the marker where the value was.
+         */
+        expect(String(resumed?.copy,),).toContain('resumed-session.jsonl',);
+        const copy = run.runFiles['resumed-session.jsonl'] ?? '';
+        expect(copy,).not.toContain(MASKED_STORE_VALUE,);
+        expect(copy,).toContain('[masked secret value of',);
+      },
+    },),
+    it({
+      name: 'leaves a session alone that Pi reports and this run did not make',
+      fn: async () => {
+        await using store = await createSopsFixture({ values: { [MASKED_STORE_NAME]: MASKED_STORE_VALUE, }, },);
+        await using sessionFolder = await makeFolder();
+        /**
+         The session this run was given to resume, whose masked copy is this run's own file.
+         */
+        const sessionFile = join(sessionFolder.path, 'given.jsonl',);
+        await writeFile(
+          sessionFile,
+          `${JSON.stringify({ type: 'message', message: { role: 'user', content: `an old session holds ${MASKED_STORE_VALUE}`, }, },)}\n`,
+        );
+        /**
+         Another run's session, which this run's Pi has no business naming: it exists before this run starts, and holds ordinary
+         data beside a value.
+         */
+        const otherRuns = join(sessionFolder.path, 'other-run.jsonl',);
+        /**
+         What the other run's file holds, which must be exactly what it holds after this run.
+         */
+        const otherRunsText = `${JSON.stringify({ entry: `other run user data ${MASKED_STORE_VALUE}`, },)}\n`;
+        await writeFile(otherRuns, otherRunsText,);
+        const run = await runDriver({
+          // Pi reports a file this run never made, standing for a misreporting peer.
+          scenario: 'reports-another-session',
+          extraOptions: [`--session=${sessionFile}`,],
+          extraPathEntries: folderOfSops(),
+          environment: {
+            ENV_LOCAL_JSON_PATH: store.storePath,
+            SOPS_AGE_KEY_FILE: store.identityPath,
+            STAND_IN_PI_REPORTED_SESSION: otherRuns,
+          },
+        },);
+        // The file Pi named is another run's: this run leaves every byte of it as it was, and says so in its record.
+        expect(await readFile(otherRuns, 'utf8',),).toBe(otherRunsText,);
+        const noted = run.feed.find((entry,) => entry.kind === 'session_at_rest',);
+        expect(String(noted?.problem,),).toContain('other-run.jsonl',);
+        // The session this run was given is still untouched, and the copy it made is what it masked.
+        expect(await readFile(sessionFile, 'utf8',),).toContain(MASKED_STORE_VALUE,);
+        expect(run.runFiles['resumed-session.jsonl'] ?? '',).not.toContain(MASKED_STORE_VALUE,);
+      },
+    },),
+    it({
+      name: 'leaves the session it was given alone when Pi names no session file of its own',
+      fn: async () => {
+        await using store = await createSopsFixture({ values: { [MASKED_STORE_NAME]: MASKED_STORE_VALUE, }, },);
+        await using sessionFolder = await makeFolder();
+        /**
+         The session this run was given to resume, which an earlier run still owns and may still be writing.
+         */
+        const sessionFile = join(sessionFolder.path, 'given.jsonl',);
+        await writeFile(
+          sessionFile,
+          `${JSON.stringify({ type: 'message', message: { role: 'user', content: `an old session holds ${MASKED_STORE_VALUE}`, }, },)}\n`,
+        );
+        const run = await runDriver({
+          // Pi answers both `get_state` and `get_session_stats` without a session file, so no answer of its own names the copy.
+          scenario: 'sessionless',
+          extraOptions: [`--session=${sessionFile}`,],
+          extraPathEntries: folderOfSops(),
+          environment: {
+            ENV_LOCAL_JSON_PATH: store.storePath,
+            SOPS_AGE_KEY_FILE: store.identityPath,
+          },
+        },);
+        // The session the run was given is another run's file: it is copied before Pi starts and never written by this run, whatever
+        // Pi omits from its own answers. A fallback to the given path is what this test exists to catch.
+        expect(await readFile(
+          sessionFile,
+          'utf8',
+        ),).toContain(MASKED_STORE_VALUE,);
+        /**
+         What the feed says the run did with the session it was given.
+         */
+        const resumed = run.feed.find((entry,) => entry.kind === 'session_resumed',);
+        expect(resumed?.masked,).toBe('into-a-copy',);
+        // The copy is the run's own file, so the at-rest masking covers it even though no answer of Pi's named it, and the summary
+        // states no problem.
+        expect(run.summary.sessionAtRest,).toBeUndefined();
+        const copy = run.runFiles['resumed-session.jsonl'] ?? '';
+        expect(copy,).not.toContain(MASKED_STORE_VALUE,);
+      },
+    },),
+    it({
+      name: 'leaves a session file this run cannot show is its own, and ends saying where the value still is',
+      fn: async () => {
+        await using store = await createSopsFixture({ values: { [MASKED_STORE_NAME]: MASKED_STORE_VALUE, }, },);
+        await using sessionFolder = await makeFolder();
+        /**
+         A session file that was there before this run started, holding a value no hook of this run would have seen: another
+         run's file, or one an earlier run left, which this run does not rewrite however Pi names it.
+         */
+        const sessionFile = join(sessionFolder.path, 'session.jsonl',);
+        await writeFile(
+          sessionFile,
+          `${JSON.stringify({ type: 'custom', customType: 'an-extension', data: { credential: MASKED_STORE_VALUE, }, },)}\n`,
+        );
+        const run = await runDriver({
+          scenario: 'normal',
+          extraPathEntries: folderOfSops(),
+          environment: {
+            ENV_LOCAL_JSON_PATH: store.storePath,
+            SOPS_AGE_KEY_FILE: store.identityPath,
+            STAND_IN_PI_SESSION_FILE: sessionFile,
+          },
+        },);
+        expect(run.summary.endReason,).toBe('session-unmasked',);
+        expect(run.status,).not.toBe(CLEAN_STATUS,);
+        // The feed says where the value still is, before it is closed.
+        expect(run.feed.some((entry,) => entry.kind === 'session_at_rest',),).toBe(true,);
+        expect(String(run.summary.sessionAtRest,),).toContain('session.jsonl',);
+        // The session is left exactly as it was, which is the person's file rather than a half-written one.
+        expect(await readFile(
+          sessionFile,
+          'utf8',
+        ),).toContain(MASKED_STORE_VALUE,);
+
+      },
+    },),
+    it({
+      name: 'sends no prompt while the command list says nothing about the masking',
+      fn: async () => {
+        // A Pi that answers nothing: the run's own bound ends the wait for its command list, and no prompt is sent on silence.
+        const run = await runDriver({
+          scenario: 'silent',
+          wallSeconds: SILENT_RUN_WALL_SECONDS,
+        },);
+        expect(run.commands,).not.toContain('prompt',);
+        expect(run.summary.endReason,).toBe('wall-clock',);
+        /**
+         What the feed says about the silence, which names how many values were handed over and that nothing answered.
+         */
+        const noted = run.feed.find((entry,) => entry.kind === 'masking_not_armed',);
+        expect(typeof noted?.handedOver,).toBe('number',);
+        expect(noted?.answered,).toBe(false,);
+      },
+    },),
+    it({
+      name: 'masks the session a run leaves behind, whatever wrote an entry of it',
+      fn: async () => {
+        await using store = await createSopsFixture({ values: { [MASKED_STORE_NAME]: MASKED_STORE_VALUE, }, },);
+        await using sessionFolder = await makeFolder();
+        /**
+         The session file the run's own Pi makes when it starts, which it fills with an entry no hook of this run sees.
+         */
+        const sessionFile = join(sessionFolder.path, 'session.jsonl',);
+        /**
+         The entry that stand-in Pi writes into its own session as it starts, which an extension could have written too.
+         */
+        const writtenByPi = `${JSON.stringify({ type: 'custom', customType: 'an-extension', data: { credential: MASKED_STORE_VALUE, }, },)}\n`;
+        const run = await runDriver({
+          scenario: 'normal',
+          extraPathEntries: folderOfSops(),
+          environment: {
+            ENV_LOCAL_JSON_PATH: store.storePath,
+            SOPS_AGE_KEY_FILE: store.identityPath,
+            STAND_IN_PI_SESSION_FILE: sessionFile,
+            STAND_IN_PI_SESSION_CONTENT: writtenByPi,
+          },
+        },);
+        expect(run.summary.endReason,).toBe('idle',);
+        /**
+         What the session holds once the run is over.
+         */
+        const kept = await readFile(
+          sessionFile,
+          'utf8',
+        );
+        expect(kept,).not.toContain(MASKED_STORE_VALUE,);
+        expect(kept,).toContain('[masked secret value of',);
+      },
+    },),
+    it({
+      name: 'sends no prompt to a Pi whose masking is not in place',
+      fn: async () => {
+        const run = await runDriver({ scenario: WITHOUT_MASKING_SCENARIO, },);
+        expect(run.summary.endReason,).toBe('masking-not-armed',);
+        expect(run.commands,).not.toContain('prompt',);
+        /**
+         What the feed says about it, which names the values handed over and the commands Pi had.
+         */
+        const noted = run.feed.find((entry,) => entry.kind === 'masking_not_armed',);
+        expect(typeof noted?.handedOver,).toBe('number',);
+        expect(noted?.commands,).not.toContain('secret-value-masking',);
       },
     },),
     it({

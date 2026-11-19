@@ -9,11 +9,13 @@
 
 import { spawn, } from 'node:child_process';
 import { close, } from 'node:fs';
+import { randomUUID, } from 'node:crypto';
 import {
   appendFile,
   readFile,
   writeFile,
 } from 'node:fs/promises';
+import { join, } from 'node:path';
 import process, {
   argv,
   env,
@@ -25,7 +27,9 @@ import process, {
 import { createInterface, } from 'node:readline';
 import { setTimeout as wait, } from 'node:timers/promises';
 import { promisify, } from 'node:util';
-import { NESTED_RUN_VARIABLE, } from './driver-constants.ts';
+import { ordinaryAnswersOf, } from './ordinary-answers-of-a-stand-in-pi.ts';
+import { sessionAnswerOf, } from './session-answers-of-a-stand-in-pi.ts';
+import { logTheNamesOfWhatPiCouldRead, } from './what-a-stand-in-pi-logs-about-its-names.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import type { PiRecord, } from './driver-types.ts';
 import { isRecord, } from './read-pi-fields.ts';
@@ -35,6 +39,12 @@ import {
   seen,
   writeLogLine,
 } from './stand-in-pi-log-fixture.ts';
+import {
+  armTheStandInMasking,
+  answerCommands,
+  sessionHoldsAValue,
+  type StandInMasking,
+} from './stand-in-pi-masking-fixture.ts';
 import {
   CRASH_STATUS,
   playPrompt,
@@ -87,31 +97,44 @@ const log = env.STAND_IN_PI_LOG ?? '/dev/null';
 const closeDescriptor = promisify(close,);
 
 /**
- What Pi answers each ordinary command with, so a run's state, its command names and its statistics all have shapes to read.
+ The session Pi was told to resume, which is the word after `--session` in its own arguments.
  */
-const ORDINARY_ANSWERS: ReadonlyMap<string, PiRecord> = new Map<string, PiRecord>([
-  [
-    'get_state',
-    {
-      model: { id: 'stand-in-model', },
-      thinkingLevel: 'xhigh',
-    },
-  ],
-  [
-    'get_commands',
-    { commands: [
-      { name: 'bash', },
-      { name: 'edit', },
-    ], },
-  ],
-  [
-    'get_session_stats',
-    {
-      sessionFile: 'stand-in-session.jsonl',
-      cost: 0.5,
-    },
-  ],
-]);
+const sessionArgumentAt = argv.indexOf('--session',);
+
+/**
+ The session Pi keeps: the one the run handed it, or one this stand-in makes for itself at its own start, as Pi makes a new session
+ file for a fresh run.
+ */
+const sessionFile = (sessionArgumentAt === (-1))
+  ? (env.STAND_IN_PI_SESSION_FILE
+    ?? join(
+      env.TMPDIR ?? env.HOME
+        ?? process.cwd(),
+      `stand-in-session-${randomUUID()}.jsonl`,
+    ))
+  : argv[sessionArgumentAt + 1];
+
+// A fresh run's session file is made by its Pi, during the run, holding whatever the fixture says Pi's own session already held.
+if ((sessionArgumentAt === (-1)) && (sessionFile !== undefined)) {
+  try {
+    await writeFile(
+      sessionFile,
+      env.STAND_IN_PI_SESSION_CONTENT ?? '',
+      { flag: 'wx', },
+    );
+  }
+  catch (error) {
+    // A file that is already there is the fixture's own, which this start keeps rather than writes.
+    if (!(Error.isError(error,) && (errorCodeOf(error,) === 'EEXIST'))) {
+      throw error;
+    }
+  }
+}
+
+/**
+ What Pi answers each ordinary command with, named by the session file this start keeps.
+ */
+const ORDINARY_ANSWERS = ordinaryAnswersOf({ sessionFile: sessionFile ?? 'stand-in-session.jsonl', },);
 
 /**
  Counts this start among the starts of one run, in a file the several stand-in processes of one run share.
@@ -240,8 +263,16 @@ async function startToolHoldingOutput(id: unknown,): Promise<void> {
  Acts on one command.
 
  @param line - command as written
+
+ @param masking - what this stand-in's Pi armed, which its command list answers with
  */
-async function actOnCommand(line: string,): Promise<void> {
+async function actOnCommand({
+  line,
+  masking,
+}: {
+  readonly line: string;
+  readonly masking: StandInMasking;
+},): Promise<void> {
   /**
    The command, of any shape.
    */
@@ -276,6 +307,13 @@ async function actOnCommand(line: string,): Promise<void> {
     await wait(STAY_MILLISECONDS,);
     return;
   }
+  if (parsed.type === 'get_commands') {
+    answerCommands({
+      id: parsed.id,
+      masking,
+    },);
+    return;
+  }
   if (parsed.type === 'extension_ui_response') {
     /**
      Only the dialog the scenario asked for, declined, ends the run: any other answer proves the driver declined something else.
@@ -306,11 +344,27 @@ async function actOnCommand(line: string,): Promise<void> {
   if ((parsed.type === 'get_session_stats') && (scenario === 'crash-on-stats')) {
     exit(CRASH_STATUS,);
   }
-  if ((parsed.type === 'get_session_stats') && (scenario === 'statless')) {
+  /**
+   What a scenario about the session file Pi names answers this command with.
+   */
+  const sessionAnswer = sessionAnswerOf({
+    type: parsed.type,
+    scenario,
+    ordinary: ORDINARY_ANSWERS.get(String(parsed.type,),) ?? {},
+    reported: env.STAND_IN_PI_REPORTED_SESSION ?? 'stand-in-reported-session.jsonl',
+  },);
+  if ('noData' in sessionAnswer) {
     emit({
       type: 'response',
       id: parsed.id,
       success: true,
+    },);
+    return;
+  }
+  if ('answer' in sessionAnswer) {
+    answer({
+      id: parsed.id,
+      data: sessionAnswer.answer,
     },);
     return;
   }
@@ -320,20 +374,28 @@ async function actOnCommand(line: string,): Promise<void> {
   },);
 }
 
-await appendFile(
+/**
+ What this stand-in's Pi armed, read before any scenario runs so the descriptor is closed before a tool could inherit it.
+ */
+const masking: StandInMasking = armTheStandInMasking({ scenario, },);
+await logTheNamesOfWhatPiCouldRead({
   log,
-  `arguments ${JSON.stringify(argv.slice(2,),)}\n`,
-);
-await appendFile(
-  log,
-  `nested ${env[NESTED_RUN_VARIABLE] ?? 'unset'}\n`,
-);
-// Names only: a test learns what Pi's commands could read without any value reaching a log, and so a model provider.
-await appendFile(
-  log,
-  `environment-names ${JSON.stringify(Object.keys(env,)
-    .toSorted(),)}\n`,
-);
+  argumentsOfTheStart: argv.slice(2,),
+  values: masking.values,
+},);
+/**
+ Whether the session Pi was handed holds an armed value as Pi starts, which is a yes or a no and never a value.
+ */
+const sessionValue = await sessionHoldsAValue({
+  masking,
+  ...(sessionFile === undefined ? {} : { sessionFile, }),
+},);
+if ((typeof sessionValue) === 'string') {
+  await appendFile(
+    log,
+    `marker ${sessionValue}\n`,
+  );
+}
 if (scenario === 'crash') {
   exit(CRASH_STATUS,);
 }
@@ -355,7 +417,10 @@ if (scenario === 'ignores-sigterm') {
   );
 }
 for await (const line of createInterface({ input: stdin, },)) {
-  await actOnCommand(line,);
+  await actOnCommand({
+    line,
+    masking,
+  },);
 }
 if ((scenario === 'ignores-input-close') || (scenario === 'ignores-sigterm')) {
   await wait(STAY_MILLISECONDS,);

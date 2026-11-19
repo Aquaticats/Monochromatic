@@ -319,37 +319,32 @@ A same-vendor subagent is a second pass:
  never as independent.
 
 XVW:
- GPT audits,
- `timeout` sized in seconds:
- `timeout 3600 codex exec --dangerously-bypass-approvals-and-sandbox --model gpt-6.1-sol --config model_reasoning_effort=xhigh "<question>"`.
+ Delegated writing runs through Pi on GPT 6.2 Sol,
+ started by `package/pi-shared/subagent-driver`.
 
-XVB:
- Every `codex` run passes `--dangerously-bypass-approvals-and-sandbox`,
- because its auto mode has too many issues,
- and names `xhigh` explicitly.
-
-XVS:
- Keep GPT runs small,
- one narrow question each:
- GPT models cannot be trusted on long-horizon work.
+RKD:
+ A run OpenAI stops as a "possible risk":
+ resume its session on DeepSeek through Pi,
+ never the official `deepseek` provider.
 
 KRV:
- Reviews of a change go to qwen4-max-preview alone:
- Pi with `--provider qwen-token-plan-individual --model qwen4-max-preview`,
- in a worktree of its own,
- on the qwen4 pool.
+ Short reviews of a change (all but integration passes,
+ releases and designs put to the owner) run through Pi on DeepSeek,
+ in a worktree of their own;
+ never the official `deepseek` provider.
 
 LHZ:
- Long-horizon audits,
+ Gate reviews (an integration pass before main,
+ a release,
+ a design put to the owner) and long-horizon audits,
  in every harness:
  run Claude Sonnet,
- by whatever route that harness offers,
- and Kimi K3.1 Pro side by side.
+ by whatever route that harness offers.
 
 PFW:
  Alongside advisor,
  never instead:
- a qwen4 review reads the paths its prompt names,
+ a review or audit reads the paths its prompt names,
  whole files and the diff,
  never prose.
 Background it;
@@ -719,11 +714,12 @@ NXR:
  rerun in background or with a bound.
 
 PWT:
- Never wait on a process by name:
- `pgrep --full` in a loop matches the agent's own shell wrapper and never exits.
  Wait on a PID,
  bounded:
- `timeout 600 tail --pid=<pid> --follow /dev/null`.
+ `timeout 600 tail --pid=<pid> --follow /dev/null`;
+ never by name (`pgrep --full` matches its own shell)
+ nor on a stand-in PID:
+ PID 1 never exits.
 
 BGL:
  Every background wait or poll loop has a deadline,
@@ -813,6 +809,12 @@ APQ:
  never in any `git worktree add` folder of this repo,
  which shares its `.git/config`.
 
+WTU:
+ Every worktree of this repository,
+ Git's own or a Btrfs or ZFS clone,
+ lives under `.claude/worktrees/` in the main checkout;
+ designs and briefs name that place.
+
 BOP:
  `~` in shell output is a display-only home-dir substitution by the `bash-output-filter` hook;
  bypass it with `eval`,
@@ -851,8 +853,9 @@ RGT:
 ### Hazardous commands
 
 HRM:
- Could an action physically harm a human or wear hardware?
- Warn first.
+ Could an action physically harm a human,
+ or damage hardware?
+ Ask first.
 `ssh m1`:
  16 GiB RAM cap,
  fragile internal SSD;

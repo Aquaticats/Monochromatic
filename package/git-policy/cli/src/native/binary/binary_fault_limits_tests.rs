@@ -37,7 +37,7 @@
 //! for (const limit of range(startsAt, landsAt + 1)) { await runWithLimit({ nofile: limit }, wrappedCommit); await expectRecoveredRepository(); }
 //! ```
 
-use super::commit::remove_settled;
+use super::commit::{git_text, remove_settled};
 use super::fault::{COMMIT_ARGUMENTS, staged_repository, verify_recovery, verify_recovery_with};
 use super::fault_run::{SWEEP_WIDTH, end_the_pressure, run_unsettled, run_watched, unbounded_wrapper};
 use super::support::{Fixture, FixtureService, LimitKind, ServiceEnd, ServiceLaunch, fixture};
@@ -127,13 +127,25 @@ pub(super) fn check_limited_run(label: &str, output: &Output, may_abort: bool) -
     return Ok(());
 }
 
-/// What one case showed.
+/// What one case showed,
+/// with the two facts apart:
+/// what the wrapper did,
+/// and what the repository holds.
 struct Case {
+    /// Whether the limited attempt's commit landed:
+    /// the repository's branch holds one commit more than it did before the attempt,
+    /// which is the repository's own state and neither the wrapper's exit nor a line a service wrote.
+    landed: bool,
     /// Whether the wrapper returned success under the limit:
     /// its own exit status,
-    /// and never whether the service made the commit,
-    /// which the service's own words answer.
-    landed: bool,
+    /// and never whether a commit landed.
+    returned_success: bool,
+    /// The commits the repository's branch held before the limited attempt.
+    commits_before: String,
+    /// The commits it held after the attempt,
+    /// read before the recovery ran,
+    /// so the recovery's own commit is not counted here.
+    commits_after: String,
     /// How the wrapper itself ended under the limit,
     /// as an exit status or a signal,
     /// for a failure that must say what happened rather than what it means.
@@ -144,10 +156,13 @@ struct Case {
     /// Whether the first run ended with a check failure,
     /// or the recovery after it did not hold.
     verdict: Result<(), String>,
-    /// What the fixture's service wrote to its log while the case ran,
-    /// evidence for a person,
-    /// never what a verdict rests on.
-    log: String,
+    /// What the limited attempt's service wrote,
+    /// read after the pressure ended and before the recovery ran,
+    /// so it holds nothing the recovery's service wrote.
+    limited_log: String,
+    /// What the service wrote while the recovery ran:
+    /// the log after the recovery, less what the limited attempt's service had written.
+    recovery_log: String,
     /// How the limited service ended,
     /// for the control that says it ended,
     /// and `None` for every control that does not watch for it.
@@ -169,6 +184,7 @@ fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, 
     //  starts afterwards or does not land, and the recovery after it still runs with an unlimited service.
     *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch { limits: service.to_vec(), may_fail_to_start: may_abort && !service.is_empty(), ..ServiceLaunch::default() };
     let repo: PathBuf = staged_repository(&fixture, "repo");
+    let commits_before: String = commits_of_the_branch(&fixture, repo.as_path());
     let output: Output = limited_commit(&fixture, repo.as_path(), wrapper);
     // The end is read from the process itself, before the pressure ends: what the service wrote about its own end
     //  arrives through a copy thread and says only what it claimed.
@@ -176,30 +192,74 @@ fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, 
         watched_end.map(|bound| { return super::support::wait_for_the_service_to_end(&fixture, repo.as_path(), bound); });
     let said: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
     let first: Result<(), String> = check_limited_run(label, &output, may_abort);
+    // The pressure ends here, which closes every service's stream; the limited attempt's words are then complete, and
+    //  they are read now, because the recovery adds its own lines to the same file and its commit is not this case's.
     end_the_pressure(&fixture);
+    let limited_log: String = the_service_log_of(&fixture);
+    let commits_after: String = commits_of_the_branch(&fixture, repo.as_path());
     let judged: Result<(), String> = if verify {
         first.and_then(|()| { return verify_recovery_with(&fixture, repo.as_path(), label, said.as_str(), run_unsettled); })
     } else {
         Ok(())
     };
     let verdict: Result<(), String> = super::fault_run::keeping_the_service_log(&fixture, judged);
-    let landed: bool = output.status.code() == Some(0);
+    let recovery_log: String = the_log_of_the_recovery(&limited_log, &the_service_log_of(&fixture));
     let status: std::process::ExitStatus = output.status;
     let stderr: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
-    let log: String = the_service_log_of(&fixture);
     remove_settled(&fixture);
-    return Case { landed, status, stderr, verdict, log, service_end };
+    return Case {
+        landed: commits_before != commits_after,
+        returned_success: output.status.code() == Some(0),
+        commits_before,
+        commits_after,
+        status,
+        stderr,
+        verdict,
+        limited_log,
+        recovery_log,
+        service_end,
+    };
 }
 
 /// What:
-///  The fixture's service log as a failure carries it:
+///  The commits the repository's checked-out branch holds now,
+///  which is the repository's own state and the fact "a commit landed".
+/// Why:
+///  The wrapper's exit says whether the wrapper returned success,
+/// and a service's `answered` line is what the service says it did;
+/// the branch is neither of those,
+/// so a control whose claim is about a commit reads this.
+fn commits_of_the_branch(fixture: &Fixture, repo: &Path) -> String {
+    return git_text(fixture, repo, &["rev-list", "--count", "HEAD"]).trim().to_string();
+}
+
+/// What:
+///  What the fixture's service log holds now, as the file has it:
 ///  evidence for a person reading why the case failed,
 ///  and never what a verdict rests on.
 /// Why:
 ///  A copy runs on a thread of its own, so the file holds what a service wrote only once that thread has written it,
 /// and the end of the copy is an event this control does not need to wait for when it decides nothing.
+///  Every service of a fixture appends to this one file,
+/// so a read made before the recovery runs holds the limited attempt's words alone,
+/// and a read made after it holds both,
+/// which `the_log_of_the_recovery` tells apart by this text rather than by a byte count that changes between the reads.
 fn the_service_log_of(fixture: &Fixture) -> String {
-    return super::support::service_log(fixture.root.as_path());
+    return std::fs::read_to_string(fixture.root.join(super::support::SERVICE_LOG_FILE)).unwrap_or_default();
+}
+
+/// What:
+///  The part of the fixture's service log that the service of the recovery run wrote:
+///  the log after the recovery, less what the limited attempt's service had written.
+/// Why:
+///  Both services append to one file,
+/// so the recovery's successful commit would otherwise be read as the limited attempt's outcome,
+/// which two reviews of this control mistook once already.
+fn the_log_of_the_recovery(limited: &str, whole: &str) -> String {
+    let Some(added) = whole.strip_prefix(limited) else {
+        return format!("(the recovery's part of the log cannot be told apart from the limited attempt's; the whole log was {whole})");
+    };
+    return added.to_string();
 }
 
 /// What:
@@ -814,17 +874,22 @@ fn a_memory_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_reposi
     let (service, wrapper): (Vec<Limit>, Vec<Limit>) = wrapper_memory(room);
     let above: Case = run_case(format!("as-wrapper-above-the-smallest-landing-{room}").as_str(), service.as_slice(), wrapper.as_slice(), true, true, None);
     assert!(above.verdict.is_ok(), "a limit {room} MiB above the smallest landing left the repository unrecovered: {:?}", above.verdict);
-    // The case above the boundary carries the landing, so a wrapper that does not return success there fails here and is
-    //  not counted as one more refusal of the sweep: the totals below would hide it while any case of the sweep landed.
-    //  The message names what happened, which is the wrapper's own ending and what it said; whether a commit landed is a
-    //  second fact, and the service's words answer it, so the two are not confused when they differ.
+    // The case above the boundary carries the landing, so a case that lands no commit there fails here and is not counted
+    //  as one more refusal of the sweep: the totals below would hide it while any case of the sweep landed.
+    //  The message says what happened in the two facts apart: the branch, which is the commit, and the wrapper, which is
+    //  its own ending and words; each service log is under its own label, so the recovery's landing cannot be read as the
+    //  limited attempt's.
     assert!(
         above.landed,
-        "the wrapper must return success at {room} MiB, one search step and one thread pair above the smallest limit at which a commit lands ({lands_at} MiB), and it ended {}; what it wrote on its standard error: {}
-what the service wrote, which answers whether a commit landed: {}",
+        "a commit must land at {room} MiB, one search step and one thread pair above the smallest limit at which a commit lands ({lands_at} MiB), and the commits on the repository's branch were {} before the limited attempt and {} after it, before the recovery ran; the wrapper ended {} and its standard error said: {}
+what the limited attempt's service wrote: {}
+what the service wrote while the recovery ran, whose commit is not the one this case is about: {}",
+        above.commits_before,
+        above.commits_after,
         above.status,
         above.stderr,
-        above.log
+        above.limited_log,
+        above.recovery_log
     );
     let landed: usize = swept_landed + usize::from(above.landed);
     let refused: usize = swept_refused + usize::from(!above.landed);
@@ -866,18 +931,32 @@ fn run_case_lowered(label: &str, step: u64) -> Case {
         let limit: u64 = (mapped_mebibytes(*pid) + reserve_mebibytes) * step / MEMORY_STEPS * MEBIBYTE;
         LimitKind::AddressSpace.lift_for(*pid, limit, hard).expect("the soft limit of a running service is lowered");
     }
+    let commits_before: String = commits_of_the_branch(&fixture, repo.as_path());
     let output: Output = limited_commit(&fixture, repo.as_path(), &[]);
     let said: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
     let first: Result<(), String> = check_limited_run(label, &output, false);
+    // The pressure ends here, so the limited attempt's words are complete and are read before the recovery adds its own.
     end_the_pressure(&fixture);
+    let limited_log: String = the_service_log_of(&fixture);
+    let commits_after: String = commits_of_the_branch(&fixture, repo.as_path());
     let judged: Result<(), String> = first.and_then(|()| { return verify_recovery_with(&fixture, repo.as_path(), label, said.as_str(), run_unsettled); });
     let verdict: Result<(), String> = super::fault_run::keeping_the_service_log(&fixture, judged);
-    let landed: bool = output.status.code() == Some(0);
+    let recovery_log: String = the_log_of_the_recovery(&limited_log, &the_service_log_of(&fixture));
     let status: std::process::ExitStatus = output.status;
     let stderr: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
-    let log: String = the_service_log_of(&fixture);
     remove_settled(&fixture);
-    return Case { landed, status, stderr, verdict, log, service_end: None };
+    return Case {
+        landed: commits_before != commits_after,
+        returned_success: output.status.code() == Some(0),
+        commits_before,
+        commits_after,
+        status,
+        stderr,
+        verdict,
+        limited_log,
+        recovery_log,
+        service_end: None,
+    };
 }
 
 /// A running service whose address-space limit is lowered in place to each of `MEMORY_STEPS` parts of its mapped size plus the
@@ -978,16 +1057,20 @@ fn a_service_that_ends_before_it_listens_leaves_a_recoverable_repository() {
             status.code(),
             Some(git_policy_cli::service_runtime_build_report::EXIT_NO_WORKER),
             "the service at {below} MiB must end by itself with the status the program gives a service that cannot run a task it cannot serve without, and it ended with {status}; what it wrote explains it: {}",
-            case.log
+            case.limited_log
         ),
         Some(ServiceEnd::StillRunning) => panic!(
             "the service at {below} MiB still ran {SERVICE_END_BOUND:?} after the commit returned, so nothing shows it ends before it accepts a connection; what it wrote: {}",
-            case.log
+            case.limited_log
         ),
-        Some(ServiceEnd::NotServed) => panic!("the fixture served no service for this worktree, so this control has no end to observe: {}", case.log),
+        Some(ServiceEnd::NotServed) => panic!("the fixture served no service for this worktree, so this control has no end to observe: {}", case.limited_log),
         None => panic!("this control asked for the service's end and was given none"),
     }
-    assert!(!case.landed, "a service that ended before it accepted a connection cannot have landed a commit, so none can have landed through it");
+    assert!(
+        !case.landed,
+        "a service that ended before it accepted a connection cannot have landed a commit, and the commits on the repository's branch were {} before the limited attempt and {} after it; the wrapper ended {} and returned success: {}; its standard error said: {}",
+        case.commits_before, case.commits_after, case.status, case.returned_success, case.stderr
+    );
     assert_eq!(case.verdict, Ok(()), "the repository must recover with an unlimited service");
 }
 

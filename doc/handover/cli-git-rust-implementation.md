@@ -152,6 +152,402 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Crate vet down to one survivor, bench reviews all back (2026-11-18T18:25:00-05:00)
+
+Not final and not approved: this session's own account.
+
+- **Crate vet (task 379):** the discovery run did its work in 81 turns (cost 0.52 US dollars, no rate-limit error) and
+  was ended with the stop file because the driver kept it open for unrelated processes in the main checkout
+  (issue 6311: the driver counts every process working under `--working-folder` as the run's own; the unmerged branch
+  58bfdf1ced keeps the same test). Its records are committed as
+  `doc/audit/tech-rust-crate-for-openzfs-vet-2026-11-18-discovery-records.md`; the report
+  `doc/audit/tech-rust-crate-for-openzfs-vet-2026-11-18.md` holds the ledger, the screening judgements, and the
+  targeted evidence read from OpenZFS at `zfs-2.4.4` (libraries CDDL-1.0; `libzfs_core` "Evolving (not Committed)";
+  a build-time link would make every released wrapper archive need OpenZFS to start).
+  The owner then chose the kernel interface and dropped crates that run `zfs` (entry of 2026-11-18 under
+  "Owner decisions in force"), which leaves one survivor, `zfsdev`, cloned with history at
+  `~/temp/agent/rust-crate-for-openzfs-vet-2026-11-18/zfsdev-rs-2026-11-18` (pushes disabled).
+  Reading it found its layout matches the running 2.4.4 module (pahole on the module's BTF) but that it has no
+  `ZFS_IOC_CLONE`; the owner then chose "Our own small binding (Recommended)" (decision entry of 2026-11-18 under
+  "Owner decisions in force"), and the vet report closed as "no existing crate recommended" (commit 6c2c1db716).
+  A container build of `zfsdev` was stopped at the host firewall: rootless podman's traffic reaches OpenSnitch as
+  `passt.avx2`; the owner then had it allowed permanently and asked for the matching `mvm` switch, filed as issue 6312
+  (`doc/troubleshooting/rootless-podman-traffic-reaches-opensnitch-as-pasta.md`).
+  The blocklist was answered the same evening (decision entry "ZFS snapshots: an explicit blocklist of seven
+  datasets"). The design proposal's writer (GPT 6.2 Sol through Pi, unit
+  `pi-zfs-worktree-design-proposal-writer-1`) ended `idle` at 2026-11-18T19:22:10-05:00 after 29 turns ($0.83), with
+  `doc/planning/cli-git-zfs-worktree-design-proposal.md` on branch `docs/planning-cli-git-zfs-worktree-design-proposal`
+  (commits 78f445a56a, 5ba0cb06dd, 4203040346; pushed; marked non-final); its worktree is removed. Its report names
+  six choices for the owner (managed path interface, main-only origins, exact ABI profiles, periodic reconcile, scoped
+  delegation that lets the account destroy any snapshot of the main dataset, keep the space guard as it is) and notes
+  the blocklist answer's label said "seven" while the list it named has eight. The proposal also moved the main
+  checkout under a root-owned anchor (`/var/lib/monochromatic-worktrees/monochromatic/main`) and put clones there; the
+  owner answered that `~/Monochromatic` stays and worktrees live under its `.claude/worktrees/` (decision entry
+  "ZFS route: ~/Monochromatic stays, worktrees live under its .claude/worktrees"). Its cross-vendor review
+  (DeepSeek V4.1 Flash on Synthetic through Pi, steered mid-run with the owner's corrections) ended `idle` after 87
+  turns ($0.72): `~/temp/agent/zfs-worktree-design-proposal-review-2026-11-18/review.md`, 4 high, 5 medium, 6 low (H1
+  clones under `.claude/worktrees` need a descriptor-based mount and a new fill because Git refuses a non-empty
+  folder; H2 the checkout as a dataset at the same path, a boot-mount guard, the nested dataset
+  `zpcachyos/nosnap/vm-builder-output` mounted at `package/vm-builder/cli/output`, and the pnpm consequence; H3 an
+  unmounted clone loses its Git registration to `git worktree prune`; H4 an unbounded request property names a root
+  write path); weighed by the coordinator in b05a0e83a7 at 2026-11-18T20:07:38-05:00 (read H3 to L6 whole; H1 and H2 wait for the two
+  research documents): every one of H3, H4, M1 to M5 and L1 to L6 is accepted for the fold-in, none dismissed; H3 is
+  reproduced by the ZFS research's VM log (`guest-exact-zfs.log` lines 42 to 44: a `.git` pointer left in the
+  checkout layer keeps `git worktree prune` from removing the registration, and without it prune removes it), and L5
+  too (lines 40 to 41: `git worktree move` of a mounted clone fails "Device or resource busy"); its worktree is removed.
+  H1 and H2 weighed after the two research documents landed (read whole, review lines 19 to 206): both accepted. H1's
+  location is decided, its fill is the clones document's item 7 sequence, its descriptor attach is measured in item 3;
+  its VM gates 1 (the path-mount control), 3 (a rename loop over many mounts), 6 (a path swapped before unmount) and 7
+  (a user namespace attaching the clone, `FS_USERNS_MOUNT`) stay open. H2's dataset and path are the owner's answer A,
+  its pnpm consequence is measured; still owed are the checkout dataset's own boot mount (an entry the account can
+  replace while unmounted: `chattr +i` or `mountpoint=legacy` with the descriptor attach) and a rule for nested
+  datasets such as `zpcachyos/nosnap/vm-builder-output` under the checkout. Corrections of 2026-11-18 from the Sonnet
+  gate review of the proposal (`~/temp/agent/zfs-worktree-design-proposal-gate-review-2026-11-18/review.md`, check B):
+  item 7's sequence never ran end to end (the probe snapshotted before registering and mounted with `mount -t zfs`;
+  dated note in the clones document); gate 5's setuid half is open too (only a device open was refused); the review's
+  H1 sentence about detecting a renamed slot after attach is answered by the clones document (the attach reached the
+  old inode), its H2 point 4 is wrong (`vm-builder-output` sits under `zpcachyos/nosnap`, nested by path only), and its
+  H2 point 5 is wrong for `virtualStoreType: global` (zero payload bytes in the checkout). The owner then added `AGENTS.md` rule `WTU` (d507a55f0e) and
+  the wrapper refusal for later (issue 6313), and asked for three digs, all GPT 6.2 Sol through Pi, **going since
+  2026-11-18T19:46:28-05:00, 19:47:23 and 19:47:48 in this order**: the search for an earlier `AGENTS.md` worktree-place rule (unit
+  `pi-agents-md-worktree-place-rule-search-1`, read-only in the main checkout, report
+  `~/temp/agent/agents-md-worktree-place-rule-search-2026-11-18/report.md`); whether clones under
+  `.claude/worktrees` conflict with ZFS (unit `pi-zfs-clones-under-the-checkout-research-1`, worktree
+  `.claude/worktrees/zfs-clones-under-the-checkout-research`, doc
+  `doc/planning/cli-git-zfs-clones-mounted-under-the-checkout.md`, VM probes; it ended `model-error` after 77 turns at
+  2026-11-18T20:03:08-05:00 on OpenAI's filter, "This content was flagged for possible cybersecurity risk", right after
+  reading its own log of the planted-link probes; its VM probes had all run, with results in
+  `~/temp/agent/zfs-nested-checkout-mounts-2026-11-18-scratch/keep/`, no guest left and nothing committed; resumed from
+  its session to write the document, unit `pi-zfs-clones-under-the-checkout-research-2`, run folder `run-2`, with the
+  path-safety section asked as requirements rather than probe steps; main's driver refuses `--idle-seconds=0` until the
+  idle branch lands, so it runs with 1; then moved to DeepSeek by rule `RKD`, recorded under the dig's landing below); and pnpm and other tools with the
+  checkout as its own dataset (unit `pi-checkout-dataset-and-pnpm-research-1`, worktree
+  `.claude/worktrees/checkout-dataset-and-pnpm-research`, doc `doc/planning/cli-git-zfs-checkout-dataset-and-pnpm.md`;
+  it may leave a measurement folder under `~/.cache` that it must delete). **Next:** read the three, weigh the review,
+  fold everything into the proposal with a writer run, then a Sonnet gate review of the folded proposal (rule `LHZ`:
+  a design put to the owner is a gate), then the owner's acceptance through the question tool; the checkout-as-dataset
+  choice waits for the pnpm answer (owner: "I'm not sure yet").
+- **Two of the three ZFS digs landed in main:** `doc/planning/cli-git-zfs-clones-mounted-under-the-checkout.md`
+  (merge of `docs/planning-zfs-clones-mounted-under-the-checkout`, 6e175a8d09; probes by GPT, written by DeepSeek
+  under rule `RKD`, 41 turns; logs and scripts in `~/temp/agent/zfs-nested-checkout-mounts-2026-11-18-scratch/keep/`;
+  the guest was made by hand with qemu because the mvm template build failed, and is gone) and
+  `doc/planning/cli-git-zfs-checkout-dataset-and-pnpm.md` (merge of `docs/planning-checkout-dataset-and-pnpm`,
+  7b646d71e9 and df9304ed19; GPT, 117 turns; it left nothing under `~/.cache`). The pnpm result: with the global
+  virtual store, pnpm imports package payload only inside the home store, so a checkout dataset at the same path moved
+  zero payload bytes into the checkout and four paired offline installs took 0.984 to 1.101 times their home controls
+  (control spread 1.091); a clone's links into the home store break by path depth and the wrapper's relink repairs
+  them; ranking shared home store > in-tree store > separate cache store. The checkout-as-dataset question goes to the
+  owner with these results (answered A; then "who owns .claude/worktrees" answered B; decision entries below). The
+  AGENTS.md search ended on its wall clock (67 turns) after writing its report at 20:09: no rule before `WTU`, none
+  removed; the 2026-11-04 handover (031cfafaa6) shows a rule was proposed and answered "Wrapper fix only" (recorded in
+  the planning page, "Where worktrees live"). **The old drives are not mounted:** the machine booted at
+  2026-11-18T12:27:21-05:00 and `/mnt/old-sata` and `/mnt/old-nvme` are empty folders; `lsblk` shows `sda` and
+  `nvme1n1p2`/`nvme1n1p6` as LUKS with nothing opened, so they are intact but locked. Unlocking needs the owner; they
+  are needed for task 386's comparisons before the wipe, not for anything going now.
+  **The fold-in writer ended `idle`** (GPT 6.2 Sol through Pi, 67 turns, no model error or "possible risk" stop):
+  13 commits f8e584add6 to 71fa25ece8 (2026-11-18T20:43:36-05:00 to 20:57:15-05:00) on the proposal branch in
+  `.claude/worktrees/zfs-worktree-design-proposal-fold-in`, which stays until the gate review returns; the proposal is
+  732 lines. Brief, summary and final report in
+  `~/temp/agent/zfs-worktree-design-proposal-fold-in-2026-11-18/keep/`. Its report says it disagreed with no decision
+  and dropped no finding, but contests the research in three places, which the gate review settles from the probe
+  logs: (1) the clones document's item 7 combined probe took the snapshot before registration and mounted with
+  `mount -t zfs`, the descriptor attach ran separately; (2) a descriptor attach reached a renamed slot's inode, so the
+  design needs detection and rollback; (3) `vm-builder-output` is nested by path, not by dataset ancestry. If (1) or
+  (2) holds, the clones document and the registration sequence recorded here need a dated correction and the owner is
+  told. It lists eight open choices (checkout boot-mount protection, shared-ancestor policy, a named allocator, linked
+  clone origins, ABI verification, recovery from a lost last event, origin-cleanup authority, space-pressure pruning).
+  **The Sonnet gate review is going** (rule `LHZ`; a Claude Code subagent on Sonnet), brief
+  `~/temp/agent/zfs-worktree-design-proposal-gate-review-2026-11-18/prompt.md`, review to `review.md` there: appendix
+  substance per finding, the disputes settled from `keep/`, choices made in the body without a record, the open
+  choices sorted into preference, measurable or already decided, the brief's done criteria, and correctness. Then the
+  owner's acceptance through the question tool.
+  **The gate review returned** (1 high, 10 medium, 11 low; all accepted by the coordinator). GH1: the record says the
+  item 3 refusals are measured with account ownership before acceptance, and the fold-in brief had wrongly scheduled
+  that for the build. Its check B upheld all three of the writer's contests (dated corrections now in the clones
+  document and this handover). The owner answered three of its questions the same evening (decisions entries in the
+  planning page): removal destroys at once, the binding includes `promote`, a runtime ABI gate besides the test.
+  **Going now:** (1) the VM measurement run, GPT 6.2 Sol, unit `pi-zfs-measurements-owed-before-acceptance-1`, worktree
+  `.claude/worktrees/zfs-measurements-owed-before-acceptance`, branch
+  `docs/planning-cli-git-zfs-measurements-owed-before-acceptance`, brief
+  `~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/prompt.md` (eleven items: the add sequence end to
+  end, every item 3 refusal under account ownership, propagation, unmount by a fresh process, an encrypted pool like
+  the host's, `git worktree lock`, `nosuid`, `chattr +i`, datasets under a legacy checkout, the legacy `zfs mount`
+  control, `promote` of a worktree clone); (2) the revision writer, unit
+  `pi-zfs-worktree-design-proposal-gate-review-revision-1`, in the fold-in worktree with main merged (d22d8ac93b), brief
+  `~/temp/agent/zfs-worktree-design-proposal-fold-in-2026-11-18/prompt-gate-review-revision.md`, answering what no
+  measurement changes and marking the rest as waiting. Then a fold-in of the measurements, a Sonnet delta review of
+  `71fa25ece8` to the new tip, the open choices through the question tool, and acceptance.
+  The env-local-json fixture branch 74dbe1200e had its DeepSeek review (89 turns, `idle`; file
+  `~/temp/agent/env-local-json-fixture-waits-for-close-review-2026-11-18/review.md`): F1 medium, the new wait for
+  `close` has no deadline, so a tool that leaves a holder on its output pipe hangs the suite; F2 to F5 low (every
+  failure reported as an install problem with standard error dropped; the control at 12d8c199bf cannot pass at the
+  tip; the wait implemented twice in the package; no test for `runCommand`'s failure paths); F6 a note. **Weighed by
+  the coordinator:** F1, F2, F5 and F6 accepted as one change to `runCommand`'s contract (F2 predates the branch but
+  sits in the function the branch exports and F1 edits); F3 needs no code, the control committed at 12d8c199bf was red
+  on any code (its document parsed to `{ values: ... }`) and became a control only with b1452b7407; F4, one capture
+  shared by the reader and the fixture, is a separate follow-up, not briefed yet. Also not briefed:
+  `SOPS_TIMEOUT_MS = 15_000` in `package/env-local-json/core/src/constants.ts` cites no measurement (rule `LQM`).
+  **A fresh GPT writer is going** (the author's run of 2026-11-16 predates the migration and the writer change): unit
+  `pi-env-local-json-fixture-runner-bounded-and-truthful-1`, worktree
+  `.claude/worktrees/env-local-json-fixture-runner-bounded-and-truthful` on
+  `fix/env-local-json-core-fixture-joins-the-output-of-a-program-only-after-its-pipe-has-closed` with main merged
+  (cfdd31665e), brief `~/temp/agent/env-local-json-fixture-runner-bounded-and-truthful-2026-11-18/prompt.md`, turn cap
+  450, wall 5400 s. The review's worktree is removed; its scratch stays until this run is reviewed.
+  **The writer ended `idle`** (52 turns) with one commit, 945ff70a94: a 2,000 ms default deadline (overridable;
+  streams destroyed and the direct child sent SIGKILL on expiry, helpers not killed), `FixtureCommandError` naming the
+  tool and arguments with up to 4 KiB of standard error, install advice only on `ENOENT` for `sops` or `age-keygen`,
+  tests for every failure path with each guard shown failing without its code, and a README section. Its deadline rests
+  on calls of 6 to 21 ms measured with few agents running; the drive probe saw a 2,564 ms write-and-sync at level 20 on
+  2026-11-17, so whether 2,000 ms fails suites falsely at load is the first check of **its DeepSeek review, going**
+  (Qwen plan, unit `pi-review-env-local-json-fixture-runner-bounded-at-945ff70a94`, worktree
+  `.claude/worktrees/env-local-json-fixture-runner-bounded-review`, brief and review in
+  `~/temp/agent/env-local-json-fixture-runner-bounded-review-2026-11-18/`). The writer's worktree is removed.
+  **The review returned** (96 turns, `idle`; 0 high, 2 medium, 2 low): the 2,000 ms default holds under today's load
+  (slowest call 129.6 ms, whole fixture 101 ms at `CPUQuota=25%`; the residual risk is a disk stall, not CPU); R1 the
+  kill and the stream destroys are unasserted (removing either leaves the suite green), R2 three new error branches and
+  the default constant have no test, R3 a helper the tool left keeps running after the deadline (a process-group kill
+  as in `package/git-policy/cli/e2e/process-fixture.ts:188` would stop it), R4 `STAND_IN_VALUES` repeats
+  `STORE_TAIL`'s digits (rule `MGN`). All four accepted by the coordinator for the author's next run, not yet briefed.
+- **Driver idle window defaults to 0: in main** as 5b53cd90f2 (decision entry "Driver: the idle window defaults to
+  0"; behaviour in `package/pi-shared/subagent-driver/README.md`, the default in the pi-as-subagent skill's step 5).
+  Its DeepSeek review (179 turns, `idle`; file
+  `~/temp/agent/driver-idle-window-defaults-to-zero-review-2026-11-18/review.md`) found no high, one medium and three
+  low, weighed by the coordinator: the medium (the `env-local-json` fixture joins output at `exit`) is outside the
+  change and is what branch 74dbe1200e already fixes; the README's `inbox/` bullet and the drive test's pointer to
+  the watch test that holds the settle race were fixed on the branch (88331e1d32), and `git-policy`'s
+  `doc/development-profile-measurements.md` no longer says "about two minutes"; the `1e-400` underflow nit dismissed.
+  After merging main into the branch, `lint:types` for the driver package exited 0; the suites are the writer's (849
+  cases by its report). The skill's example no longer passes `--idle-seconds`.
+- **Reviewer bench (task 387):** all four resumed reviews ended `idle` on `opencode-go` with no rate-limit error
+  (`a13faa0d55` runs 1 and 2: 92 and 152 turns; `3822c44c2f` run 1: 33; `915ef30e09` run 2: 49); all six now have a
+  review. Scored by a Claude Sonnet subagent (a second pass, same vendor as one side):
+  `~/temp/agent/reviewer-bench-deepseek-against-sonnet-2026-11-17/keep/scoring-of-the-six-deepseek-reviews-against-sonnet.md`;
+  of Sonnet's 26 headed findings over 52 run pairs DeepSeek found 3, partly 2, missed 47 (7 of them read and called
+  sound); 7 DeepSeek-only findings, none contradicted by source; the two runs of a case shared no headline finding; no
+  run read Sonnet's review or the handover; neither side caught pass 58's five failing controls. Two of its claims were
+  spot-checked against the review files and hold. Put to the owner as a challenge; answered (decision entry
+  "Reviewers: DeepSeek stays for short, frequent reviews; Sonnet for long reviews and audits, rare"). The bench is
+  closed; its run folders stay because the scoring report cites their review files.
+- **Queue runs and agent cap:** unchanged since the entry of 2026-11-17T19:28:50-05:00.
+
+### ZED against the regex sudoers rule, probed on the owner's question (2026-11-18T17:15:00-05:00)
+
+Not final and not approved: this session's own account.
+The owner, 2026-11-18: "My impression is ZFS event daemon is the best idea. It's interesting we didn't agree there.
+Am I missing something? Are you missing something?"
+
+- **ZFS fast route (task 379):** three probes on throwaway datasets (everything they made removed, ZED left stopped and
+  disabled; scripts and output in `~/temp/agent/zed-against-sudo-for-clone-mounts-2026-11-18/keep/`), written up in
+  `doc/planning/cli-git-zfs-worktree.md`, section "ZED against the regex sudoers rule, probed again (2026-11-18)".
+  The mount-mechanism ranking there now puts a reconciling ZED handler first, as a close call; the reasons, sudo's
+  real advantages and what moved the ranking are on the page.
+  Found on the way, true under either mechanism: a planted symlink redirects root's `zfs mount`, so the worktrees
+  parent's folder must be root's and clones cannot be children of the checkout's dataset;
+  a caller inside a user namespace (a unit with `ReadOnlyPaths=`, as branch b75c20af41 starts Pi runs) sees no dataset
+  and cannot clone, while the reflink fallback works there.
+  **Owner's answers of 2026-11-18** (quoted on that page under "Owner's answers of 2026-11-18"): ZED-mounted clones
+  with the reflink fallback, and "There is a reason we have a doctor subcommand."; ZED handler; "A Rust crate"
+  (against the recommendation); home's snapshots made recursive with a blocklist, "Worktrees are not necessarily throwaway."
+  **Crate vet started:** `doc/audit/tech-rust-crate-for-openzfs-vet-2026-11-18.md` (context, hard constraints,
+  frozen criteria and query schedule; commit 3fcecc48bf). Asked who runs the discovery, the owner answered
+  "Use pi with deepseek to run it.", so unit `pi-rust-crate-for-openzfs-discovery-1` (Synthetic DeepSeek V4.1 Flash,
+  turn cap 640, wall 5,400 s) runs it from the report alone and writes
+  `~/temp/agent/pi-runs/rust-crate-for-openzfs-discovery-1/discovery-ledger-and-query-records.md`; it edits nothing
+  in the checkout. Launcher: `~/temp/agent/rust-crate-for-openzfs-vet-2026-11-18/keep/start-the-discovery-run-on-deepseek.ts`.
+  The next step moved to the entry of 2026-11-18T18:25:00-05:00.
+- **Reviewer bench (task 387):** the four unfinished runs were resumed from their saved sessions on
+  `opencode-go deepseek-v4.1-flash` (the next pool after Synthetic) at about 17:55 on 2026-11-18, each under its own
+  unit with a resume prompt (`resume-prompt-2026-11-18.md` in its review folder) and a new run folder; launcher script
+  `~/temp/agent/reviewer-bench-deepseek-against-sonnet-2026-11-17/resume-the-four-unfinished-bench-reviews-on-opencode-go.ts`,
+  logs `<name>-resume-launcher-2026-11-18.log` beside it. The two `a13faa0d55` worktrees were added again from their
+  branches; the launcher's dependency install answered status 1 for three of the four (read before trusting a build
+  failure in their reviews). Nothing is scored yet.
+- **Queue runs and agent cap:** unchanged since the entry of 2026-11-17T19:28:50-05:00.
+
+### Stopped for the owner's shutdown at night (2026-11-17T19:28:50-05:00)
+
+Not final and not approved: this session's own account.
+The owner: "shutdown the entire system after you finish A THOROUGH RESEARCH. I'm going to bed."
+
+- **ZFS fast route (task 379):** the research the owner asked for twice ("Dig even deeper.") is written up in
+  `doc/planning/cli-git-zfs-worktree.md`, with every mechanism tried on this machine as root on throwaway datasets
+  (the owner: "You have passwordless sudo."), every system file put back and checked,
+  and probe scripts and outputs under `~/temp/agent/zfs-fast-route-design-facts-2026-11-17/`.
+  Findings that changed the earlier questions: an anchored-regex sudoers rule (sudo 1.9.17p2 here) allows exactly
+  mount and unmount of a child of the parent and refused every variant tried, so it needs no root code of ours;
+  a wildcard sudoers rule lets the user turn setuid back on; a polkit rule for systemd mount units lets the user
+  mount anything at the allowed path (tmpfs and `suid` were accepted), so it is unfit to ship;
+  fstab `user` entries fail for ZFS in both forms; a ZED handler works;
+  fuse-overlayfs needs no root and costs 2.2× to 3.4× for the worktree's life.
+  The next step moved to the entry of 2026-11-18T17:15:00-05:00.
+- **Runs:** every going run ended `stop-file` at 19:28:09 with its session saved
+  (list with turns and session files: `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026-11-17/keep/pi-runs-stopped-for-the-shutdown-of-2026-11-17.txt`).
+  Nine are queue entries: resume each under a new unit and run folder with `--session=<its session file>`;
+  the queue entries the filling unit started are listed in `keep/entries-the-filling-unit-started.txt` beside it.
+  The filling unit is stopped, and the queue starter still points reviews at Synthetic.
+- **Reviewer bench (task 387):** of six runs, the `3822c44c2f` run 2 and the `915ef30e09` run 1 ended `idle`;
+  the `3822c44c2f` run 1 and the `915ef30e09` run 2 ended on Synthetic's `429 "Too many concurrent requests"` after 93 and 127 turns;
+  both `a13faa0d55` runs were stopped by the stop file at 234 and 254 turns. Resume the four unfinished ones
+  (on `opencode-go`, by the skill's 429 rule) before scoring; nothing is scored yet.
+- **Agent cap (task 337):** level 20 was cut short with no verdict; see "Level 20" on `doc/handover/agents-at-once-on-this-machine.md`.
+
+### On the new system: what came over and what runs nothing yet (2026-11-17T18:36:32-05:00)
+
+Not final and not approved: this session's own account of what it checked.
+The owner's answers of the day are under "Owner decisions in force", in the entry of 2026-11-17.
+
+- **Machine:** CachyOS on the Intel 3.5 TB NVMe, pool `zpcachyos`, home at `/home/user` on `zpcachyos/ROOT/cos/home`
+  with up to 25 hourly snapshots; the old SATA and old NVMe drives are mounted read only at `/mnt/old-sata` and `/mnt/old-nvme`
+  by `~/Downloads/old-drives/mount-old-drives.sh`. The migration session's account is `~/Downloads/monochromatic-migration-progress.md`.
+- **Repository:** `/home/user/Monochromatic`, `main` equal to `origin/main` at 899b8e7cbd when read; its 155 worktree records
+  still point at old paths and none holds a commit origin lacks.
+- **Scratch:** `~/temp/agent` holds the old scratch's text (28,508 files, 1311 MiB, copied 2026-11-17 from the SATA originals;
+  the same three unreadable items as before). The queue, its scripts and the 36 briefs its entries name had their old paths rewritten
+  (152 paths in 66 files; originals under
+  `~/temp/agent/old-worktrees-and-scratch-on-the-old-drives-checked-from-the-new-system-2026-11-17/keep/before-path-rewrite/`).
+  The patches of the old worktrees' uncommitted work are in
+  `~/temp/agent/getting-the-machine-ready-for-a-reboot-2026-11-16/keep/uncommitted-work-of-each-worktree/`.
+- **Datasets:** `~/.cargo/build` is `zpcachyos/nosnap/cargo-build` (made 2026-11-17, contents moved in and checked byte for byte).
+- **Git:** every shell in the checkout runs the wrapper through `.cache/monochromatic-git-policy-cli-bin/git`,
+  a cargo build of main linked by hand. No commit service unit existed before the first commit through it
+  (`systemctl --user list-unit-files 'monochromatic-git-policy-cli*'` printed nothing at 18:36:32);
+  that commit (8a41d900ff, 2026-11-17T18:37:13-05:00, signed) brought up `monochromatic-git-policy-cli@<instance>.service`
+  and its socket, and the wrapper reported "The backup push of branch main for commit 8a41d900ff was made".
+- **Agents:** nothing runs. Writers are GPT 6.2 Sol on `openai` and reviewers DeepSeek V4.1 Flash from Synthetic,
+  then `opencode-go`, then Neuralwatt flex, all through the driver; the driver's pool table does not list them yet,
+  so such a run is in no pool and nothing limits how many start. The agent cap is found again on the new pool before any filling.
+- **Next:** the ZFS route's design talk with the owner; then mpm-shadow's; then writers and reviewers.
+
+### Stopped for a reboot with the new SSD in hand: what is saved where, and how to start again (2026-11-16T19:22:33-05:00)
+
+Not final and not approved: this is the session's own account of what it checked.
+Every run and review of this effort has ended; the last review had returned by 19:28:45 and its result is in the round list under "Open work".
+
+#### What the owner asked
+
+At about 17:58 on 2026-11-16: "I just received the new SSD. Let everything already running run to their conclusion and sort out the system until it's good to reboot. Tell me when is a good time to reboot."
+
+#### What was stopped and what ended by itself
+
+- The filling unit was stopped between two of its rounds at 18:01:34 and none was started in its place.
+- Every Pi run that was going ended by itself; the last at 19:17:27.
+  At 19:22:00 no unit named `pi-*`, `launch-*`, `fill-*`, `wait-*` or `disk-*` was active.
+- The drive probe ended by itself: 18 agents held for its eight hours, slowest write-and-sync 15,512 ms. No other was started.
+- Each run and review that ended is in the round list under "Open work", with what it needs next.
+  Nothing was started for any of them: briefs were written and entries put into the queue file only.
+
+#### What is saved where
+
+- `main` equals `origin/main`, and at 19:22:33 no worktree of the repository held a commit that `origin` lacks.
+- No local branch holds a commit `origin` lacks, with or without a worktree
+  (`git rev-list --count --branches --not --remotes=origin` prints 0).
+  It printed 8 before: the merges of `integrate/git-policy-cli-pass-34-a-trash-left-at-its-ceiling-comes-back-after-its-lease`,
+  made on 2026-11-14 and never pushed. That branch is pushed now, as it stood.
+- The repository holds three stash entries, of 2026-05-10, 2026-08-05 and 2026-10-29, none made by this effort.
+  A stash cannot be pushed, so each is saved as a patch against its base commit
+  under `~/temp/agent/getting-the-machine-ready-for-a-reboot-2026-11-16/keep/stash-entries-of-the-repository/`. The stash itself is untouched.
+- `/var/home/user/Monochromatic` is a link to `/var/mnt/encrypted/repository/Monochromatic`: one repository, not two.
+- Of 156 worktrees, 43 held files not committed (leftovers of ended runs and of other sessions, the main checkout's six among them).
+  Each one's uncommitted work is saved as `<name>.patch`, `<name>.status.txt` and its small untracked files,
+  with no worktree, index or branch changed,
+  under `~/temp/agent/getting-the-machine-ready-for-a-reboot-2026-11-16/keep/uncommitted-work-of-each-worktree/`.
+  **One exception:** the worktree `pi-sol-shadow-and-replay-route-findings-on-main`, which is not this effort's,
+  holds one untracked folder, `.audit-shadow-replay/`, with a file this account may not read. It has no tracked change,
+  so its patch is rightly empty; that folder is not saved whole.
+  Untracked files over 4 MiB are listed and not copied.
+- `~/temp` is a link to `/var/mnt/encrypted/temp`, so the scratch stands on the repository's SATA drive.
+  The text of the scratch that nothing else holds (the resume queue and its scripts, every `*-prompt.md`,
+  every run's `summary.json`, the Markdown of every review folder, each scratch folder's `keep/`, the patches)
+  is copied to the home folder's NVMe drive:
+  `/var/home/user/copy-of-the-agent-scratch-text-made-before-the-reboot-of-2026-11-16/`.
+  It holds no session or feed file of a run and no build tree. Remove it once the scratch is known to have come back.
+  Its last run, at 19:30:50, found 28,391 files already there and copied 117 more; 30 files over 4 MiB were left,
+  and three things could not be read: two fixture files a lock-shim reproduction made unreadable on purpose,
+  and the folder `service-change-probe`, which another user id owns. The run's own output is `last-run-of-the-copy.txt` in the copy.
+
+#### How to start again
+
+**The next boot is not this system.** By the owner's words of 2026-11-16, quoted under "Owner decisions in force",
+the new SSD is a third drive with CachyOS on ZFS, and both old drives are wiped once the migration is done.
+A session there starts with no memory of this one unless `~/.claude` was carried over; this page, read from GitHub, is what it has.
+Before any step of the numbered list:
+
+- **Wipe nothing and call no migration done until each of these is on the new system or shown not to be needed:**
+  the repository at `/var/mnt/encrypted/repository/Monochromatic` on the SATA drive (LUKS, Btrfs): every commit is on `origin`,
+  but 43 worktrees hold uncommitted files and the stash holds three entries, saved as patches in the scratch;
+  the agent scratch at `/var/mnt/encrypted/temp/agent` (about 276 GB, most of it build trees; the resume queue, the briefs,
+  the review reports and every `keep/` folder are the part nothing else holds, and their copy is on the NVMe);
+  in the home folder on the NVMe: `~/.claude` (this session's transcript, its task list and the settings and hooks),
+  `~/.pi/agent`, `~/.cargo`, `~/.config/mise` and the tool stores; never print a credential file while moving one.
+- **Paths.** The queue's entries, the scripts in the scratch, the registrations of the worktrees and the lines in this list
+  name `/var/mnt/encrypted/repository/Monochromatic`, `/var/mnt/encrypted/temp/agent` and `/var/home/user` (also spelled `/home/user`).
+  Either the new system keeps those paths or each of these is rewritten; that is put to the owner with the new system's mounts read first.
+- **The wrapper on ZFS** is a requirement of the owner's and is not built, and the owner's "B: Full parity before the wipe"
+  ties the wipe to it: **neither old drive is wiped before the wrapper's ZFS route is built, reviewed and released.**
+  Until then the old drives keep the Btrfs repository the wrapper is proven on. Treat a checkout on ZFS as untested ground:
+  run the wrapper's controls there before trusting a worktree add or removal, and expect the Btrfs controls to print `BTRFS CONTROL NOT RUN`.
+  The design starts with a grilling of the owner, dependencies first, and is this effort's first new work on the new system.
+- The agent cap of 18 and the probe's readings describe the old drives. On the new pool the probe runs first, from a low level upward.
+
+Then, with the repository and the scratch reachable:
+
+1.  Check that the paths still resolve: `realpath ~/temp/agent` and the repository at `/var/mnt/encrypted/repository/Monochromatic`.
+    If the scratch did not come back, the copy named under "What is saved where" holds the queue and the briefs.
+2.  Read the head of the queue:
+    `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/resume-queue-in-order-one-entry-per-free-slot.json`.
+    It holds 96 entries. Its first is the review of the gate-script unit test (two files),
+    its second the review of the landed-removal fix at `00ba90b007`, which is the one pass 59 waits for.
+    Not in the queue and waiting for a brief written by hand: the authors of the checkout migration, of the many changed files,
+    of the tunnel tooling (after its second review part) and of the empty-tree commit fix.
+3.  Reviews go to Claude Sonnet subagents, prepared one at a time with
+    `prepare-one-queued-review-for-a-claude-sonnet-subagent.ts <entry name>` from the queue's folder.
+4.  The probe, with the level to try as its first parameter:
+
+    ```sh
+    # run from /var/mnt/encrypted/repository/Monochromatic
+    systemd-run --user --unit="disk-ceiling-probe-level-18-$(date +%Y%m%dT%H%M%S)" --collect --wait --pipe --quiet \
+      --property=CPUQuota=50% --property=MemoryMax=512M --property=TasksMax=32 --property=IOWeight=1 \
+      /var/mnt/encrypted/repository/Monochromatic/.cache/toolchain-bin/node ~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/probe-write-and-sync-on-both-drives-every-minute.ts 18 28800
+    ```
+
+5.  The filling unit, with the count of Pi runs as its first parameter and its life in seconds as its second:
+
+    ```sh
+    # run from /var/mnt/encrypted/repository/Monochromatic
+    systemd-run --user --unit="fill-free-places-and-put-ended-reviews-back-at-level-13-$(date +%Y%m%dT%H%M%S)" --collect \
+      --property=CPUQuota=100% --property=MemoryMax=2G --property=TasksMax=256 --property=IOWeight=1 \
+      --working-directory=/var/mnt/encrypted/repository/Monochromatic \
+      /var/mnt/encrypted/repository/Monochromatic/.cache/toolchain-bin/node ~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/fill-free-places-from-the-resume-queue-without-a-session-awake.ts 13 28800
+    ```
+
+6.  The waiter that reports each ended run, with the moment to look from as its first parameter:
+
+    ```sh
+    # run from /var/mnt/encrypted/repository/Monochromatic
+    systemd-run --user --unit="wait-until-a-pi-run-has-ended-from-$(date +%Y%m%dT%H%M%S)" --slice=background.slice --collect --wait --pipe --quiet \
+      --property=CPUQuota=50% --property=MemoryMax=512M --property=TasksMax=32 --property=IOWeight=1 \
+      /var/mnt/encrypted/repository/Monochromatic/.cache/toolchain-bin/node ~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/wait-until-a-pi-run-has-ended-by-its-summary-file.ts <ISO moment> 28800 240 optique-,kitesurf-,canary-
+    ```
+
+#### What a reboot ends
+
+Read at 19:23:52 and 19:24:22 and stopped by nobody; none of it holds work that is not saved:
+
+- Leftovers of this effort's ended runs and reviews, in `run-p…` scopes:
+  fixture programs of 2026-11-13 in the deleted folders of the index-lock run (`editor.sh` and `sleep`),
+  `node` programs of 2026-11-14 in the lock-shim run's scratch,
+  shells of 2026-11-16 12:28 to 12:39 in the reproductions folder of the review of the killed-Git lock at `bbda166ce2`,
+  and one scope of 2026-11-13 13:57 with two wrapper test programs whose folder cannot be read.
+  A run that ends can leave programs behind: the driver's scan for work a run left running is the place for it
+  (branch `58bfdf1ced`, review queued); whether that branch covers these cases is for its review.
+- 144 `cargo-shadow-<hash>.scope` units started between 2026-11-13 and 2026-11-15, each with no task in it:
+  cargo-shadow leaves an empty scope behind. Not yet briefed.
+- Nine `podman-pause-…` scopes with one `catatonit` each; `podman ps --all` lists no container.
+- Six `monochromatic-git-policy-cli@….service` commit services; the main checkout's `git status` names no owed push.
+- Another Claude Code session on this repository, `monochromatic-7b`, open for three days and waiting; this session cannot vouch for its state.
+  The six modified files and one untracked file in the main checkout are other sessions' and are saved as a patch like the rest.
+- The desktop's applications. The tunnel tooling is not deployed.
+
 ### After the restart: the owner's cleanup, a cap of four runs raised by bisecting, scratch left uncleaned (2026-11-13T10:27:50-05:00)
 
 #### What the owner did and said
@@ -738,298 +1134,47 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
-- Added 2026-11-15T19:19:21-05:00,
-  from the author of the door for diagnostics (tip `093e5d4aab`, in review):
-  `warn` and `debug` lines now wait at most 250 ms for a reader of standard error and can be dropped, counted.
-  Should the wrapper's hand-written lines to standard error (about sixty files:
-  an error's own text, a command's last words, the commit's reports) go through the same door,
-  so that no line ever waits for its reader,
-  at the price that an error's text can be dropped when the reader is slow or gone?
-- Added 2026-11-15T17:06:41-05:00,
-  from the author of the driver's two starts of one run name
-  (tip `16166773fb`,
-  review queued),
+- Added 2026-11-15T22:56:00-05:00, about the rotation of the credentials, to be settled before the owner rotates:
+  - A run that is going when a value is changed does not know the new value (the driver reads the values once, at a run's start).
+    So "rotate when the last run from before the merge has ended" still leaves every run going at that moment unmasked for the new values.
+    Two courses, neither stopping a run: starts are held (the filling unit stopped between two rounds) and the going runs are left to end by themselves before the owner rotates,
+    which costs up to a run's wall clock with nothing new started; or the owner rotates with runs going and accepts that one of them may print a new value.
+    A third, a driver that reads the values again during a run, is a change to the masking and against "keep the masking work narrow".
+  - While the owner edits the store, a start that meets a half-written `.env.local.json` is refused (a store that is there and cannot be read stops the run),
+    and the scratch starter has already taken the entry off the queue. The session stops the filling unit between two rounds for the edit, starts one canary run after it, and starts the unit again;
+    the owner's word before and after the edit is what this needs.
+  - Every place that holds each value, names only (38 values, 34 of them held in more than one place):
+    `~/temp/agent/secret-environment-values-shown-to-model-providers-by-pi-runs-2026-11-14/keep/every-place-that-holds-each-value-names-only-2026-11-15T2254.md`.
+    A key changed in one place and left in another keeps a dead key there.
+- Added 2026-11-15T22:34:53-05:00,
+  from the run on the automatic push of a branch never pushed
+  (tip `c11272e4b6`, six controls and no product change:
+  a commit on such a branch is pushed to `origin` with its upstream set, as `SPEC.md` lines 9204 and 9205 say;
+  what pass 53 saw were two `git merge` commands, which the trigger declines for a branch with no upstream),
   not blocking work:
-  whether run numbers stay in unit names;
-  whether a worktree with no proof of who made it is removed after a bound or blocks starts of its name until a person removes it;
-  and what a start does when the run number its caller pinned is taken
-  (it refuses now).
-
-
-- Added 2026-11-15T12:39:01-05:00,
-  from the author of mpm-shadow's install that removes no version in use
-  (branch tip `acc855a2f3`,
-  review queued),
-  none blocking work:
-  - A process that hides what it runs keeps every version it could be running.
-    This machine has 11 such processes among the account's 511
-    (the session's PAM helper,
-    the compositor,
-    a sandbox helper,
-    the polkit agent,
-    the SSH agent and others),
-    so no old version is removed here until they end.
-    Keep every version for them,
-    or something narrower?
-  - One bad row in a lock makes the whole lock unreadable,
-    which keeps everything that lock might name.
-    Whole lock,
-    or the bad row alone?
-  - A descendant that puts itself in its own session outlives a program's stop.
-    A control group around every program would end it,
-    and would also end the helpers a command starts on purpose to outlive it
-    (a compiler cache's server).
-    Worth it?
-
-- Added 2026-11-15T11:07:00-05:00,
-  from the author of the push of a branch that is not checked out
-  (branch tip `777c491325`,
-  review queued),
-  not blocking work,
-  in the author's words and not yet read into by the coordinating session:
-  after a push moves a branch that another worktree shows,
-  a command in that worktree waits up to five seconds for the showing checkout to be brought to the new tip;
-  when the wait runs out the command is let through,
-  the record is kept,
-  and the paths that still hold the old tip are named.
-  The rule that clears the record is "no path holds what the branch moved from",
-  not "agrees with `HEAD`",
-  because a person's own edit can never agree with `HEAD` without being discarded,
-  so the stricter rule would block every command in that worktree for good.
-  If the stricter rule is wanted,
-  the expiry has to fail the command instead.
-  Which gives?
-  Its report:
-  `~/temp/agent/push-of-a-branch-that-is-not-checked-out-is-handled-as-that-branch-scratch/keep/report-seventh-review-answers.md`.
-
-- Added 2026-11-15T10:20:50-05:00,
-  from integration pass 53,
-  not blocking work:
-  the automatic push of a branch that has never been pushed met no upstream.
-  Does the push queue set an upstream for such a branch,
-  or is a new branch pushed once by hand?
-
-- Added 2026-11-15T07:55:03-05:00,
-  about the credentials shown to model providers,
-  not blocking work:
-  the masking has had two reviews,
-  twelve findings and then ten,
-  none of the second among the first.
-  Masking finds a value after it is already inside the run and has to close every road out;
-  the reviews keep finding roads.
-  The owner's answer of 2026-11-14 was one rotation after the masking is merged and shown to hold,
-  and the owner confirmed it on 2026-11-15 at about 10:48
-  ("Keep waiting for masking"),
-  told of the three reviews.
-  Still open:
-  whether a run should be started without the values in its reach at all
-  (an environment and a home that do not hold them),
-  with masking as the second line.
-  That is a new piece of work nobody has been given.
-
-- Added 2026-11-15T07:17:57-05:00,
-  from the author of the stop of a stopped push
-  (branch tip `2da23e4478`,
-  in review),
-  not blocking work:
-  two shipped limits it added have a citation in the code and no decision behind them,
-  50 ms to reap a child after the kill and 200 ms kept back for the sweep of its locks,
-  both taken out of the stop's ceiling of 18.1 s.
-  Do those values stand,
-  or does a measurement of real stops decide them?
-
-- Added 2026-11-15T05:45:58-05:00,
-  from the author of the review brief's coverage check
-  (branch tip `0e676c38da`,
-  in review),
-  not blocking work:
-  when a finished review does not cover its change
-  (no range stated,
-  or fewer files read than listed),
-  does the starter start that review again by itself,
-  or leave it to whoever reads the reviews,
-  as now?
-
-- Added 2026-11-15T05:22:17-05:00,
-  from the author of mpm-shadow's removal of old versions
-  (branch tip `e9af93e68a`,
-  in review),
-  not blocking work,
-  and the same question as the removal guard's of 03:06 from another side:
-  with the rule "what the pass cannot see is protected",
-  the removal of old versions is inert on this desktop.
-  Fifteen of this account's processes cannot be described
-  (`ssh-agent`,
-  `systemd`,
-  `keepassxc`,
-  `kwin_wayland`,
-  screen lockers,
-  the mail client),
-  so all 27 versions the old decision would remove
-  (25.3 GiB of 49.6 GiB in 109 versions)
-  stay.
-  Keep the rule and accept that the pass removes nothing while such processes run;
-  have the pass leave out processes that provably cannot use a tool's version
-  (by which proof);
-  or give the pass a way to read them?
-
-- Added 2026-11-15T04:21:09-05:00,
-  from the third review of the journal branch
-  (`2d001c892e`),
-  not blocking work,
-  adopted meanwhile and open to veto:
-  when a control fails because its fixture service ended early,
-  the test's panic quotes what the service wrote.
-  Where the test runner's own output is the journal,
-  that quotation is in the journal,
-  under the runner's identifier.
-  Adopted:
-  that is the test's report and stays,
-  marked as a quotation and written down in the docs,
-  because the requirement is that a service a test starts never writes into the journal by itself.
-  The other reading:
-  no word of a fixture service may reach the journal by any road,
-  so the panic carries only a summary and the words stay in a file of the fixture.
-
-- Added 2026-11-15T02:49:35-05:00,
-  from the author of the push of a branch that is not checked out
-  (branch tip `cae78e1d7e`,
-  in review),
-  not blocking work:
-  the move of such a branch now writes a durable record before it moves the reference,
-  so that a kill between the two can be put right by the next command.
-  That record costs one flushed write,
-  13 ms at the median on this machine's btrfs,
-  on a path that took 120 ms before.
-  Is that cost wanted,
-  or the cheaper form without the directory flush,
-  in which a crash can lose the record of a reference that moved?
-
-- Added 2026-11-15T02:20:24-05:00,
-  from this session's reading of the gate's images,
-  not blocking work:
-  three compilers build the wrapper.
-  The host's tasks use the lock's nightly
-  (`nightly-2026-11-15` since the daily update);
-  the container gate uses pacman's `rustc 1.99.1`,
-  by the recorded "Pacman for everything it has";
-  the release workflow installs `nightly` with no date.
-  So no test run uses the compiler a release is built with,
-  and the whole suite never runs under the lock's nightly unless an integration pass runs it on the host.
-  Is that the arrangement wanted,
-  or should the release workflow build with the lock's nightly,
-  or the gate test with it?
-
+  - Should a merge on a branch never pushed push it and set its upstream, as a commit there does?
+    Today the trigger declines it (`upstream-not-single`) and `SPEC.md` near line 9048 and `README.md` line 556 say so.
+  - A declined push says nothing to the person; only the trigger's record file explains it.
+    Is one line of notice wanted, or a README line naming the record file?
+  - Three settings the author measured where the rule can be read either way, left as built:
+    `push.default=nothing` with no upstream and an `origin` (the wrapper pushes; plain Git refuses);
+    `remote.pushDefault` naming another remote with no `origin` (skipped in silence);
+    `branch.<name>.remote` naming another remote with no `.merge` (pushed to `origin`; plain Git refuses).
 - Added 2026-11-15T02:12:39-05:00,
   from two authors' reports of that hour,
   not blocking work:
-  - The wrapper's log to a stream that refuses lines
-    (branch tip `8784e0a823`,
-    in review):
-    when the process gives up on a line it had begun,
-    the fragment stays as it is,
-    so a later process's first line can follow it on the same line.
-    Should the fragment be closed with a newline that no line asked for?
-    And is 5 ms,
-    a fiftieth of the bound,
-    the rate at which a refused line is offered again?
   - The review brief's template
     (branch tip `1bcee2933e`,
     in review):
     a review that states "4 of 9 listed files read in full" is counted as covering its change,
     since its statement does not contradict the brief.
     Should a review count only when it states that it read every listed file?
-
-- Added 2026-11-15T01:30:55-05:00,
-  from integration pass 49,
-  not blocking work:
-  a lock a live program holds in the command's own worktree still gets the wrapper's line,
-  so a person's own `git add` there reads both that line and Git's refusal.
-  Is the line still wanted for the command's own worktree,
-  now that it is no longer written for another worktree's lock?
-
-- Added 2026-11-15T01:15:56-05:00,
-  from the fresh run on mpm-shadow's removal of old versions
-  (branch tip `58db281dc5`,
-  in review),
-  not blocking work:
-  a copy of a version that no record proves whole is put back under its version's name as unfinished,
-  and a `current` link that names it is taken away,
-  since the launcher already reports a missing program there.
-  Keep taking that link away,
-  or teach the launcher to refuse an unfinished version so that the link can stay?
-
-- Added 2026-11-15T00:51:24-05:00,
-  from the eighth review of the guard on discarding commands,
-  not blocking work:
-  a file or a nested repository that another process makes after the guard's last look and before Git starts is not seen
-  (two findings,
-  read and not run).
-  The coordinating session dismissed both as a limit to state in the SPEC,
-  since the rule is about what the typed command would destroy when it is asked.
-  Is a stated limit right there,
-  or is that window to be closed?
-  (The second half of this item,
-  the clean's save of a nested repository,
-  was answered on 2026-11-15:
-  "Delete and log",
-  under "Answers on waking, third round".)
-- Added 2026-11-14T23:58:21-05:00,
-  from two authors' reports of that hour,
-  none blocking work:
-  - The drawn shadow tree
-    (branch tip `49d93515cf`,
-    in review):
-    when the tree goes after Git has made the commit and before the wrapper reads it back,
-    the wrapper now builds once more so that the commit lands.
-    The commit Git first made stays in the repository with nothing pointing at it,
-    and the command line runs again,
-    so an editor is asked a second time and a signer signs again.
-    Is that the price wanted for a commit that never fails there?
-  - mpm-shadow's install that removes no version in use
-    (branch tip `392540cb45`,
-    in review):
-    a stopped child's whole process group is ended through the shell's `kill`,
-    since a direct call needs `libc` or `rustix` in `rust-catalog.toml`.
-    Is that dependency wanted?
-  - The same branch:
-    an install that meets a removal of its own archives is refused after two seconds.
-    Is a refusal right there,
-    and is two seconds the bound?
-- Added 2026-11-14T23:29:43-05:00,
-  from the run on two starts of one run name
-  (driver,
-  branch tip `719876dd2b`,
-  in review),
-  neither blocking work:
-  - The start of a run now proves a worktree is its own before it removes it.
-    Are the removals at a run's end
-    (`finish-a-run.ts`,
-    `remove-finished-worktrees.ts`)
-    given the same proof,
-    or is their unforced `git worktree remove` enough?
-  - A start whose caller pinned a run number with `--run=<n>` is refused when that folder is there.
-    Is that refusal right where it stands,
-    or is it made earlier,
-    when the batch list is read?
-- Added 2026-11-14T22:57:44-05:00,
-  from the landed removal's author
-  (branch tip `5a2bd4bb6c`,
-  in review),
-  not blocking work:
-  an unforced removal of a worktree is now refused while a commit is named only by that worktree's own logs or operation records.
-  `FETCH_HEAD` is deliberately not read,
-  on the author's judgement that a fetched object is still where it came from and is no commit a person made;
-  on this repository's 179 linked worktrees four hold a commit only `FETCH_HEAD` names,
-  all four the same one,
-  and none a commit only a reflog names.
-  Is leaving `FETCH_HEAD` out right?
 - Added 2026-11-14T22:38:58-05:00,
   from the report of the run on a refused service start
   (`~/temp/agent/controls-of-a-service-start-refused-agree-with-wrapper-2026-11-14/keep/`,
   branch tip `2df2853ed6`,
   in review),
-  neither blocking work:
+  not blocking work:
   - Before it ends,
     the wrapper now waits up to 250 ms for its log thread to write what was handed to it
     (`WAIT_BEFORE_AN_EXIT`,
@@ -1037,115 +1182,26 @@ Questions kept for the owner's return:
     a median of 3,160 µs against 3,052 µs on an exit,
     inside the spread).
     Is 250 ms the bound wanted?
-  - A session bus address that nothing answers on gets the same words and remedy as an account with no user services
-    (enable lingering).
-    Are the two to be told apart?
-- Added 2026-11-14T20:53:23-05:00,
-  from the landing author's report of its seventh pass
-  (`~/temp/agent/landing-never-waits-behind-housekeeping-2026-11-13-scratch/keep/report-of-the-seventh-pass-2026-11-16.md`,
-  written on 2026-11-14 despite its name),
-  not built and not blocking work:
-  storage that never answers leaves a thread of the commit service stuck for good,
-  and the branch bounds how many such threads each kind of work may hold.
-  A hard end for them needs the work in a process of its own that can be killed,
-  which the author prices at a second executable,
-  a protocol between the two,
-  and trash removals cut half-written.
-  Is that process wanted,
-  or do the bounds on stuck threads stand as the answer?
 - Added 2026-11-14T11:41-05:00,
   each from an author's report of that morning and none blocking work:
-  - A commit that waits and receives `SIGINT` or `SIGTERM`:
-    `main` replaces an ignore of those signals that the wrapper inherited from its caller.
-    Does an inherited ignore stay ignored during the wait
-    (this session's reading from the record,
-    adopted on 2026-11-14 and open to veto),
-    or is the replacement kept?
-    (`fix/git-policy-cli-commit-that-does-not-land-says-what-stopped-it`, tip `771d34e0fa`.)
-  - A watch note that names a directory of another repository is refused by the guard of tip `130519d862`.
-    Is refusing right,
-    or is such a note routed to that repository's own service?
-    And does `SPEC.md` state which repository a note may name?
   - The commit service started by the wrapper itself (tip `77f5d525e3`):
     does a scope's service that answers after `START_WAIT` get a grace period,
     and is the claim file,
     which is now transient,
     given another name?
   - mpm-shadow's cleanup (tip `3a96da6dbf`):
-    are one year for the work limit and one hundred years for the age floor the right largest values,
-    and does a global pass look for a repository above the working folder to read worktree locks?
-  - The lock shim of Pi under the adopted reading (tip `37287ade63`):
-    a lock of the old kind whose holder is gone is refused with the command that clears it and never taken over.
-    Is that accepted for the time until every Pi was started under the new shim?
-  - The masking of credentials, three limits its review confirmed by runs (tip `0d5184769c`, added 2026-11-14T19:51-05:00):
-    a value inside an encoded container (base64 of a whole file or object, hex, gzip),
-    base64 wrapped at 76 columns,
-    and a value under eight characters pass unmasked,
-    each needing its own decoder or a lower floor.
-    Accept each as a stated limit,
-    or have any of them covered before the rotation?
-  - The landed removal's guard, its fifth answer (tip `2596b5d164`, added 2026-11-14T18:58-05:00):
-    the guard now hands Git the path it judged,
-    so Git's own messages quote that absolute path and not the word the person typed;
-    the author judged that worth it,
-    since it makes what was judged and what is removed one path.
-    Keep it?
-  - The drawn shadow tree, its third answer (tip `be2299c325`, added 2026-11-14T18:02-05:00):
-    a tree handed to a commit that never sends its request is kept with no bound
-    (`A_DRAWN_TREE_IS_KEPT_FOR` is `None`),
-    so the list of handed trees grows by one for each such commit;
-    keep that,
-    or give it a span,
-    whose cost the author wrote beside the constant?
-  - The cargo-shadow test task (merged `2c88505f65`, added 2026-11-14T17:52-05:00):
-    a run on a host with no reachable user manager names the tests that did not run and ends with status 0;
-    is that right for CI,
-    or does a degraded run end with a status of its own?
-  - mpm-shadow's removal of old versions, its fifth answer (tip `86a6489874`, added 2026-11-14T17:52-05:00):
-    read the locks again at each deletion,
-    at hundreds of milliseconds for a pass that removes,
-    to close the window of a lock written after the pass read them,
-    or accept a reinstall?
-    (Its second question,
-    whether a partly deleted copy is put back under its name,
-    was answered by its sixth review on 2026-11-14T19:10-05:00:
-    put back,
-    it is taken for a whole version,
-    so the author is told a deletion that has begun is finished and never undone.)
+    are one year for the work limit and one hundred years for the age floor the right largest values?
   - The queue of runs filled from the package, its third answer (tip `a634fbf060`, added 2026-11-14T17:41-05:00):
-    a lock that now holds the queue and its set-aside records,
-    or the folder of one file for each entry,
-    which its README describes and rejects;
-    does a put-back finish an interrupted set-aside itself;
-    and does the read of which runs are going move inside the held step,
-    at the cost of a subprocess call under the lock?
-  - The queue of runs filled from the package, its second answer (tip `01a855c051`, added 2026-11-14T15:26-05:00):
-    a lock over the queue's read,
-    change and write,
-    or a folder of one file for each entry with no lock;
-    ten seconds to wait for the lock and ten minutes before it is called stale;
-    and does the command that breaks a dead holder's lock say so?
+    does a put-back finish an interrupted set-aside itself?
   - The commit service that needs no service manager (tip `b896c60d97`, added 2026-11-14T15:02-05:00):
     a service that is alive but stopped (a debugger, a starved acceptor) reads as recovering,
     and the command ends after up to two minutes;
     is a shorter bound wanted with the same words?
-  - mpm-shadow's install removes no version, the fresh run's second answer (tip `937485686f`, added 2026-11-14T19:22-05:00):
-    is one hour the right floor for a version counted as in use;
-    does the pass print one line for each claim name it does not recognise;
-    and is keeping a version when all 32 claim names are taken the trade wanted?
-  - mpm-shadow's install removes no version, the fresh run (tip `0d6f26b31d`, added 2026-11-14T17:04-05:00):
-    its author's open questions,
-    as it words them at the end of
-    `~/temp/agent/mpm-shadow-install-removes-no-version-answers-its-review-in-a-fresh-run-scratch/keep/report.md`:
-    the cleanup's clock,
-    the bound of one hour on a program,
-    its guard's refusal against another branch's going on,
-    and whether the prune of archives needs a race in a fixture.
+  - mpm-shadow's install removes no version, the fresh run's second answer
+    (tip `937485686f`, added 2026-11-14T19:22-05:00):
+    is keeping a version when all 32 claim names are taken the trade wanted?
   - mpm-shadow's cleanup of old versions, its fourth answer (tip `b416f1e2b0`, added 2026-11-14T16:23-05:00):
-    a held good copy kept aside while its name holds an unfinished install waits for that install to finish or fail;
-    is it deleted after a stated time,
-    or left with a marker a person can see?
-    And on Windows,
+    on Windows,
     where no inode is read,
     is the write time alone enough to say an entry is the one judged?
   - mpm-shadow's cleanup of old versions (tip `542b881860`, added 2026-11-14T14:48-05:00):
@@ -1153,116 +1209,10 @@ Questions kept for the owner's return:
     no store-wide lock is adopted to close that window,
     by the project's rule on concurrency,
     open to veto.
-  - A Pi run that cannot write into the main checkout (tip `ca137eb2bf`, added 2026-11-14T13:59-05:00):
-    is a review's unit also held to a read-only worktree,
-    which needs every package's build folder listed as writable so that a review can still build and test?
   - The queue of runs filled from the driver package (tip `9a778654e9`, added 2026-11-14T13:15-05:00):
-    does `reviewOfBranch` belong in the queue too;
     is half an hour the right bound for the notice that the filling has stalled;
     is an entry whose batch gave up waiting for a place at its two-hour deadline put back
-    (a fresh run now covers a launcher that fails or gives up);
-    and does the queue's path get a documented default under the runs folder?
-  - The drawn shadow tree (tip `f9557d3e6e`, added 2026-11-14T12:18-05:00):
-    a resident service keeps one drawn tree for each worktree standing with no end,
-    where the sweep removed a drawn tree for its age before.
-    Is that the meaning wanted,
-    with its cost in disk for every worktree a service has served?
-  - One string after `PNPR_SECRET=` in a Claude Code transcript of 2026-09-15 that no tracked file holds:
-    is it a deployed server's secret?
-    (`~/temp/agent/secret-environment-values-shown-to-model-providers-by-pi-runs-2026-11-14/keep/credentials-to-rotate-names-only.txt`.)
-- Is the lock of Pi's files to be cleared by hand again if it is left again before the shim is fixed?
-  It was cleared once at 02:02:59 on 2026-11-14 after twenty minutes in which no Pi run could start
-  (the section of 2026-11-14T02:05:16-05:00);
-  the decision record names that recovery,
-  and this session will repeat it under the same checks unless told otherwise.
-- When a retried push reached one address and was declined at another,
-  and the report of that cannot be written because the storage refuses the write,
-  is it enough that the words stand in the journal?
-  The plan is forgotten and nothing writes the report later;
-  the commit is backed up at the address it reached.
-  The package documents this fallback for a first push
-  (`push_failure_notice_reports.rs`: "nothing makes an accepted push say it again"),
-  and the third review of issue 6293 reproduced it for a retried one
-  (its F4;
-  the section of 2026-11-14T01:33:09-05:00).
-  Nothing is changed meanwhile;
-  the fresh run on the neighbouring arms reports what extending its change would cost.
-- Two folders owned by root stand in what is left of `/var/mnt/encrypted/cargo-build/toolchain/nightly-2026-11-11`
-  (`3d/ff5cdb8b411452/debug/build/wg-quicker-exempt/test-scratch/wg-quicker-sweep-real-1626078`
-  and `b6/f40fb50bf1a32c/debug/build/wg-quicker-exempt/test-scratch/wg-quicker-watch-stop-397956`,
-  12 KiB in all).
-  This account can neither open nor remove them.
-  Removing them takes the owner's `sudo`;
-  whether a test of `wg-quicker-exempt` may leave root-owned files in a build folder at all is a question for that package.
-- May the three files of the old name `cli-git-native` be moved out of the main checkout's `.cache`
-  (`toolchain-launchers/cli-git-native`,
-  `toolchain-launchers/cli-git-native.launch`,
-  `toolchain-bin/cli-git-native`)?
-  They are why every new worktree's relink is given up after three installs
-  (the section "Why relinks are given up is found" has the evidence).
-  The link still resolves to a working program dated 2026-11-04,
-  the wrapper as it was before its rename.
-  No file of this repository outside documents and tests runs that name,
-  and the four Claude Code settings files hold no mention of it;
-  a shell alias or another tool of the owner's could.
-  Two fixes are on their way that make the move unnecessary
-  (the wrapper removes the copied record;
-  mpm-shadow stops leaving it),
-  each a review and a release away.
-- Should a binary test's fixture repository be reachable by another account at all?
-  The fixture root is under `/var/mnt/encrypted/cargo-build/…/tmp/`,
-  mode 0755 all the way from a 0777 mount,
-  and a lock written there is 0644,
-  so a process of another account can hold it open.
-  The removal of an unheld lock counts processes of other accounts as unable to hold this account's files
-  (`OTHER_ACCOUNTS_PROCESS_REASON` in `service_index_unheld_removal.rs`),
-  which is true of a home directory and not of these fixtures.
-  The levers named by the agent that found it:
-  `CLI_GIT_TEST_ROOT`,
-  or the build directory's mode.
-- `index_lock_holders.rs`'s module text says a caller that would unlink a lock must keep it when a process of this account refuses a look at its descriptors;
-  the removal counts that process as unseen and removes,
-  by the owner's answer of 2026-11-07 ("Service removes it").
-  Which of the two is changed to match the other?
-  The answer on record points at the module text.
-- OpenSnitch saves a reject rule for each program an agent builds that tries the network
-  (two for one run's `mpm-shadow` on 2026-11-13,
-  named in `/var/log/opensnitchd.log`).
-  Are those rules wanted as they are,
-  and is there a rule the owner would add so that a built tool's own network path can be tested here?
-- cargo-shadow's cleanup of old toolchains' build folders,
-  written and under review,
-  carries three bounds its author proposes and nobody decided:
-  it starts removing when the build volume has less than 296 GiB free
-  (a 100 GiB floor,
-  plus five hours at 36 GiB an hour,
-  plus 16 GiB,
-  in its report's own sum);
-  it never removes a folder whose last build through the shadow is younger than six hours;
-  and one pass removes for at most thirty minutes.
-  The owner's words were "by size + last modified time",
-  with no numbers.
-  It also removes a toolchain that checkouts still pin when its folder is old enough,
-  at the price of a rebuild;
-  the report gives its reasons in its section 9.
-- mpm-shadow's removal of old versions it installed,
-  written and going to review (tip `e4c7243bbe`),
-  carries three bounds its author proposes and nobody decided:
-  the two stores together may hold 24 GiB of what the pass can judge
-  (twice the 11.3 GiB that locks pin today;
-  the stores hold 55.4 GiB,
-  so the first pass would remove 31.4 GiB,
-  listed in `~/temp/agent/mpm-shadow-self-cleanup-2026-11-13-scratch/keep/what-would-be-removed-today.txt`);
-  nothing written within the last hour goes;
-  and one pass removes for at most two seconds.
-  Its author also asks:
-  should the llama.cpp builds (nine unnamed versions,
-  28.4 GiB) have a bound of their own,
-  and should flat downloads be judged at all
-  (the pass removes a flat download even of a version a lock names,
-  since nothing reads one).
-  Nothing is removed until the branch is reviewed,
-  merged and released.
+    (a fresh run now covers a launcher that fails or gives up)?
 
 ##### The deletion ended at 18:49:59
 
@@ -1631,6 +1581,261 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The review of the empty-tree fix meets "Merge when shown to narrow"; the wg tests are read and four of five change the host; six more runs read (2026-11-15T21:05:52-05:00)
+
+Not final and not approved; written by the coordinating session. Reviews are by Kimi K3.1 Pro while the Qwen quota is dry.
+
+- **The fix for the empty-tree commit** (`3882e11ddf`, whole range against `main`, 19 of 19 files and the whole diff, both wrappers built from archived sources).
+  The review's conclusion: three findings remain and none is an outcome `main` does not also have or have worse.
+  The pair that shows the narrowing is the reviewer's own, at the seam both builds have (`service-staged`), since the branch's control waits for a marker `main` lacks:
+  `keep/staged-ordinary-main.log`, exit 0 with `files=[]`; `keep/staged-ordinary-tip.log`, exit 1 with `HEAD` unchanged.
+  The branch's control with the index lost after the capture passes at the tip with exit 0 and both files (`keep/direct-index-tip.log`).
+  What discriminates is "no commit lands with a tree other than the one asked for", not "the commit succeeds".
+  The three findings: a message's value spelled `--fixup=reword:HEAD` switches the tree check off, and with the index lost after the capture the empty tree lands (high, tip; `main` lands it for every message);
+  an index gone before the first capture is refused where `main` lands the empty tree (a commit that fails, narrower than `main`);
+  a sweep that finished is taken for a volume that cannot answer (tip and `main`, at function level). The two property tables pass on a refused row.
+  **A reading of this session, not run:** `the_form_of_the_commit` compares to the exact text `--amend`, and `gitcli(7)` says "git commit --amen behaves as if you typed git commit --amend";
+  so an abbreviated amend would be held to an ordinary commit's parents and refused with its index intact, where `main` makes it. The author measures that first.
+  The owner, asked with this stated: "Merge anyway; the fix follows".
+  **So:** the branch goes into a pass of its own after pass 56 is in `main` (both touch the binary test target), then a release and the gate. That release is the one after pass 56's.
+  The pass reports the explicit control that asserts exit 0, since a green table says nothing about refused rows.
+  After the install: count the text "cannot be told after" and "is not the one this command asked for" in the commit services' journals, to see whether the new stops fire in practice.
+  Author's tenth run queued first at 21:03:28 (the measurement into `keep/abbreviated-options-measured.md` first, then the findings, the tables, and the span for a drawn tree the owner asked for).
+- **wg lifecycle branch, the five tests read from their sources** (a same-vendor agent's reading, with file and line; nothing was run by it).
+  Confined: `cli-quicker:test:integration:block` (no `sudo`; every `nft`, `ip` and `sysctl` call runs inside `unshare --user --net --map-root-user`).
+  Not confined: `:bypass` (veth ends with addresses in the host's namespace, a `wg-quicker-sentinel-*` unit in the system manager, queries to the host's resolver);
+  `:route` (writes `/etc/opensnitchd/system-fw.json` as root and the daemon reloads);
+  `cli-quicker-exempt:test:functional` (23 tests as root in the host's cgroup root, the shared BPF pin folder and lock, a sentinel unit; it cannot end green as written);
+  `:test:functional:protocols` (one root test on one throwaway cgroup; whether it disturbs the live watcher could not be told by reading).
+  Against `main`, by reading: F2, F3, F5 and F6 are the same code there; F4 is worse there (no deadline at all); F7's code is absent there.
+  The owner's answers are in "Owner decisions in force", round eighteen: the four in a VM, the branch merged with its findings fixed on `main`.
+  The confined test ran at the tip in a throwaway worktree (removed after) and ended with exit 0 and its line "wg-quicker traffic block integration passed";
+  its whole output is `~/temp/agent/wg-lifecycle-tip-the-one-confined-test-run-2026-11-15/keep/test-integration-block-at-cd83212379-output.txt`.
+  **The branch is merged into `main` as `5242fb4202` (2026-11-15T21:07:12-05:00)**: 95 files, all under `package/wg` but one troubleshooting doc, no conflict.
+  Nothing is deployed, and nothing is deployed until the six findings are answered and reviewed and the four privileged tests have run in a VM.
+  Two fresh runs queued at about 21:08 on top of `main`: the six findings (ninth in the queue), and the four privileged tests made to run in a virtual machine (seventeenth).
+- **Landing never waits**, seventh run ended at `c9bde6d446` (four findings answered per its report). Review queued third at 21:03:28 (50 code files). Passes 29 and 34 wait on it.
+- **Reviews that ended with reproduced findings, each author queued again by 21:11:24:**
+  the review brief writer for every kind of code file (`0b12de46fc`, four: a rename hides the old code, `tests.rs` taken for code, a deleted test gives an impossible task, paths with an apostrophe or a backslash; sixth run);
+  the review brief writer for tests alone (`58c53b167b`, three: a missing reviews folder ends the batch, a change name with a slash, a truncated record; tenth run);
+  the owed-push control (`ec33aef65b`, one, in test support: `remove` deletes a fixture while a landing-note writer still runs, since that thread is not in the count it waits for; second run);
+  a tool command that says nothing (`79ef7325d6`, 11 of 11 files, three: an accepted recovery prompt taken for a finished turn; the recovery message leaves out a command the same abort ended; a later notice threshold blocks an earlier ending threshold; fourth run);
+  the lock-holders folder (`b0ea691cc1`, 18 of 18 files, four, the first also through the built executable: a `HEAD` of `ref: \0` that real Git rejects passes the repository proof and a lock file there is unlinked; the pre-exec writer appends through a linked record folder; a stale record snapshot is unlinked after a live child appended to it; a linked lock root counts as a complete walk; eighth run, eighth in the queue).
+- **The gate-script unit test's fixture Git** (`cc7f52e8d7`): two reproduced at one line, the caller's `GIT_DIR` and dates reaching the fixture, so that a fixture commit lands in the caller's repository. Author's second run queued at 20:49:05.
+- **Two authors ended at about 21:27 and 21:30, reviews queued at 21:31:44:**
+  the commit that does not wait behind the service's writes, fourth run, at `6d67fbc5fb` (16 code files; per its report the runtime guard now follows calls and found this branch's own path first,
+  then 35 files of `service/` and `landing/` whose tasks still reach a blocking function, listed so that the list can only shrink; a regression of its own found and fixed, 6,135 ms back to 103 ms; cost ratio 0.96);
+  the one settle wait of the binary controls, from the two branches that each repaired it, at `7b8eb40e99` (one code file that is not a test).
+- **The specification's statement of how the automatic removal reads processes** ended at 21:34 at `323260fa9c` (one insertion in `SPEC.md`, comments in two source files, no message changed). Review queued at 21:39:47.
+  Its report notices, by reading and without a run, three things in `worktree/worktree_process_inside.rs` on `main`:
+  a process table that cannot be listed answers "nothing works there", so the removal goes on with no proof; paths are compared as text, so a worktree reached through a link or a bind mount reads as elsewhere; a file mapped and then closed is not seen.
+  The first is outside the gap the owner accepted. A fresh run is queued at 21:39:47 (fourteenth in the queue) to produce each, fix the first, and argue from the records whether the other two are defects or limits.
+- **Landed removal** (`09fd2138d7`, whole range, 22 of 22 files, against a binary built from that commit): one thing reproduced, and it loses a commit.
+  A reflog lock file (`.git/logs/HEAD.lock`, as a killed Git can leave one) is read as a surviving reflog, so the removal of a detached worktree that alone names a commit is allowed;
+  after `git gc --prune=now` the commit object is gone (`worktree/worktree_removal_keeps_git_work.rs`, lines 682 to 698 and 904 to 925).
+  That file is absent from `main` (`git show main:<path>` answers that the path does not exist), so this is on the unmerged branch only.
+  Author's eighteenth run queued at 21:45:59, tenth in the queue: a generated control over every file under `logs` and `refs` that is not a name, and the same question put to its other proofs.
+- **The launcher that ends when its run has ended** (`35d724bdbe`, whole range): six things, each reproduced.
+  Concurrent queue writes discard an entry; a concurrent settler deletes the only recovery record of a start in progress; an entry name escapes the runs folder and overwrites a file;
+  the timeout's forced kill is lost when the caller exits; a launcher is left out of the going set while its wake path still resumes that run; a finished batch entry keeps its place and stalls the queue.
+  The first belongs to the queue-as-a-folder branch by the owner's answer, so the author keeps its control and builds no second answer; the other five are its own. Fourth run queued at 21:53:05, seventeenth in the queue.
+- **Landing never waits** (`c9bde6d446`, whole range, 49 of 49 files): four things.
+  Reproduced: a reused process number makes a second relink replace and then lose a launcher record that was kept after a kill (`repair/package_repair_toolchain.rs` lines 424 to 439, 529 to 540);
+  an end of the connection before the service reads a wake is answered as a hand-over that succeeded, so a landed commit can stay unpushed (`service/service_client.rs` lines 570 to 599).
+  By reading: the removal of a journal's stage falls back to a plain `remove_dir_all` with no bound. Trigger by reading, state reproduced: a failed staging marker makes every prewarm attempt refuse the moved-aside state.
+  Author's eighth run queued at 22:11:00, fourth in the queue, and asked whether `main` has each. Passes 29 and 34 keep waiting.
+  Read in `main`'s own files at 22:14 (reading, no run on `main`): the first three are there in the same shape.
+  `repair/package_repair_toolchain.rs` line 425 has the counter as a `static` that starts at zero in each process, line 436 the name `<record>.removing-<pid>-<token>`, line 438 a plain `rename`, and line 538 the test that a process of that number exists, with no birth;
+  `service/service_client.rs` lines 564 to 581 reject `Wrote::Ended` alone and answer `Ok(())` when `read_message` gives nothing;
+  `worktree_copying/worktree_copy_journal_removal.rs` line 445 falls back to `std::fs::remove_dir_all(path)`.
+  The fourth is in code only the branch has (`note_that_a_filling_made` and `a_filling_made_this` do not occur in `main`'s `package_repair_prewarm_job.rs`).
+- **The service logs of a control under a limit**, fresh run ended at 22:09 at `b0f446fe7b` (four files, test support). Review queued at 22:11:00.
+- **Checkout migration** (`28254ad188`, whole range, 15 of 15 files): three things reproduced, two of which lose a person's bytes.
+  A write to the source after its last check publishes the old bytes, with nothing recorded as left out; a parked destination file rewritten to the same size and timestamp is removed as superseded;
+  a later pass that is interrupted cuts the earlier passes' uncarried entries out of the durable record.
+  The names the findings turn on (`unchanged_since`, `source_path_still_names`, `self.recorded`) occur nowhere under `main`'s `subvolume/` folder (searched, no hit), so by name this code came with the branch;
+  whether `main` does the same under other names is what the author is asked to show. Fourth run queued at 22:15:10, twelfth in the queue.
+- **Two authors ended, reviews queued at 22:14:35:** copy owner and transaction owner spelled another way (`b029539d9b`, seven code files);
+  the branch that keeps a Pi run out of the main checkout, sixth run (`b3c4479719`, sixteen code files; sixth in the queue, since until it is in `main` every run can write there).
+- **Two more fresh runs from the owner's answers, queued at 22:16:31:** the fixer writing the quote's marker on a line it breaks inside a blockquote
+  (the linter's README, lines 148 to 152, says the opposite today; the run leaves the flags to the run that makes `--fix` follow oxlint);
+  and cargo-shadow's test task ending with a status of its own when it left tests out (`package/cargo-shadow/cli/mise.toml`, the task at line 22, ends with 0 today in both cases).
+- **Two driver decisions of the owner carried to their authors:** "Do not count the commit service" went as a note into the inbox of the going scan-for-work author at 22:17:08;
+  the thin review started once more on another model ("the other of the pair; Sonnet while Qwen is dry") was appended at 22:17:29 to the brief of the review-briefs author, which still waits in the queue.
+  The third (a stray worktree removed after a bound) is in the note kept for the two-starts author.
+- **The list of questions kept for the owner is cut to what is open (22:36):** of its 31 entries, 28 went whole and three were cut to their open parts,
+  each against an answer quoted in "Owner decisions in force" (twenty of those answers were checked to stand outside the list before the edit).
+  What was taken out and why, entry by entry: `~/temp/agent/handover-questions-kept-list-pruned-2026-11-15/keep/proposed-list-and-what-was-taken-out.md` (a Claude agent's reading, a second pass and no independent review).
+- **Killed-Git lock** (`8c97544dfa`, 15 of 15 files): the five things of the review before are not raised again; one new thing, reproduced with the production binder:
+  `Binder::finish` waits 250 ms for a late binder and returns with no record, so a command that follows on a volume with equal births refuses to clear the lock, and a wrapper killed after the wait never writes it.
+  `lock_watch.rs` is not in `main`. Seventh run queued at 22:30:50, thirteenth in the queue.
+- **The automatic push of a branch never pushed** (fresh run, `c11272e4b6`): no path departs from `SPEC.md` lines 9204 and 9205, and no product code was changed.
+  What pass 53 saw were two `git merge` commands; the trigger declines a merge on a branch with no upstream and says nothing, and its record file holds both declines.
+  Six controls, four of which fail with the no-upstream arm taken out. They are tests alone, so their review waits for the brief writer for tests (the package's writer refused the range).
+  Its three open points are first in the kept list.
+- **Credential masking, rehearsed before `main` moves (22:26 to 22:36):** in a detached worktree at `main` (`.claude/worktrees/rehearsal-of-the-masking-merge-2026-11-15`, commit `695429964b`, never pushed) the merge of `2f303f1bc9` is clean;
+  the starter's own `mise exec -- pnpm install --offline --frozen-lockfile` makes the two links the driver package lacks (`env-local-json-core`, `ownership-marker-foreign-borrowed`) and changes no tracked file;
+  the build passes, the type check passes once the package is built (before a build it fails on the stale `dist`, as it does in `main`), and the unit tests print 205 `[PASS]` and no `[FAIL]`, the masking suites among them.
+  A run whose Pi does not report the masking armed ends with `masking-not-armed` and is given no prompt (`take-the-first-prompt.ts`, lines 331 to 345 of the tip), so a merge without the links would end every start on the machine.
+  In this session's own process, the driver's reader read 38 values (35 from the store, which declares 35 names; the rest from Pi's two files, `.bashrc`, the age identity and the environment),
+  and each of the 38, put through the driver's masking inside a sentence, came out as its marker; a made-up string was left as it was. Names and counts alone were printed (`~/temp/agent/rehearsal-of-the-masking-merge-2026-11-15/keep/`).
+  The filling unit was restarted at level 19 (22:34:03) so that a canary run started from the rehearsal tree keeps the machine at its cap of 20.
+- **Credential masking is in `main` (merge `5470c30f3f`, 2026-11-15T22:41:02-05:00), and every Pi run started since has it armed.**
+  Before `main` moved, a canary run started from the rehearsal tree's own starter (unit `pi-canary-of-the-masking-merge-run-from-the-rehearsal-tree`) read its values
+  (35 from the store, three and one from Pi's two files, one from `.bashrc`, the age identity, one from the unit's environment; none unread), had the masking's command registered in its Pi, was given its prompt,
+  made three tool calls and ended idle with exit 0.
+  The three links `main`'s driver package then lacked (`env-local-json-core`, `ownership-marker-foreign-borrowed`, Pi's own package) were made by hand before the merge, as the install makes them,
+  so that no start could fail between the merge and the install; the merge and `mise exec -- pnpm install --offline --frozen-lockfile` ran in one call, and `git diff` between the rehearsed commit and `main` is empty for the driver and the lock.
+  A second canary through `main`'s own batch starter armed the same counts and ended idle with exit 0.
+  What this does not show: a real value in a real run's tool result (the canaries printed none, by the ban); that rests on the in-process check of all 38 values and on the review's 143 checks with made-up values.
+  What it does not cover: runs started before the merge go on unmasked until they end (17 units were going; the latest wall clock among them allows 2026-11-16T14:38:25-05:00);
+  Claude Code sessions, this one among them, are not Pi runs and are not masked; `mcp-auth.json` is not among the driver's sources.
+  Noticed by reading and given to the author: `free-form-arguments-of-pi.ts` imports Pi's package at run time while `package.json` lists it under `devDependencies`.
+  The author's sixth run (three fixes, three stated limits) was queued at 22:45:21, third in the queue. The names for the rotation, 38, names only: `~/temp/agent/secret-environment-values-shown-to-model-providers-by-pi-runs-2026-11-14/keep/`.
+- **Four more runs read (22:37 to 22:39):** reviews queued at three new tips: the discarding guard after its fourth run (`9b4ab2ed6b`, with the decisions on record appended to its brief), the renamed subvolume handed over (`855f96cc71`), the held-push holder (`86d00f412d`).
+  Add-never-skips (`85a9f8523f`, 14 of 14 files): four reproduced, each a check on a name followed by an act on that name:
+  Cargo given a `/proc/self/fd` path that names Cargo's own process; the mirror fallback cleaning a replacement before finding its claim gone; a directory swapped after its claim is read and removed whole; a marker swapped after its identity check and unlinked.
+  Thirteenth run queued at 22:38:55 with a suggestion of this session's, labelled as such: one object checked and acted on (a held descriptor), and a source guard for these files.
+- **After the masking merge (22:45 to 22:49):** the rehearsal worktree is removed and the two canaries' branches, which held no commit of their own, are deleted;
+  the filling unit is back at level 20 (`fill-free-places-and-put-ended-reviews-back-at-level-20-20261115T224712`, eight hours from 22:47:12); no launcher outlived a run and no going run was silent for twenty minutes.
+- **The push of a branch that is not checked out** (`986a82bbab`, 23 of 23 files): four reproduced with the built executable.
+  A repair takes bytes equal to a recorded tip for proof that the move wrote a checkout, and writes a person's staged edit away in a worktree the move never touched;
+  with the branch attached in two worktrees only the first found is advanced or recorded, so the other's next commit can record the old tree over the published merge;
+  a takeover claim is written as `repair-claim` and read by a reader that takes only `repair-owner`, so a crash after it blocks every later repair;
+  the startup sweep builds its Git from the overlay alone, with no `HOME`, so a branch-move record makes every ordinary command end with status 2.
+  `main` holds one of the files named (`auto_push_reconcile_branch_advance.rs`); the author is asked to show per finding whether `main` has it. Twelfth run queued at 22:48:47.
+- **The review brief's template** (author's sixth run, `cc2e91e8d8`): review queued at 22:48:55 (23 code files).
+  Its two open points are adopted as built, open to veto: a plain line after a sentence saying the review stopped counts by the grammar; a header inside a code fence is refused.
+  Whether that refusal names the fence in its words is left with the author's next change, since a diagnostic names its cause.
+- **Commit does not wait behind the service's writes** (`6d67fbc5fb`, 16 of 16 files): three reproduced by probes against the library, each with a positive control.
+  A service whose registration was refused goes on with a board of its own, a second service sees itself alone and confirms a withdrawal the first then lands (the probe showed the confirmation and the request still held; the step into the landing is by reading);
+  the check behind a withdrawal reads holder files on the one landing thread with no bound (a FIFO with no writer held it for good);
+  the registration's `sync_all` runs before the service accepts clients. Fifth run queued at 22:54:45, also asked why its own guard listed none of the three.
+- **After the masking merge, added to each round:** `list-the-runs-that-ended-since-a-time-without-their-masking-or-with-a-failed-driver.ts` (none of the three runs that ended between 22:41 and 22:52);
+  the masking author, whose sixth run is going as a resumed session with the masking armed, got a note that a value changed during a run is a limit to state;
+  the driver package's built output in the main checkout, which dated from 2026-11-13, was built again (no start uses it; the package's type check does).
+- **Integration pass 56 is in `main` (`b04d915684`, 2026-11-15T22:56:49-05:00).** Its report (`~/temp/agent/integration-pass-56-scratch/keep/report.md`) answers fit at `ae69ee6996`:
+  seven branches at the commits its brief named, no conflict; the library suite 7,940 of 7,940; the binary suite 1,230 of 1,232, the two being the lock-holders controls on the gate's list, which fail alone too;
+  the door against the built program, a commit in 294 ms and a `git add` beside it in 18 ms with the service's standard error a full pipe nobody reads.
+  Before the merge `git log ae69ee6996..main -- package/git-policy/ toolchain.lock.json Cargo.lock` printed nothing. Release `0.6.1-alpha.44` was dispatched through the repository's task (run 43801129426); install, sample commit and gate follow when it is published.
+- **Queued on the strength of pass 56 (22:57 to 22:59):** integration pass 57, the fix for the commit with the empty tree alone, at `3882e11ddf` and not at its author's later tip, first in the queue, with a control that ordinary and abbreviated commits still end with status 0;
+  the stopped-push author's fifth run (merge `main`, show its review's case with the door in, and say per caller which side of "Only where another command can be held" it is on);
+  a fresh run that makes the binary controls remove the `rn-*` and `rt-*` folders they make. The private fixture root is queued after that run ends, since both change the controls' support files.
+- **Two more reviews (22:54, 22:55):** the resumed wake's folder (`34514a502f`, 8 of 8 files), three reproduced in the driver's summary writer and start guards:
+  two writers share one temporary inode and the failed one's bytes are published; a temporary name left by a kill lets a later writer truncate a published summary; a folder of an attempt killed before its summary is taken again and its standard error truncated.
+  By reading, `main`'s writer uses one fixed temporary name and `main`'s keeper opens with `w` on a first start, so all three shapes may stand in `main`; the author is asked to show it. Second run queued at 23:01:02.
+  The settle wait of the binary controls (`7b8eb40e99`, test support and tests alone): two reproduced, a record that moves between folders behind two empty readings, and the earlier name of the data folder never listed when both exist. Second run queued at 23:01:02;
+  the branch goes into a pass of test support once pass 57 is in, at whichever tip a review has read.
+- **`0.6.1-alpha.44` is published and installed (23:05:15, lock commit `0f07c4f0ee`).** The publish run was 43801228548; the sample commit took 4,401 ms (one sample; `0.6.1-alpha.43`'s took 1,674 ms, and no spread was measured for either, so the difference says nothing by itself).
+  The fuzz sidecar's type check on `main` ended with status 0. The container gate runs on `0f07c4f0ee` (unit `gpc-gate-wrapper-next-alpha-on-0f07c4f0ee-20261115T230531-0500`).
+- **The abbreviated options are measured, and this session's reading was right.** The drawn-shadow-tree author's tenth run (`b92347ebd3`) ran both wrappers:
+  `git commit --amen -- a.txt` and `git commit --no-only --amen` end with status 0 on `main` and are refused at `3882e11ddf` ("the commit Git built is not the one this command asked for"), the branch unmoved and the edit kept; the same for abbreviated `--fixup`.
+  That is the case the owner settled with "Merge anyway; the fix follows", so pass 57, which is going at `3882e11ddf`, got a note saying so. The author's fix reads the form with the crate's own port of Git's option table; its review is queued (23 code files), fourth in the queue.
+- **Four runs read (22:59 to 23:02):**
+  the branch that keeps a Pi run out of the main checkout (`b3c4479719`, 16 of 16 files): a scope cannot be started from inside the generated unit ("Argument list too long", reproduced, cause not isolated), which would stop a run from running almost anything;
+  a run that is read-only in the main checkout can still move `main` with `update-ref`; a manager probe that fails once lets the install run unconfined; three `realpath` calls with no bound; a path with a newline refused. Seventh run queued at 23:06:57, fifth in the queue, the scope first.
+  That review also measured the scratch root against its brief: `du` of `~/temp/agent` gave 385,064,849,408 bytes (about 359 GiB).
+  Copy owner and transaction owner (`b029539d9b`, 7 of 7 files): a tag in capitals keeps a lock from a boot that has ended; a stale record with a birth spelled another way is alive, silently, for as long as another process holds its number; the current namespace's number with a leading zero is refused as foreign after two minutes.
+  Second run queued at 23:06:57; what becomes of a record whose holder can be shown neither alive nor gone is not decided, and the author is asked to build the state and its words and to put the rest as a question.
+  Issue 6293 (`149568cbe6`): its five by-reading findings each produced by a control and answered, per its report; a narrow review of that delta is queued. It still waits for the no-manager branch.
+- **The gate on `0.6.1-alpha.44` failed 6 of 9,173** (`0f07c4f0ee`, ended about 23:17; the gate on `0.6.1-alpha.43` failed 3 of 9,148). The standing three are still there (`owed_push`, `repository_naming_commit`, `service_no_manager`).
+  Three are new to every kept list: two of `service_stop_ends_its_gits` (the service prints "stopped: 2 pieces of work were still unfinished after 24 seconds, so the service ends now" and then does not end until the test's alarm, signal 14 where 15 is expected)
+  and `worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes` (the merge hands the removal to the service and returns; the control looks for the worktree to be gone at once).
+  Pass 56 ran the same suite once on this machine outside the container and all three passed there. The failing lines are kept in `~/temp/agent/gate/keep/panics-of-the-failing-tests-of-the-gate-on-0f07c4f0ee-2026-11-15T230531.txt`.
+  Two fresh runs, one per cause, started at 23:30: each measures both releases' builds in the gate's container first. Not established: that pass 56's writer thread for diagnostic lines is the cause of the first pair; it is the one change to released code in the range and is named to the run as a place to look, no more.
+  The no-manager author's thirteenth run reports a like sight on its own branch after merging `main`: a service stopped by a signal "writes nothing" where `main` writes its exit line.
+- **Six more runs read (23:14 to 23:30):**
+  service logs of a control under a limit (`b0f446fe7b`): the memory-limit control now counts a commit that landed while its command failed as working (by reading), which loosens a control, so the branch goes into no pass; one invalid byte empties the log (reproduced). Second run queued.
+  Review brief says what the change is (`cc2e91e8d8`, 23 of 23 files): a statement quoted in a list item's fence is taken for the review's own; a record that is a named pipe makes the save wait for ever; an unreadable record ends the save for every review. Seventh run queued.
+  The no-manager branch's thirteenth run (`6252178bd3`): the five claims answered; four controls still fail (two of its fixture's, two new after its merge of `main`). Fourteenth run queued, sixth in the queue.
+  Cargo-shadow's recycled namespace number (`e6e6c21726`), cargo-shadow's two tests (`ae2b9de5ea`) and the gate-script unit test (`a2ab26a324`): each reports its answer; the first two change tests alone by the package's reading and wait for the brief writer for tests, the third has its review queued for Sonnet.
+- **The last three reviews on Kimi ended (23:36 to 23:40) and their authors are queued again:**
+  held-push holder (`86d00f412d`, 3 of 3 files, three reproduced: a padded birth tag reads a live holder as gone and gives its item to a second claimant; another spelling of the boot hides the proof that the holder is dead; a birth of whitespace strands a dead service holder), third run;
+  the renamed subvolume handed over (`855f96cc71`, three reproduced and one by reading: the budget of attempts is passed by callers at once and gone round by two requeues), fifth run;
+  the discarding guard (`9b4ab2ed6b`; the five findings before it no longer happen; three new, each through the built executable: `checkout-index --prefix` without a trailing slash checked at the wrong destination, a revision that is not UTF-8 read lossily, a hidden change of the executable bit alone reset), fifth run.
+  No review is on Kimi any more. The queue as a folder (`3ddf381a25`): its second run says itself that it is not done (its walk still leaves an entry with no home in one round, lint and unit tests fail, three test files deleted, no measurements); third run queued.
+- **The first start through the closed pool table works:** the main-checkout author's seventh run started at 23:38:12, twenty-six seconds after the merge, and was at its seventh turn at 23:45.
+  This session's round check called it gone for a minute: it looked for a unit named `pi-pi-run-…`, and a run whose own name starts with `pi-` keeps that name for its unit. The check is corrected.
+  The scratch starter builds the same doubled name when it asks whether an entry's run is already going, so for such a name it would not see a going run; noted, not yet changed, since an entry of a going run is not in the queue.
+- **The first review by Claude Sonnet is read and accepted as a review (23:38 to 23:46, about seven and a half minutes).** The SPEC's removal rule at `323260fa9c`: it states its range, read 2 of 2 listed files, built nothing and shows why (every changed Rust line is a comment, by a script), ran three scripts, and its transcript names `claude-sonnet-5-5` for 93 answers.
+  It is an independent review: the author is a Pi run on another vendor's model. What it found: the module's doc says the notice states the accepted gap and the notice does not; the sentence the owner's decision withdrew is still stated flat in a second file, four test names or messages, the README and two more comments;
+  and one thing in the code's behaviour, reproduced on the arithmetic alone (65 of 300 rounds): the age comparison reads a process that starts within about ten milliseconds after the folder is made as older than it, so the "Accept the gap" rule can reach a process that is younger than the worktree. By reading: the Git-directory exemption does nothing for a linked worktree, since both call sites pass a folder outside it.
+  The words go back to the SPEC's author (second run queued). The two things in the code are **not yet with any run**: they are in `worktree_process_inside.rs`, where the fresh run on an unreadable process table works, and two runs never edit one file at once; a fresh run for them is queued when that one has ended.
+  The review's worktree is removed. The second Sonnet review (two starts of one run name, `16166773fb`, 24 files) started at about 23:48; the third (issue 6293's five answers) is being prepared. The filling level is 17, leaving three places.
+- **Done on the owner's ticked answers:** the install folder of 0.5.34 (`~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/`, two programs of the old name, 18 MiB, no process inside) is deleted with the link that pointed at it;
+  three old-name launcher files of the global store that led into it are moved to the scratch folder that holds the checkout's;
+  no unit of the old name `cli-git@` exists in the user manager any more (all 68 wrapper units carry the new name), so there was none to remove.
+- **Queue of runs as a folder:** the author of `7f8d9e5abb` is queued with the decision, and the review of the lock version is taken out of the queue (kept in `keep/entry-taken-out-2026-11-15T2046-review-of-the-queue-claims-lock-version.json`).
+- A fresh, documents-only run is queued to bring the wrapper's `SPEC.md` in line with the decisions of the evening.
+
+##### The masking's fifth run ends and its review on the narrow line is queued first; a claim made to the owner about the wg branch is withdrawn (2026-11-15T20:43:37-05:00)
+
+Not final and not approved; written by the coordinating session. Reviews are by Kimi K3.1 Pro while the Qwen quota is dry.
+
+- **A wrong statement of this session to the owner, withdrawn.**
+  The question on the wg lifecycle branch (`cd83212379`) said the branch "carries fixes for a hook that stalls `up` or `down` for ten minutes and for a concurrent `up` destroying another tunnel".
+  That came from branch names read by a preparing agent and was not checked.
+  The newest review of that very tip (round 274, 2026-11-12, `~/temp/agent/reviews/wg-lifecycle-branch-made-fit-to-merge/review.md`) reproduced six defects on it, among them exactly those two:
+  a second `up` of one interface fails and its rollback deletes the first tunnel's link, rules and kill switch, after which traffic leaves outside the tunnel (F2);
+  two `up` commands of two interfaces share one policy table (F3); the watcher's readiness bound fails a healthy start under load (F6);
+  a hook that backgrounds a child holds the lifecycle for ten minutes (F4); the operation lock has no deadline (F5); a signal during the last `up` step is ignored (F7).
+  No later commit answers them: `cd83212379` (2026-11-11T23:10:20-05:00) is the newest wg branch.
+  The question also called the five never-run tasks ones that "take the live tunnel down and up"; that is said of the deploy steps in the landing report, and the five tasks are tests that their task descriptions place in disposable namespaces:
+  `cli-quicker:test:integration:bypass`, `:block`, `:route`, and `cli-quicker-exempt:test:functional` and `:test:functional:protocols`.
+  The owner answered "You run them now. sudo passwordless." on those statements.
+  What is done on that answer: the five tests are run once a reading of their sources shows they stay inside their namespaces (an agent is reading them, nothing is run yet);
+  the merge is held, and the correction is put to the owner.
+- **Credential masking**, fifth run ended 20:35:41 at `2f303f1bc9`. Per its report: both points of the narrow line shown by controls
+  (every declared value printed as it is gets masked, in five arrangements of store and environment; the caller's session is refused by name and only one module can hand out a file to rewrite);
+  the rename window stated as a limit that no other run's file can lose content by; the continued `export` line kept and reported as beyond the line; limits in one section of the package's troubleshooting doc.
+  Review queued second in the queue at 20:42:46 (36 files), hand-written to the line: the plain case and no damage are answered by building and running, anything else is listed as a limit and does not hold the merge.
+  When that review shows both points: merge, canary start, names-only scan, then the list of names to the owner for the rotation.
+- **Killed-Git lock**, sixth run ended at `8c97544dfa`: the withdrawn sentence is gone and the record's answer is back (a lock with no PID file is left and reported, with the command that clears it);
+  the walk has both arms and four live foreign writers beside every row; per its report `main` has none of the five. Review queued (15 code files).
+- **Add never skips the Cargo repair**, twelfth run ended at `85a9f8523f`: one generated control over every seam, and every directory a filling may remove carries a claim file made with it.
+  Its report repeats, by reading, that `main` has the shapes of findings one to four. Review queued (14 code files).
+- **Push of a branch that is not checked out**, eleventh run ended at `986a82bbab`: the ninth review's four findings answered.
+  The state it leaves for the project is unchanged: a path at the old tip whose write another program's index lock refuses for the whole wait ends in the command being stopped.
+  Review queued (23 files), told that this choice is open and not a finding.
+- **Work record the service settles** (`7e4d5fa34f`, whole range, 5 of 5 files, eleven new tests run): two things reproduced, both in what a message says:
+  a last recovery is reported as work that will run again; a directory that could not be read is reported as a record somebody removed.
+  Author's second run queued at 20:43:31, thirteenth in the queue.
+
+##### Three reviews end with findings and their authors are queued again; the owner's mpm-shadow and cargo-shadow answers are in three waiting briefs (2026-11-15T20:20:57-05:00)
+
+Not final and not approved; written by the coordinating session. Reviews are by Kimi K3.1 Pro while the Qwen quota is dry.
+
+- **Issue 6293** (`12a18711db`, narrow review of five fix commits, the merge's hand-made part and two commits after; 29 of 29 files).
+  The review built the package, ran eleven named modules and took each of the five fixes out to see its control fail; all held.
+  It lists five things, each by reading and none reproduced:
+  a service a manager started can be ended between the check that it is preparing and the act (`service_server_start_by_the_wrapper.rs` lines 227 to 234);
+  the base start can answer `DidNotGreet` after a claim (lines 241 to 253);
+  the note is removed before the after-commit writer has ended on the path where the worktree is gone (`service_main.rs` lines 401 to 405);
+  `*.writing` names are left by a kill or a failed write;
+  `same_place` calls `std::fs::canonicalize` twice with no bound (`service_session_of_the_runtime_directory.rs` lines 133 to 141).
+  Author's eighth run queued at 20:20:53, fourteenth in the queue: a control that produces each first, or the lines that rule it out; whether `main` has each.
+  The adopted order stands: the no-manager branch settles first, and this branch merges its tip only then.
+- **Scan for work a run left running** (`3fd0963ae7`, whole range, 12 of 12 files): three things, two reproduced with the real watch loop and the real record writer.
+  A send that resolves with `{ ending: "silence" }` lets an accepted wake end as `idle`; a record with no birth makes running work vanish from the scan;
+  a process number reused before the feed line is written binds the old answer to the new process.
+  Author's third run queued at 20:19:58, twelfth in the queue. Its brief also carries the owner's answer to the question its own report left open
+  ("A shorter limit, then end as failed"): a run kept by a scan that cannot be read ends as failed after a stated, measured span, with its worktree kept.
+- **Renamed subvolume handed over** (`2e6fe78702`, whole range, 9 of 9 files): one thing, reproduced on a real disposable Btrfs fixture.
+  An attempt file is written before the delete is queued, so a kill between the two, once per remaining attempt, spends the whole budget;
+  the next command then queues nothing and reports attempts no service made. The review found no data loss and no commit made twice.
+  Author's fourth run queued at 20:19:58, tenth in the queue; it also says whether `main` has this.
+- The owner's mpm-shadow and cargo-shadow answers of the evening were appended at 20:12 to the briefs of three authors still waiting in the queue
+  (mpm-shadow removal of old versions, mpm-shadow install that removes no version, cargo-shadow removal of old toolchain folders);
+  the appended texts are kept in `~/temp/agent/notes-to-send/` under names starting `decisions-of-2026-11-15-for-`.
+  Six decisions from those answers are in no run yet, each a task of its own:
+  the launcher refusing an unfinished version with words; a held good copy put back when its install is proven dead;
+  a control group where available with a named exception list; cargo-shadow's own non-zero status when it skipped tests;
+  images of containers exited for 24 hours removed; old-style build folders retired after seven idle days.
+- Round checks at 20:11:35: 20 Pi units going, none silent for twenty minutes, no launcher outlived a run, no process inside an ended run's worktree,
+  six changed files in the main checkout.
+- A script kept for the next rounds: `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/queue-an-author-resume-after-checking-its-session-its-last-run-and-its-prompt.ts`.
+- The agent preparing the last older questions for the owner has not reported.
 
 ##### Pass 56 is queued with the door for diagnostics; sixteen ended runs are read and routed; the firewall and three small removals are done (2026-11-15T20:04:22-05:00)
 
@@ -39642,6 +39847,493 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### The owner is away overnight; shut down when nothing is left (2026-11-18T23:25:00-05:00)
+
+The owner, plain text: "I'm gonna go to bed. You keep working and try not to block on me. Whenever you run out of
+things you can do w/o me, shutdown the entire system." So: every run going finishes and is handled (reviews, merges
+of reviewed non-wrapper work, the next step of each item); questions for the owner are written here, ranked, and asked
+when the owner is back, never waited on; and once no run is going and nothing more can move without the owner,
+everything is committed and pushed (rule `RBT`), every unit and worktree this session started is stopped or removed,
+and the machine is powered off. The queue stays stopped (no heavy worktree use before the ZFS route).
+
+### Runs that ended after the filling stopped (2026-11-18T22:25:00-05:00)
+
+Three reviews returned (all `idle`, no rate-limit error); each found what the branch brings, so each goes to its
+author, whose next run waits with the queue for the ZFS route (the authors' worktrees are gone, and a new one is the
+heavy use the owner stopped):
+
+- Copy owner `eaacf58e50` (86 turns; review under
+  `~/temp/agent/change-reviews/git-policy-cli-copy-owner-and-transaction-owner-spelled-another-way-are-never-taken-for-gone-at-eaacf58e50/`):
+  `worktree_copy_journal.rs:464-466` sends the new "cannot be told" answer through `proven_dead`, so a pending copy
+  journal whose owner field this release cannot read is never recovered and named by nothing, and `git worktree add`
+  then names an add that does not exist (reproduced; `main` settled such a journal at once); the same swallowed answer
+  holds an owed copy for ever at `worktree_copy_owed_copy.rs:300` and `:747` (by reading).
+- Review briefs demand what was read and run, `c4f67da297` (90 turns): a run folder with no `summary.json` counts as
+  still running with no age test (`src/newest-finished-run-of-a-name.ts:167`), a correct review reads as a mismatch
+  because the file list is read back with a fixed slice (`src/reading-a-review.ts:126-135` against `src/review-brief.ts`),
+  and the README and doc say the check starts the second review by itself where the code needs `--start`.
+- Push of a branch not checked out, `52701f4a5b` (86 turns; two reproductions in its review folder): one unstaged edit
+  of a file a recorded branch move changes stops every command in that worktree for ever; the same state with the file
+  deleted writes the branch's content back over the deletion and calls the edit kept; any command deletes the record of
+  a move still in flight (`auto_push_branch_move_repairs.rs:454`).
+
+The prewarm writer (`prewarm-of-a-new-worktree-acts-only-on-the-entry-it-checked-1`) ended `model-error` after six
+turns on OpenAI's "This content was flagged for possible cybersecurity risk"; by rule `RKD` its session goes on as
+`pi-prewarm-of-a-new-worktree-acts-only-on-the-entry-it-checked-2` on `qwen-token-plan-individual`
+`deepseek-v4.1-flash-1017`, in its existing worktree, turn cap 635 (the launcher's longest finished run, 508, plus a
+quarter). Its launcher had also logged `dependencies: status 1`: run again by hand, `pnpm install --offline
+--frozen-lockfile` answered `ERR_PNPM_NO_OFFLINE_TARBALL` for `electron-to-chromium@1.5.485` (not in the local store),
+so it was the store, not the permission model; an online `pnpm install --frozen-lockfile` there passed in 601 ms. The
+launcher (`package/pi-shared/subagent-driver/src/start-pi-run-in-a-worktree.ts:245-263`) logs only the status and
+starts the run anyway, so a run can begin with no dependencies and nothing says why: owed to the driver package.
+A waiter (`wait-until-an-agent-unit-ends-20261118T2220`, three hours) watches the runs still going.
+
+By 03:00:55Z five more had ended (all `idle`, no rate-limit error):
+
+- The ZFS proposal's revision for its gate review (48 turns; nine commits on the proposal branch, `2315a042d4` back to
+  `5695b8ed3d`, only `doc/planning/cli-git-zfs-worktree-design-proposal.md`): every finding GH1, GM1 to GM10 and GL1
+  to GL11 addressed, the owner's three answers applied, twelve open project choices listed unranked for the owner
+  handoff; the measurement page is on its own branch and not yet in this one. Next as planned: the measurement run's
+  results folded in, then the Sonnet delta review.
+- The virtual provider, issue 6314 (119 turns; package `package/pi-plugin/rate-limit-fallback`, five commits
+  `0d6d6d8e38` to `f49cc8e5a3`): unit suites (20 named cases), type check and a disposable Pi session check pass;
+  **`lint:oxlint` fails with 70 errors and 84 warnings**, so the package is not complete (rule `PKG`). It reads the
+  Synthetic and Neuralwatt quota endpoints on first use and after a refusal or reset, holds a member only until a
+  provider-given reset ("according to weather"), and uses Neuralwatt's published `flex_floor` for the flex member.
+  It declined to resend a request after OpenAI's "possible risk" stop to the next member, calling that a bypass of a
+  provider's safety decision; rule `RKD` has the coordinator do exactly that by hand, so whether the provider does it
+  is put to the owner. Next: the author's second run for oxlint, then its DeepSeek review.
+- Renamed subvolume `5d4e355e36` (114 turns): a named pipe in `leavings-reported/` holds every command for ever
+  (`worktree_removal_leavings_already_reported.rs:216` reads entries with `std::fs::read`); the look reads only
+  directories this release recorded while `README.md:1118` says every linked worktree's directory.
+- Snapshot of a person `8b7c98aa6e` (73 turns, by reading): the `intended` record has no size bound but its reader
+  caps at 1 MiB, so a killed copy's stage is never reaped; the `.kept` cache has the same cap; a person's file named
+  `.registration` or `.intended` in a dead copy's stage counts as the wrapper's own.
+- Unreadable process table `dfea0fd4a9` (57 turns, by reading): spellings matched by `(device, inode)` against every
+  mount point, and every Btrfs subvolume root is inode 256 on one device; a `metadata` call on every mount point's path
+  can hang on a stalled FUSE or NFS mount; the process proof is made before the ignored-files walk (order `main` has).
+
+These go to their authors with the queue, after the ZFS route.
+
+Owner answers of 2026-11-18 (question tool):
+
+- The five `FileHandle.sync()` callers: "Call coreutils sync (Recommended)", recorded in
+  `doc/research/node-permission-default-with-npm.md`, "Keeping durability under the default". A GPT writer makes the
+  change in its own worktree.
+- The virtual provider on OpenAI's "possible risk" stop: "Fall back automatically (Recommended)": the writer pool sends
+  the same transcript to the next member, and the session record names the member that answered. This reverses the
+  first run's refusal and makes rule `RKD`'s hand resume automatic for runs on the provider. It is a separate task from
+  the lint run now going (`pi-provider-that-falls-back-across-providers-2`), so it goes to a fresh writer in the same
+  worktree after that run ends, then the package's DeepSeek review.
+
+The ZFS VM measurement run ended `idle` (83 turns; branch `docs/planning-cli-git-zfs-measurements-owed-before-acceptance`
+at `657d8c0011`, one commit per item; its worktree removed after checking it clean and pushed): all eleven items ran on
+encrypted file-backed pools, OpenZFS 2.4.4-1, guest kernel `6.8.0-147-generic`. Two results change the design: making
+only the checkout private was enough for the staging move (item 3), and after a promote an explicit snapshot delete
+erased checkout history before the origin dependency stopped removal (item 11). Not shown: host kernel and Git runtime,
+the product handler, unattended boot reconciliation, free-running races, same-name replacement, recovery after an
+interruption. Runs started at about 23:05-05:00, each in an existing or single new worktree:
+`pi-zfs-worktree-design-proposal-fold-in-the-vm-measurements-1` (GPT, the proposal's worktree; then the Sonnet delta
+review), `pi-node-sync-calls-go-through-coreutils-sync-1` (GPT, new worktree
+`.claude/worktrees/node-sync-calls-go-through-coreutils-sync`), `pi-provider-that-falls-back-across-providers-2` (GPT,
+oxlint to zero), `pi-prewarm-of-a-new-worktree-acts-only-on-the-entry-it-checked-2` (DeepSeek on the Qwen plan).
+
+The sync writer's first run ended `pi-exited` after nine turns: Pi 1.5.2 itself crashed. Its `codemode` tool read
+several files, one did not exist (ENOENT), the script's end aborted the other reads, and the aborted `ReadStream` raised
+an `error` event with no listener (`ABORT_ERR`), which ends Node; the summary then holds no session file
+(`sessionStats` is the text "pi exited"), so the session was found under
+`~/.pi/agent/sessions/--home-user-Monochromatic-.claude-worktrees-node-sync-calls-go-through-coreutils-sync--/` and
+resumed as `pi-node-sync-calls-go-through-coreutils-sync-2`, told to list a folder before reading inside `codemode`.
+Not recorded in `doc/troubleshooting/` before; a GPT writer (`pi-pi-codemode-abort-crash-troubleshooting-1`, main
+checkout, one new doc) traces it in upstream `earendil-works/pi` at 1.5.2 under the troubleshooting skill, files nothing.
+It hit OpenAI's "possible risk" stop after 17 turns, went on on DeepSeek (rule `RKD`), and landed
+`doc/troubleshooting/pi-codemode-abort-crashes-pi-on-an-open-read.md` in `main` (`2c5fc7e735`, `b4323352fb`):
+`Execution.finish()` aborts every pending nested call's signal, and the `read` tool passes that signal into
+`createReadStream` with no `error` listener; reproduced three ways (bare stream, Pi's own read tool, Pi's own codemode
+sandbox), fixed upstream by PR #12025 (`ef9361ab70`, 2026-11-11, issue #11956 closed with four duplicates), not yet in
+a release (npm's latest is 1.5.2, which crashes; 1.5.0 does not); workarounds `Promise.allSettled` or reads one at a
+time. Nothing filed. The repository's Markdown gate did not run (`monochromatic-lint: command not found`, the toolchain
+binary is not installed here); a `markdown-it` render stood in. When a Pi release after 1.5.2 carries the fix,
+upgrade Pi and drop the brief line about listing before reading.
+
+The virtual provider's lint run ended `idle` (63 turns; `f4fe08b7f4`, `c1e00ca741`, `62185c4080`): oxlint "Found 0
+warnings and 0 errors." with no rule loosened or suppressed, regex literals replaced by scans checked against the old
+behaviour over 1,589 cases, the host interface narrowed; types, 20 unit cases and the Pi session check pass; each touched
+guard removed in turn gave its named failure. A fresh writer (`pi-provider-possible-risk-falls-back-to-the-next-member-1`,
+same worktree) was briefed to build the owner's "Fall back automatically". **It declined (5 turns, no change)**:
+sending the same transcript to another provider because the first flagged it "would let an unattended agent continue a
+potentially offensive workflow past that stop". It found a real defect: `src/rate-limit-evidence.ts:116` scans for the
+contiguous phrase `possible risk` while OpenAI's stop says "possible cybersecurity risk" (fixture
+`src/routing.unit.test.ts:24` uses the short form), so the real stop is not recognised. The refused task was **not**
+handed to another model overnight; **for the owner, when back:** the owner's answer stands ("Fall back automatically"),
+the writer's objection is that the coordinator's per-case look before a resume (rule `RKD` by hand) disappears;
+confirm, or keep the stop terminal. A fresh GPT writer
+(`pi-provider-classifies-the-real-possible-risk-wording-1`) fixes the classification only, failing test first with the
+verbatim stop text, policy unchanged. The coreutils sync change's DeepSeek review is going
+(`pi-review-node-sync-calls-go-through-coreutils-sync-at-e5c61b8af2-1`, in the writer's worktree).
+
+The work-record review `1d5ad2597d` returned (85 turns, `idle`): four reads that wait for ever on a named pipe
+(`worktree/worktree_remove_hand_over.rs:761` on every `failed/` entry, reproduced; `landing/service_handoff.rs:663` on an
+aged `pending` record, reproduced, exit 137 at the 20 s bound; `landing/work_item_recovery.rs:345` on a claim in
+`recovering`, by reading; `landing/work_item.rs:611` and `:625`, a link to a pipe gives `FilesystemLoop` and the
+fallback open follows it, which `main` has too), against the branch's own `SPEC.md:17971` sentence that a pipe is a
+record it cannot read rather than a wait; its two `#[ignore]`d tests admit the first two. Goes to its author with the queue.
+
+The two-starts writer (driver package, branch
+`fix/pi-shared-subagent-driver-two-starts-of-one-run-name-never-share-a-run-folder-or-remove-each-others-worktree`)
+ended `idle` at `db8a6d84f9` (fourth run, 148 turns; worktree removed by its launcher): `main` merged in (`a9e4bacca4`,
+four conflicts resolved), the review's four findings answered with a failing-first test each, oxlint 0 warnings and 0
+errors, build and `lint:types` pass, unit task 67 of 70 files (three excluded, named in its report). Its review needs a
+new worktree, so it waits with the queue. **Two questions for the owner, from its report, to ask when the owner is
+back:** how long a worktree with no proof of its maker is kept (now 24 hours from first sighting; shorter frees the run
+name sooner and can delete live work sooner), and whether a worktree whose maker cannot be identified falls back to
+age (recovers unattended retries, can delete live work) or is kept until someone checks it (no fallback added).
+
+By 03:24:49Z three more ended `idle`; each next step needs a new worktree, so each waits with the queue:
+
+- Masking limits page and stray test files (138 turns, branch tip `c1aa6b042d`, not merged; report under
+  `~/temp/agent/masking-limits-page-and-stray-test-files-2026-11-16-scratch/keep/report.md`): the limits page now says
+  what the code does (truncated-output path accepted, resumed sessions masked only when the driver finds the file, the
+  rename window's real checks, the preview taken before masking), and both test launchers give the stand-in session a
+  `TMPDIR` they remove (the new check failed first in a disposable home); build, types, lint, focused suite and one full
+  package pass (207 passes). Next: its review.
+- Review of the empty-last-answer driver branch `d525bcf531` (124 turns, final): a keep on a filesystem with no hard links
+  copies straight into the final kept name, so a kill mid-copy leaves a partial `.failed-<name>`
+  (`keeping-a-message-aside.ts:386-420`); `README.md:1043` promises one kept name per message where the copy path and
+  `doc/states-of-a-claimed-message.md:148` allow two (reproduced); a doubled `/**` in `driver-types.ts:176-177` ships in
+  the built types. Goes to its author.
+- Killed Git's lock watch (fresh run, 152 turns, branch clean at `f6dce5b9f7`, not merged): finding 5 (start cost with
+  many folders) answered, 3,000 folders 1.04 times `main` after against 1.58 before, `main` against itself 1.00; **finding
+  4 still blocks the merge**: from Git's death to the wrapper's exit at 6% CPU quota, 100 locks take 350.88 ms against
+  1.06 ms on `main` (327.66 times) and 200 locks 545.76 ms against 1.45 ms. Next: its author's run on finding 4.
+
+The ZFS fold-in ended `idle` (49 turns; seven commits `d85903c386` to `652b51d74d` on
+`docs/planning-cli-git-zfs-worktree-design-proposal`, worktree clean): all eleven measurements folded in, the measurement
+page merged unchanged; design changes: only the checkout mount made private (item 3), a separate key check and
+reconciliation after key load (item 5), and removal proves the lineage of the whole snapshot set before the first delete
+and revalidates each target (item 11); 106 same-page and 98 cross-page links resolve. The Sonnet delta gate review (rule
+`LHZ`) is going as a background Claude subagent: range `71fa25ece8..652b51d74d` on the two planning docs, read whole,
+output `~/temp/agent/zfs-worktree-design-proposal-delta-gate-review-2026-11-18/review.md`. After it: weigh it, a revision
+run if it finds what the design must change, then the twelve open choices go to the owner, ranked, when the owner is back.
+
+### No heavy worktree use before the wrapper's ZFS route (2026-11-18T21:47:42-05:00)
+
+The owner, in plain text: "We shouldn't use worktrees heavily before we implement the zfs parts for the git wrapper."
+So the queue's filling stopped: `fill-free-places-at-level-19-on-the-new-drive-20261118T211817` and the one-off
+`start-several-queue-entries-to-fill-level-20-20261118T214424` were stopped at 21:47:42 (each Pi run makes a worktree,
+and on ZFS the wrapper takes the plain route, a byte copy of the ignored files). The 18 runs going then finish by
+themselves and are not stopped. No queue entry starts until the ZFS route is in the wrapper; the ZFS route's own runs
+(measurement, revision) and the virtual provider's writer continue. The agent-cap search (level 20 on the new drive)
+waits with it: its probe had not run anyway, because since 2026-11-18T19:35:41-05:00 every user unit inherits
+`NODE_OPTIONS=--permission-audit` (`doc/research/node-permission-default-with-npm.md`, "Persistent audit default on
+CachyOS"), and under it Node 26.13.1 refuses `fsyncSync` ("fsync API is disabled when Permission Model is enabled"),
+which the probe calls. **Correction, 2026-11-18T22:25-05:00:** this entry first said no TypeScript file under
+`package/` calls `fsync`; that search matched only `fsyncSync` and `.fsync(`. Five calls of `FileHandle.sync()`, which
+the model refuses the same way, are in `package/git-policy/cli/bin/native-planted-controls-record.ts`,
+`package/mutation-test/cli-cargo-mutants/src/claim-files.ts` (two) and two files of `package/wg/cli-quicker/src/`.
+What the default refuses (every sync form, measured and cited), these callers, and the third-party ones are now in
+`doc/research/node-permission-default-with-npm.md`, "What the audit default refuses". No Pi feed written since 19:35
+(25 of them) names the refusal, and in the user journal only the probe does. The owner, plain text: "I turned on the permission
+model by default. And we should figure out how to work with it, not disable it." and "Shouldn't the probe be in rust
+with hyperfine anyway?" So nothing here clears `NODE_OPTIONS`, and the disk probe becomes a Rust program timed by
+hyperfine (cap page, "Level 20 again").
+
+### The queue runs again, reviews on the Qwen plan first (2026-11-18T21:18:17-05:00)
+
+Nothing had restarted the queue after the shutdown of 2026-11-17 and the boot of 2026-11-18 12:27; nothing recorded held
+it. The starter (`~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/start-the-next-entry-of-the-resume-queue.ts`;
+the Synthetic-first copy in `keep/before-reviews-go-to-the-qwen-plan-first-2026-11-18/`) now starts reviews on
+`qwen-token-plan-individual` `deepseek-v4.1-flash-1017`, and starts a review that goes on from its session
+(`review-…` with `sessionOf`) on the reviewer's model, where it used to fall to the writer's. The rate-limit put-back
+stays off (it resumes on the same provider; its marker file names the closed Kimi route). The nine runs the shutdown
+stopped (eight reviews, the killed-lock watch writer) are back at the head of the queue to go on from their sessions
+with `~/temp/agent/pi-runs/go-on-with-a-run-stopped-for-the-shutdown-of-2026-11-17-prompt.md`; their worktrees had been
+removed, so each is made again from its branch. The reviewer bench's runs had finished after the shutdown (`-2` folders,
+`idle`); the bench is closed. The probe and the filling unit (level 19, the Sonnet gate review being the twentieth
+agent) are under "Level 20 again" in `doc/handover/agents-at-once-on-this-machine.md`.
+
+### The virtual Pi provider is built now, beside the restarted queue (2026-11-18, about 21:30)
+
+The owner, in plain text: "If you feel like doing the virual provider first is faster, tell me." Asked through the
+question tool (Pi 1.5.2's `ModelRegistry` has `find(provider, modelId)` and `getApiKeyAndHeaders(model)`, so a
+provider plugin can fall back per request mid-session; its build time is unmeasured), the owner answered "A. And a lot
+of these providers limit rates according to weather, so we need to account for that as well." Option A was: restart
+the queue now with fallback by hand (Qwen plan first), and build issue 6314 now with one GPT writer and a DeepSeek
+review, switching the queue to it once it is in main. This session's reading of the second sentence, open to the
+owner's veto: a provider's limit changes over time, so the virtual provider holds no fixed number as a member's limit,
+and after a refusal moves on and later tries the preferred member again rather than demoting it for good.
+Then, in plain text: "Some providers do have published rate limits or end points. These should be preferred and called
+at key times." Read as: a member's published limit or limit endpoint is used over guessing from refusals, and called at
+the moments that decide something (before returning to a member that refused, when a refusal arrives, when a provider is
+first used), with the member order unchanged; open to the owner's veto. Sent to the running writer through its inbox
+with the endpoints this repository records (Neuralwatt `/v1/quota` and `/v1/rate_limits`, Synthetic `/v2/quotas`).
+
+### A virtual Pi provider with models writer and reviewer, deferred (2026-11-18, evening)
+
+In plain text: "Open an issue saying the GPT -> Qwen -> Synthetic -> opencode-go -> Neuralwatt flex fallback chain
+should be a new model "writer" under a new virtural provider. And the new virtural provider should have "reviewer" too.
+This specific issue+implementation can wait." Opened as issue 6314, labelled `needs-triage` and marked deferred; its
+`reviewer` chain is read as the current DeepSeek reviewer pool (Qwen, Synthetic, `opencode-go`, Neuralwatt flex), to be
+confirmed when it is taken up. Not started; task 383 (the driver's pool table) stays as it is until then.
+
+### ZFS route: the account keeps owning .claude/worktrees (2026-11-18, evening)
+
+Through the question tool: "B: Account owns it (Recommended)" over "A: Root owns it". Recorded in
+`doc/planning/cli-git-zfs-worktree.md`, "Owner's answers of 2026-11-18". Found while checking the clones document
+against its probe: registration was proven with an account-owned `.claude/worktrees` and the mount refusals with a
+root-owned one, never together, and the document's step 1 said otherwise (corrected in place). The fold-in carries the
+re-measurement of every item 3 refusal under account ownership as an acceptance test.
+
+### The DeepSeek reviewer pool gains the Qwen individual token plan (2026-11-18, evening)
+
+In plain text: "Add my qwen individual token plan deepseek-v4.1-flash-1017 to the deepseek pool." Pi lists it as
+provider `qwen-token-plan-individual`, model `deepseek-v4.1-flash-1017` (1M context); one `pi --print --no-session`
+prompt answered "OK". Then: "Orderings: qwen individual token plan first." Written into
+`.agents/skills/pi-as-subagent/SKILL.md`, "Who writes and who reviews", as the first pool, before Synthetic,
+`opencode-go` and Neuralwatt flex in their earlier order; how many runs it takes at once is unmeasured (its first 429
+sets it), and the driver's pool table (task 383) does not list it yet. Reviews started from now take it first.
+
+### ZFS route: the checkout becomes its own dataset at the same path (2026-11-18, evening)
+
+Through the question tool, with the pnpm measurements of `doc/planning/cli-git-zfs-checkout-dataset-and-pnpm.md`
+put beside it: "A: Own dataset (Recommended)" over "C: Decide after the gate review" and "B: Stay a plain folder".
+Recorded in `doc/planning/cli-git-zfs-worktree.md`, "Owner's answers of 2026-11-18". The design proposal's fold-in
+writes one layout: the checkout dataset at `~/Monochromatic`, clones under `.claude/worktrees/`, the pnpm store in
+home.
+
+### A run OpenAI stops as a "possible risk" resumes on DeepSeek (2026-11-18, evening)
+
+In plain text, after the ZFS-clones research ended on OpenAI's filter:
+"Whenever a "possible risk" is triggered from OAI, switch to deepseek resuming the session.
+Make this a standing rule in AGENTS.md . Use "possible risk" instead of anything more specific."
+Written as `AGENTS.md` rule `RKD` beside `XVW` (DeepSeek through Pi, never the official `deepseek` provider, as
+`KRV` already says), and in `.agents/skills/pi-as-subagent/SKILL.md` under the writer bullet (the follow-up of step 7
+with `--session` on the reviewer pool's DeepSeek, same worktree), mirrors copied by hand. The ZFS-clones research had
+already been resumed on GPT before this answer (unit `pi-zfs-clones-under-the-checkout-research-2`, past the filter,
+6 turns, nothing written); read as a correction of that resume, so run-2 was ended with its stop file and the session
+(`run-2/resumed-session.jsonl`, the copy the driver makes on resume) goes on under
+`pi-zfs-clones-under-the-checkout-research-3` on Synthetic `hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`.
+
+### Reviewers: DeepSeek stays for short, frequent reviews; Sonnet for long reviews and audits, rare (2026-11-18, evening)
+
+Through the question tool, after the reviewer bench was put to the owner as a challenge (scoring report
+`~/temp/agent/reviewer-bench-deepseek-against-sonnet-2026-11-17/keep/scoring-of-the-six-deepseek-reviews-against-sonnet.md`;
+of Sonnet's 17 findings a reader of the code and brief could reach, DeepSeek's two runs per case found 3; DeepSeek made
+7 Sonnet missed): "Keep deepseek. Short reviews are supposed to be frequent. Long reviews and audits are supposed to
+have Sonnet and be rare." Declined: both reviewers per change, a re-bench with equal inputs, two DeepSeek runs per
+change, Sonnet alone. Where short ends and long begins, answered the same evening: "Long = at a gate (Recommended)": a
+Sonnet review only at an integration pass before main, a release, or a design put to the owner; every other review is
+short and goes to DeepSeek. Declined: long meaning a review that builds or reproduces, or one above a size. Written into
+`AGENTS.md` rules `KRV` and `LHZ` and the pi-as-subagent skill's section "Who writes and who reviews" the same evening.
+
+### ZFS route: ~/Monochromatic stays, worktrees live under its .claude/worktrees (2026-11-18, evening)
+
+Plain text after the design proposal's first draft: "We need to keep ~/Monochromatic where it is."; "surely there is a
+rule mandating putting worktrees in ./.claude ?"; and, of the proposal's `/var/lib/monochromatic-worktrees/` anchor,
+"both you and GPT just saying monochromatic-worktrees means you've both missed at least an AGENTS.md rule." Recorded in
+`doc/planning/cli-git-zfs-worktree.md`, section "Owner's answers of 2026-11-18" (entries "Where the main checkout
+stays", "Where worktrees live", "Names"). No `AGENTS.md` line ever named the worktree place (its history searched back
+to 964883fd94); it entered the Pi skill in 1a907ccfb9 with the owner's "Feel free to use worktrees.", and a rule is put
+to the owner. Both points went to the running proposal review as steering messages; the fold-in writer gets them as
+requirements. The owner also asked whether `~/.cache` is on the snapshot blocklist: it is, as
+`zpcachyos/nosnap/user-cache` (measured), and lists of those datasets now give each one's folder.
+
+### Driver: the idle window defaults to 0 (2026-11-18, said before 19:27:38-05:00)
+
+After a "Pi agent finished" notification came a minute before the coordinator woke, the owner asked "What even is the
+idle window for?" and then "And shouldn't it be defaulted to 0?". Adopted: `--idle-seconds` becomes optional with
+default 0, in `drive-pi-subagent` and in `start-pi-run-in-a-worktree` (whose default was 120). The window's only
+documented use is a steering message for a Pi that has settled (`package/pi-shared/subagent-driver/README.md:972-973`);
+the driver's settle is Pi's `agent_settled`, which comes after Pi's retries and compaction recovery
+(`package/pi-plugin/agent-settled-notification/README.md:17-21`); a coordinator woken by the unit's end can never steer
+inside the window, and follows up with `--session` instead. No recorded failure rests on the window's length.
+
+### ZFS snapshots: an explicit blocklist of seven datasets, the pnpm store stays in home, passt allowed (2026-11-18, evening)
+
+Note added 2026-11-18T19:28:35-05:00: the option's label said "seven", but its description, and the list here, name
+eight datasets (`/var/cache`, `zpcachyos/nosnap` and its six children); the label was the session's miscount, and the
+named list is what was chosen. This goes to the owner with the design proposal.
+
+Three answers, quoted in `doc/planning/cli-git-zfs-worktree.md` ("What the snapshots hold today" and "What the
+blocklist names"): the pnpm store must not become its own dataset ("not being able to take advantage of clones";
+measured: a reflink clone fails with EXDEV across datasets); cache datasets must be on the blocklist, not merely
+outside home's tree; and "Explicit list of all seven (Recommended)" (`/var/cache` and `zpcachyos/nosnap` with its six
+children, each with `autosnap = no` below its recursive parent in `sanoid.conf` and `com.sun:auto-snapshot=false`;
+`doctor` checks it, adopted open to veto). Separately: "Permanently allow passt/pasta", with an `mvm` network switch
+filed as issue 6312 (`doc/troubleshooting/rootless-podman-traffic-reaches-opensnitch-as-pasta.md`); and rule PWT
+rewritten to forbid waiting on a stand-in PID (ccf0590fd6).
+
+### ZFS crate: our own small binding over /dev/zfs (2026-11-18, said after 18:31:39-05:00)
+
+Through the question tool, after the vet found that `zfsdev` has no clone: "Our own small binding (Recommended)",
+quoted in `doc/planning/cli-git-zfs-worktree.md`, section "Owner's answers of 2026-11-18". Declined: copying
+`zfsdev` whole with clone added, and asking upstream and waiting.
+
+### ZFS crate: the kernel interface, no CDDL linking, no crate that runs zfs (2026-11-18, said before 18:21:50-05:00)
+
+Two answers through the question tool, quoted in `doc/planning/cli-git-zfs-worktree.md`, section "Owner's answers of
+2026-11-18": "Kernel interface (Recommended)" (the crate talks to `/dev/zfs` itself in Rust and links none of
+OpenZFS's CDDL libraries; declined: linking them with a license exception and run-time loading, or with no license
+change) and, for crates that run the `zfs` program, "Out (Recommended)".
+
+### ZFS route: ZED-mounted clones with a reflink fallback, a Rust crate, recursive snapshots (2026-11-18, said before 17:30:00-05:00)
+
+Four answers through the question tool, quoted with this session's readings in `doc/planning/cli-git-zfs-worktree.md`,
+section "Owner's answers of 2026-11-18": route, ZED handler, "A Rust crate", and recursive home snapshots with a blocklist
+("Worktrees are not necessarily throwaway.").
+The design as a whole is not yet accepted.
+
+### On the new system: what came over, GPT writes and DeepSeek reviews through Pi, the wrapper is git, and the ZFS route comes first (2026-11-17, said before 18:36:32-05:00)
+
+Answers through the question tool and words typed in the session, after the owner wrote "I'm back. On the new system."
+
+- **Old worktrees:** "A, and this implies we really should be doing proper fast route first."
+  Option A was: copy the patches of the uncommitted work (627 MB), leave the worktree folders on the old drive until the wipe,
+  compare the two older orphans with Git before the wipe, then `git worktree prune` the stale records.
+  Measured first: none of the 155 worktrees the repository registers holds a commit that origin lacks,
+  so the migration note's "detached commits at risk" are on origin under their authors' branches.
+- **Old scratch:** "A: Text only (Recommended)": the queue, its scripts, the briefs, each run's summary, the review reports,
+  every `keep/` folder and the patches, from the SATA originals in the same layout; the build trees stay behind.
+- **Toolchain:** "A: mpm-shadow change first (Recommended)": mpm-shadow learns to prefer pacman's tools on this system
+  before the toolchain installs, as the owner had told the migration session.
+- **Snapshots:** "A: ~/.cargo/build only (Recommended)": `~/.cargo/build` gets a snapshot-free dataset; `~/temp/agent` stays snapshotted.
+- **Writers and reviewers:** "Also, I'm now making GPT 6.2 Sol as writer and deepseek as reviewer.",
+  then "Once again, /pi-as-subagent . GPT and deepseek should both be in it now. And don't use the deepseek official provider.",
+  "We already have a package about pi as subagents in the workspace." and "If that wasn't obvious from the skill, edit the skill."
+  Then through the question tool: the writer's provider "A: openai (Recommended)", so `--provider openai --model gpt-6.2-sol`;
+  and the reviewer "Synthetic and C and B, as a pool with preference.", which names, in that order,
+  `synthetic` `hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`, `opencode-go` `deepseek-v4.1-flash` and `neuralwatt` `deepseek-v4.1-flash-flex`.
+  The provider `deepseek` is never used. Both run through `package/pi-shared/subagent-driver`.
+  This replaces reviews on Claude Sonnet subagents and GPT runs through `codex`.
+- **`AGENTS.md` rewrite:** the owner picked "A: Rewrite; audits go to DeepSeek (Recommended)" with the note
+  "Rewrite, audits stay sonnet, but Synthetic, then ... are implementation details in our driver package and shouldn't take up precious tokens.
+  Also you're supposed to bench deepseek as reviewer against what we had before and challenge me if you think we need more changes."
+  So `XVW` (delegated writing through Pi on GPT 6.2 Sol) and `KRV` (reviews through Pi on DeepSeek, never the official `deepseek` provider)
+  were rewritten without the provider order, `PFW` names any review or audit, `LHZ` keeps long audits on Claude Sonnet,
+  and `XVB` and `XVS` were retired (9a30206cbb). The bench of DeepSeek as reviewer against Sonnet and Kimi on inputs
+  whose defects a failing control later proved is owed, with any challenge put to the owner.
+- **Agent cap:** "The cap shouldn't be 20. The 20 cap was set because my old disk was slow, and we're on the new disk now.",
+  then, after the session read that as no cap, "I didn't tell you to outright remove the cap. You're meant to bisect for it.",
+  then "Start from 20 instead." The search on the new drive and its readings are in `doc/handover/agents-at-once-on-this-machine.md`.
+- **Git for agents:** "A: Build wrapper by cargo now (Recommended)": no Pi run could start, because the driver's launcher refuses
+  a session whose `git` is not the wrapper and the wrapper's link comes from the held install.
+  The session first linked it for every shell in the checkout and had told the owner their own shell would keep `/usr/bin/git`,
+  which was wrong: `.config/mise/conf.d/20-env.toml` puts `.cache/monochromatic-git-policy-cli-bin` on PATH for every shell there.
+  The session took the link out and made an agent-only folder; the owner then wrote "Do the owner-wide change anyway."
+  So `.cache/monochromatic-git-policy-cli-bin/git` links to a cargo release build of main at 899b8e7cbd
+  in `.cache/wrapper-built-by-cargo-for-agent-sessions-until-the-toolchain-installs/`, and every shell in the checkout runs the wrapper.
+  It is a stopgap: no launcher, and the real install replaces it after the mpm-shadow change.
+- **Order:** "A: ZFS route first (Recommended)": the wrapper's ZFS fast route is designed with the owner first,
+  dependencies first; mpm-shadow's design talk follows; writers for each may then run side by side.
+
+### The new SSD holds CachyOS on ZFS, both old drives are wiped after the migration, work resumes after a probe, and the wrapper supports ZFS (2026-11-16, said before 19:41:40-05:00)
+
+Three things the owner said after the machine was made ready for the reboot; the first two through the question tool.
+
+- **Where the new SSD goes:** "It's added as a 3rd drive, and I'm going to install CachyOS on it with ZFS.
+  And after I boot into CachyOS and you helped with the migration, I'm going to wipe both current drives to make them ZFS."
+  So the next boot is another operating system on another filesystem, with both old drives still whole beside it,
+  and **nothing that lives only on the old drives is safe once the migration is called done**:
+  the repository's worktrees and stash, the whole agent scratch, and the home folder's agent state.
+  This replaces what `doc/decision/cachyos-zfs-desktop.md` and `doc/runbook/migrate-bazzite-to-cachyos-zfsbootmenu.md` plan
+  (the system onto the NVMe, the 4 TB drive kept outside the pool);
+  neither is amended yet, and both are another effort's records.
+- **How the work starts again:** "A: Probe, then resume (Recommended)":
+  a session checks the paths, finds the agent cap again with the drive probe,
+  then starts reviews and Pi runs from the queue without waiting for the owner.
+  It was asked before the owner named the new system, so on CachyOS it holds once the tools and the repository are in place there.
+- **The wrapper on ZFS:** "Oh and the wrapper has to support ZFS properly as well."
+  As read on 2026-11-16: the wrapper's snapshot route for `git worktree add`, its one-step removal of a worktree
+  and its checkout migration are written for Btrfs subvolumes
+  (`package/git-policy/cli/src/native/subvolume/`; the README says the checkout migration refuses when "the checkout is not on btrfs");
+  `SPEC.md` names ZFS once; no control of the wrapper has run on ZFS.
+  `doc/planning/filesystem-for-the-repository-volume.md` already says the snapshot route "would have to move to ZFS clones",
+  and `doc/planning/btrfs-and-zfs-each-at-its-best.md` measured a clone's destruction at 2 to 9 seconds where Btrfs took 0.02 to 0.1.
+  How far "properly" reaches was put to the owner through the question tool, with three options
+  (correct on ZFS first and the clone route after; full parity before the wipe; correct on ZFS only).
+  **The owner chose "B: Full parity before the wipe":** the old drives are not wiped until the wrapper's ZFS route exists,
+  is reviewed and is released: `git worktree add` by snapshot and clone, removal of a finished worktree in one step,
+  and the migration of a checkout into a dataset, beside every guard and control passing on a real pool.
+  The owner chose it over the recommended order, knowing the wipe waits on that work.
+  Not decided yet, and to be settled with the owner by the grilling flow before any brief is written
+  (dependencies first): how the wrapper talks to ZFS (the `zfs` program or a library), how an unprivileged account
+  makes and destroys a dataset (a `zfs allow` grant or another way), the layout of datasets under the repository,
+  and what a person waits for while a clone is destroyed.
+
+### A `worktree add` relinks by itself when no service took its request, and a Pi run is confined with its containers started by the account's manager (2026-11-16, answered through the question tool between 17:33:37-05:00 and 17:36:00-05:00)
+
+Two questions, each with its author's measurements beside it.
+
+- **The add whose relink request no commit service took**: "Relink in the add (Recommended)".
+  The add runs the relink itself before it returns, as the wake branch builds it at `a2f64e8f36`,
+  so the worktree can build on return and the printed promise is true;
+  the cost, about 5 s and up to about a minute of pnpm, falls only when no service took the request.
+  The option not taken: return at once and say the relink is queued
+  (measured: taken 4.9 s later by a running service that knows the repository,
+  0.3 s later with a service and one more command,
+  never within 30 s with a service and no later command).
+  The owner was told this is separate from "No wait on the add", which is about other programs' writes.
+- **Keeping a Pi run out of the main checkout**: "Protect, containers via manager (Recommended)".
+  The checkout stays read-only for a run through systemd's path properties;
+  a run's containers are started outside the run by the account's service manager.
+  The owner was told, and accepted by choosing it:
+  a container started that way can mount the checkout writable, one more stated hole beside the transient-service one,
+  since the protection guards against accidents and not against a run that tries to get out;
+  `link` and `rename` across the run's folders end `EXDEV` and that stays a stated limit;
+  and `podman` had not yet been run through the route when the question was asked.
+  So `EXDEV` no longer stops the driver branch as a finding it brings.
+  The options not taken: hold the branch for a protection without mounts (Landlock, unmeasured);
+  the protection with no containers in a run; no protection.
+
+### A record that cannot be judged stops a command only where going on is unsafe (2026-11-16, answered through the question tool between 17:05:58-05:00 and 17:07:00-05:00)
+
+The decision "A: stays, command says how" leaves "stops or prints" open for each command.
+Asked which, with the copy-owner review's finding beside it (`git status`, `git add`, `git commit` and `git worktree add` all exit 2 at `a303cb638f` where the released wrapper exits 0),
+the owner answered: **"Per command (Recommended)"**.
+
+A command stops only where going on beside the record could lose or mix a person's work;
+every other command prints the words (the record, its owner, its age, the exact `rm -- <path>`) and continues with the exit status real Git would give.
+Which command is which, for each kind of record, is the author's to establish and state, and a case it cannot settle keeps the stop and is named.
+The two options not taken: every command prints and none stops; every command stops.
+The copy-owner author's fourth-run brief already carries this reading; the held-push holder author's brief asks for the words and is to be held to the same rule at its next review.
+
+### A `worktree add` does not wait on other programs' writes, and the snapshot proof's two rare losses are a stated limit (2026-11-16, answered through the question tool between 15:09:57-05:00 and 15:11:23-05:00)
+
+Asked, with the measurements beside it (16.5 ms an add on an idle drive, 86.6 ms more under another writer's 64 MiB pending, growing with others' pending data),
+whether the wrapper waits for a commit of the file system before every `worktree add` so that no snapshot of a person can be taken for its own,
+the owner answered: **"No wait on the add"**, against the session's recommendation of the wait.
+
+So the snapshot branch's mechanism stands as built (`fix/git-policy-cli-snapshot-of-a-person-is-never-proved-to-be-the-wrappers-own`, tip `8b7c98aa6e`),
+and the `SPEC.md` sentence that rules such a wait out on an add's path stands unchanged.
+A snapshot a person made in the same instant as the wrapper's record, or with the clock set back, is deleted as the wrapper's own:
+that is written as a stated limit on the package's page, which the snapshot author is given after its review.
+The sibling branch that waits (`69154a083f`) is not merged; it is kept, unreviewed, because its code is the only record of the mechanism the measurements came from.
+
+### The opencode-go pool is open again (2026-11-16, typed between 14:40:26-05:00 and 14:46:19-05:00)
+
+The owner typed, unasked: **"My opencode-go limits have been reset."**
+
+The session's reading, to be vetoed: `package/pi-shared/subagent-driver/src/pool-limits.ts` closed that pool
+"until the owner says its week has reset", so this is that word.
+The pool returns to the limit it had, 20, and keeps its place behind Neuralwatt's flex pool,
+which is the owner's ranking of 2026-11-11 ("prefer neuralwatt").
+It changes no count of agents: those come from the drive probe and the owner's split of reviews and Pi runs.
+Reviews stay on Claude Sonnet; this pool carries the authors' model.
+When the week is spent again the pool is closed with `PI_RUNS_POOL_LIMITS=opencode-go=0`, and in the table on the owner's word.
+
+The owner then typed, between 14:51:30-05:00 and 14:54:17-05:00:
+**"Prefer opencode-go over neuralwatt because opencode-go uses my less versatile sub."**
+
+This reverses the ranking of 2026-11-11, and the paragraph before this one is corrected by it:
+the pool does not stand behind flex, it stands before both Neuralwatt pools,
+so a run that names no model of its own takes `opencode-go` first and Neuralwatt's flex pool only when `opencode-go` is full or closed.
+Runs already going stay where they are, and a resumed run keeps the pool it named while that pool is open.
+The session's reading, to be vetoed: a run moved to `opencode-go` gets twice the wall clock it asked for, as on flex.
+The only word on record about that pool's speed is the owner's of 2026-11-11 ("may have worse ... speed than neuralwatt's flex"),
+and with the factor of a standard pool a run moved there would get half the time flex gave it.
+No timing has been taken since the pool reopened; the factor is to be set from this pool's own runs.
+It still changes no count of agents.
+
 ### Answers of the evening, the long sitting (2026-11-15, asked from about 19:22 after the owner's "Ask me all the questions now.", written here at 19:44:14-05:00)
 
 Eleven rounds through the question tool.
@@ -39734,6 +40426,580 @@ Rounds twelve to fourteen, written here at 2026-11-15T19:56:30-05:00:
   That option also carried the blockquote continuation, which the answer does not speak to; it stays as built until asked alone.
 - Four small actions, each ticked: **"Add the four retired codes to your local file"**, **"Keep SSH_AUTH_SOCK blocked"**,
   **"Mount unit's stop succeeds when nothing is mapped"**, **"Remove the dead old-name units and 0.5.34 folder"**.
+
+Rounds fifteen to seventeen (asked between 20:25 and 20:39, written here at 2026-11-15T20:40:01-05:00), the last of the older questions:
+
+- mpm-shadow, an install that finds another command holding the lock of the launchers and links it is about to change:
+  **"Ten seconds, then refuse (Recommended)"**. One number with the archive answer; nothing is written without the lock; the message names the holder.
+  So the stale-launchers branch's `Option<Guard>` (going on without the lock) is not what a merge keeps.
+- Pi driver, the queue of runs: **"Folder, one file per entry (Recommended)"**. The lock file over one JSON file is set aside; the rule on lock-free concurrency decides it.
+  The scratch queue of this session is rewritten with it at the changeover.
+- wg lifecycle branch `cd83212379`, whose five privileged tasks never ran: typed, **"You run them now. sudo passwordless."**
+  So the coordinating session runs the five tasks with `sudo` and merges when they pass.
+- Wrapper, `UNASKABLE_HOLD_AGE`: **"Approve 150 seconds"**, against the session's recommendation of ten minutes. The sentence "awaits the owner's approval" in `SPEC.md` (line 8381) is now out of date.
+- The four libraries' shared test helpers: **"A separate library (Recommended)"** (`disposable-test-folders`).
+- Where the libraries live: **"package/<job>/core-rust (Recommended)"**, crate `monochromatic-<job>`.
+- Their plural names: **"Keep the names, exempt them (Recommended)"**; `doc/planning/singular-dir-name-invariant.md` gets the entries.
+  With these three the plan's open points for the owner are closed (`doc/planning/cli-git-source-layout-target-tree.md`, "Open points for the owner").
+- monochromatic-lint, a line the fixer breaks inside a blockquote: **"Add `>` to the new line (Recommended)"**.
+- The "release-artifact gate" of the umbrella list: **"What exists is the gate (Recommended)"**: the lock's sha256, `native:perf` on the published archive's binary, and the sample commit after an install. No listing check is built.
+
+Round eighteen (asked and answered between 21:03 and 21:05, written here at 2026-11-15T21:05:52-05:00), after the session's wrong description of the wg branch was corrected to the owner in the question itself:
+
+- The four wg tests that change the host (`cli-quicker:test:integration:bypass` and `:route`, `cli-quicker-exempt:test:functional` and `:test:functional:protocols`): **"In a VM, none on the host (Recommended)"**.
+  This replaces "You run them now. sudo passwordless.", which was given on the wrong description. Only `cli-quicker:test:integration:block` (no `sudo`, its own user and network namespaces) is run on the host.
+- The wg branch `cd83212379`, with six reproduced findings of which four are the same code in `main`, one is worse in `main` and one is in code only the branch has: **"Merge; findings fixed on main (Recommended)"**.
+  The merge is made once the one confined test passes; an author answers the six on `main`; nothing is deployed until they are answered, reviewed and the privileged tests have run in a VM.
+- The fix for the empty-tree commit (`3882e11ddf`), if its author's measurement confirms that an abbreviated `git commit --amen` is refused with its index intact: **"Merge anyway; the fix follows (Recommended)"**.
+- The push of a branch another worktree shows, when a path still holds the old content after the whole wait: **"Stop the command, as built (Recommended)"**. The question held for that author's report is hereby asked and closed.
+
+Round nineteen (asked and answered at about 22:24, written here at 2026-11-15T22:26-05:00), on the review of the credential masking at `2f303f1bc9`:
+
+- The review passed eleven arrangements of store and environment (143 checks over tool results, session files, transcripts, feeds and kept files), a kill at every step of a rewrite, and two runs at once beside a foreign file;
+  it reproduced six things that each need an unusual set-up, and called both points of the narrow line "not shown" on them.
+  Asked whether those six hold the merge, the owner chose **"Merge now; fix three after (Recommended)"**.
+  So: the branch is merged, a canary run is started, the names-only scan is made, and the list of names goes to the owner for the rotation.
+  The author then fixes three in one more run: a value under eight characters in the environment for a name whose store value is long leaves the long one unmasked;
+  a declared name ending in `_FILE` with different long values in store and environment leaves the environment's unmasked;
+  a session file that Pi itself reports is masked without a proof that this run made it.
+  The other three become stated limits in the package's docs: a tool result whose `details` throws when read keeps its text;
+  a result with a cycle is withheld while its full-output file keeps the value; a full-output file in a folder that cannot be written stays as it was.
+
+Round twenty (asked and answered at about 22:47, written here at 2026-11-15T22:50-05:00), on when the credentials are rotated now that the masking is in `main`:
+
+- Seventeen Pi runs that started before the merge go on unmasked until they end, and a value rotated while they run can be printed by them.
+  Asked when the rotation is done, the owner chose **"When the last old run ends (Recommended)"**: this session watches those runs and tells the owner the moment the last of them has ended; the owner then rotates all 38 once.
+  The watch is the unit `wait-until-every-pi-unit-started-before-the-masking-merge-has-ended-…` (at most eighteen hours; the units' names are kept in
+  `~/temp/agent/rehearsal-of-the-masking-merge-2026-11-15/keep/units-that-became-active-before-the-masking-merge.txt`).
+  Until the owner says the values are rotated, the sessions the scan names stay untouched and are not resumed.
+- The owner then wrote: "I'm going to be away for a few hours. Don't block on me." No question is put while the owner is away; what needs the owner goes into the kept list.
+- **A sentence of that question is withdrawn (2026-11-15T22:56-05:00).** The option the owner chose said that once the last run from before the merge has ended "no new value can reach an unmasked run, so one rotation is enough". That is wrong.
+  The driver reads the values once, when a run starts (`package/pi-shared/subagent-driver/README.md`, "The values are read once in the driver's own process."; `supervise-pi-run.ts` line 262 is the only call), so every run that is going at the moment a value is changed, masked or not,
+  holds the old value armed and does not know the new one. A new value such a run reads from a file all runs share (`~/.pi/agent/auth.json`, `models.json`, `.bashrc`) or from a store its worktree merged goes through unmasked until that run ends.
+  The owner's choice stands as made (wait for the last run from before the merge); what is added is in the kept list, first entry, and is said again when the watch ends. A second pass by the advisor found this, not the session.
+
+Reviews and audits move from Kimi to Claude Sonnet (the owner's message of about 23:27 on 2026-11-15, written here at 2026-11-15T23:36:02-05:00; not asked, the owner wrote it unprompted):
+
+- The owner: "I just checked my bills and found that Kimi K3.1 Pro is almost prohibitively expensive. Please use Sonnet for reviews and audits from now on.
+  Close the Kimi pool for now, but let the already running runs finish. Anyway, I'll probably figure out something better in the next week. That's it, going back to sleep now."
+  And, a few minutes later: "Do the AGENTS.md edit too. Yes this decision is probably temporary, but AGENTS.md is expected to change often too."
+- **Done, in this order.** The scratch starter starts no review and no run naming a Kimi model while
+  `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/no-run-starts-on-kimi-and-reviews-go-to-claude-sonnet-while-this-file-exists.md` exists (in force from about 23:29; each such entry keeps its place).
+  Four reviews were going on Kimi then (discarding guard, drawn shadow tree, held-push holder, renamed subvolume); they are left to end, and a review that ends thin is not started again on Kimi.
+  Rules `KRV`, `LHZ` and `PFW` in `AGENTS.md` now name Claude Sonnet, `CLAUDE.md` is regenerated, and `.agents/skills/pi-as-subagent/SKILL.md` says the same (commit `0f52021c6c`).
+  The package's own pool table is closed too, for every session: `NEURALWATT_KIMI_FLEX` carries a `closed` reason with the owner's words and keeps its limit of 20, the number it returns to
+  (branch `chore/pi-shared-subagent-driver-kimi-pool-closed-on-the-owners-word` at `3e0a21b622`, written by a Claude subagent, a new test shown failing before the table edit, the package's build, type check, lint and 205 unit tests green; merged as `c364731a2d` at 2026-11-15T23:37:46-05:00).
+  The launcher's own counts line from `main` afterwards: `neuralwatt-kimi-flex 3/0`, the runs still going counted and no room for another.
+  A run that names that model now gets no room and its launcher waits and gives up after two hours, so the scratch hold stays as well: it is what keeps a queued entry from being taken off the queue for a start that cannot happen.
+  It is reopened for one command with `PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=20`, and for good by taking the `closed` reason out.
+  Left as they are, said by that subagent: `src/reviewer-of-a-change.ts` and the README still name the qwen4 pool for the package's own review command, which starts nothing while the Qwen quota is dry.
+- **The first Sonnet review is going** since 2026-11-15T23:38-05:00 (the SPEC's removal rule at `323260fa9c`, two files to read by the package's brief), with the filling level at 19.
+- **The route to Sonnet, and what was measured for it.** Pi's own model listing (`pi --list-models` of the Pi the driver uses, first columns only, read at about 23:42) has ninety-nine lines, twenty-seven of them Neuralwatt's, and names one Claude model, `claude-haiku-5-5` on `opencode-go`; it names no Sonnet.
+  A first probe at about 23:29 read Pi's two files instead (providers `synthetic`, `qwen-token-plan-individual`, `opencode-go`) and did not show Neuralwatt, on which sixteen runs were going, so it could not have shown a missing provider either; the sentence built on it ("Pi has no provider that serves a Claude model") was wrong as written and is replaced by this one. A second pass by the advisor found that.
+  So a review is done by a Claude Code subagent on Sonnet that this session starts (the Agent tool), which is rule `LHZ`'s "by whatever route that harness offers".
+  That the subagent really answers on Sonnet is read from its own transcript's model field, identifiers only: for the first review, 46 answers on `claude-sonnet-5-5`. A review whose transcript names another model does not count as a Sonnet review, and when Sonnet is refused the review waits.
+  `prepare-one-queued-review-for-a-claude-sonnet-subagent.ts` in the same scratch folder has the package write the brief, makes a detached worktree `.claude/worktrees/sonnet-review-<name>` at the commit, links it, writes the subagent's prompt beside the brief, and only then takes the entry off the queue;
+  each handed-over review is one line in `keep/reviews-handed-to-claude-sonnet-subagents.jsonl`.
+- **What this route does not have, said plainly.** These reviews do not show in the Pi waiter (their end is the subagent's own notice, and each round also looks for the `review.md` of every line in that list);
+  the driver's masking of secret values does not cover a Claude Code subagent, so each prompt carries the credential ban and says nothing masks its tool results;
+  a subagent's commands share the session's command group, so each prompt puts every build and test in a scope of its own;
+  and they need this session awake, where a Pi review started from the queue by itself.
+  A Sonnet review of an author on another vendor's model (every Pi author today) is an independent review; of anything a Claude session wrote it is a second pass and is labelled so.
+- **Adopted without asking, each open to veto.** The Pi filling level is the cap less the Claude-side agents going (18 since 23:32:32, for the pool-closing agent and the first Sonnet review), since the starter counts Pi units alone.
+  Sonnet reviews start one at a time until the first is read and accepted (it states its range and its count of files read and shows what it ran), then up to three at once.
+  The owner's earlier answer for a thin review ("Restart once by itself ON A DIFFERENT MODEL", "The other of the pair; Sonnet while Qwen is dry") has no other model left to go to while Sonnet is the only reviewer:
+  a thin Sonnet review is not started again on Sonnet, which would be the opposite of that answer; it is held, and listed for the owner with which second model it should go to.
+  The hold in the starter was seen to work with a place free: at 23:38:12, eighteen units going, it started an author's run from behind a waiting review and no review unit has become active since 23:21:49.
+  When a Sonnet review has been read and routed, its `sonnet-review-<name>` worktree is removed with the wrapped Git and the build folder inside its review folder is deleted; the review, its scripts and their outputs are kept.
+  The pool change itself (`c364731a2d`) was read line by line by this session after the merge and its kept outputs counted (205 pass lines; the new test's failing output before the edit); a Sonnet pass of it is owed and will be labelled a second pass, since a Claude subagent wrote it.
+  The open Kimi audit of `0.6.1-alpha.14` (LFS) is not started again on Kimi.
+- **A slip of this session's:** the pool-closing subagent was started while twenty Pi units were going, one agent over the cap, before the filling level was lowered. No run was stopped; the count falls back under the cap as Pi runs end.
+- Two queued reviews cannot be started by any route yet: the cargo-shadow control at `e6e6c21726` (the package's brief writer answers "nothing to review", its one changed code file being read as a test) joins the tests-only ranges that wait for the brief writer for tests.
+
+The session stood in a question dialog for ten hours and twenty minutes (written here at 2026-11-16T10:20:24-05:00; an earlier wording of this line gave a time four minutes ahead of the clock):
+
+- **What happened.** At about 23:55 on 2026-11-15 this session's last message left two choices in prose for the owner, who had written "going back to sleep now". The stop hook required them to be put through the question tool, the session did so, and the dialog stood until the owner answered at about 10:17 on 2026-11-16.
+  While it stood the session read nothing and started nothing: 59 runs ended unread, pass 57 ended at 02:42 with nobody to merge it, the filling unit ran out at about 07:46 and from then nothing was started (9 Pi units were going at 10:18), the drive probe ended at 01:14 and the rotation watch died at about the same time on a `systemctl` that did not answer.
+- **The rule this session takes from it, open to veto:** while the owner is away or asleep, a final message leaves no choice in prose and offers nothing ("say if you …"); what needs the owner goes into the kept list, stated as a fact, and the question is asked when the owner is next at the keyboard. A question dialog is a wait with no bound.
+- **The owner's two answers (2026-11-16, about 10:17).** A thin Sonnet review: **"Kimi for these only"**: the Kimi pool is reopened for one command for each thin review (`PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=20` on that start alone); the pool stays closed for everything else, and the adoption recorded on 2026-11-15T23:42 (hold a thin review) is replaced by this.
+  The open LFS audit of `0.6.1-alpha.14`: **"Sonnet, current code (Recommended)"**: it is run as a Sonnet audit of the LFS path in today's `main`.
+- **The cap is 18 since 2026-11-16T10:18-05:00, by the recorded rule.** The probe at level 20 ended at 01:14:05 on two readings in a row over five seconds on the repository's drive, with sixteen agent units going; a new probe runs at 18. The filling unit runs at 15, leaving three places for Sonnet reviews.
+  Sixteen is fewer than either cap, so the count of agents did not make that stall; what did is not established (the daily update and the snapshot cleanup run at that hour, and were the cause the night before).
+- **The last run from before the masking merge has ended** (read at 10:19:41; five were left at 00:16 when the watch died). All eleven Pi units going at 10:20 have the record in their feed that their masking was armed.
+  Asked at about 10:23 how to rotate, with the qualification of round twenty in the question itself (a run going at the rotation does not know the new values) and four courses (let the going runs end first, stop them, rotate with them going, not now), the owner answered **"Not now"**.
+  So nothing is rotated, starts go on, and the sessions the scan names stay untouched and unresumed. The question is asked again when the owner is at the keyboard at a quieter moment; nothing is done toward a rotation before that.
+- **Integration pass 57 answers "not fit" (ended 02:42 on 2026-11-16, read at 10:22), so nothing was merged and no release was made.** With the empty-tree fix at `3882e11ddf` merged, 13 of `main`'s own binary controls pass on `main` and fail:
+  `git commit --message=unrelated -- x.txt` while a merge, a revert or a cherry-pick is unfinished ends 0 on `main` and is refused at the tip, `HEAD` unchanged. That is an ordinary commit with every option spelled out, a regression, and not the abbreviated-option case the owner decided to merge anyway.
+  The rest held (the branch's 42 own controls, the guards, the library suite 7,966 of 7,966, the review's narrowing pair). The pass's branch stands at `fe26edc9cb` for whoever fixes it. `main` and the installed `0.6.1-alpha.44` still carry the empty-tree window.
+  The author's later tip `b92347ebd3` had its review on Kimi at 23:46 (20 of 20 files, two reproduced); the author gets both.
+
+Recovery after the hold (committed at 2026-11-16T10:25:11-05:00; an earlier wording of this line and of two times in this list ran ahead of the clock and is corrected here from the commits' own times):
+
+- The filling unit runs again (level 15, since 10:18:43; thirteen Pi units going a minute or two before 10:25), a drive probe runs at 18, and a waiter reads from 10:22:32. The queue holds 36 entries.
+- The 59 runs that ended unread are being digested by three read-only Sonnet agents into `~/temp/agent/runs-that-ended-while-the-session-was-held-2026-11-16/keep/digest-part-<n>.md`; each run is routed from its digest, and each round is recorded here.
+- **Two more Sonnet reviews are read and accepted** (each transcript names `claude-sonnet-5-5`; both built and ran what they reviewed), and both authors are queued again:
+  two starts of one run name (`16166773fb`, 24 of 24 files, ten findings; the first six can stop a live run, remove a worktree that holds uncommitted work, or halve what the machine may run: the pool gate counts one live run twice,
+  `--stop` signals the launchers of live runs, a failed start runs `rm -rf` on another start's worktree, a proof left at `making` licenses the same, a second start takes the first's worktree, a run named `pi-…` is invisible to the going check), third run;
+  issue 6293's five answers (`149568cbe6`, the delta alone, 12 of 59 of its files; seven findings: its merge dropped every change `main` made to one test file, one control does not fail for its own fix, a start no longer falls back to the base when a manager's scope never runs the service,
+  the sweep of `.writing` files never matches the writers' names and removes on a process number alone), ninth run. Its fifth point, where a private runtime directory's durable state goes when one resolution is slower than 250 ms, is put to its report as a question and not built.
+  Both reviews call themselves a same-vendor pass; by the rule in `AGENTS.md` they are independent, since both authors are Pi runs on another vendor's model. The mistake is the prompt's, which did not say who wrote the change; later prompts say it.
+- **The 59 reports are digested and a review is queued for 50 branch tips (both done before the commit of 2026-11-16T10:30:48-05:00); the first three Sonnet reviews of them started at about 10:31.** Almost every run was an author answering its review, so what each needs next is a review of its new tip by Claude Sonnet; those go three at a time, most harmful first:
+  the masking's answer (`20fba72918`), the discarding guard (`2ecc7486ed`; its author says `main` loses the person's entry in each of the review's four scripts), checkout migration (`6fbbed8e84`; its author says all three defects are in `main`, with which this repository's own checkout was migrated, and that `--remove-old` lost a newer file),
+  then the unreadable process table (`8b50662351`), the main-checkout branch (`78c415032b`), the two gate failures' runs, landing never waits, the resumed wake and the tunnel tooling's six findings.
+  Six tips cannot be briefed yet because the package's writer reads them as tests or documents alone.
+- **What the two gate-failure runs say.** The service stop: the two controls do not fail on `main` by themselves; they need memory pressure (about three in a hundred with the container's cap lowered, none of eight at the gate's own two gibibytes), and the diagnostic writer thread of pass 56 "is not the cause"; the stack of a stuck service was never obtained.
+  The merge that removes a worktree: the removal is the commit service's and the control looked too early; in the gate's image it fails four times in forty.
+- **A run committed into `main` by mistake.** `planted-controls-of-the-wrapper-name-current-sources-again-1` ran `git commit` in the main checkout at 06:29:52 on 2026-11-16; `293de6dae5` (two test-tooling files under `package/git-policy/cli/bin/`, sixteen lines added, eight removed) was pushed to `main` without a pass or a review, and its own report says so.
+  It also left two files in the main checkout (`package/git-policy/cli/README.md` modified, a new page under `package/git-policy/cli/doc/` untracked); both differ from its branch tip, so they are not shown to live elsewhere and are left as they are.
+  `main` is not rewound: that is a forced push to the public repository and the owner's to order. The commit changes no code the release is built from. This is the defect the main-checkout branch exists to close, and that branch's review is among the first.
+- **For the owner, from the digests, each stated here and asked when the owner is at the keyboard:** which of five courses a record takes whose holder can be shown neither alive nor gone (the copy-owner author built the first);
+  whether a worktree kept because the process table could not be read is ever retried, and what reading every process on every removal may cost; the masking's four new stated limits; whether `main` stays at `293de6dae5`.
+- **The empty-tree fix's author is queued first (10:50), with both readings of its branch.** Its last review on Kimi (`b92347ebd3`, 20 of 20 files, both reproduced) found that the recovery of a missing index lands paths an explicit-path commit did not name (a commit naming `a.txt` landed `a.txt`, `added.txt` and `unrelated.txt`),
+  and that a commit naming paths during a merge is refused against a parent expectation that cannot be met, which is pass 57's refusal still there at the later tip.
+  The brief asks for the expectation as a generated table of Git's states against the forms of commit, with real Git as the control arm, and for the list of names that fail at its tip beside `main`; the branch goes to review when that list holds nothing that passes on `main`.
+- The review-briefs author's third run ended at 10:43 (`48b43b71bd`; ten findings answered by its account, 222 suites pass); its review is queued. It built the decision of 2026-11-15 for a thin review; the owner's answer of 2026-11-16 ("Kimi for these only") is not in it yet and goes to its next brief.
+- The two things the first Sonnet review found in the code of the removal's process reading are not given a run of their own: three unmerged branches already change `worktree_process_inside.rs` (the unreadable process table, the snapshot-made worktree, the SPEC's words).
+  They go to the process-table author with its review's findings, since that file's reading is its one task.
+- **The Sonnet review of checkout migration is back and accepted (`6fbbed8e84`, about twenty-two minutes; independent; 15 of 15 files; built once and run on Btrfs fixtures with a shim that fires at exact file-system calls; its transcript names `claude-sonnet-5-5`).** Nine things, each reproduced.
+  Four delete or lose a person's bytes: an old-tree file replaced by content with an older modification time is deleted by `--remove-old` with status 0 and no word, and lost by `--rollback` the same way; a name placed by linking to an earlier copy is never checked against its source again;
+  a file that equalled its copy at the folder listing is never looked at again; a put-back uses a plain rename and silently replaces another command's file.
+  Four wait or refuse with no end (a name over 229 bytes leaves Git's `index.lock` held and fails every rerun; a file turned into a named pipe is waited on for ever; a record a rollback wrote makes a later clean migration refuse; an ordinary file whose name ends in the parked suffix makes `--remove-old` refuse for ever), and one is about what a person is told of a stray file.
+  What held: changes before the exchange and appends after it reached the checkout, and every kill right after a plain rename recovered (15 kill points, 48 checkouts).
+  The author's fifth run is queued second; it is asked which of the nine `main` has and what a person who migrated a checkout with `main`'s code and `--remove-old` should look for, since this repository's own checkout was migrated that way.
+  The review of the unreadable process table (`8b50662351`) started at about 10:55 in its place.
+- **The Sonnet review of the discarding guard is back and accepted (`2ecc7486ed`, about twenty-four minutes; independent; 47 of 47 files; built, and its own scripts run against the built program with real Git 2.56.0 beside it; its transcript names `claude-sonnet-5-5`).**
+  Of the three findings before it, two are fixed and the third partly. Six new ones, each ending with status 0 and a person's change gone with no copy kept: a revision spelled `A...B` read as an unknown name; a name that is both a tag and a branch read as the tag where Git takes the branch;
+  `read-tree --prefix=<dir> -u` without a trailing slash read by `checkout-index`'s rule; a mode changed on the owner bit alone not seen under `assume-unchanged`; `checkout --ignore-skip-worktree-bits <path>` with no `--` read as a switch of branch; a link replaced by a regular file holding its target text read as unchanged.
+  Five reviews in a row have each found a word of the command line that the guard reads by a rule of its own. The author's sixth run (queued third at 10:55) is told that this is one cause: where Git can be asked what a word means, the guard asks Git; where it cannot, it refuses or saves a copy first.
+  The review of the branch that keeps a Pi run out of the main checkout (`78c415032b`) started at about 10:56 in its place.
+  Correction (the brief's file was last written at 2026-11-16T11:02:07-05:00): that author's brief first stated "the guard asks Git and reads no word by a rule it wrote" as what decides; no record of the project says so, it was this session's inference.
+  The brief was rewritten before the run started: the records require the result alone (no guarded command exits 0 with a change gone and no copy kept), and asking Git is labelled a suggestion with the nearest record named (`package/git-policy/cli/SPEC.md` line 939, for another command).
+- **The Sonnet review of the masking's answer is back (`20fba72918`; independent; 6 of 6 files; built, the whole package run once, three control copies each with one fix taken out; its transcript names `claude-sonnet-5-5`).** Each of the three fixes has a control that fails without it.
+  Seven further things, none of them a new write: by the diff of `a-session-file-this-run-may-rewrite.ts`, `main` rewrites at rest any session file Pi names, and the branch only its own copy, the file the caller named, or a file born after the run started. So the branch narrows, which is what the owner's "Merge when shown to narrow" asks.
+  The seven: Pi's bash tool saves a truncated output as `pi-bash-<hex>.log`, which the masking never rewrites (it looks for `pi-output-`); `--session=<id>` is handed to Pi with no copy; "born after this run started" is not proof of ownership and the page's sentence "no file of another run is written" is false for a file a concurrent run made later;
+  the run's start is derived by subtraction; the unit tests' stand-in leaves a `stand-in-session-<uuid>.jsonl` in the real home at every Pi start (the review counted 368); the page says three things the code does not do; the feed truncates before it masks (in `main` too).
+  By the owner's "keep the masking work narrow" these are not answered one by one: the ways through go on the limits page, and the page's false sentences and the stray files are one small correction for the author.
+- **The merge is rehearsed and not yet made.** A worktree with `20fba72918` merged into `main` (no conflict) installs offline, builds, type-checks, lints with no error and passes its unit tests (205 passing lines); the one dependency change is `pi-coding-agent` moving from the development to the run-time list at the same version.
+  Two canaries were started at 11:05:02 (their batch unit's own start time; this line first said "about 11:21", a time this session guessed ahead of the clock, as did the batch file's name, which says `T1120` and is left as it is) with the rehearsal tree's driver, a fresh start and a resume of an ended session, because this delta changes which session file a run may rewrite and most of the queue are resumes. The merge follows only if both end as an ordinary run does.
+- Two more runs ended: the driver run that corrects a run recorded as "Pi not stopped" when Pi had exited (`56a422eef0`) and the wrapper's binary test of the second commit's marker (`f350db8065`, a fix in the product: one wait of the service that had no bound); a review of each is queued.
+  The first measured the scratch root with `du` against its brief: 255 GiB, the largest folders `pkgrepair-repair-off-the-path` 65 GiB, `change-reviews` 60 GiB, `sonnet-audits` 45 GiB.
+- **The Sonnet review of the unreadable process table is back and accepted (`8b50662351`, about seventeen minutes; independent; 2 of 2 files; the library tests and the wrapper built, the author's 33 controls run by name, its own probes and the built wrapper end to end; its transcript names `claude-sonnet-5-5`).**
+  Four things: a process table from another PID namespace is read to its end and answers "nothing works there", and the landed worktree was removed with a live helper working in it (through the built wrapper);
+  a process whose first thread ended reads as gone (at the function); a worktree kept by the merge's sweep is named once and never recorded, removed or named again; a bisect check that could not list the Git directory goes on to the removal.
+  The age comparison holds at this tip as well (a helper started about 2 ms after the folder was taken as older in 15 of 200), and the author's own two listed misses hold. The exemption for the Git directory does nothing and has no wrong result.
+  The author's second run is queued fourth (11:12). Its brief says the accepted gap is the SPEC's one (a process that hides its folder and is older than the worktree), so a younger process read as older is a defect; and that whether a kept worktree is ever tried again is an open question of the project, which the author describes and does not build.
+  The reviewer's slip, by its own account: its first probe called the `git` on the path, and this machine's user manager started one commit service for its throwaway repository, which it stopped. Later launch prompts tell a reviewer to call `/usr/bin/git` or the wrapper it built, with the session bus address unset.
+- Reviews of the two gate-failure's service stop (`0855d37daa`) and of landing never waits (`4a2a3b8a49`) started at about 11:13. The fresh-start canary of the masking merge ended as an ordinary run does at 11:10:20 (three turns, its `secret_values` line present, no `session-unmasked`).
+  Correction (read at 2026-11-16T11:19): this line first said the resume canary was still going. It never started. This session's batch entry gave the session to resume as a full path where the batch takes a run folder's name, so the launcher looked for a summary under a doubled path and ended with status 1.
+  The resume path of the merged tree is therefore untested and the merge is not made. A corrected batch file stands ready; with fifteen Pi units and three Sonnet reviews the machine is at its cap of eighteen, so the canary starts in the place of the next review that returns.
+- Three more wrapper runs ended, a review of each queued: a commit service asked to retire ends within a bound (`1bb658349d`); a push retry keeps its plan when the notice of a final failure could not be written (`ad03d5c8cf`); a push reads its gate records off the runtime worker and within a ceiling (`b5353bf258`).
+  The last says it ran one `find` under the shared build folder against its rules (nothing found), and that an unreadable held record still reads as "no undecided commit", so a push can go past it.
+- **A run sat ten hours inside one tool command, and the check that finds this had not run since the hold.** The round checks ran at 11:16 for the first time since 10:17:
+  the renamed-subvolume author's fifth run had been silent for 605 minutes; its command of 01:11:30 was a generated `python3 -` script editing several files, and that process (4100475) had used 35,870 seconds of CPU, so it was spinning.
+  It was sent `SIGTERM` with `/usr/bin/kill` at 11:17:20, after its command line was recorded, and a note went into the run's inbox (look at what is half-applied, edit by hand, give any script a bound). Nothing else of that run was touched.
+  The other checks: no launcher outlived its run, no process works in an ended run's worktree, none of the seven runs that ended since 10:20 lacks its masking or has a failed driver, and the main checkout shows the same eight changed paths as before.
+  One more entry stands in the file of entries taken out of the queue because no brief could be written (written 22:55 on 2026-11-15): the review of the driver's suites under load (`34f33041af`), which the package's writer reads as tests alone.
+- **The Sonnet review of the branch that keeps a Pi run out of the main checkout is back and accepted (`78c415032b`, about thirty-two minutes; independent; 18 of 18 files; built, type-checked, 11 of 12 changed test files run, fixture matrices through real stand-in units, an install with a hostile `postinstall`; its transcript names `claude-sonnet-5-5`).**
+  What holds: plain-file writes, links, `/proc/<pid>/root`, `unshare` and bind mounts into the checkout are refused; a scope, a build, a commit, a push and a fetch work inside the unit; a run is never silently started unconfined.
+  Eight findings. Three are holes `main` has wider (it confines nothing): a run with a worktree can still write the shared Git directory (it moved `main`, changed the main checkout's `HEAD` and index, planted hooks and configuration); a transient service asked of the user manager escapes the confinement; the checkout's `.cache` stays writable.
+  One looks brought by the branch: the launcher's `XDG_RUNTIME_DIR` is forced into the unit even when it is not the manager's, and then scopes fail with "Argument list too long" and wrapper commits fail.
+  Two concern a launcher that cannot see the manager (the install then runs unconfined), and two are older or by reading (unbounded file-system calls; `${...}` in a path expanded by systemd).
+  The author's eighth run is queued first (11:29:14) and is the first brief written under the owner's rule of 2026-11-16: per finding a control against `main` and against its tip; what the branch brings is fixed first; holes `main` has wider are closed as far as the run reaches and otherwise written on the package's page as stated limits.
+- **The resume canary of the masking merge started at about 11:28** with the corrected batch file, in the place that review freed (fifteen Pi units and two Sonnet reviews before it).
+- **The masking's answer is in `main`: `24f353ebb8`, 2026-11-16T11:35:14-05:00.** The resume canary run with the rehearsal tree's driver ended as an ordinary run does (three turns, one `secret_values` line, one `session_resumed` line, no `session-unmasked`), which with the fresh-start canary met the condition set before the merge.
+  The offline install in the main checkout ended with status 0, and a fresh-start canary and a resume canary were started through `main` at about 11:36; the rotation is put to the owner when both have ended well (the owner's answer of 11:25).
+  Every Pi run started from now has the three fixes. The review's seven findings follow on `main`: three go on the limits page, and the page's false sentences and the stray `stand-in-session` files are one small correction for the author.
+- **What is left, measured at 11:33 because the owner asked for a better estimate than a count of tasks:** the queue holds 81 entries (49 reviews of a branch tip, 21 authors resumed, 11 fresh runs); 214 work branches are not merged into `main`, 91 of them with a commit in the last three days;
+  of 139 run names active in those three days the median has had two runs, 31 have had five or more, the longest eighteen. Five Sonnet reviews returned in the 57 minutes from 10:31 to 11:28 at a mean of about 24 minutes.
+  No date of completion can be given from this: how many new branches each review brings was not measured, and no pass has merged today.
+- **Both canaries through `main` ended well at 11:41:26** (the fresh start: four turns; the resume: three turns and its `session_resumed` line; each with its `secret_values` line and no `session-unmasked`). The rehearsal worktree is removed and its branch and the four canary branches are deleted here; each of their tips is a commit of `main`, and the rehearsal's merge has the same tree under `package/` and the lock file as the real merge.
+- **The Sonnet review of the service stop is back and accepted (`0855d37daa`, about twenty-eight minutes; independent; 4 of 4 files; 22 library tests and 8 binary controls by name; its transcript names `claude-sonnet-5-5`).** The author's control is valid (with the sweep put back inline it fails at the alarm) and does not show that the gate's stall was the sweep.
+  Two findings are the branch's own, which stops it by the owner's rule: a sweep that takes longer than 250 ms now leaves its markers (reproduced with the author's own hold point; a later service and one commit then removed them), and when the service gives up the sweep it says nothing. A third names four other waits of the stop path with no bound, which `main` has too.
+  The author's second run is queued third (11:41:56). The reviewer left a folder of empty directories at `/var/home/user/h`, made to keep socket paths short; it held no file and was deleted. Launch prompts now forbid any folder or link outside the review folder.
+- Reviews started at about 11:43, four going with landing never waits: the resumed wake folder (`cc6efd4d28`), the tunnel tooling's six findings (`a1c911d2f8`; its prompt forbids every test that changes the host and any script outside namespaces it creates) and the copy owner (`03d56470fa`; its prompt states the owner's course A as decided). Each asks, per finding, whether `main` has it.
+- The commit-time run for many changed files ended at `a13faa0d55`: by its report 20,000-file edits, new files and renames are inside five seconds by median; a 10,000-file final-newline correction still takes 7.5 to 7.9 seconds against real Git's half second. Its review is queued; the correction's cost is not accepted until it is split into what the guarantee costs and what it does not.
+- **The Sonnet review of landing never waits is back (`4a2a3b8a49`, about thirty-four minutes; independent; its transcript names `claude-sonnet-5-5`), and it does not cover the branch: 7 of the 52 listed files read in full, 8 in part, 10 as diffs alone, 27 not opened, all of which it says itself.** It built the library, the wrapper and the tests and ran the author's ten controls by name, so its findings stand.
+  Six, each reproduced: the slow lane's look ceiling equals the trash ceiling and the claim lease, so slow work is cut and ends `failed`; the `.made` marker is never removed and shows in `git status`; a killed clone-path filling leaves a staging copy no sweep removes;
+  a kill between the move and the record leaves the staged state for ever (so on `main` too, by the review); the service answers `taken` for a wake it could not queue; and one of the author's controls passes with its fix taken out.
+  What held in what it read: nothing removes a path by its name alone, no failed wake makes work run twice, no new unbounded wait on the commit path.
+  No second review is started for the coverage gap now, since the findings already send the branch back; the review after the author's answer must read the rest. The author's ninth run is queued fourth (11:48:28) under the narrowing rule, and is asked to take each fix out of each of its controls and list any that still passes.
+- The review of the lock-holders branch (`faf314ba2f`) started at about 11:50; four reviews are going.
+- **The first review that meets the owner's narrowing rule: the resumed wake folder (`cc6efd4d28`, about twenty-seven minutes; independent; 10 of 10 files; built, type-checked, eleven reproduction scripts each run against the branch and against `main`'s source; its transcript names `claude-sonnet-5-5`).**
+  What the branch fixes that `main` has: a summary that publishes a failed writer's bytes (4 of 6 rounds on `main` published an unparseable mix), a summary that truncates a published one, a wake with a detached `--run 5` that is given the first run's folder number, and a driver that overwrites an earlier run's summary and kept standard error.
+  Its two remaining findings are both `main`'s too: the start guard is a read followed by a write, so two starts can still share a folder (on `main` there is no guard at all and the second summary replaces the first: "main does worse"), and a launcher picks its run number by a read with no claim (the code is identical on `main`).
+  One unit test file failed once on the unmerged branch (`secret-values-of-this-machine.unit.test.ts`, not in the diff; `main` has moved on in those sources).
+  So the branch goes into `main` by the same steps as the masking: a rehearsal of the merge in a worktree of its own started at about 12:12 (install, build, types, lint, unit tests on the merged tree), then a fresh-start and a resume canary on the rehearsal tree's driver, then the merge, the install, and both canaries through `main`.
+  The two remaining findings are followed up on `main`: they belong to the queue-of-runs branch, whose claim before a start is what closes them.
+- **The Sonnet review of the copy owner is back and accepted (`03d56470fa`, about twenty-nine minutes; independent; 12 of 12 files; the author's 16 controls by name, a second copy built at `main`, the built wrapper of both run on fixtures; its transcript names `claude-sonnet-5-5`).** What holds: the author's six spellings are kept by every reader probed, and `main` loses all of them; a holder that cannot be told gets one message with the right file, owner, age and exact `rm`.
+  Seven findings, each with what `main` does. Two the branch brings: `token_owner_is_dead` now fails the command where `main` kept the item (a `git worktree add` with a stage claim naming an owner whose process entry cannot be read exits 2 and makes no worktree; `main` exits 0), and two sweeps turn the new refusal into "not dead", so such a holder is kept in silence, short of the owner's course A.
+  Five `main` has identically: four residual spellings of a birth still read as gone (`git add .` forgets a live owner's destroy record on both builds); a record whose owner is missing or padded kept for ever in silence; an empty attempt file read as "being written" for ever; a refusal read as "not running"; two files outside the change that still compare as text.
+  The author's third run is queued fifth (12:13:33): the two it brings, a table of every caller of the changed reader, and the rest left for follow-up on `main`. Its brief quotes the owner's course A as the answer to the question it had put.
+- The review of the landed removal (`915ef30e09`) started just before 12:14 (this line first said "about 12:15", ahead of the clock; the commit that carries it is from 12:14:00). Going now: three reviews (lock holders, the tunnel tooling, landed removal) and the rehearsal of the resumed-wake merge, with fourteen Pi runs.
+- **The rehearsal of the resumed-wake merge is back, and the merge is held on one measurement.** No conflict; the offline install, the build, the type check and the lint (no error) all ended 0; no dependency and no lock difference from `main`.
+  The full unit run ended 1 on one file, `secret-values-of-this-machine.unit.test.ts` (207 passing lines beside it; `SecretEnvironmentUnreadableError`, "is not the JSON a sops store is"), and that file passed when run alone. The file and its subject are identical to `main`'s and the merged branch does not touch them.
+  A test that passes alone and fails in its suite is a contention or ordering defect until measured otherwise, and whether this branch brings it decides the merge under the owner's rule, so a control arm runs now (started just before 12:18, the time of the commit that carries this line; the line first said "about 12:22", ahead of the clock): the same full run twice on a worktree of `main` alone and twice more on the merged tree, in turns, and then the cause by reading.
+  A full run of that suite on `main` with the masking's answer merged passed once this morning, which with one failure on the merged tree settles nothing.
+- **The Sonnet review of the tunnel tooling's six findings is back and accepted (`a1c911d2f8`, about thirty-two minutes; independent; 19 of 19 files; build, type check, lint and eight unit test files passed; sixteen scripts of its own, each on the branch and on `main`, the network ones inside namespaces it made; its transcript names `claude-sonnet-5-5`).** Afterwards the host showed only its loopback and wireless links.
+  The six answered findings were each reproduced on `main` and seen answered on the branch; a second `up` of one interface no longer deletes the first one's link, rules or kill switch.
+  The branch brings four: Ctrl-C no longer reaches a hook; a readiness timer is not cleared, so an exit comes ten seconds late; an `ip link add` that made the link and then reported failure is not rolled back; a background program a hook started gets `SIGPIPE` at about 100 ms where `main` gave it 600 s.
+  `main` has five more, three of which remove a live tunnel's protection: a `down` or a failed `up`'s rollback of one tunnel deletes another's main-table suppression rule; an `up` killed between setting the mark and its first rule leaves a stale mark, and the `down` of the dead one then deletes a second tunnel's policy rules, so its traffic leaves outside the tunnel; a tunnel named `wgq-blocked` shares its kill-switch table's name with tunnel `wgq`'s block table.
+  Two lists with two ends, as the author's brief says (its second run is queued sixth, 12:16:32): what the branch brings stops the merge; what `main` has too does not stop the merge and does stop any deployment. Nothing of this tooling is deployed.
+- The review of the killed-Git lock (`bbda166ce2`) started at about 12:17.
+- The renamed-subvolume author's fifth run ended at 12:20 (`ceaa60d06a`): the fourth review answered by its account (an attempt is a slot published atomically before the act; a control that failed in all four of its sections first; by its reading `main` has none of the four in that form). Its review is queued.
+  It confirms the ten hours: its generated edit script had written one declaration and nothing else before it was ended, and the rest was done by hand.
+- The fifth review place is filled since just before 12:25:36 (the time of the commit that first carried this line): the push of a branch that is not checked out (`4a2425a378`). Its prompt asks, besides the usual line per finding, what the branch fixes that `main` has, since its author says all four earlier findings were the branch's own.
+  Going: four reviews (lock holders, landed removal, killed-Git lock, this one), the control arm, thirteen Pi runs.
+- **The control arm for the resumed-wake merge settled nothing by itself.** Four full unit runs in turns between 12:18:57 and 12:26:06: `main` alone passed both (205 passing lines each), the merged tree passed both (207 each). With the earlier runs that is no failure in three on trees without the branch, one in three on the merged tree, and one in one on the branch's own tip.
+  Those counts cannot tell a rare failure of `main`'s own test from one the branch brings, and the agent, having seen no failure, did not look for the cause. A second agent looks for it now by reading and by narrow runs of that one test file with a few named companions (no further full run): what is parsed as JSON when the error is thrown, what can make it not JSON at that moment, how the task runs its files, and what the branch adds that could meet it. The merge waits for its answer.
+- **The Sonnet review of the lock-holders branch is back and accepted (`faf314ba2f`, about thirty-eight minutes; independent; 18 of 18 files; both the branch's wrapper and `main`'s built; the author's 30 controls by name; about 25 scripts against both builds; its transcript names `claude-sonnet-5-5`).**
+  The round's main question is answered: no arrangement was found in which the wrapper unlinks a file it did not prove to be its dead child's lock (a person's `important.lock`, a live writer, links, linked worktrees, submodules, redirected Git directories).
+  Two findings are the branch's own and stop it: a pipe named like a pack index holds every command for good when `HEAD` is detached (real Git and `main` return at once), and the new `HEAD` proof refuses repositories real Git works in (reftable, a link at `HEAD`, some alternates and pack shapes), so no lock is cleared there where `main` clears.
+  Five are `main`'s too. One of them matters on this machine now: a killed Git's lock is never cleared on this file system, because the lock and its process-number file get the identical birth time (0 of 8 real kills cleared on each build). So the released wrapper's clearing of a killed child's lock does not work here.
+  The author's ninth run is queued fifth (12:28:12): the two it brings, and the birth-time finding reproduced on both and closed if it sits in files the branch already changed.
+  The reviewer, by its own account, ran `pkill -f "sleep 60"` twice, a signal by pattern; briefs and launch prompts now forbid `pkill` and `killall` by pattern in so many words.
+- **The cause of the unit test failure is in code `main` has, by reading; the resumed-wake branch does not bring it, and the merge goes on.** The diagnosis (twelve narrow runs, no full one; outputs under `~/temp/agent/cause-of-the-secret-values-unit-test-failing-in-its-suite-2026-11-16/keep/`):
+  what throws is `JSON.parse` of the test's own store file (`secret-values-in-the-checkout-store.ts` line 305), read directly; that file is written by the test fixture `createSopsFixture`, whose helper `runCommand` waits for its child's `exit` event and then joins what it captured (`package/env-local-json/core/src/fixture.ts` lines 217 and 234), and `exit` can fire while the pipe still holds data, so the store can be written empty or cut short.
+  The repository measured this same mechanism in the production reader and fixed it there on 2026-11-08 (`5c80f0fd9e`, about one in a hundred over a burst of 120 decrypts); the fixture's copy was not changed. The branch touches neither the fixture nor the harness; it adds test files, which adds processes at the same time.
+  What is not measured: that the failing store was in fact empty or cut. One of five narrow runs with the branch's test files as companions failed (another case of the same file), none of six with `main`'s own; that cannot separate two rates.
+  A fresh run is queued seventh (12:34:55) for the fixture: a control that fails first, the production function that waits for `close` reused, every other join at `exit` listed.
+- The resume canary of the resumed-wake merge was started with the rehearsal tree's driver at 12:34:11; a fresh-start canary follows it (one place is free, so they run in turn), then the merge.
+- **The resumed-wake branch is in `main`: `b60188437a` (2026-11-16T12:44:25-05:00), the merge of `cc6efd4d28`; every Pi start on this machine from then on uses it.**
+  Before the merge, on the rehearsal tree's driver: a resume canary (run `canary-of-the-masking-merge-run-through-main-4`: ended idle, three turns, the session resumed, masking armed, and the earlier run's `summary.json` left as it was, written 11:41:24) and a fresh-start canary (`canary-of-the-resumed-wake-merge-fresh-start-from-the-rehearsal-tree-1`: ended idle, three turns, masking armed, 12:43:35). After it: dependencies linked offline in the main checkout, and a resume canary through `main` started (12:45).
+  What the merge adds to every start: the driver refuses a run folder that holds anything (`refuseWhenTheFolderHoldsAnEarlierAttempt` in `write-summary.ts`, called at `supervise-pi-run.ts` line 186), where `main` refused only a folder that held a summary. The launcher takes the next number no folder of the name holds and makes the folder empty just before the unit (`start-pi-run-in-a-worktree.ts` lines 112 and 266), so an ordinary start passes; both canaries did.
+  A refused start writes no summary, so the waiter does not report it: the sign is the sentence "holds what an earlier attempt at a run of this name left there" in a launcher's output or a unit's journal. No queue start has happened since the merge yet (the two newest author runs started at 12:43:51 and 12:44:10); the first few are checked for that sentence by hand. The way back, if an ordinary start is refused, is a revert commit of the merge, never a rewind.
+- **Known failure of the driver's unit suite until the fixture run lands:** `secret-values-of-this-machine.unit.test.ts`, the cases "arms an OAuth credential Pi own schema names…" (message "is not the JSON a sops store is") and "stops the run, naming the cause, when the store cannot be decrypted" (the message lacks "decrypt"). Seen in three of about nine runs with the new test files beside it and in none of about nine without. The second case's failure fits a store written empty or cut by the fixture; that is a reading, not a measurement. A driver rehearsal that fails only there is not held for it.
+- The round checks ran at 12:39: no going run silent for twenty minutes, no launcher that outlived its run, no process inside an ended run's worktree, no run ended without its masking or with a failed driver since 11:16; the main checkout shows its usual six changed files and one untracked.
+- The fifth review (the commit that does not wait behind the service's writes, `68c687133d`) started at about 12:40.
+- **Two lock branches change one comparison, so one of two briefs was narrowed before its run started.** The lock-holders branch and the killed-Git lock branch (`bbda166ce2`, under review) both change seven source files, `lock/abandoned_locks.rs` and `lock/lock_holder_record_reads.rs` among them. The lock-holders author's brief no longer asks it to close the identical-birth-time finding; it measures and reports it, and the fix goes to the killed-Git lock branch when its review is back. That run started at 12:44:10, after the edit.
+- **The empty-tree fix is still not ready, by its author's eleventh run (`8b2efb00b4`, 12:31:53).** Pass 57's refusal is answered (the thirteen cells pass), but six test names pass on `main` and fail on the branch: five are tree mismatches, four of them diagnosed as one shape (a stopped revert's changes are in the real index while a commit that names paths has its private index reset to the base), one (`subvolume::`) unexplained. The author did not fix them.
+  A fresh run is queued first (12:46:26) on a new branch from that tip, for those six names alone, with `SPEC.md` lines 15245 to 15259 as what decides (a commit with paths during a revert "behaves as real Git does"). The author's session, eleven rounds long, is not resumed. `main` and the installed `0.6.1-alpha.44` keep the empty-tree window until that lands, is reviewed and passes.
+- Issue 6293's ninth run ended at `1a254982e8` (seven things answered by its account; the ceiling trade is put to the owner with both costs and nothing built for it); the queue-of-runs author's fourth run ended at `7f9f312e34` (lint at zero, 217 unit passes, the lock arm not measured and no ratio claimed). Reviews of both are queued.
+- **The resume canary through `main` passed (run `canary-of-the-masking-merge-run-through-main-5`, summary written 12:49:11: ended idle, three turns, the session resumed, masking armed).** The fresh-start canary through `main` was started after it and its result is not read yet.
+- **The Sonnet review of the push of a branch that is not checked out is back and accepted (`4a2425a378`; independent; 23 of 23 files; the branch's wrapper, its library test binary and `main`'s wrapper built; 169 library controls by name; scripts against both wrappers; its transcript names `claude-sonnet-5-5`).**
+  The branch fixes something `main` has, by a script that fails on `main` and passes on the tip: for `git push origin topic` with `main` checked out, `main` publishes "Merge origin/topic into main" and leaves local `topic` at its old tip; the branch publishes it as `topic`'s and moves `topic`. No wrong, doubled or forgotten push was found, with kills at the reference move.
+  Eight findings, every one the branch's own, so it does not meet the rule yet. Three matter: a record left for a branch no worktree holds is never removed, and deleting or renaming that branch then stops every wrapper command, `git commit` among them; a file the merge added that the person deleted comes back on the next command; and `git rm --cached` of such a file stops `status`, `add`, `log` and `commit`, with a printed remedy that overwrites the person's file.
+  The author's thirteenth run is queued fourth (12:49:06). Its thirteen binary controls did not run in the review (the review folder's path was too long for a socket name), so the author runs them and keeps the output.
+- The fifth review place is filled again since about 12:50: the review briefs that demand what was read and run (`48b43b71bd`, driver).
+- Two more authors ended. The wake that the commit service took no byte of (`06a01954cd`, first run, by its account complete; it names a direct conflict with the no-manager branch in `package_repair_relink.rs`): its review is queued. Two starts of one run name (`1a1bb85312`, third run): four things still broken by its own list (two unit tests, the lint, a pinned number not refused), so its fourth run is queued sixth (12:51:09), with the merge of `main` first and one question to settle before the rest: whether its claim of a run folder puts anything into the folder that the driver, since `b60188437a`, refuses.
+- **The resumed-wake merge is closed out.** The fresh-start canary through `main` ended idle with its masking armed (`canary-of-the-resumed-wake-merge-fresh-start-through-main-1`), so both canaries passed on the rehearsal tree and both through `main`.
+  The first start from the queue since the merge, the fresh run for the empty-tree fix's six test names, went active at 12:50:02 and is writing its feed; the user journal since 12:44:25 holds no line with the refusal sentence (read at 12:56:08). No author resume has started from the queue since the merge yet; the next one is still checked by hand.
+  Removed after checks: the rehearsal worktree (clean, no process naming it), its branch (`11a5167812`, a merge whose tree under `package/` and the lockfile equals the real merge's), and the four canary branches (each already in `main`).
+- **The Sonnet review of the landed-removal branch is back and accepted, and the branch meets the narrowing rule (`915ef30e09`; independent; 22 of 22 files; this tip and `main` both built; the author's 38 library and 31 binary controls by name; about twenty scripts against both builds with `git gc --prune=now` and a check of every object Git protected beforehand; its transcript names `claude-sonnet-5-5`).**
+  It fixes losses `main` has: commits only a reflog names, per-worktree references, hidden edits, and removals typed from outside the worktree. With the old reading of `surviving_log_names` put back, the author's twelve-row control fails on 8 rows.
+  Its six findings are all `main`'s too: a reflog line whose time is 0 read as a surviving name; a detached `HEAD` in a reftable repository naming nothing to the guard; a reflog line older than `git gc` keeps counted as a surviving name; the state of a stopped `git notes merge` unguarded; a commit made while real Git's own cleanliness check runs lost; and, a stated limit, an ignored folder going with the worktree by the decision "Delete as ignored". These are follow-up work on `main`.
+  The review could not run a commit service, so the automatic removal's last step was covered by a stand-in and by reading.
+  **Integration pass 58 is queued first (13:01) for this branch alone**, with the automatic removal run for real against the built program among its checks. If it answers fit: merge, release `0.6.1-alpha.45`, install, sample commit, gate, fuzz check.
+- **The Sonnet review of the killed-Git lock branch is back and accepted (`bbda166ce2`; independent; 16 of 16 files; both builds; 43 author's controls by name; about twenty scenario scripts and a timing script with real Git 2.56.0).** No wrong removal was found. The branch fixes the thing the lock-holders review measured from the other side: once a record exists the next command clears a killed Git's lock by it, where `main` clears only when two birth stamps happen to differ.
+  It brings four findings, so it is not merged: a live writer's lock is named with an `rm` command by every later command (`main` prints nothing); `Binder::finish` grows with the locks taken and runs on a runtime thread in one face (the wrapper exited 602 ms and 1,801 ms after Git died under a small quota, against 92 ms and 1 ms on `main`); opening the watch before each watched Git start adds latency (`git add` at 3,000 folders: median 103 ms against 58 ms on `main` and 3.4 ms for Git alone, debug builds, 28 interleaved rounds); two writers of one record can remove each other's pin (by reading). Four more are `main`'s too.
+  The author's eighth run is queued third (13:01:25), with the comparison of birth times named as its own to change and the lock-holders branch named as the one it will meet.
+- The review of the renamed-subvolume answer (`ceaa60d06a`) started at about 13:02.
+- **The Sonnet review of the commit that does not wait behind the service's writes is back and accepted (`68c687133d`; independent; 16 of 16 files; both wrappers and the library test executable built; twelve scripts with a shim holding one write of the service; its transcript names `claude-sonnet-5-5`).** No commit was lost, landed twice or landed with other content, and the branch fixes stalls `main` has (a six-second hold on the decision files costs a commit 6,062 ms on `main`, 41 ms on the tip).
+  It brings three findings and is not merged. Two break "commits should never fail": a service that misses its place within five seconds refuses every commit for the rest of its life (three of three commits failed with the place write held eight seconds; all landed on `main`), and a request that already landed is refused as "not made" after a restart with the place write held, while Git shows the commit. The third is false words for a withdrawal that cannot be judged in 50 ms. One finding is `main`'s too (the landing thread's `busy/step` write has no bound), and the branch's new guard is a list of names that an imported bare name passes.
+  The author's sixth run is queued fourth (13:07:57). The reviewer ran `printenv` for three Cargo and Rustup names against its instructions and says no value of note was printed.
+- **The Sonnet review of the snapshot-of-a-person branch is back and accepted (`ac35af220a`; independent; 14 of 14 files; this tip, `main` and the sibling branch all built; 249 controls by name on real Btrfs; thirteen end-to-end scripts with 25 real adds killed at random instants per wrapper).** It fixes what `main` has: a person's snapshot that finished before the wrapper's record is kept, where `main` deletes it. The author was right about nanosecond times.
+  It brings five findings and is not merged: an unlistable stage folder stops every command of the repository; a named pipe at `<stage>/intended` or `<identifier>.kept` holds every command for ever; a live owner's claim that gains a second name has its running add's stage reaped; a clock set back makes the wrapper keep and name its own snapshot for ever; a kept-stage record believes a stale reason. Six more are `main`'s too.
+  **On the two branches for one defect:** they are one proof in two mechanisms and exclude each other (each reader rejects the other's record line). The sibling (`69154a083f`, a `syncfs` before reading the generation) closes two cases this tip leaves open, a person's snapshot in flight at the record and a clock set back after it, at 16.5 ms per add on an idle drive and 86.6 ms more with another writer's data pending, which is a wait on the add's own path that `SPEC.md` rules out. Neither closes a person's snapshot appearing at the reserved name between the record and the wrapper's own ioctl.
+  The sibling branch is held: not merged, no pass. The snapshot author's sixth run is queued fifth (13:08:51) with its five, and is asked whether the two open cases can be closed in its mechanism without a wait on the add's path; if they cannot, its report puts the choice as a question with costs, and that is then one for the owner.
+- **The Sonnet review of the review briefs that demand what was read and run is back and accepted (`48b43b71bd`, driver; independent; 31 of 31 files; build, types and lint at 0; the eleven new or changed test files and the full suite once, 222 passes; fourteen scripts on its own fixtures, starting no run).** The branch fixes what `main` has: a review that ran nothing is accepted there and never started again. The bound holds, one second review per first review.
+  It brings eleven findings and is not merged. The ones that matter cost money or start what nobody asked for: a review that built and ran through this repository's own tasks or inside `systemd-run … timeout` (the form this machine requires) is read as having run nothing and is started again; the check wants all 44 files of the diff where the brief listed 31; slips of form alone each cost a second paid review; the command called "check" starts paid runs without `--start`; two checks can start the second review twice (2 of 300).
+  The author's fourth run is queued seventh (13:11:41). Its measure for the round: its check run over copies of today's real `review.md` files, every one of which was written by a reviewer who built and ran; the count accepted, before and after.
+- The reviews of issue 6293's answers (`1a254982e8`) and of the queue of runs as a folder (`7f9f312e34`) started at about 13:10 and 13:11; the work-record review (`f60f5801e4`) is being prepared for the fifth place.
+- **Integration pass 58 is going since 13:12:29** (unit `pi-integration-pass-58.service`, the second start from the queue since the driver merge; active, no refusal in the journal).
+- The `mpm-shadow` author of "an update of some tools retires no link of a tool outside them" ended its first run at `700ddab455` (13:10:33): the link record now holds the tool of each link, a pass over a subset retires only links of tools it covers, two unit controls and one end-to-end control failing before and passing after, 784 of 784 package tests, Clippy 0. Its review is queued. It notes that `update` exits 1 after having installed tools and re-made links, and that nothing removes an exposure-farm link whose tool left; both left alone.
+- The work-record review (`f60f5801e4`) started at about 13:13, so five reviews are going.
+- **The landing-never-waits author's ninth run ended at `04b80a66cb` (13:17:08), the six findings and the one by reading answered by its account.** Before changing anything it sorted them: five brought by the branch, one `main` has too (a kill between the move and its record; committed as an ignored control that fails on both), one its own test's. Each change has its control's failing output with the fix out. The four ceilings now hold each other in one control (item 120 s, settle within a look 30 s, look 150 s, lease 240 s). It did not run the review's own scripts again.
+  Its review is queued first (13:21:43). The change is 83 source files, 6,320 lines added; the review before it read 7 of 52 and covered nothing, so this one is given to two reviewers in turn, each with half of the files and the whole build, and counts as covering only when the two lists add up to all of them.
+  Passes 29 and 34 still wait on this branch, and its author still asks for a hand merge with the prewarm-claim branch.
+- **The check owed for the driver merge is done: author resumes started from the queue work on the merged driver.** Two started since `b60188437a`: the copy-owner author (active since 13:18:01) and the commit-does-not-wait author (13:23:19); each feed holds its `session_resumed` line, both units are active, and the user journal since 12:44:25 holds no refusal sentence (read at 13:25). With the two fresh starts and the four canaries, nothing more is owed for that merge.
+- **The discarding-guard author's sixth run ended at `8c24e293a3` (13:21:15), the six findings answered by its account.** A revision is now resolved by Git itself (`rev-parse --verify --quiet --end-of-options <word>^{tree}`) and the object id is what the guard uses; `read-tree`'s prefix is a directory; a marked entry is compared by the index's kind and the owner's mode bit; a checkout with `--ignore-skip-worktree-bits` asks the marked edits whatever its words look like. Three generated controls (56, 154 and 90 rows) lost 8, 2 and 32 to 42 rows before and none after. Cost as ratios over seven interleaved rounds: 1.05 to 1.07 for the common forms, 1.59 for `restore --source=other -- <path>` (42 to 66 ms, two more Git starts on a small form).
+  It left alone, and names: a change of a group or other permission bit has no baseline; the window between the measurement and the run; a hidden deletion still undone silently.
+  Its review is queued second (13:25:54). The change against `main` is 88 files; the review of `2ecc7486ed` read all 47 files of that tip, so this one reads in full the files changed since that tip and runs the six old cases again.
+- **The Sonnet review of the wake the commit service never read is back and accepted (`06a01954cd`; independent; 12 of 12 files and the service's side besides; both builds; the author's 17 library controls; six scripts with a real service, a proxy holding the client's bytes unread, and stand-ins).** The branch fixes what `main` has: a wake the service greeted and never read is no longer reported as handed over (on `main` the person is told the service will relink the worktree, and pnpm never runs).
+  Four findings. One is partly the branch's own: the add's own relink can overlap the service's relink of the same worktree when a live service reads the wake more than five seconds late (two pnpm runs 1.5 s apart on the tip, one on `main`; `main` has another way into the same overlap). One is `main`'s too: a service that dies with the wake unread is answered "taken", because a read error is turned into a clean close. Two are brought by design: a commit prints an alarm telling the person to run `git push` though a late service will push too, and a `worktree add` whose wake was not read runs the relink in the foreground, about a minute longer with the relink's traced cost.
+  The author's second run is queued seventh (13:27:29): one relink of a worktree at a time by a claim only one can win, a failed read no longer a successful one, true words, and the person's push run against a late service's push.
+  **The foreground relink is left as built and is a question for the owner once measured:** run it in the add (the worktree is usable when the command returns, up to a minute more when the service is merely slow) or leave the record pending (the add returns at once, the worktree cannot build until a service or a later command takes the record). The author is asked for who takes a pending relink and how long a worktree would stand unlinked.
+- **The Sonnet review of the renamed-subvolume answer is back and accepted (`ceaa60d06a`; independent; 11 of 11 files; both builds; the author's 59 controls, none skipped for Btrfs; fifteen scripts running the real wrapper on its own fixtures; all 76 subvolumes it made deleted).** Nothing wrong was deleted: the branch only queues deletes. No file was left half-edited by the stalled script.
+  It fixes two things `main` has: with one attempt left and eight commands at once, `main` queued the delete again two to five times in 297 of 300 rounds, the tip once in 298; and a leaving whose record is lost is stranded by `main` with nothing said, where the tip finds it by the mark on the subvolume.
+  It brings four findings and is not merged: an unreadable slot is reported as "still there after N attempts" with nothing queued; after three commands asked, every later command prints a false "given up" line, and a wake that failed counts as an attempt; the scan lists every directory a linked worktree stands in on every command (4.1 to 5.0 times slower with 100,000 entries, against 0.82 to 1.0 on `main`); a memory file for an unproved name is never dropped. Four more are `main`'s too or worse there.
+  The author's sixth run is queued seventh (13:36:57), told to edit by hand and to generate no multi-file script.
+- The first of two reviewers of the landing branch (`04b80a66cb`) started at about 13:30 on the 40 files under `landing/`, `service/` and `source_guard/`; its worktree and builds stay for the second.
+- **The Sonnet review of the queue of runs as a folder is back and accepted (`7f9f312e34`, driver; independent; 37 of 39 files in full; build, types and lint at 0; the eight changed unit files and the full suite once; 23 scripts with real processes; no Pi run, batch or live queue touched).** What holds: exactly one claimer in 1,300 rounds of two and three processes; a kill at every changing step of a pass loses and doubles nothing; 24,884 random puts landed where asked.
+  Sixteen findings, all the branch's own since `main` has no queue in the package and nothing uses this one yet. The ones that matter: an entry name such as `x/../../escape` wrote a file outside the runs folder, and `a/b` blocks the head of the queue; a review put back after the rate limit has no identity, so every pass throws and the whole queue stops; `move` writes back a stale snapshot and brings a started entry back (53 of 200); a slow settling pass removes a live filling's claim, so two fillings can start one entry; "gone" is a process number alone; the changeover from the one-file queue can queue started entries again and lose an entry added meanwhile.
+  The author's fifth run is queued ninth (13:39:23).
+  The one-file queue this machine runs on today has the double start and the lost put the branch would fix; it stays in use until the branch is right.
+- **A second suite-only failure of the driver's unit suite was seen by that review:** `drive-pi-subagent.unit.test.ts`, "ends a run at its wall clock while the build it left still runs", failed in the full run and passed alone, on a tree whose range does not touch it. The queue-of-runs author is asked to run it once each way and report; it is not yet explained.
+- **The Sonnet review of the work record moved by one owner is back and accepted (`f60f5801e4`; independent; 6 of 6 files; the tip and `main` both built; the author's 17 controls, and its three controls seen failing at the commit before the fix).** What the branch fixes is words: `main` says "another instance took the work over" where the work directory is gone or the claim is still the holder's own. The reviewer could not make `main`'s guess cost a push, a doubled piece of work or a record.
+  It brings three findings, all sentences or a listing told wrongly (a replaced `claimed` directory told as a permissions problem; a claim staged in `recovering` told with the wrong ending; a listing that fails part-way read as an empty queue). Eight are `main`'s too. One of those makes a person's command wait for ever: **a named pipe in `pending/` or `failed/` hangs the claim step, and `git add .` in such a repository never returns** (the review's 20-second bound ended it; under 0.1 s without the pipe). The repository has the remedy elsewhere (`read_plain_file`).
+  The author's third run is queued tenth (13:51:56): the three sentences, and the pipe if the read is in its files.
+- **The Sonnet review of issue 6293's answers is back; it does not cover the change (24 of 70 files in full, twelve in part; the unread ones are mostly the base branch's), and its findings stand (`1a254982e8`; independent; both wrappers and the test binaries built; scripts in private namespaces).** The branch fixes what `main` has: a push whose address is `DISABLED` or starts with a dash ends its plan at once, where `main` retries it for ever.
+  Six findings are brought by the branch or by the unmerged branch it sits on: two services can end up serving one instance (with a delay put on one `unlink`); a silent listener no note names is taken over while the older service lives; the `.writing` sweep removes a live writer's file from another PID namespace and a file the wrapper never wrote, by the shape of its name; a named pipe at four of its files holds a command past 150 s; a relative `XDG_STATE_HOME` puts the journal inside the worktree; the advice after a failed push names a systemd unit nothing makes.
+  The author's tenth run is queued tenth (13:52:47), told to say by `git blame` which branch wrote each line, fix its own and leave a failing control for the rest.
+- **Adopted by a rule, open to the owner's veto: on a stalled look at the runtime directory the answer is "not proven".** The review measured the pair issue 6293's author had put as a question: "not proven" writes four small files into the account's state directory and loses nothing (the retry plan survived a logout and was retried); "another session" loses the retry plan at logout and the next command still says the service will retry. The wrapper never discards a person's data, and a commit left unpushed under a sentence that says it will be pushed is that; so the first is built and the SPEC sentence it goes against is corrected.
+- **The branch that has the wrapper start the commit service itself (`e347be3115`) is under review in three parts, in turn, in one review folder and worktree.** It changes 168 source files; 32 are deleted and 136 remain. The first reviewer started just before 13:54 on the 61 files under `service/`; the second takes the 53 under `landing/`, `invocation/`, `push/`, `repair/`, `worktree/`, `source_guard/`, `commit/`, `process/` and `testing/`; the third the 22 under `binary/`. It is covered only when the three lists add up to 136.
+  Each is told never to touch the account's real service manager: this branch holds code that stops and removes units of earlier releases and of removed worktrees, and the installed wrapper's commit services are running for every agent on the machine. That code is run against stand-ins only.
+  The first reviewer is also given the four things the issue 6293 review found in these files, to say whose they are.
+- The review of the scan for work a run left running (`30857a53de`, driver, 21 files) started at 13:55; five reviews are going.
+- The `worktree add` total-bound author ended its first run at `01fef72be1` (13:49:56): one ceiling for the add's own work, twelve minutes, from this repository's add timing log (167 records, longest 132.6 s, times five); an add whose Git child stalls again and again now ends by itself (16 s in the control, still going at 60 s before), releases its record and removes its empty destination; cost ratio 0.90 inside a 5.6-fold spread, so no finding. It names where it meets the add-never-skips branch (that one makes the wrapper's own read of `info/exclude` refuse a pipe; neither alone ends that shape). Its review is queued (13:55:19).
+- **The first reviewer of the landing branch (`04b80a66cb`) is back: it read 18 of its 40 files in full, so its half is not covered, and its findings stand.** It lists the 22 it did not read (ten are test files it did not open).
+  What the branch fixes that `main` has, by a script on both builds: with the housekeeping pool stuck, `main` answered one commit in 159 ms, the next in 5,486 ms, and then did not answer six more within 25 s each; the tip answered all eight in 40 to 62 ms. A 30-round kill test found no lost, doubled or misreported commit on either build.
+  What the branch brings: a look is cut at 150 s while a trash is still inside its own 120 s bound, and the cut spends a try; a landing's background sync is dropped, not retried, when both slow places are busy five seconds (it costs durability of the records, not the commit); the lease went from 120 s to 240 s with comments still citing the old measurement; the 30 s settle bound is used by no code; `CLI_GIT_TRASH_ITEM_SECONDS` is read in the release build and can break the relation the ceilings' control asserts, and that control checks the lease with a plain less-than; hold points are compiled into the release executable. `main` has too: synchronous reads on a worker no ceiling can end, and a guard that misses several ways to block.
+  So the branch does not meet the rule yet. Its author is not queued until the rest is read: a second reviewer started on those 22 files in the same folder with the same builds, told not to edit the worktree; a third takes the other 43 when a place frees. The author then gets one brief with all of it.
+- **Four authors ended between 14:04 and 14:08, and the review of each tip is queued (14:09:35).**
+  Service stop (`e353f89140`, second run): the review's three answered; `SWEEP_CEILING` is now 1,250 ms, a quarter of the stop's grace, from a measured sweep (0.79 ms from the alarm to the raise). It says plainly that the cause of the gate's two failures is not shown to be this wait: nothing timestamps a failing run, and 42 sampled attempts caught none. So this branch is not "the gate's fix".
+  Lock holders (`0746af9337`, ninth run): the two findings it brought are answered (a detached name is looked up as a loose file and then in each pack index without opening a pack; `HEAD` read as Git's own repository check, so a reftable repository counts; where the proof cannot be made the wrapper stands aside as `main` did). The identical birth times are measured and left: both files carry the same stamp to the nanosecond on the branch and on `main`, and the comparison is `lock/stale_ref_lock_judge.rs` lines 194 to 200. That measurement goes to the killed-Git lock author, whose eighth run is queued.
+  Clean proof of a worktree (`d953d42ee1`, first run): the object reader now reads a tree from a pack and refuses, with a reason, what it cannot read (a replace ref, a shallow store, grafts, an unknown index version); thirteen table rows, malformed stores built from bytes the test writes; cost ratio 0.986 inside each arm's spread.
+  Checkout migration (`9ef0169599`, fifth run): the nine findings answered by its account, in sixteen files.
+- **What the checkout-migration author says of the migration as released (`main`), for anyone who migrated a checkout with it:** files restored or replaced with older timestamps after the migration lost their newer content with the old tree (the backup has it); files written during a `--remove-old` run that equal their copy at its listing are in the checkout with the content from before the write; multiply-named files written in that window; and a migration that hung on a named pipe while holding `.git/index.lock`. This is the author's account, not yet reviewed; the review of its tip is asked to confirm each against `main`'s build.
+- **The Sonnet review of the discarding guard's new tip is back and accepted (`8c24e293a3`, the range since `2ecc7486ed`; independent; 13 of 16 files in full, the README, SPEC and `binary_tests.rs` by their hunks; release builds of the tip, of `main` and of `2ecc7486ed`; the author's three generated controls by name; about a dozen scripts against real Git, `main` and the tip).**
+  What the branch fixes that `main` has is large: all six old cases fail on `main` (exit 0, the change gone) and pass at the tip; in a 196-row revision matrix real Git and `main` lose the person's file in 106 rows and the tip in none. Across 51 ordinary commands in five worktree states (255 rows) the tip and `main` do not differ.
+  It brings six findings and is not merged, each a refusal of something safe or wrong words: `A...B`, `:/text` and `<rev>:<path>` are refused unconditionally though Git runs them with nothing at risk; in a SHA-256 repository every form that resolves a revision is refused (a length of 40 is written in); `core.fileMode` read from the wrong repository under `-C` gives a false refusal; four mark combinations make the guard see an edit where Git loses nothing; two wrong sentences.
+  Four are `main`'s too, and two of them the author is asked to close anyway since its own code holds them: a branch name that is not UTF-8 beside one spelled with U+FFFD loses the person's file at exit 0 (the earlier tip refused and kept it, so this round reopened it), and a Git that fails with exit 128 is read as "no such name" and the command runs.
+  Cost: this round about 1.05 times the earlier tip on `restore --source` (0.89 to 1.30; the author's 1.59 was not reproduced like for like); the whole branch about 2.3 times `main` on that form (about 30 ms) and 0.5 to 0.6 times `main` on `checkout -f` and `reset --hard`.
+  The author's seventh run is queued fourth (14:16:54).
+- The last reviewer of the landing branch (`04b80a66cb`), on the 43 files outside `landing/`, `service/` and `source_guard/`, started after that; it works in the same folder as the reviewer of the 22 left files, neither editing the worktree.
+- **The Sonnet review of the scan for work a run left running is back and accepted (`30857a53de`, driver; independent; 14 of 14 files; build, types and lint at 0; the five changed test files and the full suite once; scripts against stand-in process folders, real `/proc` with its own processes and the real watch loop; no Pi run or unit started).** It fixes what `main` has: a reused process number, a zombie, a start time it may not read, and the commit service's Git in the worktree each count as work on `main` and not on the tip. The merge `b60188437a` does not meet its wake path badly.
+  It brings five small findings and is not merged: a process that is not there still counts as running when its record has no start time (the run then waits to its wall clock); the 30-second limit is in fact one idle silence long, about 120 s in production; at `work-unreadable` the summary says only the failure and not what was left; two stale texts; a one-sided tolerance in the start-time comparison. Five more are `main`'s too.
+  The author's fourth run is queued ninth (14:21:48).
+  Both known suite-only failures of the driver passed in that review's full run; it found no cause in this branch for the wall-clock test's earlier failure.
+- The review of the checkout-migration tip (`9ef0169599`) started just before 14:22:55, taken ahead of queue order because its author reports losses in the migration as released. It is asked to confirm or refute each of the four against `main`'s build, on throwaway repositories only.
+- The masking's small correction is queued as a fresh run from `main` (14:25:06; the author's branch no longer exists since its merge): the limits page says what the code does (the output files of Pi's bash tool that are not rewritten, `--session=<id>` handed over unmasked, the feed cutting a line before it masks, two false sentences about which file a run may rewrite, three statements the code does not do), and the driver's tests stop leaving `stand-in-session-<uuid>.jsonl` in the home folder. By "keep the masking work narrow" it closes none of the ways through. The files already in the home folder are left for this session to remove once the change is in `main`.
+- **The Cargo-repair branch (`85a9f8523f`, "add never skips") goes on as a fresh run (queued 14:26:52), not a resume.** Its author's thirteenth run changed nothing: it designed the structural answer to the four findings, lost its one edit to a script whose anchors spanned two files, ran out of room, and wrote that the next session should start from that tip with that change. The fresh run starts a new branch at that tip (`fix/git-policy-cli-prewarm-of-a-new-worktree-acts-only-on-the-entry-it-checked`), is given the review, the author's design report and the three places read in `main`, and is told to move one function at a time with its control and to keep its report current as it goes.
+  It and the landing branch both change files under `repair/`; the landing author's next brief names this branch so the two do not rewrite the same functions.
+- The author of the control for a lock-held commit's words ended its first run at `98629b3061` (14:22:33; 15 files, 12 of them tests): the control failed whenever the fixture's path held a word the control forbade in the output, and the forbidding assertions it could reach are now tested under planted names. Its review is queued (14:27:20). Against its brief it ran `printenv` for one Cargo name and measured the whole scratch root (276 GB, `change-reviews` 74 GB). It names two parked helper processes from another run's build of 2026-11-13; at 14:28 no process on the machine was in the stopped state, and nothing further identifies them.
+- **The renamed-subvolume author's sixth run ended partly done after 22 minutes and 18 turns (14:32:05, tip `6195681670`), and the work goes on as a fresh run (queued 14:37:16), not a seventh resume.** It reproduced the false "given up" line at its tip with the review's script and committed an answer (asks are marked only when the wake was made; a wake that reached no service gives the slots back and says the delete stays queued), which compiles and was never run against that script: it could not make the review's scripts use its own build. The other three findings the branch brings, the two slot races and the merge of `main` are not started.
+  The fresh run starts a new branch at that tip (`fix/git-policy-cli-renamed-subvolume-of-a-removal-says-true-words-about-its-attempts-and-its-scan-costs-nothing-per-entry`), copies the scripts into its own scratch and has each print the executable it used, proves or fixes that answer first, and is told that the cheaper scan must still find a leaving whose record is lost.
+- **The other two reviewers of the landing branch (`04b80a66cb`) are back, and its author's tenth run is queued sixth (14:40:06) with all three reviews in one brief.** Coverage is 63 of 83 files read in full: all 40 under `landing/`, `service/` and `source_guard/` (18 and then 22), and 23 of the other 43; three non-test files were read in part and that half's seventeen test files not in full. So the change is not covered, and nothing is cleared. The author is not held for a fourth reader: the findings already stop the merge, and the next tip is reviewed in parts of about thirty files from the start, test files as a part of their own. This departs from "the author gets one brief when all of it is read" in the section of 13:56; the reason is that a further reader could only add to a list that already sends the branch back.
+  What the branch brings, beyond the first reviewer's list: one trash record on two jobs at once after a cut look (the held prepare reached a second time 5.26 s after the first, the record back at one try); leftover staging copies never removed, because a dead maker's mark is removed without checking that the staged name is gone; a build directory with a byte that is not UTF-8 in its name moved aside and never put back; the new five-second wait for a place failing the last item of a fan-out on a host of four to nine CPUs; reading every finished record widening the window in which the look answers "nothing known" (123 of 300 against `main`'s 10 of 300 with 3,000 records); `taken` added to the protocol with no version change, so a new wrapper against an older service says "could not be handed over" for work that was done; five unit controls red at the tip because their stand-in services do not send `taken`; no control fails when the service's `taken` send is removed.
+  `main` has too: reads that block on a named pipe at the look's `*.intent` file, the service start, `after_landing`, the decoder's `commondir` read and two more; the look's "nothing known" window itself; `stop_the_group_of(0)` would signal the caller's own group, with no path found that reaches it.
+  The three shapes read earlier in `main`'s prewarm job are gone at this tip. Nine of the author's named controls fail with their fix taken out; the exclusive-create control holds only with one process per test.
+  The review worktree is removed; the three builds stay in the review folder for the author's run.
+- **The review of the tool manager's removal of old versions (`82531265a7`, `mpm-shadow`, 47 files, 10,117 lines added) started in two parts at once, just after 14:38:** the 29 source and doc files, and the 18 test files read for what each control proves. Both are told that the machine's real tool store serves every agent: no run with the real home or store in reach, roots printed and checked before each run, nothing downloaded.
+- **The first part of the review of the branch that has the wrapper start the commit service itself is back and accepted (`e347be3115`, the 61 files under `service/`, all read in full; independent; both wrappers built; 240 library controls and 36 binary controls of this part by name; scripts inside private namespaces with a stand-in manager).**
+  What the branch fixes that `main` has: on a machine with no user service manager `main` refuses the commit and the tip lands it; thirty rounds of two commits starting at the same instant landed both with one service per worktree.
+  What the branch brings: a service killed while it starts fails the commit after 10 s (3 of 40 first commands; the next run landed); a service that is alive but silent fails every commit after 120 s and is never replaced, and with its note removed even `service stop` cannot end it; a named pipe at `.starting`, `.log` or `.pid` in the instance's runtime folder holds a command without bound (still held at 140 s); the detached service keeps every descriptor of its first caller beyond 0, 1 and 2, and its working directory, control group, limits and whole environment; two services serve one worktree when two commands name different runtime directories (12 of 12 rounds; both commits landed once); **a landed commit whose service dies before its push stays unpushed, with nothing said, until the next commit (6 of 6)**; the retirement of earlier releases deletes both unit templates and the notes of other worktrees; `SIGHUP` stops the service though the detach says it is ignored. For three of these the reviewer reads `main` as doing better where a manager is there, since its unit restarts on failure.
+  Of the four things the issue 6293 review found in these files, two are not this branch's (no stale-note claim exists here, and no takeover was seen), the named pipes are here and worse, and the advice naming a unit is not here. So those two are issue 6293's own.
+  The reviewer's slips: `printenv` once with three names (empty), a read of its own fixture service's environment printing a count, and early runs that passed its whole environment into its fixtures and could write fixture lines to the host's journal. Checked on the host afterwards: both unit templates of the installed wrapper are there, 79 of its units are active, and `main`'s commits of 14:27 to 14:40 reached `origin`.
+  The rest is read in three more parts: the 26 files under `landing/`, `source_guard/`, `commit/`, `process/` and `testing/` and the 27 under `invocation/`, `worktree/`, `push/` and `repair/` are going since about 14:42 and 14:46; the 22 under `binary/` follow. The author is held until the landing part is back, because that part reads the other side of the same findings (where an owed push is recorded, what a command is told); it then gets one brief with both, and the later parts go to its next round.
+- **The Sonnet review of the stopped push is back and accepted (`41b3ca5e5e`, 9 of 9 files, both wrappers built, real Git, no network).** A stopped push ended within its bound in every arrangement (about 4.1 s with the window at 3 s, three at once too, with the service's output a full pipe, a closed pipe or a stopped terminal); after a stop the commit stays, the push is recorded as failed, retried, and lands once; a slow push that makes progress is not stopped. It fixes three things `main` has (a member the kernel will not release: 23,120 ms against 17,928 ms under an 18,095 ms ceiling; a held blocking pool: 30,000 ms against 18,118 ms; a zombie `main` never collects).
+  It brings two findings and a sentence, and is not merged: with the blocking pool held, the stop now returns at its ceiling with the sweep undone and nothing ever does that sweep (the record of owed sweeps is never read); its new guard covers two files and misses the shapes it is for (`eprint!`, `println!`, `libc::write`, a helper in another file); the new doc says one ceiling bounds the stop where a watched step's stop takes two. Four more are `main`'s too. The author's sixth run is queued tenth (14:43:01).
+- **The owner wrote, between 14:40:26 and 14:46:19 on 2026-11-16: "My opencode-go limits have been reset."** The driver's pool table closed that pool "until the owner says its week has reset", so it is reopened at the limit it had, 20, in its place behind Neuralwatt's flex pool, which is the owner's own ranking ("prefer neuralwatt"). It raises nothing today: the count of agents comes from the drive probe and the split of five reviews and thirteen Pi runs, and flex had 14 of its 20 places taken at 14:46:19, so no default run reaches the pool. The change is a branch of this session's (`chore/pi-shared-subagent-driver-opencode-go-pool-reopened-on-the-owners-word`), checked and merged as the Kimi closure was, and owed a Sonnet second pass beside that closure's (a same-vendor pass, since this session wrote both). The owner's words are also under "Owner decisions in force", "The opencode-go pool is open again".
+- **The owner reversed the pool ranking a few minutes after the reopening: "Prefer opencode-go over neuralwatt because opencode-go uses my less versatile sub."** The same branch now puts `opencode-go` before both Neuralwatt pools, so every new run that names no model goes there until its 20 places are full; both sentences of the owner and the reading of them are under "Owner decisions in force", "The opencode-go pool is open again". The reopening alone had a green unit suite at 14:54:24 (207 groups passed, the three changed tests among them) and is commit `b8e5d09cd5` on the branch; the order is a second commit, being checked.
+  What the worktree for this showed: `git worktree add` run from a shell whose home is spelled `/home/user` left the new worktree's copy of the Pi package with a link to its lock-library shim that pointed to `/var/var/mnt/…`, one level short, so every test file there failed to load Pi. The pnpm store holds one copy of that package for each worktree (1,370 of them), and the main checkout's copy, which Pi starts use, was not touched: its link dates from 2026-11-13 and resolves. Removing the worktree's own bad link and relinking with the home given as `/var/home/user` wrote a link that resolves. Which program wrote the bad one (the wrapper's package repair or pnpm under it) is not yet found; it is an investigation of its own.
+- The process-table author ended its second run at `dfea0fd4a9` (14:50:05): each finding of its review answered with a control that fails with its fix out (a table from another PID namespace, a first thread that ended, a mapped and closed file, a bisect check that could not list). The cost is the thing to weigh: one walk went from 63 to 98 ms to 274 to 377 ms, a median ratio of 4.50, for reading every process's map table. Its review is queued thirteenth and is asked for that cost against what the wrapper's rule on cost allows.
+- **The pool change is in `main` as `7affaab73b` (2026-11-16T14:58:50-05:00), so every Pi start on this machine since then that names no model goes to `opencode-go` first.** Two commits: `b8e5d09cd5` reopens the pool at 20, `51c507fcb4` puts it before both Neuralwatt pools with the wall factor of flex. Checked before the merge: build and type check exit 0, the unit suite exit 0 with 207 groups passed (14:57:34), the changed tests' names in its output; and one request with no tools and no saved session to that provider and model, which answered "ok" in six seconds (14:58:29 to 14:58:35), because nothing had run there since 2026-11-11. That the new order test fails on the old order is shown by the old test, which asserted flex first and passed at `b8e5d09cd5`.
+  After the merge the counts through `main` read `qwen-plan-deepseek 0/0, opencode-go 0/20, neuralwatt 0/0, neuralwatt-flex 14/20, neuralwatt-kimi-flex 0/0, qwen-token-plan 0/5` (14:59:04). The first start from the queue is watched for its provider and for going active.
+  Owed: one Sonnet second pass over this change and the Kimi closure `c364731a2d` together (the same vendor as their author, so a second pass and not an independent review); a timing of this pool's runs against flex runs going at the same time, from which the wall factor is set; and the investigation of the link written one level short.
+  What could not be measured from records: the pool's speed. Run summaries carry no provider, and their time per turn includes each run's own commands.
+- **The Sonnet review of the checkout-migration tip is back and accepted (`9ef0169599`, 17 of 17 files; independent; both wrappers built; the author's 80 controls; about twenty scripts on real Btrfs fixtures with kills at each seam, all recovered with equal manifests).**
+  **It confirms, on a build of `main`, each of the four losses the author named in the migration as released:** an old-tree file restored with an older timestamp and newer content is deleted with the old tree at exit 0, the bytes nowhere; a file equal at the listing but written during `--remove-old` ends in the checkout with the content from before the write; hard-linked names written in that window both end with the earlier content; and a file turned into a pipe after the listing hangs the migration in its last delta with `.git/index.lock` left behind, so real Git answers "Unable to create index.lock". A write that keeps size and modification time is deleted too. The tip refuses or carries each. A person who migrated a checkout with the released wrapper while tools wrote into it has reason to compare against a backup; a migration of a quiet tree is not shown to lose anything.
+  What the branch brings, which stops its merge: `--remove-old` refuses every checkout a person has used since the migration, and `--discard-left-out` does not help; `--rollback` after use refuses, and that same flag then deletes the person's edit or commit, where `main` carries both back; every replaced file costs four `fsync` calls, so the last delta holds `.git/index.lock` for 40 s on 1,001 files against `main`'s 0.18 s. Five more are `main`'s too, among them `.git/index.lock` left behind when a pass fails, in the migration and in `convert-worktree-to-subvolume`.
+  The author's sixth run is queued third (15:00:24); the review worktree is removed.
+- The last part of the no-manager review (the 22 files under `binary/`, read for what each control proves and which of the first part's findings has no control) started after that; with it all 136 files have a reader going or done.
+- **The first run started after the pool change went to `opencode-go` and is taking turns.** The queue-of-runs author's fifth run went active at 15:07:31 with `--provider=opencode-go --model=deepseek-v4.1-flash --wall-seconds=57600` (its 28,800 doubled by the pool's factor); two minutes later its feed held 67 lines and had been written two seconds before the reading. The counts then read `opencode-go 1/20, neuralwatt-flex 13/20`.
+- The snapshot author ended its sixth run at `8b7c98aa6e` (15:04:14): the review's findings answered with controls, among them a claim file judged by what it is, a clock that went back (the folder kept and named once), and a directory that could not be listed. Its review is queued eleventh.
+  **It answers the open question with a plain no: its mechanism cannot tell a person's snapshot that was already waiting when the record is read, or one made with the clock set back, from the wrapper's own, and deletes it.** Closing both needs a wait for a commit of the file system before the instant is read, which the sibling branch measured at 16.5 ms a `worktree add` when idle and 86.6 ms more with another writer's 64 MiB pending, growing with others' pending data, and which `SPEC.md` rules out on an add's path. So two of the wrapper's rules meet here (it never discards a person's data; an add does not wait on others' data), and that was the owner's to weigh.
+  **Asked through the question tool, the owner answered "No wait on the add"** (under "Owner decisions in force"): the mechanism stands, the two rare losses become a stated limit on the package's page, and the sibling branch that waits is not merged.
+- **The author of the branch that clears a lock a killed Git left ended its eighth run at `3cede80340` (15:09:13), answered in part, and the rest goes on as a fresh run (queued 15:14:43).** Answered with controls: a live holder's lock is no longer offered for removal (the control fails at the earlier tip with the `rm` line and passes now, in three arms); two writers of one record cannot remove each other's pin; `finish` and the publication run off the runtime thread and ask the records folder once; the advice names the lock and the PID file together. `main` merged with no conflict.
+  Not done, by its own account: the watch walk's cost on every Git start (a ratio of 1.79 to `main` with 3,000 folders under `.git`) is untouched; the time of `finish` against the count of locks was not taken again; the two fault points were not driven through the built wrapper.
+  The fresh run starts a new branch at that tip (`fix/git-policy-cli-watch-for-a-killed-gits-lock-costs-a-git-start-nothing-that-grows-with-the-folders-under-the-git-directory`), measures with release builds first, and is told that nothing in it loosens the proof that a holder is gone.
+- **The first part of the review of the tool manager's removal of old versions is back and accepted (`82531265a7`, `mpm-shadow`, all 29 source and doc files; independent; the tip and `main` built; 222 unit tests by module; sixteen scripts with a disposable home and store roots, among them a kill before each of the seventeen store-changing calls of one removal, where the old version was whole or gone at every seam, and two installs at once over 156 rounds with no defect).** The part on the 18 test files is still going; the author is held for it, since the two make one brief.
+  What the branch fixes that `main` has, each by a script: `main`'s `prune --toolchain` deleted a person's directory outside the store through a link at a crate directory, and the branch refuses; `main` deletes a version a process works inside, and the branch keeps it; `main` waits without end on a `git` that never answers, and the branch stops it at 10 s.
+  What the branch brings, which stops its merge, most serious first: a lock file written after the pass read the locks does not protect its version; another repository's lock, and a lock route it does not know, are not seen at all; a process in another PID namespace is invisible to the scan and the scan does not know it; the size cleanup judges a hidden process by name where the other three removals use the age rule; a link planted after the proof makes a rename move a directory outside the store to a hidden name (displaced, not deleted); a stale downloads claim stays for ever; and sentences on the page, the README and in comments that are false, among them "`install` never deletes another tree's version". `main` has too: a worktree whose disk is unmounted while its mount point stands is not seen, and the three older removals delete in place.
+- **The link written one level short happened again on a second worktree made from this session, so it is repeatable (two of two), and it is queued as a fresh run of its own (15:19:18).** `git worktree add` at about 15:16 made the worktree for the second pass; its copy of the Pi package appeared at 15:17:47 with a link to its lock-library shim that read thirteen levels up and then `var/mnt/…`, which resolves to `/var/var/mnt/…`. Thirteen levels is right for a store under `/home/user`, the linked spelling of the home folder this session's shell uses; the store's real path is one level deeper. Removing that worktree's own link and installing with the home given as `/var/home/user` wrote one that resolves, as before. The run is to find which program computes the link (pnpm with a linked store path, or the wrapper's package repair in how it starts pnpm), fix it there with a control that fails first, count the broken copies in the store without changing any, and write the section in `doc/troubleshooting/dependencies.md`. The shim itself stays, by `doc/decision/proper-lockfile-removal.md`.
+- The second pass over the two pool changes of the driver (`c364731a2d`, `7affaab73b`) started in that worktree: Claude Sonnet over changes a Claude session wrote, so a second pass by the same vendor and not an independent review. It takes the fifth review place.
+- **First timing of the `opencode-go` pool against the flex pool, same window, from the going runs' feeds (numbers alone; window 15:07:31 to 15:22:55): the model's time for one answer is about a twelfth to a twentieth of flex's.** Two runs on `opencode-go` (`deepseek-v4.1-flash`): medians 3,034 ms and 5,492 ms over 36 and 99 answers, 55 to 58 output tokens a second by median. Eleven runs on flex (`deepseek-v4.1-flash-flex`): medians 57,612 ms to 71,746 ms over 3 to 18 answers each, 4 to 15 output tokens a second; the flex medians sit near a minute whatever the answer's length, which reads as a wait before the answer and not as slow writing. The spread among the flex runs (57.6 s to 71.7 s) is far smaller than the difference.
+  The pool's wall factor stays 2 for now, and that is a choice with a reason: this reading has one and then two runs on a pool of twenty places, and says nothing of its speed with thirteen going or near its weekly limit. It is taken again when five or more runs go there, and the factor is set from that reading. Script and output: `~/temp/agent/opencode-go-pool-reopened-on-the-owners-word-2026-11-16/` (`print-the-model-time-per-turn-of-each-run-whose-feed-was-written-lately.ts`, `keep/model-time-per-answer-of-the-going-runs-first-reading.txt`).
+  The second run there is the checkout-migration author's sixth, a session that ran on flex before: a resumed session moved to the new pool and takes turns.
+- Round checks at 15:20:39: 13 Pi units going, none silent for twenty minutes, no launcher outliving a run, no process inside the worktree of an ended run, none of the five runs ended since 14:10:20 without its masking or with a failed driver.
+- **Part two-b of the review of the service the wrapper starts itself is back and accepted (`e347be3115`; invocation, worktree, push and repair; 27 of 27 files; independent; every run in private namespaces with stand-in `systemctl` and `systemd-run`, which recorded no manager call in 29 run folders; 111 of 115 unit controls of those files passed, the other four failing only because the namespace made the reviewer uid 0).** What holds: removing a worktree retires its own service and touches no other worktree's; a push typed by a person with no service or a stopped one is made at once, once; read-only commands, a bare repository and another `HOME` start no service; a failed start fails a commit plainly and lets merge, add and remove complete with a warning.
+  What the branch brings, which stops its merge: every hand-over wake (the push after a merge or pull, the trash of an add, a worktree removal, the package repair) waits the 120 s ceiling behind a stopped service where `main` takes about 2.2 s (a merge took 121 s; an add and a remove did not return in 200 s); a service killed while relinking leaves the repair owed until another command starts a service, and after the lease a second `pnpm install` runs beside the first's orphan for 20 s; a named pipe at `<instance>.pid` holds `git worktree remove` after the worktree is gone; the hook that stops a removed worktree's service lost all nine of its controls and the `service stop-units-of-removed-worktrees` command its six, none replaced; three controls that cannot fail; and smaller words. `main` has too: named pipes at the `real-git` note and among failed work records hold a command (`git status` included). Seen on the tip and not held against `main` by the review: an `--allow-empty` commit waiting on the service was lost under a removal of its worktree; the author's brief asks for that comparison.
+  The author stays held for part two-a (landing); its brief then carries parts one, two-a and two-b together, since all three will be back.
+- **Part three of that review is back (`e347be3115`; the binary controls; 22 of 22 files; independent; one build of the wrapper with one fix reversed; 312 controls run by name in namespaces of its own with the host's journal socket, `/run/user` and `/run/dbus` hidden and stand-in manager clients that recorded no call; 310 passed).** Its answer to the question it was given: **no binary control would have failed on any of the eight things part one found**, and three controls assert the 120 s refusal behind a silent service as the intended result, so they would fail on a fix.
+  What the branch brings in its controls: the fixture plays the service manager the branch removed, so about 1,200 of 1,216 names never meet the wrapper's own start; a control `main` had (`!landed` when a service ends before it listens) was weakened to a condition that cannot fail; `long_runtime_directory` passes or panics by the length of `$HOME` (a merge dropped `main`'s fix; reproduced at 16 bytes); the harness's services wrote to the host's real journal socket until the branch's own fix `b0ba8a3b32`, which the reviewer proved by reversing it; a control whose name says the opposite of its body; `two_starts_at_once_leave_one_service` leaves a detached service behind; four deleted control files whose proofs nothing replaces. It corrects part one in one point: the limit watcher does not lower the test process's own limit.
+  Two controls failed for the reviewer: `repository_naming_commit` (the gate's standing failure; the control file and `lock/` are identical on `main`) and one that fails only as uid 0 in the namespace. The author's second failing control was not found among the names run.
+  Three of four parts are back (110 of 136 files); the landing part is going.
+- **The author of the driver branch that keeps a Pi run out of the main checkout ended its eighth run at `e16721a36d` (15:30:52), the first answer written under the narrowing rule; its review is queued first.** It measured each of the review's eight findings on `main`'s code and on its tip before changing anything: one was brought by the branch (the launcher's `XDG_RUNTIME_DIR` forced into the unit, so scopes and wrapper commits were refused when that folder is not the manager's) and is answered (the folder is named only when `<folder>/systemd/private` is a socket); the false "no user manager" claim was its own and is gone, and a start now asks the manager twice and refuses before making anything, so no unconfined install remains.
+  Of the holes `main` has wider, it narrowed the shared Git directory (a run writes its own worktree's Git folder, objects, refs and reflogs; `HEAD`, `index`, `config`, `hooks`, `info`, `worktrees` are read-only; six of the review's writes now refused in a real unit) and stopped `${…}` being expanded in the unit's arguments. **Still open and written on its page: any branch's ref can be moved (Git renames a lock file in the folder), `.cache` stays writable, a `systemd-run --user --unit=` service escapes, and some file-system calls have no bound.**
+  Checks by its report: build, type check and lint clean; unit suite 224 passing and one failing, which it says is `main`'s own. `main` merged, 15 commits behind again since. Until this branch is in `main` every Pi run can still write the main checkout.
+  The range holds 33 files (22 source and doc, 11 tests), so its review goes out in two parts when places free; then, if nothing it brings remains, a rehearsal and canaries before the merge, as for every driver change.
+- **The last of the four parts of that review is back (`e347be3115`; landing, guards and the rest; 26 of 26 files; independent; scripts on the tip and on `main` in private user, mount and process namespaces; 179 of 180 controls of the part passed, the one failure an artefact of uid 0), so the review covers all 136 files, and the author's fifteenth run is queued second (15:38:04).** No commit was lost or doubled at any seam of a landing, with the service killed at each of five fault points, with the command killed, and with both.
+  What this part adds to what the branch brings: **the client no longer asks who took its connection, so a process of another account holding the abstract address got the commit request six times (message, identities, paths), where `main` refused in 92 ms and sent nothing**; a plain `git status` waited 122.7 s in silence behind a silent service with a queued push record (5.8 s on `main`); after the service dies a landed commit's owed push sits unnamed for 135 s and `index.lock` stays until the next wrapped command; a service held in a landing that never ends cannot be ended by `service stop`, the command the words name; the source guards lost the manager-member list and the reload ban; failure words that name commands which fail where the route creates them.
+  The brief gives the author one subject for this round, what a dead, starting or silent service costs a command (the connection's owner first, then the 120 s ceiling, the start killed, the owed push, the relink, `service stop`, two services, the named pipes, what the detached service inherits, the retirement and `SIGHUP`), each with a control that drives the wrapper's own start and fails at the reviewed tip first. The controls, guards and words of parts three, two-a and two-b are named as the round after it. It quotes the owner's "I said to not hard depend on systemd, and graceful enhancement and graceful degration." and asks the author to quote what `SPEC.md` and the recorded decisions say a command does behind a dead or silent service, and to name any case they leave open.
+  Slips of this reviewer, disclosed by it: `pgrep -f` across the host several times for numbers and counts, and a `kill` of every number one such `pgrep` returned (its fixture's instance hash), which ended its own tool shell; 13 Pi units and the filling unit were active when I read this, and the next launch prompts forbid `pgrep` by pattern by name. The review's worktree is removed.
+- **The second pass over the two pool changes is back (Claude Sonnet over changes a Claude session wrote: a second pass by the same vendor, not an independent review; build, type check and lint clean; unit suite 207 passing; ten mutation runs of the two changed test files), and its findings go to a fresh Pi run (queued third, 15:38), so that the answer is written by another vendor's model and its review can be independent.**
+  The one that matters most, confirmed in the source by this session: **`PI_RUNS_POOL_LIMITS` never reaches the unit a batch runs in** (`src/batch-run-as-a-unit.ts` hands the unit `PATH` and `HOME` alone), so the recorded way to close `opencode-go` when its week is spent, or to open the Kimi pool for one start, does nothing for a batch. **Until that is fixed, the way to close a pool for queue starts is a change of the table in `main`, and the "Kimi for these only" route for a thin review is a direct start, not a batch.**
+  The rest: the wall factor and two other behaviours can change with no test failing (three pools share the limit 20, so a caller's 20 cannot be told from the shipped one); a resumed session that names no model moves from flex to `opencode-go`, which the owner's preference asks for, and Pi drops such a session's thinking blocks at the move, which the README does not say; a run naming the closed Kimi model waits to its deadline with no reason shown; the limit of 20 has no source written beside it; stale sentences, among them one that calls the unmeasured factor measured.
+  The brief leaves the factor's value alone (it is set after a reading under load) and has the first reading written beside it.
+- **The review of the driver branch that keeps a Pi run out of the main checkout is going in two parts (`e16721a36d`; 22 source and document files; the 11 test files with each claimed behaviour taken out of a copy to see its test fail).** Every write the reviewers try is aimed at a stand-in repository under the review folder, never at the real checkout, and they start only short units of their own name. The worktree the prepare script made for it has a lock-library link that resolves, unlike the two this session made by hand with `git worktree add`: a fact for the run that looks for the writer of that link.
+- **The second part of the review of the tool manager's removal of old versions is back, so the review covers all 47 files, and the author's seventh run is queued fourth (`82531265a7`, `mpm-shadow`; the 18 test files; independent; all 887 tests run once, each in its own process with an empty environment and a disposable home, 883 passing and four failing only because the review folder is reached through a link; 36 full take-outs of a fix or a protection from a copy of the tip).** With the author's four fixes of last round taken out, the proof walk, the unreadable-lock rule and the claim take each fail a control; the hidden-process age rule fails only a pure unit test, since the calls that use it have no control.
+  **A code defect found on the way: in the take of a stale claim a third remover can get the right while the live claim is moved aside, and the put-back then overwrites its claim** (reproduced under `strace`).
+  What the controls do not prove: the size and age cleanup's own protection is not tested as shipped (the process-hold check, the hidden-process check or the unreadable-process-table check can each be taken out with all 286 tests passing); `prune --toolchain` has no control for either process check; no deadline has one; link refusals have one at two call sites and nowhere else; controls read this machine's real process table and one assertion is skipped here; one test asserts nothing unless a variable is set. No test reaches the real home or the real store.
+  The brief has the author settle per finding, by a run on `main`'s build and on its tip, whether the tip is worse than `main` (several "brought" findings are protections `main` lacks altogether), fix those and every false sentence first, write what a cleanup cannot see as stated limits, correct the size cleanup to the owner's "Age rule, gap accepted", and then give each shipped protection a control shown to fail. The review's worktree is removed.
+- **The review of the held-push holder branch is back and close to the bar (`2c4364983a`; 10 of 10 files; independent; both wrappers built; a probe of the public calls on both builds; ten planted changes each caught by a control), and the author's fourth run is queued fifth.** It fixes five things `main` has, each failing on `main`'s build and passing on the tip: a live held-push holder, claim owner or marker holder written in another spelling taken for gone, a reader that cannot read its own boot identity taking live holders for gone, and a dead marker holder in another spelling never judged gone. All five findings of its two earlier reviews are answered.
+  It brings two, both low: the tip keeps a dead holder `main` released when the number was reused and a part cannot be read (three situations), and a variant never constructed off Linux that would fail Clippy there. The first is the shape the owner decided on 2026-11-16 ("A: stays, command says how"), so the brief asks only for the second half of that decision to be shown: that past the patience a person is told which record, whose, how old, and the exact `rm -- <path>`.
+  `main` has too, and the author is asked to close what is in its files since it is the rule the branch is named for: a birth that does not begin with `linux` is compared as text, so a live holder is still read as gone on all three surfaces.
+  When that run ends: a delta review, and if nothing it brings remains, an integration pass.
+- Round checks at 16:02:02: 13 Pi units going (3 on `opencode-go`, 10 on flex), none silent for twenty minutes, no launcher outliving a run, the only processes in a worktree without a run are a going review's, and the one run that ended since 15:20:43 has its masking and no failed driver. Five reviews are going: the retire branch's own four commits, the two parts of the driver's main-checkout branch, the commit of many changed files (`a13faa0d55`), and the service's drain ceiling (`f350db8065`, which changes the same two files as the retire branch's fix, so the two are settled together before either goes into a pass). Queued to start as Pi places free, in this order: the main-checkout review's entry is taken; the no-manager author's fifteenth run, the answer to the second pass of the pool changes, the tool manager author's seventh run, the held-push holder author's fourth.
+- **Two authors ended whole runs at 16:09, and both reviews are queued at the head (16:13:52).** The copy-owner and transaction-owner author's third run ended at `a303cb638f` (27 files): the review's three findings in what the branch brings are answered with controls, every caller of the three-way answer (alive, gone, cannot be told) is listed with what it does for each, and a record that cannot be told is kept and named; four findings `main` has stay for follow-up (an owner line missing or malformed answers "runs" for ever in silence; an empty attempt file with no age bound; a refusal read as "not running"; two text comparisons, one of which the held-push branch closes). Checks by its report: 1,597 unit tests of the changed modules passing, Clippy clean, 47 binary controls with one failure at its own five-second window under load that passed alone and on a second run.
+  The queue-of-runs author's fifth run ended at `3d66e76ff0` (61 files in the range), the first whole run on `opencode-go`: an entry's name is escaped before it becomes a file or unit name (a slash, `..`, a newline, a lone surrogate and case twins tested; nothing lands outside the folder), "gone" is a process number and its start moment, and each of the sixteen findings has a control shown failing with its fix reverted or is proved by the review's own script. Its review goes out in parts of about twenty-five files with the tests as a part of their own.
+- **The discarding guard's author ended its seventh run at `54733be64c` (16:14:28) saying "This run did not finish the review", so the rest goes on as a fresh run on a new branch from that tip (queued eighth, 16:19:50).** One commit, whose own message says it is unfinished: the false refusals of the review's `clean-worktree-false-refusals` script went from 18 to none, and the three generated controls hold (154, 56 and 90 rows, none lost, no safe row refused). Still open by the review's own scripts at that tip: the three `A...B` rows still refuse; SHA-256, the `-C` file mode, the non-UTF-8 name, the marks and a branch named `HEAD` are as the review found them; the README and the SPEC describe the behaviour before the commit; `main` is not merged (42 behind); the cost was not measured. One row the script reports as refused ran when the author tried it by hand, unexplained.
+  The fresh run begins with a table of every review row on three builds (`main`, the reviewed tip, the starting tip), settles that contradiction, then goes finding by finding with the generated controls run after each, since zero rows lost is the line that must hold at every commit.
+- **Part one of the review of the driver branch that keeps a Pi run out of the main checkout is back, and the branch is not for `main` yet (`e16721a36d`; 22 of 22 source and document files; independent; every write aimed at stand-in repositories, with plain folders, a path through a link, and Btrfs subvolumes; build, type check and lint clean).** The confinement holds: every write to the checkout's files is refused on the tip and allowed on `main`, by plain path, `/proc/self/root`, a child's or a host process's `/proc/<pid>/cwd`, a link, and the `unshare` bind-mount tricks, and so are writes to `HEAD`, the index, config, hooks, `info`, another worktree's Git folder, `git worktree add`, `git config` and `git remote add`. Ordinary work goes on (commit, fetch, push, rebase, gc, scopes, builds). 25 awkward folder names and paths of over two and three thousand characters broke no start and dropped no protection.
+  **What the branch brings, which stops its merge:** a start is refused where `main` starts and the README says it keeps working (`XDG_RUNTIME_DIR` naming a folder with no `systemd/private` while the bus address is right: `systemctl --user show` fails there and `systemd-run --user` works); the unit now runs in a user namespace of its own, so `newuidmap` and `podman unshare` fail inside it; **the failing unit test the author called `main`'s is the branch's (`main` passes it)**; `link()` and `rename()` across the separately mounted writable folders end `EXDEV`; Git commands that write the shared config half-fail with `EBUSY`, and `git push -u`, `branch --set-upstream-to` and `switch -c x origin/y` exit 0 having recorded nothing; the page understates what stays open (writes at the root of the shared Git directory succeed, a run can delete `main`, a plain `git commit` in the checkout can still land on `main`); a refusal after the worktree and run folder exist leaves both with no record.
+  `main` has too or wider: every hole the author states, and a run that can plant a program the launcher's own `git status` then runs after the run.
+  The author is held for part two (what the tests prove), then one brief with both. One slip of this reviewer with an effect outside its folder: a `podman unshare` probe used the real runtime directory and podman rewrote its pause file; read at 16:23, the file names a live process again and an ordinary `podman ps` lists no container, so nothing is left to repair.
+- **The review of the branch that makes a retiring service end within a bound is back (`1bb658349d`, its own four commits over the landing branch; 8 of 8 files; independent; three wrapper builds and three variants; the committed controls and a probe in sealed namespaces; the stand-in manager programs recorded no call by the wrapper).** What the four commits fix, each failing on the base and on `main` and passing on the tip: a retire with a sync held ends in 2.01 s (still there at 30 s before); with the slow lane held in 0.04 s to 0.17 s; the idle exit with a sync held ends where it was still there at 200 s; a commit made during the retirement lands in 1.55 s where it never landed. Both controls fail with the fix taken out.
+  It brings one thing, in the tests: neither control fails when the release of the waiting batch alone is taken out, and no unit test covers the leave logic. `main` has too: the bound is the service's decision to leave and not the end of the process, since an `fsync` in the kernel holds the exiting process past it (seen only with four probes at once, 2.25 s to 4.25 s; `main` waits with no bound at all); a push cut off by a retire is taken up again only after about 120 s.
+  So its code is at the bar, and two things hold it: it stands on the landing branch, which is not in `main`, and the drain-ceiling branch (`f350db8065`, under review) changes the same two files. Its author's brief waits for that review, so that one brief settles both.
+- **Two more runs ended at 16:19.** The author of the push of a branch that is not checked out ended its thirteenth run at `a38c6dbcc7` and reports it **incomplete**: of the review's findings the first, fourth, sixth, seventh and eighth are fixed and the fifth closed in code; a staged `git rm` is still restored, `git rm --cached` still makes every command in that worktree exit 2, and four of the branch's own reconcile controls fail since its last rule change. A thirteenth run that stopped short gets a fresh run on a new branch from its tip. The fixture run for `env-local-json` ended at `74dbe1200e` (two files): the fixture joined a program's output at `exit` where the pipe closes later, the mechanism behind the driver suite's occasional "is not the JSON a sops store is"; a cut store reproduces that text, and 120 rounds cut none, so the rate stays unmeasured. Its review is to be queued. The idle-window review measured the rate on main on 2026-11-18 (its `keep/probes/`): that test file alone failed 5 of 6 rounds with 6 of 18 stores empty for their whole life, and a probe of the fixture's own shape with eight children in flight captured nothing in 4 of 80 waits for `exit` and the whole document in 80 of 80 waits for `close`.
+- Routed at 16:27: the fresh run that finishes the push-of-a-branch review is queued eighth (16:27:32; a new branch from `a38c6dbcc7`): the four failing reconcile controls first, then the review's scripts made to run here, then a staged `git rm` left alone, `git rm --cached` stopping no command, and the claim race with a stand-in Git that pauses; its brief says to commit before every revert, since the last author lost fixes twice to a `git restore`. The review of the `env-local-json` fixture change is queued third (16:26:47). Two reviews started in the freed places: the copy-owner branch as a delta since its last reviewed tip (three commits, 21 files), and the first of three parts of the queue of runs as a folder (the folder's mechanics, 24 files; the filling and starting, and the tests, follow as places free).
+- **Part two of the review of the driver's main-checkout branch is back, so the review covers all 33 files, and the author's ninth run is queued first (`e16721a36d`; the 11 test files; independent; an unchanged copy passed all eleven before each claimed behaviour was taken out of it).** What the tests hold: the read-only checkout (five files fail without it), the manager asked at all, the path encoding one escape at a time, the record of a killed start, the bounds on named-pipe reads. What they do not: nothing ties the launcher to the confinement (seven removals at that level survive, among them a unit handed no file system at all); the seven read-only entries of the shared Git directory are held only by a comparison against a copy of the source's own list; the socket rule has no test and its fixture's length check is wrong; the second answer, the ten-second bound and the asking itself can each be taken out with every test passing; **all four files that start real units pass having run nothing when no manager answers.** It confirms part one: the failing unit test is the branch's own regression.
+  The brief has the author first measure, in a unit of its own beside one built by `main`'s code, what the confinement costs ordinary work (`podman`, `newuidmap`, `git push -u`, a commit through the installed wrapper, `pnpm install`, a Cargo build, `rename()` and `link()` across the mounted folders), then answer the user namespace, the `EXDEV` and the `EBUSY` together as one matter of how the unit's file system is put together. **If no arrangement keeps both the protection and that ordinary work, it is told not to choose and to lay the arrangements out with their costs: that would be the owner's to weigh, since this repository requires runs to use `podman` and the branch's unit cannot.** The review's worktree is removed.
+- The second of three parts of the review of the queue of runs as a folder started in the freed place (the filling and the starting, with stand-in `systemd-run`, `systemctl` and `notify-send`; no real unit).
+- **The issue 6293 author ended its tenth run whole at `52cb9ea514` (16:33:38), with `main` merged and no conflict, and now waits for the branch it stands on.** It ran the review's scripts first and reproduced both of them at its tip, then answered the three findings that are its own: a note is taken aside by one rename and a live owner's note put back by a hard link that never replaces another's; the sweep judges only names its own writers make and never a writer of another PID namespace; a configured address of the `://` shape that Git refuses ends the push plan at once. **By its own account the control for the first does not hold the fix (it passes on the old code too); a seam inside the re-read is named as what would.** The findings that belong to the base (a silent takeover of a listener, named pipes, a relative `XDG_STATE_HOME`, an unusable `XDG_RUNTIME_DIR`) are unchanged, as the order adopted for these two branches has it. `SPEC.md` now records the rule adopted for a look that gets no answer in time ("nothing proven"), with its measured cost.
+  Next for it, once the no-manager author's fifteenth run has ended: merge that tip, a control that fails without the first fix, then a review of its own commits. Nothing is queued for it until then.
+- **The checkout-migration author ended its sixth run whole at `b785062e78` (16:40:18), and its review is queued first for the next free place (16:44:58): this is the branch that fixes the four ways `main`'s released migration loses a person's data.** By its report the three things the review said it brought are answered: `--remove-old` and `--rollback` no longer refuse or delete after the migrated checkout was used (an edit, a commit and an untracked file no longer stop the deletion, and the rollback carries the edit and the commit); every error path gives the index lock back; and the time under `.git/index.lock`, 40 s against 0.18 s in the review, is now about 1.4 times `main`'s by median over eight interleaved rounds (1.19 to 1.89), the whole migration 1.06 times. A new control found a missing refusal in the real run (a checkout with no record was deleted anyway) and closed it. `main` merged, 35 commits, no conflict in this package.
+  Named by the author as left alone: a rollback restores a file a person deleted in the checkout since, because the original tree is what survives; the kept folder is never deleted by anything; **this repository's own checkout, migrated by an earlier release, has no record, so its owner is refused once and shown both ways on**; one of its commits does not build alone. Not run by it: the container gate, a mutation campaign, one of the review's scripts.
+  The review is a delta since `9ef0169599` in two parts (17 source and document files; 12 test files), and it goes ahead of the third part of the queue of runs and of the `env-local-json` fixture.
+- **The tunnel tooling's author ended its second run whole at `cfc3777611` (16:47:00; `package/wg/cli-quicker`, 50 files in the range), and its review is queued second (in parts: source, then tests). Nothing of it is deployed, and none of its four host-changing tests ran on the host.** By its report the four things the review said the branch brought are answered, each with a control that fails with its fix taken out (a hook's background program keeps a working standard output; every refusal clears the readiness timer, 6 ms where it was 10 s; a link that was made and then reported as failed is rolled back), and **all five that `main` has are closed too, three of which removed a live tunnel's protection**: a claim of the table and the preference pair is written before the mark under one lock; a `down` deletes policy rules by their recorded numbers, so one tunnel's `down` no longer deletes another's; the kill and block tables are named apart; `up` and `down` share a lifecycle lock; `SIGHUP` is handled.
+  Limits it states: a tunnel an earlier build left has no claim, so its `down` removes no policy rule and says why; two starts of one interface at once, the second refuses; a `down` killed part way leaves the block table; a claim outlives an interface removed by hand. It says none of these lets traffic leave a tunnel believed up: that sentence is for the review to prove.
+  Host read by this session after the run: links `lo` and `wlp9s0` alone.
+  Deployment still needs: this tip reviewed, and the privileged tests run in a VM against it (owner: "In a VM, none on the host").
+- **The delta review of the copy-owner branch is back, and the author's fourth run is queued sixth (`a303cb638f`; the three commits since `03d56470fa`; the ten source files and one test file read in full, the other ten test files at their hunks; both wrappers built; scripts in sealed namespaces, 103 of 103 stand-in tallies at zero calls; nine behaviours taken out, each failing a control).** It fixes four things `main` has: a live owner's private-index copy, destroy record and merge-intent record, each removed by an ordinary command on `main` when the owner's birth is written another way, are kept; and an unreadable process entry no longer stops every command at once.
+  **What it brings:** past two minutes, a merge-intent record whose owner cannot be told makes `git status`, `git add` and `git commit` all exit 2, and a stage claim in that state makes `git worktree add` exit 2 (`main` exits 0 in both, in the first by removing the record of what may be a live merge); no test holds the arms in which a platform's refusal becomes "cannot be told"; and the private-index sweep names a kept copy only through a warning that `MONOCHROMATIC_WARN=false` switches off. `main` has too: a blank birth read as dead (a live owner's copy removed); a destroy record kept for ever and named only by that same warning; an `rm` in a JSON line that cannot be copied for a path with quotes.
+  How the brief reads the owner's "A: stays, command says how" ("past it the command stops or prints words naming the record, the owner, its age and the exact `rm -- <path>`"): the words reach the person where no switch hides them, on every surface; and stop or print is settled command by command, a stop only where going on beside the record could lose or mix a person's work, since commits should never fail. A `git status` that exits 2 over a record it only reads is the case the author is told to look at first; a case it cannot settle keeps the stop and is named as open. **That reading is this session's and is open to the owner's veto.**
+  Slip of this reviewer: its first four scripts ran the built wrapper with the session's own environment; it reran them sealed and set the old outputs aside. Read afterwards: 13 Pi units going and no failed unit of the wrapper.
+- **The answer to the second pass of the pool changes ended whole at `ecec388cdb` (17:00:13; a fresh Pi run on `opencode-go`; 13 files), and its review is queued third (17:05:15), an independent one this time since a Pi run wrote it.** By its report a caller's `PI_RUNS_POOL_LIMITS` now reaches the unit a batch runs in (shown by the unit's command, by a real unit of its own reading the value back, and by the gate given that value; no batch was started, as its brief forbade), each pool rule has a test that fails without it, a run refused room by a closed pool is told the reason, and the words are corrected; it left the wall factor's value alone. It used a short `python3` rewrite for seven literal replacements in one test file, against its brief, and says so.
+  **Its own worktree, made by a unit, could not import Pi for want of `proper-lockfile`: so the link defect is not only this session's shell.** That and the one worktree whose link resolved (made by the prepare script) are added to the brief of the run that looks for the writer of that link, which is told not to take the home folder's spelling as the cause before its reproduction shows it.
+- **Second timing of the two pools, now with eight runs on `opencode-go` (window 16:35:00 to 17:05:33, feeds of the going runs, numbers alone): `opencode-go` medians 4,232 ms to 7,306 ms an answer over eight runs (23 to 172 answers each; 47 to 89 output tokens a second), flex medians 39,811 ms to 62,554 ms over six runs.** The first reading had one and two runs there (3,034 ms and 5,492 ms), so the pool's time for an answer did not grow with eight going. On these two readings the pool needs no doubled wall; its factor goes from 2 to 1, with both readings written beside the value, as a follow-up on top of the pool-limits answer once that is reviewed and in `main`, since both change `pool-limits.ts`. Output: `~/temp/agent/opencode-go-pool-reopened-on-the-owners-word-2026-11-16/keep/model-time-per-answer-of-the-going-runs-second-reading-with-eight-runs-on-the-pool.txt`.
+  At 17:05:32, 13 Pi units were active: eight on `opencode-go` and, by the counts line, six on flex, one of which had just ended.
+- **The owner confirmed the reading of "stops or prints": "Per command (Recommended)"** (under "Owner decisions in force", "A record that cannot be judged stops a command only where going on is unsafe"). The copy-owner author's brief already carries it.
+- **Part one of the review of the queue of runs as a folder is back (`3d66e76ff0`; the folder's mechanics; 24 of 24 files; independent; real processes against queue folders of its own; no Pi run, unit or filling started).** What holds: exactly one claimer in 900 rounds with two to four processes; puts at a position with three and four processes at once lost, doubled, reordered and misplaced nothing in 350 rounds; 25,600 order keys in sequence; no write outside the queue's folder and no wait without end; names are escaped in all 24 files. Of the sixteen earlier findings in this part, most are answered: a move no longer resurrects a started entry (0 of 200, where it was 53), a take refuses a claimed entry, "gone" has the start moment.
+  **New, by what it costs:** the sweep deletes aside files by the entry's old modification time, so an entry a killed take set aside is lost at the next pass (4 of 600 with a take in flight); a settlement killed at two of its four steps leaves a started entry queued, and a filling then starts it again; the rename back after a rename aside writes over whatever took the free name (a claim doubled, a put lost; placed by a hook, not found without); one empty claim file stops every pass, and claim reads threw 981 of 95,025 times under churn; the changeover from the one-file queue can still start an entry twice or lose one whose name holds a newline; two names that differ only in an emoji escape to one file name; a name ending `.service` breaks the unit-name round trip, so a place is not counted and one run too many starts; a second set-aside record nothing can reach; wrong words.
+  The author is held for the other two parts (the filling and the starting, going; the tests, not started), then one brief.
+- **The review of the drain-ceiling fix is back (`f350db8065`; 2 of 2 files; independent; both builds; a sleep stand-in for syncs inside the service's own process; stand-in manager programs recorded no call over 49 outputs), and it settles the question of the two branches: they do the same thing twice.** `f350db8065` puts a ceiling of 5 s inside `drain()`; the retire branch's `7505c9a1bb` puts a bound of 2 s in a new function, also fixes the slow lane, and conflicts with it as text. **So the retire branch goes on and the drain-ceiling branch is not merged; it is set aside once the retire branch carries its measurement.**
+  What the review established, which the retire branch's bound rests on: for each record the way out covers, a service that ends with its sync unmade leaves nothing `main` cannot already reach by a `SIGTERM`, and recovery is the same on both builds. With every sync held 40 s, a retire ended in 5.003 s on the tip where `main` had not ended at 150 s. What it found in the fix itself: the ceiling is one wait for a queue of four batches; the measured figures are sums of parallel syncs set against a wall-clock wait; `drain()` is shared with eight call sites in controls; four comments and a doc made untrue; and no control fails without the change.
+  The retire author's second run is queued seventh (17:09:25) with one brief for both reviews: a control that fails with the release of the waiting batch alone taken out, one bound with the measurement and its true reason beside it (2 s is below the slowest measured batch, 2,214 ms, which is allowed only because a sync left unmade is harmless record by record), what `drain()` gives controls, the words, and where each thing of the other branch now lives. Both review worktrees are removed.
+- **The tool manager author ended its seventh run whole at `185ac9d3c1` (17:05:53; about an hour on `opencode-go`), and its review is queued fourth.** It ran each finding on `main`'s build and on its tip first: **for most of them `main` kept the version and the tip removed it, so they were the branch's own and worse than the review's sorting had them.** Fixed by its report, each with a control failing at the reviewed tip: a lock written after the read (locks are read again just before a version leaves its name); a worktree on an unmounted disk and an unknown lock route (the cleanup stops); a process in another PID namespace (the scan says when it cannot see the machine); the size cleanup on the owner's age rule; a stale claim beside a gone version; a program whose output never ended; the claim take, now writing identity in place under the claim's own lock (its control failed 16 of 300 rounds on the old take). A directory moved through a planted link goes back to its own name. Controls added for the protections that had none. `main` merged without conflict; 904 tests run and passed.
+  **One row to check hard in its review: another repository's lock, where by its own table `main` kept the version and the tip removed it, is written as a stated limit and not fixed.** Not answered: the test-shape findings (part two's 6 to 11).
+- The third and last part of the review of the queue of runs started (what its tests prove), and both parts of the checkout-migration review are going.
+- **Part two of the review of the queue of runs as a folder is back (`3d66e76ff0`; the filling and the starting; 22 of 22 files, the README by its changed sections; independent; 240 throwaway fixtures with stand-in `systemd-run`, `systemctl`, `mise` and `notify-send`, 2,320 stand-in calls recorded and no real unit; real processes for the kill matrix).** What holds: a filling killed before each of its counted steps and recovered by two further passes left no entry lost or doubled in 58 rows; names with a slash, `..`, a leading dash and shell text landed nothing outside the queue's and runs' folders; a put-back now carries its identity.
+  **New, by what it costs:** an entry leaves the queue once its unit is made, and nothing returns it if the batch then fails, so the queue can drain with no record; a start can be made twice (a filling killed with `systemd-run` in flight, the 30-second timeout giving up on a unit the manager later makes, a put-back of a review whose launch is still waiting); more runs than the level asked for (the count fails open when the listing of launchers fails, and two fillings counting at once pass the level); a nonsense claim file, a blocked record or a half-written `summary.json` stops the queue for every entry; **put-backs have no cap: eight attempts that each ended on the quota answer were put back eight times, each a paid run**, and a review file headed "Non-final draft" reads as final; a Git question killed at its bound sets the entry aside as the entry's own failure; a `reviewOfRange` of `--output=<path>` makes Git create or truncate that file; options taken silently when repeated or unknown; two of the commands have no `bin` entry. Like `main`, the batch's unit drops a caller's `PI_RUNS_POOL_LIMITS`.
+  Two of three parts are back; the author stays held for the part on the tests.
+- **Integration pass 58 answered "not fit" (ended 17:21:12 after 249 minutes; report `~/temp/agent/integration-pass-58-scratch/keep/report.md`), so nothing is merged and no release follows.** The removal the landed-removal branch (`915ef30e09`) is for does keep the Git work `main` destroys, measured through a running commit service (`main` loses three objects of a detached worktree whose only name is its reflog, and a hidden edit; the tip keeps both). **What stops it is five controls that pass on a build of `main` and fail at the tip, alone as well as in the suite, and which are not among the review's six findings:** two of `invocation::` (the branch reads into a shell alias, so `git fixup` with `alias.fixup = "!git -C <repo> reset --hard"` is refused where `main` runs it) and three of `worktree_ladder::` (a removal name that differs only by case, one two registrations match, and a worktree of another repository are refused early where `main` leaves the name to Git). Whole suites otherwise: library 7,989 of 7,991, binary 1,258 of 1,263, the other two failures being the lock-holders pair `main` has too.
+  A fresh run is queued first (17:27:10; name `landed-removal-passes-every-control-main-passes-shell-aliases-forwarded-unread-and-three-removal-names-settled`, a new branch of that name from `915ef30e09`). The alias reading goes, by the decision "Forward them unguarded". For the three names it establishes what real Git does when the name is left to it; `main`'s controls stand unless leaving the name to Git is shown to lose work. Then a short review of its delta and pass 59.
+  The lesson for the launch prompt of a review that may clear a branch: it runs the whole of the modules the change touches on both builds, and not only the branch's own controls.
+- **Four authors ended within two minutes of the pass (17:21 to 17:22).**
+  **The empty-tree fix's fresh run ended whole at `3822c44c2f`** (branch `fix/git-policy-cli-commit-built-from-a-drawn-shadow-tree-holds-what-real-git-would-commit-during-a-stopped-revert`): its brief's diagnosis was inverted. The private index was right; what was wrong was the tree a commit of named paths was held against (the whole index's, where real Git lands the base tree with the named paths' working copies). All five names that passed on `main` and failed on the branch pass now, the fix's control fails with the fix taken out, and the sixth (`subvolume::…deletes_the_old_tree`) fails on `main` alone too, for a lock-holder record the migration meets. It wrote a handover entry on its branch, which the pass that takes it must settle against this file. Its review is queued second (17:29:19): `main` and the installed release keep the empty-tree window until this is in.
+  **The commit-does-not-wait author's sixth run ended whole at `85e5e20476`**: no refusal at all any more (a service with no place lands as `main` does), the step record in memory alone so a pipe at `busy/step` no longer hangs a commit, the source guard shown failing on three plants, the thirteen controls that failed together separated (one fixture and one hold each); cost against `main` interleaved, 8 rounds of 12 commits, ratio median 0.951 (tenth 0.796, ninetieth 1.111). Review queued sixth.
+  **The wake author's second run ended whole at `a2f64e8f36`**: a wake no service took is no longer answered as delivered; a landed commit's unconfirmed hand-over says what is known and both push orders against a real bare remote lose and double nothing. It kept the add relinking itself when no service took the wake and measured the other choice (return at once, record pending: a service that knows the repository takes it 4.9 s later, a service started plus one command 0.3 s, a service started with no command never in 30 s). That choice is the owner's. Review queued seventh.
+  **The main-checkout author's ninth run ended whole at `7751ffbaca`** (228 unit tests pass; `main` merged): the three Git commands that exited 0 having recorded nothing now record; a start is refused only when the manager does not answer (21 ms where it was refused); a refusal after the worktree leaves a record; the page lists every hole. **By nine measured variants, any path property of a user unit puts it in a user namespace of its own mapping one uid, so `podman` and `newuidmap` fail inside whatever else is set, and each writable folder is its own mount, so `link` and `rename` across them end `EXDEV`.** It did not choose and laid the arrangements out.
+  **A measurement of this session's at 17:29:13 widens them:** a transient service started with `systemd-run --user --wait --pipe` from inside a unit that has `ReadOnlyPaths=` reads `0 0 4294967295` in `/proc/self/uid_map`, where the unit itself reads `1000 1000 1`. That is all that was measured: the namespace of a service the account's manager starts on a run's request. `podman` itself was not run through that route, and a container started that way is outside the confinement and can mount the checkout writable, one more stated hole beside the transient-service one. Whether a run gets containers that way is the author's tenth run (started 17:31; brief `pi-run-cannot-write-into-the-main-checkout-a-run-inside-the-confinement-can-still-run-containers-through-the-accounts-manager-prompt.md`), and whether the project wants that route is put to the owner. What stays a cost of any mount-based protection is `EXDEV` (Git, pnpm and Cargo were measured working).
+  The landed-removal fresh run had started before its brief was held against the decision's own lines (this file, "A shell alias and the guard on a worktree's removal": "Every `!` alias is passed to real Git as it is; all aliases keep working with no opt-out"). The brief's sentence says the same in other words and bounds the change by "both controls pass as `main` wrote them, unchanged"; its delta review checks that the diff of `invocation/forwarded_command.rs` against `main` removes only what the branch had added.
+- **The owner answered two questions between 17:33:37 and 17:36:00** (under "Owner decisions in force", "A `worktree add` relinks by itself when no service took its request, and a Pi run is confined with its containers started by the account's manager"): the wake branch's relink in the add stands, and the driver branch keeps its protection with containers started by the account's manager, `EXDEV` being a stated limit. Round checks at 17:33:38: 13 Pi units going, none silent, no launcher outliving a run, no process in an ended run's worktree, 0 of 16 runs ended since 16:02:02 without masking or with a failed driver.
+- **The no-manager author's fifteenth run ended whole at `7683cdd75f` (17:41:07; `main` merged twice; 34 files changed in the round), and its delta review is queued fifth (17:46:20).** By its report, each with a control failing at `e347be3115`: a connection of another account is refused and told nothing (the client asks `SO_PEERCRED`); a silent service is ended and replaced where it cost about 120 s (a commit behind one: 2,373 ms and lands, against `main`'s 10,164 ms and a failure); a start killed part way is made once more inside the same bound (307 ms against `main`'s failure after 9,051 ms); an owed push after a dead service is named at once; `service stop` ends a stuck service after its bound; reads of the program's own files no longer hang on a named pipe (47 ms to 137 ms where the review saw no end); the detached service leaves its caller's descriptors and directory; a retirement takes only its own note. The journal-line author's second run also ended (17:30:25, `99beeadef8`, by its own word fit to merge with two limits); review queued eighth.
+  **For its review to weigh first: "silent" is a beat file older than two seconds (`BEAT_PATIENCE`, the beat moved every 500 ms by a thread of the service's own), and a command that reads one ends the service.** On this machine a drive has stalled for 14 s and a stopped process says nothing either, so the review is asked what a live service ended this way loses, where the beat file stands, and what measurement the two seconds rest on.
+  Open by its report: a relink owed after a dead service and the push half of the owed push (both wait the 120 s claim lease, since a claim records no holder); two runtime directories giving two services for one worktree, which it leaves to the owner; the service's control group, limits and environment are still its caller's. The round it named after this one (part three whole, the dropped controls, the source guards, the words) is still owed. Issue 6293's eleventh run is briefed after this delta review.
+- **The third and last part of the review of the queue of runs is back (`3d66e76ff0`; what its tests prove; 14 of 14 files; independent; the unit suite on the unchanged tip 222 passes; 37 behaviours taken out of copies one at a time).** All nine controls the author named fail with their behaviour taken out. **Fourteen behaviours survived every queue test, the central one among them: a claim that is checked and then written, in place of one exclusive link, passes everything, since no test has two claimers at once** (the reviewer's own two-process script: both claimed in 6 of 50 rounds on that variant, 0 of 50 on the branch's code). The two multi-process tests fail under no removal of the exclusive create; "two fillings at once" is two promises run one after the other; the kill stand-in does not reach `appendFile`, `mkdir`, any read or the take command's printing, takes no counted step in `settle`, and never kills a filling between claim, start and completion. It reproduced, as defects of the source, the entry deleted an hour after a killed take, the entry started twice after a killed settlement (2 of 4 kill points), the changeover queueing an entry again, a bad claim file stopping the pass, and the emoji collision. By default the tests write under the real home folder.
+  **The author's sixth run is queued third (17:51:27) with one brief for all three parts and one subject: no entry is lost and none is started twice, whatever is killed and whatever fails, with a test that fails without each protection** (tests first, each shown failing on the reviewed tip or on the reviewer's kept patch; then the fixes; then the tests' own faults). Named for the round after: more runs than the level, what stops the queue for every entry, the put-back with no cap, the names, the options and the words. The review worktree is removed.
+- **The review of the empty-tree commit fix started (`3822c44c2f`, delta since the reviewed `b92347ebd3`).** Its first questions: whether any commit lands with a tree real Git would not make, for every form of commit, with the scratch folder removed at each step; and whether the guard refuses anything real Git lands. By the lesson of passes 57 and 58 it also runs the whole of every module the range touches on a build of `main` and on the tip, once each, and names each test that passes on `main` and fails on the tip.
+- **The owner has the new SSD and asked for the machine to be made ready for a reboot (about 17:58): "Let everything already running run to their conclusion and sort out the system until it's good to reboot. Tell me when is a good time to reboot."** So nothing new starts: no Pi run, no review, no probe, no filling unit. The filling unit was stopped between two of its rounds at 18:01:34 and none was started in its place; thirteen Pi runs and five reviews are going and end by themselves. Entries stay in the resume queue in their order, the queue author's sixth run and the retire author's second among those the filling unit had not started.
+  Read at 18:00: `main` equals `origin/main` (`93f91a5dff`); no container is running. **Corrected after 18:03:57: `~/temp` is a link to `/var/mnt/encrypted/temp`, so the scratch `~/temp/agent` (the resume queue, every brief, every review file, every report) stands on the repository's SATA drive beside the repository, and not on the home folder's NVMe drive as first written here** (the first reading asked which drive holds `/var/home` and did not follow the link; `realpath` gave the answer). So one drive holds both, and the copy of the scratch's text goes to the home drive. Before the reboot: each run and review read and recorded here as it ends; every worktree checked for files not committed and commits `origin` does not hold; a copy of the scratch's irreplaceable text on the other drive; how to start again written here; this session's own units stopped. The scripts and their outputs are in `~/temp/agent/getting-the-machine-ready-for-a-reboot-2026-11-16/`.
+- **First readings for the reboot (18:02:52): of 175 worktrees, 123 hold nothing that is only on this machine, 50 hold files not committed, and none holds a commit that `origin` lacks.** Thirteen of the 50 are going runs'; the rest are leftovers of ended runs and of other sessions (the main checkout's six files among them). Each one's uncommitted work is saved as a patch, a status list and its small untracked files under the reboot folder's `keep/uncommitted-work-of-each-worktree/`, with no worktree, index or branch changed; the saving is run again when the last run has ended.
+- **The landing author's tenth run ended whole at `d12acf3d2a` (17:59:17; branch `fix/git-policy-cli-landing-never-waits-with-a-control-for-each-finding-a-green-guard-and-main-merged`; 90 source files in the range; `main` merged).** By its report the three reviews of `04b80a66cb` are answered in one table (sixteen findings the branch's, four `main`'s), each change with its control's failing output: the look cut 50 s inside its own bound (reproduced on its build by the reviewer's script, then fixed), the leftover listed first, the non-UTF-8 name, the orphan target, the slices of a four-CPU host, the finishing batch, the queued wake, the silent service. It says why five stand-ins had gone red unnoticed: its per-batch check ran no tests and named only the modules it had changed. Ceilings: item 120 s (a decision), settle 30 s, look 150 s as the moment the lane stops waiting, lease the look plus 90 s, with no measurement at that lease recorded. Its review is entered in the queue (delta since `04b80a66cb`, in parts); nothing starts it before the reboot.
+- **Part two of the review of the checkout migration is back (`b785062e78`, delta since `9ef0169599`; what its tests prove; 12 of 13 files, the thirteenth deleted by the round; independent; 187 of 187 on the unchanged tip, one instrumented copy with each behaviour taken out by a switch).** Tests fail without: the give-back of the locks at the exchange's error path and at the end, the retaking before the index rewrite, the release on a failing proving pass, the refusal of a checkout with no record, the carry of an edit and of a commit's id through a rollback, a branch named `index`, a person's `.lock` file and a restored file. **No test fails without: the stage's and the old tree's locks in the give-back lists, taking the index locks at all, the `--accept-the-unrecorded-old-tree` flag's effect and parser arm, the preview's refusal for an unrecorded old tree, the removal of the left-out and old-tree records, leaving `.git/objects` out of the carry back, and the lines that say where a deletion kept an entry.** The "six points" are two calls held by one looping control.
+  **None of the thirteen files runs on a real subvolume (all use plain directories), and a probe shows the keeping of an entry out of a real subvolume fails `EXDEV`, so a rollback with anything to keep would refuse where every stand-in control passes.** A lock leak remains: when the second lock is another Git command's, the migration's own `.git/index.lock` stays and `git add` then fails. The commit carried through a rollback is compared by id and not by object (with `.git/objects` left out the test passes while `git cat-file -e HEAD^{commit}` fails); no control carries an untracked file through a rollback or a removal after use; an empty `CLI_GIT_TEST_ROOT` makes fixtures land in the package folder. The eight data-keeping controls of the round do compare bytes.
+  The reviewer discloses one `pgrep -c -f` call made by mistake (a count, its output discarded), a first build that let `rustup` download a toolchain into its disposable home (deleted, rerun with the real stores read only), and 19,133 empty `process-<pid>` folders left in its test root. Part one (the source) is still going; the author is briefed with both after the reboot, and the review worktree stays until then.
+- **Two more runs ended while the machine is made ready (nothing started in their place); each has its review entered in the queue.**
+  **The driver's scan for work a run left running, fourth run, whole at `58bfdf1ced` (18:14:52; branch `fix/pi-shared-subagent-driver-scan-for-work-a-run-left-running-treats-a-process-that-has-gone-as-gone`; 209 unit groups pass; `main` merged, one import conflict kept both ways):** all five findings answered by its report. The span a run may sit on unreadable work is counted by the clock (30 s by the owner's "A shorter limit, then end as failed"); the ending names the work it knew of and keeps the worktree; a process is told by the kernel's start in ticks on both sides and nothing reads `btime`, so a clock step cannot turn a live process into an ended one; it cannot tell a record with no ticks or a process in another PID namespace, and the README says so. It discloses that it restored two files from an older commit by mistake and put them back in `acb779369a`. It did not run the review's real-`/proc` script, as its brief limited it to stand-ins.
+  **The work-record author's third run, whole at `1d5ad2597d` (18:19:07; branch `fix/git-policy-cli-work-record-the-service-settles-is-moved-by-one-owner`; guard and changed modules 247 of 247):** F4, F5, F6 and its own half of F10 fixed, each control failing with the fix withdrawn; F1's notice now names both ways a try is spent. **Two reads on the command path still hang on a named pipe in `pending/` and `failed/`, on `main` as on the branch (about 20 s bound in its controls, committed ignored with the files named: `service_handoff.rs`, `worktree_remove_hand_over.rs`).** Cost interleaved, eight rounds: ratio of medians 1.27, inside the same-arm spread. F2, F3, F7, F8, F9 and F11 unchanged, one line each.
+- **The review of the commit of many changed files is back (`a13faa0d55`; 11 of 11 files; independent; three builds, eighteen differential scenarios with real Git on already-corrected content as a third oracle; release builds timed interleaved, eight rounds).** **No tree, index or file differed from `main`'s in any scenario.** Medians, tip against `main` against real Git: 20,000 edits 3.99 s, 10.53 s, 0.092 s; 20,000 new files 5.23 s, 11.50 s, 0.095 s; 20,000 renames 4.45 s, 19.14 s, 0.086 s; 10,000 final-newline corrections 7.53 s, 160.9 s, 0.049 s. Ratios of tip to `main` by round: 0.37, 0.43, 0.24 and 0.05, with `main` against itself between 0.91 and 1.03. So the branch is two to twenty times faster than `main`, edits and renames meet the five-second rule by median, **and new files (5 of 8 rounds over) and corrections (8 of 8) do not, against the author's report for new files.** Memory grows with the count of paths in the client (16.8 MB at 2,000 edits, 39.8 MB at 20,000), as on `main`; the author's sentence that it does not is false as worded.
+  It brings three low things: a prepare killed mid-batch leaves `commit.corrected/`, a full copy of the corrected bytes, in the scratch folder until the 24-hour sweep; a failed batch is dropped with no log line (a repository folder with a newline in its path made every correction go one at a time, silently; the fallback itself is right); the new correction control does not see two corrections' blobs swapped. `main` has too: a commit of 1,100 files with 2.5 KB paths fails with `Argument list too long`; a Git child killed holding the private index lock fails one commit; candidate preparation is more than linear (1.89 s at 20,000 new files, 7.76 s at 40,000).
+  For after the reboot: a brief for its author's third run with the three it brings, and the five-second rule for new files and corrections as the open measure of task 133. The review worktree is removed.
+- **Three more runs ended whole between 18:22 and 18:26 (nothing started in their place); each has its review entered in the queue, the first of them at the head.**
+  **The landed-removal fresh run, at `00ba90b007` (18:23:51; branch `fix/git-policy-cli-landed-removal-passes-every-control-main-passes-shell-aliases-forwarded-unread-and-three-removal-names-settled`; `main` merged with no conflict):** by its report the five controls of `main` that pass 58 saw failing pass (2 of 2 and 3 of 3), `invocation::` whole 352 of 352 with `main`'s alias controls, `worktree_ladder::` whole 10 of 10, the branch's own 53 library and 31 binary controls and the three guard modules green, and the pass's "ordinary work is not refused" step exits 0 on real Git, on `main` and on the tip, an alias carrying `-C` among them. For the removal names it measured what Git does and changed the branch's own control from the wrapper's status 1 to Git's 128 with Git's words, with a new control that separates the worktree Git picks from the names Git refuses. **Its delta review goes first after the reboot, then pass 59.**
+  **The retire author's second run, at `bdcdbca2d6` (18:22:28; 112 commits behind `main`, as its brief asked it not to merge):** a control and three unit tests that fail with the release of the waiting batch taken out; the four ways out each tested at about 2.0 s; the closed-queue arm shown reachable; the bound of two seconds kept with its reason record by record and both branches' measurements beside it (the lock marker named as the one record that is not free); `drain()` keeps waiting without end for the controls and only the ways out are bounded; everything the drain-ceiling branch `f350db8065` held now has a named place, so that branch can be set aside. One guard test fails for the landing branch's file it stands on.
+  **The discarding-guard fresh run, at `be13e799eb` (18:25:54; `main` merged twice with no conflict):** generated controls with none lost (walk 154 rows, revision axis 56, clean half 56 with no refusal where Git ran, difference axis 90), false refusals 14 to 8; cost against `main` interleaved: `checkout -f` 0.43, `reset --hard` 0.49, **`restore --source` 2.42 (0.79 to 3.09), the written-path reading the range added**; still refusing where Git rejects: `other@{upstream}` and `reset --hard -f`, each "could not find out" with Git's answer quoted.
+- **Part one of the review of the checkout migration is back (`b785062e78`, delta since `9ef0169599`; the source and documents; 16 of 16 files; independent; three wrappers built, about fifty scripts on Btrfs fixtures of its own, stand-in manager programs recorded no call), so both parts are in and the review worktree is removed.** **All four ways the released migration loses a person's data reproduce on `main` and none on the tip** (the older-dated file, the write to a file equal at the listing, the write into hard-linked names, the file turned into a pipe, where `main` hangs holding `.git/index.lock`); `--remove-old` after the checkout was used is answered (an edit, a commit, a branch, a stash, worktrees, a submodule, a non-UTF-8 name and a stopped merge all survive); 257 kill points over migrate, removal and rollback left no byte missing and no stuck state after a rerun; the lock is held about 1.95 times `main`'s at 1,001 files where the earlier tip was 79 times.
+  **The rollback is what the branch still brings, nine findings:** it leaves parked copies in `.git` so `git fsck` errors, with words that say the replacement was "interrupted"; its keep fails `EXDEV`, so the promised kept folder never works for a rollback and the command refuses after the trees were exchanged saying "Nothing was changed"; it refuses after the exchange when the person commits or edits in the restored checkout; a later keep of the same path overwrites an earlier kept entry (bytes lost); `--accept-the-unrecorded-old-tree` skips every protection even when a record exists; a stray link or folder at the record's name stops every command; the printed `rm -rf '<path>'` is unescaped; six stale or false places in the pages; **and hardest: rollback, a second migration, the same file edited again, a second rollback: the refusal gives a false cause and following its remedy (`--discard-left-out`) deletes the second edit, where `main` carries it.** `main` has too: a rollback restores files deleted since the migration and says nothing; after `git pack-refs` a rollback puts a branch back at its old commit.
+  It left 48 idle `inotifywait` processes of its lock-hold script behind and held no numbers for them; they were found by program name and by the review folder in their command lines (48, started 17:45:37 to 17:59:20), sent `SIGTERM` at 18:33:28, and none was left a second later. For after the reboot: one brief for the author's seventh run with both parts, the rollback as its one subject (it is a seventh run: if it stops short, a fresh run).
+- **Two more runs ended whole at 18:29 and 18:30 (nothing started in their place); each has its review entered in the queue.**
+  **The stopped-push author's sixth run, at `44647d7aa6` (branch `fix/git-policy-cli-push-stopped-at-its-window-ends-within-its-bound`; `push::` 578 of 578, the three guard modules 36 of 36):** the sweep a stop owes is recorded in the repository's own Git directory (its control fails with the record taken out); the guard now follows the stop's path from the code over 152 files and went red on all five planted shapes; the slow-push control pushes a payload that does not compress, with a tripwire that sees the push's hook. Unchanged and said so: a `setsid` child the stop cannot reach (finding 5, reproduced by the new tripwire), finding 6's size, finding 7 by the owner's decision.
+  **The held-push holder author's fourth run, at `930d3c6c62` (branch `fix/git-policy-cli-held-push-holder-spelled-another-way-is-never-taken-for-gone`; changed modules 256 of 256):** the review's items answered, each with the old reading put back and its controls failing (five of five for the start tick with no tag); an empty `birth=` is read and judged by the number; the number is asked before the boot part. Left as they are: a padded PID namespace and a machine part that cannot be compared. One binary control fails as it does on `main`. It passed commit messages with `git commit --file`, which it discloses.
+- **Three more runs ended whole between 18:35 and 18:39 (nothing started in their place); each has its review entered in the queue.**
+  **The driver's main-checkout author, tenth run, at `b75c20af41` (18:36:45; 228 unit tests pass; `main` merged): a run inside the confinement can run containers.** A program named `podman` in the run's folder hands each call to a transient service of the account's manager: every argument one for one, the run's working folder, standard input and both outputs passed through, the exit status returned, the account's `podman` named by absolute path (found by measurement: without that the service found the program again and recursed until systemd refused the unit name). Probes in a confined unit, without the route, with it, and in a loose unit: `podman run … /bin/true` fails, then exits 0; a container writes into a mounted scratch folder; an exit status of 3 comes back as 3; `podman build` and `podman unshare` work; the checkout is `EROFS` to the unit and writable by the route's service, which is the new hole on the page. No time attributable to the route was measured (the spread is larger than the difference). **A container does not end with the run: it is outside the unit's control group and is still going after the unit is stopped or killed; a function removes, by a label naming the unit, what an ended run left, and that is not yet proven against a real run.** No new test holds the route (the probes do, and the report says so); the four real-manager files still skip by `return`. `podman ps --all` read at 18:39 lists no container.
+  **The queue author's sixth run, at `40c29379bf` (18:35:12; 222 unit passes; `main` merged):** a test hands one entry to exactly one of two real processes; a whole command and the settlement are killed at each step and recovered by two more passes; the stand-in now counts `appendFile` and `mkdir`; the sweep no longer deletes the file a killed take set aside (the review's script: 600 takes, 0 lost, where it was 4); the settlement takes the entry out before its claim; the rename back links, so a taken name is refused; the fourteen survivors each have a test or are shown not to be a behaviour; fixtures moved out of the real home's cache. **Not closed and said on the page: an entry whose batch fails after its unit exists, and the moment between the manager accepting a unit and its output file existing.**
+  **The renamed-subvolume fresh run, at `5d4e355e36` (18:39:07; `main` merged; the Btrfs controls ran on its own fixture root):** the false "attempts ran out" words are gone (a pending attempt is no longer read as spent) and a control proves the place of a removal survives a look; findings 7 and 8 are `main`'s and unchanged. It did not repeat the review's burst rate for the scan's cost, so that stays for its review.
+- **Part one of the review of the tunnel tooling is back (`cfc3777611`; the source and documents; 28 of 28 files; independent; every command that writes network state run inside namespaces of its own, the host's namespace identity compared first).** Read afterwards by this session at 18:48: the host's links are `lo` and `wlp9s0` alone, as before. The reviewer could not list the host's nft tables (not permitted), so its before-and-after files prove nothing about them; nothing that writes them ran outside a namespace.
+  **The author's sentence "none of these lets traffic leave a tunnel believed up" is broken three ways.** With a tunnel `main`'s build left: `up A` by `main`'s build killed after the mark is set, `up B` by `main`'s build, `down A` by this build, and B's rules are gone and a packet leaves by another link; `main` has this too, **and it stops any deployment, whoever has it.** With a claim file edited to name another tunnel's table and preferences, `down A` deletes B's rules. With interfaces named `block-<x>` or `kill-<x>` beside `<x>`, the cleanup of the old table name removes another interface's block. **With this build's own commands and untouched state it found no leak:** a kill, signal or refusal at every external command of `up` and `down`, all 72 orders of three tunnels, IPv4 and dual-stack.
+  Of the nine earlier findings: seven answered; the hook's background program now meets a closed pipe at exit and the page's "wg-quick has the same limit" is false; the suppression and the stale mark are answered for tunnels with a claim and not for claimless ones. New that the branch brings: the old-table cleanup; a claim reused and deleted from by number without asking the kernel; a damaged or empty claim wedges `down` and every automatic `up` with no words; two `up`s of different interfaces at once, one fails; lock holders die with a group interrupt; **`flock` follows links planted at the two new lock paths, so whoever can write `/run/wg-quicker` makes root create empty files at paths of their choosing**; README gaps. `main` has eight more, a half-done `down` that blocks the whole machine among them, and its README lists the `bypass` and `route` tasks that run `sudo ip netns add` on the host.
+  **The reviewer discloses that its first two runs ran the tool with the main checkout as working folder: the tool's logger wrote into the checkout's ignored `node_modules/.monochromatic/2026-11-16/`, and a transient configuration with a throwaway key went to `node_modules/.monochromatic/wg-quicker/` and was removed by the tool.** Read at 18:48: that folder is empty and the checkout's `git status` shows the usual six files and one untracked. Nothing is deployed. Part two (the tests) is not started and waits for after the reboot, in the same worktree, which stays; then one brief for the author.
+- **Two more runs ended at 18:50 and 18:51 (nothing started in their place); each has its review entered in the queue. One Pi run and one review are still going.**
+  **The copy-owner author's fourth run, whole at `eaacf58e50` (branch `fix/git-policy-cli-copy-owner-and-transaction-owner-spelled-another-way-are-never-taken-for-gone`; changed modules 1,609 of 1,609, binary controls 48 of 48):** by the owner's "Per command", a young record no longer stops `worktree add` (both adds exit 0, where the younger exited 2); the telling moved off the warning channel to the notices step, so it survives `MONOCHROMATIC_WARN=false`; the platform-refusal arms have seam controls that fail with the arm taken out; a copy whose owner record is no token is kept and named; the printed command is run in a control for a path with a space, both quotes and a newline; the claim's words name the stage the `rm` leaves and its own `rm --recursive`.
+  **The review-briefs author's fourth run, at the branch tip named in the queue entry (branch `feat/pi-shared-subagent-driver-review-briefs-demand-what-was-read-and-run-and-a-review-that-ran-nothing-is-started-again`; 224 unit passes; `main` merged four times):** commands run through `mise run`, `mise exec`, `systemd-run`, `bash -c`, `time` and `cargo nextest` now count as run; a stale start marker has exactly one owner in 300 of 300 trials (two in 2 of 300 before); only `--start` starts a second review. Over the same 32 real reviews of 2026-11-16 the check accepts 7 where it accepted none, and would start 25 again. **It says the fixes existed before this turn, so the failing-first cycle per finding was not done; the tests that would fail without each fix are named in its report.**
+- **The last Pi run ended at 19:17:27, so no Pi run is going: read at 19:22:00, no unit named `pi-*`, `launch-*`, `fill-*`, `wait-*` or `disk-*` is active.** It is the fresh run for the push of a branch other than the one checked out, whole at `52701f4a5b` (branch `fix/git-policy-cli-push-of-a-branch-not-checked-out-leaves-a-staged-removal-alone-and-stops-no-command`; `main` merged with no conflict; `push::` 622, `invocation::` 352, the reconcile tests 137 and the branch's sixteen binary controls all pass). The sweep now writes what it can prove and leaves, and names, a path whose state is what `git rm` of a merge-added file leaves, so a removal is never undone; the switch-away control's expectation changed for that, which its review weighs first. One control cannot be shown failing against the code before the fix (the claim step stops the second command before that window), and its report says so. It discloses one `btrfs filesystem du` of the scratch root, against its brief, which timed out and printed nothing. Its review is entered in the queue. Still going: the review of the empty-tree commit fix, alone.
+- **The last review is back, so nothing of this effort is going: the review of the empty-tree commit fix (`3822c44c2f`, delta since `b92347ebd3`; 8 of 8 files; independent; both builds, whole modules).** It found no folder of the earlier review and took that review's two findings from this page.
+  **An empty tree still lands, on the tip as on `main`, in the default route:** `git commit -m x -- a.txt` with the commit's scratch folder removed after staging lands the empty tree and exits 0; the same with the folder emptied or replaced or its private index removed, for a whole-index commit and for `--amend -- <path>`. The branch's guard is used only for commits real Git builds; the route where the service builds the commit never reaches it, and every binary control of the author forces the Git route with `commit.verbose false`. **So the branch does not close the window the passes were refused for; it narrows it:** in 1,170 perturbed cells of the Git-built route none landed a tree other than real Git's, where `main` lands the empty tree in 10.
+  No test passes on `main` and fails on the tip (unit 2,705 of 2,705 against 2,675 of 2,675; binary 201 of 202 against 179 of 180, the one failure `repository_naming_commit`, `main`'s).
+  The branch brings: `--amend --only` and `--amend -o` with staged changes are refused where `main` lands them; a named pipe as `--pathspec-from-file` during a stopped revert waits without bound where `main` ends after 60 s; `--pathspec-from-file=-` during a stopped revert is refused (`main` lands a wrong tree there); a revert's concluding commit of named paths is refused when its scratch folder is emptied; an edit of the named file between the capture and Git's own read refuses the commit; a stale exemption list lets the table test pass with the guard taken out, and a SPEC paragraph is overstated.
+  `main` has too: the empty tree in the default route; a pathless `-o` landing the whole index where real Git lands `HEAD`'s tree; a named pipe in a plain state waiting without bound; the second of two commits of named paths during a stopped revert exiting 1; revert state files left when the scratch folder is lost after the build.
+  Next, after the reboot: the author's brief with the default route as its one subject (the guard reaches the commit the service builds, with a control that does not force the Git route), the five brought findings named for the same round where they stand in its files; no pass for this branch before. Its review worktree is removed; the review folder keeps both builds for the delta review.
+- Two authors whose last run said it was unfinished are queued again with what they themselves listed as open and nothing added: the queue of runs as a folder (its lint) and `mpm-shadow`'s removal of old versions (controls shown failing, `main` merged, the decisions of 2026-11-15, the cost).
+- Still owed from the night: the drawn-shadow-tree author's eleventh run (queued, see the entry before this one in this list) (pass 57's refusal and its Kimi review's two findings); the fresh run for the age arithmetic and the linked-worktree exemption; the Sonnet audit of the LFS path; the Sonnet pass of the pool change.
+
+Seven answers of the owner, asked through the question tool when the owner wrote "What other questions do you need to ask me now?" (answered between 2026-11-16T11:22 and 11:25, read from the clock at 11:25:32; each quoted as chosen):
+
+- **When a wrapper branch may go into a pass: "Narrowing, in general (Recommended)".** A branch goes into a pass once a review that built it shows it fixes something `main` has and its remaining findings are all things `main` has too or does worse. Open findings go back to the author as follow-up on `main`.
+  A regression is caught by the pass's two whole suites and the gate. What follows for the work: each review and each author states, per finding, whether `main` has it; a finding the branch introduces still stops it.
+- **How much Sonnet review: "All queued, three at once (Recommended)".** Asked with the measurement beside it (four reviews used 223,867 to 582,762 subagent tokens, mean about 372,000, 17 to 27 minutes each; about fifty tips queued, on the order of 19 million tokens).
+- **A record whose holder can be shown neither alive nor gone: "A: stays, command says how (Recommended)".** The record stays; within the patience nothing is said; past it the command stops or prints words naming the record, the owner, its age and the exact `rm -- <path>`. Nothing deletes such a record on a timer, and no repair command is built.
+- **A finished worktree the automatic removal kept: "Record it, retry later (Recommended)".** A kept worktree is written to a record, each later sweep tries it again with the same checks, and it is named again each time it is kept. The cost of reading the process table for old candidates is measured by whoever builds it.
+- **The commit a run made into `main` by mistake (`293de6dae5`): "Leave it, review it (Recommended)".** `main` is not rewound and the commit is not reverted; its two files get a Sonnet review as they stand.
+- **A merge on a branch with no upstream: "Push it to origin".** Chosen against this session's recommendation (decline and say so). The recorded condition of 2026-11-02 is amended: such a merge, in a repository that has `origin`, is pushed to origin under the branch's own name and the upstream is set.
+  It needs the amendments at `package/git-policy/cli/SPEC.md` line 9068 and `README.md` line 556, a new reason word, and the ancestry walk's cost measured; a fresh run builds it.
+- **The rotation of the credential values: "Ask again after the merge (Recommended)".** Put to the owner once the second masking merge is in `main` and a resume canary and a fresh canary have both passed through `main`.
+
+One more answer, at about 11:34 on 2026-11-16, asked with the morning's measurements beside it (reviews finish at up to about 7 an hour at three places, author runs end at about 6 to 7 an hour, so 49 queued reviews do not shrink):
+
+- **How the 18 agent places are split: "5 reviews, 13 Pi runs (Recommended)".** Five Sonnet reviews at once; the unit that fills Pi places runs at level 13 since 11:34:59 (no going run is stopped). The cap of 18 is unchanged.
+
+And at about 11:42 on 2026-11-16, asked once the second masking merge was in `main` and a fresh-start canary and a resume canary had both ended well through `main` (11:41:26):
+
+- **When the credential values are rotated: "Rotate now, runs going (Recommended)".** The owner rotates the values and edits the store. This session's part: the unit that fills run places was stopped at 11:43:25 (it was starting nothing, fourteen Pi runs going against its level of thirteen);
+  when the owner says the rotation is done, a fresh-start canary and a resume canary run through `main`, and the filling unit is started again at level 13. A going run that loses a provider or Git call to the old values is resumed afterwards.
+  Until the owner says the values are rotated, the sessions the scan names stay untouched and unresumed.
+
+The rotation is withdrawn by the owner (2026-11-16, between 11:47 and 11:53):
+
+- The owner wrote, while looking at the list of places: "I would not consider anything sent to Neuralwatt as compromised. So I believe a rotate is not needed."
+- This session put the scan's record of 2026-11-14 beside that before acting on it: 13 Claude Code transcripts hold a real value and went to that harness's provider; of 23 Pi session files with a real value six were read for their provider (Neuralwatt and opencode-go) and 17 older ones never were;
+  two of the exposed names control more than a provider's bill (a GitHub token, which also stands in clear in `~/.bashrc`, and a Hetzner token).
+- Asked with those facts and four courses, the owner answered: **"Nothing is rotated"**. The exposure is accepted as it stands. No value is rotated, the answer of 11:42 ("Rotate now, runs going") is superseded, and the sessions the scan names may be resumed again.
+  What does not change: no session, no brief and no script prints a credential's value, and the scan-named session files are not opened or printed by this session, because the values in them are still valid.
+- The unit that fills run places, stopped at 11:43:25 for the rotation, runs again at level 13 since 11:50:02. No run was started in those seven minutes; none was stopped.
+
+Adopted from the same prepared batch without asking, each because a recorded rule or an earlier answer decides it, each open to veto:
+
+- Pi driver, numbered unit names (`pi-<name>@<n>.service`): kept, since going back brings the refused second start back;
+  the author tests whether such a unit still gets its tunnel exemption (a probe put an instanced unit under `app.slice/app-<name>.slice`, where `wg-quicker-exempt` does not look) and names its slice if not.
+- Pi driver, removal of a worktree at a run's end: the proof of who made it is checked where one exists, and today's rules hold where none does (in line with "Remove after a bound").
+- mpm-shadow: a pass from the global scope looks for a repository above its working folder and keeps what it cannot judge ("what the pass cannot see is protected", and "Newest two plus pinned" needs the pins seen);
+  the two-second clock of a removal starts with the pass, as built ("You should (almost) never be waiting."), and the doc's sentence is corrected;
+  claim names it does not recognise get one line per pass with their count and the first path;
+  the two one-hour constants (`DOWNLOAD_IN_USE_FLOOR`, `DEFAULT_PROGRAM_BOUND`) get a measurement beside them, since a shipped limit cites one;
+  the archive prune gets its seam and a control.
+- Queue of runs: a `reviewOfBranch` entry is converted to `reviewOfRange` at the changeover; `--queue` stays required; breaking a dead holder's claim is logged.
+- Wrapper: a watch note naming another repository's directory stays refused (each service touches its own repository only), and `SPEC.md` says so;
+  `SPEC.md` line 14568 (a wait that was removed) and line 14557 (a claim file that "stays") are corrected on the no-manager branch.
+- cargo-shadow: the eighteen hand-made logs and the renamed record under `package/linter/monochromatic-lint/target/verification` stay where the docs cite them, never swept (the README says so already).
+- The fuzzing artifact reference stays as history with one added line saying its bytes are not kept.
+- `doc/handover/cli-git-native-post-landing.md` line 214 ("nothing remains") is corrected: the maintenance files were not mutated.
+- The wrapper's mutation pause stays: the condition the owner set for lifting it (the commit protocol comparison) is not met.
+
+Held and not asked, with the reason:
+
+- Relinking the dangling `node_modules` links counted on 2026-11-08: counted again first, read-only, since the number is a week old.
+- The margin above the longest quiet gap for each quiet window (picks 4 and 9 of the limits audit): not yet framed with its measurements.
 
 Settled by a recorded rule and therefore not asked, each open to veto:
 the two constants of the push stop and the 5 ms retry of a refused log line are decided by a measurement, since a shipped limit cites one;

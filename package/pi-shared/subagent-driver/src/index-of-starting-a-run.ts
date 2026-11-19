@@ -93,13 +93,13 @@ export {
   parsePoolGateOptions,
 } from './parse-pool-gate-options.ts';
 export {
-  IDLE_SECONDS_OF_A_RUN,
   NO_WORKTREE_BRANCH,
   type WorktreeLauncherOptions,
   WORKTREE_LAUNCHER_USAGE,
   WorktreeLauncherOptionsError,
   parseWorktreeLauncherOptions,
   worktreeFolderOf,
+  writtenWordsIn,
 } from './parse-worktree-launcher-options.ts';
 export {
   SessionFileUnreadableError,

@@ -7,7 +7,30 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-At most **20** agents run on this machine at once since 2026-11-15T10:50:46-05:00,
+**On the new drive the cap is found again by the search under "What counts as the ceiling",
+and until the search ends the cap is the level it is testing.**
+Every number below this paragraph was measured on the old drives (the SATA 860 EVO and the old NVMe),
+whose stalls set it, and none of them holds on the new drive.
+The home folder now sits on the ZFS pool `zpcachyos` on the Intel 3.5 TB NVMe.
+The owner on 2026-11-17:
+"The cap shouldn't be 20. The 20 cap was set because my old disk was slow, and we're on the new disk now."
+and, when a session read that as no cap at all,
+"I didn't tell you to outright remove the cap. You're meant to bisect for it."
+The owner then wrote "Start from 20 instead.",
+so the search starts at twenty and doubles until a level fails,
+then halves the gap between the last level that held and the one that failed,
+with the same failing criteria and the same hour per level.
+Should twenty itself fail,
+the levels halve downward until one holds and the gap is then halved the same way
+(this session's reading of the method for that case, open to the owner's veto).
+Its readings go under `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026-11-17/keep/`,
+and each level gets its own heading under "Readings on the new drive".
+Each provider's own measured refusal still limits its pool beside this cap
+(`package/pi-shared/subagent-driver/src/pool-limits.ts` and the skill `pi-as-subagent`).
+What follows is the old drives' record,
+kept as it was written.
+
+At most **20** agents ran on this machine at once from 2026-11-15T10:50:46-05:00 until the move,
 by the owner's answer of that morning
 ("Step to 20 with the probe (Recommended)",
 asked whether the cap stays at 17 until the new drive,
@@ -194,9 +217,82 @@ The search is done again after the new drive is in
 (expected 2026-11-17;
 the owner said on 2026-11-14 at about 14:39 that the arrival slipped from 2026-11-15).
 
+## Readings on the new drive
+
+The probe writes and syncs 4 KiB once a minute in two datasets of the pool `zpcachyos`:
+the snapshotted home dataset `zpcachyos/ROOT/cos/home`
+(in the search's own folder, where every run's scratch lives too;
+`~/.cache` is the snapshot-free `zpcachyos/nosnap/user-cache`)
+and the snapshot-free `zpcachyos/nosnap/cargo-build` (`~/.cargo/build/disk-ceiling-probe-file`),
+one line a minute in `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026-11-17/keep/probe-readings.jsonl`.
+
+### Level 20, started 2026-11-17T18:54:13-05:00
+
+- The probe unit `disk-ceiling-probe-new-zfs-drive-level-20-20261117` started at 18:54:13 for eight hours;
+  its first reading, with no agent unit going, took 0 ms on both datasets (both `sync=standard`).
+- Two canary runs (GPT 6.2 Sol on `openai`, DeepSeek V4.1 Flash on Synthetic) each ended `idle` after three turns
+  and about two and a half minutes: the wrapper answered as `git`, a worktree was made on ZFS, `cargo` and `node` ran.
+- The work at this level: six DeepSeek reviews of the reviewer bench (batch started 18:59:17),
+  the queue's first review (started by hand at 18:59:38), and the filling unit
+  `fill-free-places-at-level-20-on-the-new-drive-20261117` from 19:00:13 for eight hours,
+  which starts queue entries into free places under twenty every 150 s
+  (reviews on Synthetic DeepSeek, writers on GPT 6.2 Sol, by the starter's change of 2026-11-17).
+- Six `codex` processes and one `claude` process of other sessions were going when the level began; the probe counts `pi-*` units only.
+- Cut short, not finished: the owner asked for a shutdown at night ("shutdown the entire system after you finish A THOROUGH RESEARCH. I'm going to bed."),
+  so the filling unit was stopped about 19:26, every going run was ended through its stop file at 19:28:09,
+  and the probe was stopped at 19:28:50-05:00.
+  Its 35 readings (23:54:13Z to 00:28:17Z) saw at most 13 `pi-*` units going, never twenty;
+  the slowest write-and-sync took 72 ms on the home dataset and 2,564 ms on `cargo-build`, none over 5 s.
+  The runs' first-answer times and the disk error log were not read before the stop.
+  Level 20 was neither held an hour nor filled, so it neither passed nor failed: the search starts at twenty again.
+  Synthetic answered `429 "Too many concurrent requests"` with about ten DeepSeek runs going,
+  which is what kept the level from filling.
+
+### Level 20 again, started 2026-11-18T21:18:17-05:00
+
+- The probe unit `disk-ceiling-probe-new-zfs-drive-level-20-20261118T211817` started for eight hours, same script and
+  readings file.
+- The filling unit `fill-free-places-at-level-19-on-the-new-drive-20261118T211817` started at the same moment for eight
+  hours at level 19, because one agent at the level is a Claude Code subagent (the ZFS proposal's Sonnet gate review)
+  that its `pi-*` count does not see; three GPT writers were already going (the env-local-json fixture, the virtual
+  provider of issue 6314, both started by hand; the fold-in writer had ended).
+- Reviews now start on the Qwen plan (`qwen-token-plan-individual` `deepseek-v4.1-flash-1017`, the owner's order of
+  2026-11-18); a review a 429 ends moves to the next provider by hand until the virtual provider replaces that.
+- The nine runs stopped for the shutdown were put back at the head of the queue to go on from their sessions.
+- No verdict again. The probe exited at its first reading: every user unit inherits `NODE_OPTIONS=--permission-audit`
+  since 2026-11-18T19:35:41-05:00, and Node 26.13.1 then refuses `fsyncSync` ("fsync API is disabled when Permission
+  Model is enabled"). The owner turned the model on and, same evening: "we should figure out how to work with it, not
+  disable it." Then: "Shouldn't the probe be in rust with hyperfine anyway?" So the next probe is a small Rust program
+  that writes 4 KiB and syncs it in each dataset, timed by hyperfine (2.0.0, installed at `/usr/bin/hyperfine` by the
+  system, not in the repository's tool list), with a control arm in the same round; Node's permission model does not
+  apply to it, and clearing `NODE_OPTIONS` is ruled out. It was built and checked the same evening (next bullet). The level
+  never filled (6 to 18 runs). At 21:47:42 the owner's "We shouldn't use worktrees heavily before we implement the zfs
+  parts for the git wrapper." stopped the filling, so the search waits for the wrapper's ZFS route.
+- The Rust probe, built and checked on 2026-11-18 at about 22:00 to 22:50-05:00, not yet run as a hold. Files under
+  `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026-11-17/`:
+  - `write-four-kibibytes-and-sync-it-source/main.rs` (one file, no dependencies, built with `rustc --edition 2024
+    -C opt-level=3`) writes 4 KiB to a new file, syncs it with `sync_all` when told `sync`, closes and removes it;
+    `no-sync` is the control arm.
+  - `probe-write-and-sync-on-two-datasets-every-minute-timed-by-hyperfine.ts` (usage `<level> <hold-seconds>
+    <bound-milliseconds> <period-seconds> <readings-file>`) has hyperfine time, each round, one run of each arm on
+    each dataset (`--runs 1 -N`; hyperfine 2.0.0 has no interleave option, so one call per round places the control
+    run beside the measured one), records the readings with I/O pressure, load and agent count, keeps hyperfine's
+    JSON per round, and judges one sync sample per dataset per round, so the fail rule (over the bound in two rounds
+    in a row) fires as often as the Node probe's did. Readings include the program's start, so they go to their own
+    file, not `keep/probe-readings.jsonl`.
+  - Controls, in `keep/rust-probe-controls-2026-11-18/`: the sync arm is real (ZFS's `zil_commit_count` rose by 50
+    over fifty sync runs and by 0 over fifty no-sync runs; datasets `sync=standard`, `logbias=latency`); by time
+    alone it is not separable when the drive is quiet (twenty runs each, medians: home sync 0.82 ms against no-sync
+    0.75 ms, cargo-build 0.76 against 0.72, ranges overlapping); one loaded round took 12.4 ms for cargo-build's sync
+    against 0.95 for its control. The fail rule fires: with a bound of 0 ms the loop ended with status 3 after
+    exactly two rounds.
+  - Start it for a hold as its own unit, for example `systemd-run --user --unit=disk-ceiling-probe-...-level-<n>-<time>
+    --collect --property=MemoryMax=512M --property=CPUQuota=100% --property=TasksMax=64 --property=IOWeight=1 node
+    <loop> <n> 28800 5000 60 <search folder>/keep/probe-readings-timed-by-hyperfine.jsonl`.
+
 ## Readings
 
-Probe readings,
+Probe readings on the old drives,
 one line a minute:
 `~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/probe-readings.jsonl`.
 
