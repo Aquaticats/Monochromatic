@@ -769,8 +769,8 @@ zfsowed17/home/checkout	origin	zfsowed17/home/worktree-clone-datasets/removal@or
 zfsowed17/home/worktree-clone-datasets/removal	mounted	no
 zfsowed17/home/worktree-clone-datasets/removal@earliest	17	5119344664520718075
 zfsowed17/home/worktree-clone-datasets/removal@origin	18	11828178329495998103
-zfsowed17/home/worktree-clone-datasets/removal@worktree-own	21	14418906836479561164
-zfsowed17/home/worktree-clone-datasets/removal@worktree-own-next	22	6709834886922075821
+zfsowed17/home/worktree-clone-datasets/removal@worktree-own	21	8296695595300551637
+zfsowed17/home/worktree-clone-datasets/removal@worktree-own-next	22	6366918254970259933
 ```
 
 The account then ran one `python3` process under `strace -X raw -e trace=ioctl`. It submitted both
