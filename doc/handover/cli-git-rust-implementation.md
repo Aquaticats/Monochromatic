@@ -40159,6 +40159,16 @@ rule for long background work already names units); the brief rules gain a line 
 `doc/lint/sequential-awaits.md` citation (the doc exists, contrary to the author's report); two helper examples name
 `/proc`. GOING: the writer's session resumed, `pi-driver-work-left-running-counts-only-its-own-2` (run-2); then the
 coordinator runs the package tasks on the delta and merges.
+Run-2 ended `idle` (108 turns; `fa0ec3cc16`, `5c993c9bc4`, `5dc6488741`): README line 1337 now says a foreground scope,
+the limit paragraph and the brief-rules line are in, both suppressions cite the doc, the helper examples name `/x/proc`;
+209 unit passes, lint clean. But its two new tests created a scope and a unit on this machine's real user manager, the
+first such tests in the package (no test on `main` calls the real `systemd-run`), and it asked about that. Answered by
+`AGENTS.md` rule `MHX` ("tests needing one run in `podman` or `mvm`"): the backgrounded case becomes a double-fork
+real-process test needing no manager, and the real named-unit test leaves the suite (the stand-in manager test stays;
+review probe D is the real-manager evidence). GOING: `pi-driver-work-left-running-counts-only-its-own-3` (run-3). Also
+seen: two of its full suite runs failed `drive-pi-subagent.unit.test.ts` `createSopsFixture` cases that pass alone; the
+recorded mechanism (`env-local-json/core/src/fixture.ts:217`) is the known fixture flake the env-local-json fixture run
+owns, and a run without the new file passed; not yet shown unrelated to the new tests' load (one sample each way).
 
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed
