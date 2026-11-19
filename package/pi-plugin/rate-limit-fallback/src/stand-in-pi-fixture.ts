@@ -48,6 +48,9 @@ export const RATE_LIMIT_STATUS = 429;
 /**
  Independently pin each expected setup, including authenticated quota origins.
  The OpenAI entry serves the installed-adapter fixtures only: no pool has an OpenAI member.
+ The Qwen origin is a stand-in, not the provider's endpoint; the real value is the builtin's
+ (`package/pi-plugin/qwen-token-plan-individual/src/constants.ts:46`), and the quota tests never
+ reach it because that provider has no quota endpoint.
  */
 export const TARGETS = [
   {

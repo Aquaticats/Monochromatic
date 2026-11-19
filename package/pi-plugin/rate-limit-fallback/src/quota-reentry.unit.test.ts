@@ -3,6 +3,7 @@
  @module
  */
 
+import { syntheticSubscription, syntheticWeeklyWindow, } from './synthetic-quota-fixture.ts';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import extension from '../dist/final/node/index.mjs';
 import {
@@ -68,8 +69,9 @@ await describe({
             observations.reads += 1;
             if (observations.reads === 1)
               return new Response(null, { status: 503, },);
-            return Response.json({
-              planWeeklyLimit: { percentRemaining: 0, nextRegenAt: new Date(Date.now() + SYNTHETIC_WINDOW_MS,).toISOString(), },
+            return syntheticWeeklyWindow({
+              percentRemaining: 0,
+              nextRegenAt: new Date(Date.now() + SYNTHETIC_WINDOW_MS,).toISOString(),
             },);
           },
         },);
@@ -93,12 +95,10 @@ await describe({
           models: SYNTHETIC_AND_BACKUP,
           play({ model, }) { return immediate({ model, },); },
           async fetchQuota() {
-            return Response.json({
-              subscription: {
-                requests: clock.now < end ? limit : 0,
-                limit,
-                renewsAt: new Date(end,).toISOString(),
-              },
+            return syntheticSubscription({
+              requests: clock.now < end ? limit : 0,
+              limit,
+              renewsAt: new Date(end,).toISOString(),
             },);
           },
         },);

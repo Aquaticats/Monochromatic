@@ -3,6 +3,7 @@
  @module
  */
 
+import { syntheticWeeklyWindow, } from './synthetic-quota-fixture.ts';
 import { createAssistantMessageEventStream, isRetryableAssistantError, lazyStream, } from '@earendil-works/pi-ai';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import extension, { headerReset, } from '../dist/final/node/index.mjs';
@@ -206,8 +207,9 @@ await describe({
             if (init?.redirect !== 'error')
               throw new Error('Quota fetch permits redirects',);
             endpoints.push(quotaUrl(input,),);
-            return Response.json({
-              planWeeklyLimit: { percentRemaining: clock.now < end ? 0 : 100, nextRegenAt: new Date(end,).toISOString(), },
+            return syntheticWeeklyWindow({
+              percentRemaining: clock.now < end ? 0 : 100,
+              nextRegenAt: new Date(end,).toISOString(),
             },);
           },
         },);

@@ -8,6 +8,7 @@ import { setImmediate, } from 'node:timers/promises';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import extension from '../dist/final/node/index.mjs';
 import { collect, fixture, immediate, PHYSICAL_MODELS, poolModel, TRANSCRIPT, } from './stand-in-pi-fixture.ts';
+import { syntheticWeeklyWindow, } from './synthetic-quota-fixture.ts';
 
 /** The only fixture route requiring a quota request. */
 const SYNTHETIC_ONLY = PHYSICAL_MODELS.filter(function isSynthetic(model,) {
@@ -40,7 +41,7 @@ await describe({
             if ((headers.get('authorization',) !== HEADER_ONLY_BEARER) || headers.has('cookie',))
               throw new Error('Unexpected quota authorization',);
             const nextRegenAt = new Date(Date.now() + RESET_MS,).toISOString();
-            return Response.json({ planWeeklyLimit: { percentRemaining: 0, nextRegenAt, }, },);
+            return syntheticWeeklyWindow({ percentRemaining: 0, nextRegenAt, },);
           },
         },);
         const model = poolModel({ provider, id: 'reviewer', },);
@@ -113,8 +114,9 @@ await describe({
         await setImmediate();
         waiter.abort();
         const early = await Promise.race([second, setImmediate(),],);
-        reading.resolve(Response.json({
-          planWeeklyLimit: { percentRemaining: 0, nextRegenAt: new Date(Date.now() + RESET_MS,).toISOString(), },
+        reading.resolve(syntheticWeeklyWindow({
+          percentRemaining: 0,
+          nextRegenAt: new Date(Date.now() + RESET_MS,).toISOString(),
         },),);
         const [held, answered,] = await Promise.all([first, second,],);
         expect(early,).not.toBeUndefined();
