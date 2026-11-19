@@ -357,6 +357,13 @@ Until adoption, refuse managed mutations on the mismatched parent. On an otherwi
 ordinary same-dataset reflink (rung 2), or native Git when reflink does not qualify (rung 3), remains available
 without root. Never use fallback to write over an unresolved managed slot.
 
+The provisional kernel floor for the managed mount path is Linux `6.8.0-147-generic`, the build on which the
+nested-clone guest exercised `openat2`, `fsopen`, `fsconfig`, `fsmount` and `move_mount` with OpenZFS 2.4.4
+([nested-clone research][nested], "What was checked and how" and item 3). This is a tested baseline for those
+calls, not a claim that every kernel at or beyond it supports the complete mechanism. Check the actual kernel
+and required operations at handler readiness, separately from the ioctl ABI gate. If unverified, refuse managed
+mounts and report the applicable reflink or Git route.
+
 Use the research's descriptor-relative `openat2` constraints, `fsmount` with enforced `nosuid,nodev`, and
 `move_mount` onto the opened target. Report the failing component or mismatched identity field. After attach, prove
 both that the held identity received the expected mount and that the canonical slot exposes that mount ID. A moved
