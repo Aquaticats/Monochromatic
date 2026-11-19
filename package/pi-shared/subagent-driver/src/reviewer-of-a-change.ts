@@ -55,6 +55,23 @@ export const DEFAULT_REVIEWS_FOLDER_IN_HOME: readonly string[] = [
 ];
 
 /**
+ The parts below the home directory of whoever runs a command where earlier review rounds left their answers, from before every
+ review went under {@link DEFAULT_REVIEWS_FOLDER_IN_HOME}. A reviewer reads none of them, so its review stays its own.
+ */
+export const EARLIER_REVIEW_FOLDERS_IN_HOME: readonly (readonly string[])[] = [
+  [
+    'temp',
+    'agent',
+    'kimi-reviews',
+  ],
+  [
+    'temp',
+    'agent',
+    'qwen-trials',
+  ],
+];
+
+/**
  The file a review writes the change under review to.
  */
 export const CHANGE_DIFF_FILE_NAME = 'change.diff';

@@ -6,6 +6,7 @@
  @module
  */
 
+import { homedir, } from 'node:os';
 import { join, } from 'node:path';
 import {
   describe,
@@ -13,6 +14,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  EARLIER_REVIEW_FOLDERS_IN_HOME,
   FOCUS_OF_A_CHANGE_REVIEW,
   NO_SYNTHETIC_HOST_LOAD,
   REVIEW_BRIEF_PLACEHOLDERS,
@@ -234,8 +236,9 @@ await describe({
         it({
           name: 'lists the folders of earlier reviews, and the reviews folder outside the review\'s own, among the answers it must not read',
           fn: async () => {
-            expect(aBrief(),).toContain('/var/home/user/temp/agent/kimi-reviews',);
-            expect(aBrief(),).toContain('/var/home/user/temp/agent/qwen-trials',);
+            for (const parts of EARLIER_REVIEW_FOLDERS_IN_HOME) {
+              expect(aBrief(),).toContain(`\`${join(homedir(), ...parts,)}\``,);
+            }
             expect(aBrief(),).toContain(`\`${aReviewsFolder()}\` outside your own review folder`,);
           },
         },),

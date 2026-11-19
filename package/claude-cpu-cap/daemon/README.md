@@ -47,8 +47,8 @@ the evidence behind the settings is in
   minima and maxima of every sample column between two UTC times.
 - `systemd/claude-cpu-watch.service`:
   the unit;
-  `ExecStart` runs `src/cpu-watch.ts` from this checkout,
-  after an `ExecStartPre` that checks the repository link.
+  `ExecStart` runs `src/cpu-watch.ts` from this checkout
+  with the `node` on the user manager's `PATH`.
 
 ## Overrides
 
@@ -166,6 +166,38 @@ so this package follows the file descriptions and the C sources.
   `io.bfq.weight` printed `default 10`,
   so a write to `io.bfq.weight` is the one that takes effect.
 
+### When the weight files exist
+
+`claude-code-bash` sits in the user manager's `app.slice`,
+and its weight files exist only while `app.slice/cgroup.subtree_control` lists `io`.
+In the measurement below,
+systemd listed `io` there while a unit in `app.slice` set `IOWeight=`,
+and took it away when that unit stopped;
+other IO properties were not tried.
+On the owner's workstation that unit is the terminal:
+drop-ins named `app-<terminal app ID>-.scope.d/10-io-weight.conf`,
+`app-<terminal app ID>-.service.d/10-io-weight.conf` and `app-<terminal app ID>@.service.d/10-io-weight.conf`
+under `~/.config/systemd/user/` set `IOWeight=1` for each terminal.
+With odytty,
+whose app ID had no drop-in,
+`io` stayed off,
+and the watcher logged `IO-WEIGHT-UNAVAILABLE` every pass.
+The drop-ins are host configuration,
+not part of this package.
+
+The measurement behind this,
+on the CachyOS install of 2026-11-17T12:33:47-05:00,
+where odytty's app ID had become `io.unfinished_works.odytty` and no drop-in matched it:
+
+- `app.slice/cgroup.subtree_control` read `cpu memory pids dmem`,
+  and the watcher logged `IO-WEIGHT-UNAVAILABLE` every pass.
+- `systemd-run --user --scope --property=IOWeight=1 sleep 15` added `io` to that file,
+  both weight files appeared in `claude-code-bash`,
+  and the watcher logged `IO-WEIGHT-APPLIED` for each.
+- When the scope ended,
+  `io` left the file and `IO-WEIGHT-UNAVAILABLE` came back.
+- A drop-in for `app-io.unfinished_works.odytty@.service` put `io` back for as long as the terminal runs.
+
 ### Disks this does not cover
 
 `sda` uses `kyber` (`none mq-deadline [kyber] bfq`),
@@ -182,13 +214,17 @@ so they are out of scope for this package.
 
 ## Install
 
-The unit file in `~/.config/systemd/user/` is a regular copy of the file in `systemd/`, not a link into the repository:
-the user manager reads it while loading units, and a link into a repository that lives on the 860 drive would leave the
-unit unloaded whenever the drive is not mounted at manager start or at a daemon reload.
-The copy's `ExecStartPre` runs the repository link check installed outside the repository
-(`~/.local/share/monochromatic-dev/repository-link/check.mjs`), so a start before the mount fails with the plain
-message and status 75, and `Restart=on-failure` with `RestartSec=30` and no start limit retries until the mount is
-there.
+The unit file in `~/.config/systemd/user/` is a regular copy of the file in `systemd/`,
+not a link into the repository:
+the user manager reads it while loading units,
+and a copy stays loadable whatever happens to the checkout.
+`ExecStart` finds `node` through `/usr/bin/env` on the user manager's `PATH`,
+which `~/.config/environment.d/` can extend,
+and `Restart=on-failure` with `RestartSec=30` and no start limit starts the watcher again after it fails,
+so it never ends in a failed state.
+Until the 2026-11-17 move to CachyOS the unit also ran the repository link check before each start,
+because the repository lived on the 860 drive and could be unmounted when the manager started;
+the repository now lives on the home volume.
 Copy again after every edit of the file in `systemd/`:
 
 ```bash

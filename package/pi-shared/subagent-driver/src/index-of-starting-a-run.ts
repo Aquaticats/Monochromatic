@@ -93,7 +93,6 @@ export {
   parsePoolGateOptions,
 } from './parse-pool-gate-options.ts';
 export {
-  IDLE_SECONDS_OF_A_RUN,
   NO_WORKTREE_BRANCH,
   type WorktreeLauncherOptions,
   WORKTREE_LAUNCHER_USAGE,

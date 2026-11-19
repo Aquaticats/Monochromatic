@@ -456,3 +456,51 @@ experimental'` (and a broader `env` query) both returned no matches on
 neither tool has a fileable defect;
  the user-facing problem is solved at our
 boundary by the editor configuration above.
+
+## Slint 1.19.0 rejects the numeric setting in Cargo builds 2026-11-17T17:06:38-05:00
+
+Codex checked the published compiler source and reproduced the error in the browser selector build.
+The selector's package task was verified with stable markup. The other Slint packages' feature
+requirements still need checking before they move to Slint 1.19.
+
+### Symptom
+
+The `slint-build` 1.19.0 compiler emits `SLINT_ENABLE_EXPERIMENTAL_FEATURES contains the unknown feature '1'`
+when `mise run //package/browser-selector/desktop-app:build:debug` inherits the repository setting.
+The build script exits with status `101`.
+
+### Root cause
+
+The workspace assigns `SLINT_ENABLE_EXPERIMENTAL_FEATURES = "1"` in both `.cargo/config.toml` and
+`.config/mise/conf.d/20-env.toml`. Slint 1.19.0 reads the value as a list of named features.
+`internal/compiler/experimental_features.rs:79` splits it on commas and filters out empty names.
+[Slint feature parser][slint-119-parser]
+
+```rust
+// internal/compiler/experimental_features.rs:79
+pub fn parse_list(list: &str) -> (Self, Vec<String>) {
+    Self::parse_names(list.split(',').map(str::trim).filter(|name| !name.is_empty()))
+}
+```
+
+The Slint release includes a unit test for this exact input. It records `1` as unknown and an empty
+string as a valid empty feature set. The compiler reports each unknown name as an error.
+[Slint parser test][slint-119-test] [Slint diagnostic][slint-119-diagnostic]
+
+### Verified workaround
+
+Set `SLINT_ENABLE_EXPERIMENTAL_FEATURES = ""` in the package's `mise.toml` `[env]` when its markup
+uses stable features. The compiler then receives an empty list. The browser selector task built
+with Slint 1.19.0 after this change. The task uses the package's environment even when invoked
+from the repository root.
+
+Preserving the value `1` for this build reproduces the error. Packages using experimental markup
+must identify the feature names their markup requires before migrating. This is a repository
+configuration migration for the intentional parser change. No upstream report is planned.
+
+[slint-119-parser]:
+  https://github.com/slint-ui/slint/blob/e436f546f71481d786cbc2a74316b1be1ef678c1/internal/compiler/experimental_features.rs#L78-L94
+[slint-119-test]:
+  https://github.com/slint-ui/slint/blob/e436f546f71481d786cbc2a74316b1be1ef678c1/internal/compiler/experimental_features.rs#L147-L155
+[slint-119-diagnostic]:
+  https://github.com/slint-ui/slint/blob/e436f546f71481d786cbc2a74316b1be1ef678c1/internal/compiler/lib.rs#L466-L474

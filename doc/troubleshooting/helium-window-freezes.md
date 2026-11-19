@@ -1,5 +1,202 @@
 # Helium 0.20.2.1 launcher sessions stall on disk-backed diagnostic metrics writes
 
+## Status at 2026-11-17T17:41:51-05:00, reapplied on the CachyOS machine
+
+The workaround is reapplied on a new machine
+and now also covers starts that skip the launcher.
+Helium is `0.21.3.1` (Chromium `157.0.8103.78`) from the Arch `helium-browser-bin` package,
+and the home directory is on ZFS (`zpcachyos/ROOT/cos/home`), not Btrfs.
+Before the change,
+the user's running Helium (PID `27925`) mapped
+`BrowserMetrics/BrowserMetrics-6AFCB14B-6D15.pma (deleted)`,
+so the same mapped-metrics path is live on this version.
+That browser was not restarted,
+because the last automated restart lost the user's session
+(see "Session restoration failure");
+it keeps its mapping until the user next starts Helium.
+(The user restarted it at `2026-11-17T17:57:06-05:00`;
+the new browser has no mapping, see "Next action".)
+
+The stalls in "Metrics write faults block the main thread" were captured on Btrfs.
+No stall has been captured on this ZFS machine,
+so this removes the same mapping without a measured freeze reduction here.
+
+### What changed on 2026-11-17
+
+- [`launcher.ts`](helium-window-freezes/launcher.ts) now execs `/usr/bin/helium-browser`,
+  the package's wrapper script,
+  which still reads `helium-browser-flags.conf` and sets `LD_LIBRARY_PATH`.
+  The AppImage path it used before does not exist on this machine.
+- The launcher now writes `read-only-so-helium-keeps-diagnostic-metrics-in-memory.txt`
+  inside `BrowserMetrics` before making the folder `0500`.
+  Helium deletes an empty `BrowserMetrics` folder within seconds of startup,
+  so with the empty folder alone an in-browser relaunch mapped the file again
+  (see "Verification on Chromium 157").
+  A read-only folder that still holds a file cannot be deleted,
+  so every later start of that profile takes the local-memory fallback,
+  whether or not it goes through the launcher.
+  Tested:
+  a plain `/usr/bin/helium-browser` start of a prepared profile and `chrome://restart`.
+  Inferred from the folder persisting, not run:
+  the relaunch Helium offers after a flag change or a package update,
+  web-app shortcuts (their `Exec=` calls `/opt/helium-browser-bin/helium-wrapper` directly),
+  and `helium-browser` typed in a terminal.
+- `${HOME}/.local/share/applications/helium.desktop` is a copy of the package's
+  `/usr/share/applications/helium.desktop`
+  with only its three `Exec=` lines changed to
+  `/usr/bin/node /home/user/.local/lib/helium/launcher.ts`,
+  keeping `%U` and `--incognito`.
+  `/usr/bin/node` comes from the Arch `nodejs` package (`26.13.1`);
+  the old exposure path `${HOME}/.local/share/monochromatic-dev/toolchain-global/exposure/node`
+  does not exist here.
+  `desktop-file-validate` passed,
+  and `kbuildsycoca6 --menutest` lists `helium.desktop` under `Internet/`.
+- The user's real profile folder `${HOME}/.config/net.imput.helium/BrowserMetrics`
+  was prepared the same way at `2026-11-17T17:40:15-05:00` while Helium ran,
+  so the next start through any path is covered.
+
+Tradeoffs beyond those in "Verified workarounds":
+the local desktop entry does not follow later package changes to
+`/usr/share/applications/helium.desktop` (new actions or translations),
+so compare the two after a Helium update that changes it.
+Deleting the local entry restores the package's entry.
+To undo the folder,
+make it writable (`chmod u+w`) and delete it.
+A profile directory that has never been started through the launcher,
+such as a new `--user-data-dir`,
+still maps the file until its first launcher start.
+
+### Source check on Chromium 157
+
+The installed Chromium `157.0.8103.78` is tag commit `4b3d0dabb8250b6f152d2d85d79e7706e309d087`,
+resolved through GitHub's ref API.
+Its [`components/metrics/persistent_histograms.cc:183-189`][mapped-init-157]
+still creates the upload folder and then tries the mapped file:
+
+```cpp
+// chromium/components/metrics/persistent_histograms.cc
+base::FilePath upload_dir = metrics_dir.AppendASCII(kBrowserMetricsName);
+base::CreateDirectory(upload_dir);
+
+result = InitWithMappedFile(metrics_dir, upload_dir);
+```
+
+Its [`components/metrics/persistent_histograms.cc:212-221`][memory-fallback-157]
+still falls back to local memory when no allocator was created:
+
+```cpp
+// chromium/components/metrics/persistent_histograms.cc
+if (!allocator) {
+  // If no allocator was created above, try to create a LocalMemory one here.
+  // This avoids repeating the call many times above. In the case where
+  // persistence is disabled, an early return is done above.
+  base::GlobalHistogramAllocator::CreateWithLocalMemory(kAllocSize, kAllocId,
+                                                        kBrowserMetricsName);
+```
+
+The early call in `chrome/app/chrome_main_delegate.cc` was not reread at `157`:
+the GitHub contents API refused that request with HTTP `429`.
+The positive control in "Verification on Chromium 157" shows the mapping is still created at startup.
+
+The spare file `BrowserMetrics-spare.pma` in the profile root is still written:
+[`persistent_histograms.cc:274-285`][spare-file-157]
+schedules its creation as a delayed,
+lowest-priority worker task.
+With `BrowserMetrics` read-only,
+`InitWithMappedFile` cannot move it into the folder,
+so it stays in the profile root.
+That write happens on a worker,
+not through a mapping the browser main thread keeps writing to.
+
+### Verification on Chromium 157
+
+The harness is
+[`check-metrics-mapping-on-throwaway-profile.ts`](helium-window-freezes/check-metrics-mapping-on-throwaway-profile.ts).
+It starts Helium on a throwaway profile in its own systemd user unit,
+with `--ozone-platform=headless` so no window opens,
+and reads the browser main process's `/proc/<pid>/maps` after startup and 30 s later.
+With `restart`,
+it also opens `chrome://restart` over DevTools and checks the relaunched process.
+
+```sh
+# From doc/troubleshooting/helium-window-freezes; arms: control, launcher, desktop, sentinel
+node check-metrics-mapping-on-throwaway-profile.ts "${HOME}/temp/agent/<scratch-folder>" control restart
+```
+
+Arms with a disk-backed mapping:
+
+- `control`,
+  plain `/usr/bin/helium-browser`:
+  one `BrowserMetrics/*.pma (deleted)` mapping after startup,
+  30 s later,
+  after `chrome://restart`,
+  and 20 s after that.
+  This is the positive control.
+- `launcher` before the file-inside change:
+  no mapping after startup or 30 s later,
+  but `BrowserMetrics` was already gone 3 s after start,
+  and after `chrome://restart` the relaunched browser mapped `BrowserMetrics-6AFCD6EF-46B75.pma`.
+
+Arms without one:
+
+- `sentinel`,
+  plain `/usr/bin/helium-browser` on a profile whose `BrowserMetrics` was made `0500` with a file inside beforehand:
+  no mapping at any of the four checks,
+  and the folder and file survived.
+- `launcher` after the change,
+  on a fresh profile:
+  no mapping at any of the four checks.
+  A second launcher run on the same profile also had none,
+  which shows the launcher can rewrite its file inside the read-only folder.
+- `desktop`,
+  the installed `helium.desktop` main `Exec=` line:
+  no mapping at any of the four checks.
+- `prepared-mid-session`,
+  which mirrors how the user's real profile was prepared:
+  plain Helium mapped `BrowserMetrics-6AFCD9C7-4B642.pma` after startup and 30 s later;
+  its 4,194,304-byte `BrowserMetrics-spare.pma` appeared 90 s after start;
+  the folder was then made read-only with a file inside while that browser ran,
+  and it kept its existing mapping.
+  After `chrome://restart`,
+  the relaunched browser had no mapping,
+  was still running 20 s later,
+  and the folder was intact.
+  `coredumpctl` recorded no Helium core dump during the run.
+
+Every browser stayed running through its checks and was then stopped by the harness.
+The `prepared-mid-session` run used the committed harness;
+the other arms ran in a scratch predecessor with the same checks,
+before the harness was committed.
+Logs are in `${HOME}/temp/agent/helium-metrics-launcher-check-on-chromium-157-2026-11-17/keep`
+and `${HOME}/temp/agent/helium-metrics-prepared-mid-session-check-2026-11-17/keep`.
+No crash report appeared in Helium's crash database during the runs,
+which the throwaway browsers share with the real profile
+(`${HOME}/.config/net.imput.helium/Crash Reports`;
+only its `settings.dat` changed).
+The harness and the launcher pass `mise run lint:types` from the companion folder.
+
+#### Probe errors caught before trusting a result
+
+The first three rounds reported no browser process in any arm,
+so their results were discarded:
+
+- Chromium moves its browser main process out of the launching unit
+  into its own `app-org.chromium.Chromium-<pid>.scope`,
+  so the unit's `cgroup.procs` lists only its children.
+  Stopping the unit also leaves the browser running:
+  two relaunched throwaway browsers survived and were stopped by scope.
+- Chromium rewrites its process title into one space-joined string,
+  so splitting `/proc/<pid>/cmdline` on NUL bytes finds no `--user-data-dir=` argument.
+- A missing `BrowserMetrics` folder proves nothing:
+  Helium deletes the folder and the active file soon after startup,
+  and the mapping stays live as `(deleted)`.
+  Only `/proc/<pid>/maps` shows it.
+
+During the third round,
+direct reads of the running browsers' `/proc/<pid>/maps` gave the same split as the final rounds
+(control mapped, launcher not, relaunch mapped);
+they are kept as `run3-direct-maps-readings.txt` in the same log folder.
+
 ## Status at 2026-11-03T02:27:03-05:00
 
 Captured main-thread stalls include writes to Chromium's `BrowserMetrics` memory mapping.
@@ -458,16 +655,23 @@ See [`mise-excluded-research-task-discovery.md`](mise-excluded-research-task-dis
 The committed [launcher helper](helium-window-freezes/launcher.ts)
 prepares the profile's `BrowserMetrics` directory with mode `0500`,
 then replaces itself with the Helium AppImage and the supplied arguments.
+(Since 2026-11-17 it execs the Arch package's `/usr/bin/helium-browser` instead;
+see "What changed on 2026-11-17".)
 The failed disk-mapping initialization takes Chromium's built-in local-memory fallback.
 Helium cleanup removes that directory,
 so the helper prepares it on every invocation.
 A one-time permission change is insufficient across launches.
+(Since 2026-11-17 the helper first writes a file inside the directory,
+which stops that removal;
+the directory then persists and covers starts that skip the helper.)
 
 Installed locations are `${HOME}/.local/lib/helium/launcher.ts`
 and `${HOME}/.local/share/applications/helium.desktop`.
 The main,
 new-window,
 and private-window desktop commands use the helper through the stable installed Node exposure path.
+(On the CachyOS machine since 2026-11-17 they use `/usr/bin/node`,
+because the exposure path does not exist there.)
 `desktop-file-validate` passed.
 
 The tradeoff is loss of on-disk persistence for diagnostic histograms.
@@ -476,10 +680,15 @@ Other filesystem waits remain possible,
 including writes to the remaining GPU-cache mappings.
 An AppImage integration update may replace the desktop entry;
 verify the launch command after such an update.
+(Since 2026-11-17 Helium is an Arch package, which never writes to `${HOME}/.local/share/applications`;
+the opposite risk applies, that the local entry misses later package changes.)
 
 The original desktop entry is retained at
 `${HOME}/.local/state/helium-freeze-workaround/20261103T071500Z/helium.desktop`.
 Restoring its original commands removes the helper from the launch path.
+(That backup is from the old machine.
+On the CachyOS machine there was no earlier local entry,
+so deleting `${HOME}/.local/share/applications/helium.desktop` restores the package's entry.)
 
 ### Session restoration failure
 
@@ -504,6 +713,18 @@ they have not been copied over the user's new session.
 - `--disable-features=PersistentHistograms` does not prevent the installed startup path from creating mapped metrics.
 - An early process-start mapping check is insufficient;
   initialization and continued execution must also be checked.
+- An empty read-only `BrowserMetrics` directory alone does not last on Helium `0.21.3.1`:
+  Helium deletes it within seconds of startup,
+  so a relaunch through `chrome://restart`, which skips the launcher, maps the file again.
+  A file inside the directory prevents the deletion.
+- `grep --count '\.pma' "/proc/$(pgrep --oldest --exact helium)/maps"` does not reliably check the user's browser:
+  at `2026-11-17T17:57` the oldest `helium` process was another session's automation browser
+  with its own `--user-data-dir`,
+  so the check read the wrong process and its `0` said nothing about the real profile.
+- Matching the browser by the launching systemd unit's cgroup,
+  or by NUL-separated `/proc/<pid>/cmdline` arguments,
+  finds no Chromium browser main process;
+  see "Probe errors caught before trusting a result".
 
 ## Upstream filing decision
 
@@ -524,14 +745,44 @@ No upstream report or generated issue draft was sent.
 
 ## Next action
 
+The user restarted Helium with `helium://restart`.
+The new default-profile browser main process (PID `320152`, started `2026-11-17T17:57:06-05:00` with `--restart`)
+has no metrics mapping,
+and `BrowserMetrics` still holds its file,
+so the workaround is in effect on the real profile.
+Helium `0.21.3.1`'s menu has no Exit item;
+typing `helium://restart` in the address bar relaunches it.
+On a throwaway profile at `2026-11-17T17:54:56-05:00`,
+that restart brought back every open tab (a `data:` page, an `about:blank#` page, and the New Tab page).
+A plain quit and reopen follows the profile's "On startup" setting instead,
+which the user's profile leaves at Helium's default.
+The relaunch skips the launcher,
+and the read-only folder still keeps the metrics in memory
+(the `prepared-mid-session` arm in "Verification on Chromium 157").
+This prints the metrics-mapping count of the default-profile browser main process;
+`0` means the workaround is in effect:
+
+```sh
+# Skips child processes (--type=) and other profiles (--user-data-dir=), such as automation browsers
+pgrep --exact helium --list-full | grep --invert-match --regexp=--type= --regexp=--user-data-dir= | cut --delimiter=' ' --fields=1 | xargs -I{} grep --count '\.pma' /proc/{}/maps
+```
+
+It was tested in zsh and fish,
+and selected PID `320152`.
+
 The next useful evidence is a recurrence in the current launcher session,
 correlated with the retained syscall and blocked-main-thread capture.
+(That capture is on the old machine;
+no recorder runs on the CachyOS machine.)
 The lost old session means ordinary pre-change and post-change browsing workloads are not identical.
 Do not claim an end-to-end freeze-rate reduction from the mapping check alone.
 
 [early-init]: https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/app/chrome_main_delegate.cc#L1745-L1765
 [mapped-init]: https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/metrics/persistent_histograms.cc#L124-L164
 [memory-fallback]: https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/metrics/persistent_histograms.cc#L212-L222
+[mapped-init-157]: https://github.com/chromium/chromium/blob/4b3d0dabb8250b6f152d2d85d79e7706e309d087/components/metrics/persistent_histograms.cc#L183-L189
+[memory-fallback-157]: https://github.com/chromium/chromium/blob/4b3d0dabb8250b6f152d2d85d79e7706e309d087/components/metrics/persistent_histograms.cc#L212-L221
+[spare-file-157]: https://github.com/chromium/chromium/blob/4b3d0dabb8250b6f152d2d85d79e7706e309d087/components/metrics/persistent_histograms.cc#L274-L285
 [helium-policy]: https://github.com/imputnet/helium/blob/2f81b9cafa38a95071e20de3f9cd6b0aca6d3c65/CONTRIBUTING.md#L17-L21
 [electron-delegate]: https://github.com/electron/electron/blob/f81ca3d4f09f57667238120adacb01239d5ecd89/shell/app/electron_main_delegate.h#L24-L28
 [electron-entry]: https://github.com/electron/electron/blob/f81ca3d4f09f57667238120adacb01239d5ecd89/shell/app/electron_main_linux.cc#L61-L65

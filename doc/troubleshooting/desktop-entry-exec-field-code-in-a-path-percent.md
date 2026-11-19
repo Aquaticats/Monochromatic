@@ -121,6 +121,18 @@ so the check tells the two apart.
 
 ## Verified workarounds
 
+GIO also checks the first `Exec` token as an executable before expanding field codes.
+With the escaped path in that position, `desktop-file-validate` accepted the Browser Selector entry,
+but `gio launch` reported `Unable to load application information for …`.
+In GLib 2.90.1, `g_find_program_for_path` receives the first shell-parsed token,
+and `expand_macro` runs later at launch.
+[GLib source](https://github.com/GNOME/glib/blob/e05063ccc6c8f222465a1080927f4c14349f3de6/gio/gdesktopappinfo.c#L1973-L2002)
+
+`package/browser-selector/desktop-app/mise.toml` uses `/bin/sh` as the first token,
+with a fixed `exec "$@"` script and the escaped binary and target as separate arguments.
+A nested Wayland test opened a local HTML file with `gio launch` from an install path containing
+spaces, `%f`, a double quote, `$`, and `&`. The selected browser received the original file path.
+
 - Double every percentage character in the `Exec` value,
   after quoting,
   so the

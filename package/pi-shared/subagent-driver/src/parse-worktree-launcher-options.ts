@@ -7,12 +7,14 @@
 import { homedir, } from 'node:os';
 import { parseArgs, } from 'node:util';
 import { join, } from 'node:path';
+import { IDLE_SECONDS_OF_A_RUN, } from './driver-constants.ts';
 import {
   MODEL_OF_A_RUN_NAMING_NONE,
   PROVIDER_OF_A_RUN_NAMING_NONE,
 } from './pool-limits.ts';
 import {
   type RequiredOption,
+  requiredNonNegativeSeconds,
   requiredPositiveNumber,
   requiredSeconds,
   requiredText,
@@ -47,12 +49,6 @@ const WORKTREE_FOLDER_IN_CHECKOUT: readonly string[] = [
  The prefix every worktree of a Pi run carries, so the folder says which run works there.
  */
 export const WORKTREE_PREFIX = 'pi-';
-
-/**
- Seconds the driver stays up for a steering message after Pi comes to rest, which is what a coordinator needs to steer a run that
- has settled before it is read. The scratch launcher wrote this value for every run it started.
- */
-export const IDLE_SECONDS_OF_A_RUN = 120;
 
 /**
  The parts of the coordinator's runs folder below the home directory of whoever runs this.
@@ -273,7 +269,7 @@ export function parseWorktreeLauncherOptions({
     },),), }),
     idleSeconds: (parsed['idle-seconds'] === undefined)
       ? IDLE_SECONDS_OF_A_RUN
-      : requiredSeconds(optionOf({
+      : requiredNonNegativeSeconds(optionOf({
         value: parsed['idle-seconds'],
         name: 'idle-seconds',
       },),),

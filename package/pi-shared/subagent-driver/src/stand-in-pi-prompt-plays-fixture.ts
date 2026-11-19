@@ -5,14 +5,21 @@
  @module
  */
 
-import { stdout, } from 'node:process';
+import { writeFile, } from 'node:fs/promises';
+import {
+  env,
+  stdout,
+} from 'node:process';
 import { setTimeout as wait, } from 'node:timers/promises';
 import { compactionPlays, } from './stand-in-pi-compaction-plays-fixture.ts';
 import {
   PRINTS_A_VALUE_SCENARIO,
   printOneSecretValue,
 } from './stand-in-pi-masking-fixture.ts';
-import { scenario, } from './stand-in-pi-log-fixture.ts';
+import {
+  scenario,
+  seen,
+} from './stand-in-pi-log-fixture.ts';
 import { modelErrorPlays, } from './stand-in-pi-model-error-plays-fixture.ts';
 import { rateLimitPlays, } from './stand-in-pi-rate-limit-plays-fixture.ts';
 import {
@@ -82,9 +89,35 @@ async function emitFinalReplyInTwoPieces(text: string,): Promise<void> {
 }
 
 /**
+ The steering message already waiting in the inbox at the first settle.
+ */
+export const MESSAGE_BEFORE_SETTLE = 'follow up before ending';
+
+/**
  Scenarios that take time over a prompt or a steer.
  */
 const waitingPromptPlays: ReadonlyMap<string, (id: unknown,) => Promise<void>> = new Map<string, (id: unknown,) => Promise<void>>([
+  [
+    'inbox-before-settle',
+    async function finishWithAMessageWaiting(id,) {
+      if (seen.prompts === 1) {
+        /**
+         Inbox entry in the run folder the driver has already prepared.
+         */
+        const messageFile = env.STAND_IN_PI_INBOX_FILE;
+        if (messageFile === undefined) {
+          throw new Error('the inbox-before-settle scenario needs STAND_IN_PI_INBOX_FILE',);
+        }
+        await writeFile(
+          messageFile,
+          MESSAGE_BEFORE_SETTLE,
+        );
+      }
+      // The first prompt's answer starts the watch. Publish the message and report the settle before sending that answer.
+      finishRun('done',);
+      answer({ id, },);
+    },
+  ],
   [
     'split-record',
     async function splitRecord(id,) {
