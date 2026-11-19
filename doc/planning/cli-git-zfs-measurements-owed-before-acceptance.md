@@ -1,7 +1,7 @@
 # Measurements owed before accepting the ZFS worktree design
 
-**Non-final draft by an agent, unapproved.** This records guest observations and design implications, not design
-acceptance. The account ownership decision in the
+**Non-final draft by an agent, unapproved.** Last revised 2026-11-19T00:21:41-05:00. It records guest
+observations and design implications, not design acceptance. The account ownership decision in the
 [planning record](cli-git-zfs-worktree.md#owners-answers-of-2026-11-18) makes the refusal repeat a pre-acceptance
 condition, not something to postpone until implementation.
 
@@ -449,9 +449,10 @@ history, other encryption roots or other clone relationships.
   The dependent-destroy variant ran as a dry run only, because the deletion set, not destroying the checkout,
   was the relevant evidence.
 
-## Delta gate measurements, 2026-11-18T23:03:28-05:00
+## Delta gate measurements, 2026-11-18T23:04:53-05:00
 
-This non-final, unapproved repeat addresses the delta gate review of proposal `652b51d74d`. The guest was
+This non-final, unapproved repeat addresses the delta gate review of proposal `652b51d74d`. Its first item commit
+is `cc87958f37` at 2026-11-18T23:04:53-05:00 and its last is `666d6e2617` at 2026-11-18T23:16:35-05:00. The guest was
 `zfs-delta-measurements`, an Ubuntu 24.04 `mvm` libvirt VM. Each probe reused the encrypted file-backed fixture:
 `aes-256-gcm`, raw key, `recordsize=32K`, `compression=zstd-3`, checkout and clone parent under the same home dataset.
 Scripts and logs are in `~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/delta-review-items/keep/`.

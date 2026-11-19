@@ -1,20 +1,28 @@
 # ZFS worktree design proposal for the Git wrapper
 
-**Non-final draft by an agent, unapproved.** Delta gate revision (2026-11-18T23:29:35-05:00): this revision answers
-findings on `652b51d74d` and folds in [VM items 12 to 16][vm-delta] without selecting or ranking the open project
-choices. The VM evidence fold-in (2026-11-18T22:23:49-05:00) recorded items 1 to 11 and their limits. The gate review
-fold-in (2026-11-18T21:55:35-05:00) answered the accepted findings on `71fa25ece8`, incorporated the
-[project decisions][answers] on removal, promote and the runtime module gate, and described the companion
-boot and shutdown unit.
+**Non-final draft by an agent, unapproved.** Second delta fold-in (2026-11-19T00:21:41-05:00): this revision answers
+the second delta review of `7fe84c7be8`, including decisions that review showed the body made without the project.
+The delta gate revision (2026-11-18T23:30:12-05:00) answered findings on `652b51d74d` and folded in
+[VM items 12 to 16][vm-delta]. The VM evidence fold-in (2026-11-18T22:23:49-05:00) recorded items 1 to 11 and
+their limits. The gate review fold-in (2026-11-18T21:55:35-05:00) answered the accepted findings on
+`71fa25ece8`, incorporated the [project decisions][answers] on removal, promote and the runtime module gate, and
+described the companion boot and shutdown unit.
 
-This revision drops the private-ancestor requirement: [VM item 3][vm-propagation] made only the checkout private
-and enabled staging, at the cost of late-mount visibility in the confined reader. It requires proof of snapshot
-lineage immediately before each destruction request: [VM item 11][vm-promote] lost older checkout history to an
-explicit delete despite the recursive refusal, and [VM item 14][vm-batch] tested a single batch. It also requires
-live dataset identity and staged recovery state (item 4), separates clone creation from key and mount readiness
-(item 5), and requires boot-time verification of underlay protection and nested mount reachability (items 8 and 9).
-The other observations
-confirm fixture behavior, not the implementation.
+This revision keeps every previous answer and changes these statements. The snapshot batch request omits the
+`defer` key, because the kernel reads deferral from the key's presence. The whole-request precheck covers check
+failures only, and the state after one batch is named "planned snapshots all gone with the head refused". Item 14
+ran as root, so the delegated account's batch permission stays owed. Removal names the observables that prove
+absence, gives the bookmark inventory a pass and refuse rule, and says how the second and third fresh scans are
+requested. Kernel-release readiness and blocked-removal cancellation become owner choices; the identity choice is
+coupled to origin cleanup authority; the receipts, the second binary and refusal of an implicit remount are
+adopted defaults open to veto. The delta revision dropped the private-ancestor requirement:
+[VM item 3][vm-propagation] made only the checkout private and enabled staging, at the cost of late-mount
+visibility in the confined reader. It requires proof of snapshot lineage immediately before each destruction
+request: [VM item 11][vm-promote] lost older checkout history to an explicit delete despite the recursive refusal,
+and [VM item 14][vm-batch] tested a single batch. It also requires live dataset identity and staged recovery state
+(item 4), separates clone creation from key and mount readiness (item 5), and requires boot-time verification of
+underlay protection and nested mount reachability (items 8 and 9). The other observations confirm fixture
+behavior, not the implementation.
 
 The design keeps the checkout at its existing path and uses account-owned slots over their Git registrations,
 not the first draft's root-owned anchor, `checkout` subdirectory or directory exchange. It draws on the
