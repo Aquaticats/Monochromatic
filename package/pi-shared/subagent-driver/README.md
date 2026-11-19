@@ -1383,6 +1383,22 @@ a command the run's own `process` tool starts is a child of the run's Pi,
 and a `systemd-run --scope` the agent runs in the foreground keeps the parent that started it,
 while a process another session, another run or the person started descends from that and never from this run.
 A process whose folder or parent chain cannot be read counts for nothing.
+A process that ended while one of its records was being read counts as one whose record is already gone:
+Linux answers a read inside `/proc/<pid>` with `ESRCH` once the task is released,
+so the folder is still listed while the record is no longer there.
+That is the answer of the `comm` of a listed process,
+of the `cgroup` that tells the run's own unit from a scope the agent made,
+and of the `stat` a chain of parents is read from.
+Each answers what a missing record already answers:
+the program of a process whose `comm` is gone is unknown,
+while a process whose `cgroup` or `stat` is gone is not counted as the run's work.
+The `cwd` link a process works through is no such read:
+the kernel answers `ENOENT` for a task it released, which the scan already counts as gone.
+On 2026-11-19 the driver read `comm` for a run's process, got `ESRCH`,
+and ended the run `idle` instead of waiting for the work that process still ran;
+the unit then stopped and killed the run's own watcher with it.
+Every other failure is unchanged:
+a read that truly fails still reaches `workProblem`.
 
 Each answer keeps the run for what it can see, and nothing more:
 a process the run's own process tree holds, in one of the run's folders and outside the run's own unit;
