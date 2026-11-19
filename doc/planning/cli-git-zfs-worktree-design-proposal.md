@@ -3,16 +3,15 @@
 **Non-final draft by an agent, unapproved.** Fourth delta fold-in: this revision answers the bounded check of
 `9a1a47e190` to `b26aa27f3c`, its residues and its bookmark verdict, and folds in [item 18][vm-18]. This file's own
 revision stamp is what `git log --format=%cI -1` prints for the file, which before this revision's commit reported
-2026-11-19T01:34:44-05:00 at `5464b07451`; a section heading's stamp is the commit time of the commit that landed
+2026-11-19T01:55:25-05:00 at `9c3d3f698d`; a section heading's stamp is the commit time of the commit that landed
 that section.
 
 This revision changes these statements. The rule that refused removal wherever the namespace exclusion cannot be
-shown is now one option of an open choice, because no described setup can show that exclusion. A bookmark whose
-snapshot this removal itself destroys no longer strands the next chunk or the replan; one whose snapshot was
-already gone refuses with its cost and the way out, and two acceptance controls are added. Item 17 and item 18
-state which clone topology each measured. The coalescing and rate gap sits in the lost last event choice, the
-excluded pair is reasoning from the grants, and each choice carries its facts while each veto-open default carries
-its evidence, its cost and how to veto it.
+shown is worded as one option of an open choice, because no described setup can show that exclusion. The bookmark
+rule is an open choice now, with three options for a bookmark whose snapshot is gone, and removal applies whichever
+one the owner picks. Item 17 and item 18 state which clone topology each measured. The coalescing and rate gap sits
+in the lost last event choice, the excluded pair is reasoning from the grants, and each choice carries its facts
+while each veto-open default carries its evidence, its cost and how to veto it.
 
 The third delta fold-in answered the bounded check of `7fe84c7be8` to `68690e60be`, its findings N1 to N11 and one
 tension with the decided removal. That revision kept every previous answer and changed these statements. Where
@@ -709,20 +708,15 @@ a test asserts that the encoded request has no `defer` key.
       manual and sanoid snapshots. A bookmark carries the GUID and birth transaction group of the snapshot it was
       made from, not its own (`module/zfs/dsl_bookmark.c:352` to `:353` copies them from the snapshot and `:719`
       to `:728` reports them as the bookmark's `guid` and `createtxg`, OpenZFS `zfs-2.4.4`; [VM item 13][vm-13]
-      saw the tuple unchanged after a move). Pass a bookmark therefore when its GUID and `createtxg` equal those of
-      a clone snapshot that passes the snapshot rule in this check, or those of a tuple the destruction plan
-      records once step 3 has persisted it, and no origin-side tuple matches it. This asks for no recorded
-      bookmark: the recorded clone-side inventory is written once at add and the third check forbids updating it,
-      so the rule this draft used through revision `b26aa27f3c`, which required the bookmark's own recorded tuple,
-      would have refused the removal of any clone that someone had bookmarked. Refuse destruction when a
-      bookmark's tuple matches neither a live clone snapshot that passes the snapshot rule nor a recorded plan
-      tuple, when it matches the origin-side inventory, or when the bookmark list could not be read completely,
-      and name each refused bookmark; this pass rule is proposed, not a measured sufficiency proof. Dataset GUIDs
-      are random (`module/zfs/dsl_dataset.c:1203` to `:1204` and `:1768` to `:1769`, `zfs-2.4.4`), so the matching
-      pair identifies the bookmarked snapshot of this clone in practice, not
-      against a 64-bit collision. A bookmark's transaction group is the bookmarked snapshot's birth group, so it
-      says nothing about when the bookmark itself was made. OpenZFS destroys a dataset's bookmark entries with the
-      head (`module/zfs/dsl_destroy.c:1123` to `:1154`, `zfs-2.4.4`), so an unaccounted bookmark goes with it.
+      saw the tuple unchanged after a move). Apply the
+      [Bookmarks on a clone being removed](#bookmarks-on-a-clone-being-removed) rule the owner picks: whichever of
+      its three options is chosen, name every bookmark that option refuses and stop before the first delete, and
+      treat a bookmark list that could not be read completely as a refusal. Dataset GUIDs are random
+      (`module/zfs/dsl_dataset.c:1203` to `:1204` and `:1768` to `:1769`, `zfs-2.4.4`), so a matching tuple
+      identifies the bookmarked snapshot of this clone in practice, not against a 64-bit collision. A bookmark's
+      transaction group is the bookmarked snapshot's birth group, so it says nothing about when the bookmark
+      itself was made. OpenZFS destroys a dataset's bookmark entries with the head
+      (`module/zfs/dsl_destroy.c:1123` to `:1154`, `zfs-2.4.4`), so an unaccounted bookmark goes with it.
     - Third check: compare the live clone inventory against the recorded origin-side GUID inventory, including
       snapshots and bookmarks. Any origin-side hit or unproved provenance refuses destruction. Never update the
       recorded lineage to match an external change.
@@ -732,30 +726,6 @@ a test asserts that the encoded request has no `defer` key.
     clone, the clone lost its direct origin, and the bookmark moved with an unchanged tuple. These are layered
     proposed checks, not a proof that transaction groups establish provenance for other topologies, encryption
     roots, lineage changes or objects created in the same transaction group.
-
-    The plan comparison keeps what the recheck exists for. A removal persists the tuples it verified, each with
-    its outcome, and the kernel keeps a bookmark whose snapshot it destroys: it clears that bookmark's
-    snapshot-exists flag and keeps the entry (`module/zfs/dsl_bookmark.c:1383` to `:1397`, OpenZFS `zfs-2.4.4`),
-    and a bookmark marks the point in time its snapshot was created and can be the incremental source for
-    `zfs send` (`man/man8/zfs-bookmark.8:48` to `:50`). Read against live snapshots alone, the rule strands a
-    removal after its first mutation: the first chunk or the replan destroys the snapshot a bookmark matches, the
-    next lineage proof refuses, and the head, the standing `unmount` intent and an empty snapshot list remain,
-    which is the resume state this section calls planned snapshots all gone with the head refused (reasoning from
-    those citations, not measured). Comparing against the persisted plan as well still refuses every bookmark
-    whose tuple the removal never recorded, an origin-side or foreign one included, because the plan holds only
-    tuples this removal proved and submitted and the origin-side comparison still uses the recorded origin
-    inventory. The one case the plan comparison stops refusing is a snapshot this same removal recorded and
-    destroyed.
-
-    A bookmark whose snapshot was already gone when the plan was made therefore refuses before the first delete,
-    and that refusal has a cost. A bookmark outlives the snapshot it marks, so a snapshot that sanoid,
-    `zfs-space-guard` or a person destroyed leaves the bookmark behind, matching no live snapshot and no plan
-    tuple. Removal then cannot proceed at all: the clone, its remaining snapshots, the registration and the
-    underlay stay, and every retry refuses the same way, because nothing in this design destroys a bookmark. A
-    person destroys the bookmark with `zfs destroy <clone>#<bookmark>` (`man/man8/zfs-destroy.8:180` to `:182`)
-    and retries; under the delegated option that request checks the account's descendant `destroy` grant
-    (`module/zfs/zfs_ioctl.c:1092` to `:1093`), and under the root option an administrator does it, since the
-    account holds no destroy authority there (source reading, not a measured account run).
 2.  If lineage, ownership or the safety of the destructive operation cannot be proved, refuse before the
     first delete. Name the mismatched dataset, snapshot or dependency, keep the registration and removal
     record, and report the need for administrator lineage recovery before retry. Do not try a subset, promote
@@ -764,11 +734,12 @@ a test asserts that the encoded request has no `defer` key.
     `unmount`. Require the root handler's [all-namespace unmount check](#mounts-held-by-other-namespaces) and
     verify the request, clone GUID, underlay identity and Git registration still match. A missing, mismatched
     or busy unmount blocks destruction, even when the slot is clear (proposed from [item 15][vm-namespaces]).
-3.  After unmount, persist the verified inventory and expected clone identity as the destruction plan, which
-    keeps each tuple it submits with that tuple's outcome. Require fresh root all-namespace verification before
-    the first snapshot delete. Reprove lineage and candidate
-    identities immediately before submitting the full verified snapshot set in one `ZFS_IOC_DESTROY_SNAPS` request
-    that omits the `defer` key; retain the per-name error list (direct route run as root, [item 14][vm-batch]).
+3.  After unmount, persist the verified inventory and expected clone identity as the destruction plan. It records
+    each snapshot tuple this removal verified and submitted for destruction, with that tuple's outcome, and never
+    a bookmark. Require fresh root all-namespace verification before the first snapshot delete. Reprove lineage and
+    candidate identities immediately before submitting the full verified snapshot set in one
+    `ZFS_IOC_DESTROY_SNAPS` request that omits the `defer` key; retain the per-name error list (direct route run as
+    root, [item 14][vm-batch]).
     Item 12's grant set, which [Scoped delegation](#scoped-delegation) proposes except for the checkout's local
     `snapshot`, let the delegated account submit the clone's own snapshots in one request: it returned 0, and a name
     with a dependent clone returned `EEXIST` with both kept ([item 17][vm-17] on OpenZFS `2.4.4-1`;
@@ -789,7 +760,8 @@ a test asserts that the encoded request has no `defer` key.
     inspection-to-use window and can leave partial cleanup across requests; item 14 did not test limits or a split.
     Holds and dependencies are named, not bypassed. An inventory change invalidates the submitted plan for any
     future request. If the only change is newly created own snapshots, the wrapper, not an operator, reruns all
-    lineage and unmount checks, records the amended plan, prints the additional names and proceeds without a prompt.
+    lineage and unmount checks, records the amended plan with every earlier tuple and its outcome kept, prints the
+    additional names and proceeds without a prompt.
     This includes a proven own sanoid snapshot; a missing or changed recorded identity, unproved new history, or
     unknown prior outcome stops the attempt. After each known batch outcome, enumerate again before head destroy.
     A snapshot created after the final enumeration can still block head destroy (`module/zfs/dsl_destroy.c:783`
@@ -1052,7 +1024,8 @@ working setup. This proposal has neither installed nor run the root-once command
 ## Open project choices
 
 The open choices are these, with the two alternatives under
-[Clone removal identity protection](#clone-removal-identity-protection) as one choice. They do not reopen
+[Clone removal identity protection](#clone-removal-identity-protection) as one choice and the three bookmark rules
+under [Bookmarks on a clone being removed](#bookmarks-on-a-clone-being-removed) as another. They do not reopen
 checkout path, account ownership, ZED, the fallback or recursive snapshot policy. No option is selected here, and this
 draft ends without a recommendation, because the ranking belongs to the owner's question round. Defaults this draft
 adopts on its own, which a veto can change, are listed
@@ -1060,7 +1033,9 @@ separately under [Adopted defaults open to veto](#adopted-defaults-open-to-veto)
 At the owner handoff, ask one question per decision in the question tool, each with its options, pros, cons and a
 recommendation that explains every adjacent pair in the ranking. The two choices this draft couples are asked as two
 questions, and each states the coupling and the excluded combination that follows from the grants, never as a
-ranking between them. Use the VM findings and identify what remains unmeasured; a ranking is not a decision.
+ranking between them. The bookmark rule is coupled to that same identity choice, because who writes the
+destruction plan differs between its options. Use the VM findings and identify what remains unmeasured; a ranking
+is not a decision.
 
 - Checkout boot mount protection. Keep an ordinary checkout mountpoint and verify an immutable covered entry, or
   use `mountpoint=legacy` with a descriptor boot service that verifies the checkout underlay.
@@ -1117,6 +1092,10 @@ ranking between them. Use the VM findings and identify what remains unmeasured; 
     ([Requests, results and ordering](#requests-results-and-ordering)), and a missing, mismatched or busy unmount
     still blocks destruction even when the slot is clear ([Removal and recovery](#removal-and-recovery), step 2).
     That scan is proposed protocol; item 15 ran one scan per arm and did not exercise repeat requests.
+- Bookmarks on a clone being removed. Pass a bookmark whose tuple a live passing clone snapshot or a recorded plan
+  tuple explains, read live clone snapshots only, or judge by transaction group and the origin side. The three
+  options, their facts, their costs and what the first option still needs are under
+  [Bookmarks on a clone being removed](#bookmarks-on-a-clone-being-removed).
 - Kernel-release readiness. Qualify an exact list of kernel releases per architecture with built-product runs, or
   probe the descriptor, staging and namespace behaviour at start and refuse only what the probe cannot show. The
   exact list disables the managed route after every CachyOS kernel package update until a VM run passes on that
@@ -1308,6 +1287,61 @@ operation, because "authenticate the caller against the configured UID" names no
   neither an error nor a lost response proves no mutation. Item 12 proved only a single conditional clone destroy,
   not the request interface, batch equivalence or recovery. Those are unmeasured design requirements.
 
+### Bookmarks on a clone being removed
+
+This is one open project choice with three options, and removal applies whichever one the owner picks
+([Removal and recovery](#removal-and-recovery), step 1). A bookmark carries the tuple of the snapshot it was made
+from, and a dataset's bookmarks are destroyed with its head, so a bookmark on a clone is explained by a snapshot or
+it is not. The kernel keeps a bookmark whose snapshot it destroys: it clears that bookmark's snapshot-exists flag
+and keeps the entry (`module/zfs/dsl_bookmark.c:1383` to `:1397`, OpenZFS `zfs-2.4.4`), so a bookmark outlives the
+snapshot it marks (source reading), and the page calls a bookmark the point in time its snapshot was created and an
+incremental source for `zfs send` (`man/man8/zfs-bookmark.8:48` to `:51`). No option here is measured:
+[VM item 13][vm-13] moved a bookmark with an unchanged tuple, and no arm destroyed a bookmarked snapshot or removed
+a clone that carried a bookmark.
+
+- Pass a bookmark whose tuple a live passing clone snapshot or a recorded plan tuple explains, and refuse the
+  rest. Refuse destruction when a bookmark's tuple matches neither, when it matches the origin-side inventory, or
+  when the bookmark list could not be read completely, and name each refused bookmark. Dataset GUIDs are random
+  (`module/zfs/dsl_dataset.c:1203` to `:1204` and `:1768` to `:1769`, OpenZFS `zfs-2.4.4`), so the matching pair
+  identifies the bookmarked snapshot of this clone in practice, not against a 64-bit collision. This asks for no
+  recorded bookmark: the recorded clone-side inventory is written once at add and the third check forbids updating
+  it, so the rule this draft used through revision `b26aa27f3c`, which required the bookmark's own recorded tuple,
+  would have refused the removal of any clone that someone had bookmarked. Its cost is a bookmark whose snapshot
+  was already gone when the plan was made: that refuses before the first delete, the clone, its remaining
+  snapshots, the registration and the underlay stay, and every retry refuses the same way, because nothing in this
+  design destroys a bookmark. A person destroys it with `zfs destroy <clone>#<bookmark>`
+  (`man/man8/zfs-destroy.8:180` to `:182`) and retries; under the delegated option that request checks the
+  account's descendant `destroy` grant (`module/zfs/zfs_ioctl.c:1092` to `:1093`), and under the root option an
+  administrator does it, since the account holds no destroy authority there (source reading, not a measured
+  account run). What this option still needs is stated here rather than settled. The plan's home is unnamed and
+  its writer follows the identity option: the wrapper runs as the account, so the account writes the plan under
+  delegated destruction, and a same-account writer could forge a tuple, which is the same-account residual that
+  option already accepts ([Clone removal identity protection](#clone-removal-identity-protection)); under root
+  destruction, root persists the verified plan under root control. An amended plan keeps every earlier tuple and
+  its outcome ([Removal and recovery](#removal-and-recovery), step 3), or a later chunk would refuse the bookmark
+  of a snapshot an earlier chunk destroyed. The plan records each snapshot tuple the removal verified and
+  submitted, with that tuple's outcome, and never a bookmark. The comparison relies on an unknown prior outcome
+  stopping the attempt before the recheck ([Removal and recovery](#removal-and-recovery), step 3), so an
+  unexplained gap is never read as a pass. After a first chunk the stranded state is the partial snapshot set, and
+  "planned snapshots all gone with the head refused" needs the whole batch. The acceptance control must force a
+  split or a replan, because a one-batch removal passes under every option here
+  ([Acceptance tests the build still owes](#acceptance-tests-the-build-still-owes)).
+- Read live clone snapshots only, the rule this draft used through revision `b26aa27f3c`. It needs no plan and no
+  recorded tuple for a bookmark. It strands a removal after its first mutation: the first chunk or the replan
+  destroys the snapshot a bookmark matches, the next lineage proof refuses, and the head, the standing `unmount`
+  intent and the remaining snapshots stay while the destroyed ones are gone (reasoning from the citations above,
+  not measured). After a split that stranded state is the partial snapshot set; after a whole batch it is planned
+  snapshots all gone with the head refused.
+- Judge by transaction group and the origin side, the option this check proposed rather than one this draft ever
+  stated: pass a bookmark whose tuple is ordered after the clone's own creation and matches no origin-side tuple.
+  It needs neither a plan nor a refusal of a stale bookmark. Its basis is a source reading: a bookmark's source
+  snapshot must be an earlier point in its dataset's timeline (`module/zfs/dsl_bookmark.c:250` to `:256`, OpenZFS
+  `zfs-2.4.4`), and promotion moves bookmarks by creation transaction group into the promoted dataset
+  (`module/zfs/dsl_dataset.c:3747` to `:3757`, OpenZFS `zfs-2.4.4`; [VM item 13][vm-13] saw a bookmark move with
+  an unchanged tuple). Its limit is the one step 1 states: transaction-group order is not proof for other
+  topologies, encryption roots, lineage changes or objects created in the same transaction group
+  ([Removal and recovery](#removal-and-recovery), step 1). It is unmeasured.
+
 ## Pre-acceptance VM measurements
 
 The [planning record][answers] requires the descriptor refusals to be measured again with account-owned slots
@@ -1498,10 +1532,13 @@ Ubuntu guest.
 - Repeat [VM item 11][vm-promote] against the binding's promote primitive. With the built wrapper, refuse a
   promoted or mismatched clone before the first snapshot delete, and assert that every protected snapshot and
   bookmark identity survives. Repeat the `origin`, `createtxg` and transferred-bookmark controls of
-  [VM item 13][vm-13], including reverse promotion. Add the two own-bookmark controls: a bookmark made from a clone
-  snapshot the plan includes passes and lets the removal finish, and a bookmark whose snapshot was already
-  destroyed refuses before the first snapshot delete and names the bookmark. Include a verified unpromoted clone
-  with manual and sanoid snapshots as the removal control. Test
+  [VM item 13][vm-13], including reverse promotion. Add the own-bookmark controls for the selected bookmark rule:
+  a bookmark made from a clone snapshot the plan includes passes and lets the removal finish; a bookmark whose
+  snapshot was already destroyed gives that option's stated outcome before the first snapshot delete and names the
+  bookmark; and one control forces a split or a replan, by a request budget that splits the set into two chunks or
+  by a new own sanoid snapshot injected after the first chunk, with the bookmark on a snapshot the first chunk
+  destroyed. A one-batch removal passes under every option, so the split or replan control is the one that tells
+  them apart. Include a verified unpromoted clone with manual and sanoid snapshots as the removal control. Test
   proof invalidation after administrator lineage changes. Repeat [VM item 12][vm-replacement] for the selected
   [identity policy](#clone-removal-identity-protection): verify absence of the lineage-changing grants for delegated
   destruction and exercise the declared same-account residual; or prove conditional refusal for a stale identity,
