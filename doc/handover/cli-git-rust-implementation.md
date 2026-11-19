@@ -39908,10 +39908,18 @@ What follows from them, as work:
   here" framing, a doctor bullet that asserts instead of checking, a verbless sentence, "Neither alternative",
   relative-position pointers (`WR5`), and five dropped details of kept alternatives. All ten go to a fix run; the
   review's worktree is removed.
-- **GOING**: the fix run, unit `pi-zfs-proposal-fold-in-short-review-findings-fixed` (DeepSeek on Neuralwatt, turn
-  cap 635, a quarter above the longest of 331 finished finding-fix runs, 508), in the fold-in worktree; brief and run
-  folder under `~/temp/agent/zfs-proposal-fold-in-short-review-findings-fixed-2026-11-19/`. Then the Sonnet gate
-  review of the whole fold-in before the owner's acceptance.
+- **The fix run ended `idle`** (unit `pi-zfs-proposal-fold-in-short-review-findings-fixed`, DeepSeek on Neuralwatt,
+  69 turns, 6 min 24 s), eight commits `ca73f61fb1` to `4a451701c9` on the proposal branch, one file. By its report
+  all ten findings held on reread and are answered; F1 says a busy unmount ends by `--force` or cancels itself and a
+  missing or mismatched one blocks outright (not the review's "until its holders end", which would read as waiting
+  against the auto-cancel decision); F9 found three more positional pointers than the review listed; F10 restored five
+  details and left out the two a decision explains. It posted a corrective commit comment on `f5a0133ac9`, whose
+  message claims a restore `3e5e1dede2` had made (rule `GCA`). Report in that run's `summary.json`.
+- **GOING**: the Sonnet gate review of the decided proposal at `4a451701c9` (rule `LHZ`, a design put to the owner),
+  a background Claude Code subagent on Sonnet, read-only through `git show` and `git diff` in the main repository;
+  given the document, the diff `b5294a7325..4a451701c9`, the frozen record and the fold-in brief, not the short
+  review's findings, so its reading is its own; brief and report under
+  `~/temp/agent/zfs-proposal-decided-answers-gate-review-on-sonnet-2026-11-19/`. Then the owner's acceptance.
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
   `pi-zfs-proposal-fold-in-short-review-on-the-qwen-plan` (turn cap 540, a quarter above the longest of 672 finished
   review runs, 431), in its own detached worktree
