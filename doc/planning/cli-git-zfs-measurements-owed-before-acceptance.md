@@ -1,6 +1,6 @@
 # Measurements owed before accepting the ZFS worktree design
 
-**Non-final draft by an agent, unapproved.** Last revised 2026-11-19T00:43:27-05:00. It records guest
+**Non-final draft by an agent, unapproved.** Last revised 2026-11-19T00:44:01-05:00. It records guest
 observations and design implications, not design acceptance. The account ownership decision in the
 [planning record](cli-git-zfs-worktree.md#owners-answers-of-2026-11-18) makes the refusal repeat a pre-acceptance
 condition, not something to postpone until implementation.
@@ -705,7 +705,7 @@ release in the Ubuntu guest does not establish that the host kernel passes the c
 - No complete namespace or mount-reference exclusion. The guest scan had readable, live representatives
   for the observed namespaces; the result does not generalize to pinned namespaces or racing task changes.
 
-## 17. One snapshot batch from the delegated account, 2026-11-19T00:43:27-05:00
+## 17. One snapshot batch from the delegated account, 2026-11-19T00:44:01-05:00
 
 This non-final, unapproved section answers finding L6 of the second delta review of `68690e60be`: item 14's batch
 ran as root, and the delegated account had been measured destroying only a head (item 12). It also answers the
