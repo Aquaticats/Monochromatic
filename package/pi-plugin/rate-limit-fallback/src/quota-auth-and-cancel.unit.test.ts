@@ -88,6 +88,42 @@ await describe({
         },
       },);
     },),
+    it({
+      name: 'a shorter wait deadline does not cancel a shared quota read or discard its evidence',
+      fn: async function sharedQuotaDeadline(ctx,) {
+        const reader = new AbortController();
+        const waiter = new AbortController();
+        const timeout = ctx.sinon.stub(AbortSignal, 'timeout',).returns(waiter.signal,);
+        timeout.onFirstCall().returns(reader.signal,);
+        const started = Promise.withResolvers<void>();
+        const reading = Promise.withResolvers<Response>();
+        const { provider, calls, options, } = await fixture({
+          extension,
+          models: SYNTHETIC_ONLY,
+          play({ model, }) { return immediate({ model, },); },
+          async fetchQuota() {
+            started.resolve();
+            return await reading.promise;
+          },
+        },);
+        const model = poolModel({ provider, id: 'reviewer', },);
+        const first = collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        await started.promise;
+        const second = collect(provider.streamSimple(model, TRANSCRIPT, { ...options, timeoutMs: MODEL_TIMEOUT_MS, },),);
+        await setImmediate();
+        waiter.abort();
+        const early = await Promise.race([second, setImmediate(),],);
+        reading.resolve(Response.json({
+          planWeeklyLimit: { percentRemaining: 0, nextRegenAt: new Date(Date.now() + RESET_MS,).toISOString(), },
+        },),);
+        const [held, answered,] = await Promise.all([first, second,],);
+        expect(early,).not.toBeUndefined();
+        expect(answered.result.stopReason,).toBe('stop',);
+        expect(held.result.errorMessage,).toContain('is held until',);
+        expect(reader.signal.aborted,).toBe(false,);
+        expect(calls.length,).toBe(1,);
+      },
+    },),
     ...['non-Bearer header', 'resolver exception',].map(function credentialFailure(reason,) {
       return it({
         name: `admits the member without sending a quota request after a ${reason}`,
