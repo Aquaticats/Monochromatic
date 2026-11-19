@@ -40196,6 +40196,12 @@ clone between chunks (reasoning), item 17's promoted topology against the design
 under "B: Destroy at once" offered nowhere as a choice. GOING: item 18 measures the account's batch on an unpromoted clone
 (`pi-zfs-measurement-item-18-unpromoted-clone-batch-1`, run-4, VM); then one last fold-in (the refusal rule as an open
 choice, the bookmark costs and stranding, item 18, the lows); then the choices to the owner.
+Item 18 ended `idle` (94 turns; record `9b2cd94680`, proposal `9331b1101a`, three more): in a guest on kernel
+`6.8.0-147-generic` with OpenZFS `2.4.4-1`, under item 12's grants, the account's one batch on an **unpromoted** clone
+returned 0 and removed both clone snapshots, the checkout's three snapshot identities unchanged; with a dependent clone
+it returned `EEXIST` naming only that snapshot and nothing was deleted; root's control matched. VM destroyed (`mvm
+--backend libvirt list`: no VMs). GOING: the last fold-in, `pi-zfs-worktree-design-proposal-fourth-fold-in-1` (run-8,
+brief `prompt-fourth-fold-in.md`).
 
 **Provider writer run-7** hit its 200-turn cap after 16 min with nine commits (`cb7d6a66ab` to `dbc6f57268`: OpenAI out
 of the writer pool, the move gated on OpenAI's opening, a set-aside policy stop yielded instead of a later 429, the
