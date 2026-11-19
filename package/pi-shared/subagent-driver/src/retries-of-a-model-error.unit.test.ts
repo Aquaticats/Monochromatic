@@ -44,7 +44,7 @@ const PROVIDER_NOT_CONFIGURED = 'Provider is not configured: neuralwatt';
 /**
  The abort a run recorded when its wall clock ran out, word for word from
  `pi-runs/commit-ceiling-and-private-index-follow-ups-4/summary.json`'s `modelError` on 2026-11-09; that run ended
- `wall-clock`, and the `btrfs-ladder-host-run-1` feed an earlier comment cited is gone.
+ `wall-clock`, and the `btrfs-ladder-host-run-1` feed the comment cited at `026bef2510` is gone.
  */
 const OPERATION_ABORTED = 'This operation was aborted';
 
@@ -169,8 +169,8 @@ await describe({
         expect(kindOfModelError('Context length exceeds the limit of 500 tokens',),).toBe('permanent',);
         // Made up, no program's output: an unknown model whose name holds a transient word.
         expect(kindOfModelError('Unknown model: timeout-model',),).toBe('permanent',);
-        // The recorded abort above, with a transient word after it: made up beyond that capture, and the boundary is the
-        // terminal cause read before the word beside it.
+        // `OPERATION_ABORTED` with a transient word after it: made up beyond that capture, and the boundary is the terminal
+        // cause read before the word beside it.
         expect(kindOfModelError(`${OPERATION_ABORTED} after timed out`,),).toBe('permanent',);
       },
     },),
@@ -214,8 +214,8 @@ await describe({
     it({
       name: 'reads a status that asks for another attempt as transient, the timeouts included',
       fn: async () => {
-        // Made up, no program's output: the reason phrase of each status below, none of them recorded by a run here; the
-        // boundary is the code at the start of the text, the transient ones first and the refused one at the end.
+        // Made up, no program's output: the reason phrase of `408`, `522`, `425`, `521` and `523`, none of them recorded by a
+        // run here; the boundary is the status code at the start of the text, and the control is `501 Not Implemented`.
         expect(kindOfModelError('408 Request Timeout',),).toBe('transient',);
         expect(kindOfModelError('522 Connection timed out',),).toBe('transient',);
         expect(kindOfModelError('425 Too Early',),).toBe('transient',);
@@ -223,7 +223,8 @@ await describe({
         expect(kindOfModelError('523 Origin Is Unreachable',),).toBe('transient',);
         // The control: a status that refuses the request itself stays a failure no attempt can fix.
         expect(kindOfModelError('501 Not Implemented',),).toBe('permanent',);
-        // The same made-up refused status as above, here beside the transient one it is read apart from.
+        // Made up, no program's output: `400 Bad Request: max_tokens must not exceed 500` again, beside the transient statuses
+        // it is read apart from.
         expect(kindOfModelError('400 Bad Request: max_tokens must not exceed 500',),).toBe('permanent',);
       },
     },),
@@ -244,11 +245,13 @@ await describe({
     it({
       name: 'reads a rate limit that names what it limited as a rate limit, not as a bad credential',
       fn: async () => {
-        // The same made-up 429 as above.
+        // Made up, no program's output: `429 Too many requests for this API key; retry_after=1`, a limit that names the key
+        // it limited.
         expect(kindOfModelError('429 Too many requests for this API key; retry_after=1',),).toBe('throttled',);
         // Made up, no program's output: a throttle that names the API key it limited.
         expect(kindOfModelError('Rate limit reached for the API key of this workspace',),).toBe('throttled',);
-        // A credential failure no rate limit names stays one another attempt cannot fix; made up as above.
+        // `Invalid API key for upstream provider`: a credential failure no rate limit names stays one another attempt cannot
+        // fix; made up, no program's output.
         expect(kindOfModelError('Invalid API key for upstream provider',),).toBe('permanent',);
       },
     },),
@@ -289,7 +292,7 @@ await describe({
           retryNumber: 1,
           baseSeconds: MODEL_ERROR_RETRY_BASE_SECONDS,
         },),).toBe(MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS,);
-        // Made up, no program's output: the same header asking for a wait past the largest delay.
+        // Made up, no program's output: the `Retry-After: 3600` header asking for a wait past the largest delay.
         expect(retryDelayMilliseconds({
           problem: 'Retry-After: 3600',
           retryNumber: 1,
@@ -310,7 +313,8 @@ await describe({
           asked: true,
           milliseconds: 30_000,
         },);
-        // The same made-up body as above, asking for a wait past the largest delay.
+        // Made up, no program's output: the `503` body with `retry_after` wrapped across a line break before `3600`, asking
+        // for a wait past the largest delay.
         expect(retryDelayMilliseconds({
           problem: '503 {"retry_after":\n3600}',
           retryNumber: 1,
@@ -339,7 +343,7 @@ await describe({
       fn: async () => {
         const prompt = continuationPromptOf({ problem: REQUEST_TIMED_OUT, },);
         expect(prompt,).toContain(REQUEST_TIMED_OUT,);
-        // The driver's own prompt text, `src/retries-of-a-model-error.ts:659`.
+        // The driver's own prompt text, `src/retries-of-a-model-error.ts:663`.
         expect(prompt,).toContain('Continue the task from where you left off',);
       },
     },),
