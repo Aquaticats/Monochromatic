@@ -33,7 +33,7 @@ const QWEN_REQUEST_RATE_WAIT_MS = 60_000;
 const RATE_LIMIT_STATUS = String(HTTP_RATE_LIMIT_STATUS,);
 
 /**
- Policy labels preserve single separators and the exact spacing of the possible-risk message.
+ Policy labels that accept a single space, underscore, or hyphen as the separator.
  */
 const POLICY_LABELS = [
   'content filter',
@@ -110,10 +110,12 @@ export function isPolicyStop(message: FailureEvidence,): boolean {
   if (message.stopReason !== 'error')
     return false;
   /**
-   Case-folded text preserves the space in the possible-risk phrase.
+   Case-folded text with original spacing for the OpenAI refusal wording.
    */
   const text = foldProviderText(message.errorMessage ?? '',);
-  if (text.includes('possible risk',))
+  // The stock opening identifies the refusal without relying on the advisory text or where it was cut.
+  if (text.includes('possible risk',)
+    || text.includes('this content was flagged for possible cybersecurity risk',))
     return true;
   /**
    The other policy labels also accept a single underscore or hyphen separator.

@@ -33,6 +33,9 @@ const POLICY_ERRORS = {
   'OpenAI wording with a straight apostrophe': OPENAI_POLICY.replace('’', '\'',),
 } as const;
 
+/** Expected writer members on either side of the first fallback boundary. */
+const [WRITER_HEAD, NEXT_WRITER_MEMBER,] = TARGETS;
+
 /** Other non-capacity failures are returned unchanged. */
 const TERMINAL_ERRORS = [
   '401 Unauthorized: contact support with request 429',
@@ -112,7 +115,7 @@ await describe({
           const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           expect(result.errorMessage,).toBe('The provider stopped the request under its content policy.',);
           expect(isRetryableAssistantError(result,),).toBe(false,);
-          expect(calls.map(call => call.model.provider,),).toEqual(['openai',],);
+          expect(calls.map(call => call.model.provider,),).toEqual([WRITER_HEAD.provider,],);
         },
       },);
     },),
@@ -139,7 +142,7 @@ await describe({
           play({ model, }) {
             return immediate({
               model,
-              ...(model.provider === 'openai'
+              ...(model.provider === WRITER_HEAD.provider
                 ? { errorMessage: '429 Too many requests while we assess possible cybersecurity risk', }
                 : {}),
             },);
@@ -148,7 +151,7 @@ await describe({
         const model = poolModel({ provider, id: 'writer', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(result.stopReason,).toBe('stop',);
-        expect(calls.map(call => call.model.provider,),).toEqual(['openai', 'qwen-token-plan-individual',],);
+        expect(calls.map(call => call.model.provider,),).toEqual([WRITER_HEAD.provider, NEXT_WRITER_MEMBER.provider,],);
       },
     },),
     it({

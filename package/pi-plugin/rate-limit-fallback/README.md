@@ -26,8 +26,11 @@ until the attempt commits or successfully finishes. Once a content event
 has been exposed, or a terminal message already contains content, the
 plugin returns that member's error instead of replacing its partial
 answer or mixing events. Cancellation, transport errors, bad inputs, and
-other non-429 errors do not trigger fallback. A provider policy stop
-(including OpenAI's “possible risk”) ends the request. The plugin removes
+other non-429 errors do not trigger fallback. A provider policy stop ends
+the request. The plugin recognizes OpenAI's opening
+`This content was flagged for possible cybersecurity risk` even when the
+advisory text that follows is truncated or changes punctuation. It still
+recognizes the shorter `possible risk` wording. The plugin removes
 incidental retry wording from recognized policy errors before passing them
 to Pi, so even a misleading 429 prefix does not trigger Pi's outer retry.
 
