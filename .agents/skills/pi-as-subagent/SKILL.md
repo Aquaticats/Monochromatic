@@ -115,8 +115,12 @@ On 2026-11-11 from 01:19Z,
 "Concurrent limit reached for deepseek-ai/DeepSeek-V4.1-Flash: 6/6 slots in use. ...
 Your subscription is in overage with auto-renew off,
 so pay-as-you-go limits apply until it renews."
-The rate-limit endpoint still answered `effective_concurrency` 20 then,
-so the 429 is what tells;
+The rate-limit endpoint still answered `effective_concurrency` 20 then;
+the owner, 2026-11-18:
+"that was probably an undocumented bug.
+The bug happens if my auto renew for Neuralwatt isn't turned on."
+So the endpoint's number holds while auto-renew is on,
+and only in that overage state does the 429's own number tell;
 Pi ends the run on it instead of retrying.
 The owner's `retry` group was read again on 2026-11-11 at 22:33Z and holds
 `enabled` true,
@@ -199,23 +203,28 @@ and then has its hung process ended by process number.
 ## Who writes and who reviews
 
 Writers and reviewers both run through Pi and this driver,
-each on its own model.
+both on DeepSeek V4.1 Flash.
 The owner,
 2026-11-17:
-"Also, I'm now making GPT 6.2 Sol as writer and deepseek as reviewer.",
-then
 "Once again, /pi-as-subagent . GPT and deepseek should both be in it now. And don't use the deepseek official provider.",
 and of the driver package,
 "We already have a package about pi as subagents in the workspace."
+GPT 6.2 Sol wrote from 2026-11-17 to 2026-11-19 and was dropped under the owner's delegation
+("if you think GPT is giving us too much trouble, cull it entirely"; the owner: "I tried using GPT as a writer because
+6.2 models were released and I have a 100USD/month GPT plan, so I thought I'd use the quota.
+Apparently not a good decision.").
+The grounds, from the audit kept at
+`~/temp/agent/writer-reliability-by-model-across-topics-2026-11-19/keep/report.md`:
+OpenAI's content filter ended GPT runs and no DeepSeek run on record,
+one GPT run declined a decision the project had made,
+and routing around the filter needed relaying refused content to other vendors;
+the audit found no correctness difference either way.
 
 - **A writer**, a run that changes code or documents,
-  is `--provider=openai --model=gpt-6.2-sol`,
-  the provider the owner picked ("A: openai (Recommended)").
-  When OpenAI ends a run with a `modelError` flagging its content as a possible risk,
-  start the follow-up of step 7 with `--session=<its session file>` on the reviewer pool's DeepSeek,
-  in the same worktree and with a prompt that says where the work stopped.
-  The owner, 2026-11-18:
-  "Whenever a "possible risk" is triggered from OAI, switch to deepseek resuming the session."
+  is DeepSeek V4.1 Flash in the order runs used before 2026-11-17:
+  `--provider=neuralwatt --model=deepseek-v4.1-flash`,
+  then `--provider=neuralwatt --model=deepseek-v4.1-flash-flex` with the doubled wall clock flex runs get,
+  then `--provider=opencode-go --model=deepseek-v4.1-flash`.
 - **A reviewer**, a run that reviews a change outside a gate (the short, frequent kind),
   is DeepSeek V4.1 Flash from one pool in the owner's order:
   `--provider=qwen-token-plan-individual --model=deepseek-v4.1-flash-1017` first
@@ -232,17 +241,17 @@ and of the driver package,
   "Short reviews are supposed to be frequent. Long reviews and audits are supposed to have Sonnet and be rare.",
   with long meaning a review at a gate: an integration pass before main, a release, or a design put to the owner).
 
-A writer and its reviewer come from different vendors,
-so such a review is independent in the sense rule `IRW` gives.
+A writer and its short reviewer are the same vendor,
+so a short review is a second pass, labelled so (rule `IRW`),
+and independence comes from the gate reviews and audits on Sonnet.
+The owner, 2026-11-19:
+"Short reviews don't, because we're running long reviews and audits (with other vendor(s)) anyway."
 This replaces reviews on Claude Sonnet subagents and GPT runs through `codex`
 (rules `KRV` and `XVW` in `AGENTS.md`).
 The provider order belongs in the driver package:
 once its pool table holds these pools,
 this list shrinks to a pointer there.
 
-How many GPT runs `openai` answers at once is not measured;
-the first 429 on it sets that number,
-as a measured refusal sets every pool's.
 Synthetic now refuses on concurrency too:
 on 2026-11-17, with about ten DeepSeek runs going, it answered `429 "Too many concurrent requests"`;
 two of six bench reviews ended on it after 93 and 127 turns,
@@ -256,7 +265,7 @@ until it does,
 a run naming them is in no pool and nothing counts it,
 so count them before starting more.
 The DeepSeek pool order in the paragraphs on the 20-run limit is for runs that name no model;
-a writer always names GPT.
+a writer names its pool's provider and model as a reviewer does.
 The Kimi pool is closed,
 and its numbers stay in that table's comments.
 Rerun a reviewer's reproduction before believing a finding.
@@ -318,15 +327,24 @@ which `mise run toolchain:install` makes.
     a reviewer names the provider and model its pool gives
     (section "Who writes and who reviews"):
 
+    Pi writes its tools' spilled output (`pi-bash-*.log`, `pi-codemode-*.txt`) to Node's `os.tmpdir()`
+    (`@earendil-works/pi-coding-agent` 1.5.2, `dist/utils/output-files.js:16`), which is `/tmp` unless `TMPDIR` names
+    another folder (checked 2026-11-19 with `node --print "require('node:os').tmpdir()"` under both),
+    so give each run `TMPDIR` in a folder beside its run folder, made first with `mkdir --parents <run>-tmp`;
+    rule `ATH` keeps scratch out of `/tmp`, and a brief cannot reach what Pi itself writes.
+    Beside, never inside:
+    the driver refuses a run folder that holds anything
+    (`package/pi-shared/subagent-driver/src/write-summary.ts:212`, `RunFolderHoldsAnEarlierAttemptError`).
+
     ```sh
     # run from ~/Monochromatic
     systemd-run --user --wait --unit=pi-<task> --collect \
       --property=RuntimeMaxSec=2500 --property=MemoryMax=3G --property=CPUQuota=200% --property=TasksMax=300 --property=IOWeight=1 \
-      --setenv=PATH="$(mise exec -- printenv PATH)" --setenv=HOME="$HOME" \
+      --setenv=PATH="$(mise exec -- printenv PATH)" --setenv=HOME="$HOME" --setenv=TMPDIR=<run>-tmp \
       "$(mise exec -- bash --noprofile --norc -c 'command -v node')" \
       "$PWD/package/pi-shared/subagent-driver/src/drive-pi-subagent.ts" \
       --run-folder=<run> --working-folder=<its worktree, or "$PWD"> --prompt-file=<prompt-file> \
-      --provider=openai --model=gpt-6.2-sol \
+      --provider=neuralwatt --model=deepseek-v4.1-flash \
       --wall-seconds=2400 --turn-cap=<sized from past runs>
     ```
 

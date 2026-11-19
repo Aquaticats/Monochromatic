@@ -10,6 +10,7 @@ import type {
   CommandTimeoutError,
 } from '../dist/final/node/errors.mjs';
 import {
+  COMMAND_DEADLINE_MILLISECONDS,
   run,
   runAllowingFailure,
 } from '../dist/final/node/runner.mjs';
@@ -44,6 +45,7 @@ async function refusalOf(call: () => Promise<unknown>,): Promise<unknown> {
 
 await describe({
   name: 'runner',
+  concurrency: 1,
   children: [
     it({
       name: 'names a program that cannot be started as a spawn failure, with the command it tried and the reason the system gave',
@@ -132,13 +134,15 @@ await describe({
       },
     },),
     it({
-      name: 'leaves a command that finishes inside its deadline alone, with both streams and its exit code',
-      fn: async () => {
+      name: 'arms the named default deadline without interrupting a command that finishes inside it',
+      fn: async ctx => {
+        /** Observe timer requests, leaving the real timer and command in place. */
+        const timers = ctx.sinon.spy(globalThis, 'setTimeout',);
         const result = await run({
           command: 'sh',
           args: ['-c', 'echo out; echo err >&2',],
-          deadlineMilliseconds: 30_000,
         },);
+        expect(timers.calledWith(ctx.sinon.match.func, COMMAND_DEADLINE_MILLISECONDS,),).toBe(true,);
         expect(result.stdout,).toBe('out\n',);
         expect(result.stderr,).toBe('err\n',);
       },

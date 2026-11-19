@@ -1,8 +1,10 @@
+import { rejects, } from 'node:assert/strict';
 import {
   mkdir,
   readdir,
   readFile,
   stat,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -130,6 +132,7 @@ async function failureText({ call, }: { readonly call: () => Promise<unknown>; }
 
 await describe({
   name: applyToolchainRules.name,
+  concurrency: 1,
   children: [
     it({
       name: 'creates one mode 0600 file per rule named exactly like its rule',
@@ -153,6 +156,55 @@ await describe({
         expect(rule.created,).toBe('2026-10-31T12:00:00Z',);
         expect(rule.precedence,).toBe(true,);
         expect((await stat(join(fixture.directory, `${RUST_TOOLS}.json`,),)).mode & 0o777,).toBe(0o600,);
+      },
+    },),
+    it({
+      name: 'syncs a new rule and its directory before proceeding, with each option-like path kept whole',
+      fn: async () => {
+        await using root = await createScratch({ prefix: 'wg-quicker-create-sync-', },);
+        /** Relative directory operand with delimiters that must not be recognized as shell syntax or options. */
+        const rulesDirectory = `-rules 'one' "two"\nnext`;
+        /** Absolute fixture paths, unaffected by the temporary cwd change. */
+        const sync = join(root.path, 'sync',);
+        const log = join(root.path, 'argv.jsonl',);
+        const cwd = process.cwd();
+        const previousPath = process.env.PATH;
+        using restoreProcess = {
+          [Symbol.dispose](): void {
+            process.chdir(cwd,);
+            if (previousPath === undefined)
+              delete process.env.PATH;
+            else
+              process.env.PATH = previousPath;
+          },
+        };
+        process.chdir(root.path,);
+        await mkdir(rulesDirectory,);
+        await writeFile(
+          sync,
+          `#!${process.execPath}
+import { appendFileSync } from 'node:fs';
+const args = process.argv.slice(2);
+appendFileSync(${JSON.stringify(log,)}, JSON.stringify(args) + '\\n');
+if (args.at(-1) === ${JSON.stringify(rulesDirectory,)}) throw new Error('directory sync failed');
+`,
+          { mode: 0o700, },
+        );
+        process.env.PATH = root.path;
+        await rejects(
+          applyToolchainRules({ rulesDirectory, roots: ROOTS, now: NOW, },),
+          function rejectedDirectorySync(error: unknown) {
+            expect(String(error,),).toContain('directory sync failed',);
+            return true;
+          },
+        );
+        /** Name of the only rule written before the directory sync failed. */
+        const first = `${INSTALL_ROOTS}.json`;
+        expect(await readdir(rulesDirectory,),).toEqual([first,],);
+        expect((await readFile(log, 'utf8',)).trimEnd().split('\n',),).toEqual([
+          JSON.stringify(['--data', '--', join(rulesDirectory, first,),],),
+          JSON.stringify(['--data', '--', rulesDirectory,],),
+        ],);
       },
     },),
     it({
@@ -218,6 +270,41 @@ await describe({
         expect(rule.updated,).toBe('2026-10-31T12:01:00Z',);
         expect((rule.operator as FixtureRule).data,).toBe('^(?:/d/monochromatic-dev)/toolchain(?:-global)?/',);
         expect((await readFile(file, 'utf8',)).endsWith('  ',),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'stops at a failed replacement sync without changing the next rule',
+      fn: async () => {
+        await using fixture = await createRulesFixture();
+        await using bin = await createScratch({ prefix: 'wg-quicker-failed-sync-', },);
+        await applyToolchainRules({ rulesDirectory: fixture.directory, roots: ROOTS, now: NOW, },);
+        /** Both install and exposure rules need rewriting; the first one must sync before the next is touched. */
+        const changedRoots = { ...ROOTS, dataHomes: [bin.path,], repositoryRoots: [bin.path,], };
+        /** File the second rewrite must leave untouched. */
+        const exposure = join(fixture.directory, `${EXPOSURE_LINKS}.json`,);
+        /** Saved bytes for the assertion after the failed sync. */
+        const originalExposure = await readFile(exposure, 'utf8',);
+        await symlink('/usr/bin/false', join(bin.path, 'sync',),);
+        /** Original command path for this test process. */
+        const previousPath = process.env.PATH;
+        using restorePath = {
+          [Symbol.dispose](): void {
+            if (previousPath === undefined)
+              delete process.env.PATH;
+            else
+              process.env.PATH = previousPath;
+          },
+        };
+        process.env.PATH = bin.path;
+        await rejects(
+          applyToolchainRules({ rulesDirectory: fixture.directory, roots: changedRoots, now: NOW, },),
+          function rejectedSync(error: unknown) {
+            expect(String(error,),).toContain('OpenSnitchConfigError:',);
+            expect(String(error,),).toContain(`sync --data -- ${join(fixture.directory, `${INSTALL_ROOTS}.json`,)}`,);
+            return true;
+          },
+        );
+        expect(await readFile(exposure, 'utf8',),).toBe(originalExposure,);
       },
     },),
     it({

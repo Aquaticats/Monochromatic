@@ -3,7 +3,10 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { join, } from 'node:path';
+import {
+  dirname,
+  join,
+} from 'node:path';
 
 import { OpenSnitchConfigError, } from './errors.ts';
 import {
@@ -17,6 +20,7 @@ import {
   type ToolchainRuleRoots,
   toolchainRuleSpecs,
 } from './opensnitch-toolchain-rule-patterns.ts';
+import { syncWrittenPath, } from './sync-written-path.ts';
 
 export {
   homeAliasPairs,
@@ -97,6 +101,8 @@ async function writeRuleInPlace(
         mode: 0o600,
       },
     );
+    await syncWrittenPath(path,);
+    await syncWrittenPath(dirname(path,),);
     return;
   }
   /**
@@ -109,25 +115,27 @@ async function writeRuleInPlace(
     ),
     'utf8',
   );
-  /**
-   Watched inode held open for the positional write.
-   */
-  await using handle = await open(
-    path,
-    'r+',
-  );
-  /**
-   Positional write result used to reject a partial rule.
-   */
-  const { bytesWritten, } = await handle.write(
-    payload,
-    0,
-    payload.length,
-    0,
-  );
-  if (bytesWritten !== payload.length)
-    throw new OpenSnitchConfigError(`OpenSnitch rule write was incomplete: ${path}`,);
-  await handle.sync();
+  {
+    /**
+     Watched inode held open for the positional write, closed before path-based sync.
+     */
+    await using handle = await open(
+      path,
+      'r+',
+    );
+    /**
+     Positional write result used to reject a partial rule.
+     */
+    const { bytesWritten, } = await handle.write(
+      payload,
+      0,
+      payload.length,
+      0,
+    );
+    if (bytesWritten !== payload.length)
+      throw new OpenSnitchConfigError(`OpenSnitch rule write was incomplete: ${path}`,);
+  }
+  await syncWrittenPath(path,);
 }
 
 /**
@@ -215,7 +223,8 @@ function sameRuleContent(
  updated,
  or already current.
 
- @throws {@link OpenSnitchConfigError} when a same-named file exists that this allowance did not write.
+ @throws {@link OpenSnitchConfigError} when an unowned same-named file exists, a positional write is incomplete,
+ or a sync fails.
 
  @example
  ```ts
@@ -287,7 +296,7 @@ export async function applyToolchainRules(
       continue;
     }
     // Writes run in order so a failure leaves earlier rules whole and later rules untouched.
-    // oxlint-disable-next-line eslint/no-await-in-loop -- Each rule file is written and synced before the next begins.
+    // oxlint-disable-next-line eslint/no-await-in-loop -- Each rule write and sync must finish before the next begins.
     await writeRuleInPlace({
       path: join(
         rulesDirectory,

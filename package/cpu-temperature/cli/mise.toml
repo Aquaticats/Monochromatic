@@ -1,0 +1,18 @@
+[tasks."lock:generate"]
+description = "Resolve the CPU temperature CLI dependencies"
+run = "cargo generate-lockfile --offline"
+
+[tasks.build]
+description = "Build the CPU temperature CLI and service"
+run = "cargo build --locked --release"
+
+[tasks."lint:types"]
+description = "Check all Rust targets with warnings denied"
+run = "cargo clippy --locked --all-targets -- --deny warnings"
+
+[tasks.lint]
+depends = ["lint:types"]
+
+[tasks.test]
+description = "Exercise the CPU temperature CLI and controller through nextest"
+run = "cargo nextest run --locked --release"

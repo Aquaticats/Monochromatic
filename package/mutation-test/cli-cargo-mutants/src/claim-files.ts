@@ -9,6 +9,7 @@ import {
   open,
   rename,
   unlink,
+  writeFile,
 } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -21,6 +22,8 @@ import {
 } from './claim-record.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import { isMissing } from './fs-guards.ts';
+import type { runProgram } from './run-program.ts';
+import { syncWrittenPath } from './sync-written-path.ts';
 
 /**
  The most bytes of a claim file that are read (`single_owner_claim.rs:207`).
@@ -67,20 +70,15 @@ function hasCode({
 
  @param directory - the directory
 
+ @throws CargoMutantsToolingError when the directory cannot be synced before the deadline
+
  @example
  ```ts
  await syncDirectory('/d');
  ```
  */
 export async function syncDirectory(directory: string): Promise<void> {
-  /**
-   The directory, opened for the flush.
-   */
-  await using handle = await open(
-    directory,
-    'r',
-  );
-  await handle.sync();
+  await syncWrittenPath({ path: directory });
 }
 
 /**
@@ -90,7 +88,11 @@ export async function syncDirectory(directory: string): Promise<void> {
 
  @param record - what the file says
 
+ @param runSync - Command runner for the private file sync, normally the package program runner.
+
  @returns the path of the private file, whose name is outside every series
+
+ @throws CargoMutantsToolingError when the private file cannot be synced before the deadline
 
  @example
  ```ts
@@ -100,9 +102,11 @@ export async function syncDirectory(directory: string): Promise<void> {
 export async function writePrivate({
   directory,
   record,
+  runSync,
 }: {
   readonly directory: string;
   readonly record: ClaimRecord;
+  readonly runSync?: typeof runProgram;
 }): Promise<string> {
   /**
    A name no other process or call uses.
@@ -112,16 +116,18 @@ export async function writePrivate({
     `.owner-claim.tmp.${String(process.pid)}.${crypto.randomUUID()}`,
   );
   try {
-    /**
-     The new file, which must not exist yet.
-     */
-    await using handle = await open(
+    await writeFile(
       path,
-      'wx',
-      claimMode,
+      encodeClaimRecord(record),
+      {
+        flag: 'wx',
+        mode: claimMode,
+      },
     );
-    await handle.writeFile(encodeClaimRecord(record));
-    await handle.sync();
+    await syncWrittenPath({
+      path,
+      ...(runSync === undefined ? {} : { runSync }),
+    });
   }
   catch (error) {
     await unlink(path);
@@ -143,6 +149,8 @@ export async function writePrivate({
  @returns true when the generation was created, false when it already existed
 
  @throws Error when the file cannot be made or linked for any other reason
+
+ @throws CargoMutantsToolingError when the private file or published directory entry cannot be synced before the deadline
 
  @example
  ```ts

@@ -6,13 +6,19 @@ import {
   randomUUID,
 } from 'node:crypto';
 import {
-  open,
   rename,
   rm,
+  writeFile,
 } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { caughtValueText } from '@monochromatic-dev/caught-value-core/ts';
+
 import type { PlantedControl } from './native-planted-controls.ts';
+import {
+  NativeVerificationError,
+  runCommand,
+} from './native-verification-process.ts';
 
 /**
  Name of the record inside a campaign's evidence directory.
@@ -131,11 +137,71 @@ export function plantedControlsPassedRecord({
 }
 
 /**
+ Sync stall bound sized against recorded write-and-sync readings, not command-start latency.
+ `doc/handover/agents-at-once-on-this-machine.md` ("Readings on the new drive") records 35 readings of 4 KiB with
+ up to 13 Pi units: maxima of 72 ms on home and 2,564 ms on cargo-build.
+ `doc/handover/cli-git-rust-implementation.md` records a maximum of 15,512 ms on the earlier drive with 18 agents
+ held for eight hours. The bound leaves 44,488 ms beyond that largest observed time.
+ */
+export const SYNC_DEADLINE_MILLISECONDS: number = 60_000;
+
+/**
+ Flush a closed record by path because Node disables descriptor sync under its permission model.
+
+ @param path - Private record to sync before rename.
+
+ @param runSync - Command runner that enforces the sync deadline.
+
+ @throws {@link NativeVerificationError} when `sync` cannot start or finish successfully within its deadline.
+
+ @example
+ ```ts
+ await syncWrittenPath({ path: '/e/private-record.tmp', runSync: runCommand });
+ ```
+ */
+async function syncWrittenPath({
+  path,
+  runSync,
+}: {
+  readonly path: string;
+  readonly runSync: typeof runCommand;
+}): Promise<void> {
+  try {
+    await runSync({
+      command: 'sync',
+      args: [
+        '--data',
+        '--',
+        path,
+      ],
+      capture: true,
+      deadlineMilliseconds: SYNC_DEADLINE_MILLISECONDS,
+    });
+  }
+  catch (error) {
+    /**
+     The runner retains a refused spawn as a cause, which a campaign's one-line diagnostic must name too.
+     */
+    const detail = (error instanceof NativeVerificationError) && (error.cause !== undefined)
+      ? `${String(error)} ${caughtValueText(error.cause)}`
+      : String(error);
+    throw new NativeVerificationError(
+      `Cannot sync ${path} with GNU coreutils: ${detail}`,
+      { cause: error },
+    );
+  }
+}
+
+/**
  Write a file so that a reader sees all of it or none of it, and a crash leaves no torn record.
 
  @param file - destination path
 
  @param text - file text
+
+ @param runSync - Command runner for the temporary-file sync, normally the verification runner.
+
+ @throws {@link NativeVerificationError} when the temporary file cannot be synced before publication.
 
  @example
  ```ts
@@ -145,27 +211,30 @@ export function plantedControlsPassedRecord({
 export async function writeFileAtomically({
   file,
   text,
+  runSync = runCommand,
 }: {
   readonly file: string;
   readonly text: string;
+  readonly runSync?: typeof runCommand;
 }): Promise<void> {
   /**
    Sibling path that only this writer uses, so a reader looking for the destination name never sees it.
    */
   const temporary = `${file}.${String(process.pid)}.${randomUUID()}.tmp`;
   try {
-    /**
-     The temporary file, flushed before the rename so a power loss cannot publish an empty destination.
-     */
-    await using handle = await open(
+    await writeFile(
       temporary,
-      'wx',
-    );
-    await handle.writeFile(
       text,
-      'utf8',
+      {
+        flag: 'wx',
+        encoding: 'utf8',
+      },
     );
-    await handle.sync();
+    // Flush the closed temporary file before rename so power loss cannot publish an empty destination.
+    await syncWrittenPath({
+      path: temporary,
+      runSync,
+    });
   }
   catch (error) {
     await rm(

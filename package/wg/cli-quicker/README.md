@@ -233,6 +233,9 @@ non-regular config paths,
 and non-nftables backends instead of claiming strict-deny compatibility without an active rule.
 OpenSnitch live reload receives one positional file write;
 shorter JSON is padded with valid trailing whitespace so truncate does not emit a second reload event.
+After closing the file,
+`wg-quicker` runs GNU coreutils `sync --data` without another write.
+A failed sync fails the update and triggers an attempt to write and sync the original config.
 `wg-quicker` then requires consecutive healthy nftables observations in the daemon's network namespace.
 When no daemon process exists,
 it still inspects any surviving OpenSnitch table and refuses to forget a stale managed allowance.
@@ -353,6 +356,9 @@ A file renamed into place raises neither,
 so `apply` creates the final `<name>.json` and writes it in place.
 An existing file is rewritten at offset zero through the same inode and padded with spaces to its old length,
 so a shorter replacement never exposes a truncated document.
+`apply` closes and syncs each new or replaced file with GNU coreutils `sync --data` before proceeding to the next rule.
+For a new file it also syncs the containing directory to persist the new entry.
+A failed sync stops `apply`; it does not undo a file write that already ran.
 The file name equals the rule name,
 which the daemon relies on to unload a deleted rule.
 Byte-identical files are left alone,

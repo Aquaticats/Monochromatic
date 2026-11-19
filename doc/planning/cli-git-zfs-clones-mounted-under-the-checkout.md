@@ -182,8 +182,9 @@ hidden mount is unreachable by path and therefore not unmountable by the ordinar
 
 Inheritance works and is the reason no clone gets an automatic mount, but it does not stop an explicit
 `zfs mount <clone>` at the path the parent's mountpoint would imply, and it does not hand the clone a path at all:
-`zfs mount <clone>` with a `legacy` mountpoint refuses (`cmd/zfs/zfs_main.c:7863` to `:7867`, "legacy mountpoint,
-use umount(8)"), while `mount -t zfs` and a descriptor attach work. The clone also does not inherit a mount **path**,
+`zfs mount <clone>` with a `legacy` mountpoint refuses (`cmd/zfs/zfs_main.c:7240` to `:7248` in `share_mount_one`,
+reached with `explicit` true from `:7706` to `:7707`; corrected 2026-11-18 from `:7863` to `:7867`, which is the
+unmount branch; shown by the source only, no probe ran it), while `mount -t zfs` and a descriptor attach work. The clone also does not inherit a mount **path**,
 which is why the handler must derive the path from the slot name and verify it, item 3.
 
 ### What the design needs
@@ -569,6 +570,13 @@ Proven in the guest, in this order (`guest-exact-zfs.log:16` to `:50`):
 
 The root is the slot itself, so each worktree keeps the short path the project decided. No exchange and no staging
 subdirectory are needed, which removes finding H1's second and third problems with the first draft.
+
+Correction of 2026-11-18 by the coordinator, from the Sonnet gate review of the design proposal (check B1, read
+against the probe script): the guest did not run this order. `keep/probe.ts:73` took the snapshot before `:74`
+registered the worktree, and `:78` mounted the clone with `mount -t zfs`, not the descriptor route; the descriptor
+attach of item 3 was a separate probe (`keep/guest-extra-commands.txt:154` to `:163`). Each step was shown to work, so
+"proven in the guest, in this order" is wrong: the order above, with the descriptor attach and the account owning
+`.claude/worktrees`, has never run end to end, and is owed as a measurement before the design is accepted.
 
 ### What the registration does while the clone is unmounted
 

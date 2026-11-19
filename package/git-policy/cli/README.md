@@ -7022,8 +7022,12 @@ The planted controls (a full suite run per guard removal,
 about 24 minutes per campaign) are skipped by the same idea.
 A campaign whose controls were all noticed leaves `planted-controls-passed.json` in its evidence directory
 (in its `pass-1` directory for a two-pass campaign),
-written to a temporary file,
-flushed and renamed so a reader never sees half of it.
+written to a private temporary file,
+closed and flushed with GNU coreutils `sync --data`,
+then renamed so a reader never sees half of it.
+A failed flush aborts the publication and removes the temporary file without replacing an existing record.
+If `sync` has not finished after 60 seconds,
+the verification runner requests a stop and names the path that could not be synced.
 The record holds `plantedControls: true`,
 the full `image` ID,
 `limits` (the container arguments the controls ran with),

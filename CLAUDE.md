@@ -319,12 +319,8 @@ A same-vendor subagent is a second pass:
  never as independent.
 
 XVW:
- Delegated writing runs through Pi on GPT 6.2 Sol,
- started by `package/pi-shared/subagent-driver`.
-
-RKD:
- A run OpenAI stops as a "possible risk":
- resume its session on DeepSeek through Pi,
+ Delegated writing runs through Pi on DeepSeek,
+ started by `package/pi-shared/subagent-driver`;
  never the official `deepseek` provider.
 
 KRV:
@@ -853,8 +849,9 @@ RGT:
 ### Hazardous commands
 
 HRM:
- Could an action physically harm a human or wear hardware?
- Warn first.
+ Could an action physically harm a human,
+ or damage hardware?
+ Ask first.
 `ssh m1`:
  16 GiB RAM cap,
  fragile internal SSD;
@@ -1703,8 +1700,10 @@ TAE:
  Before prescribing tool/API behavior in prompts,
  docs,
  configs,
- or CI scripts,
- test it with a real invocation,
+ CI scripts
+ or test fixtures,
+ take it from a real invocation
+ or the producer's source,
  never from how it should work.
 
 ## When committing or documenting
