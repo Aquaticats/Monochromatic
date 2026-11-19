@@ -39847,6 +39847,36 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### The morning question round of 2026-11-19 (2026-11-19T12:30:00-05:00)
+
+Every question prepared overnight was asked through the question tool; each answer, verbatim where it was typed, is in
+`doc/handover/questions-for-the-owner.md`, section "Answered in the question tool, started 2026-11-19T11:30:00-05:00".
+What follows from them, as work:
+
+- **ZFS route** (task 379): 22 answers to fold into the proposal on branch
+  `docs/planning-cli-git-zfs-worktree-design-proposal` (last tip `b5294a7325`). Against the ranking: the kernel gate
+  is a start probe (choice 5), the ABI check a runtime layout check (choice 9, re-ranked), lost events rely on triggers
+  only because "we control the triggers" (choice 10), origin cleanup is an account grant (choice 11) kept beside
+  delegated destroy with a check before the head destroy (the excluded pair, resolved "Keep both, check first"),
+  a blocked origin settles the Git registration with its own record (choice 17), and staging is an account-owned
+  place (default 4 vetoed). Choice 6: `--force` ends the holders, and without it a refused removal auto-cancels
+  (reattach when safe, choice 14; the "no implicit remount" default keeps that one exception). New VM items owed:
+  the forced removal of a held clone (what the holder sees), and the refusal of a deferred-marked origin.
+- **Virtual Pi provider** (`package/pi-plugin/rate-limit-fallback`): rebuild the pool on Pi's native virtual models
+  (point 4, against the ranking, after the coordinator's first framing was retracted for resting on a handover note);
+  503 and Cloudflare 52x move on (point 1); the overage ceiling follows the refusal's own number (point 2); the quota
+  endpoint is read at refusal time, "quota endpoints have separate extremely high rate limits" (point 3, the owner's
+  word; the change cites each provider's documented limit); the policy move keeps its provider gate (point 5).
+  Installed into `~/.pi/agent/settings.json` on "Install now": the package path was appended to `packages` (the file
+  before the change is kept in `~/temp/agent/zfs-route-open-choices-asked-2026-11-19/`), the package was built in the
+  main checkout (`dist/` was missing, so Pi had loaded nothing), and `pi --list-models rate-limit-fallback` then listed
+  `writer` and `reviewer` (128K window, 16.4K output before a session binds). Pi loads the built `dist/`, so each later
+  change in `main` needs `mise run //package/pi-plugin/rate-limit-fallback:build` again. The README's precondition, a
+  live check of the quota read's deadline, is still open.
+- **Reviewer order**: Synthetic `infinite:small:vision` is not used.
+- **Driver**: the named-unit path stays as `main` has it (veto not taken).
+- **`AGENTS.md`**: `SRC` covers recorded facts and `DCK` records an answer that turn (`5d1d62dd26`); `EXT` unchanged.
+
 ### The Qwen plan's terms fit the Pi runs on it (2026-11-19T11:20:00-05:00)
 
 The owner, plain text, on return in the morning: "Regarding the Qwen plan's terms: We talked about this, and we
