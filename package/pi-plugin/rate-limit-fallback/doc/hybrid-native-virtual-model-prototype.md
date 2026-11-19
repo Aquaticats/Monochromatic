@@ -170,7 +170,8 @@ before any request went out.
 
 **Verdict: passed on a stand-in member carrying a captured refusal.** Not shown with a real member's
 refusal: provoking one needs either a burst past NeuralWatt's concurrent budget or an exhausted
-subscription window, and this run kept real requests to two.
+subscription window, and this run kept real requests to the four sessions item 1 and the cost section
+name.
 
 ## Item 4: the limits Pi applies before and after the first reply
 
@@ -181,7 +182,7 @@ Before the first reply, Pi applies the virtual model's declared pair: `contextWi
 `maxTokens: 8192` (`get_state` reports the same pair for the selection).
 
 After the first reply, the pair Pi applies changes to the member that answered. In the real run that
-is `contextWindow: 1048560` (NeuralWatt's reported window) with 632 tokens counted. In the probe run
+is `contextWindow: 1048560` (NeuralWatt's reported window) with 646 tokens counted. In the probe run
 it is `contextWindow: 1000000`, the stand-in's declared window.
 
 The request's own `maxTokens` does not come from the declared pair: Pi sizes it from the routed model.
