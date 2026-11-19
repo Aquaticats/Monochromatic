@@ -5,11 +5,13 @@ import {
 } from './run-program.ts';
 
 /**
- Reuse the 60-second stall bound justified by local command measurements in
- `package/wg/cli-quicker/src/runner.ts` (see `COMMAND_DEADLINE_MILLISECONDS`).
- The sync workload on the home dataset is recorded in `doc/research/node-permission-default-with-npm.md`.
+ Sync stall bound sized against recorded write-and-sync readings, not command-start latency.
+ `doc/handover/agents-at-once-on-this-machine.md` ("Readings on the new drive") records 35 readings of 4 KiB with
+ up to 13 Pi units: maxima of 72 ms on home and 2,564 ms on cargo-build.
+ `doc/handover/cli-git-rust-implementation.md` records a maximum of 15,512 ms on the earlier drive with 18 agents
+ held for eight hours. The bound leaves 44,488 ms beyond that largest observed time.
  */
-const syncDeadlineMilliseconds = 60_000;
+export const SYNC_DEADLINE_MILLISECONDS: number = 60_000;
 
 /**
  Syncs a closed claim file before publication, or its directory after publication.
@@ -17,14 +19,22 @@ const syncDeadlineMilliseconds = 60_000;
 
  @param path - Claim file or directory to sync.
 
+ @param runSync - Command runner that enforces the sync deadline.
+
  @throws {@link CargoMutantsToolingError} when `sync` cannot start or finish successfully within its deadline.
 
  @example
  ```ts
- await syncWrittenPath('/evidence');
+ await syncWrittenPath({ path: '/evidence' });
  ```
  */
-export async function syncWrittenPath(path: string): Promise<void> {
+export async function syncWrittenPath({
+  path,
+  runSync = runProgram,
+}: {
+  readonly path: string;
+  readonly runSync?: typeof runProgram;
+}): Promise<void> {
   /**
    Operation named in spawn, timeout and nonzero status errors alike.
    */
@@ -34,7 +44,7 @@ export async function syncWrittenPath(path: string): Promise<void> {
    */
   const outcome = await (async function waitForSync(): Promise<ProgramResult> {
     try {
-      return await runProgram({
+      return await runSync({
         program: 'sync',
         args: [
           '--data',
@@ -42,7 +52,7 @@ export async function syncWrittenPath(path: string): Promise<void> {
           path,
         ],
         inheritStdio: false,
-        deadlineMilliseconds: syncDeadlineMilliseconds,
+        deadlineMilliseconds: SYNC_DEADLINE_MILLISECONDS,
       });
     }
     catch (error) {

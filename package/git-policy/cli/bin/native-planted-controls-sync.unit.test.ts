@@ -14,16 +14,21 @@ import { scratchRoot } from '@monochromatic-dev/test-harness-core/ts/scratch-roo
 
 import {
   plantedControlsRecordName,
+  SYNC_DEADLINE_MILLISECONDS,
+  writeFileAtomically,
   writePlantedControlsRecord,
 } from './native-planted-controls-record.ts';
-import { NativeVerificationError } from './native-verification-process.ts';
+import {
+  NativeVerificationError,
+  runCommand,
+} from './native-verification-process.ts';
 
 
-/** Existing wg-quicker command stall bound, also required for a durable sync. */
-const syncDeadlineMs = 60_000;
+/** Short deadline supplied to the real runner only for the stall test. */
+const testDeadlineMilliseconds = 400;
 
-/** The stand-in eventually succeeds if the caller does not enforce its deadline. */
-const slowSyncMs = syncDeadlineMs + 2_000;
+/** Hand-written stand-in: unlike real sync, it only idles, then exits successfully. */
+const standInDelayMilliseconds = testDeadlineMilliseconds * 4;
 
 /**
  Install a private executable search path for this serial suite.
@@ -91,25 +96,30 @@ await describe({
     }),
     it({
       name: 'fails a stalled sync at the command deadline and keeps the prior record',
-      timeout: slowSyncMs + 15_000,
-      fn: async () => {
+      fn: async ctx => {
         await using root = await mkdtempDisposable(join(scratchRoot(), 'planted-controls-stall-'));
         const evidence = join(root.path, 'evidence');
         const bin = join(root.path, 'bin');
         await Promise.all([mkdir(evidence), mkdir(bin)]);
         const record = { prior: true };
         const target = await writePlantedControlsRecord({ evidence, record });
-        await writeFile(join(bin, 'sync'), `#!${process.execPath}\nsetTimeout(() => {}, ${String(slowSyncMs)});\n`, { mode: 0o700 });
+        await writeFile(join(bin, 'sync'), `#!${process.execPath}\nsetTimeout(() => {}, ${String(standInDelayMilliseconds)});\n`, { mode: 0o700 });
         using path = usePath(bin);
+        // Observe the production request before shortening the deadline passed to the real runner.
+        const runSync = ctx.sinon.spy(async function runWithShortDeadline(options: Parameters<typeof runCommand>[0]) {
+          return await runCommand({ ...options, deadlineMilliseconds: testDeadlineMilliseconds });
+        });
         await rejects(
-          writePlantedControlsRecord({ evidence, record: {} }),
+          writeFileAtomically({ file: target, text: '{}\n', runSync }),
           function deadline(error: unknown) {
             expect(error).toBeInstanceOf(NativeVerificationError);
             expect(String(error)).toContain(target);
-            expect(String(error)).toContain(`still running after ${String(syncDeadlineMs)} ms`);
+            // The real verification runner builds this text in native-verification-process.ts, in runCommand.
+            expect(String(error)).toContain(`still running after ${String(testDeadlineMilliseconds)} ms`);
             return true;
           },
         );
+        expect(runSync.firstCall.args[0].deadlineMilliseconds).toBe(SYNC_DEADLINE_MILLISECONDS);
         expect(await readdir(evidence)).toEqual([plantedControlsRecordName]);
         expect(await readFile(target, 'utf8')).toBe(`${JSON.stringify(record, null, 2)}\n`);
       },

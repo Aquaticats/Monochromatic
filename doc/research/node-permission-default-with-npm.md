@@ -159,9 +159,19 @@ The options not chosen were a repository-built sync helper binary and moving eac
 The five TypeScript call sites found under "Callers found on 2026-11-18" now use `sync --data -- <path>`.
 The claim writer also passes its directory to this command after linking or renaming the claim.
 OpenSnitch toolchain rule creation syncs both the closed file and its containing directory before proceeding.
-The Git verification and claim writers use the 60-second stall bound already used by
-[`wg-quicker`'s runner](../../package/wg/cli-quicker/src/runner.ts) for local commands.
+**Producer source:** All three packages keep a 60-second stall bound for `sync`.
+The [Git record writer](../../package/git-policy/cli/bin/native-planted-controls-record.ts),
+[claim sync helper](../../package/mutation-test/cli-cargo-mutants/src/sync-written-path.ts),
+and [wg-quicker runner](../../package/wg/cli-quicker/src/runner.ts) each name the bound beside its evidence.
 At the deadline the runner requests termination and reports a failed sync with the affected path.
+
+**Recorded real invocations:** The [new-drive probe](../handover/agents-at-once-on-this-machine.md#readings-on-the-new-drive)
+recorded 35 writes and syncs of 4 KiB, with up to 13 Pi units active.
+Its maxima were 72 ms on home and 2,564 ms on cargo-build.
+The [earlier-drive probe](../handover/cli-git-rust-implementation.md#what-was-stopped-and-what-ended-by-itself)
+recorded 15,512 ms as the slowest write and sync with 18 agents held for eight hours.
+Keeping the bound leaves 44,488 ms beyond the largest observed time; these readings are not a worst-case guarantee.
+
 GNU coreutils 9.12's [`sync_arg`][coreutils-sync] passes `--data` to `fdatasync`.
 OpenZFS 2.4.4 [uses `zpl_fsync` for directories][zfs-linux-sync],
 and [`zfs_fsync`][zfs-sync] commits that object's ZIL regardless of the data-only flag when sync is enabled.

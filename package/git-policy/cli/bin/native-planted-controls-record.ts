@@ -137,27 +137,37 @@ export function plantedControlsPassedRecord({
 }
 
 /**
- Reuse the 60-second stall bound justified by local command measurements in
- `package/wg/cli-quicker/src/runner.ts` (see `COMMAND_DEADLINE_MILLISECONDS`).
- The sync workload on the home dataset is recorded in `doc/research/node-permission-default-with-npm.md`.
+ Sync stall bound sized against recorded write-and-sync readings, not command-start latency.
+ `doc/handover/agents-at-once-on-this-machine.md` ("Readings on the new drive") records 35 readings of 4 KiB with
+ up to 13 Pi units: maxima of 72 ms on home and 2,564 ms on cargo-build.
+ `doc/handover/cli-git-rust-implementation.md` records a maximum of 15,512 ms on the earlier drive with 18 agents
+ held for eight hours. The bound leaves 44,488 ms beyond that largest observed time.
  */
-const syncDeadlineMilliseconds = 60_000;
+export const SYNC_DEADLINE_MILLISECONDS: number = 60_000;
 
 /**
  Flush a closed record by path because Node disables descriptor sync under its permission model.
 
  @param path - Private record to sync before rename.
 
+ @param runSync - Command runner that enforces the sync deadline.
+
  @throws {@link NativeVerificationError} when `sync` cannot start or finish successfully within its deadline.
 
  @example
  ```ts
- await syncWrittenPath('/e/private-record.tmp');
+ await syncWrittenPath({ path: '/e/private-record.tmp', runSync: runCommand });
  ```
  */
-async function syncWrittenPath(path: string): Promise<void> {
+async function syncWrittenPath({
+  path,
+  runSync,
+}: {
+  readonly path: string;
+  readonly runSync: typeof runCommand;
+}): Promise<void> {
   try {
-    await runCommand({
+    await runSync({
       command: 'sync',
       args: [
         '--data',
@@ -165,7 +175,7 @@ async function syncWrittenPath(path: string): Promise<void> {
         path,
       ],
       capture: true,
-      deadlineMilliseconds: syncDeadlineMilliseconds,
+      deadlineMilliseconds: SYNC_DEADLINE_MILLISECONDS,
     });
   }
   catch (error) {
@@ -189,6 +199,8 @@ async function syncWrittenPath(path: string): Promise<void> {
 
  @param text - file text
 
+ @param runSync - Command runner for the temporary-file sync, normally the verification runner.
+
  @throws {@link NativeVerificationError} when the temporary file cannot be synced before publication.
 
  @example
@@ -199,9 +211,11 @@ async function syncWrittenPath(path: string): Promise<void> {
 export async function writeFileAtomically({
   file,
   text,
+  runSync = runCommand,
 }: {
   readonly file: string;
   readonly text: string;
+  readonly runSync?: typeof runCommand;
 }): Promise<void> {
   /**
    Sibling path that only this writer uses, so a reader looking for the destination name never sees it.
@@ -217,7 +231,7 @@ export async function writeFileAtomically({
       },
     );
     // Flush the closed temporary file before rename so power loss cannot publish an empty destination.
-    await syncWrittenPath(temporary);
+    await syncWrittenPath({ path: temporary, runSync });
   }
   catch (error) {
     await rm(

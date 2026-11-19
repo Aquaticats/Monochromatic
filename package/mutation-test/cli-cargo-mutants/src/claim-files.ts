@@ -22,6 +22,7 @@ import {
 } from './claim-record.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import { isMissing } from './fs-guards.ts';
+import type { runProgram } from './run-program.ts';
 import { syncWrittenPath } from './sync-written-path.ts';
 
 /**
@@ -77,7 +78,7 @@ function hasCode({
  ```
  */
 export async function syncDirectory(directory: string): Promise<void> {
-  await syncWrittenPath(directory);
+  await syncWrittenPath({ path: directory });
 }
 
 /**
@@ -86,6 +87,8 @@ export async function syncDirectory(directory: string): Promise<void> {
  @param directory - the directory of the claim files
 
  @param record - what the file says
+
+ @param runSync - Command runner for the private file sync, normally the package program runner.
 
  @returns the path of the private file, whose name is outside every series
 
@@ -99,9 +102,11 @@ export async function syncDirectory(directory: string): Promise<void> {
 export async function writePrivate({
   directory,
   record,
+  runSync,
 }: {
   readonly directory: string;
   readonly record: ClaimRecord;
+  readonly runSync?: typeof runProgram;
 }): Promise<string> {
   /**
    A name no other process or call uses.
@@ -119,7 +124,7 @@ export async function writePrivate({
         mode: claimMode,
       },
     );
-    await syncWrittenPath(path);
+    await syncWrittenPath({ path, ...(runSync === undefined ? {} : { runSync }) });
   }
   catch (error) {
     await unlink(path);

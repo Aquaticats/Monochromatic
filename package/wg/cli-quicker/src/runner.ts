@@ -33,9 +33,15 @@ const l = tagged({ tag: 'runner', },);
  `nft list ruleset` over 200 rules 10,
  `nft -j list tables` 9,
  and `sysctl` 5,
- which puts the bound at more than a thousand times the slowest measured call.
+ which puts the bound at more than a thousand times the slowest of those calls.
+
+ For `sync`, the recorded write-and-sync workload is the relevant one.
+ `doc/handover/agents-at-once-on-this-machine.md` ("Readings on the new drive") records 35 readings of 4 KiB with
+ up to 13 Pi units: maxima of 72 ms on home and 2,564 ms on cargo-build.
+ `doc/handover/cli-git-rust-implementation.md` records a maximum of 15,512 ms on the earlier drive with 18 agents
+ held for eight hours. The bound leaves 44,488 ms beyond that largest observed time.
  */
-const COMMAND_DEADLINE_MILLISECONDS = 60_000;
+export const COMMAND_DEADLINE_MILLISECONDS: number = 60_000;
 
 /**
  Milliseconds after which a hook of the user's own is ended.
@@ -196,7 +202,7 @@ function collectText(stream: Readable,): Promise<string> {
 
  @example
  ```ts
- await execute({ command: 'ip', args: ['link', 'show'], deadlineMilliseconds: 60_000 });
+ await execute({ command: 'ip', args: ['link', 'show'], deadlineMilliseconds: COMMAND_DEADLINE_MILLISECONDS });
  ```
  */
 async function execute(
