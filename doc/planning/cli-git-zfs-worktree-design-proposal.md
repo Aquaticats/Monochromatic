@@ -988,12 +988,14 @@ working setup. This proposal has neither installed nor run the root-once command
 
 The open choices are these, with the two alternatives under
 [Clone removal identity protection](#clone-removal-identity-protection) as one choice. They do not reopen
-checkout path, account ownership, ZED, the fallback or recursive snapshot policy. No option is selected or ranked.
-Defaults this draft adopts on its own, which a veto can change, are listed separately under
-[Adopted defaults open to veto](#adopted-defaults-open-to-veto).
-At the owner handoff, present each decision separately in the question tool with its options, pros and cons, and a
-recommendation that explains each adjacent pair in the ranking. Use the VM findings and identify what remains
-unmeasured; a ranking is not a decision.
+checkout path, account ownership, ZED, the fallback or recursive snapshot policy. No option is selected here, and this
+draft ends without a recommendation, because the ranking belongs to the owner's question round. Defaults this draft
+adopts on its own, which a veto can change, are listed
+separately under [Adopted defaults open to veto](#adopted-defaults-open-to-veto).
+At the owner handoff, ask one question per decision in the question tool, each with its options, pros, cons and a
+recommendation that explains every adjacent pair in the ranking. The two choices this draft couples are asked as two
+questions, and each states the coupling and the excluded combination as a fact of the grants, never as a ranking
+between them. Use the VM findings and identify what remains unmeasured; a ranking is not a decision.
 
 - Checkout boot mount protection. Keep an ordinary checkout mountpoint and verify an immutable covered entry, or
   use `mountpoint=legacy` with a descriptor boot service that verifies the checkout underlay.
@@ -1126,8 +1128,9 @@ shape, and each is listed here for a veto; the section named with it is where it
 These two alternatives are one open project choice. It is not independent of
 [Origin cleanup authority](#open-project-choices): with descendants `mount,destroy` on the checkout, the account
 becomes an allowed actor that can mark a checkout snapshot for deferred destroy, and the delegated option forbids
-any allowed actor doing that while removal is admitted. Present the two choices together, and treat delegated clone
-destruction with delegated origin `destroy` as excluded until the origin rule is proved for the account itself.
+any allowed actor doing that while removal is admitted. Ask the two choices as separate questions, and treat
+delegated clone destruction with delegated origin `destroy` as excluded until the origin rule is proved for the
+account itself; that excluded combination is a fact of the grant model, not a ranking between the two options.
 That last step is reasoning from the grant model and from what the `defer` key does
 (`lib/libzfs_core/libzfs_core.c:442` to `:451`, OpenZFS `zfs-2.4.4`), not a measured account-run deferred destroy.
 Of the two programs that prune snapshots on this host, neither passes a deferred destroy
