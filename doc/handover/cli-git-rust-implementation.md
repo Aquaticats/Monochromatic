@@ -40080,9 +40080,13 @@ What follows from them, as work:
   `lfs.pushurl` is set (not read at all), and when git-lfs prints another host's URL first (two high, one medium).
   Also a doubled period in every typed stop paragraph, and the `git lfs install` notice claiming global keys for
   `--local`, `--worktree` and `--file` (medium), and four lows (`SPEC.md` 10096 to 10112 and 11831, the `--manual`
-  instructions, three report claims). **HELD** by the owner's "Finish, then hold" (2026-11-19T17:10:00-05:00): the
-  next LFS round (these findings, H1 and M4) starts only once the ZFS implementation is moving. The branch stays at
-  `81e7d18375` (pushed); its worktree was removed.
+  instructions, three report claims). Held by the owner's "Finish, then hold" (2026-11-19T17:10:00-05:00) until the
+  ZFS implementation was moving; it was by about 18:00 (step 1 and three designs going). GOING: the next round,
+  `pi-git-policy-cli-lfs-review-findings-and-owner-answers-fixed` (DeepSeek on Neuralwatt, cap 635), in
+  `.claude/worktrees/git-policy-cli-lfs-second-round` on the branch (merges `main` first): the review's findings, H1
+  and M4 with the SSH passphrase answer, a failing check first for each, tests in the gate image with the tmpfs fixture
+  root the investigation measured; brief under
+  `~/temp/agent/git-policy-cli-lfs-review-findings-and-owner-answers-fixed-2026-11-19/`.
 - **The wrapper's container gate cannot pass on this ZFS host.** The LFS writer ran the gate's body
   (`node bin/test-native-container.ts`; the mise task's first step needs `cargo-shadow`, not installed here) twice:
   `9189 tests run: 9002 passed, 187 failed`, against 6 of 9,173 on the old Btrfs host. By its reading about 109 fail on
@@ -40206,8 +40210,11 @@ What follows from them, as work:
   rest of the session (documented, not changed); the report says "an independent review raised it" with no review
   on record; the prototype's item 4 claim is wrong for a multi-member pool (Pi measures context against the pool
   model); the SDK route needs `ModelRuntime.refresh` before the first prompt; a commit message lost a file name and
-  the writer pushed a `git notes` comment as `refs/notes/commits`. NEXT, once the ZFS work is moving: its short
-  review, then the merge and the installed dist's rebuild, then the live quota check (task 396). The driver pool table (task 383)
+  the writer pushed a `git notes` comment as `refs/notes/commits`. The hold ended once the ZFS work was moving. GOING:
+  its short review on the Qwen plan, `pi-rate-limit-fallback-hybrid-rebuild-short-review-on-the-qwen-plan` (cap 540,
+  watched to its end), in `.claude/worktrees/pi-qwen-review-rate-limit-fallback-hybrid-at-e880cd4ed3` detached at the
+  tip; brief under `~/temp/agent/rate-limit-fallback-hybrid-rebuild-short-review-on-the-qwen-plan-2026-11-19/`. Then
+  the merge and the installed dist's rebuild, then the live quota check (task 396). The driver pool table (task 383)
   waits on more than a slot: it changes `pool-limits.ts`, as the unmerged `ecec388cdb` does (13 files; its review
   queued 2026-11-16 and never started), and the entry of 2026-11-16 on the second timing of the two pools puts
   follow-ups to that file on top of `ecec388cdb` once it is reviewed and in `main`; that review waits with the queue.
