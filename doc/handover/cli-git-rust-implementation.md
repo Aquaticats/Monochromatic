@@ -39973,7 +39973,16 @@ verbatim stop text, policy unchanged. It ended `idle` (31 turns): `1364b3e01c` (
 straight quotes, a 429 control; three failed before the fix) and `b9bbe7e894` (scan for "This content was flagged for
 possible cybersecurity risk", README); types, unit suites, oxlint 0/0 and the Pi session check pass. The package's
 DeepSeek review (`pi-review-pi-plugin-rate-limit-fallback-at-b9bbe7e894-1`, read-only in the writer's worktree, no live
-provider calls) is going; install into `~/.pi/agent/settings.json` stays for the owner. The coreutils sync change's
+provider calls) returned final (94 turns; 1 high, 2 medium, 5 low;
+`~/temp/agent/change-reviews/pi-plugin-rate-limit-fallback-at-b9bbe7e894/review.md`): **high, a real OpenAI 429 is not
+recognised** (the `openai-responses` adapter writes `OpenAI API error (429): ...` and never calls `onResponse` on a
+refusal, so the writer would stop on its first member; every test refusal string was invented); medium, a policy stop
+replaces the provider's whole message (the remediation text is lost); medium, a quota read's only deadline is the model
+request's (300 s by default, none without `timeoutMs`); lows: bare `possible risk` in a 429 ends the run, a failed
+first quota read is never retried, local admission failures reported as an invented `HTTP 429`, unreached branches,
+three sibling conventions. All eight accepted; the writer's next run (`pi-provider-answers-its-review-1`, GPT, same
+session) answers them with adapter-built refusal strings. Install into `~/.pi/agent/settings.json` stays for the owner.
+The coreutils sync change's
 DeepSeek review returned (78 turns, final; 0 high,
 1 medium, 5 low; `~/temp/agent/change-reviews/node-sync-calls-go-through-coreutils-sync-at-e5c61b8af2/review.md`): every
 site keeps its promises, each new test fails with its site reverted, the reported suite failures are in untouched files;
