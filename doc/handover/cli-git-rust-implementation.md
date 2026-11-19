@@ -39754,6 +39754,17 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### A run OpenAI stops as a "possible risk" resumes on DeepSeek (2026-11-18, evening)
+
+In plain text, after the ZFS-clones research ended on OpenAI's filter:
+"Whenever a "possible risk" is triggered from OAI, switch to deepseek resuming the session.
+Make this a standing rule in AGENTS.md . Use "possible risk" instead of anything more specific."
+Written as `AGENTS.md` rule `RKD` beside `XVW` (DeepSeek through Pi, never the official `deepseek` provider, as
+`KRV` already says), and in `.agents/skills/pi-as-subagent/SKILL.md` under the writer bullet (the follow-up of step 7
+with `--session` on the reviewer pool's DeepSeek, same worktree), mirrors copied by hand. The ZFS-clones research had
+already been resumed on GPT before this answer (unit `pi-zfs-clones-under-the-checkout-research-2`); it got past the
+filter, so it keeps going on GPT, and a second stop moves it to DeepSeek by this rule.
+
 ### Reviewers: DeepSeek stays for short, frequent reviews; Sonnet for long reviews and audits, rare (2026-11-18, evening)
 
 Through the question tool, after the reviewer bench was put to the owner as a challenge (scoring report

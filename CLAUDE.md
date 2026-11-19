@@ -322,6 +322,11 @@ XVW:
  Delegated writing runs through Pi on GPT 6.2 Sol,
  started by `package/pi-shared/subagent-driver`.
 
+RKD:
+ A run OpenAI stops as a "possible risk":
+ resume its session on DeepSeek through Pi,
+ never the official `deepseek` provider.
+
 KRV:
  Short reviews of a change (all but integration passes,
  releases and designs put to the owner) run through Pi on DeepSeek,

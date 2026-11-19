@@ -211,6 +211,11 @@ and of the driver package,
 - **A writer**, a run that changes code or documents,
   is `--provider=openai --model=gpt-6.2-sol`,
   the provider the owner picked ("A: openai (Recommended)").
+  When OpenAI ends a run with a `modelError` flagging its content as a possible risk,
+  start the follow-up of step 7 with `--session=<its session file>` on the reviewer pool's DeepSeek,
+  in the same worktree and with a prompt that says where the work stopped.
+  The owner, 2026-11-18:
+  "Whenever a "possible risk" is triggered from OAI, switch to deepseek resuming the session."
 - **A reviewer**, a run that reviews a change outside a gate (the short, frequent kind),
   is DeepSeek V4.1 Flash from one pool in the owner's order
   ("Synthetic and C and B, as a pool with preference."):
