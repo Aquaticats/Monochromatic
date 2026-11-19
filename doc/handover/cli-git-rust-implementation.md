@@ -180,9 +180,10 @@ Not final and not approved: this session's own account.
   (commits 78f445a56a, 5ba0cb06dd, 4203040346; pushed; marked non-final); its worktree is removed. Its report names
   six choices for the owner (managed path interface, main-only origins, exact ABI profiles, periodic reconcile, scoped
   delegation that lets the account destroy any snapshot of the main dataset, keep the space guard as it is) and notes
-  the blocklist answer's label said "seven" while the list it named has eight. The proposal also moves the main
-  checkout into a dataset mounted under a root-owned anchor (`/var/lib/monochromatic-worktrees/monochromatic/main`),
-  which changes the checkout's path: to be put to the owner. **Going since 2026-11-18T19:25:33-05:00:** its cross-vendor
+  the blocklist answer's label said "seven" while the list it named has eight. The proposal also moved the main
+  checkout under a root-owned anchor (`/var/lib/monochromatic-worktrees/monochromatic/main`) and put clones there; the
+  owner answered that `~/Monochromatic` stays and worktrees live under its `.claude/worktrees/` (decision entry
+  "ZFS route: ~/Monochromatic stays, worktrees live under its .claude/worktrees"). **Going since 2026-11-18T19:25:33-05:00:** its cross-vendor
   review, DeepSeek V4.1 Flash on Synthetic through Pi, unit `pi-zfs-worktree-design-proposal-review-1`, run folder
   `~/temp/agent/zfs-worktree-design-proposal-review-2026-11-18/run-1`, detached worktree
   `.claude/worktrees/zfs-worktree-design-proposal-review` at 4203040346, writing `review.md` beside the run folder.
@@ -39716,6 +39717,18 @@ Timestamps are the commit times at which the decision was first written into the
 the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
+
+### ZFS route: ~/Monochromatic stays, worktrees live under its .claude/worktrees (2026-11-18, evening)
+
+Plain text after the design proposal's first draft: "We need to keep ~/Monochromatic where it is."; "surely there is a
+rule mandating putting worktrees in ./.claude ?"; and, of the proposal's `/var/lib/monochromatic-worktrees/` anchor,
+"both you and GPT just saying monochromatic-worktrees means you've both missed at least an AGENTS.md rule." Recorded in
+`doc/planning/cli-git-zfs-worktree.md`, section "Owner's answers of 2026-11-18" (entries "Where the main checkout
+stays", "Where worktrees live", "Names"). No `AGENTS.md` line ever named the worktree place (its history searched back
+to 964883fd94); it entered the Pi skill in 1a907ccfb9 with the owner's "Feel free to use worktrees.", and a rule is put
+to the owner. Both points went to the running proposal review as steering messages; the fold-in writer gets them as
+requirements. The owner also asked whether `~/.cache` is on the snapshot blocklist: it is, as
+`zpcachyos/nosnap/user-cache` (measured), and lists of those datasets now give each one's folder.
 
 ### Driver: the idle window defaults to 0 (2026-11-18, said before 19:27:38-05:00)
 

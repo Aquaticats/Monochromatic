@@ -436,6 +436,23 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   pnpm store stay snapshotted. Adopted with the answer, open to veto: `doctor` checks this list (each entry present,
   below its parent, property set) and prints the commands that fix drift, since the owner's earlier answer has
   `doctor` report the root-once setup and print its commands.
+  `~/.cache` is on it as `zpcachyos/nosnap/user-cache` (measured 2026-11-18: mounted at `/home/user/.cache`,
+  `com.sun:auto-snapshot=false`, no snapshots); the owner asked whether it was, because the list named datasets
+  without their folders, so every list of these datasets gives each one's folder.
+- **Where the main checkout stays** (plain text, 2026-11-18, after reading the design proposal's first draft): "We need
+  to keep ~/Monochromatic where it is." The proposal's move of the checkout under a root-owned folder is withdrawn.
+  A clone is made from a snapshot of one dataset, so the checkout still becomes a dataset of its own, mounted at
+  `~/Monochromatic` (the session's reading, put to the owner the same evening).
+- **Where worktrees live** (plain text, same evening): "surely there is a rule mandating putting worktrees in
+  ./.claude ?" Every worktree of this repository, clones included, lives under `~/Monochromatic/.claude/worktrees/`.
+  No rule in `AGENTS.md` has said so at any point (its history searched on 2026-11-18 back to 964883fd94); the place
+  entered the Pi skill on 2026-11-08 (1a907ccfb9) and the driver's launcher, and a rule is proposed to the owner.
+  A clone mounted there sits in a folder the account owns, which the finding under "A planted symlink redirects both
+  mechanisms" makes dangerous for a mount that follows paths: the design has to mount without
+  following anything the account can change, and the VM has to prove it.
+- **Names** (plain text, same evening): "both you and GPT just saying monochromatic-worktrees means you've both missed
+  at least an AGENTS.md rule." The rule the owner meant is the worktree place just quoted; every name the design
+  makes up also follows `AGENTS.md` rules `MKY` and `VGW`.
 
 ## Open choices for the owner
 
