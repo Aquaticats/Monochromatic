@@ -543,3 +543,43 @@ snapshot map and printed `bookmark restored by reverse promote: True`.
 The transaction-group comparisons separated transferred and own snapshots in this topology, and a snapshot-only
 inventory missed the transferred bookmark. This is not proof of provenance based on `createtxg` alone for other
 lineage changes, different encryption roots, or creation of multiple objects in one transaction group.
+
+### 14. One snapshot destroy request after promote
+
+Guest: `6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-14-exact.log`). The probe repeated
+item 11's promote with an extra worktree-owned snapshot for the positive control. It traced each destroy with
+`strace -X raw -e trace=ioctl` and counted `0x5a3b`, `ZFS_IOC_DESTROY_SNAPS` in OpenZFS `include/sys/fs/zfs.h`.
+`zfs destroy zfsowed14/home/worktree-clone-datasets/promotion@earliest,origin` exited 1:
+
+```text
+# item-14-exact.log, selected mixed CLI output
+cannot destroy 'zfsowed14/home/worktree-clone-datasets/promotion@origin': snapshot has dependent clones
+ZFS_IOC_DESTROY_SNAPS (0x5a3b) count: 0
+```
+
+The CLI refused before submitting the batch, so this command did not measure kernel atomicity. In the `zfs-2.4.4`
+source, `snapshot_to_nvl_cb` in `cmd/zfs/zfs_main.c` checks dependents while gathering the snapshot names.
+To exercise the kernel, the guest helper submitted exactly those two names in one `lzc_destroy_snaps` call
+with `defer=false`. It returned `EEXIST`, with only `@origin` in the per-name errors:
+
+```text
+# item-14-exact.log, selected direct-call output
+zfsowed14/home/worktree-clone-datasets/promotion@origin: 17 (File exists)
+ioctl(3, 0x5a3b, 0x7ffe98762ca0)        = -1 EEXIST (File exists)
+ZFS_IOC_DESTROY_SNAPS (0x5a3b) count: 1
+```
+
+`zfs list -H -p -t snapshot -o name,createtxg,guid -r` showed the full set unchanged after both refusals,
+including the same `@earliest` and `@origin`:
+
+```text
+# item-14-exact.log, selected rows after the direct call
+zfsowed14/home/worktree-clone-datasets/promotion@earliest	13	1397524674383436074
+zfsowed14/home/worktree-clone-datasets/promotion@origin	14	7714848456831525633
+```
+
+Positive control: `zfs destroy <promoted-clone>@worktree-own,worktree-own-next` exited 0 with
+`ZFS_IOC_DESTROY_SNAPS (0x5a3b) count: 1`. Both own snapshots disappeared and no others did. This supports
+DM2's all-or-nothing result for this kernel request, but not its premise that the refused CLI command issues it.
+It does not prove ownership, make the subsequent dataset destroy atomic with the batch, test batch limits,
+or establish safety if an unprotected foreign snapshot appears in a submitted set.
