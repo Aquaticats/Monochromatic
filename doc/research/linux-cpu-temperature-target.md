@@ -34,6 +34,8 @@ Workload tests would establish the observed overshoot, frequency response and re
 - All 32 CPUFreq policies expose a root-owned `0644` `scaling_max_freq` and currently report
   `scaling_min_freq` of `3012481` kHz. The `amd-pstate-epp` driver is in active mode and passes performance
   limits to the hardware through CPPC. Applying the limit across all policies covers the host.
+  Each policy's `related_cpus` lists one logical CPU on this host. All 32 logical CPUs are represented,
+  with two threads per physical core according to `lscpu`.
   [Linux AMD P-State][amd-active] · [AMD driver source][amd-epp-update]
 - The probe found 33 cooling devices and zero thermal zones. Powercap exposes energy counters and zero
   `constraint_*_power_limit_uw` files. The available Linux interfaces for the proposed loop are hwmon and CPUFreq.
