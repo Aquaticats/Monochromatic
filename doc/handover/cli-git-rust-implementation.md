@@ -39953,10 +39953,19 @@ What follows from them, as work:
   review; the short review's; the LFS audit's; the prototype's), and each new one copies the checkout's ignored files
   (38,685 entries for the prototype's). Waiting on that: the live quota-endpoint check (task 396, which can run in
   the prototype's worktree once it ends). The driver's four uncaptured fixtures (task 391) took the slot the short
-  review freed: GOING as `pi-driver-model-error-fixtures-from-captured-refusals` (DeepSeek on Neuralwatt, turn cap 590,
-  a quarter above the longest of 107 finished driver runs, 471), branch
-  `fix/pi-shared-subagent-driver-model-error-fixtures-come-from-captured-refusals`, brief and run folder under
-  `~/temp/agent/driver-model-error-fixtures-from-captured-refusals-2026-11-19/`. The driver pool table (task 383)
+  review freed: its writer `pi-driver-model-error-fixtures-from-captured-refusals` (DeepSeek on Neuralwatt) ended
+  `idle` in 90 turns, three commits `9e22050711`, `09986c3823`, `026bef2510` on
+  `fix/pi-shared-subagent-driver-model-error-fixtures-come-from-captured-refusals` (pushed; brief and run folder under
+  `~/temp/agent/driver-model-error-fixtures-from-captured-refusals-2026-11-19/`). By its report `TOO_MANY_REQUESTS`
+  became Synthetic's captured `429 "Too many concurrent requests"` with the run summary it came from named beside it;
+  the three inline inputs stay made up and say so with their boundary; the README list rests on Pi's own retry pattern
+  (`retry.js` lines 36 to 39); it also added a paragraph to the package's `doc/rules-every-pi-brief-carries.md`, outside
+  its brief. It names two more strings of the same file that stand for provider output with no capture, `HTTP_429` and
+  `QUOTA_EXCEEDED` (a real capture exists for the quota one). Its worktree is removed (branch kept); GOING: its short
+  review on the Qwen plan, unit `pi-driver-model-error-fixtures-short-review-on-the-qwen-plan`, in the detached
+  worktree `.claude/worktrees/pi-qwen-review-driver-model-error-fixtures-at-026bef2510`, told to list every
+  output-standing string in the file; folder
+  `~/temp/agent/driver-model-error-fixtures-short-review-on-the-qwen-plan-2026-11-19/`. The driver pool table (task 383)
   waits on more than a slot: it changes `pool-limits.ts`, as the unmerged `ecec388cdb` does (13 files; its review
   queued 2026-11-16 and never started), and the entry of 2026-11-16 on the second timing of the two pools puts
   follow-ups to that file on top of `ecec388cdb` once it is reviewed and in `main`; that review waits with the queue.
