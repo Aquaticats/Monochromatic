@@ -34,8 +34,9 @@ branch `fix/git-policy-cli-lfs-audit-findings-of-2026-11-19` in its next round, 
   words naming how to supply one. This supersedes, for credential prompts, `SPEC.md`'s "A command the person typed is
   forwarded with the prompting Git has" and the earlier answer it rests on ("Foreground commands the user types and the
   wrapper forwards keep Git's normal prompting"), and widens the service's "Never prompt" of 2026-11-07 to every
-  command. Reading adopted, open to veto: an SSH key's passphrase counts as a password; what the OpenSSH setting that
-  stops it also turns off is to be measured and written down.
+  command. An SSH key's passphrase, asked separately: "Passphrases count too (Recommended)": a key not loaded in
+  ssh-agent fails at once with words saying to run `ssh-add`; what the OpenSSH setting that stops the prompt also
+  turns off (for example the yes/no question for an unknown host key) is to be measured and written down.
 
 ## Answered in the question tool, recorded 2026-11-19T16:22:16-05:00
 
