@@ -601,13 +601,15 @@ Two whole suites ran on this host against the branch's tree, each in the gate's 
   comparable with the 1053 s the same suite took on the dataset, because that run's tree was also the
   failing one.
 - Clippy: the first run's gate step exited zero from the mounted locked toolchain (the gate's refusal
-  named only the test run). The second run's step failed on `clippy::shadow_unrelated`, which this gate
-  denies: the two-step assertion the conversion control gained above bound `message` twice in one
-  function. Commit `8d1122a6ae` names the second binding apart, and the same Clippy step over the fixed
-  tree, with the same image, mounted toolchain and flags, then finished with
-  `Finished dev profile [unoptimized] [debuginfo] target(s) in 2m 13s` and no warning or error line
-  (`scratch/clippy-run-2-fixed.log`). The run before the fix failed on that one binding
-  (`scratch/clippy-run-2-final-tree.log`), so the two logs show the step reads this tree.
+  named only the test run). The Clippy step over the second run's tree failed on
+  `clippy::shadow_unrelated`, which this gate denies: the two-step assertion the conversion control
+  gained above bound `message` twice in one function. That step was run on its own, with the gate's
+  image, mounted toolchain and flags, because the gate's own Clippy container was still running when
+  the harness that started it was stopped and its captured output went with the client
+  (`scratch/clippy-run-2-final-tree.log`). Commit `8d1122a6ae` names the second binding apart, and the
+  same step over the fixed tree then finished with `Finished dev profile [unoptimized] [debuginfo]
+  target(s) in 2m 13s` and no warning or error line (`scratch/clippy-run-2-fixed.log`); the two logs'
+  differing outcomes are what shows that step reads this tree rather than a stale image.
 - No third gate run was started, as the task set for this fix allows two. The second run's image and
   the final tree differ in exactly one source file, `src/native/worktree/worktree_convert_safety_tests.rs`
   (commit `8d1122a6ae`): the SHA-256 of every file under `src` in the image and in the worktree agree
