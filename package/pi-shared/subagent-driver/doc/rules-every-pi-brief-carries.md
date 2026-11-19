@@ -299,7 +299,7 @@ Each rule is the project's own requirement.
   Captured forms exist on this machine:
   a run's `modelError` in `summary.json`,
   Pi's own `auto_retry_end` line with its `finalError` in the same run's `feed.jsonl`,
-  and the refusals a skill or a handover quotes with their date.
+  and the producer's own source at the line that writes the text.
 
 ## Where the run works
 
