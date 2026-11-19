@@ -365,3 +365,81 @@ The descriptor attach of that same dataset succeeded, with `rw,nosuid,nodev,rela
 explicit-mount branch of `zfs-2.4.4`'s `cmd/zfs/zfs_main.c:7240` to `:7248`. The proposal's citation at
 lines 118 to 119 points at the unmount branch instead. Treat the refusal as expected: an inherited legacy
 property does not name a target slot, and the design must not fall back to a path-based mount.
+
+## 11. Promote and the checkout's snapshot history
+
+Guest: `6.8.0-147-generic`, OpenZFS userspace/module `2.4.4-1` (`item-11-exact.log`). The kernel differs from the
+host; the module release matches. The probe made checkout snapshots `@earliest`, `@origin` and
+`@checkout-later`, cloned `@origin`, and made `@worktree-own` on the clone. It recorded the origin and
+encryption root of both datasets and snapshot names and GUIDs before and after `zfs promote <worktree-clone>`.
+
+The checkout started independent and the worktree depended on checkout's `@origin`. Promotion reversed
+that dependency: checkout now depended on the worktree's `@origin`. Checkout's origin snapshot and its
+older snapshot moved to the worktree without changing GUIDs; the later checkout and worktree-owned snapshots
+stayed where they were. This matches `zfs-promote(8)`. After promotion:
+
+```text
+zfsowed11/home/checkout	origin	zfsowed11/home/worktree-clone-datasets/promotion@origin
+zfsowed11/home/worktree-clone-datasets/promotion	origin	-
+zfsowed11/home/checkout@checkout-later	16110764806619961322
+zfsowed11/home/worktree-clone-datasets/promotion@earliest	12367540667152475382
+zfsowed11/home/worktree-clone-datasets/promotion@origin	14322725115875610900
+zfsowed11/home/worktree-clone-datasets/promotion@worktree-own	15127986852297743065
+```
+
+`zfs destroy -r <promoted-clone>` exited 1 with the snapshot list unchanged. A **dry run** with `-n -v -R`
+included the checkout itself and its later snapshot:
+
+```text
+cannot destroy 'zfsowed11/home/worktree-clone-datasets/promotion': filesystem has dependent clones
+would destroy zfsowed11/home/checkout@checkout-later
+would destroy zfsowed11/home/checkout
+```
+
+Promoting the checkout back restored the full pre-promotion snapshot map and origins. The unmounted
+worktree and its own snapshot then destroyed together with `zfs destroy -r` exit 0, and the checkout
+retained all its snapshots. This control is not a requirement to issue a recursive destroy in the wrapper.
+
+A second promotion showed why the ordinary recursive refusal is not protection for the proposal's
+individual snapshot deletes. `zfs destroy <promoted-clone>@earliest` exited 0. Destroying its `@origin`
+then refused with `snapshot has dependent clones`. Promoting checkout back did not restore the older snapshot:
+
+```text
+cannot open 'zfsowed11/home/checkout@earliest': dataset does not exist
+explicit removal lost checkout @earliest before the protected origin stopped it
+```
+
+Include the binding primitive as decided, but do not let ordinary add or remove promote from the protected
+checkout into a removable worktree. For any explicit lineage change, prove who owns the affected snapshot
+GUIDs, what will depend on the result, and where protected history will remain. Removal must reject a
+promoted or otherwise mismatched lineage **before deleting the first snapshot**. A successful reverse
+promotion in this fixture is a recovery control, not a guarantee for conflicting snapshot names, changed
+history, other encryption roots or other clone relationships.
+
+## Differences from the proposal and gate review
+
+- The account-owned-parent refusal repeat belongs before design acceptance, as GH1 says. The earlier filesystem
+  permission denial is not part of this layout: link creation worked; the descriptor walk refused it.
+- GM1's shared-checkout prediction held and its narrower private-checkout control worked. The proposal and clones
+  research required private ancestors too, which the measurement disproved for this move. Its cost is the loss
+  of propagation into an already-confined reader.
+- GM4 and GM5 reviewed a version before the project selected inclusion of `promote` and immediate destruction
+  of the removed worktree's own snapshots. Those decisions stand; the measurements show why inherited checkout
+  history must not be mistaken for the worktree's own history.
+- The rename loop used synchronized, bounded interleavings, not a tight stress loop. Item 3 used the disposable
+  VM's boot namespace so its real systemd units inherited the tested mount topology. The host was not used for
+  either mount or rename probes.
+
+## What this did not show
+
+- Host-kernel execution or Git `2.56.1` runtime behavior: the agreed probe boundary was the disposable guest.
+  A file-backed encrypted pool measures semantics, not performance on the host's storage.
+- Product wrapper, Rust binding, ZED reconciliation, confinement variants or boot orchestration: the fixture used
+  direct kernel calls, guest Git, a limited systemd reader and a test zedlet. Item 8 explicitly imported and loaded
+  the key after reboot; it was not an unattended startup or shutdown test of the design.
+- Free-running rename and replacement interleavings, recreation under the same dataset name, failed rollback or
+  reattach, and process interruption at lifecycle steps. The controls synchronized selected windows and verified
+  state, rather than claiming exhaustive scheduling coverage.
+- Promotion reversal with name collisions, other encrypted lineage shapes, or dependents beyond the fixture.
+  The dependent-destroy variant ran as a dry run only, because the deletion set, not destroying the checkout,
+  was the relevant evidence.
