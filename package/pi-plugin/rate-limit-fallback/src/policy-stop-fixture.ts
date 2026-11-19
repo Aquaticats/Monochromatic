@@ -1,0 +1,143 @@
+/**
+ OpenAI's policy stop, built through the installed Responses adapter over an in-memory stream.
+ @module
+ */
+
+import type {
+  Api,
+  AssistantMessageEventStream,
+  Model,
+  SimpleStreamOptions,
+  TranscriptContext,
+} from '@earendil-works/pi-ai';
+import { streamSimple as streamResponses, } from '@earendil-works/pi-ai/api/openai-responses';
+import { MEMBER_KEY, } from './stand-in-pi-fixture.ts';
+
+/**
+ OpenAI's policy stop, verbatim: two recorded runs on this machine report the same 311 characters,
+ and `doc/captures.md` holds the text with both run folders and their dates.
+ The captures fix the text alone, not the wire event that carried it.
+ */
+export const POLICY_STOP_TEXT: string = 'This content was flagged for possible cybersecurity risk. If this seems wrong, '
+  + 'try rephrasing your request. If you’re doing authorized security work that requires more cyber permissive '
+  + 'safeguards, apply for Daybreak access via https://platform.openai.com/settings/organization/status-and-access '
+  + 'before retrying.';
+
+/**
+ Serialize provider events as the OpenAI SDK's server-sent-event body reads them.
+
+ @param events - Events the adapter consumes in order
+
+ @returns response body with one `event` and one `data` line per event
+ */
+function serverSentEvents(events: readonly {
+  readonly type: string;
+}[],): string {
+  return events.map(function toFrame(event,) {
+    return `event: ${event.type}\ndata: ${JSON.stringify(event,)}\n\n`;
+  },)
+    .join('',);
+}
+
+/**
+ Build OpenAI's policy stop through the installed Responses adapter, over a stream that answers HTTP
+ 200.
+
+The 200 is a construction choice, not an observation: the installed adapter reports the text with no
+ status prefix only when the response carried no status, so a 200 stream is the shape that makes the
+ recorded text come back byte for byte (the captures fix the text, not the wire event). The SDK
+ throws for an SSE `error` event (`openai/core/streaming.mjs:111`), and Pi formats that failure
+ without a status prefix because the response carried no status
+ (`@earendil-works/pi-ai/dist/utils/error-body.js:139-145`). Run against the installed adapter, this
+ body reports the recorded text byte for byte, where a `response.failed` event would report it as
+ `unknown: …` and an `incomplete` response as `Response incomplete: content_filter`.
+
+ @param model - physical model whose adapter reads the body
+
+ @param context - transcript the adapter is asked about
+
+ @param options - request options the pool forwarded to the member
+
+ @param exposedText - text the member streams before the stop, or empty to stop before any output
+
+ @returns physical stream that fails with the policy stop
+
+ @example
+ ```ts
+ policyStopStream({ model: PHYSICAL_MODELS[0], context: TRANSCRIPT, exposedText: 'partial' });
+ ```
+ */
+export function policyStopStream({
+  model,
+  context,
+  options,
+  exposedText = '',
+}: {
+  readonly model: Model<Api>;
+  readonly context: TranscriptContext;
+  readonly options?: SimpleStreamOptions;
+  readonly exposedText?: string;
+},): AssistantMessageEventStream {
+  /**
+   Events the SDK reads: a created response, any exposed text, then the stop.
+   */
+  const events = [
+    {
+      type: 'response.created',
+      response: {
+        id: 'resp_policy',
+        status: 'in_progress',
+      },
+    },
+    ...(exposedText === '' ? [] : [
+      {
+        type: 'response.output_item.added',
+        output_index: 0,
+        item: {
+          type: 'message',
+          id: 'msg_policy',
+          role: 'assistant',
+          status: 'in_progress',
+          content: [],
+        },
+      },
+      {
+        type: 'response.output_text.delta',
+        output_index: 0,
+        content_index: 0,
+        item_id: 'msg_policy',
+        delta: exposedText,
+      },
+    ]),
+    {
+      type: 'error',
+      code: 'invalid_request_error',
+      message: POLICY_STOP_TEXT,
+    },
+  ];
+  /**
+   One in-memory body; the adapter reaches no network.
+   */
+  const body = serverSentEvents(events,);
+  return streamResponses(
+    {
+      ...model,
+      api: 'openai-responses',
+    },
+    context,
+    {
+      ...options,
+      apiKey: MEMBER_KEY,
+      maxRetries: 0,
+      fetch() {
+        return Promise.resolve(new Response(
+          body,
+          {
+            status: 200,
+            headers: { 'content-type': 'text/event-stream', },
+          },
+        ),);
+      },
+    },
+  );
+}

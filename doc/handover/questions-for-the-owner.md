@@ -18,6 +18,112 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Prepared overnight for the question tool, 2026-11-19T03:30:00-05:00
+
+The owner went to bed on 2026-11-19 choosing "Shut down when done", so these were not asked in that session.
+The next session asks each one through the question tool, ranked as written here, and records the answers in the
+documents named.
+Each option's facts come from the ZFS proposal at `b5294a7325`
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md` on branch `docs/planning-cli-git-zfs-worktree-design-proposal`)
+and its measurement record; "item N" is a measurement item there.
+The rankings are the coordinator's recommendations, not decisions.
+
+### ZFS worktree route: eighteen open choices
+
+1.  Checkout boot mount protection. A, an ordinary mountpoint plus an immutable entry under it: the flag survived mount
+    and reboot, not a rollback to a snapshot older than the flag (item 8). B, `mountpoint=legacy` plus a boot service: a
+    path mounted early was hidden by the later attach (item 9), and it needs ordering and exclusion from automatic
+    mounting. Ranking: A > B, because A is measured across a reboot with no new service and its gap needs a deliberate
+    rollback.
+2.  Checkout propagation policy. A boot unit sets the checkout private (repeats after a replacement mount and reboot);
+    an administrator sets it once (lost on reboot); or an unnamed other arrangement (needs its own proof). Ranking: boot
+    unit > administrator, because only the unit survives a reboot; administrator > other, because the other has nothing
+    named to test.
+3.  Removal when the namespace exclusion cannot be shown (no setup can show it today, item 15). Destroy anyway, keeping
+    the scan that refuses holders it can see: the head destroy is refused `dataset is busy` while a holder keeps it
+    (item 15), so a missed holder stalls the removal; the clone's snapshots are gone. Refuse: nothing ever removes, and
+    it is stricter than "refuse without an explicit flag", which the owner declined when choosing "B: Destroy at once".
+    Ranking: destroy anyway > refuse, because it carries out the decided removal and the kernel's busy check still
+    keeps the head; a missed or late holder is unmeasured.
+4.  Bookmarks on a clone being removed. A: pass on a live clone snapshot's tuple or one the removal plan recorded; a
+    bookmark whose snapshot is gone refuses until a person runs `zfs destroy <clone>#<bookmark>`. C: judge by
+    creation-txg ordering and origin-side tuples (source reading, unmeasured; not proof for other topologies). B: live
+    snapshots only, which strands a split or replanned removal after its first delete. Ranking: A > C, because A's cost
+    needs someone to bookmark a worktree clone (the account has no `bookmark` grant) while C rests on an unproved
+    argument; C > B, because B strands removals.
+5.  Kernel-release readiness. An exact allowlist with built-product runs (the route turns off after each kernel update
+    until a run passes, falling back to the plain route; nothing on `7.3.5-1-cachyos` is qualified yet, item 16) or a
+    functional probe at start (admits untested releases; its steps are not written). Ranking: allowlist > probe,
+    because it matches the owner's "A: Test plus runtime gate" for the module (refuse and fall back, no override).
+6.  Blocked-removal cancellation. A `cancel-worktree-removal <slot>` command or report-only with manual recovery;
+    neither restores destroyed snapshots. Ranking: command > report-only, because it gives one supported way back.
+7.  Managed path interface. Canonical path only (ordinary `git worktree add <path>` under `.claude/worktrees/`) or an
+    opt-in allocator as well. Ranking: canonical only > allocator, because nothing asks for the extra command yet.
+8.  Eligible clone origins. Main checkout only, or linked worktrees too (keeps ignored state, chains dependencies, can
+    block origin cleanup; chain removal unmeasured). Ranking: main only > linked, because chains are unmeasured.
+9.  ABI verification. Exact approved BTF profiles (can turn clones off after a ZFS rebuild until approved) or a runtime
+    layout check (accepts more builds, adds a parser). Ranking: exact > layout, for the same reason as choice 5.
+10. Lost last event without a waiter. Add a periodic scoped sweep (its rate rule is still unwritten) or rely on startup,
+    readiness, ZED and nudges (a lost event leaves the worktree unavailable until another trigger). Ranking: sweep >
+    none, because a worktree stuck unavailable is the failure the owner has asked never to wait on.
+11. Origin cleanup authority. Root-owned cleanup limited to proven origins (its own privileged proof) or a
+    descendants-only `mount,destroy` grant on the checkout (lets the account destroy or defer-destroy any checkout
+    snapshot, sanoid's included). Ranking: root-owned > grant, because the grant puts the home dataset's whole snapshot
+    history within reach of an agent's mistake. Coupled with choice 18: a delegated clone destroy with a delegated
+    origin destroy is excluded until the origin rule is proved.
+12. Space-pressure pruning. Current scope, or an allowlist that lets the guard prune managed descendants' sanoid
+    hourlies (frees more, deletes living history early). Ranking: current > allowlist, because 3.19 TB is free.
+13. Misplaced attach. Immediate descriptor rollback (succeeded in synchronized trials, item 2) or leave it attached and
+    report. Ranking: rollback > leave, because a mount at an account-chosen place is the hazard the design guards.
+14. Busy unmount after a staging move. Keep it staged (the worktree stays unavailable) or reattach when safe (a second
+    attach and a race). Ranking: keep staged > reattach, consistent with the default of no implicit remount.
+15. Dirty main checkout on the first rung. A verified dirty-main restore (needs a defined restore and its own proof) or
+    require a clean source. Ranking: restore > clean only, because the main checkout here usually holds other
+    sessions' uncommitted edits, so a clean-only rule would skip the clone route most of the time.
+16. Prune protection while unmounted. A managed Git lock plus pointer copies (held against `git worktree prune` and
+    `--expire now`, not `--force --force`, item 6) or a root-set immutable flag (unmeasured). Ranking: lock > flag,
+    because only the lock is measured.
+17. Git registration when origin cleanup is blocked. Keep it until cleanup or settle it with an independent record.
+    Ranking: keep > settle, because Git keeps seeing the worktree and the slot stays reserved.
+18. Clone removal identity protection. Delegated `destroy` with scoped grants (measured on both clone topologies, items
+    12, 17, 18; accepts that a process running as the account could substitute a dataset) or root identity-conditional
+    destruction (refused stale tuples, item 12; needs an unnamed transport and an unnamed home for its inventory).
+    Ranking: delegated > root, because it is measured end to end and needs no privileged transport; with choice 11 at
+    root-owned, the excluded pair does not arise.
+
+### ZFS worktree route: four defaults open to veto
+
+Each is asked as keep or replace, keep recommended: receipts as files under `/run` (the alternative, acknowledgement
+properties, raises a ZED event per write); the mount handler as a second binary in `package/git-policy/cli` (shares the
+binding and the ABI gate); no implicit remount after a failure or restart (avoids racing a standing unmount); private
+staging at `/run/git-worktree-clone-mount-staging` (needs a boot unit to create it).
+
+### Other questions for the morning
+
+- Qwen Token Plan terms. Its FAQ (https://www.alibabacloud.com/help/en/model-studio/token-plan-faq) says Personal
+  Edition is for interactive development through designated tools and that batch scripts and scheduled background tasks
+  are not allowed; Pi reviewer runs are automated. Stop using it for Pi runs > keep using it, because the use is outside
+  its stated terms on the owner's account.
+- Synthetic `infinite:small:vision` (quota-free; 13 to 46 times slower than the Qwen-plan arm over four interleaved
+  rounds, answers matching). Last in the reviewer pool, used only when every other pool refuses > not used > earlier,
+  because a slow review beats none and anything earlier costs hours per review.
+- The provider package's four open points (gate review of 2026-11-19): 503 and Cloudflare 52x move on to the next member
+  > end at the member, because NeuralWatt documents 503 as fleet capacity; the overage ceiling follows the refusal's own
+  number as the issue comment says > the minimum of two numbers; the endpoint read stays at re-entry > read at refusal
+  time, because it halves reads against a rate-limited endpoint; keep the package's own provider > switch to Pi's
+  native virtual models, because the native path also defaults the pool's window to 0 and brings branch-selection
+  machinery; but with the package's own provider a member's real context-overflow error gets no compact-and-retry
+  (measured by the gate delta check of 2026-11-19; rare at 1M-token windows), which the native path would give, so that
+  is the cost of keeping it. The policy move now also requires the member's provider to be `openai`, a stricter reading
+  than the recorded decision about OpenAI's filter: keep the provider gate > text only, because no pool has an OpenAI
+  member and the gate cannot misfire on a quoting refusal.
+- Installing the provider into `~/.pi/agent/settings.json` once it is in `main`: install > wait.
+- The driver's wait for work a run left (the fix for other sessions' processes holding runs, 2026-11-19): keep the
+  named-unit path as `main` has it and send agents to `systemd-run --user --scope` through the `process` tool (decided
+  overnight, veto open) > keep inferring a unit's owner from the command text, because three review rounds of that
+  inference each opened a new way to end or hold a run, while a scope keeps the work in the run's process tree, where
+  the new descent rule already sees it.
+
 ## Asked while the owner is away, started 2026-11-09T01:16:11-05:00
 
 The owner:
