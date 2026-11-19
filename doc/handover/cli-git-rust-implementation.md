@@ -261,6 +261,22 @@ Not final and not approved: this session's own account.
   substance per finding, the disputes settled from `keep/`, choices made in the body without a record, the open
   choices sorted into preference, measurable or already decided, the brief's done criteria, and correctness. Then the
   owner's acceptance through the question tool.
+  **The gate review returned** (1 high, 10 medium, 11 low; all accepted by the coordinator). GH1: the record says the
+  item 3 refusals are measured with account ownership before acceptance, and the fold-in brief had wrongly scheduled
+  that for the build. Its check B upheld all three of the writer's contests (dated corrections now in the clones
+  document and this handover). The owner answered three of its questions the same evening (decisions entries in the
+  planning page): removal destroys at once, the binding includes `promote`, a runtime ABI gate besides the test.
+  **Going now:** (1) the VM measurement run, GPT 6.2 Sol, unit `pi-zfs-measurements-owed-before-acceptance-1`, worktree
+  `.claude/worktrees/zfs-measurements-owed-before-acceptance`, branch
+  `docs/planning-cli-git-zfs-measurements-owed-before-acceptance`, brief
+  `~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/prompt.md` (eleven items: the add sequence end to
+  end, every item 3 refusal under account ownership, propagation, unmount by a fresh process, an encrypted pool like
+  the host's, `git worktree lock`, `nosuid`, `chattr +i`, datasets under a legacy checkout, the legacy `zfs mount`
+  control, `promote` of a worktree clone); (2) the revision writer, unit
+  `pi-zfs-worktree-design-proposal-gate-review-revision-1`, in the fold-in worktree with main merged (d22d8ac93b), brief
+  `~/temp/agent/zfs-worktree-design-proposal-fold-in-2026-11-18/prompt-gate-review-revision.md`, answering what no
+  measurement changes and marking the rest as waiting. Then a fold-in of the measurements, a Sonnet delta review of
+  `71fa25ece8` to the new tip, the open choices through the question tool, and acceptance.
   The env-local-json fixture branch 74dbe1200e had its DeepSeek review (89 turns, `idle`; file
   `~/temp/agent/env-local-json-fixture-waits-for-close-review-2026-11-18/review.md`): F1 medium, the new wait for
   `close` has no deadline, so a tool that leaves a holder on its output pipe hangs the suite; F2 to F5 low (every
