@@ -154,4 +154,12 @@ Limits: the call needs `--allow-child-process` once the model refuses instead of
 coreutils behaviour (Linux, which all five callers target).
 The options not chosen were a repository-built sync helper binary and moving each durable write into Rust.
 
+That is the stopgap. The long-term answer, decided the same evening: "For node fsync needs, the proper solution is to use
+node:ffi in the long term." Tracked as issue 6318. Measured on Node v26.13.1 in a fresh user unit under the audit
+default: `node:ffi` (added in v26.1.0, Stability 1, Experimental, with an `ExperimentalWarning` on import) loaded
+`fsync` and `fdatasync` with `dlopen(null, ...)`, and both returned 0 on a descriptor from `fs.openSync`, while ZFS's
+`zil_commit_count` rose by 2. Its [docs](https://nodejs.org/docs/latest-v26.x/api/ffi.html#:~:text=When%20using%20the%20Permission%20Model)
+say FFI is restricted under the enforcing model unless `--allow-ffi` is given. The script is
+`~/temp/agent/node-permission-audit-refusals-of-sync-calls-2026-11-18/keep/fsync-through-node-ffi.mts`.
+
 [node-26-permissions]: https://nodejs.org/docs/latest-v26.x/api/permissions.html#:~:text=Some%20node%3Afs%20operations%20act%20on%20an%20already-open%20file%20descriptor
