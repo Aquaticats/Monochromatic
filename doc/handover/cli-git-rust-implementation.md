@@ -40130,13 +40130,26 @@ What follows from them, as work:
   `7248e95a00`, all nine answered: `dispatch-request.ts` split by rule `MXL` and `lint:oxlint` at 0 warnings and 0
   errors (the gate denies warnings, so the four "acceptable" warnings were failures too); item 2 rerun from one folder
   (both arms 56172, 100514, 148179; hybrid compacts and finishes, control does not); the retryable claim dropped; an
-  own-key guard on the `pools` table with a test shown red first; a 522 member committed. GOING: the rebuild
-  `pi-rate-limit-fallback-hybrid-rebuild` (DeepSeek on Neuralwatt, cap 635, wall 300 min) in
-  `.claude/worktrees/pi-rate-limit-fallback-hybrid-rebuild` on the new branch
-  `feat/pi-plugin-rate-limit-fallback-hybrid-native-virtual-model-routes-to-the-pool` from `7248e95a00` (the prototype
-  worktree swapped for it): the hybrid as the shipped route, points 1, 2, 3 and 5 with the README lines they overrule,
-  the uncaptured fixtures, what an install needs for member extensions; the quota read's deadline stays provisional
-  until the live check (task 396). Brief under `~/temp/agent/rate-limit-fallback-hybrid-rebuild-2026-11-19/`. The driver pool table (task 383)
+  own-key guard on the `pools` table with a test shown red first; a 522 member committed. ENDED, and HELD by the
+  owner's "Finish, then hold" of 2026-11-19: the rebuild `pi-rate-limit-fallback-hybrid-rebuild` (DeepSeek on
+  Neuralwatt, cap 635), `idle` after 299 turns and 41 min, in `.claude/worktrees/pi-rate-limit-fallback-hybrid-rebuild`
+  (clean, kept for its review) on `feat/pi-plugin-rate-limit-fallback-hybrid-native-virtual-model-routes-to-the-pool`,
+  seven commits `cdda940243` to `e880cd4ed3` from `7248e95a00`; report
+  `~/temp/agent/rate-limit-fallback-hybrid-rebuild-2026-11-19/keep/report.md`. By its report: the virtual models
+  `rate-limit-fallback/writer` and `rate-limit-fallback/reviewer` route every request (turns, continuations, retries,
+  compaction summaries) to the pool, whose physical ids became `writer-pool` and `reviewer-pool` because Pi refuses a
+  virtual id a physical model of the same provider holds (`model-runtime.js:709`); prototype code deleted, its page
+  kept as evidence; point 1 (503 and 520 to 526 move on before Pi sees them), point 2 (the refusal's number governs,
+  never a minimum, shown red under the old `Math.min`), point 3 (the quota endpoint read only at a refusal) and point
+  5 (gate unchanged) built with tests; fixture sources listed in `doc/captures.md`; `build`, `lint:types`,
+  `lint:oxlint`, `test:unit` (nine suites) and `verify:extension` (eight PASS lines, real `pi` processes installed
+  from a `packages` list with stand-in members) exit 0; no real provider request sent; `monochromatic-lint` not
+  installed. FOR ITS REVIEW: under point 3 a reading that reports a ceiling of zero shuts that member out for the
+  rest of the session (documented, not changed); the report says "an independent review raised it" with no review
+  on record; the prototype's item 4 claim is wrong for a multi-member pool (Pi measures context against the pool
+  model); the SDK route needs `ModelRuntime.refresh` before the first prompt; a commit message lost a file name and
+  the writer pushed a `git notes` comment as `refs/notes/commits`. NEXT, once the ZFS work is moving: its short
+  review, then the merge and the installed dist's rebuild, then the live quota check (task 396). The driver pool table (task 383)
   waits on more than a slot: it changes `pool-limits.ts`, as the unmerged `ecec388cdb` does (13 files; its review
   queued 2026-11-16 and never started), and the entry of 2026-11-16 on the second timing of the two pools puts
   follow-ups to that file on top of `ecec388cdb` once it is reviewed and in `main`; that review waits with the queue.
