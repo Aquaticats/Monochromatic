@@ -197,7 +197,13 @@ Not final and not approved: this session's own account.
   `~/temp/agent/agents-md-worktree-place-rule-search-2026-11-18/report.md`); whether clones under
   `.claude/worktrees` conflict with ZFS (unit `pi-zfs-clones-under-the-checkout-research-1`, worktree
   `.claude/worktrees/zfs-clones-under-the-checkout-research`, doc
-  `doc/planning/cli-git-zfs-clones-mounted-under-the-checkout.md`, VM probes); and pnpm and other tools with the
+  `doc/planning/cli-git-zfs-clones-mounted-under-the-checkout.md`, VM probes; it ended `model-error` after 77 turns at
+  2026-11-18T20:03:08-05:00 on OpenAI's filter, "This content was flagged for possible cybersecurity risk", right after
+  reading its own log of the planted-link probes; its VM probes had all run, with results in
+  `~/temp/agent/zfs-nested-checkout-mounts-2026-11-18-scratch/keep/`, no guest left and nothing committed; resumed from
+  its session to write the document, unit `pi-zfs-clones-under-the-checkout-research-2`, run folder `run-2`, with the
+  path-safety section asked as requirements rather than probe steps; main's driver refuses `--idle-seconds=0` until the
+  idle branch lands, so it runs with 1; if the filter stops it again, Daybreak access is the owner's to apply for); and pnpm and other tools with the
   checkout as its own dataset (unit `pi-checkout-dataset-and-pnpm-research-1`, worktree
   `.claude/worktrees/checkout-dataset-and-pnpm-research`, doc `doc/planning/cli-git-zfs-checkout-dataset-and-pnpm.md`;
   it may leave a measurement folder under `~/.cache` that it must delete). **Next:** read the three, weigh the review,
