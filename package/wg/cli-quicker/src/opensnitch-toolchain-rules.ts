@@ -3,7 +3,10 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { join, } from 'node:path';
+import {
+  dirname,
+  join,
+} from 'node:path';
 
 import { OpenSnitchConfigError, } from './errors.ts';
 import {
@@ -98,6 +101,8 @@ async function writeRuleInPlace(
         mode: 0o600,
       },
     );
+    await syncWrittenPath(path,);
+    await syncWrittenPath(dirname(path,),);
     return;
   }
   /**
@@ -218,7 +223,8 @@ function sameRuleContent(
  updated,
  or already current.
 
- @throws {@link OpenSnitchConfigError} when a same-named file exists that this allowance did not write.
+ @throws {@link OpenSnitchConfigError} when an unowned same-named file exists, a positional write is incomplete,
+ or a sync fails.
 
  @example
  ```ts
@@ -290,7 +296,7 @@ export async function applyToolchainRules(
       continue;
     }
     // Writes run in order so a failure leaves earlier rules whole and later rules untouched.
-    // oxlint-disable-next-line eslint/no-await-in-loop -- Each rule write (including sync for replacements) must finish before the next begins.
+    // oxlint-disable-next-line eslint/no-await-in-loop -- Each rule write and sync must finish before the next begins.
     await writeRuleInPlace({
       path: join(
         rulesDirectory,

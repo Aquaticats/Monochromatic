@@ -69,6 +69,8 @@ function hasCode({
 
  @param directory - the directory
 
+ @throws CargoMutantsToolingError when the directory cannot be synced before the deadline
+
  @example
  ```ts
  await syncDirectory('/d');
@@ -86,6 +88,8 @@ export async function syncDirectory(directory: string): Promise<void> {
  @param record - what the file says
 
  @returns the path of the private file, whose name is outside every series
+
+ @throws CargoMutantsToolingError when the private file cannot be synced before the deadline
 
  @example
  ```ts
@@ -137,6 +141,8 @@ export async function writePrivate({
  @returns true when the generation was created, false when it already existed
 
  @throws Error when the file cannot be made or linked for any other reason
+
+ @throws CargoMutantsToolingError when the private file or published directory entry cannot be synced before the deadline
 
  @example
  ```ts

@@ -113,11 +113,19 @@ if (kind === ${JSON.stringify(failKind)}) throw new Error('fixture rejected ' + 
         const bin = join(root.path, 'bin');
         await Promise.all([mkdir(directory), mkdir(bin)]);
         const target = join(directory, 'item.owner.1');
-        await writeFile(join(bin, 'sync'), `#!${process.execPath}\nsetTimeout(() => {}, ${String(slowSyncMs)});\n`, { mode: 0o700 });
+        await writeFile(
+          join(bin, 'sync'),
+          `#!${process.execPath}
+import { statSync } from 'node:fs';
+if (statSync(process.argv.at(-1)).isFile()) setTimeout(() => {}, ${String(slowSyncMs)});
+`,
+          { mode: 0o700 },
+        );
         using path = usePath(bin);
         await rejects(
           publishNew({ directory, target, record: { kind: 'released' } }),
           function deadline(error: unknown) {
+            expect(error).toBeInstanceOf(CargoMutantsToolingError);
             expect(String(error)).toContain(directory);
             expect(String(error)).toContain(`still running after ${String(syncDeadlineMs)} ms`);
             return true;
@@ -154,7 +162,11 @@ if (kind === ${JSON.stringify(failKind)}) throw new Error('fixture rejected ' + 
         const directory = `-claims 'one' "two"\nnext`;
         const bin = join(root.path, 'bin');
         const log = join(root.path, 'argv.jsonl');
-        using restoreCwd = { [Symbol.dispose](): void { process.chdir(cwd); } };
+        using restoreCwd = {
+          [Symbol.dispose](): void {
+            process.chdir(cwd);
+          },
+        };
         process.chdir(root.path);
         await Promise.all([mkdir(directory), mkdir(bin)]);
         await writeFile(join(bin, 'sync'), `#!${process.execPath}
@@ -166,6 +178,7 @@ appendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)) + '
         expect(await publishNew({ directory, target, record: { kind: 'released' } })).toBe(true);
         const calls = (await readFile(log, 'utf8')).trimEnd().split('\n');
         expect(calls).toHaveLength(2);
+        expect(calls[0]).toContain(JSON.stringify(`${directory}/.owner-claim.tmp.`).slice(0, -1));
         expect(calls.at(-1)).toBe(JSON.stringify(['--data', '--', directory]));
       },
     }),

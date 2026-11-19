@@ -186,7 +186,7 @@ await describe({
 import { appendFileSync } from 'node:fs';
 const args = process.argv.slice(2);
 appendFileSync(${JSON.stringify(log,)}, JSON.stringify(args) + '\\n');
-if (args[2] === ${JSON.stringify(rulesDirectory,)}) throw new Error('directory sync failed');
+if (args.at(-1) === ${JSON.stringify(rulesDirectory,)}) throw new Error('directory sync failed');
 `,
           { mode: 0o700, },
         );

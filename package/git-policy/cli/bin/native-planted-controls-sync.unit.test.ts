@@ -70,6 +70,7 @@ await describe({
             expect(error).toBeInstanceOf(NativeVerificationError);
             expect(String(error)).toContain(target);
             expect(String(error)).toContain('sync --data');
+            expect(String(error)).toContain('spawn sync ENOENT');
             return true;
           },
         );
@@ -103,6 +104,7 @@ await describe({
         await rejects(
           writePlantedControlsRecord({ evidence, record: {} }),
           function deadline(error: unknown) {
+            expect(error).toBeInstanceOf(NativeVerificationError);
             expect(String(error)).toContain(target);
             expect(String(error)).toContain(`still running after ${String(syncDeadlineMs)} ms`);
             return true;
@@ -120,7 +122,11 @@ await describe({
         const cwd = process.cwd();
         const evidence = `-evidence 'one' "two"\nnext`;
         const log = join(root.path, 'argv.json');
-        using restoreCwd = { [Symbol.dispose](): void { process.chdir(cwd); } };
+        using restoreCwd = {
+          [Symbol.dispose](): void {
+            process.chdir(cwd);
+          },
+        };
         process.chdir(root.path);
         await Promise.all([mkdir(evidence), mkdir(bin)]);
         await writeFile(join(bin, 'sync'), `#!${process.execPath}
@@ -131,7 +137,8 @@ writeFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)));
         const target = await writePlantedControlsRecord({ evidence, record: {} });
         const [mode, end, operand, ...extra] = JSON.parse(await readFile(log, 'utf8')) as readonly string[];
         expect([mode, end, ...extra]).toEqual(['--data', '--']);
-        expect(operand).toContain(`${target}.`);
+        expect(target).toBe(join(evidence, plantedControlsRecordName));
+        expect(operand?.startsWith(`${target}.`)).toBe(true);
         expect(await readdir(evidence)).toEqual([plantedControlsRecordName]);
       },
     }),

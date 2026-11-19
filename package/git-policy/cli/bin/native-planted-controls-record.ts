@@ -1,7 +1,6 @@
 /**
  The record a passing run of the planted controls leaves: its shape, its digest of the control table, and its atomic write.
  */
-import { execFile } from 'node:child_process';
 import {
   createHash,
   randomUUID,
@@ -12,9 +11,14 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
+
+import { caughtValueText } from '@monochromatic-dev/caught-value-core/ts';
 
 import type { PlantedControl } from './native-planted-controls.ts';
+import {
+  NativeVerificationError,
+  runCommand,
+} from './native-verification-process.ts';
 
 /**
  Name of the record inside a campaign's evidence directory.
@@ -133,31 +137,18 @@ export function plantedControlsPassedRecord({
 }
 
 /**
- Failure to sync a closed record before publication.
+ Reuse the 60-second stall bound justified by local command measurements in
+ `package/wg/cli-quicker/src/runner.ts` (see `COMMAND_DEADLINE_MILLISECONDS`).
+ The sync workload on the home dataset is recorded in `doc/research/node-permission-default-with-npm.md`.
  */
-class DurableWriteSyncError extends Error {
-  /**
-   Names the operation that failed rather than the write that already ran.
-   */
-  override name = 'DurableWriteSyncError';
-}
-
-/**
- Node's own `execFile` promise adapter signature, avoiding the generic void callback overload.
- */
-const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
-
-/**
- Runs GNU coreutils `sync` without a shell and waits for its result.
- */
-const execFileAsync = promisifyExecFile(execFile);
+const syncDeadlineMilliseconds = 60_000;
 
 /**
  Flush a closed record by path because Node disables descriptor sync under its permission model.
 
  @param path - Private record to sync before rename.
 
- @throws {@link DurableWriteSyncError} when `sync` cannot start or finish successfully.
+ @throws {@link NativeVerificationError} when `sync` cannot start or finish successfully within its deadline.
 
  @example
  ```ts
@@ -166,18 +157,26 @@ const execFileAsync = promisifyExecFile(execFile);
  */
 async function syncWrittenPath(path: string): Promise<void> {
   try {
-    await execFileAsync(
-      'sync',
-      [
+    await runCommand({
+      command: 'sync',
+      args: [
         '--data',
         '--',
         path,
       ],
-    );
+      capture: true,
+      deadlineMilliseconds: syncDeadlineMilliseconds,
+    });
   }
   catch (error) {
-    throw new DurableWriteSyncError(
-      `Cannot sync ${path} with GNU coreutils sync --data: ${String(error)}`,
+    /**
+     The runner retains a refused spawn as a cause, which a campaign's one-line diagnostic must name too.
+     */
+    const detail = (error instanceof NativeVerificationError) && (error.cause !== undefined)
+      ? `${String(error)} ${caughtValueText(error.cause)}`
+      : String(error);
+    throw new NativeVerificationError(
+      `Cannot sync ${path} with GNU coreutils: ${detail}`,
       { cause: error },
     );
   }
@@ -189,6 +188,8 @@ async function syncWrittenPath(path: string): Promise<void> {
  @param file - destination path
 
  @param text - file text
+
+ @throws {@link NativeVerificationError} when the temporary file cannot be synced before publication.
 
  @example
  ```ts

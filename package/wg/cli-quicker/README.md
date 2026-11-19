@@ -356,8 +356,9 @@ A file renamed into place raises neither,
 so `apply` creates the final `<name>.json` and writes it in place.
 An existing file is rewritten at offset zero through the same inode and padded with spaces to its old length,
 so a shorter replacement never exposes a truncated document.
-`apply` closes and syncs the replacement with GNU coreutils `sync --data` before proceeding to the next rule.
-A failed sync stops `apply`; it does not undo the in-place write.
+`apply` closes and syncs each new or replaced file with GNU coreutils `sync --data` before proceeding to the next rule.
+For a new file it also syncs the containing directory to persist the new entry.
+A failed sync stops `apply`; it does not undo a file write that already ran.
 The file name equals the rule name,
 which the daemon relies on to unload a deleted rule.
 Byte-identical files are left alone,

@@ -158,6 +158,10 @@ The options not chosen were a repository-built sync helper binary and moving eac
 
 The five TypeScript call sites found under "Callers found on 2026-11-18" now use `sync --data -- <path>`.
 The claim writer also passes its directory to this command after linking or renaming the claim.
+OpenSnitch toolchain rule creation syncs both the closed file and its containing directory before proceeding.
+The Git verification and claim writers use the 60-second stall bound already used by
+[`wg-quicker`'s runner](../../package/wg/cli-quicker/src/runner.ts) for local commands.
+At the deadline the runner requests termination and reports a failed sync with the affected path.
 GNU coreutils 9.12's [`sync_arg`][coreutils-sync] passes `--data` to `fdatasync`.
 OpenZFS 2.4.4 [uses `zpl_fsync` for directories][zfs-linux-sync],
 and [`zfs_fsync`][zfs-sync] commits that object's ZIL regardless of the data-only flag when sync is enabled.

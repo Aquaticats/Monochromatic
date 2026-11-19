@@ -1,16 +1,13 @@
+import { OpenSnitchConfigError, } from './errors.ts';
 import { run, } from './runner.ts';
 
 /**
- Syncs a closed OpenSnitch file without rewriting it or changing the watched inode.
+ Syncs a closed OpenSnitch file or its directory without writing to the watched inode.
  Node disables descriptor sync under its permission model.
 
- @param path - OpenSnitch file to sync.
+ @param path - OpenSnitch file or directory to sync.
 
- @throws {@link import('./errors.ts').CommandSpawnError} when `sync` cannot start.
-
- @throws {@link import('./errors.ts').CommandError} when `sync` exits unsuccessfully.
-
- @throws {@link import('./errors.ts').CommandTimeoutError} when `sync` times out.
+ @throws {@link OpenSnitchConfigError} when `sync` cannot start or finish successfully within its deadline.
 
  @example
  ```ts
@@ -18,12 +15,20 @@ import { run, } from './runner.ts';
  ```
  */
 export async function syncWrittenPath(path: string,): Promise<void> {
-  await run({
-    command: 'sync',
-    args: [
-      '--data',
-      '--',
-      path,
-    ],
-  },);
+  try {
+    await run({
+      command: 'sync',
+      args: [
+        '--data',
+        '--',
+        path,
+      ],
+    },);
+  }
+  catch (error) {
+    throw new OpenSnitchConfigError(
+      `Cannot sync OpenSnitch path ${path}: ${String(error,)}`,
+      { cause: error, },
+    );
+  }
 }

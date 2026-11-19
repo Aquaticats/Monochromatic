@@ -439,6 +439,9 @@ so exactly one process creates generation `n + 1`.
 The private name is removed and the directory is synced before publication reports success.
 A failed file sync removes the private file without publishing it.
 A failed directory sync is reported as an error even though the new entry may already be visible.
+A missing, failing, or timed-out `sync` is a `CargoMutantsToolingError` naming the affected path.
+If `sync` has not finished after 60 seconds,
+the runner requests a stop and releases the wait.
 The newest generation is the claim,
 and it names its owner by process id,
 birth (start

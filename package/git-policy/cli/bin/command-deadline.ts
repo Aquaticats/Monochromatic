@@ -87,14 +87,15 @@ export function stopAtDeadline({
         stopProcessGroup({ child, },);
         timers.grace = setTimeout(
           function releaseTheCaller() {
-            // A process the kernel cannot end holds the pipes open, so the streams are ended here and the caller's wait
-            // returns; its refusal names the deadline either way.
+            // A process the kernel cannot end can hold the pipes and the process handle open. Neither should keep the
+            // caller or its Node process waiting after the grace.
             child
               .stdout
               ?.destroy();
             child
               .stderr
               ?.destroy();
+            child.unref();
             released.resolve();
           },
           stoppedGraceMilliseconds,

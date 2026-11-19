@@ -99,7 +99,7 @@ export async function readOpenSnitchConfig(
  
  @param minimumSize - Existing byte size retained through whitespace padding.
  
- @throws {@link OpenSnitchConfigError} when one write syscall is incomplete.
+ @throws {@link OpenSnitchConfigError} when the positional write is incomplete or the sync fails.
  
  @example
  ```ts
