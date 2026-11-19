@@ -286,9 +286,11 @@ back the exact attached mount by descriptor, or report and retain its identity a
 finish. Never substitute a path-based attach or unmount on the account-controlled tree.
 
 For unmount, prove the mounted identity, move the mount by descriptor to a root-owned private staging mount
-hierarchy, and unmount it there without force or lazy detach. Require private checkout mounts and ancestors and
-verify staging propagation before action. On a propagation mismatch refuse and report drift; whether to support
-administrative isolation on hosts with shared ancestors is open. If the final unmount is busy after the move, restore
+hierarchy, and unmount it there without force or lazy detach. The guest's move out of a shared checkout refused
+with `EINVAL` (`guest-exact-zfs.log:230`); `move_mount(2)` identifies the source mount's immediate parent as the
+constraint. Do not attach where safe unmount and staging propagation have not been verified. The exact propagation
+checks and supported topologies are pending in the [VM measurement record][measurements]; see
+[Shared ancestor policy](#open-project-choices). If the final unmount is busy after the move, restore
 only the same mount to the revalidated original slot if safe. Otherwise retain and report its staged identity and
 location. Track a staged move across handler interruption so no subsequent pass treats a mount missing from the
 slot as gone. Publish success only after checking actual mount state, not path absence. The runtime test must prove
@@ -531,10 +533,17 @@ No option here is selected by this revision.
   checkout with a dedicated descriptor-based boot attach that validates the underlay identity. The first keeps
   ordinary ZFS boot ordering but needs immutable-entry and rollback proof. The second keeps privileged attachment
   off the pathname but adds a checkout boot service. Both must reject an unverified target before account sessions.
-- Shared ancestor policy. Refuse on a shared ancestor and ask the administrator to restore private propagation;
-  or support an explicit, administrator-configured isolation arrangement after proving checkout/worktree visibility,
-  staging and unmount behavior with affected consumers. Neither option silently changes propagation or lets the
-  handler operate on an unverified shared hierarchy.
+- Shared ancestor policy. On this host, `findmnt --output TARGET,PROPAGATION` read `shared` for `/`, `/home` and
+  the ZFS mounts under `/home`, including `~/.cache` and the vm-builder output. The new checkout mount does not
+  exist here yet; inheriting shared propagation from `/home` is an inference, not a reading of that mount.
+  Options: refuse the managed route until an administrator makes the checkout and its ancestors private (no
+  product-driven propagation change, but needs broad host changes here); make only the checkout mount private
+  in the root-installed boot unit after verifying the checkout and before enabling clone mounts, reapplying on
+  each boot (leaves `/` and `/home` alone); or support a different explicit administrator-configured isolation
+  arrangement (can fit other consumers, but needs its own staging and visibility proof). A private checkout is
+  expected not to propagate new clone mounts into another already-running mount namespace
+  (`mount_namespaces(7)`); that could lose the visibility the planning probes saw without a read-only parent
+  bind. The [VM measurement record][measurements] is testing both states. Do not silently change propagation.
 - Managed path interface. Accept the canonical path from ordinary `git worktree add <path>` only, with fallback at
   the same slot; or also add an opt-in named allocator that reports the chosen path under `.claude/worktrees`.
   The allocator could simplify driver integration but adds a caller-facing command.
@@ -569,6 +578,9 @@ until the wrapper is built. The [VM measurement record][measurements] is being p
   fixture. Include access and default ACL drift, a target already mounted, and a valid account-owned attach control.
   Assert refusals identify the component or field and do not attach a clone or disturb an existing mount.
   Include the bounded rename/replacement race and post-attach check in item 3's unmeasured cases.
+- Compare a shared checkout (move-back refusal control) with a private checkout under a shared parent
+  (staging and unmount control). Start a confined consumer before clone attach in both states; measure visibility
+  and writability with the parent outside every `Read*Paths=`, and with the read-only bind control.
 
 ## Acceptance tests the build still owes
 
@@ -594,11 +606,12 @@ host. These gates carry the [handover's H1 and H2 disposition][handover] and the
   execution control. Use the built handler, not the probe's mount command.
 - H1 gate 6: change a path between resolution and unmount; assert no unrelated mount unmounts. Test descriptor
   unmount with a real busy holder, including move to staging, busy refusal, safe reattach and failed reattach with a
-  reported staged mount. Test interruption there. Show a shared ancestor is refused before attach, and exercise the
-  staging move-back failure control under shared propagation. A held procfd's `EBUSY` is not the busy-holder test.
+  reported staged mount. Test interruption there. Re-run the measured shared-checkout refusal and private-checkout
+  control with the selected policy. A held procfd's `EBUSY` is not the busy-holder test.
 - H1 gate 7: exercise a confined user namespace without extra authority. Show that it cannot attach the clone with
   different flags despite OpenZFS's `FS_USERNS_MOUNT` declaration. Exercise a permitted host mount as the control,
-  verify caller visibility (including the read-only parent bind case), and run the same-dataset reflink fallback
+  verify late-mount visibility in confined consumers under shared and private checkout propagation (with and
+  without the read-only parent bind), and run the same-dataset reflink fallback
   in the actual confined consumer context.
 
 ### Boot, shutdown and setup
