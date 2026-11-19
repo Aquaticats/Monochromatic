@@ -538,6 +538,71 @@ fn a_connected_stop_that_carried_bytes_names_them_and_the_floor_that_judged_them
         None,
     );
     assert!(silent.contains("with nothing moving"), "a connection that carried nothing says so: {silent}");
+    assert!(
+        !silent.contains(PUSH_MINIMUM_RATE_VARIABLE),
+        "a server that sent nothing has no line speed to lower, and the floor is the only bound there is: {silent}"
+    );
 }
 
 //endregion
+
+/// What:
+///  The words of a wait carry no program name of their own,
+///  and the line that goes into an attempt's output names the program once.
+/// Why:
+///  A wait is logged through a line that already names this program,
+///  and the same words are appended to the attempt's output;
+///  a line that carried the name itself printed it twice in the service's log
+///  (`[monochromatic-git-policy-cli] [monochromatic-git-policy-cli] monochromatic-git-policy-cli: ...`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(waitLineWords('git push', report)).not.toContain('monochromatic-git-policy-cli')
+/// ```
+#[test]
+fn the_words_of_a_wait_name_the_program_once() {
+    let report = WaitReport {
+        silent: CONNECTED_PUSH_QUIET_WINDOW,
+        elapsed: CONNECTED_PUSH_QUIET_WINDOW * 2,
+        window: CONNECTED_PUSH_QUIET_WINDOW,
+    };
+    let words: String = wait_line_words("git push", &report);
+    assert!(!words.contains("monochromatic-git-policy-cli"), "the words carry no program name: {words}");
+    let line: String = wait_line("git push", &report);
+    assert_eq!(line.matches("monochromatic-git-policy-cli").count(), 1, "the line names the program once: {line}");
+    assert!(line.ends_with(words.as_str()), "the line is the words with the name in front: {line}");
+}
+
+/// What:
+///  The output a bounded run printed past the cap is kept as whole lines only,
+///  and the read says it was cut,
+///  whatever the size the wait last looked at.
+/// Why:
+///  A cap applied to the raw bytes cut a URL in half,
+///  and half a URL hides no secret;
+///  the flag must come from the read,
+///  because a run that ends between two looks is read after its size was last checked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { text, cut } = readOutput(file); expect(text).not.toContain('planted'); expect(cut).toBe(true)
+/// ```
+#[test]
+fn a_capped_output_keeps_whole_lines_and_says_it_was_cut() {
+    let root = crate::test_support::fixture("bounded-push-capped-output");
+    let path: std::path::PathBuf = root.join("output.txt");
+    let secret: &str = "plantedsecretpassword";
+    let url: String = format!("https://user:{secret}@lfs.example.invalid/objects/batch");
+    // One line, then a line longer than the cap whose end is the URL: a cap applied to the raw bytes would cut the URL
+    //  open in front of its `@`, and a userinfo the mask cannot see keeps the front of the password.
+    let cap: usize = usize::try_from(MAX_PUSH_OUTPUT).expect("a cap");
+    let filler: String = "x".repeat(cap);
+    let text: String = format!("first line\n{filler}{url}\n");
+    std::fs::write(&path, text.as_bytes()).expect("output file");
+    let mut file: std::fs::File = std::fs::File::open(path.as_path()).expect("open");
+    let (shown, cut): (String, bool) = read_output(&mut file).expect("read");
+    assert!(cut, "the read says the output was longer than the cap");
+    assert_eq!(shown, "first line\n", "only the whole line before the cut is kept");
+    assert!(!shown.contains("planted"), "no part of the password survives: {shown}");
+    crate::test_support::remove(root.as_path());
+}

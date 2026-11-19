@@ -124,8 +124,16 @@ impl std::error::Error for SingleFlightError {}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PushAttempt {
     /// Push exit code,
-    /// `0` on success.
+    /// `0` on success,
+    /// and `128 + N` for a program a signal ended.
     pub exit_code: i64,
+    /// The number of the signal that ended the program,
+    /// and nothing when it exited by itself.
+    /// Why it is carried beside the code:
+    ///  `128 + N` is also a status a program can choose,
+    ///  so only the signal says which of the two happened,
+    ///  and the words after a failure say "was ended by signal N" for one and "exited with status N" for the other.
+    pub signal: Option<i32>,
     /// Complete interleaved push output.
     pub output: String,
 }

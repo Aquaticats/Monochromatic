@@ -35,6 +35,9 @@
 use crate::command_push::{parse_push_region, push_shape};
 /// The configuration the plan reads.
 use crate::lfs_upload_settings::{current_branch, default_remote, reads_as_true, setting, values};
+/// The host a URL names,
+/// with any userinfo left out.
+use crate::lfs_output_mask::host_of;
 /// The whole plan awaited by a caller that is itself a task of the runtime.
 pub use crate::lfs_upload_plan_awaiting::plan_upload_awaiting;
 pub use crate::lfs_upload_settings::{
@@ -78,6 +81,12 @@ pub struct UploadPlan {
     /// `None` leaves the
     ///  scan to `git-lfs` with the refs.
     pub objects: Option<Vec<String>>,
+    /// The server the upload is connected to,
+    /// as its host and port with any userinfo left out,
+    /// when the configuration names one:
+    /// what a stop that held the connection names,
+    /// so its reader knows which server did not answer.
+    pub lfs_server: Option<String>,
 }
 
 /// How many object names one `git-lfs push --object-id` run takes,
@@ -310,6 +319,47 @@ pub(crate) fn lfs_destination(remote: &OsStr, directory: &Path, configured: bool
     };
 }
 
+/// What:
+///  The server one upload is connected to,
+///  as its host and port with any userinfo left out.
+/// Why:
+///   A stop of an upload says which server held the connection,
+///  and the server of an upload is not the push's destination:
+///  `git-lfs` sends the objects to `lfs.url`,
+///  or to the remote's own `remote.<name>.lfsurl`,
+///  or,
+///  when neither is configured,
+///  to the remote's push URL itself.
+///  The destination answers first when it is already a URL,
+///  because `git-lfs` sends to it as it stands.
+///  A key holding no URL (a remote name that is no remote,
+///  a path) answers nothing,
+///  so the stop falls back to the words of the program that saw the server.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function lfsServerOf(remote: string, all: Settings): string | undefined
+/// ```
+pub fn lfs_server_of(remote: &OsStr, all: &[(String, String)]) -> Option<String> {
+    let text: String = remote.to_string_lossy().into_owned();
+    if let Some(host) = host_of(text.as_str()) {
+        return Some(host);
+    }
+    for key in [format!("remote.{text}.lfsurl"), String::from("lfs.url")] {
+        if let Some(value) = setting(all, key.as_str())
+            && let Some(host) = host_of(value)
+        {
+            return Some(host);
+        }
+    }
+    for value in [values(all, &format!("remote.{text}.pushurl")).first().copied(), setting(all, &format!("remote.{text}.url"))] {
+        if let Some(host) = value.and_then(host_of) {
+            return Some(host);
+        }
+    }
+    return None;
+}
+
 /// The remotes the configuration defines (a `url` or a `pushurl`).
 pub(crate) fn configured_remotes(all: &[(String, String)]) -> Vec<&str> {
     let mut names: Vec<&str> = Vec::new();
@@ -456,7 +506,8 @@ pub fn plan_upload(
     //  same place: a push URL, a `pushInsteadOf` rewrite, a URL or path destination or a mirror breaks that.
     let tracking_trusted: bool = configured && push_urls.is_empty() && !has_push_rewrite(all);
     let full_scan: bool = everything || !tracking_trusted;
-    return Ok(Some(UploadPlan { remotes, refs: unique, everything, submodules, full_scan, objects: None }));
+    let lfs_server: Option<String> = lfs_server_of(remote_name.as_os_str(), all);
+    return Ok(Some(UploadPlan { remotes, refs: unique, everything, submodules, full_scan, objects: None, lfs_server }));
 }
 
 /// The plan is controlled in the test module.

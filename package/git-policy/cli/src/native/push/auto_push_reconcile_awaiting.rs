@@ -178,6 +178,7 @@ pub async fn integrate_and_push_awaiting(
             (_, Some(true)) => {
                 return Ok(Integrated::Finished(PushAttempt {
                     exit_code: 0,
+                    signal: None,
                     output: format!(
                         "{line_prefix}{}/{short} already contains {local}; nothing to push.",
                         destination.remote
@@ -251,6 +252,7 @@ pub async fn integrate_and_push_awaiting(
             }
             return Ok(Integrated::Finished(PushAttempt {
                 exit_code: 0,
+                signal: None,
                 output: format!(
                     "{}\n{merged_parts}{line_prefix}{}/{short} had new commits, so the merge {merge_oid} of {branch} and {}/{short} \
                      was published. {followed}",

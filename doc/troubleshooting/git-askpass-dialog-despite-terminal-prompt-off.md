@@ -479,6 +479,93 @@ because the first constraint fails.
     there is no defect to fix upstream;
     the fix belongs in how we start Git.
 
+## An `ssh://` endpoint asks through `SSH_ASKPASS` (found 2026-11-19)
+
+### Symptom
+
+A service push or LFS upload to an `ssh://` endpoint still asked the desktop's password program,
+while the decision above said the service never asks anyone for a login.
+The audit's reproduction
+(`/home/user/temp/agent/lfs-path-of-main-audit-on-sonnet-2026-11-19/reproductions/F-ssh-askpass-still-opens-for-a-command-without-a-terminal/`)
+ran a typed push with no controlling terminal against a throwaway `sshd` on `127.0.0.1`,
+with a made-up passphrase-protected key and a recorder standing in for the dialog,
+and counted two questions:
+
+```text
+push exit 2; password-program questions: 2
+  asked: Enter passphrase for key '/…/F-ssh-askpass':
+```
+
+### Root cause
+
+OpenSSH reads neither `GIT_ASKPASS` nor `GIT_TERMINAL_PROMPT`.
+It reads `SSH_ASKPASS` and `SSH_ASKPASS_REQUIRE`
+([`readpass.c`][ssh-readpass]: `read_passphrase` takes the askpass program when the platform names one,
+when no terminal can be opened,
+or when the variable says `force`),
+so the pair that stops Git and `git-lfs` left OpenSSH free to ask.
+
+### What `SSH_ASKPASS_REQUIRE=never` does
+
+The host's OpenSSH 10.6p2 says of it
+([`ssh(1)`][ssh-man-askpass-require]):
+
+```text
+If this variable is set to "never" then ssh will never attempt to use one.
+If it is set to "prefer", then ssh will prefer to use the askpass program instead of the TTY when requesting passwords.
+Finally, if the variable is set to "force", then the askpass program will be used for all passphrase input regardless of whether DISPLAY is set.
+```
+
+An `ssh` probe with the same kind of key and recorder, run twice on 2026-11-19:
+
+```text
+=== without SSH_ASKPASS_REQUIRE: ssh exit 0; password-program questions: 1
+=== with SSH_ASKPASS_REQUIRE=never: ssh exit 255; password-program questions: 0; user@127.0.0.1: Permission denied (publickey).
+```
+
+### What it also turns off
+
+- A passphrase-protected key with no agent:
+  without a terminal and without an askpass program the passphrase cannot be read,
+  so the login fails rather than asking.
+- An unknown host key's confirmation:
+  `ssh` cannot ask, so it fails while `StrictHostKeyChecking` refuses the key.
+- `ControlMaster`/`-M` and `AddKeysToAgent=ask` confirmations,
+  which run through the same askpass path.
+
+### What it does not turn off
+
+- OpenSSH's notification that a security key must be touched.
+  It is not a question and has its own path:
+  [`notify_start`][ssh-readpass] in the same file reads `SSH_ASKPASS` and the display,
+  starts the program with `SSH_ASKPASS_PROMPT=none`,
+  and reads `SSH_ASKPASS_REQUIRE` only to accept `force`.
+  So a FIDO key whose presence must be confirmed can still open that window when the account names an askpass program,
+  a display and a standard error that is not a terminal.
+  It waits for the touch and asks nothing.
+
+### What this repository does about it
+
+`service_child_overlay` in `package/git-policy/cli/src/native/invocation/child_environment.rs` now adds
+`SSH_ASKPASS_REQUIRE=never` beside the never-prompt pair
+(`ssh_never_askpass_overlay`),
+and a probe through a real service on 2026-11-19 recorded
+`SSH_ASKPASS_REQUIRE=never` in the environment of the `git-lfs` child the auto-push started.
+`SSH_ASKPASS` itself stays in the environment:
+only its use is switched off,
+so an account that needs the window for a plain `ssh` of its own is unchanged.
+
+A command the person typed is not given the variable:
+`package/git-policy/cli/SPEC.md` says "A command the person typed is forwarded with the prompting Git has",
+and the audit's typed reproduction still asked twice after the change,
+which is what that sentence says happens.
+The never-prompt pair the wrapper already adds for a typed command with no controlling terminal
+is not what this section changed;
+the sentence does not describe it, and the two disagree for that path
+(`invocation_overlay` in the same file, added by `90991fa86e`).
+
+[ssh-readpass]: https://github.com/openssh/openssh-portable/blob/master/readpass.c
+[ssh-man-askpass-require]: https://man.openbsd.org/ssh#:~:text=SSH_ASKPASS_REQUIRE%20%20%20Allows%20further%20control%20over%20the%20use%20of%20an%20askpass
 [git-prompt]: https://github.com/git/git/blob/a018953688f1b10bddf91bff8747068f5f4746a4/prompt.c#L46-L77
 [lfs-creds-order]: https://github.com/git-lfs/git-lfs/blob/a662a6dbfedf706cfa9fc7a5b7bcc7ba2e2c8a65/creds/creds.go#L104-L121
 [lfs-creds-prompt]: https://github.com/git-lfs/git-lfs/blob/a662a6dbfedf706cfa9fc7a5b7bcc7ba2e2c8a65/creds/creds.go#L280-L282

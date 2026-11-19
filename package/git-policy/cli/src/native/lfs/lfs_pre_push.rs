@@ -293,6 +293,34 @@ pub fn missing_program_message() -> String {
 }
 
 /// What:
+///  The refusal printed when `git-lfs` is found where the lookup looked and cannot be started.
+/// Why:
+///   The lookup found an executable file,
+///  so it is not missing;
+///  the operating system refused the start,
+///  and its own error says why (a missing interpreter for a script,
+///  a wrong machine type,
+///  no permission to read it).
+///  Reporting a program that is there as absent sends its reader to a `PATH` that is right.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: this push was stopped before it sent anything. ... but \`{LFS_PROGRAM}\` was found at ${program} and could not be started (${why}). ...`
+/// ```
+pub fn start_failed_message(program: &str, why: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: this push was stopped before it sent anything. The Git configuration of this repository has Git LFS \
+         keys (`filter.lfs.*` or `lfs.*`), so the wrapper runs `{LFS_PROGRAM} push` to upload the large files the pushed commits point \
+         to before it publishes the pointer files, and `{LFS_PROGRAM}` was found at {program} but could not be started ({why}). \
+         Pushing without that upload would publish pointers whose content the LFS server does not have. Ways forward: make that file \
+         runnable (the interpreter or loader the parentheses name must exist on this machine) and push again; or accept pointers \
+         without objects for this push with `git push --no-verify` and upload the objects later with `git lfs push --all <remote>` \
+         once it runs; or, if this repository does not use Git LFS, remove its configuration (`git lfs uninstall`, or delete the \
+         `filter.lfs.*` and `lfs.*` keys).\n"
+    );
+}
+
+/// What:
 ///  The refusal printed when the wrapper cannot work out which objects a push needs uploaded.
 /// Why:
 ///   Running the push without an upload could publish pointers whose objects the server lacks,

@@ -21,15 +21,16 @@
 //! ```
 
 /// The host a destination names,
-/// with no userinfo and no token.
-use crate::lfs_output_mask::host_of;
+/// with no userinfo and no token,
+/// and the hosts a run's own words name.
+use crate::lfs_output_mask::{host_of, hosts_in};
 /// The bounded query that answers where a remote name sends a push,
 /// and the answer it gives.
 use crate::bounded_query::{QueryOutput, query_window, run_bounded_query_awaiting};
 /// The grace a stopped query gets.
 use crate::bounded_push::STOP_GRACE;
 /// Owned OS strings of the child environment.
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 /// The path the answer is asked in.
 use std::path::PathBuf;
 /// `Command` describes the run and `CommandArgs` walks its words.
@@ -95,6 +96,43 @@ impl<'a> ServerNaming<'a> {
     }
 
     /// What:
+    ///  Record the server the caller already knows,
+    ///  which the upload's plan read from the configuration.
+    /// Why:
+    ///   An upload sends its objects to the LFS server of `lfs.url`
+    ///  and not to the push's destination,
+    ///  so the configuration answers for it and no query is asked.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// { known = known ?? server }
+    /// ```
+    pub fn named_by_the_caller(&mut self, server: Option<&str>) {
+        if self.known.is_none() {
+            self.known = server.map(str::to_owned);
+        }
+    }
+
+    /// What:
+    ///  Record the first server the run's own words name, when they name one.
+    /// Why:
+    ///   The program's own words name the server it really reached,
+    ///  which is better than anything the configuration says it would reach;
+    ///  a run that printed nothing leaves whatever the caller or the query answered.
+    ///  `hosts_in` reads the authority of each URL in the words,
+    ///  so a token in front of the host is never part of the name.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// { known = hostsIn(output)[0] ?? known }
+    /// ```
+    pub fn consider_output(&mut self, output: &str) {
+        if let Some(host) = hosts_in(output).into_iter().next() {
+            self.known = Some(host);
+        }
+    }
+
+    /// What:
     ///  Ask for the server once,
     /// before the run it names starts.
     /// Why:
@@ -108,7 +146,8 @@ impl<'a> ServerNaming<'a> {
     /// if (!asked) { asked = true; known = await look(); }
     /// ```
     pub async fn ask(&mut self) {
-        if self.asked {
+        if self.asked || self.known.is_some() {
+            self.asked = true;
             return;
         }
         self.asked = true;
@@ -137,6 +176,11 @@ impl<'a> ServerNaming<'a> {
         let destination: &str = self.destination.as_deref()?;
         if let Some(host) = host_of(destination) {
             return Some(host);
+        }
+        // An upload's program has no `remote get-url` command (`git-lfs` answers `unknown command "remote"`), so an upload's
+        //  server comes from its plan or from its own words and never from a query here.
+        if self.program.file_name().is_some_and(|name| { return name == OsStr::new("git-lfs"); }) {
+            return None;
         }
         let mut query: Command = Command::new(&self.program);
         query.args(["remote", "get-url", "--push", destination]);

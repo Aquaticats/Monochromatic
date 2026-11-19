@@ -360,6 +360,8 @@ fn only_the_keys_the_plan_reads_are_taken_from_a_snapshot() {
         "remote.o.r.url",
         "push.default",
         "url.https://example.invalid/.pushinsteadof",
+        "lfs.url",
+        "remote.origin.lfsurl",
     ] {
         assert!(crate::lfs_upload_settings::wanted_key(key), "{key}");
     }
@@ -478,4 +480,69 @@ fn the_awaited_face_of_the_plan_asks_and_answers_as_the_synchronous_face_does() 
     let synchronous = plan_in(Path::new("/work"), &[], &["--all"], &[], &settings, &stub);
     let awaited = plan_in_awaiting(Path::new("/work"), &[], &["--all"], &[], &settings, &stub);
     assert_eq!(format!("{awaited:?}"), format!("{synchronous:?}"));
+}
+
+/// What:
+///  The plan names the server the upload is connected to:
+///  the destination's own host when it is a URL,
+///  else the remote's `lfsurl`,
+///  else `lfs.url`,
+///  else the remote's own push URL,
+///  and never a credential of any of them.
+/// Why:
+///   A connected stop of an upload must name the server it waited for,
+///  and the server of an upload is its LFS endpoint and not the push's destination:
+///  the audit's reproduction pointed the Git remote at one host and `lfs.url` at another,
+///  and the held connection was to the second.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(plan.lfsServer).toBe('127.0.0.1:39489')
+/// ```
+#[test]
+fn the_plan_names_the_lfs_server_of_its_destination() {
+    let stub = Stub { answers: &[], failing: &[] };
+    let directory = Path::new("/work");
+    let environment: Vec<(OsString, OsString)> = crate::test_support::scratch_environment();
+    let push_url: &str = "http://git-remote-host.invalid:9/some/repository.git";
+    for (case, pairs, region, wanted) in [
+        (
+            "lfs url wins over the remote's own host",
+            vec![("remote.origin.url", push_url), ("lfs.url", "http://user:plantedpass@127.0.0.1:39489/lfs")],
+            vec!["origin", "main"],
+            Some("127.0.0.1:39489"),
+        ),
+        (
+            "the remote's lfsurl wins over lfs.url",
+            vec![
+                ("lfs.url", "http://127.0.0.1:1/lfs"),
+                ("remote.origin.lfsurl", "http://127.0.0.1:39490/lfs"),
+                ("remote.origin.url", push_url),
+            ],
+            vec!["origin", "main"],
+            Some("127.0.0.1:39490"),
+        ),
+        (
+            "the remote's own push url is the last answer",
+            vec![("remote.origin.url", "http://127.0.0.1:39491/repo.git")],
+            vec!["origin", "main"],
+            Some("127.0.0.1:39491"),
+        ),
+        (
+            "a destination that is a URL answers its own host",
+            vec![("lfs.url", "http://127.0.0.1:1/lfs")],
+            vec!["http://user:plantedpass@127.0.0.1:39492/objects", "main"],
+            Some("127.0.0.1:39492"),
+        ),
+        ("a local path names no server", vec![], vec!["/srv/origin.git", "main"], None),
+    ] {
+        let settings: Settings = config(pairs.as_slice());
+        let (planned, _asked) = plan_in(directory, &[], region.as_slice(), environment.as_slice(), &settings, &stub);
+        let plan: UploadPlan = planned.expect("the plan is made").expect("the plan has refs");
+        assert_eq!(plan.lfs_server.as_deref(), wanted, "{case}");
+        assert!(
+            !plan.lfs_server.as_deref().unwrap_or_default().contains("plantedpass"),
+            "{case}: a credential is never part of the name"
+        );
+    }
 }

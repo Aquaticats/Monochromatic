@@ -59,6 +59,20 @@
 /// What replaces the userinfo of a URL and every other secret-shaped part of it.
 pub const CREDENTIALS_MASK: &str = "<credentials>";
 
+/// Whether the mask this module writes starts at `offset` of `text`.
+/// Why:
+///   Masking runs again on text that was already masked,
+///  because the attempt the auto-push records is masked where it is made and
+///  once more where it is written down;
+///  and the mask holds the `>` and `<` this module reads as the end of a URL,
+///  so a second pass that did not know it over its own mask would cut the URL short and
+///  print the mask again beside it (`?token=<credentials><credentials>`) or drop a host.
+fn mask_starts_at(text: &[u8], offset: usize) -> bool {
+    return text
+        .get(offset..)
+        .is_some_and(|rest| { return rest.starts_with(CREDENTIALS_MASK.as_bytes()); });
+}
+
 /// What:
 ///  The part of a destination that names the server a person must recognize:
 /// the host and its port,
@@ -205,24 +219,38 @@ fn next_separator(text: &[u8], from: usize) -> Option<usize> {
 
 /// The end of the authority that starts at `from`:
 /// the first byte that ends one,
-/// or the end of the text.
+/// or the end of the text;
+/// a mask already written stands inside the authority as it stands.
 fn authority_end_of(text: &[u8], from: usize) -> usize {
-    for (offset, byte) in text[from..].iter().enumerate() {
-        if ends_authority(*byte) {
-            return from + offset;
+    let mut offset: usize = from;
+    while offset < text.len() {
+        if mask_starts_at(text, offset) {
+            offset += CREDENTIALS_MASK.len();
+            continue;
         }
+        if ends_authority(text[offset]) {
+            return offset;
+        }
+        offset += 1;
     }
     return text.len();
 }
 
 /// The end of the URL whose authority ended at `from`:
 /// the first byte that ends a URL in running text,
-/// or the end of the text.
+/// or the end of the text;
+/// a mask already written is part of the URL it stands in.
 fn url_end_of(text: &[u8], from: usize) -> usize {
-    for (offset, byte) in text[from..].iter().enumerate() {
-        if ends_url(*byte) {
-            return from + offset;
+    let mut offset: usize = from;
+    while offset < text.len() {
+        if mask_starts_at(text, offset) {
+            offset += CREDENTIALS_MASK.len();
+            continue;
         }
+        if ends_url(text[offset]) {
+            return offset;
+        }
+        offset += 1;
     }
     return text.len();
 }
@@ -438,6 +466,59 @@ pub fn mask_url_secrets(text: &[u8]) -> Vec<u8> {
 /// ```
 pub fn mask_url_secrets_text(text: &str) -> String {
     return String::from_utf8_lossy(mask_url_secrets(text.as_bytes()).as_slice()).into_owned();
+}
+
+/// Whether a byte ends a line.
+fn is_line_feed(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// What:
+///  The masked head of a run's output,
+///  and whether a cap kept only part of it.
+/// Why:
+///   The two are one answer:
+///  a caller that relays the text must say when it is not all of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type MaskedHead = { text: Uint8Array; cut: boolean };
+/// ```
+pub struct MaskedHead {
+    /// The masked bytes of the whole lines the cap holds.
+    pub text: Vec<u8>,
+    /// Whether the output was longer than the cap,
+    /// so `text` is its head and not all of it.
+    pub cut: bool,
+}
+
+/// What:
+///  The masked head of `text` that fits in `cap` bytes, and whether there was more.
+/// Why:
+///   A cap applied to the raw bytes cuts a URL in half,
+///  and half a URL hides no secret:
+///  a cut before the `@` of a userinfo keeps the front of a password,
+///  and the mask that runs afterwards cannot see a userinfo that is not there.
+///  So the cut falls on a line break and only whole lines are kept,
+///  which the mask reads as it reads any line,
+///  and the last line is dropped whole when it does not fit.
+///  What is dropped is said by the caller,
+///  so the person reading the output knows it is the head of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function maskUrlSecretsWithin(text: Uint8Array, cap: number): MaskedHead;
+/// ```
+pub fn mask_url_secrets_within(text: &[u8], cap: u64) -> MaskedHead {
+    let limit: usize = usize::try_from(cap).unwrap_or(usize::MAX);
+    if text.len() <= limit {
+        return MaskedHead { text: mask_url_secrets(text), cut: false };
+    }
+    let kept: usize = text
+        .get(..limit)
+        .and_then(|head| { return head.iter().rposition(is_line_feed); })
+        .map_or(0, |at| { return at + 1; });
+    return MaskedHead { text: mask_url_secrets(text.get(..kept).unwrap_or_default()), cut: true };
 }
 
 /// What:

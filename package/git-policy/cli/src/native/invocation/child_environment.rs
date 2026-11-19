@@ -491,6 +491,41 @@ pub fn never_prompt_overlay() -> Vec<(OsString, OsString)> {
     ];
 }
 
+/// The variable by which OpenSSH is told whether it may run a password program at all.
+pub const ASKPASS_REQUIRE_VARIABLE: &str = "SSH_ASKPASS_REQUIRE";
+
+/// The value of [`ASKPASS_REQUIRE_VARIABLE`] that means "never run one".
+///  `ssh(1)` reads it for every passphrase it would ask for (OpenSSH 10.6p2:
+///  `never` makes `ssh` never attempt to use one,
+///  `prefer` and `force` are the other two values),
+/// and this is the one an unattended child gets.
+pub const ASKPASS_REQUIRE_NEVER: &str = "never";
+
+/// What:
+///  The variable that makes OpenSSH itself never ask a password program,
+///  which the two Git variables cannot do:
+///  `GIT_ASKPASS` and `GIT_TERMINAL_PROMPT` are Git's and `git-lfs`'s,
+/// and OpenSSH reads only `SSH_ASKPASS` and `SSH_ASKPASS_REQUIRE` for a key's passphrase.
+/// Why:
+///   The owner's decision of 2026-11-07 ("Never prompt (Recommended)") is that the service never asks anyone for a login,
+///  and a `ssh://` endpoint of an upload or a push starts OpenSSH,
+///  which opened a passphrase question through `SSH_ASKPASS` while the wrapper believed nothing could ask
+///  (the audit's reproduction of an `ssh://` LFS endpoint asked twice).
+///  What it does not turn off:
+///  OpenSSH's notification of a security key's touch,
+///  which is not a question and is started by `notify_start` in `readpass.c`,
+///  and whose own condition is the askpass program,
+///  a display and a standard error that is not a terminal;
+///  and a host key that is not known still fails without asking.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sshNeverAsk: [string, string][] = [['SSH_ASKPASS_REQUIRE', 'never']];
+/// ```
+pub fn ssh_never_askpass_overlay() -> Vec<(OsString, OsString)> {
+    return vec![(OsString::from(ASKPASS_REQUIRE_VARIABLE), OsString::from(ASKPASS_REQUIRE_NEVER))];
+}
+
 /// What:
 ///  Whether a list of variables turns prompting off for a Git or git-lfs child,
 /// by carrying the never-prompt pair.
@@ -520,7 +555,9 @@ pub fn prompting_disabled(variables: &[(OsString, OsString)]) -> bool {
 ///  Every variable the commit service adds for the Git and git-lfs children it starts on its own,
 /// with no person at a
 ///  terminal:
-/// the lock PID injection and the never-prompt pair.
+/// the lock PID injection,
+/// the never-prompt pair,
+/// and the rule that keeps OpenSSH from running a password program at all.
 /// Why:
 ///   The service's landing,
 /// upkeep,
@@ -537,6 +574,9 @@ pub fn prompting_disabled(variables: &[(OsString, OsString)]) -> bool {
 pub fn service_child_overlay(environment: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
     let mut overlay: Vec<(OsString, OsString)> = lockfile_pid_overlay(environment);
     overlay.extend(never_prompt_overlay());
+    // OpenSSH reads neither of the pair, so the service's `ssh://` children are told never to run a password program too.
+    //  A command the person typed is not: `SPEC.md`, "A command the person typed is forwarded with the prompting Git has".
+    overlay.extend(ssh_never_askpass_overlay());
     return overlay;
 }
 

@@ -13,7 +13,8 @@
 /// Import the functions under test and native string types.
 use super::{
     ASKPASS_VARIABLE, CHILD_SET_PREFIX, COUNT_VARIABLE, FORWARD_TARGET_VARIABLE, TERMINAL_PROMPT_VARIABLE, child_environment_overlay,
-    environment_with_overlay, invocation_overlay, lockfile_pid_overlay, never_prompt_overlay, prompting_disabled, service_child_overlay,
+    ASKPASS_REQUIRE_NEVER, ASKPASS_REQUIRE_VARIABLE, environment_with_overlay, invocation_overlay, lockfile_pid_overlay, never_prompt_overlay,
+    prompting_disabled, service_child_overlay, ssh_never_askpass_overlay,
 };
 /// The answer about the process's controlling terminal the invocation overlay is built from.
 use crate::control_terminal::Terminal;
@@ -303,13 +304,57 @@ fn never_prompt_overlay_sets_an_empty_askpass_and_no_terminal_prompt() {
     );
 }
 
-/// What the commit service adds for its own Git children is the lock PID injection and then the never-prompt pair.
+/// What the commit service adds for its own Git children is the lock PID injection,
+/// then the never-prompt pair,
+/// then the rule that keeps OpenSSH itself from asking.
 #[test]
-fn the_service_overlay_is_the_lockfile_overlay_then_the_never_prompt_pair() {
+fn the_service_overlay_is_the_lockfile_overlay_then_the_never_prompt_pair_then_opensshs() {
     let inherited = environment(&[("HOME", "/home/someone")]);
     let mut expected = lockfile_pid_overlay(inherited.as_slice());
     expected.extend(never_prompt_overlay());
+    expected.extend(ssh_never_askpass_overlay());
     assert_eq!(service_child_overlay(inherited.as_slice()), expected);
+}
+
+/// What:
+///  The service's children are told that OpenSSH never runs a password program,
+///  and a command the person typed is not.
+/// Why:
+///   The pair of `GIT_ASKPASS` and `GIT_TERMINAL_PROMPT` stops Git and `git-lfs`,
+///  and neither is read by OpenSSH,
+///  so an `ssh://` endpoint of a service push asked a password program through `SSH_ASKPASS` while the owner's decision was
+///  "Never prompt" (the audit's reproduction counted two questions).
+///   `SPEC.md` decides the other path in one sentence:
+///  "A command the person typed is forwarded with the prompting Git has."
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(envOf(serviceChildOverlay(inherited)).SSH_ASKPASS_REQUIRE).toBe('never');
+/// expect(envOf(invocationOverlay(inherited, git, 'absent')).SSH_ASKPASS_REQUIRE).toBe(inheritedValue)
+/// ```
+#[test]
+fn the_service_overlay_tells_openssh_never_to_ask_and_a_typed_command_does_not() {
+    let inherited = environment(&[("SSH_ASKPASS", "/usr/bin/ksshaskpass"), ("SSH_ASKPASS_REQUIRE", "prefer")]);
+    let service = environment_with_overlay(inherited.as_slice(), service_child_overlay(inherited.as_slice()).as_slice());
+    let value = |environment: &[(OsString, OsString)], name: &str| -> Option<OsString> {
+        return environment
+            .iter()
+            .filter(|(key, _value)| { return key == name; })
+            .next_back()
+            .map(|(_key, found)| { return found.clone(); });
+    };
+    assert_eq!(value(service.as_slice(), ASKPASS_REQUIRE_VARIABLE), Some(OsString::from(ASKPASS_REQUIRE_NEVER)));
+    assert_eq!(
+        value(service.as_slice(), "SSH_ASKPASS"),
+        Some(OsString::from("/usr/bin/ksshaskpass")),
+        "the program stays in the environment: only its use is switched off"
+    );
+    let typed = environment_with_overlay(inherited.as_slice(), invocation_overlay(inherited.as_slice(), Path::new("/usr/bin/git"), Terminal::Absent).as_slice());
+    assert_eq!(
+        value(typed.as_slice(), ASKPASS_REQUIRE_VARIABLE),
+        Some(OsString::from("prefer")),
+        "a command the person typed is forwarded with the prompting Git has"
+    );
 }
 
 /// A command the person typed keeps Git's own prompting:

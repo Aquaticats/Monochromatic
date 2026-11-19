@@ -24,10 +24,12 @@ use crate::auto_push_single_flight::PushAttempt;
 /// The limit a stopped child was ended by,
 /// which window it was,
 /// and the status the wrapper's own stop carries.
-use crate::bounded_push::{PUSH_DEADLINE_VARIABLE, STOPPED_EXIT_CODE, StopCause, StopWindow};
+use crate::bounded_push::{PUSH_DEADLINE_VARIABLE, STOPPED_EXIT_CODE, StopCause, StopReport, StopWindow};
 /// The texts of a failed or refused upload,
 /// and the reading that says a login was needed.
-use crate::lfs_pre_push::{failed_message, login_needed_message, missing_program_message, reads_as_a_login_failure};
+use crate::lfs_pre_push::{
+    LFS_PROGRAM, failed_message, login_needed_message, missing_program_message, reads_as_a_login_failure, start_failed_message,
+};
 /// The masks and the hosts a destination or a failure names.
 use crate::lfs_output_mask::{host_of, hosts_in, mask_url_secrets_text};
 /// What a stop says the connection carried.
@@ -40,6 +42,31 @@ use crate::push_minimum_rate::PUSH_MINIMUM_RATE_VARIABLE;
 /// the rest is dropped,
 /// so a flood cannot fill memory.
 pub const MAX_RELAYED_BYTES: u64 = 4 * 1024 * 1024;
+
+/// What:
+///  The ways forward a connected stop names,
+///  and only those its reader can act on.
+/// Why:
+///   The floor is a setting only where the connection carried something:
+///  a server that sent nothing has no line speed to lower,
+///  and telling its reader to lower the floor would remove the only bound there is,
+///  because a connection whose bytes count by themselves is what the floor lets through.
+///  The window itself is not a setting,
+///  so the ways forward are the floor (when it applied),
+///  the upload by hand with no window at all,
+///  and another try.
+fn connected_ways_forward(report: &StopReport) -> String {
+    let floor: String = if report.carried == 0 {
+        String::from("nothing moved, so no rate setting changes this stop")
+    } else {
+        format!("set {PUSH_MINIMUM_RATE_VARIABLE} to a smaller number to let a line slower than this one through")
+    };
+    return format!(
+        "Ways forward: {floor}; or run the upload by hand with `git lfs push --all <remote>`, which has no such window, \
+         and push again, because objects the server already has are not sent twice; or push again in case the remote \
+         answers this time"
+    );
+}
 
 /// What:
 ///  The words a run the wrapper stopped is explained with.
@@ -59,8 +86,12 @@ pub const MAX_RELAYED_BYTES: u64 = 4 * 1024 * 1024;
 /// ```ts
 /// cause.kind === 'stalled' ? `made no progress for ${limit} seconds and was stopped` : `...`
 /// ```
-pub fn stopped_upload_words(cause: &StopCause) -> String {
-    return match cause {
+pub fn stopped_upload_words(cause: &StopCause, server: Option<&str>) -> String {
+    let other_end: String = match server {
+        Some(host) => format!("the server `{host}`"),
+        None => String::from("the remote"),
+    };
+    let stopped: String = match cause {
         StopCause::Deadline => String::from("did not finish in time and was stopped"),
         StopCause::Stalled(report) => match report.window {
             StopWindow::Stall => format!(
@@ -70,24 +101,44 @@ pub fn stopped_upload_words(cause: &StopCause) -> String {
                 crate::push_deadline_advice::extend_clause()
             ),
             StopWindow::Connected => format!(
-                "held its connection to the remote open for {} seconds {} and was stopped (carried_bytes={}, \
-                 minimum_bytes_per_window={}); {} does not change this window, which is fixed at {} seconds. Ways forward: set \
-                 {} to a smaller number to let a line slower than this one through; or run the upload by hand with `git lfs push \
-                 --all <remote>`, which has no such window, and push again, because objects the server already has are not sent \
-                 twice; or push again in case the remote answers this time",
+                "held its connection to {other_end} open for {} seconds {} and was stopped (carried_bytes={}, \
+                 minimum_bytes_per_window={}); {} does not change this window, which is fixed at {} seconds. {}",
                 report.limit.as_secs(),
                 traffic_clause(report),
                 report.carried,
                 report.minimum,
                 PUSH_DEADLINE_VARIABLE,
                 report.limit.as_secs(),
-                PUSH_MINIMUM_RATE_VARIABLE
+                connected_ways_forward(report)
             ),
         },
         StopCause::Flood => format!("wrote more than {MAX_RELAYED_BYTES} bytes of output and was stopped"),
         // A typed upload carries no arm for the service's stop, so this ending cannot be reached here.
         StopCause::ServiceStopped => String::from("was ended because the service was stopped"),
     };
+    return format!("monochromatic-git-policy-cli: `{} push` {stopped}.", LFS_PROGRAM);
+}
+
+/// What:
+///  What a stopped upload means for the push,
+///  in the words that follow the stop's own sentence.
+/// Why:
+///   The stop already names every way forward,
+///  so the list a failed status carries would repeat it,
+///  and its "so this push was not started" would arrive after the stop's last way forward,
+///  reading as advice about the wrong sentence.
+///  Both faces print this one tail,
+///  so the two cannot say different things about the same stop.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// 'This push was not started and nothing was published; ...'
+/// ```
+pub fn stopped_upload_tail() -> String {
+    return String::from(
+        "This push was not started and nothing was published; a partial upload is harmless, because objects the server \
+         already has are not sent twice.",
+    );
 }
 
 /// What:
@@ -189,7 +240,23 @@ pub fn guard_failed_message(why: &str) -> String {
 /// ({ exitCode: 1, output: missingProgramMessage().trimEnd() })
 /// ```
 pub fn missing_program_attempt() -> PushAttempt {
-    return PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() };
+    return PushAttempt { exit_code: 1, signal: None, output: missing_program_message().trim_end().to_owned() };
+}
+
+/// What:
+///  What a person is told when `git-lfs` was found and could not be started,
+///  naming the file and the operating system's error.
+/// Why:
+///   Both faces refuse the upload with the same words,
+///  and the lookup already proved the program is there,
+///  so the refusal must not claim it is absent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ({ exitCode: 1, output: startFailedMessage(program, why).trimEnd() })
+/// ```
+pub fn start_failed_attempt(program: &str, why: &str) -> PushAttempt {
+    return PushAttempt { exit_code: 1, signal: None, output: start_failed_message(program, why).trim_end().to_owned() };
 }
 
 /// What:
@@ -215,21 +282,32 @@ pub fn failed_upload(attempt: &PushAttempt, destination: &std::ffi::OsStr, promp
         return None;
     }
     let shown: String = mask_url_secrets_text(attempt.output.as_str());
-    return Some(explained(PushAttempt { exit_code: attempt.exit_code, output: shown }, destination, prompting_disabled));
+    return Some(explained(PushAttempt { exit_code: attempt.exit_code, signal: attempt.signal, output: shown }, destination, prompting_disabled));
 }
 
 /// The failed attempt with the explanation after the program's own output;
-/// a stop by deadline says so,
+/// a stop says what a stop means,
 /// and a login the program needed says how to give it one,
 /// in the words of the prompting the wrapper left the program.
 pub fn explained(attempt: PushAttempt, destination: &std::ffi::OsStr, prompting_disabled: bool) -> PushAttempt {
-    let description: String = if attempt.exit_code == STOPPED_EXIT_CODE {
-        String::from("did not finish and was stopped")
+    let explanation: String = if attempt.exit_code == STOPPED_EXIT_CODE {
+        stopped_upload_tail()
     } else {
-        format!("exited with status {}", attempt.exit_code)
+        // A signal is not a status the program chose: the code `128 + N` is also a status a program can choose itself, so the
+        //  words come from the signal the attempt keeps beside it.
+        let ending: String = match attempt.signal {
+            Some(signal) => format!("was ended by signal {signal}"),
+            None => format!("exited with status {}", attempt.exit_code),
+        };
+        explanation_after_failure(ending.as_str(), destination, attempt.output.as_bytes(), prompting_disabled)
     };
-    let explanation: String = explanation_after_failure(description.as_str(), destination, attempt.output.as_bytes(), prompting_disabled);
     let shown: &str = explanation.trim_end();
-    let output: String = if attempt.output.is_empty() { shown.to_owned() } else { format!("{}\n{shown}", attempt.output) };
-    return PushAttempt { exit_code: attempt.exit_code, output };
+    let output: String = if attempt.output.is_empty() {
+        shown.to_owned()
+    } else if attempt.output.ends_with('\n') {
+        format!("{}{shown}", attempt.output)
+    } else {
+        format!("{}\n{shown}", attempt.output)
+    };
+    return PushAttempt { exit_code: attempt.exit_code, signal: attempt.signal, output };
 }

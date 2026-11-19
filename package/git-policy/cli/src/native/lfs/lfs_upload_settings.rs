@@ -110,7 +110,7 @@ pub struct PlanError(pub String);
 
 /// The `config --get-regexp` pattern that selects exactly the keys `wanted_key` accepts.
 pub const SETTINGS_REGEXP: &str =
-    "^(branch\\..*\\.(pushremote|remote)|remote\\.pushdefault|remote\\..*\\.(push|pushurl|mirror|url)|push\\.default|url\\..*\\.pushinsteadof)$";
+    "^(branch\\..*\\.(pushremote|remote)|remote\\.pushdefault|remote\\..*\\.(push|pushurl|mirror|url|lfsurl)|push\\.default|url\\..*\\.pushinsteadof|lfs\\.url)$";
 
 /// What:
 ///  The last dotted word of a key after a prefix:
@@ -134,7 +134,7 @@ fn last_variable<'a>(key: &'a str, prefix: &str) -> Option<&'a str> {
 /// Whether the plan reads this configuration key (Git's normalised spelling).
 pub(crate) fn wanted_key(key: &str) -> bool {
     let remote_variable: bool = match last_variable(key, "remote.") {
-        Some(variable) => ["push", "pushurl", "mirror", "url"].contains(&variable),
+        Some(variable) => ["push", "pushurl", "mirror", "url", "lfsurl"].contains(&variable),
         None => false,
     };
     let branch_variable: bool = match last_variable(key, "branch.") {
@@ -149,6 +149,8 @@ pub(crate) fn wanted_key(key: &str) -> bool {
         || push_rewrite
         || key == "remote.pushdefault"
         || key == "push.default"
+        // The endpoint the upload is sent to, which a stop names.
+        || key == "lfs.url"
         || remote_variable;
 }
 

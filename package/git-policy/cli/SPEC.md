@@ -6123,8 +6123,25 @@ setting alone left the desktop's password dialog open for nobody to answer;
 a push with no credential from a helper fails at once
 with "terminal prompts disabled",
 which is the login failure above.
-`SSH_ASKPASS` stays in the environment for OpenSSH.
-A command the person typed is forwarded with the prompting Git has.
+`SSH_ASKPASS` stays in the environment for OpenSSH,
+and OpenSSH is told not to run it:
+the same list carries `SSH_ASKPASS_REQUIRE=never`
+(`ssh_never_askpass_overlay` in `src/native/invocation/child_environment.rs`),
+because `GIT_ASKPASS` and `GIT_TERMINAL_PROMPT` are Git's and `git-lfs`'s and OpenSSH reads neither.
+OpenSSH 8.4 and later read that variable
+(the host's OpenSSH 10.6p2 says of `never`: "ssh will never attempt to use one"),
+and without it an `ssh://` endpoint of a service push asked a passphrase program through `SSH_ASKPASS`
+while this decision said the service never asks anyone for a login.
+What it does not turn off:
+OpenSSH's notification that a security key must be touched,
+which is not a question and is started by its own path
+(`notify_start` in OpenSSH's `readpass.c` does not read `SSH_ASKPASS_REQUIRE`),
+so a FIDO key whose presence must be confirmed can still open that window when the environment names an askpass program,
+a display and a standard error that is not a terminal;
+a host key that is not known still fails rather than being confirmed;
+and a passphrase-protected key with no agent now fails instead of asking.
+A command the person typed is forwarded with the prompting Git has,
+so that path carries no `SSH_ASKPASS_REQUIRE` of the wrapper's.
 Evidence and the source trace:
 `doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`.
 Being offline,
@@ -9576,7 +9593,11 @@ in-process reader can) gives every value of the multi-valued keys.
   and is said once,
   as a line that starts with `monochromatic-git-policy-cli: <program> <subcommand> is waiting for the server`
   (`git push`,
-  `git fetch` or `git-lfs push`) in the run's output and in the diagnostic log.
+  `git fetch` or `git-lfs push`) in the run's output and in the diagnostic log;
+  the diagnostic line names this program once in its own prefix,
+  so the words it carries start at the program and the subcommand,
+  and the attempt's own line puts the name in front of them
+  (`wait_line_words` and `wait_line` in `src/native/push/bounded_push.rs`).
   Silence during the wait is not counted against the window,
   so when the connection closes
   (no process of the tree holds an established socket) the stall window runs again from that moment,
@@ -9707,11 +9728,25 @@ in-process reader can) gives every value of the multi-valued keys.
   which the run reads from its destination only when a stop needs it:
   a destination written as a URL answers with its own host,
   and a remote name with one bounded `git remote get-url --push` query.
+  The upload is the exception, because its server is not the push's destination:
+  a stop of an upload names the LFS endpoint the plan read from the configuration
+  (`lfs.url`, or the remote's `remote.<name>.lfsurl`, or the remote's own push URL when neither is configured),
+  or the first server the program's own words name,
+  whichever the run reached
+  (`lfs_server_of` in `src/native/lfs/lfs_upload_plan.rs` and `ServerNaming` in
+  `src/native/push/push_server_naming.rs`);
+  its program has no `remote get-url` command at all
+  (`git-lfs remote get-url` answers `unknown command "remote"`),
+  so the push's query is never asked for an upload.
   A push that lands reads nothing for the name,
   and the wait line a live run prints says "the remote".
   The stall setting is named only where the stall window ended the run:
   the connected window is fixed,
   so a connected stop says that the variable does not change it and names the retry that settles it.
+  The floor (`CLI_GIT_PUSH_MINIMUM_RATE_BYTES`) is named only where the connection carried something:
+  a server that sent nothing has no line speed to lower,
+  and a smaller floor would only remove the bound
+  (`floor_clause` in `src/native/push/stop_cause_and_words.rs` and the upload's own stop words).
   Where `/proc/<pid>/io` cannot be read (a system without `/proc`,
   such as macOS,
   or a kernel without task I/O accounting)
@@ -9835,17 +9870,16 @@ in-process reader can) gives every value of the multi-valued keys.
   (`reap_abandoned_children` in `src/native/push/stop_of_a_push_and_sweep_of_its_locks.rs`).
   The judgement takes no lock of its own.
   A push whose output grows past 4 MiB (`MAX_PUSH_OUTPUT`) is stopped the same way,
-  and only the first 4 MiB are kept;
-  a push that ended between two looks with more printed than that keeps its own status,
+  and only whole lines that fit in the first 4 MiB are kept;
+  a line the cap ends inside is dropped whole,
+  because a cap applied to the raw bytes cuts a URL in half and half a URL hides no secret.
+  A push that ended between two looks with more printed than that keeps its own status,
   and the attempt says that only the head of its output is kept
   (`shortened_output_line` in `src/native/push/bounded_push.rs`).
-  The check of the output's size and the read of the output are two steps,
-  so a helper that keeps writing after the push exited can still pass the cap between them,
-  and that attempt then misses the line that says its output was cut.
-  It is left as it is:
-  reaching it needs a background helper writing inside that window,
-  and what it can cost is that line and nothing else
-  (`run_bounded_push_awaiting` in `src/native/push/bounded_push.rs`).
+  That line comes from the read and not from the size the wait last looked at:
+  one byte past the cap is read (`read_output` in `src/native/push/bounded_push.rs`),
+  so a helper that keeps writing after the push exited cannot make an attempt miss it,
+  and the line names the run that printed it (`git push`, `git-lfs push`, `git fetch`).
   Citation of the 4 MiB:
   none;
   the owner decided "Keep all lines" for push output and no
@@ -11754,6 +11788,31 @@ and the man page `git-lfs-pre-push`):
   The wrapper runs none of the three,
   and a shim file for any of them never runs through the wrapper either.
 
+`git lfs install` inside a repository runs with `--skip-repo`
+(`with_skip_repo` in `src/native/invocation/lfs_install_arguments.rs`),
+which git-lfs's own `install --help` describes as "Skips installation of hooks into the local repository;
+use if you want to install the LFS filters but not make changes to the hooks".
+Without it the command wrote its shims into the hooks directory the wrapper disables,
+which fails with `mkdir /dev/null: not a directory`,
+ends the command with status 2,
+and advises `git lfs update --manual` or `--force`,
+neither of which can work while that directory cannot exist.
+The global `filter.lfs.*` keys are written either way, which is all the wrapper's own upload needs,
+and one notice before git-lfs runs says so:
+the keys were written,
+the wrapper runs the upload itself before each push,
+no `pre-push` hook is installed in this repository and none is needed,
+and the `post-checkout`, `post-commit` and `post-merge` hooks are not needed either.
+Outside a repository the command is forwarded as it was typed (git-lfs writes no hook there),
+a help query is answered as it was typed,
+and a caller who wrote `--skip-repo` already keeps one copy and gets the same notice.
+What this does not cover,
+left as it was and recorded here:
+`git lfs update` and `git lfs install hooks` still write the shims into that directory,
+so both end with status 2 and the same advice that cannot work,
+and `git lfs uninstall` removes the shims and the account's LFS configuration with status 0
+while printing `open /dev/null/cli-git-no-hooks/pre-push: not a directory`.
+
 The step:
 
 - Trigger.
@@ -11901,6 +11960,23 @@ The step:
   the wrapper reads it back after each run and relays it
   with the secrets of every URL replaced by `<credentials>` (standard output stays
   the caller's).
+  At most 4 MiB of it is relayed (`MAX_RELAYED_BYTES`,
+  `src/native/lfs/lfs_upload_explanations.rs`),
+  and the cut falls on a line break:
+  only whole lines are relayed,
+  and a line the cap ends inside is dropped whole,
+  because a cap applied to the raw bytes cuts a URL in half and half a URL hides no secret
+  (a cut in front of its `@` keeps the front of a password, and a mask that runs afterwards
+  cannot see a userinfo that is not there).
+  One byte past the cap is read, so the read itself answers whether there was more,
+  and a run that ends between two looks of the wait says so too.
+  When the text was cut, a line after it says that only the whole lines that fit were relayed,
+  that the rest was dropped and that the upload itself was not stopped.
+  The explanation after a failed or stopped upload starts on a line of its own,
+  even when the program's last line carried no line break.
+  The mask is idempotent:
+  masking text that was already masked changes nothing and writes no mask twice,
+  because the auto-push masks an attempt where it is made and again where it is written down.
   What counts as a secret is one rule for every line the wrapper prints or journals,
   in `src/native/lfs/lfs_output_mask.rs`:
   the userinfo of the URL,
@@ -12024,7 +12100,11 @@ The step:
   Before anything starts,
   one stat per `PATH` directory finds `git-lfs`;
   when it is absent the wrapper prints the
-  install-or-remove explanation and exits with status 1.
+  install-or-remove explanation and exits with status 1,
+  and a `git-lfs` the lookup found and the system refused to start is reported as found,
+  with the file it found and the operating system's own error
+  (`start_failed_message` in `src/native/lfs/lfs_pre_push.rs`),
+  because a program that is there is not missing and its reader would go looking at a `PATH` that is right.
   If the upload exits non-zero or is ended by a signal,
   the wrapper prints,
   after the program's own output,
@@ -12037,11 +12117,29 @@ The step:
   or remove the LFS configuration),
   does not start the push,
   and
-  exits with the upload's status (1 when it had none).
-  The auto-push runs the upload as a bounded child with captured output and appends the explanation to the recorded
-  output of the failed attempt,
-  so a commit that joined that push shows it too;
-  a stop by deadline says so.
+  exits with the upload's status,
+  or with `128 + N` for a signal numbered `N` that ended it,
+  which is the push path's own convention for a run a signal ended
+  (1 when the upload reported no status at all).
+  The auto-push runs the upload as a bounded child with captured output,
+  keeps the ending the upload had,
+  appends the explanation to the recorded output of the failed attempt,
+  so a commit that joined that push shows it too,
+  and says "was ended by signal N" for an upload a signal ended rather than reporting it as a status the program chose:
+  `128 + N` is also a status a program can choose, so the attempt carries the signal beside the code
+  (`PushAttempt` in `src/native/push/auto_push_single_flight.rs`).
+  A stopped upload names the limit that stopped it,
+  and a stop by the connected window names the server it waited for:
+  the upload's own server,
+  which is the LFS endpoint and not the push's destination
+  (the host and port of `lfs.url`, or of the remote's `remote.<name>.lfsurl`, or of the remote's own push URL,
+  read by the upload plan from the configuration it already reads, `lfs_server_of` in
+  `src/native/lfs/lfs_upload_plan.rs`,
+  or the server the program's own words name, whichever the run reached,
+  with any userinfo left out).
+  The stop's own words name every way forward,
+  so the tail after a stop does not list them again:
+  it says that the push was not started and that a partial upload is harmless.
 - Paths.
   A typed `git push` is preceded by the upload,
   on the exec path and on the path that integrates a lost race;
