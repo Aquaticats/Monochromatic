@@ -11,10 +11,12 @@ prototype first"): does a native Pi virtual model whose router sends every reque
 pool provider keep the package's in-request member fallback and regain Pi's context-overflow
 compact-and-retry?
 
-Each item below names the session that showed it, the result, and the capture. Captures are under
-`${HOME}/temp/agent/rate-limit-fallback-hybrid-prototype-2026-11-19/scratch/`; each run folder holds
-`records.jsonl` (the session event stream, verbatim), `stderr.log`, `summary.json` (derived view) and,
-for the runs that reached a real member, `package-decision-log.jsonl` (this package's own log lines).
+Each item below names the session that showed it, the command that started it, the result, and the
+capture. Captures are folders under
+`${HOME}/temp/agent/rate-limit-fallback-hybrid-prototype-2026-11-19/scratch/`; each holds the Pi event
+stream verbatim (`records.jsonl`, or `turn-N.jsonl` for a multi-turn run), `stderr.log` with the
+prototype's evidence lines, and `package-decision-log.jsonl`, this package's own log for the same
+session. Every cited run used `pi` 1.5.2 and plain CLI options; no script drove it.
 
 ## What the prototype is
 
@@ -52,30 +54,31 @@ NeuralWatt provider extension for that reason.
 
 ## Item 1: a router to the pool answers a real turn
 
-Command, with `${EXT}` as the prototype entry and the run folder as the capture:
+Command, with `${EXT}` naming `src/hybrid-prototype/hybrid-extension.ts` in this worktree and `${NW}`
+naming `package/pi-plugin/neuralwatt/src/index.ts`:
 
 ```sh
-# ${HOME}/temp/agent/rate-limit-fallback-hybrid-prototype-2026-11-19/scratch/pi-session-runner.ts
-# drives one RPC session and writes every stdout record to records.jsonl
-pi --mode rpc --no-extensions \
-  --extension package/pi-plugin/rate-limit-fallback/src/hybrid-prototype/hybrid-extension.ts \
-  --extension package/pi-plugin/neuralwatt/src/index.ts \
-  --model rate-limit-fallback/hybrid-writer --no-tools --no-context-files --no-session
-# prompt: "Reply with the single word ready."
+# package/pi-plugin/rate-limit-fallback/doc/hybrid-native-virtual-model-prototype.md
+pi --mode json --no-extensions --extension "${EXT}" --extension "${NW}" \
+  --model rate-limit-fallback/hybrid-writer --no-tools --no-context-files --no-skills \
+  --no-prompt-templates --no-mcp --no-session "Reply with the single word ready." \
+  > records.jsonl 2> stderr.log
 ```
 
 Result: the selection stays `rate-limit-fallback/hybrid-writer`, and the assistant message records
-`provider: "neuralwatt", model: "deepseek-v4.1-flash"`, `stopReason: "stop"`, content `ready`. This
-package's own log for the same session reads
+`provider: "neuralwatt", model: "deepseek-v4.1-flash"`, `stopReason: "stop"`, content `ready`, usage
+`input: 131, output: 3, cacheRead: 512`. This package's own log for the same session reads
 `[dispatchRequest] writer: dispatching to neuralwatt/deepseek-v4.1-flash`. So the virtual model routed,
 the pool dispatched, the first writer member answered, and the event stream names that member.
 
-Capture: `item1-hybrid-real-writer-neuralwatt/` (`records.jsonl`, `package-decision-log.jsonl`).
+Capture: `cli-item1-hybrid-real-writer/`.
 
-A second run with no member extension loaded shows the same router answering through the only member
-still registered, `opencode-go/deepseek-v4.1-flash`, with the package log naming two registry misses
-before it: `writer: missing registry model neuralwatt/deepseek-v4.1-flash` and the flex lane.
-Capture: `item1-hybrid-real-writer/`.
+A second run of the same command without `--extension "${NW}"` shows the same router answering through
+the only member still registered, `opencode-go/deepseek-v4.1-flash` (usage `input: 646, output: 3`),
+with the package log naming two registry misses before it:
+`writer: missing registry model neuralwatt/deepseek-v4.1-flash` and the flex lane. That run is also
+where item 3's admission shift is visible.
+Capture: `cli-item1-hybrid-real-writer-opencode-only/`.
 
 **Verdict: passed.**
 
@@ -92,38 +95,47 @@ Three prompts, in one session per arm: two quiet padded turns, then a padded thi
 request past the stand-in's enforced window.
 
 ```sh
-# arm A, hybrid: virtual model over the probe pool
-pi --mode rpc --no-extensions --extension <hybrid-extension.ts> \
-  --model rate-limit-fallback/hybrid-probe --no-tools --no-context-files --no-session
-# PI_HYBRID_PROBE_MEMBERS='[{"provider":"hybrid-probe-member","id":"small-window"},
-#   {"provider":"hybrid-probe-member","id":"answers"}]'
-
-# arm B, control: the same pool provider selected directly
-pi --mode rpc --no-extensions --extension <hybrid-extension.ts> \
-  --model rate-limit-fallback-probe/probe --no-tools --no-context-files --no-session
+# package/pi-plugin/rate-limit-fallback/doc/hybrid-native-virtual-model-prototype.md
+# one prompt per line; n runs over 1 2 3, one process each, same session id
+export PI_HYBRID_PROBE_MEMBERS='[{"provider":"hybrid-probe-member","id":"small-window"},
+{"provider":"hybrid-probe-member","id":"answers"}]'
+for n in 1 2 3; do
+  # arm A, hybrid:
+  pi --mode json --no-extensions --extension "${EXT}" --model rate-limit-fallback/hybrid-probe \
+    --no-tools --no-context-files --no-skills --no-prompt-templates --no-mcp \
+    --session-dir "$PWD/sessions" --session-id cli-hybrid-overflow "$(cat "prompt-turn-${n}.txt")" \
+    > "turn-${n}.jsonl" 2>> stderr.log
+  # arm B, control, the same pool provider selected directly:
+  pi --mode json --no-extensions --extension "${EXT}" --model rate-limit-fallback-probe/probe \
+    --no-tools --no-context-files --no-skills --no-prompt-templates --no-mcp \
+    --session-dir "$PWD/sessions" --session-id cli-control-overflow "$(cat "prompt-turn-${n}.txt")" \
+    > "turn-${n}.jsonl" 2>> stderr.log
+done
 ```
 
 Arm A, the hybrid, produced this event order: the third request fails with
-`400: {"error":{"message":"Input length (148170) exceeds model's maximum context length (140000)."…`,
-then `entry_appended` (Pi omitting the failed attempt), then `compaction_start` with `reason:
-"overflow"`, `compaction_end` with `willRetry: true` and `tokensBefore: 36762`,
-`estimatedTokensAfter: 23279`, then a fresh run whose router evidence line reads
-`reason: "retry"`, `failedModel: "hybrid-probe-member/small-window"`,
-`failedStopReason: "error"`. That retried request carries 93976 characters, under the stand-in's
-window, and the member answers `stop`. Four assistant messages: two answers, the overflow, the
+`400: {"error":{"message":"Input length (148195) exceeds model's maximum context length (140000)."…`,
+then `entry_appended` (a `context_edit` with `replacement: null`, Pi omitting the failed attempt),
+then `compaction_start` with `reason: "overflow"`, `compaction_end` with `willRetry: true`,
+`tokensBefore: 36767` and `estimatedTokensAfter: 23284`, then a fresh run whose router evidence line
+reads `reason: "retry"`, `failedModel: "hybrid-probe-member/small-window"`,
+`failedStopReason: "error"`. The compaction's own summary request is the `reason: "direct"` line
+before it, 55405 characters. That retried request carries 93997 characters, under the stand-in's
+140000, and the member answers `stop`. Four assistant messages: two answers, the overflow, the
 recovered answer.
 
 Arm B, the control, shows the same third-turn refusal with no `entry_appended`, no
 `compaction_start`, no retry and no fourth message: the turn ends on the member's error. Three
 assistant messages.
 
-Capture: `item2-hybrid-overflow/` and `item2-control-direct-pool/`.
+Capture: `cli-item2-hybrid-overflow/` and `cli-item2-control-direct-pool/`.
 
-Two attempts before these are kept in the same folders' earlier timestamps and are not cited: with the
-first two-turn pad the compaction preparation came out empty and neither arm compacted, which is a
-transcript-length property of Pi's `prepareCompaction`, not a difference between the arms. A
-two-turn transcript whose first turn already exceeds Pi's `keepRecentTokens` budget leaves nothing to
-summarize.
+The padding had to be shaped for Pi, not for the probe. Earlier two-turn attempts (kept in
+`item2-hybrid-overflow/` and `item2-control-direct-pool/`, from a driver whose per-prompt loop the
+plain commands replace) overflowed and then compacted nothing in either arm: when the first turn alone
+exceeds Pi's `keepRecentTokens` budget, `prepareCompaction` has nothing to summarize and returns
+nothing, so neither arm can retry. That is a transcript property, not a difference between the arms,
+and three turns with a mid-transcript cut point avoid it.
 
 **Verdict: passed, both arms as required.** The probe tells them apart: under the hybrid Pi compacts
 and retries and the turn completes; with the pool selected directly Pi does neither.
@@ -133,10 +145,12 @@ and retries and the turn completes; with the pool selected directly Pi does neit
 Arm: the hybrid over a probe pool whose first member refuses and whose second answers.
 
 ```sh
-pi --mode rpc --no-extensions --extension <hybrid-extension.ts> \
-  --model rate-limit-fallback/hybrid-probe --no-tools --no-context-files --no-session
-# PI_HYBRID_PROBE_MEMBERS='[{"provider":"hybrid-probe-member","id":"refuses-neuralwatt-429"},
-#   {"provider":"hybrid-probe-member","id":"answers"}]'
+# package/pi-plugin/rate-limit-fallback/doc/hybrid-native-virtual-model-prototype.md
+PI_HYBRID_PROBE_MEMBERS='[{"provider":"hybrid-probe-member","id":"refuses-neuralwatt-429"},
+{"provider":"hybrid-probe-member","id":"answers"}]' \
+pi --mode json --no-extensions --extension "${EXT}" --model rate-limit-fallback/hybrid-probe \
+  --no-tools --no-context-files --no-skills --no-prompt-templates --no-mcp --no-session \
+  "Reply with the single word ready." > records.jsonl 2> stderr.log
 ```
 
 The first member's refusal is NeuralWatt's captured overage 429 (see "Fixture provenance"), which Pi's
@@ -145,7 +159,10 @@ request to each member, one assistant message from `hybrid-probe-member/answers`
 "stop"`, no `auto_retry_start`, no `compaction_start`, and one `agent_settled`. The refusal never
 reached Pi: the pool consumed it and handed the same transcript to the next member.
 
-Capture: `item3-hybrid-member-refusal/`.
+Capture: `cli-item3-hybrid-member-refusal/`. Its `package-decision-log.jsonl` reads
+`dispatching to hybrid-probe-member/refuses-neuralwatt-429`, then
+`returned HTTP 429 before output`, then `dispatching to hybrid-probe-member/answers`, all inside the
+one `dispatchRequest`.
 
 The same shift is visible with the real pool in item 1's second run, but as admission rather than
 refusal: the two NeuralWatt lanes were absent from the catalog and the pool moved to the third member
@@ -171,9 +188,10 @@ The request's own `maxTokens` does not come from the declared pair: Pi sizes it 
 The real writer pool model carries `maxTokens: 384000`; the probe pool model carries `16384`, which is
 exactly what the pool and the stand-in received on the wire, while the router had declared 8192.
 
-Capture: `item1-hybrid-real-writer-neuralwatt/stderr.log` (context-usage lines),
-`smoke-stand-in-json/` (a one-turn probe with the whole pair sequence), `probe-settings/records.jsonl`
-(`get_state`).
+Capture: `cli-item1-hybrid-real-writer/stderr.log` (context-usage lines, `contextWindow: 200000` then
+`1048560`), `smoke-stand-in-json/stderr.log` (a one-turn probe with the whole pair sequence and the
+`maxTokens` the member received), `probe-settings/records.jsonl` (an RPC `get_state`, which reports the
+declared pair for the selection).
 
 **Verdict: passed.** A rebuild should declare limits that make sense as a floor, not as a promise: Pi
 stops honouring them the moment a member answers.
@@ -184,19 +202,22 @@ Two arms on the probe pool, one native-only arm, and one negative result.
 
 Quota exhaustion, the Synthetic subscription refusal (captured), which Pi's classifier calls
 non-retryable because the text carries `billing`: under the hybrid the pool moves to the next member
-inside the same request and the turn completes, with no `auto_retry_start` and no compaction.
-Capture: `item5-hybrid-quota-refusal/`.
+inside the same request and the turn completes, with no `auto_retry_start` and no compaction. The
+command is item 3's with `id: "refuses-quota"` as the first member.
+Capture: `cli-item5-hybrid-quota-refusal/`.
 
 Native-only control, the same refusal returning from the member the virtual model routes straight to,
 with no pool in between: the turn ends on
 `429 "You've exceeded your subscription rate limits. …"`, with no retry and no second member. This is
-the behaviour the hybrid is meant to keep away from. Capture: `item5-native-only-quota-refusal/`.
+the behaviour the hybrid is meant to keep away from. Capture: `cli-item5-native-only-quota-refusal/`, started with
+`PI_HYBRID_NATIVE_TARGET=hybrid-probe-member/refuses-quota` and
+`--model rate-limit-fallback/hybrid-native-probe`.
 
 Cloudflare 523, whose own page heads it "Error 523: origin is unreachable" and whose text matches no
 Pi retry pattern: under the hybrid the pool does not move on, because the current code hands off only a
 429 before output or a provider-gated policy stop. The turn ends after one member request, with no
 `auto_retry_start`. That is the gap the owner's point 1 decision ("Move on" for 503 and Cloudflare 52x)
-closes after the rebuild, not something this run built. Capture: `item5-hybrid-523-refusal/`.
+closes after the rebuild, not something this run built. Capture: `cli-item5-hybrid-523-refusal/`.
 
 A policy stop could not be shown: the package's move needs the member to be the `openai` provider, and
 no pool member is, which the owner's point 5 decision keeps.
@@ -221,11 +242,13 @@ the decided change is not built), policy stop not shown.**
 
 ## Cost of the real requests
 
-Two sessions, one prompt each, both against the real writer pool: `neuralwatt/deepseek-v4.1-flash` and
-`opencode-go/deepseek-v4.1-flash`. Each reported `input: 629, output: 3`, `totalTokens: 632`, and a
-cost of 0.00009615 US dollars by the catalog's rates; both are subscription plans, so the real cost is
-quota, not the dollar figure. Every other session in this page reached no network: its members were
-stand-ins, so the stand-in arms cost nothing.
+Four sessions reached a real member, one prompt each, all against the real writer pool: item 1's two
+cited runs (`neuralwatt/deepseek-v4.1-flash`, `input: 131, output: 3, cacheRead: 512`, 0.00002913 US
+dollars by the catalog's rates; and `opencode-go/deepseek-v4.1-flash`, `input: 646, output: 3`,
+0.0000987 US dollars), plus the two runs an earlier driver started while the commands were being
+settled (`input: 629, output: 3` each, 0.00009615 US dollars). Both providers are subscription plans,
+so the real cost is quota, not the dollar figures. Every other session in this page reached no
+network: its members were stand-ins, so those arms cost nothing.
 
 ## What a rebuild would need
 
@@ -253,7 +276,9 @@ stand-ins, so the stand-in arms cost nothing.
 - "under a native virtual model alone a policy stop, quota exhaustion and Cloudflare 521, 522, 523, 525
   and 526 would end the turn": measured, a 522 whose text is Cloudflare's own "Connection timed out"
   does not end the turn, because Pi's retry classifier matches `timed? out`. It retried eight times on
-  this machine before failing. Capture: `item5-hybrid-522-refusal/`. 523 matches no retry pattern and
-  ends the turn after one attempt.
+  this machine before failing. Capture: `item5-hybrid-522-refusal/`, the one run here a small RPC
+  driver started (`pi-session-runner.ts` in the same scratch folder) because it sends one prompt; its
+  member was the same stand-in with Cloudflare's 522 heading as its body. 523 matches no retry pattern
+  and ends the turn after one attempt.
 - "Pi retries only errors its classifier calls retryable" is right, but the classifier reads text, not
   status, so a 52x's outcome depends on the words its body carries.
