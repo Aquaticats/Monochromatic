@@ -40248,6 +40248,16 @@ the fixture's 200 called a construction choice. Mutants `Y1`, `X8`, `X9`, `X3`, 
 All three reviews so far were same-vendor short reviews, so before `main` (the owner's option A: "switching the queue to
 it once it is in main") a Claude Sonnet gate review of the whole package (`a115bc023d..2070948ce4`, 40 commits) is GOING
 as a background Agent. Merge on a clean gate; installing it into `~/.pi/agent/settings.json` stays with the owner.
+**The gate held the merge** (saved as `change-reviews/pi-plugin-rate-limit-fallback-at-2070948ce4/gate-review.md`).
+High 1: the pool models advertise `contextWindow: 0`, and since the pool's API is not Pi's `pi-virtual`, Pi's threshold
+check uses 0 and compacts on most turns (real Pi 1.5.2 session: pool 6 compaction events in 5 prompts, physical member 0).
+Medium: the standard writer head takes NeuralWatt's flex-lane `flex_floor` as its ceiling; a 429's `Retry-After` never
+reaches the plugin through the installed adapters (tests describe a shape no producer emits); caller-set provider
+retries can keep a request on the head. Thirteen lows (stale `RKD` citation, "cannot fire" too strong, logging claims,
+captures kept only in scratch, untested branches, magic numbers, quota read rate). All accepted; GOING: the writer's
+session resumed, `pi-provider-answers-its-gate-review-1` (run-10), after merging `main` in. Four owner questions the
+gate named stay open: refusal-time endpoint read, the overage ceiling's minimum, 503 and 52x ending at the member, Pi's
+native virtual models.
 
 **Reviewer speed result (2026-11-19, four interleaved rounds, model time from the feeds' prompt-sent to settled,
 `keep/runs.jsonl`):** Qwen-plan DeepSeek 9.4, 10.8, 6.3, 17.7 s; its same-model control 18.9, 13.5, 11.9, 8.3 s (Qwen
