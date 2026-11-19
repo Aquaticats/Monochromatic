@@ -707,7 +707,7 @@ release in the Ubuntu guest does not establish that the host kernel passes the c
 
 ## 17. Delegated snapshot batch, 2026-11-19T00:44:01-05:00
 
-This non-final, unapproved section answers finding L6 of the second delta review of `68690e60be`: item 14's batch
+This non-final, unapproved section answers finding L6 of the second delta review of `7fe84c7be8`: item 14's batch
 ran as root, and the delegated account had been measured destroying only a head (item 12). It also answers the
 delta section's "What this repeat did not show" bullet about a delegated batch. The guest was
 `zfs-item-17-measurements`, an Ubuntu 24.04 `mvm` libvirt VM, destroyed after the run
@@ -715,8 +715,8 @@ delta section's "What this repeat did not show" bullet about a delegated batch. 
 `~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/item-17/`: `guest-probe.py` and
 `guest-delta-items.py` are unchanged copies of the kept harness, `guest-item-17-items.py` adds the arms and
 `run-item-17.ts` runs them through `mvm exec` in a private mount namespace, and `keep/item-17-exact-3.log` holds
-every command and output quoted here. The host, read-only, still reported `7.3.5-1-cachyos` from
-`uname --kernel-release` and `2.4.4-1` from `/sys/module/zfs/version`.
+every command and output quoted here. The host, read-only, reported `7.3.5-1-cachyos` from
+`uname --kernel-release` and `2.4.4-1` from `/sys/module/zfs/version` in this run.
 
 The run printed its own versions before any pool existed:
 
@@ -787,15 +787,16 @@ ioctl(3, 0x5a3b, 0x7ffddc554040)        = 0
 ZFS_IOC_DESTROY_SNAPS (0x5a3b) count: 1
 ```
 
-No per-name error line appears, because the helper prints one only when the kernel returned an error list
-(`guest-delta-items.py:166` to `:172`). The snapshot list afterwards:
+No per-name error entries were printed: the helper prints them only when the call filled an error list
+(`guest-delta-items.py:166` to `:172`). The snapshot list afterwards, in the log's order and with the command line
+elided:
 
 ```text
-# item-17-exact-3.log, both named snapshots gone
-item 1 process exit: 0
-item 1 named snapshots still present: []
+# item-17-exact-3.log, excerpt
 zfsowed17/home/worktree-clone-datasets/removal@earliest	17	5119344664520718075
 zfsowed17/home/worktree-clone-datasets/removal@origin	18	11828178329495998103
+item 1 process exit: 0
+item 1 named snapshots still present: []
 ```
 
 It shows that the account holding exactly these grants destroyed both snapshots made on the clone in one kernel
@@ -814,7 +815,7 @@ Root created `@with-dependent` and `@without-dependent` on the clone and cloned 
 same direct batch naming both snapshots:
 
 ```text
-# item-17-exact-3.log
+# item-17-exact-3.log, names elided
 batch process uid=1000
 lzc_destroy_snaps([...], defer=false): 17 (File exists)
 zfsowed17/home/worktree-clone-datasets/removal@with-dependent: 17 (File exists)
@@ -835,7 +836,7 @@ After item 1, root created `@root-control-one` and `@root-control-two` and ran t
 `uid=0`. Guest: `6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-17-exact-3.log`):
 
 ```text
-# item-17-exact-3.log
+# item-17-exact-3.log, names elided
 batch process uid=0
 lzc_destroy_snaps([...], defer=false): 0 (Success)
 ioctl(3, 0x5a3b, 0x7ffc3a904b90)        = 0
@@ -856,8 +857,8 @@ refusal.
 
 ### What item 17 did not show
 
-- No user hold, `defer` key, larger set, split or batch limit. Item 14's request limits stand and were not
-  repeated here.
+- No user hold, `defer` key, larger set, split or batch limit. Item 14 left request limits unmeasured, and they
+  remain unmeasured.
 - No route through the proposed binding, the root handler or a conditional channel program; the helper is the
   fixture item 14 used, called as the account.
 - No unpromoted clone, other clone topology or encryption root, other OpenZFS release, or `7.3.5-1-cachyos`.
