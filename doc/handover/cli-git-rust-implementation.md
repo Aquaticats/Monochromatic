@@ -40263,6 +40263,14 @@ mechanism labelled inferred. **New dependency edge** `@monochromatic-dev/caught-
 after the merge the main checkout needs `pnpm install --offline --frozen-lockfile`, because every Pi run starts the driver
 from source there; then a real short run from `main` to see the folder made. GOING: a narrow DeepSeek delta check on
 Synthetic (`pi-review-...-temporary-folder-at-9f815bc830-1`).
+Delta check back (95 turns): **0 high, 2 medium, 3 low**. Medium: the README says the mode is set through a descriptor
+and an outside folder "never becomes Pi's", while the code `lstat`s then `chmod`s by path (a swap between them measured);
+the suite was red at the tip on `createSopsFixture` cases (`.env.local.json is not the JSON a sops store is`), which no
+troubleshooting doc records (my earlier briefs called it recorded; it is recorded only here, lines 280-281, with the
+unmerged close-wait branch `74dbe1200e`). Lows: no `cause` on the new error; the `chmod`-failure arm untested; the main
+checkout's link. GOING: the last narrow round (`...-temporary-folder-inside-its-run-3`, run-3): README wording, the sops
+section in the host-load doc, `cause`, the `chmod` arm if a seam fits. Then the coordinator reads the diff and merges,
+with no further review round (the loop-ending rule of the ZFS fold-ins).
 
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed
