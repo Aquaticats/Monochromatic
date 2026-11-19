@@ -40053,11 +40053,32 @@ What follows from them, as work:
   podman's `overlay` storage is under it, both read by the coordinator), 11 on a missing birth time, 16 on the image
   Git's `core.fsmonitor`, the rest on mount evidence and paths; the two standing failures are among them. The Clippy
   step fails with `E0514` (the image's build against the host's mounted `rustc`). No gate result on this host means
-  anything until this is fixed, so every wrapper integration pass waits on it. GOING: the investigation
+  anything until this is fixed, so every wrapper integration pass waits on it. ENDED: the investigation
   `pi-git-policy-cli-container-gate-on-the-zfs-host-investigation` (DeepSeek on Neuralwatt, cap 635, no host change
-  allowed) in `.claude/worktrees/pi-git-policy-cli-container-gate-on-the-zfs-host` from `main`; folder
-  `~/temp/agent/git-policy-cli-container-gate-on-the-zfs-host-investigation-2026-11-19/`. A fix that changes the host
-  (for example a dataset with `utf8only=off` for podman's storage) goes to the owner with its measurements.
+  allowed), `idle` after 194 turns and 48 min; one commit `ae8aa7f5e1` on `docs/git-policy-cli-container-gate-on-the-zfs-host`
+  (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`); report and logs under
+  `~/temp/agent/git-policy-cli-container-gate-on-the-zfs-host-investigation-2026-11-19/`. By its report, on `main`'s
+  build: 185 of 9,173 fail; the gate container sees podman's storage as `fuse.fuse-overlayfs`; causes, each reproduced
+  in the gate's image and shown to pass once removed: names that are not UTF-8 (108), a test helper writing under
+  `target/` (1), no birth time (29), mount type in neither product list (28), Git refusing `core.fsmonitor` on FUSE
+  (10), two `fault_trace` tests expecting `ioctl` from a non-cloning file system (2), three single mount behaviours
+  (3), load-dependent (4 across runs), the two standing failures (2). A tmpfs the container makes as the fixture
+  root (`CLI_GIT_TEST_ROOT`) fixed 179 of the 185, 2.5 times faster on them; host changes (a `utf8only=off` dataset,
+  a Btrfs loop mount) are written down, not run, and not needed. Clippy's E0514: the gate mounts the sysroot of the
+  toolchain the caller's environment resolves; the Pi unit had no `RUSTUP_TOOLCHAIN` (mise sets it from the
+  toolchain lock; read in the coordinator's shell as `nightly-2026-11-16`, which has clippy), so it mounted `nightly`,
+  which has none; with `RUSTUP_TOOLCHAIN=nightly-2026-11-16` Clippy compiled clean. The coordinator read podman's
+  driver as `overlay` with `overlay.mountopt=nodev` and no container or process left. No owner question: the 75 tests
+  of the birth-time, mount-type and monitor causes passed on the Btrfs host's kernel overlay, so a tmpfs fixture root
+  gives back the coverage the gate had there. The investigation worktree was swapped for
+  `.claude/worktrees/git-policy-cli-container-gate-on-a-zfs-host` on `fix/git-policy-cli-container-gate-on-a-zfs-host`
+  from `ae8aa7f5e1` (the removal kept a service journal under
+  `~/.local/state/monochromatic-git-policy-cli/service/ee629147d1e04eca73d3e76546fa6d71` for its claim-watch). GOING:
+  the fix, `pi-git-policy-cli-container-gate-on-a-zfs-host-fix` (DeepSeek on Neuralwatt, cap 635, wall 300 min):
+  the tmpfs fixture root sized from a measured whole-suite run, Clippy taking the locked toolchain itself, the helper
+  test onto the fixture root, the two `ioctl` tests derived from the fixture's file system, README and SPEC passages;
+  brief under `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-fix-2026-11-19/`. Then its short review and
+  an integration pass; the target is the Btrfs host's result: only the standing and load-dependent failures.
 - **GOING**: the hybrid provider prototype (the owner's "Hybrid, prototype first"), unit
   `pi-rate-limit-fallback-hybrid-prototype` (DeepSeek on Neuralwatt, turn cap 380, a quarter above the longest
   finished run on this package, 301; wall 300 minutes, the longest took 260), in
