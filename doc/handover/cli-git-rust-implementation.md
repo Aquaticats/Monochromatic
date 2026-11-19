@@ -40202,6 +40202,16 @@ returned 0 and removed both clone snapshots, the checkout's three snapshot ident
 it returned `EEXIST` naming only that snapshot and nothing was deleted; root's control matched. VM destroyed (`mvm
 --backend libvirt list`: no VMs). GOING: the last fold-in, `pi-zfs-worktree-design-proposal-fourth-fold-in-1` (run-8,
 brief `prompt-fourth-fold-in.md`).
+It ended `idle` (122 turns) at `1975c5c4cc` (fifteen commits from `02592290ee`): a new open choice "Removal when the
+namespace exclusion cannot be shown" (refuse, or destroy anyway with item 15's residual stated), unranked, and the
+acceptance gate points at it; the bookmark cost stated with the way out (`zfs destroy <clone>#<bookmark>`); **a design
+call by the writer**: a bookmark also passes on a tuple the persisted plan recorded, which removes the stranding (reasoning,
+not measured); two acceptance controls added; items 17 (promoted) and 18 (unpromoted) named in the identity choice with
+revision entries; the lows answered; each choice's facts in its own bullet; each veto-open default with an evidence label,
+its cost and the veto sentence. Disagreements: "the full text is in the fence" is not in the record (the diagnostic was
+restored anyway); a bookmark's normal use is a `zfs send` source (`zfs-bookmark.8:48-50`). GOING: a fifth Sonnet check
+of `b26aa27f3c..1975c5c4cc` (background Agent), which also writes each open choice and default in plain words for the
+owner's questions in the morning.
 
 **Provider writer run-7** hit its 200-turn cap after 16 min with nine commits (`cb7d6a66ab` to `dbc6f57268`: OpenAI out
 of the writer pool, the move gated on OpenAI's opening, a set-aside policy stop yielded instead of a later 429, the
