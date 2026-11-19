@@ -2,7 +2,8 @@
  The file Pi keeps a tool's whole output in: how a path is shown to be one of Pi's own, how it is read without waiting on anything
  that is not an ordinary file, and how the masked text is put in its place.
 
- Pi writes those files with mode 0600 in the operating system's temporary folder, named `pi-output-<random hex><extension>`
+ Pi writes those files with mode 0600 in the folder `os.tmpdir()` names, which for one of this package's runs is
+ `temporary-files-pi-wrote/` in the run folder, named `pi-output-<random hex><extension>`
  (`dist/utils/output-files.js` and `dist/core/tools/output-accumulator.js:81` in Pi 1.5.2). A path is accepted only when both of
  those hold, so a file somebody else made is never rewritten on the word of a tool result. The masked text goes to a file of its
  own beside the original and is renamed over it, so the path holds either the whole original or the whole masked text and never a
@@ -48,6 +49,9 @@ const PRIVATE_FILE_MODE = 0o600;
 
 /**
  The folder Pi writes the files it keeps a tool's whole output in.
+
+ For one of this package's runs that folder is `temporary-files-pi-wrote/` in the run folder, because the driver hands Pi the
+ variables that name it (`temporary-folder-of-a-run.ts`), and this function runs inside Pi, so it asks Pi's own process.
 
  Reading this is the one thing this package does with that folder: it writes nothing of its own there, and it uses the folder only
  to tell Pi's own output file from a file some other program named.

@@ -292,6 +292,59 @@ The stop file ending such a run reports `model-error`, not `stop-file`:
 a failure stays until a reply succeeds,
 so a run stopped while its failure is unanswered has not finished its task.
 
+## A session note that went missing, seen once in the suite on 2026-11-19
+
+A review of the temporary-folder change ran the whole package suite once and saw one test fail that
+this record did not name
+(`keep/unit-suite-at-tip.log` in
+`/home/user/temp/agent/change-reviews/pi-shared-subagent-driver-gives-pi-a-temporary-folder-inside-its-run-at-b0324ec24b/`):
+
+```text
+[drive-pi-subagent] [leaves a session alone that Pi reports and this run did not make]
+[FAIL] (3.6s) AssertionError: expected 'undefined' to include 'other-run.jsonl'
+@drive-pi-subagent.unit.test.ts:2254 expect(String(noted?.problem,),).toContain('other-run.jsonl',);
+```
+
+The line numbers are those of the commit the review read (`b0324ec24b`);
+the test is named here, so a later reader finds it wherever it has moved to.
+
+The test resumes a session and has its stand-in Pi report another run's session file,
+which a run must refuse and note as `session_at_rest` with the file's name.
+The failing line means no such note was written,
+which happens when the run decided Pi named no file at all and masked its own copy,
+so the answers that should have named the reported file did not.
+That mechanism is **inferred** from the source and from what the test needs,
+not observed: no answer of the stand-in was kept from the failing run.
+
+### What each run answered
+
+The same test file was run four times on 2026-11-19 away from the suite,
+twice at the branch's tip and twice with `src/supervise-pi-run.ts` put back to `main` in a scratch copy
+of the package:
+
+- Tip run one and tip run two:
+  the whole file passed,
+  no `[FAIL]` line
+  (`keep/session-flake-tip-run-1.log` and `keep/session-flake-tip-run-2.log`).
+- The control's two runs:
+  the only failing test was the new folder test,
+  which is what `main`'s supervisor is expected to fail,
+  and the session test passed in both
+  (`keep/session-flake-control-run-1.log` and `keep/session-flake-control-run-2.log`).
+
+The review measured the same test green six times alone at the tip and three times at `main`,
+and measured it taking 3.6 s inside the suite against 1.6 s for the two tests alone,
+so the suite is about twice as slow per test there.
+
+The test did not reproduce in the four runs above,
+nor in the review's nine runs outside the suite.
+The one failing run was inside the suite,
+and what is recorded here is that the same test can fail there while passing alone,
+which is the contention this record names rather than a defect a run can be pointed at yet.
+A suite run that fails on this test alone is this record's subject,
+and a suite run that fails on it should keep the failing run's feed and stand-in log before anything
+is concluded.
+
 ## Limits of this record
 
 - The failing test name from the original report was never kept,

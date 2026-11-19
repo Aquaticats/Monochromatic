@@ -1074,6 +1074,16 @@ the launcher that builds the session's environment asks it, once, before it make
   gives it mode `0700`,
   and starts Pi with `TMPDIR`, `TMP` and `TEMP` naming it,
   so no caller passes `TMPDIR` by hand.
+  A run folder that is not there yet is made by this `mkdir` too,
+  at `0700` for the same reason,
+  because `mkdir` applies its mode to every folder it creates;
+  a launcher makes the run folder first at the default mode,
+  so this reaches a driver started by hand.
+  A link planted under the folder's name is refused rather than followed:
+  the driver opens the folder without following a link and sets its mode through that descriptor,
+  so a folder outside the run folder never becomes Pi's,
+  and a run that cannot make the folder stops before it starts Pi,
+  with `TemporaryFolderNotMadeError` naming the folder and what the operating system answered.
   The folder is kept once the run ends:
   the run's session transcript names the files in it,
   so a reader follows those paths to what Pi kept.
