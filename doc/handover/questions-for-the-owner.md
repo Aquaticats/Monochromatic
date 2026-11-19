@@ -31,8 +31,13 @@ go into the plan's fix round, and leave this file once the accepted plan holds t
   here and the toolchain install placed after the mpm-shadow change by the answer of 2026-11-17: "Container, narrow
   install (Recommended)". Step 1's tests and Clippy run in the wrapper's gate image (`cargo-nextest` and Rust from
   pacman, `package/git-policy/cli/native-test-base.Containerfile`); only the tools no image gives are installed now,
-  one at a time from their lock rows; the full toolchain install still waits for the mpm-shadow change. Not yet
-  checked: whether a one-tool install exists; if none does, this comes back to the owner.
+  one at a time from their lock rows; the full toolchain install still waits for the mpm-shadow change. Checked the
+  same evening: no one-tool host install exists (`package/mpm-shadow/cli/README.md`, entry
+  "`mpm-shadow install [<tool>...]`": with a tool it still "installs every locked tool that is not at its locked
+  version"). Adopted instead, narrower than the answer allowed and open to the owner's veto: step 1's checks run
+  wholly in a container from the gate's base image, with `file-enforcer` and the repository linter taken inside it
+  from their lock rows' `linux-x64` archive and sha256 (rule `CM7`'s container route) and `cargo-fuzz` (no archive
+  row) from pacman or built inside the container; nothing is installed on the host.
 
 ## Answered in the question tool, recorded 2026-11-19T17:10:00-05:00
 
