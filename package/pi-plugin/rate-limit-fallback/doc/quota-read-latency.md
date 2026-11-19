@@ -52,6 +52,12 @@ The timeout the read is bounded by covers credential resolution, both requests
 and both body reads, so the quota arm is timed around the whole `probeQuota`
 call. The control arm is timed around one request and its body read.
 
+The pools also list `qwen-token-plan-individual/deepseek-v4.1-flash-1017` and
+`opencode-go/deepseek-v4.1-flash`. Both resolve an authorization through the same
+registry call, and `probeQuota` returns empty evidence for them without sending
+a request, because neither provider has a quota endpoint (see the README's
+"Provider sources"), so there is no read of theirs to time.
+
 ## Results
 
 Each arm lists median, 95th percentile, highest, lowest, and the run-to-run
