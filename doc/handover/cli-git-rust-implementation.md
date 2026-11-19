@@ -39834,6 +39834,11 @@ the queue now with fallback by hand (Qwen plan first), and build issue 6314 now 
 review, switching the queue to it once it is in main. This session's reading of the second sentence, open to the
 owner's veto: a provider's limit changes over time, so the virtual provider holds no fixed number as a member's limit,
 and after a refusal moves on and later tries the preferred member again rather than demoting it for good.
+Then, in plain text: "Some providers do have published rate limits or end points. These should be preferred and called
+at key times." Read as: a member's published limit or limit endpoint is used over guessing from refusals, and called at
+the moments that decide something (before returning to a member that refused, when a refusal arrives, when a provider is
+first used), with the member order unchanged; open to the owner's veto. Sent to the running writer through its inbox
+with the endpoints this repository records (Neuralwatt `/v1/quota` and `/v1/rate_limits`, Synthetic `/v2/quotas`).
 
 ### A virtual Pi provider with models writer and reviewer, deferred (2026-11-18, evening)
 
