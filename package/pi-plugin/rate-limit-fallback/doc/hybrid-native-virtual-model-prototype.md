@@ -3,7 +3,9 @@
 **Status: unapproved, non-final.** Written by an agent on 2026-11-19, in the worktree
 `.claude/worktrees/pi-rate-limit-fallback-hybrid-prototype`, branch
 `feat/pi-plugin-rate-limit-fallback-hybrid-prototype-native-virtual-model-routes-to-the-pool`.
-Nothing here is adopted: the owner decides whether a rebuild follows.
+The answers to the short review, and the new captures they cite, were written the same day in
+`.claude/worktrees/pi-qwen-review-rate-limit-fallback-hybrid-prototype-at-7328d0ca9d` on the same
+branch. Nothing here is adopted: the owner decides whether a rebuild follows.
 
 This page answers one question from the owner's decision of 2026-11-19
 (`doc/handover/questions-for-the-owner.md`, "Virtual provider point 4", third answer, "Hybrid,
@@ -43,12 +45,15 @@ Files, all in `package/pi-plugin/rate-limit-fallback/src/hybrid-prototype/`:
 - `captured-refusal-text.ts`: every refusal body, each with its capture or source;
 - `prototype-evidence.ts`: the stderr evidence line and the limit projection.
 
-The prototype's only change to shipped code is `src/dispatch-request.ts` taking an optional `pools`
+The prototype touches shipped code in one place: `src/dispatch-request.ts` takes an optional `pools`
 table, defaulting to `POOLS`, so the prototype's probe pool can reuse the package's exact dispatch
 loop. Its pool id check is `Object.hasOwn(pools, id)`, so a key inherited from `Object.prototype`
 (`constructor`, `toString`, `__proto__`) is refused with `PoolDispatchError` instead of reaching the
-member loop. The caller-options projection moved unchanged into `src/member-attempt-options.ts` to
-keep `src/dispatch-request.ts` under the repository's 300-line lint cap (rule `MXL`).
+member loop. Beside that, two changes ship for the package's own tests and its lint cap: the
+caller-options projection moved unchanged into `src/member-attempt-options.ts`, to keep
+`src/dispatch-request.ts` under the repository's 300-line cap (rule `MXL`), and `src/index.ts`
+re-exports `dispatchRequest`, `PoolDispatchError`, `RoutingSession` and `Member` as `@internal` so a
+built-artifact test can reach the pool table.
 
 Sessions load the prototype by `--no-extensions --extension <path>`, which is the only per-session
 option Pi offers for this; the installed package in `~/.pi/agent/settings.json` stays untouched and
@@ -289,7 +294,7 @@ network: its members were stand-ins, so those arms cost nothing.
 
 ## Checks run
 
-All five tasks were run after the last edit to the package, from this worktree, through
+All five tasks were run after the last edit to the package's code, from this worktree, through
 `mise run //package/pi-plugin/rate-limit-fallback:<task>`.
 
 - `build`: passes.
