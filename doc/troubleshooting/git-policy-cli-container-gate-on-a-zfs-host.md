@@ -1,0 +1,472 @@
+# The git-policy-cli gate's containers on a ZFS host: five mount behaviours fail 185 native tests, and Clippy's step fails with E0514
+
+Investigated on 2026-11-19T17:00:41-05:00 in
+`.claude/worktrees/pi-git-policy-cli-container-gate-on-the-zfs-host` (branch
+`docs/git-policy-cli-container-gate-on-the-zfs-host`, from `main` `cff64adfa0`), against the release
+`0.6.1-alpha.44` snapshot in the gate's own image, under podman 6.2.0 on CachyOS, kernel 7.3.5.
+
+The gate is `mise run //package/git-policy/cli:native:test:container`
+(`bin/test-native-container.ts`), whose substantive step is the whole suite and Clippy in two
+containers built from one source image.
+
+## Symptom
+
+The gate's suite fails on this host, and its Clippy step does not compile:
+
+```text
+Summary [1053.402s] 9173 tests run: 8988 passed (8 slow), 185 failed, 28 skipped
+...
+Clippy failed with status 101: Compiling proc-macro2 v1.0.107
+...
+error[E0514]: found crate `monochromatic_jsonc_edit` compiled by an incompatible version of rustc
+   = note: the following crate versions were found:
+           crate `monochromatic_jsonc_edit` compiled by <unknown rustc version>: /work/package/git-policy/cli/target/debug/build/monochromatic-jsonc-edit/89d1ae7d2fcfb4cc/out/libmonochromatic_jsonc_edit-89d1ae7d2fcfb4cc.rmeta
+   = help: please recompile that crate using this compiler (rustc 1.100.0 (0ef1bc386 2026-11-09) (Arch Linux rust 1:1.100.0-1)) (consider running `cargo clean` first)
+```
+
+On the previous host, a Btrfs machine, the same gate failed six of 9,173 tests
+(`doc/handover/cli-git-rust-implementation.md`, the gate on `0f07c4f0ee`). This host fails 185.
+
+The mise task cannot be run as written here either: its first step
+`cargo-shadow lean records target/verification` fails, because `cargo-shadow` and `cargo-nextest` are
+not installed on this host (`mise ls` prints nothing). Every run below is the task's second step,
+`node bin/test-native-container.ts`, or the image it builds, run the way the gate runs it.
+
+## The host, as measured
+
+- `/home` is `zpcachyos/ROOT/cos/home`:
+  `utf8only=on`, `normalization=formD`, `casesensitivity=sensitive`, `acltype=posix`, `longname=off`
+  (`zfs get -H -o property,value ...`). ZFS 2.4.4.
+- `podman info --format '{{.Store.GraphDriverName}} {{.Store.GraphRoot}}'` answers
+  `overlay /home/user/.local/share/containers/storage`, both on that dataset.
+- Inside a container the repository tree is a **user-space** overlay: `stat -f --format=%T` prints
+  `fuse`, `/proc/self/mountinfo` names the type `fuse.fuse-overlayfs`, and `statfs` gives
+  `f_type = 0x65735546` (`FUSE_SUPER_MAGIC`). On the Btrfs host the same tree was a kernel `overlay`.
+- The gate image (`localhost/git-policy-native-test:development`, built 2026-11-19T19:30Z from
+  `localhost/git-policy-native-test-base:cfc6cb4ce2c8-97221c29742b`) carries rustc 1.100.0
+  (Arch 1:1.100.0-1), cargo 1.100.0, git 2.56.1, cargo-nextest 0.9.151.
+- The host's `rustc --print sysroot` answers
+  `/home/user/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu` (rustc 1.102.0-nightly, 5df8c02af),
+  whose `bin/` holds `cargo`, `rustc`, `rustdoc` and the gdb wrappers and **no `cargo-clippy` and no
+  `clippy-driver`**. `/usr/bin/rustc` is a symlink to `/usr/bin/rustup`.
+- The repository's locked toolchain is `nightly-2026-11-16` (`toolchain.lock.json`, "rust"), installed
+  here with `cargo-clippy` and `clippy-driver` (rustc 1.102.0-nightly, 5f4effd57).
+
+Four mount facts follow from those two settings, and every cause below is one of them or a
+consequence:
+
+- a name that is not UTF-8 is refused by the dataset (`utf8only=on` with `normalization=formD`);
+- the fuse mount records no birth time (`stat --format=%w` prints `-`);
+- the fuse mount's type is in neither of the product's two "local file systems" tables;
+- Git reads a FUSE mount as a remote working tree.
+
+## Cause A: a name that is not UTF-8 is refused (109 tests)
+
+Reproduction, on the host with no container: `mkdir` of a name whose last byte is `0xFF` under the
+investigation scratch folder (on `zpcachyos/ROOT/cos/home`) fails
+`errno=84 Invalid or incomplete multibyte or wide character`; the same call under `/dev/shm`
+succeeds. Inside the gate's image the same pair repeats against `/work/package/git-policy/cli/target/tmp`
+(fails, `errno` 84) and `/dev/shm` or a `--tmpfs` mount (both succeed), so the refusing layer is the
+dataset, reached through podman's storage, and not FUSE.
+
+The product and its fixtures create names Git itself accepts, such as `not-utf8-\xFF` and
+`caf\xe9.md`, and those creations fail. Two shapes of failure appear: the test's own create fails
+(`worktree file: Os { code: 84, ... }`), or the fixture's Git command fails
+(`git ["branch", "lost-\xFF"] failed: fatal: cannot lock ref ... Unable to create ... Invalid or
+incomplete multibyte or wide character`).
+
+The 108 tests this cause covers include every one whose name says so, for example
+`candidate::candidate_store::tree_tests::a_pushed_tree_lists_a_name_that_is_not_utf8_exactly`,
+`commit::capture_invocation::tests::a_repository_whose_name_is_not_utf8_is_captured`,
+`policy::policy_catalog_specifiers::tests::path_cases::a_manifest_below_a_name_that_is_not_utf8_is_still_checked`,
+`shadow::shadow_create::tests::a_ref_name_that_is_not_text_does_not_stop_the_shadow`,
+`worktree::worktree_trash::safety::a_non_utf8_worktree_is_named_by_a_record_and_emptied_by_its_path_bytes`
+and the eleven `event_path_commit` tests. The full list is `cause-A-non-utf8-name.txt`, in the
+investigation folder named at the end of this doc.
+
+Positive control: all 108 pass once the fixture root is a tmpfs (the workaround below).
+
+## Cause A2: one test writes through a scratch helper the fixture root does not move (1 test)
+
+`landing::service_claim_watch::tests::a_path_is_kept_byte_for_byte` still fails with `errno` 84 under
+the tmpfs workaround, because its own helper bypasses the knob:
+
+```rust
+// package/git-policy/cli/src/native/landing/service_claim_watch_tests.rs:77
+fn scratch(name: &str) -> PathBuf {
+    let directory: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target").join("claim-watch-tests").join(format!("{name}-{}", std::process::id()));
+```
+
+Every other test file builds its root from `fixture_root()`
+(`src/native/testing/test_support.rs`, `FIXTURE_ROOT_VARIABLE`), or from the binary face's
+`fixture_root()` (`src/native/binary/binary_support_fixture_directories.rs`), and both read
+`CLI_GIT_TEST_ROOT`. This one writes under the crate's `target/`, which stays on the dataset. It is a
+defect of ours, of one line, and no host change removes it.
+
+## Cause B: the mount records no birth time (29 tests)
+
+Inside the image, `stat --format=%w` of a file under `/work/package/git-policy/cli/target/tmp`
+prints `-`, and the same call on `/dev/shm` or a `--tmpfs` mount prints a time.
+
+The product proves a left-behind lock is gone by comparing birth times
+(`src/native/lock/lock_birth_times.rs`), and the worktree-copy stage decides whether a stage was left
+by an interrupted command by the same proof. With no birth time the answer is "unproven", and the
+tests assert the proven answer. Two wordings appear:
+
+```text
+this file system cannot show that <lock>~pid.lock was born after <lock>.lock: the lock is None and the PID file None
+nothing shows what payload is (creation time is not available for the filesystem), so nothing below it was examined
+```
+
+The 29 tests are the eleven `lock::abandoned_lock_proving_tests`, the five
+`worktree_copying::worktree_copy_stage_claim` reap controls, the eleven `killed_holder_lock` binary
+controls, `lock::lock_birth_times::tests::the_hidden_and_coarse_arms_report_what_other_file_systems_do`
+and `worktree_copy_concurrent::an_add_says_nothing_about_a_lock_a_live_program_holds_in_another_worktree`
+(`cause-B-birth-time.txt`). Three of the five stage controls assert an outcome without printing the
+reason; they belong to this group because their module's other two print it.
+
+Positive control: all 29 pass on a tmpfs fixture root.
+
+## Cause C: the mount's type is in neither local file system table (28 tests)
+
+The product reads a descriptor of another process's file only when the mount's type is on a list of
+file systems whose attributes are in the kernel:
+
+```rust
+// package/git-policy/cli/src/native/process/open_file_of_a_descriptor.rs:61
+const READ_IN_MEMORY_FILE_SYSTEMS: [&str; 7] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "zfs", "bcachefs"];
+```
+
+and it judges a left-behind reference lock only on a local file system:
+
+```rust
+// package/git-policy/cli/src/native/lock/stale_ref_lock_judge.rs:99
+pub(crate) const LOCAL_FILE_SYSTEMS: [&str; 8] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs"];
+```
+
+The mount's `/proc/<pid>/mountinfo` type is `fuse.fuse-overlayfs`, which is on neither list, so a lock
+whose holder is a live process reads as unproven and is cleared, a live holder is not seen, and a copy
+a program holds open is removed:
+
+```text
+unresolvable: ["PID 28169 fd 3: its mount is a `fuse.fuse-overlayfs` file system, whose attributes are not in the memory of this kernel, so the file is not read"]
+Unproven("it sits on a `fuse.fuse-overlayfs` file system, which a Git on another machine may share")
+the scan never saw the holder 50772
+```
+
+The 28 tests are the ten `lock::stale_ref_locks`, `lock::index_lock_holders`,
+`lock::index_holder_wait`, the three `process` controls (`process::open_file_of_a_descriptor` and
+two `process::process_use`), `merge::merge_isolation::repository_tests`, the three
+`merge::merge_isolation_recovery`, `merge_never_fails::a_merge_that_meets_a_holder_proven_alive_saves_itself_at_once`,
+two `landing::service_index_lock`, `landing::service_index_unheld_removal`, two
+`landing::service_land_reference_lock` and the three `wait_notice` binary controls
+(`cause-C-mount-type.txt`).
+
+Reading `/proc/<pid>/fd` of a descriptor of a file on this mount works (measured: the link resolves on
+the fuse mount, on `/dev/shm` and on a `--tmpfs`), so the refusal is the product's list, not the
+kernel's ability.
+
+Positive control: all 28 pass on a tmpfs fixture root, whose mount type is `tmpfs`.
+
+## Cause D: Git refuses `core.fsmonitor` on a FUSE mount (10 tests)
+
+Reproduction inside the image, with a repository whose `core.fsmonitor` names a program that appends
+to a marker file, on the fuse mount: `git status` prints
+`warning: remote repository '<repo>' is incompatible with fsmonitor` and the program does not run. On
+a `--tmpfs` mount the same repository runs the program and prints no warning. On the fuse mount with
+`-c fsmonitor.allowRemote=true` the program runs, so the mount and not the program is the cause.
+
+Git's source explains the wording: `check_remote()` refuses a working directory that
+`fsmonitor__is_fs_remote()` calls remote unless `fsmonitor.allowRemote` is true
+([`fsmonitor-settings.c` lines 45-58](https://github.com/git/git/blob/f7de81456940dd6f3274e461149bba12965de609/fsmonitor-settings.c#L45-L58)),
+and on Linux "remote" includes `FUSE_SUPER_MAGIC`
+([`compat/fsmonitor/fsm-path-utils-linux.c` lines 42-57](https://github.com/git/git/blob/f7de81456940dd6f3274e461149bba12965de609/compat/fsmonitor/fsm-path-utils-linux.c#L42-L57)):
+
+```c
+static int is_remote_fs(unsigned long f_type)
+{
+	switch (f_type) {
+	case CIFS_SUPER_MAGIC:
+	...
+	case FUSE_SUPER_MAGIC:
+		return 1;
+```
+
+Both files were read at commit `f7de81456940dd6f3274e461149bba12965de609` through the GitHub REST API,
+which returns the bytes of that commit; the numbers above are that read. A rendered-page check was
+attempted and the browser could not start in this session (see "What does not work").
+
+The ten tests (`cause-D-fsmonitor.txt`) are `invocation::hooks_off::tests::{a_forwarded_start_runs_the_core_fsmonitor_program,
+the_wrappers_own_start_never_runs_the_core_fsmonitor_program}`,
+`repo_read::repo_read_config_typed::tests::{the_query_readers_equal_git_under_a_user_level_fsmonitor_true,
+the_query_readers_equal_git_when_the_monitor_cannot_start}`,
+`repo_read::repo_read_index::tests::an_index_with_the_monitor_and_untracked_cache_extensions_is_read`,
+`binary_hooks_off_escape::{a_forwarded_command_runs_the_core_fsmonitor_program,
+a_wrapped_commit_never_runs_the_core_fsmonitor_program}`,
+`native_git_bound::{a_native_git_command_that_never_answers_ends_at_its_bound_and_names_it,
+a_native_git_read_ended_at_its_bound_does_not_wait_for_a_hook_s_descendant}` and
+`service_landing_state::a_native_git_read_that_never_answers_ends_at_the_harness_bound_and_names_it`.
+The four `hooks_off`/`hooks_off_escape` controls exist to prove that the wrapper *does* run the
+person's monitor and the wrapper's own Git does not, so a monitor that never runs in either arm makes
+both halves fail; the two bound controls use a monitor program that never answers to prove a bound,
+and Git answers at once because it never starts that program.
+
+Positive control: all ten pass on a tmpfs fixture root.
+
+## Cause E: the copy flow makes no `ioctl` where the file system is neither Btrfs nor overlayfs (2 tests)
+
+```text
+copy lists calls its flow never makes, so faulting them would test nothing: ["ioctl"] (measured [("ioctl", 0)])
+```
+
+`COPY_KILL_CALLS` (`src/native/binary/binary_fault_trace_tests.rs:1041`) lists `ioctl` because on
+Btrfs and on a kernel overlay it carries the `FICLONE` that fills each staged file. The efficient
+worktree-copy method is chosen by file system: Btrfs and overlayfs clone, every other file system
+lets Git check the worktree out (`src/native/health/doctor_filesystem.rs:255`, and the ladder the
+message names). A `fuse.fuse-overlayfs` mount is neither, so the flow never calls `ioctl`, and the
+control that faults every call in that list fails. The second test,
+`fault_trace::a_worktree_copy_killed_at_each_ioctl_leaves_a_recoverable_repository`, is the same
+failure for the `ioctl` entry alone.
+
+A tmpfs fixture root does not fix these two: tmpfs is not on the cloning list either (measured, both
+arms still fail). The two ways out are a fixture root on a Btrfs or overlay mount, or a change to what
+the kill list demands on such a file system. The two tests are `cause-E-reflink.txt`.
+
+## Cause F: three single behaviours of the mount
+
+Each of these fails alone, for its own reason, and each passes on a tmpfs fixture root.
+
+- `index::index_reset_file::tests::the_file_mode_under_a_default_acl_equals_git`: a directory with a
+  default ACL of `u::rwx,g::---,o::---` gives a file mode `0644` on this mount and `0600` on tmpfs
+  (measured with `setfacl --default --modify ...` and one create on each). The dataset has
+  `acltype=posix`, so the ACL is accepted and then not applied to the new file, and the test sees
+  Git's index at `0664` where it expects `0660`.
+- `worktree::worktree_completion::tests::an_error_that_is_not_a_conflict_fails_the_inspection`: the
+  test builds a 300-byte name and expects an error that is not a conflict. `lstat` of that name
+  answers `ENOENT` on this mount and `ENAMETOOLONG` on tmpfs (measured from a Rust probe running the
+  two calls the product makes), and `is_conflict_error`
+  (`src/native/worktree/worktree_completion_file_inspection.rs:99`) reads `NotFound` as a conflict.
+- `transaction::transaction_git::tests::input_files_leave_nothing_behind`: the input file is created,
+  opened and unlinked, and the product then lists the scratch directory and finds one entry
+  (`left: 1`). `strace` shows the `unlink` returns 0 before that listing, and the same directory is
+  empty when listed afterwards (measured with `CLI_GIT_KEEP_FIXTURES=1`). A file created, opened,
+  unlinked and listed in one process leaves nothing on this mount in a Python probe, and its link
+  count reads 1 where tmpfs reads 0; which layer keeps the entry in the product's listing (the
+  kernel's FUSE directory cache or fuse-overlayfs's own) was not isolated.
+
+## Cause G: tests that fail only in a busy full run
+
+Four tests failed in one full run and passed in another run of the same build:
+`package_repair::pnpm_runs_in_the_new_worktree_only` (failed in the full suite, passed in both
+filtered runs of the same list), `package_repair::quiet_runs_the_repair_and_says_nothing_about_success`
+and `fault_trace::a_disk_that_fills_during_a_commit_leaves_a_recoverable_repository` (failed on the
+LFS branch's build, passed on `main`'s) and
+`push::bounded_push::tests::a_push_that_floods_and_ends_keeps_its_status_and_says_its_output_was_cut`
+(failed on `main`'s full suite, passed in three filtered runs). Two of these run `pnpm`, and the
+flood control decides a process's ending from a short look; both are the shape that a loaded host
+moves. They are not causes of the gate's failure on this host, and none of them names a mount fact.
+
+## Cause H: the two standing failures
+
+`repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone`
+and `service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing` fail here
+and failed on the Btrfs host (`doc/handover/cli-git-rust-implementation.md`, the standing three, of
+which `owed_push` passed on this host). Both complain that a scratch directory named
+`cli-git-lock-holders` is left behind. They fail with the fixture root on tmpfs as well, so no mount
+change touches them, and they are not this host's doing.
+
+## Verification
+
+Versions: the image above (rustc 1.100.0, git 2.56.1, cargo-nextest 0.9.151), podman 6.2.0,
+ZFS 2.4.4, kernel 7.3.5-1-cachyos, `main` at `cff64adfa0` (this branch changes docs only, so its tree
+is `main`'s build).
+
+The harness is the gate's own image, run exactly as the gate runs it, with a nextest filter
+expression that names the failing tests:
+
+```sh
+podman run --init --network=none --memory=2g --cpus=4 --pids-limit=1024 --blkio-weight=10 \
+  --cgroup-conf=io.weight=10 <image> \
+  cargo nextest run --offline --locked --all-targets --no-fail-fast --success-output=never \
+  -E 'test(/^(<names separated by | >)$/)'
+```
+
+The tests the gate's whole suite failed on `main`'s build are the 185 in
+`main-failing-names.txt`. Running that list as its own arm, twice, and with the workaround, twice,
+gave:
+
+- as-is: 184 then 183 of 185 failed; 103.9 s and 103.8 s; the container's `memory.peak` 430 MB and
+  409 MB;
+- `--tmpfs /gate-fixtures` with `CLI_GIT_TEST_ROOT=/gate-fixtures`: 5 of 185 failed, twice; 40.9 s
+  and 42.0 s; `memory.peak` 681 MB and 680 MB;
+- a host `/dev/shm` directory mounted there with the same variable: 5 of 185 failed, twice; 43.9 s
+  and 42.8 s; `memory.peak` 687 MB and 601 MB.
+
+The residual five are cause E (two), cause A2 (one) and cause H (two).
+
+The full suite ran once on `main`'s build, as the control: 185 of 9,173 failed, listed above. The
+earlier session's LFS branch failed 187 of 9,189; comparing the two lists leaves four differences and
+every one of them is a test that failed in one run and passed in another of the same tree
+(`package_repair::quiet_runs_the_repair_and_says_nothing_about_success`,
+`fault_trace::a_disk_that_fills_during_a_commit_leaves_a_recoverable_repository` and
+`merge::merge_isolation_carry_apply::tests::a_save_whose_bytes_accept_the_whole_merge_is_not_replaced_by_the_captured_layer`
+on the LFS build; the flood control on `main`'s). So this host's failures are the same list
+whichever build of the wrapper runs them.
+
+What does not run here, and is not a failure of the gate: `cargo-shadow` and `cargo-nextest` are
+absent, so the mise task's first step fails and only its second step runs.
+
+## Verified workarounds that change no host setting
+
+Both move the tests' fixture root off the fuse mount, which removes causes A, B, C, D, F and the
+flaky arm of G: 108 + 29 + 28 + 10 + 3 = 178 tests, plus one flaky one. Neither touches the two
+standing failures, cause E or cause A2, so the gate would still be red at 5.
+
+The knob already exists for this and is documented as such (`FIXTURE_ROOT_VARIABLE` in
+`src/native/testing/test_support.rs`: "Environment variable that moves the fixture root, for example
+onto a tmpfs for speed"). Neither way can be passed through `bin/test-native-container.ts` as it
+stands: the gate accepts only `--memory`, `--cpus` and `--pids-limit` and passes no `--env` and no
+`--tmpfs` to `podman run` (`bin/native-gate-container.ts`, the two `runGateContainer` calls in
+`bin/test-native-container.ts`). So each is a change to the gate, not to the host.
+
+### A tmpfs the container makes for itself
+
+The gate's `podman run` adds `--tmpfs /gate-fixtures:rw,size=1500m,mode=1777 --env
+CLI_GIT_TEST_ROOT=/gate-fixtures`.
+
+- Measured: 5 of the 185 fail (179 fixed); 2.5 times faster than the as-is arm (103.9 s against
+  41 s, both arms run twice, interleaved); about 250 MB more peak memory in the container's cgroup
+  (430 MB against 680 MB of a 2 GiB cap), which is the fixtures' own bytes.
+- What it changes about what the tests test: the fixture root becomes a tmpfs, so the mount-dependent
+  controls exercise the "birth time present, mount on the local list, Git may run a monitor" arms and
+  no longer exercise the absent-birth-time and FUSE arms; `lock::lock_birth_times::tests::
+  the_hidden_and_coarse_arms_report_what_other_file_systems_do` remains the synthetic control for
+  those arms. One control skips itself by design: `binary_fixture_tests::
+  fixtures_are_created_outside_the_system_temporary_directory` returns early when the variable is set
+  (`src/native/binary/binary_fixture_tests.rs:132`). The worktree-copy ladder then reads `tmpfs`
+  instead of `fuse.fuse-overlayfs`, which is a different "other file system" branch, and the
+  `fault_trace` kill list still names a call the flow does not make (cause E).
+- The `size=1500m` is a ceiling under the container's 2 GiB memory cap; a run that outgrows it fails
+  with `ENOSPC` rather than with a mount cause. No run here came near it (peak growth 250 MB).
+
+### A host tmpfs directory, bind-mounted
+
+The same variable and mount, with `--mount type=bind,source=<a directory on a host tmpfs>,
+destination=/gate-fixtures`, the host directory made `0777` first.
+
+- Measured: the same 5 failures, 43.9 s and 42.8 s, `memory.peak` 687 MB and 601 MB.
+- It costs the same and needs a host directory to exist and be world-writable, which is a change to
+  the host's state (though not to any configuration), so the container-made tmpfs is the better of
+  the two.
+
+## Ways that change the host (not run here)
+
+Each needs the owner's authorization; none was run.
+
+- A ZFS dataset with `utf8only=off` and `normalization=none` for podman's storage would remove cause
+  A and A2 (109 tests) and nothing else: the fuse mount stays FUSE, so B, C, D, F and E stay.
+  ```sh
+  sudo zfs create -o utf8only=off -o normalization=none -o mountpoint=/var/lib/containers-zfs zpcachyos/ROOT/cos/containers
+  sudo systemctl stop podman.socket 2>/dev/null; podman system reset --force
+  ```
+  and a `~/.config/containers/storage.conf` naming `driver = "overlay"` with
+  `graphroot = "/var/lib/containers-zfs/storage"`, then `podman system reset` again so the store is
+  rebuilt. `podman system reset` deletes every image and container of this account, the gate's own
+  images included.
+- A kernel `overlay` or Btrfs mount under the fixture root would remove causes A to F at once, and Btrfs
+  or an overlay would also make the copy flow clone, removing cause E. Reaching either from a ZFS host
+  means a loop device or a dataset of another type mounted by root, for example
+  ```sh
+  sudo truncate --size=40G /var/lib/gate-btrfs.img && sudo mkfs.btrfs /var/lib/gate-btrfs.img
+  sudo mount --options loop /var/lib/gate-btrfs.img /var/lib/gate-btrfs
+  ```
+  and then `--mount type=bind,source=/var/lib/gate-btrfs,destination=/gate-fixtures` with
+  `CLI_GIT_TEST_ROOT=/gate-fixtures`. If the device stays Btrfs, the mount type the product and Git
+  see is `btrfs`, which is on both of the product's lists, has birth times, takes any byte in a name,
+  and clones. Whether a bind mount of Btrfs inside a `fuse-overlayfs` container reports `btrfs` as
+  the mount type was not measured, since mounting it needs root.
+- Changing podman's storage driver to `vfs` would put every layer on the same dataset, so it changes
+  nothing here.
+
+## Clippy's E0514
+
+The gate's Clippy container mounts the host's `rustc` sysroot read-only and runs the host's cargo
+from it:
+
+```text
+--volume <host sysroot>:/toolchain:ro
+--env PATH=/toolchain/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+--env RUSTC=/toolchain/bin/rustc
+--env RUSTDOC=/toolchain/bin/rustdoc
+/toolchain/bin/cargo clippy --offline --locked --all-targets -- -D warnings
+```
+
+`cargo clippy` is not part of cargo: it looks for `cargo-clippy` on `PATH`, which sets
+`clippy-driver` as the wrapper for the workspace's own crates. On this host the mounted sysroot is
+`nightly-x86_64-unknown-linux-gnu`, whose `bin/` has no `cargo-clippy` and no `clippy-driver`, so both
+are found later in `PATH`, in the image:
+
+```text
+toolchain bin: cargo rust-gdb rust-gdbgui rust-lldb rustc rustdoc
+cargo-clippy -> /usr/sbin/cargo-clippy
+clippy-driver -> /usr/sbin/clippy-driver, version clippy 0.1.100
+rustc -> /toolchain/bin/rustc, rustc 1.102.0-nightly (5df8c02af 2026-11-16)
+```
+
+The dependencies are then compiled by rustc 1.102.0-nightly, and the wrapper itself by the image's
+clippy 0.1.100, which cannot read their metadata: E0514, whose help line names the 1.100 compiler
+that is failing. Thirteen errors for the library and fifteen for its test target, none of them about
+the sources. The same command succeeds where both compilers come from one toolchain:
+
+- with the image's own toolchain (no mount, no `RUSTC`): `cargo clippy --offline --locked
+  --all-targets -- -D warnings` exits 0 in 83 s;
+- with the repository's locked toolchain mounted (the same command with
+  `--volume /home/user/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu:/toolchain:ro`
+  and the same three variables): exits 0 in 130 s, after recompiling the graph with 1.102.0-nightly.
+
+Either is a fix. The second keeps the Clippy the repository pins; it needs the host to name a sysroot
+whose toolchain has the clippy component, which this host already has. Running the gate as
+`RUSTUP_TOOLCHAIN=nightly-2026-11-16 systemd-run ... node bin/test-native-container.ts` gives
+`rustc --print sysroot` that toolchain and changes no host file; `mise run toolchain:install` would
+make the same toolchain the default instead. The first needs the gate to stop mounting the host's
+sysroot, and then Clippy is the image's pacman clippy (0.1.100) rather than the pinned one.
+
+Every list of test names above is a file beside this investigation's logs, in
+`/home/user/temp/agent/git-policy-cli-container-gate-on-the-zfs-host-investigation-2026-11-19/scratch/`:
+`cause-<cause>.txt` holds the names, `main-failing-names.txt` the 185 the full suite failed, and
+`main185-a1.log`, `main185-b1.log` and their siblings the arms' own nextest output.
+
+## What does not work
+
+- Supplying the variable through `mise`, a shell or the image: the gate's `podman run` passes no
+  `--env`, and the image sets no `ENV CLI_GIT_TEST_ROOT`; nothing inside the container sees a host
+  variable.
+- Moving only `target/tmp` (`CARGO_TARGET_TMPDIR`) or only `target/test-fixtures`: the unit face and
+  the binary face use different roots, and both read the same variable, so one `--tmpfs` with the
+  variable covers both where the helper honours it (cause A2 does not).
+- `podman run`'s `--uidmap` or a different user: the refusal is the dataset's, not the account's; the
+  host's own `mkdir` fails with the same errno.
+- `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED`, which the image sets: it silences the btrfs-only controls, and
+  none of the 185 is a btrfs control.
+- Checking the Git citation in a browser: `agent-browser` could not launch Chrome in this session
+  (`Socket path too long: <run folder>/org.chromium.Chromium.XXXX/SingletonSocket`), and passing
+  `--profile`, `TMPDIR` and `XDG_RUNTIME_DIR` did not move that socket. The two Git files were read
+  through the GitHub REST API at the pinned commit instead.
+
+## Upstream filing decision
+
+Nothing to file, by the six constraints:
+
+1. Not upstream's fault: the five mount behaviours are each documented or deliberate. ZFS refuses a
+   name with `utf8only=on` by design; Git refuses `core.fsmonitor` on a FUSE working tree by design,
+   with a setting to allow it; the product's two file-system lists are ours.
+2. Upstream could not fix what is left: a FUSE mount has no kernel-held birth time to report and no
+   kernel clone, and fuse-overlayfs cannot make its mount type `overlay`.
+3. `fsmonitor.allowRemote` is upstream's supported answer for the Git part, and we do not set it.
+4. Not reached: constraints 1 to 3 already decide it.
+5. Not reached.
+6. Not reached.
+
+The gate is ours, so what needs a change is here: the gate's `podman run` (the fixture root or the
+Clippy toolchain), one test helper (cause A2) and possibly the kill list's `ioctl` entry on a file
+system that does not clone (cause E).
