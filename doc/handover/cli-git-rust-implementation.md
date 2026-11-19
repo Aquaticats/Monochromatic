@@ -40242,8 +40242,23 @@ What follows from them, as work:
   GOING for it: `pi-driver-a-wake-that-meets-a-started-turn-keeps-the-run` (DeepSeek on Neuralwatt, cap 450) in
   `.claude/worktrees/pi-driver-a-wake-that-meets-a-started-turn-keeps-the-run` on
   `fix/pi-shared-subagent-driver-a-wake-that-meets-a-turn-already-started-keeps-the-run`; brief under
-  `~/temp/agent/pi-driver-a-wake-that-meets-a-started-turn-keeps-the-run-2026-11-19/`. Until both driver fixes are in
-  main, every brief tells its agent to wait for its own jobs inside its turn. The second resume ended `idle` (40 turns)
+  `~/temp/agent/pi-driver-a-wake-that-meets-a-started-turn-keeps-the-run-2026-11-19/`. It ended `idle` (251 turns) at
+  `a755c6d20c` (seven commits; report in that folder's `keep/report.md`): the wake prompt carries
+  `streamingBehavior: 'steer'`, which Pi 1.5.2 queues while the agent run is active (`agent-session.js:1749-1759`,
+  `isStreaming` is the run state) and ignores while it rests; a busy answer, if a Pi ever sends one anyway, keeps the
+  run until that turn settles and writes a `problem` line; a refusal for any other reason still ends `prompt-rejected`;
+  a stand-in scenario reproduces the race, red on the old code and green after; 212 suites pass; a troubleshooting
+  page. It found the same race in two other places and left them as briefed: inbox delivery picks `prompt` from a stale
+  `isRunning()` and then sets the message aside as `.failed-<name>`; the model-error retry reads the busy answer as a
+  refusal and ends the run. GOING: the wake fix's short review on the Qwen plan,
+  `pi-qwen-review-driver-wake-race-at-a755c6d20c` (watched; brief under
+  `~/temp/agent/pi-driver-wake-race-fix-short-review-on-the-qwen-plan-2026-11-19/`), and two follow-ups, each its own
+  run on a branch made from `a755c6d20c` so it builds on the wake fix: `pi-driver-inbox-message-meets-a-started-turn`
+  and `pi-driver-model-error-retry-meets-a-started-turn` (DeepSeek on Neuralwatt, cap 350 each; briefs under
+  `~/temp/agent/` folders of those names dated 2026-11-19; the retry is asked to wait for the running turn and look
+  again rather than queue behind it). Merge order: the `ESRCH` fix, the wake fix, then the two follow-ups. Until the
+  first two are in main, every brief tells its agent to wait for its own jobs inside its turn. The second resume ended
+  `idle` (40 turns)
   with its final report (that folder's `keep/report.md`): branch at `deed732fc1`, five commits (`ddec538f27`,
   `967085d3d3`, `8d1122a6ae` naming a rebound binding apart for `clippy::shadow_unrelated`, `a6eb8ec24c`,
   `deed732fc1`), worktree clean; the tmpfs fixture root sits under `/work` because two `package_repair_prewarm_job`
