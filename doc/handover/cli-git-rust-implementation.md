@@ -40234,6 +40234,15 @@ successor; run `pi-driver-gives-pi-a-temporary-folder-inside-its-run-1` (brief a
 `~/temp/agent/pi-driver-gives-pi-a-temporary-folder-inside-its-run-2026-11-19/`): the driver makes a `0700` folder inside
 the run folder after its emptiness check and starts Pi with `TMPDIR` naming it, with a test that fails first. Then a
 DeepSeek short review and the merge; the skill's launch line then drops `--setenv=TMPDIR`.
+The writer ended `idle` (190 turns) at `b0324ec24b` (three commits): `src/temporary-folder-of-a-run.ts` makes
+`temporary-files-pi-wrote` (`0700`, `chmod` after `mkdir` for the umask) after the emptiness check
+(`supervise-pi-run.ts:190-195`); Pi starts with `TMPDIR`, `TMP` and `TEMP` naming it, overriding the caller's (Node 26.13.1
+reads them in that order, probed); the test failed first (`expected '/tmp' to equal ...`); the folder is kept after the
+run; README and `doc/troubleshooting/secret-values-reaching-a-model.md` updated; lint clean; the full suite fails only on
+the known `secret-values` fixture flake. Noted: `format:dprint` fails with "No files found to format" for this and another
+package (pre-existing, its own follow-up); about 2,875 old `stand-in-session-*.jsonl` files sit in the home folder from
+the suite's earlier fallback (task 364's correction; new runs now write them into the kept folder). GOING: a DeepSeek
+short review on Synthetic (`pi-review-...-temporary-folder-at-b0324ec24b-1`).
 
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed
