@@ -565,10 +565,10 @@ administrative changes, not Linux namespace changes (`man/man8/zfs-program.8:35`
 Item 15 did not show an exclusion mechanism for unrestricted callers, such as a rootless container started after
 attach, so a clean scan alone cannot qualify that deployment. Removal therefore refuses before the first snapshot
 delete when the selected deployment cannot show that exclusion, and a deployment that can show it still accepts a
-residual: a copy that appears after the scan leaves planned snapshots all gone with the head refused, the resume
-state [Removal and recovery](#removal-and-recovery) names, which "B: Destroy at once" already accepts (reasoning
-from [item 15][vm-namespaces], not a measured interleaving). The [propagation choice](#open-project-choices)
-carries both conditions as facts.
+residual: a clean scan that misses a later copy leaves snapshots gone with the head still busy, the resume state
+[Removal and recovery](#removal-and-recovery) names, which "B: Destroy at once" already accepts (reasoning from
+[item 15][vm-namespaces], not a measured interleaving). The [propagation choice](#open-project-choices) carries
+both conditions as facts.
 
 [VM item 3][vm-propagation] measured the move refusing with `EINVAL` when its immediate parent, the checkout,
 was shared. Making **only the checkout mount private** let the fresh process move to private staging and unmount;
@@ -1096,13 +1096,13 @@ the account's attempt with a matching tuple was denied. The substitutions were s
   changes while it runs (`man/man8/zfs-program.8:35` to `:40`); it does not settle Linux mount or Git races. This
   adds a privileged request and recovery surface. It is also a second request channel beside the mount intent
   property, and a third root-installed program beside the handler and the mount binary. Two facts it still lacks
-  belong to the owner's weighing rather than to this text: where root records the origin-side lineage inventory at
-  add time, since the claim and that inventory sit in the account-owned Git common directory and the handler records
-  slot identity rather than lineage; and how the unprivileged wrapper reaches a root removal operation, because
-  "authenticate the caller against the configured UID" names no transport here. Before enabling it, prove scope
-  against spoofed or replayed requests and same-name replacements. Persist the verified plan under root control
-  before mutation; after a lost response or restart, prove which recorded identities survive or are gone before
-  resuming, never replay by name.
+  belong in the owner's weighing: where root records the origin-side lineage inventory at add time, since the claim
+  and that inventory sit in the account-owned Git common directory and the handler records slot identity rather
+  than lineage; and how the unprivileged wrapper reaches a root removal operation, because "authenticate the
+  caller against the configured UID" names no transport here. Before enabling it, prove scope against spoofed or
+  replayed requests and same-name replacements. Persist the verified plan under root control before mutation;
+  after a lost response or restart, prove which recorded identities survive or are gone before resuming, never
+  replay by name.
   In the snapshot program, precheck every approved snapshot and its delete prerequisites before any snapshot
   mutation (`module/zfs/dsl_destroy.c:630` to `:653` is the kernel's batch pattern). Prove no-loss refusal and
   per-name results for snapshot precheck failures. Run a separate conditional head request after verifying the
