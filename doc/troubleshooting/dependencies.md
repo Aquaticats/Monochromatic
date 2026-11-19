@@ -1663,8 +1663,8 @@ See `doc/decision/proper-lockfile-removal.md` for the decision rationale
 
 #### A dangling workspace override after `git worktree add`
 
-Reproduced at 2026-11-18T21:59:55-05:00 with pnpm `12.21.0`,
-the version resolved by `mise exec -- pnpm --version`.
+Recorded at 2026-11-18T22:04:28-05:00.
+The reproduction used pnpm `12.21.0`, the version resolved by `mise exec -- pnpm --version`.
 A new worktree can report that its package-manager state was repaired,
 then Node fails to import Pi:
 
@@ -1684,6 +1684,8 @@ then stores that relative string.
 The kernel follows any symlink in the parent path before interpreting the relative target.
 If the spelled and physical parent differ,
 the target can climb the wrong number of levels or point at the wrong subtree.
+The store spelling is what matters: with physical `HOME` held fixed,
+pointing `PNPM_CONFIG_STORE_DIR` through the fixture's home symlink also reproduced the break.
 A repeated install with the same spelling can leave the bad link unchanged:
 `pnpm/crates/fs/src/symlink_dir/reuse.rs:34-47` compares paths lexically without following the parent aliases.
 This is pnpm's link writer, not the Git wrapper or the shim.
