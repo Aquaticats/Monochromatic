@@ -39879,6 +39879,33 @@ launcher (`package/pi-shared/subagent-driver/src/start-pi-run-in-a-worktree.ts:2
 starts the run anyway, so a run can begin with no dependencies and nothing says why: owed to the driver package.
 A waiter (`wait-until-an-agent-unit-ends-20261118T2220`, three hours) watches the runs still going.
 
+By 03:00:55Z five more had ended (all `idle`, no rate-limit error):
+
+- The ZFS proposal's revision for its gate review (48 turns; nine commits on the proposal branch, `2315a042d4` back to
+  `5695b8ed3d`, only `doc/planning/cli-git-zfs-worktree-design-proposal.md`): every finding GH1, GM1 to GM10 and GL1
+  to GL11 addressed, the owner's three answers applied, twelve open project choices listed unranked for the owner
+  handoff; the measurement page is on its own branch and not yet in this one. Next as planned: the measurement run's
+  results folded in, then the Sonnet delta review.
+- The virtual provider, issue 6314 (119 turns; package `package/pi-plugin/rate-limit-fallback`, five commits
+  `0d6d6d8e38` to `f49cc8e5a3`): unit suites (20 named cases), type check and a disposable Pi session check pass;
+  **`lint:oxlint` fails with 70 errors and 84 warnings**, so the package is not complete (rule `PKG`). It reads the
+  Synthetic and Neuralwatt quota endpoints on first use and after a refusal or reset, holds a member only until a
+  provider-given reset ("according to weather"), and uses Neuralwatt's published `flex_floor` for the flex member.
+  It declined to resend a request after OpenAI's "possible risk" stop to the next member, calling that a bypass of a
+  provider's safety decision; rule `RKD` has the coordinator do exactly that by hand, so whether the provider does it
+  is put to the owner. Next: the author's second run for oxlint, then its DeepSeek review.
+- Renamed subvolume `5d4e355e36` (114 turns): a named pipe in `leavings-reported/` holds every command for ever
+  (`worktree_removal_leavings_already_reported.rs:216` reads entries with `std::fs::read`); the look reads only
+  directories this release recorded while `README.md:1118` says every linked worktree's directory.
+- Snapshot of a person `8b7c98aa6e` (73 turns, by reading): the `intended` record has no size bound but its reader
+  caps at 1 MiB, so a killed copy's stage is never reaped; the `.kept` cache has the same cap; a person's file named
+  `.registration` or `.intended` in a dead copy's stage counts as the wrapper's own.
+- Unreadable process table `dfea0fd4a9` (57 turns, by reading): spellings matched by `(device, inode)` against every
+  mount point, and every Btrfs subvolume root is inode 256 on one device; a `metadata` call on every mount point's path
+  can hang on a stalled FUSE or NFS mount; the process proof is made before the ignored-files walk (order `main` has).
+
+These go to their authors with the queue, after the ZFS route.
+
 ### No heavy worktree use before the wrapper's ZFS route (2026-11-18T21:47:42-05:00)
 
 The owner, in plain text: "We shouldn't use worktrees heavily before we implement the zfs parts for the git wrapper."

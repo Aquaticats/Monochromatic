@@ -265,9 +265,30 @@ one line a minute in `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026
   disable it." Then: "Shouldn't the probe be in rust with hyperfine anyway?" So the next probe is a small Rust program
   that writes 4 KiB and syncs it in each dataset, timed by hyperfine (2.0.0, installed at `/usr/bin/hyperfine` by the
   system, not in the repository's tool list), with a control arm in the same round; Node's permission model does not
-  apply to it, and clearing `NODE_OPTIONS` is ruled out. It is built when the search resumes. The level
+  apply to it, and clearing `NODE_OPTIONS` is ruled out. It was built and checked the same evening (next bullet). The level
   never filled (6 to 18 runs). At 21:47:42 the owner's "We shouldn't use worktrees heavily before we implement the zfs
   parts for the git wrapper." stopped the filling, so the search waits for the wrapper's ZFS route.
+- The Rust probe, built and checked on 2026-11-18 at about 22:00 to 22:50-05:00, not yet run as a hold. Files under
+  `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026-11-17/`:
+  - `write-four-kibibytes-and-sync-it-source/main.rs` (one file, no dependencies, built with `rustc --edition 2024
+    -C opt-level=3`) writes 4 KiB to a new file, syncs it with `sync_all` when told `sync`, closes and removes it;
+    `no-sync` is the control arm.
+  - `probe-write-and-sync-on-two-datasets-every-minute-timed-by-hyperfine.ts` (usage `<level> <hold-seconds>
+    <bound-milliseconds> <period-seconds> <readings-file>`) has hyperfine time, each round, one run of each arm on
+    each dataset (`--runs 1 -N`; hyperfine 2.0.0 has no interleave option, so one call per round places the control
+    run beside the measured one), records the readings with I/O pressure, load and agent count, keeps hyperfine's
+    JSON per round, and judges one sync sample per dataset per round, so the fail rule (over the bound in two rounds
+    in a row) fires as often as the Node probe's did. Readings include the program's start, so they go to their own
+    file, not `keep/probe-readings.jsonl`.
+  - Controls, in `keep/rust-probe-controls-2026-11-18/`: the sync arm is real (ZFS's `zil_commit_count` rose by 50
+    over fifty sync runs and by 0 over fifty no-sync runs; datasets `sync=standard`, `logbias=latency`); by time
+    alone it is not separable when the drive is quiet (twenty runs each, medians: home sync 0.82 ms against no-sync
+    0.75 ms, cargo-build 0.76 against 0.72, ranges overlapping); one loaded round took 12.4 ms for cargo-build's sync
+    against 0.95 for its control. The fail rule fires: with a bound of 0 ms the loop ended with status 3 after
+    exactly two rounds.
+  - Start it for a hold as its own unit, for example `systemd-run --user --unit=disk-ceiling-probe-...-level-<n>-<time>
+    --collect --property=MemoryMax=512M --property=CPUQuota=100% --property=TasksMax=64 --property=IOWeight=1 node
+    <loop> <n> 28800 5000 60 <search folder>/keep/probe-readings-timed-by-hyperfine.jsonl`.
 
 ## Readings
 
