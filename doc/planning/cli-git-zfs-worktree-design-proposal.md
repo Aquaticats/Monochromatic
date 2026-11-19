@@ -1215,13 +1215,12 @@ by answering the question that lists it.
 
 - Receipts as atomic files under `/run/git-worktree-clone-mount-results`, rather than root-written
   acknowledgement properties ([Requests, results and ordering](#requests-results-and-ordering)). Evidence: reasoning
-  from the property event [VM item 5][vm-key] delivered, not a measured receipt. Cost: the receipt of a clone the
-  removal destroyed stays after its GUID is gone, and nothing in this draft removes that entry; a live clone's next
-  result overwrites its own entry, because the filename is its GUID. The directory is root-owned mode `0755` and each
-  receipt is root-owned mode `0644`;
-  read-only to the wrapper, so the caller cannot reap them, and no handler step, timer or install action is assigned
-  that role; an acknowledgement property would ride reads the handler already makes. The owner vetoes it by
-  answering the question that lists it.
+  from the property event [VM item 5][vm-key] delivered, not a measured receipt. Cost: a receipt for a clone the
+  removal destroyed stays with no clone to update it, and nothing in this draft removes that entry; a live clone's
+  next result overwrites its own entry, because the filename is its GUID. The directory is root-owned mode `0755`,
+  and each receipt is root-owned mode `0644`, read-only to the wrapper, so the caller cannot reap them, and no
+  handler step, timer or install action is assigned that role; an acknowledgement property would ride reads the
+  handler already makes. The owner vetoes it by answering the question that lists it.
 - The mount handler as a second Linux binary inside `package/git-policy/cli`, rather than a package of its own: it
   shares the binding and the ABI gate without adding a package
   ([Binding crate and compatibility](#binding-crate-and-compatibility)). Evidence: none measured; this is a
