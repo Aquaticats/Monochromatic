@@ -2,7 +2,7 @@
 
 **Non-final draft by an agent, unapproved.** Fifth delta fold-in: this revision answers the bounded check of
 `b26aa27f3c` to `1975c5c4cc`. This file's own revision stamp is what `git log --format=%cI -1` prints for the file,
-which before this revision's commit reported 2026-11-19T01:59:02-05:00 at `f5f20bf445`; a section heading's stamp
+which before this revision's commit reported 2026-11-19T01:59:40-05:00 at `2393c4706a`; a section heading's stamp
 is the commit time of the commit that landed that section.
 
 This revision changes these statements. The refusal of removal while the namespace exclusion cannot be shown is
@@ -1310,8 +1310,9 @@ operation, because "authenticate the caller against the configured UID" names no
 
 This is one open project choice with three options, and removal applies whichever one the owner picks
 ([Removal and recovery](#removal-and-recovery), step 1). A bookmark carries the tuple of the snapshot it was made
-from, and a dataset's bookmarks are destroyed with its head, so a bookmark on a clone is explained by a snapshot or
-it is not. The kernel keeps a bookmark whose snapshot it destroys: it clears that bookmark's snapshot-exists flag
+from, and a dataset's bookmarks are destroyed with its head (`module/zfs/dsl_destroy.c:1123` to `:1154`, OpenZFS
+`zfs-2.4.4`), so a bookmark on a clone is explained by a snapshot or it is not. The kernel keeps a bookmark whose
+snapshot it destroys: it clears that bookmark's snapshot-exists flag
 and keeps the entry (`module/zfs/dsl_bookmark.c:1383` to `:1397`, OpenZFS `zfs-2.4.4`), so a bookmark outlives the
 snapshot it marks (source reading), and the page calls a bookmark the point in time its snapshot was created and an
 incremental source for `zfs send` (`man/man8/zfs-bookmark.8:48` to `:51`). No option here is measured:
