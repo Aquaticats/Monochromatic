@@ -216,9 +216,10 @@ Not final and not approved: this session's own account.
   `~/temp/agent/reviewer-bench-deepseek-against-sonnet-2026-11-17/keep/scoring-of-the-six-deepseek-reviews-against-sonnet.md`;
   of Sonnet's 26 headed findings over 52 run pairs DeepSeek found 3, partly 2, missed 47 (7 of them read and called
   sound); 7 DeepSeek-only findings, none contradicted by source; the two runs of a case shared no headline finding; no
-  run read Sonnet's review or the handover; neither side caught pass 58's five failing controls. **Next:** spot-check the
-  scoring against the review files, then put the result to the owner as a challenge through the question tool,
-  marked non-final.
+  run read Sonnet's review or the handover; neither side caught pass 58's five failing controls. Two of its claims were
+  spot-checked against the review files and hold. Put to the owner as a challenge; answered (decision entry
+  "Reviewers: DeepSeek stays for short, frequent reviews; Sonnet for long reviews and audits, rare"). The bench is
+  closed; its run folders stay because the scoring report cites their review files.
 - **Queue runs and agent cap:** unchanged since the entry of 2026-11-17T19:28:50-05:00.
 
 ### ZED against the regex sudoers rule, probed on the owner's question (2026-11-18T17:15:00-05:00)
@@ -39737,6 +39738,15 @@ Timestamps are the commit times at which the decision was first written into the
 the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
+
+### Reviewers: DeepSeek stays for short, frequent reviews; Sonnet for long reviews and audits, rare (2026-11-18, evening)
+
+Through the question tool, after the reviewer bench was put to the owner as a challenge (scoring report
+`~/temp/agent/reviewer-bench-deepseek-against-sonnet-2026-11-17/keep/scoring-of-the-six-deepseek-reviews-against-sonnet.md`;
+of Sonnet's 17 findings a reader of the code and brief could reach, DeepSeek's two runs per case found 3; DeepSeek made
+7 Sonnet missed): "Keep deepseek. Short reviews are supposed to be frequent. Long reviews and audits are supposed to
+have Sonnet and be rare." Declined: both reviewers per change, a re-bench with equal inputs, two DeepSeek runs per
+change, Sonnet alone. Where short ends and long begins was put to the owner the same evening.
 
 ### ZFS route: ~/Monochromatic stays, worktrees live under its .claude/worktrees (2026-11-18, evening)
 
