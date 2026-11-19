@@ -79,3 +79,20 @@ let that hook create a marker on the next independent install.
 This controls whether dependency hooks run. It does not set runtime permissions for Node programs.
 [npm RFC](https://github.com/npm/rfcs/pull/868) ·
 [npm configuration](https://docs.npmjs.com/cli/v12/using-npm/config/#allow-scripts)
+
+## Persistent audit default on CachyOS
+
+The machine default was set to `NODE_OPTIONS=--permission-audit` on `2026-11-18T19:35:41-05:00`.
+
+- `/etc/environment` supplies the login value through `pam_env.so` in `/etc/pam.d/system-login`.
+  The installed systemd user environment generator also reads this file.
+- `/etc/xdg/plasma-workspace/env/60-node-permission-audit.sh` exports the same value before Plasma
+  publishes its login environment. See [the Plasma startup ordering](../troubleshooting/plasma-overwrites-environment-d-path.md).
+- `/etc/systemd/system.conf.d/60-node-permission-audit.conf` sets `DefaultEnvironment` for system services.
+  The live system manager, user manager, and session D-Bus activation environment were updated in place.
+
+Node v26.13.1 inherited the setting in a PAM-spawned Fish login shell, from the installed Plasma environment
+loader, and in fresh system and user services. Each probe read `/dev/null` and observed an audit event.
+npm v12.2.3 printed its version from a fresh user service with a disposable cache.
+The full Plasma login was left running. Programs launched by an existing process continue to inherit that
+process's environment until the process is relaunched.

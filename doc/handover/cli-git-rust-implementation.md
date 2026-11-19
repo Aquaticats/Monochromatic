@@ -174,16 +174,67 @@ Not final and not approved: this session's own account.
   `passt.avx2`; the owner then had it allowed permanently and asked for the matching `mvm` switch, filed as issue 6312
   (`doc/troubleshooting/rootless-podman-traffic-reaches-opensnitch-as-pasta.md`).
   The blocklist was answered the same evening (decision entry "ZFS snapshots: an explicit blocklist of seven
-  datasets"). **Going since 19:20-05:00:** the design proposal's writer, GPT 6.2 Sol through Pi, unit
-  `pi-zfs-worktree-design-proposal-writer-1`, run folder
-  `~/temp/agent/zfs-worktree-design-proposal-writer-2026-11-18/run-1` (brief `prompt.md` beside it), worktree
-  `.claude/worktrees/zfs-worktree-design-proposal` on branch `docs/planning-cli-git-zfs-worktree-design-proposal`,
-  writing `doc/planning/cli-git-zfs-worktree-design-proposal.md`. **Next:** read its report and commits, then a
-  cross-vendor re-review of the proposal (DeepSeek through Pi), fold the findings in, then the owner's acceptance;
-  the binding's tests run on a file-backed pool inside a throwaway VM.
+  datasets"). The design proposal's writer (GPT 6.2 Sol through Pi, unit
+  `pi-zfs-worktree-design-proposal-writer-1`) ended `idle` at 2026-11-18T19:22:10-05:00 after 29 turns ($0.83), with
+  `doc/planning/cli-git-zfs-worktree-design-proposal.md` on branch `docs/planning-cli-git-zfs-worktree-design-proposal`
+  (commits 78f445a56a, 5ba0cb06dd, 4203040346; pushed; marked non-final); its worktree is removed. Its report names
+  six choices for the owner (managed path interface, main-only origins, exact ABI profiles, periodic reconcile, scoped
+  delegation that lets the account destroy any snapshot of the main dataset, keep the space guard as it is) and notes
+  the blocklist answer's label said "seven" while the list it named has eight. The proposal also moved the main
+  checkout under a root-owned anchor (`/var/lib/monochromatic-worktrees/monochromatic/main`) and put clones there; the
+  owner answered that `~/Monochromatic` stays and worktrees live under its `.claude/worktrees/` (decision entry
+  "ZFS route: ~/Monochromatic stays, worktrees live under its .claude/worktrees"). Its cross-vendor review
+  (DeepSeek V4.1 Flash on Synthetic through Pi, steered mid-run with the owner's corrections) ended `idle` after 87
+  turns ($0.72): `~/temp/agent/zfs-worktree-design-proposal-review-2026-11-18/review.md`, 4 high, 5 medium, 6 low (H1
+  clones under `.claude/worktrees` need a descriptor-based mount and a new fill because Git refuses a non-empty
+  folder; H2 the checkout as a dataset at the same path, a boot-mount guard, the nested dataset
+  `zpcachyos/nosnap/vm-builder-output` mounted at `package/vm-builder/cli/output`, and the pnpm consequence; H3 an
+  unmounted clone loses its Git registration to `git worktree prune`; H4 an unbounded request property names a root
+  write path); weighed by the coordinator in b05a0e83a7 at 2026-11-18T20:07:38-05:00 (read H3 to L6 whole; H1 and H2 wait for the two
+  research documents): every one of H3, H4, M1 to M5 and L1 to L6 is accepted for the fold-in, none dismissed; H3 is
+  reproduced by the ZFS research's VM log (`guest-exact-zfs.log` lines 42 to 44: a `.git` pointer left in the
+  checkout layer keeps `git worktree prune` from removing the registration, and without it prune removes it), and L5
+  too (lines 40 to 41: `git worktree move` of a mounted clone fails "Device or resource busy"); its worktree is removed. The owner then added `AGENTS.md` rule `WTU` (d507a55f0e) and
+  the wrapper refusal for later (issue 6313), and asked for three digs, all GPT 6.2 Sol through Pi, **going since
+  2026-11-18T19:46:28-05:00, 19:47:23 and 19:47:48 in this order**: the search for an earlier `AGENTS.md` worktree-place rule (unit
+  `pi-agents-md-worktree-place-rule-search-1`, read-only in the main checkout, report
+  `~/temp/agent/agents-md-worktree-place-rule-search-2026-11-18/report.md`); whether clones under
+  `.claude/worktrees` conflict with ZFS (unit `pi-zfs-clones-under-the-checkout-research-1`, worktree
+  `.claude/worktrees/zfs-clones-under-the-checkout-research`, doc
+  `doc/planning/cli-git-zfs-clones-mounted-under-the-checkout.md`, VM probes; it ended `model-error` after 77 turns at
+  2026-11-18T20:03:08-05:00 on OpenAI's filter, "This content was flagged for possible cybersecurity risk", right after
+  reading its own log of the planted-link probes; its VM probes had all run, with results in
+  `~/temp/agent/zfs-nested-checkout-mounts-2026-11-18-scratch/keep/`, no guest left and nothing committed; resumed from
+  its session to write the document, unit `pi-zfs-clones-under-the-checkout-research-2`, run folder `run-2`, with the
+  path-safety section asked as requirements rather than probe steps; main's driver refuses `--idle-seconds=0` until the
+  idle branch lands, so it runs with 1; if the filter stops it again, Daybreak access is the owner's to apply for); and pnpm and other tools with the
+  checkout as its own dataset (unit `pi-checkout-dataset-and-pnpm-research-1`, worktree
+  `.claude/worktrees/checkout-dataset-and-pnpm-research`, doc `doc/planning/cli-git-zfs-checkout-dataset-and-pnpm.md`;
+  it may leave a measurement folder under `~/.cache` that it must delete). **Next:** read the three, weigh the review,
+  fold everything into the proposal with a writer run, then a Sonnet gate review of the folded proposal (rule `LHZ`:
+  a design put to the owner is a gate), then the owner's acceptance through the question tool; the checkout-as-dataset
+  choice waits for the pnpm answer (owner: "I'm not sure yet"). Also going: the DeepSeek review of the idle-window
+  branch `fix/pi-shared-subagent-driver-idle-window-defaults-to-zero` at 8c8e9659e8 (unit
+  `pi-driver-idle-window-defaults-to-zero-review-1`, worktree `.claude/worktrees/driver-idle-window-defaults-to-zero-review`,
+  review file `~/temp/agent/driver-idle-window-defaults-to-zero-review-2026-11-18/review.md`); the writer ended `idle`
+  after 82 turns ($1.80) with nine commits and 849 passing cases by its report; merge after the review is weighed.
+- **Driver idle window defaults to 0:** going since 2026-11-18T19:27:38-05:00, GPT 6.2 Sol through Pi, unit
+  `pi-driver-idle-window-defaults-to-zero-writer-1`, run folder
+  `~/temp/agent/driver-idle-window-defaults-to-zero-writer-2026-11-18/run-1`, worktree
+  `.claude/worktrees/pi-shared-subagent-driver-idle-window-defaults-to-zero` on branch
+  `fix/pi-shared-subagent-driver-idle-window-defaults-to-zero` (decision entry "Driver: the idle window defaults to 0").
+  Then a DeepSeek review, merge, and the pi-as-subagent skill's example (`--idle-seconds=60`) updated. Until it lands,
+  launches pass `--idle-seconds=1` (0 is refused today).
 - **Reviewer bench (task 387):** all four resumed reviews ended `idle` on `opencode-go` with no rate-limit error
   (`a13faa0d55` runs 1 and 2: 92 and 152 turns; `3822c44c2f` run 1: 33; `915ef30e09` run 2: 49); all six now have a
-  review. Nothing is scored yet.
+  review. Scored by a Claude Sonnet subagent (a second pass, same vendor as one side):
+  `~/temp/agent/reviewer-bench-deepseek-against-sonnet-2026-11-17/keep/scoring-of-the-six-deepseek-reviews-against-sonnet.md`;
+  of Sonnet's 26 headed findings over 52 run pairs DeepSeek found 3, partly 2, missed 47 (7 of them read and called
+  sound); 7 DeepSeek-only findings, none contradicted by source; the two runs of a case shared no headline finding; no
+  run read Sonnet's review or the handover; neither side caught pass 58's five failing controls. Two of its claims were
+  spot-checked against the review files and hold. Put to the owner as a challenge; answered (decision entry
+  "Reviewers: DeepSeek stays for short, frequent reviews; Sonnet for long reviews and audits, rare"). The bench is
+  closed; its run folders stay because the scoring report cites their review files.
 - **Queue runs and agent cap:** unchanged since the entry of 2026-11-17T19:28:50-05:00.
 
 ### ZED against the regex sudoers rule, probed on the owner's question (2026-11-18T17:15:00-05:00)
@@ -39703,7 +39754,58 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### A run OpenAI stops as a "possible risk" resumes on DeepSeek (2026-11-18, evening)
+
+In plain text, after the ZFS-clones research ended on OpenAI's filter:
+"Whenever a "possible risk" is triggered from OAI, switch to deepseek resuming the session.
+Make this a standing rule in AGENTS.md . Use "possible risk" instead of anything more specific."
+Written as `AGENTS.md` rule `RKD` beside `XVW` (DeepSeek through Pi, never the official `deepseek` provider, as
+`KRV` already says), and in `.agents/skills/pi-as-subagent/SKILL.md` under the writer bullet (the follow-up of step 7
+with `--session` on the reviewer pool's DeepSeek, same worktree), mirrors copied by hand. The ZFS-clones research had
+already been resumed on GPT before this answer (unit `pi-zfs-clones-under-the-checkout-research-2`, past the filter,
+6 turns, nothing written); read as a correction of that resume, so run-2 was ended with its stop file and the session
+(`run-2/resumed-session.jsonl`, the copy the driver makes on resume) goes on under
+`pi-zfs-clones-under-the-checkout-research-3` on Synthetic `hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`.
+
+### Reviewers: DeepSeek stays for short, frequent reviews; Sonnet for long reviews and audits, rare (2026-11-18, evening)
+
+Through the question tool, after the reviewer bench was put to the owner as a challenge (scoring report
+`~/temp/agent/reviewer-bench-deepseek-against-sonnet-2026-11-17/keep/scoring-of-the-six-deepseek-reviews-against-sonnet.md`;
+of Sonnet's 17 findings a reader of the code and brief could reach, DeepSeek's two runs per case found 3; DeepSeek made
+7 Sonnet missed): "Keep deepseek. Short reviews are supposed to be frequent. Long reviews and audits are supposed to
+have Sonnet and be rare." Declined: both reviewers per change, a re-bench with equal inputs, two DeepSeek runs per
+change, Sonnet alone. Where short ends and long begins, answered the same evening: "Long = at a gate (Recommended)": a
+Sonnet review only at an integration pass before main, a release, or a design put to the owner; every other review is
+short and goes to DeepSeek. Declined: long meaning a review that builds or reproduces, or one above a size. Written into
+`AGENTS.md` rules `KRV` and `LHZ` and the pi-as-subagent skill's section "Who writes and who reviews" the same evening.
+
+### ZFS route: ~/Monochromatic stays, worktrees live under its .claude/worktrees (2026-11-18, evening)
+
+Plain text after the design proposal's first draft: "We need to keep ~/Monochromatic where it is."; "surely there is a
+rule mandating putting worktrees in ./.claude ?"; and, of the proposal's `/var/lib/monochromatic-worktrees/` anchor,
+"both you and GPT just saying monochromatic-worktrees means you've both missed at least an AGENTS.md rule." Recorded in
+`doc/planning/cli-git-zfs-worktree.md`, section "Owner's answers of 2026-11-18" (entries "Where the main checkout
+stays", "Where worktrees live", "Names"). No `AGENTS.md` line ever named the worktree place (its history searched back
+to 964883fd94); it entered the Pi skill in 1a907ccfb9 with the owner's "Feel free to use worktrees.", and a rule is put
+to the owner. Both points went to the running proposal review as steering messages; the fold-in writer gets them as
+requirements. The owner also asked whether `~/.cache` is on the snapshot blocklist: it is, as
+`zpcachyos/nosnap/user-cache` (measured), and lists of those datasets now give each one's folder.
+
+### Driver: the idle window defaults to 0 (2026-11-18, said before 19:27:38-05:00)
+
+After a "Pi agent finished" notification came a minute before the coordinator woke, the owner asked "What even is the
+idle window for?" and then "And shouldn't it be defaulted to 0?". Adopted: `--idle-seconds` becomes optional with
+default 0, in `drive-pi-subagent` and in `start-pi-run-in-a-worktree` (whose default was 120). The window's only
+documented use is a steering message for a Pi that has settled (`package/pi-shared/subagent-driver/README.md:972-973`);
+the driver's settle is Pi's `agent_settled`, which comes after Pi's retries and compaction recovery
+(`package/pi-plugin/agent-settled-notification/README.md:17-21`); a coordinator woken by the unit's end can never steer
+inside the window, and follows up with `--session` instead. No recorded failure rests on the window's length.
+
 ### ZFS snapshots: an explicit blocklist of seven datasets, the pnpm store stays in home, passt allowed (2026-11-18, evening)
+
+Note added 2026-11-18T19:28:35-05:00: the option's label said "seven", but its description, and the list here, name
+eight datasets (`/var/cache`, `zpcachyos/nosnap` and its six children); the label was the session's miscount, and the
+named list is what was chosen. This goes to the owner with the design proposal.
 
 Three answers, quoted in `doc/planning/cli-git-zfs-worktree.md` ("What the snapshots hold today" and "What the
 blocklist names"): the pnpm store must not become its own dataset ("not being able to take advantage of clones";

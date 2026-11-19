@@ -247,18 +247,24 @@ XVW:
  Delegated writing runs through Pi on GPT 6.2 Sol,
  started by `package/pi-shared/subagent-driver`.
 
+RKD:
+ A run OpenAI stops as a "possible risk":
+ resume its session on DeepSeek through Pi,
+ never the official `deepseek` provider.
+
 KRV:
- Reviews of a change run through Pi on DeepSeek,
- started by `package/pi-shared/subagent-driver`,
+ Short reviews of a change (all but integration passes,
+ releases and designs put to the owner) run through Pi on DeepSeek,
  in a worktree of their own;
- never on the official `deepseek` provider.
+ never the official `deepseek` provider.
 
 LHZ:
- Long-horizon audits,
+ Gate reviews (an integration pass before main,
+ a release,
+ a design put to the owner) and long-horizon audits,
  in every harness:
  run Claude Sonnet,
- by whatever route that harness offers;
- the Kimi K3.1 Pro pool is closed.
+ by whatever route that harness offers.
 
 PFW:
  Alongside advisor,
@@ -727,6 +733,12 @@ APQ:
  run `git remote set-url --push origin DISABLED`;
  never in any `git worktree add` folder of this repo,
  which shares its `.git/config`.
+
+WTU:
+ Every worktree of this repository,
+ Git's own or a Btrfs or ZFS clone,
+ lives under `.claude/worktrees/` in the main checkout;
+ designs and briefs name that place.
 
 BOP:
  `~` in shell output is a display-only home-dir substitution by the `bash-output-filter` hook;
