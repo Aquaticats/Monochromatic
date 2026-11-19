@@ -833,7 +833,8 @@ fn a_relay_past_the_cap_keeps_no_part_of_a_cut_url_and_says_it_was_cut() {
     std::fs::create_dir_all(bin.as_path()).expect("bin directory");
     executable(
         bin.join("git-lfs").as_path(),
-        format!("#!/bin/sh\nhead -c {filler} /dev/zero | tr '\\0' 'x' >&2\nprintf '%s\\n' '{url}' >&2\nexit 1\n").as_bytes(),
+        // The tools are named by absolute path: the fixture's `PATH` holds only the stand-in's own directory.
+        format!("#!/bin/sh\n/usr/bin/head -c {filler} /dev/zero | /usr/bin/tr '\\0' 'x' >&2\nprintf '%s\\n' '{url}' >&2\nexit 1\n").as_bytes(),
     );
     let state: String = root.join("state").to_string_lossy().into_owned();
     let variables = [("XDG_STATE_HOME", state.as_str())];
