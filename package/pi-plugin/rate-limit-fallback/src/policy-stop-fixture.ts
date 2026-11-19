@@ -14,10 +14,8 @@ import { streamSimple as streamResponses, } from '@earendil-works/pi-ai/api/open
 import { MEMBER_KEY, } from './stand-in-pi-fixture.ts';
 
 /**
- OpenAI's policy stop, verbatim as two recorded runs on this machine report it:
- `pi-runs/prewarm-of-a-new-worktree-acts-only-on-the-entry-it-checked-1/summary.json`
- and `pi-codemode-abort-crash-troubleshooting-2026-11-18/run-1/summary.json`,
- both under `${HOME}/temp/agent`, field `modelError`.
+ OpenAI's policy stop, verbatim: two recorded runs on this machine report the same 311 characters,
+ and `doc/captures.md` holds the text with both run folders and their dates.
  The captures fix the text alone, not the wire event that carried it.
  */
 export const POLICY_STOP_TEXT: string = 'This content was flagged for possible cybersecurity risk. If this seems wrong, '

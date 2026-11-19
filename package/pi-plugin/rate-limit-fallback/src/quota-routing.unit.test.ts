@@ -22,9 +22,8 @@ import {
 import { labelOf, REVIEWER_TARGETS, WRITER_TARGETS, } from './member-order-fixture.ts';
 
 /**
- The recorded NeuralWatt overage refusal, verbatim: the `modelError` of
- `${HOME}/temp/agent/pi-runs/worktree-remove-does-not-wait-on-a-read-only-git-2/summary.json`,
- 795 characters including the adapter's own `429: ` prefix.
+ The recorded NeuralWatt overage refusal, verbatim: 795 characters including the adapter's own
+ `429: ` prefix, recorded with its run folder and date in `doc/captures.md`.
  */
 const OVERAGE_REFUSAL: string = `429: {"type":"rate_limit_error","code":"concurrent_budget_exceeded","message":"Concurrent limit reached for deepseek-ai/DeepSeek-V4.1-Flash: 6/6 slots in use. Wait for a request to complete and retry. Your subscription is in overage with auto-renew off, so pay-as-you-go limits apply until it renews. Turn auto-renew back on to restore your account level's limits: https://docs.neuralwatt.com/billing/account-levels#overage-with-auto-renew-off","retry_strategy":{"type":"concurrent_drain","suggested_initial_delay_s":1,"max_delay_s":30,"backoff":"exponential","backoff_base":2,"jitter":true},"retryable":true,"context":{"budget":6,"in_flight":6,"model":"deepseek-ai/DeepSeek-V4.1-Flash","limit_type":"concurrent","tpm_window_tokens":0,"tpm_limit":5242880,"floor":5,"burst":6,"burst_shed":false}}`;
 

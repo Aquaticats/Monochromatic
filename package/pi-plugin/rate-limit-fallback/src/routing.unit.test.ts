@@ -46,9 +46,8 @@ const CALLER_RETRY_DELAY_CAP_MS = 60_000;
 const REFUSAL_RETRY_AFTER_SECONDS = 3_600;
 
 /**
- The recorded Synthetic refusal in the quoted form, verbatim: the `modelError` of
- `${HOME}/temp/agent/pi-runs/kimi-review-since-alpha8-landing-waits-1/summary.json`,
- 138 characters.
+ The recorded Synthetic refusal in the quoted form, verbatim: 138 characters, recorded with its run
+ folder and date in `doc/captures.md`.
  */
 const RECORDED_QUOTED_REFUSAL: string = `429 "You've exceeded your subscription rate limits. Upgrade, or try again later. You can view your usage at https://synthetic.new/billing"`;
 
