@@ -26,7 +26,8 @@ function idleLongEnough(watch: WatchRequest,): boolean {
       .settledCount()
       >= 1)
     && ((watch.options
-      .idleSeconds === 0)
+      .idleSeconds
+        === 0)
       || (watch.record
         .silentMilliseconds()
         > (watch.options
