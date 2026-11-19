@@ -164,11 +164,13 @@ export async function* dispatchRequest({
   model,
   context,
   options,
+  pools = POOLS,
 }: {
   session: RoutingSession;
   model: Model<Api>;
   context: TranscriptContext;
   options?: SimpleStreamOptions;
+  pools?: Readonly<Record<string, readonly Member[]>>;
 },): AsyncGenerator<AssistantMessageEvent> {
   /**
    Tagged logger that names the current operation without exposing credentials.
@@ -181,7 +183,11 @@ export async function* dispatchRequest({
    Selected pool id, not the id sent to a physical provider.
    */
   const { id, } = model;
-  if ((id !== 'writer') && (id !== 'reviewer'))
+  /**
+   Ordered members of the selected pool, or undefined when no pool carries that id.
+   */
+  const members = pools[id];
+  if (members === undefined)
     throw new PoolDispatchError(`Unknown rate-limit-fallback model: ${id}`,);
   /**
    Cancellation that applies to every attempt of this logical request.
@@ -475,7 +481,7 @@ export async function* dispatchRequest({
       throw new PoolDispatchError(`${label} closed without a terminal assistant event`,);
     }
   }
-  for (const member of POOLS[id]) {
+  for (const member of members) {
     if (yield* tryMember(member,))
       return;
   }
