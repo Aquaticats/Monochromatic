@@ -787,7 +787,7 @@ ZFS_IOC_DESTROY_SNAPS (0x5a3b) count: 1
 ```
 
 No per-name error line appears, because the helper prints one only when the kernel returned an error list
-(`guest-delta-items.py:168` to `:172`). The snapshot list afterwards:
+(`guest-delta-items.py:166` to `:172`). The snapshot list afterwards:
 
 ```text
 # item-17-exact-3.log, both named snapshots gone
