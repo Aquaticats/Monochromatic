@@ -1338,7 +1338,8 @@ is approved, released or implemented: this file remains a non-final draft.
   reporting both paths and its identity, avoids another privileged move but leaves the mount at an
   account-selected location.
 - Busy unmount after a staging move. Decided: "Reattach when safe (Recommended)", asked as following from the
-  cancellation decision, where without `--force` the removal auto-cancels and with it the holders are ended. The
+  cancellation decision, where without `--force` the removal auto-cancels and, once the owed VM item shows it
+  works, with it the holders are ended. The
   overnight list ranked staged retention first; the question as re-asked recommended reattach. It moves the same
   mount back to the original slot only after revalidation, and retains it staged otherwise. Reattach restores the
   worktree's visibility but adds a second attach and a race; the unselected alternative keeps it staged until
