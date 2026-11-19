@@ -77,11 +77,14 @@ Checkout history must never move into a worktree that ordinary removal can destr
 reconciliation nor removal calls promote; grant no `promote` delegation to the account. Keep any blocked origin
 and report its dependency rather than promoting a managed clone to clear it.
 
-Exercise the binding's promote operation in the disposable VM. A possible live use is explicit administrator
-recovery onto a protected clone outside the removable worktree tree, never promotion of a disposable worktree
-of the checkout. No production procedure is authorized by this draft. The [VM measurement record][measurements]
-is testing dependency reversal, which snapshot names and GUIDs move, and what destruction then refuses. The
-exact promotion and recovery rule waits on that result; adding linked origins does not by itself authorize promote.
+[VM item 11][vm-promote] measured the promoted worktree becoming independent and the checkout becoming its
+clone. The origin and older checkout snapshots moved to the worktree with unchanged GUIDs; later checkout
+snapshots and the worktree's own snapshot stayed put. Include the binding operation and test it in the disposable
+VM, but keep it out of ordinary add, reconciliation and removal. A possible live use is explicit administrator
+recovery onto a protected clone outside the removable worktree tree. Prove the ownership of affected snapshot
+GUIDs, resulting dependencies and location of protected history before any explicit lineage change. The reverse
+promotion in the VM was a control, not a recovery guarantee; no production promote procedure is authorized here.
+Adding linked origins does not itself authorize promote.
 There are no pool management, dataset rename, or generic dataset creation requests. Mounts use Linux system calls,
 not a dataset ioctl.
 
@@ -248,7 +251,9 @@ copies. It does not measure deletion of copied administration, delegated request
     which is neither the linked registration nor a success signal.
 
 The durable binding keys on repository and Git registration identity plus clone GUID, not spelling alone. Store
-its expected slot path and identity, origin name and GUID, clone name, pointer bytes, request nonce and progress.
+its expected slot path and identity, pool GUID, origin dataset name and GUID, origin snapshot name and GUID,
+clone name and GUID, pointer bytes, request nonce and progress. Record the verified initial lineage and snapshot
+inventory when the clone is created; see [Removal and recovery](#removal-and-recovery) for proof required before destruction.
 On resume distinguish a claimed empty slot, registration without a dataset (including a possible origin only),
 an unmounted clone, a mounted but unfinished clone and a verified checkout. Recheck recorded identities, the mount
 and the visible pointer before resuming; never use names, properties or a matching result alone to prove ownership.
@@ -484,39 +489,60 @@ slot. See the [wrapper specification][spec], lines 2932 to 2943 and 3064 to 3190
 
 The [project decided][answers] "B: Destroy at once". A normal authorized removal destroys the clone and its own
 snapshots in that invocation. It does not prompt, require a separate snapshot-deletion flag, or wait out retention.
-It does wait for verified unmount within the [measured deadline](#waiting-and-refusal) once sized, and for the
-destroy results, not for background space reclamation.
+It waits for verified unmount within the [deadline](#waiting-and-refusal) once sized, and for the destroy results,
+not for background space reclamation.
 
-1.  Record the removal intent and enumerate the clone's snapshot history, including manual and sanoid snapshots.
-    Before destruction, print the slot, clone dataset and exact snapshot names to be lost. Release local handles
-    that keep the clone busy and request `unmount`. Wait for the matching result, then verify the clone is not
-    mounted, including in handler staging, and that the request, recorded clone GUID, underlay identity and Git
-    registration still match. An unavailable, mismatched
-    or busy unmount blocks destruction; mount absence at the slot alone does not prove it is safe.
-2.  Recheck the named clone's snapshots and children. Destroy only that clone's explicitly enumerated snapshots,
-    then the unmounted clone. Never pass a recursive dataset or dependent-clone destroy. If sanoid adds a snapshot
-    during removal, report the changed set and recheck its identity and removal scope before continuing. Holds or
-    dependencies are named, not bypassed. Print which snapshots and whether the clone were actually destroyed,
-    including on partial failure; name anything retained and why. Record per-snapshot failures for recovery.
-3.  Check the exact recorded origin identity before attempting single-snapshot cleanup, using the authority the
-    project selects. The kernel's `snapshot has dependent clones` refusal is the check, not a scan of immediate
-    children or a name test. Leave a refused origin and report it; never destroy a dependent clone to free it.
-    Preserve the incomplete cleanup record while an origin remains.
-4.  Settle only the matching Git registration and pointer after clone destruction is proven. Whether to settle
+[VM item 11][vm-promote] shows why the lineage check must precede **any** snapshot delete. Recursive destroy of
+the promoted clone refused and left the snapshot set unchanged. But an explicit delete erased the relocated
+older checkout snapshot before the kernel refused to delete the relocated origin with `snapshot has dependent
+clones`. Promoting back did not restore the lost snapshot. The dependent-destroy dry run included the checkout
+and its later snapshot. Never issue recursive or dependent-clone destruction; a dependency refusal protects the
+specific snapshot it names, not the rest of the history.
+
+1.  Prove the live pool, clone dataset, origin dataset and origin snapshot match the recorded GUIDs, and that
+    the clone still has its original direct origin relationship. Inventory the full snapshot set by name, GUID
+    and owning dataset GUID, including manual and sanoid snapshots. Prove every candidate was created on this
+    clone, not transferred from an origin. Start from the verified inventory at creation and prove that no
+    lineage change has admitted foreign history since. A current name, location or matching direct origin
+    alone is not provenance. Never silently update the recorded lineage after an external change.
+2.  If lineage, ownership or the safety of the destructive operation cannot be proved, refuse before the
+    first delete. Name the mismatched dataset, snapshot or dependency, keep the registration and removal
+    record, and report the need for administrator lineage recovery before retry. Do not try a subset, promote
+    back automatically, or invoke ordinary Git removal to clear the slot. For a proven set, record removal
+    intent and print the slot, dataset and exact snapshot names to be lost. Release local handles and request
+    `unmount`. Verify the clone is unmounted, including in staging, and the request, clone GUID, underlay
+    identity and Git registration still match. A missing, mismatched or busy unmount blocks destruction.
+3.  After unmount and before the first delete, reprove lineage and persist the verified snapshot inventory and
+    the expected clone identity as the destruction plan. Revalidate the recorded lineage and each candidate's
+    identity before each explicit snapshot destroy, then destroy only the verified unmounted clone. Address
+    name-based requests safely: per-slot claims serialize cooperating wrapper operations, not outside ZFS
+    actors. Prove identities cannot change between validation and use, by enforced exclusion of name and
+    lineage changes or by a verified identity-conditional operation. A second GUID read alone cannot prove
+    that. The proposed delegated route has not established this guarantee for same-name replacement; until
+    it does, fail closed rather than delete by name across an unproved interval. Do not grant `promote` or
+    `rename` to the account; administrator lineage changes must quiesce managed operations and invalidate
+    affected removal proofs. Holds and dependencies are named, not bypassed. Stop on a changed inventory and
+    reprove scope before authorizing any revised plan. Print what actually disappeared and what remains,
+    including on partial failure, and retain per-name results for recovery.
+4.  For separate origin cleanup, prove the exact recorded origin dataset and snapshot GUIDs and confirm that
+    the snapshot still belongs to that dataset. Apply the same identity rule using the authority the project selects. The kernel's
+    `snapshot has dependent clones` refusal is the dependency check, not a scan of children or a name test.
+    Leave a refused origin and report it; never destroy a dependent clone to free it. Preserve the incomplete
+    cleanup record while an origin remains.
+5.  Settle only the matching Git registration and pointer after clone destruction is proven. Whether to settle
     them while origin cleanup is blocked remains an [open choice](#open-project-choices). Remove the leftover
     underlay folder as the account only after checking it has the recorded identity and is empty. Do not remove
     an unfamiliar entry, a replacement registration or any mounted tree. Legacy dataset destruction does not
     remove the slot. Older checkout snapshots can still hold that underlay and pointer until they expire; this is
     not surviving live worktree data.
 
-Resume by reconciling the durable record with the mount table, dataset and snapshot identities, and Git
-registration and pointer. Distinguish unmount still pending or staged, clone still present after partial snapshot
-cleanup, clone gone with a retained origin, and Git or empty-folder cleanup still owed. Report specific blockers:
-`EBUSY` and holder if known, snapshot history at risk, a hold, nested dataset/mount, dependent clone, a mismatched
-identity or a missing/pruned registration. Never infer ownership from a name or let a stale acknowledgement authorize
-cleanup. ZFS destroy is name-based; rechecking its GUID is not atomic with the destroy. The design does not claim to
-exclude a concurrent replacement by the same delegated account between check and use. Test replacement, partial
-removal and resumption in the guest.
+Resume against the persisted destruction plan and the live mount, dataset, snapshot and Git identities. Settle
+recorded destroys only after proving the expected objects are gone, not from a missing name alone. If interruption
+left an outcome unprovable, retain it as unresolved and stop; never regenerate an authorized set from whatever
+names are left. Distinguish unmount pending or staged, clone still present after partial snapshot cleanup, clone
+gone with its recorded origin retained, and Git or empty-folder cleanup still owed. Report specific
+blockers: `EBUSY` and holder if known, snapshot history at risk, a hold, nested dataset or mount, dependent clone,
+a mismatched identity or a missing or pruned registration. Never let a stale acknowledgement authorize cleanup.
 
 ## Ladder and fallback
 
@@ -741,7 +767,9 @@ in the ranking. Use the pending measurements where they affect the options; a ra
   The allocator could simplify driver integration but adds a caller-facing command.
 - Eligible clone origins. Keep only the main checkout as a snapshot source; or also permit linked clone origins.
   A linked origin preserves that worktree's ignored state but chains dependencies and can block origin cleanup.
-  Neither option makes promotion automatic. Do not substitute a different origin from the one the caller supplied.
+  [VM item 11][vm-promote] measured how promotion transfers custody and reverses a dependency, not a safe
+  removal or recovery procedure for a chain of linked origins. Neither option makes promotion automatic.
+  Do not substitute a different origin from the one the caller supplied.
 - ABI verification. Require exact approved kernel/module BTF profiles per target, or verify the field layout at
   runtime against the approved release/request contract. Exact profiles can disable clones after a rebuild;
   runtime checking can accept more builds but adds a parser and a larger compatibility test surface.
@@ -751,7 +779,8 @@ in the ranking. Use the pending measurements where they affect the options; a ra
 - Origin cleanup authority. Add descendants-only `mount,destroy` delegation on the checkout, or use a root-owned
   cleanup operation limited to proven wrapper origins. Delegation keeps privilege out of the handler but allows
   the account to destroy any checkout snapshot. Separate cleanup needs its own privileged ownership and recovery
-  proof; it is not implied by the ZED mount handler.
+  proof; it is not implied by the ZED mount handler. [VM item 11][vm-promote] showed why both authorities must
+  prove origin identity and lineage before submission; a dependency refusal does not protect other snapshots.
 - Space-pressure pruning. Keep the guard's current scope and report its limits, or extend it to an explicit
   managed-descendant allowlist for sanoid hourlies with newest-per-dataset retention. Expansion can release more
   blocks, but deletes some living worktree history before normal expiry; measure what it would reclaim first.
@@ -901,6 +930,11 @@ host. These gates carry the [handover's H1 and H2 disposition][handover] and the
   With the clone unmounted, verify `prune` keeps the registration with the pointer intact, and exercise the
   selected protection with the pointer missing. Check that operator locks continue to refuse removal. Test link
   repair with surviving admin data, and already-pruned admin state with and without a verified backup.
+- Repeat [VM item 11][vm-promote] against the binding's promote primitive. With the built wrapper, refuse a
+  promoted or mismatched clone before the first snapshot delete, and assert that every protected snapshot GUID
+  survives. Include a verified unpromoted clone with manual and sanoid snapshots as the removal control. Test
+  proof invalidation after administrator lineage changes. Prove name-based requests cannot reach a replacement
+  between validation and use, or verify refusal when that protection is unavailable.
 - Kill removal across unmount, snapshot destruction, clone and origin cleanup, and Git and directory cleanup.
   Verify busy and staged mounts, nested datasets, same-name replacements, held or new sanoid snapshots and another
   clone pinning the origin each block the unsafe next action. Check the before-destroy inventory and final loss
@@ -1013,6 +1047,7 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
 [vm-immutable]: cli-git-zfs-measurements-owed-before-acceptance.md#8-immutable-underlay-boot-and-parent-rollback
 [vm-nested-boot]: cli-git-zfs-measurements-owed-before-acceptance.md#9-automatic-mounts-below-a-legacy-checkout
 [vm-legacy]: cli-git-zfs-measurements-owed-before-acceptance.md#10-explicit-zfs-mount-of-a-legacy-clone
+[vm-promote]: cli-git-zfs-measurements-owed-before-acceptance.md#11-promote-and-the-checkouts-snapshot-history
 [answers]: cli-git-zfs-worktree.md#owners-answers-of-2026-11-18
 [zfs-plan]: cli-git-zfs-worktree.md
 [handover]: ../handover/cli-git-rust-implementation.md
