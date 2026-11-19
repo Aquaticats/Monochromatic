@@ -40030,6 +40030,18 @@ head again and sends the flagged transcript to OpenAI once per round. One DeepSe
 (`pi-review-pi-plugin-rate-limit-fallback-at-a4b227503a-1`) checks the eight answers, every fixture against its
 producer or a capture (with the audit's list), the move, and that retry sequence.
 
+**Pi writes into `/tmp` (owner, 2026-11-19: "What are you doing, why are you saving stuff to /tmp when a rule bans
+it?").** Checked: nothing of the coordinator's own went to `/tmp` (its scratch is in `~/temp/agent`); the `/tmp` paths
+in its tool calls are Claude Code's own background-command output files under `/tmp/claude-1000/`, which it reads.
+But every Pi run tonight left files at `/tmp/pi-bash-*.log` and `/tmp/pi-codemode-*.txt`: Pi spills tool output to
+Node's `os.tmpdir()` (`@earendil-works/pi-coding-agent` 1.5.2 `dist/utils/output-files.js:16`), which is `/tmp` unless
+`TMPDIR` is set (real invocation: `TMPDIR=<folder> node --print "require('node:os').tmpdir()"` printed the folder, and
+`/tmp` without it). Neither the launch line nor the driver sets it, and a brief cannot reach what Pi writes itself.
+Done: the pi-as-subagent skill's launch example now passes `--setenv=TMPDIR=<run>/tmp` (made first), with the reason.
+Owed, as the driver package's defect: the driver sets `TMPDIR` to a folder inside the run folder for the Pi it starts,
+with a test, so no launch line can forget it. The review started just before this (`...-at-a4b227503a-1`) still spills
+to `/tmp`; it was left running.
+
 The third prewarm run ended `idle` (77 turns, no new commit; report updated): through a built wrapper with the fill's
 staging and target replaced mid-clone, the tip left the other command's files at both names byte for byte and said why
 ("holds no claim of this job ... left as it is found"); `main` did not delete the replacement in that run either (its
