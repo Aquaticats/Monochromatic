@@ -185,8 +185,8 @@ export async function* dispatchRequest({
    */
   const unavailable: {
     /**
-     Attributed policy stop the pool set aside, kept apart from later refusals so the pool reports the
-     stop rather than a 429 that would make Pi's outer retry restart at the member that refused.
+     Attributed policy stop the pool set aside, kept apart from later refusals so a rate limit cannot
+     replace it.
      */
     policyStop?: Extract<AssistantMessageEvent, { type: 'error'; }>;
     /**
@@ -471,21 +471,12 @@ export async function* dispatchRequest({
       return;
   }
   /**
-   Set-aside policy stop and last rate limit the pool discarded, which is what it owes the caller
-   when no member answered.
+   The failure the pool owes: a stop it set aside, which ends the run so Pi's own retry cannot
+   restart at the member that refused, then the last rate limit as it arrived.
    */
-  const {
-    policyStop,
-    lastRateLimit,
-  } = unavailable;
-  // A stop set aside before the later members were only rate-limited ends the run: yielding the
-  // last 429 instead would let Pi's outer retry restart at the member that refused.
-  if (policyStop !== undefined) {
-    yield policyStop;
-    return;
-  }
-  if (lastRateLimit !== undefined) {
-    yield lastRateLimit;
+  const owed = unavailable.policyStop ?? unavailable.lastRateLimit;
+  if (owed !== undefined) {
+    yield owed;
     return;
   }
   if (unavailable.admissionStops
