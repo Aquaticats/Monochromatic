@@ -831,7 +831,7 @@ await describe({
          The session the stand-in actually reported, which must not survive fixture disposal either.
          */
         const { sessionFile, } = fieldsOf(run.summary.sessionStats,);
-        if (typeof sessionFile !== 'string') {
+        if ((typeof sessionFile) !== 'string') {
           throw new Error('the stand-in did not report the fresh session it wrote',);
         }
         expect(
