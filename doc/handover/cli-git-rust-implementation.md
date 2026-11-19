@@ -40218,8 +40218,20 @@ What follows from them, as work:
   the writer pushed a `git notes` comment as `refs/notes/commits`. The hold ended once the ZFS work was moving. GOING:
   its short review on the Qwen plan, `pi-rate-limit-fallback-hybrid-rebuild-short-review-on-the-qwen-plan` (cap 540,
   watched to its end), in `.claude/worktrees/pi-qwen-review-rate-limit-fallback-hybrid-at-e880cd4ed3` detached at the
-  tip; brief under `~/temp/agent/rate-limit-fallback-hybrid-rebuild-short-review-on-the-qwen-plan-2026-11-19/`. Then
-  the merge and the installed dist's rebuild, then the live quota check (task 396). The driver pool table (task 383)
+  tip; brief under `~/temp/agent/rate-limit-fallback-hybrid-rebuild-short-review-on-the-qwen-plan-2026-11-19/`. It
+  ended `idle` (84 turns, no rate-limit error; review in that folder's `keep/review.md`): each of the four decided
+  points and the route is shown by a mutation that fails its suite; package tasks all exit 0; no high. Mediums: a 503
+  or 52x whose body carries policy wording ends the turn instead of moving on (policy check runs before the
+  transient one); a zero-ceiling reading drops a member for the session with only a `debug` line when another member
+  answers; the report's "an independent review raised it" has no record (only commit `e85e016e57`'s body "README
+  corrections a short review found"). Lows: the zero-ceiling words name the flex lane for a standard-lane member; the
+  prototype page still claims dropped exports and has a 129-character line; `doc/captures.md` misses five fixture
+  texts; two "on reentry" wordings; three exports with no importer. A corrective comment was posted on `e85e016e57`
+  (https://github.com/Aquaticats/Monochromatic/commit/e85e016e570b620775dca876a63612dbe4317d40#commitcomment-210940272);
+  the review worktree was removed. GOING: the fix round `pi-rate-limit-fallback-hybrid-review-findings-fixed`
+  (DeepSeek on Neuralwatt, cap 635) in the rebuild worktree, findings 1 to 3 and 5 to 8; brief under
+  `~/temp/agent/rate-limit-fallback-hybrid-review-findings-fixed-2026-11-19/`. Then the coordinator's check, the merge
+  and the installed dist's rebuild, then the live quota check (task 396). The driver pool table (task 383)
   waits on more than a slot: it changes `pool-limits.ts`, as the unmerged `ecec388cdb` does (13 files; its review
   queued 2026-11-16 and never started), and the entry of 2026-11-16 on the second timing of the two pools puts
   follow-ups to that file on top of `ecec388cdb` once it is reviewed and in `main`; that review waits with the queue.
