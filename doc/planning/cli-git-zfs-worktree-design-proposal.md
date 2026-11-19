@@ -1159,16 +1159,17 @@ is approved, released or implemented: this file remains a non-final draft.
   delivery to the already-confined reader in that arm. The shared arm preserved delivery but could not move
   the clone to staging. [VM item 15][vm-namespaces] measured post-attach namespaces holding the clone after private
   host unmount; the shared-path unmount removed the peer and slave copies, as a control only. Private staging
-  does not eliminate the all-namespace check. The decided setup qualifies how it excludes untracked holders and
-  new copies through destruction, not merely what the handler's namespace sees (unmeasured; see
+  does not eliminate the all-namespace check. Qualifying how the decided setup excludes untracked holders and new
+  copies through destruction, rather than what the handler's namespace sees, stays open and unmeasured (see
   [Mounts held by other namespaces](#mounts-held-by-other-namespaces)). No alternative descriptor unmount was
   tested. Do not silently change propagation. Two facts belong to this decision: a deployment that can show the
   exclusion still accepts planned snapshots all gone with the head refused when a copy survives the scan (the
-  outcome [VM item 15][vm-namespaces] measured), and no arrangement this draft describes shows that exclusion, so
-  [Removal when the namespace exclusion cannot be shown](#project-decisions) settles what removal does there. No
-  option here, and no deployment this draft names, can show that exclusion today: [VM item 15][vm-namespaces]
-  found no complete namespace or mount-reference exclusion, and this draft adds none. A third arrangement would
-  have to bring its own unmount and visibility proof.
+  outcome [VM item 15][vm-namespaces] measured), and no route this draft names can show that exclusion today:
+  [VM item 15][vm-namespaces] found no complete namespace or mount-reference exclusion and this draft adds none, so
+  [Removal when the namespace exclusion cannot be shown](#project-decisions) settles what removal does there. How
+  these arrangements compare is reasoning from those measurements, not a measured comparison: the boot unit and the
+  administrator setting it once differ in who keeps the mount isolation current, while a third arrangement must
+  bring its own unmount and visibility proof.
 - Removal when the namespace exclusion cannot be shown. Decided: "Destroy anyway (Recommended)": the scan that
   refuses the holders it sees stays, then the clone's snapshots and the head are destroyed.
   [VM item 15][vm-namespaces] found no complete namespace or mount-reference exclusion: its scan saw readable, live
@@ -1197,7 +1198,8 @@ is approved, released or implemented: this file remains a non-final draft.
   deployment whose arrangement this draft describes, and an authorized removal would be destroyable only through
   action outside the wrapper (reasoning). The project declined a refusal of that kind once: when it chose
   "B: Destroy at once", the offered "refuse without an explicit flag" was declined
-  ([project decision][answers], lines 491 to 494).
+  ([project decision][answers], lines 491 to 494). Reading that as this alternative's precedent is reasoning, with
+  a limit: the declined refusal was about keeping the clone's snapshots, not about a namespace exclusion.
 - Bookmarks on a clone being removed. Decided: "A: Live or planned (Recommended)", a bookmark passes when a live
   passing clone snapshot or a recorded plan tuple explains its tuple. The three options, their facts, their costs
   and what the decided rule still needs are under
@@ -1458,8 +1460,8 @@ snapshot it destroys: for a bookmark carrying `ZBM_FLAG_HAS_FBN`, which an ordin
 `ZBM_FLAG_SNAPSHOT_EXISTS` and keeps the entry, and a bookmark without that flag is passed over unchanged
 (`:1386` to `:1397`), so a bookmark outlives the snapshot it marks (source reading), and the page calls a bookmark
 the point in time its snapshot was created and an incremental source for `zfs send`
-(`man/man8/zfs-bookmark.8:48` to `:51`). No option here is measured:
-[VM item 13][vm-13] moved a bookmark with an unchanged tuple, and no arm destroyed a bookmarked snapshot or removed
+(`man/man8/zfs-bookmark.8:48` to `:51`). None of these rules is measured:
+[VM item 13][vm-13] moved a bookmark with an unchanged tuple, and no run destroyed a bookmarked snapshot or removed
 a clone that carried a bookmark.
 
 - Pass a bookmark whose tuple a live passing clone snapshot or a recorded plan tuple explains, and refuse the
