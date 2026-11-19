@@ -19,7 +19,7 @@ import {
   RATE_LIMIT_STATUS,
   TRANSCRIPT,
 } from './stand-in-pi-fixture.ts';
-import { REVIEWER_TARGETS, WRITER_TARGETS, } from './member-order-fixture.ts';
+import { labelOf, REVIEWER_TARGETS, WRITER_TARGETS, } from './member-order-fixture.ts';
 
 /**
  The recorded NeuralWatt overage refusal, verbatim: the `modelError` of
@@ -47,12 +47,17 @@ const PUBLISHED_CAP = 20;
 const OVERAGE_CAP = 6;
 
 /**
- Reviewer's NeuralWatt member, the only NeuralWatt model either pool asks,
+ Reviewer's NeuralWatt member, the flex lane of the two NeuralWatt members the pools ask,
  with the full catalog record the stand-in registry returns.
  */
 const NEURALWATT_FLEX = REVIEWER_TARGETS.at(-1,);
 if (NEURALWATT_FLEX === undefined)
   throw new Error('Expected the reviewer pool to end with its NeuralWatt member',);
+
+/**
+ Writer head, the NeuralWatt standard lane that asks the same endpoint for its own ceiling.
+ */
+const [NEURALWATT_STANDARD,] = WRITER_TARGETS;
 
 /**
  Read the URL from each fetch input form without stringifying an arbitrary object.
@@ -228,6 +233,30 @@ await describe({
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(result.provider,).toBe('synthetic',);
         expect(probe.invoked,).toBe(false,);
+      },
+    },),
+    it({
+      name: 'reads the standard lane’s own ceiling, not the flex floor, for the writer head',
+      fn: async function standardLaneCeiling() {
+        const { provider, calls, options, } = await fixture({
+          extension,
+          models: [NEURALWATT_STANDARD, NEURALWATT_FLEX,],
+          play({ model, }) { return immediate({ model, },); },
+          async fetchQuota(input,) {
+            return quotaUrl(input,).includes('/v1/rate_limits',)
+              ? Response.json({
+                models: [
+                  { effective_concurrency: PUBLISHED_CAP, flex_floor: NO_FLEX_REQUESTS, },
+                ],
+              },)
+              : Response.json({},);
+          },
+        },);
+        const model = poolModel({ provider, id: 'writer', },);
+        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(NEURALWATT_STANDARD,),],);
+        expect(result.provider,).toBe(NEURALWATT_STANDARD.provider,);
+        expect(result.stopReason,).toBe('stop',);
       },
     },),
     it({

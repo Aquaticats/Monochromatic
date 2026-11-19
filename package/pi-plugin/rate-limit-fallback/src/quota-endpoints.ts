@@ -127,20 +127,32 @@ async function requestQuota({
 }
 
 /**
- Interpret only the requested lane: NeuralWatt documents a separate flex ceiling.
+ Suffix that names NeuralWatt's flex lane in the model id the pool asks for.
+ */
+const FLEX_LANE_SUFFIX = '-flex';
+
+/**
+ Interpret only the requested lane: NeuralWatt documents a separate flex ceiling, `flex_floor` for
+ low-priority flex-lane requests and `effective_concurrency` as the resolved cap for the model
+ (https://docs.neuralwatt.com/guides/rate-limits.md, "Checking your current limit"). The row names
+ the canonical model, so the lane comes from the id the pool asked for, not from the row.
 
  @param limits - one model's rate-limit response
 
  @param quota - account quota response
+
+ @param memberId - exact model id the pool asked for
 
  @returns qualified ceiling and subscription state
  */
 function neuralWattEvidence({
   limits,
   quota,
+  memberId,
 }: {
   limits: unknown;
-  quota: unknown
+  quota: unknown;
+  memberId: string;
 },): QuotaEvidence {
   /**
    Candidate responses from the model-scoped limits lookup.
@@ -154,11 +166,15 @@ function neuralWattEvidence({
    */
   const row: unknown = Array.isArray(models,) && (models.length === 1) ? models[0] : undefined;
   /**
-   Provider-reported ceiling for the low-priority lane.
+   Whether the pool asked for the low-priority lane, whose ceiling the endpoint reports separately.
+   */
+  const flexLane = memberId.endsWith(FLEX_LANE_SUFFIX,);
+  /**
+   Provider-reported ceiling for the lane this member runs in.
    */
   const concurrency = finiteNumber(field({
     value: row,
-    key: 'flex_floor',
+    key: flexLane ? 'flex_floor' : 'effective_concurrency',
   },),);
   /**
    Subscription data used for the pay-as-you-go exception.
@@ -321,6 +337,7 @@ export async function probeQuota({
     return (limits === undefined) && (quota === undefined) ? QUOTA_UNAVAILABLE : neuralWattEvidence({
       limits,
       quota,
+      memberId: model.id,
     },);
   } catch (error) {
     // Do not log raw credential-resolution errors.

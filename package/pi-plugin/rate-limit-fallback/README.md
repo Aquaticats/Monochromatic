@@ -156,8 +156,10 @@ this extension. The offline verification does not measure endpoint latency.
   plugin uses an exposed `Retry-After` rather than guessing room from
   a published estimate or starting a console session.
 - **NeuralWatt.** [Rate limits][nw-rates] documents
-  `/v1/rate_limits?model=…`. The `-flex` member uses the reported
-  `flex_floor` ceiling, not standard traffic's `effective_concurrency`.
+  `/v1/rate_limits?model=…`, whose row names the canonical model. The
+  `-flex` member takes the reported `flex_floor`, the ceiling for low-priority
+  flex-lane requests, and the standard member takes `effective_concurrency`,
+  the resolved cap for the model; the lane comes from the id the pool asks for.
   The plugin enforces it over in-flight calls in this Pi session; it
   cannot count another process's calls or reserve seats. [Quota][nw-quota]
   exposes `subscription.in_overage`, `auto_renew` and `current_period_end`.
