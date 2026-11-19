@@ -1,0 +1,115 @@
+# AB Download Manager 1.11.4 opens through XWayland on Plasma while mpv 0.42.0 uses Wayland
+
+Unapproved investigation notes from 2026-11-18T21:00:44-05:00.
+Codex verified the launch and socket observations on the CachyOS desktop.
+Owner review and testing on other compositors remain open.
+
+## Symptom
+
+The Plasma 6.8.3 session reported `XDG_SESSION_TYPE=wayland`, `WAYLAND_DISPLAY=wayland-1`
+and `DISPLAY=:0`. KWin runs XWayland alongside its native socket.
+AB Download Manager and mpv choose different window backends in this same environment.
+
+## Root cause
+
+The installed `ab-download-manager 1.11.4-1` launcher starts a bundled Java runtime.
+Its module image contains `sun.awt.X11.XToolkit` and its library directory contains
+`libawt_xawt.so`. Probing the image and library directory found no `WLToolkit` class
+or `libawt_wlawt.so`. The cached CachyOS package's `.BUILDINFO` lists `jdk25-openjdk`.
+The launch mapped an X11 window with `WM_CLASS=com-abdownloadmanager-desktop-AppKt`.
+
+The official v1.11.4 Linux archive includes JetBrains' Wayland AWT library.
+In JetBrains Runtime 25.0.5.0.3b700.17, `PlatformGraphicsInfo.java:47-70` selects the Java window toolkit
+using `awt.toolkit.name`. The bundled launcher still produced the X11 headless error during the
+Wayland-only test, including with `WLToolkit` passed through `JAVA_TOOL_OPTIONS`.
+Launching the application class directly with this newer JetBrains Runtime and `-Dawt.toolkit.name=WLToolkit`
+reached KWin but stopped while Skiko initialized the drawing surface.
+[JetBrains Runtime source](https://github.com/JetBrains/JetBrainsRuntime/blob/cdca38823e56526cba4cb73fb34ec2a7ccbfaee9/src/java.desktop/unix/classes/sun/awt/PlatformGraphicsInfo.java#L47-L70)
+
+```java
+// src/java.desktop/unix/classes/sun/awt/PlatformGraphicsInfo.java
+return  (getToolkitID() == TK_X11)?
+    new sun.awt.X11.XToolkit() :
+    new sun.awt.wl.WLToolkit();
+```
+
+Skiko v0.150.1 calls into Java AWT to lock the drawing surface.
+`AWT.kt:35` rejects a failed lock. The observed exception was
+`java.lang.IllegalStateException: Can't lock DrawingSurface`.
+The same stack is recorded upstream with an older Skiko version.
+[Skiko source](https://github.com/JetBrains/skiko/blob/3956e988e6e93eaf1ee985d725049443e7845807/skiko/src/awtMain/kotlin/org/jetbrains/skiko/AWT.kt#L33-L37)
+[Upstream report](https://youtrack.jetbrains.com/issue/SKIKO-1147)
+
+```kotlin
+// skiko/src/awtMain/kotlin/org/jetbrains/skiko/AWT.kt
+fun lock() = lockDrawingSurface(ptr).also { check(it == 0) { "Can't lock DrawingSurface" } }
+```
+
+On mpv 0.42.0, `video/out/gpu/context.c:85-95` places the Wayland Vulkan context first among Linux
+Vulkan window backends. The default playback probe selected `waylandvk` and rendered the video.
+The already-running mpv process also connected directly to KWin's Wayland socket.
+[mpv source](https://github.com/mpv-player/mpv/blob/b0841e8c4d156b8403dc1876c4cbd9011eb583f3/video/out/gpu/context.c#L85-L95)
+
+```c
+// video/out/gpu/context.c
+#if HAVE_WAYLAND
+    &ra_ctx_vulkan_wayland,
+#endif
+#if HAVE_X11
+    &ra_ctx_vulkan_xlib,
+#endif
+```
+
+## Verification
+
+Run a generated video and look for `Initializing GPU context 'waylandvk'` and `VO: [gpu-next]`.
+Adding `--gpu-context=x11egl` with `DISPLAY` present is the XWayland control. It reports
+`X11 opening display: :0`. The X11 window list can be read with `xprop -root _NET_CLIENT_LIST`.
+
+```sh
+# Terminal, mpv from the installed package
+mpv --msg-level=vo=v --no-audio --frames=2 --geometry=320x180 -- av://lavfi:testsrc2=size=320x180:rate=5
+```
+
+Launch AB Download Manager once per disposable home, setting both `HOME` and Java's `user.home`
+to that profile. The ordinary launcher opens an X11 window. With `DISPLAY` removed and
+`WAYLAND_DISPLAY` retained, Java exits with `HeadlessException` and
+`No X11 DISPLAY variable was set,`. The Wayland-only launch also fails with the toolkit property
+set in the packaged launchers. A direct launch with the JetBrains Runtime reached Wayland and reproduced
+Skiko's drawing surface error, including with `SKIKO_RENDER_API=SOFTWARE`.
+
+```sh
+# Terminal, spare profile under the agent scratch directory
+probe_home=$(mktemp --directory --tmpdir="$HOME/temp/agent" ab-wayland.XXXXXX)
+env --unset=DISPLAY HOME="$probe_home" XDG_CONFIG_HOME="$probe_home/config" \
+  XDG_DATA_HOME="$probe_home/data" XDG_CACHE_HOME="$probe_home/cache" \
+  JAVA_TOOL_OPTIONS="-Duser.home=$probe_home" /opt/abdownloadmanager/bin/ABDownloadManager
+```
+
+The live socket snapshot also found Telegram connected to both display servers and using Qt's Wayland
+platform plugin. An X11 connection can coexist with a native window. The X11 window list and Wayland socket
+peer inspection answer different questions, and they cover the apps active at the time of the sample.
+
+## Verified workarounds
+
+mpv can explicitly restrict video output to Wayland. Playback succeeded with `DISPLAY` unset and both
+`--vo=gpu-next` and `--gpu-context=waylandvk,wayland` set. The EGL context provides a second Wayland option.
+Pinning these options gives up automatic selection of other video outputs.
+The installed AB Download Manager works through Plasma's XWayland compatibility server.
+
+## What does not work
+
+Removing `DISPLAY` does not add a Wayland toolkit to the CachyOS package.
+The official tarball opens an XWayland window by default, and selecting software rendering
+did not resolve the Skiko drawing-surface error in the direct Wayland test.
+
+## Upstream filing decision
+
+The active support request is AB Download Manager issue 427. Skiko's matching report is a duplicate of
+its native Wayland work. This local result requires working support in the packaged Java and rendering
+stack, and both upstream projects already track the use case. AB Download Manager's contribution guide
+accepts bug reports and asks for an existing-issue search. The tracking issues establish interest in the
+use case. No app-level fix was prototyped, and the existing Skiko report has the stack and renderer results
+already. No filing artifact is needed.
+[AB Download Manager issue](https://github.com/amir1376/ab-download-manager/issues/427#issuecomment-2883120375)
+[Skiko tracking issue](https://youtrack.jetbrains.com/issue/SKIKO-28)
