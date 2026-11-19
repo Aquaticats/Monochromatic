@@ -4,6 +4,7 @@
  */
 
 import type { AssistantMessage, } from '@earendil-works/pi-ai';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   digitsEnd,
   foldProviderText,
@@ -16,6 +17,11 @@ import {
  Failure fields used for evidence decisions, independent of mutability of the original Pi message.
  */
 type FailureEvidence = Pick<Readonly<AssistantMessage>, 'errorMessage' | 'stopReason'>;
+
+/**
+ Logger for refusal-body parsing, which never logs refusal text or credentials.
+ */
+const l = tagged({ tag: 'rate-limit-fallback', },);
 
 /**
  Milliseconds per second, for HTTP and header timestamps.
@@ -454,6 +460,66 @@ function resetDuration(value: string,): number {
 }
 
 /**
+ Delay a refusal asks for in its own body.
+
+ NeuralWatt's recorded overage refusal carries `retry_strategy.suggested_initial_delay_s`
+ (`OVERAGE_REFUSAL` in the quota suite, copied from the capture), and the provider's guide asks
+ clients to honour it: "The error-specific `retry_strategy` provides additional guidance"
+ (https://docs.neuralwatt.com/guides/rate-limits.md, "Retry advice"). The plugin prefers this
+ provider-given number over its own documented-wording guess.
+
+ @param message - terminal rate-limit result, whose text usually carries the JSON body
+
+ @param now - time refusal arrived
+
+ @returns retry time, or zero when the body names no usable delay
+ */
+function bodyDelay({
+  message,
+  now,
+}: {
+  readonly message: FailureEvidence;
+  readonly now: number;
+},): number {
+  /**
+   Refusal text as the adapter reported it.
+   */
+  const text = message.errorMessage ?? '';
+  if (!text.includes('{',))
+    return 0;
+  /**
+   Start of the JSON body a refusal carries.
+   */
+  const bodyStart = text.indexOf('{',);
+  try {
+    /**
+     Parsed body the refusal carried.
+     */
+    const body: unknown = JSON.parse(text.slice(bodyStart,),);
+    /**
+     Provider's retry guidance for this refusal.
+     */
+    const strategy = field({
+      value: body,
+      key: 'retry_strategy',
+    },);
+    /**
+     Delay that guidance names, in seconds.
+     */
+    const seconds = finiteNumber(field({
+      value: strategy,
+      key: 'suggested_initial_delay_s',
+    },),);
+    return (Number.isFinite(seconds,) && (seconds > 0)) ? now + (seconds * SECOND_MS) : 0;
+  } catch (error) {
+    // A truncated or non-JSON body names no delay; only the error class is logged, because the
+    // refusal text may carry provider or credential detail.
+    l.debug(`Refusal body unreadable: ${Error.isError(error,) ? error.name : typeof error}`,);
+    return 0;
+  }
+}
+
+/**
  Use the response's published timing when Pi exposes it.
 
  @param provider - provider whose quota contract applies
@@ -526,11 +592,10 @@ export function headerReset({
 }
 
 /**
- Apply Qwen's documented request-rate recommendation only if no response reset was available.
+ Retry time a refusal gives, preferring the provider's own number over a documented wording guess.
 
- The wording is documented, not captured: no recorded `modelError` on this machine carries it, and no
- installed source builds it, so a change in Qwen's wording silently disables this rule. The rationale
- is the Token Plan FAQ sentence quoted above `QWEN_REQUEST_RATE_WAIT_MS`.
+ The body's `retry_strategy.suggested_initial_delay_s` comes first, because the provider stated it for
+ this refusal; Qwen's documented request-rate pause applies only when no body names a delay.
 
  @param provider - provider that refused
 
@@ -538,14 +603,14 @@ export function headerReset({
 
  @param now - time refusal arrived
 
- @returns retry time, or zero when the guide does not apply
+ @returns retry time, or zero when neither source applies
 
  @example
  ```ts
- recommendedReset({ provider: 'openai', message: { stopReason: 'error' }, now: 0 }); // 0
+ refusalReset({ provider: 'qwen-token-plan-individual', message: { stopReason: 'error' }, now: 0 }); // 0
  ```
  */
-export function recommendedReset({
+export function refusalReset({
   provider,
   message,
   now,
@@ -554,6 +619,15 @@ export function recommendedReset({
   readonly message: FailureEvidence;
   readonly now: number;
 },): number {
+  /**
+   Delay the refusal body itself names, which outranks any published wording.
+   */
+  const fromBody = bodyDelay({
+    message,
+    now,
+  },);
+  if (fromBody > now)
+    return fromBody;
   return (provider === 'qwen-token-plan-individual')
     && foldProviderText(message.errorMessage ?? '',)
       .includes('requests rate limit exceeded',)

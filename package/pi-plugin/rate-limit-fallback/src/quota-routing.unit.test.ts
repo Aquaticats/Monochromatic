@@ -55,6 +55,11 @@ if (NEURALWATT_FLEX === undefined)
   throw new Error('Expected the reviewer pool to end with its NeuralWatt member',);
 
 /**
+ Delay the recorded overage refusal names in `retry_strategy.suggested_initial_delay_s`, one second.
+ */
+const RECORDED_DELAY_MS = 1_000;
+
+/**
  Writer head, the NeuralWatt standard lane that asks the same endpoint for its own ceiling.
  */
 const [NEURALWATT_STANDARD,] = WRITER_TARGETS;
@@ -128,6 +133,8 @@ await describe({
             play({ model, options: member, }) {
               if (calls.length !== 1)
                 return immediate({ model, },);
+              // Stand-in for a shape no installed adapter emits: each adapter calls `onResponse`
+              // after a successful response alone, so a real 429 never reaches the plugin here.
               return lazyStream(model, async function refused() {
                 await member?.onResponse?.({
                   status: RATE_LIMIT_STATUS,
@@ -233,6 +240,29 @@ await describe({
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(result.provider,).toBe('synthetic',);
         expect(probe.invoked,).toBe(false,);
+      },
+    },),
+    it({
+      name: 'holds the member for the delay the refusal body names',
+      fn: async function bodyDelayHold(ctx,) {
+        const clock = { now: Date.now(), };
+        ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
+        const { provider, calls, options, } = await fixture({
+          extension,
+          models: [NEURALWATT_FLEX,],
+          play({ model, }) {
+            return calls.length === 1
+              ? immediate({ model, errorMessage: OVERAGE_REFUSAL, },)
+              : immediate({ model, },);
+          },
+        },);
+        const model = poolModel({ provider, id: 'reviewer', },);
+        const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(first.result.errorMessage,).toContain('concurrent_budget_exceeded',);
+        const held = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(held.result.errorMessage,).toContain(`${labelOf(NEURALWATT_FLEX,)} is held until`,);
+        expect(calls.length,).toBe(1,);
+        expect(held.result.errorMessage,).toContain(new Date(clock.now + RECORDED_DELAY_MS,).toISOString(),);
       },
     },),
     it({
@@ -370,6 +400,8 @@ await describe({
         const model = poolModel({ provider, id: 'reviewer', },);
         const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(first.result.errorMessage,).toContain('overage with auto-renew off',);
+        // The refusal body names a one-second hold, which the member must observe before the cap runs.
+        clock.now += RECORDED_DELAY_MS;
         const inFlight = Array.from({ length: OVERAGE_CAP, }, () => provider.streamSimple(model, TRANSCRIPT, options,),);
         await using cleanup: AsyncDisposable = {
           async [Symbol.asyncDispose](): Promise<void> {

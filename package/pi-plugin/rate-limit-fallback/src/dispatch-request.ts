@@ -27,10 +27,10 @@ import { HTTP_RATE_LIMIT_STATUS, } from './provider-wire-text.ts';
 import type { RoutingRegistry, } from './quota-endpoints.ts';
 import {
   hasOpenAiPolicyOpening,
+  refusalReset,
   headerReset,
   isPolicyStop,
   isRateLimit,
-  recommendedReset,
 } from './rate-limit-evidence.ts';
 
 //region Session state and routing errors
@@ -434,7 +434,7 @@ export async function* dispatchRequest({
            */
           const retryAt = evidence.resetAt > now
             ? evidence.resetAt
-            : recommendedReset({
+            : refusalReset({
               provider: physical.provider,
               message: event.error,
               now,

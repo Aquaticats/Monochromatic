@@ -136,7 +136,12 @@ function advisoryStop({
 }
 
 /**
- Answer one member with a 429 that carries retry timing, the way a refused HTTP request arrives.
+ Answer one member with a 429 that carries retry timing through the response hook.
+
+ Stand-in for a shape no installed adapter emits: each of them calls `onResponse` after a successful
+ response alone (`@earendil-works/pi-ai` dist/api/openai-completions.js:203, dist/api/openai-
+ responses.js:155), so a real 429 never reaches the plugin this way. The hook path is kept for an
+ adapter that starts exposing failed responses.
 
  @param model - physical member
 

@@ -103,6 +103,14 @@ member is eligible for reevaluation at the time given. With no timing
 evidence, it can be retried on the next request. The plugin neither
 sleeps on a refused member nor permanently demotes it.
 
+A `Retry-After` reaches the plugin only if an adapter exposes the failed
+response through its response hook, and none of the three adapters Pi 1.5.2
+installs for these members does: each calls the hook after a successful
+response alone. The plugin therefore takes a refusal's timing from the delay the
+refusal body names, `retry_strategy.suggested_initial_delay_s`, as NeuralWatt's
+guide documents, and otherwise from a provider's documented wording. Header
+timing stays in place for an adapter that starts exposing failed responses.
+
 Authenticated quota endpoints are read on the first eligible attempt
 and before returning to the member after a refusal, a known reset, or
 a local concurrency rejection. There is no background polling. Probing
@@ -124,8 +132,9 @@ this extension. The offline verification does not measure endpoint latency.
 
 - **OpenAI.** The [API rate-limit guide][openai-limits] documents
   `Retry-After` and request/token remaining and reset headers. The plugin
-  uses exposed timing on a 429 and can use zero-remaining headers on a
-  successful response. Pi's adapter does not expose every unsuccessful
+  uses a `Retry-After` when an adapter exposes the failed response, which no
+  installed adapter does, and can use zero-remaining headers on a successful
+  response. Pi's adapter does not expose every unsuccessful
   HTTP response through its response hook. The [organization API][openai-admin]
   has project rate-limit administration, not a live remaining-quota
   lookup for the inference credential. The [Codex app-server][openai-codex]
@@ -153,8 +162,9 @@ this extension. The offline verification does not measure endpoint latency.
   [model list API][go-models] publishes plan/model monthly limits, not
   remaining account allowance. No documented account quota endpoint
   or Go-specific quota headers were found in these references. The
-  plugin uses an exposed `Retry-After` rather than guessing room from
-  a published estimate or starting a console session.
+  plugin uses a `Retry-After` only when an adapter exposes the failed response,
+  rather than guessing room from a published estimate or starting a console
+  session.
 - **NeuralWatt.** [Rate limits][nw-rates] documents
   `/v1/rate_limits?model=…`, whose row names the canonical model. The
   `-flex` member takes the reported `flex_floor`, the ceiling for low-priority
