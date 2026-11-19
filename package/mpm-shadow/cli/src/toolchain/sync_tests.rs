@@ -429,30 +429,37 @@ fn an_install_removes_the_oldest_version_no_lock_names() {
     finish_install(&version_directory(&rig.scope.toolchain_root, "fd-find", "1.2.3"), "fd-find", "1.2.3", &["fd"]);
     let stale = version_directory(&rig.scope.toolchain_root, "fd-find", "1.0.0");
     fs::create_dir_all(&stale).expect("make the old version");
-    fs::write(stale.join("fd"), b"old program").expect("write the old program");
+    let old_program = stale.join("fd");
+    fs::write(&old_program, b"old program").expect("write the old program");
+    // Make the stale version fall outside both retention slots.
+    let runner_up = version_directory(&rig.scope.toolchain_root, "fd-find", "1.1.0");
+    finish_install(&runner_up, "fd-find", "1.1.0", &["fd"]);
+    let born = fs::symlink_metadata(&stale).expect("read the stale version").created().ok();
     // The bounds the pass ships are sized for a real store; this one holds kilobytes, so the test sets both.
     rig.env = rig
         .env
         .with("MPM_SHADOW_STORE_SIZE_BOUND", "0")
         .with("MPM_SHADOW_STORE_AGE_FLOOR", "0");
-    written_ago(&stale, 24 * 60 * 60);
-
-    let report = sync_tools(&rig.context(), None);
-
-    assert!(report.failed.is_empty(), "{:?}", report.failed);
-    // What: this station's process table holds processes the kernel refuses to describe, and the rule then keeps every
-    // version; the end-to-end removal can be seen only where the table can be read in full.
-    // Why: the alternative is a control whose result depends on which desktop runs it, and the rule is that a process
-    // that was never read may run any version.
+    let old_age = crate::toolchain::store_trim::DEFAULT_AGE_FLOOR_SECONDS * 2;
+    written_ago(&old_program, old_age);
+    written_ago(&stale, old_age);
+    // Check whether this machine can exercise the deletion with its live, rather than injected, process scan.
     let holders = crate::toolchain::store_path_holders::holders_of(
         &[rig.scope.toolchain_root.clone()],
         std::time::Instant::now() + std::time::Duration::from_secs(60),
     );
-    if holders.incomplete.is_some() {
-        assert!(stale.exists(), "the pass removed a version while it could not read the process table in full");
-        return;
+    let possibly_held = holders.incomplete.is_some() || holders.opaque.iter().any(|process| {
+        return !matches!((process.started_before, born), (Some(start), Some(birth)) if start < birth);
+    });
+
+    let report = sync_tools(&rig.context(), None);
+
+    assert!(report.failed.is_empty(), "{:?}", report.failed);
+    // The age-rule unit fixture tests both held and unheld outcomes without a live process table.
+    if !possibly_held {
+        assert!(!stale.exists(), "the old version outside the two newest and named by no lock stayed");
     }
-    assert!(!stale.exists(), "the old version no lock names stayed");
+    assert!(runner_up.exists(), "the other retained version went");
     assert!(version_directory(&rig.scope.toolchain_root, "fd-find", "1.2.3").exists(), "the locked version went");
 }
 
