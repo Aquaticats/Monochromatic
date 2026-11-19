@@ -66,9 +66,15 @@ export function capacityOf({
   members: Map<string, MemberCapacity>;
   label: string;
 },): MemberCapacity {
+  /**
+   Member capacity already shared by other requests in this session.
+   */
   const existing = members.get(label,);
   if (existing !== undefined)
     return existing;
+  /**
+   Member-specific state for rate evidence and local admission.
+   */
   const capacity: MemberCapacity = {
     needsProbe: true,
     active: 0,
@@ -94,6 +100,9 @@ export function capacityOf({
  @returns quota request cancellation
  */
 function quotaSignal(options: SimpleStreamOptions | undefined,): AbortSignal | undefined {
+  /**
+   Caller cancellation and timeout settings used by the quota lookup.
+   */
   const {
     signal,
     timeoutMs,
@@ -101,6 +110,9 @@ function quotaSignal(options: SimpleStreamOptions | undefined,): AbortSignal | u
   if ((timeoutMs === undefined) || (!Number.isSafeInteger(timeoutMs,))
     || (timeoutMs <= 0))
     return signal;
+  /**
+   Deadline for the quota lookup, independent from the member's request.
+   */
   const timeout = AbortSignal.timeout(timeoutMs,);
   return signal === undefined ? timeout : AbortSignal.any([
     signal,
@@ -127,7 +139,13 @@ async function waitForCapacity({
     return;
   }
   signal.throwIfAborted();
+  /**
+   Cancellation for the temporary waiter, not for the shared lookup.
+   */
   const stopWaiting = new AbortController();
+  /**
+   Releases the abort listener when the waiter completes for any reason.
+   */
   using watch = { [Symbol.dispose]() { stopWaiting.abort(); }, };
   await Promise.race([pending, once(signal, 'abort', { signal: stopWaiting.signal, },),],);
   signal.throwIfAborted();
@@ -155,11 +173,20 @@ export async function refreshCapacity({
   model: Model<Api>;
   options: SimpleStreamOptions | undefined;
 },): Promise<void> {
+  /**
+   Read and publish fresh evidence, releasing the shared lookup when settled.
+   */
   async function refresh(): Promise<void> {
+    /**
+     Clears the pending lookup only when its own read has settled.
+     */
     using owner = { [Symbol.dispose]() { delete capacity.pending; }, };
     capacity.needsProbe = false;
     if (capacity.retryAt <= Date.now())
       capacity.retryAt = 0;
+    /**
+     Fresh quota facts that may supersede previous capacity or retry hints.
+     */
     const evidence = await probeQuota({
       registry,
       model,
@@ -172,6 +199,9 @@ export async function refreshCapacity({
       capacity.needsProbe = true;
       return;
     }
+    /**
+     Observation time used to compare provider deadlines.
+     */
     const now = Date.now();
     capacity.evidence = {
       concurrency: evidence.concurrency
@@ -207,7 +237,13 @@ export async function refreshCapacity({
     }
   }
 
+  /**
+   This caller's cancellation, independent of the shared lookup.
+   */
   const { signal, } = options ?? {};
+  /**
+   Pass the caller's abort signal only when supplied.
+   */
   const cancellation = signal === undefined ? {} : { signal, };
   if (capacity.pending !== undefined) {
     await waitForCapacity({ pending: capacity.pending, ...cancellation, },);
@@ -265,8 +301,14 @@ export function noteRateLimit({
   );
   if ((provider !== 'neuralwatt') || (!errorMessage.includes(OVERAGE_NOTICE,)))
     return;
+  /**
+   Provider-dependent simultaneous request ceiling, not available slots.
+   */
   const concurrency = Number(OVERAGE_CONCURRENCY.exec(errorMessage,)?.[1],);
   if (Number.isSafeInteger(concurrency,) && (concurrency > 0)) {
+    /**
+     Last known subscription boundary for an observed overage cap.
+     */
     const periodEnd = capacity.evidence
       .periodEnd
       ?? 0;

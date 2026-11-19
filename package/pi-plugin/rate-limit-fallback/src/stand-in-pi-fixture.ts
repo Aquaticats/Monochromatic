@@ -183,6 +183,9 @@ export async function collect(stream: AssistantMessageEventStream,): Promise<{
   readonly events: AssistantMessageEvent[];
   readonly result: AssistantMessage;
 }> {
+  /**
+   Normalized events observed by the consumer in order.
+   */
   const events: AssistantMessageEvent[] = [];
   for await (const event of stream)
     events.push(event,);
@@ -244,8 +247,17 @@ export async function fixture({
   readonly provider: Provider;
   readonly options: SimpleStreamOptions;
 }> {
+  /**
+   Physical requests, including discarded attempts, captured by the fixture.
+   */
   const calls: MemberCall[] = [];
+  /**
+   Provider object registered with the host.
+   */
   let provider: Provider | undefined;
+  /**
+   Session-start handler captured from the extension factory.
+   */
   let start: ExtensionHandler<SessionStartEvent> | undefined;
   extension({
     registerProvider(value: Provider,) {
@@ -261,6 +273,9 @@ export async function fixture({
   } as unknown as ExtensionAPI,);
   if ((provider === undefined) || (start === undefined))
     throw new Error('Expected provider registration and session binding',);
+  /**
+   Test implementation of the extension's registry boundary.
+   */
   const registry = {
     find(
       providerId: string,
@@ -280,6 +295,9 @@ export async function fixture({
       context: TranscriptContext,
       options?: SimpleStreamOptions,
     ) {
+      /**
+       Captured physical request delivered to the scripted member.
+       */
       const call = {
         model,
         context,
@@ -321,7 +339,13 @@ export function immediate({
   model: Model<Api>;
   errorMessage?: string;
 },): AssistantMessageEventStream {
+  /**
+   Normalized stream whose terminal event decides whether to stop or hand off.
+   */
   const stream = createAssistantMessageEventStream();
+  /**
+   Member-attributed result sent on the fixture stream.
+   */
   const message = assistant({
     model,
     ...(errorMessage === undefined ? {} : { errorMessage, }),
@@ -353,6 +377,9 @@ export function poolModel({
   provider: Provider;
   id: string
 },): Model<Api> {
+  /**
+   Selected pool model from the extension's catalog.
+   */
   const model = provider.getModels()
     .find(function matches(candidate,): candidate is Model<Api> {
       return ((candidate.type === undefined) || (candidate.type === 'chat')) && (candidate.id === id);

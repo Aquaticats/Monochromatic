@@ -88,11 +88,17 @@ async function requestQuota({
   fetchQuota: FetchFunction;
   signal: AbortSignal | undefined;
 },): Promise<unknown> {
+  /**
+   Logger siblings can correlate with this quota request without reading its authorization.
+   */
   const rl = tagged({
     tag: requestQuota.name,
     l,
   },);
   try {
+    /**
+     Headers and response status, before a successful body is consumed.
+     */
     const response = await fetchQuota(
       url,
       {
@@ -131,23 +137,41 @@ function neuralWattEvidence({
   limits: unknown;
   quota: unknown
 },): QuotaEvidence {
+  /**
+   Candidate responses from the model-scoped limits lookup.
+   */
   const models = field({
     value: limits,
     key: 'models',
   },);
+  /**
+   Single result row for a model-scoped NeuralWatt lookup.
+   */
   const row: unknown = Array.isArray(models,) && (models.length === 1) ? models[0] : undefined;
+  /**
+   Provider-reported ceiling for the low-priority lane.
+   */
   const concurrency = finiteNumber(field({
     value: row,
     key: 'flex_floor',
   },),);
+  /**
+   Subscription data used for the pay-as-you-go exception.
+   */
   const subscription = field({
     value: quota,
     key: 'subscription',
   },);
+  /**
+   Whether included subscription energy was exhausted.
+   */
   const inOverage = field({
     value: subscription,
     key: 'in_overage',
   },);
+  /**
+   Whether the account has auto-renew enabled.
+   */
   const autoRenew = field({
     value: subscription,
     key: 'auto_renew',
@@ -191,32 +215,56 @@ export async function probeQuota({
   fetchQuota: FetchFunction;
   signal: AbortSignal | undefined;
 },): Promise<QuotaEvidence> {
+  /**
+   Probe diagnostics, excluding credentials and raw provider responses.
+   */
   const rl = tagged({
     tag: probeQuota.name,
     l,
   },);
+  /**
+   Provider identity used to select an official quota contract.
+   */
   const { provider, } = model;
   if ((provider !== 'synthetic') && (provider !== 'neuralwatt'))
     return {};
+  /**
+   Official endpoint against which authentication is checked.
+   */
   const url = provider === 'synthetic' ? SYNTHETIC_QUOTA : NEURALWATT_LIMITS;
   try {
+    /**
+     Trusted destination on which the registry credential may be used.
+     */
     const {origin} = new URL(url,);
     if (URL.parse(model.baseUrl,)
       ?.origin
       !== origin)
       return {};
+    /**
+     Member credentials and endpoint overrides as resolved by Pi.
+     */
     const auth = await registry.getApiKeyAndHeaders(model,);
     signal?.throwIfAborted();
     if (!auth.ok || URL.parse(auth.baseUrl ?? model.baseUrl,)?.origin !== origin)
       return {};
+    /**
+     An authorization override, including explicit suppression.
+     */
     const explicit = Object.entries(auth.headers ?? {},).find(function isAuthorization([header,],) {
       return header.toLowerCase() === 'authorization';
     },);
+    /**
+     Bearer value permitted by the quota endpoints.
+     */
     const bearer = explicit === undefined
       ? (auth.apiKey === undefined || auth.apiKey === '' ? '' : `Bearer ${auth.apiKey}`)
       : (explicit[1] ?? '');
     if (!bearer.toLowerCase().startsWith('bearer ',) || bearer.trimEnd().length <= 'Bearer '.length)
       return {};
+    /**
+     Transport and authorized header shared by the member's quota GETs.
+     */
     const request = {
       bearer,
       fetchQuota,
@@ -227,12 +275,18 @@ export async function probeQuota({
         url,
         ...request,
       },),), };
+    /**
+     Rate-limit lookup scoped to the exact model and lane.
+     */
     const limitsUrl = new URL(url,);
     limitsUrl.searchParams
       .set(
       'model',
       model.id,
       );
+    /**
+     Independently read model ceiling and account renewal information.
+     */
     const [limits, quota,] = await Promise.all([
       requestQuota({
         url: limitsUrl,

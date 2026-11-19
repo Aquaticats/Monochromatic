@@ -73,6 +73,9 @@ function memberOptions({
   model: Model<Api>;
   options: SimpleStreamOptions | undefined;
 },): SimpleStreamOptions {
+  /**
+   Separate virtual-provider credentials and member-specific constraints from neutral options.
+   */
   const {
     apiKey,
     headers,
@@ -84,6 +87,9 @@ function memberOptions({
   void apiKey;
   void headers;
   void env;
+  /**
+   Requested reasoning level after applying the physical model's capabilities.
+   */
   const clamped = clampThinkingLevel(
     model,
     reasoning ?? 'off',
@@ -130,24 +136,48 @@ export async function* dispatchRequest({
   context: TranscriptContext;
   options: SimpleStreamOptions | undefined;
 },): AsyncGenerator<AssistantMessageEvent> {
+  /**
+   Tagged logger that names the current operation without exposing credentials.
+   */
   const rl = tagged({
     tag: dispatchRequest.name,
     l,
   },);
+  /**
+   Selected pool id, not the id sent to a physical provider.
+   */
   const { id, } = model;
   if ((id !== 'writer') && (id !== 'reviewer'))
     throw new PoolDispatchError(`Unknown rate-limit-fallback model: ${id}`,);
+  /**
+   Cancellation that applies to every attempt of this logical request.
+   */
   const { signal, } = options ?? {};
+  /**
+   Last discarded 429 to return if nobody in the pool can answer.
+   */
   let lastRateLimit: Extract<AssistantMessageEvent, { type: 'error'; }> | undefined;
+  /**
+   Earliest known reset among temporarily held members.
+   */
   let nextRetryAt = Infinity;
+  /**
+   Whether any member was unavailable due to local concurrency.
+   */
   let localsFull = false;
   for (const member of POOLS[id]) {
     signal?.throwIfAborted();
+    /**
+     Exact member from Pi's current model registry.
+     */
     const physical = session.registry
       .find(
       member.provider,
       member.id,
       );
+    /**
+     Lookup key for the exact provider and model, not the selected pool alias.
+     */
     const label = `${member.provider}/${member.id}`;
     if (physical === undefined) {
       rl.debug(`${id}: missing registry model ${label}`,);
@@ -155,6 +185,9 @@ export async function* dispatchRequest({
     }
     if ((physical.provider !== member.provider) || (physical.id !== member.id))
       throw new PoolDispatchError(`Pi registry returned a different model for ${label}`,);
+    /**
+     Member-specific state for rate evidence and local admission.
+     */
     const capacity = capacityOf({
       members: session.members,
       label,
@@ -175,6 +208,9 @@ export async function* dispatchRequest({
       );
       continue;
     }
+    /**
+     Most restrictive credible ceiling among published and observed values.
+     */
     const ceiling = Math.min(
       capacity.overage?.concurrency ?? Infinity,
       capacity.evidence.concurrency ?? Infinity,
@@ -186,13 +222,25 @@ export async function* dispatchRequest({
       continue;
     }
     rl.debug(`${id}: dispatching to ${label}`,);
+    /**
+     Caller options stripped of credentials and scoped to the physical model.
+     */
     const forwarded = memberOptions({
       model: physical,
       options,
     },);
+    /**
+     Provider-supplied deadline to use if the current attempt is limited.
+     */
     let responseReset = 0;
+    /**
+     HTTP status exposed by the physical adapter, when available.
+     */
     let status: number | undefined;
     capacity.active += 1;
+    /**
+     Local admission held until that physical stream terminates.
+     */
     const seat = {
       occupied: true,
       release() {
@@ -203,8 +251,14 @@ export async function* dispatchRequest({
       },
       [Symbol.dispose]() { seat.release(); },
     };
+    /**
+     Idempotent cleanup for cancellation, error, and terminal output.
+     */
     using lease = seat;
     {
+      /**
+       Normalized stream whose terminal event decides whether to stop or hand off.
+       */
       const stream = session.registry
         .streamSimple(
         physical,
@@ -231,8 +285,17 @@ export async function* dispatchRequest({
           },
         },
         );
+      /**
+       Start event held before a physical attempt emits output.
+       */
       let start: Extract<AssistantMessageEvent, { type: 'start'; }> | undefined;
+      /**
+       Whether a content event from this attempt has been exposed.
+       */
       let committed = false;
+      /**
+       Distinguishes intentional handoff from a malformed stream closing early.
+       */
       let limited = false;
       for await (const event of stream) {
         if (event.type === 'start') {
@@ -264,7 +327,13 @@ export async function* dispatchRequest({
           },))
           {
           signal?.throwIfAborted();
+          /**
+           Observation time used to compare provider deadlines.
+           */
           const now = Date.now();
+          /**
+           Earliest time this member should be reconsidered after the refusal.
+           */
           const retryAt = responseReset > now
             ? responseReset
             : recommendedReset({

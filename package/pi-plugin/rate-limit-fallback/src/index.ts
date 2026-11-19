@@ -41,10 +41,16 @@ const l = tagged({ tag: 'rate-limit-fallback', },);
  @param pi - host extension API
  */
 export default function rateLimitFallbackExtension(pi: ExtensionAPI,): void {
+  /**
+   Tagged logger that names the current operation without exposing credentials.
+   */
   const rl = tagged({
     tag: rateLimitFallbackExtension.name,
     l,
   },);
+  /**
+   Registry and quota cache belonging to the current Pi session.
+   */
   let session: RoutingSession | undefined;
 
   /**
@@ -80,6 +86,9 @@ export default function rateLimitFallbackExtension(pi: ExtensionAPI,): void {
     );
   }
 
+  /**
+   Provider object registered with the host.
+   */
   const provider: Provider = {
     id: PROVIDER_ID,
     name: 'Rate limit fallback',
@@ -103,6 +112,9 @@ export default function rateLimitFallbackExtension(pi: ExtensionAPI,): void {
       options?: ApiStreamOptions<T>,
     ): AssistantMessageEventStream {
       // API-specific controls have no meaning on a pool. Keep only shared request options.
+      /**
+       Neutral subset of API-specific options understood by every pool member.
+       */
       const {
         signal,
         onPayload,

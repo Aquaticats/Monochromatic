@@ -68,6 +68,9 @@ export function isRateLimit({
 export function resetTime(value: unknown,): number {
   if ((typeof value) !== 'string')
     return 0;
+  /**
+   Parsed epoch time before rejecting unavailable date strings.
+   */
   const time = Date.parse(value,);
   return Number.isFinite(time,) ? time : 0;
 }
@@ -117,18 +120,30 @@ export function field({
  @returns latest reported retry time among exhausted windows
  */
 export function syntheticReset(quota: unknown,): number {
+  /**
+   Provider quota block for the paid subscription window.
+   */
   const subscription = field({
     value: quota,
     key: 'subscription',
   },);
+  /**
+   Usage evidence for the request-count window.
+   */
   const requests = finiteNumber(field({
     value: subscription,
     key: 'requests',
   },),);
+  /**
+   Published request allowance for the subscription window.
+   */
   const limit = finiteNumber(field({
     value: subscription,
     key: 'limit',
   },),);
+  /**
+   Renewal time only when the subscription allowance is depleted.
+   */
   const subscriptionReset = (requests !== undefined) && (limit !== undefined)
     && (limit > 0)
     && (requests >= limit)
@@ -137,6 +152,9 @@ export function syntheticReset(quota: unknown,): number {
       key: 'renewsAt',
     },),)
     : 0;
+  /**
+   Weekly block under the current or previous Synthetic field name.
+   */
   const weekly = field({
     value: quota,
     key: 'planWeeklyLimit',
@@ -145,6 +163,9 @@ export function syntheticReset(quota: unknown,): number {
       value: quota,
       key: 'weeklyTokenLimit',
     },);
+  /**
+   Regeneration time only when weekly quota is depleted.
+   */
   const weeklyReset = field({
     value: weekly,
     key: 'percentRemaining',
@@ -186,13 +207,28 @@ const RESET_UNITS = {
  @returns duration in milliseconds, or zero if malformed
  */
 function resetDuration(value: string,): number {
+  /**
+   Cursor-bound parser for the next complete duration component.
+   */
   const token = /(\d+(?:\.\d+)?)(ms|s|m|h|d)/gyu;
+  /**
+   Offset of the next unconsumed duration component.
+   */
   let cursor = 0;
+  /**
+   Accumulated milliseconds across parsed duration components.
+   */
   let duration = 0;
   while (cursor < value.length) {
+    /**
+     Next component anchored at the previous component's end.
+     */
     const match = token.exec(value,);
     if (match === null)
       return 0;
+    /**
+     Wire suffix to translate into milliseconds.
+     */
     const unit = match[2];
     if ((unit !== 'ms') && (unit !== 's')
       && (unit !== 'm')
@@ -229,20 +265,38 @@ export function headerReset({
   now: number;
   status: number;
 },): number {
+  /**
+   Explicit retry hint, valid only on a refused HTTP request.
+   */
   const retryAfter = status === 429 ? headers.get('retry-after',) ?? '' : '';
+  /**
+   Retry-After converted to an absolute timestamp.
+   */
   const retryReset = /^\d+$/u.test(retryAfter,)
     ? now + (Number(retryAfter,)
       * SECOND_MS)
     : resetTime(retryAfter,);
+  /**
+   Retry timestamp constrained to representable dates.
+   */
   const validRetry = Number.isFinite(new Date(retryReset,).getTime(),) ? retryReset : 0;
   if (provider !== 'openai')
     return validRetry;
+  /**
+   Usage evidence for the request-count window.
+   */
   const requests = headers.get('x-ratelimit-remaining-requests',) === '0'
     ? now + resetDuration(headers.get('x-ratelimit-reset-requests',) ?? '',)
     : 0;
+  /**
+   Reset for the token-count window, when depleted.
+   */
   const tokens = headers.get('x-ratelimit-remaining-tokens',) === '0'
     ? now + resetDuration(headers.get('x-ratelimit-reset-tokens',) ?? '',)
     : 0;
+  /**
+   Latest deadline among depleted windows, before validating its date range.
+   */
   const reset = Math.max(
     validRetry,
     requests,

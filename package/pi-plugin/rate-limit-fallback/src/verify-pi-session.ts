@@ -25,14 +25,26 @@ import {
   PHYSICAL_MODELS,
 } from './stand-in-pi-fixture.ts';
 
+/**
+ Working directory in the disposable verification home.
+ */
 const cwd = process.cwd();
+/**
+ In-memory credential storage for stand-in providers only.
+ */
 const credentials = new InMemoryCredentialStore();
+/**
+ Real Pi registry runtime with remote catalog refresh disabled.
+ */
 const modelRuntime = await ModelRuntime.create({
   credentials,
   modelsPath: null,
   refreshOnCreate: false,
   allowModelNetwork: false,
 },);
+/**
+ Physical requests, including discarded attempts, captured by the fixture.
+ */
 const calls: string[] = [];
 
 /**
@@ -49,6 +61,9 @@ async function registerStandIn({
   model: Model<Api>;
   refused: boolean;
 },): Promise<void> {
+  /**
+   Provider object registered with the host.
+   */
   const provider: Provider = {
     id: model.provider,
     name: model.provider,
@@ -88,6 +103,9 @@ async function registerStandIn({
   );
 }
 
+/**
+ First two writer members, registered as stand-ins before extension loading.
+ */
 const [head, fallback,] = PHYSICAL_MODELS;
 assert.ok(head,);
 assert.ok(fallback,);
@@ -100,12 +118,21 @@ await registerStandIn({
   refused: false,
 },);
 
+/**
+ Pool provider the verifier expects from Pi's extension loader.
+ */
 const providerId = 'rate-limit-fallback';
+/**
+ Isolated session settings, with no user configuration or outer retry.
+ */
 const settingsManager = SettingsManager.inMemory({
   defaultProvider: providerId,
   defaultModel: 'writer',
   retry: { enabled: false, },
 },);
+/**
+ Pi resource loader pointed only at the built extension and disposable home.
+ */
 const loader = new DefaultResourceLoader({
   cwd,
   agentDir: cwd,
@@ -122,7 +149,13 @@ const loader = new DefaultResourceLoader({
   ),),],
 },);
 await loader.reload();
+/**
+ Host-owned session record used to check assistant provenance.
+ */
 const sessionManager = SessionManager.inMemory(cwd,);
+/**
+ Session and extension diagnostics returned by the real Pi SDK.
+ */
 const {
   session,
   extensionsResult,
@@ -144,6 +177,9 @@ try {
   await session.bindExtensions({
     onError() { throw new Error('Pi reported an extension error',); },
   },);
+  /**
+   Newly registered pool selected before the stand-in prompt.
+   */
   const writer = modelRuntime.getModel(
     providerId,
     'writer',
@@ -173,6 +209,9 @@ try {
       fallback.provider,
     ],
   );
+  /**
+   Assistant entries from the active session branch, excluding non-message entries.
+   */
   const answers = sessionManager.getBranch()
     .flatMap(entry =>
       (entry.type === 'message') && (entry.message
