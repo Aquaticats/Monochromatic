@@ -1433,7 +1433,7 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
 [vm-namespaces]: cli-git-zfs-measurements-owed-before-acceptance.md#15-mount-namespaces-created-after-attach
 [vm-kernel]: cli-git-zfs-measurements-owed-before-acceptance.md#16-availability-of-a-guest-with-the-host-kernel
 [vm-delta-limits]: cli-git-zfs-measurements-owed-before-acceptance.md#what-this-repeat-did-not-show
-[vm-delta]: cli-git-zfs-measurements-owed-before-acceptance.md#delta-gate-measurements-2026-11-18t230328-0500
+[vm-delta]: cli-git-zfs-measurements-owed-before-acceptance.md#delta-gate-measurements-2026-11-18t230453-0500
 [answers]: cli-git-zfs-worktree.md#owners-answers-of-2026-11-18
 [zfs-plan]: cli-git-zfs-worktree.md
 [handover]: ../handover/cli-git-rust-implementation.md
