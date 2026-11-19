@@ -23,6 +23,13 @@ import { labelOf, REVIEWER_TARGETS, WRITER_TARGETS, } from './member-order-fixtu
 const [HEAD,] = WRITER_TARGETS;
 
 /**
+ The recorded Synthetic refusal in the quoted form, verbatim: the `modelError` of
+ `${HOME}/temp/agent/pi-runs/kimi-review-since-alpha8-landing-waits-1/summary.json`,
+ 138 characters.
+ */
+const RECORDED_QUOTED_REFUSAL: string = `429 "You've exceeded your subscription rate limits. Upgrade, or try again later. You can view your usage at https://synthetic.new/billing"`;
+
+/**
  Other non-capacity failures are returned unchanged.
 
  The last entry is a hand-written number that merely begins with `429`: another package's tests hold
@@ -65,6 +72,31 @@ await describe({
         ],);
         expect(result.stopReason,).toBe('stop',);
         expect(result.provider,).toBe(WRITER_TARGETS[1].provider,);
+      },
+    },),
+    it({
+      name: 'moves on from a recorded 429 in the quoted form',
+      fn: async function quotedRefusal() {
+        const { provider, calls, options, } = await fixture({
+          extension,
+          play({ model, }) {
+            // The reviewer head refuses in the Completions form, and the recorded Synthetic
+            // refusal follows on the member it belongs to.
+            if (model.provider === REVIEWER_TARGETS[0].provider)
+              return immediate({ model, errorMessage: rateLimitRefusal({ model, },), },);
+            if (model.provider === REVIEWER_TARGETS[1].provider)
+              return immediate({ model, errorMessage: RECORDED_QUOTED_REFUSAL, },);
+            return immediate({ model, },);
+          },
+        },);
+        const model = poolModel({ provider, id: 'reviewer', },);
+        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual([
+          labelOf(REVIEWER_TARGETS[0],),
+          labelOf(REVIEWER_TARGETS[1],),
+          labelOf(REVIEWER_TARGETS[2],),
+        ],);
+        expect(result.stopReason,).toBe('stop',);
       },
     },),
     it({
