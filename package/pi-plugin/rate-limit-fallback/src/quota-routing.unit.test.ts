@@ -5,7 +5,7 @@
 
 import { createAssistantMessageEventStream, isRetryableAssistantError, lazyStream, } from '@earendil-works/pi-ai';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
-import extension from '../dist/final/node/index.mjs';
+import extension, { headerReset, } from '../dist/final/node/index.mjs';
 import {
   assistant,
   collect,
@@ -17,9 +17,9 @@ import {
   poolModel,
   rateLimitRefusal,
   RATE_LIMIT_STATUS,
-  REVIEWER_TARGETS,
   TRANSCRIPT,
 } from './stand-in-pi-fixture.ts';
+import { REVIEWER_TARGETS, WRITER_TARGETS, } from './member-order-fixture.ts';
 
 /** Empty flex lane; a positive standard ceiling must not let it admit any requests. */
 const NO_FLEX_REQUESTS = 0;
@@ -38,7 +38,9 @@ const OVERAGE_CAP = 6;
  Reviewer's NeuralWatt member, the only NeuralWatt model either pool asks,
  with the full catalog record the stand-in registry returns.
  */
-const NEURALWATT_FLEX = REVIEWER_TARGETS[3];
+const NEURALWATT_FLEX = REVIEWER_TARGETS.at(-1,);
+if (NEURALWATT_FLEX === undefined)
+  throw new Error('Expected the reviewer pool to end with its NeuralWatt member',);
 
 /**
  Read the URL from each fetch input form without stringifying an arbitrary object.
@@ -85,46 +87,44 @@ await describe({
           const beforeReset = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           clock.now = asDate ? Date.parse(retryAfter,) : deadline.getTime();
           const afterReset = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-          expect([first.result.provider, beforeReset.result.provider, afterReset.result.provider,],).toEqual([
-            'qwen-token-plan-individual', 'qwen-token-plan-individual', 'openai',
+          /**
+           Physical member each dispatch answered from, as `provider/id`.
+           */
+          const answered = [first, beforeReset, afterReset,].map(function member(result,) {
+            return `${result.result.provider}/${result.result.model}`;
+          },);
+          expect(answered,).toEqual([
+            `${WRITER_TARGETS[1].provider}/${WRITER_TARGETS[1].id}`,
+            `${WRITER_TARGETS[1].provider}/${WRITER_TARGETS[1].id}`,
+            `${WRITER_TARGETS[0].provider}/${WRITER_TARGETS[0].id}`,
           ],);
         },
       },);
     },),
     it({
       name: 'uses the later compound OpenAI reset when both zero-remaining headers are seen on success',
-      fn: async function openAiRemaining(ctx,) {
-        const clock = { now: Date.now(), };
-        ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
-        const { provider, calls, options, } = await fixture({
-          extension,
-          play({ model, options: member, }) {
-            if (calls.length !== 1)
-              return immediate({ model, },);
-            return lazyStream(model, async function reply() {
-              await member?.onResponse?.({
-                status: 200,
-                headers: {
-                  'x-ratelimit-remaining-tokens': '0',
-                  'x-ratelimit-reset-tokens': `${WINDOW_SECONDS / 2}s`,
-                  'x-ratelimit-remaining-requests': '0',
-                  'x-ratelimit-reset-requests': '1m0s',
-                },
-              }, model,);
-              return immediate({ model, },);
-            },);
-          },
+      // Neither pool has an OpenAI member since 2026-11-19, so this provider branch is checked
+      // against the parser directly rather than through a dispatch.
+      fn: async function openAiRemaining() {
+        /**
+         Observation time for a successful response carrying depleted windows.
+         */
+        const now = Date.parse('2026-11-19T00:00:00Z',);
+        /**
+         Later of the two depleted windows, the request-count one.
+         */
+        const reset = headerReset({
+          provider: 'openai',
+          headers: new Headers({
+            'x-ratelimit-remaining-tokens': '0',
+            'x-ratelimit-reset-tokens': `${WINDOW_SECONDS / 2}s`,
+            'x-ratelimit-remaining-requests': '0',
+            'x-ratelimit-reset-requests': '1m0s',
+          },),
+          now,
+          status: 200,
         },);
-        const model = poolModel({ provider, id: 'writer', },);
-        const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        const beforeReset = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        clock.now += WINDOW_MS / 2;
-        const afterTokenReset = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        clock.now += WINDOW_MS / 2;
-        const afterReset = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect([first.result.provider, beforeReset.result.provider, afterTokenReset.result.provider, afterReset.result.provider,],).toEqual([
-          'openai', 'qwen-token-plan-individual', 'qwen-token-plan-individual', 'openai',
-        ],);
+        expect(reset - now,).toBe(WINDOW_MS,);
       },
     },),
     it({

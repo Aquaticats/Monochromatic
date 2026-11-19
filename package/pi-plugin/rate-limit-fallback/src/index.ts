@@ -30,6 +30,13 @@ import type { RoutingRegistry, } from './quota-endpoints.ts';
 export { PROVIDER_ID, } from './model-pools.ts';
 
 /**
+ Response timing parsed into a reset time, exported so the built-artifact tests reach it.
+
+ @internal
+ */
+export { headerReset, } from './rate-limit-evidence.ts';
+
+/**
  Request-time catalog supplied by each started session.
  */
 type SessionContext = {

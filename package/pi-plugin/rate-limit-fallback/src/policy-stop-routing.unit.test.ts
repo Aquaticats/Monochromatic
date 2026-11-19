@@ -1,15 +1,21 @@
 /**
- A policy stop moves the request on before output and ends it once output was exposed.
+ A policy stop moves the request on only for OpenAI's own opening, and ends it once output was exposed.
  @module
  */
 
 import {
   isRetryableAssistantError,
+  lazyStream,
+  type Api,
+  type AssistantMessage,
   type AssistantMessageEventStream,
+  type Model,
+  type SimpleStreamOptions,
 } from '@earendil-works/pi-ai';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import extension from '../dist/final/node/index.mjs';
 import { POLICY_STOP_TEXT, policyStopStream, } from './policy-stop-fixture.ts';
+import { labelOf, REVIEWER_TARGETS, WRITER_TARGETS, } from './member-order-fixture.ts';
 import {
   assistant,
   collect,
@@ -18,28 +24,46 @@ import {
   type MemberCall,
   poolModel,
   rateLimitRefusal,
-  REVIEWER_TARGETS,
-  TARGETS,
+  RATE_LIMIT_STATUS,
   TRANSCRIPT,
-  WRITER_TARGETS,
 } from './stand-in-pi-fixture.ts';
 
-/** OpenAI catalog entry used by the installed Responses adapter, not a pool member. */
-const [OPENAI, QWEN, SYNTHETIC,] = TARGETS;
+/**
+ Reviewer pool in its decided order; OpenAI's advisory reaches a member only as relayed text.
+ No pool has an OpenAI member since 2026-11-19.
+ */
+const [QWEN, SYNTHETIC,] = REVIEWER_TARGETS;
 
-/** Writer pool's last member, which an exhausted pool returns. */
-const WRITER_LAST = WRITER_TARGETS.at(-1,);
+/** Writer pool in its decided order; the last member is what an exhausted pool returns. */
+const [WRITER_HEAD, WRITER_SECOND, WRITER_LAST,] = WRITER_TARGETS;
 
-/** Wording that identifies a policy stop without HTTP status evidence. */
-const POLICY_MESSAGES = {
-  'legacy wording without a 429 status': 'Request flagged as a possible risk',
-  'verbatim OpenAI wording with a curly apostrophe': POLICY_STOP_TEXT,
-  'OpenAI wording truncated after the first sentence': 'This content was flagged for possible cybersecurity risk.',
-  'OpenAI wording with a straight apostrophe': POLICY_STOP_TEXT.replace('’', '\'',),
-  'content-filter label': 'Rejected by the content-filter. Contact support.',
-  'safety_policy label': 'Blocked by safety_policy. Contact support.',
-  'safety violation label': 'Blocked for a safety violation. Contact support.',
-  'policy violation label': 'Blocked for a policy violation. Contact support.',
+/** Retry timing a 429 carries, so a member that was rate-limited is held afterwards. */
+const RETRY_AFTER_SECONDS = 60;
+
+/**
+ Advisories that carry OpenAI's own policy-stop opening, which is what may move a request on.
+
+ The first is the recorded text the fixture documents. The other two are variants of that capture,
+ not captures of their own: one truncated after the first sentence, one with a straight apostrophe.
+ */
+const OPENAI_POLICY_MESSAGES = {
+  'the recorded advisory': POLICY_STOP_TEXT,
+  'the advisory truncated after its first sentence': 'This content was flagged for possible cybersecurity risk.',
+  'the recorded advisory with a straight apostrophe': POLICY_STOP_TEXT.replace('’', '\'',),
+} as const;
+
+/**
+ Policy text that names no OpenAI opening.
+
+ Hand-written stand-ins: no producer source and no capture on record emits these labels. They exist
+ only to prove that another vendor's content stop ends the request instead of moving it on.
+ */
+const OTHER_POLICY_MESSAGES = {
+  'a possible-risk sentence': 'Request flagged as a possible risk',
+  'a content-filter label': 'Rejected by the content-filter. Contact support.',
+  'a safety_policy label': 'Blocked by safety_policy. Contact support.',
+  'a safety-violation label': 'Blocked for a safety violation. Contact support.',
+  'a policy-violation label': 'Blocked for a policy violation. Contact support.',
 } as const;
 
 /** Member-attributed preface the package writes on a terminal policy stop. */
@@ -47,8 +71,25 @@ function stoppedBy(member: {
   readonly provider: string;
   readonly id: string;
 },): string {
-  return `${member.provider}/${member.id} stopped the request under its content policy:`;
+  return `${labelOf(member,)} stopped the request under its content policy:`;
 }
+
+/**
+ `provider/id` of an assistant record, whose `model` field names the physical model that answered.
+
+ @param message - terminal assistant record
+
+ @returns exact member label the record names
+ */
+function recordLabel(message: AssistantMessage,): string {
+  return `${message.provider}/${message.model}`;
+}
+
+/**
+ Injected retry wording, a hand-written stand-in that no producer emits: it exists to show that
+ every span Pi's classifier would retry is removed while the advisory around it survives.
+ */
+const INJECTED_RETRY_WORDS = 'Server_busy, RAtE-Limit, and please retry your request. Reference abc429xyz.';
 
 /** Independent classifier examples across the literal, separated, status, and fetch match shapes. */
 const TRANSIENT_SPANS = [
@@ -91,23 +132,60 @@ function adapterStop({
   },);
 }
 
+/**
+ Answer one member with a 429 that carries retry timing, the way a refused HTTP request arrives.
+
+ @param model - physical member
+
+ @param options - request options the pool forwarded
+
+ @param message - provider text inside the refusal body
+
+ @returns physical stream that fails with the refusal
+ */
+function rateLimited({
+  model,
+  options,
+  message,
+}: {
+  readonly model: Model<Api>;
+  readonly options?: SimpleStreamOptions;
+  readonly message: string;
+},): AssistantMessageEventStream {
+  return lazyStream(model, async function refused() {
+    await options?.onResponse?.({
+      status: RATE_LIMIT_STATUS,
+      headers: { 'Retry-After': String(RETRY_AFTER_SECONDS,), },
+    }, model,);
+    return immediate({
+      model,
+      errorMessage: rateLimitRefusal({
+        model,
+        message,
+      },),
+    },);
+  },);
+}
+
 await describe({
   name: 'policy stop routing',
   children: [
     it({
-      name: 'moves to the next member when a policy stop arrives before any output',
+      name: 'moves on when a member relays OpenAI’s advisory before any output',
       fn: async function policyMove() {
         const { provider, calls, options, } = await fixture({
           extension,
           play(call) {
-            return call.model.provider === OPENAI.provider ? adapterStop({ call, },) : immediate({ model: call.model, },);
+            return labelOf(call.model,) === labelOf(WRITER_HEAD,)
+              ? adapterStop({ call, },)
+              : immediate({ model: call.model, },);
           },
         },);
         const model = poolModel({ provider, id: 'writer', },);
         const { events, result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(calls.map(call => call.model.provider,),).toEqual([OPENAI.provider, QWEN.provider,],);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(WRITER_HEAD,), labelOf(WRITER_SECOND,),],);
         expect(events.map(event => event.type,),).toEqual(['start', 'done',],);
-        expect(result.provider,).toBe(QWEN.provider,);
+        expect(recordLabel(result,),).toBe(labelOf(WRITER_SECOND,),);
         expect(result.stopReason,).toBe('stop',);
         expect(result.errorMessage,).toBeUndefined();
       },
@@ -125,7 +203,7 @@ await describe({
         },);
         const model = poolModel({ provider, id: 'reviewer', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(calls.map(call => call.model.provider,),).toEqual([QWEN.provider, SYNTHETIC.provider,],);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(QWEN,), labelOf(SYNTHETIC,),],);
         expect([result.provider, result.model,],).toEqual([SYNTHETIC.provider, SYNTHETIC.id,],);
         expect(result.stopReason,).toBe('stop',);
       },
@@ -144,7 +222,7 @@ await describe({
         },);
         const model = poolModel({ provider, id: 'writer', },);
         const { events, result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(calls.map(call => call.model.provider,),).toEqual([OPENAI.provider,],);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(WRITER_HEAD,),],);
         expect(events.at(0,)
           ?.type,)
           .toBe('start',);
@@ -153,71 +231,132 @@ await describe({
           ?.type,)
           .toBe('error',);
         expect(result.stopReason,).toBe('error',);
-        expect(result.errorMessage,).toBe(`${stoppedBy(OPENAI,)} ${POLICY_STOP_TEXT}`,);
+        expect(result.errorMessage,).toBe(`${stoppedBy(WRITER_HEAD,)} ${POLICY_STOP_TEXT}`,);
         expect(isRetryableAssistantError(result,),).toBe(false,);
       },
     },),
     it({
       name: 'ends with the last stopped member when every member stops before output',
       fn: async function everyMemberStopped() {
-        /**
-         Last physical member the writer pool asks.
-         */
-        const last = WRITER_LAST;
-        if (last === undefined)
-          throw new Error('Expected a physical pool member',);
         const { provider, calls, options, } = await fixture({
           extension,
           play({ model, }) { return immediate({ model, errorMessage: POLICY_STOP_TEXT, },); },
         },);
         const model = poolModel({ provider, id: 'writer', },);
         const { events, result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(calls.map(call => call.model.provider,),).toEqual(WRITER_TARGETS.map(target => target.provider,),);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual(WRITER_TARGETS.map(target => labelOf(target,),),);
         expect(events.map(event => event.type,),).toEqual(['error',],);
-        expect(result.provider,).toBe(last.provider,);
-        expect(result.errorMessage,).toBe(`${stoppedBy(last,)} ${POLICY_STOP_TEXT}`,);
+        expect(recordLabel(result,),).toBe(labelOf(WRITER_LAST,),);
+        expect(result.errorMessage,).toBe(`${stoppedBy(WRITER_LAST,)} ${POLICY_STOP_TEXT}`,);
         expect(isRetryableAssistantError(result,),).toBe(false,);
       },
     },),
-    ...Object.entries(POLICY_MESSAGES,).map(function policyMessage([label, errorMessage,],) {
+    ...Object.entries(OPENAI_POLICY_MESSAGES,).map(function policyMessage([label, errorMessage,],) {
       return it({
-        name: `moves on from a policy stop recognised by ${label}`,
+        name: `moves on from ${label} before any output`,
         fn: async function policyStop() {
           const { provider, calls, options, } = await fixture({
             extension,
             play({ model, }) {
-              return model.provider === OPENAI.provider
+              return labelOf(model,) === labelOf(WRITER_HEAD,)
                 ? immediate({ model, errorMessage, },)
                 : immediate({ model, },);
             },
           },);
           const model = poolModel({ provider, id: 'writer', },);
           const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-          expect(calls.map(call => call.model.provider,),).toEqual([OPENAI.provider, QWEN.provider,],);
-          expect(result.provider,).toBe(QWEN.provider,);
+          expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(WRITER_HEAD,), labelOf(WRITER_SECOND,),],);
+          expect(recordLabel(result,),).toBe(labelOf(WRITER_SECOND,),);
           expect(result.stopReason,).toBe('stop',);
+        },
+      },);
+    },),
+    ...Object.entries(OTHER_POLICY_MESSAGES,).map(function otherVendorStop([label, errorMessage,],) {
+      return it({
+        name: `ends the request on ${label} before any output`,
+        fn: async function leftAlone() {
+          const { provider, calls, options, } = await fixture({
+            extension,
+            play({ model, }) { return immediate({ model, errorMessage, },); },
+          },);
+          const model = poolModel({ provider, id: 'writer', },);
+          const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+          expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(WRITER_HEAD,),],);
+          expect(result.stopReason,).toBe('error',);
+          expect(result.errorMessage,).toBe(`${stoppedBy(WRITER_HEAD,)} ${errorMessage}`,);
+          expect(isRetryableAssistantError(result,),).toBe(false,);
         },
       },);
     },),
     it({
       name: 'OpenAI policy opening outranks an adapter 429 and still moves on',
       fn: async function sanitizeRefusal() {
-        const refusal = rateLimitRefusal({
-          model: OPENAI,
-          message: `${POLICY_STOP_TEXT}. Server_busy, RAtE-Limit, and please retry your request. Reference abc429xyz.`,
-        },);
+        const message = `${POLICY_STOP_TEXT}. ${INJECTED_RETRY_WORDS}`;
         const { provider, calls, options, } = await fixture({
           extension,
           play({ model, }) {
-            return model.provider === OPENAI.provider
-              ? immediate({ model, errorMessage: refusal, },)
+            return labelOf(model,) === labelOf(WRITER_HEAD,)
+              ? immediate({ model, errorMessage: rateLimitRefusal({ model, message, },), },)
               : immediate({ model, },);
           },
         },);
         const model = poolModel({ provider, id: 'writer', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(calls.map(call => call.model.provider,),).toEqual([OPENAI.provider, QWEN.provider,],);
-        expect(result.provider,).toBe(QWEN.provider,);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(WRITER_HEAD,), labelOf(WRITER_SECOND,),],);
+        expect(recordLabel(result,),).toBe(labelOf(WRITER_SECOND,),);
+      },
+    },),
+    it({
+      name: 'a 429 that merely mentions possible risk stays a retryable rate limit',
+      fn: async function riskMentionInRateLimit() {
+        /**
+         Completions refusal that names risk without OpenAI's opening.
+         */
+        const message = 'Too many requests while we assess possible risk';
+        const { provider, calls, options, } = await fixture({
+          extension,
+          models: [QWEN,],
+          play({ model, options: member, }) {
+            return rateLimited({
+              model,
+              ...(member === undefined ? {} : { options: member, }),
+              message,
+            },);
+          },
+        },);
+        const model = poolModel({ provider, id: 'reviewer', },);
+        const refused = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(refused.result.errorMessage,).toBe(rateLimitRefusal({ model: QWEN, message, },),);
+        expect(isRetryableAssistantError(refused.result,),).toBe(true,);
+        const held = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(held.result.errorMessage,).toContain(`${labelOf(QWEN,)} is held until`,);
+        expect(calls.length,).toBe(1,);
+      },
+    },),
+    it({
+      name: 'a 429 that carries OpenAI’s opening is a policy stop and records no retry window',
+      fn: async function openingOutranksRateLimit() {
+        const { provider, calls, options, } = await fixture({
+          extension,
+          models: [QWEN,],
+          play({ model, options: member, }) {
+            return rateLimited({
+              model,
+              ...(member === undefined ? {} : { options: member, }),
+              message: POLICY_STOP_TEXT,
+            },);
+          },
+        },);
+        const model = poolModel({ provider, id: 'reviewer', },);
+        const stopped = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        // The refusal's bare `429` status is a retry span Pi would act on, so the record masks it
+        // and keeps the advisory that follows it.
+        expect(stopped.result.errorMessage,).toContain(stoppedBy(QWEN,),);
+        expect(stopped.result.errorMessage,).toContain(POLICY_STOP_TEXT,);
+        expect(isRetryableAssistantError(stopped.result,),).toBe(false,);
+        const askedAgain = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(calls.length,).toBe(2,);
+        expect(askedAgain.result.errorMessage,).toBe(stopped.result.errorMessage,);
       },
     },),
     ...TRANSIENT_SPANS.map(function retrySpan(span,) {
@@ -228,12 +367,6 @@ await describe({
            Advisory carrying one Pi retry span beside text that must survive.
            */
           const errorMessage = `${POLICY_STOP_TEXT}. ${RETAINED_DETAIL} (${span})`;
-          /**
-           Last member the writer pool asks.
-           */
-          const last = WRITER_LAST;
-          if (last === undefined)
-            throw new Error('Expected a physical pool member',);
           const { provider, options, } = await fixture({
             extension,
             play({ model, }) {
@@ -245,30 +378,8 @@ await describe({
           },);
           const model = poolModel({ provider, id: 'writer', },);
           const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-          expect(result.errorMessage,).toBe(`${stoppedBy(last,)} ${POLICY_STOP_TEXT}. ${RETAINED_DETAIL} ([omitted])`,);
+          expect(result.errorMessage,).toBe(`${stoppedBy(WRITER_LAST,)} ${POLICY_STOP_TEXT}. ${RETAINED_DETAIL} ([omitted])`,);
           expect(isRetryableAssistantError(result,),).toBe(false,);
-        },
-      },);
-    },),
-    ...['possible risk', 'possible cybersecurity risk',].map(function genericRisk(phrase,) {
-      return it({
-        name: `hands off on a Completions 429 that merely mentions ${phrase}`,
-        fn: async function riskMentionInRateLimit() {
-          const { provider, calls, options, } = await fixture({
-            extension,
-            play({ model, }) {
-              return immediate({
-                model,
-                ...(model.provider === QWEN.provider
-                  ? { errorMessage: rateLimitRefusal({ model, message: `Too many requests while we assess ${phrase}`, },), }
-                  : {}),
-              },);
-            },
-          },);
-          const model = poolModel({ provider, id: 'reviewer', },);
-          const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-          expect(result.stopReason,).toBe('stop',);
-          expect(calls.map(call => call.model.provider,),).toEqual([QWEN.provider, SYNTHETIC.provider,],);
         },
       },);
     },),
@@ -282,7 +393,7 @@ await describe({
         const model = poolModel({ provider, id: 'writer', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(result.errorMessage,).toBe('400 Context window exceeded',);
-        expect(calls.map(call => call.model.provider,),).toEqual([OPENAI.provider,],);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(WRITER_HEAD,),],);
       },
     },),
     it({
@@ -294,9 +405,7 @@ await describe({
         },);
         const model = poolModel({ provider, id: 'reviewer', },);
         await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(calls.map(call => `${call.model.provider}/${call.model.id}`,),).toEqual(
-          REVIEWER_TARGETS.map(target => `${target.provider}/${target.id}`,),
-        );
+        expect(calls.map(call => labelOf(call.model,),),).toEqual(REVIEWER_TARGETS.map(target => labelOf(target,),),);
       },
     },),
   ],

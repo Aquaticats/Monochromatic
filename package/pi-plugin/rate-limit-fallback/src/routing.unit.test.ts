@@ -15,10 +15,9 @@ import {
   poolModel,
   rateLimitRefusal,
   RATE_LIMIT_STATUS,
-  REVIEWER_TARGETS,
   TRANSCRIPT,
-  WRITER_TARGETS,
 } from './stand-in-pi-fixture.ts';
+import { REVIEWER_TARGETS, WRITER_TARGETS, } from './member-order-fixture.ts';
 
 /** Writer head, the member every request starts at. */
 const [HEAD,] = WRITER_TARGETS;
