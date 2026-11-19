@@ -40212,6 +40212,11 @@ inferring a unit's owner from command text each opened a new hole, so the branch
 brief rules say what the code does and send agents to the robust route (work through the `process` tool, wrapped in
 `systemd-run --user --scope` for limits, which keeps it in the run's tree, review probe A). GOING:
 `pi-driver-work-left-running-counts-only-its-own-6` (run-6).
+Run-6 ended `idle` (40 turns) at `32b9da675a` (`89d20ec37c` revert, `32b9da675a` docs): `work-the-run-left-running.ts`
+is `main`'s plus the descent condition (five hunks); `units-a-command-starts.ts` deleted; the record reader is `main`'s
+again; one new real-process test for the recommended route; 209 passes (the only failure the documented `secret-values`
+flake); lint clean; no test asks the real manager. GOING: a final narrow DeepSeek check of `main...32b9da675a`
+(`...-at-32b9da675a-1`), including a real `systemd-run --scope` descent probe; merge on a clean check.
 
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed
