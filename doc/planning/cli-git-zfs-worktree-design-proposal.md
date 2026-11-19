@@ -755,7 +755,9 @@ read is impossible, so settle the head and its snapshots only when its name is a
 parent carries the recorded GUID. These observables are proposed, not measured. If interruption left an outcome
 unprovable, retain it as unresolved and stop; never regenerate an authorized set from whatever names are left.
 Distinguish unmount pending or staged, planned snapshots all gone with the head refused, a partial snapshot set left
-by a failed root program, clone gone with its recorded origin retained, and Git or empty-folder cleanup still owed.
+by a program that failed part way, which covers the kernel's own batch as much as a root program
+(`module/zfs/dsl_destroy.c:656` to `:660` and `:662` to `:671`, OpenZFS `zfs-2.4.4`), clone gone with its recorded
+origin retained, and Git or empty-folder cleanup still owed.
 Report specific blockers: `EBUSY` and holder if known, snapshot history at risk, a hold, nested dataset or mount,
 dependent clone, a mismatched identity or a missing or pruned registration. Never let a stale acknowledgement
 authorize cleanup.
