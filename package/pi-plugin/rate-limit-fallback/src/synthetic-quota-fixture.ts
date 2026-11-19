@@ -37,6 +37,38 @@ export function syntheticWeeklyWindow({
 }
 
 /**
+ Hand-written stand-in for the weekly window under the field name before the recorded rename.
+
+ The recorded schema change (doc/troubleshooting/synthetic-quota-weekly-block-renamed.md) says the
+ block was renamed from this name to `planWeeklyLimit`; the shape here mirrors
+ `syntheticWeeklyWindow` so only the key differs.
+
+ @param percentRemaining - share of the weekly block left, zero meaning depleted
+
+ @param nextRegenAt - regeneration time the window reports
+
+ @returns quota response the fixture transport returns
+
+ @example
+ ```ts
+ syntheticLegacyWeeklyWindow({ percentRemaining: 0, nextRegenAt: new Date(0).toISOString() });
+ ```
+ */
+export function syntheticLegacyWeeklyWindow({
+  percentRemaining,
+  nextRegenAt,
+}: {
+  readonly percentRemaining: number;
+  readonly nextRegenAt: string;
+},): Response {
+  return Response.json({
+    weeklyTokenLimit: {
+      percentRemaining,
+      nextRegenAt,
+    },
+  },);
+}
+/**
  Hand-written stand-in for Synthetic's `/v2/quotas` subscription block, inferred the same way.
 
  That a request count at or above the reported limit means depleted is an inference, not a

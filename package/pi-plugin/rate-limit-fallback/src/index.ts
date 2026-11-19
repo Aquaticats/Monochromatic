@@ -39,6 +39,14 @@ export { PROVIDER_ID, } from './model-pools.ts';
 export { headerReset, } from './rate-limit-evidence.ts';
 
 /**
+ Minimum interval between two quota reads of one member, exported so the suites use the shipped
+ value.
+
+ @internal
+ */
+export { QUOTA_READ_INTERVAL_MS, } from './member-capacity.ts';
+
+/**
  Reads one member's limits from the session registry.
 
  @param registry - the session's live model registry

@@ -461,6 +461,16 @@ function resetDuration(value: string,): number {
 }
 
 /**
+ Longest delay a refusal body may set.
+
+ The provider's own documented retry strategies name at most 60 seconds
+ (`max_delay_s: 60` on its uncached-TPM case, https://docs.neuralwatt.com/guides/rate-limits.md,
+ "Uncached TPM Limits"), so a longer suggestion is a wrong or hostile number rather than a hint,
+ and holding a member past that would hide one that had recovered.
+ */
+const BODY_DELAY_CAP_MS = 60_000;
+
+/**
  Delay a refusal asks for in its own body.
 
  NeuralWatt's recorded overage refusal carries `retry_strategy.suggested_initial_delay_s`
@@ -518,7 +528,12 @@ function bodyDelay({
       value: strategy,
       key: 'suggested_initial_delay_s',
     },),);
-    return (Number.isFinite(seconds,) && (seconds > 0)) ? now + (seconds * SECOND_MS) : 0;
+    return (Number.isFinite(seconds,) && (seconds > 0))
+      ? now + Math.min(
+        seconds * SECOND_MS,
+        BODY_DELAY_CAP_MS,
+      )
+      : 0;
   } catch (error) {
     // A truncated or non-JSON body names no delay; only the error class is logged, because the
     // refusal text may carry provider or credential detail.

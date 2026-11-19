@@ -57,8 +57,8 @@ cannot fire unless one is added, and the rule stays for that case.
 The project decided this on 2026-11-19, recorded with its owner answers in
 [the handover that carries the provider work][handover]: the stop moves the
 request on automatically ("Automatic (Recommended)"). The decision was about
-OpenAI's filter alone; rule `RKD` that once made the same move by hand is
-retired on `main`.
+OpenAI's filter alone. The rule that once made the same move by hand is retired on `main`, so the
+pool carries it.
 
 These rules rest on unit tests that drive the built plugin against stand-in
 members, and on the installed Responses adapter reporting the recorded stop
@@ -89,11 +89,11 @@ the member that refused. With no stop set aside, the pool returns the last
 member's 429 as it arrived. When no member was attempted, the pool names the held
 members and their state: a published zero flex floor, a local concurrency
 ceiling with the count in use, or a hold until a provider-derived time. These
-local admission results do not carry a fabricated 429 and are not retried by Pi:
-generic retry backoff cannot be
-aligned to a local slot freeing, a provider reset, or a plan change. Pi's
-configured SDK and agent retry layers still apply to physical errors they see. This plugin does not
-change the subagent driver's retry or pool accounting.
+local admission results do not carry a fabricated 429 and are not retried by Pi: generic retry
+backoff cannot be aligned to a local slot freeing, a provider reset, or a plan change. Each member
+attempt runs with provider-level retries off, so a 429 reaches the pool on the first attempt and the
+pool owns fallback; Pi's own agent retry layer still applies to whatever terminal error the pool
+returns. This plugin does not change the subagent driver's retry or pool accounting.
 
 ## Changing limits
 
@@ -188,11 +188,11 @@ from `ModelRegistry.streamSimple`. The virtual provider never forwards its
 caller-supplied key, headers, or scoped environment. For quota GETs it uses
 `ModelRegistry.getApiKeyAndHeaders`, only sends the bearer to the same
 official origin as the configured model and resolved authentication, and
-forbids redirects. Registry-resolved bearer headers are accepted; other
-  resolved headers are not forwarded to quota endpoints. No production code reads credential files or logs
-credential values, raw quota bodies, or transcripts. What it does log is a routing decision's
-member and outcome, and the text of a policy stop that moved a request on. Pi's logger writes those
-records as JSONL to the nearest `node_modules/.monochromatic/<day>/` folder, or to
+forbids redirects. Registry-resolved bearer headers are accepted; other resolved headers are not
+forwarded to quota endpoints. No production code reads credential files or logs credential values,
+raw quota bodies, or transcripts. What it does log is a routing decision's member and outcome, and
+the text of a policy stop that moved a request on. The plugin's logger writes those records as
+JSONL to the nearest `node_modules/.monochromatic/<day>/` folder, or to
 `~/.local/state/monochromatic/log` when no project tree is above the working folder.
 
 Pi records the physical provider and model in the assistant message's
@@ -208,9 +208,14 @@ again when resuming into the pool.
 The pool advertises text input and no price. Its context window and output
 limit are the smallest its registered members report, read from the session
 registry each time Pi asks for the catalog, so Pi's compaction threshold fits
-every member; a provisional window stands in before a session binds. Members'
+every member. Before a session binds, the pool advertises Pi's own fallback for a
+model that declares no window, 128,000 tokens and 16,384 output. A pool captured
+in `--models` or `enabledModels` before a session binds keeps that provisional
+window, because Pi composes a scoped list from the catalog it read then. Members'
 own output caps and usage are used on dispatch. If a member rejects a context,
-the error is passed through, not replayed to another vendor.
+the error is passed through, not replayed to another vendor: with the pool
+selected, that member's own context-overflow error gets no compact-and-retry, so
+such a turn ends in that error.
 
 ## Verification
 
@@ -219,13 +224,15 @@ the error is passed through, not replayed to another vendor.
   It also checks the installed adapters' refusal strings through an in-memory transport,
   including the recorded OpenAI policy stop, which reaches Pi without a status prefix.
 - `mise run //package/pi-plugin/rate-limit-fallback:verify:extension` loads
-  the built extension in a real Pi session, in a disposable offline home,
-  and checks request-time registry auth and persisted physical identity.
+  the built extension in a real Pi session, in a disposable offline home. It
+  checks request-time registry auth, persisted physical identity, that each
+  pool's advertised window is its smallest registered member's, that a long
+  transcript leaves no compaction record, and that a pool model held from before
+  the session bound takes that window once it does.
 - `mise run //package/pi-plugin/rate-limit-fallback:lint:types` and
   `mise run //package/pi-plugin/rate-limit-fallback:lint:oxlint` check the package.
 
 [openai-limits]: https://developers.openai.com/api/docs/guides/rate-limits
-[agents-md]: ../../../AGENTS.md
 [handover]: ../../../doc/handover/cli-git-rust-implementation.md
 [writers]: ../../../.agents/skills/pi-as-subagent/SKILL.md
 [openai-admin]: https://developers.openai.com/api/reference/resources/admin/subresources/organization

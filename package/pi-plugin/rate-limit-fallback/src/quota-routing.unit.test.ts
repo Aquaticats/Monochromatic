@@ -6,7 +6,7 @@
 import { syntheticWeeklyWindow, } from './synthetic-quota-fixture.ts';
 import { createAssistantMessageEventStream, isRetryableAssistantError, lazyStream, } from '@earendil-works/pi-ai';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
-import extension, { headerReset, } from '../dist/final/node/index.mjs';
+import extension, { headerReset, QUOTA_READ_INTERVAL_MS, } from '../dist/final/node/index.mjs';
 import {
   assistant,
   collect,
@@ -80,12 +80,6 @@ const FULL_PERCENT = 100;
 const SINGLE_SLOT = 1;
 
 /**
- Minimum wait the endpoint documents between two quota reads of one member: at most one a second
- (https://docs.neuralwatt.com/guides/rate-limits.md, "Checking your current limit").
- */
-const MINIMUM_READ_INTERVAL_MS = 1_000;
-
-/**
  Writer head, the NeuralWatt standard lane that asks the same endpoint for its own ceiling.
  */
 const [NEURALWATT_STANDARD,] = WRITER_TARGETS;
@@ -143,6 +137,15 @@ function quotaReading({
   },);
 }
 
+/**
+ Attempts a pool makes when one member has answered or refuses: the first one it dispatches.
+ */
+const FIRST_ATTEMPT = 1;
+
+/**
+ Attempts a pool makes when a second member is asked as well.
+ */
+const SECOND_ATTEMPT = 2;
 await describe({
   name: 'provider quota evidence',
   children: [
@@ -157,7 +160,7 @@ await describe({
           const { provider, calls, options, } = await fixture({
             extension,
             play({ model, options: member, }) {
-              if (calls.length !== 1)
+              if (calls.length !== FIRST_ATTEMPT)
                 return immediate({ model, },);
               // Stand-in for a shape no installed adapter emits: each adapter calls `onResponse`
               // after a successful response alone, so a real 429 never reaches the plugin here.
@@ -341,7 +344,7 @@ await describe({
           extension,
           models: [NEURALWATT_FLEX,],
           play({ model, }) {
-            return calls.length === 1
+            return calls.length === FIRST_ATTEMPT
               ? immediate({ model, errorMessage: OVERAGE_REFUSAL, },)
               : immediate({ model, },);
           },
@@ -351,7 +354,7 @@ await describe({
         expect(first.result.errorMessage,).toContain('concurrent_budget_exceeded',);
         const held = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(held.result.errorMessage,).toContain(`${labelOf(NEURALWATT_FLEX,)} is held until`,);
-        expect(calls.length,).toBe(1,);
+        expect(calls.length,).toBe(FIRST_ATTEMPT,);
         expect(held.result.errorMessage,).toContain(new Date(clock.now + RECORDED_DELAY_MS,).toISOString(),);
       },
     },),
@@ -416,7 +419,7 @@ await describe({
           extension,
           models: [physical,],
           play({ model, }) {
-            if (calls.length !== 1)
+            if (calls.length !== FIRST_ATTEMPT)
               return immediate({ model, },);
             ready.resolve();
             return held;
@@ -440,10 +443,10 @@ await describe({
           const denied = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           expect(denied.result.errorMessage,).toContain(`${physical.provider}/${physical.id} is at its local concurrency ceiling (1 of 1 in use)`,);
           expect(isRetryableAssistantError(denied.result,),).toBe(false,);
-          expect(calls.length,).toBe(1,);
+          expect(calls.length,).toBe(FIRST_ATTEMPT,);
           reading.flex += 1;
           // The endpoint may be read again only after its documented interval.
-          clock.now += MINIMUM_READ_INTERVAL_MS;
+          clock.now += QUOTA_READ_INTERVAL_MS;
           const afterIncrease = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           expect(afterIncrease.result.stopReason,).toBe('stop',);
         }
@@ -464,7 +467,7 @@ await describe({
           extension,
           models: [NEURALWATT_FLEX,],
           play({ model, }) {
-            if (calls.length === 1)
+            if (calls.length === FIRST_ATTEMPT)
               return immediate({ model, errorMessage: OVERAGE_REFUSAL, },);
             if (clock.now >= end)
               return immediate({ model, },);
@@ -577,7 +580,7 @@ await describe({
           expect(denied.result.errorMessage,).toContain(`local concurrency ceiling (${ceiling} of ${ceiling} in use)`,);
           subscription.inOverage = false;
           // The endpoint may be read again only after its documented interval.
-          clock.now += MINIMUM_READ_INTERVAL_MS;
+          clock.now += QUOTA_READ_INTERVAL_MS;
           const cleared = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           expect(cleared.result.stopReason,).toBe('stop',);
           expect(cleared.result.provider,).toBe('neuralwatt',);

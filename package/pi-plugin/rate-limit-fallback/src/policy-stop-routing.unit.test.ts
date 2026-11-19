@@ -175,6 +175,15 @@ function rateLimited({
   },);
 }
 
+/**
+ Attempts a pool makes when one member has answered or refuses: the first one it dispatches.
+ */
+const FIRST_ATTEMPT = 1;
+
+/**
+ Attempts a pool makes when a second member is asked as well.
+ */
+const SECOND_ATTEMPT = 2;
 await describe({
   name: 'policy stop routing',
   children: [
@@ -362,7 +371,7 @@ await describe({
         expect(isRetryableAssistantError(refused.result,),).toBe(true,);
         const held = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(held.result.errorMessage,).toContain(`${labelOf(QWEN,)} is held until`,);
-        expect(calls.length,).toBe(1,);
+        expect(calls.length,).toBe(FIRST_ATTEMPT,);
       },
     },),
     it({
@@ -387,7 +396,7 @@ await describe({
         expect(stopped.result.errorMessage,).toContain(POLICY_STOP_TEXT,);
         expect(isRetryableAssistantError(stopped.result,),).toBe(false,);
         const askedAgain = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(calls.length,).toBe(2,);
+        expect(calls.length,).toBe(SECOND_ATTEMPT,);
         expect(askedAgain.result.errorMessage,).toBe(stopped.result.errorMessage,);
       },
     },),

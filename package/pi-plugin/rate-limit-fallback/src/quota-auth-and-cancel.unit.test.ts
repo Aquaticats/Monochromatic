@@ -58,7 +58,7 @@ await describe({
     },),
     ...[undefined, NO_TIMEOUT_MS, MODEL_TIMEOUT_MS,].map(function callerDeadline(timeoutMs,) {
       return it({
-        name: `bounds a stalled quota read ${((timeoutMs === undefined) || (timeoutMs <= 0)) ? 'without a usable' : 'before the'} model timeout`,
+        name: `bounds a stalled quota read ${timeoutMs === undefined ? 'with no caller timeout' : (timeoutMs <= 0) ? 'with a non-positive caller timeout' : 'before the model timeout'}`,
         fn: async function probeDeadline(ctx,) {
           const deadline = new AbortController();
           const timeout = ctx.sinon.stub(AbortSignal, 'timeout',).returns(deadline.signal,);

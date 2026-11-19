@@ -83,12 +83,14 @@ export const POOLS: Readonly<Record<'writer' | 'reviewer', readonly Member[]>> =
  Pool-wide limits advertised to Pi before any session registry binds.
 
  Pi compacts on a threshold taken from the selected model's window, so a zero window makes it compact
- on any non-empty context. These provisional values stand in until the session registry says which
- members are registered; `poolModels` then advertises the smallest registered member's limits.
+ on any non-empty context. These values are Pi's own fallback for a model that declares no window
+ (`@earendil-works/pi-coding-agent` dist/core/provider-composer.js, `modelFromJson`), which keeps the
+ pool no larger than a member built the same way; `poolModels` then advertises the smallest
+ registered member's limits instead.
  */
 const PROVISIONAL_LIMITS: PoolLimits = {
-  contextWindow: 1_048_576,
-  maxTokens: 65_536,
+  contextWindow: 128_000,
+  maxTokens: 16_384,
 };
 
 /**
@@ -149,53 +151,42 @@ function smallerPositive({
 
  @param readMemberLimits - registry reader, or undefined before a session binds
 
- @param index - member position this step inspects
-
- @param smallest - smallest limits accepted so far
-
  @returns limits Pi may use for that pool
  */
 function smallestMemberLimits({
   members,
   readMemberLimits,
-  index,
-  smallest,
 }: {
   readonly members: readonly Member[];
   readonly readMemberLimits?: MemberLimitsReader;
-  readonly index: number;
-  readonly smallest: PoolLimits;
 },): PoolLimits {
-  /**
-   Member this step inspects, absent once every member has been passed.
-   */
-  const member = members[index];
-  if (member === undefined)
-    return smallest;
-  /**
-   Limits that member reported, zeroed when it is not registered.
-   */
-  const reported = readMemberLimits === undefined
-    ? NO_LIMITS
-    : readMemberLimits(
-      member.provider,
-      member.id,
-    );
-  return smallestMemberLimits({
-    members,
-    ...(readMemberLimits === undefined ? {} : { readMemberLimits, }),
-    index: index + 1,
-    smallest: {
-      contextWindow: smallerPositive({
-        current: smallest.contextWindow,
-        reported: reported.contextWindow,
-      },),
-      maxTokens: smallerPositive({
-        current: smallest.maxTokens,
-        reported: reported.maxTokens,
-      },),
+  return members.reduce(
+    function foldLimits(
+      smallest: PoolLimits,
+      member: Member,
+    ): PoolLimits {
+      /**
+       Limits that member reported, zeroed when it is not registered.
+       */
+      const reported = readMemberLimits === undefined
+        ? NO_LIMITS
+        : readMemberLimits(
+          member.provider,
+          member.id,
+        );
+      return {
+        contextWindow: smallerPositive({
+          current: smallest.contextWindow,
+          reported: reported.contextWindow,
+        },),
+        maxTokens: smallerPositive({
+          current: smallest.maxTokens,
+          reported: reported.maxTokens,
+        },),
+      };
     },
-  },);
+    NO_LIMITS,
+  );
 }
 
 /**
@@ -228,8 +219,6 @@ function poolEntry({
   const reported = smallestMemberLimits({
     members,
     ...(readMemberLimits === undefined ? {} : { readMemberLimits, }),
-    index: 0,
-    smallest: NO_LIMITS,
   },);
   return {
     id,

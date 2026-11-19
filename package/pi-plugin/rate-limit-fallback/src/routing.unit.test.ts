@@ -30,6 +30,16 @@ import { labelOf, REVIEWER_TARGETS, WRITER_TARGETS, } from './member-order-fixtu
 const [HEAD,] = WRITER_TARGETS;
 
 /**
+ Reviewer members the routing cases ask, in order.
+ */
+const [qwen, synthetic, nextReviewer,] = REVIEWER_TARGETS;
+
+/**
+ Attempt a pool makes when it dispatches the first member of a case.
+ */
+const FIRST_ATTEMPT = 1;
+
+/**
  Retry attempts a caller asks for in the provider-retry case, three more than the one the pool should
  make.
  */
@@ -127,7 +137,7 @@ await describe({
           extension,
           models: [responses, WRITER_TARGETS[1],],
           play({ model, }) {
-            return calls.length === 1
+            return calls.length === FIRST_ATTEMPT
               ? immediate({ model, errorMessage: rateLimitRefusal({ model, },), },)
               : immediate({ model, },);
           },
@@ -150,9 +160,9 @@ await describe({
           play({ model, }) {
             // The reviewer head refuses in the Completions form, and the recorded Synthetic
             // refusal follows on the member it belongs to.
-            if (model.provider === REVIEWER_TARGETS[0].provider)
+            if (model.provider === qwen.provider)
               return immediate({ model, errorMessage: rateLimitRefusal({ model, },), },);
-            if (model.provider === REVIEWER_TARGETS[1].provider)
+            if (model.provider === synthetic.provider)
               return immediate({ model, errorMessage: RECORDED_QUOTED_REFUSAL, },);
             return immediate({ model, },);
           },
@@ -160,9 +170,9 @@ await describe({
         const model = poolModel({ provider, id: 'reviewer', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(calls.map(call => labelOf(call.model,),),).toEqual([
-          labelOf(REVIEWER_TARGETS[0],),
-          labelOf(REVIEWER_TARGETS[1],),
-          labelOf(REVIEWER_TARGETS[2],),
+          labelOf(qwen,),
+          labelOf(synthetic,),
+          labelOf(nextReviewer,),
         ],);
         expect(result.stopReason,).toBe('stop',);
       },
@@ -176,7 +186,7 @@ await describe({
         const unreadable = '429: {not json';
         const { provider, calls, options, } = await fixture({
           extension,
-          models: [REVIEWER_TARGETS[0], REVIEWER_TARGETS[1],],
+          models: [qwen, synthetic,],
           play({ model, }) {
             return calls.length === 1
               ? immediate({ model, errorMessage: unreadable, },)
@@ -186,8 +196,8 @@ await describe({
         const model = poolModel({ provider, id: 'reviewer', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(calls.map(call => labelOf(call.model,),),).toEqual([
-          labelOf(REVIEWER_TARGETS[0],),
-          labelOf(REVIEWER_TARGETS[1],),
+          labelOf(qwen,),
+          labelOf(synthetic,),
         ],);
         expect(result.stopReason,).toBe('stop',);
       },
@@ -232,7 +242,7 @@ await describe({
         const { provider, calls, options, } = await fixture({
           extension,
           play({ model, }) {
-            return calls.length === 1 ? immediate({ model, errorMessage: rateLimitRefusal({ model, },), },) : immediate({ model, },);
+            return calls.length === FIRST_ATTEMPT ? immediate({ model, errorMessage: rateLimitRefusal({ model, },), },) : immediate({ model, },);
           },
         },);
         const model = poolModel({ provider, id: 'reviewer', },);
@@ -360,7 +370,7 @@ await describe({
           play({ model, options: member, }) {
             return lazyStream(model, async function reply() {
               await member?.onResponse?.({
-                status: calls.length === 1 ? RATE_LIMIT_STATUS : 400,
+                status: calls.length === FIRST_ATTEMPT ? RATE_LIMIT_STATUS : 400,
                 headers: {},
               }, model,);
               return immediate({ model, errorMessage: 'Provider returned an error', },);

@@ -107,11 +107,11 @@ export function capacityOf({
 /**
  Minimum wait between two reads of one member, from the endpoint's own published rate.
 
- NeuralWatt's guide says `/v1/rate_limits` "is rate-limited to 2 requests per second per customer —
- poll at most once per second" (https://docs.neuralwatt.com/guides/rate-limits.md, "Checking your
- current limit").
+ NeuralWatt's guide says `/v1/rate_limits` is rate-limited to 2 requests per second per customer and
+ asks clients to poll at most once per second
+ (https://docs.neuralwatt.com/guides/rate-limits.md, "Checking your current limit").
  */
-const QUOTA_READ_INTERVAL_MS = 1_000;
+export const QUOTA_READ_INTERVAL_MS = 1_000;
 
 /**
  Whether this member was read too recently to read again.

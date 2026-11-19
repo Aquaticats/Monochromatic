@@ -3,9 +3,9 @@
  @module
  */
 
-import { syntheticSubscription, syntheticWeeklyWindow, } from './synthetic-quota-fixture.ts';
+import { syntheticLegacyWeeklyWindow, syntheticSubscription, syntheticWeeklyWindow, } from './synthetic-quota-fixture.ts';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
-import extension from '../dist/final/node/index.mjs';
+import extension, { QUOTA_READ_INTERVAL_MS, } from '../dist/final/node/index.mjs';
 import {
   collect,
   fixture,
@@ -31,16 +31,19 @@ const QWEN_WAIT_MS = 60_000;
 const SYNTHETIC_WINDOW_MS = 3_600_000;
 
 /**
- Minimum wait the endpoint documents between two quota reads of one member: at most one a second
- (https://docs.neuralwatt.com/guides/rate-limits.md, "Checking your current limit").
- */
-const MINIMUM_READ_INTERVAL_MS = 1_000;
-
-/**
  Requests the subscription stand-in allows in its window, one, so a single request depletes it.
  */
 const SUBSCRIPTION_REQUEST_LIMIT = 1;
 
+/**
+ Attempts a pool makes when one member has answered or refuses: the first one it dispatches.
+ */
+const FIRST_ATTEMPT = 1;
+
+/**
+ Attempts a pool makes when a second member is asked as well.
+ */
+const SECOND_ATTEMPT = 2;
 await describe({
   name: 'quota reentry',
   // These cases stub the shared clock, so one at a time keeps them from reading each other's time.
@@ -93,7 +96,7 @@ await describe({
         const model = poolModel({ provider, id: 'reviewer', },);
         const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         // The endpoint may be read again only after its documented interval.
-        clock.now += MINIMUM_READ_INTERVAL_MS;
+        clock.now += QUOTA_READ_INTERVAL_MS;
         const second = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(first.result.provider,).toBe('synthetic',);
         expect(second.result.provider,).toBe('opencode-go',);
@@ -120,7 +123,7 @@ await describe({
         expect(reads.count,).toBe(1,);
         await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(reads.count,).toBe(1,);
-        clock.now += MINIMUM_READ_INTERVAL_MS;
+        clock.now += QUOTA_READ_INTERVAL_MS;
         await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(reads.count,).toBe(2,);
       },
@@ -133,11 +136,9 @@ await describe({
           models: SYNTHETIC_AND_BACKUP,
           play({ model, }) { return immediate({ model, },); },
           async fetchQuota() {
-            return Response.json({
-              weeklyTokenLimit: {
-                percentRemaining: 0,
-                nextRegenAt: new Date(Date.now() + SYNTHETIC_WINDOW_MS,).toISOString(),
-              },
+            return syntheticLegacyWeeklyWindow({
+              percentRemaining: 0,
+              nextRegenAt: new Date(Date.now() + SYNTHETIC_WINDOW_MS,).toISOString(),
             },);
           },
         },);
