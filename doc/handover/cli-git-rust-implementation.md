@@ -39982,6 +39982,15 @@ By 03:24:49Z three more ended `idle`; each next step needs a new worktree, so ea
   4 still blocks the merge**: from Git's death to the wrapper's exit at 6% CPU quota, 100 locks take 350.88 ms against
   1.06 ms on `main` (327.66 times) and 200 locks 545.76 ms against 1.45 ms. Next: its author's run on finding 4.
 
+The ZFS fold-in ended `idle` (49 turns; seven commits `d85903c386` to `652b51d74d` on
+`docs/planning-cli-git-zfs-worktree-design-proposal`, worktree clean): all eleven measurements folded in, the measurement
+page merged unchanged; design changes: only the checkout mount made private (item 3), a separate key check and
+reconciliation after key load (item 5), and removal proves the lineage of the whole snapshot set before the first delete
+and revalidates each target (item 11); 106 same-page and 98 cross-page links resolve. The Sonnet delta gate review (rule
+`LHZ`) is going as a background Claude subagent: range `71fa25ece8..652b51d74d` on the two planning docs, read whole,
+output `~/temp/agent/zfs-worktree-design-proposal-delta-gate-review-2026-11-18/review.md`. After it: weigh it, a revision
+run if it finds what the design must change, then the twelve open choices go to the owner, ranked, when the owner is back.
+
 ### No heavy worktree use before the wrapper's ZFS route (2026-11-18T21:47:42-05:00)
 
 The owner, in plain text: "We shouldn't use worktrees heavily before we implement the zfs parts for the git wrapper."
