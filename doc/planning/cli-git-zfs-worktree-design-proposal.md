@@ -740,7 +740,9 @@ a test asserts that the encoded request has no `defer` key.
     proposed checks, not a proof that transaction groups establish provenance for other topologies, encryption
     roots, lineage changes or objects created in the same transaction group.
 2.  If lineage, ownership or the safety of the destructive operation cannot be proved, refuse before the
-    first delete. Name the mismatched dataset, snapshot or dependency, keep the registration and removal
+    first delete; the namespace exclusion is not one of these proofs, and what removal does when it cannot be
+    shown is the [Removal when the namespace exclusion cannot be shown](#open-project-choices) choice. Name the
+    mismatched dataset, snapshot or dependency, keep the registration and removal
     record, and report the need for administrator lineage recovery before retry. Do not try a subset, promote
     back automatically, or invoke ordinary Git removal to clear the slot. For a proven set, record removal
     intent and print the slot, dataset and exact snapshot names to be lost. Release local handles and request
@@ -1500,7 +1502,10 @@ Ubuntu guest.
   after attach. Prove a host-only detach with another namespace holding the source blocks the first snapshot request
   and that `doctor` names the holders; release them and show normal removal. Keep the shared path unmount as a
   fixture-only propagation control. Exercise task churn, incomplete scans, divergent process roots and pinned
-  namespaces without live members; bound and document what the deployment can exclude before enabling removal.
+  namespaces without live members; bound and document what the deployment can exclude, and record which arm of the
+  [Removal when the namespace exclusion cannot be shown](#open-project-choices) choice governs the run: under the
+  refusal arm no run enables removal there, and under the destroy-anyway arm the run enables it and reports the
+  residual it accepts.
 - H1 gate 7: exercise a confined user namespace without extra authority. Show that it cannot attach the clone with
   different flags despite OpenZFS's `FS_USERNS_MOUNT` declaration. Exercise a permitted host mount as the control,
   verify late-mount visibility in confined consumers under shared and private checkout propagation (with and
@@ -1570,8 +1575,10 @@ Ubuntu guest.
   successful destroy on a match, no delegated destroy, and recovery after interruption for root destruction.
   Under either policy an ordinary authorized removal must destroy the verified clone and its own snapshots and
   print the loss in the same invocation. Refusal controls test unsafe cases; a route that only refuses does not
-  pass, and no route this draft describes passes that gate today, because none can show the namespace exclusion.
-  Which arm governs is the [Removal when the namespace exclusion cannot be shown](#open-project-choices) choice.
+  pass. Which arm governs is the [Removal when the namespace exclusion cannot be shown](#open-project-choices)
+  choice, so what passes follows it: under the refusal arm no route this draft describes passes today, because
+  none can show the namespace exclusion, and under the destroy-anyway arm a route passes by destroying the verified
+  clone and its own snapshots and printing the loss, with the holders and outcomes reported as item 15 states them.
 - Repeat the [VM item 14][vm-batch] mixed and own-snapshot batch controls through the binding, including per-name
   errors, GUID preservation and an assertion that the encoded request carries no `defer` key. Run the same batch
   as the delegated account under the planned grants; item 14 ran it as root, and [VM items 17][vm-17] and
