@@ -409,10 +409,12 @@ the wrapper, and opened relative to the trusted directory. Nonces appear only as
 never in a filename. Include the operation, matching nonce, outcome, mount identity and failed step/errno where
 applicable. Readiness also records the current boot, pool, checkout and sweep state. The runtime files are a cache,
 not authority to act; rebuild them from live state and durable intent. Do not write acknowledgement properties from
-root. A waiter can change the local `org.monochromatic:git-worktree-clone-mount-sweep-nonce` once to wake a new sweep.
-The nudge uses the same hex format and is not a mount instruction. The [ZFS planning probes][zfs-plan], lines
-208 to 213, saw replay after restarting ZED and recovery when a user property on the parent was set. They did
-not show recovery of the lost last event without another trigger.
+root. A waiter may change the local `org.monochromatic:git-worktree-clone-mount-sweep-nonce` once on the verified
+managed clone it is waiting for, not on the clone parent. The nudge uses the same hex format and is not a mount
+instruction. This fits the proposed descendant `userprop` grant without expanding it to the parent. The
+[ZFS planning probes][zfs-plan], lines 208 to 213, used a parent property for lost-event recovery under their setup;
+[VM item 5][vm-key] delivered a clone property event to a test zedlet. Neither measured the product's delegated
+clone-local nudge or recovery of the lost last event without another trigger.
 
 ### Descriptor mount and unmount
 
@@ -1113,7 +1115,9 @@ only for unused slots. These are unrun acceptance requirements, not evidence fro
 
 - Verify exact ioctl values and Rust layout against the running module's BTF; exercise native nvlist encoding,
   resizing, permissions and property sources. Test both accepted and refused creation-time user properties plus
-  post-create `ZFS_IOC_SET_PROP`. Test malformed, oversized or inherited mount intent and stale results with no
+  post-create `ZFS_IOC_SET_PROP`. With only the proposed grants, verify the clone-local sweep nudge is delivered
+  and enough to wake the intended sweep, and that the account cannot set it on the parent (unrun [item 5][vm-key]
+  extension). Test malformed, oversized or inherited mount intent and stale results with no
   unauthorized filesystem action. Verify the release wrapper starts without OpenZFS and has no CDDL dependency.
 - Drive the full register-first add at exactly `.claude/worktrees/<name>` with descriptor mounting and account-owned
   slots. Repeat [VM item 1][vm-register] on Git `2.56.1`; the guest used `2.43.0`. Recheck empty vs. non-empty
