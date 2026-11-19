@@ -10,6 +10,7 @@ import {
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import extension from '../dist/final/node/index.mjs';
 import { labelOf, WRITER_TARGETS, } from './member-order-fixture.ts';
+import { POLICY_STOP_TEXT, } from './policy-stop-fixture.ts';
 import {
   assistant,
   collect,
@@ -124,6 +125,17 @@ const POLICY_WORDED_503S = {
 } as const;
 
 /**
+ A capacity 503 whose body opens with OpenAI's own policy advisory.
+
+ Composed, not a capture: the advisory is the recorded text `POLICY_STOP_TEXT`, and the `503: `
+ prefix is the installed Completions adapter's refusal formatting. Boundary: OpenAI's opening
+ outranks a transient status, so this refusal ends the request at the member that produced it
+ instead of moving on (`README.md`, "Order and refusal policy"; `doc/captures.md`,
+ "OpenAI's policy stop").
+ */
+const OPENING_IN_503 = `${UNAVAILABLE_STATUS}: ${POLICY_STOP_TEXT}`;
+
+/**
  Every transient refusal the suite replays, named by its source class.
  */
 const TRANSIENT_REFUSALS = {
@@ -212,6 +224,29 @@ await describe({
           },
         },);
       },),
+    it({
+      name: "ends at the member whose 503 body opens on OpenAI's advisory",
+      fn: async function openingOutranksTransient() {
+        const { provider, calls, options, } = await fixture({
+          extension,
+          play({ model, }) {
+            return calls.length === FIRST_ATTEMPT
+              ? immediate({ model, errorMessage: OPENING_IN_503, },)
+              : immediate({ model, },);
+          },
+        },);
+        const model = poolModel({ provider, id: 'writer-pool', },);
+        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        // A second member answers whenever a transient refusal moves on, so one call proves this
+        // 503 ended the request here rather than being handed off by its status.
+        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(HEAD,),],);
+        expect(result.stopReason,).toBe('error',);
+        expect(result.errorMessage,).toContain(`${labelOf(HEAD,)} stopped the request under its content policy:`,);
+        // The advisory is kept, while the retryable status Pi would restart on is not.
+        expect(result.errorMessage,).toContain(POLICY_STOP_TEXT,);
+        expect(result.errorMessage,).not.toContain(`${UNAVAILABLE_STATUS}:`,);
+      },
+    },),
     ...[
       {
         name: 'a 429 whose body quotes a Responses failure label',

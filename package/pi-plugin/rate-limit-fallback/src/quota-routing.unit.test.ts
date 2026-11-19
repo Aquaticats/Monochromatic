@@ -485,6 +485,95 @@ await describe({
       },
     },),
     it({
+      name: 'logs the zero ceiling at info with the reading that published it, not a later failed read',
+      fn: async function zeroCeilingLog(ctx,) {
+        const clock = { now: Date.now(), };
+        ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
+        /**
+         Time the publishing read completes at, distinct from the time that read started.
+         */
+        const publishTime = clock.now + WINDOW_MS;
+        /**
+         Time a later failing read starts at, past the shipped interval so it is allowed to run.
+         */
+        const laterReadTime = publishTime + QUOTA_READ_INTERVAL_MS;
+        /**
+         Rate-limit endpoint reads in order: the publishing one, then the failing one.
+         */
+        const reads: string[] = [];
+        /**
+         First read held open until a second attempt is admitted beside it.
+         */
+        const publishingRead = Promise.withResolvers<Response>();
+        /**
+         Second attempt's stream, finished once the first read published the zero.
+         */
+        const laterAttempt = createAssistantMessageEventStream();
+        const { provider, calls, options, } = await fixture({
+          extension,
+          models: [NEURALWATT_FLEX,],
+          play({ model, }) {
+            return calls.length === FIRST_ATTEMPT
+              ? immediate({ model, errorMessage: rateLimitRefusal({ model, },), },)
+              : laterAttempt;
+          },
+          async fetchQuota(input,) {
+            if (!quotaUrl(input,).includes('/v1/rate_limits',))
+              return Response.json({});
+            reads.push(clock.now.toString(),);
+            return reads.length === FIRST_ATTEMPT
+              ? publishingRead.promise
+              : new Response(null, { status: 503, },);
+          },
+        },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
+        const first = collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        // Admit the second attempt while the first read is still open, so it holds a seat and its
+        // own refusal is the later read rather than an admission blocked by the zero.
+        const second = collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        await setImmediate();
+        expect(calls.length,).toBe(SECOND_ATTEMPT,);
+        clock.now = publishTime;
+        publishingRead.resolve(rateLimitsReading({ flex: NO_FLEX_REQUESTS, },),);
+        await first;
+        // A zero ceiling excludes the member, so only an attempt admitted before that publication
+        // can refuse again; this is that attempt, and its read fails.
+        clock.now = laterReadTime;
+        finish({
+          stream: laterAttempt,
+          message: assistant({
+            model: NEURALWATT_FLEX,
+            errorMessage: rateLimitRefusal({ model: NEURALWATT_FLEX, },),
+          },),
+        },);
+        await second;
+        expect(reads.length,).toBe(SECOND_ATTEMPT,);
+        const info = ctx.sinon.stub(console, 'info',);
+        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        await setImmediate();
+        /**
+         Records this case's one exclusion line, ignoring the harness's own info output.
+         */
+        const exclusion = info.getCalls()
+          .map(call => String(call.args.at(0,),),)
+          .filter(line => line.includes('is excluded for the rest of this session',),);
+        expect(exclusion,).toHaveLength(1,);
+        const line = exclusion.at(0,) ?? '';
+        // The level is what the console sink prints, so the formatted line proves it arrived at
+        // info rather than at the debug level beside it.
+        expect(line.startsWith('[info] ',),).toBe(true,);
+        // The record's own prefix carries the logging time; the body carries the reading's time.
+        const levelEnd = line.indexOf('] ',);
+        const body = line.slice(line.indexOf('] ', levelEnd + 2,) + 2,);
+        expect(body,).toContain(`${NEURALWATT_FLEX.provider}/${NEURALWATT_FLEX.id} is excluded`,);
+        // The time is the reading that published the zero, never the start of the later read.
+        expect(body,).toContain(`the reading at ${new Date(publishTime,).toISOString()}`,);
+        expect(body,).not.toContain(new Date(laterReadTime,).toISOString(),);
+        expect(result.errorMessage,).toContain(`${NEURALWATT_FLEX.provider}/${NEURALWATT_FLEX.id} has a published concurrency ceiling of zero`,);
+        expect(calls.length,).toBe(SECOND_ATTEMPT,);
+      },
+    },),
+    it({
       name: 'admits only the reported flex ceiling, not the standard concurrency ceiling',
       fn: async function flexCeiling(ctx,) {
         const clock = { now: Date.now(), };

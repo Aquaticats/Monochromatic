@@ -25,6 +25,12 @@ carries no status prefix.
 This content was flagged for possible cybersecurity risk. If this seems wrong, try rephrasing your request. If you’re doing authorized security work that requires more cyber permissive safeguards, apply for Daybreak access via https://platform.openai.com/settings/organization/status-and-access before retrying.
 ```
 
+The suite also composes a 503 whose body opens with this advisory, `503: ` followed by the
+recorded advisory (`src/transient-refusal.unit.test.ts` `OPENING_IN_503`). That composite is not a
+capture: the advisory is the recorded text of this section, and the `503: ` prefix is the installed
+Completions adapter's own formatting. Boundary: OpenAI's opening outranks a transient status, so
+the request ends at the member that produced it with the rewritten stop instead of moving on.
+
 ## Synthetic’s subscription refusal, quoted form
 
 - `pi-runs/kimi-review-since-alpha8-landing-waits-1/summary.json`, 2026-11-10T17:43:34-05:00,
@@ -100,14 +106,18 @@ here so a reader never mistakes it for evidence.
   `503: {"error":{"message":"Upstream says a possible risk applies","type":"server_error"}}`
   (`src/transient-refusal.unit.test.ts` `POLICY_WORDED_503S`): a capacity 503 whose body carries
   policy wording. Boundary: the transient status the refusal opens with decides the handoff, so
-  wording inside the body cannot turn it into a stop that ends the request at that member.
-- `523: Error 523: origin is unreachable` and `522: Error 522: connection timed out`
-  (`src/transient-refusal.unit.test.ts`, `src/verify-stand-in-member-extension.ts`): the Cloudflare
-  origin error headings, which no capture records. Boundary: the status a refusal opens with, so the
-  pool moves the request on before Pi's own classifier reads `timed out`. The wording is
-  Cloudflare's published error page for each status
+  wording inside the body cannot turn it into a stop that ends the request at that member; OpenAI's
+  opening is the one exception, recorded as `OPENING_IN_503`.
+- `523: Error 523: origin is unreachable` (`src/transient-refusal.unit.test.ts`,
+  `src/verify-stand-in-member-extension.ts`) and `522: Error 522: connection timed out`
+  (`src/transient-refusal.unit.test.ts`): the Cloudflare origin error headings. Boundary: the
+  status a refusal opens with, so the pool moves the request on before Pi's own classifier reads
+  `timed out`. The wording is Cloudflare's published error page for each status
   (https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/,
-  read 2026-11-19), and the `<status>: ` prefix is the installed adapter's formatting.
+  read 2026-11-19), and the `<status>: ` prefix is the installed adapter's formatting. No run
+  folder still on this machine holds either text; a measured 522 run that used the heading
+  verbatim is recorded in `doc/hybrid-native-virtual-model-prototype.md`, under “Where this brief's
+  fact list is wrong”.
 - `429: OpenAI API error (523): upstream unavailable` and
   `429:openai api error (523): upstream unavailable` (`src/transient-refusal.unit.test.ts`):
   boundary: the refusal's own leading 429 decides, so a body that quotes a Responses failure label

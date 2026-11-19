@@ -116,13 +116,15 @@ carried it. No policy move has been observed on a real provider yet; the
 extension check covers the 429 handoff only.
 
 OpenAI's `This content was flagged for possible` sentence takes precedence over
-a 429 wherever it sits in the text, even if the advisory following it is
-truncated or changes punctuation, so a 429 body that quotes it ends the request
-instead of moving it. The shorter `possible risk` wording and generic policy
-labels identify a stop only when there is no 429 and no transient provider
-status, and they never move a request on: such a stop ends it. A 503 or
-Cloudflare body carrying those words therefore moves the request on like any
-other transient refusal. A stop that ends the request names the member
+a 429 or a transient provider status wherever it sits in the text, even if the
+advisory following it is truncated or changes punctuation, so a 429 or 503 body
+that quotes it ends the request instead of moving it. The shorter
+`possible risk` wording and generic policy labels identify a stop only when
+there is no 429 and no transient provider status, and they never move a request
+on: such a stop ends it. A 503 or Cloudflare body carrying only those words
+therefore moves the request on like any other transient refusal; one that also
+carries OpenAI's opening ends the request at that member, like a 429 quoting it.
+A stop that ends the request names the member
 and preserves the advisory, including OpenAI's remediation. It replaces only the
 spans matched by Pi's transient-error classifier, such as standalone retryable
 status numbers, `rate limit`, and `please retry your request`, with `[omitted]`.
