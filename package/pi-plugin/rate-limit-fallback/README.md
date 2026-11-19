@@ -128,17 +128,16 @@ this extension. The offline verification does not measure endpoint latency.
   not a Pi registry HTTP endpoint. The plugin does not start a Codex server
   or use organization admin credentials.
 - **Qwen Token Plan Individual.** Alibaba Cloud's [Token Plan FAQ][qwen]
-  says TPM, RPM, and concurrency are adjusted based on load. Under "Rate
-  limiting and concurrency" it says "A 429 Requests rate limit exceeded
-  response indicates rate limiting, not quota exhaustion" and "Wait about 1
-  minute before retrying", and it separates that class from
-  `insufficient_quota`. The plugin uses explicit response timing first and the
-  published wait only for that documented wording. No refusal recorded on this
-  machine carries that wording (the recorded Qwen refusals are quota
-  exhaustion), so this rule rests on the documentation alone, and a change in
-  the provider's wording would silently disable it. The documentation checked
-  did not identify a personal-plan quota API or plan-specific limit headers
-  for this inference credential.
+  says TPM, RPM, and concurrency are adjusted based on load. Its error table
+  names the refusal `429 Requests rate limit exceeded`, its "Rate limiting and
+  concurrency" section separates that class from `insufficient_quota`, and the
+  advice is "Wait about 1 minute before retrying". The plugin uses explicit
+  response timing first and the published wait only for that documented wording.
+  No refusal recorded on this machine carries that wording (the recorded Qwen
+  refusals are quota exhaustion), so this rule rests on the documentation alone,
+  and a change in the provider's wording would silently disable it. The
+  documentation checked did not identify a personal-plan quota API or
+  plan-specific limit headers for this inference credential.
 - **Synthetic.** The plugin reads `/v2/quotas` and accepts the current
   and previous weekly-block names. A depleted window holds the member
   only when it also reports a reset time. See the

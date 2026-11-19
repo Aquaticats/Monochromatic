@@ -25,10 +25,9 @@ const SECOND_MS = 1_000;
 /**
  Alibaba Cloud's suggested pause for a request-rate error, not a quota cap.
 
- Quoted from the Token Plan FAQ, section "Rate limiting and concurrency":
- "A 429 Requests rate limit exceeded response indicates rate limiting, not quota exhaustion" and
- "Wait about 1 minute before retrying"
- (https://www.alibabacloud.com/help/en/model-studio/token-plan-faq).
+ Quoted fragments from the Token Plan FAQ, section "Rate limiting and concurrency" and its error
+ table: the refusal is named `429 Requests rate limit exceeded`, and the advice is "Wait about 1
+ minute before retrying" (https://www.alibabacloud.com/help/en/model-studio/token-plan-faq).
  */
 const QWEN_REQUEST_RATE_WAIT_MS = 60_000;
 
