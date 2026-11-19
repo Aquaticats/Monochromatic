@@ -488,6 +488,18 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
 - **Names** (plain text, same evening): "both you and GPT just saying monochromatic-worktrees means you've both missed
   at least an AGENTS.md rule." The rule the owner meant is the worktree place just quoted; every name the design
   makes up also follows `AGENTS.md` rules `MKY` and `VGW`.
+- **A removed worktree's snapshots** (question tool, late evening, after the Sonnet gate review of the proposal at
+  71fa25ece8 found removal destroying history by default with no choice put): "B: Destroy at once". Removal destroys
+  the clone and its own snapshots immediately and prints what was lost. Offered and declined: keep the hidden clone
+  until its newest snapshot leaves sanoid's retention (recommended), or refuse without an explicit flag.
+- **`promote` in the binding** (question tool, same round; the record above said "maybe promote", the proposal left it
+  out): "B: Include promote". The binding speaks `ZFS_IOC_PROMOTE`. The question stated, from `zfs-promote(8)`, that
+  promoting a worktree clone makes the checkout a clone of it and moves the checkout's snapshots up to the origin into
+  the worktree, so the design has to say when promote is used and how the checkout's own history is kept out of a
+  worktree that may be destroyed. Declined: leaving promote out (recommended).
+- **Guarding against a changed ZFS module** (question tool, same round; the record above said a BTF check "in a
+  test"): "A: Test plus runtime gate (Recommended)". Keep the test, and both programs also check the running module at
+  start and refuse the ZFS route on a mismatch, falling back to the plain Git or reflink route, with no override flag.
 
 ## Open choices for the owner
 
