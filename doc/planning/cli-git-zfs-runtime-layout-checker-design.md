@@ -1462,7 +1462,7 @@ For the tools, the C4 evidence decides: `pahole`'s `-C` output carries the compa
 `bpftool`'s raw dump needs a type-id resolver in the wrapper, so `pahole` stays third when the
 rating moves.
 For the library pair the evidence does not decide: both routes' C4 and C6 rest on readings of two
-different code bases, and the pair is 92 to 90 with four tests tying or reversing it.
+different code bases, and the pair is 92 to 90 with eight tests tying or reversing it.
 Stability here does not cover simultaneous multi-input changes, and this document makes no claim
 it does.
 The controlling preference is the owner's, not a weight on this writer's scale: whether to keep
