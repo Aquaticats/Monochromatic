@@ -40003,8 +40003,8 @@ What follows from them, as work:
   2026-11-19T16:58:00-05:00"): H1 "Hide long words only" (path words of 20 or more unbroken lowercase letters print as
   `<credentials>`); M4, in the owner's words, "Avoid ever asking for someone to type a username or password.", so no
   command the wrapper runs or forwards prompts for a credential, terminal or not, superseding `SPEC.md`'s "A command the
-  person typed is forwarded with the prompting Git has" for credentials (an SSH passphrase read as a password, veto
-  open). Both go into the branch's next round together with what the short review finds.
+  person typed is forwarded with the prompting Git has" for credentials; asked separately, an SSH key's passphrase
+  counts too ("Passphrases count too (Recommended)": a key not in ssh-agent fails at once, saying to run `ssh-add`). Both go into the branch's next round together with what the short review finds.
 - **The wrapper's container gate cannot pass on this ZFS host.** The LFS writer ran the gate's body
   (`node bin/test-native-container.ts`; the mise task's first step needs `cargo-shadow`, not installed here) twice:
   `9189 tests run: 9002 passed, 187 failed`, against 6 of 9,173 on the old Btrfs host. By its reading about 109 fail on
