@@ -284,6 +284,10 @@ Each rule is the project's own requirement.
   or the producer's installed `path:line`.
   A stand-in written by hand says it is a stand-in where it is defined,
   and no claim about real behaviour rests on it.
+  A string that stands for no program's output at all
+  (a boundary input such as a token count that happens to hold a status)
+  stays made up,
+  and says so where it is defined beside the boundary it tests.
   On 2026-11-18 a writer's tests used refusal messages no installed Pi adapter produces,
   its README claimed on their strength that a real OpenAI refusal would hand off,
   and its review found the adapter's own form (`OpenAI API error (429): ...`,
@@ -292,6 +296,10 @@ Each rule is the project's own requirement.
   (the installed source or a real capture)
   and reports each one that has neither,
   and each claim about real behaviour that rests only on a stand-in.
+  Captured forms exist on this machine:
+  a run's `modelError` in `summary.json`,
+  Pi's own `auto_retry_end` line with its `finalError` in the same run's `feed.jsonl`,
+  and the refusals a skill or a handover quotes with their date.
 
 ## Where the run works
 
