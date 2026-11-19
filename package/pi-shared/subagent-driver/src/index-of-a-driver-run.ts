@@ -49,6 +49,14 @@ export {
   type Ending,
   endReasonOfRun,
 } from './take-the-first-prompt.ts';
+export {
+  makeTemporaryFolderOfARun,
+  TEMPORARY_FOLDER_MODE,
+  TEMPORARY_FOLDER_NAME,
+  TEMPORARY_FOLDER_VARIABLES,
+  type TemporaryFolderVariables,
+  variablesNamingTemporaryFolder,
+} from './temporary-folder-of-a-run.ts';
 export { endingLineOf, } from './the-line-a-driver-ends-with.ts';
 export { watchUntilEnded, } from './watch-pi-run.ts';
 export type { WatchRequest, } from './watch-request.ts';

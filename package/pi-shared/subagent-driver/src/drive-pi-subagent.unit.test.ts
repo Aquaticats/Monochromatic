@@ -47,6 +47,9 @@ import {
   recordsIn,
   type RunSummary,
   START_ATTEMPTS,
+  TEMPORARY_FOLDER_MODE,
+  TEMPORARY_FOLDER_NAME,
+  TEMPORARY_FOLDER_VARIABLES,
   VARIABLES_KEPT_DESPITE_CREDENTIAL_NAME,
 } from '../dist/final/node/index.mjs';
 import {
@@ -349,6 +352,16 @@ type Finished = {
    */
   readonly environmentNames: readonly string[];
   readonly piArguments: readonly string[];
+
+  /**
+   The folder the stand-in's own `os.tmpdir()` named, which is where Pi's tools keep a tool output too long for a result.
+   */
+  readonly temporaryFolder: string;
+
+  /**
+   The folder this run was given, whose path a test about what the run folder holds needs.
+   */
+  readonly runFolder: string;
 
   /**
    How many times the driver started the stand-in, which is how many starts the run made.
@@ -809,6 +822,9 @@ async function runDriver(
     piArguments: logged.filter((line,) => line.startsWith('arguments ',)).flatMap((line,) =>
       JSON.parse(line.slice('arguments '.length,),) as string[]
     ),
+    temporaryFolder: logged.find((line,) => line.startsWith('temporary-folder ',))
+      ?.slice('temporary-folder '.length,) ?? '',
+    runFolder,
     standInStarts: logged.filter((line,) => line.startsWith('arguments ',)).length,
     inbox: await listInbox(join(runFolder, 'inbox',),),
     inboxContents: await contentsOfInbox(join(runFolder, 'inbox',),),
@@ -1836,6 +1852,29 @@ await describe({
         const noted = run.feed.find((entry,) => entry.kind === 'environment',);
         expect(noted?.removedNames,).toEqual([CREDENTIAL_SHAPED_VARIABLE,],);
         expect(JSON.stringify(run.feed,),).not.toContain(CREDENTIAL_VALUE,);
+      },
+    },),
+    it({
+      name: 'gives Pi a temporary folder inside the run folder, made before the first start and kept after the run',
+      fn: async () => {
+        const run = await runDriver({ scenario: 'normal', },);
+        /**
+         The folder the driver makes inside the run folder for the files Pi's tools spill.
+         */
+        const temporaryFolder = join(
+          run.runFolder,
+          TEMPORARY_FOLDER_NAME,
+        );
+        // Pi's own process resolved this folder, so the variables the driver hands it name the folder and not `/tmp`.
+        expect(run.temporaryFolder,).toBe(temporaryFolder,);
+        // The run is over, so the folder is read after it ended: a run keeps the folder its session transcript points into.
+        expect(run.summary.endReason,).toBe('idle',);
+        expect(await exists(temporaryFolder,),).toBe(true,);
+        expect((await lstat(temporaryFolder,)).mode & 0o777,).toBe(TEMPORARY_FOLDER_MODE,);
+        expect((await lstat(temporaryFolder,)).isDirectory(),).toBe(true,);
+        for (const name of TEMPORARY_FOLDER_VARIABLES) {
+          expect(run.environmentNames,).toContain(name,);
+        }
       },
     },),
     it({

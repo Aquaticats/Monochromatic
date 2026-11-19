@@ -29,6 +29,7 @@ import { setTimeout as wait, } from 'node:timers/promises';
 import { promisify, } from 'node:util';
 import { ordinaryAnswersOf, } from './ordinary-answers-of-a-stand-in-pi.ts';
 import { sessionAnswerOf, } from './session-answers-of-a-stand-in-pi.ts';
+import { logTheTemporaryFolderPiResolved, } from './what-a-stand-in-pi-answers-about-its-temporary-folder.ts';
 import { logTheNamesOfWhatPiCouldRead, } from './what-a-stand-in-pi-logs-about-its-names.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import type { PiRecord, } from './driver-types.ts';
@@ -383,6 +384,7 @@ await logTheNamesOfWhatPiCouldRead({
   argumentsOfTheStart: argv.slice(2,),
   values: masking.values,
 },);
+await logTheTemporaryFolderPiResolved({ log, },);
 /**
  Whether the session Pi was handed holds an armed value as Pi starts, which is a yes or a no and never a value.
  */
