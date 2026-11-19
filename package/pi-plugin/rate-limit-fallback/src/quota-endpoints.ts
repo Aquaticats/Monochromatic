@@ -23,7 +23,7 @@ import {
 export type RoutingRegistry = Pick<ModelRegistry, 'find' | 'getApiKeyAndHeaders' | 'streamSimple'>;
 
 /** A supported provider's read failed or could not be attempted; try again on reentry. */
-export const QUOTA_UNAVAILABLE = Symbol('Quota reading unavailable',);
+export const QUOTA_UNAVAILABLE: unique symbol = Symbol('Quota reading unavailable',);
 
 /**
  Logger whose diagnostics contain only provider identity and parsed capacity.
