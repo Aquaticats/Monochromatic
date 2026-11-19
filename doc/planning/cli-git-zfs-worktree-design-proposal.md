@@ -222,46 +222,88 @@ Refuse `git worktree move` for a bound managed clone whether mounted or not: rep
 must not be renamed. The mounted guest control failed with `Device or resource busy`; a wrapper refusal also covers
 an unmounted slot, where that kernel protection does not apply.
 
-### ZED desired state and wait
+## ZED reconciliation and mount safety
 
-The wrapper leaves a local `org.monochromatic:worktree-request` property containing a protocol version,
-request nonce, and desired state `mount` or `unmount`. It also records its own durable intent in the add or removal
-journal. Never use an inherited property as a request. A history event is only a wakeup: sweep current immediate
-children of the configured parent, not a path or command named in the event. Only consider filesystem clones with
-the allowed origin, slot grammar and safety properties. Missing or malformed intent leaves the mount alone.
-Reject a wrong dataset or mount at the target; check the
-entire protected directory chain and make an empty placeholder without following links. The privileged zedlet and
-its executable are root-owned, with no user-writable code, configuration or search path. It does not run Git,
-load code from the checkout, accept arbitrary mount flags/targets, or widen access to `/dev/zfs` for sandboxes.
+Install the mount binary as a root-owned executable at
+`/usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets` for service calls, and install the same
+build as `/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets` for ZED events. Keep code, executable search
+paths and `/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc` root-controlled. The handler runs in the
+host mount namespace. It does not load code from the checkout, run Git, create or remove account slots, or widen
+sandbox access to `/dev/zfs`.
 
-Events, a startup pass after pool import, and a periodic pass call the same reconciler in the host mount namespace.
-Serialize the check and action for one slot, not the repository; reread its desired state, dataset identity and
-actual mount state under that claim. Mount only when absent; unmount only the matching mount, without force or lazy
-detach. Do not unmount something else at the same path. An `unmount` request persists until that cloned dataset is
-destroyed or an explicit recovery reverses it, so reboot does not remount a worktree being removed. The handler can
-clear an empty root-owned placeholder after verifying the dataset is gone and that no mount now occupies it.
+### Requests, results and ordering
 
-Write an atomic root-owned result under `/run/monochromatic-zfs-worktree`, keyed by dataset GUID and request nonce,
-with operation, outcome and errno when applicable. `/run` is only a result cache and liveness signal; the next
-reconcile rebuilds it from durable requests. The wrapper waits using a monotonic deadline and bounded sleeps or
-result-file notifications, then verifies mount identity and visibility itself. Halfway to the deadline, if the
-result is still pending, change a separate local `org.monochromatic:worktree-wake` nonce once to trigger a new event.
-Do not write properties from the handler merely to acknowledge a request; that would generate more events.
-Propose a **5 s experimental wait ceiling** per mount or unmount request, borrowing the wrapper's non-commit
-`REPORT_SCAN_CEILING` (`package/git-policy/cli/src/native/service/wait_ceilings.rs:1265` to `:1280`) as an initial
-budget, not as a ZED latency measurement. Validate the deadline and periodic interval from guest latency under
-ordinary concurrent work and after boot before setting shipped values. The wait includes readiness checks; ending
-it does not cancel a kernel request or revoke a durable intent. Never retry with conflicting state on that assumption.
+The durable mount intent is the clone's local `org.monochromatic:git-worktree-clone-mount-desired-state` property.
+Accept exactly `v1:<nonce>:mount` or `v1:<nonce>:unmount`, with a nonce of 32 lowercase ASCII hex digits. Bound the
+byte length before parsing. Ignore inherited intent and reject malformed intent before any filesystem operation on
+its behalf. No request supplies a path, dataset name or mount flags. On an event, enumerate current immediate
+children of the pinned parent, verify filesystem clone type, GUID and origin, inherited `legacy` and safety
+properties, and derive the slot only from a single name. Accept lowercase ASCII letters and digits with interior
+hyphens, bounded by the slot component limit and the remaining dataset-name budget. A malformed property, name or
+origin never authorizes work on another mount. Recheck desired state and identities under a per-slot root claim;
+parallel handlers can sweep at once but cannot take conflicting actions on the same mount.
 
-If the handler refuses, the caller sees the exact failed operation, dataset, expected path and reason. On `EBUSY`,
-name the mount, explain that open handles or a working directory can keep it busy, and advise leaving it and retrying
-from another checkout. Explain that the request remains live and a later sweep can unmount it unless it is reversed.
-On timeout, report the last observed state, that a late action is possible, the handler's log and `doctor` commands,
-and the matching request to resume. Treat a mount hidden from the caller as a separate failure,
-not a timeout success. The [ZFS planning record][zfs-plan], lines 157 to 185 and 195 to 226, documents replay after
-ZED stops, a dropped event recovered by a later property write, a busy unmount reported and retried, parallel zedlets,
-and the confined caller that could not see a later mount. A reboot starts with no usable old event queue; durable
-intent, the boot-safe mount property, and startup reconciliation are necessary even if replay works after a stop.
+Start a reconcile pass after pool import, required keys and the verified checkout mount, not merely after ZED
+starts. Verify the expected checkout dataset and mount identity in the host mount namespace before each action.
+No clone attaches while the checkout mount is missing or wrong. On shutdown the same handler owns clone unmounts,
+with stop work ordered before checkout/home unmount and pool export. This matters because legacy clones have no
+systemd mount unit and `zfs unmount -a` skips them. Report an expected checkout/home busy refusal by naming the
+mounted clones; never force or detach them. Ordinary idle `zpool export` must still work. A busy clone may block
+shutdown teardown or export; a residual mount is not a successful unmount. Boot must recover without relying on an
+old ZED event queue. A recorded `unmount` remains in effect across restart until destruction or explicit reversal.
+Periodic reconciliation without a waiter depends on the [lost-event choice](#open-project-choices).
+
+Publish an atomic receipt in `/run/git-worktree-clone-mount-results`, using only the canonical numeric dataset GUID
+as the receipt filename. The root-owned directory is mode `0755`; receipts are root-owned mode `0644`, read-only to
+the wrapper, and opened relative to the trusted directory. Nonces appear only as validated data in the receipt,
+never in a filename. Include the operation, matching nonce, outcome, mount identity and failed step/errno where
+applicable. Readiness also records the current boot, pool, checkout and sweep state. The runtime files are a cache,
+not authority to act; rebuild them from live state and durable intent. Do not write acknowledgement properties from
+root. A waiter can change the local `org.monochromatic:git-worktree-clone-mount-sweep-nonce` once to wake a new sweep;
+it uses the same hex format and is not an instruction to mount. The [ZFS planning probes][zfs-plan] show replay after a ZED stop and recovery of
+a lost event on a later property change, not recovery from a lost last event with no new event.
+
+### Descriptor mount and unmount
+
+Apply item 3 of the [nested-clone research][nested] as the mount contract: "The mount must not resolve a path
+that the account can change", "The mount must check the target folder's recorded identity, not just its kind",
+"The mount must be attached to the opened folder, not to a path", and "What unmount needs, and where the probe was
+incomplete". In this design root records identities, not ownership of the account's folders. At setup root records
+the identity of `.claude/worktrees`. For each new slot root observes and records the verified account-created
+underlay before attach; it must match the claimed registration slot and hold only the expected Git pointer.
+Record and recheck device, inode, UID, permissions and access/default ACLs from the opened folders. Keep records
+under root control in `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities`. Never refresh an
+existing slot identity just because a new inode or permissions appeared at the expected path.
+
+Use the research's descriptor-relative `openat2` constraints, `fsmount` with enforced `nosuid,nodev`, and
+`move_mount` onto the opened target. Report the failing component or mismatched identity field. After attach, prove
+both that the held identity received the expected mount and that the canonical slot exposes that mount ID. A moved
+inode can receive the mount at another account-controlled location. Treat that as a refusal, not a worktree: roll
+back the exact attached mount by descriptor, or report and retain its identity and both paths if rollback cannot
+finish. Never substitute a path-based attach or unmount on the account-controlled tree.
+
+For unmount, prove the mounted identity, move the mount by descriptor to a root-owned private staging mount
+hierarchy, and unmount it there without force or lazy detach. Require private checkout mounts and ancestors and
+verify staging propagation before action. On a propagation mismatch refuse and report drift; whether to support
+administrative isolation on hosts with shared ancestors is open. If the final unmount is busy after the move, restore
+only the same mount to the revalidated original slot if safe. Otherwise retain and report its staged identity and
+location. Track a staged move across handler interruption so no subsequent pass treats a mount missing from the
+slot as gone. Publish success only after checking actual mount state, not path absence. The runtime test must prove
+this for busy mounts and propagation peers; the probe did not combine the descriptor move with a busy unmount.
+
+### Waiting and refusal
+
+Use a monotonic deadline and bounded waits; a matching receipt must still be confirmed by the caller's mount view.
+Report a hidden mount separately from a timeout. The wrapper's 5 s `REPORT_SCAN_CEILING`
+(`package/git-policy/cli/src/native/service/wait_ceilings.rs:1265` to `:1280`) is a guest trial budget, not a ZED
+latency finding or a shipped limit. Measure the mount and unmount budgets using the acceptance workload.
+
+Name the failed operation, dataset, slot, actual state and reason. For `EBUSY`, name the holder if known, or explain
+open handles and working directories; tell the caller to leave the mount and retry from another checkout. For
+staging or rollback failure, give the staged location and administrator recovery instructions. For timeout, show
+the last observation, the matching request and how to inspect the handler with `doctor` or the journal. A deadline
+is not cancellation: the durable request may act later. Do not retry against an unverified mount or submit a
+conflicting request without verifying and recording recovery.
 
 ### Remove without crossing a boundary
 
