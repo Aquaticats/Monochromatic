@@ -474,8 +474,29 @@ caught by that check; the move uses the verified descriptor, not a new slot path
 private staging, verify the mount there, release descriptors that would hold it busy, then unmount without
 force or lazy detach. The busy-holder arm moved the clone successfully but unmount refused until the holder
 exited. Track and report staged identity and location across interruption: absence at the slot does not mean
-the mount is gone. Publish success only after verifying absence from the mount namespace. Reattach or staged
-retention remains [open](#open-project-choices); neither reattach nor staged recovery after a crash was measured.
+the mount is gone. Treat absence from the handler's namespace as local detach, not completed unmount.
+Reattach or staged retention remains [open](#open-project-choices); neither reattach nor staged recovery after a
+crash was measured.
+
+#### Mounts held by other namespaces
+
+"Unmounted" means absent in every mount namespace holding the clone's ZFS source, including binds and staging.
+[VM item 15][vm-namespaces] started an `unshare` reader and a `PrivateMounts=yes` unit after the attach. With a
+private checkout, host-side staging and unmount succeeded, but root's scan found both readers still holding the
+clone. The probe could destroy an own snapshot while those copies lived; the head destroy refused with `dataset is
+busy`. Head destroy succeeded after both readers stopped. With a shared checkout, descriptor move refused with
+`EINVAL`; the positive control used a path unmount solely to exercise propagation. It removed the peer and slave
+copies while both readers were alive, and head destroy succeeded. This does not authorize path unmount in the design.
+
+Proposed check based on item 15: the root mount handler groups live tasks by `/proc/<pid>/ns/mnt`, scans the matching
+`mountinfo` for each distinct namespace and checks ZFS filesystem and exact dataset source, not slot spelling or cwd.
+Before reporting removal-ready unmount, exclude new managed attaches with the standing `unmount` intent and return
+holders and incomplete reads in a fresh, nonce- and GUID-bound result. Removal requires this check immediately before
+snapshot destruction and again before a later chunk or the head destroy. Report unreadable or racing entries rather
+than treating them as clear. The scan only detected process-visible holders in the VM; it does not prove race-free
+absence, coverage of pinned namespaces without a visible task, or coverage through different process root directories.
+The built route must demonstrate its coverage and exclusion of holder creation in the supported deployment before
+claiming a safe unmount; a clean scan alone is not proof for an unverified arrangement (unmeasured requirement).
 
 [VM item 3][vm-propagation] measured the move refusing with `EINVAL` when its immediate parent, the checkout,
 was shared. Making **only the checkout mount private** let the fresh process move to private staging and unmount;
@@ -554,10 +575,12 @@ the later head destroy. Neither a successful batch nor a dependency refusal esta
     record, and report the need for administrator lineage recovery before retry. Do not try a subset, promote
     back automatically, or invoke ordinary Git removal to clear the slot. For a proven set, record removal
     intent and print the slot, dataset and exact snapshot names to be lost. Release local handles and request
-    `unmount`. Verify the clone is unmounted, including in staging, and the request, clone GUID, underlay
-    identity and Git registration still match. A missing, mismatched or busy unmount blocks destruction.
+    `unmount`. Require the root handler's [all-namespace unmount check](#mounts-held-by-other-namespaces) and
+    verify the request, clone GUID, underlay identity and Git registration still match. A missing, mismatched
+    or busy unmount blocks destruction, including when the slot is already clear (proposed from [item 15][vm-namespaces]).
 3.  After unmount, persist the verified inventory and expected clone identity as the destruction plan.
-    Reprove lineage and candidate identities immediately before submitting the full verified snapshot set in one
+    Require fresh root all-namespace verification before the first snapshot delete. Reprove lineage and candidate
+    identities immediately before submitting the full verified snapshot set in one
     `ZFS_IOC_DESTROY_SNAPS` request with `defer=false`; retain the per-name error list (direct route, [item 14][vm-batch]).
     If root conditional destruction is selected, require equivalent whole-batch checks and per-name results inside
     its single channel program request, not an external name-based ioctl after a conditional check (unmeasured).
@@ -639,7 +662,9 @@ already-confined reader in [VM item 3][vm-propagation] saw the later clone and i
 not with a private checkout. The marker was written by the mounting process, so the control showed reader
 visibility, not consumer writability. Do not relax confinement or infer mount visibility from host success.
 Prefer creating the worktree outside the unit as the driver already does, and verify visibility and writability
-in the consumer's actual context.
+in the consumer's actual context. [VM item 15][vm-namespaces] showed post-attach consumers inheriting the clone
+under a private checkout and keeping it after host unmount. The proposed removal gate requires those holders to be
+released before deleting history; that item did not run the installed Pi driver.
 
 ### Walks and Git clean
 
@@ -783,7 +808,9 @@ status. `doctor` does not start a service, create a test dataset, repair registr
   `zfs set com.sun:auto-snapshot=false <verified-dataset>` for confirmed drift. This keeps the planning record's
   veto-open adoption of blocklist checks. Report the space guard's actual scope.
 - Report unmounted and staged clones, busy checkout teardown with the holding clones named, interrupted actions,
-  damaged or pruned Git registrations, and each living clone's recorded origin. Report snapshot retention using
+  damaged or pruned Git registrations, and each living clone's recorded origin. For the proposed root scan from
+  [VM item 15][vm-namespaces], name each namespace holding the clone by namespace ID and representative PID, with
+  matched source and path, and report incomplete coverage as unknown. Do not require root in the `doctor` caller. Report snapshot retention using
   named ZFS accounting fields where measurable; do not sum shared blocks as if each clone owned them. Explain
   retained underlays in checkout snapshots. Print the applicable guarded resume or link-repair steps, not a
   blanket destroy or a guessed registration.
@@ -817,7 +844,10 @@ in the ranking. Use the VM findings and identify what remains unmeasured; a rank
   require a different explicit isolation arrangement with its own unmount and visibility proof.
   [VM item 3][vm-propagation] measured successful staging with only the checkout private, and loss of late
   delivery to the already-confined reader in that arm. The shared arm preserved delivery but could not move
-  the clone to staging. No alternative unmount mechanism was tested. Do not silently change propagation.
+  the clone to staging. [VM item 15][vm-namespaces] measured post-attach namespaces holding the clone after private
+  host unmount; the shared-path unmount removed the peer and slave copies, as a control only. Private staging
+  does not eliminate the all-namespace check. No alternative descriptor unmount was tested. Do not silently
+  change propagation.
 - Managed path interface. Accept the canonical path from ordinary `git worktree add <path>` only, with fallback at
   the same slot; or also add an opt-in named allocator that reports the chosen path under `.claude/worktrees`.
   [VM item 1][vm-register] used an explicit canonical path under that parent, not an allocator or the wrapper's
@@ -986,6 +1016,11 @@ system changes on the host. These gates carry the [handover's H1 and H2 disposit
   and the selected policy for reattach or retention. Test interruption there. [VM item 4][vm-unmount] measured
   an independent busy holder, not reattach or recovery. Repeat the [VM item 3][vm-propagation] shared and private
   checkout controls with the built programs and selected policy.
+- Repeat [VM item 15][vm-namespaces] with the built handler, starting both readers and the confined Pi consumer
+  after attach. Prove a host-only detach with another namespace holding the source blocks the first snapshot request
+  and that `doctor` names the holders; release them and show normal removal. Keep the shared path unmount as a
+  fixture-only propagation control. Exercise task churn, incomplete scans, divergent process roots and pinned
+  namespaces without live members; bound and document what the deployment can exclude before enabling removal.
 - H1 gate 7: exercise a confined user namespace without extra authority. Show that it cannot attach the clone with
   different flags despite OpenZFS's `FS_USERNS_MOUNT` declaration. Exercise a permitted host mount as the control,
   verify late-mount visibility in confined consumers under shared and private checkout propagation (with and
@@ -1167,6 +1202,7 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
 [vm-replacement]: cli-git-zfs-measurements-owed-before-acceptance.md#12-same-name-replacement-with-delegated-grants
 [vm-bookmark]: cli-git-zfs-measurements-owed-before-acceptance.md#13-creation-transaction-groups-and-a-bookmark-after-promote
 [vm-batch]: cli-git-zfs-measurements-owed-before-acceptance.md#14-one-snapshot-destroy-request-after-promote
+[vm-namespaces]: cli-git-zfs-measurements-owed-before-acceptance.md#15-mount-namespaces-created-after-attach
 [answers]: cli-git-zfs-worktree.md#owners-answers-of-2026-11-18
 [zfs-plan]: cli-git-zfs-worktree.md
 [handover]: ../handover/cli-git-rust-implementation.md
