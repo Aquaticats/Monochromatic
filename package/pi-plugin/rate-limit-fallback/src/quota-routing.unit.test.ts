@@ -60,6 +60,11 @@ if (NEURALWATT_FLEX === undefined)
 const RECORDED_DELAY_MS = 1_000;
 
 /**
+ Seconds a well-formed compound reset names, `1m30s` in the duration case.
+ */
+const COMPOUND_SECONDS = 90;
+
+/**
  Writer head, the NeuralWatt standard lane that asks the same endpoint for its own ceiling.
  */
 const [NEURALWATT_STANDARD,] = WRITER_TARGETS;
@@ -221,6 +226,69 @@ await describe({
         await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(endpoints,).toEqual(Array.from({ length: 2, }, () => 'https://api.synthetic.new/v2/quotas',),);
         expect(calls.map(call => call.model.provider,),).toEqual(['opencode-go', 'opencode-go', 'synthetic', 'synthetic',],);
+      },
+    },),
+    it({
+      name: 'admits the member when the limits lookup returns no single row',
+      fn: async function noSingleRow() {
+        const { provider, calls, options, } = await fixture({
+          extension,
+          models: [NEURALWATT_FLEX,],
+          play({ model, }) { return immediate({ model, },); },
+          async fetchQuota(input,) {
+            return quotaUrl(input,).includes('/v1/rate_limits',)
+              ? Response.json({
+                models: [
+                  { flex_floor: NO_FLEX_REQUESTS, },
+                  { flex_floor: NO_FLEX_REQUESTS, },
+                ],
+              },)
+              : Response.json({},);
+          },
+        },);
+        const model = poolModel({ provider, id: 'reviewer', },);
+        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(NEURALWATT_FLEX,),],);
+        expect(result.stopReason,).toBe('stop',);
+      },
+    },),
+    it({
+      name: 'ignores a malformed compound reset duration',
+      fn: async function malformedDuration() {
+        /**
+         Observation time both calls share.
+         */
+        const now = Date.parse('2026-11-19T00:00:00Z',);
+        /**
+         Malformed durations the endpoint's reset field can carry.
+         */
+        const malformed = [
+          'six minutes',
+          '6w',
+          '1.',
+          '1m30',
+        ] as const;
+        for (const value of malformed) {
+          expect(headerReset({
+            provider: 'openai',
+            headers: new Headers({
+              'x-ratelimit-remaining-requests': '0',
+              'x-ratelimit-reset-requests': value,
+            },),
+            now,
+            status: 200,
+          // A malformed duration leaves the deadline at the observation time, which holds nothing.
+          },),).toBe(now,);
+        }
+        expect(headerReset({
+          provider: 'openai',
+          headers: new Headers({
+            'x-ratelimit-remaining-requests': '0',
+            'x-ratelimit-reset-requests': '1m30s',
+          },),
+          now,
+          status: 200,
+        },),).toBe(now + (COMPOUND_SECONDS * 1_000),);
       },
     },),
     it({

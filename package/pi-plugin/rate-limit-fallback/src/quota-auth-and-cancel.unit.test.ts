@@ -21,6 +21,11 @@ const HEADER_ONLY_BEARER = 'Bearer stand-in-header-only';
 /** Model request budget for the supplied-deadline case; independent of the probe deadline. */
 const MODEL_TIMEOUT_MS = 1_000;
 
+/**
+ A caller timeout the plugin cannot use, so its own quota deadline has to apply.
+ */
+const NO_TIMEOUT_MS = 0;
+
 /** Reset used when a fixture reports an exhausted Synthetic window. */
 const RESET_MS = 60_000;
 
@@ -51,9 +56,9 @@ await describe({
         expect(isRetryableAssistantError(result,),).toBe(false,);
       },
     },),
-    ...[undefined, MODEL_TIMEOUT_MS,].map(function callerDeadline(timeoutMs,) {
+    ...[undefined, NO_TIMEOUT_MS, MODEL_TIMEOUT_MS,].map(function callerDeadline(timeoutMs,) {
       return it({
-        name: `bounds a stalled quota read ${timeoutMs === undefined ? 'without' : 'before'} the model timeout`,
+        name: `bounds a stalled quota read ${((timeoutMs === undefined) || (timeoutMs <= 0)) ? 'without a usable' : 'before the'} model timeout`,
         fn: async function probeDeadline(ctx,) {
           const deadline = new AbortController();
           const timeout = ctx.sinon.stub(AbortSignal, 'timeout',).returns(deadline.signal,);
@@ -82,7 +87,7 @@ await describe({
           await result;
           expect(signal,).toBe(deadline.signal,);
           expect(budget,).toBeGreaterThan(0,);
-          if (timeoutMs !== undefined)
+          if ((timeoutMs !== undefined) && (timeoutMs > 0))
             expect(budget,).toBeLessThan(timeoutMs,);
           expect(beforeTransportSettles,).not.toBeUndefined();
           expect(calls[0]?.options?.timeoutMs,).toBe(timeoutMs,);
@@ -126,19 +131,36 @@ await describe({
         expect(calls.length,).toBe(1,);
       },
     },),
-    ...['non-Bearer header', 'resolver exception',].map(function credentialFailure(reason,) {
+    ...[
+      {
+        reason: 'non-Bearer header',
+        resolveAuth() {
+          return Promise.resolve({ ok: true as const, headers: { Authorization: 'Basic stand-in', }, },);
+        },
+      },
+      {
+        reason: 'resolver exception',
+        resolveAuth() {
+          return Promise.reject(new Error('Stand-in registry resolution failure',),);
+        },
+      },
+      {
+        reason: 'registry refusal',
+        resolveAuth() {
+          return Promise.resolve({ ok: false as const, error: 'Stand-in registry refusal', },);
+        },
+      },
+    ].map(function credentialFailure(slot,) {
       return it({
-        name: `admits the member without sending a quota request after a ${reason}`,
+        name: `admits the member without sending a quota request after a ${slot.reason}`,
         fn: async function unavailableAuth() {
           const observations = { resolves: 0, fetches: 0, };
           const { provider, options, } = await fixture({
             extension,
             models: SYNTHETIC_ONLY,
-            async resolveAuth() {
+            resolveAuth() {
               observations.resolves += 1;
-              if (reason === 'resolver exception')
-                throw new Error('Stand-in registry resolution failure',);
-              return { ok: true, headers: { Authorization: 'Basic stand-in', }, };
+              return slot.resolveAuth();
             },
             play({ model, }) { return immediate({ model, },); },
             async fetchQuota() {

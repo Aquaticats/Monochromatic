@@ -84,6 +84,28 @@ await describe({
       },
     },),
     it({
+      name: 'holds a member on the previous Synthetic weekly field name',
+      fn: async function legacyWeeklyField() {
+        const { provider, options, } = await fixture({
+          extension,
+          models: SYNTHETIC_AND_BACKUP,
+          play({ model, }) { return immediate({ model, },); },
+          async fetchQuota() {
+            return Response.json({
+              weeklyTokenLimit: {
+                percentRemaining: 0,
+                nextRegenAt: new Date(Date.now() + SYNTHETIC_WINDOW_MS,).toISOString(),
+              },
+            },);
+          },
+        },);
+        const model = poolModel({ provider, id: 'reviewer', },);
+        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(result.provider,).toBe('opencode-go',);
+        expect(result.stopReason,).toBe('stop',);
+      },
+    },),
+    it({
       name: 'holds Synthetic on its subscription request limit until renewal',
       fn: async function syntheticSubscriptionReset(ctx,) {
         const clock = { now: Date.now(), };
