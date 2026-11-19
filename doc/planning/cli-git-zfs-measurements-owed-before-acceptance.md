@@ -108,3 +108,57 @@ Refuse identity changes without adopting them. A held parent descriptor can move
 canonical walk catches this case. The post-check and rollback are necessary; this is not a proof of atomic placement
 or coverage of every free-running interleaving. The rollback was in a private namespace; item 3 measures the
 propagation precondition.
+
+## 3. Shared propagation and a confined reader
+
+Guest: `6.8.0-147-generic`, OpenZFS userspace/module `2.4.4-1` (`item-3-fresh-signals.log`). The kernel differs from
+the host; the module release matches. The mount topology and units ran in the guest boot namespace so the guest
+PID 1 could start confined readers from the mount tree being tested. The guest's `/home` was a bind in an independent
+shared group, not a separate ZFS home as on the host; the ZFS fixture home under it was also shared.
+
+```text
+29      1 /dev/vda1 shared      rw,relatime
+60     29 /dev/vda1[/home] shared      rw,relatime
+120     60 zfsowed3/home shared      rw,relatime
+123    120 zfsowed3/home/checkout shared      rw,relatime
+```
+
+In both arms the probe created a clone with the item 1 descriptor route. Before attachment a guest systemd unit
+used `PrivateMounts=yes` and `ReadOnlyPaths=` on an unrelated directory, outside the checkout. A readiness file
+confirmed its own `findmnt` and marker looked absent before attach. After attach, the mounting process wrote a
+marker and signaled the reader. Once the reader finished, a fresh process tried the same descriptor move to the
+same private staging bind in both arms. The source parent and staging propagation were re-read at each move.
+
+With the **checkout shared**, the unit saw the later mount and marker, but the move refused and the clone stayed
+at its slot. Excerpts from the reader, move and subsequent `findmnt`:
+
+```text
+reader before: {"mount": "", "marker": null}
+268    401 zfsowed3/home/worktree-clone-datasets/shared shared,slave rw,nosuid,nodev,relatime
+move_mount: EINVAL
+267    123 zfsowed3/home/worktree-clone-datasets/shared shared      rw,nosuid,nodev,relatime
+```
+
+With **only the checkout private**, the mounting namespace saw the clone but the same kind of reader did not.
+The fresh process moved mount ID 267 from the checkout to staging mount ID 210 and unmounted it with exit 0;
+the staging bind remained, not the clone.
+
+```text
+reader before: {"mount": "", "marker": null}
+reader after: {"mount": "", "marker": null}
+123    120 zfsowed3/home/checkout private     rw,relatime
+120     60 zfsowed3/home shared      rw,relatime
+267    210 zfsowed3/home/worktree-clone-datasets/private              private     rw,nosuid,nodev,relatime
+clone mount ID 267 absent from mountinfo after unmount
+```
+
+The shared-parent refusal predicted by gate review GM1 held. The proposal's stronger claim that the checkout's
+ancestors must also be private did not: only the checkout changed. That narrower option still loses delivery of
+later mounts to already-confined consumers. The design needs to state which property it requires, and must not
+assume both with the same move-to-staging route. Check visibility from the actual caller namespace. The probe did
+not choose a propagation policy or test a different unmount mechanism.
+
+Two fixture attempts are not the comparison: the first bind accidentally left `/home` a peer of `/`, duplicating
+mounts, and the staging assertion mistook the staging bind for a surviving clone (`item-3-exact.log`). The next
+attempt reused a readiness marker (`item-3-corrected.log`). The recorded run separated the peer groups, checked the
+clone's mount ID after unmount, and deleted each arm's readiness, completion and result files before launching it.
