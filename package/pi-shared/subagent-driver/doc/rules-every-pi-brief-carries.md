@@ -224,9 +224,12 @@ Each rule is the project's own requirement.
   If the next step needs a result from work the driver cannot detect,
   run that work as a foreground command with a bound of its own.
 - Detached work is started through the `process` tool,
-  as a named unit (`systemd-run --user --unit=<name>`) when it should outlive that client too,
-  so the driver keeps the run for it:
-  a `systemd-run --scope` put in the background whose caller exits
+  as a named unit when it should outlive that client too:
+  `systemd-run --user --unit=<name> -- <the work>`.
+  The driver keeps the run for that unit while it runs,
+  when a `systemd-run` command of the run started it after that command did,
+  which a unit another session owns under the same name fails.
+  A `systemd-run --scope` put in the background whose caller exits
   belongs to the service manager and keeps no run open,
   and a unit started any other way, from a `bash` call for example, has no record to keep the run.
 - A workaround for a defect of the Git wrapper that is fixed in the installed release (0.6.1-alpha.15) and in `main`

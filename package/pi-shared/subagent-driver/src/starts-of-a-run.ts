@@ -231,6 +231,22 @@ export async function startsOfARun({
     Date.now() + START_SEQUENCE_MILLISECONDS,
   );
   /**
+   When this driver's own process started, in milliseconds since the epoch: a unit that left the inactive state before that moment
+   is no work this run left, whatever a record's command names.
+   */
+  const driverStartedAt = Date.now() - (process.uptime() * MILLISECONDS_PER_SECOND);
+  /**
+   What answers for the user manager, which a run's environment may name another so a test of the whole driver needs no manager of
+   this machine.
+   */
+  const managerProgram = process.env
+    .PI_RUNS_MANAGER_PROGRAM
+    ?? 'systemctl';
+  /**
+   The units the manager has already answered about for this run, so a look that finds one settled asks nothing again.
+   */
+  const settledUnits = new Set<string>();
+  /**
    Every start that ended before its Pi took the prompt.
    */
   const startFailures: PiStartFailure[] = [];
@@ -342,6 +358,9 @@ export async function startsOfARun({
             .PI_RUNS_PROCESS_FOLDER
             ?? '/proc',
           ownProcess: process.pid,
+          runStartedAt: driverStartedAt,
+          settled: settledUnits,
+          managerProgram,
           run: runCommandWithChildProcess,
         },);
       },

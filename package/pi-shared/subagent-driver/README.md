@@ -1329,9 +1329,9 @@ the folder it started in and the command it runs;
 the machine's process table, for a process working in the run's worktree or run folder,
 whose control group is not the run's own unit,
 and which descends from the run's own process;
-and the unit a command names with `--unit=`,
-asked of the manager,
-for work whose number has gone.
+and the unit a `systemd-run` command starts with `--unit=`,
+asked of the manager for work whose number has gone,
+which counts only while that unit runs and only when it began after the command did.
 Descent is how the driver tells the work the run started from the work of everyone else:
 a command the run's own `process` tool starts is a child of the run's Pi,
 and a `systemd-run --scope` the agent runs in the foreground keeps the parent that started it,
@@ -1343,21 +1343,39 @@ A `systemd-run --scope` the agent puts in the background,
 a `setsid`, or a double fork hands its process to the service manager when its parent exits,
 so the chain then ends at the manager instead of at the run,
 and the process table names nothing even though the work still runs in the run's folder.
-A process the run's own `process` tool recorded keeps the run while the number it holds is still a process,
+A process the run's own `process` tool recorded keeps the run while the tool's last answer still calls it going
+and the number it holds is a process,
 whatever folder that work is in;
-a recorded command that names a unit with `--unit=` keeps the run while the manager holds that unit,
-whatever the tool's last answer says about the client that started it,
-because a client that has ended says nothing about the unit it asked for.
+a record whose last answer says the client ended keeps nothing by that client,
+which is the safe side: a number the tool has given up can belong to a process nobody started here.
+A recorded command whose program is `systemd-run` and which starts a unit with `--unit=` keeps the run
+while that unit's work is going,
+whatever the tool's last answer says about the client,
+which says nothing about the unit it asked for.
+The unit counts only when it can be this run's work:
+one question asks the manager for its state and for when it left the inactive state,
+and a unit that began before the command is another session's,
+so the command's own start time is what it is compared with,
+which is the moment the `process` tool recorded where it recorded one,
+and the run's own start where a record predates that field.
+A command of any other program, `journalctl --user --unit=<name>` for one, starts no unit and is never asked about,
+and a unit started outside the `process` tool, from a `bash` call for example,
+has no record and is not waited for either:
+the run ends `idle` while that unit runs.
 So an agent starts work that outlives its turn through the `process` tool,
 and starts that work as a named unit with `systemd-run --user --unit=<name>` when it should outlive the client too.
-A unit started any other way, from a `bash` call for example, has no record,
-and nothing else asks the manager about it: the run ends `idle` while that unit runs.
 Before 2026-11-19 the folder and the control group were the whole test,
 which counted that backgrounded scope as the run's work,
 and counted every other session's process in the main checkout too:
 two runs started with `--working-folder` there waited out their whole wall clock
 on another session's `codex` and `claude`,
 on other runs' `pi`, and on the scopes of both.
+The process table and the manager's answer are both replaceable for a test of the whole driver:
+`PI_RUNS_PROCESS_FOLDER` names the folder the process table is read from,
+and `PI_RUNS_MANAGER_PROGRAM` names the program that answers for the manager where `systemctl` would,
+so no test that starts the driver asks this machine's user manager anything.
+A caller starting real runs sets neither.
+
 What none of them can show is not guessed at,
 and a run with nothing running ends `idle` as it always did.
 
