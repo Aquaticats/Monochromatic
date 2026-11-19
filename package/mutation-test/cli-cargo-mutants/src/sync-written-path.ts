@@ -36,9 +36,19 @@ const execFileAsync = promisifyExecFile(execFile);
  */
 export async function syncWrittenPath(path: string): Promise<void> {
   try {
-    await execFileAsync('sync', ['--data', '--', path]);
+    await execFileAsync(
+      'sync',
+      [
+        '--data',
+        '--',
+        path,
+      ],
+    );
   }
   catch (error) {
-    throw new DurableWriteSyncError(`Cannot sync ${path} with GNU coreutils sync --data: ${String(error)}`, { cause: error });
+    throw new DurableWriteSyncError(
+      `Cannot sync ${path} with GNU coreutils sync --data: ${String(error)}`,
+      { cause: error },
+    );
   }
 }

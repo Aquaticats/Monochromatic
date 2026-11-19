@@ -166,10 +166,20 @@ const execFileAsync = promisifyExecFile(execFile);
  */
 async function syncWrittenPath(path: string): Promise<void> {
   try {
-    await execFileAsync('sync', ['--data', '--', path]);
+    await execFileAsync(
+      'sync',
+      [
+        '--data',
+        '--',
+        path,
+      ],
+    );
   }
   catch (error) {
-    throw new DurableWriteSyncError(`Cannot sync ${path} with GNU coreutils sync --data: ${String(error)}`, { cause: error });
+    throw new DurableWriteSyncError(
+      `Cannot sync ${path} with GNU coreutils sync --data: ${String(error)}`,
+      { cause: error },
+    );
   }
 }
 
@@ -197,7 +207,14 @@ export async function writeFileAtomically({
    */
   const temporary = `${file}.${String(process.pid)}.${randomUUID()}.tmp`;
   try {
-    await writeFile(temporary, text, { flag: 'wx', encoding: 'utf8' });
+    await writeFile(
+      temporary,
+      text,
+      {
+        flag: 'wx',
+        encoding: 'utf8',
+      },
+    );
     // Flush the closed temporary file before rename so power loss cannot publish an empty destination.
     await syncWrittenPath(temporary);
   }

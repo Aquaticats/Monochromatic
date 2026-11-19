@@ -3,6 +3,7 @@ import {
   readdir,
   readFile,
   stat,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -130,6 +131,7 @@ async function failureText({ call, }: { readonly call: () => Promise<unknown>; }
 
 await describe({
   name: applyToolchainRules.name,
+  concurrency: 1,
   children: [
     it({
       name: 'creates one mode 0600 file per rule named exactly like its rule',
@@ -218,6 +220,36 @@ await describe({
         expect(rule.updated,).toBe('2026-10-31T12:01:00Z',);
         expect((rule.operator as FixtureRule).data,).toBe('^(?:/d/monochromatic-dev)/toolchain(?:-global)?/',);
         expect((await readFile(file, 'utf8',)).endsWith('  ',),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'stops at a failed replacement sync without changing the next rule',
+      fn: async () => {
+        await using fixture = await createRulesFixture();
+        await using bin = await createScratch({ prefix: 'wg-quicker-failed-sync-', },);
+        await applyToolchainRules({ rulesDirectory: fixture.directory, roots: ROOTS, now: NOW, },);
+        /** Both install and exposure rules need rewriting; the first one must sync before the next is touched. */
+        const changedRoots = { ...ROOTS, dataHomes: [bin.path,], repositoryRoots: [bin.path,], };
+        /** File the second rewrite must leave untouched. */
+        const exposure = join(fixture.directory, `${EXPOSURE_LINKS}.json`,);
+        /** Saved bytes for the assertion after the failed sync. */
+        const originalExposure = await readFile(exposure, 'utf8',);
+        await symlink('/usr/bin/false', join(bin.path, 'sync',),);
+        /** Original command path for this test process. */
+        const previousPath = process.env.PATH;
+        using restorePath = {
+          [Symbol.dispose](): void {
+            if (previousPath === undefined)
+              delete process.env.PATH;
+            else
+              process.env.PATH = previousPath;
+          },
+        };
+        process.env.PATH = bin.path;
+        expect(await failureText({
+          call: () => applyToolchainRules({ rulesDirectory: fixture.directory, roots: changedRoots, now: NOW, },),
+        },),).toContain(`sync --data -- ${join(fixture.directory, `${INSTALL_ROOTS}.json`,)}`,);
+        expect(await readFile(exposure, 'utf8',),).toBe(originalExposure,);
       },
     },),
     it({

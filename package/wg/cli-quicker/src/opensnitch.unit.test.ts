@@ -1,3 +1,4 @@
+import { rejects, } from 'node:assert/strict';
 import { createHash, } from 'node:crypto';
 import {
   chmod,
@@ -83,6 +84,11 @@ type OpenSnitchFixture = {
    Fixture-private wg-quicker runtime path.
    */
   readonly runtimePath: string;
+
+  /**
+   Fixture programs found before host programs on PATH.
+   */
+  readonly commandDirectory: string;
 
   /**
    Removes fixture and restores process environment.
@@ -232,6 +238,7 @@ async function createFixture(
     configPath,
     daemonConfigPath,
     runtimePath,
+    commandDirectory,
     async [Symbol.asyncDispose](): Promise<void> {
       if (originalConfig === undefined)
         delete process.env.WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG;
@@ -353,6 +360,42 @@ await describe({
               endpointPorts: [51_820,],
             },);
             expect(await readRules({ path: fixture.configPath, },),).toHaveLength(1,);
+          },
+        },),
+
+        it({
+          name: 'fails when sync fails and writes and syncs the original config during recovery',
+          fn: async () => {
+            /** Original document, small enough to exercise whitespace padding during recovery. */
+            const content = JSON.stringify(systemFirewall({ rules: [], },),);
+            await using fixture = await createFixture({ content, },);
+            /** Exclusive marker makes the stand-in fail only the first sync. */
+            const marker = join(fixture.commandDirectory, 'attempted',);
+            await writeFile(
+              join(fixture.commandDirectory, 'sync',),
+              `#!${process.execPath}
+import { existsSync, writeFileSync } from 'node:fs';
+const [mode, end, path] = process.argv.slice(2);
+if (mode !== '--data' || end !== '--' || path !== ${JSON.stringify(fixture.configPath,)})
+  throw new Error('unexpected sync arguments');
+const marker = ${JSON.stringify(marker,)};
+if (!existsSync(marker)) {
+  writeFileSync(marker, '');
+  throw new Error('fixture refused the first sync');
+}
+writeFileSync(marker, 'recovery sync');
+`,
+              { mode: 0o700, },
+            );
+            await rejects(
+              installOpenSnitchEndpointAllowance({ interfaceName: 'wg0', endpointPorts: [51_820,], },),
+              {
+                name: 'OpenSnitchConfigError',
+                message: `Cannot write OpenSnitch system-firewall config: ${fixture.configPath}`,
+              },
+            );
+            expect(await readFile(marker, 'utf8',),).toBe('recovery sync',);
+            expect((await readFile(fixture.configPath, 'utf8',)).trimEnd(),).toBe(content,);
           },
         },),
 

@@ -432,16 +432,21 @@ held by the campaign process itself
 (`src/campaign-lock.ts`,
 `src/owner-claim.ts`),
 made as `package/git-policy/cli/src/native/lock/single_owner_claim.rs` makes its claims.
-`campaign.owner.<generation>` is written whole into a private file and published with one exclusive `link`,
-so exactly one
-process creates generation `n + 1`;
-the newest generation is the claim,
+`campaign.owner.<generation>` is written whole into a private file,
+closed and synced with GNU coreutils `sync --data` before publication.
+One exclusive `link` publishes it,
+so exactly one process creates generation `n + 1`.
+The private name is removed and the directory is synced before publication reports success.
+A failed file sync removes the private file without publishing it.
+A failed directory sync is reported as an error even though the new entry may already be visible.
+The newest generation is the claim,
 and it names its owner by process id,
 birth (start
 time from `/proc/<pid>/stat` field 22 plus the boot id) and PID namespace (`src/process-identity.ts`).
 A second run of the same campaign is refused at once with the owner's process id and claim file named,
 and never waits.
-A run that ended normally rewrites its claim as released.
+A run that ended normally rewrites its claim as released by renaming a synced private file over it,
+then syncs the directory before reporting success.
 A run that was stopped by `systemctl --user stop`,
 lost its host in a reboot or was killed leaves its claim naming a process
 that no longer exists with that birth,

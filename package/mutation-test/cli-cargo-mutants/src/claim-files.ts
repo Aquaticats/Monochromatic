@@ -107,7 +107,14 @@ export async function writePrivate({
     `.owner-claim.tmp.${String(process.pid)}.${crypto.randomUUID()}`,
   );
   try {
-    await writeFile(path, encodeClaimRecord(record), { flag: 'wx', mode: claimMode });
+    await writeFile(
+      path,
+      encodeClaimRecord(record),
+      {
+        flag: 'wx',
+        mode: claimMode,
+      },
+    );
     await syncWrittenPath(path);
   }
   catch (error) {

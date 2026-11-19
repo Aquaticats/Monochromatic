@@ -125,7 +125,7 @@ The script and its output are under
 The first program seen to meet the refusal was the agent-cap disk probe at 2026-11-18T21:18:17-05:00, which called
 `fsyncSync` and exited at its first reading.
 
-### Callers in this repository
+### Callers found on 2026-11-18
 
 A search of `package/` and `.config/` for every form in the measured list, plus `fchmod`, `fchown` and `futimes`, found
 five calls, all `FileHandle.sync()`, each of which throws under the default:
@@ -154,4 +154,28 @@ Limits: the call needs `--allow-child-process` once the model refuses instead of
 coreutils behaviour (Linux, which all five callers target).
 The options not chosen were a repository-built sync helper binary and moving each durable write into Rust.
 
+### Directory sync for published claims
+
+The five TypeScript call sites found under "Callers found on 2026-11-18" now use `sync --data -- <path>`.
+The claim writer also passes its directory to this command after linking or renaming the claim.
+GNU coreutils 9.12's [`sync_arg`][coreutils-sync] passes `--data` to `fdatasync`.
+OpenZFS 2.4.4 [uses `zpl_fsync` for directories][zfs-linux-sync],
+and [`zfs_fsync`][zfs-sync] commits that object's ZIL regardless of the data-only flag when sync is enabled.
+
+A disposable probe on `zpcachyos/ROOT/cos/home` (`sync=standard`) inherited `NODE_OPTIONS=--permission-audit`.
+Node's `fsyncSync` failed with `ERR_ACCESS_DENIED: fsync API is disabled when Permission Model is enabled.`
+The measured signal was `zil_commit_count` in `/proc/spl/kstat/zfs/zil`.
+Each round wrote a fresh file and used fresh destination directories for separate hard links:
+
+- Running `true` after a write or after a link: deltas `0, 0, 0` for each control.
+- Running `sync --data -- <file>` after a write: deltas `1, 1, 1`.
+- Running `sync --data -- <directory>` after a link: deltas `1, 1, 1`.
+- Running `sync -- <directory>` after a link: deltas `1, 1, 1`.
+
+The controls show that the directory command reaches the same log commit mechanism as full sync on this dataset.
+This was not a power-loss test and does not establish data-only directory sync semantics on other filesystems.
+
+[coreutils-sync]: https://github.com/coreutils/coreutils/blob/v9.12/src/sync.c
+[zfs-linux-sync]: https://github.com/openzfs/zfs/blob/zfs-2.4.4/module/os/linux/zfs/zpl_file.c
+[zfs-sync]: https://github.com/openzfs/zfs/blob/zfs-2.4.4/module/zfs/zfs_vnops.c
 [node-26-permissions]: https://nodejs.org/docs/latest-v26.x/api/permissions.html#:~:text=Some%20node%3Afs%20operations%20act%20on%20an%20already-open%20file%20descriptor
