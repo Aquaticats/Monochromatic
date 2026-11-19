@@ -39783,6 +39783,14 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### A virtual Pi provider with models writer and reviewer, deferred (2026-11-18, evening)
+
+In plain text: "Open an issue saying the GPT -> Qwen -> Synthetic -> opencode-go -> Neuralwatt flex fallback chain
+should be a new model "writer" under a new virtural provider. And the new virtural provider should have "reviewer" too.
+This specific issue+implementation can wait." Opened as issue 6314, labelled `needs-triage` and marked deferred; its
+`reviewer` chain is read as the current DeepSeek reviewer pool (Qwen, Synthetic, `opencode-go`, Neuralwatt flex), to be
+confirmed when it is taken up. Not started; task 383 (the driver's pool table) stays as it is until then.
+
 ### ZFS route: the account keeps owning .claude/worktrees (2026-11-18, evening)
 
 Through the question tool: "B: Account owns it (Recommended)" over "A: Root owns it". Recorded in
