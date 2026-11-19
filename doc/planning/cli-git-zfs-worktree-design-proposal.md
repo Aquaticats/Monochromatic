@@ -4,8 +4,8 @@
 recorded under "Answered in the question tool, recorded 2026-11-19T16:22:16-05:00" in the round's questions file,
 `doc/handover/questions-for-the-owner.md`, and the accepted design has its own record,
 [`doc/decision/cli-git-zfs-worktree-design.md`](../decision/cli-git-zfs-worktree-design.md). This file stays the
-planning record and keeps the evidence. The two owed VM measurements still gate shipping the forced arm, and they
-decide only the sentences already conditional on them.
+planning record and keeps the evidence. The two owed VM measurements still gate shipping, and they decide only the
+sentences already conditional on them.
 
 Acceptance fold-in (2026-11-19), after the gate review and its fix round: this revision states the project's three
 remaining answers with their words, everywhere this file treats them. The guarded `cancel-worktree-removal <slot>`
@@ -163,7 +163,7 @@ attachment and removal. It has no Git, pool administration, or dataset destructi
 
 The initial interface is Linux only. Expose typed operations, not a general-purpose ioctl or property setter.
 Numbers are for OpenZFS `zfs-2.4.4`, `include/sys/fs/zfs.h:1502` to `:1556`.
-The vet's "Result and the owner's decision" records the core set. This draft adds `OBJSET_STATS` for identity
+The vet's "Result and the owner's decision" records the core set. This design adds `OBJSET_STATS` for identity
 and property sources, `SNAPSHOT_LIST_NEXT`, `GET_BOOKMARKS` and `DESTROY_SNAPS` for exact removal accounting,
 and `GET_FSACL` for `doctor`. The cross-vendor review checked `SNAPSHOT_LIST_NEXT` at line 1505 and `GET_FSACL`
 at line 1525.
@@ -199,7 +199,7 @@ and report its dependency rather than promoting a managed clone to clear it.
 
 [VM item 11][vm-promote] measured the promoted worktree becoming independent and the checkout becoming its
 clone. The origin and older checkout snapshots moved to the worktree with unchanged GUIDs; later checkout
-snapshots and the worktree's own snapshot stayed put. In this draft, "include" means test-only use: expose the
+snapshots and the worktree's own snapshot stayed put. In this design, "include" means test-only use: expose the
 primitive in the binding and exercise it in the disposable VM; no production caller invokes it. For the owner
 handoff, distinguish inclusion in the binding from approval of a live operation. A possible future use is explicit
 administrator recovery onto a protected clone outside the removable worktree tree (unmeasured, not proposed for
@@ -397,7 +397,7 @@ GUIDs and `createtxg` values, pointer bytes, request nonce and progress. At crea
 inventory of snapshots through the origin snapshot's transaction group and the origin dataset's bookmarks, by
 kind, name, GUID and `createtxg`. Record the clone's initial inventory separately; an empty new clone inventory
 cannot identify transferred history. This is a proposed proof record based on the transfer in [VM item 13][vm-13].
-[Removal and recovery](#removal-and-recovery) defines how to use it. This draft does not name where that binding and
+[Removal and recovery](#removal-and-recovery) defines how to use it. This design does not name where that binding and
 lineage record lives: only the per-add claim record has a named home, the account-owned Git common directory, and
 the account writes the binding record wherever it is placed (reasoning: the wrapped add writes it as the account).
 Root's conditional destruction therefore has to keep its own copy of the identities it checks, which matters only
@@ -717,7 +717,7 @@ Item 15 ran no rootless container: an unrestricted caller such as a container at
 unmeasured, and nothing it ran shows an exclusion that keeps one out, so a clean scan alone does not qualify that
 deployment. It found no complete namespace or mount-reference exclusion: its scan saw readable, live representatives
 of the observed namespaces only, and does not generalize to pinned namespaces or racing task changes
-([VM delta limits][vm-delta-limits], "What this repeat did not show"). Nothing this draft describes shows one
+([VM delta limits][vm-delta-limits], "What this repeat did not show"). Nothing this design describes shows one
 either, because the descriptor checks and the namespace scan act on what root can observe (reasoning from
 [item 15][vm-namespaces], not a measured interleaving). The project decided what removal does in that state,
 answering "Destroy anyway (Recommended)": the scan that refuses holders it sees stays, then the clone's snapshots
@@ -897,15 +897,15 @@ a test asserts that the encoded request has no `defer` key.
     clone can reap an origin already marked for deferred destroy outside the separate origin-cleanup step
     (`dsl_destroy.c:1028` to `:1037` and `:1168` to `:1172`). The project placed the check before the first snapshot
     delete on 2026-11-19, answering "Also check first (Recommended)", so a removal whose origin is marked refuses
-    before deleting anything: the clone, its snapshots and the registration stay. The check before the head destroy
-    stays, and a mark set between the two checks remains the accepted residual. The check before the head destroy
-    runs after the snapshot batch, so a refusal there leaves the clone without its own snapshots: the head and the
-    registration survive at that moment, the history does not come back, and whether the refusal then keeps the
-    removal record or lets the removal cancel itself is under
+    before this run deletes anything, and the clone, its remaining snapshots and the registration stay. A removal
+    that resumes may already have lost the snapshots an earlier run destroyed, and no later refusal brings them
+    back. The check before the head destroy stays, and a mark set between the two checks remains the accepted
+    residual. The check before the head destroy runs after the snapshot batch, so a refusal there leaves the clone
+    without its own snapshots: the head and the registration survive at that moment, the history does not come
+    back, and whether the refusal then keeps the removal record or lets the removal cancel itself is under
     [Open items the decisions leave](#open-items-the-decisions-leave). Neither check has a design yet, and a
     same-account mark between the check before the head destroy and the destroy stays inside the accepted
-    residual
-    ([Open items the decisions leave](#open-items-the-decisions-leave)). Bound replanning by
+    residual ([Open items the decisions leave](#open-items-the-decisions-leave)). Bound replanning by
     the same removal deadline, without restarting it. Print what disappeared and what remains and keep per-name
     results. This is proposed handling for recursive sanoid coverage ([project decision][answers], lines 365 to
     371) and the separate batch and head requests ([VM item 14][vm-batch]); the interleavings are unmeasured.
@@ -1247,8 +1247,8 @@ is implemented or released: this file remains the planning record, and the open 
   [Mounts held by other namespaces](#mounts-held-by-other-namespaces)). No alternative descriptor unmount was
   tested. Do not silently change propagation. Two facts belong to this decision: a deployment that can show the
   exclusion still accepts planned snapshots all gone with the head refused when a copy survives the scan (the
-  outcome [VM item 15][vm-namespaces] measured), and no route this draft names can show that exclusion today:
-  [VM item 15][vm-namespaces] found no complete namespace or mount-reference exclusion and this draft adds none, so
+  outcome [VM item 15][vm-namespaces] measured), and no route this design names can show that exclusion today:
+  [VM item 15][vm-namespaces] found no complete namespace or mount-reference exclusion and this design adds none, so
   [Removal when the namespace exclusion cannot be shown](#project-decisions) settles what removal does there. How
   these arrangements compare is reasoning from those measurements, not a measured comparison: the boot unit and the
   administrator setting it once differ in who keeps the mount isolation current, while a third arrangement must
@@ -1258,7 +1258,7 @@ is implemented or released: this file remains the planning record, and the open 
   [VM item 15][vm-namespaces] found no complete namespace or mount-reference exclusion: its scan saw readable, live
   representatives of the observed namespaces only, and did not generalize to pinned namespaces without a visible
   task or to racing task changes
-  ([VM delta limits][vm-delta-limits], "What this repeat did not show"). Nothing this draft describes shows one
+  ([VM delta limits][vm-delta-limits], "What this repeat did not show"). Nothing this design describes shows one
   either, so this decision settles what removal does in that state. The measured facts: with a private checkout, the
   host unmounted while both post-attach readers still held a ZFS row for the clone
   in `mountinfo` and neither worked in the clone directory, a disposable own snapshot was destroyed while they
@@ -1281,7 +1281,7 @@ is implemented or released: this file remains the planning record, and the open 
   exercise repeat requests. The alternative the project did not select, refusing whenever the namespace exclusion
   cannot be shown, before the first snapshot delete, would leave the decided "B: Destroy at once"
   ([project decision][answers], lines 491 to 494) unreached for every
-  deployment whose arrangement this draft describes, and an authorized removal would be destroyable only through
+  deployment whose arrangement this design describes, and an authorized removal would be destroyable only through
   action outside the wrapper (reasoning). The project declined a refusal of that kind once: when it chose
   "B: Destroy at once", the offered "refuse without an explicit flag" was declined
   ([project decision][answers], lines 491 to 494). Reading that as this alternative's precedent is reasoning, with
@@ -1346,7 +1346,7 @@ is implemented or released: this file remains the planning record, and the open 
   sweep nudge the wrapper writes on a caller's behalf; ZED's delivery of events to the installed handler is one the
   design installs but does not control, and it is the one whose loss reaches the no-waiter case, where no caller is
   waiting and no nudge is written. The answer's reason is that the project sets these triggers itself. The
-  unselected periodic scoped sweep would have needed the coalescing and rate rule this draft does not have, and
+  unselected periodic scoped sweep would have needed the coalescing and rate rule this design does not have, and
   triggers alone keep that gap: how the nudges pending for one clone merge
   into a single sweep, and how many sweeps may run in a period across every clone, is unspecified, and nothing
   measured sizes either ([Requests, results and ordering](#requests-results-and-ordering)). Without such a cap a
@@ -1367,9 +1367,9 @@ is implemented or released: this file remains the planning record, and the open 
   is the one that pairs with [clone removal identity protection](#clone-removal-identity-protection); the project
   answered that pair "Keep both, check first (Recommended)", and on 2026-11-19 placed the check "Also check first
   (Recommended)": it runs before the first snapshot delete as well as before the head destroy, so a marked origin
-  refuses before anything is deleted, and a mark set between the two checks remains the accepted residual. Neither
-  check has a design yet ([Open items the decisions leave](#open-items-the-decisions-leave)). Neither of the two
-  programs on this host that prune snapshots passes a deferred destroy (`/usr/bin/sanoid:399`,
+  refuses before this run deletes anything, and a mark set between the two checks remains the accepted residual.
+  Neither check has a design yet ([Open items the decisions leave](#open-items-the-decisions-leave)). Neither of
+  the two programs on this host that prune snapshots passes a deferred destroy (`/usr/bin/sanoid:399`,
   `/usr/local/sbin/zfs-space-guard:50`), other callers were not inspected, and that exposure is reasoning from the
   grant model (`lib/libzfs_core/libzfs_core.c:442` to `:451`, OpenZFS `zfs-2.4.4`), not a measured account-run
   deferred destroy ([Clone removal identity protection](#clone-removal-identity-protection)).
@@ -1426,7 +1426,7 @@ beside the staging default.
   acknowledgement properties: kept, answering "Keep receipt files (Recommended)"
   ([Requests, results and ordering](#requests-results-and-ordering)). Evidence: reasoning
   from the property event [VM item 5][vm-key] delivered, not a measured receipt. Cost: a receipt for a clone the
-  removal destroyed stays with no clone to update it, and nothing in this draft removes that entry; a live clone's
+  removal destroyed stays with no clone to update it, and nothing in this design removes that entry; a live clone's
   next result overwrites its own entry, because the filename is its GUID. The directory is root-owned mode `0755`,
   and each receipt is root-owned mode `0644`, read-only to the wrapper, so the caller cannot reap them, and no
   handler step, timer or install action is assigned that role; an acknowledgement property would ride reads the
@@ -1468,8 +1468,8 @@ couple them, is admitted with a check, answering "Keep both, check first (Recomm
 first snapshot delete and again just before the head destroy, that the clone and its origin are the planned ones and
 that the origin is not marked for deferred destroy, refusing otherwise; the position before the first snapshot delete
 is the further answer "Also check first (Recommended)" of 2026-11-19, so a removal whose origin is marked refuses
-before deleting anything, and the check before the head destroy stays. Neither check has a design yet, and a mark set
-between the two stays inside the account-versus-itself residual the delegated option already accepts
+before this run deletes anything, and the check before the head destroy stays. Neither check has a design yet, and a
+mark set between the two stays inside the account-versus-itself residual the delegated option already accepts
 ([Open items the decisions leave](#open-items-the-decisions-leave)). With descendants `mount,destroy` on the
 checkout, the account becomes an allowed actor that can mark a checkout snapshot for deferred destroy; the draft at
 `b5294a7325` excluded the pair until an origin rule was proved across the cloneable scope, and this answer admits it
@@ -1487,7 +1487,7 @@ name-based request to that GUID (`module/zfs/zfs_ioctl.c:2244` to `:2300` and `:
 The fixture's root channel program refused stale tuples for both replacements and destroyed on a matching tuple;
 the account's attempt with a matching tuple was denied. The substitutions were sequenced, not concurrent.
 
-Item 17's delegated arm, under the grants this draft proposes except the checkout's local `snapshot`
+Item 17's delegated arm, under the grants this design proposes except the checkout's local `snapshot`
 ([Scoped delegation](#scoped-delegation)), sent one `ZFS_IOC_DESTROY_SNAPS` request naming two of the clone's own
 snapshots: it returned 0 and deleted both, a name with a dependent clone returned `EEXIST` with both kept, and root's
 control request matched ([VM item 17][vm-17] on OpenZFS `2.4.4-1`), on a promoted clone, whose snapshot list
@@ -1516,10 +1516,10 @@ here.
   require across the cloneable scope. Removal now checks, before the first snapshot delete and again just before the
   head destroy, that the clone and its origin are the planned ones and that the origin is not marked for deferred
   destroy, and refuses otherwise; the check before the first snapshot delete stops such a removal before it deletes
-  anything. A replacement whose different origin is marked for deferred destroy is caught by those checks, because
-  the clone itself is not the planned one. What the checks do not catch is a mark made by a same-account process
-  between the check before the head destroy and the destroy, which stays the residual this option accepts, and the
-  checks themselves have no design yet
+  anything in this run. A replacement whose different origin is marked for deferred destroy is caught by those
+  checks, because the clone itself is not the planned one. What the checks do not catch is a mark made by a
+  same-account process between the check before the head destroy and the destroy, which stays the residual this
+  option accepts, and the checks themselves have no design yet
   ([Open items the decisions leave](#open-items-the-decisions-leave)). This is reasoning from the head destroy
   path (`dsl_destroy.c:1028` to `:1037` and `:1168` to `:1172`), not a measured race or a claim that the grants in
   item 12 already enforce the invariant.
@@ -1623,18 +1623,18 @@ a clone that carried a bookmark.
 ## Open items the decisions leave
 
 Each item here is a part an answer created or left with no design. This section states what has no design, in plain
-words, with the answer's own words beside it, and it designs none of them; nothing in this draft claims one of these
+words, with the answer's own words beside it, and it designs none of them; nothing in this design claims one of these
 parts works.
 
 - The start probe a kernel-release answer asks for. The answer's words: "Probe at start". What the probe exercises
   (descriptor attach, staging unmount, the namespace refusal), in which namespace and as which user it runs, what
   it changes on the machine at start, what it leaves behind when it fails or is interrupted, and what a refusal
   prints for the caller and `doctor` are all undesigned. Until that exists, the runtime module gate stays the only
-  start check this draft describes ([ABI gate and tests](#abi-gate-and-tests)).
+  start check this design describes ([ABI gate and tests](#abi-gate-and-tests)).
 - The runtime layout checker. The answer's words: "Runtime layout check". Comparing the loaded module's field layout
   with the approved release and request contract at runtime needs a parser, a set of accepted values, diagnostics
   and tests, and none of them is designed here, so the dependency that parser needs is chosen with it. The vet's BTF
-  field comparison the draft keeps is a test-time check, not this start-time one
+  field comparison this design keeps is a test-time check, not this start-time one
   ([ABI gate and tests](#abi-gate-and-tests)).
 - Who ends a holder, how a holder is identified, and by what authority. The answer's words: "Kill or
   otherwise remove or destroy the holders whenever --force is specified, auto-cancel if not." A holder can be
@@ -1674,14 +1674,14 @@ parts works.
   or how the worktree is returned to use. The item for a removal that cancels itself is separate.
 - How the deferred-destroy checks are designed. The answers' words: the pair's "Keep both, check first
   (Recommended)", and "Also check first (Recommended)", which puts the same check before the first snapshot delete
-  as well, so such a removal refuses before deleting anything, while the check before the head destroy stays.
-  Where the checks read the planned clone and origin identities, how they read the origin's deferred-destroy mark,
-  what each prints on refusal, and which refusals keep the removal record are undesigned. The check before the head
-  destroy runs after the snapshot batch, so a refusal there leaves the clone without its own snapshots, and
-  nothing says whether such a refusal keeps the removal record or lets the removal cancel itself. The window
-  between the check before the head destroy and the destroy, which a same-account process can use to mark the origin,
-  is the residual the delegated answer accepts rather than a gap this section asks anyone to close; the answer
-  leaves a mark set between the two checks inside that same residual
+  as well, so such a removal refuses before this run deletes anything, while the check before the head destroy
+  stays. Where the checks read the planned clone and origin identities, how they read the origin's deferred-destroy
+  mark, what each prints on refusal, and which refusals keep the removal record are undesigned. The check before the
+  head destroy runs after the snapshot batch, so a refusal there leaves the clone without its own snapshots, and
+  nothing says whether such a refusal keeps the removal record or lets the removal cancel itself. The window between
+  the check before the head destroy and the destroy, which a same-account process can use to mark the origin, is the
+  residual the delegated answer accepts rather than a gap this section asks anyone to close; the answer leaves a
+  mark set between the two checks inside that same residual
   ([Clone removal identity protection](#clone-removal-identity-protection)). The refusal before the head destroy
   is one of the VM measurements the build owes
   ([Forced removal and deferred origins](#forced-removal-and-deferred-origins)).
@@ -1726,11 +1726,12 @@ parts works.
   unrun, and the coalescing and rate rule for nudges is unwritten
   ([Lost last event without a waiter](#project-decisions)); none of that is designed here.
 
-## Pre-acceptance VM measurements
+## VM measurements preceding acceptance
 
-The [planning record][answers] requires the descriptor refusals to be measured again with account-owned slots
-before design acceptance. The [VM measurement record][measurements] reports that repeat and the other fixture
-results, not acceptance of the design. Each item ran on a separate encrypted file-backed pool with OpenZFS
+The [planning record][answers] required the descriptor refusals to be measured again with account-owned slots
+before design acceptance, and the project accepted the design on 2026-11-19 after those measurements ran. The
+[VM measurement record][measurements] reports that repeat and the other fixture results, not acceptance of the
+design. Each item ran on a separate encrypted file-backed pool with OpenZFS
 `2.4.4-1` and guest kernel `6.8.0-147-generic`; the Git tests used `2.43.0`. See the [fixture][vm-fixture] for the
 read-only host comparison and the [remaining limits][vm-limits]. Items 12 through 15, 17 and 18 repeat selected cases
 on the same guest kernel and OpenZFS release; item 16 records the separate exact-kernel image search, and items 17
@@ -1860,8 +1861,9 @@ test cannot be written until that part exists. None of them is a test for an opt
 - The caller and its session spared when `--force` ends other holders. Hold the clone from the caller's session and
   assert the removal refuses, names the folder to leave, and says to run the command again; then hold it from
   another session, run the removal with `--force`, and assert that holder ends while the caller and its session's
-  other jobs live on ([Cancelling a blocked removal](#cancelling-a-blocked-removal)). How the wrapper tells the
-  caller's session apart from the other holders has no design yet
+  other jobs live on. The refusing arm also asserts the clone, its snapshots and the registration survive it, not
+  only the words it prints ([Cancelling a blocked removal](#cancelling-a-blocked-removal)). How the wrapper tells
+  the caller's session apart from the other holders has no design yet
   ([Open items the decisions leave](#open-items-the-decisions-leave)), so this waits on it.
 - The kept cancel command. After a removal whose wrapper was killed once `unmount` was recorded, and after one that
   ran past its deadline, run `cancel-worktree-removal <slot>` and assert it reverses only the slot it proves, prints
@@ -1880,14 +1882,14 @@ The decisions of 2026-11-19 that rest on a VM measurement each place an item on 
 - Forcing the removal of a clone a holder keeps. The cancellation decision's second part is "Measure in a VM
   (Recommended)", with the rule adopted only if it works. Extend [VM item 15][vm-namespaces]'s post-attach readers
   and [VM item 4][vm-unmount]'s busy holder: with `--force`, force-unmount or end the holders in each namespace
-  kind and destroy the clone, recording what each holder sees (an error, a vanished mount, stale content, or a
-  signal) and whether the destroy then succeeds, with the wrapper's caller and its session's other jobs alive
-  through the arm. If the holder survives or the head destroy still refuses
-  `dataset is busy`, the answer has nothing behind it, and this document reads that as the rule going back to the
-  owner rather than shipping; the record itself says only "adopted only if it works". A force-unmount result would
-  change two statements in this file: the busy-teardown rule that reports which clone holds the mount and never
-  forces or detaches it ([Boot and shutdown unit](#boot-and-shutdown-unit)), and the staging step's unmount without
-  force or lazy detach ([Descriptor mount and unmount](#descriptor-mount-and-unmount)).
+  kind, each of them outside the caller's session, and destroy the clone, recording what each holder sees (an
+  error, a vanished mount, stale content, or a signal) and whether the destroy then succeeds, with the wrapper's
+  caller and its session's other jobs alive through the arm. If the holder survives or the head destroy still
+  refuses `dataset is busy`, the answer has nothing behind it, and this document reads that as the rule going back
+  to the owner rather than shipping; the record itself says only "adopted only if it works". A force-unmount result
+  would change two statements in this file: the busy-teardown rule that reports which clone holds the mount and
+  never forces or detaches it ([Boot and shutdown unit](#boot-and-shutdown-unit)), and the staging step's unmount
+  without force or lazy detach ([Descriptor mount and unmount](#descriptor-mount-and-unmount)).
 - The refusal of a removal whose origin is marked for deferred destroy. The pair's answer "Keep both, check
   first (Recommended)" and the further "Also check first (Recommended)" ask for a VM item showing the refusal.
   Mark a checkout snapshot for deferred destroy with the `defer` key, point the planned clone (or a same-name
@@ -2111,7 +2113,7 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
   [Boot, shutdown and setup](#boot-shutdown-and-setup) tests delayed and failed mount order.
 - Item 3, planted links and descriptor operations: [Descriptor mount and unmount](#descriptor-mount-and-unmount)
   adopts the named requirements and records the propagation limit and rollback failure state.
-  [Pre-acceptance VM measurements](#pre-acceptance-vm-measurements) records the refusal repeat
+  [VM measurements preceding acceptance](#vm-measurements-preceding-acceptance) records the refusal repeat
   under account ownership and its limits.
   [Descriptor safety and mount authority](#descriptor-safety-and-mount-authority) tests the built handler.
 - Item 4, sanoid coverage and retention: [Snapshots and setup reporting](#snapshots-and-setup-reporting) defines

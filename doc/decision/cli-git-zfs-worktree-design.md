@@ -36,7 +36,7 @@ Three further answers of 2026-11-19 settle what the design left open:
   It reports any snapshots already destroyed and cannot restore them.
 - The deferred-destroy check, "Also check first (Recommended)".
   The check that the origin is not marked for deferred destroy also runs before the first snapshot delete,
-  so such a removal refuses before deleting anything.
+  so such a removal refuses before this run deletes anything.
   The check before the head destroy stays, and a mark set between the two remains the accepted residual.
 - The never-end set, "Spare the caller (Recommended)".
   The removal never ends the caller and the processes of its session,
@@ -48,14 +48,14 @@ Three further answers of 2026-11-19 settle what the design left open:
 
 ## What still gates shipping
 
-The two owed VM measurements still gate shipping the forced arm,
+The two owed VM measurements still gate shipping,
 and they decide only the sentences already conditional on them:
 forcing the removal of a clone a holder keeps,
 and the refusal of a removal whose origin is marked for deferred destroy.
 Both are owed under
 [Forced removal and deferred origins][owed]
 in the proposal.
-Every other part the decisions leave without a design is an open item in the proposal,
-and this record does not copy them.
+The proposal states each part the decisions leave without a design,
+and most of those parts as open items; this record does not copy them.
 
 [owed]: ../planning/cli-git-zfs-worktree-design-proposal.md#forced-removal-and-deferred-origins
