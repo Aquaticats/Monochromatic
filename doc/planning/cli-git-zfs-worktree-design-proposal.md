@@ -596,7 +596,7 @@ Item 15 did not show an exclusion mechanism for unrestricted callers, such as a 
 attach, so a clean scan alone cannot qualify that deployment. No option or deployment this draft names can show that
 exclusion today: the descriptor checks and the namespace scan act on what root can observe, and none of them stops an
 unrestricted caller from attaching the clone after the scan (reasoning from [item 15][vm-namespaces], not a
-measured interleaving). Every described setup therefore takes the refusing arm below, and none of them reaches the
+measured interleaving). Every described setup therefore takes the refusing arm, and none of them reaches the
 project's decided removal, "B: Destroy at once" ([project decision][answers], lines 491 to 494). This draft proposes
 no mechanism that would show the exclusion. Removal therefore refuses before the first snapshot
 delete when a selected deployment cannot show that exclusion, and a deployment that can show it still accepts a
@@ -688,17 +688,17 @@ a test asserts that the encoded request has no `defer` key.
       made from, not its own (`module/zfs/dsl_bookmark.c:352` to `:353` copies them from the snapshot and `:719`
       to `:728` reports them as the bookmark's `guid` and `createtxg`, OpenZFS `zfs-2.4.4`; [VM item 13][vm-13]
       saw the tuple unchanged after a move). Pass a bookmark therefore when its GUID and `createtxg` equal those of
-      a live clone snapshot that passes the snapshot rule above, and no origin-side tuple matches it. This asks for
-      no recorded bookmark: the recorded clone-side inventory is written once at add and the third check forbids
-      updating it, so the earlier rule, which required the bookmark's own recorded tuple, would have refused the
-      removal of any clone that someone had bookmarked. Refuse destruction when a bookmark's snapshot is no longer
-      live on the clone, when its tuple matches the origin-side inventory, or when the bookmark list could not be
-      read completely, and name each refused bookmark; this pass rule is proposed, not a measured sufficiency
-      proof. Dataset GUIDs are random (`module/zfs/dsl_dataset.c:1203` to `:1204`, `zfs-2.4.4`), so the matching
-      pair identifies the bookmarked snapshot of this clone in practice, not against a 64-bit collision. A
-      bookmark's transaction group is the bookmarked snapshot's birth group, so it says nothing about when the
-      bookmark itself was made. OpenZFS destroys a dataset's bookmark entries with the head
-      (`module/zfs/dsl_destroy.c:1123` to `:1154`, `zfs-2.4.4`), so an unaccounted bookmark goes with it.
+      a live clone snapshot that passes the snapshot rule in this check, and no origin-side tuple matches it. This
+      asks for no recorded bookmark: the recorded clone-side inventory is written once at add and the third check
+      forbids updating it, so the earlier rule, which required the bookmark's own recorded tuple, would have refused
+      the removal of any clone that someone had bookmarked. Refuse destruction when a bookmark's snapshot is no
+      longer live on the clone, when its tuple matches the origin-side inventory, or when the bookmark list could
+      not be read completely, and name each refused bookmark; this pass rule is proposed, not a measured
+      sufficiency proof. Dataset GUIDs are random (`module/zfs/dsl_dataset.c:1203` to `:1204` and `:1768` to
+      `:1769`, `zfs-2.4.4`), so the matching pair identifies the bookmarked snapshot of this clone in practice, not
+      against a 64-bit collision. A bookmark's transaction group is the bookmarked snapshot's birth group, so it
+      says nothing about when the bookmark itself was made. OpenZFS destroys a dataset's bookmark entries with the
+      head (`module/zfs/dsl_destroy.c:1123` to `:1154`, `zfs-2.4.4`), so an unaccounted bookmark goes with it.
     - Third check: compare the live clone inventory against the recorded origin-side GUID inventory, including
       snapshots and bookmarks. Any origin-side hit or unproved provenance refuses destruction. Never update the
       recorded lineage to match an external change.
