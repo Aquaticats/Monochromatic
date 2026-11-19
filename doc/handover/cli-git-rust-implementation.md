@@ -40164,7 +40164,13 @@ on one named snapshot: `EEXIST` for that name alone and nothing deleted; root's 
 05:43:01Z; the session libvirt list is empty). The proposal sentences that called the permission unmeasured now state
 it. GOING: `pi-zfs-worktree-design-proposal-third-fold-in-1` (DeepSeek on Neuralwatt, run-7): the destroy-at-once
 sentence, N4's bookmark cost, item 17 into the identity choice's facts, the veto-open defaults in one place, N1 to N3 and
-N5 to N11, the broken backtick spans.
+N5 to N11, the broken backtick spans. It ended `idle` (180 turns) at `b26aa27f3c`, clean, nineteen commits from
+`9a1a47e190`: no described setup reaches "B: Destroy at once" yet, said plainly (reasoning from item 15); N4 answered
+by a new pass condition (a bookmark passes on its snapshot's GUID and creation txg, `dsl_bookmark.c:352-353`), a design
+change it flagged; item 17 and the root option's unknowns in the identity choice; a section "Adopted defaults open to
+veto" (receipts under `/run`, the handler as a second binary, no implicit remount, private staging); N1 to N3, N5 to N11
+answered; 123 anchors, none missing. GOING: a bounded Sonnet check of `9a1a47e190..b26aa27f3c` (background Agent), the
+bookmark rule against its source first. Then the open choices to the owner in the morning.
 
 **Provider writer run-7** hit its 200-turn cap after 16 min with nine commits (`cb7d6a66ab` to `dbc6f57268`: OpenAI out
 of the writer pool, the move gated on OpenAI's opening, a set-aside policy stop yielded instead of a later 429, the
