@@ -55,7 +55,6 @@ import {
   WITHOUT_MASKING_SCENARIO,
 } from './stand-in-pi-masking-fixture.ts';
 import { MESSAGE_BEFORE_SETTLE, } from './stand-in-pi-prompt-plays-fixture.ts';
-import { REPORTS_ANOTHER_SESSION_SCENARIO, } from './session-answers-of-a-stand-in-pi.ts';
 import {
   REPORTED_PROCESS_ID,
 } from './stand-in-pi-scenario-plays-fixture.ts';
@@ -830,12 +829,16 @@ await describe({
         /**
          The session the stand-in actually reported, which must not survive fixture disposal either.
          */
-        const session = (run.summary.sessionStats as { readonly sessionFile?: string } | null)?.sessionFile;
-        if (session === undefined) {
+        const { sessionStats, } = run.summary;
+        if ((typeof sessionStats !== 'object') || (sessionStats === null)
+          || !('sessionFile' in sessionStats) || (typeof sessionStats.sessionFile !== 'string'))
+        {
           throw new Error('the stand-in did not report the fresh session it wrote',);
         }
-        expect(isStandInSession(basename(session,),),).toBe(true,);
-        expect(await exists(session,),).toBe(false,);
+        expect(
+          isStandInSession(basename(sessionStats.sessionFile,),),
+        ).toBe(true,);
+        expect(await exists(sessionStats.sessionFile,),).toBe(false,);
       },
     },),
     // This holds the end-to-end delivery path; the race of a settle read between the inbox
@@ -2158,7 +2161,7 @@ await describe({
         await writeFile(otherRuns, otherRunsText,);
         const run = await runDriver({
           // Pi reports a file this run never made, standing for a misreporting peer.
-          scenario: REPORTS_ANOTHER_SESSION_SCENARIO,
+          scenario: 'reports-another-session',
           extraOptions: [`--session=${sessionFile}`,],
           extraPathEntries: folderOfSops(),
           environment: {
@@ -2262,7 +2265,7 @@ await describe({
         // Large enough that adding the start clock to the wall limit rounds back to the wall limit.
         const wallSeconds = Number.MAX_SAFE_INTEGER ** 2;
         const run = await runDriver({
-          scenario: REPORTS_ANOTHER_SESSION_SCENARIO,
+          scenario: 'reports-another-session',
           // Pass the large value only to the driver, not to the test harness's own timeout.
           extraOptions: [`--wall-seconds=${String(wallSeconds,)}`,],
           environment: { STAND_IN_PI_REPORTED_SESSION: sessionFile, },
