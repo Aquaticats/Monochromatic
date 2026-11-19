@@ -478,28 +478,43 @@ removed. Neither hourly snapshots nor a mounted path imply a usable registration
 `git-worktree-clone-origin-` snapshots, and cannot free blocks retained only by them. Leave guard expansion an
 [open choice](#open-project-choices); it is not implicit in making home recursive.
 
-### What doctor checks and prints
+## What doctor checks and prints
 
-Extend the existing read-only filesystem report (`package/git-policy/cli/src/native/health/doctor_filesystem.rs:1`).
-Separate observed facts from what the caller cannot inspect; do not show green for a denied or unsupported read.
-Report individual failures and the resulting add route, without changing `doctor`'s exit status for setup findings.
+Extend the read-only filesystem report (`package/git-policy/cli/src/native/health/doctor_filesystem.rs:1` to `:30`).
+Use the same facts as managed preflight. Distinguish healthy, known drift and unreadable or unsupported checks;
+name which add route remains available. Setup findings go to standard error and do not change `doctor`'s exit
+status. `doctor` does not start a service, create a test dataset, repair registrations or change configuration.
 
-- Check the loaded ABI, `/dev/zfs` accessibility, source type, GUID and canonical mount, configured parent and
-  pool, protected anchor ancestors and slot ownership, clone safety properties, and any namespace visibility issue.
-  Print the tested migration instructions, root `install -d` and dataset creation commands with resolved names,
-  and the exact expected properties. On ABI mismatch print the module/target and validated profiles, not a bypass.
-- Inspect effective grants for the intended UID. If they are missing, print the applicable `zfs allow -l -u`
-  and `zfs allow -d -u` commands for the scoped grants in this design. Do not create a probe dataset as part of doctor.
-- Check root ownership and permissions of the handler, its config, and startup/timer wiring, plus ZED running status
-  and last reconcile. Print the root install/enable commands and journal query for the actual unit. Surface the other
-  enabled zedlets before enabling ZED (the probe identifies syslog, notify, enclosure and scrub behavior).
-- Check `recursive = yes`, ordered `autosnap = no` sections, and `com.sun:auto-snapshot=false` on every blocked
-  dataset, the home store's containing dataset, and coverage of the main and clones. Print the concrete INI repair
-  and `zfs set com.sun:auto-snapshot=false <verified-dataset>` only for drift. Report the old guard's actual scope
-  and any retained origins or interrupted requests, with guarded recovery instructions, not a blanket destroy.
+- Check `/dev/zfs`, the ABI, the pinned pool and dataset identities, clone parent and clone properties, checkout
+  mount, checkout boot protection, propagation and caller visibility. For the root-once move print the verified
+  cutover and rollback steps, commands to create the datasets and install the protection selected by the project,
+  and paths with the actual owner and expected properties. Do not propose chowning the account's slots to root.
+  On ABI refusal name the loaded module and target plus the supported compatibility evidence, not a bypass.
+- Check recorded parent and slot identities and name the failing field or path component. Inspect effective
+  delegation including ancestor grants. Print scoped commands such as `zfs allow -l -u` and `zfs allow -d -u`
+  with the actual account and datasets, only for grants in the selected policy. Do not grant origin cleanup more
+  broadly just to make an interrupted command pass.
+- Check the handler installation, config and root-owned state and result directories, ZED and service wiring,
+  latest readiness and reconciliation, and unresolved requests. Print root install/enable commands and the
+  journal query for the actual unit. Show other enabled zedlets before recommending ZED enablement, including
+  applicable syslog, notification, enclosure or scrub effects.
+- Compare the measured dataset tree and store location against recursive coverage. Verify the named exclusion
+  sections, ancestor order, mount paths and `com.sun:auto-snapshot=false`; print the concrete INI correction or
+  `zfs set com.sun:auto-snapshot=false <verified-dataset>` for confirmed drift. This keeps the planning record's
+  veto-open adoption of blocklist checks. Report the space guard's actual scope.
+- Report unmounted and staged clones, busy checkout teardown with the holding clones named, interrupted actions,
+  damaged or pruned Git registrations, and each living clone's recorded origin. Report snapshot retention using
+  named ZFS accounting fields where measurable; do not sum shared blocks as if each clone owned them. Explain
+  retained underlays in checkout snapshots. Print the applicable guarded resume or link-repair steps, not a
+  blanket destroy or a guessed registration.
+- Report whether the configured backup job can see the checkout and whether filesystem boundaries are known to
+  be enforced. A walker that crosses into a clone may protect the same contents again under the checkout path.
+  `kopia-snapshot-all.service` was inactive with a missing executable here; another host's recorded ignore
+  policy is not evidence for this one. Report unknown coverage as unknown until tested, not as a backup failure
+  ([nested-clone research][nested], item 5).
 
-The final command text, units, partial-read diagnostics and setup detection are VM checks. This proposal does not
-install package files or assert that any of the root-once commands have been run.
+The command text, service ordering and findings are tested in a disposable VM before presenting commands as
+working setup. This proposal has neither installed nor run the root-once commands.
 
 ## Acceptance gates
 
