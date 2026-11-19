@@ -152,6 +152,31 @@ Disable the built-in spinner verbs and tips so they don't compete with the statu
 }
 ```
 
+Thinking summaries only reach the transcript when Claude Code asks the API for them:
+
+```json
+{
+  "showThinkingSummaries": true
+}
+```
+
+Claude Code's settings schema describes this key as a request for "API-side thinking summaries",
+ shown in the conversation and in the transcript view.
+With it on,
+ assistant entries carry `"thinkingDisplay": "summarized"`
+ and each `thinking` block's `thinking` field holds the summary text.
+With it off,
+ entries carry `"thinkingDisplay": "omitted"`
+ and that field is empty,
+ so only `text` blocks supply the word.
+A survey of the transcripts on one machine,
+ written by Claude Code 2.1.296 to 2.1.328,
+ found every `omitted` block empty
+ and all but a handful of `summarized` blocks filled.
+Entries marked `updates` also occur,
+ some filled and some empty;
+ their text is scanned the same way.
+
 ### Limitations
 
 - Only the final 64KB is read.
