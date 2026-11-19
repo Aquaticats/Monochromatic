@@ -39993,7 +39993,19 @@ and 4 are on `main` in a worse shape; `main` merged with no conflicts; clippy cl
 (`EILSEQ`) cannot run on this host. Not done by it: the run through a built wrapper with a mid-fill replacement and
 the interleaved `git worktree add` cost ratio. Its third run
 (`pi-prewarm-of-a-new-worktree-acts-only-on-the-entry-it-checked-3`, same worktree, DeepSeek) does those two in
-fixtures under its scratch; its review waits with the queue. The review itself was the one going
+fixtures under its scratch; its review waits with the queue.
+
+The queue's last run going, mpm-shadow removal of old versions (`-6`, GPT, 172 turns, `idle`), ended not final at
+`23047b7e40` on its branch (pushed; its worktree removed by the launcher; report
+`~/temp/agent/mpm-shadow-removal-of-old-versions-state-model-finished-with-its-controls-in-a-fresh-run-2026-11-14T2130-scratch/keep/report-of-the-tenth-review-continuation.md`):
+each of the four guards cut out alone fails its control; `main` (`c58780bd26`) merged with no conflicts; the owner's
+cleanup decisions built (two newest version names plus every pin, the hidden-process age rule, obsolete flat downloads
+by age and holder, a damaged lock named and blocking); clippy and 138 of 138 selected module tests pass. **Cost, one
+interleaved round of `install --frozen-lockfile` on a fixture with a pending-cleanup hint: 33.918 to 34.782 times
+`main` when nothing is removed, 50.183 to 53.927 times with one removal, 1.702 to 2.069 times the sixth-review tip;
+the same-binary control spread 0.187 to 1.344.** By rule `SLW` that cost is ours to remove: its next run splits the
+total by logged steps, then removes it, makes it cheaper or moves it off the install's waiting path, measured over
+more rounds than one. That run needs a new worktree, so it waits with the queue. The review itself was the one going
 (`pi-review-node-sync-calls-go-through-coreutils-sync-at-e5c61b8af2-1`, in the writer's worktree).
 
 The work-record review `1d5ad2597d` returned (85 turns, `idle`): four reads that wait for ever on a named pipe
