@@ -40174,7 +40174,16 @@ test (a shell backgrounds `sleep 60` and exits; asserted alive, out of the test'
 in the package spawns the real `systemd-run` or `systemctl` (every hit is a stand-in written onto a test's own `PATH`);
 209 passes, the only failure `secret-values-of-this-machine.unit.test.ts`, the documented fixture flake. GOING: a DeepSeek
 delta review on Synthetic, `pi-review-pi-shared-subagent-driver-work-left-running-at-33c214d45d-1`; merge on a clean
-delta.
+delta. Delta review back (98 turns): **0 high, 1 medium, 4 low**; all four first-review findings answered; the new test
+fails at the producer of `4e00a2c1f9` (`expected [ '4051431 sleep' ] to deeply equal []`) and passes at the tip; no test
+starts the real manager (enumerated, 70 hits read). M1: the new README and brief-rule text recommends a named unit, but
+`work-the-run-left-running.ts:149` drops a recorded command whose last status is `exited` before asking the manager, so a
+named unit started through the `process` tool loses the run after one look at the tool (probe: `P1-record-says-exited
+lines=[] asked=[]` against the control); a unit started from a `bash` call has no record at all. Taken by the reviewer's
+first remedy (code matches the sentence: ask the manager about a recorded named unit whatever the client's status), text
+narrowed to the `process` tool; L1, L2, L4 in the same round. GOING: `pi-driver-work-left-running-counts-only-its-own-4`
+(run-4). **Follow-up, its own run later:** `watch-pi-run.unit.test.ts:999-1001` reads `feed.jsonl` before the write
+stream flushes (failed twice in the full suite, passes alone; review L3).
 
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed
