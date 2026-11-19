@@ -507,3 +507,39 @@ This confirms DH1's same-name replacement with the three grants and the root-onl
 release. A GUID read identifies the object at the time of the read; even matching the old origin name does not
 identify a replacement. The test does not demonstrate the timing of a concurrent replacement, verify a product
 removal path, or authorize a new privileged destroy service.
+
+### 13. Creation transaction groups and a bookmark after promote
+
+Guest: `6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-13-exact.log`). The probe repeated
+item 11's `zfs snapshot`, `zfs clone` and `zfs promote` sequence. Between `@earliest` and `@origin`, it ran
+`zfs bookmark zfsowed13/home/checkout@earliest 'zfsowed13/home/checkout#from-earliest'`.
+It read the clone with `zfs get -H -p -o value createtxg,guid` and listed snapshots and bookmarks under both
+heads with `zfs list -H -p -o name,createtxg,guid -r`, selecting each object type in turn.
+
+```text
+# item-13-exact.log, selected rows before promote
+zfsowed13/home/checkout@origin	15	11050373805378911967
+zfsowed13/home/checkout#from-earliest	13	11477418097495754031
+# Both reads of the clone's createtxg and guid, in that order
+17
+7828944690444299989
+# All snapshots and the bookmark under the promoted clone
+zfsowed13/home/worktree-clone-datasets/promotion@earliest	13	11477418097495754031
+zfsowed13/home/worktree-clone-datasets/promotion@origin	15	11050373805378911967
+zfsowed13/home/worktree-clone-datasets/promotion@worktree-own	18	17157080670377245572
+zfsowed13/home/worktree-clone-datasets/promotion#from-earliest	13	11477418097495754031
+transferred @earliest: 13 <= origin 15: True
+transferred @origin: 15 <= origin 15: True
+own @worktree-own: 18 > clone 17: True
+bookmark tuple unchanged: True
+```
+
+Both transferred snapshots retained their `createtxg` and GUID. The checkout's later snapshot stayed on the
+checkout; the clone's own snapshot stayed on the clone. The checkout acquired the promoted clone's `@origin`
+as its direct origin, and the promoted clone's own origin became `-`. The bookmark moved to the promoted
+clone with the same tuple and was no longer listed on the checkout. Promoting the checkout back restored the
+snapshot map and printed `bookmark restored by reverse promote: True`.
+
+The transaction-group comparisons separated transferred and own snapshots in this topology, and a snapshot-only
+inventory missed the transferred bookmark. This is not proof of provenance based on `createtxg` alone for other
+lineage changes, different encryption roots, or creation of multiple objects in one transaction group.
