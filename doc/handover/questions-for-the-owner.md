@@ -18,6 +18,18 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Answered in the question tool, recorded 2026-11-19T17:10:00-05:00
+
+After the owner asked "And why are you asking about lfs now when we're working on zfs?" (the LFS questions of the
+section "Answered in the question tool, recorded 2026-11-19T16:58:00-05:00" were off the ZFS path):
+
+- The two runs off the ZFS path (the LFS fixes' short review and the provider rebuild): "Finish, then hold
+  (Recommended)": both finish and are recorded; no further LFS or provider work starts until the ZFS implementation is
+  moving.
+- `AGENTS.md`: "Adopt (Recommended)": rule `QGR` asks flagged choices the same turn only when they are on the stated
+  priority, and the new rule `QWP` holds owner questions off the priority's path in this file until that work is
+  moving.
+
 ## Answered in the question tool, recorded 2026-11-19T16:58:00-05:00
 
 The two choices the LFS audit of the Git wrapper left to the owner (audit report
