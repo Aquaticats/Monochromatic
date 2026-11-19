@@ -193,11 +193,12 @@ OpenZFS `zfs-2.4.4` sources: `man/man8/zfs-allow.8:110` to `:120`,
 
 Follow item 7 of the [nested-clone research][nested]: register while the slot is empty, mount at the slot itself,
 then install the same Git pointer in the clone. Git accepts an existing empty slot, not a populated clone root.
-The research's 2026-11-18 correction confirms account ownership for the registration probe. The actual guest
-script (`keep/probe.ts:71` to `:91`) took the origin snapshot before registering and used `mount -t zfs` in that
-sequence. The descriptor attach was a separate probe. The register-first, descriptor-mounted order has never
-run end to end with account ownership. The [VM measurement record][measurements] is testing the sequence before
-acceptance; the built wrapper must still exercise it.
+The research's 2026-11-18 correction distinguishes its snapshot-first path mount from its separate descriptor
+probe. [VM item 1][vm-register] measured the combined order: account-owned registration first, root snapshot and
+clone, descriptor attach with a fresh canonical check, then the account moved the copied `.git` aside, installed
+the saved pointer and ran `git read-tree HEAD`. Git reported the intended worktree and common directory, empty
+tracked status and an unchanged underlay pointer after unmount. This supports the order and keeping both pointer
+copies. It does not measure deletion of copied administration, delegated requests, or interruption recovery.
 
 1.  Share preflight with `doctor`. Before a claim, slot, registration, snapshot or clone is written, verify the
     supported Git form, eligible source and canonical destination, the checkout mount and caller's visibility,
@@ -213,7 +214,9 @@ acceptance; the built wrapper must still exercise it.
     `worktree add --no-checkout` form. Record the reciprocal registration and exact `.git` pointer bytes; leave it in
     the slot on the checkout dataset. Have the handler verify and record the slot identity before any attach.
 3.  Snapshot the checkout, then clone that fresh origin, never a sanoid snapshot. Record the actual snapshot and
-    clone GUIDs as each is confirmed. Request `mount` via the local desired-state user property described in
+    clone GUIDs as each is confirmed. A successful clone does not imply mount readiness: [VM item 5][vm-key]
+    created a clone with its encryption key unloaded, but detached mount setup refused with `EACCES`. Request
+    `mount` via the local desired-state user property described in
     [ZED reconciliation and mount safety](#zed-reconciliation-and-mount-safety), not via `mountpoint`. Send it in
     clone `props` only if the delegated creation path is verified. OpenZFS `zfs-2.4.4` creates the clone before
     applying `props` and attempts to destroy the new clone if property setting fails
@@ -255,15 +258,19 @@ Keep the underlay pointer intact for `git worktree prune`, independent of the cl
 stub, not a checkout. `doctor` and wrapper commands that encounter it distinguish a known unmounted clone (ZED off,
 ABI refusal, mount failure or pending request) from a pending add or removal. Report the slot, dataset and next
 safe action instead of treating absent files as deleted tracked files or offering an ordinary add over them.
-The account can delete the underlay pointer while the clone is unmounted. The nested probe's unlocked
-registration was prunable with the pointer missing (`guest-exact-zfs.log:42` to `:44`).
+The account can delete the underlay pointer while the clone is unmounted. In [VM item 6][vm-prune], Git `2.43.0`
+pruned the unlocked registration with a missing pointer at the default expiry. The lock set before pointer loss
+preserved the registration at both default expiry and `--expire now`. After pointer restoration, the unmounted
+locked worktree refused ordinary and single-`--force` move and remove; double force bypassed both, and Git removal
+left the dataset. This supports a lock as a prune guard, not as an authority boundary or a replacement for the
+wrapper's managed move refusal. Installing or recovering the lock after pointer loss and Git `2.56.1` behavior
+remain unmeasured.
 
-`git-worktree(1)` documents a lock in the common Git directory to prevent pruning when a worktree is unavailable.
-The candidate is to acquire it at registration and retain it through unmounts and restarts. A lock protects
+The candidate is to acquire a Git lock at registration and retain it through unmounts and restarts. A lock protects
 registration, not the pointer itself or an account deliberately deleting Git admin state. A root-set immutable
 pointer could hinder accidental deletion of that file, but adds privileged file handling in an account-owned tree,
-does not protect Git admin state, and needs removal and parent-rename proof. Neither is selected pending the
-[VM lock and missing-pointer controls][measurements].
+does not protect Git admin state, and needs removal and parent-rename proof. The
+[prune-protection mechanism](#open-project-choices) remains open.
 
 A damaged link with surviving admin state can use `git worktree repair <verified-slot>` from the main checkout.
 If Git already pruned the admin entry, repair does not reconstruct HEAD, index or lock state. Restore verified
@@ -334,6 +341,14 @@ teardown or export: report which clone holds the mount, and never force or detac
 systemd mount units and `zfs unmount -a` skips them. Idle export/import must still work, and boot must recover
 without an old event queue. A recorded `unmount` remains in effect across restart until destruction or explicit
 reversal. Periodic reconciliation without a waiter depends on the [lost-event choice](#open-project-choices).
+
+[VM item 5][vm-key] observed an unavailable key on a successfully created encrypted clone, detached mount
+`fsconfig(create)` failing with `EACCES` before attachment, and a root test zedlet receiving a history event
+and deferring. After manual key load and verified home and checkout mounts, descriptor attach worked. Before
+attach, check the encryption root and key availability and report an unavailable key separately from identity
+or permission refusal. Preserve durable intent and reconcile after key load and verified checkout readiness,
+without requiring another add request. The test zedlet did not exercise the product handler, delegated clone
+with the key unloaded, or automatic post-load recovery.
 
 ### Requests, results and ordering
 
@@ -711,8 +726,8 @@ in the ranking. Use the pending measurements where they affect the options; a ra
   runtime against the approved release/request contract. Exact profiles can disable clones after a rebuild;
   runtime checking can accept more builds but adds a parser and a larger compatibility test surface.
 - Lost last event without a waiter. Reconcile on startup, events and caller nudges only, or add a periodic scoped
-  sweep. The first avoids idle scans but delays recovery until another trigger. The second needs scan-cost and
-  recovery measurements before choosing a shipped interval.
+  sweep. [VM item 5][vm-key] delivered one property event to a test zedlet; it did not show retry after key load or
+  recovery from a lost event. Measure both and the cost of a sweep before choosing a shipped interval.
 - Origin cleanup authority. Add descendants-only `mount,destroy` delegation on the checkout, or use a root-owned
   cleanup operation limited to proven wrapper origins. Delegation keeps privilege out of the handler but allows
   the account to destroy any checkout snapshot. Separate cleanup needs its own privileged ownership and recovery
@@ -731,7 +746,11 @@ in the ranking. Use the pending measurements where they affect the options; a ra
 - Dirty source on rung 1. Require a clean source, using the applicable fallback for a dirty checkout; or implement
   a verified dirty-main restore comparable to Btrfs. A clean-only route narrows the proof but loses clone speed on
   a dirty main checkout. Dirty support needs a defined Git/index and ignored-state restore, with a frozen proof.
-  Neither option accepts an unproved source.
+  Neither option accepts an unproved source. [VM item 1][vm-register] measured the tracked-state check on its
+  fixture, not dirty-source restoration or a concurrent write to the source.
+- Prune protection while unmounted. Use a managed Git lock in addition to preserving the pointer copies, or
+  protect the underlay pointer with a root-set immutable flag. [VM item 6][vm-prune] measured the lock with an
+  absent pointer, not the immutable-pointer option, lock recovery after pointer loss, or behavior on Git `2.56.1`.
 - Git registration when origin cleanup is blocked. Keep the registration until the recorded origin is cleaned up;
   or settle the registration after clone destruction and keep an independent durable origin cleanup record. The
   first preserves Git visibility but reserves the slot until cleanup; the second frees the slot but requires
@@ -961,6 +980,9 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
   the combined sequence; [Binding, Git and lifecycle](#binding-git-and-lifecycle) tests the built flow and kill points.
 
 [measurements]: cli-git-zfs-measurements-owed-before-acceptance.md
+[vm-register]: cli-git-zfs-measurements-owed-before-acceptance.md#1-register-snapshot-attach-and-fill
+[vm-key]: cli-git-zfs-measurements-owed-before-acceptance.md#5-encrypted-fixture-and-an-unloaded-key
+[vm-prune]: cli-git-zfs-measurements-owed-before-acceptance.md#6-deleted-underlay-pointer-prune-and-lock
 [answers]: cli-git-zfs-worktree.md#owners-answers-of-2026-11-18
 [zfs-plan]: cli-git-zfs-worktree.md
 [handover]: ../handover/cli-git-rust-implementation.md
