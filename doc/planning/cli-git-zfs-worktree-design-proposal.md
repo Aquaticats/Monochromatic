@@ -285,8 +285,17 @@ inode can receive the mount at another account-controlled location. Treat that a
 back the exact attached mount by descriptor, or report and retain its identity and both paths if rollback cannot
 finish. Never substitute a path-based attach or unmount on the account-controlled tree.
 
-For unmount, prove the mounted identity, move the mount by descriptor to a root-owned private staging mount
-hierarchy, and unmount it there without force or lazy detach. The guest's move out of a shared checkout refused
+For unmount, the process that attached the clone is usually gone. The [VM measurement record][measurements] is
+testing this candidate, not an established unmount mechanism: reopen the recorded parent from the verified
+checkout with the same no-crossing resolver. Open only the final slot from that parent with `O_PATH | O_DIRECTORY`
+and `RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_MAGICLINKS`. Omit `RESOLVE_NO_XDEV` only for that hop so
+the open can cross into the attached mount. Verify that the descriptor is the mount root: compare its mount ID
+and `st_dev` with the matching host `mountinfo` entry, which must show the expected slot, parent mount ID, ZFS
+root and source. Compare the source's live dataset GUID with the binding and the observed mount ID with any
+recorded ID for this boot. Refuse mismatches or ambiguous entries, including an overmount or a bind of a
+subdirectory. Recheck the canonical lookup before moving; the move itself takes the verified descriptor, not a
+lookup of the slot path. Move the attached mount to root-owned private staging and unmount there, without force
+or lazy detach. The guest's move out of a shared checkout refused
 with `EINVAL` (`guest-exact-zfs.log:230`); `move_mount(2)` identifies the source mount's immediate parent as the
 constraint. Do not attach where safe unmount and staging propagation have not been verified. The exact propagation
 checks and supported topologies are pending in the [VM measurement record][measurements]; see
@@ -581,6 +590,9 @@ until the wrapper is built. The [VM measurement record][measurements] is being p
 - Compare a shared checkout (move-back refusal control) with a private checkout under a shared parent
   (staging and unmount control). Start a confined consumer before clone attach in both states; measure visibility
   and writability with the parent outside every `Read*Paths=`, and with the read-only bind control.
+- Have a fresh process with no inherited mount descriptors reopen and verify an already-attached clone and
+  move it to staging. Include wrong-mount and changed-path controls. The nested-clone guest used the original
+  `fsmount` descriptor for the move (`guest-extra-commands.txt:158` and `:171` to `:175`).
 
 ## Acceptance tests the build still owes
 
@@ -604,9 +616,9 @@ host. These gates carry the [handover's H1 and H2 disposition][handover] and the
 - H1 gate 5 recheck: verify mount flags in `/proc/self/mountinfo` and enforce both `nosuid` and `nodev` in the VM
   even where dataset properties would permit them. The research measured the device refusal but not a setuid
   execution control. Use the built handler, not the probe's mount command.
-- H1 gate 6: change a path between resolution and unmount; assert no unrelated mount unmounts. Test descriptor
-  unmount with a real busy holder, including move to staging, busy refusal, safe reattach and failed reattach with a
-  reported staged mount. Test interruption there. Re-run the measured shared-checkout refusal and private-checkout
+- H1 gate 6: run unmount from a handler invocation that did not attach the clone. Change a path between resolution
+  and unmount; assert no unrelated mount unmounts. Use a real busy holder and exercise move to staging, busy refusal,
+  and the selected policy for reattach or retention. Test interruption there. Re-run the measured shared-checkout refusal and private-checkout
   control with the selected policy. A held procfd's `EBUSY` is not the busy-holder test.
 - H1 gate 7: exercise a confined user namespace without extra authority. Show that it cannot attach the clone with
   different flags despite OpenZFS's `FS_USERNS_MOUNT` declaration. Exercise a permitted host mount as the control,
