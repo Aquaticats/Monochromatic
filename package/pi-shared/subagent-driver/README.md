@@ -1384,7 +1384,7 @@ the silence spent waiting for the work is not the silence of an agent with nothi
 so a driver that ended the run one look after sending the message cut off the agent it had just woken.
 A message Pi handled without starting a turn is never answered by one,
 so nothing is owed and the run ends as it did before;
-one Pi refuses ends the run `prompt-rejected`,
+one Pi refuses for a reason of its own ends the run `prompt-rejected`,
 and the `wake` line carries the refusal,
 because the agent was never told its work ended and that run must not read as one that came back.
 The run's own wall clock bounds that wait:
