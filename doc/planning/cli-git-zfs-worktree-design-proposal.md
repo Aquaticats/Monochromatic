@@ -111,8 +111,8 @@ ABI, including module release, architecture, endianness, request contract and ke
 device, missing required BTF or mismatch disables raw requests, including reads; no force flag. Unverified
 architectures, including `linux-arm64` until separately tested, do not qualify. On gate refusal the wrapper
 uses the applicable same-dataset reflink or ordinary Git route for an unused slot. Whether verification uses
-exact approved BTF digests or compares fields at runtime is an [open choice](#open-project-choices). The gate must report
-what failed, also when an update makes existing clones temporarily unavailable. A failed gate does not authorize
+exact approved BTF digests or compares fields at runtime is an [open choice](#open-project-choices). Report what
+failed, including when an update makes existing clones temporarily unavailable. A failed gate does not authorize
 an unrelated mount or cleanup; keep registrations and durable recovery state intact.
 
 Test the codec, request packing, bounded decoding, and the fail-closed gate without a device. Fuzz the adapted codec.
@@ -380,7 +380,8 @@ must identify the intended replacement by device and inode, independently verifi
 controlled recreation. Check the held descriptor against those values and its owner, mode and access/default ACLs
 against policy. Reconcile all affected bindings against live and staged mounts, claims and Git registrations, then
 check a fresh canonical lookup matches the held descriptor before recording its identity. Refuse adoption if
-any binding cannot be resolved and report what needs recovery. Never overwrite surviving slot identities or adopt a replacement for an existing binding implicitly.
+any binding cannot be resolved and report what needs recovery. Never overwrite surviving slot identities or
+implicitly adopt a replacement for an existing binding.
 Until adoption, refuse managed mutations on the mismatched parent. On an otherwise unused and verified slot,
 ordinary same-dataset reflink (rung 2), or native Git when reflink does not qualify (rung 3), remains available
 without root. Never use fallback to write over an unresolved managed slot.
@@ -414,9 +415,9 @@ adequate evidence needs recovery. Recheck the canonical lookup before moving. Th
 descriptor, not a lookup of the slot path. Move the mount to root-owned private staging. Verify it there,
 release descriptors that would hold it busy, then unmount in staging without force or lazy detach. The guest's
 move out of a shared checkout refused with `EINVAL` (`guest-exact-zfs.log:230`); `move_mount(2)` identifies the
-source mount's immediate parent as the
-constraint. Do not attach where safe unmount and staging propagation have not been verified. The exact propagation
-checks and supported topologies are pending in the [VM measurement record][measurements]; see
+source mount's immediate parent as the constraint. Do not attach where safe unmount and staging propagation
+have not been verified. The exact checks and supported topologies are pending in the
+[VM measurement record][measurements]; see
 [Shared ancestor policy](#open-project-choices). If final unmount is busy after the move, the choice of trying
 reattach or retaining it staged is [open](#open-project-choices). Track and report staged identity and location
 across handler interruption so no pass treats a mount missing from the slot as gone. Publish success only after
@@ -456,8 +457,8 @@ destroy results, not for background space reclamation.
 1.  Record the removal intent and enumerate the clone's snapshot history, including manual and sanoid snapshots.
     Before destruction, print the slot, clone dataset and exact snapshot names to be lost. Release local handles
     that keep the clone busy and request `unmount`. Wait for the matching result, then verify the clone is not
-    mounted, including in handler staging, and that the
-    request, recorded clone GUID, underlay identity and Git registration still match. An unavailable, mismatched
+    mounted, including in handler staging, and that the request, recorded clone GUID, underlay identity and Git
+    registration still match. An unavailable, mismatched
     or busy unmount blocks destruction; mount absence at the slot alone does not prove it is safe.
 2.  Recheck the named clone's snapshots and children. Destroy only that clone's explicitly enumerated snapshots,
     then the unmounted clone. Never pass a recursive dataset or dependent-clone destroy. If sanoid adds a snapshot
@@ -470,10 +471,10 @@ destroy results, not for background space reclamation.
     Preserve the incomplete cleanup record while an origin remains.
 4.  Settle only the matching Git registration and pointer after clone destruction is proven. Whether to settle
     them while origin cleanup is blocked remains an [open choice](#open-project-choices). Remove the leftover
-    underlay folder as the account only after checking
-    it has the recorded identity and is empty. Do not remove an unfamiliar entry, a replacement registration or
-    any mounted tree. Legacy dataset destruction does not remove the slot. Older checkout snapshots can still
-    hold that underlay and pointer until they expire; this is not surviving live worktree data.
+    underlay folder as the account only after checking it has the recorded identity and is empty. Do not remove
+    an unfamiliar entry, a replacement registration or any mounted tree. Legacy dataset destruction does not
+    remove the slot. Older checkout snapshots can still hold that underlay and pointer until they expire; this is
+    not surviving live worktree data.
 
 Resume by reconciling the durable record with the mount table, dataset and snapshot identities, and Git
 registration and pointer. Distinguish unmount still pending or staged, clone still present after partial snapshot
@@ -695,9 +696,9 @@ in the ranking. Use the pending measurements where they affect the options; a ra
   Options: refuse the managed route until an administrator makes the checkout and its ancestors private (no
   product-driven propagation change, but needs broad host changes here); use `mount --make-private` on only
   the checkout mount in the root-installed boot unit, after verifying it and before enabling clone mounts,
-  reapplying on each boot (leaves `/` and `/home` alone); or support a different explicit administrator-configured isolation
-  arrangement (can fit other consumers, but needs its own staging and visibility proof). A private checkout is
-  expected not to propagate new clone mounts into another already-running mount namespace
+  reapplying on each boot (leaves `/` and `/home` alone); or support a different explicit isolation arrangement
+  configured by the administrator (can fit other consumers, but needs its own staging and visibility proof).
+  A private checkout is expected not to propagate new clone mounts into another already-running mount namespace
   (`mount_namespaces(7)`); that could lose the visibility the planning probes saw without a read-only parent
   bind. The [VM measurement record][measurements] is testing both states. Do not silently change propagation.
 - Managed path interface. Accept the canonical path from ordinary `git worktree add <path>` only, with fallback at
@@ -752,9 +753,9 @@ file and its results are not present in this worktree yet.
   to `:223`). The built handler repeats the control.
 - Re-run **every item 3 refusal** with the account owning `.claude/worktrees` and the slots: a link at `.claude`, at
   `.claude/worktrees` and at the slot; an account-planted link inside the parent, created there or renamed in;
-  a parent escape, magic link and bind mount with the same device and inode; replaced inode, wrong UID and widened mode. The account can plant
-  a link under this ownership, so the handler must refuse, not the filesystem permissions from the root-owned
-  fixture. Include access and default ACL drift, a target already mounted, and a valid account-owned attach control.
+  a parent escape, magic link and bind mount with the same device and inode; replaced inode, wrong UID and widened
+  mode. The handler must refuse, not the filesystem permissions from the root-owned fixture. Include access
+  and default ACL drift, a target already mounted, and a valid account-owned attach control.
   Assert refusals identify the component or field and do not attach a clone or disturb an existing mount.
   Include the bounded rename/replacement race and post-attach check in item 3's unmeasured cases.
 - Compare a shared checkout (move-back refusal control) with a private checkout under a shared parent
@@ -788,8 +789,9 @@ Run with the built wrapper and handler on a disposable VM's file-backed pool, wi
 pool or `/dev/zfs`. Repeat the [host-shaped encrypted fixture](#measurements-due-before-design-acceptance) with the
 built programs, including an unloaded-key control for the handler and clone fill. Test root installation and then
 the account with only the proposed delegation. Capture versions, assertions and controls, not just logs. Make the
-VM recipe reproducible: retry the documented `mvm` template route that failed with `guest agent on template-setup did not respond within 120s`, or verify and document the disposable
-QEMU recipe using the same OpenZFS version. Retain evidence of guest and pool teardown, not system changes on the
+VM recipe reproducible: retry the documented `mvm` template route that failed with
+`guest agent on template-setup did not respond within 120s`, or verify and document the disposable QEMU recipe
+using the same OpenZFS version. Retain evidence of guest and pool teardown, not system changes on the
 host. These gates carry the [handover's H1 and H2 disposition][handover] and the nested study's
 [What I could not show and why][nested-limits].
 
