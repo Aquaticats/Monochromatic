@@ -76,6 +76,17 @@ Clippy, the release build, and all five nextest cases passed. The staged command
 checked the staged unit. Workstation actuation and thermal tuning remain open.
 [Package and installation instructions][implementation]
 
+## Workstation activation 2026-11-18T22:07:48-05:00
+
+The user's `sudo setMaxCpuTemp 80` returned `sudo: setMaxCpuTemp: command not found`.
+The build artifact was still in the checkout and sudo's search path includes `/usr/local/bin`.
+This session installed the release binary at `/usr/local/bin/setMaxCpuTemp`, configured `k10temp`'s
+`Tctl`, `Tccd1`, and `Tccd2`, and enabled and started `set-max-cpu-temp.service`.
+
+The command succeeded by name through sudo and the running service's target file held `80`.
+All 32 CPUFreq policies started at their hardware maxima. The first check after activation found all 32
+below those maxima. Sustained thermal behavior at the target remains open.
+
 [amd-7950x]: https://www.amd.com/en/products/processors/desktops/ryzen/7000-series/amd-ryzen-9-7950x.html
 [hwmon-temps]: https://docs.kernel.org/hwmon/sysfs-interface.html#temperatures
 [k10temp]: https://docs.kernel.org/hwmon/k10temp.html#:~:text=Tctl%20is%20the%20processor%20temperature%20control%20value
