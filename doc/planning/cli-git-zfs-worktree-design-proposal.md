@@ -492,13 +492,16 @@ exercised calls on that build, not the mechanism on all kernels at or beyond the
 
 Whether kernel readiness is an allowlist of exact Linux kernel releases per target architecture or a functional
 probe at start is an [open choice](#open-project-choices); the project's answer, "test plus runtime gate", covers
-the ZFS module check rather than a kernel-release list. Under the allowlist this draft proposes, a release qualifies
+the ZFS module check rather than a kernel-release list. Under an allowlist, a release would qualify
 only by passing built handler attach, staging unmount, refusal and namespace controls on that release, compared
 independently of the ZFS ioctl ABI gate; fixture results alone do not qualify it, and `doctor` and preflight report
-the running release and any missing qualification. Until a passing run on `7.3.5-1-cachyos` exists, that option
-keeps the managed route disabled on that kernel: use the applicable same-dataset reflink or ordinary Git path for
-unused slots, and preserve existing bindings and intent rather than falling back over them. This is proposed
-fail-closed behavior, not a measured readiness gate ([VM item 16][vm-kernel]).
+the running release and any missing qualification. Until a passing run on `7.3.5-1-cachyos` exists, the allowlist
+option keeps the managed route disabled on that kernel: use the applicable same-dataset reflink or ordinary Git path
+for unused slots, and preserve existing bindings and intent rather than falling back over them. This is proposed
+fail-closed behavior, not a measured readiness gate ([VM item 16][vm-kernel]). Each option's own design is not
+described here: the allowlist's qualification run is named under
+[Acceptance tests the build still owes](#acceptance-tests-the-build-still-owes), and the functional probe's steps,
+its side effects at start and the way it refuses are unnamed in this draft.
 
 Use descriptor-relative `openat2`, `fsmount` with enforced `nosuid,nodev`, and `move_mount` onto the opened target.
 [VM item 2][vm-refusals] measured the account creating links successfully and the descriptor walk refusing
@@ -1015,8 +1018,10 @@ unmeasured; a ranking is not a decision.
 - Kernel-release readiness. Qualify an exact list of kernel releases per architecture with built-product runs, or
   probe the descriptor, staging and namespace behaviour at start and refuse only what the probe cannot show. The
   exact list disables the managed route after every CachyOS kernel package update until a VM run passes on that
-  release, which makes existing unmounted clones unavailable in the meantime; [VM item 16][vm-kernel] found no
-  offered image that boots `7.3.5-1-cachyos`, so no release on it can be qualified today. A functional probe admits
+  release, which makes existing unmounted clones unavailable in the meantime. No release on `7.3.5-1-cachyos` has
+  been qualified: [VM item 16][vm-kernel] searched the built-in images and the local image directory only, did not
+  query the remote catalog, and the guests it found boot `6.8.0-147-generic`; the custom-template route named under
+  [Acceptance tests the build still owes](#acceptance-tests-the-build-still-owes) stays open. A functional probe admits
   untested releases and leaves unmeasured behaviour to appear on the host, where a failure would show as a refused
   mount or as one the probe did not detect (reasoning). Both keep the runtime module gate, neither authorizes a path
   mount, and both preserve existing bindings and intent while the route is unavailable.
