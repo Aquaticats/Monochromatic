@@ -231,7 +231,19 @@ Not final and not approved: this session's own account.
   zero payload bytes into the checkout and four paired offline installs took 0.984 to 1.101 times their home controls
   (control spread 1.091); a clone's links into the home store break by path depth and the wrapper's relink repairs
   them; ranking shared home store > in-tree store > separate cache store. The checkout-as-dataset question goes to the
-  owner with these results. The AGENTS.md search is still running.
+  owner with these results (answered A; then "who owns .claude/worktrees" answered B; decision entries below). The
+  AGENTS.md search is still running. **The fold-in writer is going:** GPT 6.2 Sol through Pi, unit
+  `pi-zfs-worktree-design-proposal-fold-in-1`, worktree `.claude/worktrees/zfs-worktree-design-proposal-fold-in` on the
+  proposal branch with main merged (fb6702e8a9), brief
+  `~/temp/agent/zfs-worktree-design-proposal-fold-in-2026-11-18/prompt.md`; on a "possible risk" stop it resumes on
+  the DeepSeek pool by rule `RKD`. Then the Sonnet gate review (rule `LHZ`), naming the proposal, both research
+  documents, the probe logs in `keep/`, the review and the planning page; then the owner's acceptance.
+  The env-local-json fixture branch 74dbe1200e had its DeepSeek review (89 turns, `idle`; file
+  `~/temp/agent/env-local-json-fixture-waits-for-close-review-2026-11-18/review.md`): F1 medium, the new wait for
+  `close` has no deadline, so a tool that leaves a holder on its output pipe hangs the suite; F2 to F5 low (every
+  failure reported as an install problem with standard error dropped; the control at 12d8c199bf cannot pass at the
+  tip; the wait implemented twice in the package; no test for `runCommand`'s failure paths); F6 a note. Not yet
+  weighed; the author's next run takes what survives.
 - **Driver idle window defaults to 0: in main** as 5b53cd90f2 (decision entry "Driver: the idle window defaults to
   0"; behaviour in `package/pi-shared/subagent-driver/README.md`, the default in the pi-as-subagent skill's step 5).
   Its DeepSeek review (179 turns, `idle`; file
