@@ -223,15 +223,16 @@ Each rule is the project's own requirement.
   the driver does not wait for a new steering message.
   If the next step needs a result from work the driver cannot detect,
   run that work as a foreground command with a bound of its own.
-- Detached work is started through the `process` tool,
-  as a named unit when it should outlive that client too:
-  `systemd-run --user --unit=<name> -- <the work>`.
-  The driver keeps the run for that unit while it runs,
-  when a `systemd-run` command of the run started it after that command did,
-  which a unit another session owns under the same name fails.
+- Long or background work is started through the `process` tool,
+  which is what the driver reads first,
+  and when the work needs limits of its own,
+  `systemd-run --user --scope ...` wraps it without leaving the run's process tree:
+  the scope runs the work in place,
+  so the record and the tree both keep the run for it.
   A `systemd-run --scope` put in the background whose caller exits
-  belongs to the service manager and keeps no run open,
-  and a unit started any other way, from a `bash` call for example, has no record to keep the run.
+  belongs to the service manager and keeps no run open.
+  A `systemd-run --user --unit=<name>` service leaves the tree at once,
+  and the driver waits for it only while the tool's last answer still calls its client running.
 - A workaround for a defect of the Git wrapper that is fixed in the installed release (0.6.1-alpha.15) and in `main`
   since commit `afc0545123`,
   and that a wrapper built from a branch without that commit still has:
