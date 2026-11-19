@@ -2533,3 +2533,90 @@ fn recovery_rechecks_current_before_deleting() {
     assert!(payload.exists(), "current named node 20.0.0, but recovery deleted it: {:?}", finished.lines);
     assert!(finished.lines.iter().any(|line| return line.contains("current link names it now")), "{:?}", finished.lines);
 }
+
+/// Retains two distinct names by newest write across the stores, plus an older pin.
+#[test]
+fn retains_the_two_newest_distinct_versions_plus_an_old_pin() {
+    let (_directory, scope, env) = sample_scope_on_disk();
+    // A lock pins an older version, independently of the two newest names.
+    fs::write(&scope.lock_file, r#"{"tools":{"node":{"version":"old-pin","route":"archive"}}}"#)
+        .expect("write a pin outside the newest two");
+    let repo = &scope.toolchain_root;
+    let global = &scope.other_toolchain_root;
+    // Name ordering deliberately disagrees with write ordering, and the newest name has two copies.
+    let name_by_recency = ["a-newest", "b-runner-up", "z-outdated", "old-pin"];
+    let hour = DEFAULT_AGE_FLOOR_SECONDS;
+    let mut paths = Vec::new();
+    // Give the program as well as its directory a deterministic age.
+    for (index, name) in name_by_recency.iter().enumerate() {
+        let root = if index == 1 { global } else { repo };
+        let path = node_version(root, name);
+        let age = hour * (u64::try_from(index).expect("fixture index fits u64") + 1);
+        written_ago(&path.join("program"), age);
+        written_ago(&path, age);
+        paths.push(path);
+    }
+    // The duplicate is newer than the runner-up but must not take its slot.
+    let duplicate = node_version(global, name_by_recency[0]);
+    let runner = FakeRunner::new();
+
+    run_trim(&scope, &immediate_trim_env(&env), &runner);
+
+    assert!(!paths[2].exists(), "the unpinned version outside the two newest survived the zero-byte cap");
+    assert!(paths[3].exists(), "the independent pin did not keep the oldest version");
+    assert!(paths[0].exists() && duplicate.exists(), "cleanup deleted a copy of the newest version");
+    assert!(paths[1].exists(), "duplicate copies of the newest version used both retention slots");
+}
+
+/// A damaged lock blocks recovery of an orphaned archive and identifies the whole lock and its unreadable row.
+#[test]
+fn retains_recovery_archives_and_names_the_damaged_lock() {
+    let fixture = Fixture::new();
+    let lock = fixture.root.join("damaged-toolchain.lock.json");
+    // The malformed route might name the orphaned archives. There is no installed version beside them.
+    fs::write(&lock, r#"{"tools":{"node":{"version":"20.0.0","route":"archive-v-next"}}}"#)
+        .expect("make the damaged lock");
+    let named = read_named_versions(std::slice::from_ref(&lock));
+    let aside = tombstone_of(&fixture.root.join("downloads/node/20.0.0"));
+    let archive = aside.join("only-archive.tar.gz");
+    fs::create_dir_all(&aside).expect("make the archive-only removal marker");
+    fs::write(&archive, b"the only complete archive").expect("write the archive");
+    // Repairing the lock does not make this pass's incomplete snapshot a complete one.
+    fs::write(&lock, r#"{"tools":{}}"#).expect("replace the fixture lock with a readable lock");
+    let mut run = fixture.run();
+    run.locks.push(lock.clone());
+
+    let finished = finish_removals_with(&run, &named);
+
+    assert!(archive.exists(), "recovery deleted an archive the damaged lock might pin: {:?}", finished.lines);
+    assert!(finished.unfinished.contains(&fixture.root), "recovery lost its retry marker: {finished:?}");
+    assert!(
+        finished.lines.iter().any(|line| return line.contains(&lock.display().to_string()) && line.contains("tools.node")),
+        "recovery did not name the damaged lock and its row: {:?}",
+        finished.lines
+    );
+}
+
+/// Recognized old flat downloads do not need the stores to be over their version budget.
+#[test]
+fn deletes_an_obsolete_flat_download_under_the_byte_bound() {
+    let (_directory, scope, env) = sample_scope_on_disk();
+    // Make a pinned, complete installed copy and a finished flat archive from the old layout.
+    let version = node_version(&scope.toolchain_root, "1.2.3");
+    fs::write(version.join(crate::toolchain::archive_staging::COMPLETE_MARKER), b"").expect("finish the install");
+    let downloads = scope.toolchain_root.join("downloads");
+    fs::create_dir_all(&downloads).expect("make downloads directory");
+    let flat = downloads.join("node-1.2.3-node-v1.2.3-linux-x64.tar.gz");
+    let partial = downloads.join("node-1.2.3-replacement.tar.gz.download");
+    fs::write(&flat, b"obsolete layout").expect("write the flat archive");
+    fs::write(&partial, b"not done").expect("write an in-flight download");
+    written_ago(&flat, DEFAULT_AGE_FLOOR_SECONDS * 2);
+    let runner = FakeRunner::new();
+    let under_bound = env.with("MPM_SHADOW_STORE_WORK_LIMIT", "5s");
+
+    run_trim(&scope, &under_bound, &runner);
+
+    assert!(!flat.exists(), "obsolete flat download survived under the byte bound");
+    assert!(partial.exists(), "the flat cleanup removed a download in flight");
+    assert!(version.join("program").exists(), "the flat cleanup removed the pinned install");
+}
