@@ -40032,7 +40032,12 @@ class, the duplicate helpers removed for each package's runner, boundary tests (
 argument test); L5 unchanged; focused tests and types pass, changed-file oxlint 0/0 (Git's whole-package oxlint still
 41 errors outside the change). Its delta review (`pi-review-node-sync-calls-go-through-coreutils-sync-at-671d103f99-1`,
 DeepSeek, read-only in the worktree) checks first whether a measurement stands behind the reused 60 seconds; then the
-merge.
+merge. It returned (136 turns; 0 high, 0 medium, 3 low; each earlier finding confirmed by a revert that failed its
+test): the evidence cited beside the 60 s timed `ip`, `wg`, `nft` and `sysctl`, never `sync`; the bound is five
+literal `60_000`s with no exported constant; each stall test spends the full minute. All three accepted; the author's
+fourth run (`pi-node-sync-calls-go-through-coreutils-sync-4`, GPT) cites this machine's write-and-sync readings (72 ms
+and 2,564 ms on the ZFS drive, 15,512 ms on the earlier drive under 18 agents), names one constant per package and
+gives the tests a short bound; then the merge.
 
 The prewarm writer's DeepSeek resume ended `idle` (214 turns) at `4ebfded328`, not final
 (`~/temp/agent/prewarm-acts-only-on-the-entry-it-checked-2026-11-16-scratch/keep/report.md`): one held-name module
