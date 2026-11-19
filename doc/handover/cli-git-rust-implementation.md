@@ -39905,6 +39905,15 @@ What follows from them, as work:
   `~/temp/agent/zfs-proposal-fold-in-short-review-on-the-qwen-plan-2026-11-19/`; watched to its end by the session that
   started it. A second pass (same vendor as the writer). Then a Sonnet gate
   review before the owner's acceptance.
+- **The provider package's install check passed:** the fold-in writer was the first Pi run after
+  `package/pi-plugin/rate-limit-fallback` joined `packages` in `~/.pi/agent/settings.json`, and its summary shows one
+  start attempt, no dialogs, no retries and 139 turns. It ran on Neuralwatt by name, so the package's own models are
+  not yet exercised by a real run; the hybrid prototype (task 388) is that test.
+- **GOING**: the Sonnet audit of the LFS path of today's `main` (the owner's "Sonnet, current code" of 2026-11-16, in
+  the entry of that day), a background Claude Code subagent on Sonnet in the detached worktree
+  `.claude/worktrees/sonnet-audit-lfs-path-of-main-at-a4c0436ed1`; brief, reproductions and report under
+  `~/temp/agent/lfs-path-of-main-audit-on-sonnet-2026-11-19/`. Scope: `src/native/lfs/` and its callers, held to the
+  LFS passages of the wrapper's `SPEC.md`.
 
 ### The Qwen plan's terms fit the Pi runs on it (2026-11-19T11:20:00-05:00)
 
