@@ -118,6 +118,11 @@ staging at `/run/git-worktree-clone-mount-staging` (needs a boot unit to create 
   than the recorded decision about OpenAI's filter: keep the provider gate > text only, because no pool has an OpenAI
   member and the gate cannot misfire on a quoting refusal.
 - Installing the provider into `~/.pi/agent/settings.json` once it is in `main`: install > wait.
+- The driver's wait for work a run left (the fix for other sessions' processes holding runs, 2026-11-19): keep the
+  named-unit path as `main` has it and send agents to `systemd-run --user --scope` through the `process` tool (decided
+  overnight, veto open) > keep inferring a unit's owner from the command text, because three review rounds of that
+  inference each opened a new way to end or hold a run, while a scope keeps the work in the run's process tree, where
+  the new descent rule already sees it.
 
 ## Asked while the owner is away, started 2026-11-09T01:16:11-05:00
 
