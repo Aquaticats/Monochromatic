@@ -40096,7 +40096,11 @@ the key is declared a bare flag (`zfs_ioctl.c:4119`, `{"defer", DATA_TYPE_BOOLEA
 returns `ZFS_ERR_IOC_ARG_BADTYPE` for a pair of any other type (`:7922-7924`, read in the `zfs-2.4.4` clone), so a typed
 false is refused; only the bare flag's presence defers. "Omit the key" stands. GOING: a bounded Sonnet check (background
 Agent) of `7fe84c7be8..68690e60be`: each finding answered, the writer's disagreements against their sources, no fresh
-hunt. Then the L6 VM measurement, then the open choices to the owner.
+hunt. The L6 VM measurement is going at the same time: `pi-zfs-measurement-item-17-delegated-account-batch-1`
+(DeepSeek on Neuralwatt, run-3 of the measurement folder, the same worktree, the items 12 to 15 harness copied to
+`item-17/`): the delegated account's one `ZFS_IOC_DESTROY_SNAPS` batch of a clone's own snapshots, with a dependent clone,
+and as root for control; it adds item 17 to the record and updates only the proposal sentences that called that
+permission unmeasured. Then the open choices to the owner.
 
 **Provider writer, without OpenAI (2026-11-19):** `pi-provider-answers-its-second-review-without-openai-1` (DeepSeek on
 Neuralwatt, run-7, the provider worktree). It removes `openai` from the writer pool (writer order as the skill gives),
