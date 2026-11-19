@@ -10,7 +10,8 @@ The design is [the decision record][decision], the whole design is [the proposal
 item as step 9's blocker, "blocking for every unmount", and as writer design work
 ([plan][plan], "Open items and the step that needs each"), and step 9 records that it "also owes the interface that
 unmounts a staged mount from the held descriptor". Steps 14, 16 and 17 wait on it as well
-([plan][plan], step 9, "Open items").
+([plan][plan], step 9, "Open items"), and the plan's "What can start now" puts "step 9 and steps 14 to 23" behind
+step 9's design.
 
 ## The open item and the answer it carries
 
