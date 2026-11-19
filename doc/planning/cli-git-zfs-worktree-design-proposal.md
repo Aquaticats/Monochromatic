@@ -1,7 +1,8 @@
 # ZFS worktree design proposal for the Git wrapper
 
-**Non-final draft by an agent, unapproved.** VM evidence fold-in (2026-11-18T22:23:49-05:00): this revision records
-the fixture results and what remains open, without selecting or ranking the open choices. The gate review
+**Non-final draft by an agent, unapproved.** Delta gate revision (2026-11-18T23:29:35-05:00): this revision answers
+findings on `652b51d74d` and folds in [VM items 12 to 16][vm-delta] without selecting or ranking the open project
+choices. The VM evidence fold-in (2026-11-18T22:23:49-05:00) recorded items 1 to 11 and their limits. The gate review
 fold-in (2026-11-18T21:55:35-05:00) answered the accepted findings on `71fa25ece8`, incorporated the
 [project decisions][answers] on removal, promote and the runtime module gate, and described the companion
 boot and shutdown unit.
@@ -10,8 +11,7 @@ This revision drops the private-ancestor requirement: [VM item 3][vm-propagation
 and enabled staging, at the cost of late-mount visibility in the confined reader. It requires proof of snapshot
 lineage immediately before each destruction request: [VM item 11][vm-promote] lost older checkout history to an
 explicit delete despite the recursive refusal, and [VM item 14][vm-batch] tested a single batch. It also requires
-live dataset identity and staged
-recovery state (item 4), separates clone creation from key and mount readiness (item 5), and requires boot-time
+live dataset identity and staged recovery state (item 4), separates clone creation from key and mount readiness (item 5), and requires boot-time
 verification of underlay protection and nested mount reachability (items 8 and 9). The other observations
 confirm fixture behavior, not the implementation.
 
@@ -881,8 +881,9 @@ working setup. This proposal has neither installed nor run the root-once command
 
 ## Open project choices
 
-The choices do not reopen the checkout path, account ownership, ZED, the fallback or recursive snapshot policy.
-No option here is selected or ranked by this revision. At the owner handoff, present each decision separately
+There are 14 open choices, including the two alternatives under
+[Clone removal identity protection](#clone-removal-identity-protection) as one choice. They do not reopen
+checkout path, account ownership, ZED, the fallback or recursive snapshot policy. No option is selected or ranked. At the owner handoff, present each decision separately
 in the question tool with its options, pros and cons, and a recommendation that explains each adjacent pair
 in the ranking. Use the VM findings and identify what remains unmeasured; a ranking is not a decision.
 
@@ -1157,8 +1158,9 @@ only for unused slots. These are unrun acceptance requirements, not evidence fro
   common directory and index, boundary-safe ignored cleanup, nested path omissions and mounted/unmounted `move`.
   Use ordinary Git and same-dataset reflink controls and a cross-dataset negative control. Cover recognized and
   rejected forms, dirty sources and a tracked write between preflight and snapshot that the frozen proof refuses.
-- Kill add at each of item 7's five points and around the origin and clone identity writes. Test `ENOSPC` at
-  snapshot and clone; report what survives, resume only proven objects and never fall through onto a pending slot.
+- Kill add at the interruption points in item 7 of the [nested-clone research][nested], and around the origin
+  and clone identity writes. Test `ENOSPC` at snapshot and clone; report what survives, resume only proven
+  objects and never fall through onto a pending slot.
   With the clone unmounted, verify `prune` keeps the registration with the pointer intact, and exercise the
   selected protection with the pointer missing. [VM item 6][vm-prune] did not exercise installing or
   recovering the Git lock after loss; test it if that protection is selected. Check that operator locks continue
@@ -1303,6 +1305,7 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
 [vm-namespaces]: cli-git-zfs-measurements-owed-before-acceptance.md#15-mount-namespaces-created-after-attach
 [vm-kernel]: cli-git-zfs-measurements-owed-before-acceptance.md#16-availability-of-a-guest-with-the-host-kernel
 [vm-delta-limits]: cli-git-zfs-measurements-owed-before-acceptance.md#what-this-repeat-did-not-show
+[vm-delta]: cli-git-zfs-measurements-owed-before-acceptance.md#delta-gate-measurements-2026-11-18t230328-0500
 [answers]: cli-git-zfs-worktree.md#owners-answers-of-2026-11-18
 [zfs-plan]: cli-git-zfs-worktree.md
 [handover]: ../handover/cli-git-rust-implementation.md
