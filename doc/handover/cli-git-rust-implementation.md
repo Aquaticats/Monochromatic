@@ -39847,6 +39847,38 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### Runs that ended after the filling stopped (2026-11-18T22:25:00-05:00)
+
+Three reviews returned (all `idle`, no rate-limit error); each found what the branch brings, so each goes to its
+author, whose next run waits with the queue for the ZFS route (the authors' worktrees are gone, and a new one is the
+heavy use the owner stopped):
+
+- Copy owner `eaacf58e50` (86 turns; review under
+  `~/temp/agent/change-reviews/git-policy-cli-copy-owner-and-transaction-owner-spelled-another-way-are-never-taken-for-gone-at-eaacf58e50/`):
+  `worktree_copy_journal.rs:464-466` sends the new "cannot be told" answer through `proven_dead`, so a pending copy
+  journal whose owner field this release cannot read is never recovered and named by nothing, and `git worktree add`
+  then names an add that does not exist (reproduced; `main` settled such a journal at once); the same swallowed answer
+  holds an owed copy for ever at `worktree_copy_owed_copy.rs:300` and `:747` (by reading).
+- Review briefs demand what was read and run, `c4f67da297` (90 turns): a run folder with no `summary.json` counts as
+  still running with no age test (`src/newest-finished-run-of-a-name.ts:167`), a correct review reads as a mismatch
+  because the file list is read back with a fixed slice (`src/reading-a-review.ts:126-135` against `src/review-brief.ts`),
+  and the README and doc say the check starts the second review by itself where the code needs `--start`.
+- Push of a branch not checked out, `52701f4a5b` (86 turns; two reproductions in its review folder): one unstaged edit
+  of a file a recorded branch move changes stops every command in that worktree for ever; the same state with the file
+  deleted writes the branch's content back over the deletion and calls the edit kept; any command deletes the record of
+  a move still in flight (`auto_push_branch_move_repairs.rs:454`).
+
+The prewarm writer (`prewarm-of-a-new-worktree-acts-only-on-the-entry-it-checked-1`) ended `model-error` after six
+turns on OpenAI's "This content was flagged for possible cybersecurity risk"; by rule `RKD` its session goes on as
+`pi-prewarm-of-a-new-worktree-acts-only-on-the-entry-it-checked-2` on `qwen-token-plan-individual`
+`deepseek-v4.1-flash-1017`, in its existing worktree, turn cap 635 (the launcher's longest finished run, 508, plus a
+quarter). Its launcher had also logged `dependencies: status 1`: run again by hand, `pnpm install --offline
+--frozen-lockfile` answered `ERR_PNPM_NO_OFFLINE_TARBALL` for `electron-to-chromium@1.5.485` (not in the local store),
+so it was the store, not the permission model; an online `pnpm install --frozen-lockfile` there passed in 601 ms. The
+launcher (`package/pi-shared/subagent-driver/src/start-pi-run-in-a-worktree.ts:245-263`) logs only the status and
+starts the run anyway, so a run can begin with no dependencies and nothing says why: owed to the driver package.
+A waiter (`wait-until-an-agent-unit-ends-20261118T2220`, three hours) watches the runs still going.
+
 ### No heavy worktree use before the wrapper's ZFS route (2026-11-18T21:47:42-05:00)
 
 The owner, in plain text: "We shouldn't use worktrees heavily before we implement the zfs parts for the git wrapper."
@@ -39858,13 +39890,13 @@ themselves and are not stopped. No queue entry starts until the ZFS route is in 
 waits with it: its probe had not run anyway, because since 2026-11-18T19:35:41-05:00 every user unit inherits
 `NODE_OPTIONS=--permission-audit` (`doc/research/node-permission-default-with-npm.md`, "Persistent audit default on
 CachyOS"), and under it Node 26.13.1 refuses `fsyncSync` ("fsync API is disabled when Permission Model is enabled"),
-which the probe calls; no TypeScript file under `package/` calls `fsync`, so this repository's code does not meet that
-refusal. Of the installed third-party JavaScript (pnpm's global store under `~/.local/share/pnpm/store/v11/links`, read
-2026-11-18 at about 21:50), these call `fsync`: Pi 1.5.2 only in an example extension
-(`examples/extensions/doom-overlay/doom/build/doom.js`, not on a run's path), `atomically`, `stubborn-fs`, `postject`,
-`prettier`'s experimental CLI, `socket`, `typescript-language-server`, `unenv`, `@loaders.gl/textures`,
-`@deepseek-ai/libreoffice-kit-wasm`, and npm's own `write-file-atomic` (`/usr/lib/node_modules/npm/node_modules/write-file-atomic/lib/index.js:228`);
-which of them a run reaches under the model is not yet measured. The owner, plain text: "I turned on the permission
+which the probe calls. **Correction, 2026-11-18T22:25-05:00:** this entry first said no TypeScript file under
+`package/` calls `fsync`; that search matched only `fsyncSync` and `.fsync(`. Five calls of `FileHandle.sync()`, which
+the model refuses the same way, are in `package/git-policy/cli/bin/native-planted-controls-record.ts`,
+`package/mutation-test/cli-cargo-mutants/src/claim-files.ts` (two) and two files of `package/wg/cli-quicker/src/`.
+What the default refuses (every sync form, measured and cited), these callers, and the third-party ones are now in
+`doc/research/node-permission-default-with-npm.md`, "What the audit default refuses". No Pi feed written since 19:35
+(25 of them) names the refusal, and in the user journal only the probe does. The owner, plain text: "I turned on the permission
 model by default. And we should figure out how to work with it, not disable it." and "Shouldn't the probe be in rust
 with hyperfine anyway?" So nothing here clears `NODE_OPTIONS`, and the disk probe becomes a Rust program timed by
 hyperfine (cap page, "Level 20 again").

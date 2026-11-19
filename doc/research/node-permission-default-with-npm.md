@@ -96,3 +96,58 @@ loader, and in fresh system and user services. Each probe read `/dev/null` and o
 npm v12.2.3 printed its version from a fresh user service with a disposable cache.
 The full Plasma login was left running. Programs launched by an existing process continue to inherit that
 process's environment until the process is relaunched.
+
+## What the audit default refuses
+
+Audit mode logs path checks instead of refusing them, but it still refuses every operation Node cannot tie to a path.
+The Node 26 permissions page ([Permissions][node-26-permissions], read 2026-11-18) says:
+"Some node:fs operations act on an already-open file descriptor rather than a path, so they cannot be tied to a
+--allow-fs-read or --allow-fs-write grant. When the permission model is enabled these operations are disabled and
+throw ERR_ACCESS_DENIED, regardless of how the descriptor was obtained. This applies both to the top-level node:fs
+functions and to the equivalent FileHandle methods, and currently includes fsync/fdatasync, fchmod, fchown, and futimes
+(and their synchronous variants)."
+
+### Measured on this machine
+
+On 2026-11-18 at about 22:20-05:00, Node v26.13.1 ran in a fresh user unit, which inherited
+`NODE_OPTIONS="--permission-audit"`. Every form of syncing a file was refused with `ERR_ACCESS_DENIED`:
+
+- `fs.fsyncSync`;
+- `fs.fdatasyncSync`;
+- the callback forms `fs.fsync` and `fs.fdatasync`;
+- `FileHandle.sync` and `FileHandle.datasync`;
+- `fs.writeFileSync` with `flush: true`;
+- `fs/promises` `writeFile` with `flush: true`.
+
+The same write without `flush` ran.
+The script and its output are under
+`~/temp/agent/node-permission-audit-refusals-of-sync-calls-2026-11-18/keep/each-way-node-can-sync-a-file-in-a-fresh-user-unit.txt`.
+The first program seen to meet the refusal was the agent-cap disk probe at 2026-11-18T21:18:17-05:00, which called
+`fsyncSync` and exited at its first reading.
+
+### Callers in this repository
+
+A search of `package/` and `.config/` for every form in the measured list, plus `fchmod`, `fchown` and `futimes`, found
+five calls, all `FileHandle.sync()`, each of which throws under the default:
+
+- `package/git-policy/cli/bin/native-planted-controls-record.ts:168`;
+- `package/mutation-test/cli-cargo-mutants/src/claim-files.ts:83` and `:124`;
+- `package/wg/cli-quicker/src/opensnitch-config-file.ts:164`;
+- `package/wg/cli-quicker/src/opensnitch-toolchain-rules.ts:130`.
+
+None of the 25 Pi run feeds written between 19:35 and 22:20 named the refusal, and in the user journal over the same
+time only the disk probe did.
+Third-party packages in pnpm's store that call `fsync` include `atomically`, `stubborn-fs`, `postject`, `prettier`'s
+experimental command line, `socket`, `typescript-language-server`, `unenv`, and npm's own `write-file-atomic`.
+Which of them a command here reaches is known only through those feeds and the journal.
+
+### Keeping durability under the default
+
+How the five callers keep their writes durable without clearing `NODE_OPTIONS` was put to the owner on 2026-11-18.
+The owner's standing words: "I turned on the permission model by default. And we should figure out how to work with
+it, not disable it."
+Two ways stay inside the model. One is to hand the sync to another program: GNU coreutils `sync FILE` syncs only
+the named files, and `--data` syncs only their data. That needs `--allow-child-process` once the model refuses rather
+than audits. The other is to do the durable write in Rust, which Node's model does not govern.
+
+[node-26-permissions]: https://nodejs.org/docs/latest-v26.x/api/permissions.html#:~:text=Some%20node%3Afs%20operations%20act%20on%20an%20already-open%20file%20descriptor
