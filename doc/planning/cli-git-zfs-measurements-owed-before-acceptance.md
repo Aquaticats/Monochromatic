@@ -738,7 +738,7 @@ tarball built against that guest kernel, and their release matches the host modu
 
 The pool was `zfsowed17` in the fixture layout above: `aes-256-gcm` with a raw key file, `recordsize=32K`,
 `compression=zstd-3`, a `legacy`, `canmount=off` clone parent, and the checkout dataset mounted under the guest
-home. Root set item 12's four `zfs allow` commands and no others, then printed them:
+home. Root set item 12's three `zfs allow` grants and no others, then printed them:
 
 ```text
 # item-17-exact-3.log
@@ -755,8 +755,9 @@ uid=1000(ubuntu) gid=1000(ubuntu) groups=1000(ubuntu)
 ```
 
 The proposal's delegation section also lists local `snapshot` on the checkout dataset. It was not set, as in item
-12, because root made every snapshot and a local checkout grant cannot bear on a clone's snapshots: the kernel
-checks a snapshot's permissions as descendant grants only (`module/zfs/dsl_deleg.c:576`, `zfs-2.4.4`).
+12, because root made every snapshot. That grant could not reach a clone's snapshots either: the checkout dataset
+is not an ancestor of the clone, and a snapshot's permission is checked as a descendant grant from its own dataset
+upward (`module/zfs/dsl_deleg.c:576`, `zfs-2.4.4`).
 
 Root then made the clone as items 11 and 14 do, with `@earliest`, `@origin` and `@checkout-later` on the checkout,
 `zfs clone <checkout>@origin <clone>`, `@worktree-own` and `@worktree-own-next` on the clone, and
