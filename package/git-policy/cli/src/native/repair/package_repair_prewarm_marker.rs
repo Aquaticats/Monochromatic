@@ -23,48 +23,10 @@
 //! const claim = { repair: 'cargo-prewarm', to: buildDirectory, begunBy: `${pid}-${nanos.toString(16)}` };
 //! ```
 use crate::package_repair_prewarm_a_held_name::{TheDirectory, a_name_only_this_run_holds};
+/// The identity of the entry a marker's reader recorded, so a removal is bound to the entry this job read.
+pub(crate) use crate::package_repair_prewarm_a_held_name::TheEntry;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-
-/// What:
-///  Which entry stood at a name when this job read it or made it,
-/// as the device and the inode the file system answers with.
-/// Why:
-///   A name is not proof of having made what stands under it:
-/// another command can replace the entry while this job works on the name,
-/// so a removal is made only when the entry found at the act is the entry this job made or read.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type TheEntry = { device: bigint; inode: bigint };
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct TheEntry {
-    /// The device the entry stands on.
-    pub(crate) device: u64,
-    /// The inode that names it on that device.
-    pub(crate) inode: u64,
-}
-
-impl TheEntry {
-    /// What:
-    ///  The entry at this name now,
-    ///  read without following a link,
-    ///  or nothing when no name is there.
-    /// Why:
-    ///   The removal's proof is the identity found at the act,
-    /// so it is read by the same call that then removes.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// const theEntryAt = (path) => { try { const s = lstatSync(path, { bigint: true }); return { device: s.dev, inode: s.ino }; } catch { return undefined; } };
-    /// ```
-    pub(crate) fn at(the_name: &Path) -> Option<TheEntry> {
-        use std::os::unix::fs::MetadataExt as _;
-        let metadata: std::fs::Metadata = std::fs::symlink_metadata(the_name).ok()?;
-        return Some(TheEntry { device: metadata.dev(), inode: metadata.ino() });
-    }
-}
 
 /// What the file this job writes inside a directory it makes is called:
 /// the claim that travels with the entry itself, so a directory found there is this job's only when it

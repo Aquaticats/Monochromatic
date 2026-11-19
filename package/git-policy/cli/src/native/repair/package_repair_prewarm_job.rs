@@ -385,15 +385,40 @@ fn before_the_held_marker_is_removed() -> bool {
 ///
 /// A name another command holds, a directory that cannot be made, and a claim that cannot be written.
 fn make_the_claimed_directory(directory: &TheDirectory, named: &Path, to: &Path, begun_by: &str) -> Result<(), String> {
-    let at: PathBuf = directory.along(named);
-    return match std::fs::create_dir(at.as_path()) {
-        Ok(()) => write_the_claim_inside(at.as_path(), to, begun_by),
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Err(format!(
-            "{} holds something this run did not make, so nothing of {} was cleaned",
-            named.display(),
-            to.display()
-        )),
-        Err(error) => Err(format!("{} could not be made ({error}), so nothing of {} was cleaned", named.display(), to.display())),
+    // The directory is made at a name of this run's own first and held open, so the claim is written inside the very
+    //  directory this run made; only then is it put in place, by one rename that never replaces. A name another command
+    //  took between the look and the rename then receives nothing of this run's: the rename refuses and this run throws
+    //  away the directory it made under its own name.
+    let aside: PathBuf = a_name_only_this_run_holds(named);
+    let made: PathBuf = directory.along(aside.as_path());
+    match std::fs::create_dir(made.as_path()) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Err(format!("{} holds a name of this run's own, so nothing of {} was cleaned", aside.display(), to.display()));
+        }
+        Err(error) => return Err(format!("{} could not be made ({error}), so nothing of {} was cleaned", named.display(), to.display())),
+    }
+    let made_directory: TheDirectory = match TheDirectory::of(made.as_path()) {
+        Ok(held) => held,
+        Err(reason) => {
+            let _gone = std::fs::remove_dir_all(made.as_path());
+            return Err(format!("{reason}, so nothing of {} was cleaned", to.display()));
+        }
+    };
+    if let Err(reason) = write_the_claim_inside(made_directory.path(), to, begun_by) {
+        let _gone = std::fs::remove_dir_all(made.as_path());
+        return Err(reason);
+    }
+    return match rename_noreplace(made.as_path(), directory.along(named).as_path()) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            let _gone = std::fs::remove_dir_all(made.as_path());
+            Err(format!("{} holds something this run did not make, so nothing of {} was cleaned", named.display(), to.display()))
+        }
+        Err(error) => {
+            let _gone = std::fs::remove_dir_all(made.as_path());
+            Err(format!("{} could not be made ({error}), so nothing of {} was cleaned", named.display(), to.display()))
+        }
     };
 }
 
@@ -888,26 +913,6 @@ fn give_back(names: &TheNames) {
     //  directory, and the next holder locks it as it stands (`claim_the_names`).
 }
 
-/// What:
-///  Remove a directory this job made when a step failed or a build got there first.
-/// Why:
-///   The names belong to this job alone,
-/// and the caller removes only the names this run chose or its own marker claims,
-/// so what they hold was made by an earlier filling of the same workspace and nothing a person or a
-/// build made.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// removeIfAny(path); // absent is fine
-/// ```
-fn remove_if_any(path: &Path) -> Result<(), String> {
-    return match std::fs::remove_dir_all(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(format!("{} could not be removed ({error})", path.display())),
-    };
-}
-
 
 
 /// What:
@@ -1288,15 +1293,24 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
     let marker_made: TheEntry = claim_the_staging_names(marker.as_path(), destination, git_dir, &directory, begun_by.as_str())?;
     // The claim goes inside the state before it is moved, so the directory that lands at the staging name carries the proof
     //  that this add made it: a kill between the two leaves a name this job can still prove is its own.
+    //  The state is held open first, and the claim is written through that descriptor, so a name another command replaced
+    //  between the look above and the write receives nothing of this add's.
     let claim: PathBuf = destination.join(a_claim_inside());
-    if let Err(reason) = write_the_claim_inside(destination, destination, begun_by.as_str()) {
+    let state_directory: TheDirectory = match TheDirectory::of(directory.along(destination).as_path()) {
+        Ok(held) => held,
+        Err(reason) => return Err(format!("{reason}, so the copied build state stays where it is")),
+    };
+    let state_entry: TheEntry = match state_directory.the_entry() {
+        Some(entry) => entry,
+        None => return Err(format!("{} went before its claim could be written, so the copied build state stays where it is", destination.display())),
+    };
+    if let Err(reason) = write_the_claim_inside(state_directory.path(), destination, begun_by.as_str()) {
         return Err(format!("{reason}, so the copied build state stays where it is"));
     }
-    let claim_entry: Option<TheEntry> = TheEntry::at(directory.along(claim.as_path()).as_path());
+    let claim_entry: Option<TheEntry> = TheEntry::at(state_directory.along(claim.as_path()).as_path());
     // The claim inside the state is removed through the directory the state itself is, so the unlink reaches the file this
     //  add wrote: the state is about to stay where it is, so its directory is opened once and held for the two removals.
-    let build_directory: Option<TheDirectory> = TheDirectory::of(directory.along(destination).as_path()).ok();
-    let remove_the_claim_of_the_state_that_stayed = || -> Option<TheRemoval> {
+    let build_directory: Option<TheDirectory> = TheDirectory::of(directory.along(destination).as_path()).ok();    let remove_the_claim_of_the_state_that_stayed = || -> Option<TheRemoval> {
         let held: &TheDirectory = build_directory.as_ref()?;
         return remove_the_claim_of(held, Path::new(a_claim_inside()), claim_entry);
     };
@@ -1304,10 +1318,20 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
     //  and both ends reached through the directory this add took, so a worktree made again at the same path never has its
     //  build state moved aside.
     return match rename_noreplace(directory.along(destination).as_path(), directory.along(staging.as_path()).as_path()) {
-        Ok(()) => Ok(Staged::Staged(staging)),
+        Ok(()) => {
+            // What the rename moved is compared with the state this add held open before the move: a replacement that stood
+            //  at the name is moved back where its writer put it, and the claim this add wrote went into the entry it held.
+            if TheEntry::at(directory.along(staging.as_path()).as_path()) != Some(state_entry) {
+                let _back = rename_noreplace(directory.along(staging.as_path()).as_path(), directory.along(destination).as_path());
+                let _claim: Option<TheRemoval> = remove_the_claim_of_the_state_that_stayed();
+                return Err(what_stands_at_the_names(staging.as_path(), destination));
+            }
+            Ok(Staged::Staged(staging))
+        }
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
             // Something took the staging name between the check and the move: it is not this job's to replace, and the marker
             //  claims a name nothing was moved into, so it goes back, and so does the claim written in the state that stayed.
+            debug(TAG, format!("the move aside of {} met a taken name ({error})", destination.display()).as_str());
             let _claim: Option<TheRemoval> = remove_the_claim_of_the_state_that_stayed();
             if a_step(AStep::BeforeTheMarkerOfAFailedMoveIsTakenBack) {
                 return Err(stop_words());

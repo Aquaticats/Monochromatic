@@ -28,6 +28,46 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// What:
+///  Which entry stood at a name when this job read it or made it,
+///  as the device and the inode the file system answers with.
+/// Why:
+///   A name is not proof of having made what stands under it:
+/// another command can replace the entry while this job works on the name,
+/// so a removal is made only when the entry found at the act is the entry this job made or read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TheEntry = { device: bigint; inode: bigint };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct TheEntry {
+    /// The device the entry stands on.
+    pub(crate) device: u64,
+    /// The inode that names it on that device.
+    pub(crate) inode: u64,
+}
+
+impl TheEntry {
+    /// What:
+    ///  The entry at this name now,
+    ///  read without following a link,
+    ///  or nothing when no name is there.
+    /// Why:
+    ///   The removal's proof is the identity found at the act,
+    ///  so it is read by the same call that then takes the entry aside.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const theEntryAt = (path) => { try { const s = lstatSync(path, { bigint: true }); return { device: s.dev, inode: s.ino }; } catch { return undefined; } };
+    /// ```
+    pub(crate) fn at(the_name: &Path) -> Option<TheEntry> {
+        use std::os::unix::fs::MetadataExt as _;
+        let metadata: std::fs::Metadata = std::fs::symlink_metadata(the_name).ok()?;
+        return Some(TheEntry { device: metadata.dev(), inode: metadata.ino() });
+    }
+}
+
+/// What:
 ///  A name under the directory this run holds that no other command holds:
 ///  the entry an act will meet, moved there without replacing anything.
 /// Why:
@@ -133,6 +173,26 @@ impl TheDirectory {
             Ok(held) => Ok(TheDirectory { at: PathBuf::from(format!("/proc/self/fd/{}", held.as_raw_fd())), held }),
             Err(error) => Err(format!("{} could not be taken as the directory the staging names live in ({error})", directory.display())),
         };
+    }
+
+    /// What:
+    ///  The entry this directory itself is, read through the descriptor.
+    /// Why:
+    ///   A path that ends in `/proc/self/fd/<n>` is the descriptor's link, and `lstat` on it answers the link,
+    /// not the directory; the descriptor's own metadata is what a later `lstat` of the moved name is compared with.
+    pub(crate) fn the_entry(&self) -> Option<TheEntry> {
+        use std::os::unix::fs::MetadataExt as _;
+        let metadata: std::fs::Metadata = self.held.metadata().ok()?;
+        return Some(TheEntry { device: metadata.dev(), inode: metadata.ino() });
+    }
+
+    /// What:
+    ///  The path that reaches this directory through the descriptor.
+    /// Why:
+    ///   The caller opens a directory this run just made and holds it while it writes the claim inside it,
+    /// so the write reaches the directory the descriptor names, never a name another command took.
+    pub(crate) fn path(&self) -> &Path {
+        return self.at.as_path();
     }
 
     /// What:
