@@ -474,7 +474,9 @@ OpenZFS 2.4.4 ([nested-clone research][nested], "What was checked and how" and i
 exercised calls on that build, not the mechanism on all kernels at or beyond the syscall floor.
 
 This draft's readiness criterion is an allowlist of exact Linux kernel releases per target architecture that pass
-built handler attach, staging unmount, refusal and namespace controls on that release. At readiness compare the
+built handler attach, staging unmount, refusal and namespace controls on that release. Whether kernel readiness is
+that allowlist or a functional probe at start is an [open choice](#open-project-choices); the project's answer,
+"test plus runtime gate", covers the ZFS module check rather than a kernel-release list. At readiness compare the
 running release to the allowlist independently of the ZFS ioctl ABI gate. Fixture results alone do not qualify a
 release. Report the running release and missing qualification in `doctor` and preflight. Until a passing run on
 `7.3.5-1-cachyos` exists, do not enable the managed route on that kernel: use the applicable same-dataset reflink or
@@ -961,6 +963,14 @@ unmeasured; a ranking is not a decision.
   exclusion still accepts planned snapshots all gone with the head refused when a copy survives the scan (the
   outcome [VM item 15][vm-namespaces] measured), and removal refuses before the first snapshot delete when the
   deployment cannot show it. The options differ in who keeps the isolation current, not in what removal accepts.
+- Kernel-release readiness. Qualify an exact list of kernel releases per architecture with built-product runs, or
+  probe the descriptor, staging and namespace behaviour at start and refuse only what the probe cannot show. The
+  exact list disables the managed route after every CachyOS kernel package update until a VM run passes on that
+  release, which makes existing unmounted clones unavailable in the meantime; [VM item 16][vm-kernel] found no
+  offered image that boots `7.3.5-1-cachyos`, so no release on it can be qualified today. A functional probe admits
+  untested releases and leaves unmeasured behaviour to appear on the host, where the failure is a refused mount or
+  a misplaced one it did not detect. Both keep the runtime module gate; neither authorizes a path mount, and both
+  preserve existing bindings and intent while the route is unavailable.
 - Managed path interface. Accept the canonical path from ordinary `git worktree add <path>` only, with fallback at
   the same slot; or also add an opt-in named allocator that reports the chosen path under `.claude/worktrees`.
   [VM item 1][vm-register] used an explicit canonical path under that parent, not an allocator or the wrapper's
@@ -1156,8 +1166,9 @@ image for the combination. The custom-template candidate needs a bootable x86-64
 OpenZFS `2.4.4` userspace and an enabled `qemu-guest-agent`. Verify the booted release with
 `uname --kernel-release` and the loaded module and userspace with `zfs version`; installed packages alone do not
 qualify the run. Repeat item 1's encrypted file-backed fixture and the built mount, unmount, refusal and namespace
-controls on that release. Test readiness with a release not on the list as the negative control, including fallback
-only for unused slots. These are unrun acceptance requirements, not evidence from the Ubuntu guest.
+controls on that release. For the allowlist option, test readiness with a release not on the list as the negative
+control, including fallback only for unused slots. These are unrun acceptance requirements, not evidence from the
+Ubuntu guest.
 
 ### Descriptor safety and mount authority
 
