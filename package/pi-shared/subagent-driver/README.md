@@ -314,6 +314,7 @@ or start a run it would refuse.
   An existing folder, even an empty one, prevents another launcher from claiming its number.
   The launcher checks for earlier records at an explicitly requested number,
   and the driver independently refuses a folder holding any entry, even if there is no summary.
+  The check names the folder and its records.
   To keep those records, omit `--run`, use a separate runs folder, or move the old folder aside when nobody needs it.
   A number greater than `9007199254740991` is refused because it cannot be safely incremented.
 - `--turn-cap`:
@@ -504,7 +505,6 @@ An entry may also name `prompt`,
 `memory`,
 `tasks`,
 `wall`,
-`run`,
 `sessionOf`,
 `session`,
 `provider`,
@@ -513,6 +513,8 @@ An entry may also name `prompt`,
 which is the commit or branch the run's new branch starts at
 (`main` when the entry names none,
 and never used when the run's branch already exists).
+A `run` field is refused while reading the list, before any entry starts.
+Omit it so each entry claims a fresh number, or launch the entry individually with `--run` to request a specific unused number.
 An entry that names a field this command does not read refuses the whole list,
 with a message naming the field and the entry,
 so a field is never dropped silently.

@@ -861,6 +861,22 @@ await describe({
           },
         },),
         it({
+          name: 'refuses a pinned run number while reading the batch, before starting even a valid preceding entry',
+          fn: async () => {
+            /**
+             A valid entry followed by one trying to reserve a particular number.
+             */
+            const listed = [
+              { name: 'a', branch: 'feat/a', },
+              { name: 'b', branch: 'feat/b', run: 1, },
+            ];
+            expect(() => batchEntriesIn({
+              shown: JSON.stringify(listed,),
+              listFile: 'batch.json',
+            },),).toThrow('batch.json: entry 2 (b) pins a run folder number with "run". Remove "run"',);
+          },
+        },),
+        it({
           name: 'reads every field a list has always had, the base a run starts at, and the session file a run resumes',
           fn: async () => {
             /**
@@ -875,7 +891,6 @@ await describe({
               memory: '1G',
               tasks: 1,
               wall: 1,
-              run: 1,
               sessionOf: 'a-1',
               session: '/s.jsonl',
               provider: 'neuralwatt',
@@ -961,7 +976,6 @@ await describe({
               entry: {
                 name: 'a',
                 branch: 'feat/a',
-                run: 4,
                 provider: 'opencode-go',
                 model: 'deepseek-v4.1-flash',
                 sessionOf: 'a-3',

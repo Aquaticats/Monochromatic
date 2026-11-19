@@ -25,19 +25,18 @@ import {
   WorktreeTakenError,
 } from './worktree-git.ts';
 import {
-  type ProofMaker,
-  type UnprovenSighting,
-  type WorktreeProof,
-  UNPROVEN_WORKTREE_KEPT_MILLISECONDS,
   itsMakerMayStillBeMaking,
   moveTheProofAway,
-  moveTheSightingAway,
   proofOf,
+  worktreeProofFileOf,
+} from './worktree-proof.ts';
+import {
+  UNPROVEN_WORKTREE_KEPT_MILLISECONDS,
+  moveTheSightingAway,
   readSighting,
   unprovenSightingFileOf,
-  worktreeProofFileOf,
   writeSighting,
-} from './worktree-proof.ts';
+} from './unproven-worktree-sighting.ts';
 
 /**
  The code the operating system gives a path that is not there.
@@ -132,13 +131,15 @@ export async function clearWhatALeftoverLeft({
  A run's driver writes the run's summary as it ends, so a folder holding one is a run that ended; a folder with no summary is a run
  that may still be working, and a worktree it made is not another start's to take.
 
- @param request - the run folder the proof names, and the folder the runs live in
+ @param runFolderName - name of the run folder recorded in the proof
+
+ @param runsFolder - parent directory containing the named run folder
 
  @returns whether that run ended
 
  @example
  ```ts
- const ended = await theRunAProofNamesHasEnded({ runFolder: 'copy-route-1', runsFolder: '/runs', },);
+ const ended = await theRunAProofNamesHasEnded({ runFolderName: 'copy-route-1', runsFolder: '/runs', },);
  ```
  */
 async function theRunAProofNamesHasEnded({
@@ -174,15 +175,13 @@ async function theRunAProofNamesHasEnded({
 
  @param processFolder - the folder holding one entry per process
 
- @param maker - the process this start is, which its own proof names
-
  @returns the word to go on making, or the note for a worktree taken up
 
  @throws WorktreeTakenError when what stands there is not this start's to use or to remove
 
  @example
  ```ts
- const decision = await settleWhatStandsAtThePath({ git, checkoutFolder: '/repo', worktree, branch, claim, runsFolder, now: Date.now, processFolder: '/proc', maker, },);
+ const decision = await settleWhatStandsAtThePath({ git, checkoutFolder: '/repo', worktree, branch, claim, runsFolder, now: Date.now, processFolder: '/proc', },);
  ```
  */
 export async function settleWhatStandsAtThePath({
@@ -292,9 +291,7 @@ export async function settleWhatStandsAtThePath({
 
  @param worktree - the worktree's path
 
- @param claim - the run folder whose claim this start is
-
- @param ownFolderName - the name of that run folder
+ @param ownFolderName - name of the run folder this start claimed
 
  @param now - where this call reads the time
 
@@ -306,7 +303,7 @@ export async function settleWhatStandsAtThePath({
 
  @example
  ```ts
- const decision = await theUnprovenPathDecision({ git, checkoutFolder, worktree, claim, ownFolderName, now, held, },);
+ const decision = await theUnprovenPathDecision({ git, checkoutFolder, worktree, ownFolderName, now, held, },);
  ```
  */
 async function theUnprovenPathDecision({

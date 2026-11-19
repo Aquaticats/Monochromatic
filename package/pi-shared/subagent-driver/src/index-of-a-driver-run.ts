@@ -57,3 +57,17 @@ export {
   startWaitingForAnAnswer,
   type WaitingForAnAnswer,
 } from './wait-for-an-answer.ts';
+
+/**
+ A run's summary, which a folder holds once: written whole or not at all, refused when a summary is already there, and refused at
+ the start of a run that was given the folder of one.
+ */
+export {
+  type BetweenSummaryWriteSteps,
+  type SummaryWriteStep,
+  RunFolderHoldsAnEarlierAttemptError,
+  earlierAttemptProblemIn,
+  earlierAttemptProblemOf,
+  refuseWhenTheFolderHoldsAnEarlierAttempt,
+  writeSummary,
+} from './write-summary.ts';

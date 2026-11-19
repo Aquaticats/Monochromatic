@@ -22,6 +22,7 @@ import {
   join,
 } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
+import { isDigitsOnly, } from './text-of-an-option.ts';
 
 /**
  The code the operating system gives a path that is not there.
@@ -41,36 +42,6 @@ const WORKTREE_PROOF_STATES: ReadonlySet<string> = new Set<string>([
   'making',
   'made',
 ]);
-
-/**
- Hours in a day, which is the bound an unproven worktree is kept for.
- */
-const HOURS_IN_A_DAY = 24;
-
-/**
- Milliseconds in one hour.
- */
-const MILLISECONDS_IN_AN_HOUR = 60 * 60 * 1_000;
-
-/**
- The end of the file a start writes when it finds a worktree no proof says it made, which is the worktree a person made by hand or
- one made before this package wrote proofs. It carries the first sighting, so a bound can pass without removing a person's work at
- once and without keeping it for ever.
- */
-const UNPROVEN_SIGHTING_FILE_END = '.unproven.json';
-
-/**
- How long an unproven worktree is kept after the first start that wanted its path saw it.
-
- The decision of 2026-11-15 is that a worktree with no proof of who made it is removed after a bound. The bound here is a day: the
- longest run this machine starts asks for sixteen hours (`--wall=57600` in the coordinating session's batches), so a worktree nobody
- claimed a day after a start first wanted its path cannot be a run's own worktree, while a person who made one by hand still has a
- working day to say so by naming the run another way. Nothing is removed before it.
- */
-export const UNPROVEN_WORKTREE_KEPT_MILLISECONDS: number = 24 * 60
-  * 60
-  * 1_000;
-
 
 /**
  The program that wrote a proof: its process number and the moment the kernel says that process started, which together name one
@@ -131,26 +102,6 @@ export type WorktreeProof = {
 };
 
 /**
- What a start found at a path that holds a worktree no proof names: when a start first wanted that path, and which start saw it.
- */
-export type UnprovenSighting = {
-  /**
-   The worktree's path this sighting is about.
-   */
-  readonly path: string;
-
-  /**
-   When a start first found it unproven, as an ISO 8601 instant.
-   */
-  readonly firstSeenAt: string;
-
-  /**
-   The run folder of the start that saw it.
-   */
-  readonly seenBy: string;
-};
-
-/**
  Reads the file a making writes beside its worktree.
 
  @param worktree - the worktree's path
@@ -174,7 +125,42 @@ export function worktreeProofFileOf({
 }
 
 /**
- Reads what one field of a stored proof holds, when it holds the shape this module writes.
+ Reads a process identity only when both fields could identify a maker.
+
+ @param stored - value of the proof's maker field
+
+ @returns validated maker field, or no field when identity cannot be recovered
+ */
+function makerIn(stored: unknown,): { readonly maker?: ProofMaker } {
+  if (((typeof stored) !== 'object') || (stored === null)) {
+    return {};
+  }
+  /**
+   Untrusted fields from the recorded process identity.
+   */
+  const fields: Readonly<Record<string, unknown>> = { ...stored, };
+  /**
+   Process number and kernel start ticks, both required to recognise a maker.
+   */
+  const {
+    pid,
+    startedAt,
+  } = fields;
+  if (((typeof pid) !== 'number')
+    || (!Number.isSafeInteger(pid,))
+    || (pid <= 0)
+    || ((typeof startedAt) !== 'string')
+    || (!isDigitsOnly(startedAt,))) {
+    return {};
+  }
+  return { maker: {
+    pid,
+    startedAt,
+  }, };
+}
+
+/**
+ Reads a stored proof when it has the shape this module writes.
 
  @param stored - the proof as it was read, of any shape
 
@@ -238,34 +224,6 @@ function proofIn({ stored, }: { readonly stored: unknown },): { readonly proof?:
     || (writtenAt === '')) {
     return {};
   }
-  /**
-   The process that wrote the proof, when the stored value names one.
-   */
-  const {maker} = fields;
-  /**
-   The maker, read field by field, or nothing when it is no maker.
-   */
-  const readMaker: ProofMaker | undefined = (((typeof maker) === 'object') && (maker !== null))
-    ? ((typeof Reflect.get(
-      maker,
-      'pid',
-    )) === 'number')
-      && ((typeof Reflect.get(
-        maker,
-        'startedAt',
-      )) === 'string')
-      ? {
-        pid: Reflect.get(
-          maker,
-          'pid',
-        ) as number,
-        startedAt: Reflect.get(
-          maker,
-          'startedAt',
-        ) as string,
-      }
-      : undefined
-    : undefined;
   return {
     proof: {
       path,
@@ -274,7 +232,7 @@ function proofIn({ stored, }: { readonly stored: unknown },): { readonly proof?:
       branch,
       state: (state === 'made') ? 'made' : 'making',
       writtenAt,
-      ...((readMaker === undefined) ? {} : { maker: readMaker, }),
+      ...makerIn(fields.maker,),
     },
   };
 }
@@ -453,171 +411,10 @@ export async function moveTheProofAway({ worktree, }: { readonly worktree: strin
 }
 
 /**
- Reads the record of the first start that wanted a path holding a worktree no proof names.
-
- @param worktree - the worktree's path
-
- @returns the sighting, or nothing when no start has recorded one, or the problem reading it gave
-
- @example
- ```ts
- const { sighting } = await readSighting({ worktree: '/repo/.claude/worktrees/pi-a', },);
- ```
+ Position of start ticks in the fields after the PID and parenthesized process name.
+ The kernel numbers starttime as field 22, with field 3 at index zero of this suffix.
  */
-export async function readSighting({ worktree, }: { readonly worktree: string },): Promise<{
-  readonly sighting?: UnprovenSighting;
-  readonly problem?: string
-}> {
-  /**
-   The file the first sighting is written in.
-   */
-  const file = unprovenSightingFileOf({ worktree, },);
-  try {
-    /**
-     What the file holds, of any shape.
-     */
-    const stored: unknown = JSON.parse(await readFile(
-      file,
-      'utf8',
-    ),);
-    if (((typeof stored) !== 'object') || (stored === null)) {
-      return { problem: `${file} holds no record of a sighting`, };
-    }
-    /**
-     The three fields a sighting carries.
-     */
-    const path = Reflect.get(
-      stored,
-      'path',
-    );
-    const firstSeenAt = Reflect.get(
-      stored,
-      'firstSeenAt',
-    );
-    const seenBy = Reflect.get(
-      stored,
-      'seenBy',
-    );
-    if (((typeof path) !== 'string') || ((typeof firstSeenAt) !== 'string')
-      || ((typeof seenBy) !== 'string')) {
-      return { problem: `${file} holds no record of a sighting`, };
-    }
-    return { sighting: {
-      path,
-      firstSeenAt,
-      seenBy,
-    }, };
-  }
-  catch (error) {
-    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
-      return {};
-    }
-    return { problem: `${file} cannot be read as a record of a sighting: ${String(error,)}`, };
-  }
-}
-
-/**
- Writes the first sighting of an unproven worktree, with one exclusive create, so the bound begins once.
-
- @param worktree - the worktree's path
-
- @param sighting - when this start saw it, and which start it was
-
- @returns whether this start wrote the first sighting
-
- @example
- ```ts
- const first = await writeSighting({ worktree: '/repo/.claude/worktrees/pi-a', sighting, },);
- ```
- */
-export async function writeSighting({
-  worktree,
-  sighting,
-}: {
-  readonly worktree: string;
-  readonly sighting: UnprovenSighting;
-},): Promise<boolean> {
-  /**
-   The file the first sighting is written in.
-   */
-  const file = unprovenSightingFileOf({ worktree, },);
-  await mkdir(
-    dirname(file,),
-    { recursive: true, },
-  );
-  try {
-    await writeFile(
-      file,
-      `${JSON.stringify(
-        sighting,
-        undefined,
-        2,
-      )}\n`,
-      {
-        encoding: 'utf8',
-        flag: 'wx',
-      },
-    );
-    return true;
-  }
-  catch (error) {
-    if (errorCodeOf(error,) === 'EEXIST') {
-      return false;
-    }
-    throw error;
-  }
-}
-
-/**
- Moves the sighting of an unproven worktree out of the way, so the making that removes it is the one that began the bound.
-
- @param worktree - the worktree's path
-
- @returns whether this caller moved it
-
- @example
- ```ts
- const moved = await moveTheSightingAway({ worktree: '/repo/.claude/worktrees/pi-a', },);
- ```
- */
-export async function moveTheSightingAway({ worktree, }: { readonly worktree: string },): Promise<boolean> {
-  /**
-   The file the first sighting is written in.
-   */
-  const file = unprovenSightingFileOf({ worktree, },);
-  try {
-    await rename(
-      file,
-      `${file}.${String(process.pid,)}.removed`,
-    );
-    return true;
-  }
-  catch (error) {
-    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
-      return false;
-    }
-    throw error;
-  }
-}
-
-/**
- Reads the file that records the first sighting of a worktree no proof names.
-
- @param worktree - the worktree's path
-
- @returns the file's path
-
- @example
- ```ts
- const file = unprovenSightingFileOf({ worktree: '/repo/.claude/worktrees/pi-a', },);
- ```
- */
-export function unprovenSightingFileOf({ worktree, }: { readonly worktree: string },): string {
-  return join(
-    dirname(worktree,),
-    `.${basename(worktree,)}${UNPROVEN_SIGHTING_FILE_END}`,
-  );
-}
+const PROC_STAT_START_TICKS_INDEX = 19;
 
 /**
  Reads the moment a process started, out of the line `/proc/<pid>/stat` holds.
@@ -652,8 +449,8 @@ export function startMomentIn({ stat, }: { readonly stat: string },): { readonly
   /**
    The start moment, as the kernel prints it.
    */
-  const startedAt = fields[19];
-  return ((startedAt === undefined) || (startedAt === '')) ? {} : { startedAt, };
+  const startedAt = fields.at(PROC_STAT_START_TICKS_INDEX,);
+  return ((startedAt === undefined) || (!isDigitsOnly(startedAt,))) ? {} : { startedAt, };
 }
 
 /**
@@ -663,7 +460,7 @@ export function startMomentIn({ stat, }: { readonly stat: string },): { readonly
 
  @param processFolder - the folder holding one entry per process, `/proc` here
 
- @returns the maker, or nothing when no such process is running
+ @returns the maker unless its process is demonstrably absent or the start ticks differ
 
  @example
  ```ts
@@ -693,7 +490,8 @@ export async function makerNow({
      The moment that process started.
      */
     const { startedAt, } = startMomentIn({ stat, },);
-    return (startedAt === maker.startedAt) ? { maker, } : {};
+    // An unreadable identity cannot prove the maker gone. Only a different identity or a missing PID can.
+    return ((startedAt === undefined) || (startedAt === maker.startedAt)) ? { maker, } : {};
   }
   catch (error) {
     if ((errorCodeOf(error,) === MISSING_PATH_CODE) || (errorCodeOf(error,) === 'ESRCH')) {

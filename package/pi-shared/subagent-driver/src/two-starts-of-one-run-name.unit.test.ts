@@ -75,6 +75,11 @@ const RUN_FOLDER_LABEL = 'Run folder ';
 const SUMMARY_FILE_NAME = 'summary.json';
 
 /**
+ Record the negative-control stand-in places after the launcher's preflight but before the driver check.
+ */
+const EARLIER_ATTEMPT_RECORD = 'earlier-attempt.txt';
+
+/**
  Reads the file a making writes beside its worktree, which the launcher names after the run and its own making.
 
  This is written here rather than taken from the library, so that this file's tests run against the code before the proof existed as
@@ -323,7 +328,10 @@ async function fixtureIn(folder: string, withARealRepository: boolean, holdsUnit
           'done',
         ]
         : []),
-      // Exercise the actual driver check before writing any record, exactly where the driver would first see the claim.
+      `if [ "$PI_TEST_WRITE_BEFORE_DRIVER" = 'yes' ]; then`,
+      `  printf '%s\\n' 'earlier attempt' > "$runFolder/${EARLIER_ATTEMPT_RECORD}"`,
+      'fi',
+      // Exercise the actual driver check before writing a summary, exactly where the driver would first see the claim.
       `if ! '${process.execPath}' --input-type=module -e 'import { refuseWhenTheFolderHoldsAnEarlierAttempt } from "${BUILT_DRIVER}"; await refuseWhenTheFolderHoldsAnEarlierAttempt({ runFolder: process.argv[1] });' "$runFolder"; then`,
       `  rmdir '${folder}/unit-names/'"$unit"`,
       '  exit 1',
@@ -414,11 +422,13 @@ async function startOf({
   startId,
   branch,
   runNumber,
+  writeBeforeDriver = false,
 }: {
   readonly fixture: Fixture;
   readonly startId: string;
   readonly branch: string;
   readonly runNumber?: number;
+  readonly writeBeforeDriver?: boolean;
 }): Promise<Started> {
   try {
     /**
@@ -447,6 +457,7 @@ async function startOf({
         ].join(delimiter,),
         HOME: fixture.home,
         PI_START_ID: startId,
+        PI_TEST_WRITE_BEFORE_DRIVER: writeBeforeDriver ? 'yes' : 'no',
       },
       encoding: 'utf8',
       timeout: PATIENCE_SECONDS * 1_000,
@@ -605,6 +616,21 @@ await describe({
         expect(refused.output,).toContain('holds what an earlier attempt',);
         expect(refused.output,).toContain(SUMMARY_FILE_NAME,);
         expect(await summaryIn({ runsFolder: fixture.runs, folder: runFolder, },),).toBe(summary,);
+
+        // A record inserted after preflight must be refused by the driver check itself, not the launcher check.
+        const nextNumber = runNumber + 1;
+        const nextFolder = `${RUN_NAME}-${String(nextNumber,)}`;
+        const contaminated = await startOf({
+          fixture,
+          startId: 'record-before-driver',
+          branch: 'none',
+          runNumber: nextNumber,
+          writeBeforeDriver: true,
+        },);
+        expect(contaminated.output,).toContain('claimed by making it',);
+        expect(contaminated.output,).toContain('RunFolderHoldsAnEarlierAttemptError',);
+        expect(contaminated.output,).toContain(EARLIER_ATTEMPT_RECORD,);
+        expect(await readdir(join(fixture.runs, nextFolder,),),).toEqual([EARLIER_ATTEMPT_RECORD,],);
       },
     },),
     it({
@@ -853,6 +879,14 @@ await describe({
         // The half-written worktree is left exactly as it is, so a person can look at what that making left.
         expect((await runGit(worktree, ['status', '--porcelain',],)).trim(),).toContain('D tracked.txt',);
         expect(await readFile(proofFile, 'utf8',),).toBe(liveProof,);
+
+        // A malformed record cannot identify a maker either, even when its PID would otherwise be gone.
+        const invalidProof = proofOfTheMaking({ pid: Number.MAX_SAFE_INTEGER, startedAt: 'not-start-ticks', },);
+        await writeFile(proofFile, invalidProof,);
+        const invalidMaker = await startOf({ fixture, startId: 'invalid-maker-record', branch: 'feat/shared', },);
+        expect(invalidMaker.status,).not.toBe(0,);
+        expect(invalidMaker.output,).toContain('the proof names no maker',);
+        expect(await readFile(proofFile, 'utf8',),).toBe(invalidProof,);
 
         const unknownProof = proofOfTheMaking();
         await writeFile(proofFile, unknownProof,);

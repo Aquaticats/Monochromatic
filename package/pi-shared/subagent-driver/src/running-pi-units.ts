@@ -579,7 +579,7 @@ export async function unitsOfARunName({
 
  @returns the run names whose unit has not ended, each once
 
- @examples
+ @example
  ```ts
  const going = await runNamesWithAUnitNotEnded({ run: runCommandWithChildProcess, },);
  ```

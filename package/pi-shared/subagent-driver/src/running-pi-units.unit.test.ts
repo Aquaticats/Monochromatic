@@ -76,6 +76,27 @@ const READING_MICROSECONDS = MICROSECONDS_PER_MINUTE + MICROSECONDS_PER_MINUTE;
  */
 const FIXTURE_AGE_MILLISECONDS = MICROSECONDS_PER_MINUTE / MICROSECONDS_PER_MILLISECOND;
 
+/**
+ Every unfinished unit from SHOWN, retaining its original unit name and omitting a number for legacy units.
+ */
+const UNFINISHED_UNITS = [
+  {
+    name: 'alpha',
+    unitName: 'pi-alpha@1.service',
+    runNumber: 1,
+    elapsedMilliseconds: FIXTURE_AGE_MILLISECONDS,
+    mainPid: 4_242,
+    state: 'active',
+  },
+  {
+    name: 'starting',
+    unitName: 'pi-starting.service',
+    elapsedMilliseconds: FIXTURE_AGE_MILLISECONDS,
+    mainPid: 0,
+    state: 'activating',
+  },
+];
+
 await describe({
   name: parseRunningPiUnits.name,
   children: [
@@ -89,23 +110,7 @@ await describe({
           shown: SHOWN,
           nowMicroseconds: READING_MICROSECONDS,
         },);
-        expect(units,).toEqual([
-          {
-            name: 'alpha',
-            unitName: 'pi-alpha@1.service',
-            runNumber: 1,
-            elapsedMilliseconds: FIXTURE_AGE_MILLISECONDS,
-            mainPid: 4_242,
-            state: 'active',
-          },
-          {
-            name: 'starting',
-            unitName: 'pi-starting.service',
-            elapsedMilliseconds: FIXTURE_AGE_MILLISECONDS,
-            mainPid: 0,
-            state: 'activating',
-          },
-        ],);
+        expect(units,).toEqual(UNFINISHED_UNITS,);
       },
     },),
     it({
@@ -221,10 +226,7 @@ await describe({
             return READING_MICROSECONDS;
           },
         },);
-        expect(await units(),).toEqual(parseRunningPiUnits({
-          shown: SHOWN,
-          nowMicroseconds: READING_MICROSECONDS,
-        },),);
+        expect(await units(),).toEqual(UNFINISHED_UNITS,);
         expect(asked,).toHaveLength(1,);
         expect(asked[0]?.command,).toBe('systemctl',);
         expect(asked[0]?.words,).toContain('pi-*.service',);
@@ -276,6 +278,7 @@ await describe({
       name: 'gives the unit name of a run name, which is what a line to act on prints',
       fn: async () => {
         expect(unitNameOfGiven({ name: 'copy-route', },),).toBe('pi-copy-route.service',);
+        expect(unitNameOfGiven({ name: '  copy-route.service  ', },),).toBe('pi-copy-route.service',);
       },
     },),
     it({

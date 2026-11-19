@@ -907,6 +907,54 @@ await describe({
           },
         },),
         it({
+          name: 'keeps a nonempty unproven path before the grace period and clears it once the period has elapsed',
+          fn: async () => {
+            await using folder = await makeFolder();
+            const worktree = join(folder.path, 'pi-a',);
+            const leftBehind = join(worktree, 'left-behind.txt',);
+            await mkdir(worktree,);
+            await writeFile(leftBehind, 'files with no proof',);
+            const git = standInGit([answered(0, ''),],);
+            const request = {
+              git: git.git,
+              checkoutFolder: folder.path,
+              worktree,
+              branch: 'feat/a',
+              base: BASE_OF_A_RUN_NAMING_NONE,
+            };
+            const firstSeenAt = Date.parse('2026-11-01T00:00:00Z',);
+            const graceEndsAt = Date.parse('2026-11-02T00:00:00Z',);
+            for (const [runFolderName, time, reason,] of [
+              ['a-1', firstSeenAt, 'recorded the first sighting',],
+              ['a-2', graceEndsAt - 1, 'first saw it at',],
+            ] as const) {
+              let refusal: unknown;
+              try {
+                await makeWorktree({
+                  ...request,
+                  claim: { runName: 'a', runFolder: join(folder.path, 'runs', runFolderName,), },
+                  now: () => time,
+                },);
+              }
+              catch (error) {
+                refusal = error;
+              }
+              expect(refusal,).toBeInstanceOf(WorktreeTakenError,);
+              expect(String(refusal,),).toContain(reason,);
+              expect(await readFile(leftBehind, 'utf8',),).toBe('files with no proof',);
+              expect(git.asked,).toEqual([],);
+            }
+            await makeWorktree({
+              ...request,
+              claim: { runName: 'a', runFolder: join(folder.path, 'runs', 'a-3',), },
+              now: () => graceEndsAt,
+            },);
+            expect(git.asked.map(({ words, },) => words.slice(0, 2,),),).toContainEqual(['worktree', 'add',],);
+            expect(await readFile(worktreeProofFileOf({ worktree, },), 'utf8',),).toContain('"state": "made"',);
+            await expect(readFile(leftBehind,),).rejects.toThrow('ENOENT',);
+          },
+        },),
+        it({
           name: 'takes up a worktree whose proof says another run folder made it on the branch this start asks for',
           fn: async () => {
             await using folder = await makeFolder();

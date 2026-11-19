@@ -121,11 +121,6 @@ export type BatchEntry = {
   readonly wall?: number;
 
   /**
-   The number of the run's folder, or nothing for the next free number.
-   */
-  readonly run?: number;
-
-  /**
    The finished run whose session this run resumes.
    */
   readonly sessionOf?: string;
@@ -159,7 +154,6 @@ export const BATCH_ENTRY_FIELDS: readonly string[] = [
   'memory',
   'tasks',
   'wall',
-  'run',
   'sessionOf',
   'session',
   'provider',
@@ -205,7 +199,9 @@ export type StartedEntry = {
 
  @returns the entries
 
- @throws Error when the list is not a JSON array, because a batch that starts nothing is a defect worth seeing
+ @throws Error when the list is not a JSON array
+
+ @throws BatchListError when an entry pins a run number or uses an unrecognised field
 
  @example
  ```ts
@@ -234,6 +230,22 @@ export function batchEntriesIn({
       throw new BatchListError(`${listFile}: entry ${String(index + 1,)} is no JSON object, so it cannot be a run.`,);
     }
     /**
+     Entry name used alongside its position in a diagnostic.
+     */
+    const named = ('name' in entry) ? entry.name : undefined;
+    /**
+     Location of the entry the caller needs to edit.
+     */
+    const at = `${listFile}: entry ${String(index + 1,)}${((typeof named) === 'string') ? ` (${named})` : ''}`;
+    if (Object.hasOwn(
+      entry,
+      'run',
+    )) {
+      throw new BatchListError(
+        `${at} pins a run folder number with "run". Remove "run" so each batch start claims a fresh number. To request a particular unused number, launch that entry individually with --run=<number>.`,
+      );
+    }
+    /**
      The fields this entry names that the command does not read.
      */
     const unread = Object.keys(entry,)
@@ -243,12 +255,8 @@ export function batchEntriesIn({
     if (unread.length === 0) {
       return;
     }
-    /**
-     The run the entry names, which tells a reader which entry to fix.
-     */
-    const named = ('name' in entry) ? entry.name : undefined;
     throw new BatchListError(
-      `${listFile}: entry ${String(index + 1,)}${((typeof named) === 'string') ? ` (${named})` : ''} names a field this command does not read: ${unread.join(', ')}. It reads ${BATCH_ENTRY_FIELDS.join(', ')}, so a field that would be dropped is refused rather than ignored.`,
+      `${at} names a field this command does not read: ${unread.join(', ')}. It reads ${BATCH_ENTRY_FIELDS.join(', ')}, so a field that would be dropped is refused rather than ignored.`,
     );
   },);
   return listed as readonly BatchEntry[];
@@ -325,7 +333,6 @@ export function retryWordsOf({
     `--memory=${entry.memory ?? BATCH_DEFAULT_MEMORY}`,
     `--tasks=${String(entry.tasks ?? BATCH_DEFAULT_TASK_COUNT,)}`,
     `--wall=${String(entry.wall ?? BATCH_DEFAULT_WALL_SECONDS,)}`,
-    ...((entry.run === undefined) ? [] : [`--run=${String(entry.run,)}`,]),
     ...((entry.base === undefined) ? [] : [`--base=${entry.base}`,]),
     ...((entry.provider === undefined) ? [] : [`--provider=${entry.provider}`,]),
     ...((entry.model === undefined) ? [] : [`--model=${entry.model}`,]),
