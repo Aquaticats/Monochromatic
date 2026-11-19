@@ -173,8 +173,14 @@ Not final and not approved: this session's own account.
   A container build of `zfsdev` was stopped at the host firewall: rootless podman's traffic reaches OpenSnitch as
   `passt.avx2`; the owner then had it allowed permanently and asked for the matching `mvm` switch, filed as issue 6312
   (`doc/troubleshooting/rootless-podman-traffic-reaches-opensnitch-as-pasta.md`).
-  **Next:** the snapshot blocklist question, then the design proposal with the binding's place and name, the
-  cross-vendor re-review, acceptance; the binding's tests run on a file-backed pool inside a throwaway VM.
+  The blocklist was answered the same evening (decision entry "ZFS snapshots: an explicit blocklist of seven
+  datasets"). **Going since 19:20-05:00:** the design proposal's writer, GPT 6.2 Sol through Pi, unit
+  `pi-zfs-worktree-design-proposal-writer-1`, run folder
+  `~/temp/agent/zfs-worktree-design-proposal-writer-2026-11-18/run-1` (brief `prompt.md` beside it), worktree
+  `.claude/worktrees/zfs-worktree-design-proposal` on branch `docs/planning-cli-git-zfs-worktree-design-proposal`,
+  writing `doc/planning/cli-git-zfs-worktree-design-proposal.md`. **Next:** read its report and commits, then a
+  cross-vendor re-review of the proposal (DeepSeek through Pi), fold the findings in, then the owner's acceptance;
+  the binding's tests run on a file-backed pool inside a throwaway VM.
 - **Reviewer bench (task 387):** all four resumed reviews ended `idle` on `opencode-go` with no rate-limit error
   (`a13faa0d55` runs 1 and 2: 92 and 152 turns; `3822c44c2f` run 1: 33; `915ef30e09` run 2: 49); all six now have a
   review. Nothing is scored yet.
