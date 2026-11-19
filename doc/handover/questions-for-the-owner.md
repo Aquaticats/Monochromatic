@@ -36,8 +36,11 @@ go into the plan's fix round, and leave this file once the accepted plan holds t
   "`mpm-shadow install [<tool>...]`": with a tool it still "installs every locked tool that is not at its locked
   version"). Adopted instead, narrower than the answer allowed and open to the owner's veto: step 1's checks run
   wholly in a container from the gate's base image, with `file-enforcer` and the repository linter taken inside it
-  from their lock rows' `linux-x64` archive and sha256 (rule `CM7`'s container route) and `cargo-fuzz` (no archive
-  row) from pacman or built inside the container; nothing is installed on the host.
+  from their lock rows' `linux-x64` archive and sha256 (rule `CM7`'s container route), and `cargo-fuzz` from pacman
+  if CachyOS packages it, else through `cargo-binstall`, the route its lock row names (`"route": "cargo-binstall"`,
+  version 0.13.2), with `cargo-binstall` itself from its lock row's archive (1.27.0); nothing is built from source and
+  nothing is installed on the host. The first wording said "built inside the container"; the owner asked
+  "Shouldn't cargo-fuzz be installed with cargo-binstall if pacman doesn't have it?", and the lock row confirms it.
 
 ## Answered in the question tool, recorded 2026-11-19T17:10:00-05:00
 
