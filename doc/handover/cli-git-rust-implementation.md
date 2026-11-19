@@ -40268,6 +40268,10 @@ arm" at P:503 and P:1115; the one remaining "no route passes" sentence (P:1595) 
 plan", "citations above" and "this check proposed" gone; no line over 120 outside fences; no dashes; `git diff --check`
 clean. **The proposal is ready for the owner's questions at `b5294a7325`** (eighteen open choices, four veto-open
 defaults; plain-words input in `keep/fifth-delta-check.md`, corrected by `keep/sixth-delta-check.md` item 1).
+**NEXT SESSION, FIRST:** ask the questions in `doc/handover/questions-for-the-owner.md`, section "Prepared overnight
+for the question tool, 2026-11-19T03:30:00-05:00" (the eighteen ZFS choices, the four defaults, the Qwen plan terms,
+`infinite:small:vision`'s place, the provider's four open points and its install), ranked as written, through the
+question tool four at a time, and record each answer where that section says.
 
 **Provider writer run-7** hit its 200-turn cap after 16 min with nine commits (`cb7d6a66ab` to `dbc6f57268`: OpenAI out
 of the writer pool, the move gated on OpenAI's opening, a set-aside policy stop yielded instead of a later 429, the
