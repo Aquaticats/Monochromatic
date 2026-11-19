@@ -39971,12 +39971,23 @@ What follows from them, as work:
   record and `doc/decision/cli-git-zfs-worktree-design.md`); the fold-in worktree is removed; the folded ZFS answers
   left the questions file, and the two pointers to the acceptance section now say it reads as recorded at
   `38ed22c5ea`.
-  GOING beside it, in the slot the LFS worktree freed: the implementation plan (nothing of the route is built yet: no
-  `package/zfs/`), `pi-zfs-worktree-implementation-plan` (DeepSeek on Neuralwatt, cap 635, wall 180 min) in
-  `.claude/worktrees/zfs-worktree-implementation-plan` on `docs/planning-cli-git-zfs-worktree-implementation-plan` from
-  `main`, reading the design from its branch and citing it by heading because the wording round moves its lines;
-  brief under `~/temp/agent/zfs-worktree-implementation-plan-2026-11-19/`. Then its short review, the plan to the owner,
-  and its first step. By the owner's answers of
+  ENDED: the implementation plan run, `pi-zfs-worktree-implementation-plan` (DeepSeek on Neuralwatt, cap 635), `idle`
+  after 149 turns and 11 min 31 s, in `.claude/worktrees/zfs-worktree-implementation-plan` on
+  `docs/planning-cli-git-zfs-worktree-implementation-plan`: `doc/planning/cli-git-zfs-worktree-implementation-plan.md`
+  (non-final, unapproved) in `5ccd6146f4` and `cadaf26e0e`; report
+  `~/temp/agent/zfs-worktree-implementation-plan-2026-11-19/keep/report.md`. By its report: 23 steps in build order;
+  step 1 (the binding package and codec) needs no open item and no wrapper gate; steps 6, 9, 11, 13, 14, 16, 17 and 19
+  wait on named open items; three blocking designs (start probe, runtime layout checker, staging) are writer design
+  work; two dependencies are left to their steps (the BTF reader, the release path for a second executable). Its plan
+  still says the design is not in `main` (written before the merge). `main` was merged into the plan branch so links
+  resolve in one tree. The coordinator's mechanical check (script `check-the-plan-mechanically.ts` under
+  `~/temp/agent/zfs-worktree-implementation-plan-gate-review-2026-11-19/`, a planted fake quote flagged as the
+  positive control): 292 of 310 double-quoted strings are design headings or verbatim design text; the other 18 are
+  design sentences whose reference labels the plan dropped, two quotes from other files, the handover's gate entry,
+  and headings the plan proposes for `SPEC.md`; the renamed heading's old name is absent; no line, dash, table or
+  link problem. NEXT: a Sonnet gate review of the plan (rule `LHZ`: the plan goes to the owner for acceptance, so it
+  replaces the short review promised earlier), one fix round, then the plan to the owner, then step 1. By the owner's
+  answers of
   2026-11-19T17:10:00-05:00 (questions file) the LFS review and the provider rebuild finish and nothing else off the
   ZFS path starts, and owner questions off the ZFS path wait in the questions file (new rule `QWP`).
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
