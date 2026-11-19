@@ -40037,7 +40037,10 @@ But every Pi run tonight left files at `/tmp/pi-bash-*.log` and `/tmp/pi-codemod
 Node's `os.tmpdir()` (`@earendil-works/pi-coding-agent` 1.5.2 `dist/utils/output-files.js:16`), which is `/tmp` unless
 `TMPDIR` is set (real invocation: `TMPDIR=<folder> node --print "require('node:os').tmpdir()"` printed the folder, and
 `/tmp` without it). Neither the launch line nor the driver sets it, and a brief cannot reach what Pi writes itself.
-Done: the pi-as-subagent skill's launch example now passes `--setenv=TMPDIR=<run>/tmp` (made first), with the reason.
+Done: the pi-as-subagent skill's launch example now passes `--setenv=TMPDIR=<run>-tmp` (made first), with the reason.
+**Correction (same night):** the first version said `<run>/tmp`, inside the run folder; the driver refuses a run folder
+that holds anything (`write-summary.ts:212`, `RunFolderHoldsAnEarlierAttemptError`), found when the benchmark's twelve
+runs all exited in under half a second, so the folder now sits beside the run folder.
 Owed, as the driver package's defect: the driver sets `TMPDIR` to a folder inside the run folder for the Pi it starts,
 with a test, so no launch line can forget it. The review started just before this (`...-at-a4b227503a-1`) still spills
 to `/tmp`; it was left running.
