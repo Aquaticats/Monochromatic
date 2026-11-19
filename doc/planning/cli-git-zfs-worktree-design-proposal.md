@@ -663,13 +663,21 @@ until the wrapper is built. The [VM measurement record][measurements] is being p
 - Have a fresh process with no inherited mount descriptors reopen and verify an already-attached clone and
   move it to staging. Include wrong-mount and changed-path controls. The nested-clone guest used the original
   `fsmount` descriptor for the move (`guest-extra-commands.txt:158` and `:171` to `:175`).
+- Run on an encrypted file-backed pool shaped like this host. Read-only `zfs get` reported `aes-256-gcm`,
+  encryption root `zpcachyos`, `recordsize=32K` and `compression=zstd-3` for home. Use the VM's own pool,
+  key and corresponding inherited properties, never the host's key or device. Test loaded and unloaded key
+  states for handler readiness, attach and clone fill, with same-dataset reflink and cross-dataset controls
+  that distinguish a shared data key from separately created data keys. The nested-clone probe used an
+  unencrypted pool; matching behavior on the encrypted fixture is pending in the [VM record][measurements].
 - Promote a disposable checkout clone in the VM. Record origin/dependency reversal, exact snapshot names and GUIDs
   before and after, and destruction refusals. Do not treat that VM operation as permission to promote live clones.
 
 ## Acceptance tests the build still owes
 
 Run with the built wrapper and handler on a disposable VM's file-backed pool, without passing through the host's
-pool or `/dev/zfs`. Test root installation and then the account with only the proposed delegation. Capture versions,
+pool or `/dev/zfs`. Repeat the [host-shaped encrypted fixture](#measurements-due-before-design-acceptance) with the
+built programs, including an unloaded-key control for the handler and clone fill. Test root installation and then
+the account with only the proposed delegation. Capture versions,
 assertions and controls, not just logs. Make the VM recipe reproducible: retry the documented `mvm` template route
 that failed with `guest agent on template-setup did not respond within 120s`, or verify and document the disposable
 QEMU recipe using the same OpenZFS version. Retain evidence of guest and pool teardown, not system changes on the
