@@ -39858,7 +39858,10 @@ themselves and are not stopped. No queue entry starts until the ZFS route is in 
 waits with it: its probe had not run anyway, because since 2026-11-18T19:35:41-05:00 every user unit inherits
 `NODE_OPTIONS=--permission-audit` (`doc/research/node-permission-default-with-npm.md`, "Persistent audit default on
 CachyOS"), and under it Node 26.13.1 refuses `fsyncSync` ("fsync API is disabled when Permission Model is enabled"),
-which the probe calls; no TypeScript file under `package/` calls `fsync`, so runs are not affected by that refusal.
+which the probe calls; no TypeScript file under `package/` calls `fsync`, so this repository's code does not meet that
+refusal (third-party tools the runs call are not checked). The owner, plain text: "I turned on the permission model by
+default. And we should figure out how to work with it, not disable it." So nothing here clears `NODE_OPTIONS`; the
+probe is to be changed to sync in a way the model allows, found and measured before the cap search resumes.
 
 ### The queue runs again, reviews on the Qwen plan first (2026-11-18T21:18:17-05:00)
 
