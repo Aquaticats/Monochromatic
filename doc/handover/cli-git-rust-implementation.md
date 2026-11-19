@@ -40068,8 +40068,22 @@ What follows from them, as work:
   three missing ways. GOING: a fix round for each, `pi-zfs-start-probe-design-gate-review-findings-fixed` and
   `pi-zfs-staging-under-cache-design-gate-review-findings-fixed` (DeepSeek on Neuralwatt, cap 450, in each design's
   worktree; briefs under `~/temp/agent/zfs-start-probe-design-gate-review-findings-fixed-2026-11-19/` and
-  `~/temp/agent/zfs-staging-under-cache-design-gate-review-findings-fixed-2026-11-19/`); the layout checker's review is
-  still going. By the owner's answers of
+  `~/temp/agent/zfs-staging-under-cache-design-gate-review-findings-fixed-2026-11-19/`). START PROBE FIX ROUND ENDED
+  (`idle`, 100 turns, `eee32e31fd` and `fa52e2e948`, 1,137 lines; report in its folder's `keep/report.md`): every
+  finding answered; F1 by option (a), the probe's arms 5 and 6 as its own code with a path unmount only inside its
+  root-only tmpfs under `RuntimeDirectory=git-worktree-clone-mount-probe`; baseline holder scan and `st_dev` proof; Way 2
+  ruled out; a setup-time probe dataset added as Way 5 and ranked first; owner questions now Q1 (which start), Q2 (what a
+  failed arm disables, per arm), Q3 (unexercised arm enables or not), Q4 (missed deadline fails closed), Q5 (setup
+  dataset), Q6 (account companion); disagreements argued. GOING: a Sonnet gate re-check of the revision (brief under
+  `~/temp/agent/zfs-start-probe-design-revision-gate-recheck-2026-11-19/`). LAYOUT CHECKER REVIEW BACK (that folder's
+  `keep/review.md`): no high; mediums F1 (the pre-scan's "string section ends the file" refuses this host's own vmlinux,
+  whose layout section sits between types and strings at v7.3), F2 and F3 (2.2.2 differs from 2.4.4 also by the
+  anonymous union and `dds_flags`, and its version string stops the gate before the layout compare, so owed measurement
+  2 cannot reach its assertion), F4 (the ioctl-first way is inadmissible), F5 to F10 (the reader question framed on the
+  writer's weights, scoring and cost basis, a false `libbpf-rs` licence exit, discovery not saturated, Q2 to Q4 not all
+  real choices, crate placement stated as decided), F11 (step 2's guest needs a module with BTF). GOING: its fix round
+  `pi-zfs-runtime-layout-checker-design-gate-review-findings-fixed` (DeepSeek on Neuralwatt, cap 450; brief under
+  `~/temp/agent/zfs-runtime-layout-checker-design-gate-review-findings-fixed-2026-11-19/`). By the owner's answers of
   2026-11-19T17:10:00-05:00 (questions file) the LFS review and the provider rebuild finish and nothing else off the
   ZFS path starts, and owner questions off the ZFS path wait in the questions file (new rule `QWP`).
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
@@ -40330,7 +40344,21 @@ What follows from them, as work:
   https://github.com/Aquaticats/Monochromatic/commit/5825b51390e562efb68403fbe90d37cec817b1d0#commitcomment-210942807).
   The review worktree was removed. GOING: the second fix round `pi-rate-limit-fallback-hybrid-delta-review-findings-fixed`
   (DeepSeek on Neuralwatt, cap 420) in the rebuild worktree, findings 1 to 4; brief under
-  `~/temp/agent/rate-limit-fallback-hybrid-delta-review-findings-fixed-2026-11-19/`. Then the merge
+  `~/temp/agent/rate-limit-fallback-hybrid-delta-review-findings-fixed-2026-11-19/`. It ended `idle` (115 turns) at
+  `67a0cef5e0`: a case pinning OpenAI's opening over a transient 503, red against the reordering patch; README and
+  captures qualified; the 522 citation narrowed and "no capture records" corrected; a zero-ceiling case asserting the
+  `info` level, the member and the publishing reading's time, red against both mutations (it staged the later failed
+  read on an attempt admitted before the zero, since a zero-ceiling member is never dispatched again, which holds). The
+  coordinator ran the package's unit suites on that tip (nine PASS) and found every changed path inside the package.
+  IN MAIN: merged `--no-ff` (main `bdec534b28`, pushed); the rebuild worktree went to the commit service for removal.
+  The installed `dist` in the main checkout was rebuilt (`index.mjs` 62.04 kB) and `pi --list-models
+  rate-limit-fallback` lists `reviewer`, `reviewer-pool`, `writer` and `writer-pool` (128K window, 16.4K output).
+  GOING for the README's precondition (task 396): `pi-rate-limit-fallback-quota-read-deadline-live-measurement`
+  (DeepSeek on Neuralwatt, cap 420) in `.claude/worktrees/pi-rate-limit-fallback-quota-read-deadline-live-measurement`
+  on `feat/pi-plugin-rate-limit-fallback-quota-read-deadline-from-a-live-endpoint-measurement`: real quota reads
+  through the package's own code and Pi's registry, interleaved with a same-host control, the deadline
+  `QUOTA_READ_TIMEOUT_MS` set from it with the measurement cited beside the value, no credential printed; brief under
+  `~/temp/agent/rate-limit-fallback-quota-read-deadline-live-measurement-2026-11-19/`. Then its short review, the merge
   and the installed dist's rebuild, then the live quota check (task 396). The driver pool table (task 383)
   waits on more than a slot: it changes `pool-limits.ts`, as the unmerged `ecec388cdb` does (13 files; its review
   queued 2026-11-16 and never started), and the entry of 2026-11-16 on the second timing of the two pools puts
