@@ -18,6 +18,22 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Answered in the question tool, recorded 2026-11-19T17:36:44-05:00
+
+Two choices the Sonnet gate review of the ZFS implementation plan raised
+(`~/temp/agent/zfs-worktree-implementation-plan-gate-review-2026-11-19/keep/review.md`, findings F19 and F10). Both
+go into the plan's fix round, and leave this file once the accepted plan holds them:
+
+- Dirty main checkout until the verified dirty restore lands (plan step 11): "Ship step 10 first (Recommended)".
+  Step 10 ships the clean-source clone add first; while step 11 is unlanded, an add from a dirty main checkout takes
+  the ordinary Git route, as today. The design's "Verified restore (Recommended)" still decides what step 11 builds.
+- Step 1's merge path, with `cargo-nextest`, `cargo-fuzz`, `file-enforcer` and the repository linter not installed
+  here and the toolchain install placed after the mpm-shadow change by the answer of 2026-11-17: "Container, narrow
+  install (Recommended)". Step 1's tests and Clippy run in the wrapper's gate image (`cargo-nextest` and Rust from
+  pacman, `package/git-policy/cli/native-test-base.Containerfile`); only the tools no image gives are installed now,
+  one at a time from their lock rows; the full toolchain install still waits for the mpm-shadow change. Not yet
+  checked: whether a one-tool install exists; if none does, this comes back to the owner.
+
 ## Answered in the question tool, recorded 2026-11-19T17:10:00-05:00
 
 After the owner asked "And why are you asking about lfs now when we're working on zfs?" (the LFS questions of the

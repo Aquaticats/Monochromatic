@@ -39985,9 +39985,23 @@ What follows from them, as work:
   positive control): 292 of 310 double-quoted strings are design headings or verbatim design text; the other 18 are
   design sentences whose reference labels the plan dropped, two quotes from other files, the handover's gate entry,
   and headings the plan proposes for `SPEC.md`; the renamed heading's old name is absent; no line, dash, table or
-  link problem. NEXT: a Sonnet gate review of the plan (rule `LHZ`: the plan goes to the owner for acceptance, so it
-  replaces the short review promised earlier), one fix round, then the plan to the owner, then step 1. By the owner's
-  answers of
+  link problem. The Sonnet gate review of the plan (rule `LHZ`: the plan goes to the owner for acceptance, so it
+  replaced the short review promised earlier) returned at `2e4369ad76`
+  (`~/temp/agent/zfs-worktree-implementation-plan-gate-review-2026-11-19/keep/review.md`; 4 high, 18 medium, 10 low;
+  every acceptance entry, open item and VM item reached by some step; no step sends a changing request to `zpcachyos`
+  or starts a service manager on the host). The four highs: step 14 needs a clone destroyed by step 15, which depends
+  on it; no step builds the root handler's all-namespace holder scan; the deferred-origin check the owner placed
+  before the first snapshot delete is built after it (step 16 after step 15); nothing records the `.claude/worktrees`
+  identity at setup or builds the adoption mode. Among the mediums: "can start now" does not match the dependency
+  lists; nothing says applying anything to this host needs the owner's authorisation; step 1 is writable now but
+  mergeable only once `cargo-nextest`, `cargo-fuzz`, `file-enforcer` and the repository linter exist here (all four
+  absent; the toolchain install waits for the mpm-shadow change by the answer of 2026-11-17). All 32 accepted. The
+  owner then answered two through the question tool (questions file, section recorded 2026-11-19T17:36:44-05:00):
+  "Ship step 10 first (Recommended)" and "Container, narrow install (Recommended)". GOING: the fix round
+  `pi-zfs-worktree-implementation-plan-gate-review-findings-fixed` (DeepSeek on Neuralwatt, cap 635) in the plan's
+  worktree; brief under `~/temp/agent/zfs-worktree-implementation-plan-gate-review-findings-fixed-2026-11-19/`, the
+  two answers sent to it through its inbox. Then the coordinator's check, the plan to the owner for acceptance, then
+  step 1. By the owner's answers of
   2026-11-19T17:10:00-05:00 (questions file) the LFS review and the provider rebuild finish and nothing else off the
   ZFS path starts, and owner questions off the ZFS path wait in the questions file (new rule `QWP`).
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
