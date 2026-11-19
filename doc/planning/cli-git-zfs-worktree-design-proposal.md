@@ -23,7 +23,8 @@ This revision changes documentation only; it does not install, implement or alte
 ## Requirements and module ownership
 
 The project chose "ZED, Clones, reflink. There is a reason we have a doctor subcommand." The Git wrapper owns Git
-validation and registration, the unprivileged snapshot and clone lifecycle, and the same-dataset reflink fallback.
+validation and registration, the unprivileged snapshot and clone creation, the removal workflow and the same-dataset reflink fallback.
+Who executes managed clone destruction is an [open choice](#clone-removal-identity-protection).
 The root-installed ZFS Event Daemon (ZED) handler and its lifecycle unit own clone mount and unmount, not Git
 or automatic deletion.
 The Rust binding owns the `/dev/zfs` request format, not ownership policy for Git worktrees or snapshots.
@@ -199,13 +200,16 @@ prove the failure control and production ordering for the selected option before
 
 Root configuration pins the account UID, the checkout path, pool and dataset names and GUIDs. The proposed
 unprivileged lifecycle needs `snapshot` local to the checkout dataset, `clone` on its descendants (snapshots count
-as descendants), `create,mount` local to the clone parent, and `mount,destroy,userprop` on the clone parent's
-descendants. Checkout-origin deletion is separately open: adding `mount,destroy` on checkout descendants
+as descendants), `create,mount` local to the clone parent, and `mount,userprop` on the clone parent's descendants. Add `destroy` there only under the delegated
+[clone removal option](#clone-removal-identity-protection) (design alternatives, not product-tested).
+Checkout-origin deletion is separately open: adding `mount,destroy` on checkout descendants
 lets the account destroy **any checkout snapshot**, not just wrapper origins, but not the checkout dataset itself.
 Do not assume those snapshots protect against that account or put unrelated ZFS descendants there.
 
 The `mount` grant is an ioctl prerequisite, not Linux mount-namespace authority. Do not grant `mountpoint`,
-`canmount`, `setuid`, `devices`, `rename`, `promote` or permissions over the whole home tree.
+`canmount`, `setuid`, `devices`, `rename`, `promote`, `receive` (including `receive:append`) or permissions over the
+whole home tree. The removal threat boundary relies on the absence of lineage-changing grants (reasoning from
+[VM items 11][vm-promote] and [12][vm-replacement], to be checked in the product).
 OpenZFS `zfs-2.4.4` sources: `man/man8/zfs-allow.8:110` to `:120`,
 `module/zfs/dsl_deleg.c:574` to `:582`, and `module/zfs/zfs_ioctl.c:826` to `:832`, `:1005` to `:1037` and
 `:1128` to `:1148`.
@@ -528,13 +532,11 @@ history.
 3.  After unmount and before the first delete, reprove lineage and persist the verified snapshot inventory and
     the expected clone identity as the destruction plan. Revalidate the recorded lineage and each candidate's
     identity before each explicit snapshot destroy, then destroy only the verified unmounted clone. Address
-    name-based requests safely: per-slot claims serialize cooperating wrapper operations, not outside ZFS
-    actors. Prove identities cannot change between validation and use, by enforced exclusion of name and
-    lineage changes or by a verified identity-conditional operation. A second GUID read alone cannot prove
-    that. The proposed delegated route has not established this guarantee for same-name replacement; until
-    it does, fail closed rather than delete by name across an unproved interval. Do not grant `promote` or
-    `rename` to the account; administrator lineage changes must quiesce managed operations and invalidate
-    affected removal proofs. Holds and dependencies are named, not bypassed. Stop on a changed inventory and
+    [identity at destruction](#clone-removal-identity-protection) under the policy still to be selected. A per-slot
+    claim only serializes cooperating wrapper operations. [VM item 12][vm-replacement] shows that a second GUID read
+    alone cannot close the name-based check/use interval. Under either option, administrators must quiesce managed
+    operations before outside lineage changes and invalidate affected removal proofs (unmeasured operating rule).
+    Holds and dependencies are named, not bypassed. Stop on a changed inventory and
     reprove scope before authorizing any revised plan. Print what actually disappeared and what remains,
     including on partial failure, and retain per-name results for recovery.
 4.  For separate origin cleanup, prove the exact recorded origin dataset and snapshot GUIDs and confirm that
@@ -729,7 +731,10 @@ status. `doctor` does not start a service, create a test dataset, repair registr
 - Check recorded parent and slot identities and name the failing field or path component. For a legitimately
   recreated parent, print the administrator's verified `adopt-worktree-parent` command and prerequisites, any
   binding that needs separate recovery, and the applicable fallback for an unused slot. Inspect effective
-  delegation including ancestor grants. Print scoped commands such as `zfs allow -l -u` and `zfs allow -d -u`
+  delegation including ancestor grants, account groups and grants to everyone. For managed removal, check that
+  `promote`, `rename`, `receive` and `receive:append` are absent, and that the account cannot destroy managed clones
+  or their snapshots if root conditional destroy is selected (proposed checks for [item 12][vm-replacement]).
+  Print scoped commands such as `zfs allow -l -u` and `zfs allow -d -u`
   with the actual account and datasets, only for grants in the selected policy. Do not grant origin cleanup more
   broadly just to make an interrupted command pass.
 - Check the handler installation, config and root-owned state and result directories, ZED and service wiring,
@@ -825,6 +830,39 @@ in the ranking. Use the VM findings and identify what remains unmeasured; a rank
   first preserves Git visibility but reserves the slot until cleanup; the second frees the slot but requires
   recovery without its Git entry. [VM item 11][vm-promote] showed a dependency blocking a snapshot delete, not
   either registration policy. If clone lineage itself is unproved, removal refuses and keeps the registration.
+
+### Clone removal identity protection
+
+This is one open project choice, independent of who cleans up a checkout origin. Neither option changes
+"B: Destroy at once" ([project decision][answers], lines 491 to 494).
+
+[VM item 12][vm-replacement] measured the delegated account destroying an unmounted clone and reusing its name,
+including with another clone of the same origin. A fresh GUID read can see a replacement but does not bind a later
+name-based request to that GUID (`module/zfs/zfs_ioctl.c:2244` to `:2300` and `:4105` to `:4150`, OpenZFS `zfs-2.4.4`).
+The fixture's root channel program refused stale tuples for both replacements and destroyed on a matching tuple;
+the account's attempt with a matching tuple was denied. The substitutions were sequenced, not concurrent.
+
+- Scope delegated destruction to protecting foreign history. Keep descendant `destroy` and require `doctor` and
+  removal preflight to verify the scoped effective grants. Without `promote`, `rename` or `receive` authority, the
+  delegated account cannot move foreign history into the removal set (reasoning from the grant model and items 11
+  and 12, not a measured proof of all routes). Require administrators to quiesce operations before changing
+  lineage or delegations. This option explicitly accepts the account-versus-itself residual: a noncooperating
+  process of the same account can substitute its own objects between a check and a named delete. It neither
+  prevents that loss nor protects against an administrator who bypasses quiescence.
+- Use root-run identity-conditional destruction. Remove effective account `destroy` for managed clones and their
+  snapshots; the delegated route does not destroy them. Propose a separate root-installed managed removal operation,
+  owned by the wrapper's removal workflow, not the mount handler. Its sole input is a request to remove a recorded
+  managed binding, not caller-supplied code, an arbitrary target or an administrator shell. Authenticate the caller
+  against the configured UID and verify the binding and target scope against independently root-controlled state.
+  Use a typed `ZFS_IOC_CHANNEL_PROGRAM` request (`0x5a48`, OpenZFS `zfs-2.4.4`, `include/sys/fs/zfs.h:1556`), with a
+  fixed root-owned program and exact identity tuples. Check the expected clone GUID, origin and `createtxg` and the
+  approved history identities in the program, not just before submission. The program excludes concurrent ZFS admin
+  changes while it runs (`man/man8/zfs-program.8:35` to `:40`); it does not settle Linux mount or Git races. This
+  adds a privileged request and recovery surface. Before enabling it, prove scope against spoofed or replayed
+  requests and same-name replacements. Persist the verified plan under root control before mutation; after a lost
+  response or restart, prove which recorded identities survive or are gone before resuming, never replay by name.
+  Item 12 proved only a single conditional clone destroy, not the request interface, multi-object destruction or
+  recovery; those are unmeasured design requirements.
 
 ## Pre-acceptance VM measurements
 
@@ -960,8 +998,12 @@ system changes on the host. These gates carry the [handover's H1 and H2 disposit
 - Repeat [VM item 11][vm-promote] against the binding's promote primitive. With the built wrapper, refuse a
   promoted or mismatched clone before the first snapshot delete, and assert that every protected snapshot GUID
   survives. Include a verified unpromoted clone with manual and sanoid snapshots as the removal control. Test
-  proof invalidation after administrator lineage changes. Prove name-based requests cannot reach a replacement
-  between validation and use, or verify refusal when that protection is unavailable.
+  proof invalidation after administrator lineage changes. Repeat [VM item 12][vm-replacement] for the selected
+  [identity policy](#clone-removal-identity-protection): verify absence of the lineage-changing grants for delegated
+  destruction and exercise the declared same-account residual; or prove conditional refusal for a stale identity,
+  successful destroy on a match, no delegated destroy, and recovery after interruption for root destruction.
+  Under either policy an ordinary authorized removal must destroy the verified clone and its own snapshots and
+  print the loss in the same invocation. Refusal controls test unsafe cases; a route that only refuses does not pass.
 - Kill removal across unmount, snapshot destruction, clone and origin cleanup, and Git and directory cleanup.
   Verify busy and staged mounts, nested datasets, same-name replacements, held or new sanoid snapshots and another
   clone pinning the origin each block the unsafe next action. Check the before-destroy inventory and final loss
@@ -1076,6 +1118,7 @@ Items refer to the [nested-clone research][nested]. Tests that close remaining e
 [vm-legacy]: cli-git-zfs-measurements-owed-before-acceptance.md#10-explicit-zfs-mount-of-a-legacy-clone
 [vm-promote]: cli-git-zfs-measurements-owed-before-acceptance.md#11-promote-and-the-checkouts-snapshot-history
 [vm-limits]: cli-git-zfs-measurements-owed-before-acceptance.md#what-this-did-not-show
+[vm-replacement]: cli-git-zfs-measurements-owed-before-acceptance.md#12-same-name-replacement-with-delegated-grants
 [answers]: cli-git-zfs-worktree.md#owners-answers-of-2026-11-18
 [zfs-plan]: cli-git-zfs-worktree.md
 [handover]: ../handover/cli-git-rust-implementation.md
