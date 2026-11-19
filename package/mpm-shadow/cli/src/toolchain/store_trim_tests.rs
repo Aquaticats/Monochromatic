@@ -1956,7 +1956,7 @@ fn keeps_a_copy_aside_when_the_process_table_could_not_be_read_in_full() {
     let marker: PathBuf = tombstone_of(&version);
     fs::rename(&version, &marker).expect("move the version aside");
     let mut holders: StoreHolders = holders_of_fixture(std::slice::from_ref(&fixture.root));
-    holders.opaque.push(OpaqueProcess { pid: 4242, comm: "fd".to_string() });
+    holders.opaque.push(OpaqueProcess { pid: 4242, comm: "fd".to_string(), started_before: None });
     holders.incomplete = crate::toolchain::store_path_holders::undescribed_reason(&holders.opaque);
 
     let finished = finish_removals(&TrimRun { bounds: fixture.run().bounds, started: Instant::now(), roots: vec![fixture.root.clone()], holders: Some(holders), locks: Vec::new() });
@@ -1991,7 +1991,7 @@ fn removes_nothing_when_a_process_cannot_be_described() {
     let context =
         Context { scope: &scope, env: &env_holding, runner: &runner, http: &NoNetwork, host: &host, tools: &[] };
     let mut holders: StoreHolders = holders_of_fixture(std::slice::from_ref(&store));
-    holders.opaque.push(OpaqueProcess { pid: 4242, comm: "fd".to_string() });
+    holders.opaque.push(OpaqueProcess { pid: 4242, comm: "fd".to_string(), started_before: None });
     holders.incomplete = crate::toolchain::store_path_holders::undescribed_reason(&holders.opaque);
 
     trim_after_install_with(&context, &[("unrelated".to_string(), "1.0.0".to_string())], Some(holders));
@@ -2638,4 +2638,36 @@ fn deletes_an_obsolete_flat_download_under_the_byte_bound() {
     assert!(!flat.exists(), "obsolete flat download survived under the byte bound");
     assert!(partial.exists(), "the flat cleanup removed a download in flight");
     assert!(version.join("program").exists(), "the flat cleanup removed the pinned install");
+}
+
+/// Recovery considers a hidden process independently from a scan that could not finish.
+#[cfg(target_os = "linux")]
+#[test]
+fn recovery_compares_hidden_process_start_to_the_actual_tree_age() {
+    let fixture = Fixture::new();
+    let deleting = crate::toolchain::store_versions::deleting_of(&tombstone_of(&fixture.root.join("node/20.0.0")));
+    let payload = deleting.join("surviving-user-data");
+    // Read actual birth evidence from the disposable object, not an altered write time.
+    fs::create_dir_all(&deleting).expect("make the interrupted deletion tree");
+    fs::write(&payload, b"must remain when the process may hold it").expect("write surviving data");
+    let born = fs::symlink_metadata(&deleting).expect("read the tree's identity").created().expect("fixture supports birth time");
+    let old = std::time::UNIX_EPOCH;
+    // Neither equality nor absence proves that an opaque process predates this tree.
+    for (started_before, incomplete, expected) in [
+        (Some(born), None, true),
+        (None, None, true),
+        (Some(old), Some("the scan ran out of time".to_string()), true),
+        (Some(old), None, false),
+    ] {
+        let mut run = fixture.run();
+        // This is an injected observation, not a real process or a PID to signal.
+        run.holders = Some(StoreHolders {
+            incomplete,
+            opaque: vec![OpaqueProcess { pid: 4242, comm: "opaque".to_string(), started_before }],
+            ..StoreHolders::default()
+        });
+        let result = finish_removals(&run);
+        // Confirm the same otherwise-deletable object stays until the evidence clearly allows deletion.
+        assert_eq!(payload.exists(), expected, "hidden process age rule did not respect the evidence: {result:?}");
+    }
 }

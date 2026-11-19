@@ -69,6 +69,8 @@ pub struct OpaqueProcess {
     /// The name the process calls itself (`/proc/<pid>/comm`),
     /// which is the only thing the kernel still says about it.
     pub comm: String,
+    /// Conservative upper bound on the process start, absent if the clock or the row could not be read.
+    pub started_before: Option<std::time::SystemTime>,
 }
 
 /// What a scan of the process table found.
@@ -287,7 +289,8 @@ pub fn holders_of(store_roots: &[PathBuf], deadline: Instant) -> StoreHolders {
                 .unwrap_or_default()
                 .trim()
                 .to_string();
-            holders.opaque.push(OpaqueProcess { pid: *pid, comm });
+            // The cleanup fixture can supply evidence before the Linux scan learns to read it.
+            holders.opaque.push(OpaqueProcess { pid: *pid, comm, started_before: None });
         }
     }
     // What: a process the kernel refuses to describe makes the whole scan incomplete.

@@ -109,8 +109,8 @@ fn reports_a_scan_that_ran_out_of_time() {
 #[test]
 fn calls_the_scan_incomplete_when_a_process_cannot_be_described() {
     let opaque: Vec<OpaqueProcess> = vec![
-        OpaqueProcess { pid: 4242, comm: "fd".to_string() },
-        OpaqueProcess { pid: 4243, comm: "keepassxc".to_string() },
+        OpaqueProcess { pid: 4242, comm: "fd".to_string(), started_before: None },
+        OpaqueProcess { pid: 4243, comm: "keepassxc".to_string(), started_before: None },
     ];
 
     let reason: String = undescribed_reason(&opaque).expect("two processes cannot be described");
