@@ -48,6 +48,7 @@ use crate::package_repair_cargo_clean_in_mirror::{MirrorClean, clean_in_a_mirror
 use crate::package_repair_cargo_lock::LOCK_FILE;
 use crate::package_repair_command::{ToolCommand, ToolEnd, ToolLimits, ToolRun, find_program, run_tool_awaiting};
 use crate::package_repair_prewarm::{BUILD_DIRECTORY_VARIABLE, PrewarmEntry, STAGING_SUFFIX, TARGET_DIRECTORY_VARIABLE, decode};
+pub(crate) use crate::package_repair_prewarm_a_held_name::{TheDirectory, TheNameThisRunHolds, a_name_only_this_run_holds};
 use crate::package_repair_prewarm_claim::{TheClaim, TheLease, claim_the_names, claim_the_names_at, lease_of};
 use crate::package_repair_request::RepairEnvironment;
 // The marker's own vocabulary, reading and writing live beside this job
@@ -266,7 +267,7 @@ impl AStep {
     /// The mirror's clean and the failed move aside's removals are reached only on a path a control
     /// takes on purpose, and their own controls reach them.
     #[cfg(test)]
-    pub(crate) const EVERY: [AStep; 18] = [
+    pub(crate) const EVERY: [AStep; 20] = [
         AStep::BeforeTheNamesAreTaken,
         AStep::AfterTheLeaseIsTaken,
         AStep::AfterTheMarkerIsRead,
@@ -278,7 +279,9 @@ impl AStep {
         AStep::BeforeTheChildIsGivenItsPaths,
         AStep::AfterTheClean,
         AStep::BeforeTheClaimedDirectoryIsTakenAside,
+        AStep::BeforeTheHeldDirectoryIsRemoved,
         AStep::BeforeTheMarkerIsTakenAside,
+        AStep::BeforeTheHeldMarkerIsRemoved,
         AStep::BeforeThePublishTakesTheCopyAside,
         AStep::BeforeThePublish,
         AStep::AfterThePublish,
@@ -327,21 +330,6 @@ fn a_step(step: AStep) -> bool {
 }
 
 /// What:
-///  The same boundary, for the marker module, whose removals are steps of this filling.
-/// Why:
-///   A control plants the entry at the act, and the act of taking a marker back lives in the marker file;
-/// this is the one hook both files read.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const aStepFromTheMarker = (step) => aStep(step);
-/// ```
-#[cfg(test)]
-pub(crate) fn a_step_from_the_marker(step: AStep) -> bool {
-    return a_step(step);
-}
-
-/// What:
 ///  What a filling answers when a control stops it at one of its boundaries.
 /// Why:
 ///   Every boundary is reached by `a_step`,
@@ -354,6 +342,34 @@ pub(crate) fn a_step_from_the_marker(step: AStep) -> bool {
 /// ```
 fn stop_words() -> String {
     return String::from("the filling stopped at a boundary for a control");
+}
+
+/// What:
+///  Whether a control stops the filling here, which only a control's hook can do.
+/// Why:
+///   The marker's own removal is a step of this filling,
+/// so its boundary is read from this file, where the hook and the list of steps live.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const beforeTheMarkerIsTakenAside = () => aStep(AStep.BeforeTheMarkerIsTakenAside);
+/// ```
+fn before_the_marker_is_taken_aside() -> bool {
+    return a_step(AStep::BeforeTheMarkerIsTakenAside);
+}
+
+/// What:
+///  The same boundary at the unlink of the marker this run took aside.
+/// Why:
+///   A control plants the entry the unlink will meet there,
+/// which is the second act of taking a marker back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const beforeTheHeldMarkerIsRemoved = () => aStep(AStep.BeforeTheHeldMarkerIsRemoved);
+/// ```
+fn before_the_held_marker_is_removed() -> bool {
+    return a_step(AStep::BeforeTheHeldMarkerIsRemoved);
 }
 
 /// What:
@@ -448,12 +464,19 @@ fn the_entry_is_still_this_runs(directory: &TheDirectory, named: &Path, to: &Pat
 /// or one whose claim names another build directory,
 /// is left where it stands and the filling says so:
 /// a directory left behind costs disk, and a person's file removed is what the rules forbid.
+///   The entry is taken aside first, never replacing anything, to a name only this run holds,
+/// so the claim is read again at the entry the removal actually reaches,
+/// and an entry another command put at the name after the check is put back and left.
 ///
 /// # Errors
 ///
-/// A claimed directory that cannot be removed.
+/// A claimed directory that cannot be taken aside or removed.
 fn remove_the_claimed_directory(directory: &TheDirectory, named: &Path, to: &Path) -> Result<TheRemoval, String> {
     let at: PathBuf = directory.along(named);
+    let Some(before) = TheEntry::at(at.as_path()) else {
+        debug(TAG, format!("{} holds nothing this job made for {}, so it is left as it is found", named.display(), to.display()).as_str());
+        return Ok(TheRemoval::Left);
+    };
     let carries: bool = matches!(the_claim_a_directory_carries(at.as_path()), Some(claim) if claim.to == to);
     if !carries {
         debug(
@@ -465,119 +488,79 @@ fn remove_the_claimed_directory(directory: &TheDirectory, named: &Path, to: &Pat
     if a_step(AStep::BeforeTheClaimedDirectoryIsTakenAside) {
         return Err(stop_words());
     }
-    remove_if_any(at.as_path())?;
+    // The act reaches this entry and no longer the public name: whatever is at the name after this step is not removed.
+    let aside: PathBuf = a_name_only_this_run_holds(named);
+    let Some(held) = directory.take_aside(named, aside.as_path())? else {
+        debug(TAG, format!("{} went before it could be taken aside, so nothing of {} was removed", named.display(), to.display()).as_str());
+        return Ok(TheRemoval::Left);
+    };
+    // The claim is read again at the entry this run now holds, and the entry is compared with the one the check saw.
+    let met: TheEntry = TheEntry::at(held.at()).unwrap_or(before);
+    let still: bool = matches!(the_claim_a_directory_carries(held.at()), Some(claim) if claim.to == to);
+    if met != before || !still {
+        directory.put_back(&held, named)?;
+        debug(
+            TAG,
+            format!(
+                "{} was replaced while this run read it, so what was found there is put back and left for {}, and nothing of it was removed",
+                named.display(),
+                to.display()
+            )
+            .as_str(),
+        );
+        return Ok(TheRemoval::Left);
+    }
+    if a_step(AStep::BeforeTheHeldDirectoryIsRemoved) {
+        return Err(stop_words());
+    }
+    directory.remove_the_held_tree(&held)?;
     return Ok(TheRemoval::Removed);
 }
 
 /// What:
-///  Remove the claim file this run wrote inside a directory,
+///  Take the claim file this run wrote inside a directory back,
 ///  and only while the entry that was written still stands at the name.
 /// Why:
 ///   The claim is written by the call that makes the directory,
 /// so it is this run's file,
 /// and another file renamed over its name afterwards is not,
 /// which the identity answered at the write decides.
+///   It is taken aside first, so the unlink reaches the very entry this run wrote and not a name another command took.
 ///
 /// # Errors
 ///
-/// A claim that cannot be removed.
-fn remove_the_claim_of(claim: &Path, written: Option<TheEntry>) -> Option<TheRemoval> {
+/// A claim that cannot be taken aside or removed.
+fn remove_the_claim_of(build_directory: &TheDirectory, claim: &Path, written: Option<TheEntry>) -> Option<TheRemoval> {
+    let at: PathBuf = build_directory.along(claim);
+    let Some(before) = TheEntry::at(at.as_path()) else { return Some(TheRemoval::Left) };
     if let Some(was) = written
-        && TheEntry::at(claim) != Some(was)
+        && before != was
     {
         return Some(TheRemoval::Left);
     }
     if a_step(AStep::BeforeTheClaimInsideIsTakenAside) {
         return None;
     }
-    return match std::fs::remove_file(claim) {
+    let aside: PathBuf = a_name_only_this_run_holds(claim);
+    let held: TheNameThisRunHolds = match build_directory.take_aside(claim, aside.as_path()) {
+        Ok(Some(held)) => held,
+        Ok(None) => return Some(TheRemoval::Left),
+        Err(reason) => {
+            debug(TAG, format!("{reason}; the claim inside the worktree's build directory stays where it is").as_str());
+            return None;
+        }
+    };
+    if TheEntry::at(held.at()) != Some(before) {
+        let _back: Result<(), String> = build_directory.put_back(&held, claim);
+        return Some(TheRemoval::Left);
+    }
+    return match build_directory.remove_the_held_file(&held) {
         Ok(()) => Some(TheRemoval::Removed),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some(TheRemoval::Left),
-        Err(error) => {
-            debug(TAG, format!("{} could not be removed ({error})", claim.display()).as_str());
+        Err(reason) => {
+            debug(TAG, format!("{reason}; the claim stays where it is").as_str());
             None
         }
     };
-}
-
-/// What:
-///  The directory this run took the names in,
-/// held open,
-/// and the path that reaches it through the descriptor.
-/// Why:
-///   A worktree can be removed and another added at the same path while a filling works on the names inside it,
-/// and then a lease proves nothing:
-/// the old filling holds a descriptor on a file no name reaches,
-/// so the directory this run opened is what every removal is addressed through,
-/// and a directory made again at the same path is a different directory.
-///   The descriptor says nothing about which entry stands under a name inside it:
-/// that is what the claims written inside the entries are for.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const theDirectory = (path) => { const held = openSync(path, O_DIRECTORY | O_NOFOLLOW); return { held, at: `/proc/self/fd/${held}` }; };
-/// const entry = (directory, name) => join(directory.at, name);
-/// ```
-struct TheDirectory {
-    /// The descriptor of the directory the names live in.
-    /// It is what keeps the path beside it pointing at this directory and not at whatever stands there later.
-    #[allow(dead_code, reason = "the descriptor is what the path beside it reaches: dropping it closes the path")]
-    held: std::fs::File,
-    /// The path that reaches that directory through the descriptor,
-    /// `/proc/self/fd/<the descriptor>`.
-    at: PathBuf,
-}
-
-impl TheDirectory {
-    /// What:
-    ///  Take the directory the names live in, without following a link,
-    /// and answer the path that reaches it through the descriptor.
-    /// Why:
-    ///   The descriptor is what keeps the names this run took pointing at the directory it took them in,
-    ///  whatever now stands at the path.
-    ///
-    /// # Errors
-    ///
-    /// A directory that cannot be opened.
-    fn of(directory: &Path) -> Result<TheDirectory, String> {
-        use std::os::unix::io::AsRawFd as _;
-        let opened: std::io::Result<std::fs::File> = {
-            use std::os::unix::fs::OpenOptionsExt as _;
-            std::fs::OpenOptions::new()
-                .read(true)
-                .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
-                .open(directory)
-        };
-        return match opened {
-            Ok(held) => Ok(TheDirectory { at: PathBuf::from(format!("/proc/self/fd/{}", held.as_raw_fd())), held }),
-            Err(error) => Err(format!("{} could not be taken as the directory the staging names live in ({error})", directory.display())),
-        };
-    }
-
-    /// What:
-    ///  The path of this name as it stands in the directory taken here.
-    /// Why:
-    ///   Every removal, every claim and the move aside go through this path,
-    /// so none of them can reach a directory that was made at the same path afterwards.
-    fn along(&self, named: &Path) -> PathBuf {
-        return match named.file_name() {
-            Some(name) => self.at.join(name),
-            None => self.at.clone(),
-        };
-    }
-
-    /// What:
-    ///  Remove one file through the descriptor of the directory it stands in,
-    ///  where a name that is not there is nothing to do.
-    /// Why:
-    ///   A marker this add wrote is removed the same way a directory is.
-    fn remove_the_file(&self, named: &Path) -> std::io::Result<()> {
-        return match std::fs::remove_file(self.along(named)) {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(error) => Err(error),
-        };
-    }
 }
 
 /// What:
@@ -681,7 +664,7 @@ fn names_for(destination: &Path, git_dir: Option<&Path>) -> Result<TheNames, Str
     if a_step(AStep::AfterTheLeaseIsTaken) {
         return Err(stop_words());
     }
-    let standing: TheMarkerThere = the_marker_there(marker.as_path());
+    let standing: TheMarkerThere = the_marker_there(directory.along(marker.as_path()).as_path());
     if let TheMarkerThere::ThisJobs(claim) = &standing {
         if claim.to == destination {
             // An earlier filling of this same workspace was interrupted, so the names its marker records are this job's
@@ -690,7 +673,7 @@ fn names_for(destination: &Path, git_dir: Option<&Path>) -> Result<TheNames, Str
         } else {
             // A copy carried another worktree's claim here, and it says nothing about this one's names, so it goes and this
             //  fill claims them.
-            match take_the_marker_back(directory.along(marker.as_path()).as_path(), claim.read)? {
+            match take_the_marker_back(&directory, marker.as_path(), claim.read, before_the_marker_is_taken_aside, before_the_held_marker_is_removed)? {
                 TheRemoval::Removed | TheRemoval::Left => {}
             }
         }
@@ -812,7 +795,7 @@ fn give_back_the_names_a_marker_claims(staging: &Path, marker: &Path, claim: &Th
             format!("{} holds a directory no marker of this job records making, so it is left as it is found", target.display()).as_str(),
         );
     }
-    let _marker: TheRemoval = take_the_marker_back(directory.along(marker).as_path(), claim.read)?;
+    let _marker: TheRemoval = take_the_marker_back(directory, marker, claim.read, before_the_marker_is_taken_aside, before_the_held_marker_is_removed)?;
     return Ok(());
 }
 
@@ -854,11 +837,7 @@ fn names_of_this_runs_own(usual: &Path, directory: TheDirectory, to: &Path, begu
 /// const anOwnName = (usual) => `${usual}-${process.pid}-${nanos.toString(16)}`;
 /// ```
 fn a_name_of_this_runs_own(usual: &Path) -> PathBuf {
-    let since_the_epoch: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap_or_default();
-    let nanos: u128 = since_the_epoch.as_nanos();
-    let mut named: OsString = usual.as_os_str().to_os_string();
-    named.push(format!("-{}-{nanos:x}", std::process::id()));
-    return PathBuf::from(named);
+    return a_name_only_this_run_holds(usual);
 }
 
 
@@ -886,14 +865,18 @@ fn give_back(names: &TheNames) {
     match remove_the_claimed_directory(&names.directory, names.target.as_path(), &names.to) {
         Ok(TheRemoval::Removed) | Ok(TheRemoval::Left) => {}
         // The filling itself is done and published, and this directory is this job's own: the next filling of the same
-        //  workspace clears it.
-        Err(reason) => debug(TAG, format!("{reason}; the filling is done and the directory stays for the next one").as_str()),
+        //  workspace clears it. The marker stays for that filling, because it is what proves the target name the marker
+        //  records is this job's, and removing it now would leave a directory no later filling can prove is its own.
+        Err(reason) => {
+            debug(TAG, format!("{reason}; the directory stays for the next filling, which its marker still names").as_str());
+            return;
+        }
     }
     if a_step(AStep::AfterTheTargetIsGivenBack) {
         return;
     }
     if let Some(marker) = names.marker.as_ref() {
-        match take_the_marker_back(names.directory.along(marker).as_path(), names.marker_made) {
+        match take_the_marker_back(&names.directory, marker, names.marker_made, before_the_marker_is_taken_aside, before_the_held_marker_is_removed) {
             Ok(TheRemoval::Removed) | Ok(TheRemoval::Left) => {}
             Err(reason) => debug(TAG, format!("{reason}; the marker stays where it is").as_str()),
         }
@@ -1018,23 +1001,40 @@ async fn clean_the_copy(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -> 
         // The two directories the clean deletes from are reached through the directory this filling took the names in,
         //  so a worktree made again at the same path gets no clean of the old filling's.
         set: vec![
-            (OsString::from(BUILD_DIRECTORY_VARIABLE), names.directory.along(names.staging.as_path()).into_os_string()),
-            (OsString::from(TARGET_DIRECTORY_VARIABLE), names.directory.along(names.target.as_path()).into_os_string()),
+            (OsString::from(BUILD_DIRECTORY_VARIABLE), names.directory.for_a_child(names.staging.as_path()).into_os_string()),
+            (OsString::from(TARGET_DIRECTORY_VARIABLE), names.directory.for_a_child(names.target.as_path()).into_os_string()),
         ],
     };
     return run_tool_awaiting(fill.cargo.as_path(), &command, fill.limits).await;
 }
 
 /// What:
-///  Publish the staging copy under the workspace's build directory name,
-/// or say that something else is already there.
+///  Publish the copy this run holds under the workspace's build directory name,
+///  or say that something else is already there.
 /// Why:
 ///   The rename never replaces,
 /// so a build that started while the copy was being made keeps every artifact it wrote and the
 /// staging copy is the only thing removed.
+///   The copy is the entry this run took aside and verified, so a name another command took after the check is never moved.
 ///
-/// The rename's two ends are reached through the directory this run took the names in,
-/// so a worktree made again at the same path never has its own build state moved aside.
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const publishWhatThisRunHolds = (directory, held, destination) => renameNoReplace(held.at, entry(directory, destination));
+/// ```
+fn publish_what_this_run_holds(directory: &TheDirectory, held: &TheNameThisRunHolds, destination: &Path) -> Result<bool, String> {
+    return match rename_noreplace(held.at(), directory.along(destination).as_path()) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
+        Err(error) if rename_unsupported(&error) => Err(format!("{} cannot be published, because this filesystem cannot rename without replacing ({error})", destination.display())),
+        Err(error) => Err(format!("{} could not be published ({error})", destination.display())),
+    };
+}
+
+/// What:
+///  Publish the staging copy under the workspace's build directory name,
+/// or say that something else is already there.
+/// Why:
+///   A control of this module's calls this directly with the names it made.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1137,7 +1137,7 @@ fn staged_names(staging: &Path, destination: &Path) -> Result<Option<TheNames>, 
         }
     };
     let marker: PathBuf = marker_of(staging);
-    let TheMarkerThere::ThisJobs(claim) = the_marker_there(marker.as_path()) else {
+    let TheMarkerThere::ThisJobs(claim) = the_marker_there(directory.along(marker.as_path()).as_path()) else {
         return Err(format!("{} holds what no filling of this job staged, so it is left exactly as it is found", staging.display()));
     };
     if claim.to != destination {
@@ -1203,7 +1203,7 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
         return Err(format!("{} has no directory to stage beside", destination.display()));
     };
     let directory: TheDirectory = TheDirectory::of(names_live_in)?;
-    let standing: TheMarkerThere = the_marker_there(marker.as_path());
+    let standing: TheMarkerThere = the_marker_there(directory.along(marker.as_path()).as_path());
     if !destination.exists()
         && standing == TheMarkerThere::Nothing
         && !the_name_is_taken(staging.as_path())
@@ -1266,7 +1266,7 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
             )
             .as_str(),
         );
-        take_the_marker_back(directory.along(marker.as_path()).as_path(), claim.read).map_err(|reason| {
+        take_the_marker_back(&directory, marker.as_path(), claim.read, before_the_marker_is_taken_aside, before_the_held_marker_is_removed).map_err(|reason| {
             return format!(
                 "{reason}; the copied build state is left where it is, so run `cargo clean --offline --package <member>` in {} instead",
                 destination.display()
@@ -1285,14 +1285,21 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
     // The staging name and the target directory its clean uses stand inside the worktree, so the repository's own exclude file
     // names them and no `git status` or `git add -A` of the person's sees them.
     let begun_by: String = a_name_for_this_run();
-    claim_the_staging_names(marker.as_path(), destination, git_dir, &directory, begun_by.as_str())?;
+    let marker_made: TheEntry = claim_the_staging_names(marker.as_path(), destination, git_dir, &directory, begun_by.as_str())?;
     // The claim goes inside the state before it is moved, so the directory that lands at the staging name carries the proof
     //  that this add made it: a kill between the two leaves a name this job can still prove is its own.
     let claim: PathBuf = destination.join(a_claim_inside());
     if let Err(reason) = write_the_claim_inside(destination, destination, begun_by.as_str()) {
         return Err(format!("{reason}, so the copied build state stays where it is"));
     }
-    let claim_entry: Option<TheEntry> = TheEntry::at(claim.as_path());
+    let claim_entry: Option<TheEntry> = TheEntry::at(directory.along(claim.as_path()).as_path());
+    // The claim inside the state is removed through the directory the state itself is, so the unlink reaches the file this
+    //  add wrote: the state is about to stay where it is, so its directory is opened once and held for the two removals.
+    let build_directory: Option<TheDirectory> = TheDirectory::of(directory.along(destination).as_path()).ok();
+    let remove_the_claim_of_the_state_that_stayed = || -> Option<TheRemoval> {
+        let held: &TheDirectory = build_directory.as_ref()?;
+        return remove_the_claim_of(held, Path::new(a_claim_inside()), claim_entry);
+    };
     // A rename that never replaces, so a name taken between the check above and this call is refused rather than overwritten,
     //  and both ends reached through the directory this add took, so a worktree made again at the same path never has its
     //  build state moved aside.
@@ -1301,20 +1308,20 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
             // Something took the staging name between the check and the move: it is not this job's to replace, and the marker
             //  claims a name nothing was moved into, so it goes back, and so does the claim written in the state that stayed.
-            let _claim: Option<TheRemoval> = remove_the_claim_of(directory.along(claim.as_path()).as_path(), claim_entry);
+            let _claim: Option<TheRemoval> = remove_the_claim_of_the_state_that_stayed();
             if a_step(AStep::BeforeTheMarkerOfAFailedMoveIsTakenBack) {
                 return Err(stop_words());
             }
-            let _taken_back = directory.remove_the_file(marker.as_path());
+            let _taken_back = take_the_marker_back(&directory, marker.as_path(), Some(marker_made), before_the_marker_is_taken_aside, before_the_held_marker_is_removed);
             Err(what_stands_at_the_names(staging.as_path(), destination))
         }
         Err(error) => {
             // Nothing moved, so the marker claims a name nothing is in; take it back and say the state stays where it is.
-            let _claim: Option<TheRemoval> = remove_the_claim_of(directory.along(claim.as_path()).as_path(), claim_entry);
+            let _claim: Option<TheRemoval> = remove_the_claim_of_the_state_that_stayed();
             if a_step(AStep::BeforeTheMarkerOfAFailedMoveIsTakenBack) {
                 return Err(stop_words());
             }
-            let _taken_back = directory.remove_the_file(marker.as_path());
+            let _taken_back = take_the_marker_back(&directory, marker.as_path(), Some(marker_made), before_the_marker_is_taken_aside, before_the_held_marker_is_removed);
             Err(format!(
                 "the copied build state at {} could not be moved aside ({error}), so it stays where it is; run `cargo clean --offline --package <member>` in that worktree instead",
                 destination.display()
@@ -1578,7 +1585,13 @@ thread_local! {
 ///
 /// A Git directory the patterns cannot be named in,
 /// and a marker another writer took.
-fn claim_the_staging_names(marker: &Path, destination: &Path, git_dir: Option<&Path>, directory: &TheDirectory, begun_by: &str) -> Result<(), String> {
+fn claim_the_staging_names(
+    marker: &Path,
+    destination: &Path,
+    git_dir: Option<&Path>,
+    directory: &TheDirectory,
+    begun_by: &str,
+) -> Result<TheEntry, String> {
     if let Some(git_directory) = git_dir
         && let Err(reason) = exclude_the_staging_names(git_directory)
     {
@@ -1587,7 +1600,9 @@ fn claim_the_staging_names(marker: &Path, destination: &Path, git_dir: Option<&P
     // The marker is written through the directory this add took the names in: a worktree made again at the same path
     //  while this add runs gets no marker of this add's, so a later filling there believes nothing about its names.
     return match write_marker(directory.along(marker).as_path(), destination, WhatTheMarkerRecords::TheStaging, begun_by)? {
-        TheMarkersAnswer::WrittenByThisRun => Ok(()),
+        // The entry is read right after the write, so a failure after it takes back this very file and not a name somebody took.
+        TheMarkersAnswer::WrittenByThisRun => TheEntry::at(directory.along(marker).as_path())
+            .ok_or_else(|| format!("{} went away after it was written, so the copied build state stays where it is", marker.display())),
         TheMarkersAnswer::WrittenByAnother => Err(format!(
             "{} was taken by another writer, so the copied build state is left where it is; run `cargo clean --offline --package <member>` in {} instead",
             marker.display(),
@@ -1628,10 +1643,6 @@ fn give_back_what_a_killed_filling_left(entry: &PrewarmEntry) {
         None => staging_of(entry.to.as_path()),
     };
     let marker: PathBuf = marker_of(staging.as_path());
-    let TheMarkerThere::ThisJobs(claim) = the_marker_there(marker.as_path()) else { return };
-    if claim.to != entry.to {
-        return;
-    }
     let Some(names_live_in) = staging.parent() else { return };
     let directory: TheDirectory = match TheDirectory::of(names_live_in) {
         Ok(directory) => directory,
@@ -1640,6 +1651,11 @@ fn give_back_what_a_killed_filling_left(entry: &PrewarmEntry) {
             return;
         }
     };
+    // The marker is read through the directory this run holds, so a worktree made again at the same path is not its.
+    let TheMarkerThere::ThisJobs(claim) = the_marker_there(directory.along(marker.as_path()).as_path()) else { return };
+    if claim.to != entry.to {
+        return;
+    }
     // The marker names this build directory, and only the lease can say the filling that wrote it is gone: a filling that is
     //  still cleaning or publishing this staging holds it, and then nothing here is removed.
     let lease: TheLease = match claim_the_names_at(directory.along(lease_of(staging.as_path()).as_path()).as_path()) {
@@ -1755,13 +1771,24 @@ async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -
         if a_step(AStep::BeforeTheMirrorClean) {
             return Err(stop_words());
         }
+        // The mirror's child deletes from the same two names, so the claim is checked immediately before it runs: a name
+        //  another command replaced after the first clean is never handed to a child that would delete from it.
+        for named in [names.staging.as_path(), names.target.as_path()] {
+            if !the_entry_is_still_this_runs(&names.directory, named, &names.to) {
+                return Err(format!(
+                    "{} no longer holds this run's claim, so no mirror clean was started on it and nothing of {} was deleted",
+                    named.display(),
+                    names.to.display()
+                ));
+            }
+        }
         run = match clean_in_a_mirror(MirrorClean {
             tool: CargoTool { program: fill.cargo.clone(), limits: fill.limits },
             worktree: fill.worktree.clone(),
             workspace: entry.root.clone(),
             members: entry.members.clone(),
-            build_directory: names.staging.clone(),
-            target_directory: names.target.clone(),
+            build_directory: names.directory.for_a_child(names.staging.as_path()),
+            target_directory: names.directory.for_a_child(names.target.as_path()),
             kept_in: fill.kept_in.clone(),
             job: fill.filling.clone(),
         })
@@ -1801,18 +1828,42 @@ async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -
     if a_step(AStep::BeforeThePublishTakesTheCopyAside) {
         return Err(stop_words());
     }
-    let published: Result<bool, String> = publish(names, entry.to.as_path());
+    if a_step(AStep::BeforeThePublishTakesTheCopyAside) {
+        return Err(stop_words());
+    }
+    // The publish moves whatever stands at the staging name, so the entry this run verified is taken aside first and the
+    //  rename that publishes it reaches that very entry, never a name another command took after the check.
+    let before: Option<TheEntry> = TheEntry::at(names.directory.along(names.staging.as_path()).as_path());
+    let aside: PathBuf = a_name_only_this_run_holds(names.staging.as_path());
+    let Some(held_copy) = names.directory.take_aside(names.staging.as_path(), aside.as_path())? else {
+        return Err(format!(
+            "{} went before it could be taken aside, so nothing of {} was published",
+            names.staging.display(),
+            names.to.display()
+        ));
+    };
+    let still: bool = matches!(the_claim_a_directory_carries(held_copy.at()), Some(claim) if claim.to == names.to);
+    if TheEntry::at(held_copy.at()) != before || !still {
+        names.directory.put_back(&held_copy, names.staging.as_path())?;
+        return Err(format!(
+            "{} was replaced while this run read it, so what was found there is put back and nothing of {} was published",
+            names.staging.display(),
+            names.to.display()
+        ));
+    }
+    let published: Result<bool, String> = publish_what_this_run_holds(&names.directory, &held_copy, entry.to.as_path());
     if a_step(AStep::AfterThePublish) {
         return Err(stop_words());
     }
     return match published {
         Ok(true) => Ok(Filled::Published),
+        // The copy this run holds is the one thing removed: the build that got there first keeps everything it made.
         Ok(false) => {
-            let _removed = remove_the_claimed_directory(&names.directory, names.staging.as_path(), &names.to);
+            let _removed = names.directory.remove_the_held_tree(&held_copy);
             Ok(Filled::Kept)
         }
         Err(reason) => {
-            let _removed = remove_the_claimed_directory(&names.directory, names.staging.as_path(), &names.to);
+            let _removed = names.directory.remove_the_held_tree(&held_copy);
             Err(reason)
         }
     };

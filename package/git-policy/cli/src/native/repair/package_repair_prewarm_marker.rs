@@ -22,6 +22,7 @@
 //! // written whole by one exclusive write, read whole by one that cannot wait, placed by its own text
 //! const claim = { repair: 'cargo-prewarm', to: buildDirectory, begunBy: `${pid}-${nanos.toString(16)}` };
 //! ```
+use crate::package_repair_prewarm_a_held_name::{TheDirectory, a_name_only_this_run_holds};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -428,53 +429,72 @@ fn this_adds_name_for_itself() -> String {
 }
 
 /// What:
-///  Remove a marker this job wrote,
+///  The name this run takes a marker aside to,
+///  shaped like the staging names the exclude patterns already name.
+/// Why:
+///   A marker is `<staging>.owner`,
+/// so a taken-aside marker is named from the staging name of this run's own,
+/// and a name a kill leaves behind is a name the person's `git status` never shows.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const anOwnMarkerName = (marker) => markerOf(anOwnName(markerNameWithoutSuffix(marker)));
+/// ```
+fn a_name_only_this_run_holds_of_a_marker(marker: &Path) -> PathBuf {
+    let Some(name) = marker.file_name() else { return a_name_only_this_run_holds(marker) };
+    let text: std::borrow::Cow<'_, str> = name.to_string_lossy();
+    let Some(staging_name) = text.strip_suffix(MARKER_SUFFIX) else { return a_name_only_this_run_holds(marker) };
+    let staging: PathBuf = marker.with_file_name(staging_name);
+    return marker_of(a_name_only_this_run_holds(staging.as_path()).as_path());
+}
+
+/// What:
+///  Take a marker this job wrote back,
 ///  and say why when it cannot.
 /// Why:
 ///   The caller asks this only after `the_marker_there` placed the file as this job's own,
 /// so a person's note at the name is never removed here.
-/// A marker that cannot be taken back leaves the names claimed by what this add cannot place,
-/// so the state stays where it is and the add cleans it there.
+///   The entry is taken aside first, never replacing anything, to a name only this run holds,
+/// and the identity is compared again at that name:
+/// an entry another command renamed over the marker name after the read
+/// is put back where its writer put it and left,
+/// and the unlink reaches only the very file this run read.
 ///
 /// # Errors
 ///
-/// A marker that cannot be removed.
-pub(crate) fn take_the_marker_back(marker: &Path, read: Option<TheEntry>) -> Result<TheRemoval, String> {
+/// A marker that cannot be taken aside or removed.
+pub(crate) fn take_the_marker_back(
+    directory: &TheDirectory,
+    marker: &Path,
+    read: Option<TheEntry>,
+    before_the_take_aside: fn() -> bool,
+    before_the_unlink: fn() -> bool,
+) -> Result<TheRemoval, String> {
     // The name is bound to the file this job read: an entry another command renamed over the name after that
     //  read is not this job's file, and it stays where its writer put it.
+    let at: PathBuf = directory.along(marker);
+    let Some(before) = TheEntry::at(at.as_path()) else { return Ok(TheRemoval::Left) };
     if let Some(was) = read
-        && TheEntry::at(marker) != Some(was)
+        && before != was
     {
         return Ok(TheRemoval::Left);
     }
-    if a_step_of_the_marker(crate::package_repair_prewarm_job::AStep::BeforeTheMarkerIsTakenAside) {
+    if before_the_take_aside() {
         return Err(String::from("the marker was left where it is for a control"));
     }
-    return match std::fs::remove_file(marker) {
+    let aside: PathBuf = a_name_only_this_run_holds_of_a_marker(marker);
+    let Some(held) = directory.take_aside(marker, aside.as_path())? else { return Ok(TheRemoval::Left) };
+    if TheEntry::at(held.at()) != Some(before) {
+        directory.put_back(&held, marker)?;
+        return Ok(TheRemoval::Left);
+    }
+    if before_the_unlink() {
+        return Err(String::from("the marker was left where it is for a control"));
+    }
+    return match directory.remove_the_held_file(&held) {
         Ok(()) => Ok(TheRemoval::Removed),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(TheRemoval::Left),
-        Err(error) => Err(format!(
-            "{} could not be taken back ({error}), so the copied build state is left where it is; run `cargo clean --offline --package <member>` in the worktree instead",
-            marker.display()
-        )),
+        Err(reason) => Err(format!("{reason}, so the copied build state is left where it is; run `cargo clean --offline --package <member>` in the worktree instead")),
     };
-}
-
-/// What:
-///  Whether a control stops the filling at this boundary of the marker's own removal.
-/// Why:
-///   The marker is taken back by a step of the filling,
-/// so its boundaries are the filling's and a control reads them from there.
-fn a_step_of_the_marker(step: crate::package_repair_prewarm_job::AStep) -> bool {
-    #[cfg(test)]
-    {
-        return crate::package_repair_prewarm_job::a_step_from_the_marker(step);
-    }
-    #[cfg(not(test))]
-    {
-        let _ = step;
-        return false;
-    }
 }
 
 /// What a removal came to.

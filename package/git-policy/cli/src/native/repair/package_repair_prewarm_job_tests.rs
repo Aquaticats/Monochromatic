@@ -1767,7 +1767,12 @@ fn the_clean_is_given_a_path_its_child_can_itself_reach() {
     let mut lines = recorded.lines();
     let given: PathBuf = PathBuf::from(lines.next().expect("the path the child was given"));
     assert_eq!(lines.next(), Some("reachable"), "the child can resolve the path it is given for the build directory: {}", given.display());
-    assert_eq!(given, names.directory.along(names.staging.as_path()), "the path names the staging directory this run holds");
+    assert_eq!(given, names.directory.for_a_child(names.staging.as_path()), "the path names the staging directory through this run's own descriptor");
+    assert_ne!(
+        given,
+        names.directory.along(names.staging.as_path()),
+        "the path is not the one only this process resolves: the child would resolve that number as its own"
+    );
     remove(root.as_path());
 }
 
@@ -1858,7 +1863,9 @@ fn a_marker_replaced_before_the_unlink_is_left_where_its_writer_put_it() {
             return false;
         }));
     });
-    let answer: Result<TheRemoval, String> = take_the_marker_back(marker.as_path(), claim.read);
+    let directory: super::TheDirectory = super::TheDirectory::of(worktree.as_path()).expect("the directory the names live in");
+    let answer: Result<TheRemoval, String> =
+        take_the_marker_back(&directory, marker.as_path(), claim.read, super::before_the_marker_is_taken_aside, super::before_the_held_marker_is_removed);
     super::THE_STEP_HOOK.with(|hook| { *hook.borrow_mut() = None; });
     let its_file: PathBuf = planted.borrow_mut().take().expect("the seam was reached, so the control proves something");
     assert_eq!(answer, Ok(TheRemoval::Left), "taking the marker back says the entry it met was not this job's");

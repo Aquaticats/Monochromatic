@@ -73,6 +73,11 @@ pub mod package_repair_prewarm_job;
 #[cfg(target_os = "linux")]
 pub mod package_repair_prewarm_marker;
 
+/// A directory held open, and names only this run holds under it,
+/// so what a check saw is what the act that follows meets.
+#[cfg(target_os = "linux")]
+pub mod package_repair_prewarm_a_held_name;
+
 /// The lease one filling holds on one build directory's names,
 /// so a filling that is still at work is never taken for a dead one.
 #[cfg(target_os = "linux")]
