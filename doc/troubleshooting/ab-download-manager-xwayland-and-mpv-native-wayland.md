@@ -143,3 +143,40 @@ geometry option covers the reported use case without a filing.
 
 AB Download Manager 1.11.4-1 was subsequently removed with Pacman.
 The package, system desktop entry, executable, and stale login and browser registrations were checked.
+
+## mpv text in the right-click menu and idle window
+
+On 2026-11-18T21:16:23-05:00, the follow-up screenshot showed small text inside the mpv window.
+The menu and idle label use separate overlays, so window geometry alone does not diagnose the symptom.
+
+In `player/lua/context_menu.lua:82-95`, the default `scale_with_window=auto` follows
+`osd-scale-by-window`, which defaults to `yes`. The menu divides the 540-pixel overlay height by 720
+and scales the configured font of 14 by that factor. Choosing `scale_with_window=no` instead uses
+the compositor-reported `display-hidpi-scale`, which the probe measured as 2.0.
+[mpv context menu source](https://github.com/mpv-player/mpv/blob/b0841e8c4d156b8403dc1876c4cbd9011eb583f3/player/lua/context_menu.lua#L82-L95)
+
+```lua
+-- player/lua/context_menu.lua
+if should_scale() and osd_height > 0 then
+    return osd_height / 720
+end
+
+return mp.get_property_native("display-hidpi-scale", 1)
+```
+
+In `player/lua/osc.lua:3109-3116`, the idle label is appended without a size override. The overlay
+uses the `OSD` style, which `sub/osd_libass.c:538-549` builds from the configured OSD options.
+[mpv idle label source](https://github.com/mpv-player/mpv/blob/b0841e8c4d156b8403dc1876c4cbd9011eb583f3/player/lua/osc.lua#L3109-L3116)
+[mpv overlay style source](https://github.com/mpv-player/mpv/blob/b0841e8c4d156b8403dc1876c4cbd9011eb583f3/sub/osd_libass.c#L538-L549)
+
+```c
+// sub/osd_libass.c
+mp_ass_set_style(get_style(&ext->ass, "OSD"), resy, osd->opts->osd_style);
+```
+
+With both native Wayland probes at 960 × 540, the word `Open` measured 7 pixels tall at the default
+and 18 pixels with `scale_with_window=no` in `script-opts/context_menu.conf`. The larger menu paged
+items that did not fit. In separate idle captures, `--osd-font-size=48` increased the label's bright-pixel
+height from 14 to 24 pixels. That option also changes the size of regular OSD text.
+mpv's own screenshot command requires a decoded frame, so the menu captures used a generated black
+video and the idle captures used Spectacle on the test window. Both probes used disposable profiles.
