@@ -40188,6 +40188,14 @@ Run-4 ended `idle` (57 turns; `317de29035`, `4b08423a61`): a recorded command na
 the record's last status; its test failed first on the pre-fix source (`expected [] to deeply equal [ Array(1) ]`); L1,
 L2, L4 answered; README and brief rules say the `process` tool is the route; full suite exit 0, 209 passes. GOING: a
 second delta review of `33c214d45d..4b08423a61` on Synthetic (unit `...-at-4b08423a61-1`); merge on a clean delta.
+Second delta back (89 turns): **1 medium, 8 low**; the last review's four answered. M1: the manager is asked by unit
+name alone, so a recorded `journalctl --user --unit=x` or a text search naming a unit, or a same-named unit another
+session owns, keeps the run to its wall clock (probes P3, P4, P4b), the harm this change removed on the process side;
+lows: quoted names, only the word `active` counts, tab-separated words, two README sentences, a manager question per
+stale record on every 300 ms look, no seam for the end-to-end path, a stale number hiding a live process's line. Weighed:
+M1 by the reviewer's remedies 1 and 2 (only a `systemd-run` command, and only a unit active since that command
+started), state read as `ActiveState`/`SubState`, L1 to L6 fixed, L8 if small, L7 is the recorded host-load class.
+GOING: `pi-driver-work-left-running-counts-only-its-own-5` (run-5).
 
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed
