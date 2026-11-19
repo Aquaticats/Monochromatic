@@ -20,19 +20,22 @@ import type { WatchRequest, } from './watch-request.ts';
  @returns whether the idle wait has passed
  */
 function idleLongEnough(watch: WatchRequest,): boolean {
-  return (!watch.record
-    .isRunning())
-    && (watch.record
-      .settledCount()
-      >= 1)
-    && ((watch.options
-      .idleSeconds
-        === 0)
-      || (watch.record
-        .silentMilliseconds()
-        > (watch.options
-          .idleSeconds
-          * MILLISECONDS_PER_SECOND)));
+  /** Progress on the run and the CLI options that govern its end. */
+  const { record, options, } = watch;
+  if (record.isRunning()) {
+    return false;
+  }
+  if (record.settledCount() < 1) {
+    return false;
+  }
+  /** How long to wait for a new message after the run settles. */
+  const { idleSeconds, } = options;
+  if (idleSeconds === 0) {
+    return true;
+  }
+  /** Idle window in the same units as the record's clock. */
+  const idleMilliseconds = idleSeconds * MILLISECONDS_PER_SECOND;
+  return record.silentMilliseconds() > idleMilliseconds;
 }
 
 /**
