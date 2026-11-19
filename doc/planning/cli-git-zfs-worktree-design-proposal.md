@@ -635,7 +635,9 @@ therefore omits the key, and a test asserts that the encoded request has no `def
 3.  After unmount, persist the verified inventory and expected clone identity as the destruction plan.
     Require fresh root all-namespace verification before the first snapshot delete. Reprove lineage and candidate
     identities immediately before submitting the full verified snapshot set in one `ZFS_IOC_DESTROY_SNAPS` request
-    that omits the `defer` key; retain the per-name error list (direct route, [item 14][vm-batch]).
+    that omits the `defer` key; retain the per-name error list (direct route run as root, [item 14][vm-batch]).
+    The delegated account's permission to submit that batch under the proposed grants is unmeasured; the only
+    delegated destroy item 12 measured is a head destroy.
     If root conditional destruction is selected, require equivalent whole-batch checks and per-name results inside
     its single channel program request, not an external name-based ioctl after a conditional check (unmeasured).
     Skip the snapshot request for an empty set. Only then destroy the verified unmounted head under the selected
@@ -1227,10 +1229,11 @@ only for unused slots. These are unrun acceptance requirements, not evidence fro
   Under either policy an ordinary authorized removal must destroy the verified clone and its own snapshots and
   print the loss in the same invocation. Refusal controls test unsafe cases; a route that only refuses does not pass.
 - Repeat the [VM item 14][vm-batch] mixed and own-snapshot batch controls through the binding, including per-name
-  errors, GUID preservation and an assertion that the encoded request carries no `defer` key. Exercise the
-  selected execution route and its supported size limit, a split with a changed inventory between chunks, and
-  interruption before and after the separate head destroy. For the root option prove batch-equivalent refusal,
-  including bounded program execution; item 12 did not test it.
+  errors, GUID preservation and an assertion that the encoded request carries no `defer` key. Run the same batch
+  as the delegated account under the planned grants; item 14 ran it as root. Exercise the selected execution
+  route and its supported size limit, a split with a changed inventory between chunks, and interruption before
+  and after the separate head destroy. For the root option prove batch-equivalent refusal, including bounded
+  program execution; item 12 did not test it.
 - Kill removal across unmount, snapshot destruction, clone and origin cleanup, and Git and directory cleanup.
   Verify busy and staged mounts, nested datasets, same-name replacements, held snapshots and another clone
   pinning the origin each block the unsafe next action. Inject a new own sanoid snapshot between proof and batch

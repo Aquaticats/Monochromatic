@@ -546,7 +546,9 @@ lineage changes, different encryption roots, or creation of multiple objects in 
 
 ### 14. One snapshot destroy request after promote
 
-Guest: `6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-14-exact.log`). The probe repeated
+Guest: `6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-14-exact.log`). Every command in this
+item ran from the guest's root shell: the log runs `zfs destroy` and `/usr/bin/python3 /root/guest-delta-probe.py`,
+and the account appears only where the probe created its own fixture directory with `runuser`. The probe repeated
 item 11's promote with an extra worktree-owned snapshot for the positive control. It traced each destroy with
 `strace -X raw -e trace=ioctl` and counted `0x5a3b`, `ZFS_IOC_DESTROY_SNAPS` in OpenZFS `include/sys/fs/zfs.h`.
 `zfs destroy zfsowed14/home/worktree-clone-datasets/promotion@earliest,origin` exited 1:
@@ -560,7 +562,9 @@ ZFS_IOC_DESTROY_SNAPS (0x5a3b) count: 0
 The CLI refused before submitting the batch, so this command did not measure kernel atomicity. In the `zfs-2.4.4`
 source, `snapshot_to_nvl_cb` in `cmd/zfs/zfs_main.c` checks dependents while gathering the snapshot names.
 To exercise the kernel, the guest helper submitted exactly those two names in one `lzc_destroy_snaps` call
-with `defer=false`. It returned `EEXIST`, with only `@origin` in the per-name errors:
+with `defer=false` (`argtypes` and call at `guest-delta-items.py:156` to `:165`). `libzfs_core` adds no `defer` key
+for that value (`lib/libzfs_core/libzfs_core.c:475` to `:476`, `zfs-2.4.4`), so the counted ioctl carried none.
+It returned `EEXIST`, with only `@origin` in the per-name errors:
 
 ```text
 # item-14-exact.log, selected direct-call output
@@ -582,7 +586,9 @@ Positive control: `zfs destroy <promoted-clone>@worktree-own,worktree-own-next` 
 `ZFS_IOC_DESTROY_SNAPS (0x5a3b) count: 1`. Both own snapshots disappeared and no others did. This supports
 DM2's all-or-nothing result for this kernel request, but not its premise that the refused CLI command issues it.
 It does not prove ownership, make the subsequent dataset destroy atomic with the batch, test batch limits,
-or establish safety if an unprotected foreign snapshot appears in a submitted set.
+or establish safety if an unprotected foreign snapshot appears in a submitted set. Because every call ran as root,
+it does not show that the delegated account may submit the same batch under the proposed grants; the only
+delegated destroy measured is item 12's head destroy.
 
 ### 15. Mount namespaces created after attach
 
@@ -687,5 +693,8 @@ release in the Ubuntu guest does not establish that the host kernel passes the c
   the substitution; the privileged program was a fixture, not a delegated primitive or a production service.
 - No universal transaction-group provenance rule, destroy batch limit or proof against a change between
   inspection and use. Only the selected promote, batch and hold cases were exercised.
+- No snapshot batch submitted by the delegated account under the proposed grants. Item 14 ran its batch as
+  root, and the only delegated destroy measured is item 12's head destroy; the account's permission on a clone's
+  snapshots under the `-d` grants is unmeasured.
 - No complete namespace or mount-reference exclusion. The guest scan had readable, live representatives
   for the observed namespaces; the result does not generalize to pinned namespaces or racing task changes.
