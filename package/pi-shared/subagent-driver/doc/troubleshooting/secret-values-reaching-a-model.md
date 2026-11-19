@@ -60,11 +60,12 @@ Where an entry says "no hook", that is Pi's own limit, and the entry also says w
 - **Any other message Pi keeps, custom messages included.** the same hook Control: "masks the message Pi keeps…"
 - **The ordinary model request.** `context_with_system` Control: the review's positive control, and "masks a value
   a session already held, which is what a resumed run sends again"
-- **Pi's compaction request.** no hook; its input is the session's messages, which `message_end` has masked, and a
-  session a run resumes is masked before Pi starts Control: "masks the session a run resumes before Pi can read a
-  value out of it"
-- **Pi's branch-summary request.** the same: the session is the only input Control: the same control, by reading
-  Pi's `branch-summarization.js:208`
+- **Pi's compaction request.** No request hook; `message_end` masks the messages the current run keeps.
+  For an old session, the driver masks a copy before Pi starts only if `--session` names an existing file
+  as resolved by the driver. See the limit on session IDs and relative paths.
+  Control: "masks the session a run resumes before Pi can read a value out of it".
+- **Pi's branch-summary request.** The same protection and limits apply to its session input.
+  Control: the same copy control, with the request path verified in Pi's `branch-summarization.js`.
 - **The driver's feed: tool arguments, results, an inbox preview, an event's detail.** one boundary in
   `record-of-pi-run.ts`, which no caller can leave out Control: "masks the arguments of a tool call on the feed"
   and "keeps a value a tool printed out of every file the run writes"
@@ -73,17 +74,20 @@ Where an entry says "no hook", that is Pi's own limit, and the entry also says w
 - **Pi's standard error, in which an extension may print a value.** one stream matcher in `masking-a-stream.ts`,
   through `keep-standard-error.ts` Control: "holds back the beginning of a value that a cut would split, so the
   two writes mask it together"
-- **Pi's file of a truncated tool output.** the `tool_result` hook, and only a file whose whole name is Pi's own
-  pattern Control: "rewrites the file Pi saved a truncated output in" and "leaves Pi own output whole when a tool
-  result names a file whose name is only its prefix"
+- **Pi's file of a truncated tool output.** The `tool_result` hook can rewrite the full-output file only when
+  `details.fullOutputPath` names a file in the operating system's temporary folder with the `pi-output-` name
+  pattern described under "What the masking does not cover". Pi's Bash spill file does not match that pattern.
+  Controls for the pattern: "rewrites the file Pi saved a truncated output in" (a `pi-output-` fixture) and
+  "leaves Pi own output whole when a tool result names a file whose name is only its prefix".
 - **The session file at rest: compaction entries, branch summaries, context edits, an extension's custom entry.**
-  no hook before `appendCustomEntry`, `appendCompaction` or `appendContextEdit`; the file is masked whole once the
-  run is over, and only while it is still the file that was read Control: "masks the session a run leaves behind,
-  whatever wrote an entry of it" and "keeps what another command appended while the masked text was being
-  prepared"
-- **A session that still holds a value when the run is over.** nothing, and that is the answer: the run ends
-  `session-unmasked` and the summary says where the value is Control: "does not end clean when the session a run
-  leaves still holds a value"
+  No hook before `appendCustomEntry`, `appendCompaction` or `appendContextEdit`. After Pi is reaped, the entire
+  eligible session file is checked for values, and the rewrite checks that the file has not changed before renaming.
+  Controls: "masks the session a run leaves behind, whatever wrote an entry of it" and "keeps what another command
+  appended while the masked text was being prepared".
+- **A session the driver could not mask at rest.** The driver records the problem on the feed and in the summary.
+  A run that would otherwise end clean ends `session-unmasked`.
+  Control for a refused path: "leaves a session file this run cannot show is its own, and ends saying where the
+  value still is". There is no driver-level control for a failed rewrite of a session eligible for masking.
 - **The age identity, the key that opens every store.** an identity the machine declares and this code cannot read
   stops the run before Pi starts Control: "stops the run when an age identity the machine declares cannot be read"
 - **A shell start-up file's literal, quoted or hash-leading.** the shell's own quoting and comment rules, and a
@@ -113,12 +117,10 @@ The third review found eight roads, five of them in classes the earlier rounds h
 not a row, so each of these is an entry above or a stated limit where a shape cannot close it.
 
 - **A file replaced while another writer may append to it.** One decision, `FileWriterAnswer`, is what every replacement asks for:
-  a caller that cannot say the file's writer is gone gets a refusal, not a try. The three call sites answer it explicitly: a session
-  a run resumes is never replaced at all (it is masked into a copy that Pi resumes, and the original keeps what it holds, which is
-  the stated limit), the session at rest only when the Pi this run started has been reaped, and Pi's output file only because Pi's
-  own tool closed it before the result existed (`finishOutput` awaits `closeTempFile`). After the fourth review closed the fallback
-  that rewrote a resumed session, every file this path replaces is one the run itself made, so the window reaches only a program
-  nobody started on that path, as the limits below say
+  a caller that cannot say the file's writer is gone gets a refusal, not a try. When a run makes a session copy,
+  it leaves the original untouched. For an at-rest session rewrite, the driver checks that its Pi has been reaped.
+  For a matching full-output path, the hook assumes the tool already closed the file before returning its result.
+  Neither check proves that no other process can write the file. See "The rename window" for the remaining limit
   (`a-file-replaced-only-when-its-writer-is-gone.unit.test.ts`).
 - **"Could not be read" answered as "not there".** One function decides it, `presenceOfPath` and `presenceFromFailure`: only the
   operating system's own "no such file", with every parent askable, is absent; a denied file, a denied parent, a wrong type, a pipe,
@@ -174,13 +176,10 @@ reach further because of the first.
   (`a-shell-value-for-every-special-character-is-what-bash-exports.unit.test.ts`): the reader's value equals
   Bash's, or the reader refuses and the run stops naming the file and the line.
 - **An append after the last identity check was discarded by the rename.** This is the third round's stated
-  limit, and the first defect above is what made it reach further than the limit said. Every file this package
-  replaces through the identity-checked path is now a file the run itself made: the session copy it wrote for
-  Pi, or the session its own Pi created, whose writer is the Pi this run reaped (`piIsGone` is the supervisor's
-  own `stopped` and the connection's `hasExited`), and Pi's own output file of a tool result, whose writer is
-  the tool that returned before the result existed. No file another run owns is replaced at all, so what stands
-  is one window, exact in the limits below: a program nobody started on a path this run owns, appending between
-  the last identity read and the rename.
+  limit. When a copy exists, the session selector restricts the at-rest rewrite to that copy.
+  When no copy exists, the selector uses the reported path, the caller's path and, for a different path,
+  the reported file's birth time. Those checks do not establish who created the file.
+  See "The rename window" for how the race can still affect a file from another run.
 
 ### How the names and the files were looked for
 
@@ -213,7 +212,7 @@ The list was made from Pi's installed source, not from the hooks this package kn
 A fifth class was looked for the same way and not found: the two searches above cover every place Pi builds a request and every place
 it writes, the driver's own writes are one boundary each, and the two reviews' twenty-two roads were then walked against the class
 shapes above. What remains outside them is named, not missed: a process outside this package writing a file the driver replaces
-while it replaces it, a value only a shell can compute, and the three masking limits below.
+while it replaces it, a value only a shell can compute, and the routes listed under "What the masking does not cover".
 
 Two rows come out of that second search and are named rather than covered: Pi's **crash log** (a crash record holds Pi's own error
 text, and the driver stops Pi rather than crashing it) and the **bash-execution messages** of a `!` command, which RPC mode never
@@ -227,32 +226,40 @@ makes.
 - A value shorter than eight characters, because such a string appears in ordinary text by chance.
   Every value the store declares today is at least ten characters
   (`keep/measure-store-value-lengths.ts` in the report's scratch folder).
-- Pi's output files for a *greater* output than it shows are masked only when Pi names one that is in the operating
-  system's temporary folder and whose name is exactly `pi-output-` and sixteen hexadecimal digits, with an optional
-  extension (`src/pi-output-file-of-a-tool-result.ts`). A file named any other way is left as Pi wrote it.
-- **A tool result whose `details` cannot be read.** The masking reads `details` to mask it. When reading it throws, the
-  result is withheld, and withholding it also has to read `details` to find the full-output file a peer may have named.
-  Both reads fail, so Pi keeps the tool's own result: the model sees the original content, a value in it included.
+- **Full-output files whose names the hook does not recognise.** The file check accepts only a name in the operating
+  system's temporary folder with `pi-output-` and sixteen lowercase hexadecimal digits, with an optional extension.
+  In Pi 1.5.2, the version linked by this package, Bash writes `pi-bash-<hex>.log`, and MCP, Codemode and PowerShell
+  use `pi-mcp-`, `pi-codemode-` and `pi-powershell-` names. Those files are left as Pi wrote them: the tool result
+  for the model is still masked, but the temporary file keeps any value it held.
+- **A resumed session the driver did not find.** When the driver finds no file at the `--session` argument,
+  it passes the argument unchanged. Pi 1.5.2 can resolve a bare ID (no path separator or `.jsonl` suffix)
+  to an existing session, or resolve a relative path from Pi's working folder instead of the driver's.
+  Pi then opens that session without a pre-masked copy. Old entries can reach compaction or branch summarization
+  without a request hook; ordinary requests still pass through `context_with_system`.
+- **A tool result whose `details` cannot be read.** If reading a property inside `details` throws during masking,
+  the hook tries to withhold the result. The fallback reads `details.fullOutputPath` to find a possible full-output
+  file and can throw again.
+  Pi then keeps the original tool result; ordinary model requests still have the separate transcript mask.
 - **A result with a cycle that names a full-output file.** A result that cannot be serialised whole is withheld, which
   is right, but the withheld text only points at the full-output file: that file keeps the value Pi wrote into it.
 - **A full-output file in a folder that cannot be written.** The masked replacement is written beside the file and
   renamed over it. When the folder refuses the new file, the result the model sees is masked and the file Pi wrote
-  keeps the value; the run records the failure on its feed.
+  keeps the value. The hook reports the failure on Pi's standard error, which the driver keeps in `stderr.log`,
+  not on the feed.
 - **A value split across two parts of one tool result.** Each part is masked on its own, and a value whose text is
   divided between two parts matches nothing in either; reading the two parts together gives the value back.
-- **The rename window, exactly.** A file this package masks at rest is read, checked again, and renamed over.
-  Between that last check and the rename, a program this package did not start, holding the path of a file
-  this run made, can append to it, and what it appended is replaced with the snapshot that was read. No check
-  before the rename closes that window, and the fourth review showed that adding one is not a fix: the window
-  only moves. What bounds it is ownership, and after the fourth review that bound holds: the only files this
-  path replaces are the session file this run's own Pi wrote or the copy this run made for it, both written only
-  by a Pi this run reaped, and Pi's own output file of a tool result, written only by the tool that finished
-  before the result existed. A session file Pi names that this run cannot show to be its own is not rewritten at
-  all: a run that made a copy rewrites only that copy, and a run that made none rewrites only a file that did not
-  exist before it started, so no file of another run is written. The window therefore reaches only a file this
-  run made. The run's summary, its checked-runs file and its Pi start check are written beside and renamed the
-  same way, and hold counts and names rather than entries or values, so a lost concurrent write of one of them
-  loses a count and no entry.
+- **The rename window.** The file rewrite reads a snapshot, checks the path again and renames the masked replacement over it.
+  An append between the last check and the rename can be lost. If the driver made a session copy, only that copy is
+  eligible for the at-rest rewrite. If there is no copy, the driver accepts a reported path identical to the caller's
+  `--session` argument without a birth-time check. Another process can create the caller's file after the copy step
+  found no file, and the driver can rewrite it. For any other reported path, the driver accepts a file with a birth
+  time not earlier than the recorded start, so it can also rewrite a file a concurrent run created after that start.
+  On file systems without birth time, Node can report zero or substitute change time. Zero causes the driver to refuse
+  even a fresh file with the message that it was made before the run; a substituted change time can make an older,
+  modified file pass.
+- **A value split by the preview of non-JSON output.** The driver previews a non-JSON line of Pi's standard output
+  at 160 characters before it masks the feed entry. A value that crosses the cut can leave its beginning in the feed
+  because the matcher needs the whole value or an armed spelling of it.
 - **A store that is there and is not what the store reader reads.** Because the store is now read even when the
   environment supplies every name it declares, a `.env.local.json` that is not the sops envelope the reader
   expects stops the run instead of being skipped. That is the same rule as a store that cannot be read, and it
@@ -284,10 +291,9 @@ The three limits the owner accepted in so many words:
 
 Further limits, each one a way through or a way a run stops:
 
-- A program this package did not start, writing into a run's own folder in the moment between the last identity read
-  and the rename that puts a masked file in place, can lose what it appended. No session file of another run is
-  ever rewritten, and the only files this path replaces are ones the run itself made, so no session of another run
-  and no kept file can lose an entry from it.
+- A writer can lose an append between the last file check and the rename that puts masked text in place.
+  That can affect another run's session when no copy was made and the caller's path or the birth-time check lets
+  the reported file qualify.
 - A `.env.local.json` that is there and is not the sops envelope the store reader reads stops the run, even when the
   driver's environment supplies every name the store declares.
 - A start-up file line this reader does not read exactly, such as a value the shell computes, a concatenation of a
@@ -298,14 +304,16 @@ Further limits, each one a way through or a way a run stops:
   makes no `!` command.
 - A credential put on Pi's command line by a free-form `--api-key` word is readable by every process of the account
   and is not masked.
-- A session a run resumes keeps whatever it holds: the run reads it, masks a copy, and Pi resumes the copy. The
-  original is never rewritten, so a value an earlier run left in it stays there on disk.
+- When the driver finds the original session at the path it checks, Pi resumes a masked copy and the original
+  keeps whatever it held. When only Pi finds the session, such as from a bare ID or a differently resolved
+  relative path, there is no pre-masked copy.
 - A value that is in neither the store, Pi's files, the start-up files, the identity nor the driver's environment is
   not known to this code and is not masked.
-- A tool result whose `details` cannot be read keeps the tool's own content, a value in it included, because the
-  withheld result cannot be built either. What a person would see is the tool's own output, unmasked.
-- A tool result that cannot be serialised whole is withheld, and the full-output file it names still holds the value.
-  What a person would see is a withheld result and a file beside Pi's session folder holding the printed value.
+- A tool result whose `details` throws again while the hook tries to withhold it keeps the tool's original content.
+  Ordinary requests still pass through the separate transcript mask.
+- When a cyclic result is withheld and its `details` names a matching full-output file, the withheld result can
+  point at the file without rewriting it. The file is in the operating system's temporary folder and keeps what
+  Pi wrote.
 - A full-output file in a folder that refuses a new file stays as Pi wrote it while the result the model sees is
   masked. What a person would see is the masked result and the value still in that file.
 - A value split across two parts of one tool result is not masked, because each part is masked on its own. What a

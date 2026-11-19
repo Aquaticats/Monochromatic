@@ -24,6 +24,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import {
+  basename,
   delimiter,
   dirname,
   join,
@@ -54,6 +55,7 @@ import {
   WITHOUT_MASKING_SCENARIO,
 } from './stand-in-pi-masking-fixture.ts';
 import { MESSAGE_BEFORE_SETTLE, } from './stand-in-pi-prompt-plays-fixture.ts';
+import { REPORTS_ANOTHER_SESSION_SCENARIO, } from './session-answers-of-a-stand-in-pi.ts';
 import {
   REPORTED_PROCESS_ID,
 } from './stand-in-pi-scenario-plays-fixture.ts';
@@ -139,30 +141,6 @@ function folderOfSops(): readonly string[] {
       ),);
     },);
   return (folder === undefined) ? [] : [folder,];
-}
-
-/**
- Takes a folder's permission to make a new file away for as long as the test's scope lasts, and gives it back after.
-
- @param folder - the folder
-
- @returns a disposer that gives the mode back
- */
-async function refuseNewFiles({ folder, }: { readonly folder: string },): Promise<{
-  readonly [Symbol.asyncDispose]: () => Promise<void>
-}> {
-  await chmod(
-    folder,
-    0o500,
-  );
-  return {
-    async [Symbol.asyncDispose]() {
-      await chmod(
-        folder,
-        0o700,
-      );
-    },
-  };
 }
 
 /**
@@ -768,7 +746,8 @@ async function runDriver(
   ], {
     env: {
       PATH: withoutPi ? withoutExecutables : pathWithStandIn,
-      HOME: process.env.HOME,
+      HOME: folder.path,
+      TMPDIR: folder.path,
       STAND_IN_PI_SCENARIO: scenario,
       STAND_IN_PI_INBOX_FILE: join(runFolder, 'inbox', 'before-settle.txt',),
       STAND_IN_PI_LOG: log,
@@ -841,11 +820,21 @@ await describe({
         await using home = await makeFolder();
         const run = await runDriver({ scenario: 'normal', environment: { HOME: home.path, }, },);
         expect(run.status,).toBe(CLEAN_STATUS,);
-        expect((await readdir(home.path,)).filter((name,) => /^stand-in-session-.*\.jsonl$/u.test(name,)),).toEqual([],);
-        const session = (run.summary.sessionStats as { readonly sessionFile?: string }).sessionFile;
+        /**
+         Whether a directory entry has the fresh-session name the stand-in generates.
+         */
+        function isStandInSession(name: string,): boolean {
+          return name.startsWith('stand-in-session-',) && name.endsWith('.jsonl',);
+        }
+        expect((await readdir(home.path,)).filter(isStandInSession,),).toEqual([],);
+        /**
+         The session the stand-in actually reported, which must not survive fixture disposal either.
+         */
+        const session = (run.summary.sessionStats as { readonly sessionFile?: string } | null)?.sessionFile;
         if (session === undefined) {
           throw new Error('the stand-in did not report the fresh session it wrote',);
         }
+        expect(isStandInSession(basename(session,),),).toBe(true,);
         expect(await exists(session,),).toBe(false,);
       },
     },),
@@ -1899,7 +1888,7 @@ await describe({
         ], {
           env: {
             PATH: [dirname(process.execPath,), '/usr/bin',].join(delimiter,),
-            HOME: process.env.HOME,
+            HOME: folder.path,
           },
           encoding: 'utf8',
         },),);
@@ -1965,7 +1954,7 @@ await describe({
         ], {
           env: {
             PATH: [dirname(process.execPath,), '/usr/bin',].join(delimiter,),
-            HOME: process.env.HOME,
+            HOME: folder.path,
           },
           encoding: 'utf8',
         },),);
@@ -2169,7 +2158,7 @@ await describe({
         await writeFile(otherRuns, otherRunsText,);
         const run = await runDriver({
           // Pi reports a file this run never made, standing for a misreporting peer.
-          scenario: 'reports-another-session',
+          scenario: REPORTS_ANOTHER_SESSION_SCENARIO,
           extraOptions: [`--session=${sessionFile}`,],
           extraPathEntries: folderOfSops(),
           environment: {
@@ -2262,6 +2251,23 @@ await describe({
           'utf8',
         ),).toContain(MASKED_STORE_VALUE,);
 
+      },
+    },),
+    it({
+      name: 'leaves an older reported session alone even when the wall limit dwarfs the current clock',
+      fn: async () => {
+        await using earlier = await makeFolder();
+        const sessionFile = join(earlier.path, 'earlier.jsonl',);
+        await writeFile(sessionFile, '',);
+        // Large enough that adding the start clock to the wall limit rounds back to the wall limit.
+        const wallSeconds = Number.MAX_SAFE_INTEGER ** 2;
+        const run = await runDriver({
+          scenario: REPORTS_ANOTHER_SESSION_SCENARIO,
+          // Pass the large value only to the driver, not to the test harness's own timeout.
+          extraOptions: [`--wall-seconds=${String(wallSeconds,)}`,],
+          environment: { STAND_IN_PI_REPORTED_SESSION: sessionFile, },
+        },);
+        expect(run.summary.endReason,).toBe('session-unmasked',);
       },
     },),
     it({

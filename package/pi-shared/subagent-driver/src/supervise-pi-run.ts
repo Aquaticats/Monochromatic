@@ -188,7 +188,11 @@ export async function supervisePiRun(
    The wall limit in milliseconds, which is what every deadline and timer is computed from.
    */
   const wallMilliseconds = options.wallSeconds * MILLISECONDS_PER_SECOND;
-  if ((!Number.isFinite(wallMilliseconds,)) || (!Number.isFinite(Date.now() + wallMilliseconds,))) {
+  /**
+   The same clock reading anchors the birth-time comparison and the deadline, even if adding the wall limit rounds the deadline.
+   */
+  const startMilliseconds = Date.now();
+  if ((!Number.isFinite(wallMilliseconds,)) || (!Number.isFinite(startMilliseconds + wallMilliseconds,))) {
     throw new DriverOptionsError(`--wall-seconds must be a number of seconds whose milliseconds stay finite; it was "${String(options.wallSeconds,)}".\nUsage: ${DRIVER_USAGE}`,);
   }
   // The git a session would run is asked by the launcher that builds the session's environment, and only there: the owner's
@@ -198,11 +202,11 @@ export async function supervisePiRun(
   /**
    When the run must be over, counted from before Pi starts so that Pi's start-up is inside the limit.
    */
-  const deadline = Date.now() + wallMilliseconds;
+  const deadline = startMilliseconds + wallMilliseconds;
   /**
-   The moment this run began, before which no session file of it can have been made: a file that existed then belongs to someone else.
+   The recorded start used to reject files whose birth time predates the run.
    */
-  const runStartedAt = new Date(deadline - wallMilliseconds,);
+  const runStartedAt = new Date(startMilliseconds,);
   /**
    Where messages for Pi arrive.
    */

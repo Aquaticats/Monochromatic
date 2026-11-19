@@ -324,7 +324,8 @@ async function openConnection(
     workingFolder: folder,
     environment: {
       PATH: withoutPi ? withoutExecutables : [folder, dirname(process.execPath,), '/usr/bin',].join(delimiter,),
-      HOME: process.env.HOME,
+      HOME: folder,
+      TMPDIR: folder,
       STAND_IN_PI_SCENARIO: scenario,
       STAND_IN_PI_LOG: log,
     },
