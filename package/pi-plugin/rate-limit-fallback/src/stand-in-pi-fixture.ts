@@ -40,6 +40,9 @@ type SessionBinding = Parameters<FallbackHost['on']>[1];
  */
 export const MEMBER_KEY = 'stand-in-member-key';
 
+/** HTTP status used in both adapter and response-hook fixtures. */
+export const RATE_LIMIT_STATUS = 429;
+
 /**
  Independently pin each expected setup, including authenticated quota origins.
  */
@@ -114,6 +117,26 @@ export const PHYSICAL_MODELS: readonly Model<Api>[] = TARGETS.map(function toMod
  Model fields the fake assistant response uses, without holding a writable catalog entry.
  */
 export type ModelIdentity = Pick<Readonly<Model<Api>>, 'api' | 'id' | 'provider'>;
+
+/**
+ Compose a refusal body in the forms produced by Pi's OpenAI Responses and Completions adapters.
+
+ @param model - member whose adapter formats the refusal
+ @param message - provider's error text inside the HTTP body
+ @returns terminal SDK error text
+ */
+export function rateLimitRefusal({
+  model,
+  message = 'Too many requests',
+}: {
+  readonly model: Pick<ModelIdentity, 'provider'>;
+  readonly message?: string;
+},): string {
+  const body = JSON.stringify({ error: { message, }, },);
+  return model.provider === 'openai'
+    ? `OpenAI API error (${RATE_LIMIT_STATUS}): ${body}`
+    : `${RATE_LIMIT_STATUS}: ${body}`;
+}
 
 /**
  Build a physical answer using the identity from the registry, just as Pi adapters do.
@@ -264,6 +287,9 @@ function quotaUnavailable(): Promise<Response> {
  @param resolvedBaseUrl - registry auth endpoint override
 
  @param resolvedHeaders - header-only registry credential when supplied
+ @param resolveAuth - registry authorization override for error-path tests
+ @param findModel - catalog lookup override for registry-contract tests
+ @param startSession - whether the registration has received a session binding
 
  @returns provider, request history and controls for the fixture
 
@@ -279,6 +305,9 @@ export function fixture({
   fetchQuota = quotaUnavailable,
   resolvedBaseUrl,
   resolvedHeaders,
+  resolveAuth,
+  findModel,
+  startSession = true,
 }: {
   extension: typeof builtExtension;
   play: (call: MemberCall) => AssistantMessageEventStream;
@@ -286,6 +315,9 @@ export function fixture({
   fetchQuota?: FetchFunction;
   resolvedBaseUrl?: string;
   resolvedHeaders?: ProviderHeaders;
+  resolveAuth?: ModelRegistry['getApiKeyAndHeaders'];
+  findModel?: ModelRegistry['find'];
+  startSession?: boolean;
 },): Promise<{
   readonly calls: MemberCall[];
   readonly provider: Provider;
@@ -339,13 +371,17 @@ export function fixture({
       providerId,
       id,
     ) {
+      if (findModel !== undefined)
+        return findModel(providerId, id,);
       for (const model of models) {
         if ((model.provider === providerId) && (model.id === id))
           return model;
       }
       return undefined;
     },
-    getApiKeyAndHeaders() {
+    getApiKeyAndHeaders(model,) {
+      if (resolveAuth !== undefined)
+        return resolveAuth(model,);
       return Promise.resolve({
         ok: true,
         ...(resolvedHeaders === undefined ? { apiKey: MEMBER_KEY, } : { headers: resolvedHeaders, }),
@@ -369,15 +405,16 @@ export function fixture({
       return play(call,);
     },
   };
-  start(
-    {
-      type: 'session_start',
-      reason: 'startup',
-    },
-    {
-      modelRegistry: registry,
-    },
-  );
+  if (startSession)
+    start(
+      {
+        type: 'session_start',
+        reason: 'startup',
+      },
+      {
+        modelRegistry: registry,
+      },
+    );
   return Promise.resolve({
     calls,
     provider,

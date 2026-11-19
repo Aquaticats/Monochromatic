@@ -3,7 +3,7 @@
  @module
  */
 
-import { createAssistantMessageEventStream, isRetryableAssistantError, lazyStream, } from '@earendil-works/pi-ai';
+import { createAssistantMessageEventStream, lazyStream, } from '@earendil-works/pi-ai';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import extension, { PROVIDER_ID, } from '../dist/final/node/index.mjs';
 import {
@@ -13,28 +13,11 @@ import {
   fixture,
   immediate,
   poolModel,
+  rateLimitRefusal,
+  RATE_LIMIT_STATUS,
   TARGETS,
   TRANSCRIPT,
 } from './stand-in-pi-fixture.ts';
-
-/** Stand-in HTTP refusal in Pi SDK error format. */
-const LIMITED = '429 Too many requests';
-
-/** OpenAI policy refusal, verbatim as truncated in the Pi driver's summary. */
-const OPENAI_POLICY = 'This content was flagged for possible cybersecurity risk. If this seems wrong, '
-  + 'try rephrasing your request. If you’re doing authorized security work that requires more cyber permissive '
-  + 'safeguards, apply for Daybreak access via https://platform.openai.com/settings/organization/status-and-access befor';
-
-/** Policy wording variants that must stop the pool and suppress Pi's outer retry. */
-const POLICY_ERRORS = {
-  'legacy wording with a misleading HTTP 429 prefix': '429 Request flagged as a possible risk',
-  'verbatim OpenAI wording with a curly apostrophe': OPENAI_POLICY,
-  'OpenAI wording truncated after the first sentence': 'This content was flagged for possible cybersecurity risk.',
-  'OpenAI wording with a straight apostrophe': OPENAI_POLICY.replace('’', '\'',),
-} as const;
-
-/** Expected writer members on either side of the first fallback boundary. */
-const [WRITER_HEAD, NEXT_WRITER_MEMBER,] = TARGETS;
 
 /** Other non-capacity failures are returned unchanged. */
 const TERMINAL_ERRORS = [
@@ -54,7 +37,7 @@ await describe({
           play({ model, }) {
             return immediate({
               model,
-              ...(model.provider === TARGETS.at(-1)?.provider ? {} : { errorMessage: LIMITED, }),
+              ...(model.provider === TARGETS.at(-1)?.provider ? {} : { errorMessage: rateLimitRefusal({ model, },), }),
             },);
           },
         },);
@@ -80,7 +63,7 @@ await describe({
         const { provider, calls, options, } = await fixture({
           extension,
           play({ model, }) {
-            return calls.length === 1 ? immediate({ model, errorMessage: LIMITED, },) : immediate({ model, },);
+            return calls.length === 1 ? immediate({ model, errorMessage: rateLimitRefusal({ model, },), },) : immediate({ model, },);
           },
         },);
         const model = poolModel({ provider, id: 'reviewer', },);
@@ -103,22 +86,6 @@ await describe({
         }
       },
     },),
-    ...Object.entries(POLICY_ERRORS,).map(function policyError([label, errorMessage,],) {
-      return it({
-        name: `stops on a policy refusal with ${label}`,
-        fn: async function policyStop() {
-          const { provider, calls, options, } = await fixture({
-            extension,
-            play({ model, }) { return immediate({ model, errorMessage, },); },
-          },);
-          const model = poolModel({ provider, id: 'writer', },);
-          const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-          expect(result.errorMessage,).toBe('The provider stopped the request under its content policy.',);
-          expect(isRetryableAssistantError(result,),).toBe(false,);
-          expect(calls.map(call => call.model.provider,),).toEqual([WRITER_HEAD.provider,],);
-        },
-      },);
-    },),
     ...TERMINAL_ERRORS.map(function terminalError(errorMessage,) {
       return it({
         name: `does not move on from ${errorMessage}`,
@@ -135,26 +102,6 @@ await describe({
       },);
     },),
     it({
-      name: 'continues to the next member on a 429 that only mentions cybersecurity risk',
-      fn: async function riskMentionInRateLimit() {
-        const { provider, calls, options, } = await fixture({
-          extension,
-          play({ model, }) {
-            return immediate({
-              model,
-              ...(model.provider === WRITER_HEAD.provider
-                ? { errorMessage: '429 Too many requests while we assess possible cybersecurity risk', }
-                : {}),
-            },);
-          },
-        },);
-        const model = poolModel({ provider, id: 'writer', },);
-        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(result.stopReason,).toBe('stop',);
-        expect(calls.map(call => call.model.provider,),).toEqual([WRITER_HEAD.provider, NEXT_WRITER_MEMBER.provider,],);
-      },
-    },),
-    it({
       name: 'does not replay after a tool event or when the terminal 429 already contains content',
       fn: async function partialOutput() {
         await Promise.all([true, false,].map(async function verifyOutputBoundary(publish,): Promise<void> {
@@ -162,7 +109,7 @@ await describe({
             extension,
             play({ model, }) {
               const stream = createAssistantMessageEventStream();
-              const message = assistant({ model, errorMessage: LIMITED, },);
+              const message = assistant({ model, errorMessage: rateLimitRefusal({ model, },), },);
               const toolCall = { type: 'toolCall', id: 'tool-fixture', name: 'fixtureTool', arguments: {}, } as const;
               message.content.push(toolCall,);
               if (publish) {
@@ -175,7 +122,7 @@ await describe({
           },);
           const model = poolModel({ provider, id: 'writer', },);
           const { events, result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-          expect(result.errorMessage,).toBe(LIMITED,);
+          expect(result.errorMessage,).toBe(rateLimitRefusal({ model: TARGETS[0], },),);
           expect(events.map(event => event.type,),).toEqual(publish ? ['start', 'toolcall_start', 'error',] : ['error',],);
           expect(calls.map(call => call.model.provider,),).toEqual(['openai',],);
         },),);
@@ -191,7 +138,7 @@ await describe({
             const partial = assistant({ model, },);
             stream.push({ type: 'start', partial, },);
             stream.push({ type: 'text_start', contentIndex: 0, partial, },);
-            finish({ stream, message: assistant({ model, errorMessage: LIMITED, },), },);
+            finish({ stream, message: assistant({ model, errorMessage: rateLimitRefusal({ model, },), },), },);
             return stream;
           },
         },);
@@ -209,7 +156,7 @@ await describe({
           extension,
           play({ model, }) {
             controller.abort();
-            return immediate({ model, errorMessage: LIMITED, },);
+            return immediate({ model, errorMessage: rateLimitRefusal({ model, },), },);
           },
         },);
         const model = poolModel({ provider, id: 'writer', },);
@@ -225,14 +172,14 @@ await describe({
       fn: async function exhaustedPool() {
         const { provider, calls, options, } = await fixture({
           extension,
-          play({ model, }) { return immediate({ model, errorMessage: LIMITED, },); },
+          play({ model, }) { return immediate({ model, errorMessage: rateLimitRefusal({ model, },), },); },
         },);
         const model = poolModel({ provider, id: 'reviewer', },);
         const { events, result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(calls.map(call => call.model.provider,),).toEqual(TARGETS.slice(1,).map(target => target.provider,),);
         expect(events.map(event => event.type,),).toEqual(['error',],);
         expect(result.provider,).toBe(TARGETS.at(-1)?.provider,);
-        expect(result.errorMessage,).toBe(LIMITED,);
+        expect(result.errorMessage,).toBe(rateLimitRefusal({ model: result, },),);
       },
     },),
     it({
@@ -243,7 +190,7 @@ await describe({
           play({ model, options: member, }) {
             return lazyStream(model, async function reply() {
               await member?.onResponse?.({
-                status: model.provider === 'openai' ? 429 : 400,
+                status: model.provider === 'openai' ? RATE_LIMIT_STATUS : 400,
                 headers: {},
               }, model,);
               return immediate({ model, errorMessage: 'Provider returned an error', },);

@@ -3,7 +3,7 @@
  @module
  */
 
-import { createAssistantMessageEventStream, lazyStream, } from '@earendil-works/pi-ai';
+import { createAssistantMessageEventStream, isRetryableAssistantError, lazyStream, } from '@earendil-works/pi-ai';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import extension from '../dist/final/node/index.mjs';
 import {
@@ -15,6 +15,8 @@ import {
   MEMBER_KEY,
   PHYSICAL_MODELS,
   poolModel,
+  rateLimitRefusal,
+  RATE_LIMIT_STATUS,
   TRANSCRIPT,
 } from './stand-in-pi-fixture.ts';
 
@@ -27,6 +29,9 @@ const WINDOW_SECONDS = WINDOW_MS / 1_000;
 /** Known advisory and observed caps recorded on 2026-11-11. */
 const PUBLISHED_CAP = 20;
 const OVERAGE_CAP = 6;
+
+/** Empty flex lane; a positive standard ceiling must not let it admit any requests. */
+const NO_FLEX_REQUESTS = 0;
 
 /**
  Read the URL from each fetch input form without stringifying an arbitrary object.
@@ -47,36 +52,40 @@ await describe({
   name: 'provider quota evidence',
   children: [
     it({
-      name: 'uses a 429 Retry-After and resumes the preferred provider at the reset',
+      name: 'uses numeric and HTTP-date 429 Retry-After values and resumes at the reported reset',
       fn: async function retryWindow(ctx,) {
         const clock = { now: Date.now(), };
         ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
-        const { provider, calls, options, } = await fixture({
-          extension,
-          play({ model, options: member, }) {
-            if (calls.length !== 1)
-              return immediate({ model, },);
-            return lazyStream(model, async function refused() {
-              await member?.onResponse?.({
-                status: 429,
-                headers: { 'Retry-After': String(WINDOW_SECONDS,), },
-              }, model,);
-              return immediate({ model, errorMessage: 'HTTP 429: rate limit', },);
-            },);
-          },
-        },);
-        const model = poolModel({ provider, id: 'writer', },);
-        const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        const beforeReset = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        clock.now += WINDOW_MS;
-        const afterReset = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect([first.result.provider, beforeReset.result.provider, afterReset.result.provider,],).toEqual([
-          'qwen-token-plan-individual', 'qwen-token-plan-individual', 'openai',
-        ],);
+        for (const asDate of [false, true,]) {
+          const deadline = new Date(clock.now + WINDOW_MS,);
+          const retryAfter = asDate ? deadline.toUTCString() : String(WINDOW_SECONDS,);
+          const { provider, calls, options, } = await fixture({
+            extension,
+            play({ model, options: member, }) {
+              if (calls.length !== 1)
+                return immediate({ model, },);
+              return lazyStream(model, async function refused() {
+                await member?.onResponse?.({
+                  status: RATE_LIMIT_STATUS,
+                  headers: { 'Retry-After': retryAfter, },
+                }, model,);
+                return immediate({ model, errorMessage: rateLimitRefusal({ model, },), },);
+              },);
+            },
+          },);
+          const model = poolModel({ provider, id: 'writer', },);
+          const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+          const beforeReset = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+          clock.now = asDate ? Date.parse(retryAfter,) : deadline.getTime();
+          const afterReset = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+          expect([first.result.provider, beforeReset.result.provider, afterReset.result.provider,],).toEqual([
+            'qwen-token-plan-individual', 'qwen-token-plan-individual', 'openai',
+          ],);
+        }
       },
     },),
     it({
-      name: 'uses OpenAI zero-remaining headers seen on a successful response',
+      name: 'uses the later compound OpenAI reset when both zero-remaining headers are seen on success',
       fn: async function openAiRemaining(ctx,) {
         const clock = { now: Date.now(), };
         ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
@@ -90,7 +99,9 @@ await describe({
                 status: 200,
                 headers: {
                   'x-ratelimit-remaining-tokens': '0',
-                  'x-ratelimit-reset-tokens': `${WINDOW_SECONDS}s`,
+                  'x-ratelimit-reset-tokens': `${WINDOW_SECONDS / 2}s`,
+                  'x-ratelimit-remaining-requests': '0',
+                  'x-ratelimit-reset-requests': '1m0s',
                 },
               }, model,);
               return immediate({ model, },);
@@ -100,10 +111,12 @@ await describe({
         const model = poolModel({ provider, id: 'writer', },);
         const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         const beforeReset = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        clock.now += WINDOW_MS;
+        clock.now += WINDOW_MS / 2;
+        const afterTokenReset = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        clock.now += WINDOW_MS / 2;
         const afterReset = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect([first.result.provider, beforeReset.result.provider, afterReset.result.provider,],).toEqual([
-          'openai', 'qwen-token-plan-individual', 'openai',
+        expect([first.result.provider, beforeReset.result.provider, afterTokenReset.result.provider, afterReset.result.provider,],).toEqual([
+          'openai', 'qwen-token-plan-individual', 'qwen-token-plan-individual', 'openai',
         ],);
       },
     },),
@@ -161,6 +174,30 @@ await describe({
       },
     },),
     it({
+      name: 'reports the named NeuralWatt member and a published flex floor of zero without retrying',
+      fn: async function zeroFlexFloor() {
+        const redirects: (RequestRedirect | undefined)[] = [];
+        const physical = PHYSICAL_MODELS.filter(model => model.provider === 'neuralwatt',);
+        const { provider, calls, options, } = await fixture({
+          extension,
+          models: physical,
+          play({ model, }) { return immediate({ model, },); },
+          async fetchQuota(input, init,) {
+            redirects.push(init?.redirect,);
+            return quotaUrl(input,).includes('/v1/rate_limits',)
+              ? Response.json({ models: [{ effective_concurrency: PUBLISHED_CAP, flex_floor: NO_FLEX_REQUESTS, },], },)
+              : Response.json({});
+          },
+        },);
+        const model = poolModel({ provider, id: 'reviewer', },);
+        const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        expect(calls,).toEqual([],);
+        expect(redirects,).toEqual(['error', 'error',],);
+        expect(result.errorMessage,).toContain(`${physical[0]?.provider}/${physical[0]?.id} has a published flex floor of zero`,);
+        expect(isRetryableAssistantError(result,),).toBe(false,);
+      },
+    },),
+    it({
       name: 'admits only the reported flex ceiling, not the standard concurrency ceiling',
       fn: async function flexCeiling() {
         const physical = PHYSICAL_MODELS.find(candidate => candidate.provider === 'neuralwatt',);
@@ -195,7 +232,8 @@ await describe({
           };
           await ready.promise;
           const denied = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-          expect(denied.result.errorMessage,).toContain('local provider concurrency ceiling',);
+          expect(denied.result.errorMessage,).toContain(`${physical.provider}/${physical.id} is at its local concurrency ceiling (1 of 1 in use)`,);
+          expect(isRetryableAssistantError(denied.result,),).toBe(false,);
           expect(calls.length,).toBe(1,);
           reading.flex += 1;
           const afterIncrease = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
@@ -206,7 +244,7 @@ await describe({
       },
     },),
     it({
-      name: 'a NeuralWatt overage 429 overrides 20 with 6 until the subscription renews',
+      name: `a NeuralWatt overage 429 overrides ${PUBLISHED_CAP} with ${OVERAGE_CAP} until a renewal learned on reentry`,
       fn: async function overageCap(ctx,) {
         const clock = { now: Date.now(), };
         ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
@@ -221,7 +259,10 @@ await describe({
             if (calls.length === 1) {
               return immediate({
                 model,
-                errorMessage: `429 Concurrent limit reached for deepseek-ai/DeepSeek-V4.1-Flash: ${OVERAGE_CAP}/${OVERAGE_CAP} slots in use. Your subscription is in overage with auto-renew off, so pay-as-you-go limits apply until it renews.`,
+                errorMessage: rateLimitRefusal({
+                  model,
+                  message: `Concurrent limit reached for deepseek-ai/DeepSeek-V4.1-Flash: ${OVERAGE_CAP}/${OVERAGE_CAP} slots in use. Your subscription is in overage with auto-renew off, so pay-as-you-go limits apply until it renews.`,
+                },),
               },);
             }
             if (clock.now >= end)
@@ -245,9 +286,9 @@ await describe({
             }
             return Response.json({
               subscription: {
-                in_overage: clock.now < end,
-                auto_renew: clock.now >= end,
-                current_period_end: new Date(end,).toISOString(),
+                in_overage: true,
+                auto_renew: false,
+                ...(calls.length === 0 ? {} : { current_period_end: new Date(end,).toISOString(), }),
               },
             },);
           },
@@ -268,7 +309,8 @@ await describe({
         await ready.promise;
         {
           const limited = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-          expect(limited.result.errorMessage,).toContain('local provider concurrency ceiling',);
+          expect(limited.result.errorMessage,).toContain(`local concurrency ceiling (${OVERAGE_CAP} of ${OVERAGE_CAP} in use)`,);
+          expect(isRetryableAssistantError(limited.result,),).toBe(false,);
           expect(calls.length,).toBe(1 + OVERAGE_CAP,);
           clock.now = end;
           const renewed = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
