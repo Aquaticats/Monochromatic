@@ -40010,7 +40010,14 @@ to label each behaviour claim (real invocation, producer source, stand-in). Goin
 read-only) counting fixtures with no producer behind them in GPT writer runs since 2026-11-17 against an equal sample of
 earlier DeepSeek runs (`~/temp/agent/fixture-provenance-audit-by-model-2026-11-19/keep/report.md`). Next for the
 provider: when `pi-provider-answers-its-review-1` ends, a DeepSeek writer in the same worktree builds the automatic
-move on a possible-risk stop, then one DeepSeek review of both.
+move on a possible-risk stop, then one DeepSeek review of both. `pi-provider-answers-its-review-1` ended `idle` (74
+turns; `cd088202d1` to `defc6be2ab`): the OpenAI 429 form recognised, refusal fixtures now built by sending in-memory
+HTTP refusals through both installed adapters (which caught one more mismatch: the SDK unwraps the body's `error`
+field); the policy message keeps the provider's advisory and names the member, only Pi's retry phrases replaced; quota
+reads bounded at a provisional 2 s, capped at half a positive caller timeout, to be set from the live endpoint check;
+local admission failures in words, not retried by Pi; branch tests added; sibling conventions followed; types, unit,
+oxlint 0/0 and the Pi session check pass. The DeepSeek writer (`pi-provider-moves-on-after-a-policy-stop-1`, Qwen plan,
+fresh session) now builds the automatic move, its fixture built through the adapter and citing the two real stops.
 
 The third prewarm run ended `idle` (77 turns, no new commit; report updated): through a built wrapper with the fill's
 staging and target replaced mid-clone, the tip left the other command's files at both names byte for byte and said why
