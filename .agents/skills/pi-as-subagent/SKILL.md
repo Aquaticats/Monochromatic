@@ -217,14 +217,14 @@ and of the driver package,
   The owner, 2026-11-18:
   "Whenever a "possible risk" is triggered from OAI, switch to deepseek resuming the session."
 - **A reviewer**, a run that reviews a change outside a gate (the short, frequent kind),
-  is DeepSeek V4.1 Flash from one pool in the owner's order
-  ("Synthetic and C and B, as a pool with preference."):
-  `--provider=synthetic --model=hf:deepseek-ai/DeepSeek-V4.1-Flash-1017` first,
+  is DeepSeek V4.1 Flash from one pool in the owner's order:
+  `--provider=qwen-token-plan-individual --model=deepseek-v4.1-flash-1017` first
+  (the owner, 2026-11-18: "Add my qwen individual token plan deepseek-v4.1-flash-1017 to the deepseek pool."
+  and "Orderings: qwen individual token plan first."; how many runs it takes at once is unmeasured),
+  then the earlier order ("Synthetic and C and B, as a pool with preference."):
+  `--provider=synthetic --model=hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`,
   then `--provider=opencode-go --model=deepseek-v4.1-flash`,
-  then `--provider=neuralwatt --model=deepseek-v4.1-flash-flex` with the doubled wall clock flex runs get,
-  then `--provider=qwen-token-plan-individual --model=deepseek-v4.1-flash-1017`
-  (the owner, 2026-11-18: "Add my qwen individual token plan deepseek-v4.1-flash-1017 to the deepseek pool.";
-  placed last so the order the owner gave for the first three stands, and how many runs it takes at once is unmeasured).
+  then `--provider=neuralwatt --model=deepseek-v4.1-flash-flex` with the doubled wall clock flex runs get.
 - **The provider `deepseek` is never used**, for any run.
 - **Gate reviews and long-horizon audits** stay on Claude Sonnet,
   by whatever route the harness offers, outside Pi

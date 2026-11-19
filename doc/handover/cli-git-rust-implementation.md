@@ -39768,9 +39768,10 @@ not a copy.
 
 In plain text: "Add my qwen individual token plan deepseek-v4.1-flash-1017 to the deepseek pool." Pi lists it as
 provider `qwen-token-plan-individual`, model `deepseek-v4.1-flash-1017` (1M context); one `pi --print --no-session`
-prompt answered "OK". Written into `.agents/skills/pi-as-subagent/SKILL.md`, "Who writes and who reviews", as the
-fourth pool after Synthetic, `opencode-go` and Neuralwatt flex, so the order the owner gave for those three stands;
-how many runs it takes at once is unmeasured, and the driver's pool table (task 383) does not list it yet.
+prompt answered "OK". Then: "Orderings: qwen individual token plan first." Written into
+`.agents/skills/pi-as-subagent/SKILL.md`, "Who writes and who reviews", as the first pool, before Synthetic,
+`opencode-go` and Neuralwatt flex in their earlier order; how many runs it takes at once is unmeasured (its first 429
+sets it), and the driver's pool table (task 383) does not list it yet. Reviews started from now take it first.
 
 ### ZFS route: the checkout becomes its own dataset at the same path (2026-11-18, evening)
 
