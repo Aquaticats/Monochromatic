@@ -116,15 +116,12 @@ await describe({
           },
         },);
         const model = poolModel({ provider, id: 'reviewer', },);
-        const a = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        console.error(`DEBUG 1 reads=${reads.count} from=${a.result.provider} now=${clock.now}`);
+        await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(reads.count,).toBe(1,);
-        const b = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        console.error(`DEBUG 2 reads=${reads.count} from=${b.result.provider} now=${clock.now}`);
+        await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(reads.count,).toBe(1,);
         clock.now += MINIMUM_READ_INTERVAL_MS;
-        const cc = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        console.error(`DEBUG 3 reads=${reads.count} from=${cc.result.provider} now=${clock.now}`);
+        await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(reads.count,).toBe(2,);
       },
     },),
