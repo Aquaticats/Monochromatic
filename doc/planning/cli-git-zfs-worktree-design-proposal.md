@@ -1048,8 +1048,9 @@ separately under [Adopted defaults open to veto](#adopted-defaults-open-to-veto)
 At the owner handoff, ask one question per decision in the question tool, each with its options, pros, cons and a
 recommendation that explains every adjacent pair in the ranking. The two choices this draft couples are asked as two
 questions, and each states the coupling and the excluded combination that follows from the grants, never as a
-ranking between them. The bookmark rule is coupled to that same identity choice, because who writes the
-destruction plan differs between its options. Use the VM findings and identify what remains unmeasured; a ranking
+ranking between them. The bookmark rule is coupled to that same identity choice, because the plan every option
+persists is written by whichever program that choice puts in charge and the first bookmark option reads it
+(reasoning). Use the VM findings and identify what remains unmeasured; a ranking
 is not a decision.
 
 - Checkout boot mount protection. Keep an ordinary checkout mountpoint and verify an immutable covered entry, or
@@ -1340,8 +1341,9 @@ a clone that carried a bookmark.
   (`man/man8/zfs-destroy.8:180` to `:182`) and retries; under the delegated option that request checks the
   account's descendant `destroy` grant (`module/zfs/zfs_ioctl.c:1092` to `:1093`), and under the root option an
   administrator does it, since the account holds no destroy authority there (source reading, not a measured
-  account run). What this option still needs is stated here rather than settled. The plan's home is unnamed and
-  its writer follows the identity option: the wrapper runs as the account, so the account writes the plan under
+  account run). What this option still needs is stated here rather than settled. The plan is persisted under every
+  option ([Removal and recovery](#removal-and-recovery), step 3), so its unnamed home is a gap common to all three,
+  and its writer follows the identity option: the wrapper runs as the account, so the account writes the plan under
   delegated destruction, and a same-account writer could forge a tuple (reasoning), which is the same-account
   residual that option already accepts ([Clone removal identity protection](#clone-removal-identity-protection));
   under root destruction, root persists the verified plan under root control. An amended plan keeps every earlier
@@ -1353,15 +1355,17 @@ a clone that carried a bookmark.
   "planned snapshots all gone with the head refused" needs the whole batch (reasoning). The acceptance control must
   force a split or a replan, because a one-batch removal passes under every option here
   ([Acceptance tests the build still owes](#acceptance-tests-the-build-still-owes)).
-- Read live clone snapshots only, the rule this draft used through revision `b26aa27f3c`. It needs no plan and no
-  recorded tuple for a bookmark. It strands a removal after its first mutation: the first chunk or the replan
-  destroys the snapshot a bookmark matches, the next lineage proof refuses, and the head, the standing `unmount`
-  intent and the remaining snapshots stay while the destroyed ones are gone (reasoning from the citations above,
-  not measured). After a split that stranded state is the partial snapshot set; after a whole batch it is planned
-  snapshots all gone with the head refused.
+- Read live clone snapshots only, the rule this draft used through revision `b26aa27f3c`. It does not read the
+  plan for a bookmark and needs no recorded tuple for one, though any option here persists that plan
+  ([Removal and recovery](#removal-and-recovery), step 3). It strands a removal after its first mutation: the first
+  chunk or the replan destroys the snapshot a bookmark matches, the next lineage proof refuses, and the head, the
+  standing `unmount` intent and the remaining snapshots stay while the destroyed ones are gone (reasoning from the
+  citations above, not measured). After a split that stranded state is the partial snapshot set; after a whole
+  batch it is planned snapshots all gone with the head refused.
 - Judge by transaction group and the origin side, the option this check proposed rather than one this draft ever
   stated: pass a bookmark whose tuple is ordered after the clone's own creation and matches no origin-side tuple.
-  It needs neither a plan nor a refusal of a stale bookmark. Its basis is a source reading: a bookmark's source
+  It reads no plan for a bookmark, though every option persists one ([Removal and recovery](#removal-and-recovery),
+  step 3), and it refuses no stale bookmark. Its basis is a source reading: a bookmark's source
   snapshot must be an earlier point in its dataset's timeline (`module/zfs/dsl_bookmark.c:250` to `:256`, OpenZFS
   `zfs-2.4.4`), and promotion moves bookmarks by creation transaction group into the promoted dataset
   (`module/zfs/dsl_dataset.c:3747` to `:3757`, OpenZFS `zfs-2.4.4`; [VM item 13][vm-13] saw a bookmark move with
