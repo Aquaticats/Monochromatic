@@ -609,11 +609,11 @@ the later head destroy. Neither a successful batch nor a dependency refusal esta
     intent and print the slot, dataset and exact snapshot names to be lost. Release local handles and request
     `unmount`. Require the root handler's [all-namespace unmount check](#mounts-held-by-other-namespaces) and
     verify the request, clone GUID, underlay identity and Git registration still match. A missing, mismatched
-    or busy unmount blocks destruction, including when the slot is already clear (proposed from [item 15][vm-namespaces]).
+    or busy unmount blocks destruction, even when the slot is clear (proposed from [item 15][vm-namespaces]).
 3.  After unmount, persist the verified inventory and expected clone identity as the destruction plan.
     Require fresh root all-namespace verification before the first snapshot delete. Reprove lineage and candidate
-    identities immediately before submitting the full verified snapshot set in one
-    `ZFS_IOC_DESTROY_SNAPS` request with `defer=false`; retain the per-name error list (direct route, [item 14][vm-batch]).
+    identities immediately before submitting the full verified snapshot set in one `ZFS_IOC_DESTROY_SNAPS` request
+    with `defer=false`; retain the per-name error list (direct route, [item 14][vm-batch]).
     If root conditional destruction is selected, require equivalent whole-batch checks and per-name results inside
     its single channel program request, not an external name-based ioctl after a conditional check (unmeasured).
     Skip the snapshot request for an empty set. Only then destroy the verified unmounted head under the selected
@@ -995,12 +995,14 @@ the account's attempt with a matching tuple was denied. The substitutions were s
   adds a privileged request and recovery surface. Before enabling it, prove scope against spoofed or replayed
   requests and same-name replacements. Persist the verified plan under root control before mutation; after a lost
   response or restart, prove which recorded identities survive or are gone before resuming, never replay by name.
-  Check the entire approved snapshot batch and all destroy prerequisites within the program before its first
-  mutation, following the precheck pattern in `module/zfs/dsl_destroy.c:630` to `:653`. Prove the same no-loss
-  refusal and per-name results as the direct batch, including program resource failures. Administrative exclusion
-  alone does not prove rollback after a program error (`man/man8/zfs-program.8:37` to `:40` and `:48` to `:54`).
-  Item 12 proved only a single conditional clone destroy, not the request interface, multi-object destruction or
-  recovery; those are unmeasured design requirements.
+  In the snapshot program, precheck every approved snapshot and its delete prerequisites before any snapshot
+  mutation (`module/zfs/dsl_destroy.c:630` to `:653` is the kernel's batch pattern). Prove no-loss refusal and
+  per-name results for snapshot precheck failures. Run a separate conditional head request after verifying the
+  snapshot outcome: the head check would refuse while own snapshots remain (`dsl_destroy.c:783` to `:789`).
+  Before enabling this option, prove execution and result budgets for a whole snapshot batch and exercise failure
+  at those limits. An exhausted program can leave partial effects (`man/man8/zfs-program.8:146` to `:155`);
+  neither an error nor a lost response proves no mutation. Item 12 proved only a single conditional clone destroy,
+  not the request interface, batch equivalence or recovery. Those are unmeasured design requirements.
 
 ## Pre-acceptance VM measurements
 
