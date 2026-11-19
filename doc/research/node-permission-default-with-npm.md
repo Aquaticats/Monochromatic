@@ -143,11 +143,15 @@ Which of them a command here reaches is known only through those feeds and the j
 
 ### Keeping durability under the default
 
-How the five callers keep their writes durable without clearing `NODE_OPTIONS` was put to the owner on 2026-11-18.
 The owner's standing words: "I turned on the permission model by default. And we should figure out how to work with
 it, not disable it."
-Two ways stay inside the model. One is to hand the sync to another program: GNU coreutils `sync FILE` syncs only
-the named files, and `--data` syncs only their data. That needs `--allow-child-process` once the model refuses rather
-than audits. The other is to do the durable write in Rust, which Node's model does not govern.
+Decided by the owner on 2026-11-18 (question tool, "Call coreutils sync (Recommended)"): after the write, the file is
+closed and synced by running GNU coreutils `sync --data <file>` as a child process. `sync` with file operands syncs
+only those files, and `--data` syncs only their data (`sync --help`, coreutils on this machine).
+Measured the same evening with hyperfine, twenty runs each: median 0.78 ms per `sync --data` call on the home dataset,
+against 0.37 ms for `/usr/bin/true`.
+Limits: the call needs `--allow-child-process` once the model refuses instead of audits, and file operands are GNU
+coreutils behaviour (Linux, which all five callers target).
+The options not chosen were a repository-built sync helper binary and moving each durable write into Rust.
 
 [node-26-permissions]: https://nodejs.org/docs/latest-v26.x/api/permissions.html#:~:text=Some%20node%3Afs%20operations%20act%20on%20an%20already-open%20file%20descriptor

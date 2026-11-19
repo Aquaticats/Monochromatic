@@ -39906,6 +39906,17 @@ By 03:00:55Z five more had ended (all `idle`, no rate-limit error):
 
 These go to their authors with the queue, after the ZFS route.
 
+Owner answers of 2026-11-18 (question tool):
+
+- The five `FileHandle.sync()` callers: "Call coreutils sync (Recommended)", recorded in
+  `doc/research/node-permission-default-with-npm.md`, "Keeping durability under the default". A GPT writer makes the
+  change in its own worktree.
+- The virtual provider on OpenAI's "possible risk" stop: "Fall back automatically (Recommended)": the writer pool sends
+  the same transcript to the next member, and the session record names the member that answered. This reverses the
+  first run's refusal and makes rule `RKD`'s hand resume automatic for runs on the provider. It is a separate task from
+  the lint run now going (`pi-provider-that-falls-back-across-providers-2`), so it goes to a fresh writer in the same
+  worktree after that run ends, then the package's DeepSeek review.
+
 ### No heavy worktree use before the wrapper's ZFS route (2026-11-18T21:47:42-05:00)
 
 The owner, in plain text: "We shouldn't use worktrees heavily before we implement the zfs parts for the git wrapper."
