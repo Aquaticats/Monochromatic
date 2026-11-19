@@ -168,8 +168,8 @@ sequence. The descriptor attach was a separate probe. The combined ordered wrapp
     applicable fallback without leaving a managed object. Never substitute the main checkout for a linked source.
 2.  Claim the destination as the account with an exclusive per-add record in the Git common directory. Write
     the proposed clone name and unique `git-worktree-clone-origin-<nonce>` snapshot name before any mutation
-    beyond the claim. Create or verify an empty account-owned slot, then run Git's supported `worktree add
-    --no-checkout` form. Record the reciprocal registration and exact `.git` pointer bytes; leave the file in
+    beyond the claim. Create or verify an empty account-owned slot, then run Git's supported
+    `worktree add --no-checkout` form. Record the reciprocal registration and exact `.git` pointer bytes; leave it in
     the slot on the checkout dataset. Have the handler verify and record the slot identity before any attach.
 3.  Snapshot the checkout, then clone that fresh origin, never a sanoid snapshot. Record the actual snapshot and
     clone GUIDs as each is confirmed. Request `mount` via the local desired-state user property described in
@@ -344,39 +344,73 @@ removal and resumption in the guest.
 
 ## Ladder and fallback
 
-Make ZFS clone the ZFS implementation of **rung 1**, alongside Btrfs snapshot, not a rung ahead of Btrfs. Keep
-ordinary `git worktree add <path>` semantics. The existing ladder covers its recognized add forms only
-([wrapper specification][spec], lines 1121 to 1189). Reuse the clean-source and frozen-index checks, attribute and
-conversion checks, checked Git registration, tree difference and guarded publication. For ignored state, reuse
-Btrfs's present main-checkout snapshot leave-out policy, not an unconditional whole-directory copy: keep the
-eligible ignored data as of the snapshot, leave out nested worktrees and wrapper caches/stages as the existing rule
-specifies, and skip the separate ignored copy only after a successful snapshot fill. The current Btrfs spec also
-has a dirty-main restore path; the ZFS first release declines dirty sources instead of claiming that parity.
-See [wrapper specification][spec], lines 1178 to 1271 and 1379 to 1525, and [Btrfs design][btrfs-plan],
-"Implemented flow and what superseded the proposal". Reuse `fs_beneath.rs` for held, no-follow paths,
-`fs_mount_options.rs` for caller mount facts, and `fs_clone_exchange.rs:46` and `:70` for reflink and exchange.
-`fs_kind.rs:63` and `:87` do not classify ZFS today; `src/native/worktree/worktree_snapshot_source.rs:279`
-currently gates reflink to Btrfs, XFS and overlayfs. Add ZFS recognition and dataset-specific checks rather than
-reusing Btrfs inode or subvolume identity rules. Source and removal checking code remains in the wrapper.
+**Rung 1** is the ZFS snapshot clone alongside the existing Btrfs route. Keep `git worktree add <path>` semantics
+and the ladder's already recognized forms ([wrapper specification][spec], lines 1121 to 1189). The described add
+uses the configured clean main checkout as origin. A dirty or otherwise unproved source is refused for this rung;
+this is not Btrfs's dirty-main restore. Reuse held-path and mount-fact helpers and the current Git index, attribute,
+conversion and publication checks. Respect Btrfs's main-checkout leave-out policy for ignored state, but verify
+ZFS-specific mounts and identities instead of assuming Btrfs's inode/subvolume semantics. If tracked output would
+occupy an omitted mount location, refuse the clone fill rather than writing through a boundary. See the
+[Btrfs design][btrfs-plan], "Implemented flow and what superseded the proposal".
 
-On ordinary writable paths, **rung 2** gains ZFS `FICLONE` if a clean source and destination are on the same dataset
-and the kernel accepts the reflink. Use held descriptors and existing clone, index, and ignored-copy rules.
-Choose it if managed setup or a safe mount is unavailable before mutation, the caller cannot clone in its namespace,
-or the requested path is outside the managed anchor. For a refused `FICLONE`, cross-dataset path, or unproved
-source, continue to **rung 3**, Git's checkout plus the existing ignored-state behavior. The
-[ZFS planning record][zfs-plan], lines 14 to 30, records `EXDEV` across datasets despite block cloning being enabled.
-Do not hide an ordinary byte copy inside rung 2. A managed path needs its mount because the anchor is root-owned.
-Print the requirement and the option to retry at an ordinary path. After migration, that ordinary path
-must be under the source's dataset to reflink. A same-pool path in home is no longer enough.
+**Rung 2** uses `FICLONE` of eligible files only on a proven same dataset, with the existing clean source, held
+files and index checks. Add ZFS recognition where `fs_kind.rs` and `worktree_snapshot_source.rs` currently limit
+the route. The main checkout and an ordinary slot on its filesystem, under `.claude/worktrees/`, can use it.
+A mounted clone and a slot in the checkout dataset cannot, and a path elsewhere in home is not on the checkout
+filesystem. Choose the applicable fallback at the same requested slot if managed preflight fails, confinement
+blocks cloning, or a valid slot does not meet the clone-name grammar and no managed mutation has started.
+Do not recast an ordinary byte copy as a successful reflink. **Rung 3** is the existing Git checkout and ignored
+state behavior when a reflink is refused, cross-dataset, or unproved. In particular, `FICLONE` returns `EXDEV`
+across datasets, but a successful `copy_file_range` can share blocks across datasets with the same data key.
+An encryption root alone is not the same key; this does not qualify a cross-dataset copy for rung 2 ([pnpm study][pnpm],
+"When a copy still shares blocks").
 
-The fallback still walks and clones files and runs the existing Git checks and dependency preparation; it does not
-get a clone's whole tree in one operation. The recorded full-worktree reflink copied 56,478 entries in 5.63 s
-([ZFS planning record][zfs-plan], lines 14 to 25); that single sample is context, not a prediction for this rung or
-an install comparison. The confinement probe had a successful same-dataset reflink and a cross-dataset control is
-needed in the VM. The Pi driver creates worktrees before entering the unit
-(`package/pi-shared/subagent-driver/src/start-pi-run-in-a-worktree.ts:238`), but its callers must explicitly choose a
-managed path to get the clone. A long-lived unit must not bind the worktrees anchor read-only if it needs to see later
-mounts. Do not turn that observation into a policy that relaxes the caller's confinement.
+The Pi driver already creates its worktree before starting the confined unit
+(`package/pi-shared/subagent-driver/src/start-pi-run-in-a-worktree.ts:238`). The planning probes found a confined
+user namespace could not see the source dataset through `/dev/zfs`, while same-dataset reflinking worked.
+A read-only bind of the worktrees parent can hide a mount made after a unit starts. Do not relax confinement
+or infer mount visibility from host success. Prefer creating the worktree outside the unit as the driver already
+does, and verify visibility and writability in the consumer's actual context.
+
+### Walks and Git clean
+
+Use the wrapper's read-only boundary walk for the clean proof. Stop at mounted filesystems and exclude the
+ignored `.claude` subtree; never hand `git clean` a path under `.claude/worktrees` or force cleanup across a mount.
+A mount or a tree containing one is a refusal for destructive cleanup, not an ordinary ignored directory.
+The guest's single-force removal case ran with the clone's `.git` moved aside; double-force dry runs also show
+why ordinary nested-repository protection is insufficient. Git ignore affects `status` and ordinary `rg`, not
+walkers asked to ignore nothing. For tooling that inventories the checkout without descending into mounts, use
+`rg --one-file-system`, `find -xdev` or `du --one-file-system` as applicable. The wrapper must also detect bind
+mounts, which a device-only test can miss ([nested-clone research][nested], item 5).
+
+### Dependency repair and watchers
+
+Keep the pnpm store in home at `${HOME}/.local/share/pnpm/store`. With `virtualStoreType: global` and
+`packageImportMethod: clone-or-copy` (`pnpm-workspace.yaml`), package payload moves from `files` to `links` inside
+the store, not across the boundary into the checkout. The research traced zero imported regular package files
+and zero package-payload bytes in the cross-dataset checkout. Paired offline installs took 0.984 to 1.101 times
+their home controls, comparable to the home control's 1.091 spread, not proof of no cost. The project-local store
+positive control really did copy across the boundary. The measured treatment was a stand-in, not the migrated
+checkout or built clone route ([pnpm study][pnpm], "Where pnpm writes" and "Offline install cost on the host").
+
+- A clone inherits relative store links at the source's depth. Keep the wrapper's
+  `pnpm install --offline --frozen-lockfile` repair when a lockfile and real `node_modules` are present, queued
+  when the service answers and inline otherwise. Skip the separate ignored-file copy only after successful clone fill; raw clone symlinks
+  were not rebased by the ignored-copy path. The ordinary path still stages and publishes ignored files using its
+  existing reflink, hard-link and explicit copy fallbacks. A clone source or mounted destination can separate
+  source, stage and destination. Rebased links alone do not repair a path-specific global-store graph.
+- Cargo intermediate output already lives under `~/.cargo/build` on a different dataset, keyed by workspace path.
+  Keep external-slot prewarm and workspace-member cleanup; inherited `target/` does not prove those artifacts safe
+  to reuse. Final-artifact link-to-copy fallback already crosses that boundary. The repair's displaced lockfile
+  between a true clone and the common Git administration uses the cross-filesystem fallback, not an atomic swap
+  ([wrapper specification][spec], lines 4761 to 4796 and 4843 to 4847).
+- `mise` still runs tasks in the checkout and delegates toolchain install to `mpm-shadow`. Keep repair of
+  `.cache/toolchain-launchers` pointing at another checkout's `toolchain.lock.json` and the existing frozen-lockfile
+  reinstall when needed ([wrapper specification][spec], lines 4888 to 4895). A task writing a file across the
+  test boundary worked; the research did not do a full toolchain install there.
+- A watch on the old checkout inode or an unmounted slot does not see writes on the newly mounted filesystem.
+  Reopen or rescan after migration or clone mount; install watches on the mounted tree. Ordinary editor discovery
+  and ignore policy are not verified by the guest's inotify test. Exercise the editor in use after cutover.
 
 ## Snapshots and setup reporting
 
