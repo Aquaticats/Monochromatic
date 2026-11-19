@@ -615,8 +615,8 @@ exclusion today: the descriptor checks and the namespace scan act on what root c
 unrestricted caller from attaching the clone after the scan (reasoning from [item 15][vm-namespaces], not a
 measured interleaving). Item 15 found no complete namespace or mount-reference exclusion: its scan saw readable,
 live representatives of the observed namespaces only, and does not generalize to pinned namespaces or racing task
-changes ([VM delta limits][vm-delta-limits], "What this repeat did not show"). This draft proposes no mechanism that would show
-the exclusion, so what removal does in that state is the
+changes ([VM delta limits][vm-delta-limits], "What this repeat did not show"). This draft proposes no
+mechanism that would show the exclusion, so what removal does in that state is the
 [Removal when the namespace exclusion cannot be shown](#open-project-choices) choice, whose refusing option every
 described setup takes today; that leaves the project's decided removal, "B: Destroy at once" ([project
 decision][answers], lines 491 to 494), unreached. A deployment that can show the exclusion still accepts a
