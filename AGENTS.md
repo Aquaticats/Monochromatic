@@ -633,11 +633,12 @@ NXR:
  rerun in background or with a bound.
 
 PWT:
- Never wait on a process by name:
- `pgrep --full` in a loop matches the agent's own shell wrapper and never exits.
  Wait on a PID,
  bounded:
- `timeout 600 tail --pid=<pid> --follow /dev/null`.
+ `timeout 600 tail --pid=<pid> --follow /dev/null`;
+ never by name (`pgrep --full` matches its own shell)
+ nor on a stand-in PID:
+ PID 1 never exits.
 
 BGL:
  Every background wait or poll loop has a deadline,
