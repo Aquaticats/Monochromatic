@@ -40027,9 +40027,15 @@ What follows from them, as work:
   gets a Sonnet gate review and the owner's acceptance before step 6 or step 9 builds on it. ENDED: the start-probe
   design (`idle`, 124 turns, `4167f50724`, 791 lines; recommends a root probe that mounts a read-only snapshot in a
   private mount namespace, no pool write; four owner questions; ten owed VM measurements) and the staging design
-  (`idle`, 108 turns, `a709cd7f58` and `2258de74d8`, 645 lines); reports under each folder's `keep/`. GOING: a Sonnet
-  gate review of each (briefs under `~/temp/agent/zfs-start-probe-design-gate-review-2026-11-19/` and
-  `~/temp/agent/zfs-staging-under-cache-design-gate-review-2026-11-19/`). By the owner's answers of
+  (`idle`, 108 turns, `a709cd7f58` and `2258de74d8`, 645 lines), and the runtime layout checker design (`idle`, 220
+  turns, `3ac4d96ae3`, 1,418 lines; ranks first an in-process reader of the module's BTF against its vmlinux base,
+  comparing sizes as well as offsets, because 2.2.2 to 2.4.4 kept `zfs_cmd_t`'s size and named offsets while
+  `zinject_record` grew; four owner questions, the reader dependency among them with `btf-rs` 2.0.1 ranked first
+  but no adoption recommended until finalist validation; notes the design guest's 2.4.4 module was built without BTF,
+  so step 6's fixture needs one that carries it; sixteen owed measurements); reports under each folder's `keep/`.
+  GOING: a Sonnet gate review of each (briefs under `~/temp/agent/zfs-start-probe-design-gate-review-2026-11-19/`,
+  `~/temp/agent/zfs-staging-under-cache-design-gate-review-2026-11-19/` and
+  `~/temp/agent/zfs-runtime-layout-checker-design-gate-review-2026-11-19/`). By the owner's answers of
   2026-11-19T17:10:00-05:00 (questions file) the LFS review and the provider rebuild finish and nothing else off the
   ZFS path starts, and owner questions off the ZFS path wait in the questions file (new rule `QWP`).
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
