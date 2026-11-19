@@ -1,0 +1,15 @@
+[Unit]
+Description=CPU temperature target through Linux CPUFreq
+
+[Service]
+Type=exec
+EnvironmentFile=-/etc/set-max-cpu-temp.conf
+RuntimeDirectory=set-max-cpu-temp
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+ExecStart=/usr/local/bin/setMaxCpuTemp watch --sensors ${CPU_TEMPERATURE_SENSORS}
+ExecStopPost=/usr/local/bin/setMaxCpuTemp release
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
