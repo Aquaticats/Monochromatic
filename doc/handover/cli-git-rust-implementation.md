@@ -40008,8 +40008,11 @@ What follows from them, as work:
   and the adoption decision; steps 19, 20, 18 and 22 say applying anything to this host is the owner's act; at most
   four concurrent worktrees assumed. The coordinator's check at `55cab4075e`: every unmatched quote traced (owner
   answers, the mpm-shadow README, handover text, design sentences with dropped labels, suggested headings), one line of
-  exactly 120 characters wrapped in `9137efc5b4`. NEXT: the plan to the owner for acceptance, then step 1. By the
-  owner's answers of
+  exactly 120 characters wrapped in `9137efc5b4`. ACCEPTED by the owner through the question tool
+  (2026-11-19T17:45:53-05:00, "Accept (Recommended)"; worktrees for the ZFS build steps "Up to 64"); marked in the
+  plan's header and merged into `main` with `--no-ff`. The plan worktree was left in place by the merge because a
+  process was working in it; it is removed once nothing there is the session's. NEXT: step 1 and the steps and
+  designs the plan names as startable now. By the owner's answers of
   2026-11-19T17:10:00-05:00 (questions file) the LFS review and the provider rebuild finish and nothing else off the
   ZFS path starts, and owner questions off the ZFS path wait in the questions file (new rule `QWP`).
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit

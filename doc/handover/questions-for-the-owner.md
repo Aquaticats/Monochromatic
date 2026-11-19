@@ -18,6 +18,16 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Answered in the question tool, recorded 2026-11-19T17:45:53-05:00
+
+- The ZFS worktree implementation plan (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, at
+  `9137efc5b4`): "Accept (Recommended)". Marked accepted in the plan's header and merged into `main`; step 1 is
+  unlocked.
+- How many worktrees the ZFS build steps may use at once (the plan had assumed up to four under the owner's
+  "We shouldn't use worktrees heavily before we implement the zfs parts for the git wrapper"): "Up to 64". Written into
+  the plan; every run still counts against the cap in `doc/handover/agents-at-once-on-this-machine.md`, and the held
+  queue of other work stays held.
+
 ## Answered in the question tool, recorded 2026-11-19T17:36:44-05:00
 
 Two choices the Sonnet gate review of the ZFS implementation plan raised
