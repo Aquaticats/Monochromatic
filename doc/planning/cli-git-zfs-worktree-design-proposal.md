@@ -458,29 +458,36 @@ removal and resumption in the guest.
 
 ## Ladder and fallback
 
-**Rung 1** is the ZFS snapshot clone alongside the existing Btrfs route. Keep `git worktree add <path>` semantics
+### Rung 1: Snapshot clone
+
+The ZFS snapshot clone sits alongside the existing Btrfs route. Keep `git worktree add <path>` semantics
 and the ladder's already recognized forms ([wrapper specification][spec], lines 1121 to 1189). The described add
 uses the configured main checkout as origin. An unproved source never qualifies. Whether to require a clean source
 or support verified dirty-main restoration as Btrfs does is an [open choice](#open-project-choices). Reuse held-path
-and mount-fact helpers and the current Git index, attribute,
-conversion and publication checks. Respect Btrfs's main-checkout leave-out policy for ignored state, but verify
+and mount-fact helpers and the current Git index, attribute, conversion and publication checks. Respect Btrfs's main-checkout leave-out policy for ignored state, but verify
 ZFS-specific mounts and identities instead of assuming Btrfs's inode/subvolume semantics. If tracked output would
 occupy an omitted mount location, refuse the clone fill rather than writing through a boundary. See the
 [Btrfs design][btrfs-plan], "Implemented flow and what superseded the proposal".
 
-**Rung 2** uses `FICLONE` of eligible files only on a proven same dataset, with the existing clean source, held
+### Rung 2: Same-dataset reflink
+
+Use `FICLONE` for eligible files only on a proven same dataset, with the existing clean source, held
 files and index checks. Add ZFS recognition where `fs_kind.rs` and `worktree_snapshot_source.rs` currently limit
 the route. With the main checkout as the source, an ordinary destination slot in the checkout dataset can use
 rung 2. A mounted clone at the destination cannot, because its files are on a different dataset. A destination
 elsewhere in home, outside the checkout dataset, cannot either. A mounted clone used as the source also cannot
 reflink to a slot in the checkout dataset. Choose the applicable fallback at the same requested slot if managed
-preflight fails, confinement
-blocks cloning, or a valid slot does not meet the clone-name grammar and no managed mutation has started.
-Do not recast an ordinary byte copy as a successful reflink. **Rung 3** is the existing Git checkout and ignored
-state behavior when a reflink is refused, cross-dataset, or unproved. In particular, `FICLONE` returns `EXDEV`
+preflight fails, confinement blocks cloning, or a valid slot does not meet the clone-name grammar and no managed
+mutation has started. Do not recast an ordinary byte copy as a successful reflink.
+
+### Rung 3: Ordinary Git
+
+Use the existing Git checkout and ignored-state behavior when a reflink is refused, cross-dataset, or unproved. In particular, `FICLONE` returns `EXDEV`
 across datasets, but a successful `copy_file_range` can share blocks across datasets with the same data key.
 An encryption root alone is not the same key, and a cross-dataset copy does not qualify for rung 2.
 See the [pnpm study][pnpm], "When a copy still shares blocks".
+
+### Confined callers
 
 The Pi driver already creates its worktree before starting the confined unit
 (`package/pi-shared/subagent-driver/src/start-pi-run-in-a-worktree.ts:238`). The planning probes found a confined
