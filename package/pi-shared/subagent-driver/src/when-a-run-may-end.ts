@@ -8,16 +8,12 @@
  @module
  */
 
-import type { WatchRequest, } from './watch-request.ts';
+import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
 import { answeredItsWake, } from './kept-while-work-runs.ts';
+import type { WatchRequest, } from './watch-request.ts';
 
 /**
- Milliseconds in a second, so a limit the options state in seconds is compared against the record's own clock.
- */
-const MILLISECONDS_PER_SECOND = 1_000;
-
-/**
- Tells whether Pi has rested for long enough that the run is over.
+ Tells whether Pi has rested long enough. With no window, the settle is enough even if the record's clock has not ticked.
 
  @param watch - watch request
 
@@ -29,11 +25,13 @@ function idleLongEnough(watch: WatchRequest,): boolean {
     && (watch.record
       .settledCount()
       >= 1)
-    && (watch.record
-      .silentMilliseconds()
-      > (watch.options
-        .idleSeconds
-        * MILLISECONDS_PER_SECOND));
+    && ((watch.options
+      .idleSeconds === 0)
+      || (watch.record
+        .silentMilliseconds()
+        > (watch.options
+          .idleSeconds
+          * MILLISECONDS_PER_SECOND)));
 }
 
 /**
