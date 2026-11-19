@@ -9,7 +9,6 @@ import { fileURLToPath, } from 'node:url';
 import {
   InMemoryCredentialStore,
   type AssistantMessage,
-  type Provider,
 } from '@earendil-works/pi-ai';
 import {
   createAgentSession,
@@ -18,13 +17,17 @@ import {
   SessionManager,
   SettingsManager,
 } from '@earendil-works/pi-coding-agent';
-import {
-  immediate,
-  MEMBER_KEY,
-  rateLimitRefusal,
-  type ModelIdentity,
-} from './stand-in-pi-fixture.ts';
 import { WRITER_TARGETS, } from './member-order-fixture.ts';
+import { verifyHeldModelArm, } from './verify-held-model.ts';
+import {
+  labelOfMember,
+  REAL_LIMITS,
+  registerWriterProvider,
+} from './verify-stand-in-members.ts';
+import {
+  compactionCount,
+  sendLongTurns,
+} from './verify-session-turns.ts';
 
 /**
  Destinations every request in this process asked for, which must stay empty.
@@ -34,9 +37,9 @@ const fetchAttempts: string[] = [];
 /**
  Refuse one outbound request and remember what it asked for.
 
- The extension reads quota only from an origin its model names, and both stand-in models name a local
- origin, so nothing here may ask a provider anything. Replacing the transport makes an edited origin
- fail this check instead of calling out.
+ The extension reads quota only from an origin its model names, and every stand-in member names a
+ local origin, so nothing here may ask a provider anything. Replacing the transport makes an edited
+ origin fail this check instead of calling out.
 
  @param input - destination some code asked for
 
@@ -80,140 +83,19 @@ const modelRuntime = await ModelRuntime.create({
 const calls: string[] = [];
 
 /**
- First two writer members, registered as stand-ins before extension loading.
+ Members the first arm registered, which its streams answer for.
  */
-const [refusingMember, answeringMember,] = WRITER_TARGETS;
+const members = await registerWriterProvider({
+  modelRuntime,
+  calls,
+  limits: REAL_LIMITS,
+},);
 
 /**
- Stand-in origin for both members: the extension refuses a quota read whose model origin is not
- NeuralWatt's, so verification makes no request to a provider endpoint.
- */
-const STAND_IN_ORIGIN = 'http://127.0.0.1:0/v1';
-
-/**
- Window both stand-in members report, the size of a modern DeepSeek lane.
- */
-const REAL_CONTEXT_WINDOW = 1_048_560;
-
-/**
- Output limit both stand-in members report.
- */
-const REAL_MAX_TOKENS = 65_536;
-
-/**
- Phrases one long turn repeats, sized to the gate review's probe: about 34 thousand estimated tokens.
- */
-const BIG_TURN_PHRASES = 5_000;
-
-/**
- Long turns the compaction check sends, far below the advertised window in total.
+ Long turns the window check sends; five of about 34 thousand estimated tokens stay below the
+ advertised window.
  */
 const TRANSCRIPT_TURNS = 5;
-
-/**
- One long turn for the compaction check.
- */
-const BIG_TURN = 'lorem ipsum dolor sit amet '.repeat(BIG_TURN_PHRASES,);
-
-/**
- Verified catalog records used by the registration helper, pointed at the stand-in origin and
- carrying the real limits the pool has to advertise.
- */
-const members = {
-  refusing: {
-    ...refusingMember,
-    baseUrl: STAND_IN_ORIGIN,
-    contextWindow: REAL_CONTEXT_WINDOW,
-    maxTokens: REAL_MAX_TOKENS,
-  },
-  answering: {
-    ...answeringMember,
-    baseUrl: STAND_IN_ORIGIN,
-    contextWindow: REAL_CONTEXT_WINDOW,
-    maxTokens: REAL_MAX_TOKENS,
-  },
-};
-
-/**
- Exact member label, so two members of one provider stay distinguishable in the call record.
-
- @param model - physical member Pi dispatched
-
- @returns `provider/id`
- */
-function labelOfMember(model: ModelIdentity,): string {
-  return `${model.provider}/${model.id}`;
-}
-
-/**
- The pool has no need for the fixture's API-specific request path.
-
- @throws Error when verification reaches the wrong request path
- */
-function streamUnsupported(): never {
-  throw new Error('Unexpected API-specific request',);
-}
-
-/**
- Register one scripted Pi provider holding both writer members: the first refuses, the next answers.
- */
-async function registerWriterProvider(): Promise<void> {
-  /**
-   Provider object registered with the host.
-   */
-  const provider: Provider = {
-    id: refusingMember.provider,
-    name: refusingMember.provider,
-    getModels() {
-      return [
-        members.refusing,
-        members.answering,
-      ];
-    },
-    auth: {
-      apiKey: {
-        name: 'Stand-in credential',
-        resolve({ credential, }: { readonly credential?: { readonly key?: string; }; }) {
-          return Promise.resolve(credential?.key === undefined
-            ? undefined
-            : {
-              auth: { apiKey: credential.key, },
-              source: 'test',
-            },);
-        },
-      },
-    },
-    stream: streamUnsupported,
-    streamSimple(
-      physical: ModelIdentity,
-      _context: unknown,
-      options,
-    ) {
-      if (options?.apiKey !== MEMBER_KEY)
-        throw new Error('Pi registry did not resolve the stand-in credential',);
-      calls.push(labelOfMember(physical,),);
-      /**
-       Member the pool asks first, which refuses in this check.
-       */
-      const { refusing, } = members;
-      /**
-       Whether Pi dispatched the member that has to refuse before the handoff.
-       */
-      const refuses = physical.id === refusing.id;
-      return immediate({
-        model: physical,
-        ...(refuses ? { errorMessage: rateLimitRefusal({ model: physical, },), } : {}),
-      },);
-    },
-  };
-  modelRuntime.registerNativeProvider(provider,);
-  await modelRuntime.setRuntimeApiKey(
-    provider.id,
-    MEMBER_KEY,
-  );
-}
-
-await registerWriterProvider();
 
 /**
  Pool provider the verifier expects from Pi's extension loader.
@@ -326,15 +208,19 @@ assert.equal(
     answers.length,
     1,
   );
+  /**
+   Member this arm registered as the answering one.
+   */
+  const { answering, } = members;
   assert.equal(
     answers[0]
       ?.provider,
-    answeringMember.provider,
+    answering.provider,
   );
   assert.equal(
     answers[0]
       ?.model,
-    answeringMember.id,
+    answering.id,
   );
   assert.equal(
     answers[0]
@@ -392,28 +278,27 @@ assert.equal(
     'the pool must advertise the smallest registered member output limit',
   );
   /**
+   Reviewer pool entry Pi's registry carries after the bind.
+   */
+  const reviewerEntry = modelRuntime.getModel(
+    providerId,
+    'reviewer',
+  );
+  assert.equal(
+    reviewerEntry?.contextWindow,
+    Math.min(...memberWindows,),
+    'the reviewer pool must advertise the smallest registered member window',
+  );
+  /**
    Member calls before the long transcript, so the loop can prove the pool kept answering.
    */
   const callsBeforeTranscript = calls.length;
-  await Array.fromAsync(
-    { length: TRANSCRIPT_TURNS, },
-    async function sendTurn(
-      _unused: unknown,
-      index: number,
-    ): Promise<void> {
-      await session.prompt(`turn ${index + 1}: ${BIG_TURN}`,);
-    },
-  );
-  /**
-   Compaction records on the session branch, which must stay at zero on a transcript that fits.
-   */
-  let compactionEntries = 0;
-  for (const entry of sessionManager.getBranch()) {
-    if (entry.type === 'compaction')
-      compactionEntries += 1;
-  }
+  await sendLongTurns({
+    session,
+    turns: TRANSCRIPT_TURNS,
+  },);
   assert.equal(
-    compactionEntries,
+    compactionCount(sessionManager,),
     0,
     'Pi compacted a pool transcript whose advertised window fits it',
   );
@@ -421,6 +306,11 @@ assert.equal(
     calls.length > callsBeforeTranscript,
     'the pool answered none of the long transcript turns',
   );
+  await verifyHeldModelArm({
+    cwd,
+    modelRuntime,
+    fetchAttempts,
+  },);
   process.stdout
-    .write('PASS Pi session: built catalog, registry-authenticated 429 handoff, physical member in assistant record, pool still selected, no threshold compaction on a long transcript\n',);
+    .write('PASS Pi session: built catalog, registry-authenticated 429 handoff, physical member in assistant record, pool still selected, no threshold compaction on a long transcript, held model took the bound window\n',);
 }
