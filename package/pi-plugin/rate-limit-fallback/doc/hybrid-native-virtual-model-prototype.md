@@ -35,7 +35,10 @@ The prototype is a Pi extension that registers, into the session that loads it:
   member list the session names;
 - `hybrid-probe-member/*`, stand-in members with no network behind them.
 
-Files, all in `package/pi-plugin/rate-limit-fallback/src/hybrid-prototype/`:
+Files, all in `package/pi-plugin/rate-limit-fallback/src/hybrid-prototype/` (that folder was deleted
+by the rebuild of 2026-11-19, which shipped the route in `src/virtual-models.ts`, `src/model-pools.ts`
+and `src/dispatch-request.ts`; the paths below are the ones the prototype used):
+
 
 - `hybrid-extension.ts`: the extension entry, the routers' ids, and the environment reads. Its module
   doc is the prototype's top doc;
@@ -49,7 +52,9 @@ The prototype touches shipped code in one place: `src/dispatch-request.ts` takes
 table, defaulting to `POOLS`, so the prototype's probe pool can reuse the package's exact dispatch
 loop. Its pool id check is `Object.hasOwn(pools, id)`, so a key inherited from `Object.prototype`
 (`constructor`, `toString`, `__proto__`) is refused with `PoolDispatchError` instead of reaching the
-member loop. Beside that, two changes ship for the package's own tests and its lint cap: the
+member loop. The rebuild removed that table: the shipped pool lookup reads the package's own pool
+definitions (`poolMembers`), so an unknown id, an inherited key included, is refused by the same
+error without a parameter for a caller to supply. Beside that, two changes ship for the package's own tests and its lint cap: the
 caller-options projection moved unchanged into `src/member-attempt-options.ts`, to keep
 `src/dispatch-request.ts` under the repository's 300-line cap (rule `MXL`), and `src/index.ts`
 re-exports `dispatchRequest`, `PoolDispatchError`, `RoutingSession` and `Member` as `@internal` so a
