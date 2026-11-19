@@ -8,8 +8,8 @@ which blocks step 6 of [the implementation plan][plan-file],
 "The start-time compatibility gate and the start probe".
 It was written on 2026-11-19T18:10:30-05:00 by a Pi coding agent session
 on branch `docs/planning-cli-git-zfs-runtime-layout-checker-design`,
-made from `main` at `73eaad0846`, and revised on 2026-11-19T18:53:08-05:00
-as [Revisions](#revisions) records.
+made from `main` at `73eaad0846`, and revised twice as
+[Revisions](#revisions) records.
 It read the sources named under [Sources read](#sources-read),
 ran the read-only host probes named under
 [What was run, and what was not](#what-was-run-and-what-was-not),
@@ -67,6 +67,14 @@ the pick is not made here.
   reader independence, the timestamps, the measurement lists, the controls and the probe
   route are applied (F12 to F19).
   No accepted decision and no plan step changes.
+- `2026-11-19T18:58:32-05:00`: a second review pass on this revision, which found five errors in
+  it and fixes them here. Owed measurement 2's patch now also keeps the anonymous struct's pad at
+  352 bytes, because the pad's own expression would otherwise shrink the struct and break the
+  module's size assertion. The rule that would refuse this host's vmlinux is named correctly: the
+  header's field order, not the string-last rule. Owed measurement 16 moves its field inside
+  `drr_begin`, because the narrow comparison does check direct member offsets. The sensitivity now
+  reports the four exact ties beside the eight reversals. And Q2 no longer both adopts and reopens
+  the same suffix: it adopts the rule and asks only whether to narrow it for git snapshots.
 
 ### Sources read
 
@@ -365,8 +373,10 @@ a probe is a command this session ran, listed under
   type at 0, layout at 3,789,716, strings at 3,789,796.
 - The string section ends the file only on the older header: at `v6.8` the check is
   unconditional (`kernel/bpf/btf.c:5160-5164`), while at `v7.3` it applies only when `hdr_len`
-  is below the 32-byte header (`:5625-5629`), and a 32-byte header's string section may sit
-  before the layout section. A rule that requires strings last would refuse this host's vmlinux.
+  is below the 32-byte header (`:5625-5629`).
+  So on a 32-byte header the string section may sit before the layout section, and a rule that
+  required the header's field order, type then string then layout, would refuse this host's
+  vmlinux.
 - The kernel's own header check accepts a longer `hdr_len` only as far as it understands and
   requires extra bytes to be zero in `v6.8` (`kernel/bpf/btf.c:5249-5294`), which is the
   24-byte header's path.
@@ -539,10 +549,11 @@ a probe is a command this session ran, listed under
   and the fallback is the design's.
 - Alignment is not in BTF. Equality of size, member offsets and member sizes is the proof,
   and it is the same evidence the kernel's copy needs.
-- The compared set stops at the interiors of nested structs the codec only passes through:
-  the members of `drr_begin`, `zfs_stat_t`, `zfs_share_t` and `dmu_objset_stats` beyond the
-  fields under [The expectations](#the-expectations) are unchecked. A change inside one of
-  them that leaves its size and the checked offsets alone passes.
+- The compared set stops at the interiors of the nested structs the codec only passes through:
+  `drr_begin`, `zfs_stat_t` and `zfs_share_t` are compared as members with their own size and
+  offset, not member by member, so a change inside one of them that leaves its size alone passes.
+  `dmu_objset_stats` and `zinject_record` are compared member by member, because their members are
+  the fields behind the 2.2.2 to 2.4.4 differences.
 - The checker's expectations are only as good as the binding's struct.
   A wrong expectation refuses a good module; a missing expectation passes an unproven field.
 - The 32-byte header path is proven on this host's files by three readers,
@@ -635,8 +646,9 @@ Pros:
 Cons:
 
 - It does not meet the answer. Its compared set sees none of the three 2.2.2 to 2.4.4
-  differences: it compares no member size, no anonymous container and no `dds_flags`, and all
-  three leave the total size and every offset it does compare unchanged.
+  differences: it compares no member size and no anonymous container, and it names `dds_flags`
+  only if the codec happens to read that member, so two of the three pass it outright and the third
+  depends on the codec.
   Whether it even accepts a 2.2.2 module needs an assumption the design must state: that a
   member of the approved profile which sits inside the anonymous container may be matched by a
   flattened name, and that a member the module lacks is not checked. Neither is stated today.
@@ -875,8 +887,8 @@ The expectations come from the binding's own type, so one change moves both side
 - `size_of::<ZfsCmd>()`, and `offset_of!` for every field the Rust type can name;
 - the union and anonymous members, whose Rust side has named fields and whose BTF side has an
   empty name: a path step names the kind and the expected bit offset, then the inner names;
-- the sizes of the nested types the codec reads, including `zinject_record` (368),
-  `dmu_objset_stats` (288) and the fields listed under
+- every member of `dmu_objset_stats` and `zinject_record`, with its offset and size, not only
+  the members the codec reads, and the two types' own sizes (288 and 368), as listed under
   [What the BTF carries](#what-the-btf-carries);
 - the base integer sizes the members use;
 - every request constant in the binding's request list, plus `ZFS_IOC_FIRST` and `ZFS_IOC_LAST`.
@@ -943,8 +955,11 @@ The order the comparison walks is what makes the refusal's first finding predict
 - The request contract refuses none of the three: every request the binding sends and both
   endpoints hold the same value in 2.2.2, so the layout comparison is what carries the refusal.
 
-A checker that compares total size and offsets only therefore accepts the 2.2.2 shape
-([the vet][vet], lines 430-446, which names the union and the grown record but not `dds_flags`).
+A checker that compares the total size and the offsets only, and that flattens a member found
+inside the module's anonymous container to the name the approved profile expects, therefore
+accepts the 2.2.2 shape ([the vet][vet], lines 430-446, which names the union and the grown record
+but not `dds_flags`). Without that flattening it refuses at the container, which is a different
+refusal than the one Way 2's own cons claim, and that is why Way 2 must state the assumption.
 
 ### The refusal
 
@@ -1419,34 +1434,40 @@ them.
 One input at a time, as the skill requires: every weight from 1 to 5, every medium-confidence
 rating one step down and up, and both endpoints of every low-signal range (the endpoints are the
 plausible values, so no step is taken outside a range).
-Twelve tests change an order, and they fall in two groups.
+Twelve tests change an order: eight reverse it, and four leave an exact tie.
 
-Eight move the library pair, and each move puts `btf-rs` first:
+Library pair, `btf-rs` against the in-house reader, 90 against 92 at the baseline:
 
-- weight C1 at 1, 2 or 3;
-- weight C6 at 5;
-- `btf-rs` C5 from 3 to 4;
-- `btf-rs` C6 from 3 to 4;
-- in-house C5 from 3 to 2;
-- in-house C6 from 2 to 1.
+- weight C1 at 1 reverses, 78 against 76;
+- weight C1 at 2 reverses, 81 against 80;
+- weight C1 at 3 ties, 84 each;
+- weight C6 at 5 ties, 96 each;
+- `btf-rs` C5 from 3 to 4 reverses, 93 against 92;
+- `btf-rs` C6 from 3 to 4 reverses, 93 against 92;
+- in-house C5 from 3 to 2 reverses, 89 against 90;
+- in-house C6 from 2 to 1 reverses, 89 against 90.
 
-Four move the tools pair, and each puts `bpftool` third and `pahole` fourth:
+Tools pair, `pahole` against `bpftool`, 60 against 56 at the baseline:
 
-- `bpftool` C1 from 3 to 4;
-- `bpftool` C4 from 2 to 3;
-- `pahole` C1 from 3 to 2;
-- `pahole` C4 from 3 to 2.
+- `bpftool` C1 from 3 to 4 reverses, 61 against 60;
+- `pahole` C1 from 3 to 2 reverses, 55 against 56;
+- `bpftool` C4 from 2 to 3 ties, 60 each;
+- `pahole` C4 from 3 to 2 ties, 56 each.
 
-No test moves a tool past a library, and no test changes the library pair's distance from the
-tools. So the tools' order is unresolved by the evidence, and so is the library pair: the baseline
-puts the in-house fallback two points of 104 ahead, and one step on C6 reverses it.
+No test moves a tool past a library, so the two pairs stay apart by more than twenty points of 104.
+
+A tie is not an order the arithmetic decides, and the skill's rule for both a tie and a change is
+to gather decisive evidence or ask only the controlling preference.
+For the tools, the C4 evidence decides: `pahole`'s `-C` output carries the compared members, while
+`bpftool`'s raw dump needs a type-id resolver in the wrapper, so `pahole` stays third when the
+rating moves.
+For the library pair the evidence does not decide: both routes' C4 and C6 rest on readings of two
+different code bases, and the pair is 92 to 90 with four tests tying or reversing it.
 Stability here does not cover simultaneous multi-input changes, and this document makes no claim
 it does.
-
-The skill's instruction when a test changes the order is to gather decisive evidence or ask only
-the controlling preference. The controlling preference is the owner's, not a weight on this
-writer's scale: whether to keep about 350 to 450 source lines and 100 to 150 test lines plus a fuzz
-target of our own, or to take an `LGPL-2.1-or-later` dependency whose release lags its own main.
+The controlling preference is the owner's, not a weight on this writer's scale: whether to keep
+about 350 to 450 source lines and 100 to 150 test lines plus a fuzz target of our own, or to take
+an `LGPL-2.1-or-later` dependency whose release lags its own main.
 [Q1](#q1-which-reader-parses-the-module-btf) asks it in those words.
 The evidence that would settle the ratings instead is owed:
 `btf-rs`'s own test suite, which was not run, would settle C5 and C6, and
@@ -1505,21 +1526,29 @@ Every measurement stays owed, and no item here touches this host's pool or modul
 1.  A compatible module passes, in the guest. Build or install a module 2.4.4 with BTF in the
     guest, run the built gate, and assert it reports compatible and that a real read request then
     runs. Control: the same binary on a module without BTF must refuse, so a pass is not vacuous.
-2.  A changed layout refuses, in the guest. Primary arm: patch the 2.4.4 source so
-    `zinject_record_t` is 352 bytes again by dropping `zi_match_count` and `zi_inject_count`, leave
-    `META` untouched, and build with BTF. That module still reports `2.4.4-1`, so the release rule
-    passes and the comparison runs; the union's anonymous struct still sizes the union at 368, so
-    the total stays 13,744 and no offset moves.
+2.  A changed layout refuses, in the guest. The patched arms start from the 2.4.4 source with
+    `META` untouched, so the module still reports `2.4.4-1`, the release rule passes and the
+    comparison runs.
+    First arm, a member size: drop `zi_match_count` and `zi_inject_count` so
+    `zinject_record_t` is 352 bytes, and patch the anonymous struct's pad to the literal
+    `char zc_pad1[352]`. The pad's own expression is `sizeof (zinject_record_t) - 16`
+    (`include/sys/zfs_ioctl.h:544-552`), so the second patch is what keeps the union at 368 and
+    the total at 13,744; without it the struct shrinks to 13,728 and the module fails its own
+    `_Static_assert` instead of loading.
     Assert the gate refuses at `Member` with the path of `zc_inject_record` at 13,296, expected 368
     bytes and actual 352, while the struct's total size and the defer offsets match.
-    Control: the unpatched module from the same build passes the same binary.
-    Second arm, only if the guest's packaged 2.2.2 module carries BTF: it reports
+    Second arm, a member no offset shows: drop `dds_flags` from `dmu_objset_stats`. Nothing moves,
+    the nested struct stays 288 bytes and the total stays 13,744.
+    Assert the gate refuses at `Member`, naming `dds_flags` missing at 2,296 bits.
+    Control for both arms: the unpatched module from the same build passes the same binary.
+    Third arm, only if the guest's packaged 2.2.2 module carries BTF: it reports
     `2.2.2-0ubuntu9.5`, which the release rule refuses at `Version` before any BTF file is read, so
     a layout refusal from that module is unreachable without a seam, and the first version's
     assertion could never hold. With a test seam that skips only the release rule, assert the
-    refusal names the anonymous container's expected kind and bit offset, or the missing
-    `dds_flags`, and record which. Without the seam, record that the arm proves the release rule
-    only. Either way the refusal names the field and both values.
+    refusal is the container step at `Type`, naming the member found where the anonymous union was
+    expected (`zc_inject_record`), which is the first refusal the documented order gives. Without
+    the seam, record that the arm proves the release rule only.
+    Every arm's refusal names the field and both values.
 3.  A missing module BTF refuses and falls back, in the guest. Use the tarball build path that
     skipped BTF (`guest-openzfs-build.log:834-838`) or hide the base file from the checker's
     namespace, and assert raw requests are disabled, that the fallback is offered for an unused
@@ -1586,10 +1615,11 @@ Every measurement stays owed, and no item here touches this host's pool or modul
     while the full layout check passes. If the bytes are identical, use a patched source change that
     keeps the layout. Control: the full check on the same two modules passes both.
 16. The blind spots of Ways 2, 5 and 6, in the guest. Use the patched module whose
-    `zinject_record` is 352 rather than 368 and a module with one same-size field moved, and assert
-    the narrow comparison, the request probe and the release-string-only check accept both while
-    the full comparison refuses them. Control: the full comparison on the unmodified 2.4.4 module
-    passes.
+    `zinject_record` is 352 rather than 368, and a module with one same-size field moved inside a
+    nested struct the narrow comparison does not reach (a member of `drr_begin`, not a direct
+    member of `zfs_cmd`), and assert the narrow comparison, the request probe and the
+    release-string-only check accept both while the full comparison refuses them.
+    Control: the full comparison on the unmodified 2.4.4 module passes.
 
 ## Questions for the owner
 
@@ -1602,8 +1632,8 @@ Ranked first: `btf-rs` 2.0.1, on eligibility and not on validation.
 No hard gate fails on the source evidence read, and the crate holds the split model, the type kinds
 and the tests the check needs; this proposal's pre-scan closes its two named residuals.
 Its finalist validation is outstanding: nobody ran its own test suite, and the pair of library
-options flips on one criterion ([Sensitivity](#sensitivity)), which does not cover simultaneous
-multi-input changes.
+options flips or ties on one criterion at a time ([Sensitivity](#sensitivity)), which does not
+cover simultaneous multi-input changes.
 
 In plain words, the choice between options 1 and 2 is this: take an `LGPL-2.1-or-later` dependency
 whose 2.0.1 release lags its own main branch on the widened BTF masks, or write about 350 to 450
@@ -1631,8 +1661,9 @@ Options:
     Cost: the same shared shape plus about 350 to 450 lines of reader source and 100 to 150 of
     tests, and its own fuzz target.
     Why here: its 92 of 104 leads `btf-rs`'s 90, and it stays second because a score does not
-    override the eligibility rule; it is first only if the owner weighs or rejects the dependency
-    on a named ground.
+    override the eligibility rule. Choosing it means overriding the skill's existing-tools rule for
+    this package, which is the owner's call on a named ground such as refusing a copyleft
+    dependency; the design would record that as an adopted exception, not as a score.
 3.  `pahole` 1.32 as a start-time program, ranked third.
     Pros: the command the design already names for the test-time comparison; `-C` prints the
     compared members; no new Rust dependency.
@@ -1654,38 +1685,40 @@ Not offered: `btfparse` (no split base), `aya-obj` (no base, ELF-oriented), `btf
 
 ### Q2: which module release strings qualify
 
-Settled by the record, adopted with a veto: the version `2.4.4` with any release suffix.
+Settled by the record, adopted with a veto: match the release by version `2.4.4` and accept any
+release suffix, printing the whole string in `doctor`.
 The record's reason for rejecting exact profiles was that a rebuild must not disable clones
 ([ABI verification][design-project-decisions]), and an exact `2.4.4-1` match is that rejected cost
 in another form, so this file does not ask about it.
-Adopted rule: the string qualifies when it is exactly `2.4.4` or begins `2.4.4-`; the release
-suffix is ignored for the decision but printed whole by `doctor`. That rule cannot match
-`2.4.40-1`, because the character after `2.4.4` is `0` there rather than `-` or the end.
-The writer implements it, and the owner may veto it here.
+Adopted rule: the string qualifies when it is exactly `2.4.4` or begins `2.4.4-`. That rule cannot
+match `2.4.40-1`, because the character after `2.4.4` there is `0`, not `-` or the end of the
+string. The writer implements it, and the owner may veto it here.
 
-The open part is a build from a git checkout. `config/zfs-meta.m4:73-88` replaces the release with
-`git describe`'s suffix through `tr - _` when a matching tag exists, so such a build reports strings
-like `2.4.4-5_g1a2b3c4`: commits past the tag, then `_g` and the commit. The layout check runs
-either way; what differs is whether a build whose source is ahead of the tag is named as the
-approved release.
+That rule already accepts every build from a git checkout, because `config/zfs-meta.m4:73-88`
+replaces the release with `git describe`'s suffix through `tr - _` when a matching tag exists, so a
+checkout one commit past `zfs-2.4.4` reports a string like `2.4.4-5_g1a2b3c4`: commits past the
+tag, then `_g` and the commit.
+The open part is whether to narrow the adopted rule for exactly that shape. The layout check runs
+either way, so the narrowing changes only what the string is allowed to say about where the source
+came from, which the layout comparison cannot show.
 
 Options:
 
-1.  Accept a git-snapshot suffix like any other, ranked first.
+1.  Keep the adopted rule, accepting a git-snapshot suffix like any other, ranked first.
     Pros: one rule for every build; a checkout build with the approved layout keeps the managed
-    route, which is the record's reason for the runtime check; the layout comparison remains the
-    proof. Cons: the loaded module may come from source ahead of the tag, and a patch that keeps
-    the layout already passes; `doctor` has to say plainly that the build is not the release.
-    Why here: it is the same rule the record already adopted, so it adds no second case to explain,
-    test or print.
-2.  Refuse a suffix of the form `<digits>_g<hex>`, ranked second.
+    route, which is the record's reason for the runtime check. Cons: the loaded module may come
+    from source ahead of the tag, and a patch that keeps the layout passes anyway; `doctor` has to
+    say plainly that the build is not the release.
+    Why here: it is the rule the record's reason already implies, so it adds no second case to
+    explain, test or print, and the layout comparison remains the proof.
+2.  Narrow it to refuse a suffix of the form `<digits>_g<hex>`, ranked second.
     Pros: the managed route then means a release build, since a checkout at the tag reports
-    `2.4.4-1` through the `META` fallback and only a build past the tag grows the suffix.
+    `2.4.4-1` through the `META` fallback and only a build past the tag grows that suffix.
     Cons: a checkout build even one commit past the tag disables raw requests until it is rebuilt
-    at the tag, which is the exact-profile cost the record rejected, in a narrower form, and it
+    at the tag, which is the exact-profile cost the record rejected in a narrower form, and it
     refuses a build whose compared layout is identical.
-    Why here: it buys a release-string distinction the layout comparison already makes on the facts
-    this check can see, at the cost the record rejected.
+    Why here: it buys one string fact, that the source is a release checkout, at the cost the
+    record rejected, and that fact is not one the gate's five proofs need.
 
 ### Q3: may a verification be cached across processes
 
@@ -1733,11 +1766,12 @@ version made this choice; the cost is what may reopen it.
   of 7,159,634 bytes peaked at 57,808 kB resident, about eight bytes of memory per input byte, so a
   64 MiB base could reach hundreds of MiB. A file that exceeds its cap is a refusal until item 10
   measures the real peak and the constant is set from it.
-- The compared set: the struct size, every direct member's offset and size, the anonymous
-  containers and their members, the `dmu_objset_stats` fields the codec reads including `dds_flags`,
-  the base integer sizes, and every request constant plus `ZFS_IOC_FIRST` and `ZFS_IOC_LAST`.
-  The interiors of `drr_begin`, `zfs_stat_t`, `zfs_share_t` and of `dmu_objset_stats` members the
-  codec does not read stay unchecked, as [Limits](#limits) says.
+- The compared set: the struct size, every member of `zfs_cmd` with its offset and size, the
+  anonymous containers and their members, every member of `dmu_objset_stats` (including
+  `dds_flags`) and of `zinject_record`, the base integer sizes, and every request constant plus
+  `ZFS_IOC_FIRST` and `ZFS_IOC_LAST`.
+  The interiors of `drr_begin`, `zfs_stat_t` and `zfs_share_t` stay unchecked beyond their own size
+  and offset, as [Limits](#limits) says.
 - The expectations come from the Rust `#[repr(C)]` type where `offset_of!` reaches, with literals
   for the anonymous containers and union members, guarded by an exhaustiveness test.
 - The refusal value, its steps, the order the comparison walks and the words the caller and
