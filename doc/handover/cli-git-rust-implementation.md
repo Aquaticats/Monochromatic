@@ -182,13 +182,13 @@ Not final and not approved: this session's own account.
   delegation that lets the account destroy any snapshot of the main dataset, keep the space guard as it is) and notes
   the blocklist answer's label said "seven" while the list it named has eight. The proposal also moves the main
   checkout into a dataset mounted under a root-owned anchor (`/var/lib/monochromatic-worktrees/monochromatic/main`),
-  which changes the checkout's path: to be put to the owner. **Going since about 19:26-05:00:** its cross-vendor
+  which changes the checkout's path: to be put to the owner. **Going since 2026-11-18T19:25:33-05:00:** its cross-vendor
   review, DeepSeek V4.1 Flash on Synthetic through Pi, unit `pi-zfs-worktree-design-proposal-review-1`, run folder
   `~/temp/agent/zfs-worktree-design-proposal-review-2026-11-18/run-1`, detached worktree
   `.claude/worktrees/zfs-worktree-design-proposal-review` at 4203040346, writing `review.md` beside the run folder.
   **Next:** weigh its findings, fold them in with a writer run, then the owner's acceptance through the question tool;
   the binding's tests run on a file-backed pool inside a throwaway VM.
-- **Driver idle window defaults to 0:** going since about 19:30-05:00, GPT 6.2 Sol through Pi, unit
+- **Driver idle window defaults to 0:** going since 2026-11-18T19:27:38-05:00, GPT 6.2 Sol through Pi, unit
   `pi-driver-idle-window-defaults-to-zero-writer-1`, run folder
   `~/temp/agent/driver-idle-window-defaults-to-zero-writer-2026-11-18/run-1`, worktree
   `.claude/worktrees/pi-shared-subagent-driver-idle-window-defaults-to-zero` on branch
@@ -39717,7 +39717,7 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
-### Driver: the idle window defaults to 0 (2026-11-18, about 19:28-05:00)
+### Driver: the idle window defaults to 0 (2026-11-18, said before 19:27:38-05:00)
 
 After a "Pi agent finished" notification came a minute before the coordinator woke, the owner asked "What even is the
 idle window for?" and then "And shouldn't it be defaulted to 0?". Adopted: `--idle-seconds` becomes optional with
@@ -39729,7 +39729,7 @@ inside the window, and follows up with `--session` instead. No recorded failure 
 
 ### ZFS snapshots: an explicit blocklist of seven datasets, the pnpm store stays in home, passt allowed (2026-11-18, evening)
 
-Note added 2026-11-18T19:35-05:00: the option's label said "seven", but its description, and the list here, name
+Note added 2026-11-18T19:28:35-05:00: the option's label said "seven", but its description, and the list here, name
 eight datasets (`/var/cache`, `zpcachyos/nosnap` and its six children); the label was the session's miscount, and the
 named list is what was chosen. This goes to the owner with the design proposal.
 

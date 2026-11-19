@@ -424,7 +424,7 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   stay held by home's snapshots for up to 25 hours.
   This corrects the page's earlier framing of worktrees as throwaway copies.
 - **What the blocklist names** (question tool, 2026-11-18, after the corrections quoted under "What the snapshots hold
-  today"): "Explicit list of all seven (Recommended)". (Note added 2026-11-18T19:35-05:00: the label miscounted; the
+  today"): "Explicit list of all seven (Recommended)". (Note added 2026-11-18T19:28:35-05:00: the label miscounted; the
   option's description named the eight datasets listed here, and that list is what was chosen.) The blocklist names
   every dataset that must never be
   snapshotted, explicitly, so a recursive parent or a later move cannot pull one in: `zpcachyos/ROOT/cos/varcache`
