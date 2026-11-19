@@ -643,6 +643,78 @@ host. These gates carry the [handover's H1 and H2 disposition][handover] and the
   shipped deadline or optional scan interval. Prior isolated mount latency is not a prediction of ready-to-use
   worktree time.
 
+## Appendix: review and research coverage
+
+### Cross-vendor review
+
+The review is `~/temp/agent/zfs-worktree-design-proposal-review-2026-11-18/review.md`.
+All findings are accepted in the [handover][handover]. This map distinguishes design answers from tests still owed.
+
+- H1: [Dataset and path layout](#dataset-and-path-layout), [Add and Git registration](#add-and-git-registration),
+  and [Descriptor mount and unmount](#descriptor-mount-and-unmount) give the slot, fill and mount contract.
+  [Descriptor safety and mount authority](#descriptor-safety-and-mount-authority) carries the outstanding gates.
+- H2: [One-time move and checkout boot protection](#one-time-move-and-checkout-boot-protection) keeps the path;
+  [Add and Git registration](#add-and-git-registration) omits nested mounts, and
+  [Dependency repair and watchers](#dependency-repair-and-watchers) states the measured pnpm consequence.
+  [Open project choices](#open-project-choices) and [Boot, shutdown and setup](#boot-shutdown-and-setup) retain
+  the boot guard decision and proof.
+- H3: [Unmounted, pruned or moved worktrees](#unmounted-pruned-or-moved-worktrees) preserves the underlay pointer,
+  distinguishes unmounted and pruned states and gives the limits of repair.
+- H4: [Requests, results and ordering](#requests-results-and-ordering) bounds property values, keeps nonces out
+  of filenames and gives root-owned receipt permissions.
+- M1: [Add and Git registration](#add-and-git-registration) puts the shared `doctor` preflight before mutation.
+- M2: [Binding crate and compatibility](#binding-crate-and-compatibility),
+  [Dataset and path layout](#dataset-and-path-layout), [Add and Git registration](#add-and-git-registration) and
+  [ZED reconciliation and mount safety](#zed-reconciliation-and-mount-safety) name the crate, datasets, origin,
+  handler, properties, config and state by purpose, using `MKY` and `VGW`.
+- M3: [Binding crate and compatibility](#binding-crate-and-compatibility) defines the separate Rust binary,
+  shared ABI gate and requests; [ZED reconciliation and mount safety](#zed-reconciliation-and-mount-safety)
+  defines its installed entry points.
+- M4: [Add and Git registration](#add-and-git-registration) distinguishes optional local user properties at
+  clone creation from `mountpoint` and gives the `ZFS_IOC_SET_PROP` path.
+- M5: [Requests, results and ordering](#requests-results-and-ordering) does not assume a timer;
+  [Open project choices](#open-project-choices) keeps the periodic sweep conditional.
+- L1: [Snapshots and setup reporting](#snapshots-and-setup-reporting) gives the eight exclusions with mount paths
+  or unmounted status. [What doctor checks and prints](#what-doctor-checks-and-prints) checks the configured order.
+- L2: [Requests and input ownership](#requests-and-input-ownership) attributes the extra opcode checks to the
+  review; [Binding crate and compatibility](#binding-crate-and-compatibility) cites rule codes;
+  [Scoped delegation](#scoped-delegation) and [Snapshots and setup reporting](#snapshots-and-setup-reporting)
+  correct the delegation and guard citations.
+- L3: [Add and Git registration](#add-and-git-registration) writes the origin claim first and handles `ENOSPC`
+  and killed adds. [Removal and recovery](#removal-and-recovery) uses the kernel's dependent-clone refusal.
+- L4: [Add and Git registration](#add-and-git-registration) requires proof from the frozen content;
+  [Binding, Git and lifecycle](#binding-git-and-lifecycle) tests a write in the window.
+- L5: [Unmounted, pruned or moved worktrees](#unmounted-pruned-or-moved-worktrees) refuses managed moves;
+  [Add and Git registration](#add-and-git-registration) keys ownership on registration identity and clone GUID.
+- L6: [Open project choices](#open-project-choices) uses plain list items, not bold-label bullets.
+
+### Nested-clone research requirements
+
+Items refer to the [nested-clone research][nested]. Tests that close remaining evidence gaps are grouped in
+[Acceptance tests the build still owes](#acceptance-tests-the-build-still-owes).
+
+- Item 1, nested snapshots and unmount/export: [Dataset and path layout](#dataset-and-path-layout) separates
+  underlays from clone snapshots; [Requests, results and ordering](#requests-results-and-ordering) owns shutdown
+  unmounts and busy reports. Idle export/import and real shutdown still need VM coverage.
+- Item 2, boot order: [Dataset and path layout](#dataset-and-path-layout) keeps clones out of automatic mounts;
+  [Requests, results and ordering](#requests-results-and-ordering) requires the verified checkout mount first.
+  [Boot, shutdown and setup](#boot-shutdown-and-setup) tests delayed and failed mount order.
+- Item 3, planted links and descriptor operations: [Descriptor mount and unmount](#descriptor-mount-and-unmount)
+  adopts the named requirements and records the propagation limit and rollback failure state.
+  [Descriptor safety and mount authority](#descriptor-safety-and-mount-authority) repeats all refusals with the
+  decided ownership and tests the previously unshown cases.
+- Item 4, sanoid coverage and retention: [Snapshots and setup reporting](#snapshots-and-setup-reporting) defines
+  coverage and order; [What doctor checks and prints](#what-doctor-checks-and-prints) reports origins and retention;
+  [Removal and recovery](#removal-and-recovery) removes explicit snapshots and checks origin dependencies.
+- Item 5, Git, walks and backup: [Walks and Git clean](#walks-and-git-clean) stops at boundaries and records the
+  corrected clean fixture; [What doctor checks and prints](#what-doctor-checks-and-prints) reports backup coverage.
+  Kopia boundary behavior is a test, not a result.
+- Item 6, removal: [Removal and recovery](#removal-and-recovery) defines order, blockers, account-owned underlay
+  cleanup and resume; [Binding, Git and lifecycle](#binding-git-and-lifecycle) tests interruption.
+- Item 7, registration and fill: [Add and Git registration](#add-and-git-registration) defines the order,
+  copied `.git` rule and durable record; [Unmounted, pruned or moved worktrees](#unmounted-pruned-or-moved-worktrees)
+  refuses moves. [Binding, Git and lifecycle](#binding-git-and-lifecycle) tests the combined sequence and kill points.
+
 [answers]: cli-git-zfs-worktree.md#owners-answers-of-2026-11-18
 [zfs-plan]: cli-git-zfs-worktree.md
 [handover]: ../handover/cli-git-rust-implementation.md
