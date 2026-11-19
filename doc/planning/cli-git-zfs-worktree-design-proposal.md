@@ -426,8 +426,9 @@ origin never authorizes work on another mount. Recheck desired state and identit
 parallel handlers can sweep at once but cannot take conflicting actions on the same mount.
 
 This draft uses atomic `/run` receipts, not root-written acknowledgement properties, so a result does not create
-another ZED event. That is an adopted default open to veto: acknowledgement properties are the alternative, and each
-one would create the event the receipts avoid. Publish in `/run/git-worktree-clone-mount-results`, using only the
+another ZED event. That is an adopted default open to veto: acknowledgement properties are the alternative, and
+each one would create the event the receipts avoid (reasoning from the property event [VM item 5][vm-key]
+delivered). Publish in `/run/git-worktree-clone-mount-results`, using only the
 canonical numeric dataset GUID as the receipt filename. The root-owned directory is mode `0755`; receipts are
 root-owned mode `0644`, read-only to the wrapper, and opened relative to the trusted directory. Nonces appear only as
 validated data in the receipt, never in a filename. Include the operation, matching nonce, outcome, mount identity and
@@ -487,15 +488,15 @@ The syscall floor is Linux 5.6 for `openat2`; the other mount APIs used here sta
 OpenZFS 2.4.4 ([nested-clone research][nested], "What was checked and how" and item 3). That validates the
 exercised calls on that build, not the mechanism on all kernels at or beyond the syscall floor.
 
-This draft's readiness criterion is an allowlist of exact Linux kernel releases per target architecture that pass
-built handler attach, staging unmount, refusal and namespace controls on that release. Whether kernel readiness is
-that allowlist or a functional probe at start is an [open choice](#open-project-choices); the project's answer,
-"test plus runtime gate", covers the ZFS module check rather than a kernel-release list. At readiness compare the
-running release to the allowlist independently of the ZFS ioctl ABI gate. Fixture results alone do not qualify a
-release. Report the running release and missing qualification in `doctor` and preflight. Until a passing run on
-`7.3.5-1-cachyos` exists, do not enable the managed route on that kernel: use the applicable same-dataset reflink or
-ordinary Git path for unused slots, and preserve existing bindings and intent rather than falling back over them.
-This is proposed fail-closed behavior, not a measured readiness gate ([VM item 16][vm-kernel]).
+Whether kernel readiness is an allowlist of exact Linux kernel releases per target architecture or a functional
+probe at start is an [open choice](#open-project-choices); the project's answer, "test plus runtime gate", covers
+the ZFS module check rather than a kernel-release list. Under the allowlist this draft proposes, a release qualifies
+only by passing built handler attach, staging unmount, refusal and namespace controls on that release, compared
+independently of the ZFS ioctl ABI gate; fixture results alone do not qualify it, and `doctor` and preflight report
+the running release and any missing qualification. Until a passing run on `7.3.5-1-cachyos` exists, that option
+keeps the managed route disabled on that kernel: use the applicable same-dataset reflink or ordinary Git path for
+unused slots, and preserve existing bindings and intent rather than falling back over them. This is proposed
+fail-closed behavior, not a measured readiness gate ([VM item 16][vm-kernel]).
 
 Use descriptor-relative `openat2`, `fsmount` with enforced `nosuid,nodev`, and `move_mount` onto the opened target.
 [VM item 2][vm-refusals] measured the account creating links successfully and the descriptor walk refusing
@@ -566,9 +567,10 @@ Item 15 did not show an exclusion mechanism for unrestricted callers, such as a 
 attach, so a clean scan alone cannot qualify that deployment. Removal therefore refuses before the first snapshot
 delete when the selected deployment cannot show that exclusion, and a deployment that can show it still accepts a
 residual: a clean scan that misses a later copy leaves snapshots gone with the head still busy, the resume state
-[Removal and recovery](#removal-and-recovery) names, which "B: Destroy at once" already accepts (reasoning from
-[item 15][vm-namespaces], not a measured interleaving). The [propagation choice](#open-project-choices) carries
-both conditions as facts.
+[Removal and recovery](#removal-and-recovery) names. That loses no history the project chose to keep, since
+"B: Destroy at once" already declines to retain a removed worktree's own snapshots; this draft accepts the race, not
+the project (reasoning from [item 15][vm-namespaces], not a measured interleaving). The
+[propagation choice](#open-project-choices) carries both conditions as facts.
 
 [VM item 3][vm-propagation] measured the move refusing with `EINVAL` when its immediate parent, the checkout,
 was shared. Making **only the checkout mount private** let the fresh process move to private staging and unmount;
@@ -626,17 +628,20 @@ own snapshots in one ioctl. The kernel prechecks the whole request before deleti
 (OpenZFS `zfs-2.4.4`, `module/zfs/dsl_destroy.c:598` to `:600` and `:630` to `:653`). That guarantee covers check
 failures only: a program error returns the errno with no per-name list (`dsl_destroy.c:662` to `:671`), and an
 exhausted program can leave partial effects (`man/man8/zfs-program.8:152` to `:155`). The kernel's own batch runs
-with an instruction limit of 0, which means no limit (`module/zfs/zcp.c:796`), so only the memory limit applies;
+with an instruction limit of 0, which means no limit (`module/zfs/dsl_destroy.c:656` to `:660` passes it;
+`module/zfs/zcp.c:796` tests the limit only when it is not 0), so only the memory limit applies;
 a root program chooses its own limits. The request is still name-based, ignores missing snapshot names
 (`lib/libzfs_core/libzfs_core.c:442` to `:456`), and is not atomic with the later head destroy. Neither a
 successful batch nor a dependency refusal establishes provenance.
 
-The kernel reads a snapshot's deferral from the presence of a `defer` key in the request, whatever its value
-(OpenZFS `zfs-2.4.4`, `module/zfs/zfs_ioctl.c:4119` and `:4132`), and `libzfs_core` adds that key only when it
-defers (`lib/libzfs_core/libzfs_core.c:475` to `:476`). A request that carried `"defer": false` would mark a
-snapshot with dependent clones for deferred destroy rather than refusing it, which would reintroduce item 11's
-loss and also mark a foreign relocated origin for later reaping (`libzfs_core.c:442` to `:451`). The binding
-therefore omits the key, and a test asserts that the encoded request has no `defer` key.
+The kernel reads a snapshot's deferral from the presence of a `defer` key, never from its value: the accepted key
+is a bare boolean (OpenZFS `zfs-2.4.4`, `module/zfs/zfs_ioctl.c:4119`), the handler asks only whether the key exists
+(`:4132`), and `libzfs_core` adds it only when it defers (`lib/libzfs_core/libzfs_core.c:475` to `:476`). A pair of
+another type is refused before that (`zfs_ioctl.c:7922` to `:7924`, `ZFS_ERR_IOC_ARG_BADTYPE`), but a bare boolean
+carries no value, so a binding that meant "false" and added the key would still defer. Deferring marks a snapshot
+with dependent clones for deferred destroy instead of refusing it, which would reintroduce item 11's loss and mark a
+foreign relocated origin for later reaping (`libzfs_core.c:442` to `:451`). The binding therefore omits the key, and
+a test asserts that the encoded request has no `defer` key.
 
 1.  Prove the live pool, clone and origin dataset GUIDs match the binding. Then prove lineage in this order:
     - Necessary check: read the clone's live `origin` and resolve it to the recorded origin dataset and origin
@@ -647,7 +652,8 @@ therefore omits the key, and a test asserts that the encoded request has no `def
       manual and sanoid snapshots. Pass a bookmark only when the recorded clone-side inventory holds its name,
       GUID and `createtxg` and no origin-side tuple matches it. Refuse destruction when a bookmark is unrecorded,
       when its tuple matches the origin-side inventory, or when the bookmark list could not be read completely, and
-      name each refused bookmark. OpenZFS destroys a dataset's bookmark entries with the head
+      name each refused bookmark; this rule is proposed, not a measured sufficiency proof. OpenZFS destroys a
+      dataset's bookmark entries with the head
       (`module/zfs/dsl_destroy.c:1123` to `:1154`, `zfs-2.4.4`), so an unaccounted bookmark goes with it. Treat a
       bookmark's transaction group as evidence about the history it points to, not proof of when it was made.
     - Third check: compare the live clone inventory against the recorded origin-side GUID inventory, including
@@ -714,29 +720,31 @@ therefore omits the key, and a test asserts that the encoded request has no `def
     not surviving live worktree data.
 
 Resume against the persisted destruction plan and the live mount, dataset, snapshot and Git identities. Settle
-recorded destroys only after proving the expected objects are gone, never from a missing name alone. For each
-planned snapshot, require the clone head to answer with its recorded live GUID and an empty live snapshot list.
-For the head, require the name to be absent and no child of the pinned parent to carry the recorded GUID. If
-interruption left an outcome unprovable, retain it as unresolved and stop; never regenerate an authorized set
-from whatever names are left. Distinguish unmount pending or staged, planned snapshots all gone with the head
-refused, clone gone with its recorded origin retained, and Git or empty-folder cleanup still owed. Report specific
-blockers: `EBUSY` and holder if known, snapshot history at risk, a hold, nested dataset or mount, dependent clone,
-a mismatched identity or a missing or pruned registration. Never let a stale acknowledgement authorize cleanup.
+recorded destroys only after proving the expected objects are gone, never from a missing name alone. While the head is
+present, require it to answer with its recorded live GUID and an empty live snapshot list. Once the head is gone, that
+read is impossible, so settle the head and its snapshots only when its name is absent and no child of the pinned
+parent carries the recorded GUID. These observables are proposed, not measured. If interruption left an outcome
+unprovable, retain it as unresolved and stop; never regenerate an authorized set from whatever names are left.
+Distinguish unmount pending or staged, planned snapshots all gone with the head refused, a partial snapshot set left
+by a failed root program, clone gone with its recorded origin retained, and Git or empty-folder cleanup still owed.
+Report specific blockers: `EBUSY` and holder if known, snapshot history at risk, a hold, nested dataset or mount,
+dependent clone, a mismatched identity or a missing or pruned registration. Never let a stale acknowledgement
+authorize cleanup.
 
 ### Cancel a blocked removal
 
 A refusal after setting `unmount` leaves removal intent in force. Do not implicitly remount on failure or restart;
 that is an adopted default open to veto, because an implicit remount would race the standing unmount intent and any
-staged mount. The draft proposes a guarded `cancel-worktree-removal <slot>` recovery action, listed in
-[Open project choices](#open-project-choices), invoked explicitly by the account operator through the wrapper.
-Under the per-slot claim, settle all outstanding destroy requests, including the root request if selected, and prove
-the clone, original lineage, Git registration, mount state and exact destruction outcomes before reversing intent.
-Report any confirmed history loss before cancellation and retain that report; cancellation cannot restore
-destroyed snapshots. If a destroy outcome is unknown, the head is gone, or a staged mount cannot yet
-be recovered under the selected busy-unmount policy, do not issue `mount`. Report the matching resume step or
-administrator recovery required. Otherwise record the reversal and issue a fresh, nonce-bound local `mount` intent
-for the same binding and verify its result. This is proposed recovery reasoning from the staged holder and
-namespace cases in [VM items 4][vm-unmount] and [15][vm-namespaces], not a tested reversal.
+staged mount (reasoning, not measured). The draft proposes a guarded `cancel-worktree-removal <slot>` recovery action,
+listed in [Open project choices](#open-project-choices), invoked explicitly by the account operator through the
+wrapper. Under the per-slot claim, settle all outstanding destroy requests, including the root request if selected,
+and prove the clone, original lineage, Git registration, mount state and exact destruction outcomes before reversing
+intent. Report any confirmed history loss before cancellation and retain that report; cancellation cannot restore
+destroyed snapshots. If a destroy outcome is unknown, the head is gone, or a staged mount cannot yet be recovered
+under the selected busy-unmount policy, do not issue `mount`. Report the matching resume step or administrator
+recovery required. Otherwise record the reversal and issue a fresh, nonce-bound local `mount` intent for the same
+binding and verify its result. This is proposed recovery reasoning from the staged holder and namespace cases in
+[VM items 4][vm-unmount] and [15][vm-namespaces], not a tested reversal.
 
 ## Ladder and fallback
 
@@ -947,7 +955,7 @@ working setup. This proposal has neither installed nor run the root-once command
 
 ## Open project choices
 
-The list below holds the open choices, with the two alternatives under
+The open choices are these, with the two alternatives under
 [Clone removal identity protection](#clone-removal-identity-protection) as one choice. They do not reopen
 checkout path, account ownership, ZED, the fallback or recursive snapshot policy. No option is selected or ranked.
 At the owner handoff, present each decision separately in the question tool with its options, pros and cons, and a
@@ -984,9 +992,9 @@ unmeasured; a ranking is not a decision.
   exact list disables the managed route after every CachyOS kernel package update until a VM run passes on that
   release, which makes existing unmounted clones unavailable in the meantime; [VM item 16][vm-kernel] found no
   offered image that boots `7.3.5-1-cachyos`, so no release on it can be qualified today. A functional probe admits
-  untested releases and leaves unmeasured behaviour to appear on the host, where the failure is a refused mount or
-  a misplaced one it did not detect. Both keep the runtime module gate; neither authorizes a path mount, and both
-  preserve existing bindings and intent while the route is unavailable.
+  untested releases and leaves unmeasured behaviour to appear on the host, where a failure would show as a refused
+  mount or as one the probe did not detect (reasoning). Both keep the runtime module gate, neither authorizes a path
+  mount, and both preserve existing bindings and intent while the route is unavailable.
 - Blocked-removal cancellation. Offer an explicit `cancel-worktree-removal <slot>` command that settles outstanding
   requests and reverses intent only for a proven surviving binding; or report the resume step and leave reversal to
   administrator recovery. A command gives the operator one supported way back; report-only keeps the caller
@@ -1054,16 +1062,17 @@ unmeasured; a ranking is not a decision.
 
 ### Clone removal identity protection
 
-This is one open project choice. It is not independent of
+These two alternatives are one open project choice. It is not independent of
 [Origin cleanup authority](#open-project-choices): with descendants `mount,destroy` on the checkout, the account
 becomes an allowed actor that can mark a checkout snapshot for deferred destroy, and the delegated option forbids
 any allowed actor doing that while removal is admitted. Present the two choices together, and treat delegated clone
 destruction with delegated origin `destroy` as excluded until the origin rule is proved for the account itself.
 That last step is reasoning from the grant model and from what the `defer` key does
 (`lib/libzfs_core/libzfs_core.c:442` to `:451`, OpenZFS `zfs-2.4.4`), not a measured account-run deferred destroy.
-No other program on this host marks one: neither sanoid (`/usr/bin/sanoid:399`) nor the space guard
-(`/usr/local/sbin/zfs-space-guard:50`) passes a deferred destroy, so only that grant could. Neither option changes
-"B: Destroy at once" ([project decision][answers], lines 491 to 494).
+Of the two programs that prune snapshots on this host, neither passes a deferred destroy
+(`/usr/bin/sanoid:399`, `/usr/local/sbin/zfs-space-guard:50`); other callers were not inspected, so the grant is
+the one this design can account for. Neither option changes "B: Destroy at once"
+([project decision][answers], lines 491 to 494).
 
 [VM item 12][vm-replacement] measured the delegated account destroying an unmounted clone and reusing its name,
 including with another clone of the same origin. A fresh GUID read can see a replacement but does not bind a later
@@ -1095,10 +1104,10 @@ the account's attempt with a matching tuple was denied. The substitutions were s
   approved history identities in the program, not just before submission. The program excludes concurrent ZFS admin
   changes while it runs (`man/man8/zfs-program.8:35` to `:40`); it does not settle Linux mount or Git races. This
   adds a privileged request and recovery surface. It is also a second request channel beside the mount intent
-  property, and a third root-installed program beside the handler and the mount binary. Two facts it still lacks
-  belong in the owner's weighing: where root records the origin-side lineage inventory at add time, since the claim
-  and that inventory sit in the account-owned Git common directory and the handler records slot identity rather
-  than lineage; and how the unprivileged wrapper reaches a root removal operation, because "authenticate the
+  property, and a third program beside the account-called wrapper and the clone-mount handler. Two facts it still
+  lacks belong in the owner's weighing: where root records the origin-side lineage inventory at add time, since the
+  claim and that inventory sit in the account-owned Git common directory and the handler records slot identity
+  rather than lineage; and how the unprivileged wrapper reaches a root removal operation, because "authenticate the
   caller against the configured UID" names no transport here. Before enabling it, prove scope against spoofed or
   replayed requests and same-name replacements. Persist the verified plan under root control before mutation;
   after a lost response or restart, prove which recorded identities survive or are gone before resuming, never
