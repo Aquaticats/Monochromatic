@@ -74,7 +74,7 @@ const WORK_COMMAND = 'cargo build';
 
  @returns the process number
  */
-async function startWork(milliseconds: number,): Promise<number> {
+async function startWork({ milliseconds, }: { readonly milliseconds: number },): Promise<number> {
   /**
    The work itself, detached so it outlives a stand-in its driver stops, and quiet so it writes nothing to a channel.
    */
@@ -124,10 +124,28 @@ async function leaveWorkRunning({
     return;
   }
   answer({ id, },);
+  await startWorkTheToolReports({ milliseconds, },);
+  finishRun('started the build and ended my turn',);
+}
+
+/**
+ Starts the work a play leaves running and reports it the way the `process` tool reports one, so the driver has something real to
+ find in the tool's own records.
+
+ @param milliseconds - how long the work lives
+
+ @returns the process number the tool reported
+
+ @example
+ ```ts
+ await startWorkTheToolReports({ milliseconds: WORK_MILLISECONDS },);
+ ```
+ */
+export async function startWorkTheToolReports({ milliseconds, }: { readonly milliseconds: number },): Promise<number> {
   /**
    The process the run leaves behind.
    */
-  const pid = await startWork(milliseconds,);
+  const pid = await startWork({ milliseconds, },);
   emit({
     type: 'tool_execution_start',
     toolName: 'process',
@@ -155,7 +173,7 @@ async function leaveWorkRunning({
       },
     },
   },);
-  finishRun('started the build and ended my turn',);
+  return pid;
 }
 
 /**

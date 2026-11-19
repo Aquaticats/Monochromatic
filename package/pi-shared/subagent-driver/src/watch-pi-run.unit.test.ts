@@ -92,6 +92,13 @@ const PERMANENT_FAILURE_TEXT = 'Provider is not configured: neuralwatt';
 const RATE_LIMIT_FAILURE_TEXT = '429 {"error":{"message":"Too many requests"}}';
 
 /**
+ The error Pi 1.5.2 gives a prompt that meets a running agent and named no streaming behaviour, word for word (`prompt()` in
+ `dist/core/agent-session.js` of `@earendil-works/pi-coding-agent`): it says the agent is busy, never that the message is
+ unacceptable.
+ */
+const ALREADY_PROCESSING_TEXT: string = 'Agent is already processing. Specify streamingBehavior (\'steer\' or \'followUp\') to queue the message.';
+
+/**
  How many attempts may follow a model error, for a run whose retries are spent before the error even settles.
  */
 const NO_RETRIES = 0;
@@ -468,6 +475,47 @@ function connectionWhosePiReplies({
       return {
         ending: 'answered',
         record: { success: true, },
+      };
+    },
+    shutDown: async () => ({ stopped: true, }),
+  };
+}
+
+/**
+ A connection whose Pi answers the wake with the error it gives a prompt that meets a running agent, and whose own turn then
+ replies and settles, which is the state the wake of 2026-11-19 found.
+
+ @param sent - where the messages the watch sends are recorded
+
+ @param record - the run's record, where the turn's own reply and settle are observed
+
+ @returns the connection a watch reads
+ */
+function connectionWhosePiIsAlreadyProcessing({
+  sent,
+  record,
+}: {
+  readonly sent: string[];
+  readonly record: RecordOfPiRun
+},): ConnectionToPi {
+  return {
+    hasExited: () => false,
+    exitDetails: () => ({}),
+    write: function write() {
+      throw new Error('the watch was not expected to write without waiting for an answer',);
+    },
+    send: async function send({ command, }: CommandRequest,) {
+      const { message } = command;
+      sent.push((typeof message) === 'string' ? message : '',);
+      // The turn the agent had started of its own accord was already running when the message went; its reply and settle follow
+      // the refusal Pi gave the message.
+      observeSuccessfulReply(record,);
+      return {
+        ending: 'answered',
+        record: {
+          success: false,
+          error: ALREADY_PROCESSING_TEXT,
+        },
       };
     },
     shutDown: async () => ({ stopped: true, }),
@@ -1111,6 +1159,46 @@ await describe({
          */
         const feed = await feedOf(run.runFolder,);
         expect(feed.find((entry,) => entry.kind === 'wake')?.success,).toBe(false,);
+      },
+    },),
+    it({
+      name: 'keeps a run whose wake met a turn the agent had already started, and ends it after that turn settles rather than'
+        + ' reading the busy answer as a refusal',
+      fn: async () => {
+        await using run = await startRunThatSettled();
+        /**
+         The messages the watch sent, which is the one that wakes the agent.
+         */
+        const sent: string[] = [];
+        /**
+         How many times the work was asked about, which is how the test ends it after one look.
+         */
+        let looks = 0;
+        const endReason = await watchUntilEnded({
+          // Pi answers that its agent is already processing, which says the agent is awake in a turn of its own, and that turn
+          // replies and settles after the answer.
+          connection: connectionWhosePiIsAlreadyProcessing({ sent, record: run.record, },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: HOLD_MILLISECONDS * 2,
+          },),
+          inbox: run.inbox,
+          deadline: Date.now() + (HOLD_MILLISECONDS * 2),
+          workLeftRunning: async function workLeftRunning() {
+            looks += 1;
+            return (looks <= 1) ? ['proc_7adb (native-build-2) 486667 systemd-run --user --scope'] : [];
+          },
+        },);
+        // The message went, and the run ended after the turn the agent had already started, never as one Pi refused a prompt.
+        expect(sent.length,).toBe(1,);
+        expect(endReason,).toBe('idle',);
+        /**
+         What the run's feed holds.
+         */
+        const feed = await feedOf(run.runFolder,);
+        expect(feed.find((entry,) => entry.kind === 'wake')?.success,).toBe(false,);
+        expect(String(feed.find((entry,) => entry.kind === 'problem')?.problem,),).toContain('already in a turn',);
       },
     },),
     it({

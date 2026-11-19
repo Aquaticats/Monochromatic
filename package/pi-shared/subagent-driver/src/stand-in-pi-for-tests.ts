@@ -365,7 +365,7 @@ async function actOnCommand({
       },);
       return;
     }
-    await playPrompt(parsed.id,);
+    await playPrompt(parsed,);
     return;
   }
   if ((parsed.type === 'get_session_stats') && (scenario === 'crash-on-stats')) {
