@@ -44,7 +44,7 @@ const PARTS_OF_A_TIMESTAMP = 4;
  A timestamp that names no moment, as a symbol so no moment can be mistaken for it: the manager writes `n/a` for a unit that never
  left the inactive state on this boot.
  */
-export const NO_MOMENT: unique symbol = Symbol('no InactiveExitTimestamp value names a start',);
+const NO_MOMENT: unique symbol = Symbol('no InactiveExitTimestamp value names a start',);
 
 /**
  The manager words that ask one unit, in a single question, what state it is in and when it left the inactive state.
@@ -52,7 +52,7 @@ export const NO_MOMENT: unique symbol = Symbol('no InactiveExitTimestamp value n
  `--timestamp=us+utc` is what makes the answer's timestamp a form this reader can turn into a moment: the manager's own default is a
  day and a time in the machine's zone, without the microseconds.
  */
-export const QUESTION_ABOUT_A_UNIT: readonly string[] = [
+const QUESTION_ABOUT_A_UNIT: readonly string[] = [
   '--user',
   'show',
   '--timestamp=us+utc',
@@ -283,7 +283,7 @@ export function unitNamedBy({ command, }: { readonly command: string },): { read
  const started = unitStartedBy({ command: 'cd /repo && systemd-run --user --unit=pi-build -- mise run build', },);
  ```
  */
-export function unitStartedBy({ command, }: { readonly command: string },): { readonly unit?: string } {
+function unitStartedBy({ command, }: { readonly command: string },): { readonly unit?: string } {
   /**
    The words the command was written with.
    */
@@ -382,7 +382,7 @@ export async function unitKeepsTheRun({
 /**
  What the manager's answer about one unit says: whether its work is going, and when the unit left the inactive state.
  */
-export type UnitState = {
+type UnitState = {
   /**
    Whether the unit's work is going.
    */
@@ -449,7 +449,7 @@ function momentIn({ shown, }: { readonly shown: string },): number | typeof NO_M
  const state = unitStateIn({ shown: 'ActiveState=active\nSubState=running\nInactiveExitTimestamp=Thu 2026-11-19 02:29:45.948889 UTC', },);
  ```
  */
-export function unitStateIn({ shown, }: { readonly shown: string },): UnitState {
+function unitStateIn({ shown, }: { readonly shown: string },): UnitState {
   /**
    Each field the answer names, by its name.
    */
