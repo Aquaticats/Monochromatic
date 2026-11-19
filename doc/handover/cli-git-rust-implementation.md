@@ -40834,6 +40834,13 @@ By 03:24:49Z three more ended `idle`; each next step needs a new worktree, so ea
   rename window's real checks, the preview taken before masking), and both test launchers give the stand-in session a
   `TMPDIR` they remove (the new check failed first in a disposable home); build, types, lint, focused suite and one full
   package pass (207 passes). Next: its review.
+  **Its stray-file half is superseded on `main` (2026-11-19T15:44:42-05:00, `dd1ec0b4c2` and `4811e9edf6`).**
+  The stand-in itself now places a fresh session only from `STAND_IN_PI_SESSION_FILE` or a non-empty `TMPDIR`, and stops
+  with a message naming both otherwise, and the connection launcher gives it the folder each test removes. Measured with a
+  throwaway `HOME`, before the change the connection tests left 15 files there per run and the driver tests none (the
+  driver hands Pi a temporary folder since `0927a03a3b`); after it, neither left any. 3,246 empty files were in the real
+  home folder before the merge. The branch's `TMPDIR` hunk in `connection-to-pi.unit.test.ts` now conflicts textually
+  with `main`; its limits-page and wall-clock halves still wait for review.
 - Review of the empty-last-answer driver branch `d525bcf531` (124 turns, final): a keep on a filesystem with no hard links
   copies straight into the final kept name, so a kill mid-copy leaves a partial `.failed-<name>`
   (`keeping-a-message-aside.ts:386-420`); `README.md:1043` promises one kept name per message where the copy path and
