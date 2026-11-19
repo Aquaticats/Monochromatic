@@ -27,6 +27,37 @@ import {
 import { WRITER_TARGETS, } from './member-order-fixture.ts';
 
 /**
+ Destinations every request in this process asked for, which must stay empty.
+ */
+const fetchAttempts: string[] = [];
+
+/**
+ Refuse one outbound request and remember what it asked for.
+
+ The extension reads quota only from an origin its model names, and both stand-in models name a local
+ origin, so nothing here may ask a provider anything. Replacing the transport makes an edited origin
+ fail this check instead of calling out.
+
+ @param input - destination some code asked for
+
+ @returns never returns: every request is refused
+
+ @throws Error naming the destination, always
+ */
+function refuseProviderRequest(input: Parameters<typeof globalThis.fetch>[0],): Promise<Response> {
+  /**
+   Destination as a URL string, for the failure message and the record.
+   */
+  const url = (typeof input) === 'string'
+    ? input
+    : input instanceof URL ? input.href : input.url;
+  fetchAttempts.push(url,);
+  throw new Error(`Verification must not reach a provider endpoint: ${url}`,);
+}
+
+globalThis.fetch = refuseProviderRequest;
+
+/**
  Working directory in the disposable verification home.
  */
 const cwd = process.cwd();
@@ -284,6 +315,11 @@ assert.equal(
     session.model
       ?.provider,
     providerId,
+  );
+  assert.deepEqual(
+    fetchAttempts,
+    [],
+    'Verification asked a provider endpoint instead of staying on the stand-in origin',
   );
   process.stdout
     .write('PASS Pi session: built catalog, registry-authenticated 429 handoff, physical member in assistant record, pool still selected\n',);
