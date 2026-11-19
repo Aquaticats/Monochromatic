@@ -103,16 +103,42 @@ const closeDescriptor = promisify(close,);
 const sessionArgumentAt = argv.indexOf('--session',);
 
 /**
+ Names the session file a fresh start makes, which is the file its starter named or a new name in the temporary folder its
+ starter named.
+
+ Nothing else places it. Falling back to `HOME` and then to the working folder left thousands of empty
+ `stand-in-session-<uuid>.jsonl` files in the real home folder of whoever ran the connection tests, so a starter that names neither
+ is stopped here, before anything is written.
+
+ @returns the path of the session file
+
+ @throws Error when the starter named neither `STAND_IN_PI_SESSION_FILE` nor a non-empty `TMPDIR`
+ */
+function sessionFileOfAFreshStart(): string {
+  if (env.STAND_IN_PI_SESSION_FILE !== undefined) {
+    return env.STAND_IN_PI_SESSION_FILE;
+  }
+  /**
+   The temporary folder the starter named, where an empty value names none: joined, it would put the file in the working folder.
+   */
+  const temporaryFolder = env.TMPDIR ?? '';
+  if (temporaryFolder === '') {
+    throw new Error(
+      'the stand-in Pi was started for a fresh session with neither STAND_IN_PI_SESSION_FILE nor a non-empty TMPDIR set. Give it TMPDIR naming a folder the test removes, as the driver does for a real run, so its session file lands in neither the home folder nor the working folder.',
+    );
+  }
+  return join(
+    temporaryFolder,
+    `stand-in-session-${randomUUID()}.jsonl`,
+  );
+}
+
+/**
  The session Pi keeps: the one the run handed it, or one this stand-in makes for itself at its own start, as Pi makes a new session
  file for a fresh run.
  */
 const sessionFile = (sessionArgumentAt === (-1))
-  ? (env.STAND_IN_PI_SESSION_FILE
-    ?? join(
-      env.TMPDIR ?? env.HOME
-        ?? process.cwd(),
-      `stand-in-session-${randomUUID()}.jsonl`,
-    ))
+  ? sessionFileOfAFreshStart()
   : argv[sessionArgumentAt + 1];
 
 // A fresh run's session file is made by its Pi, during the run, holding whatever the fixture says Pi's own session already held.

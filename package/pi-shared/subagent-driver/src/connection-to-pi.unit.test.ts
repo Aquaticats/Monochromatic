@@ -325,6 +325,8 @@ async function openConnection(
     environment: {
       PATH: withoutPi ? withoutExecutables : [folder, dirname(process.execPath,), '/usr/bin',].join(delimiter,),
       HOME: process.env.HOME,
+      // The stand-in keeps the session file of its fresh start here, in the folder this test removes.
+      TMPDIR: folder,
       STAND_IN_PI_SCENARIO: scenario,
       STAND_IN_PI_LOG: log,
     },
