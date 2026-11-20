@@ -40381,7 +40381,19 @@ stated in this entry. What follows from them, as work:
   ("ZFS step 3 makes a worktree add from a dirty checkout slower"). GOING meanwhile: a short review of the round on the
   Qwen plan (watched), `pi-qwen-review-zfs-step-3-sliced-clone-round`, in a detached worktree at `6c72f75b3e`, because
   the sliced clone runs on every reflink filesystem the rung serves; brief under
-  `~/temp/agent/zfs-step-3-sliced-clone-round-short-review-on-the-qwen-plan-2026-11-20/`. ALSO GOING, since step 2's
+  `~/temp/agent/zfs-step-3-sliced-clone-round-short-review-on-the-qwen-plan-2026-11-20/`. It ended `idle` (129 turns;
+  that folder's `keep/review.md` and four logs): ordering, failure semantics, descriptor pruning, concurrent directory
+  creation and pool placement hold. Medium 1: no control runs the sliced engine outside btrfs (both sliced controls are
+  btrfs-gated, and the round's end-to-end record shows `"rung": []`); empty files run the whole sliced engine with no
+  reflink (`worktree_clone.rs:449`), and the reviewer built such a control, green here and red with one planted
+  ordering fault. Medium 2: `README.md:835-836` credits the one-thread 1.76 to 2.23 figure to
+  `doc/planning/cli-git-btrfs-worktree.md`, which records parity. Lows: `cloneEntries` recorded only for runs of 15
+  entries or fewer; the report's "installed from every slice" and its 18-round median not reproducible from the kept
+  records (23 rounds, median 0.69 to 0.71); `SPEC.md` silent on a failure leaving up to a slice past the failing
+  entry; nothing logs whether slices ran; the break-even borrowed from btrfs measurements. QUEUED: a fix round for
+  these on the step 3 branch once the guest-arm writer there ends (one writer per worktree), folded with the owner's
+  answer on the dirty path if it has come. The round's nested evidence moved to its `keep/round-evidence/`, scripts and
+  fetched sources to `keep/round-scripts/` and `keep/round-sources/`, and its scratch deleted. ALSO GOING, since step 2's
   recipe is in `main`: step 3's guest arm, `pi-zfs-step-3-guest-arm-reflink-and-cross-dataset-controls` (DeepSeek on
   Neuralwatt, cap 510, wall 330 min) in the step 3 worktree, merging `main` first: the four binary-level controls, the
   two data-key arms, block cloning on and off, the ZFS gate helper, H1 gate 7, and the disk a clean add saves (which
