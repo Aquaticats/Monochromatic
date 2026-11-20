@@ -260,7 +260,7 @@ one.
 The Q2 answer supersedes a proof three accepted or merged files state, and none is edited here.
 The plan asks that a citation name its heading, never its line
 (`cli-git-zfs-worktree-implementation-plan.md:52-54`), so each heading named in this section
-carries the lines that hold it in `main` at `59152e567b`, as a locator beside the heading.
+carries the lines that hold it in `main` at `6c838ba11f`, as a locator beside the heading.
 Line numbers move between commits, so each locator is a convenience and the heading is the
 citation.
 The design proposal lists the module release among the gate's proofs
@@ -271,14 +271,14 @@ where the sentence begins on 235 and `module release` stands on 236):
 > and target ABI, including module release, architecture, endianness, request contract and
 > kernel/module BTF layout.
 
-The plan's step 6 calls the release check decided ("Open items", lines 760 to 762):
+The plan's step 6 calls the release check decided ("Open items", lines 764 to 766):
 
 > The release,
 > architecture,
 > endianness and request-contract checks are decided and can be written beside them.
 
-Step 6's "What it builds" lists the same proof in its opening lines, lines 711 to 715, with
-`module release,` on line 712:
+Step 6's "What it builds" lists the same proof in its opening lines, lines 715 to 719, with
+`module release,` on line 716:
 
 > The gate both binaries run before their first ioctl:
 > module release,
@@ -298,7 +298,7 @@ lines 149 to 152:
 All three were right when they were accepted or merged; the project's answer of 2026-11-19
 supersedes one proof the gate makes, so it makes no release check, and the release string it reads
 is identity and `doctor` reporting.
-The third file's text is quoted from `main` at `59152e567b`, by heading and bullet, because the
+The third file's text is quoted from `main` at `6c838ba11f`, by heading and bullet, because the
 lines move: step 2's branch, unmerged, rewrites that same bullet to open "It checks no kernel
 compatibility at start" and keeps its own "release" wording, so whichever of step 2 and this
 amendment merges first, the other re-quotes the bullet.
@@ -320,7 +320,7 @@ version, layout decides", the layout comparison and the request numbers decide, 
 prints the release string and says when it is not the tested 2.4.4.
 ```
 
-Plan, deleting the `module release,` line from step 6's "What it builds", line 712:
+Plan, deleting the `module release,` line from step 6's "What it builds", line 716:
 
 ```text
 # doc/planning/cli-git-zfs-worktree-implementation-plan.md, step 6, "What it builds"
@@ -330,7 +330,7 @@ endianness,
 request contract and the kernel/module BTF layout,
 ```
 
-Plan, replacing step 6's "Open items", lines 760 to 762:
+Plan, replacing step 6's "Open items", lines 764 to 766:
 
 ```text
 # doc/planning/cli-git-zfs-worktree-implementation-plan.md, step 6, "Open items"
@@ -357,9 +357,10 @@ Binding `README.md`, replacing the second bullet of "What this crate does not do
 ```
 
 One more line of the plan belongs to this amendment and is no replacement.
-Step 6's "VM measurements", lines 748 to 754 on `main` at `59152e567b`, holds "Two arms in the
-throwaway guest: an untested release, and a module whose field layout differs from the approved
-one, each asserting that raw requests are disabled."
+Step 6's "VM measurements" heading stands at line 752 on `main` at `6c838ba11f`, and the sentence
+under it, lines 754 to 757, reads: "Two arms in the throwaway guest: an untested release, and a
+module whose field layout differs from the approved one, each asserting that raw requests are
+disabled."
 The "untested release" arm is the start probe's, a kernel release and not a module release: the
 proposal's "Decided behaviours with no test yet" pairs "an untested release" with the probe
 (line 1841), and the probe "admits untested releases" (lines 628 to 629 and 1303 to 1304), so the
@@ -370,9 +371,9 @@ untested module release whose layout matches passes the gate: the module-release
 of its own now, and
 [a release that keeps the layout and changes behaviour](#a-release-that-keeps-the-layout-and-changes-behaviour)
 states what such a release does.
-The same line's "The BTF comparison runs against the guest's `/sys/kernel/btf/zfs`" waits on a
-guest whose module carries that file: step 2's recipe makes it exist at `08c9dea25f`, unmerged, and
-[owed measurement](#owed-measurements) item 11 is the design's own fixture's run.
+The next line's "The BTF comparison runs against the guest's `/sys/kernel/btf/zfs`" (line 758)
+waits on a guest whose module carries that file: step 2's recipe makes it exist at `08c9dea25f`,
+unmerged, and [owed measurement](#owed-measurements) item 11 is the design's own fixture's run.
 
 ### A release that keeps the layout and changes behaviour
 
