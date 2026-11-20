@@ -40183,8 +40183,45 @@ stated in this entry. What follows from them, as work:
   is newer); the guest needs network; the two `.ts` files sit outside any tsconfig. GOING: its short review on the
   Qwen plan, `pi-zfs-step-2-short-review-on-the-qwen-plan` (watched, cap 250 for the larger diff) in
   `.claude/worktrees/pi-qwen-review-zfs-step-2-at-4c7a347ea2`, asked among other things whether the guest module can
-  carry BTF as the host's does; brief under `~/temp/agent/zfs-step-2-short-review-on-the-qwen-plan-2026-11-19/`. Then a
-  fix round, a Sonnet integration pass and the merge. STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
+  carry BTF as the host's does; brief under `~/temp/agent/zfs-step-2-short-review-on-the-qwen-plan-2026-11-19/`. It
+  ended `idle` (77 turns, 12 min; that folder's `keep/review.md`): no path in the live calls reads past a buffer, loops
+  without bound or replays a write. Mediums: the BTF departure misread 6.8's `scripts/Makefile.modfinal`
+  (`cmd_btf_ko` runs whenever `CONFIG_DEBUG_INFO_BTF_MODULES=y`, as on Ubuntu's 6.8.0-147, and needs only a `vmlinux`
+  in the build directory; its own throwaway libvirt guest copied `/sys/kernel/btf/vmlinux` there and built a module
+  with `BTF [M]`, read back with `pahole`; guest destroyed); the live suite passes with every live arm skipped (a skip
+  returns; `/etc/hostname` against the kernel hostname; the recipe checks only the status); items 14 and 17 are not
+  asserted on a promoted clone. Lows: item 13's forward promote compares GUIDs only; the too-small write refusal drops
+  the error number the README promises; `///` on `use` items; raw timeouts and no guest kernel assertion; the account
+  suite lacks `--locked`; `--base` bypasses the resolver; no digest check on the OpenZFS tarball and rustup installer;
+  the two `.ts` files have no type gate; and the kept red run predates the first commit. GOING:
+  `pi-zfs-step-2-short-review-findings-fixed` (DeepSeek on Neuralwatt, cap 510) in the step 2 worktree, told to make
+  the guest module carry BTF and the test read it, fail a run whose live arms did not run, rerun the recipe in a fresh
+  guest and keep a red half from committed code; brief under
+  `~/temp/agent/zfs-step-2-short-review-findings-fixed-2026-11-19/`. Then a Sonnet integration pass and the merge.
+  STEP 4 HOST HALF ENDED `idle` (259 turns, 49 min) at `185902f904` (three commits, 26 files, 4,336 lines added; report
+  and logs in `~/temp/agent/zfs-step-4-descriptor-attach-host-half-2026-11-19/keep/`): `src/native/worktree_clone_mount/`
+  (the no-crossing walk holding a descriptor per folder, six recorded identity fields with ACLs as raw xattr bytes, the
+  slot identity store with its own file format, the post-attach check's four comparisons, the rollback plan and
+  reports, the parent adoption decision table), `fs_beneath.rs` additions, and the `SPEC.md` section "The descriptor
+  mount of a ZFS worktree clone". In the gate image, 58 of 58 targeted tests pass; nine guards removed at once fail 14,
+  each naming its control. Writer choices: the store's file format (not in the design or plan); the slot opened twice
+  because `fgetxattr` answers `EBADF` on `O_PATH`; `fsmount`, `move_mount`, the flag read-back and the decoy control left
+  to the guest, as the brief narrowed the plan. GOING: its short review on the Qwen plan,
+  `pi-zfs-step-4-host-half-short-review-on-the-qwen-plan` (watched, cap 250) in
+  `.claude/worktrees/pi-qwen-review-zfs-step-4-at-185902f904`; brief under
+  `~/temp/agent/zfs-step-4-host-half-short-review-on-the-qwen-plan-2026-11-19/`. STEP 3 HOST HALF ENDED `idle` (201
+  turns, 51 min) at `fd10d8d0b0` (four commits; report and checks table in
+  `~/temp/agent/zfs-step-3-reflink-rung-recognition-host-half-2026-11-19/keep/`): `FilesystemKind::Zfs` from
+  `ZFS_SUPER_MAGIC`; rung 2 proves one dataset by mount source and device, with no ZFS ioctl or binding; a mounted clone
+  at the destination or as a checkout slot's source, another dataset, and an unreadable pair are refused; a minimal
+  honest ZFS branch in `doctor_filesystem.rs`. 128 targeted tests pass in its container; guard removals each fail. On
+  this host, through the built wrapper in a throwaway repository, one dataset served rung 2 and a cross-dataset target
+  under `~/.cache` was refused with both datasets named. Departures: rung 2 now asks the destination when it exists,
+  which changes btrfs, XFS and overlayfs too. Two `fault_trace` binary tests failed in its recipe here and at `main`
+  `d6e78c9e8b`, though the gate's whole runs passed them. GOING: its short review on the Qwen plan,
+  `pi-zfs-step-3-host-half-short-review-on-the-qwen-plan` (watched, cap 250) in
+  `.claude/worktrees/pi-qwen-review-zfs-step-3-at-fd10d8d0b0`, asked to settle both; brief under
+  `~/temp/agent/zfs-step-3-host-half-short-review-on-the-qwen-plan-2026-11-19/`. STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
   their VM arms wait for step 2's recipe and their merges for the gate fix), each DeepSeek on Neuralwatt, cap 510,
   from `main` `d6e78c9e8b`: `pi-zfs-step-3-reflink-rung-recognition-host-half`
   (`.claude/worktrees/zfs-step-3-reflink-rung-recognition`, `feat/git-policy-cli-zfs-recognition-in-the-reflink-rung`;
