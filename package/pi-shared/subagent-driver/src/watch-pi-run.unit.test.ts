@@ -40,6 +40,7 @@ import {
   watchUntilEnded,
   MASKING_NOTHING,
 } from '../dist/final/node/index.mjs';
+import { ALREADY_PROCESSING_TEXT, } from './stand-in-pi-own-turn-plays-fixture.ts';
 
 /**
  Milliseconds in a second, so a limit the options state in seconds is derived from the deadline a test passes.
@@ -90,6 +91,24 @@ const PERMANENT_FAILURE_TEXT = 'Provider is not configured: neuralwatt';
  watch has nothing of its own to do about.
  */
 const RATE_LIMIT_FAILURE_TEXT = '429 {"error":{"message":"Too many requests"}}';
+
+/**
+ The error `@earendil-works/pi-agent-core` 1.5.2 gives a prompt that meets a running agent, word for word (`agent.js` of that
+ package): it says the agent is busy in different words from the session's own answer, so it is no answer about the message
+ either, and a driver that waited for a settle on it would wait for a turn nobody started.
+ */
+const CORE_ALREADY_PROCESSING_TEXT: string = 'Agent is already processing a prompt. Use steer() or followUp() to queue messages, or wait for completion.';
+
+/**
+ The reply a recovering turn produces here, whose settle is what a woken run waits for.
+ */
+const RECOVERED_REPLY_TEXT = 'recovered';
+
+/**
+ Milliseconds the turn the agent started itself takes to reply: longer than one look, so a run that ended on the busy answer
+ alone would end before that reply and its settle.
+ */
+const OWN_TURN_REPLY_MILLISECONDS = 2 * POLL_MILLISECONDS;
 
 /**
  How many attempts may follow a model error, for a run whose retries are spent before the error even settles.
@@ -325,7 +344,7 @@ function observeSuccessfulReply(record: RecordOfPiRun,): void {
         role: 'assistant',
         content: [{
           type: 'text',
-          text: 'recovered',
+          text: RECOVERED_REPLY_TEXT,
         },],
         stopReason: 'stop',
       },
@@ -396,16 +415,20 @@ function stallingConnection({ boundsAsked, }: { readonly boundsAsked: number[]; 
 
  @param refuses - whether Pi refuses each prompt instead of taking it
 
+ @param refusal - what Pi refused with, or nothing for a plain refusal
+
  @returns the connection a watch reads
  */
 function answeringConnection({
   sent = [],
   disposition,
   refuses = false,
+  refusal = 'refused',
 }: {
   readonly sent?: string[];
   readonly disposition?: string;
-  readonly refuses?: boolean
+  readonly refuses?: boolean;
+  readonly refusal?: string
 } = {},): ConnectionToPi {
   return {
     hasExited: () => false,
@@ -421,7 +444,7 @@ function answeringConnection({
           ending: 'answered',
           record: {
             success: false,
-            error: 'refused',
+            error: refusal,
           },
         };
       }
@@ -468,6 +491,50 @@ function connectionWhosePiReplies({
       return {
         ending: 'answered',
         record: { success: true, },
+      };
+    },
+    shutDown: async () => ({ stopped: true, }),
+  };
+}
+
+/**
+ A connection whose Pi answers the wake with the error it gives a prompt that meets a running agent, and whose own turn then
+ replies and settles, which is the state the wake of 2026-11-19 found.
+
+ @param sent - where the messages the watch sends are recorded
+
+ @param record - the run's record, where the turn's own reply and settle are observed
+
+ @returns the connection a watch reads
+ */
+function connectionWhosePiIsAlreadyProcessing({
+  sent,
+  record,
+}: {
+  readonly sent: string[];
+  readonly record: RecordOfPiRun
+},): ConnectionToPi {
+  return {
+    hasExited: () => false,
+    exitDetails: () => ({}),
+    write: function write() {
+      throw new Error('the watch was not expected to write without waiting for an answer',);
+    },
+    send: async function send({ command, }: CommandRequest,) {
+      const { message } = command;
+      sent.push((typeof message) === 'string' ? message : '',);
+      // The agent was already in a turn of its own when the message went: that turn replies and settles a few looks later, so a
+      // run that ended on the busy answer alone would end before the turn it was waiting for.
+      void (async function replyWhenTheTurnEnds() {
+        await wait(OWN_TURN_REPLY_MILLISECONDS,);
+        observeSuccessfulReply(record,);
+      })();
+      return {
+        ending: 'answered',
+        record: {
+          success: false,
+          error: ALREADY_PROCESSING_TEXT,
+        },
       };
     },
     shutDown: async () => ({ stopped: true, }),
@@ -1111,6 +1178,93 @@ await describe({
          */
         const feed = await feedOf(run.runFolder,);
         expect(feed.find((entry,) => entry.kind === 'wake')?.success,).toBe(false,);
+      },
+    },),
+    it({
+      name: 'keeps a run whose wake met a turn the agent had already started, and ends it after that turn settles rather than'
+        + ' reading the busy answer as a refusal',
+      fn: async () => {
+        await using run = await startRunThatSettled();
+        /**
+         The messages the watch sent, which is the one that wakes the agent.
+         */
+        const sent: string[] = [];
+        /**
+         How many times the work was asked about, which is how the test ends it after one look.
+         */
+        let looks = 0;
+        const endReason = await watchUntilEnded({
+          // Pi answers that its agent is already processing, which says the agent is awake in a turn of its own, and that turn
+          // replies and settles a few looks after the answer.
+          connection: connectionWhosePiIsAlreadyProcessing({ sent, record: run.record, },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: HOLD_MILLISECONDS * 3,
+          },),
+          inbox: run.inbox,
+          deadline: Date.now() + (HOLD_MILLISECONDS * 3),
+          workLeftRunning: async function workLeftRunning() {
+            looks += 1;
+            return (looks <= 1) ? ['proc_7adb (native-build-2) 486667 systemd-run --user --scope'] : [];
+          },
+        },);
+        // The message went, and the run ended after the turn the agent had already started, never as one Pi refused a prompt.
+        expect(sent.length,).toBe(1,);
+        expect(endReason,).toBe('idle',);
+        /**
+         What the run's summary says, which names the turn the run waited for rather than one it ended before.
+         */
+        const summary = run.record.summarize({
+          endReason: 'idle',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        expect(summary.settled,).toBe(2,);
+        expect(summary.lastAssistantText,).toBe(RECOVERED_REPLY_TEXT,);
+        /**
+         What the run's feed holds.
+         */
+        const feed = await feedOf(run.runFolder,);
+        expect(feed.find((entry,) => entry.kind === 'wake')?.success,).toBe(false,);
+        expect(String(feed.find((entry,) => entry.kind === 'problem')?.problem,),).toContain('already in a turn',);
+      },
+    },),
+    it({
+      name: 'ends a run as one Pi refused when the busy wording is pi-agent-core\'s, which names no turn of its own',
+      fn: async () => {
+        await using run = await startRunThatSettled();
+        /**
+         The messages the watch sent, which is the one that wakes the agent.
+         */
+        const sent: string[] = [];
+        /**
+         How many times the work was asked about, which is how the test ends it after one look.
+         */
+        let looks = 0;
+        const endReason = await watchUntilEnded({
+          // This answer comes from the agent library, not from the session that started a turn: it says the message was refused,
+          // so the run ends as one Pi refused rather than waiting for a settle no turn will produce.
+          connection: answeringConnection({
+            sent,
+            refuses: true,
+            refusal: CORE_ALREADY_PROCESSING_TEXT,
+          },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: HOLD_MILLISECONDS,
+          },),
+          inbox: run.inbox,
+          deadline: Date.now() + HOLD_MILLISECONDS,
+          workLeftRunning: async function workLeftRunning() {
+            looks += 1;
+            return (looks <= 1) ? ['proc_7adb (native-build-2) 486667 systemd-run --user --scope'] : [];
+          },
+        },);
+        expect(sent.length,).toBe(1,);
+        expect(endReason,).toBe('prompt-rejected',);
       },
     },),
     it({

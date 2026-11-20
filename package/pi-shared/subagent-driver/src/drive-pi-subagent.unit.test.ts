@@ -61,6 +61,10 @@ import {
   REPORTED_PROCESS_ID,
 } from './stand-in-pi-scenario-plays-fixture.ts';
 import {
+  OWN_TURN_REPLY,
+  WAKES_ITSELF_SCENARIO,
+} from './stand-in-pi-own-turn-plays-fixture.ts';
+import {
   LONG_REPLY,
   MODEL_ERROR_TEXT,
   PERMANENT_ERROR_TEXT,
@@ -901,6 +905,38 @@ await describe({
         expect(run.summary.turns,).toBe(1,);
         expect(run.summary.piExit?.code,).toBe(0,);
         expect(run.commands,).toContain('get_session_stats',);
+      },
+    },),
+    it({
+      name: 'a run whose wake meets a turn the agent started itself is kept until that turn ends, and ends with that turn reply',
+      fn: async () => {
+        const run = await runDriver({ scenario: WAKES_ITSELF_SCENARIO, idleSeconds: 0, },);
+        expect(run.standardError,).toBe('',);
+        // The agent was awake in a turn of its own before the wake went, so nothing was refused: the run ends on that turn.
+        expect(run.summary.endReason,).toBe('idle',);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.lastAssistantText,).toBe(OWN_TURN_REPLY,);
+        expect(run.markers,).toContain('wake-met-an-open-turn',);
+        /**
+         The messages the driver sent Pi, of which the wake is the last.
+         */
+        const prompts = run.sentCommands.filter((command,) => command.type === 'prompt',);
+        expect(prompts.length,).toBe(2,);
+        // The wake names the streaming behaviour that queues it into the running turn, which is what keeps Pi from refusing it.
+        expect(prompts.at(-1)?.streamingBehavior,).toBe('steer',);
+        expect(run.markers,).toContain('wake-queued steer',);
+        /**
+         The wake's place in the feed, and the last turn that started before it.
+         */
+        const woke = run.feed.findIndex((entry,) => entry.kind === 'wake',);
+        const turnsStarted = run.feed.map((entry, at,) => ({ at, entry, }),)
+          .filter(({ entry, }) => entry.kind === 'turn_start',);
+        expect(woke,).toBeGreaterThanOrEqual(0,);
+        // The turn the agent started of its own accord was already open when the wake went, and its reply is the run's last.
+        expect(turnsStarted.at(-1)?.at,).toBeLessThan(woke,);
+        expect(run.feed[woke]?.success,).toBe(true,);
+        expect(run.feed[woke]?.disposition,).toBe('queued',);
+        expect(run.summary.turns,).toBeGreaterThanOrEqual(2,);
       },
     },),
     // This holds the end-to-end delivery path; the race of a settle read between the inbox

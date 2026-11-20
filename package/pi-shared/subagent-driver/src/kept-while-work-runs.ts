@@ -6,6 +6,13 @@
  that session as `idle` lost the work of two runs on 2026-11-12. Briefs tell agents that ending a turn while work runs is right,
  so this is where the driver makes that true.
 
+ That message can meet an agent that is already awake: Pi starts a turn of its own when a tool it ran in the background reports,
+ so the end of the work and the driver's message arrive together. Pi answers a prompt that meets a running agent with its busy
+ error unless the prompt names a streaming behaviour, and queues it into that turn when one is named; on 2026-11-19 the driver
+ read the busy error as a refusal, ended the run `prompt-rejected`, and cut off the turn the agent had already started. The
+ message now asks to be steered into the running turn, and the busy error is read as the agent being awake, never as a refusal of
+ the message.
+
  @module
  */
 
@@ -15,6 +22,19 @@ import { preview, } from './previews-of-pi-messages.ts';
 import { fieldsOf, } from './read-pi-fields.ts';
 import type { WatchRequest, } from './watch-request.ts';
 import { wakeMessageOf, } from './work-the-run-left-running.ts';
+
+/**
+ The start of the error Pi 1.5.2 answers a prompt with when its agent is already in a turn and the prompt named no streaming
+ behaviour (`prompt()` in `dist/core/agent-session.js` of `@earendil-works/pi-coding-agent`): "Agent is already processing.
+ Specify streamingBehavior ('steer' or 'followUp') to queue the message." It says the agent is busy, never that the message is
+ unacceptable.
+
+ The continuation that names `streamingBehavior` is what tells that answer from the agent library's own error, which opens with
+ the same words and names neither a queue nor a turn (`agent.js` of `@earendil-works/pi-agent-core`, "Agent is already processing
+ a prompt. Use steer() or followUp() to queue messages, or wait for completion."). Only the session's answer says a turn of the
+ agent's own took the message, so only that one is read as the agent being awake.
+ */
+const AGENT_ALREADY_PROCESSING = 'Agent is already processing. Specify streamingBehavior';
 
 /**
  Where the driver stands with the work a run left running.
@@ -143,12 +163,17 @@ export async function askAboutItsWork({
     .settledCount();
   /**
    Pi's answer, waited for within the run's own deadline.
+
+   The message asks to be steered, so a turn the agent started by itself takes it instead of refusing it: Pi delivers a steering
+   message after the running assistant turn and before the next request, which is the agent reading what ended and going on. Pi
+   ignores the field while its agent rests, so the message starts a turn as it always did.
    */
   const answer = await watch.connection
     .send({
       command: {
         type: 'prompt',
         message: said,
+        streamingBehavior: 'steer',
       },
       deadline: watch.deadline,
     },);
@@ -169,6 +194,19 @@ export async function askAboutItsWork({
       },),
     },);
   delete waited.work;
+  // A Pi that answered that its agent is already processing refused nothing: the agent is awake in a turn of its own, which is
+  // the wake the work's end began, so the run stays up until that turn settles. Ending it here is what cut off a turn of the run
+  // of 2026-11-19 and reported a run that came back as one Pi refused.
+  if (foundTheAgentAlreadyAwake({ answer, },)) {
+    watch.record
+      .note({
+        kind: 'problem',
+        problem: 'Pi was already in a turn of its own when the message that names the ended work went, so the message was not '
+          + 'taken: the run stays up until that turn settles, and the agent was not told by it that its work ended',
+      },);
+    waited.wokenAtSettle = settledBefore;
+    return 'resumed';
+  }
   // A message Pi refused woke nobody, so nothing is owed a reply and the run cannot go on: the agent was never told its work ended.
   if (refusedByIt({ answer, },)) {
     return 'refused';
@@ -218,6 +256,44 @@ export async function askAboutItsWorkOrReportAFailure({
       .noteWorkProblem(String(error,),);
     return 'nothing';
   }
+}
+
+/**
+ Tells whether Pi answered that its agent is already in a turn of its own, which refuses this message for no reason of its own.
+
+ @param answer - how waiting for Pi's answer ended
+
+ @returns whether Pi said its agent was already processing
+
+ @example
+ ```ts
+ const busy = {
+   ending: 'answered',
+   record: {
+     success: false,
+     error: "Agent is already processing. Specify streamingBehavior ('steer' or 'followUp')"
+       + ' to queue the message.',
+   },
+ } as const;
+ const awake = foundTheAgentAlreadyAwake({ answer: busy, },);
+ ```
+ */
+function foundTheAgentAlreadyAwake({ answer, }: { readonly answer: CommandAnswer },): boolean {
+  if (answer.ending !== 'answered') {
+    return false;
+  }
+  /**
+   Pi's own record, which is what an answered wait carries.
+   */
+  const { record } = answer;
+  if (record.success !== false) {
+    return false;
+  }
+  /**
+   What Pi said of the message.
+   */
+  const { error, } = record;
+  return ((typeof error) === 'string') && error.startsWith(AGENT_ALREADY_PROCESSING,);
 }
 
 /**
