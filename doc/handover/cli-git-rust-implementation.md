@@ -37401,7 +37401,7 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `package/git-policy/cli` 35,006 (its own branch,
   ready,
   merges after the alpha);
-  `doc/decision` 1,785 (owner question in `doc/handover/questions-for-the-owner.md`);
+  `doc/decision` 1,785 (answered on 2026-11-10: form-only prose fixes, and moved-path notes only);
   about 1,675 in scope
   (`music-player/desktop-app` rustdoc 664,
   closures 610 across `cargo-shadow`,
