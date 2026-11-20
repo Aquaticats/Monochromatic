@@ -2639,7 +2639,8 @@ A mounted ZFS clone at the destination is therefore refused,
 because the clones would land in that clone's dataset and not in the source's;
 so is a mounted clone used as the source of a slot in the checkout's dataset,
 and so is any destination on another dataset than the source,
-which a destination elsewhere in home is.
+which a destination on a dataset mounted inside the source's own is,
+such as `~/.cache`, which the design's dataset layout gives a dataset of its own.
 What a reflink needs is why:
 a clone shares data blocks only inside one dataset,
 `FICLONE` answers `EXDEV` across filesystems,

@@ -6120,6 +6120,13 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   Selected by name,
   the same controls are the `btrfs_*` tests of the library and the binary-level controls that call
   `on_btrfs_or_acknowledged` (`src/native/binary/binary_support_btrfs_controls.rs`).
+- The control that needs a real ZFS mount follows the same rule,
+  under `CLI_GIT_ZFS_ABSENT_ACKNOWLEDGED`:
+  the gate image sets it because its fixture root is that tmpfs and never a ZFS dataset,
+  `native:test:host:btrfs` sets it because its root is btrfs by definition,
+  and `native:test:host` leaves it unset,
+  so on this ZFS host `fs_kind_tests::zfs_a_real_mount_answers_with_its_kind` reads a real dataset
+  and elsewhere an unacknowledged run fails it rather than passing a control that never ran.
 - A wrapper release waits for that run,
   unless the version is an alpha:
   `native:release` dispatches nothing until `native:release:host-controls`
