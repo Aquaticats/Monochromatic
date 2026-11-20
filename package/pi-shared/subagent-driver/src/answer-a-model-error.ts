@@ -49,9 +49,8 @@ export type RetryWaiting = {
   };
 
   /**
-   How many settles Pi had produced when this attempt went, or when a busy answer turned the look back. The look waits for a
-   settle after that count before it schedules or sends anything, so the attempt's own settle is told from the one before it,
-   and a turn that met a prompt which never became an attempt is waited out rather than met again.
+   How many settles Pi had produced when this attempt went. The attempt's own settle is the first one after that count, and
+   until one comes the error the attempt answers is neither counted again nor answered again.
    */
   settlesAtAttempt?: number;
 };
@@ -124,7 +123,7 @@ async function answerWithAnotherAttempt(
         problem: 'Pi was already in a turn of its own when the retry prompt went, so the prompt was not taken and no attempt was '
           + 'counted for it: the run stays up until that turn settles, and the error is answered again then if it still stands',
       },);
-    retry.settlesAtAttempt = settlesBefore;
+    // The run stays up for that turn on the read above: Pi is at work until its settle, so no look sends another prompt into it.
     return 'still-running';
   }
   // The attempt is counted here rather than when it was scheduled: a wait the wall clock, the stop file or Pi's exit cuts short
