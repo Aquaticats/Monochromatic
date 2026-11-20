@@ -63,7 +63,10 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- destroy --name my
 - `record` writes the versions and the teardown state to the log directory and pulls
   the suite logs back to it.
 - `destroy` destroys the guest and records what `mvm list` holds afterwards.
-- `all` runs those five in order.
+- `all` runs those five in order,
+  destroys the guest even when a step fails (so a failed run leaves nothing
+  running), and pulls the suite logs of a failed run before it does;
+  `--keep-guest` skips the destruction so the guest can be inspected.
   `--log-dir <dir>` moves the logs (default
   `target/e2e-logs` under this package),
   and `--crate <dir>` names the crate to
@@ -116,9 +119,11 @@ not a recipe detail.
   Ubuntu's `strace`,
   for the plan's later arms.
 - Rust and `cargo-nextest`:
-  `rustup`'s current stable,
-  then
-  `cargo install cargo-nextest --locked`.
+  the pinned Rust `1.100.0` through the pinned `rustup` release,
+  then the pinned
+  `cargo-nextest 0.9.152`;
+  `versions.log` records what a run actually used.
+  The apt packages float with the image, which `versions.log` records too.
 
 The crate is **built inside the guest**,
 not on this host and pushed:
@@ -134,8 +139,10 @@ Every live test reads five variables and the release tree's path.
 
 - `MONOCHROMATIC_ZFS_FIXTURE_GUEST`:
   the guest's hostname.
-  A run anywhere else is
-  refused with a `SKIP` line naming the test and the variable.
+  A run on another machine panics with the reason;
+  with the variable
+  unset,
+  a live test prints a `SKIP` line naming itself and the variable and returns.
 - `MONOCHROMATIC_ZFS_FIXTURE_SBIN`:
   `/opt/openzfs-2.4.4/sbin`,
   the userspace the
@@ -205,15 +212,26 @@ which is the measurements' fixture.
   the kernel's cursor and end with `Ok(None)`.
 - `zfsstep2-properties`:
   property values and their sources match `zfs get`.
+- `zfsstep2-snapshot`:
+  one `ZFS_IOC_SNAPSHOT` request creates a snapshot of the checkout and one of
+  a clone with a creation-time user property;
+  the reply decodes with no per-name
+  failure,
+  each snapshot's GUID matches `zfs get`,
+  and the property reads back with the
+  snapshot as its source.
 - `zfsstep2-grants`:
-  `GET_FSACL` reports exactly the three grants.
+  `GET_FSACL` reports the design's grants,
+  and nothing else under the account's
+  local and descendent delegation keys.
 - `zfsstep2-resize`:
   a property list past 256 KiB is reported as too big and read
   after one growth.
 - `zfsstep2-create-props` and `zfsstep2-refused-props`:
   a creation-time user
   property is accepted and reads back;
-  an unknown one is refused and creates
+  a real user property whose value is at the
+  kernel's `ZAP_MAXVALUELEN` is refused with `E2BIG` and creates
   nothing.
 - `zfsstep2-set-prop`:
   `SET_PROP` after creation sets the user property.
@@ -245,9 +263,12 @@ which is the measurements' fixture.
   destroys its own snapshots on a
   promoted clone and on an unpromoted one,
   is refused the dependent set on both,
-  cannot
-  snapshot the checkout,
-  sets a property on its clone and not the parent,
+  snapshots
+  the checkout with the design's local `snapshot` grant and removes that
+  snapshot,
+  clones the checkout with a creation-time user property,
+  sets a property on its clone
+  and not the parent,
   and
   replaces a clone name with a new identity.
   Root prepares one clone of the checkout's

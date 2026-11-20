@@ -242,14 +242,23 @@ and the recipe builds the guest's module so the file exists.
 
 Between the arms,
 the root run prepares a delegated pool whose account holds
-only the design's three grants (`create,mount` on the clone parent,
-`clone` on
-the checkout,
-`mount,destroy,userprop` on the clone parent),
+only the grants of the design's "Scoped delegation"
+(`create,mount` local on the clone parent,
+`snapshot` local on the checkout,
+`clone` and
+`mount,destroy` descendent on the checkout,
+`mount,destroy,userprop` descendent on
+the clone parent),
 and the account
 suite runs as that account,
 so a delegated refusal names the permission the
 kernel wanted.
+The measurements' item 12 fixture omitted the checkout's `snapshot` and
+`mount,destroy` grants;
+the plan names the design's set,
+so the fixture carries those,
+and
+`e2e/README.md` says which arm proves each.
 
 ## What this crate does not do
 
@@ -331,6 +340,14 @@ The live tests are in that run and are reported as skipped:
 they are
 `#[ignore]`d,
 and the guest recipe is the only thing that runs them.
+The package's `lint:types` task is two halves:
+`lint:types:crate` (`cargo check` and
+Clippy,
+which the image runs)
+and `lint:types:tooling` (`tsc --noEmit`,
+which needs the repository's `node_modules` and so cannot run in the
+`--network none` container;
+it runs on the host).
 The Dylint closure rule (`rust/avoidable-closure`) is **not checked**:
 that image has no `cargo dylint`,
 so the linter prints its skip for this package as it does for every package.

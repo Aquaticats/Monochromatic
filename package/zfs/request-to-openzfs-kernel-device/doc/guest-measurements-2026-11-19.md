@@ -26,9 +26,8 @@ primitive,
 and item 5's clone under an unloaded key.
 The raw logs live outside
 the repository,
-in
-`/home/user/temp/agent/zfs-step-2-short-review-findings-fixed-2026-11-19/keep/`,
-as the plan requires;
+in the run's own `keep/` folder beside the
+brief that asked for the run;
 this file cites them by name.
 
 This record replaces the one this file held before the short review of
@@ -75,7 +74,8 @@ prepared by
 - module BTF:
   `/sys/kernel/btf/zfs` exists for that module,
   which is the file the
-  layout comparison reads (see the next section).
+  layout comparison reads ("The layout comparison against the module's
+  BTF").
 - Git:
   `git version 2.43.0` (Ubuntu's package;
   the design's `2.56.1` runs are
@@ -86,10 +86,10 @@ prepared by
 - Rust `1.100.0` (`0ef1bc386`) and `cargo-nextest 0.9.152`,
   installed in the
   guest from the pinned rustup release whose installer digest the recipe
-  checks;
-  the toolchain it installs is current stable,
-  which `versions.log`
-  records.
+  checks,
+  with the Rust and `cargo-nextest` versions the recipe also pins;
+  `versions.log`
+  records what the run used.
 
 The crate was **built inside the guest** and never on the host:
 the host's glibc
@@ -312,7 +312,10 @@ then clone) are
 `live_account_tests::the_account_replaces_a_clone_name_and_gets_a_new_identity`,
 with the same assertion.
 The channel program the root alternative needed is not
-part of this crate and no arm sends it.
+part of this crate (its
+request constructor is;
+see the README's request table),
+and no arm sends it.
 
 ## Items 14, 17 and 18: the snapshot batches, as root and as the account
 
@@ -401,7 +404,6 @@ and its `root-suite.log` (194 tests).
 
 ## The reads: cursor, property sources, reply growth
 
-The layout comparison is above.
 The remaining reads:
 
 - Cursor:
