@@ -8,7 +8,7 @@
 //!  The owner decided no command the wrapper runs or forwards asks a person for a credential,
 //!  an SSH key's passphrase counted as one
 //!  (`doc/handover/cli-git-rust-implementation.md`,
-//!  the entry beginning "The owner answered H1 and M4").
+//!  the entry beginning "owner answered H1 and M4").
 //!  `SSH_ASKPASS_REQUIRE=never` alone met that without a terminal and not at one:
 //!  the integration pass of 2026-11-19 measured the question through the wrapper at a pseudo-terminal
 //!  (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`).
@@ -268,9 +268,11 @@ impl Drop for Sshd {
 ///  a throwaway host key,
 ///  and a client key protected by `phrase` (none for an empty one) which the throwaway `sshd` accepts.
 /// Why:
-///   The account's own keys, its agent and its `known_hosts` stay out of every control,
+///   The account's own keys,
+///   its agent and its `known_hosts` stay out of every control,
 ///  and each control needs the same three files:
-///  the host key, the client key and the `authorized_keys` that names it.
+///  the host key,
+///  the client key and the `authorized_keys` that names it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -295,7 +297,8 @@ fn make_ssh_keys(keygen: &Path, ssh_directory: &Path, phrase: &str) {
 /// Why:
 ///   `-F none` and `GlobalKnownHostsFile=none` keep the account's own files out:
 ///  OpenSSH takes the home directory from the passwd entry and not from `HOME`,
-///  so a `~/.ssh/config` naming an `IdentityFile`, a `ProxyCommand` or an `Include` would change what either arm sees.
+///  so a `~/.ssh/config` naming an `IdentityFile`,
+///  a `ProxyCommand` or an `Include` would change what either arm sees.
 ///  `strict` is `no` for the controls that are about the key and `ask` for the control that is about the host key.
 ///
 /// In TS you'd write (pseudocode):
@@ -324,13 +327,15 @@ fn ssh_arguments(ssh_directory: &Path, identity: &Path, port: u16, strict: &str)
     ];
 }
 
-/// The same options as one `GIT_SSH_COMMAND` value, which is how a person's own command would carry them.
+/// The same options as one `GIT_SSH_COMMAND` value,
+/// which is how a person's own command would carry them.
 fn ssh_command(ssh: &Path, arguments: &[OsString]) -> String {
     let parts: Vec<String> = arguments.iter().map(|part| { return part.to_string_lossy().into_owned(); }).collect();
     return format!("{} {}", ssh.display(), parts.join(" "));
 }
 
-/// A Git command of the fixture's own, run through the wrapper with the fixture's environment.
+/// A Git command of the fixture's own,
+/// run through the wrapper with the fixture's environment.
 fn git_through_wrapper(fixture: &Fixture, arguments: &[&str]) -> std::process::Output {
     return Command::new(fixture.root.join("bin/git"))
         .args(arguments)
@@ -430,7 +435,8 @@ fn a_typed_command_over_ssh_at_a_terminal_asks_no_passphrase() {
 ///  once at a real terminal and once with no terminal at all.
 /// Why:
 ///   The project's answer of 2026-11-20 is "We must support situations in which ssh-agent isn't there":
-///  a key without a passphrase keeps working with no agent, and this control proves it.
+///  a key without a passphrase keeps working with no agent,
+///  and this control proves it.
 ///  The no-prompt rule replaces the account's `SSH_ASKPASS` for these children and forbids every question,
 ///  so a key that needs nothing from a person must still reach the server.
 ///  No `SSH_AUTH_SOCK` reaches either child:
@@ -528,7 +534,9 @@ fn a_key_without_a_passphrase_connects_through_the_wrapper_with_no_agent() {
 /// Why:
 ///   `SSH_ASKPASS_REQUIRE=force` sends OpenSSH's yes/no question for an unknown host key to a program that answers nothing,
 ///  and an empty answer is not "yes",
-///  so the connection is refused before any login (`confirm`, `sshconnect.c` at `V_10_6_P2` lines 603 to 627).
+///  so the connection is refused before any login
+///  (`confirm`,
+///  `sshconnect.c` at `V_10_6_P2` lines 603 to 627).
 ///  The project's answer of 2026-11-20 keeps that refusal and puts the way out in the words the wrapper owns,
 ///  which plain `ssh` at this same terminal still shows a question.
 ///

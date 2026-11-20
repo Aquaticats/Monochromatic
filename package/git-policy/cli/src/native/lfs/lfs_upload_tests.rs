@@ -810,7 +810,8 @@ fn an_upload_that_needed_a_login_at_a_terminal_is_told_the_same_rule() {
 ///  The project's answer of 2026-11-20 also says a person must be able to work with no agent at all
 ///  ("We must support situations in which ssh-agent isn't there"),
 ///  so the sentence starts the agent rather than naming a command whose socket it assumes.
-///  Every bracket in what a person reads is closed, which the earlier sentence failed at.
+///  Every bracket in what a person reads is closed,
+///  which the earlier sentence failed at.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -848,11 +849,15 @@ fn an_upload_whose_ssh_key_no_agent_holds_says_how_to_start_an_agent_or_use_a_ke
 
 /// What:
 ///  An upload refused because this machine does not know the SSH host key says to connect once with plain `ssh <host>`
-///  or add the key to `known_hosts`, then retry.
+///  or add the key to `known_hosts`,
+///  then retry.
 /// Why:
 ///   The project's answer of 2026-11-20 keeps the refusal the no-prompt rule causes at a terminal,
 ///  and OpenSSH's own `Host key verification failed.` says nothing about what to do;
-///  no retry adds a host key, and plain `ssh`, which the wrapper does not touch, still asks the question.
+///  no retry adds a host key,
+///  and plain `ssh`,
+///  which the wrapper does not touch,
+///  still asks the question.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

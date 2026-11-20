@@ -137,10 +137,13 @@ fn a_github_protected_branch_refusal_is_tried_again() {
 
 /// What:
 ///  A host key this machine does not know is final and worded,
-///  and the words say to connect once with plain `ssh <host>` or add the key to `known_hosts`, then retry.
+///  and the words say to connect once with plain `ssh <host>`,
+///  or to add the key to `known_hosts`,
+///  then to retry.
 /// Why:
 ///   The project's answer of 2026-11-20 keeps the refusal the no-prompt rule causes and puts the way out in the
-///  words a person reads: no retry can add a host key,
+///  words a person reads:
+///  no retry can add a host key,
 ///  and plain `ssh` still asks its own question (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`).
 #[test]
 fn a_host_key_this_machine_does_not_know_is_final_and_says_how_to_add_it() {

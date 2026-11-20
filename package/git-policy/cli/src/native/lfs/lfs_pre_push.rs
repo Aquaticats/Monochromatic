@@ -467,7 +467,8 @@ pub fn reads_as_a_key_failure(text: &str) -> bool {
 ///   The no-prompt rule sends OpenSSH's yes/no question for an unknown host key to a program that answers nothing,
 ///  and an empty answer is not "yes",
 ///  so the connection is refused before any login and OpenSSH prints `Host key verification failed.`
-///  (`confirm`, `sshconnect.c` at `V_10_6_P2` lines 603 to 627).
+///  (`confirm`,
+///  `sshconnect.c` at `V_10_6_P2` lines 603 to 627).
 ///  That refusal is neither a credential the push lacked nor a fault it can retry away,
 ///  so it gets its own sentence.
 ///
@@ -490,9 +491,12 @@ const HOST_KEY_NOT_KNOWN_PHRASE: &str = "Host key verification failed";
 /// Why:
 ///   The project's answer of 2026-11-20 keeps the refusal the no-prompt rule causes at a terminal
 ///  and puts the way out where a person meets it:
-///  connect once with plain `ssh <host>`, which still asks its own question,
-///  or add the host key to `known_hosts`, then push again.
-///  No retry can add a host key, so saying only that the push failed would leave the person with no move.
+///  connect once with plain `ssh <host>`,
+///  which still asks its own question,
+///  or add the host key to `known_hosts`,
+///  then push again.
+///  No retry can add a host key,
+///  so saying only that the push failed would leave the person with no move.
 ///  The sentence is shared by the push's failure record and the upload's explanation,
 ///  so the two faces cannot say different things about one refusal.
 ///
@@ -528,7 +532,8 @@ pub const HOST_KEY_NOT_KNOWN_SENTENCE: &str = "monochromatic-git-policy-cli: thi
 ///  The sentence starts the agent rather than assuming one runs,
 ///  because the project's answer of 2026-11-20 is "We must support situations in which ssh-agent isn't there":
 ///  it names `eval "$(ssh-agent)"` and `ssh-add`,
-///  or a key without a passphrase, which needs no agent.
+///  or a key without a passphrase,
+///  which needs no agent.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
