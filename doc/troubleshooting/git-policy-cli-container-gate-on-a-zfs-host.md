@@ -591,10 +591,11 @@ output, and the binary face's fixtures are under Cargo's per-target scratch dire
 `/work/package/git-policy/cli/target/gate-fixtures`, so both controls now assert that the fixture tmpfs
 is not a system temporary directory.
 
-Each was shown red on a moved root under `/tmp` and green on the gate's root: in the gate image, with
-`CLI_GIT_TEST_ROOT=/tmp/moved-root`, both failed naming the root below `/tmp/moved-root` and `/tmp` as
-its system temporary directory, and with the gate's own tmpfs root, and with no variable set, both
-passed. That `/tmp` arm passed before the change, which is exactly the gap the two early returns left.
+Each was shown red on a moved root under `/tmp` and green on the gate's root. In the integration pass's
+image, its source tree replaced by the branch's and nextest filtered to the two names, with
+`CLI_GIT_TEST_ROOT=/tmp/moved-root` both failed, naming the root below `/tmp/moved-root` and `/tmp` as
+its system temporary directory, and both passed with the gate's own tmpfs root and with no variable
+set. That `/tmp` arm passed before the change, which is exactly the gap the two early returns left.
 
 ### Cause E: the `ioctl` entry follows the fixture root's file system
 
