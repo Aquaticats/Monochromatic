@@ -694,8 +694,9 @@ the pick is not made here.
   before this entry are `280f58b04b` at 23:40:24, `835ddd2e06` at 23:40:45, `22c3c345ac` at
   23:41:14, `8511e04741` at 23:41:39 and `8d516064df` at 23:43:18, each time the commit's own
   committer date and the worktree reflog's, to the second; no `GIT_AUTHOR_DATE`,
-  `GIT_COMMITTER_DATE` or `--date` was set for any of them. The commit that carries this entry and
-  the wording fix after it are named in that fix's own text, which changes this record alone. This
+  `GIT_COMMITTER_DATE` or `--date` was set for any of them. The commit that carries this entry is
+  `242b4454ea` at 23:44:16, and the commit that carries this sentence is the wording fix after it,
+  which changes this record alone. This
   is the revision that answers the diff-only gate check of the fifth revision, kept at
   `~/temp/agent/zfs-runtime-layout-checker-design-fifth-revision-diff-only-gate-check-2026-11-19/keep/review.md`.
   That check is independent of this file's author (rule `IRW`) and is not an approval; it found no
