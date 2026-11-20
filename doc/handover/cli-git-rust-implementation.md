@@ -40197,7 +40197,23 @@ stated in this entry. What follows from them, as work:
   `pi-zfs-step-2-short-review-findings-fixed` (DeepSeek on Neuralwatt, cap 510) in the step 2 worktree, told to make
   the guest module carry BTF and the test read it, fail a run whose live arms did not run, rerun the recipe in a fresh
   guest and keep a red half from committed code; brief under
-  `~/temp/agent/zfs-step-2-short-review-findings-fixed-2026-11-19/`. Then a Sonnet integration pass and the merge.
+  `~/temp/agent/zfs-step-2-short-review-findings-fixed-2026-11-19/`. It ended `idle` (273 turns) at `08c9dea25f`
+  (thirteen commits, every path inside the package; that folder's `keep/report.md`, with an index in `keep/README.md`):
+  the recipe copies `/sys/kernel/btf/vmlinux` into the guest's kernel build directory, asserts `/sys/kernel/btf/zfs`
+  after `insmod`, and the layout test reads that file with `pahole --btf_base` (the DWARF read and the srcversion bridge
+  are gone); a live arm now panics instead of skipping in the guest, and the recipe fails on a `^SKIP live_` line or a
+  missing marker (its first version used `! grep`, which `set -e` ignores; fixed and shown red); items 14 and 17 run on
+  a promoted clone; downloads are digest-checked, the kernel pinned, the account suite `--locked`, the `.ts` files have
+  a type gate (run on the host, the gate image has no `tsc`). Fresh guest on `6.8.0-147-generic`: root suite 194 passed,
+  account suite 8 passed, both post-checks pass; two red halves from committed code kept. Dismissed with evidence:
+  finding 6 (`///` on `use`), because the repository linter's `rust/require-rustdoc` requires rustdoc there; finding 5
+  answered in the README only. `build-gate-image.ts` was checked with stub resolver and `podman` stand-ins, because the
+  wrapper's resolver task needs `cargo-shadow`, which this host does not carry by the plan's step 1 choice (nothing
+  installed on the host until the mpm-shadow change). The short review's worktree is removed. GOING: a Sonnet
+  integration pass (brief under
+  `~/temp/agent/integration-pass-zfs-step-2-live-requests-and-guest-fixture-2026-11-19/`), merging into
+  `integrate/zfs-request-to-openzfs-kernel-device-live-requests-and-guest-fixture`, running the container checks and
+  one guest run on the libvirt backend. Then the merge.
   STEP 4 HOST HALF ENDED `idle` (259 turns, 49 min) at `185902f904` (three commits, 26 files, 4,336 lines added; report
   and logs in `~/temp/agent/zfs-step-4-descriptor-attach-host-half-2026-11-19/keep/`): `src/native/worktree_clone_mount/`
   (the no-crossing walk holding a descriptor per folder, six recorded identity fields with ACLs as raw xattr bytes, the
@@ -40587,8 +40603,23 @@ stated in this entry. What follows from them, as work:
   step 6's own measurement, and step 19 adds no `ExecStartPre=` until one is cited (alternative: a provisional ceiling
   by the project's decision). The review's run evidence sits in its folder's `scratch/`, not `keep/`, so that scratch
   stays. GOING: a Sonnet gate re-check (brief under
-  `~/temp/agent/zfs-start-probe-design-third-revision-gate-recheck-2026-11-19/`). Then acceptance with both vetoes
-  asked. STAGING ENDED `idle` at
+  `~/temp/agent/zfs-start-probe-design-third-revision-gate-recheck-2026-11-19/`). It ended (Sonnet, about 8 min after
+  its resume; that folder's `keep/review.md`, its C stand-in and kernel excerpts in `keep/evidence/`): not ready, one
+  short text pass away, no high. MED-1: the `first-attach` claim taken at `fsopen` contradicts the step order
+  (`key-check` and `identity-compare` before `fsopen`), M8's third control and the operation-outcome sentence. MED-2:
+  the companion's endings are not closed (deadline expiry, refused `fork`, unusable scratch directory, death by signal,
+  an unbounded pre-fork buffer), so `doctor` cannot print every refusal. MED-3: the skip covers only
+  `unshare(CLONE_NEWUSER)`, while Ubuntu 24.04's default AppArmor profile grants the namespace and denies capabilities in
+  it, so on the design's own guest the next call fails `EPERM` and every add refuses (inference from the release notes
+  and kernel source, not run). Eleven lows, among them the fork child's `_exit` and inherited descriptors, and the
+  re-exec bar's source being `doc/planning/cli-git-no-self-invocation.md`. Its run, on this host: a fork from a non-main
+  thread of a multithreaded process runs the raw-syscall island to the end, and a group kill ends child and grandchild
+  with the host mount table unchanged. On the two veto-open choices: neither must be a project decision, and it
+  recommends asking the companion skip as a ranked question at acceptance anyway. GOING:
+  `pi-zfs-start-probe-design-third-revision-recheck-findings-fixed` (DeepSeek on Neuralwatt, cap 510) in the design
+  worktree; brief under `~/temp/agent/zfs-start-probe-design-third-revision-recheck-findings-fixed-2026-11-19/`. Then a
+  narrow Sonnet check of the touched lines, then acceptance with the companion skip asked as a ranked question and the
+  deadline rule stated as the design's. STAGING ENDED `idle` at
   `e8f7ec4fa6` (thirteen commits; report in its folder's `keep/report.md`). It records every answer and makes Way A the
   design. On Q3 it rolls the clone back by its own descriptor, staging it only if that fails. Its post-move check now
   asserts that the topmost mount is the clone with the bind as its parent; the run's own advisor found the old wording
@@ -40620,8 +40651,23 @@ stated in this entry. What follows from them, as work:
   for the owner's veto, each with options and a ranking (the rollback destination proof; a mount stacked on the clone
   after the move; the end state after rollback, reattach and cancel; a record whose folder is gone; a record from
   another boot). GOING: a Sonnet gate re-check (brief under
-  `~/temp/agent/zfs-staging-under-cache-design-third-revision-gate-recheck-2026-11-19/`). Then acceptance with the
-  five vetoes asked. The proposal and plan amendment
+  `~/temp/agent/zfs-staging-under-cache-design-third-revision-gate-recheck-2026-11-19/`). It ended (Sonnet, about 14 min
+  after its resume; that folder's `keep/review.md`, probes and source excerpts in `keep/evidence/`): not ready, one small
+  revision away, no high, nothing endangering data. Medium 1: three places still say a different boot id makes the
+  wrapper refuse, against the other-boot settlement. Medium 2: two sentences still have the wrapper void a gone-folder
+  record, against the handler rule and veto entry (b). Lows: `ESTALE` does not prove the inode is gone (run: every
+  decode error but `ENOMEM` becomes `ESTALE`; the path-keyed mount-row guard carries the safety); M1 says the account's
+  mount is topmost where the clone is; the "second exception" is a classification the project has not made while the
+  proposal and plan say "one exception"; veto entry 2 says the third question did not cover a scene it did; record
+  states with no exit; the rollback needs an unshared parent; leftovers. Run on this host's 7.3.5: `RESOLVE_NO_XDEV`
+  gives `EXDEV` on a mount point; a ZFS directory handle survives a rename; at v7.3 the descriptor check precedes the
+  capability check, so M6's no-capability arm sees `EBADF` there. Two items belong to the project rather than a veto:
+  the exception classification and entry 2's scene boundary. GOING:
+  `pi-zfs-staging-under-cache-design-third-revision-recheck-findings-fixed` (DeepSeek on Neuralwatt, cap 510) in the
+  design worktree; brief under
+  `~/temp/agent/zfs-staging-under-cache-design-third-revision-recheck-findings-fixed-2026-11-19/`. Then a narrow Sonnet
+  check of the touched lines, then acceptance with the five vetoes and the two project questions asked. The proposal
+  and plan amendment
   for the dropped release proof waits for the layout checker's review. That answer was first written into
   `doc/handover/questions-for-the-owner.md`, whose header keeps it to open questions; the owner asked "Do you know what a
   questions file is?", the answer moved here, and the owner said "Fix the bigger mess too.": that file still held about
