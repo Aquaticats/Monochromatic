@@ -162,6 +162,32 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
         end_step(apply_difference_entered);
         apply_difference_outcome?;
     }
+    // What:
+    //  The snapshot rung's conversion fence: the paths Git's checkout would write other bytes for are written by Git,
+    //  in the stage, before it is swapped in.
+    // Why:
+    //  A snapshot carries the source's whole working tree, so where a line-ending rule, `core.autocrlf`, `ident`, an
+    //  encoding or a filter applies, the stage holds the source's bytes and not the conversion of the blob, which neither
+    //  the stat data nor `git status` can tell (issue 6323; the guest measured rung 1 wrong for a clean and a dirty
+    //  source). The fence is the clone rung's own decision, and the write is the same one Git run, with the stage as its
+    //  work tree; the index the snapshot installed keeps its own stat fields for the source's files, which no longer
+    //  match the paths Git rewrites, so the first status hashes them and finds them clean.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const fence = fenceTheClone(source, context); // throws the reason the rung cannot be proven
+    // if (fence.gitWrites.length > 0) writeThroughGit(stage, bound.admin, context, fence.gitWrites);
+    // ```
+    let fence_entered: bool = begin_step("conversionFence");
+    let fence_outcome = crate::worktree_clone_conversion_fence::fence_the_clone(source, context);
+    end_step(fence_entered);
+    let fence: crate::worktree_clone_conversion_fence::Fence = fence_outcome?;
+    if !fence.git_writes.is_empty() {
+        let write_entered: bool = begin_step("writeConversions");
+        let write_outcome = crate::worktree_clone_conversion_fence::write_through_git(stage, target.admin.as_path(), context, fence.git_writes.as_slice());
+        end_step(write_entered);
+        write_outcome?;
+    }
     let root_metadata = match std::fs::metadata(source.root.as_path()) {
         Ok(found) => found,
         Err(error) => return Err(Ended::from(format!("the source's root is unreadable ({error})"))),
