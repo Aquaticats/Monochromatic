@@ -1112,7 +1112,7 @@ the line of the kernel or of a security module that answers it:
   the call that puts the scratch tmpfs in place, and `mount_setattr` (`:5298`), which is the propagation when the
   companion makes it that way. The bullet ends when the scratch tmpfs is in place: the same check answering `EPERM`
   at a later call, `fsopen` (`fs/fsopen.c:127` to `:128`), `fsmount` (`:4619`) or `move_mount` (`:4754`) included,
-  is an arm failure, as the paragraph after this list states.
+  is an arm failure.
 - A `mount` call answering `EACCES`: `path_mount` asks `security_sb_mount` before `may_mount`
   (`fs/namespace.c:4267`), and SELinux's `selinux_mount` answers `EACCES` (`security/selinux/hooks.c:2820` to
   `:2833`, wired to that hook at `:7694`), which is mount mediation the errno list would otherwise miss. It covers
