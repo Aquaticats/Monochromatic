@@ -23,6 +23,7 @@
 /// The facts one answer supplies and what they mean.
 use super::call_outcome::{
     AnswerFacts, ReadFailure, interpret_read_failure, interpret_write_failure,
+    write_failure_elements,
 };
 /// The failure type these calls return.
 use super::device_error::DeviceError;
@@ -34,8 +35,6 @@ use super::read_reply::{ReadAttempt, retry_read};
 use crate::nvlist::NvList;
 /// The request a call carries and the list it answers with.
 use crate::requests::Request;
-/// The per-name failures a write reply carries.
-use crate::requests::element_errors;
 /// The owned descriptor,
 /// the file it came from and the raw handle the call needs.
 use std::fs::{File, OpenOptions};
@@ -178,12 +177,11 @@ impl ZfsDevice {
             return Ok(request.take_reply()?);
         };
         // A reply the kernel says is bigger than the buffer is not read: the
-        // size field names bytes the buffer does not hold.
+        // size field names bytes the buffer does not hold. A reply that does not
+        // decode names no failures either, and the kernel's error number is
+        // kept: the decode error is dropped rather than reported in its place.
         let elements = if reported <= held as u64 {
-            let reply: Option<NvList> = request.take_reply()?;
-            reply.map_or_else(Vec::new, |list| {
-                return element_errors(&list);
-            })
+            write_failure_elements(request.take_reply())
         } else {
             Vec::new()
         };

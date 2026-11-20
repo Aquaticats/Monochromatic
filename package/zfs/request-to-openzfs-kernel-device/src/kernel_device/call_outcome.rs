@@ -19,7 +19,7 @@
 /// The failure type a live call returns.
 use super::device_error::DeviceError;
 /// The per-name failures a write reply carries.
-use crate::requests::ElementError;
+use crate::requests::{ElementError, element_errors};
 /// The request failure type and its reply refusal.
 use crate::requests::{Error, Operation, ReplyRefusal, ReplyRefusalReason};
 
@@ -149,5 +149,23 @@ pub(crate) fn require_reply(
             operation,
             target: target.to_string(),
         }),
+    };
+}
+
+/// The per-name failures a failed write's reply carries.
+///
+/// A reply that does not decode yields none,
+/// and its decode error is dropped on purpose:
+/// the kernel's error number is the fact a caller acts on,
+/// and a list that did
+/// not decode has no names to report,
+/// so the failure keeps the kernel's answer instead of
+/// replacing it with a decode error.
+pub(crate) fn write_failure_elements(
+    reply: Result<Option<crate::nvlist::NvList>, Error>,
+) -> Vec<ElementError> {
+    return match reply {
+        Ok(Some(list)) => element_errors(&list),
+        Ok(None) | Err(_) => Vec::new(),
     };
 }
