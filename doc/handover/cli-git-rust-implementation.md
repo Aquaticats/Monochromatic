@@ -40817,8 +40817,16 @@ stated in this entry. What follows from them, as work:
   user namespaces, SELinux's `EACCES` counterpart and mount mediation. Eight lows. It recommends asking both the
   companion skip and the claim's placement against Q7 as ranked questions. GOING: the sixth pass,
   `pi-zfs-start-probe-design-fifth-revision-diff-check-findings-fixed` (DeepSeek on Neuralwatt, cap 400); brief under
-  `~/temp/agent/zfs-start-probe-design-fifth-revision-diff-check-findings-fixed-2026-11-19/`. Then a last diff-only
-  check on which only a high or medium blocks, then acceptance with those two questions. STAGING ENDED `idle` at
+  `~/temp/agent/zfs-start-probe-design-fifth-revision-diff-check-findings-fixed-2026-11-19/`. It ended `idle` (181
+  turns) at `b0b386ede5` (twelve commits 23:59:55 to 00:08:08, dates real; that folder's `keep/report-from-summary.md`):
+  the endings list matches the call-and-errno rule; the Answers record holds only what Q6 as asked said, the Ubuntu
+  reach stated as the design's, open to veto; the skip list adds a kernel without user namespaces (`EINVAL` with
+  `/proc/self/ns/user` absent), mount mediation (`EACCES` from `security_sb_mount` before `may_mount`) and the mount
+  capability checks, each with its v7.3 line, and dismisses SELinux's `EACCES` at the first mapping write
+  (`file_ns_capable` returns a bool and `map_write` already set `-EPERM`); the residue is two stated cases; the claim
+  placement is put to the project beside the companion skip; the fork's wait has a ceiling. GOING: the last diff-only
+  check (brief under `~/temp/agent/zfs-start-probe-design-sixth-revision-diff-only-gate-check-2026-11-20/`), on which
+  only a high or medium blocks. Then the acceptance item beside the layout checker's. STAGING ENDED `idle` at
   `e8f7ec4fa6` (thirteen commits; report in its folder's `keep/report.md`). It records every answer and makes Way A the
   design. On Q3 it rolls the clone back by its own descriptor, staging it only if that fails. Its post-move check now
   asserts that the topmost mount is the clone with the bind as its parent; the run's own advisor found the old wording
