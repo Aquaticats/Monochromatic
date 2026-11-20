@@ -383,3 +383,9 @@ Callers that need a NaN-narrowed type must use `Number.isNaN` separately.
    `finiteOrThrow`,
   `integerOrThrow`) are intentionally out of scope;
    add them when a call site needs them.
+
+## Owner answer of 2026-11-10
+
+Asked where a shared named error class should live (issues 1668 and 666), the owner answered at
+2026-11-10T08:04:14-05:00: "Its own tiny package (Recommended)". So the error class lives here rather than
+inside any one of its callers.

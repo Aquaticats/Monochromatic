@@ -103,3 +103,10 @@ the development entry resolves their `/ts` source via `import.meta.resolve()`,
 and the build bundles that source into the sidecars.
 The shared package is a runtime dependency of plugin packages;
 the test-support package is dev-only.
+
+## Owner answers of 2026-11-10
+
+- Asked what to do about the `main()` wrappers issue 1382 names, the owner answered at
+  2026-11-10T09:48:06-05:00: "Sweep and add a rule (Recommended)". So the wrapper is removed from the files
+  that still end with `await main();`, and `no-main-wrapper` joins the repository's own
+  `no-restricted-syntax` lint plugin.
