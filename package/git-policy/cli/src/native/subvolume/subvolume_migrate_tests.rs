@@ -11,7 +11,7 @@
 //! They run on the stand-in platform,
 //! so
 //!  they run on any filesystem,
-//! including the container gate's overlay.
+//! including the container gate's tmpfs fixture root.
 
 use super::*;
 use crate::fs_kind::FilesystemKind;

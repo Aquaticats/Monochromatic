@@ -406,32 +406,6 @@ fn the_read_facts_make_one_filesystem_one_clone_domain_and_two_filesystems_two()
 }
 
 /// What:
-///  Every kind of filesystem answers whether it may share data blocks:
-/// btrfs,
-/// overlayfs and ZFS may,
-/// and any other
-///  kind does not,
-/// because the one filesystem whose clone support the kind does not hold is XFS,
-/// which the
-///  reader asks the kernel about.
-/// Why:
-///   A ZFS path the clone rung never tries would leave the same-dataset proof unreachable,
-/// and a kind the rung tries on
-///  another filesystem would recast a byte copy as a reflink.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// expect(['btrfs', 'overlayfs', 'zfs'].every(kindMayClone)).toBe(true); expect(kindMayClone('other')).toBe(false);
-/// ```
-#[test]
-fn every_kind_answers_whether_it_may_clone() {
-    assert!(kind_may_clone(FilesystemKind::Btrfs));
-    assert!(kind_may_clone(FilesystemKind::Overlayfs));
-    assert!(kind_may_clone(FilesystemKind::Zfs));
-    assert!(!kind_may_clone(FilesystemKind::Other));
-}
-
-/// What:
 ///  A device that agrees is not the dataset either:
 /// two different dataset names are two datasets,
 /// whatever

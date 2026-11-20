@@ -21,13 +21,15 @@ use crate::support_resource_limits::ServiceLaunch;
 /// for example onto a tmpfs for speed.
 pub const FIXTURE_ROOT_VARIABLE: &str = "CLI_GIT_TEST_ROOT";
 
-/// The directory fixtures are created in.
+/// The directory fixtures are created in:
 ///  Cargo's per-target scratch directory,
 /// never `/tmp`:
 /// a shared tmpfs with a per-user quota fills up
 ///  when failing tests leave fixtures behind (issue 1809),
 /// and then every command of every session fails.
-///  A container gate keeps that directory inside the wrapper crate's own folder (`target/tmp`),
+///  A run that sets `CLI_GIT_TEST_ROOT` keeps its fixtures in the directory that variable names
+///  (`bin/native-gate-fixture-root.ts` names the gate's),
+/// and without it a container keeps them inside the wrapper crate's own folder (`target/tmp`),
 /// so a fixture crate written below the fixture root must declare a `[workspace]` of its own
 ///  (`binary_package_repair_tests.rs`,
 ///  `shared_target_manifest`),
@@ -38,6 +40,31 @@ pub fn fixture_root() -> PathBuf {
         .map_or_else(|| { return PathBuf::from(env!("CARGO_TARGET_TMPDIR")); }, PathBuf::from);
     std::fs::create_dir_all(&root).expect("fixture root");
     return root;
+}
+
+/// What:
+///  Every directory that is a system temporary directory:
+///  `/tmp`,
+///  `/var/tmp`,
+///  and `TMPDIR` when the run sets it to one.
+/// Why:
+///   A fixture root there fills a shared tmpfs with the trees of tests that never removed them (issue 1809),
+/// so the location control compares the root it uses against this list.
+///  Reading `TMPDIR` compares against it
+/// without calling the temporary-directory function that the lint configuration bans.
+///  An empty `TMPDIR` names no directory and is left out,
+/// and an entry is what its path resolves to,
+///  because a `TMPDIR` that is a link to the root is that root.
+pub fn system_temporary_directories() -> Vec<PathBuf> {
+    let listed: Vec<PathBuf> = vec![PathBuf::from("/tmp"), PathBuf::from("/var/tmp")];
+    let set: Option<PathBuf> = std::env::var_os("TMPDIR")
+        .map(PathBuf::from)
+        .filter(|directory| { return !directory.as_os_str().is_empty(); });
+    return listed
+        .into_iter()
+        .chain(set)
+        .map(|directory| { return std::fs::canonicalize(&directory).unwrap_or(directory); })
+        .collect();
 }
 
 /// What:

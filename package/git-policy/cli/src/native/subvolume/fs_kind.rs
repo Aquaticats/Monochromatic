@@ -182,6 +182,51 @@ pub fn is_xfs(path: &Path) -> Result<bool, PrimitiveError> {
 }
 
 /// What:
+///  Whether a kind of filesystem may share data blocks between files at all:
+/// btrfs,
+/// overlayfs and ZFS may.
+/// Why:
+///   Those three are the kinds whose clone domain the ladder proves before a clone is tried:
+/// one btrfs filesystem is
+///  one mount source,
+/// one ZFS dataset is one mount source and one device,
+/// and one overlay is one device;
+/// XFS is the one
+///  filesystem whose clone support the kind does not hold,
+/// so its first clone answers for it and `may_clone` asks that
+///  separately.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const kindMayClone = (kind: FilesystemKind) => kind === 'btrfs' || kind === 'overlayfs' || kind === 'zfs';
+/// ```
+pub fn kind_may_clone(kind: FilesystemKind) -> bool {
+    return matches!(kind, FilesystemKind::Btrfs | FilesystemKind::Overlayfs | FilesystemKind::Zfs);
+}
+
+/// What:
+///  Whether the filesystem of `path` may share data blocks between files:
+///  btrfs,
+///  XFS (reflink is a per-filesystem feature that the first clone reveals) and overlayfs (a clone inside the overlay
+///  reaches the layers' filesystem) and ZFS (whose block cloning works inside one dataset).
+/// Why:
+///   Other filesystems never clone,
+///  so the cheap-worktree ladder's clone rung is not tried there,
+///  and a run on such a filesystem makes no `ioctl` for the copies that rung would fill
+///  with `FICLONE`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function mayClone(path: string): boolean;
+/// ```
+pub fn may_clone(path: &Path) -> bool {
+    if kind_may_clone(filesystem_kind(path).unwrap_or(FilesystemKind::Other)) {
+        return true;
+    }
+    return is_xfs(path).unwrap_or(false);
+}
+
+/// What:
 ///  Whether `path` is the root directory of a btrfs subvolume.
 /// Why:
 ///   Only a subvolume root can be the source of a snapshot.
