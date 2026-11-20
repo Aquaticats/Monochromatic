@@ -40167,7 +40167,97 @@ stated in this entry. What follows from them, as work:
   and the plan's VM items 5, 11 to 14, 17 and 18 through the crate, all in a throwaway guest, with live tests skipped
   by name on the host. Brief under `~/temp/agent/zfs-step-2-live-requests-and-guest-fixture-2026-11-19/`. The first
   launch passed the task folder as `--run-folder` and the driver refused it, rightly (the folder held `keep/` and
-  `scratch/`); the relaunch names `run-1`. THE OFFLINE
+  `scratch/`); the relaunch names `run-1`. STEP 2 ENDED `idle` (392 of 510 turns, 40 min 29 s, memory peak 8G with
+  9.4G swap) at `4c7a347ea2` (eight commits, 39 files, 5,720 lines added; report and container and guest logs in that
+  folder's `keep/`). It adds `src/kernel_device/` (one `unsafe libc::ioctl`, a grow-and-ask read loop of at most three
+  attempts, writes never replayed, `promote` test-only), the guest recipe `e2e/run-fixture.ts` with `e2e/README.md`,
+  `build-gate-image.ts` assembling `gate.Containerfile`'s context from the repository (closing step 1's low), mise
+  tasks `build:gate-image` and `e2e`, and `doc/guest-measurements-2026-11-19.md`. In the gate container 171 tests
+  passed and the 25 live ones were skipped by name; Clippy, fmt, rustdoc, `monochromatic-lint` (Dylint rule skipped
+  again) and `file-enforcer check` pass. In an Ubuntu 24.04 libvirt guest (kernel 6.8.0-147, OpenZFS 2.4.4-1) the root
+  suite passed 196 of 196 and the account suite 7; earlier red guest runs are kept. All three guests destroyed, `mvm
+  list` empty. Departures: the layout comparison reads the module's DWARF, because Ubuntu's tarball-built module has
+  no `/sys/kernel/btf/zfs`; this host's module has it (570234 bytes, 2.4.4-1, srcversion `A3553C308C29FD4B6595A72`,
+  read by the coordinator), and the step 6 checker reads BTF on the host, so the guest does not yet exercise that
+  source. The account arms are a second test-binary run as `ubuntu`; programs are built inside the guest (host glibc
+  is newer); the guest needs network; the two `.ts` files sit outside any tsconfig. GOING: its short review on the
+  Qwen plan, `pi-zfs-step-2-short-review-on-the-qwen-plan` (watched, cap 250 for the larger diff) in
+  `.claude/worktrees/pi-qwen-review-zfs-step-2-at-4c7a347ea2`, asked among other things whether the guest module can
+  carry BTF as the host's does; brief under `~/temp/agent/zfs-step-2-short-review-on-the-qwen-plan-2026-11-19/`. It
+  ended `idle` (77 turns, 12 min; that folder's `keep/review.md`): no path in the live calls reads past a buffer, loops
+  without bound or replays a write. Mediums: the BTF departure misread 6.8's `scripts/Makefile.modfinal`
+  (`cmd_btf_ko` runs whenever `CONFIG_DEBUG_INFO_BTF_MODULES=y`, as on Ubuntu's 6.8.0-147, and needs only a `vmlinux`
+  in the build directory; its own throwaway libvirt guest copied `/sys/kernel/btf/vmlinux` there and built a module
+  with `BTF [M]`, read back with `pahole`; guest destroyed); the live suite passes with every live arm skipped (a skip
+  returns; `/etc/hostname` against the kernel hostname; the recipe checks only the status); items 14 and 17 are not
+  asserted on a promoted clone. Lows: item 13's forward promote compares GUIDs only; the too-small write refusal drops
+  the error number the README promises; `///` on `use` items; raw timeouts and no guest kernel assertion; the account
+  suite lacks `--locked`; `--base` bypasses the resolver; no digest check on the OpenZFS tarball and rustup installer;
+  the two `.ts` files have no type gate; and the kept red run predates the first commit. GOING:
+  `pi-zfs-step-2-short-review-findings-fixed` (DeepSeek on Neuralwatt, cap 510) in the step 2 worktree, told to make
+  the guest module carry BTF and the test read it, fail a run whose live arms did not run, rerun the recipe in a fresh
+  guest and keep a red half from committed code; brief under
+  `~/temp/agent/zfs-step-2-short-review-findings-fixed-2026-11-19/`. Then a Sonnet integration pass and the merge.
+  STEP 4 HOST HALF ENDED `idle` (259 turns, 49 min) at `185902f904` (three commits, 26 files, 4,336 lines added; report
+  and logs in `~/temp/agent/zfs-step-4-descriptor-attach-host-half-2026-11-19/keep/`): `src/native/worktree_clone_mount/`
+  (the no-crossing walk holding a descriptor per folder, six recorded identity fields with ACLs as raw xattr bytes, the
+  slot identity store with its own file format, the post-attach check's four comparisons, the rollback plan and
+  reports, the parent adoption decision table), `fs_beneath.rs` additions, and the `SPEC.md` section "The descriptor
+  mount of a ZFS worktree clone". In the gate image, 58 of 58 targeted tests pass; nine guards removed at once fail 14,
+  each naming its control. Writer choices: the store's file format (not in the design or plan); the slot opened twice
+  because `fgetxattr` answers `EBADF` on `O_PATH`; `fsmount`, `move_mount`, the flag read-back and the decoy control left
+  to the guest, as the brief narrowed the plan. GOING: its short review on the Qwen plan,
+  `pi-zfs-step-4-host-half-short-review-on-the-qwen-plan` (watched, cap 250) in
+  `.claude/worktrees/pi-qwen-review-zfs-step-4-at-185902f904`; brief under
+  `~/temp/agent/zfs-step-4-host-half-short-review-on-the-qwen-plan-2026-11-19/`. It ended `idle` (113 turns, 26 min;
+  that folder's `keep/review-from-summary.md`): the walk, the per-field controls, the post-attach comparisons and the
+  adoption table confirmed, the author's counts reproduced. High: the folder's `uses/` symbolic links fail 13 of the
+  wrapper's own source-guard tests (the scan refuses any link), so the whole gate fails; 74 of 74 pass on the base and
+  with the links removed; the author's filtered run hid it. Mediums: `fs_beneath.rs` at 324 code lines; the `SPEC.md`
+  store example is a file the reader refuses; recording a slot is check-then-append, and a concurrent duplicate makes
+  every later read refuse; nothing on this host fails if the last hop stops crossing a mount. Eleven lows. GOING:
+  `pi-zfs-step-4-host-half-short-review-findings-fixed` (DeepSeek on Neuralwatt, cap 510) in the step 4 worktree,
+  merging `main` first and running the whole `source_guard` set; brief under
+  `~/temp/agent/zfs-step-4-host-half-short-review-findings-fixed-2026-11-19/`. Lesson for every wrapper brief: run the
+  whole `source_guard` set, not only the touched modules. STEP 3 HOST HALF ENDED `idle` (201
+  turns, 51 min) at `fd10d8d0b0` (four commits; report and checks table in
+  `~/temp/agent/zfs-step-3-reflink-rung-recognition-host-half-2026-11-19/keep/`): `FilesystemKind::Zfs` from
+  `ZFS_SUPER_MAGIC`; rung 2 proves one dataset by mount source and device, with no ZFS ioctl or binding; a mounted clone
+  at the destination or as a checkout slot's source, another dataset, and an unreadable pair are refused; a minimal
+  honest ZFS branch in `doctor_filesystem.rs`. 128 targeted tests pass in its container; guard removals each fail. On
+  this host, through the built wrapper in a throwaway repository, one dataset served rung 2 and a cross-dataset target
+  under `~/.cache` was refused with both datasets named. Departures: rung 2 now asks the destination when it exists,
+  which changes btrfs, XFS and overlayfs too. Two `fault_trace` binary tests failed in its recipe here and at `main`
+  `d6e78c9e8b`, though the gate's whole runs passed them. GOING: its short review on the Qwen plan,
+  `pi-zfs-step-3-host-half-short-review-on-the-qwen-plan` (watched, cap 250) in
+  `.claude/worktrees/pi-qwen-review-zfs-step-3-at-fd10d8d0b0`, asked to settle both; brief under
+  `~/temp/agent/zfs-step-3-host-half-short-review-on-the-qwen-plan-2026-11-19/`. It ended `idle` (146 turns, 16 min;
+  that folder's `keep/review-from-summary.md` and command log): the same-dataset proof sound against OpenZFS
+  (`__zpl_show_devname` prints the objset's current name; `zpl_test_super` reuses one superblock per dataset) and no
+  case `main` served by rung 2 now falls to Git (the shapes newly refused lost to `EXDEV` on `main`). Both `fault_trace`
+  failures are `main`'s, fixed after the branch's base (`ddec538f27`, `cc75aa6c31`); `main` also moved `may_clone` into
+  `fs_kind.rs`. Mediums: a real-read control asks `/` as another filesystem and fails where the checkout shares `/`;
+  the destination rule has no control through `clone_refusal` (reverting it failed none of 102); the ZFS real-mount
+  control passes without running, unlike the btrfs controls' acknowledgement. Lows: the magic constant cited to a
+  Linux header that lacks it (it is OpenZFS's `include/sys/fs/zfs.h`), a false other-dataset example in `SPEC.md`, the
+  file over the code-line budget, two docs citing the renamed heading, literal device numbers, one doc sentence. The
+  plan's step 3 contradicts itself on what the host runs. GOING: `pi-zfs-step-3-host-half-short-review-findings-fixed`
+  (DeepSeek on Neuralwatt, cap 510) in the step 3 worktree, merging `main` first; brief under
+  `~/temp/agent/zfs-step-3-host-half-short-review-findings-fixed-2026-11-19/`. STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
+  their VM arms wait for step 2's recipe and their merges for the gate fix), each DeepSeek on Neuralwatt, cap 510,
+  from `main` `d6e78c9e8b`: `pi-zfs-step-3-reflink-rung-recognition-host-half`
+  (`.claude/worktrees/zfs-step-3-reflink-rung-recognition`, `feat/git-policy-cli-zfs-recognition-in-the-reflink-rung`;
+  `fs_kind.rs`, `worktree_snapshot_source.rs` and the spec's rung 2 passage at `SPEC.md:2619`; told to stop and report
+  if the same-dataset proof needs `ZFS_IOC_OBJSET_STATS`) and `pi-zfs-step-4-descriptor-attach-host-half`
+  (`.claude/worktrees/zfs-step-4-descriptor-attach`, `feat/git-policy-cli-zfs-descriptor-attach-and-rollback`; the
+  walk, identity compare with a positive control per field, refusal wording, rollback plan, identity store and parent
+  record on fixture folders, nothing under `/var/lib`, no mount; the `first-attach` record left out because its design
+  is not accepted). Briefs under `~/temp/agent/zfs-step-{3,4}-*-host-half-2026-11-19/`. At about 17 minutes in, with no
+  commit yet, the step 4 writer had put its first edits into the main checkout (`lib.rs`, `fs_beneath.rs`,
+  `fs_beneath_tests.rs` and a new `worktree_clone_mount/`), though its brief named the worktree. It then copied them into
+  its worktree. The main checkout's wrapper files were clean on the next look, and the other sessions' four uncommitted
+  files there were untouched. This is task 350's failure again: runs writing into the main checkout. Each ZFS writer then
+  got rule `GCE` (commit as you go) through its inbox, and step 4 also a reminder to stay in its worktree. THE OFFLINE
   `file-enforcer` ROUTE: GOING `pi-git-policy-cli-gate-base-image-browserslist-data` (DeepSeek on Neuralwatt, cap 350)
   in `.claude/worktrees/git-policy-cli-gate-base-image-browserslist-data` on
   `fix/git-policy-cli-gate-base-image-carries-the-pinned-browserslist-data`, stacked on the githooks fix: the base
@@ -40434,9 +40524,105 @@ stated in this entry. What follows from them, as work:
   with no verdict field and nothing gated on it. Plan notes cover steps 4, 6, 7, 8, 10, 18 to 20 and 22, plan not
   edited. Nothing in either round was measured. GOING: a Sonnet gate review of each before acceptance (briefs under
   `~/temp/agent/zfs-start-probe-design-owner-answers-gate-review-2026-11-19/` and
-  `~/temp/agent/zfs-runtime-layout-checker-design-owner-answers-gate-review-2026-11-19/`); the staging round still
-  runs. The proposal and plan amendment for the dropped release proof waits for the layout checker's review. That
-  answer was first written into
+  `~/temp/agent/zfs-runtime-layout-checker-design-owner-answers-gate-review-2026-11-19/`). LAYOUT CHECKER REVIEW
+  ENDED (Sonnet, about 28 min; that folder's `keep/review.md`, scripts and OpenZFS excerpts in `keep/evidence/`): not
+  ready. H1: the comparison under the Q2 answer read handler bodies and key tables only, not registrations, permission
+  policies or callees, and across `zfs-2.2.2` to `zfs-2.3.0`, with identical struct layouts, `zfs_prop_set_special`
+  gained `VOLTHREADING`, `READONLY` (through `zvol_set_ro`) and `LONGNAME` handling, so `SET_PROP` on a volume changed
+  with the layout kept; for a filesystem dataset `zvol_set_ro` returns -1 and the path matches 2.2.2. The coordinator
+  confirmed the cases in the 2.3.0 source (`zfs_ioctl.c:2556-2610`, none in 2.2.2). The coordinator's earlier "the one
+  interface change was a layout change" was therefore wrong. Mediums: owed measurement 16 contradicts itself; the planned
+  `src/layout/expectations.rs` and `src/layout/refusal.rs` would loop with `src/requests/uses/layout`; residue of the
+  declined in-house reader; the binding README lines 149 to 152 still state the release proof. Thirteen lows (line
+  citations among them: plan step 6 now 711 to 715, open items 760 to 762). The corrected evidence went to the owner in
+  the question tool at 2026-11-19T21:31:47-05:00 with three options (keep; layout plus refusing a property set aimed at
+  anything but a filesystem dataset; back to a release list); answer: "Keep: layout decides". GOING:
+  `pi-zfs-runtime-layout-checker-design-owner-answers-gate-review-findings-fixed` (DeepSeek on Neuralwatt, cap 510) in
+  the design worktree, steered with that answer; brief under
+  `~/temp/agent/zfs-runtime-layout-checker-design-owner-answers-gate-review-findings-fixed-2026-11-19/`. It ended `idle`
+  (211 turns, 11 min) at `0fbfc6c073` (three commits; that folder's `keep/report.md`): H1 restated (what the
+  comparison read and skipped, the volume change, why the wrapper's own user property reaches the default path, the
+  contradicted sentence deleted and the effect on the binding called unmeasured); the re-confirmed answer recorded in
+  "The evidence correction, Q2 asked again"; M1 to M4 fixed (the checker goes in a new sibling folder
+  `src/compatibility_check/` with `uses/layout` and `uses/requests`); twelve lows fixed, L12 dismissed as about the
+  report. Amendment texts for the proposal (235 to 236), plan step 6 (711 to 715 and 760 to 762) and the binding README
+  (149 to 152) are in its report, not applied. Writer choices open to veto: `doctor` compares the exact text `2.4.4-1`;
+  an absent `srcversion` or build-id note degrades the reload check instead of refusing; the folder name. GOING: a
+  Sonnet gate re-check of the revision (brief under
+  `~/temp/agent/zfs-runtime-layout-checker-design-third-revision-gate-recheck-2026-11-19/`), also asked how the gate
+  treats a module without BTF given step 2's finding. It ended (stopped once by the weekly limit, resumed; that
+  folder's `keep/review.md` and `keep/evidence/`): the earlier high and mediums fixed in substance, every figure
+  reproduced, the amendment quotations matching `main`, the placement free of folder loops (by reading), the three
+  writer choices sound. Not ready: medium 1, the design states step 2 produces module BTF while step 2 reads DWARF
+  (its fix round is closing that); medium 2, the Q2 evidence omits `zfs_ioc_clone`'s `props` path, says "binding" for
+  the wrapper's call shapes, gets `longname` wrong (2.2.2 refuses the name), and has a user property reach the default
+  path when it returns at the user-property early return, the same in all three releases. None of it touches the Q2
+  answer; the user-property return strengthens it. Nine lows (an extra "that" in Q1's quotation, the follow-up's record
+  commit `cb84b5769f`, only one of three writer choices marked veto-open, a README clause the answers did not decide,
+  the crate-root `src/uses/compatibility_check` link, citations). GOING:
+  `pi-zfs-runtime-layout-checker-design-third-revision-recheck-findings-fixed` (DeepSeek on Neuralwatt, cap 510) in
+  the design worktree; brief under
+  `~/temp/agent/zfs-runtime-layout-checker-design-third-revision-recheck-findings-fixed-2026-11-19/`. Then a narrow
+  Sonnet check of the fixed lines, then acceptance. START PROBE REVIEW ENDED (Sonnet, about 33 min; that folder's `keep/review.md`): not
+  ready, no high, six mediums, all text: the companion sits in the add preflight but not in `doctor`, against the
+  proposal's "Share preflight with `doctor`"; "That is the project's choice" claims a printed skip on a refused user
+  namespace the project never chose (the Q6 option text named the skip only as a cost; the add going ahead is the
+  design's own choice, to be put to the owner for veto); the companion's child start and process group are unspecified
+  under a possibly multithreaded wrapper (`lazy_runtime.rs`); M8's key control expects `EACCES` where plan step 8
+  refuses before any attach; plan notes miss duties (Q2's reach into steps 8, 14 and 16; step 19's `ExecStartPre=-`; the
+  plan preface's no-early-unmount sentence; which step runs M1 to M11); Q5's deadline has no value or source before step
+  22, and a timed-out record does not name its arm. Nine lows (the skip errno set wrong both ways; the `first-attach`
+  claim file mode and wording; an effective Linux 6.6 floor from `FSCONFIG_CMD_CREATE_EXCL`; checkout-snapshot
+  leftovers). It ran a C stand-in of the companion's chain on this host with controls and confirmed every cited kernel
+  line. GOING: `pi-zfs-start-probe-design-owner-answers-gate-review-findings-fixed` (DeepSeek on Neuralwatt, cap 510)
+  in the design worktree; brief under
+  `~/temp/agent/zfs-start-probe-design-owner-answers-gate-review-findings-fixed-2026-11-19/`. It ended `idle` (186
+  turns, 12 min) at `c134086edd` (twelve commits; that folder's `keep/report.md`), every finding fixed, none dismissed:
+  `doctor` runs the companion under the shared preflight; the companion forks on the blocking pool into a raw-syscall
+  island with `setpgid` on both sides (a re-exec is barred by the source guard's no-self-invocation test, by its
+  reading); any error from `unshare(CLONE_NEWUSER)` is the skip (it found `EUSERS` gone since 4.9 and LSM `EACCES`
+  in the sources); a pre-attach refusal takes no `first-attach` claim; plan notes rewritten by heading, with a home
+  for each measurement M1 to M11; a timed-out record names the arm in flight. Marked open to veto: the companion's
+  printed skip lets the add proceed (alternative: refuse it, as Q4 does for the probe); no deadline value ships before
+  step 6's own measurement, and step 19 adds no `ExecStartPre=` until one is cited (alternative: a provisional ceiling
+  by the project's decision). The review's run evidence sits in its folder's `scratch/`, not `keep/`, so that scratch
+  stays. GOING: a Sonnet gate re-check (brief under
+  `~/temp/agent/zfs-start-probe-design-third-revision-gate-recheck-2026-11-19/`). Then acceptance with both vetoes
+  asked. STAGING ENDED `idle` at
+  `e8f7ec4fa6` (thirteen commits; report in its folder's `keep/report.md`). It records every answer and makes Way A the
+  design. On Q3 it rolls the clone back by its own descriptor, staging it only if that fails. Its post-move check now
+  asserts that the topmost mount is the clone with the bind as its parent; the run's own advisor found the old wording
+  wrong. The handle record is `~/.cache/monochromatic-git-policy-cli-staging-<guid>.json`, written only by the handler
+  (exclusive create, `fsync`, rename, directory `fsync`), void on another boot id. The design quotes its one departure:
+  "The runtime files are a cache, not authority to act", the handle being the one field that cannot be rebuilt, which
+  the answer accepts. A new section lists hardening the threat model may make unnecessary, as suggestions with no
+  check removed. One stale claim: it calls the answer record uncommitted, but it is in `main` since `c55ab25eb4`.
+  GOING: its Sonnet gate review (brief under
+  `~/temp/agent/zfs-staging-under-cache-design-owner-answers-gate-review-2026-11-19/`). STAGING REVIEW ENDED (Sonnet,
+  about 33 min; that folder's `keep/review.md`, one unprivileged host probe of the handle calls beside it): not ready,
+  no high, six mediums, none changing a decision: no end state after a successful Q3 rollback (removal, step 9's
+  reattach, step 17's cancel); a mount stacked on the clone would ride along on the move back, against the pre-call
+  refusal; the rollback's destination descriptor and its fresh-walk proof are unstated; a Q1 leftover says the handle
+  outlives a boot; a record whose folder is gone or re-made, or from another boot, blocks staging forever. Lows: an
+  `O_PATH` descriptor fails `fsync` and `open_by_handle_at` with `EBADF` on this kernel (probe), the stale
+  "uncommitted" claim, attribution slips. GOING:
+  `pi-zfs-staging-under-cache-design-owner-answers-gate-review-findings-fixed` (DeepSeek on Neuralwatt, cap 510) in the
+  design worktree; brief under
+  `~/temp/agent/zfs-staging-under-cache-design-owner-answers-gate-review-findings-fixed-2026-11-19/`. It ended `idle`
+  (243 turns, 20 min) at `9f1e0c9087` (twelve commits, 1818 lines; that folder's `keep/report.md`), all six mediums and
+  seven lows fixed: a successful rollback leaves the clone at its slot, the bind and the record for the sweep, a
+  refusal receipt and the removal refused, with the same exit for step 9's reattach and step 17's cancel; a mount on
+  the clone is refused before any rollback, because a move carries the clone's subtree; the rollback destination is
+  opened with `RESOLVE_NO_XDEV` and proved by the fresh walk, and Q3 is named a second exception to "No implicit
+  remount"; the handler voids a record only on a handle `ESTALE` with no mount row naming the folder, after its own
+  second pass showed a wrapper scan cannot prove absence; an other-boot record is settled on the wrapper's mount-table
+  read and `rmdir`'s `EBUSY`; the `~/.cache` descriptor is `O_RDONLY | O_DIRECTORY`, never `O_PATH`. Five choices marked
+  for the owner's veto, each with options and a ranking (the rollback destination proof; a mount stacked on the clone
+  after the move; the end state after rollback, reattach and cancel; a record whose folder is gone; a record from
+  another boot). GOING: a Sonnet gate re-check (brief under
+  `~/temp/agent/zfs-staging-under-cache-design-third-revision-gate-recheck-2026-11-19/`). Then acceptance with the
+  five vetoes asked. The proposal and plan amendment
+  for the dropped release proof waits for the layout checker's review. That answer was first written into
   `doc/handover/questions-for-the-owner.md`, whose header keeps it to open questions; the owner asked "Do you know what a
   questions file is?", the answer moved here, and the owner said "Fix the bigger mess too.": that file still held about
   thirty answered sections. GOING: `pi-handover-questions-file-holds-open-questions-only` (DeepSeek on Neuralwatt, cap
@@ -40572,241 +40758,66 @@ stated in this entry. What follows from them, as work:
   measurement (`git lfs env` keeps the unrewritten endpoint; `replaceUrlAlias` applies only a non-empty alias), pinned
   by two guard cases with a positive control. Reds shown on `badd9f609c`. GOING: its short re-check on the Qwen plan,
   `pi-qwen-review-lfs-fourth-round-at-bbe9f26200` (watched); brief under
-  `~/temp/agent/git-policy-cli-lfs-fourth-round-short-review-on-the-qwen-plan-2026-11-19/`. Then its integration pass,
-  after the gate fix is in main.
-- **The wrapper's container gate cannot pass on this ZFS host.** The LFS writer ran the gate's body
-  (`node bin/test-native-container.ts`; the mise task's first step needs `cargo-shadow`, not installed here) twice:
-  `9189 tests run: 9002 passed, 187 failed`, against 6 of 9,173 on the old Btrfs host. By its reading about 109 fail on
-  file names that are not UTF-8 (`/home` is `zpcachyos/ROOT/cos/home` with `utf8only=on`, `normalization=formD`, and
-  podman's `overlay` storage is under it, both read by the coordinator), 11 on a missing birth time, 16 on the image
-  Git's `core.fsmonitor`, the rest on mount evidence and paths; the two standing failures are among them. The Clippy
-  step fails with `E0514` (the image's build against the host's mounted `rustc`). No gate result on this host means
-  anything until this is fixed, so every wrapper integration pass waits on it. ENDED: the investigation
-  `pi-git-policy-cli-container-gate-on-the-zfs-host-investigation` (DeepSeek on Neuralwatt, cap 635, no host change
-  allowed), `idle` after 194 turns and 48 min; one commit `ae8aa7f5e1` on `docs/git-policy-cli-container-gate-on-the-zfs-host`
-  (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`); report and logs under
-  `~/temp/agent/git-policy-cli-container-gate-on-the-zfs-host-investigation-2026-11-19/`. By its report, on `main`'s
-  build: 185 of 9,173 fail; the gate container sees podman's storage as `fuse.fuse-overlayfs`; causes, each reproduced
-  in the gate's image and shown to pass once removed: names that are not UTF-8 (108), a test helper writing under
-  `target/` (1), no birth time (29), mount type in neither product list (28), Git refusing `core.fsmonitor` on FUSE
-  (10), two `fault_trace` tests expecting `ioctl` from a non-cloning file system (2), three single mount behaviours
-  (3), load-dependent (4 across runs), the two standing failures (2). A tmpfs the container makes as the fixture
-  root (`CLI_GIT_TEST_ROOT`) fixed 179 of the 185, 2.5 times faster on them; host changes (a `utf8only=off` dataset,
-  a Btrfs loop mount) are written down, not run, and not needed. Clippy's E0514: the gate mounts the sysroot of the
-  toolchain the caller's environment resolves; the Pi unit had no `RUSTUP_TOOLCHAIN` (mise sets it from the
-  toolchain lock; read in the coordinator's shell as `nightly-2026-11-16`, which has clippy), so it mounted `nightly`,
-  which has none; with `RUSTUP_TOOLCHAIN=nightly-2026-11-16` Clippy compiled clean. The coordinator read podman's
-  driver as `overlay` with `overlay.mountopt=nodev` and no container or process left. No owner question: the 75 tests
-  of the birth-time, mount-type and monitor causes passed on the Btrfs host's kernel overlay, so a tmpfs fixture root
-  gives back the coverage the gate had there. The investigation worktree was swapped for
-  `.claude/worktrees/git-policy-cli-container-gate-on-a-zfs-host` on `fix/git-policy-cli-container-gate-on-a-zfs-host`
-  from `ae8aa7f5e1` (the removal kept a service journal under
-  `~/.local/state/monochromatic-git-policy-cli/service/ee629147d1e04eca73d3e76546fa6d71` for its claim-watch). GOING:
-  the fix, `pi-git-policy-cli-container-gate-on-a-zfs-host-fix` (DeepSeek on Neuralwatt, cap 635, wall 300 min):
-  the tmpfs fixture root sized from a measured whole-suite run, Clippy taking the locked toolchain itself, the helper
-  test onto the fixture root, the two `ioctl` tests derived from the fixture's file system, README and SPEC passages;
-  brief under `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-fix-2026-11-19/`. Then its short review and
-  an integration pass; the target is the Btrfs host's result: only the standing and load-dependent failures. The run
-  ended `idle` after 310 turns with commits `ddec538f27` and `967085d3d3` but no final report: its last words were that
-  its second whole gate run was in its test phase and it would resume when that exited. The driver had ended it on a
-  fault of its own (`workProblem` "Error: ESRCH: no such process, read '/proc/3160413/comm'": `commandNameIn` in
-  `package/pi-shared/subagent-driver/src/wake-a-run-whose-work-outlives-its-turn.ts` treats a missing path and
-  `ENOTDIR` as a process that ended, not `ESRCH`), so the unit stopped, killing the run's watcher; the gate container
-  (`b2733be77ff7`, outside the unit) ran on unwatched. The coordinator waited for it, saved its output from the journal
-  to that folder's `scratch/gate-run-2-whole-output-from-the-journal.log` (37,062 lines) and removed the run's exited
-  diagnostic container `git-policy-fix-diag`. RESULT: "9173 tests run: 9171 passed (5 slow), 2 failed, 28 skipped",
-  the two being the standing `service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing`
-  and `repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone`; the
-  target is met on this run. GOING: the same session resumed as
-  `pi-git-policy-cli-container-gate-on-a-zfs-host-fix-resumed` (run folder `run-2`, `--session` of the first run,
-  cap 200) to read that output and write its final report, with no new whole gate run. Then its short review (Qwen,
-  watched) and the integration pass. The driver defect is a run of its own, GOING:
-  `pi-driver-a-process-that-ends-mid-scan-is-gone` (DeepSeek on Neuralwatt, cap 450) in
-  `.claude/worktrees/pi-driver-a-process-that-ends-mid-scan-is-gone` on
-  `fix/pi-shared-subagent-driver-a-process-that-ends-while-the-scan-reads-it-is-gone-not-a-failed-read`: every
-  `/proc/<pid>/` read on the left-running and wake paths counts `ESRCH` as a process gone, a failing test first for
-  each, the README's line on what counts as ended; the README's rule that a truly failed read ends the run with
-  `workProblem` stays, and whether it should retry within the wait's bound instead is asked as a suggestion only;
-  brief under `~/temp/agent/pi-driver-a-process-that-ends-mid-scan-is-gone-2026-11-19/`. It ended `idle` (251 turns)
-  at `8a61b9043e` (one commit, report in that folder's `keep/report.md`): `comm` answers `?`, `cgroup` answers no group
-  and `stat` no parent on `ESRCH`, every other failure still reaches `workProblem`; the `cwd` link is left because the
-  kernel answers `ENOENT` there (`proc_cwd_link`); a read seam injects the error; each test red on the parent commit;
-  213 suites pass; a troubleshooting page with pinned kernel links; no general retry (argued). GOING: its short review on
-  the Qwen plan, `pi-qwen-review-driver-esrch-at-8a61b9043e` (watched), in the worktree of that name; brief under
-  `~/temp/agent/pi-driver-esrch-fix-short-review-on-the-qwen-plan-2026-11-19/`. The review ended `idle` (115 turns, no
-  rate-limit error; that folder's `keep/review.md`): no high or medium; red checks reproduced three ways (whole file,
-  the catch only, `ESRCH` removed from the code set); `proc_cwd_link` answers `ENOENT` at v4.9, v4.19, v5.10, v6.1 and
-  the pinned tip; lows: the troubleshooting page's output block has a line its harness does not print; two `@example`
-  blocks no longer type-check (`reads` now required); the README's `workProblem` sentence holds on the driver's watch
-  but the launcher's wake read through `finishTheRun` fails the launcher instead; `ESRCH` is not in the outer skip set
-  (cheap hardening). It reproduced the intermittent `the values of this machine` failure and confirmed its cause in
-  `env-local-json/core`'s fixture (`exit` before the pipe drains; owned by `945ff70a94`). Its 5.7 GB red-check copy,
-  made outside its briefed folder, it deleted itself (checked gone). GOING: a short round
-  `pi-driver-esrch-review-findings-fixed` (DeepSeek on Neuralwatt, cap 200) in the fix's worktree; brief under
-  `~/temp/agent/pi-driver-esrch-review-findings-fixed-2026-11-19/`. It ended `idle` (71 turns) at `b98470781c`: the
-  page's harness prints its output block (checked by running the page's own code); both examples pass `reads`
-  (checked red then green through `lint:types` on temporary copies); the README says the driver's watch records a failed
-  read and the launcher's wake read through `finishTheRun` fails the launcher instead; `ESRCH` is in the outer skip set
-  with a test red first; 213 suites pass. IN MAIN: merged `--no-ff` as `08ad35aec8` (every path inside the driver
-  package; the merge clean); the worktree went to the commit service. Before it was in main any run
-  that ends its turn while its own work runs can be cut the same way, and a container it started outlives it. The first
-  resume ended `prompt-rejected` after 42 turns on a second driver fault: when the agent's background Clippy job ended,
-  Pi started a turn of its own and 33 ms later the driver's wake note met "Agent is already processing. Specify
-  streamingBehavior ('steer' or 'followUp') to queue the message."; `askAboutItsWorkOrReportAFailure`
-  (`kept-while-work-runs.ts`) reads that as a refusal and `watch-pi-run.ts` ends the run, aborting the agent's turn.
-  GOING for it: `pi-driver-a-wake-that-meets-a-started-turn-keeps-the-run` (DeepSeek on Neuralwatt, cap 450) in
-  `.claude/worktrees/pi-driver-a-wake-that-meets-a-started-turn-keeps-the-run` on
-  `fix/pi-shared-subagent-driver-a-wake-that-meets-a-turn-already-started-keeps-the-run`; brief under
-  `~/temp/agent/pi-driver-a-wake-that-meets-a-started-turn-keeps-the-run-2026-11-19/`. It ended `idle` (251 turns) at
-  `a755c6d20c` (seven commits; report in that folder's `keep/report.md`): the wake prompt carries
-  `streamingBehavior: 'steer'`, which Pi 1.5.2 queues while the agent run is active (`agent-session.js:1749-1759`,
-  `isStreaming` is the run state) and ignores while it rests; a busy answer, if a Pi ever sends one anyway, keeps the
-  run until that turn settles and writes a `problem` line; a refusal for any other reason still ends `prompt-rejected`;
-  a stand-in scenario reproduces the race, red on the old code and green after; 212 suites pass; a troubleshooting
-  page. It found the same race in two other places and left them as briefed: inbox delivery picks `prompt` from a stale
-  `isRunning()` and then sets the message aside as `.failed-<name>`; the model-error retry reads the busy answer as a
-  refusal and ends the run. GOING: the wake fix's short review on the Qwen plan,
-  `pi-qwen-review-driver-wake-race-at-a755c6d20c` (watched; brief under
-  `~/temp/agent/pi-driver-wake-race-fix-short-review-on-the-qwen-plan-2026-11-19/`), and two follow-ups, each its own
-  run on a branch made from `a755c6d20c` so it builds on the wake fix: `pi-driver-inbox-message-meets-a-started-turn`
-  and `pi-driver-model-error-retry-meets-a-started-turn` (DeepSeek on Neuralwatt, cap 350 each; briefs under
-  `~/temp/agent/` folders of those names dated 2026-11-19; the retry is asked to wait for the running turn and look
-  again rather than queue behind it). The wake fix's review ended `idle` (77 turns; that folder's `keep/review.md`): no
-  behavioural defect; the fix checked against Pi 1.5.2's source; reds reproduced three ways; medium: the package's
-  `test:unit` imports the built library, so on a fresh worktree it runs a stale build (`buildAndTest` is the check);
-  lows: the troubleshooting page's feed pointer, a `WR5` pointer and `MD2` markers, the busy-answer prefix also matching
-  `pi-agent-core`'s other wording, a duplicated error constant, one call before its declaration. It found that the
-  retry's `countRetry` runs before the refusal is read, so a busy answer would already be counted; that note went into
-  the running retry follow-up's inbox. The retry follow-up ended `idle` (112 turns) at `102e05cfdc` (five commits;
-  report in its folder's `keep/report.md`): it took the inbox note; the busy check runs before `countRetry`, so a busy
-  answer counts nothing, keeps the owed retry and writes a `problem` line; a turn that recovers gets no retry, one that
-  fails again gets one, counted once; a refusal for Pi's own reason still ends `prompt-rejected`; the busy text and read
-  moved to a shared `src/a-busy-answer-of-pi.ts`; each test red on the tip; 212 suites pass. GOING: its short review on
-  the Qwen plan, `pi-qwen-review-driver-retry-at-102e05cfdc` (watched). It ended `idle` (74 turns; that folder's
-  `keep/report.md`): no high or medium; both outcomes and the count checked, two reds shown on a copy; lows: the shared
-  read's bare prefix still matches `pi-agent-core`'s other busy errors while its doc says otherwise (the wake round's F5
-  narrowed it on the other branch), and one test file keeps its own copy of the text. GOING: the round
-  `pi-driver-retry-follow-up-merges-main-and-answers-review` (DeepSeek on Neuralwatt, cap 200): merge `main` (conflict
-  in `src/kept-while-work-runs.ts`), one busy read with the narrowed match for both paths, one copy of each fixture
-  text, a retry-path test for pi-agent-core's wording; brief under
-  `~/temp/agent/pi-driver-retry-follow-up-merges-main-and-answers-review-2026-11-19/`. It ended `idle` (147 turns) at
-  `2a84436b44` (merge `9963b6505c` and one test commit; report in that folder's `keep/report.md`): one busy read in
-  `src/a-busy-answer-of-pi.ts` with the narrowed text for the wake and the retry, one copy of each fixture text, a
-  retry-path test for pi-agent-core's wording red then green; 213 passes, the only full-suite failures the known
-  `secret-values-of-this-machine` race. IN MAIN as `3d083aee85` (every path in the driver package, `merge-tree` clean).
-  The wake fix's round
-  `pi-driver-wake-race-review-findings-fixed` (DeepSeek on Neuralwatt, cap 250), merging `main` (the `ESRCH` fix) first,
-  ended `idle` (69 turns) at `9f10d11679` (report in that folder's `keep/report.md`; the author's first report was never
-  saved, its `keep/` is empty): F5 narrowed the busy match to `'Agent is already processing. Specify
-  streamingBehavior'` with a red-then-green test on pi-agent-core's wording; F7 one fixture copy; F8 declaration order;
-  F2 to F4 page pointers and markers; F1 the page's harness command now builds first; 213 passes, lint clean. IN MAIN as
-  `9082c49835` (merge-tree clean, every path in the package). With it and the `ESRCH` fix in main, briefs no longer
-  carry the line asking an agent to wait for its own jobs inside its turn. Merge order left: the two follow-ups, each
-  after merging `main`. The inbox follow-up ended `idle` (188 turns) at `e2ead21556` (five commits; report in
-  `~/temp/agent/pi-driver-inbox-message-meets-a-started-turn-2026-11-19/keep/report.md`): every inbox message now goes
-  as a prompt naming `streamingBehavior: 'steer'` (a resting Pi ignores the field, read from Pi 1.5.2's
-  `agent-session.js:1736` and `:1748-1761`), so a turn Pi starts after the read takes it; a busy answer returns the
-  message to the inbox instead of keeping it aside; a returned message's claim stays as its copy; the keeping helpers
-  moved to `src/an-inbox-message-pi-did-not-take.ts`; four tests red then green; 212 suites. It exports
-  `foundTheAgentAlreadyAwake` from `src/kept-while-work-runs.ts`, the file the wake round and the retry follow-up both
-  change, so it merges `main` after the retry follow-up lands. Its report calls an advisor pass "independent vendor";
-  no record shows that. It also saw two other suites fail once and pass alone: `secret-values-of-this-machine` (the
-  known `.env.local.json` fixture race, owned by branch `945ff70a94`) and `start-pi-run-when-a-pool-has-room`
-  (expected `--provider=opencode-go`; not from this machine's running units: the suite gives the program a `PATH` of
-  its own stand-in `systemctl`, `git`, `mise`, `systemd-run` and `pi`, and its header says it reads none of the
-  machine's units, `src/start-pi-run-when-a-pool-has-room.unit.test.ts:2-3` and `:412-417`; cause unknown, a separate
-  incident until a failing run is caught).
-  GOING: its short review on the Qwen plan, `pi-qwen-review-driver-inbox-at-e2ead21556` (watched); brief under
-  `~/temp/agent/pi-driver-inbox-follow-up-short-review-on-the-qwen-plan-2026-11-19/`. It ended `idle` (154 turns; that
-  folder's `keep/report.md`): no high or medium; the wire form checked against Pi 1.5.2 and the reds reproduced; lows: a
-  prompt is refused during a manual compaction or branch summary (`agent-session.js:1712-1714`) where the old steer was
-  queued, so such a message is kept aside; the steer-queue mechanism stated wrongly in three places (`agent-loop.js:90`
-  and `:191` drain at every run); two doc lines made false; a busy round leaves one more hard link each look; the report's
-  labels. It also confirmed the pool test cannot read live units. GOING: the round
-  `pi-driver-inbox-follow-up-merges-main-and-answers-review` (DeepSeek on Neuralwatt, cap 250): merge `main` (one busy
-  read for the wake, the retry and the inbox), the compaction refusal read as retryable with a test, the rest; brief
-  under `~/temp/agent/pi-driver-inbox-follow-up-merges-main-and-answers-review-2026-11-19/`. It ended `idle` (193
-  turns) at `9dacf19d39` (report in that folder's `keep/report.md`): merge `0b5151bb8f` with three conflicts resolved
-  and nothing of `main` dropped, one busy read in `src/a-busy-answer-of-pi.ts`; a second predicate
-  `foundPiRefusedTheMoment` reads the compaction refusal as a moment for the inbox only; earlier claims of the same file
-  are unlinked; wording fixed; 213 passes with one failure in `secret-values-of-this-machine.unit.test.ts`, the known
-  env-local-json fixture race. GOING: its short re-check on the Qwen plan,
-  `pi-qwen-review-driver-inbox-round-at-9dacf19d39` (watched), because the round now unlinks files in a run's inbox;
-  brief under `~/temp/agent/pi-driver-inbox-follow-up-round-short-review-on-the-qwen-plan-2026-11-19/`. It ended `idle`
-  (106 turns; that folder's `keep/review.md`) with no high or medium finding: the merge keeps `main`, one busy read, both
-  new guards shown red without their code, the unlink races tried (growth bounded, no undelivered message unlinked);
-  lows: two wrong sentences on the troubleshooting page, and a message starting with `/` now runs as an extension or
-  skill command while Pi works too (the old `steer` refused it), which nothing recorded. The coordinator fixed the two
-  sentences and recorded the `/` change in the README (commit on the branch), and merged: IN MAIN as `984f0e3680`. The
-  second resume ended
-  `idle` (40 turns)
-  with its final report (that folder's `keep/report.md`): branch at `deed732fc1`, five commits (`ddec538f27`,
-  `967085d3d3`, `8d1122a6ae` naming a rebound binding apart for `clippy::shadow_unrelated`, `a6eb8ec24c`,
-  `deed732fc1`), worktree clean; the tmpfs fixture root sits under `/work` because two `package_repair_prewarm_job`
-  controls resolve `serde` through `/work/.cargo/config.toml` (the brief's `/gate-fixtures` broke them in run 1); five
-  controls that passed on the overlay and fail on a tmpfs root were freed; run 1 `9166 passed, 7 failed`, run 2 `9171
-  passed, 2 failed` (cause H's `cli-git-lock-holders` signature, standing); the suite peaked at 1191.6 MiB of 2 GiB and
-  the fixture tmpfs at 221.7 MiB of the shipped `1500m`; Clippy clean after the fix; the gate's 2 GiB also capped the
-  image build at its limit (pre-existing, reported). GOING: its short review on the Qwen plan,
-  `pi-git-policy-cli-container-gate-on-a-zfs-host-short-review-on-the-qwen-plan` (watched), in
-  `.claude/worktrees/pi-qwen-review-container-gate-on-a-zfs-host-at-deed732fc1`; brief under
-  `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-short-review-on-the-qwen-plan-2026-11-19/`. It ended
-  `idle` (83 turns, no rate-limit error; that folder's `keep/review.md`): no high; product behaviour unchanged (every
-  Rust hunk is a test or test-support comment except the `may_clone` move); the root under `/work` reproduced (an
-  offline `serde` workspace resolves only there); the Clippy controls go red when their code is removed; the two
-  remaining failures carry cause H verbatim. Medium F1: four Rust doc comments still say the gate runs on an overlay.
-  Lows: the `1500m` tmpfs cannot fill before the 2 GiB memory bound kills the run, so the promised `ENOSPC` never comes;
-  the `ioctl` sweep skips without the `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED` bargain; one test name overpromises; run 1's
-  own output was not kept; the cause accounting misses one named test,
-  `package_repair::pnpm_runs_in_the_new_worktree_only`, not two. The review worktree was removed. GOING: the second
-  round `pi-git-policy-cli-container-gate-on-a-zfs-host-review-findings-fixed` (DeepSeek on Neuralwatt, cap 450) in the
-  gate worktree; brief under
-  `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-review-findings-fixed-2026-11-19/`. It ended `idle` (162
-  turns) at `6a96d4a28a` (seven commits; report in that folder's `keep/report.md`): the four overlay comments corrected;
-  the tmpfs ceiling lowered from `1500m` to `768m` with the measurement beside it (run 1's process pages 993.6 MiB, so
-  the 2 GiB bound leaves 1054 MiB for fixtures; a probe in the gate image showed a small tmpfs answering `ENOSPC` with
-  no OOM kill; the 23 prewarm controls pass on a 64 MiB tmpfs); the `ioctl` sweep now panics unless
-  `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED` is set, shown red unset and green set in the gate image; the unit test renamed;
-  run 1's suite output and Clippy stream recovered from the journal into the first run's `scratch/keep/` (its refusal
-  text was only in a session feed, which runs may not open); the cause accounting corrected to one uncovered name. The
-  `768m` ceiling has not met a whole gate run. GOING: the integration pass, a gate review by a Sonnet subagent (brief
-  `~/temp/agent/integration-pass-container-gate-on-a-zfs-host-2026-11-19/prompt.md`): branch
-  `integrate/git-policy-cli-container-gate-on-a-zfs-host` from `main` in a worktree of that name, the branch merged in
-  (merge base `cff64adfa0`, no wrapper commit on `main` since, `merge-tree` clean), the package's checks and one whole
-  container gate in a capped unit, the fail set to be exactly the two cause-H failures, the peaks read against `768m`.
-  It is named for what it covers, not numbered, because pass 59 is reserved for the landed-removal branch. On "fit" the
-  coordinator merges. It came back NOT FIT on one medium (that folder's `keep/` holds its logs and peak records; it ran
-  19:20:59 to 19:37:39): `9173 tests run: 9171 passed, 2 failed`, exactly the two cause-H failures with the
-  `cli-git-lock-holders` signature; Clippy exit 0; fixture peak 195.1 MiB against the 768m ceiling, `memory.peak`
-  1123.8 MiB of 2048. The medium: the two controls guarding "fixtures never in the system temporary directory"
-  (`test_support_tests.rs:60`, `binary_fixture_tests.rs:132`) return early when `CLI_GIT_TEST_ROOT` is set, which the gate
-  now always sets, so they check nothing there; by the narrowing bar the coordinator asked for them to stay alive rather
-  than be documented. Lows: a stale overlay sentence in `mise.toml`, a garbled doc comment, an unclear README sentence,
-  two comment wraps, and the peak figures the docs cite come from a record the merge deleted (the pass's merge removed
-  the author's worktree and its ignored files; the integration worktree stays). GOING: the round
-  `pi-git-policy-cli-container-gate-on-a-zfs-host-integration-findings-fixed` (DeepSeek on Neuralwatt, cap 300) in the
-  re-created worktree `.claude/worktrees/git-policy-cli-container-gate-on-a-zfs-host`: both guards assert a moved root is
-  under none of `/tmp`, `/var/tmp`, `TMPDIR`, with reds; the lows; the pass's own `resource-peaks.jsonl` committed and
-  cited beside 768m; brief under
-  `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-integration-findings-fixed-2026-11-19/`. It ended `idle`
-  (176 turns) at `d8f8861a8e` (seven commits; report in that folder's `scratch/keep/report-of-the-round.md`): both
-  location controls now compare the moved root with `/tmp`, `/var/tmp` and `TMPDIR` in the gate (red with a root under
-  `/tmp`, green on the gate's tmpfs, in the pass's image); the six lows answered; the peak record committed under the
-  package's `perf/` and cited beside 768m. GOING: the Sonnet review of the repair commits `6a96d4a28a..d8f8861a8e` in the
-  integration worktree (merges the new tip and `main`, runs the changed modules in the gate image, decides whether the
-  whole gate must run again); brief under
-  `~/temp/agent/container-gate-on-a-zfs-host-repair-commits-gate-review-2026-11-19/`. It came back NOT FIT on one medium
-  (logs in that folder's `keep/`; integration branch at `207c542eca`, pushed): the whole gate on the merged tree read
-  9171 of 9173 with only the two cause-H failures, but the `process-<pid>` assertion in
-  `test_support_tests.rs:64` now sits inside the no-variable branch, so the gate no longer checks that each test
-  process gets its own fixture folder, which `main`'s gate did (a mutation to a shared folder passed on the gate root);
-  lows: an empty `TMPDIR` gives a false red, the comparison is lexical so symlinks escape it, a doc sentence on
-  milliseconds, peak figures stated as exact though sampled (the conservative bound 2048 − 1123.8 = 924.2 MiB still
-  leaves 768m 156.2 MiB below), older figures not marked as history, two partial commit subjects. The merge again
-  removed the author's worktree; re-created from the branch. GOING: the third round
-  `pi-git-policy-cli-container-gate-on-a-zfs-host-repair-review-findings-fixed` (DeepSeek on Neuralwatt, cap 250), with
-  the review's narrow re-check and no whole gate; brief under
-  `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-repair-review-findings-fixed-2026-11-19/`. Then the merge.
+  `~/temp/agent/git-policy-cli-lfs-fourth-round-short-review-on-the-qwen-plan-2026-11-19/`. It ended `idle` (80 turns,
+  no rate-limit error; that folder's `keep/review.md`), with nothing worse than `main`. It confirmed the notice in all
+  four layouts, the pflag reading for every spelling git-lfs accepts (pflag v1.0.9 `flag.go:1078-1081`), the
+  empty-alias rejection, the corrected citations, and three reds of its own. Five lows:
+  - an empty `insteadOf` base is skipped (`lfs_upload_plan.rs:430`), though git-lfs applies it (inherited);
+  - the notice still names a destination for invocations git-lfs refuses (two scopes, exit 2; a value pflag rejects,
+    exit 127);
+  - a comment at `wrapped_command.rs:537` and a doc at `lfs_install_arguments.rs:108-112` this round made false;
+  - a grammar slip at `SPEC.md:11874`.
+  GOING: the fifth round, `pi-git-policy-cli-lfs-fourth-round-review-findings-fixed` (DeepSeek on Neuralwatt, cap 510),
+  in the same worktree; brief under `~/temp/agent/git-policy-cli-lfs-fourth-round-review-findings-fixed-2026-11-19/`.
+  It ended `idle` (113 turns, 17 min 40 s) at `0dea92e201` (one commit, six files; report in that folder's
+  `keep/report.md`, reds, greens and probes beside it): all five lows fixed, each red first. The empty base now rewrites
+  as git-lfs does (`lfs_upload_plan.rs:436`). The install arguments are read in one walk (`InstallRequest` in
+  `lfs_install_arguments.rs`), replacing `InstallScope::of` and `asked_for_manual`, so the destination and the
+  refusal cannot disagree. A refused command now gets a notice naming the refusal and claiming no `filter.lfs.*` key:
+  two scopes, a value pflag refuses, and also `--file` with no path and refused values on `--force`, `--skip-smudge`,
+  `--manual`. It disagreed with the review in places, by its measurement: git-lfs writes
+  `lfs.repositoryformatversion = 0` before refusing two scopes, so the notice says no `filter.lfs.*` key rather than
+  nothing. It kept an option git-lfs lacks (`--bogus`, `-z`) on its destination sentence on purpose, limit written in
+  `SPEC.md:11903-11906`. 26 targeted tests in the gate image, Clippy and `lint:types` pass; whole gate and
+  `monochromatic-lint` not run. GOING: its short re-check on the Qwen plan,
+  `pi-git-policy-cli-lfs-fifth-round-short-review-on-the-qwen-plan` (watched, cap 190) in
+  `.claude/worktrees/pi-qwen-review-lfs-fifth-round-at-0dea92e201`; brief under
+  `~/temp/agent/git-policy-cli-lfs-fifth-round-short-review-on-the-qwen-plan-2026-11-19/`. It ended `idle` (123 turns;
+  that folder's `keep/review.md`, probes and two reds beside it): every modelled refusal and accepted word list
+  confirmed through the wrapper (54 lists), the pflag reading and git-lfs's refusal order confirmed, the empty-base
+  change confirmed; nine lows: help queries other than the exact `--help`/`-h` (`-lh`, `--help=true`) got a destination
+  sentence, and `-- -h` got no `--skip-repo` (exit 2); a positional `--skip-repo` after `--` was taken for the option;
+  a caller's `--skip-repo=false` undid the inserted copy; the "because" clause could name a later word than git-lfs
+  refuses; four doc and citation slips; three untested cases. On the merge bar: for unknown options, help queries and
+  a failure after a good parse, `main` printed only git-lfs's message while the branch claimed the keys "go" to a file.
+  GOING then ENDED: the sixth round `pi-git-policy-cli-lfs-fifth-round-review-findings-fixed` (DeepSeek on Neuralwatt,
+  cap 510), `idle` (138 turns, 21 min) at `c5b9e753ec` (two commits; report and probes before and after in
+  `~/temp/agent/git-policy-cli-lfs-fifth-round-review-findings-fixed-2026-11-19/keep/`): all nine accepted, seven reds
+  on `0dea92e201`, 13 of 13 green; the notice now reads "This command asks git-lfs to put the keys in X", true when
+  git-lfs then writes nothing; for `--skip-repo=false` it took another remedy than the review's, inserting the copy
+  after the caller's word and saying so, because withholding it would bring back the status-2 hook write. After six
+  rounds the next review is the gate review itself rather than a seventh short re-check. GOING: the Sonnet integration
+  pass bundling the gate image branch `61f702030f` (brief under
+  `~/temp/agent/integration-pass-git-policy-cli-lfs-with-the-gate-base-image-data-2026-11-19/`; integration branch
+  `integrate/git-policy-cli-lfs-and-gate-base-image-data`, one whole gate run). Before 2026-11-19T22:15:22-05:00 it and
+  the three design gate re-checks stopped on the Claude account's weekly limit (HTTP 429); after the owner logged in on
+  a reset account, each was resumed from its saved transcript with a message, the integration pass told to check what
+  it already made before running anything.
+- **The wrapper's container gate passes on this ZFS host** since the merge `f73900d5a0` of 2026-11-19: fixtures on a
+  tmpfs root under `/work`, Clippy from the lock's toolchain, and location controls that prove where fixtures land.
+  The causes, measurements, limits and rejected host changes are in
+  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`, and the driver facts its runs surfaced are in
+  `package/pi-shared/subagent-driver/doc/troubleshooting/`, moved there by the merge
+  `2849c7c3a0`; the item's full history is in this file before that merge. Still open:
+  - the two cause-H tests fail on every host:
+    `repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone`
+    and `service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing`;
+  - the `ioctl` cloning arm of cause E runs only on a btrfs host, and a non-alpha release waits on it;
+  - `start-pi-run-when-a-pool-has-room`'s suite failed once (expected `--provider=opencode-go`) and passed alone, a
+    separate incident until a failing run is caught (task 406);
+  - branch `945ff70a94`'s env-local-json fixture fix is not in `main`; its own item tracks it;
+  - the LFS integration pass bundling the gate image branch `61f702030f` waits for the sixth LFS round;
+  - ZFS steps 3 and 4 may merge once their reviews pass.
 - **GOING**: the hybrid provider prototype (the owner's "Hybrid, prototype first"), unit
   `pi-rate-limit-fallback-hybrid-prototype` (DeepSeek on Neuralwatt, turn cap 380, a quarter above the longest
   finished run on this package, 301; wall 300 minutes, the longest took 260), in

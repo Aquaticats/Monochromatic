@@ -4,9 +4,9 @@
 //!  report where there is none.
 //! Why:
 //!  The real btrfs ioctls need a btrfs filesystem under the fixture root.
-//! The container gate runs on an overlay,
-//! where
-//!  they cannot run.
+//! The container gate's fixture root is a tmpfs the container makes,
+//! which is never a btrfs
+//!  filesystem, so they cannot run there.
 //! A control that silently passed there would claim coverage it does not have,
 //! so a control that
 //!  needs btrfs fails with the reason unless the run states that the absence is known (the variable below,

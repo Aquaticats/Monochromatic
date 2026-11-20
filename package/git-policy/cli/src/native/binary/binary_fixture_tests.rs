@@ -4,7 +4,7 @@
 
 use super::support::{
     FIXTURE_ROOT_VARIABLE, Fixture, FixtureService, ServiceLaunch, fixture, missing_fixture_root_report, give_service_environment, remove_patiently, repository, service_runtime,
-    service_is_serving, settle_fixture, spawn_owned, start_fixture_service,
+    service_is_serving, settle_fixture, spawn_owned, start_fixture_service, system_temporary_directories,
 };
 use git_policy_cli::service_server::Bind;
 use std::path::{Path, PathBuf};
@@ -124,20 +124,26 @@ fn settling_keeps_removes_and_accepts_a_tree_that_is_gone() {
 }
 
 /// Fixtures are created in Cargo's per-target scratch directory,
-/// not in the system temporary directory,
-/// unless the
-/// person moved the root on purpose.
+/// never in the system temporary directory,
+/// and a run that moves the root keeps its fixtures out of the system temporary directory too.
 #[test]
 fn fixtures_are_created_outside_the_system_temporary_directory() {
-    if std::env::var_os(FIXTURE_ROOT_VARIABLE).is_some() {
-        return;
-    }
     let created: Fixture = fixture("location");
-    assert!(
-        created.root.starts_with(std::fs::canonicalize(env!("CARGO_TARGET_TMPDIR")).expect("target scratch")),
-        "{} is not under the target scratch directory",
-        created.root.display()
-    );
+    if std::env::var_os(FIXTURE_ROOT_VARIABLE).is_none() {
+        assert!(
+            created.root.starts_with(std::fs::canonicalize(env!("CARGO_TARGET_TMPDIR")).expect("target scratch")),
+            "{} is not under the target scratch directory",
+            created.root.display()
+        );
+    }
+    for directory in system_temporary_directories() {
+        assert!(
+            !created.root.starts_with(&directory),
+            "{} is under the system temporary directory {}",
+            created.root.display(),
+            directory.display()
+        );
+    }
 }
 
 /// What:

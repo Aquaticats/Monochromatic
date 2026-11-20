@@ -162,6 +162,11 @@ process that is already gone; the next look at the folder no longer lists it.
 Dropping the entry instead would give `ESRCH` and `ENOENT` different answers,
 which is the inconsistency this change removes.
 
+A failed read is not retried inside the wait: the scan looks again on its own
+interval, so a task released between the listing and the read costs one interval
+and no run, while a read that truly fails still reaches `workProblem` on the
+driver's watch.
+
 For a test, the read is the seam: `package/pi-shared/subagent-driver/src/reads-of-a-process-folder.ts`
 hands over the text and link reads, and a test replaces one with a function
 that throws an error carrying `code: 'ESRCH'`. A plain file in a fixture
