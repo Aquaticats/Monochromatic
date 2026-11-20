@@ -28,7 +28,11 @@ const UNDISPATCHABLE = {
   'before starting a session': { startSession: false, message: 'requires a started Pi session', },
   'with an unknown virtual model': { id: 'unknown-model', message: 'Unknown rate-limit-fallback model', },
   'with a mismatched registry model': { findModel: () => PHYSICAL_MODELS[1], message: 'Pi registry returned a different model', },
-  'without any registered member': { models: [], message: 'No writer member is registered in Pi', },
+  'without any registered member': { models: [], message: 'No writer-pool member is registered in Pi', },
+  // The pool table is a lookup over the package's own pools, so a key only an object prototype
+  // carries is no pool either.
+  'with an inherited object key': { id: 'constructor', message: 'Unknown rate-limit-fallback model: constructor', },
+  'with the prototype key': { id: '__proto__', message: 'Unknown rate-limit-fallback model: __proto__', },
 } as const;
 
 /**
@@ -80,7 +84,7 @@ const REJECTIONS = Object.entries(UNDISPATCHABLE,).map(function invalidEntry([la
         ...entry,
         play({ model, }) { return immediate({ model, },); },
       },);
-      const writer = poolModel({ provider, id: 'writer', },);
+      const writer = poolModel({ provider, id: 'writer-pool', },);
       const model = ('id' in entry) ? { ...writer, id: entry.id, } : writer;
       const { result, } = await collect(provider.stream(model, TRANSCRIPT, options,),);
       expect(result.stopReason,).toBe('error',);
@@ -92,6 +96,37 @@ const REJECTIONS = Object.entries(UNDISPATCHABLE,).map(function invalidEntry([la
 
 /** Catalog cases: the limits Pi reads before a member is dispatched. */
 const CATALOG = [
+  it({
+    name: 'lists the virtual models a session selects and routes with',
+    fn: async function virtualCatalog() {
+      const { virtualModels, } = await fixture({
+        extension,
+        play({ model, }) { return immediate({ model, },); },
+      },);
+      // Load registers the provisional pair, and the session binding registers it again with the
+      // registry's limits; the ids and provider stay the same on both passes.
+      expect(virtualModels.map(definition => definition.id,),).toEqual(['writer', 'reviewer', 'writer', 'reviewer',],);
+      expect(virtualModels.map(definition => definition.provider,),).toEqual(Array.from({ length: 4, }, () => 'rate-limit-fallback',),);
+    },
+  },),
+  it({
+    name: 're-registers its virtual models with the smallest member limits once a session binds',
+    fn: async function reboundVirtualLimits() {
+      const { virtualModels, } = await fixture({
+        extension,
+        models: [
+          memberWithLimits({ limits: { contextWindow: 40_000, maxTokens: 8_000, }, index: 0, },),
+          memberWithLimits({ limits: { contextWindow: 60_000, maxTokens: 4_000, }, index: 1, },),
+        ],
+        play({ model, }) { return immediate({ model, },); },
+      },);
+      // The session binding registers again, so the last registration of each id is the live one.
+      const writer = virtualModels.filter(definition => definition.id === 'writer',)
+        .at(-1,);
+      expect(writer?.contextWindow,).toBe(40_000,);
+      expect(writer?.maxTokens,).toBe(4_000,);
+    },
+  },),
   it({
     name: 'advertises the smallest limits its registered members report',
     fn: async function smallestLimits() {

@@ -204,3 +204,13 @@ One module carries the rustc `expect` attribute the rule accepts:
   (`package/linter/monochromatic-lint/README.md`,
   section "Suppression record").
   A lint that skipped closures inside items marked `#[automatically_derived]` would make the attribute unnecessary.
+
+## Owner answers of 2026-11-10
+
+- Asked whether the repository links in `package.json` (issue 1124) should be owned by a rule, the owner answered
+  at 2026-11-10T08:19:14-05:00: "A file-enforcer rule (Recommended)", for `repository` and `homepage`.
+- Asked whether the 30 packages with no `license` field (issue 2994) declare one, the owner answered at
+  2026-11-10T08:19:14-05:00: "LGPL-3.0-or-later (Recommended)", for the 27 that declared none.
+- Asked whether `file-enforcer` writes one MIT text per package, the owner answered at
+  2026-11-10T05:40:16-05:00: "One text per package (Recommended)". Agent `file-enforcer-mit-text-per-package`
+  builds it, and `fix/file-enforcer-issue-1645` stays off main.

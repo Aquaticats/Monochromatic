@@ -705,8 +705,7 @@ busy or unknown layout.
 ## Owner decision and what was built
 
 The owner's answers of 2026-11-07 (question tool,
-recorded at 2026-11-07T22:19:43-05:00 in
-`doc/handover/questions-for-the-owner.md`):
+recorded at 2026-11-07T22:19:43-05:00 in the questions file, whose section left for this file on 2026-11-19):
 
 - "A to F,
   B allowed (Recommended)":

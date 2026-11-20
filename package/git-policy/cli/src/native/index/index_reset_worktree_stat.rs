@@ -87,7 +87,8 @@
 //! const stat: StatData | undefined = recordedStat({ worktreeRoot, path, blob, mode, format, stamp, hashed });
 //! ```
 
-use crate::fs_beneath::{entry_metadata_at, open_directory_beneath, open_file_at, plain_components};
+use crate::fs_beneath::{entry_metadata_at, open_file_at, plain_components};
+use crate::fs_beneath_walk_chain::open_directory_beneath;
 use crate::index_reset_worktree_stat_source::WorktreeStatSource;
 use crate::index_stat::{IndexStamp, StatData};
 use crate::repo_read_layout::ObjectFormat;

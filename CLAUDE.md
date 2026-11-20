@@ -280,6 +280,13 @@ TSK:
 In progress means work or a run on it is live now;
  waiting is pending.
 
+TKT:
+ Task-list titles name the work in plain words,
+ imperative,
+ under twelve words;
+ state,
+ commit hashes and evidence go in the task's description or the handover.
+
 ### Pre-response checklist
 
 CK9:
@@ -303,6 +310,17 @@ WDQ:
  fix it.
 Intended behavior that could confuse gets documented where its users meet it,
  so they are not confused.
+
+RSN:
+ Everyone is reasonable from where they stand:
+ user,
+ owner,
+ client,
+ you.
+A choice or mistake looks stupid?
+ Find what its maker knew or heard that made it sensible;
+ keep,
+ question or fix that.
 
 HLD:
  A precaution that makes work wait (a hold,
@@ -905,11 +923,11 @@ NLD:
  `systemctl --user list-units`).
 
 NQH:
- Never wait for a quiet host or call one quiet:
- other sessions keep the load average up.
-Measure under the load there is,
- alternating arms with a same-binary control for the spread,
- and report counts.
+ Never wait for a quiet host or clean checkout:
+ other sessions load one and dirty the other.
+Design and measure for both as found,
+ alternating arms with a same-binary control;
+ report counts.
 
 NHR:
  Normal here,

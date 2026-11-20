@@ -18,16 +18,13 @@
  @module
  */
 
-import {
-  readFile,
-} from 'node:fs/promises';
 import { join, } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
-
-/**
- The code the operating system gives a path that is not there.
- */
-const MISSING_PATH_CODE = 'ENOENT';
+import { PROCESS_ENDED_CODES, } from './process-ended-codes.ts';
+import {
+  READS_OF_A_PROCESS_FOLDER,
+  type ReadsOfAProcessFolder,
+} from './reads-of-a-process-folder.ts';
 
 /**
  Where the parent's process number sits in the fields that follow the program's name on a `/proc/<pid>/stat` line: the state comes
@@ -41,11 +38,10 @@ const PARENT_FIELD = 1;
 const NO_PARENT = 0;
 
 /**
- The failures that mean a folder holds no record this account may read: the process ended, its entry is not a folder, or this
- account may not read it.
+ The failures that mean a folder holds no record this account may read: the record's entry is not a folder, or this account may not
+ read it. A process that ended is read as the same thing, by the codes {@link PROCESS_ENDED_CODES} names.
  */
 const UNREADABLE_RECORD_CODES: ReadonlySet<string> = new Set<string>([
-  MISSING_PATH_CODE,
   'ENOTDIR',
   'EACCES',
   'EPERM',
@@ -73,6 +69,8 @@ type RecordOfAProcess =
 
  @param name - name of the record, as the folder writes it
 
+ @param reads - how one record of a process is read, which a test replaces
+
  @returns the record's text, or that there is none this account may read
 
  @example
@@ -84,28 +82,31 @@ async function recordOf({
   processFolder,
   pid,
   name,
+  reads = READS_OF_A_PROCESS_FOLDER,
 }: {
   readonly processFolder: string;
   readonly pid: number;
   readonly name: string;
+  readonly reads?: ReadsOfAProcessFolder;
 },): Promise<RecordOfAProcess> {
   try {
     return {
-      text: await readFile(
-        join(
-          processFolder,
-          String(pid,),
-          name,
-        ),
-        'utf8',
-      ),
+      text: await reads.text(join(
+        processFolder,
+        String(pid,),
+        name,
+      ),),
     };
   }
   catch (error) {
+    /**
+     The code the operating system gave the read.
+     */
+    const code = errorCodeOf(error,);
     // A process that ended, one whose folder this account may not read, and one whose entry is not a folder have no record. The
     // caller reads that as no evidence either way, which is what a process list always holds for the processes that ended while
-    // it was read.
-    if (UNREADABLE_RECORD_CODES.has(errorCodeOf(error,),)) {
+    // it was read: the kernel answers `ESRCH` from a record whose task it released, and `ENOENT` from one already gone.
+    if (PROCESS_ENDED_CODES.has(code,) || UNREADABLE_RECORD_CODES.has(code,)) {
       return { unreadable: true, };
     }
     throw error;
@@ -154,6 +155,8 @@ function parentIn({ record, }: { readonly record: string },): number | typeof NO
 
  @param pid - process number whose parent is wanted
 
+ @param reads - how one record of a process is read, which a test replaces
+
  @returns process number of the process that started it, or {@link NO_PARENT_RECORD} when no record this account can read names one
 
  @example
@@ -164,9 +167,11 @@ function parentIn({ record, }: { readonly record: string },): number | typeof NO
 export async function parentOfProcess({
   processFolder,
   pid,
+  reads = READS_OF_A_PROCESS_FOLDER,
 }: {
   readonly processFolder: string;
   readonly pid: number;
+  readonly reads?: ReadsOfAProcessFolder;
 },): Promise<number | typeof NO_PARENT_RECORD> {
   /**
    The process folder's own record of that process.
@@ -175,6 +180,7 @@ export async function parentOfProcess({
     processFolder,
     pid,
     name: 'stat',
+    reads,
   },);
   if ('unreadable' in record) {
     return NO_PARENT_RECORD;
@@ -194,6 +200,8 @@ export async function parentOfProcess({
 
  @param rootPid - process a chain must reach: the run's own, which every process the run started descends from
 
+ @param reads - how one record of a process is read, which a test replaces
+
  @returns whether the chain reaches the root, which is false when it ends first, when one of its records cannot be read, and when a
  record names a process as its own ancestor
 
@@ -206,10 +214,12 @@ export async function descendsFrom({
   processFolder,
   pid,
   rootPid,
+  reads = READS_OF_A_PROCESS_FOLDER,
 }: {
   readonly processFolder: string;
   readonly pid: number;
   readonly rootPid: number;
+  readonly reads?: ReadsOfAProcessFolder;
 },): Promise<boolean> {
   // A process is no descendant of itself, which is what keeps the run's own process out of the work the run left running.
   if (pid === rootPid) {
@@ -231,6 +241,7 @@ export async function descendsFrom({
     const parent = await parentOfProcess({
       processFolder,
       pid: chain.at(-1,) ?? pid,
+      reads,
     },);
     if ((typeof parent) === 'symbol') {
       return false;

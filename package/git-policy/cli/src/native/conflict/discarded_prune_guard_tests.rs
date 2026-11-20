@@ -439,7 +439,10 @@ fn a_removal_that_fails_part_way_is_reported_and_audited_as_partial() {
     assert_eq!(lines[0]["outcome"], "partial");
     let mut gone: Vec<String> = before.iter().filter(|name| { return !remaining.contains(name); }).map(|name| { return (*name).to_string(); }).collect();
     gone.sort();
-    let listed: Vec<String> = lines[0]["copies"].as_array().expect("copies").iter().map(|each| { return each.as_str().expect("text").to_string(); }).collect();
+    let mut listed: Vec<String> = lines[0]["copies"].as_array().expect("copies").iter().map(|each| { return each.as_str().expect("text").to_string(); }).collect();
+    // The line lists the files in the order the walk removed them, which no file system promises, so both sides are
+    // compared by name: what the control holds is that the line names what went and nothing else.
+    listed.sort();
     assert_eq!(listed, gone, "the line names the files that went and no other");
     remove(root.as_path());
 }

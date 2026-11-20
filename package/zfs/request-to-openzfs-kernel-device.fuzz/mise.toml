@@ -1,0 +1,27 @@
+# The container campaign is the only fuzz path: the host's Rust sysroot is never
+# mounted into a container, so the fuzz image installs its own nightly toolchain
+# and cargo-fuzz at build time (rules RXI and NLG bound every container).
+
+[tasks.lock]
+description = "Regenerate the sidecar's Cargo lockfile without network; run after a change to its dependency list"
+run = "cargo generate-lockfile --offline"
+
+[tasks."lock:members"]
+description = "Record a changed dependency or dependency version of the subject in this lockfile without moving any other locked version"
+run = "cargo update --offline --workspace"
+
+[tasks.list]
+description = "List registered fuzz targets"
+run = "cargo fuzz list --fuzz-dir ."
+
+[tasks."lint:types"]
+description = "Check the fuzz target compiles against the subject, with denied Clippy warnings"
+run = ["cargo check --all-targets --locked --offline", "cargo clippy --all-targets --locked --offline -- -D warnings"]
+
+[tasks.build]
+description = "Build the instrumented target in a 2 GiB / 2 CPU container; the container is removed, so this proves the compile and keeps no binary"
+run = "node bin/container.ts --build-only"
+
+[tasks.smoke]
+description = "Build the instrumented target, then run it for 30 seconds in a mount-free, network-free, bounded container"
+run = "node bin/container.ts"

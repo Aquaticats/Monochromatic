@@ -10,6 +10,8 @@ import {
   digitsEnd,
   foldProviderText,
   HTTP_RATE_LIMIT_STATUS,
+  isTransientStatus,
+  leadingStatus,
 } from './provider-wire-text.ts';
 
 //region Provider error and timestamp formats
@@ -30,6 +32,11 @@ const l = tagged({ tag: 'rate-limit-fallback', },);
 const SECOND_MS = 1_000;
 
 /**
+ First HTTP status that refuses a request, where a `Retry-After` header applies.
+ */
+const HTTP_REFUSAL_START = 400;
+
+/**
  Alibaba Cloud's suggested pause for a request-rate error, not a quota cap.
 
  Quoted fragments from the Token Plan FAQ, section "Rate limiting and concurrency" and its error
@@ -37,19 +44,6 @@ const SECOND_MS = 1_000;
  minute before retrying" (https://www.alibabacloud.com/help/en/model-studio/token-plan-faq).
  */
 const QWEN_REQUEST_RATE_WAIT_MS = 60_000;
-
-/**
- Status text used by adapters when no structured status is available.
- */
-const RATE_LIMIT_STATUS = String(HTTP_RATE_LIMIT_STATUS,);
-
-/**
- Pi's OpenAI Responses adapter labels every failure it formats as `<Provider> API error (<status>):`,
- with `OpenAI` standing in for the provider id `openai` and the bare provider id for any other
- (`@earendil-works/pi-ai` dist/api/openai-responses.js:177; `formatProviderError` renders the label
- and status in dist/utils/error-body.js).
- */
-const RESPONSES_ERROR_SUFFIX = ` api error (${RATE_LIMIT_STATUS}):`;
 
 /**
  Distinguishes OpenAI's policy stop from a 429 that only mentions risk.
@@ -71,64 +65,37 @@ const POLICY_LABELS = [
 ] as const;
 
 /**
- Whether the folded text opens with a Responses adapter failure label carrying HTTP 429.
+ Whether the failure is a refusal the pool may hand to the next member because the provider is
+ temporarily unable to serve it: HTTP 503, or one of Cloudflare's origin statuses 520 to 526.
 
- @param message - case-folded terminal message
+ The status comes from Pi's adapter when it exposed one, and otherwise from the status the refusal's
+ own text opens with, exactly as a 429's does.
 
- @returns whether the text starts with `<provider> API error (429):`
+ @param message - terminal assistant result, which never represents a successful reply here
+
+ @param status - actual HTTP status when Pi's adapter exposed it
+
+ @returns whether dispatch may try the next member
+
+ @example
+ ```ts
+ isTransientRefusal({ message: { stopReason: 'error', errorMessage: '523: <html>' } }); // true
+ ```
  */
-function startsWithResponsesRateLimit(message: string,): boolean {
-  /**
-   Offset where the adapter's fixed suffix begins, or minus one when absent.
-   */
-  const suffixAt = message.indexOf(RESPONSES_ERROR_SUFFIX,);
-  if (suffixAt <= 0)
-    return false;
-  // The adapter's label is one word, so whitespace before the suffix means the text is not one.
-  for (let index = 0; index < suffixAt; index += 1) {
-    /**
-     Case-folded character at the current label position.
-     */
-    const character = message[index];
-    /**
-     Whether that character is any whitespace a label cannot hold.
-     */
-    const whitespace = (character === ' ')
-      || (character === '\t')
-      || (character === '\n')
-      || (character === '\r');
-    if (whitespace)
-      return false;
-  }
-  return true;
-}
-
-/**
- Check the leading status token, without treating an unrelated mention of 429 as a failure status.
-
- A recorded provider message begins `429 "…"` as well as `429: {…}`, so a space, tab, colon or the
- end of the text closes the status token; a digit or letter after it means the number is not a status.
-
- @param value - terminal error text from the adapter
-
- @returns whether the message starts with HTTP 429
- */
-function startsWithRateLimit(value: string,): boolean {
-  /**
-   Case-folded terminal message, with no leading whitespace removed.
-   */
-  const message = foldProviderText(value,);
-  if (startsWithResponsesRateLimit(message,))
-    return true;
-  if (!message.startsWith(RATE_LIMIT_STATUS,))
+export function isTransientRefusal({
+  message,
+  status,
+}: {
+  readonly message: FailureEvidence;
+  readonly status?: number;
+},): boolean {
+  if (message.stopReason !== 'error')
     return false;
   /**
-   Character after the status token, absent when the status is the whole message.
+   Status the adapter exposed, or the one the refusal text opens with.
    */
-  const boundary = message[RATE_LIMIT_STATUS.length];
-  return (boundary === undefined) || (boundary === ':')
-    || (boundary === ' ')
-    || (boundary === '\t');
+  const refusalStatus = status ?? leadingStatus(message.errorMessage ?? '',);
+  return (refusalStatus !== 0) && isTransientStatus(refusalStatus,);
 }
 
 /**
@@ -155,25 +122,32 @@ export function hasOpenAiPolicyOpening(message: FailureEvidence,): boolean {
 }
 
 /**
- Match policy text without misreading an HTTP 429 that merely mentions a policy or risk.
+ Match policy text without misreading a refusal that merely mentions a policy or risk.
+
+ A 429 and a transient provider failure are refusals the pool hands to the next member, so neither
+ may become a stop through wording inside a body: only OpenAI's opening outranks them.
 
  @param message - failed provider message
 
  @param rateLimited - whether the adapter text or response supplied a 429 status
 
+ @param transient - whether the adapter text or response supplied a 503 or Cloudflare 52x status
+
  @returns whether Pi should see a non-retryable policy error
 
  @example
  ```ts
- isPolicyStop({ message: { stopReason: 'error', errorMessage: 'Possible risk' }, rateLimited: false });
+ isPolicyStop({ message: { stopReason: 'error', errorMessage: 'Possible risk' }, rateLimited: false, transient: false });
  ```
  */
 export function isPolicyStop({
   message,
   rateLimited,
+  transient,
 }: {
   readonly message: FailureEvidence;
   readonly rateLimited: boolean;
+  readonly transient: boolean;
 },): boolean {
   if (message.stopReason !== 'error')
     return false;
@@ -185,7 +159,7 @@ export function isPolicyStop({
   // quotes it is a non-retryable stop rather than a rate limit; only the move needs it at the start.
   if (text.includes(OPENAI_POLICY_OPENING,))
     return true;
-  if (rateLimited)
+  if (rateLimited || transient)
     return false;
   if (text.includes('possible risk',))
     return true;
@@ -227,7 +201,8 @@ export function isRateLimit({
   readonly status?: number;
 },): boolean {
   return (message.stopReason === 'error')
-    && ((status === HTTP_RATE_LIMIT_STATUS) || ((status === undefined) && startsWithRateLimit(message.errorMessage ?? '',)));
+    && ((status === HTTP_RATE_LIMIT_STATUS)
+      || ((status === undefined) && (leadingStatus(message.errorMessage ?? '',) === HTTP_RATE_LIMIT_STATUS)));
 }
 
 /**
@@ -572,9 +547,10 @@ export function headerReset({
   status: number;
 },): number {
   /**
-   Explicit retry hint, valid only on a refused HTTP request.
+   Explicit retry hint, read from any refused HTTP request: a 429 and a 503 or Cloudflare origin
+   failure alike name when the request may return.
    */
-  const retryAfter = status === HTTP_RATE_LIMIT_STATUS ? headers.get('retry-after',) ?? '' : '';
+  const retryAfter = status >= HTTP_REFUSAL_START ? headers.get('retry-after',) ?? '' : '';
   /**
    Retry-After converted to an absolute timestamp.
    */

@@ -381,7 +381,7 @@ with one exception,
 named by the owner on 2026-11-10 in the question tool as the answer
 "A commit adds the dependents' manifests and updates them in the worktree when that copy still matches `HEAD`",
 to the question recorded in
-`doc/handover/questions-for-the-owner.md`,
+`doc/planning/cli-git-config-and-dependent-version-route-findings-on-main.md`,
 and decided on 2026-09-15
 (`doc/decision/private-npm-registry.md:158-177`):
 a hand bump of a workspace manifest carries its dependents' patch bumps in the same commit,
@@ -5197,6 +5197,458 @@ except
 a Zig project cache (`.zig-cache`,
 left out of a copy as a cache) and uv virtual environments (no project of this repository has
 one).
+
+### The descriptor mount of a ZFS worktree clone
+
+A clone's mount is attached to the folder the handler opened,
+never to a path,
+and the folder is compared with the identity recorded for it before and after the attach.
+This section states the host half of the ZFS worktree plan's step 4
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+"Step 4:
+The descriptor attach,
+its identity checks and its rollback"):
+the walk,
+the recorded identity,
+the store,
+the flags,
+the post-attach check,
+the rollback,
+the refusals and the adoption decision.
+They are built and controlled on fixture folders in
+`package/git-policy/cli/src/native/worktree_clone_mount/`.
+The mount calls themselves (`fsmount`,
+`move_mount`,
+the rollback's unmount)
+and every arm that needs a real mount run in the throwaway guest the plan's step 2 provides;
+"What the guest still owes" names what waits for them.
+Nothing here is a path-based mount or unmount on the account's tree.
+
+#### The walk
+
+The walk starts from the checkout Git reports:
+its path is compared with its own canonical form and refused when the two differ,
+and the folder it names is opened as the walk's own root and reached one plain name at a time,
+first `.claude/worktrees` and then the slot below it.
+Each step is an `openat2` of one component with `RESOLVE_BENEATH`,
+`RESOLVE_NO_SYMLINKS`,
+`RESOLVE_NO_XDEV` and `RESOLVE_NO_MAGICLINKS`,
+and the walk keeps one descriptor per folder,
+so a folder renamed after its open is still the folder that was judged.
+A symbolic link,
+a mount point,
+a folder on another device and a name that is not one plain component are each refused,
+and the refusal names the component as a person reads it below the checkout.
+`RESOLVE_NO_XDEV` refuses a mount point but not a btrfs subvolume,
+which is another device without being one,
+so the slot's own device is compared with the checkout's as well:
+a slot that is a nested subvolume is refused like a mount.
+A slot's name is checked by the same rule the store keys its record by,
+so a name with a slash,
+a space,
+a control character,
+a leading dot or `.`/`..` is refused before any folder is opened.
+`openat2` needs Linux 5.6.
+
+A checkout path that is not already its own canonical path is refused before the walk starts:
+resolving it would mean walking from whichever folder the account's link names,
+so the walk never resolves the path it is given,
+and the refusal names the canonical path that does stand.
+`git rev-parse --show-toplevel` prints that canonical path:
+measured on this host at 2026-11-20T01:57:00-05:00 in a throwaway repository reached through a symbolic link,
+`pwd` printed the link and the command printed the folder it names,
+so a caller that passes what Git reports passes the path this walk accepts.
+Ancestor links get no exception either:
+the compare reads paths and consults no owner,
+so a path reached through a link root owns is refused as well.
+
+After an attach the slot is a mount point,
+so the second walk,
+the one the post-attach check repeats,
+crosses a mount only at the slot itself:
+the last hop keeps `RESOLVE_BENEATH`,
+`RESOLVE_NO_SYMLINKS` and `RESOLVE_NO_MAGICLINKS` and omits `RESOLVE_NO_XDEV`,
+while every folder above the slot still refuses a crossing.
+The unmount route's own final hop is the plan's step 9;
+this section owns only the hop the post-attach check reads.
+
+A slot is opened twice:
+for reading,
+because the ACLs can only be read through a reading descriptor,
+and as the mount target,
+which may be a path-only descriptor.
+The two must name one folder,
+compared by device,
+inode and birth time;
+two descriptors that name different folders refuse the walk,
+because the name moved between the two opens.
+A folder that was opened and whose own facts cannot be read,
+such as its identity or a mount number,
+is its own refusal:
+the folder was opened,
+and what could not be read is said in those words.
+
+#### The recorded identity
+
+The route records six fields for a folder it may act on:
+its device,
+its inode,
+its owning user,
+its permission bits,
+its access ACL and its default ACL.
+All six are read through the open descriptor:
+the four numbers from the descriptor's own metadata,
+and the two ACLs as the kernel's raw extended-attribute bytes
+(`system.posix_acl_access` and `system.posix_acl_default`),
+so an ACL change is compared byte for byte and cannot pass a mode-only check.
+The design's item 2 measured exactly that drift:
+an ACL change with the mode unchanged.
+
+Two identities are compared field by field,
+in a fixed order,
+and the refusal reports every field that differs and both recorded and found values.
+A changed identity is never permission to adopt the replacement:
+nothing in this route refreshes a slot identity because a new inode,
+a new mode or a new ACL appeared.
+Nothing re-reads the mode or the ACLs between that compare and `move_mount`,
+so a change made inside that window is not seen:
+the compare catches a substitution made before it,
+not one made after.
+
+#### The recorded identities store
+
+The store is one file under root control:
+`/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities`.
+Its grammar is one record per line,
+the first line being the file's own header,
+with `#` starting a line that says nothing about an identity.
+No comment stands above the header:
+the first line that is not empty must be the header itself,
+and a comment may only follow it.
+
+```text
+# monochromatic-git-policy-cli worktree clone slot identities, version 1
+# one record per slot, written once by the sweep that first verified the clone
+parent - 66304:306:1000:0755:0200000001000700ffffffff02000500e803000004000500ffffffff10000500ffffffff20000500ffffffff:-
+slot example 66304:901:1000:0755:-:-
+```
+
+A record's three fields are its kind (`parent` or `slot`),
+its key (`-` for the parent folder,
+the slot's name for a slot),
+and its identity token `device:inode:owner:mode:access:default`.
+The mode is four octal digits of permission bits,
+and each ACL is its bytes in lowercase hexadecimal,
+with `-` for a folder that has none.
+Those bytes are the kernel's own value of `system.posix_acl_access` or `system.posix_acl_default`:
+a version word of `02000000` followed by one eight-byte entry per
+`(tag, permission, id)`,
+so an ACL read from a folder copies into the store as it is.
+An empty field and an uppercase digit are not tokens this grammar writes,
+so a line holding either is refused rather than read.
+A slot's key is one plain folder name:
+no slash,
+no space,
+no control character,
+no leading dot,
+and neither `.` nor `..`.
+
+The device field is the device number the kernel assigned the filesystem the folder is on,
+not the dataset's own identity,
+and on ZFS that number is anonymous and per mount:
+`stat --format=%d /home` answered `57` while `/proc/self/mountinfo` listed that dataset as `0:57 ... - zfs zpcachyos/ROOT/cos/home`
+(measured on this host at 2026-11-20T00:08:07-05:00).
+Whether the same number comes back after a reboot or after an export and import of the dataset is unmeasured:
+this host may not reboot for a change like this one.
+When it does not,
+every recorded identity differs after a boot and a slot record is never refreshed,
+so every attach against it refuses until an administrator adopts the replacement.
+The measurement that settles it is the guest's own boot arm:
+record a parent identity and a slot identity,
+reboot the guest,
+read the store and the folders' `stat --format=%d` again,
+and repeat the arm with an export and import of the dataset in between.
+The plan's step 8 is the first step that depends on the answer.
+
+Reading refuses the whole file when any line is not one this repository wrote,
+naming the line,
+and when one key is recorded twice,
+because a skipped or doubled line would let a slot be compared against nothing or against two identities.
+The read is bounded at one mebibyte,
+which a header and thousands of slot lines fit inside,
+and a larger file is refused by that bound rather than read into memory.
+A missing file refuses and names the setup run that writes it.
+
+The route reads the store through `SlotIdentityStore::read_under_root_control`,
+which refuses a file whose owner is not root or whose group or other write bit is set,
+and refuses the folder that holds it on the same two terms:
+a record the attach's account could rewrite would decide nothing.
+The grammar's own reader (`read`) is what a caller uses once it holds such a file,
+and what the controls drive on fixture files.
+The route's two writes make the same refusal inside the step that writes:
+`append_slot_identity_under_root_control` takes the lock,
+checks the lock file,
+the store file and the folder that holds it,
+and then appends,
+and `record_parent_identity_under_root_control` takes the lock,
+checks the lock file and reads the store through the route's reader,
+and then replaces the parent record.
+A caller that read the store first covers nothing,
+because the file it judged is not the file the write opens.
+
+A slot's record is written once,
+by the first sweep that verifies that clone (the plan's step 8).
+The read that finds no record for the slot and the append that records it are one step,
+under one exclusive `flock` of a lock file beside the store,
+so two sweeps that meet on one slot record it once:
+without that lock both would read no record,
+both would append,
+and the duplicate would refuse every later read until an administrator edited a root-owned file.
+A second record for the same slot is refused.
+
+The lock stands on `git-worktree-clone-slot-identities.lock` beside the store,
+which the append makes root's own with mode `0600`,
+and never on the store itself:
+an exclusive `flock` needs no write bit of the file it locks,
+so a lock on the store is one every account that may read the store could hold,
+and that account would stall root's own sweep.
+The lock is asked for without waiting (`LOCK_NB`) and given up after two seconds,
+which is 55 times the slowest hold measured through these two writers on this host's ZFS home dataset:
+1.577 to 2.243 ms for an append on a 1000-slot store,
+31.657 to 33.926 ms for an append on the widest store one read accepts,
+and 33.483 to 35.976 ms for that store's adoption,
+the slowest holder
+(the method,
+every sample and the `fsync` that reached the pool's device stand beside `STORE_LOCK_WAIT`),
+so a holder that never finishes refuses the write and says which lock file stood in the way
+instead of holding the command open.
+The kernel releases the lock when the descriptor closes however the run ends,
+so a killed run leaves no lock behind.
+That lock is the one place this route is not lock-free:
+the grammar's one file cannot be made safe by atomic rename,
+because two first-recording sweeps that both rebuild the file would let the later rename record an identity
+taken from a folder that changed in between,
+which is the refresh the design forbids.
+A folder with one file per slot,
+each made with `O_EXCL`,
+would record each slot without a lock and lose the one state a single read sees;
+this implementation keeps the single file,
+and the owner has not approved that format
+(the question is in `doc/handover/questions-for-the-owner.md`).
+The lock covers one read,
+check and append of one record,
+and the adoption's read and rename of the whole file,
+and nothing else.
+The parent folder's record is written by the setup run (the plan's step 19),
+and only the administrator's adoption replaces it;
+that write reads the store and publishes a whole new file by rename while it holds the same lock an append holds,
+keeping every slot record it read,
+so no append can land between its read and its rename and be dropped;
+the mode runs with managed operations quiesced because the design requires that of the adoption,
+not because this write needs it.
+The store's path is given to the module by its caller,
+so a control injects a fixture path and nothing writes under `/var/lib` in a test.
+
+One store describes one checkout:
+its parent record is keyed `-` and a slot's record by the slot's name alone,
+so a second checkout's `.claude/worktrees` never matches the parent record,
+and its slot named like an existing one can never be recorded.
+That is the design's single managed checkout and the file is machine-global;
+the parent-identity refusal names the checkout it compared.
+This grammar is this implementation's own:
+the design and the plan name the file and the fields,
+not their encoding.
+
+#### The flags
+
+The attach is to call `fsmount` and to pass `MS_NOSUID | MS_NODEV`.
+No command reaches this folder yet:
+no code here calls `fsmount`,
+`move_mount` or an unmount,
+and the module is driven by controls and by the guest's root-run integration test until the plan's step 5 adds the mode that calls it.
+Both flags are enforced by the mount itself rather than trusted from a dataset property,
+because item 7 measured a root-owned setuid executable gaining effective UID 0 on an unrestricted clone mount
+and keeping the account's UID with the restriction.
+`fsmount` needs Linux 5.2,
+as does `move_mount`.
+The guest arm reads both flags back from `/proc/self/mountinfo` for the mount at the slot;
+that read-back is owed ("What the guest still owes").
+
+#### The post-attach check
+
+After `move_mount` puts the mount on the opened target,
+the check repeats the walk from the checkout and compares five facts:
+
+- The walk reaches a parent folder whose identity is the one the attach held.
+  A parent folder replaced after the attach is a refusal,
+  and so is a walk that no longer reaches the slot.
+- The held target's own descriptor is on the mount the attach recorded,
+  read from it after `move_mount` returned.
+  The design's first proof is this one taken literally:
+  the folder the attach acted through is the folder that had to receive the mount,
+  whatever a later lookup of the slot finds,
+  and a held target on another mount is a refusal.
+- The mount the slot is on is the mount the attach recorded,
+  read from the descriptor `fsmount` returned.
+  Another mount at the slot is a refusal.
+- That mount hangs on the mount the walk's parent folder is on.
+  A mount that hangs elsewhere is not the attach this command made.
+- The slot's descriptor names the canonical slot path.
+  A descriptor that names another path is a refusal.
+
+The check records the mount's identity:
+its mount ID and parent mount ID,
+its mount point and source and filesystem type from `/proc/self/mountinfo`,
+and the slot's device,
+inode and observed path.
+When all five hold it answers that the mount is the attach's own;
+one that does not is rolled back.
+
+The real `move_mount` onto a clone's mount and the five comparisons against a real mount are owed to the guest.
+The host controls prove the comparisons on fixture folders:
+a renamed `.claude`,
+a replaced parent folder,
+a held target on another mount and a different mount number are each refused,
+and an untouched slot passes.
+The held target's comparison is shown with the numbers a real mount would report,
+because a fixture folder cannot change mounts.
+
+#### The rollback of a misplaced attach
+
+The project decided "Roll back at once (Recommended)"
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+"Misplaced attach" under "Project decisions").
+A misplaced attach is planned as one unmount of the exact mount the attach recorded,
+acting on the descriptor the attach acted through,
+with neither force nor lazy detach.
+The plan carries that descriptor,
+the held target the attach mounted onto,
+and gets the path it reports from the descriptor rather than from a caller,
+so an unmount has no path to resolve again and a plan cannot be copied to a second holder.
+The plan refuses when the recorded mount number is the mount the folders were already on,
+because that number proves no attach,
+and when the held target's descriptor names no path a report can carry,
+because a report and an administrator would both be sent nowhere.
+
+A completed rollback reports the mount and both paths:
+the path it landed on and the canonical slot.
+A failed rollback retains the mount and reports the same facts,
+the failure,
+that nothing else was tried,
+and the administrator's way forward:
+the exact mount is taken down through the descriptor unmount route,
+by a fresh process that verifies the mount number and the clone's source first.
+That is the stranded state the acceptance asks a report to show,
+and a second move against an unverified mount is never issued.
+
+The rollback's own unmount,
+and a rollback that really fails,
+are owed to the guest.
+The host controls prove the plan and the descriptor it carries,
+the refusal of an identity that proves no attach,
+and both reports.
+
+#### The refusals
+
+Every refusal names the failing component or field and every way forward:
+
+- A link,
+  a boundary or a missing folder:
+  the component as a person reads it below the checkout,
+  and what to do about a link,
+  a mount crossing,
+  a missing slot or a name that is no plain component.
+- A parent or slot identity that moved:
+  every field that differs,
+  the recorded and the found values,
+  and that a record is never refreshed by a change.
+- A folder that was opened and whose own facts could not be read:
+  its identity or a mount number,
+  named as a read of the folder's own facts rather than as an open that failed.
+- The store:
+  its path,
+  the line number for a line it cannot read,
+  and the run that writes it or the administrator's copy to restore.
+- A store that is not under root control:
+  the file or the folder that is not,
+  the owner or the permission bits that say so,
+  and the setup run as root or the administrator's copy as the way forward.
+- An append the store did not keep:
+  its path and the failure,
+  said as a write rather than a read,
+  with the torn-record repair and the folder's free space and permissions to check.
+- A slot that changed between its two descriptors:
+  both identities and that nothing is mounted onto a folder that moved between two looks.
+- A rollback that cannot be planned:
+  the mount number that proves no attach and the table to read before anything else runs.
+
+#### The administrator's adoption
+
+Only an administrator may record a replacement `.claude/worktrees` folder after a checkout restore
+or a controlled recreation,
+and the mode runs with managed operations quiesced.
+The decision holds no device and starts no mount:
+its inputs are the no-crossing walk's answer,
+the device and inode the administrator identified independently from the restored checkout,
+the policy,
+every affected binding,
+every surviving slot the store records and a fresh canonical lookup.
+The surviving slots are the store's own `slot_names`,
+and a recorded slot the caller lists no state for is a refusal:
+an empty list must not pass for a checkout with nothing to reconcile.
+The policy is the recorded folder's own owner,
+mode and ACLs,
+so a replacement cannot come back wider than the folder it replaces.
+
+The decision refuses,
+in this order:
+
+- a walk that refused a link,
+  a boundary,
+  a missing folder or a name that is no plain component;
+- a held folder that is not the identified device and inode;
+- a held folder whose owner,
+  mode,
+  access ACL or default ACL differs from the policy;
+- a binding that could not be resolved to a live or a staged mount,
+  reported with the recovery it needs;
+- a slot the store records that the caller listed no state for;
+- a surviving slot that differs from its record,
+  because an adoption never overwrites a surviving slot identity;
+- a fresh canonical lookup that refused or reached another folder.
+
+When every step agrees,
+the decision answers with the held folder's own identity,
+and the caller records it as the parent record.
+The mode's dispatch is the plan's step 5;
+this section owns the decision table and the store write it leads to.
+
+#### What the guest still owes
+
+Every arm below needs mount authority in a throwaway mount namespace over a file-backed pool,
+which is why none of them runs on this host:
+
+- `fsmount` with `nosuid,nodev`,
+  `move_mount` onto the held target,
+  and the read-back of both flags in `mountinfo` after the attach.
+- The five post-attach comparisons against a real mount,
+  the held target's own mount among them,
+  and the decoy control of H1 gate 1:
+a path mount that reaches a disposable decoy,
+  proved to be observed before any no-mount assertion is trusted.
+- The rollback of a real misplaced attach,
+  a rollback that really fails with a retained mount,
+  and the stranded state's report.
+- Repeated bounded slot renames during real mounts,
+  with schedules not synchronized to the handler's checks,
+  and the replacement of the staging and checkout mounts until a private setup is verified.
+- The setuid and device controls of item 7 against the built attach,
+  including a confined user namespace that may not attach with other flags.
+
+The root-run integration test the plan suggests calls this module directly,
+because no account-side binary dispatch exists until step 5;
+it is the driver for those arms.
+The `first-attach` record a separate start-probe design assigns to this step is not part of this section.
 
 ### Post-commit
 
@@ -11331,8 +11783,9 @@ asked "Should the wrapper switch fsmonitor off for its own internal Git commands
 "B:
 off for internal Git (Recommended)"
 (2026-11-10;
-`doc/handover/questions-for-the-owner.md`,
+`package/git-policy/cli/README.md`,
 "The wrapper's own Git and fsmonitor";
+that questions-file section left for it on 2026-11-19;
 this amends the decision of 2026-11-03,
 which stands for the person's own Git).
 So the setting is off in the person's global configuration,
@@ -13225,8 +13678,9 @@ so no round can publish a commit whose post-commit gate has not decided.
 Nothing releases a held record by judging a process:
 a push whose command died before its checks ran stays
 held,
-and the question of whether it should ever be pushed is open with the owner
-(`doc/handover/questions-for-the-owner.md`).
+and whether it should ever be pushed is open with the owner
+(`doc/handover/questions-for-the-owner.md` under "Choices the session made itself",
+"A commit whose command died before its checks ran now stays local").
 A held commit is not stranded by that:
 the queue pushes a branch,
 `git push <remote> <branch>:<target>`,
@@ -15786,8 +16240,9 @@ quoting every path value under git-config value syntax at the final interpolatio
 
 The creation of a shadow is about forty calls that create a directory entry on the volume a commit already waits on,
 and the owner chose to stop paying it on every commit
-(`doc/handover/questions-for-the-owner.md`,
-"May a commit take its private repository from a pool made ahead?",
+(this section; the questions file's section "May a commit take its private repository from a pool made ahead?"
+left for it on 2026-11-19,
+with the answer
 "Pool made ahead (Recommended),
 We don't need to build a shadow for every commit.
 Be smarter.").
@@ -20086,8 +20541,7 @@ The warning never changes the landing.
 ### The remote settings every worktree shares
 
 The owner answered "Refuse in worktrees (Recommended)" on 2026-11-10
-(`doc/handover/questions-for-the-owner.md`,
-"A push URL changed from a worktree"),
+(this section; the questions file's section "A push URL changed from a worktree" left for it on 2026-11-19),
 after a worktree of this repository ran `git remote set-url --push origin DISABLED` as if it were a clone.
 Every worktree of a repository shares one `.git/config`,
 so that change broke every push of the main checkout until someone removed the entry,
@@ -20836,12 +21290,16 @@ Before release readiness:
 
 - the package README exists and matches this interface;
 - Clippy reports no warning and the crate's tests pass in the bounded container
-  (`mise run //package/git-policy/cli:native:test:container`);
+  (`mise run //package/git-policy/cli:native:test:container`),
+  with Clippy running the Rust toolchain `toolchain.lock.json` records
+  (the gate refuses, naming the missing component, when that toolchain has no Clippy);
 - the btrfs controls pass on this host,
   which a release that is not an alpha waits for before it dispatches
   (`mise run //package/git-policy/cli:native:release:host-controls`):
-  the container gate runs on an overlay filesystem,
-  where each of those controls prints `BTRFS CONTROL NOT RUN`,
+  the container gate's fixtures live on a tmpfs the container makes
+  (`bin/native-gate-fixture-root.ts`),
+  so no fixture root there is a btrfs filesystem,
+  and each of those controls prints `BTRFS CONTROL NOT RUN`,
   passes,
   and leaves the container run no evidence they work on btrfs;
   a real release refuses to dispatch when one of them fails,

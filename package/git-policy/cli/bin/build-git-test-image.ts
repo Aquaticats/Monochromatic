@@ -5,7 +5,8 @@
 
  `native:test:container` does the same before it builds the gate image, so this runner exists to build the base ahead of
  time, to rebuild it after a CachyOS update with chosen limits, and to prove what it holds. It pulls the `latest` tag and
- builds only when the pull or `native-test-base.Containerfile` is new to this host.
+ builds only when the pull, `native-test-base.Containerfile` or the browserslist data lock that file's build reads is new
+ to this host.
  */
 import {
   mkdir,

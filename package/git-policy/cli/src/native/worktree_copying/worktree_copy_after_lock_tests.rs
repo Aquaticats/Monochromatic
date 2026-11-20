@@ -5,7 +5,8 @@
 //! and no command waits for the emptying.
 
 use super::*;
-use crate::fs_beneath::{ObjectId, identity_at, identity_of, open_directory_at, open_directory_beneath, open_root, plain_components};
+use crate::fs_beneath::{ObjectId, identity_at, identity_of, open_directory_at, open_root, plain_components};
+use crate::fs_beneath_walk_chain::open_directory_beneath;
 use crate::test_support::{fixture, git_context, remove};
 use crate::work_item::{PENDING, WorkItem, WorkKind, state_directory};
 use crate::worktree_identity::WorktreeIdentity;
