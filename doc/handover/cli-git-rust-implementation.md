@@ -40680,7 +40680,26 @@ stated in this entry. What follows from them, as work:
   its folder): make the flagged paths hold Git's bytes with every control red then green in the gate image, the spread
   first and enough rounds with `main` as an arm, clean, dirty and a writing fixture, C and D timed and B if buildable,
   rung 1 in a btrfs guest, and its extra worktree `.claude/worktrees/clone-rung-conversion-fence-step3` removed. Then a
-  Sonnet gate review, then the owner's question.
+  Sonnet gate review, then the owner's question. THE LFS ROUND ended `idle` (238 turns) at `23d938de68` (its folder's
+  `keep/report-from-summary.md`): the agentless control at a pty and without one, the passphrase message naming
+  `eval "$(ssh-agent)"` then `ssh-add` or a key without a passphrase, the unknown host key refused with the "plain
+  `ssh <host>`" sentence (`FinalFailure::HostKeyNotKnown` stops the service's retry), F1 to F7 fixed with reds; 0 linter
+  findings on added lines; gate (on `8aebee60c9`, later commits comments only) 9305 of 9308: the cause-H pair and
+  `shadow::shadow_pool_member::tests::an_entry_no_commit_reads_that_the_repository_lost_is_no_refusal`, its second
+  full-gate failure (`gone: NotFound` at `shadow_pool_member_tests.rs:362`: an entry the test wrote into `.git` was gone
+  before the test removed it). GOING: the LFS integration pass on Sonnet in
+  `.claude/worktrees/integrate-git-policy-cli-lfs-no-prompt-at-a-terminal` (brief under
+  `~/temp/agent/integration-pass-lfs-after-the-narrow-check-findings-and-owner-answers-2026-11-20/`). The shadow test is
+  issue 6325; GOING: `pi-git-policy-cli-shadow-pool-entry-gone-fix` (cap 450) on
+  `fix/git-policy-cli-shadow-pool-test-entry-gone-before-removal` in `.claude/worktrees/git-policy-cli-shadow-pool-entry-gone`
+  from `main`, to find which entry and what removed it (a product defect if the wrapper deletes common-directory state);
+  brief under `~/temp/agent/git-policy-cli-shadow-pool-entry-gone-before-removal-2026-11-20/`. THE PARTIAL-CLONE
+  PROPOSAL'S FIX ROUND ended `idle` (274 turns) at `131fcb347b` (its folder's `keep/report-from-summary.md`): H1 an open
+  cited limit; M1 a second staged-path answer with a red; M2 the linked-worktree refusal named, lift owed; M3 and M4
+  restated with controls (this round 0.63 with control 0.54, against a `main` arm it calls IO-starved); M5 measured at
+  300 (0.80, control 0.94) and 3,000 changed paths (0.92, control 0.76), the gain gone above a few hundred; ranking now
+  B > A > D > C, B needing a byte threshold and a changed-path bound. GOING: its Sonnet re-check (brief under
+  `~/temp/agent/gate-recheck-of-the-partial-clone-proposal-on-sonnet-2026-11-20/`), then the owner's question.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
