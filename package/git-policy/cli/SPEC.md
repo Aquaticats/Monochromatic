@@ -5407,6 +5407,9 @@ because a skipped or doubled line would let a slot be compared against nothing o
 The read is bounded at one mebibyte,
 which a header and thousands of slot lines fit inside,
 and a larger file is refused by that bound rather than read into memory.
+An append that would make the file larger than that bound is refused before anything is written,
+so a store never grows past what its own read accepts;
+the widest store the writer grows is one record below the bound.
 A missing file refuses and names the setup run that writes it.
 
 The route reads the store through `SlotIdentityStore::read_under_root_control`,
@@ -5443,14 +5446,16 @@ an exclusive `flock` needs no write bit of the file it locks,
 so a lock on the store is one every account that may read the store could hold,
 and that account would stall root's own sweep.
 The lock is asked for without waiting (`LOCK_NB`) and given up after two seconds,
-which is 55 times the slowest hold measured through these two writers on this host's ZFS `home` dataset
-in an unoptimized `test` profile build:
-1.577 to 2.243 ms for an append on a 1000-slot store,
-31.657 to 33.926 ms for an append on a store of 96 per cent of the widest one read accepts,
-and 33.483 to 35.976 ms for that store's adoption,
-the slowest holder
+which is 25 times the slowest hold either run of the probe measured through these two writers
+on this host's ZFS `home` dataset in an unoptimized `test` profile build (`79.362 ms`):
+`1.600` to `2.159 ms` for one run's appends on a 1000-slot store and `1.586 ms` at the fastest in the other's
+(the medians were `1.647` and `1.985 ms`),
+`19.462` to `39.369 ms` for an append on a store of the whole bound one read accepts,
+and `47.116` to `52.750 ms` for that store's adoption,
+the arm that holds the lock longest (`37.9` times the wait)
 (the method,
 the ranges and counts,
+the append's size check that moved the probe's widest arm one record below the bound,
 and the control that shows each `fsync` reaching the pool's device,
 are in `package/git-policy/cli/doc/slot-identity-store-lock-hold.md`,
 which `STORE_LOCK_WAIT` names),
@@ -5505,8 +5510,8 @@ because item 7 measured a root-owned setuid executable gaining effective UID 0 o
 and keeping the account's UID with the restriction.
 `fsmount` needs Linux 5.2,
 as does `move_mount`.
-The guest arm reads both flags back from `/proc/self/mountinfo` for the mount at the slot;
-that read-back is owed ("What the guest still owes").
+The guest arm reads both flags back from `/proc/self/mountinfo` for the mount at the slot
+(`attach_arm_the_clone_lands_at_the_held_slot_with_the_enforced_flags`).
 
 #### The post-attach check
 
@@ -5516,12 +5521,20 @@ the check repeats the walk from the checkout and compares five facts:
 - The walk reaches a parent folder whose identity is the one the attach held.
   A parent folder replaced after the attach is a refusal,
   and so is a walk that no longer reaches the slot.
-- The held target's own descriptor is on the mount the attach recorded,
-  read from it after `move_mount` returned.
+- The mount the kernel resolves at the held target's name beneath the held parent
+  is the mount the attach recorded,
+  read by a fresh `openat2` of that name beneath the held parent after `move_mount` returned
+  (`mount_id_at_the_held_target`).
   The design's first proof is this one taken literally:
   the folder the attach acted through is the folder that had to receive the mount,
   whatever a later lookup of the slot finds,
-  and a held target on another mount is a refusal.
+  and a mount that landed beside that name is a refusal.
+  The held target's own descriptor is not that reader:
+  a descriptor keeps naming the mount it was opened on,
+  so it answers the parent's mount after a real attach,
+  and the guest measured exactly that.
+  The guest arm therefore reads this number through the module's own reader,
+  not through a path.
 - The mount the slot is on is the mount the attach recorded,
   read from the descriptor `fsmount` returned.
   Another mount at the slot is a refusal.
@@ -5538,14 +5551,17 @@ inode and observed path.
 When all five hold it answers that the mount is the attach's own;
 one that does not is rolled back.
 
-The real `move_mount` onto a clone's mount and the five comparisons against a real mount are owed to the guest.
+The real `move_mount` onto a clone's mount and the five comparisons against a real mount ran in the guest,
+the held target's comparison among them,
+through the module's own reader.
 The host controls prove the comparisons on fixture folders:
 a renamed `.claude`,
 a replaced parent folder,
 a held target on another mount and a different mount number are each refused,
 and an untouched slot passes.
-The held target's comparison is shown with the numbers a real mount would report,
-because a fixture folder cannot change mounts.
+The host control for the held target's comparison uses the numbers a fixture folder reports,
+because a fixture folder cannot change mounts;
+the guest arm is the one that reads a real mount through the module's reader.
 
 #### The rollback of a misplaced attach
 
@@ -5575,9 +5591,9 @@ by a fresh process that verifies the mount number and the clone's source first.
 That is the stranded state the acceptance asks a report to show,
 and a second move against an unverified mount is never issued.
 
-The rollback's own unmount,
-and a rollback that really fails,
-are owed to the guest.
+The rollback's own unmount ran in the guest,
+on a real misplaced attach through three rename trials;
+a rollback that really fails with the mount retained is owed to the guest.
 The host controls prove the plan and the descriptor it carries,
 the refusal of an identity that proves no attach,
 and both reports.
@@ -5662,25 +5678,47 @@ this section owns the decision table and the store write it leads to.
 
 #### What the guest still owes
 
-Every arm below needs mount authority in a throwaway mount namespace over a file-backed pool,
-which is why none of them runs on this host:
+The guest arms ran on 2026-11-20 in a throwaway `mvm` guest through
+`package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts`
+(`zfs-attach-pool`,
+`zfs-attach-arm`),
+as the `attach_arm_*` tests in
+`src/native/worktree_clone_mount/attach_arm_tests.rs`.
+What they ran,
+each with its `MEASUREMENT attach-arm` line in the recipe's suite log:
 
 - `fsmount` with `nosuid,nodev`,
   `move_mount` onto the held target,
-  and the read-back of both flags in `mountinfo` after the attach.
+  and the read-back of both flags in `mountinfo` after the attach (the `lands` line).
 - The five post-attach comparisons against a real mount,
   the held target's own mount among them,
-  and the decoy control of H1 gate 1:
-a path mount that reaches a disposable decoy,
-  proved to be observed before any no-mount assertion is trusted.
-- The rollback of a real misplaced attach,
-  a rollback that really fails with a retained mount,
-  and the stranded state's report.
-- Repeated bounded slot renames during real mounts,
-  with schedules not synchronized to the handler's checks,
-  and the replacement of the staging and checkout mounts until a private setup is verified.
-- The setuid and device controls of item 7 against the built attach,
-  including a confined user namespace that may not attach with other flags.
+  and a mount made beside the held slot that the first proof refuses (the `beside-proof` line).
+- The decoy control of H1 gate 1:
+  a path mount that reached a disposable decoy,
+  observed away from the checked slot (the `decoy` line).
+- The rollback of a real misplaced attach through three rename trials (the `rename-trial` lines).
+- Item 2's refusals with an account-owned parent and slot,
+  a clone mounted at another slot left alone through every one,
+  and a real clone mounted at the slot refused as a boundary (the `refusals` line).
+- Item 7's setuid control on the mount's enforced flags (the `setuid` line).
+
+What stays owed:
+
+- A rollback that really fails,
+  with the mount retained and the stranded state's report.
+- Slot renames during real mounts with schedules not synchronized to the handler's checks:
+  the arm's three trials are deterministic.
+- The replacement of the staging and checkout mounts,
+  until a private setup is verified.
+- Item 7's device control,
+  and a confined user namespace that may not attach with other flags.
+
+Item 2's measured arms map onto this module as follows:
+`openat2` through a `/proc/self/fd` path is refused as no canonical checkout path
+(`clone_slot_walk_tests::a_checkout_named_through_a_link_is_refused`,
+extended for the magic link),
+and a slot that already holds the clone's mount is refused as a boundary
+by the `refusals` arm with a real clone mounted there.
 
 The root-run integration test the plan suggests calls this module directly,
 because no account-side binary dispatch exists until step 5;
@@ -8722,7 +8760,8 @@ on the commit path:
   which happens when the command's `XDG_RUNTIME_DIR` is not the one the account's service manager runs with,
   because the unit names its address from the manager's own runtime directory.
   A runtime directory too long for a socket path is not such a cause:
-  the service is listened at an abstract name there, and the commit is made (`SPEC.md`,
+  the service is listened at an abstract name there,
+  and the commit is made (`SPEC.md`,
   "Where the service listens").
   A socket unit the manager already holds at another address is asked about before this command starts anything,
   so a runtime directory of its own leaves no unit listening for a worktree it never looks at.
@@ -16277,7 +16316,8 @@ quoting every path value under git-config value syntax at the final interpolatio
 
 The creation of a shadow is about forty calls that create a directory entry on the volume a commit already waits on,
 and the owner chose to stop paying it on every commit
-(this section; the questions file's section "May a commit take its private repository from a pool made ahead?"
+(this section;
+the questions file's section "May a commit take its private repository from a pool made ahead?"
 left for it on 2026-11-19,
 with the answer
 "Pool made ahead (Recommended),
@@ -20578,7 +20618,8 @@ The warning never changes the landing.
 ### The remote settings every worktree shares
 
 The owner answered "Refuse in worktrees (Recommended)" on 2026-11-10
-(this section; the questions file's section "A push URL changed from a worktree" left for it on 2026-11-19),
+(this section;
+the questions file's section "A push URL changed from a worktree" left for it on 2026-11-19),
 after a worktree of this repository ran `git remote set-url --push origin DISABLED` as if it were a clone.
 Every worktree of a repository shares one `.git/config`,
 so that change broke every push of the main checkout until someone removed the entry,
@@ -21329,7 +21370,9 @@ Before release readiness:
 - Clippy reports no warning and the crate's tests pass in the bounded container
   (`mise run //package/git-policy/cli:native:test:container`),
   with Clippy running the Rust toolchain `toolchain.lock.json` records
-  (the gate refuses, naming the missing component, when that toolchain has no Clippy);
+  (the gate refuses,
+  naming the missing component,
+  when that toolchain has no Clippy);
 - the btrfs controls pass on this host,
   which a release that is not an alpha waits for before it dispatches
   (`mise run //package/git-policy/cli:native:release:host-controls`):

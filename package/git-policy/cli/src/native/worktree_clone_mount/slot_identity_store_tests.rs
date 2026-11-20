@@ -351,7 +351,7 @@ fn the_adoption_waits_for_the_append_s_lock(name: &str, append: Append, adopt: A
 /// What:
 ///  The adoption's rewrite takes the same lock an append holds.
 /// Why:
-///  The scenario above is the proof;
+///  `the_adoption_waits_for_the_append_s_lock` is the proof;
 ///  this control runs it through the writers the grammar's own tests drive.
 #[test]
 fn the_adoption_waits_for_the_append_s_lock_and_never_drops_its_record() {
@@ -393,7 +393,7 @@ fn a_rewrite_between_the_lock_and_the_open_still_receives_the_record(name: &str,
 ///  The append opens the store only after it holds the lock,
 ///  so a rewrite that replaces the file in the window between them still receives the record.
 /// Why:
-///  The scenario above is the proof;
+///  `a_rewrite_between_the_lock_and_the_open_still_receives_the_record` is the proof;
 ///  this control runs it through the writer the grammar's own tests drive.
 #[test]
 fn the_append_opens_the_store_after_it_holds_the_lock() {
@@ -465,6 +465,41 @@ fn a_store_larger_than_the_read_accepts_is_refused() {
     assert!(refused.message().contains(STORE_MAXIMUM_BYTES.to_string().as_str()), "the bound is named: {}", refused.message());
     let inside: PathBuf = store(root.as_path(), &[parent_line(&identity(370))]);
     assert!(SlotIdentityStore::read(inside.as_path()).is_ok(), "positive control: a store inside the bound reads");
+    remove(root.as_path());
+}
+
+/// What:
+///  An append whose record would make the store larger than one read accepts is refused,
+///  nothing is written,
+///  and the file still reads;
+///  the same append on a store one record below the bound is the widest write the store accepts.
+/// Why:
+///  A store that grows past its own read bound is a file no read accepts,
+///  so the write that would do it refuses instead of leaving one
+///  (`StoreRefusal::WouldNotFit`).
+///  The fitting arm is the positive control:
+///  the same call,
+/// one record narrower,
+/// writes and lands exactly on the bound,
+///  so the refusal is the size and not a broken fixture.
+#[test]
+fn an_append_that_would_outgrow_the_store_is_refused() {
+    let root: PathBuf = fixture("slot-store-bound-append");
+    let path: PathBuf = root.join("slot-identities");
+    std::fs::write(&path, the_widest_store().as_str()).expect("a store of the whole bound");
+    let before: u64 = std::fs::metadata(path.as_path()).expect("metadata").len();
+    let refused: StoreRefusal = append_slot_identity(path.as_path(), "one", &identity(410)).expect_err("the widest store has no room");
+    assert!(matches!(refused, StoreRefusal::WouldNotFit { .. }), "{refused:?}");
+    assert!(refused.message().contains(STORE_MAXIMUM_BYTES.to_string().as_str()), "the bound is named: {}", refused.message());
+    assert_eq!(std::fs::metadata(path.as_path()).expect("metadata").len(), before, "nothing was written");
+    assert!(SlotIdentityStore::read(path.as_path()).is_ok(), "the store a refused append left still reads");
+    let boundary: usize = usize::try_from(STORE_MAXIMUM_BYTES).expect("the bound fits this machine's pointer width");
+    let room: usize = slot_line("one", &identity(410)).len() + 1;
+    let fitting: PathBuf = root.join("fitting");
+    std::fs::write(&fitting, a_store_of_whole_bytes(boundary - room).as_str()).expect("a store one record below the bound");
+    append_slot_identity(fitting.as_path(), "one", &identity(410)).expect("the widest append the store accepts");
+    assert_eq!(std::fs::metadata(fitting.as_path()).expect("metadata").len(), STORE_MAXIMUM_BYTES, "the append lands exactly on the bound");
+    assert!(SlotIdentityStore::read(fitting.as_path()).is_ok(), "the store the widest append left reads");
     remove(root.as_path());
 }
 
@@ -614,7 +649,7 @@ fn the_route_s_writes_refuse_a_store_or_lock_this_account_could_rewrite() {
     remove(root.as_path());
 }
 
-/// Environment variable that makes the control below run its inner half,
+/// Environment variable that makes `the_route_s_writers_hold_the_lock_step_the_grammar_s_do` run its inner half,
 /// inside a user namespace of its own,
 /// where this run's own files are root's.
 #[cfg(target_os = "linux")]
@@ -627,7 +662,8 @@ const ROOT_SIDE_ROUTE_WRITERS_VARIABLE: &str = "SLOT_IDENTITY_STORE_ROOT_SIDE_RO
 /// Why:
 ///  `mod.rs` re-exports these two writers and nothing else,
 ///  so they are the ones production calls and the ones an edit can break with no red;
-///  the same two scenarios run through the grammar's writers above,
+///  the same two scenarios run through `the_adoption_waits_for_the_append_s_lock` and
+///  `a_rewrite_between_the_lock_and_the_open_still_receives_the_record`,
 ///  and this control proves the pair the route actually uses.
 ///  Inside a user namespace this run is root and its own files are root's,
 ///  so the route's root-control checks pass on the fixtures.
@@ -695,15 +731,14 @@ fn a_store_of_slots(count: usize) -> String {
     return text;
 }
 
-/// A store text of exactly the bytes one read accepts:
+/// A store text of exactly `bytes` bytes:
 /// one parent record,
-/// as many slot records as fit below the bound,
+/// as many slot records as fit below that size,
 /// and a comment line that lands the file exactly on it.
 /// The slot records carry an ACL of `MEASUREMENT_ACL_BYTES`,
 /// because a stored ACL is what makes a record wide,
 /// and comment padding alone would measure a store whose lines the reader skips.
-fn the_widest_store() -> String {
-    let bound: usize = usize::try_from(STORE_MAXIMUM_BYTES).expect("the bound fits this machine's pointer width");
+fn a_store_of_whole_bytes(bytes: usize) -> String {
     let parent: CloneFolderIdentity = identity(700);
     let mut text: String = String::from(HEADER);
     text.push('\n');
@@ -715,20 +750,27 @@ fn the_widest_store() -> String {
         wide.access_acl = Some(vec![0x02; MEASUREMENT_ACL_BYTES]);
         let line: String = slot_line(format!("slot-{index:05}").as_str(), &wide);
         // A record and its newline, and the last comment keeps its own two characters and newline.
-        if text.len() + line.len() + 1 + 2 > bound {
+        if text.len() + line.len() + 1 + 2 > bytes {
             break;
         }
         text.push_str(line.as_str());
         text.push('\n');
         index += 1;
     }
-    let rest: usize = bound - text.len();
+    let rest: usize = bytes - text.len();
     if rest > 1 {
         text.push('#');
         text.push_str("0".repeat(rest - 2).as_str());
         text.push('\n');
     }
     return text;
+}
+
+/// A store text of exactly the bytes one read accepts:
+/// the widest store the writer refuses to grow.
+fn the_widest_store() -> String {
+    let bound: usize = usize::try_from(STORE_MAXIMUM_BYTES).expect("the bound fits this machine's pointer width");
+    return a_store_of_whole_bytes(bound);
 }
 
 /// The holds of `samples` writes of `text` to `store`,
@@ -776,7 +818,9 @@ fn print_hold(what: &str, bytes: u64, holds: &[f64]) {
 ///  the line,
 ///  the file's `fsync`,
 ///  the folder's `fsync`,
-///  and, for the adoption, the rename that publishes the file.
+///  and,
+/// for the adoption,
+/// the rename that publishes the file.
 #[test]
 #[ignore = "a measurement of one file system's hold, not a control; name the root to measure with MONOCHROMATIC_STORE_HOLD_MEASUREMENT_ROOT"]
 fn a_store_write_s_hold_is_measured_for_the_lock_wait() {
@@ -788,11 +832,15 @@ fn a_store_write_s_hold_is_measured_for_the_lock_wait() {
     let root: PathBuf = parent.join(format!("hold-{}", std::process::id()));
     std::fs::create_dir_all(&root).expect("the measurement's own folder");
     let small_text: String = a_store_of_slots(MEASUREMENT_SLOT_COUNT);
-    let wide_text: String = the_widest_store();
+    // The wide arms time the widest write the store accepts: an append to a store one record below the bound, which
+    // lands exactly on it. A store of the whole bound refuses that append (`StoreRefusal::WouldNotFit`), so timing it
+    // would time a refusal.
+    let boundary: usize = usize::try_from(STORE_MAXIMUM_BYTES).expect("the bound fits this machine's pointer width");
+    let room: usize = slot_line("measure-0000", &identity(901)).len() + 1;
+    let wide_text: String = a_store_of_whole_bytes(boundary - room);
     let wide: PathBuf = root.join("wide-store");
     std::fs::write(&wide, wide_text.as_str()).expect("the wide store");
-    assert!(SlotIdentityStore::read(wide.as_path()).is_ok(), "positive control: the widest store is one the reader accepts");
-    assert_eq!(std::fs::metadata(wide.as_path()).expect("metadata").len(), STORE_MAXIMUM_BYTES, "the widest store is the whole bound");
+    assert!(SlotIdentityStore::read(wide.as_path()).is_ok(), "positive control: the wide store is one the reader accepts");
 
     let small: PathBuf = root.join("small-store");
     let small_holds: Vec<f64> = holds_of(small.as_path(), small_text.as_str(), MEASUREMENT_SMALL_SAMPLES, |store, sample| {
@@ -801,8 +849,9 @@ fn a_store_write_s_hold_is_measured_for_the_lock_wait() {
     print_hold("append-small-store", small_text.len() as u64, small_holds.as_slice());
 
     let append_holds: Vec<f64> = holds_of(wide.as_path(), wide_text.as_str(), MEASUREMENT_WIDE_SAMPLES, |store, sample| {
-        append_slot_identity(store, format!("measure-{sample:04}").as_str(), &identity(901)).expect("the append");
+        append_slot_identity(store, format!("measure-{sample:04}").as_str(), &identity(901)).expect("the widest append the store accepts");
     });
+    assert_eq!(std::fs::metadata(wide.as_path()).expect("metadata").len(), STORE_MAXIMUM_BYTES, "the wide append landed exactly on the bound");
     print_hold("append-widest-store", wide_text.len() as u64, append_holds.as_slice());
 
     let adoption_holds: Vec<f64> = holds_of(wide.as_path(), wide_text.as_str(), MEASUREMENT_WIDE_SAMPLES, |store, sample| {

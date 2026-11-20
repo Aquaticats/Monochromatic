@@ -6,20 +6,50 @@
 # the fsync sample before it took (and a bare wait of that length), and it reads the kernel's ZIL counters of the `home`
 # dataset (the dataset the fixture folder sits on) around every sample.
 #
-# Run once: `python3 -I probe-fsync-reaches-storage.py <fixture folder> <rounds>` inside a capped systemd-run scope.
+# Run once: `python3 -I probe-reaches-storage.py <fixture folder> <rounds> [--pool-device <partition>] [--pool-disk <disk>]`
+# inside a capped systemd-run scope.
+#
+# The dataset the fixture folder is on is read from `findmnt` at run time, so the probe asks the same question on any
+# host with a ZFS pool. The pool's partition and whole disk are options: a dataset's mount names the dataset and never
+# its vdev, and reading the vdev from ZFS means opening `/dev/zfs`, which this repository's rules for the host bar.
 # (An earlier attempt in Node failed: this host's Node refuses `fsync` under its permission model.)
 import os
 import shutil
 import statistics
+import subprocess
 import sys
 import time
 
 fixture_folder = sys.argv[1]
 rounds = int(sys.argv[2])
-pool_device = 'nvme1n1p2'
-pool_disk = 'nvme1n1'  # the whole disk: the kernel counts flush requests on whole disks only (block/stat.rst)
-home_dataset_name = 'zpcachyos/ROOT/cos/home'
-pool_kstat_folder = '/proc/spl/kstat/zfs/zpcachyos'
+options = sys.argv[3:]
+
+
+def option(name, fallback):
+    if name in options:
+        return options[options.index(name) + 1]
+    return fallback
+
+
+pool_device = option('--pool-device', 'nvme1n1p2')
+pool_disk = option('--pool-disk', 'nvme1n1')  # the whole disk: the kernel counts flush requests on whole disks only (block/stat.rst)
+
+
+def dataset_of(folder):
+    source = subprocess.run(
+        ['findmnt', '--target', folder, '--output', 'SOURCE', '--noheadings', '--first-only'],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    dataset = source.split('[', 1)[0]
+    if '/' not in dataset:
+        raise SystemExit('the fixture folder is not on a dataset whose pool can be named: ' + source)
+    return dataset
+
+
+home_dataset_name = dataset_of(fixture_folder)
+pool_kstat_folder = os.path.join('/proc/spl/kstat/zfs', home_dataset_name.split('/', 1)[0])
 
 
 def sectors_written():
