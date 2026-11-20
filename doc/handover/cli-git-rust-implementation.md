@@ -40318,7 +40318,8 @@ stated in this entry. What follows from them, as work:
   on the Qwen plan, `pi-git-policy-cli-lfs-audit-fixes-short-review-on-the-qwen-plan`, in the same worktree detached
   at the tip; folder `~/temp/agent/git-policy-cli-lfs-audit-fixes-short-review-on-the-qwen-plan-2026-11-19/`. **The
   owner answered H1 and M4** (this entry): H1 "Hide long words only" (path words of 20 or more unbroken lowercase
-  letters print as `<credentials>`); M4, in the owner's words, "Avoid ever asking for someone to type a username or password.", so no
+  letters print as `<credentials>`); M4, in the owner's words, "Avoid ever asking for someone to type a
+  username or password.", so no
   command the wrapper runs or forwards prompts for a credential, terminal or not, superseding `SPEC.md`'s "A command the
   person typed is forwarded with the prompting Git has" for credentials; asked separately, an SSH key's passphrase
   counts too ("Passphrases count too (Recommended)": a key not in ssh-agent fails at once, saying to run `ssh-add`).
@@ -45453,8 +45454,8 @@ record.
   2026-11-09T00:07:24-05:00, applied as
   `kopia policy set user@bazzite:/home/user/Monochromatic --manual '--add-ignore=*'`. The hourly
   `kopia snapshot create --all` skips a source set to manual, and an explicit snapshot of it stores nothing;
-  existing snapshots stay. Undo: `kopia policy set user@bazzite:/home/user/Monochromatic --no-manual
-  '--remove-ignore=*'`.
+  existing snapshots stay. Undo:
+  `kopia policy set user@bazzite:/home/user/Monochromatic --no-manual '--remove-ignore=*'`.
 - The kopia job is made more resilient: "Kopia: Make the kopia job more resilient.",
   2026-11-10T07:24:16-05:00.
 - Claude Code's claude.ai sync is off: "Turn off syncClaudeAiPlugins too.", 2026-11-10T07:24:16-05:00, after
