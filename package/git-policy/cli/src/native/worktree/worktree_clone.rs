@@ -355,15 +355,13 @@ fn source_directory<'a>(held: &'a mut Option<(Vec<OsString>, File)>, root: &File
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Seams = { afterLookup: () => void; afterClone: () => void; beforeIndex: () => void };
+/// type Seams = { afterLookup: () => void; afterClone: () => void };
 /// ```
 struct Seams<'a> {
     /// Called after the entry was looked at and before it is opened.
     after_lookup: &'a mut dyn FnMut(),
     /// Called after the data was cloned and before the source is looked at again.
     after_clone: &'a mut dyn FnMut(),
-    /// Called after every entry was made and before the index is installed.
-    before_index: &'a mut dyn FnMut(),
 }
 
 /// What one clone call works on:
@@ -641,28 +639,52 @@ impl StatLookup for StatsMadeByTheClones<'_> {
     }
 }
 
-/// `clone_all` in one turn, with the moments at which a control may move the tree.
-fn clone_with(source: &SnapshotSource, directories: &mut Directories, admin: &File, created: &mut Vec<Created>, seams: &mut Seams<'_>) -> Result<(), String> {
-    let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
-        return Err(String::from("the source's index changed shape"));
-    };
+/// What:
+///  Clone `entries` in one turn,
+/// with the moments at which a control may move the tree,
+/// and answer the stat fields of the
+///  files made.
+/// Why:
+///   A whole rung and a partial clone clone the same entries here;
+/// the first also installs its index,
+///  the second builds one from the tree,
+/// so the work stops before the index and hands its fields back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stats = cloneInOneTurn({ source, entries, destination, created, seams }); // throws a reason
+/// ```
+fn clone_in_one_turn(source: &SnapshotSource, entries: &[StatEntry], destination: &File, created: &mut Vec<Created>, seams: &mut Seams<'_>) -> Result<HashMap<Vec<u8>, StatFields>, String> {
     let root: File = subject_failure(open_root(source.root.as_path()), &"the source's root", "cannot be opened")?;
-    let Some(destination) = directories.get(&Vec::new()) else {
-        return Err(String::from("the destination is not held"));
-    };
     let positions: Vec<usize> = (0..entries.len()).collect();
     let unshared: AtomicBool = AtomicBool::new(false);
     let entries_entered: bool = begin_step("cloneEntries");
-    let cloned: ClonedEntries = clone_the_entries(EntriesToClone { entries: entries.as_slice(), positions: positions.as_slice(), source, source_root: &root, destination, seams, failed: &unshared });
+    let cloned: ClonedEntries = clone_the_entries(EntriesToClone { entries, positions: positions.as_slice(), source, source_root: &root, destination, seams, failed: &unshared });
     end_step(entries_entered);
     let ClonedEntries { created: made, stats, failure }: ClonedEntries = cloned;
     created.extend(made);
-    if let Some(reason) = failure {
-        return Err(reason);
-    }
-    (seams.before_index)();
+    return match failure {
+        Some(reason) => Err(reason),
+        None => Ok(stats),
+    };
+}
+
+/// What:
+///  The source's index installed in the new worktree,
+/// with the stat fields of the files the clones made.
+/// Why:
+///   A rung whose every path was cloned carries the source's own index,
+/// which was proven equal to the
+///  tree and to the files;
+/// a partial clone builds its index from the tree instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// installTheSourceIndex(source, admin, stats); // throws a reason
+/// ```
+fn install_the_source_index(source: &SnapshotSource, admin: &File, stats: &HashMap<Vec<u8>, StatFields>) -> Result<(), String> {
     let index_entered: bool = begin_step("cloneIndex");
-    let installed: Result<String, String> = install_index_in(admin, source.clean.index_bytes.as_slice(), &mut StatsMadeByTheClones { stats: &stats }, source.clean.hash_length);
+    let installed: Result<String, String> = install_index_in(admin, source.clean.index_bytes.as_slice(), &mut StatsMadeByTheClones { stats }, source.clean.hash_length);
     end_step(index_entered);
     let report: String = installed?;
     debug_report(report.as_str());
@@ -698,7 +720,7 @@ struct SliceOfClones {
 /// function cloneASlice(state) { const cloned = cloneTheEntries(state); if (cloned.failure) state.failed.store(true); return cloned; }
 /// ```
 fn clone_a_slice(state: SliceOfClones) -> ClonedEntries {
-    let mut seams: Seams<'_> = Seams { after_lookup: &mut do_nothing, after_clone: &mut do_nothing, before_index: &mut do_nothing };
+    let mut seams: Seams<'_> = Seams { after_lookup: &mut do_nothing, after_clone: &mut do_nothing };
     let cloned: ClonedEntries = clone_the_entries(EntriesToClone { entries: state.entries.as_ref(), positions: state.positions.as_slice(), source: state.source.as_ref(), source_root: state.source_root.as_ref(), destination: state.destination.as_ref(), seams: &mut seams, failed: state.failed.as_ref() });
     if cloned.failure.is_some() {
         state.failed.store(true, Ordering::Relaxed);
@@ -766,7 +788,7 @@ fn clone_worker_count(entries: usize) -> usize {
 /// What:
 ///  Clone the frozen entries in contiguous slices,
 /// one job of the blocking pool each,
-/// and install the index with the stat
+/// and answer the stat
 ///  fields of every slice.
 /// Why:
 ///   Each entry is a few metadata calls and one `FICLONE`,
@@ -784,9 +806,9 @@ fn clone_worker_count(entries: usize) -> usize {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// cloneInSlices({ source, entries, destination, admin, created, workers }); // throws a reason
+/// const stats = cloneInSlices({ source, entries, destination, created, workers }); // throws a reason
 /// ```
-fn clone_in_slices(source: &SnapshotSource, entries: Arc<[StatEntry]>, destination: &File, admin: &File, created: &mut Vec<Created>, workers: usize) -> Result<(), String> {
+fn clone_in_slices(source: &SnapshotSource, entries: Arc<[StatEntry]>, destination: &File, created: &mut Vec<Created>, workers: usize) -> Result<HashMap<Vec<u8>, StatFields>, String> {
     let source_root: Arc<File> = Arc::new(subject_failure(open_root(source.root.as_path()), &"the source's root", "cannot be opened")?);
     let destination_held: Arc<File> = Arc::new(subject_failure(destination.try_clone(), &"the destination handle", "cannot be kept")?);
     let shared_source: Arc<SnapshotSource> = Arc::new(source.clone());
@@ -807,10 +829,8 @@ fn clone_in_slices(source: &SnapshotSource, entries: Arc<[StatEntry]>, destinati
         Ok(answers) => answers,
         Err(refusal) => {
             debug(TAG, format!("the clones run in one turn ({refusal})").as_str());
-            let mut directories: Directories = HashMap::new();
-            directories.insert(Vec::new(), subject_failure(destination.try_clone(), &"the destination handle", "cannot be kept")?);
-            let mut seams: Seams<'_> = Seams { after_lookup: &mut do_nothing, after_clone: &mut do_nothing, before_index: &mut do_nothing };
-            return clone_with(source, &mut directories, admin, created, &mut seams);
+            let mut seams: Seams<'_> = Seams { after_lookup: &mut do_nothing, after_clone: &mut do_nothing };
+            return clone_in_one_turn(source, entries.as_ref(), destination, created, &mut seams);
         }
     };
     let mut stats: HashMap<Vec<u8>, StatFields> = HashMap::new();
@@ -831,33 +851,60 @@ fn clone_in_slices(source: &SnapshotSource, entries: Arc<[StatEntry]>, destinati
             }
         }
     }
-    if let Some(reason) = failure {
-        return Err(reason);
+    return match failure {
+        Some(reason) => Err(reason),
+        None => Ok(stats),
+    };
+}
+
+/// What:
+///  The runs of one entry set and the stat fields of the files they made,
+/// in slices when the host has the
+///  budget for them.
+/// Why:
+///   A whole rung and a partial clone hand the same entries to the engine;
+/// only the index that is
+///  installed afterwards differs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stats = cloneThese({ source, entries, destination, created }); // throws a reason
+/// ```
+fn clone_these(source: &SnapshotSource, entries: Vec<StatEntry>, destination: &File, created: &mut Vec<Created>) -> Result<HashMap<Vec<u8>, StatFields>, String> {
+    let workers: usize = clone_worker_count(entries.len());
+    if workers > 1 {
+        return clone_in_slices(source, Arc::from(entries), destination, created, workers);
     }
-    let index_entered: bool = begin_step("cloneIndex");
-    let installed: Result<String, String> = install_index_in(admin, source.clean.index_bytes.as_slice(), &mut StatsMadeByTheClones { stats: &stats }, source.clean.hash_length);
-    end_step(index_entered);
-    let report: String = installed?;
-    debug_report(report.as_str());
-    return Ok(());
+    let mut seams: Seams<'_> = Seams { after_lookup: &mut do_nothing, after_clone: &mut do_nothing };
+    return clone_in_one_turn(source, entries.as_slice(), destination, created, &mut seams);
+}
+
+/// What:
+///  Clone `entries` into the held `destination` and answer the stat fields of the files made,
+/// installing no index.
+/// Why:
+///   A source with uncommitted changes has no index equal to the tree of `HEAD`,
+/// so a partial clone
+///  builds the new worktree's index from the tree and needs only the fields of the files the clones made.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stats = cloneTheEntriesOf({ source, entries, destination, created }); // throws a reason
+/// ```
+pub(crate) fn clone_the_entries_of(source: &SnapshotSource, entries: Vec<StatEntry>, destination: &File, created: &mut Vec<Created>) -> Result<HashMap<Vec<u8>, StatFields>, String> {
+    return clone_these(source, entries, destination, created);
 }
 
 /// The run itself:
-/// every tracked file in the slices the host's budget allows,
-/// then the index;
-/// the caller removes `created` when this fails.
+/// every tracked file of the source's index in the slices the host's budget allows,
+/// then that index;
+/// the caller counts `created` when this fails.
 fn clone_all(source: &SnapshotSource, destination: &File, admin: &File, created: &mut Vec<Created>) -> Result<(), String> {
     let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
         return Err(String::from("the source's index changed shape"));
     };
-    let workers: usize = clone_worker_count(entries.len());
-    if workers > 1 {
-        return clone_in_slices(source, Arc::from(entries), destination, admin, created, workers);
-    }
-    let mut directories: Directories = HashMap::new();
-    directories.insert(Vec::new(), subject_failure(destination.try_clone(), &"the destination handle", "cannot be kept")?);
-    let mut seams: Seams<'_> = Seams { after_lookup: &mut do_nothing, after_clone: &mut do_nothing, before_index: &mut do_nothing };
-    return clone_with(source, &mut directories, admin, created, &mut seams);
+    let stats: HashMap<Vec<u8>, StatFields> = clone_these(source, entries, destination, created)?;
+    return install_the_source_index(source, admin, &stats);
 }
 
 /// Log what the index install did.

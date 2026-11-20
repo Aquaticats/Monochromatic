@@ -39,7 +39,6 @@ use crate::fs_beneath::ObjectId;
 use crate::transaction_git::GitContext;
 use crate::worktree_add_binding::{Bound, bind_registration, verify_association};
 use crate::worktree_add_plan::AddPlan;
-use crate::worktree_clone::{Cloned, clone_tracked_files, leftover_report};
 use crate::worktree_clean_content::ConversionEnvironment;
 use crate::worktree_copy::{GitRunner, GitStatus};
 use crate::worktree_copy_error::WorktreeCopyError;
@@ -47,6 +46,7 @@ use crate::worktree_copy_stage_claim::StageClaim;
 use crate::worktree_ladder_run::{Ladder, LadderResult, Rung, discard_stage};
 use crate::worktree_dirty_restore::{changes_left_out, left_out_note, record_left_out, restore_dirty};
 use crate::worktree_ladder_target::{Target, apply_difference, checkout_environment, prepare_target, run_step};
+use crate::worktree_ladder_finish_clone_rung::serve_clones;
 use crate::worktree_ladder_finish_trash_record::record_before_the_rung_returns;
 use crate::worktree_slow_route::{SlowRoute, explain_failure};
 use crate::worktree_snapshot::{CopyState, PlaceError, put_in_place, settle_displaced, take_snapshot};
@@ -191,38 +191,6 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
         warn(TAG, format!("monochromatic-git-policy-cli: {note}").as_str());
     }
     return Ok(Served { line: target.line, placed, trash: handed_later });
-}
-
-/// What:
-///  The clone rung:
-/// clone the tracked files into the destination,
-/// install the index,
-/// apply the tree difference.
-/// Why:
-///   The destination is filled in place;
-/// an error removes nothing:
-/// the entries the run created stay,
-/// are reported,
-/// and Git's
-///  own checkout completes the worktree and overwrites the tracked ones.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function serveClones(args): Promise<string>; // the checkout line; throws a reason
-/// ```
-fn serve_clones(source: &SnapshotSource, plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<String, String> {
-    verify_association(bound)?;
-    let target: Target = prepare_target(source, plan, context, bound)?;
-    let cloned: Cloned = clone_tracked_files(source, &bound.destination, &bound.admin)?;
-    let applied: Result<(), String> = match verify_association(bound) {
-        Ok(()) => apply_difference(source, &target, plan.destination.as_path(), run_git),
-        Err(reason) => Err(reason),
-    };
-    if let Err(reason) = applied {
-        warn(TAG, format!("monochromatic-git-policy-cli: {}", leftover_report(cloned.created(), plan.destination.as_path())).as_str());
-        return Err(reason);
-    }
-    return Ok(target.line);
 }
 
 /// What:

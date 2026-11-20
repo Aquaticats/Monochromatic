@@ -184,7 +184,8 @@ fn the_slices_clone_every_empty_entry_without_a_reflink() {
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
     let (entries, held, administrative) = sliced_handles(&source, destination.as_path(), admin.as_path());
     let mut created: Vec<Created> = Vec::new();
-    clone_in_slices(&source, Arc::clone(&entries), &held, &administrative, &mut created, SLICES_OF_A_CONTROL).expect("clones");
+    let stats: HashMap<Vec<u8>, StatFields> = clone_in_slices(&source, Arc::clone(&entries), &held, &mut created, SLICES_OF_A_CONTROL).expect("clones");
+    install_the_source_index(&source, &administrative, &stats).expect("the index");
     let listed: Vec<String> = entries.iter().map(|entry: &StatEntry| { return String::from_utf8_lossy(entry.path.as_slice()).into_owned(); }).collect();
     let made: Vec<String> = created.iter().filter(|entry: &&Created| { return !entry.directory; }).map(|entry: &Created| { return joined_names(entry.names.as_slice()); }).collect();
     assert_eq!(made, listed, "the slices' entries stay in the index's order");
@@ -218,7 +219,8 @@ fn the_wait_for_the_slices_is_a_step_of_the_record() {
     let mut created: Vec<Created> = Vec::new();
     let common: PathBuf = repo.join(".git");
     crate::add_timing::begin(common.clone(), true);
-    clone_in_slices(&source, entries, &held, &administrative, &mut created, SLICES_OF_A_CONTROL).expect("clones");
+    let stats: HashMap<Vec<u8>, StatFields> = clone_in_slices(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL).expect("clones");
+    install_the_source_index(&source, &administrative, &stats).expect("the index");
     crate::add_timing::finish(0);
     let text: String = std::fs::read_to_string(common.join(crate::add_timing::ADD_TIMING_FILE)).expect("the add's record");
     let record: serde_json::Value = serde_json::from_str(text.trim_end()).expect("one JSON object");
@@ -248,7 +250,8 @@ fn the_record_names_the_slices_the_run_was_split_into() {
     let mut created: Vec<Created> = Vec::new();
     let common: PathBuf = repo.join(".git");
     crate::add_timing::begin(common.clone(), true);
-    clone_in_slices(&source, entries, &held, &administrative, &mut created, SLICES_OF_A_CONTROL).expect("clones");
+    let stats: HashMap<Vec<u8>, StatFields> = clone_in_slices(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL).expect("clones");
+    install_the_source_index(&source, &administrative, &stats).expect("the index");
     crate::add_timing::finish(0);
     let text: String = std::fs::read_to_string(common.join(crate::add_timing::ADD_TIMING_FILE)).expect("the add's record");
     let record: serde_json::Value = serde_json::from_str(text.trim_end()).expect("one JSON object");
@@ -269,7 +272,8 @@ fn btrfs_the_slices_clone_every_entry_of_a_large_run() {
     let held: File = open_root(destination.as_path()).expect("destination");
     let administrative: File = open_root(admin.as_path()).expect("administrative directory");
     let mut created: Vec<Created> = Vec::new();
-    clone_in_slices(&source, entries, &held, &administrative, &mut created, SLICES_OF_A_CONTROL).expect("clones");
+    let stats: HashMap<Vec<u8>, StatFields> = clone_in_slices(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL).expect("clones");
+    install_the_source_index(&source, &administrative, &stats).expect("the index");
     assert_eq!(created.iter().filter(|entry: &&Created| { return !entry.directory; }).count(), MANY_FILES, "every file of every slice was made");
     for index in 0..MANY_FILES {
         let name: String = many_path(index);
@@ -290,12 +294,11 @@ fn btrfs_a_changed_entry_ends_a_sliced_run_and_keeps_what_the_slices_made() {
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
     let entries: Arc<[StatEntry]> = Arc::from(stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length).expect("entries"));
     let held: File = open_root(destination.as_path()).expect("destination");
-    let administrative: File = open_root(admin.as_path()).expect("administrative directory");
     let changed: String = many_path(MANY_FILES / 2);
     std::fs::write(repo.join(changed.as_str()), b"CHANGED\n").expect("edit after the check");
     crate::test_support::age(repo.join(changed.as_str()).as_path());
     let mut created: Vec<Created> = Vec::new();
-    let reason: String = clone_in_slices(&source, entries, &held, &administrative, &mut created, SLICES_OF_A_CONTROL).expect_err("refused");
+    let reason: String = clone_in_slices(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL).expect_err("refused");
     assert!(reason.contains("the source changed while it was cloned") && reason.contains(changed.as_str()), "{reason}");
     assert!(!created.is_empty(), "what the slices made before the failure is kept, not removed");
     assert!(!admin.join("index").exists(), "no index for a refused run");
@@ -354,7 +357,7 @@ fn btrfs_a_file_swapped_between_the_look_and_the_open_is_not_cloned() {
         std::fs::rename(repo.join("swap.tmp"), repo.join("plain.txt")).expect("swap");
     };
     let mut created: Vec<Created> = Vec::new();
-    let reason: String = entry_through((&source_root, &destination_root), &["plain.txt"], entry_of(entries.as_slice(), "plain.txt"), &source, &mut created, &mut Seams { after_lookup: &mut swap, after_clone: &mut || {}, before_index: &mut || {} })
+    let reason: String = entry_through((&source_root, &destination_root), &["plain.txt"], entry_of(entries.as_slice(), "plain.txt"), &source, &mut created, &mut Seams { after_lookup: &mut swap, after_clone: &mut || {} })
         .expect_err("refused");
     assert!(reason.contains("the source changed while it was cloned") && reason.contains("differs"), "{reason}");
     assert!(!destination.join("plain.txt").exists() && created.is_empty(), "the other file's bytes were not cloned");
@@ -374,7 +377,7 @@ fn btrfs_a_file_written_during_the_clone_is_refused_and_listed() {
         std::io::Write::write_all(&mut file, b"more\n").expect("append");
     };
     let mut created: Vec<Created> = Vec::new();
-    let reason: String = entry_through((&source_root, &destination_root), &["plain.txt"], entry_of(entries.as_slice(), "plain.txt"), &source, &mut created, &mut Seams { after_lookup: &mut || {}, after_clone: &mut append, before_index: &mut || {} })
+    let reason: String = entry_through((&source_root, &destination_root), &["plain.txt"], entry_of(entries.as_slice(), "plain.txt"), &source, &mut created, &mut Seams { after_lookup: &mut || {}, after_clone: &mut append })
         .expect_err("refused");
     assert!(reason.contains("written during the clone"), "{reason}");
     assert_eq!(created.iter().map(|entry: &Created| { return entry.names.clone(); }).collect::<Vec<_>>(), vec![vec![OsString::from("plain.txt")]]);
@@ -396,7 +399,7 @@ fn btrfs_a_parent_directory_swapped_after_it_was_opened_is_read_through_its_hand
     std::fs::create_dir(repo.join("bin")).expect("stand-in");
     std::fs::write(repo.join("bin/tool.sh"), b"#!/bin/sh\n").expect("a stand-in of the same size");
     let mut created: Vec<Created> = Vec::new();
-    let mut seams: Seams<'_> = Seams { after_lookup: &mut || {}, after_clone: &mut || {}, before_index: &mut || {} };
+    let mut seams: Seams<'_> = Seams { after_lookup: &mut || {}, after_clone: &mut || {} };
     let mut tool: StatEntry = entry_of(entries.as_slice(), "bin/tool.sh").clone();
     tool.path = b"tool.sh".to_vec();
     let outcome = entry_through((&held_parent, &destination_root), &["tool.sh"], &tool, &source, &mut created, &mut seams);
@@ -496,7 +499,7 @@ fn btrfs_a_destination_file_replaced_before_the_index_is_not_certified() {
     let (repo, destination, admin) = clone_fixture(root.as_path());
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
     let modified = std::fs::metadata(repo.join("plain.txt")).expect("metadata").modified().expect("time");
-    let mut replace = || {
+    let replace = || {
         std::fs::rename(destination.join("plain.txt"), destination.join("plain.orig")).expect("moved");
         std::fs::write(destination.join("plain.txt"), b"PLAIN\n").expect("a replacement of the same size");
         std::fs::File::options().write(true).open(destination.join("plain.txt")).expect("open").set_modified(modified).expect("the same time");
@@ -506,7 +509,11 @@ fn btrfs_a_destination_file_replaced_before_the_index_is_not_certified() {
     directories.insert(Vec::new(), held.try_clone().expect("clone handle"));
     let administrative: File = open_root(admin.as_path()).expect("admin");
     let mut created: Vec<Created> = Vec::new();
-    clone_with(&source, &mut directories, &administrative, &mut created, &mut Seams { after_lookup: &mut || {}, after_clone: &mut || {}, before_index: &mut replace }).expect("clones");
+    let frozen = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length).expect("entries");
+    let mut seams = Seams { after_lookup: &mut || {}, after_clone: &mut || {} };
+    let stats: HashMap<Vec<u8>, StatFields> = clone_in_one_turn(&source, frozen.as_slice(), &held, &mut created, &mut seams).expect("clones");
+    replace();
+    install_the_source_index(&source, &administrative, &stats).expect("the index");
     let entries = stored_stats(std::fs::read(admin.join("index")).expect("index").as_slice(), source.clean.hash_length).expect("entries");
     let recorded = entry_of(entries.as_slice(), "plain.txt").stored.ino;
     assert_eq!(recorded, std::fs::metadata(destination.join("plain.orig")).expect("the clone").ino() as u32, "the inode that was cloned");
@@ -540,7 +547,7 @@ fn btrfs_a_destination_link_replaced_before_the_index_is_not_certified() {
     let Some(root) = btrfs_fixture("clone-link-replaced-before-index") else { return };
     let (repo, destination, admin) = clone_fixture(root.as_path());
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
-    let mut replace = || {
+    let replace = || {
         std::fs::remove_file(destination.join("link")).expect("the clone's link goes");
         std::os::unix::fs::symlink("plainXtxt", destination.join("link")).expect("a link of the same length");
     };
@@ -549,7 +556,11 @@ fn btrfs_a_destination_link_replaced_before_the_index_is_not_certified() {
     directories.insert(Vec::new(), held.try_clone().expect("clone handle"));
     let administrative: File = open_root(admin.as_path()).expect("admin");
     let mut created: Vec<Created> = Vec::new();
-    clone_with(&source, &mut directories, &administrative, &mut created, &mut Seams { after_lookup: &mut || {}, after_clone: &mut || {}, before_index: &mut replace }).expect("clones");
+    let frozen = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length).expect("entries");
+    let mut seams = Seams { after_lookup: &mut || {}, after_clone: &mut || {} };
+    let stats: HashMap<Vec<u8>, StatFields> = clone_in_one_turn(&source, frozen.as_slice(), &held, &mut created, &mut seams).expect("clones");
+    replace();
+    install_the_source_index(&source, &administrative, &stats).expect("the index");
     let entries = stored_stats(std::fs::read(admin.join("index")).expect("index").as_slice(), source.clean.hash_length).expect("entries");
     let seed = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length).expect("seed");
     let recorded = entry_of(entries.as_slice(), "link").stored;

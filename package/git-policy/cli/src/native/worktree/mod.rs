@@ -267,6 +267,23 @@ pub mod worktree_add_binding;
 #[cfg(target_os = "linux")]
 pub mod worktree_clone;
 
+/// The clone rung for a source with uncommitted changes:
+/// the paths the proof settles cloned,
+/// the index built from the tree,
+/// and the rest written by Git.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_partial;
+
+/// Which tracked paths of a source with changes a clone may take,
+/// and which Git writes.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_partial_split;
+
+/// The new worktree's index built from the tree of its `HEAD`,
+/// with the stat fields of the files the clones made.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_partial_index;
+
 /// What both filling rungs read from Git's `--no-checkout` result,
 /// and the one step that applies the tree difference.
 #[cfg(target_os = "linux")]
@@ -294,6 +311,13 @@ pub mod worktree_slow_route;
 /// the snapshot rung and the fall back to Git's checkout.
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_finish;
+
+/// The clone rung's steps after real Git returned:
+/// the clones,
+/// the tree difference,
+/// and the proof of the worktree they leave.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_finish_clone_rung;
 
 /// The record of the trash a snapshot's leave-out made,
 /// written before the rung that published the worktree returns.

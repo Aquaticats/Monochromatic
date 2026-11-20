@@ -250,8 +250,9 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
     } else {
         debug(TAG, format!("no snapshot for {} ({:?})", plan.destination.display(), snapshot_blocked).as_str());
     }
-    // Clones copy the tracked files of a source the checks proved clean; a source with changes is only ever snapshotted.
-    if clone_refusal.is_none() && source.dirty.is_none() {
+    // Clones copy the tracked files of a source the checks proved: every path of a clean source, and of a source with
+    //  uncommitted changes every path the proof still settles, with Git writing the rest (the partial clone rung).
+    if clone_refusal.is_none() {
         // The record comes first: without it a killed add could not be removed, so the rung is not tried.
         let claim_stage_again_entered: bool = begin_step("claimStage");
         let claim_stage_again_outcome = match held.take() {
@@ -297,6 +298,7 @@ pub fn begin_ladder_holding(plan: Option<&AddPlan>, held: &mut Option<StageClaim
     let (rung, slow) = choose_rung(planned, context, identity, held);
     let chosen: &str = match &rung {
         Rung::Git(_) => "Git's checkout",
+        Rung::Clone(source, ..) if source.dirty.is_some() => "a partial clone",
         Rung::Clone(..) => "clones",
         Rung::Snapshot(source, _claim) if source.dirty.is_some() => "a snapshot with a restore",
         Rung::Snapshot(..) => "a snapshot",
