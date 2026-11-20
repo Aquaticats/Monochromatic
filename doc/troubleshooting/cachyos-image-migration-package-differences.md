@@ -1,8 +1,9 @@
-# Moving Fedora build images to CachyOS: package and tool differences that broke a build or a test
+# CachyOS build images: package and tool differences that broke a build or a test
 
-Observed on 2026-10-29 while moving the music-player,
+Started on 2026-10-29 while moving the music-player,
 terminal and IDE images from Fedora to `docker.io/cachyos/cachyos`
-(see [container-base-distro](../decision/container-base-distro.md)).
+(see [container-base-distro](../decision/container-base-distro.md));
+entries added later name their own date.
 Each item names the exact failure,
 the cause that was read from the image,
 and the change that fixed it.
@@ -148,6 +149,43 @@ the packaged `git` ships `/usr/share/man/man5/githooks.5.gz` and no `githooks.ad
 and the CachyOS image has no `man`
 (`which man` printed `no man in (...)`),
 so the base image installs `man-db` and the test reads the rendered page.
+
+### The x86-64 image's packages keep their database entries but lost their manual pages (observed 2026-11-19)
+
+A fresh build of `package/git-policy/cli/native-test-base.Containerfile` without a `--build-arg`, so from the
+Containerfile's default `docker.io/cachyos/cachyos:latest`, stopped at its closing step:
+
+```text
+git version 2.56.1
+...
+No manual entry for githooks
+Error: building at STEP "RUN sh -c git --version && ... && man --where githooks": while running runtime: exit status 16
+```
+
+The same file built from `docker.io/cachyos/cachyos-v4:latest`, the image `package/test-harness/core-matrix` resolves
+on this host, and the existing gate base image
+`localhost/git-policy-native-test-base:6fa67475da3a-97221c29742b` answers `/usr/share/man/man5/githooks.5.gz`.
+
+The cause is the x86-64 image, not the package, the repository or a `NoExtract` rule.
+`pacman --query --check git` in `docker.io/cachyos/cachyos:latest` reports `757 total files, 240 altered files`,
+and the missing files are the package's whole `/usr/share/man` and `/usr/share/locale` trees, which
+`pacman --query --list git` still lists; the same command in `docker.io/cachyos/cachyos-v4:latest` reports
+`0 altered files`.
+The image was built as a slimmed copy that removed manual pages, translations, info pages and docs from its packages
+while keeping the pacman database that names them (`bash` has 62 such files, `coreutils` 257 and `perl` 966).
+`/etc/pacman.conf` carries no `NoExtract` line in either image, only the commented `#NoExtract   =` one.
+Because the Containerfile installs with `--needed`, pacman reads such a package as complete:
+`warning: git-2.56.1-1 is up to date -- skipping`.
+It therefore never re-extracts the page, and `man-db` has nothing to render for the hook-event guard test.
+Reinstalling the same package from the synced database restores `757 total files, 0 altered files`, the page included.
+Fix:
+`native-test-base.Containerfile` reinstalls `git` when its installed copy lacks
+`/usr/share/man/man5/githooks.5.gz`, and its closing `man --where githooks` check still stops the build when the page is
+absent (a layer that removes the page and runs that check exits 16).
+A build from either CachyOS image now succeeds and prints `/usr/share/man/man5/githooks.5.gz` at its closing check.
+Residual:
+the image repairs `git` only, so a slimmed package whose other files a test needs gets the same reinstall when that test
+fails; `--needed` can never restore a slimmed package's files on its own.
 
 ### Package versions the images got
 
