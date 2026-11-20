@@ -23,6 +23,12 @@ the measurements in
 and the build order in
 [`cli-git-zfs-worktree-implementation-plan.md`](../planning/cli-git-zfs-worktree-implementation-plan.md).
 The place the implementation interface will live is `package/git-policy/cli/SPEC.md`.
+The reviews the design answers number seven:
+its lead names six of them,
+and the seventh is the diff-only gate check of the sixth revision,
+kept at
+`~/temp/agent/zfs-staging-under-cache-design-sixth-revision-diff-only-gate-check-2026-11-20/keep/review.md`,
+whose lows this record carries.
 
 This record was written at `2026-11-20T05:54:01-05:00`,
 by an agent,
@@ -115,7 +121,13 @@ and its answer is "Accept,
 boundary (a) (Recommended)".
 The design is accepted,
 and the owner's third answer stays bounded to the scene it names:
-"move it back at once ... keep and report it only if the move back fails".
+"move it back at once ... keep and report it only if the move back fails",
+which is how the acceptance round put that limit in words.
+The proposal records the same limit as
+"retaining and reporting it only if rollback fails"
+([proposal](../planning/cli-git-zfs-worktree-design-proposal.md),
+"Project decisions",
+"Misplaced attach").
 The limit therefore covers the scene where the clone landed on a mount the account stacked.
 Refusing when a mount sits on the clone alone is the design's own rule,
 not the owner's,
@@ -133,14 +145,19 @@ and the clone is moved onto the bind,
 so two removals of one clone never share a folder and the move onto the verified bind propagates nowhere.
 A mount the account stacks on the folder between the bind and the move still receives the clone,
 which is the scene the rollback answers.
-The alternatives stay described under "Ways to meet it" in the design,
-and the answer rejects them:
+The alternatives stay described under "Ways to meet it" in the design:
 a private `~/.cache` made once at boot,
 root creating the folder,
 a boot-made bind,
 a root-owned empty source,
-a staging root two levels deep,
-and the namespace teardown the kernel refuses.
+and a staging root two levels deep.
+The answer fixed Way A,
+and the design records those five as ways a writer could build but did not take,
+not as ways any decision refused.
+The sixth alternative,
+the namespace teardown,
+is refused by the kernel rather than by the answer:
+`do_move_mount` requires the moved mount to be the caller's own (F25).
 
 ## How a later sweep finishes an unmount
 
@@ -245,34 +262,35 @@ The corrections below are the statements this record carries;
 the design's body keeps the accepted wording,
 and its top note sends a reader here.
 
-### Low 1: the pin's field set is a veto-open choice
+### Low 1: the pin's field set, marked for the project's veto
 
 The check found the field set marked as the writer's inside the pin entry of "Proposals the owner settled",
 outside the veto section and without the options a veto entry gives.
-This record counts it as the seventh of the seven veto-open choices,
-under "The proposals left open to veto",
-and no veto was taken.
-Its options were the field sets a check could compare:
-(a) the dataset's source alone,
-which is the accepted refusal sentence's literal text;
-(b) the source and the mount root's inode,
-which is the design;
-and (c) the source,
-the inode and the device,
-which refuses after any reboot that changes the anonymous minor (L14) until the pin is rewritten.
-Ranking b > a > c:
-b > a because a leaves a mount at `~/.cache` whose root is not the dataset's root,
-such as a bind of a subdirectory,
-undetected,
-while b catches it;
-a > c because c banks the pin on the anonymous per-mount minor,
-which a reboot may change and which nothing here measured,
-so c refuses at a boot where the pin still holds and needs the pin rewritten.
-The fields the design takes are the source and the mount root's inode,
+The design marked it in that pin entry for the project's veto,
+as the seventh of its seven veto-open choices,
+and the acceptance vetoed none of the seven,
+so the field set stands as the design took it:
+the dataset's source and the mount root's inode,
 which every check compares,
 and the device,
 which is recorded for `doctor` and never compared.
-That field set stands as the design's.
+The other two field sets are ones the project did not take:
+(a) the dataset's source alone,
+which is the accepted refusal sentence's literal text,
+and (c) the source,
+the inode and the device,
+which refuses after any reboot that changes the anonymous minor (L14) until the pin is rewritten.
+The design recorded a ranking of the three,
+b over a over c:
+b over a because a leaves a mount at `~/.cache` whose root is not the dataset's root,
+such as a bind of a subdirectory,
+undetected,
+while b catches it;
+and a over c because c banks the pin on the anonymous per-mount minor,
+which a reboot may change and which nothing here measured,
+so c refuses at a boot where the pin still holds and needs the pin rewritten.
+That ranking is the design's record of the choice it made,
+and no option of the three is still open.
 
 ### Low 2: what the source and the inode each catch
 
@@ -350,16 +368,23 @@ which omits that check and its folder;
 and the "Revisions" lead,
 which does not say a revision may be labelled by its write time.
 The first two statements this record carries as corrected.
-The last two are the design's own lead and revision history,
+The other two are the design's own lead and revision history,
 which the acceptance leaves as accepted,
-and this record does not restate them.
+and this record carries what those two places leave out:
+the design answers a seventh review,
+the diff-only gate check of the sixth revision,
+kept at
+`~/temp/agent/zfs-staging-under-cache-design-sixth-revision-diff-only-gate-check-2026-11-20/keep/review.md`;
+and the sixth revision's label is the time its entry was written,
+`2026-11-20T00:14:25-05:00`,
+because a commit cannot name its own commit,
+so a revision may be labelled by its write time.
 
 ### Low 7: wording in the pin entry and in L14's arms
 
 The check found five overstatements.
-The pin keeps the mount root's inode and records the device,
-and it compares only the inode:
-"this revision compares only the inode" is the corrected wording.
+The pin keeps the dataset's source and the mount root's inode and records the device,
+and it compares the source and the inode and never compares the device.
 The device is what the pin cannot gate on,
 not what no durable root key can gate on,
 since the accepted proposal records a device in durable root records (L14).
@@ -386,9 +411,12 @@ so the arm tests the right thing.
 
 The check found five ragged tails left in the paragraphs the last revision touched,
 and the revision entry's "Four paragraphs are rewrapped" inexact.
-The five paragraphs' content is unchanged and this record restates no claim of theirs.
-The count is five places,
-not four.
+The five tails remain in the accepted body,
+which the acceptance leaves as it stands,
+and this record restates no claim of theirs.
+The entry's rewrap claim is inexact in both count and effect:
+five places have tails and it counts four,
+and it says the paragraphs are rewrapped when they are not.
 
 ## Amendments to other documents
 
@@ -410,8 +438,12 @@ one exception (Recommended)" and took neither option,
 so no sentence of the proposal,
 the plan,
 the accepted worktree design or `package/git-policy/cli/SPEC.md` changes for them.
-`package/git-policy/cli/SPEC.md` holds no sentence about this design at all;
-its `staging` word names the copy's staging name and its temporary write.
+`package/git-policy/cli/SPEC.md` holds no sentence that changes for this design:
+its boot-arm list already asks for
+"the replacement of the staging and checkout mounts until a private setup is verified",
+which the design meets by verifying the pin at boot reconcile
+and each removal's bind and propagation,
+and its other uses of the word name a copy's staging name and a lock's staging file.
 
 ### The notes this acceptance puts on the documents that waited on it
 
@@ -450,9 +482,15 @@ and each names this record.
 
 - It measures nothing.
   Every measurement arm the design states stays owed,
-  M1 to M9 included,
-  and VM items 3,
-  4 and 15 still need repeating with the built code.
+  M1 to M9 included.
+  Step 9 repeats VM items 3,
+  4 and 15 with the built code
+  ([plan](../planning/cli-git-zfs-worktree-implementation-plan.md),
+  step 9,
+  "VM measurements"),
+  and items 3 and 4 measured one path on the guest's root file system,
+  not this location and not a folder per removal (F19),
+  so their repeat is the one that covers this location and fixture.
 - It builds nothing.
   Step 9 and the steps behind it wait on the build,
   and no unmount runs from staging before step 9 ships.
