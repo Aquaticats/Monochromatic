@@ -704,7 +704,10 @@ Two whole suites ran on this host against the branch's tree, each in the gate's 
 - The cloning arm of cause E was not exercised here: this host has no btrfs and no overlay mount, so
   the runs above printed that the `ioctl` sweep did not run. The list control still requires every
   listed call on a cloning root, and `may_clone` is the product's own answer to which file systems
-  those are; a btrfs host is where the sweep itself runs again.
+  those are; a btrfs host is where the sweep itself runs again, and
+  `mise run //package/git-policy/cli:native:test:host:btrfs` is that run: it unsets the acknowledgement
+  and runs every target on a btrfs root, so the sweep runs there, and a wrapper release waits on it
+  unless the version is an alpha (`bin/native-release-host-controls.ts`).
 - The mutation runner copies its work tree onto a tmpfs of its own
   (`package/mutation-test/cli/src/host/podman.ts`), so its tests already met a tmpfs fixture root. That
   root shares no data blocks between files either, which is the arm the `ioctl` control now skips; the
