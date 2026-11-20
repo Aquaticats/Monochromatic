@@ -19133,6 +19133,127 @@ Version 8 was the first that carries a changed path's bytes;
 a version 7 service takes the readable spelling of a name that is not text
 and reports a successful commit of another file.
 
+### The start-time ZFS compatibility gate
+
+Both executables run one gate before their first request to `/dev/zfs`,
+and no raw request is made until it passes.
+The gate is this repository's own code on both sides:
+`compatibility_check` in `package/zfs/request-to-openzfs-kernel-device`
+holds the bounded reader,
+the pre-scan,
+the expectation table compiled from its own `repr(C)` type,
+the comparison and one refusal value,
+and `src/native/zfs_compatibility_gate/` in this package holds the paths,
+the read order,
+the module's identity,
+the target allowlist,
+the per-process verdict and the words a person reads.
+
+What it proves,
+in this order:
+
+- The binary runs on a target the managed route is qualified for.
+  `x86_64` is the only entry in `QUALIFIED_TARGETS`,
+  and no guest has qualified another target,
+  so `linux-arm64` refuses before any file is read.
+  BTF records no architecture,
+  so the compiled target is the only evidence there is.
+- `/dev/zfs` exists and this process can open it.
+  A missing or unopenable device refuses at that step and starts no read.
+- The loaded module's identity is read once:
+  `/sys/module/zfs/version`,
+  `srcversion` and the build ID note,
+  each bound to one page and stripped of one trailing newline.
+  The identity is never a rule:
+  no step compares the release string with an approved one.
+- `/sys/kernel/btf/vmlinux` and `/sys/kernel/btf/zfs` are read,
+  each through one open that follows no link and one bound,
+  and each file's magic,
+  byte order,
+  version,
+  flags,
+  header length and section list are checked before any type is decoded.
+  Both header shapes are read:
+  the 24 bytes Linux 6.8 wrote and the 32 bytes a current tool writes.
+- The module's `zfs_cmd` is compared with the declaration this package compiles:
+  the struct's size,
+  every member's bit offset and type size,
+  the anonymous union and the anonymous structure inside it,
+  every member of `dmu_objset_stats` and `zinject_record`,
+  each array's element size,
+  and every request number this package can send with `ZFS_IOC_FIRST` and
+  `ZFS_IOC_LAST`.
+  The walk has a fixed order and stops at the first difference,
+  naming the field path with both values.
+- The identity is read again.
+  A module that unloaded or was replaced under the check retries the whole
+  check once,
+  and refuses with "module changed while checking" only when the retry's own
+  two identity reads also differ.
+  A module that carries no release string,
+  `srcversion` or build ID weakens the reload check instead of refusing,
+  and `doctor` says which attribute is absent.
+
+The gate proves no module release.
+The project's answer of 2026-11-19,
+"Any version,
+layout decides",
+leaves the layout comparison and the request numbers to decide,
+so a module reporting `2.2.2-0ubuntu9.5` or `2.4.4-1_g1a2b3c4` reaches the
+comparison,
+and only a difference in the declaration or a number refuses it.
+It cannot prove handler behaviour,
+a property or nvlist key name,
+or a patch that keeps the same layout,
+and "Limits" of
+`doc/planning/cli-git-zfs-runtime-layout-checker-design.md` states each.
+
+A refusal disables every raw request,
+reads included,
+and there is no force flag and no environment variable that turns it into a
+pass.
+A missing device,
+a missing or unreadable file,
+a short read,
+a header or type entry the reader cannot represent,
+any difference and a module that changed under the check all refuse the same
+way:
+
+- The handler does not enter the mode,
+  so nothing is opened,
+  mounted,
+  unmounted or recorded,
+  and registrations and durable recovery state stay as they were.
+- The wrapper's ZFS route is unavailable,
+  and an unused slot takes the same-dataset reflink route or the ordinary Git
+  route instead,
+  which is the ladder's fallback for a slot nothing is attached to.
+  A clone that is already attached keeps its binding:
+  a refusal never authorizes an unrelated mount or cleanup.
+
+The refusal prints one line naming the failing step,
+the file it read and the detail,
+then states that every raw request,
+reads included,
+stays disabled,
+that registrations and durable recovery state stay as they were,
+that an unused slot takes the reflink or ordinary Git route,
+and that no flag and no environment turns the refusal into a pass.
+It never offers a bypass.
+A compatible verdict prints one line naming the target,
+the module's release text,
+each file's size and header length,
+and the sentence that says a release text other than the tested `2.4.4-1`
+was read,
+not a different version.
+
+The verdict is remembered per process and compared with the module's identity
+before each reuse,
+so a reload is noticed between two uses in one long process.
+No verdict is written to disk:
+the cross-process cache is the design's open question Q3,
+held until its owed cost measurement runs.
+
 ### Compatibility and degradation
 
 The executable is tested with real Git 2.56.0,
