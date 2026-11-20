@@ -82,6 +82,13 @@ fn a_module_without_the_command_structure_refuses_at_the_type() {
     assert!(refusal.to_string().contains("zfs_cmd"), "{}", refusal.to_string());
 }
 
+/// The header length a file states in its own first eight bytes.
+fn header_length(path: &std::path::Path) -> Option<usize> {
+    let bytes: Vec<u8> = std::fs::read(path).ok()?;
+    let field: &[u8] = bytes.get(4..8)?;
+    return Some(u32::from_le_bytes([field[0], field[1], field[2], field[3]]) as usize);
+}
+
 /// The host's own two files pass,
 /// when it has them:
 /// this is the design's device-free arm that reads copies of the kernel's files
@@ -111,12 +118,9 @@ fn the_hosts_two_files_pass_when_it_has_them() {
         compatible.module_bytes,
         compatible.module_header_bytes
     );
-    let shapes: [usize; 2] = [compatible.base_header_bytes, compatible.module_header_bytes];
-    for header_bytes in shapes {
-        assert!(
-            header_bytes == 24 || header_bytes == 32,
-            "a header of {header_bytes} bytes is neither shape this reader knows"
-        );
-    }
+    let base_header: usize = header_length(&base).expect("the base file's own header length");
+    let module_header: usize = header_length(&module).expect("the module file's own header length");
+    assert_eq!(compatible.base_header_bytes, base_header);
+    assert_eq!(compatible.module_header_bytes, module_header);
     assert!(compatible.module_bytes > compatible.base_header_bytes);
 }

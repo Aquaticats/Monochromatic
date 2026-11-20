@@ -108,6 +108,15 @@ fn a_renumbered_request_refuses_with_both_values() {
 }
 
 #[test]
+fn a_release_that_only_appends_a_request_refuses_at_the_range_end() {
+    let refusal: Refusal = refused(Change::AppendedRequest, "comparison-appended-request");
+    assert_eq!(refusal.step, Step::Enum);
+    assert!(refusal.detail.contains("ZFS_IOC_LAST"), "{}", refusal.detail);
+    assert!(refusal.detail.contains("23178"), "{}", refusal.detail);
+    assert!(refusal.detail.contains("23177"), "{}", refusal.detail);
+}
+
+#[test]
 fn a_missing_request_refuses_naming_it() {
     let refusal: Refusal = refused(Change::MissingChannelProgram, "comparison-missing-request");
     assert_eq!(refusal.step, Step::Enum);
