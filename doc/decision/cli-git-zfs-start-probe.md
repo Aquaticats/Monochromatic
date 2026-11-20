@@ -15,7 +15,8 @@ which names this record and the acceptance date.
 The evidence,
 the probes,
 the rejected options and every owed measurement stay in the design,
-and this record copies none of them.
+and this record restates each rejected option in one sentence,
+leaving the evidence to the design.
 The seventh check of the design,
 read on the diff to that commit,
 left seven lows and no medium finding;
@@ -81,13 +82,15 @@ one that denies the capabilities inside it,
 and one that refuses a mount the setup makes inside it,
 the private propagation and the scratch tmpfs included.
 The skip covers no other failure,
-bar the residue the design names for a first mapping write whose line or opener is not the one it builds.
+bar the two residues the design names:
+a first mapping write whose line or opener is not the one it builds,
+and a host whose `/proc` is not mounted.
 The alternative,
 refusing the managed add instead,
 is not taken;
 it would turn the managed route off on those same three reaches.
 
-The setup's calls are the two `unshare` calls,
+The design's setup calls are the two `unshare` calls,
 the `setgroups` write,
 the two mapping writes,
 the private propagation,
@@ -118,7 +121,8 @@ the `mount` that puts the scratch tmpfs in place,
 and the propagation when the companion makes that with `mount`.
 That bullet ends when the scratch tmpfs is in place,
 as the capability bullet does.
-The refusal control's bind mount is planted with `mount` and `MS_BIND` after the setup,
+The refusal control's bind mount is planted after the setup,
+and the design names no call for it,
 so an `EACCES` there is an arm failure and not a skip.
 
 #### The capability checks the bullet covers
@@ -126,7 +130,8 @@ so an `EACCES` there is an arm failure and not a skip.
 The bullet covers any capability check the setup's `mount` and `mount_setattr` make,
 `may_mount` among them.
 The other two checks of that kind in the setup are `may_change_propagation` and `mount_capable`,
-and no other `EPERM` source is reachable there:
+and no other `EPERM` source is reachable there,
+on the seventh check's reading of v7.3 rather than a proof that no site is missed:
 `mount_too_revealing` answers false for tmpfs,
 `can_change_locked_flags` returns the mount's own flags unchanged for a propagation-only call,
 and the idmap `EPERM` sites need an idmapped mount.
@@ -141,7 +146,7 @@ a filter for `mount` answering `EPERM` during the setup,
 and one for `mount_setattr` when the propagation uses it,
 each of which must print the skip line naming that call.
 Its fixture whose child answers `EPERM` from `fsmount` covers the arm-failure side,
-and its `mount` filter answering `EACCES` and its `unshare` filter answering `EPERM` cover the other two skip lines.
+and its `mount` filter answering `EACCES` and its `unshare` filters cover further skip lines.
 
 ### Q-b: where the first-attach claim sits
 
@@ -155,7 +160,8 @@ The claim is taken by the first attempt that passes the key check,
 on entry and before the walk that opens the slot.
 A refusal at the walk,
 at the slot's first-observation record or at the identity compare therefore becomes that boot's record,
-with its step name and its errno.
+with its step name and its errno,
+or `errno none` where the refusal is a comparison.
 A refusal at the key check takes no claim and writes nothing.
 The alternative,
 claiming at `fsopen`,
@@ -233,7 +239,8 @@ which would attempt an attach on the strength of a record that says the probe co
 
 Chosen:
 "Root plus account companion",
-which the design records with the option's "(Recommended)" marker.
+which the design records as the project's choice,
+its own first rank having been the other option.
 The account runs the small user-namespace companion before each managed add,
 and the root probe stays the only evidence about the dataset mount path.
 The project took the companion knowing that it never touches ZFS and skips on a host that refuses user namespaces;
@@ -248,7 +255,8 @@ and that regression would be seen only where something mounts as the account.
 
 Chosen:
 "Write first-attach",
-which the design records with the option's "(Recommended)" marker.
+which the design records as the project's choice,
+its own first rank having been the other option.
 The handler process that made the first real attach after boot writes its outcome to `first-attach`,
 which sits beside the probe's record,
 and `doctor` shows it beside the probe's result.
