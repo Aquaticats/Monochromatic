@@ -34,13 +34,13 @@ RUN --mount=type=cache,target=/var/cache/pacman/pkg,sharing=locked \
      "base-devel", "rust", "git", "cargo-nextest", "nodejs", "pnpm", "strace", "man-db", "perl", "python", "openssh", \
      "procps-ng"]
 
-# The x86-64 CachyOS image is a slimmed copy: its packages lost their manual pages, translations, info pages and docs
-# while the image's pacman database still lists every file (`pacman --query --check git` there names 240 missing of the
-# package's 757 files, `/usr/share/man/man5/githooks.5.gz` among them). `--needed` reads such a package as up to date
-# and never re-extracts the files, so `man` has no page to render and the hook-event guard test has nothing to read. The
-# x86-64-v4 image keeps all of them, which is why a build on the resolver's image finds the page without this step.
-# Reinstall the package from the synced database when its installed copy lacks the page; the `man --where githooks`
-# check still fails without it.
+# The x86-64 CachyOS image is a slimmed copy: most of its packages lost their manual pages, translations, info pages
+# and docs while the image's pacman database still lists every file. `pacman --query --check git` there names 240
+# missing of the package's 757 files, `/usr/share/man/man5/githooks.5.gz` among them, where `xz` keeps all 400 of its
+# files. `--needed` reads such a package as up to date and never re-extracts the files, so `man` has no page to render
+# and the hook-event guard test has nothing to read. The x86-64-v4 image keeps all of them, which is why a build on the
+# resolver's image finds the page without this step. Reinstall the package from the synced database when its installed
+# copy lacks the page; the `man --where githooks` check still fails without it.
 RUN --mount=type=cache,target=/var/cache/pacman/pkg,sharing=locked \
     ["sh", "-c", "test -e /usr/share/man/man5/githooks.5.gz || pacman --disable-sandbox --sync --noconfirm git"]
 

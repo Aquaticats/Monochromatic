@@ -1,9 +1,9 @@
 # CachyOS build images: package and tool differences that broke a build or a test
 
-Started on 2026-10-29 while moving the music-player,
+The first entries were written on 2026-10-29 while moving the music-player,
 terminal and IDE images from Fedora to `docker.io/cachyos/cachyos`
 (see [container-base-distro](../decision/container-base-distro.md));
-entries added later name their own date.
+later entries name their own date and need not come from that move.
 Each item names the exact failure,
 the cause that was read from the image,
 and the change that fixed it.
@@ -150,7 +150,26 @@ and the CachyOS image has no `man`
 (`which man` printed `no man in (...)`),
 so the base image installs `man-db` and the test reads the rendered page.
 
-### The x86-64 image's packages keep their database entries but lost their manual pages (observed 2026-11-19)
+### Package versions the images got
+
+`mise run //package/git-policy/cli:test:git-image` on 2026-11-04 reported `git 2.56.0-1.1`,
+`nodejs 26.12.1-2`,
+`pnpm 12.17.0-1.1`,
+`strace 7.3-1`,
+`cargo-nextest 0.9.150-1.1` and `rust 1:1.99.1-1`.
+CachyOS's repositories come first in the image's `/etc/pacman.conf` (`cachyos-v4`,
+`cachyos-core-v4`,
+`cachyos-extra-v4`,
+`cachyos`,
+then Arch's `core`,
+`extra`,
+`multilib`),
+and pacman takes the first repository that has a package,
+not the
+newest version:
+the image got `nodejs 26.12.1-2` from `cachyos-v4` while `extra` held `26.13.0-1`.
+
+## The x86-64 CachyOS image lost the manual pages its pacman database still lists (2026-11-19T19:18:44-05:00)
 
 A fresh build of `package/git-policy/cli/native-test-base.Containerfile` without a `--build-arg`, so from the
 Containerfile's default `docker.io/cachyos/cachyos:latest`, stopped at its closing step:
@@ -171,8 +190,12 @@ The cause is the x86-64 image, not the package, the repository or a `NoExtract` 
 and the missing files are the package's whole `/usr/share/man` and `/usr/share/locale` trees, which
 `pacman --query --list git` still lists; the same command in `docker.io/cachyos/cachyos-v4:latest` reports
 `0 altered files`.
-The image was built as a slimmed copy that removed manual pages, translations, info pages and docs from its packages
-while keeping the pacman database that names them (`bash` has 62 such files, `coreutils` 257 and `perl` 966).
+The image was built as a slimmed copy that removed manual pages, translations, info pages and docs from most of its
+packages while keeping the pacman database that names them: `xz` still reports `400 total files, 0 altered files`,
+where `bash` lost 62 files, `coreutils` 257 and `perl` 966.
+The image's whole `pacman --query --check` names 21,090 missing files, one of them `/etc/resolv.conf` and the rest
+under `/usr/share`: 17,079 manual pages, 2,416 locale files, 761 docs, 563 i18n files, 221 info pages and 49
+gtk-doc files.
 `/etc/pacman.conf` carries no `NoExtract` line in either image, only the commented `#NoExtract   =` one.
 Because the Containerfile installs with `--needed`, pacman reads such a package as complete:
 `warning: git-2.56.1-1 is up to date -- skipping`.
@@ -186,22 +209,3 @@ A build from either CachyOS image now succeeds and prints `/usr/share/man/man5/g
 Residual:
 the image repairs `git` only, so a slimmed package whose other files a test needs gets the same reinstall when that test
 fails; `--needed` can never restore a slimmed package's files on its own.
-
-### Package versions the images got
-
-`mise run //package/git-policy/cli:test:git-image` on 2026-11-04 reported `git 2.56.0-1.1`,
-`nodejs 26.12.1-2`,
-`pnpm 12.17.0-1.1`,
-`strace 7.3-1`,
-`cargo-nextest 0.9.150-1.1` and `rust 1:1.99.1-1`.
-CachyOS's repositories come first in the image's `/etc/pacman.conf` (`cachyos-v4`,
-`cachyos-core-v4`,
-`cachyos-extra-v4`,
-`cachyos`,
-then Arch's `core`,
-`extra`,
-`multilib`),
-and pacman takes the first repository that has a package,
-not the
-newest version:
-the image got `nodejs 26.12.1-2` from `cachyos-v4` while `extra` held `26.13.0-1`.
