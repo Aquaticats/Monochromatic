@@ -242,7 +242,11 @@ impl<'a> FixturePool<'a> {
         assert_eq!(version.trim(), OPENZFS_RELEASE);
     }
 
-    /// Destroy the pool and every dataset under it.
+    /// Destroy the pool,
+    /// every dataset under it,
+    /// and the folder that held its
+    /// image and raw key,
+    /// so a run leaves the guest's fixture root empty.
     pub(crate) fn destroy(&mut self) {
         if !self.armed {
             return;
@@ -251,6 +255,8 @@ impl<'a> FixturePool<'a> {
         let _ = std::process::Command::new(self.fixture.sbin.join("zpool"))
             .args(["destroy", "-f", &self.name])
             .output();
+        let folder: std::path::PathBuf = super::fixture::pool_folder(&self.fixture.root, &self.name);
+        let _ = std::fs::remove_dir_all(folder);
     }
 }
 

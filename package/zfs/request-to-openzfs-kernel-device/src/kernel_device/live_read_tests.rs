@@ -55,6 +55,7 @@ fn listing_the_clone_parent_returns_every_child_and_then_its_end() {
     assert_eq!(names.len(), 2);
     assert!(names.contains(&first));
     assert!(names.contains(&second));
+    println!("children in kernel order: {names:?}");
     let listed: Option<ListedObject> = device
         .dataset_list_next(&pool.clones, 0)
         .expect("the first child is answered");

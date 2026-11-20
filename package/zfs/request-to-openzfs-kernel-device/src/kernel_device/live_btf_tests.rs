@@ -89,6 +89,10 @@ fn the_running_modules_type_information_matches_the_rust_mirror() {
     let (begin_size, begin_members) = parse_layout(&begin);
     assert_eq!(begin_size, DRR_BEGIN_BYTES);
     assert_fields(&begin_members, &drr_begin_fields());
+    println!(
+        "layout zfs_cmd bytes={command_size} dmu_objset_stats={stats_size} \
+         zinject_record={inject_size} drr_begin={begin_size} module={module}"
+    );
     std::mem::drop(pool);
 }
 
