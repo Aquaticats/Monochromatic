@@ -40635,7 +40635,14 @@ stated in this entry. What follows from them, as work:
   `take_snapshot` and `restore_dirty`, where the content judge of `worktree_clean_content.rs` hashes entries stat data
   cannot vouch for and refuses converting attributes, so rung 1's open question is its stat-trusted entries; and
   `conversion_is_the_identity`, which models every attribute source and converting attribute, has no caller outside its
-  tests. Both runs were told this through their inboxes; the fence is to reuse it.
+  tests. Both runs were told this through their inboxes; the fence is to reuse it. THE GUEST CHECK ended `idle` (141
+  turns, ten minutes; its folder's `keep/report-from-summary.md`, `findings.md`, logs and guest recipe): on `main`'s
+  release build in a btrfs guest, rung 1 (clean "a snapshot", dirty "a snapshot with a restore") and rung 2 ("clones")
+  both differ from Git's checkout in all four cases, controls equal, every reference add through Git's checkout (the
+  coordinator read the log's routes and verdicts); cause `worktree_clean_tree_walk.rs:54`, a stat-exact entry never
+  reaches the judge. So the defect is in `main` as released, on btrfs; XFS and overlayfs not run. Recorded on issue 6323,
+  in the plan's steps 10 and 11 open items, and sent to the fence run, which now designs for rung 1 too. The throwaway
+  worktree is removed.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
