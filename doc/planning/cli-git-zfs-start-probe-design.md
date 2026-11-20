@@ -62,21 +62,45 @@ carried.
 - `2026-11-19T21:44:02-05:00` (commits `92503d3f71`, `5af5c0fbc9`, `b5a635e448`, `d457df96b0`, `a11d124b64`,
   `586177747c` and `1a9c0b27b2`, and the label and wrap commits after them, this one included): the answer to a gate
   review of the applied answers. Its findings were weighed one by one, and every one earned a fix, with none refused.
-  `doctor` now runs the account companion under the shared preflight, so a reason an add refuses is a reason `doctor`
-  prints. The companion's skip is this design's own choice, with its reason and the alternative, and marked open to the
-  project's veto. Its child's start is specified: a fork on the blocking pool whose child runs a raw-syscall island,
-  because the source guard forbids the re-exec the review offered, with `setpgid` called at once and the scratch
-  directory placed outside the managed tree. `first-attach` gains its step names, `errno none` for a check, the rule
-  that a pre-attach refusal takes no claim, `0644` writes both ways, a path open, and the ordering a later sweep really
-  has. The deadline's value is sourced from step 6's own M4 run and step 10's own M11 run, with what both steps do
-  until those exist, and a timed-out record names the arm in flight. The plan notes were rechecked against the plan as
-  main has it, now cite steps by heading, and carry the duties of steps 8, 14, 16, 18, 19 and 20 and each measurement's
-  step. The lows: the skip errno set checked against the kernel source (`ENOSPC` since Linux 4.9, `EACCES` from SELinux
-  and AppArmor, no `EUSERS`, with each hook's lines read in the v7.3 file), the effective Linux 6.6 floor with its
-  amendment note, the dead `.zfs/snapshot` and `atime` facts removed, the ninth exclusion's amendment note, the
-  header's subject, the answer record cited with a commit line, and the two host premises of the source section and
-  of its assumptions checked at setup rather than asserted. The three checkers ran on the design and on a broken
-  copy, each failing there and passing here.
+  `doctor` now runs the account companion under the shared preflight, so `doctor` prints the companion's own outcome
+  beside the probe's record. The companion's skip is this design's own choice, with its reason and the alternative,
+  and marked open to the project's veto. Its child's start is specified: a fork on the blocking pool whose child runs
+  a raw-syscall island, because the source guard forbids the re-exec the review offered, with `setpgid` called at once
+  and the scratch directory placed outside the managed tree. `first-attach` gains its step names, `errno none` for a
+  check, the rule that a pre-attach refusal takes no claim, `0644` writes both ways, a path open, and the ordering a
+  later sweep really has. The deadline's value is sourced from step 6's own M4 run and step 10's own M11 run, with
+  what both steps do until those exist, and a timed-out record names the arm in flight. The plan notes were rechecked
+  against the plan as main has it, now cite steps by heading, and carry the duties of steps 8, 14, 16, 18, 19 and 20
+  and each measurement's step. The lows: the skip errno set checked against the kernel source (`ENOSPC` since Linux
+  4.9, `EACCES` from SELinux and AppArmor, no `EUSERS`, with each hook's lines read in the v7.3 file), the effective
+  Linux 6.6 floor with its amendment note, the dead `.zfs/snapshot` and `atime` facts removed, the ninth exclusion's
+  amendment note, the header's subject, the answer record cited with a commit line, and the two host premises of the
+  source section and of its assumptions checked at setup rather than asserted. The three checkers ran on the design
+  and on a broken copy, each failing there and passing here.
+
+- `2026-11-19T23:20:00-05:00` (commits `ac8a46addb`, `8bfdcd546e` and this one, this one included): the answer to a
+  re-check of the applied answers. Its findings were weighed one by one and every one earned a fix, with none refused.
+  `first-attach` now takes its claim at the first attempt that passes the key check, and that one rule is stated in
+  the claim sentence, the step order, the M8 control and the operation-outcome sentence, with the reason for that
+  boundary and the key check the only step outside it. The companion's endings are a closed set, each with its class
+  and print line: a pass, an arm failure, a skip, a deadline expiry, a refused `fork` under the wrapper's retried
+  start, an unusable scratch directory, a refused mountinfo read past the wrapper's own bound, and a death by
+  signal, with `doctor` printing what it cannot prove as `unknown` and saying its run is a fresh one. The skip's
+  boundary moved to the end of the namespace setup, because Ubuntu 24.04's default AppArmor profile, on the guest
+  every measurement runs on, grants the user namespace and denies the capabilities inside it, where the next call
+  answers `EPERM` (`kernel/nsproxy.c:221` to `:223`, `fs/namespace.c:2062` to `:2066`), and the wrapper's own test
+  control already treats a failure anywhere in that setup as unavailable. M11 gained that restricted guest, a
+  test-only switch and a test deadline, and M6 says it is a separate arm from plan step 3's H1 gate 7. The lows: the
+  companion child's `_exit` on every path, its `close_range` sweep and the reaper for a child `SIGKILL` cannot end,
+  its parent-death signal with the pool's keep-alive; the re-exec bar cited from its decision document and a sentence
+  on why no separate helper executable is proposed; the sweep that proves a directory dead before removing it, with
+  the kernel rule that makes that care necessary, and the PID-namespace and birth-identity guards beside it; a
+  heading and name for the pipes and parent-death protocol, so no pointer by position remains; arm 8's move, unmount
+  and closing scan each on a status line of their own; the LSM hook cites; the path open named as a departure from
+  the receipts rule; the `doctor` write stated; the two veto-open choices taken out of the writer's list and named in
+  the questions section; and the deadline's margin sentence. The plan notes were rechecked against main as it stands
+  (`59152e567b`), and a fourth amendment, for plan step 22, joins the three. The three checkers ran on the design and
+  on a broken copy, each failing there and passing here.
 
 ## Answers of 2026-11-19
 
