@@ -18,10 +18,11 @@
 
  The size is a ceiling under the container's memory bound: tmpfs pages count against the container's memory, so a
  fixture tree that outgrows the ceiling fails with `ENOSPC` naming the fixture root instead of ending the run with an
- out-of-memory kill. The measured whole-suite run held at most 994 MiB of process pages while its fixtures peaked at
- 222 MiB, so the gate's 2048 MiB bound leaves about 1054 MiB for fixtures; this ceiling sits below that headroom, at
- 38% of the bound, so a runaway fixture tree meets the ceiling first
- (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`, the section on the measured whole-suite run).
+ out-of-memory kill. The integration pass of 2026-11-19 measured a whole suite on this root at 868.3 MiB of process
+ pages and a 195.1 MiB fixture peak, so the gate's 2048 MiB bound leaves about 1179.7 MiB for fixtures; this ceiling
+ sits 411.7 MiB below that headroom, at 38% of the bound, so a runaway fixture tree meets the ceiling first (the
+ record is `perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`, read in
+ `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
  */
 import { imagePackageRoot, } from './native-layered-build.ts';
 import { subjectCrate, } from './native-wrapper-snapshot.ts';
@@ -38,10 +39,11 @@ export const gateFixtureRoot: string = `${imagePackageRoot}/${subjectCrate}/targ
 /**
  Size of the tmpfs mounted at {@link gateFixtureRoot}.
 
- Measured 2026-11-19: the whole gate suite held at most 994 MiB of process pages and peaked at 222 MiB of fixture bytes
- on this tmpfs, so the gate's 2048 MiB bound leaves about 1054 MiB for fixtures (the run recorded in
- `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`). This ceiling is 3.5 times the fixture peak and
- 286 MiB below that headroom, so a fixture tree that outgrows it meets this ceiling before it meets the memory bound.
+ Measured by the integration pass of 2026-11-19, 211 samples taken every few seconds across 780 s and kept in
+ `perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`: the whole gate suite held at most 868.3 MiB of process
+ pages and peaked at 195.1 MiB of fixture bytes, so the gate's 2048 MiB bound leaves about 1179.7 MiB for fixtures.
+ This ceiling is 3.94 times the fixture peak and 411.7 MiB below that headroom, so a fixture tree that outgrows it
+ meets this ceiling before it meets the memory bound.
  */
 export const gateFixtureRootSize: string = '768m';
 

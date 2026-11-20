@@ -53,23 +53,17 @@ fn settling_keeps_removes_and_accepts_a_tree_that_is_gone() {
 
 /// Fixtures are created beside the build output,
 /// never in the system temporary directory,
-/// unless the person moved the
-/// root on purpose.
+/// and a run that moves the root keeps the moved root out of the system temporary directory too.
 #[test]
 fn the_fixture_root_is_not_the_system_temporary_directory() {
-    if std::env::var_os(FIXTURE_ROOT_VARIABLE).is_some() {
-        return;
-    }
     let root: PathBuf = fixture_root();
-    // The last component is this process's own directory, so the names under it that are not fixtures' own are the
-    //  process's: the build output above `test-fixtures` is shared by every checkout that builds here.
-    assert!(root.parent().is_some_and(|above| { return above.ends_with("test-fixtures"); }), "{}", root.display());
-    assert!(root.ends_with(format!("process-{}", std::process::id()).as_str()), "{}", root.display());
-    // The system temporary directory is `TMPDIR` when set and `/tmp` otherwise; reading the variable compares against it
-    // without calling the temporary-directory function that the lint configuration bans.
-    let mut system: Vec<PathBuf> = vec![PathBuf::from("/tmp"), PathBuf::from("/var/tmp")];
-    system.extend(std::env::var_os("TMPDIR").map(PathBuf::from));
-    for directory in system {
+    if std::env::var_os(FIXTURE_ROOT_VARIABLE).is_none() {
+        // The last component is this process's own directory, so the names under it that are not fixtures' own are the
+        //  process's: the build output above `test-fixtures` is shared by every checkout that builds here.
+        assert!(root.parent().is_some_and(|above| { return above.ends_with("test-fixtures"); }), "{}", root.display());
+        assert!(root.ends_with(format!("process-{}", std::process::id()).as_str()), "{}", root.display());
+    }
+    for directory in system_temporary_directories() {
         assert!(!root.starts_with(&directory), "{} is under the system temporary directory {}", root.display(), directory.display());
     }
 }
