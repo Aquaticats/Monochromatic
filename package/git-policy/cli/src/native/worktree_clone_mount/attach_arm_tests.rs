@@ -185,6 +185,11 @@ impl AttachArm {
     ///  so the fixture is built by both accounts, as the route's is.
     fn build(guest: &Guest, name: &str, slots: &[&str]) -> AttachArm {
         let root: PathBuf = guest.fixture_root.join("arms").join(name);
+        // A run of this step in the same guest builds the same arms again, so a folder an earlier run left is cleared
+        // first; nothing outside the arm's own folder is touched.
+        if root.exists() {
+            std::fs::remove_dir_all(&root).expect("the earlier run's arm folder is removed");
+        }
         std::fs::create_dir_all(&root).expect("the arm's folder");
         let checkout: PathBuf = root.join("checkout");
         std::fs::create_dir(&checkout).expect("the arm's checkout");
@@ -485,6 +490,7 @@ fn assert_the_beside_mount_is_alone(slot: &Path, mount: &MountedClone, refusal: 
 ///  the flag read-back is H1 gate 5's recheck on the built code,
 ///  read from the mount table rather than from the call that asked for it.
 #[test]
+#[ignore = "mounts a real ZFS clone: the throwaway `mvm` guest of package/zfs/request-to-openzfs-kernel-device/e2e runs it, and any other machine answers SKIP"]
 fn attach_arm_the_clone_lands_at_the_held_slot_with_the_enforced_flags() {
     let Some(guest) = in_the_guest("worktree_clone_mount::attach_arm_tests::attach_arm_the_clone_lands_at_the_held_slot_with_the_enforced_flags") else { return };
     let arm: AttachArm = AttachArm::build(&guest, "lands", &[THE_SLOT]);
@@ -535,6 +541,7 @@ fn attach_arm_the_clone_lands_at_the_held_slot_with_the_enforced_flags() {
 ///  the unrestricted arm is the positive control,
 ///  because a setuid program that never elevates would make the restricted arm prove nothing.
 #[test]
+#[ignore = "mounts a real ZFS clone: the throwaway `mvm` guest of package/zfs/request-to-openzfs-kernel-device/e2e runs it, and any other machine answers SKIP"]
 fn attach_arm_the_setuid_probe_keeps_the_account_under_the_enforced_flags() {
     let Some(guest) = in_the_guest("worktree_clone_mount::attach_arm_tests::attach_arm_the_setuid_probe_keeps_the_account_under_the_enforced_flags") else { return };
     let arm: AttachArm = AttachArm::build(&guest, "setuid", &[THE_SLOT]);
@@ -580,6 +587,7 @@ fn attach_arm_the_setuid_probe_keeps_the_account_under_the_enforced_flags() {
 ///  "leaves existing mounts alone" needs a real mount of its own to be seen against,
 ///  so a second clone is attached before the refusals and its number is read after each one.
 #[test]
+#[ignore = "mounts a real ZFS clone: the throwaway `mvm` guest of package/zfs/request-to-openzfs-kernel-device/e2e runs it, and any other machine answers SKIP"]
 fn attach_arm_each_refusal_names_its_component_and_leaves_the_beside_mount_alone() {
     let Some(guest) = in_the_guest("worktree_clone_mount::attach_arm_tests::attach_arm_each_refusal_names_its_component_and_leaves_the_beside_mount_alone") else { return };
     let mut names: Vec<&str> = vec![THE_BESIDE_SLOT, THE_SLOT];
@@ -714,6 +722,7 @@ fn attach_arm_each_refusal_names_its_component_and_leaves_the_beside_mount_alone
 ///  The plan's report is produced by the call step 5 ships,
 ///  so this arm asserts the plan's mount and path and that the descriptor unmount takes exactly that mount down.
 #[test]
+#[ignore = "mounts a real ZFS clone: the throwaway `mvm` guest of package/zfs/request-to-openzfs-kernel-device/e2e runs it, and any other machine answers SKIP"]
 fn attach_arm_a_rename_after_the_walk_is_reported_misplaced_and_rolled_back() {
     let Some(guest) = in_the_guest("worktree_clone_mount::attach_arm_tests::attach_arm_a_rename_after_the_walk_is_reported_misplaced_and_rolled_back") else { return };
     let arm: AttachArm = AttachArm::build(&guest, "rename", &[THE_SLOT]);
@@ -764,6 +773,7 @@ fn attach_arm_a_rename_after_the_walk_is_reported_misplaced_and_rolled_back() {
 ///  so a later "no mount at the slot" answer counts as evidence rather than as a blind read.
 ///  The decoy is a slot of this guest's own fixture and nothing outside it is touched.
 #[test]
+#[ignore = "mounts a real ZFS clone: the throwaway `mvm` guest of package/zfs/request-to-openzfs-kernel-device/e2e runs it, and any other machine answers SKIP"]
 fn attach_arm_a_path_mount_onto_a_decoy_is_seen_away_from_the_checked_slot() {
     let Some(guest) = in_the_guest("worktree_clone_mount::attach_arm_tests::attach_arm_a_path_mount_onto_a_decoy_is_seen_away_from_the_checked_slot") else { return };
     let arm: AttachArm = AttachArm::build(&guest, "decoy", &[THE_SLOT, "decoy"]);

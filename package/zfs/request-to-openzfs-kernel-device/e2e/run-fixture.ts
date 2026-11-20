@@ -646,7 +646,7 @@ function step4Arms(options: Options): void {
     `export ${STEP4_OPENZFS}`,
     `export ${step4Environment(options)}`,
     'if cargo nextest run --release --test-threads 1 --no-fail-fast --status-level all --no-capture ' +
-      '--lib --filterset "test(attach_arm_)" ' +
+      '--run-ignored all --lib --filterset "test(attach_arm_)" ' +
       '> /root/step4-suite.log 2>&1; then status=0; else status=$?; fi',
     'tail --lines=60 /root/step4-suite.log',
     'test "$status" = 0',
