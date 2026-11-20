@@ -6123,7 +6123,13 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   and the acknowledgement variable each refusal names is the only thing that lets one skip:
   `CLI_GIT_TEST_NO_USER_NAMESPACES=1` for the controls that judge root-owned files inside an unprivileged user namespace,
   and `CLI_GIT_TEST_NO_MOUNT_NAMESPACES=1` for the control that needs a mount in a mount namespace of its own.
-  A control that does not run prints `NAMESPACE CONTROL NOT RUN: <control> (<what the host refused>)` and passes,
+  A control that does not run prints a line naming what the host refused and passing,
+  and every such line holds the same words,
+  `NAMESPACE CONTROL NOT RUN: <control> (<what the host refused>)`:
+  the words before them say which capability was missing,
+  `MOUNT` for the control that needs a mount in a mount namespace of its own
+  and `USER` for the binary-level control that needs an unprivileged mount,
+  so a search for the shared phrase finds every control that skipped,
   and a run that states no variable fails naming the one to set.
   The gate image sets neither,
   because this host allows both

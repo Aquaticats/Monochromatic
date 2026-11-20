@@ -64,6 +64,10 @@
 //! - `root_namespace_test_support.rs`:
 //!   the user namespace a control needs when the files it judges must be root's,
 //!   never in the release build.
+//! - `attach_arm_tests.rs`:
+//!   step 4's guest arms,
+//!   which mount a real clone at the slot the walk held,
+//!   never in the release build.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -118,6 +122,16 @@ pub mod parent_adoption_decision;
 #[cfg(all(test, target_os = "linux"))]
 #[path = "root_namespace_test_support.rs"]
 pub(crate) mod root_namespace_test_support;
+
+/// Step 4's guest arms:
+/// the real mount at a held slot,
+/// the enforced flags,
+/// item 2's refusals and its rename trial,
+/// and the decoy control,
+/// all run in the throwaway guest the recipe makes.
+#[cfg(all(test, target_os = "linux"))]
+#[path = "attach_arm_tests.rs"]
+mod attach_arm_tests;
 
 /// The identity fields and their compare.
 pub use clone_folder_identity::{CloneFolderField, CloneFolderIdentity};

@@ -17,6 +17,25 @@ use std::sync::{Arc, Mutex};
 /// which the reader requires.
 const HEADER: &str = "# monochromatic-git-policy-cli worktree clone slot identities, version 1";
 
+/// How many slot records the small store of the hold measurement holds,
+/// which is the width `STORE_LOCK_WAIT` cites.
+const MEASUREMENT_SLOT_COUNT: usize = 1000;
+
+/// How many samples the small store's arm takes.
+const MEASUREMENT_SMALL_SAMPLES: usize = 40;
+
+/// How many samples each wide-store arm takes.
+const MEASUREMENT_WIDE_SAMPLES: usize = 10;
+
+/// Where the hold measurement writes its stores,
+/// which a run names so the measurement can be put on a chosen file system.
+const MEASUREMENT_ROOT_VARIABLE: &str = "MONOCHROMATIC_STORE_HOLD_MEASUREMENT_ROOT";
+
+/// How wide the access ACL of a slot record in the widest store is,
+/// which is what makes one record wide:
+/// a kernel ACL blob of a folder with a dozen named entries.
+const MEASUREMENT_ACL_BYTES: usize = 200;
+
 /// An identity with the given inode,
 /// so two records in one test never read alike.
 fn identity(inode: u64) -> CloneFolderIdentity {
@@ -282,19 +301,29 @@ fn the_append_holds_one_lock_on_the_lock_file_from_the_read_to_the_write() {
     remove(root.as_path());
 }
 
+/// The append a control drives,
+/// which is the grammar's own writer or the route's.
+type Append = fn(&Path, &str, &CloneFolderIdentity) -> Result<(), StoreRefusal>;
+
+/// The adoption a control drives,
+/// which is the grammar's own writer or the route's.
+type Adopt = fn(&Path, &CloneFolderIdentity) -> Result<(), StoreRefusal>;
+
 /// What:
-///  The adoption's rewrite takes the same lock an append holds:
-///  run while an append holds it,
-///  the adoption refuses rather than replacing the file under that append,
+///  The scenario one control runs through a pair of writers:
+///  an adoption is asked for while an append holds the lock,
+///  it refuses rather than replacing the file under that append,
 ///  and the append's record is in the store afterwards.
 /// Why:
 ///  The adoption publishes a whole new file by rename,
 ///  so a rewrite that ran between an append's read and its write dropped that append's line;
 ///  the `Locked` refusal names the adoption as a holder,
-///  and this control is what makes that sentence true.
-#[test]
-fn the_adoption_waits_for_the_append_s_lock_and_never_drops_its_record() {
-    let root: PathBuf = fixture("slot-store-adoption-under-the-lock");
+///  and this scenario is what makes that sentence true.
+///  It takes its writers as arguments so the route's writers,
+///  the ones production calls,
+///  are pinned by the same red a plant on the grammar's own writer turns.
+fn the_adoption_waits_for_the_append_s_lock(name: &str, append: Append, adopt: Adopt) {
+    let root: PathBuf = fixture(name);
     let path: PathBuf = store(root.as_path(), &[parent_line(&identity(500))]);
     let during: Arc<Mutex<Vec<Result<(), StoreRefusal>>>> = Arc::default();
     let seen: Arc<Mutex<Vec<Result<(), StoreRefusal>>>> = Arc::clone(&during);
@@ -302,12 +331,12 @@ fn the_adoption_waits_for_the_append_s_lock_and_never_drops_its_record() {
     BETWEEN_THE_READ_AND_THE_APPEND.with(|hook| {
         *hook.borrow_mut() = Some(Box::new(move || {
             THE_LOCK_WAIT_ALLOWED.with(|allowed| { *allowed.borrow_mut() = Some(std::time::Duration::from_millis(20)); });
-            let outcome: Result<(), StoreRefusal> = record_parent_identity(probed.as_path(), &identity(501));
+            let outcome: Result<(), StoreRefusal> = adopt(probed.as_path(), &identity(501));
             THE_LOCK_WAIT_ALLOWED.with(|allowed| { *allowed.borrow_mut() = None; });
             seen.lock().expect("the control's own list").push(outcome);
         }));
     });
-    let appended: Result<(), StoreRefusal> = append_slot_identity(path.as_path(), "one", &identity(502));
+    let appended: Result<(), StoreRefusal> = append(path.as_path(), "one", &identity(502));
     BETWEEN_THE_READ_AND_THE_APPEND.with(|hook| { *hook.borrow_mut() = None });
     appended.expect("a slot with no record is recorded");
     let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("store reads");
@@ -320,15 +349,27 @@ fn the_adoption_waits_for_the_append_s_lock_and_never_drops_its_record() {
 }
 
 /// What:
-///  The append opens the store only after it holds the lock,
-///  so a rewrite that replaces the file in the window between them still receives the record.
+///  The adoption's rewrite takes the same lock an append holds.
+/// Why:
+///  The scenario above is the proof;
+///  this control runs it through the writers the grammar's own tests drive.
+#[test]
+fn the_adoption_waits_for_the_append_s_lock_and_never_drops_its_record() {
+    the_adoption_waits_for_the_append_s_lock("slot-store-adoption-under-the-lock", append_slot_identity, record_parent_identity);
+}
+
+/// What:
+///  The scenario one control runs through a pair of writers:
+///  a rewrite replaces the store between the lock and the append's open,
+///  and the record still lands in the file the path names.
 /// Why:
 ///  An append that opened the file first wrote into the replaced one when the rename landed before its lock,
 ///  answered `Ok`,
-///  and the store at its path no longer held the record.
-#[test]
-fn the_append_opens_the_store_after_it_holds_the_lock() {
-    let root: PathBuf = fixture("slot-store-open-after-the-lock");
+///  and the store at its path no longer held the record;
+///  the route's writers take the lock after the same refusal,
+///  so a plant on either pair is what this scenario turns red.
+fn a_rewrite_between_the_lock_and_the_open_still_receives_the_record(name: &str, append: Append) {
+    let root: PathBuf = fixture(name);
     let path: PathBuf = store(root.as_path(), &[parent_line(&identity(510))]);
     let replacement: PathBuf = root.join("replacement-store");
     std::fs::write(&replacement, format!("{HEADER}\n{}\n", parent_line(&identity(511)))).expect("the replacement store");
@@ -339,13 +380,24 @@ fn the_append_opens_the_store_after_it_holds_the_lock() {
             std::fs::rename(&staged, &swapped).expect("the rewrite replaces the store");
         }));
     });
-    let appended: Result<(), StoreRefusal> = append_slot_identity(path.as_path(), "one", &identity(512));
+    let appended: Result<(), StoreRefusal> = append(path.as_path(), "one", &identity(512));
     BEFORE_THE_STORE_OPENS.with(|hook| { *hook.borrow_mut() = None });
     appended.expect("a slot with no record is recorded");
     let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("store reads");
     assert_eq!(read.parent(), Some(&identity(511)), "the append read the file the path names, after the lock");
     assert_eq!(read.slot("one"), Some(&identity(512)), "the record lands in the file the path names");
     remove(root.as_path());
+}
+
+/// What:
+///  The append opens the store only after it holds the lock,
+///  so a rewrite that replaces the file in the window between them still receives the record.
+/// Why:
+///  The scenario above is the proof;
+///  this control runs it through the writer the grammar's own tests drive.
+#[test]
+fn the_append_opens_the_store_after_it_holds_the_lock() {
+    a_rewrite_between_the_lock_and_the_open_still_receives_the_record("slot-store-open-after-the-lock", append_slot_identity);
 }
 
 /// What:
@@ -536,6 +588,10 @@ fn the_route_s_writes_refuse_a_store_or_lock_this_account_could_rewrite() {
     assert!(matches!(refused_lock, StoreRefusal::NotUnderRootControl { .. }), "{refused_lock:?}");
     assert!(refused_lock.message().contains("0644"), "the mode is named: {}", refused_lock.message());
     assert!(refused_lock.message().contains("the lock that keeps two writes to the store apart"), "the lock is named: {}", refused_lock.message());
+    let refused_adoption_lock: StoreRefusal = record_parent_identity_under_root_control(path.as_path(), &identity(406)).expect_err("the adoption refuses a lock another account may open too");
+    assert!(matches!(refused_adoption_lock, StoreRefusal::NotUnderRootControl { .. }), "{refused_adoption_lock:?}");
+    assert!(refused_adoption_lock.message().contains("0644"), "the mode is named: {}", refused_adoption_lock.message());
+    assert!(refused_adoption_lock.message().contains("the lock that keeps two writes to the store apart"), "the lock is named: {}", refused_adoption_lock.message());
     std::fs::set_permissions(lock.as_path(), std::fs::Permissions::from_mode(STORE_LOCK_MODE)).expect("the lock back to root's own");
     append_slot_identity_under_root_control(path.as_path(), "two", &identity(402)).expect("a root-owned store records a second slot");
     std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o666)).expect("a store another account can write");
@@ -550,7 +606,42 @@ fn the_route_s_writes_refuse_a_store_or_lock_this_account_could_rewrite() {
     let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("store reads");
     assert_eq!(read.parent(), Some(&recorded_parent));
     assert_eq!(read.slot("two"), Some(&identity(402)), "the adoption keeps every slot record");
+    let absent: PathBuf = root.join("absent-store");
+    let refused_absent: StoreRefusal = record_parent_identity_under_root_control(absent.as_path(), &recorded_parent).expect_err("an adoption never invents the store");
+    assert!(matches!(refused_absent, StoreRefusal::Missing { .. }), "{refused_absent:?}");
+    assert!(!absent.exists(), "the adoption wrote no store");
+    assert!(!store_lock_path(absent.as_path()).exists(), "the adoption made no lock file beside a store that is not there");
     remove(root.as_path());
+}
+
+/// Environment variable that makes the control below run its inner half,
+/// inside a user namespace of its own,
+/// where this run's own files are root's.
+#[cfg(target_os = "linux")]
+const ROOT_SIDE_ROUTE_WRITERS_VARIABLE: &str = "SLOT_IDENTITY_STORE_ROOT_SIDE_ROUTE_WRITERS";
+
+/// What:
+///  The route's two writers hold the lock step the grammar's own writers do:
+///  an adoption asked for while the route's append holds the lock refuses and drops no record,
+///  and the route's append reads the store only after it holds the lock.
+/// Why:
+///  `mod.rs` re-exports these two writers and nothing else,
+///  so they are the ones production calls and the ones an edit can break with no red;
+///  the same two scenarios run through the grammar's writers above,
+///  and this control proves the pair the route actually uses.
+///  Inside a user namespace this run is root and its own files are root's,
+///  so the route's root-control checks pass on the fixtures.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_route_s_writers_hold_the_lock_step_the_grammar_s_do() {
+    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+        ROOT_SIDE_ROUTE_WRITERS_VARIABLE,
+        "worktree_clone_mount::slot_identity_store::tests::the_route_s_writers_hold_the_lock_step_the_grammar_s_do",
+    ) {
+        return;
+    }
+    the_adoption_waits_for_the_append_s_lock("slot-store-route-adoption-under-the-lock", append_slot_identity_under_root_control, record_parent_identity_under_root_control);
+    a_rewrite_between_the_lock_and_the_open_still_receives_the_record("slot-store-route-open-after-the-lock", append_slot_identity_under_root_control);
 }
 
 /// What:
@@ -587,4 +678,136 @@ fn the_store_example(spec: &str) -> String {
     let opening: usize = heading + spec[heading..].find("```text\n").expect("the store example") + "```text\n".len();
     let closing: usize = opening + spec[opening..].find("```").expect("the example's closing fence");
     return String::from(&spec[opening..closing]);
+}
+
+/// A store text of `count` slot records below one parent record,
+/// which is the small store the hold measurement uses.
+fn a_store_of_slots(count: usize) -> String {
+    let parent: CloneFolderIdentity = identity(600);
+    let mut text: String = String::from(HEADER);
+    text.push('\n');
+    text.push_str(parent_line(&parent).as_str());
+    text.push('\n');
+    for index in 0..count {
+        text.push_str(slot_line(format!("slot-{index:04}").as_str(), &identity(1000 + index as u64)).as_str());
+        text.push('\n');
+    }
+    return text;
+}
+
+/// A store text of exactly the bytes one read accepts:
+/// one parent record,
+/// as many slot records as fit below the bound,
+/// and a comment line that lands the file exactly on it.
+/// The slot records carry an ACL of `MEASUREMENT_ACL_BYTES`,
+/// because a stored ACL is what makes a record wide,
+/// and comment padding alone would measure a store whose lines the reader skips.
+fn the_widest_store() -> String {
+    let bound: usize = usize::try_from(STORE_MAXIMUM_BYTES).expect("the bound fits this machine's pointer width");
+    let parent: CloneFolderIdentity = identity(700);
+    let mut text: String = String::from(HEADER);
+    text.push('\n');
+    text.push_str(parent_line(&parent).as_str());
+    text.push('\n');
+    let mut index: u64 = 0;
+    loop {
+        let mut wide: CloneFolderIdentity = identity(2000 + index);
+        wide.access_acl = Some(vec![0x02; MEASUREMENT_ACL_BYTES]);
+        let line: String = slot_line(format!("slot-{index:05}").as_str(), &wide);
+        // A record and its newline, and the last comment keeps its own two characters and newline.
+        if text.len() + line.len() + 1 + 2 > bound {
+            break;
+        }
+        text.push_str(line.as_str());
+        text.push('\n');
+        index += 1;
+    }
+    let rest: usize = bound - text.len();
+    if rest > 1 {
+        text.push('#');
+        text.push_str("0".repeat(rest - 2).as_str());
+        text.push('\n');
+    }
+    return text;
+}
+
+/// The holds of `samples` writes of `text` to `store`,
+/// in milliseconds,
+/// each sample starting from the same store.
+fn holds_of(store: &Path, text: &str, samples: usize, write: impl Fn(&Path, usize)) -> Vec<f64> {
+    let mut holds: Vec<f64> = Vec::with_capacity(samples);
+    for sample in 0..samples {
+        std::fs::write(store, text).expect("the store of this sample");
+        let began: std::time::Instant = std::time::Instant::now();
+        write(store, sample);
+        holds.push(began.elapsed().as_secs_f64() * 1_000.0);
+    }
+    return holds;
+}
+
+/// One arm's holds printed as the measurement line
+/// `package/git-policy/cli/doc/slot-identity-store-lock-hold.md` quotes,
+/// with the bytes the store held before the sample.
+fn print_hold(what: &str, bytes: u64, holds: &[f64]) {
+    let mut ordered: Vec<f64> = holds.to_vec();
+    ordered.sort_by(|left, right| return left.partial_cmp(right).expect("no sample is a NaN"));
+    let median: f64 = ordered[ordered.len() / 2];
+    println!(
+        "MEASUREMENT store-hold {what} bytes={bytes} samples={} min_ms={:.3} median_ms={:.3} max_ms={:.3}",
+        ordered.len(),
+        ordered[0],
+        median,
+        ordered[ordered.len() - 1],
+    );
+}
+
+/// What:
+///  The hold one write to the store takes on one file system,
+///  printed for `STORE_LOCK_WAIT`'s citation rather than asserted.
+/// Why:
+///  The shipped wait and pause cite measurements,
+///  and a citation whose probe is no longer in the repository cannot be repeated or checked;
+///  this is that probe,
+///  and it is ignored because it times a file system instead of checking a behaviour
+///  (`package/git-policy/cli/doc/slot-identity-store-lock-hold.md`).
+///  An arm times the writer's whole hold:
+///  the read,
+///  the check,
+///  the line,
+///  the file's `fsync`,
+///  the folder's `fsync`,
+///  and, for the adoption, the rename that publishes the file.
+#[test]
+#[ignore = "a measurement of one file system's hold, not a control; name the root to measure with MONOCHROMATIC_STORE_HOLD_MEASUREMENT_ROOT"]
+fn a_store_write_s_hold_is_measured_for_the_lock_wait() {
+    let parent: PathBuf = match std::env::var_os(MEASUREMENT_ROOT_VARIABLE) {
+        Some(named) => PathBuf::from(named),
+        None => fixture("slot-store-hold-measurement"),
+    };
+    std::fs::create_dir_all(&parent).expect("the measurement root");
+    let root: PathBuf = parent.join(format!("hold-{}", std::process::id()));
+    std::fs::create_dir_all(&root).expect("the measurement's own folder");
+    let small_text: String = a_store_of_slots(MEASUREMENT_SLOT_COUNT);
+    let wide_text: String = the_widest_store();
+    let wide: PathBuf = root.join("wide-store");
+    std::fs::write(&wide, wide_text.as_str()).expect("the wide store");
+    assert!(SlotIdentityStore::read(wide.as_path()).is_ok(), "positive control: the widest store is one the reader accepts");
+    assert_eq!(std::fs::metadata(wide.as_path()).expect("metadata").len(), STORE_MAXIMUM_BYTES, "the widest store is the whole bound");
+
+    let small: PathBuf = root.join("small-store");
+    let small_holds: Vec<f64> = holds_of(small.as_path(), small_text.as_str(), MEASUREMENT_SMALL_SAMPLES, |store, sample| {
+        append_slot_identity(store, format!("measure-{sample:04}").as_str(), &identity(900)).expect("the append");
+    });
+    print_hold("append-small-store", small_text.len() as u64, small_holds.as_slice());
+
+    let append_holds: Vec<f64> = holds_of(wide.as_path(), wide_text.as_str(), MEASUREMENT_WIDE_SAMPLES, |store, sample| {
+        append_slot_identity(store, format!("measure-{sample:04}").as_str(), &identity(901)).expect("the append");
+    });
+    print_hold("append-widest-store", wide_text.len() as u64, append_holds.as_slice());
+
+    let adoption_holds: Vec<f64> = holds_of(wide.as_path(), wide_text.as_str(), MEASUREMENT_WIDE_SAMPLES, |store, sample| {
+        record_parent_identity(store, &identity(902 + sample as u64)).expect("the adoption");
+    });
+    print_hold("adoption-widest-store", wide_text.len() as u64, adoption_holds.as_slice());
+    remove(root.as_path());
 }

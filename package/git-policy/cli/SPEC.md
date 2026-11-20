@@ -5413,13 +5413,17 @@ an exclusive `flock` needs no write bit of the file it locks,
 so a lock on the store is one every account that may read the store could hold,
 and that account would stall root's own sweep.
 The lock is asked for without waiting (`LOCK_NB`) and given up after two seconds,
-which is 55 times the slowest hold measured through these two writers on this host's ZFS home dataset:
+which is 55 times the slowest hold measured through these two writers on this host's ZFS `home` dataset
+in an unoptimized `test` profile build:
 1.577 to 2.243 ms for an append on a 1000-slot store,
-31.657 to 33.926 ms for an append on the widest store one read accepts,
+31.657 to 33.926 ms for an append on a store of 96 per cent of the widest one read accepts,
 and 33.483 to 35.976 ms for that store's adoption,
 the slowest holder
 (the method,
-every sample and the `fsync` that reached the pool's device stand beside `STORE_LOCK_WAIT`),
+the ranges and counts,
+and the control that shows each `fsync` reaching the pool's device,
+are in `package/git-policy/cli/doc/slot-identity-store-lock-hold.md`,
+which `STORE_LOCK_WAIT` names),
 so a holder that never finishes refuses the write and says which lock file stood in the way
 instead of holding the command open.
 The kernel releases the lock when the descriptor closes however the run ends,
@@ -5586,7 +5590,10 @@ Every refusal names the failing component or field and every way forward:
 
 Only an administrator may record a replacement `.claude/worktrees` folder after a checkout restore
 or a controlled recreation,
-and the mode runs with managed operations quiesced.
+and the mode that runs the adoption keeps managed operations quiesced:
+that quiescence is the operating rule the mode holds (the plan's step 5),
+not a check this module makes,
+because the decision holds no device and reads no record of another managed operation running.
 The decision holds no device and starts no mount:
 its inputs are the no-crossing walk's answer,
 the device and inode the administrator identified independently from the restored checkout,
