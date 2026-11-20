@@ -40176,7 +40176,12 @@ stated in this entry. What follows from them, as work:
   (`.claude/worktrees/zfs-step-4-descriptor-attach`, `feat/git-policy-cli-zfs-descriptor-attach-and-rollback`; the
   walk, identity compare with a positive control per field, refusal wording, rollback plan, identity store and parent
   record on fixture folders, nothing under `/var/lib`, no mount; the `first-attach` record left out because its design
-  is not accepted). Briefs under `~/temp/agent/zfs-step-{3,4}-*-host-half-2026-11-19/`. THE OFFLINE
+  is not accepted). Briefs under `~/temp/agent/zfs-step-{3,4}-*-host-half-2026-11-19/`. At about 17 minutes in, with no
+  commit yet, the step 4 writer had put its first edits into the main checkout (`lib.rs`, `fs_beneath.rs`,
+  `fs_beneath_tests.rs` and a new `worktree_clone_mount/`), though its brief named the worktree. It then copied them into
+  its worktree. The main checkout's wrapper files were clean on the next look, and the other sessions' four uncommitted
+  files there were untouched. This is task 350's failure again: runs writing into the main checkout. Each ZFS writer then
+  got rule `GCE` (commit as you go) through its inbox, and step 4 also a reminder to stay in its worktree. THE OFFLINE
   `file-enforcer` ROUTE: GOING `pi-git-policy-cli-gate-base-image-browserslist-data` (DeepSeek on Neuralwatt, cap 350)
   in `.claude/worktrees/git-policy-cli-gate-base-image-browserslist-data` on
   `fix/git-policy-cli-gate-base-image-carries-the-pinned-browserslist-data`, stacked on the githooks fix: the base
