@@ -28,8 +28,13 @@ import { wakeMessageOf, } from './work-the-run-left-running.ts';
  behaviour (`prompt()` in `dist/core/agent-session.js` of `@earendil-works/pi-coding-agent`): "Agent is already processing.
  Specify streamingBehavior ('steer' or 'followUp') to queue the message." It says the agent is busy, never that the message is
  unacceptable.
+
+ The continuation that names `streamingBehavior` is what tells that answer from the agent library's own error, which opens with
+ the same words and names neither a queue nor a turn (`agent.js` of `@earendil-works/pi-agent-core`, "Agent is already processing
+ a prompt. Use steer() or followUp() to queue messages, or wait for completion."). Only the session's answer says a turn of the
+ agent's own took the message, so only that one is read as the agent being awake.
  */
-const AGENT_ALREADY_PROCESSING = 'Agent is already processing';
+const AGENT_ALREADY_PROCESSING = 'Agent is already processing. Specify streamingBehavior';
 
 /**
  Where the driver stands with the work a run left running.
@@ -262,7 +267,14 @@ export async function askAboutItsWorkOrReportAFailure({
 
  @example
  ```ts
- const busy = { ending: 'answered', record: { success: false, error: 'Agent is already processing' }, } as const;
+ const busy = {
+   ending: 'answered',
+   record: {
+     success: false,
+     error: "Agent is already processing. Specify streamingBehavior ('steer' or 'followUp')"
+       + ' to queue the message.',
+   },
+ } as const;
  const awake = foundTheAgentAlreadyAwake({ answer: busy, },);
  ```
  */
