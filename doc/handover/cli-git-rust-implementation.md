@@ -40244,7 +40244,17 @@ What follows from them, as work:
   kernel answers `ENOENT` there (`proc_cwd_link`); a read seam injects the error; each test red on the parent commit;
   213 suites pass; a troubleshooting page with pinned kernel links; no general retry (argued). GOING: its short review on
   the Qwen plan, `pi-qwen-review-driver-esrch-at-8a61b9043e` (watched), in the worktree of that name; brief under
-  `~/temp/agent/pi-driver-esrch-fix-short-review-on-the-qwen-plan-2026-11-19/`. Until it is in main any run
+  `~/temp/agent/pi-driver-esrch-fix-short-review-on-the-qwen-plan-2026-11-19/`. The review ended `idle` (115 turns, no
+  rate-limit error; that folder's `keep/review.md`): no high or medium; red checks reproduced three ways (whole file,
+  the catch only, `ESRCH` removed from the code set); `proc_cwd_link` answers `ENOENT` at v4.9, v4.19, v5.10, v6.1 and
+  the pinned tip; lows: the troubleshooting page's output block has a line its harness does not print; two `@example`
+  blocks no longer type-check (`reads` now required); the README's `workProblem` sentence holds on the driver's watch
+  but the launcher's wake read through `finishTheRun` fails the launcher instead; `ESRCH` is not in the outer skip set
+  (cheap hardening). It reproduced the intermittent `the values of this machine` failure and confirmed its cause in
+  `env-local-json/core`'s fixture (`exit` before the pipe drains; owned by `945ff70a94`). Its 5.7 GB red-check copy,
+  made outside its briefed folder, it deleted itself (checked gone). GOING: a short round
+  `pi-driver-esrch-review-findings-fixed` (DeepSeek on Neuralwatt, cap 200) in the fix's worktree; brief under
+  `~/temp/agent/pi-driver-esrch-review-findings-fixed-2026-11-19/`; then the merge. Until it is in main any run
   that ends its turn while its own work runs can be cut the same way, and a container it started outlives it. The first
   resume ended `prompt-rejected` after 42 turns on a second driver fault: when the agent's background Clippy job ended,
   Pi started a turn of its own and 33 ms later the driver's wake note met "Agent is already processing. Specify
@@ -40437,8 +40447,21 @@ What follows from them, as work:
   the README's provisional wording replaced, and a new `doc/quota-read-latency.md`; the Qwen-plan and `opencode-go`
   members have no quota endpoint to time. GOING: its short review on the Qwen plan,
   `pi-qwen-review-quota-read-deadline-at-0bcf0e055b` (watched); brief under
-  `~/temp/agent/rate-limit-fallback-quota-read-deadline-short-review-on-the-qwen-plan-2026-11-19/`. Then the merge and
-  the installed dist's rebuild (task 396). The driver pool table (task 383)
+  `~/temp/agent/rate-limit-fallback-quota-read-deadline-short-review-on-the-qwen-plan-2026-11-19/`. The review ended
+  `idle` (54 turns; that folder's `keep/review.md`): every figure recomputes from the records, no credential anywhere, the
+  source diff is a comment only, and the caller-cap argument holds against `quotaSignal`; medium: the new document fails
+  `markdown/semantic-line-breaks` (123 findings; the README already had 330 on `main`, 336 now); lows: the 1,100 ms
+  spacing sentence against the concurrent NeuralWatt reads, the authorization sentence for the members without a quota
+  endpoint, the paired ratio not beside the value, a warm-up round counted as noise, a relative pointer, a bare date,
+  the records only in agent scratch. It adds that 2,000 ms is safe because at the deadline the read is abandoned and
+  routing goes on without evidence (`readQuotaWithinDeadline`), which nothing states, and that about 1 s would also
+  cover the observed readings; the owner asked for the value to be set from a live check and keeping 2 s is supported,
+  so that is recorded, not asked. GOING: the fix round `pi-rate-limit-fallback-quota-read-deadline-review-findings-fixed`
+  (DeepSeek on Neuralwatt, cap 250) in the measurement's worktree: rewrap the new document whole and only the README
+  paragraph this branch changed, correct the sentences, the ratio beside the value, commit the raw records beside the
+  document, state the failure mode; brief under
+  `~/temp/agent/rate-limit-fallback-quota-read-deadline-review-findings-fixed-2026-11-19/`. Then the merge and the
+  installed dist's rebuild (task 396). The driver pool table (task 383)
   waits on more than a slot: it changes `pool-limits.ts`, as the unmerged `ecec388cdb` does (13 files; its review
   queued 2026-11-16 and never started), and the entry of 2026-11-16 on the second timing of the two pools puts
   follow-ups to that file on top of `ecec388cdb` once it is reviewed and in `main`; that review waits with the queue.
