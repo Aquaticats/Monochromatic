@@ -4,7 +4,7 @@
 //!  A `uses/` link is a folder-tree aid (`AGENTS.md`,
 //!  rule `LYD`).
 //!  `cargo package --list` follows every link and packs the files below it,
-//!  so the two links in `worktree_clone_mount/uses` alone add 195 files and 2056871 bytes
+//!  so the links in `worktree_clone_mount/uses` alone add a second copy of the folders they name
 //!  that the package already holds under their real paths.
 //!  The crate is releasable (`package/crate-release/cli/releasable-crates.json`)
 //!  and the release runs `cargo publish --dry-run`,
@@ -55,7 +55,7 @@ fn package_listing() -> Vec<String> {
 ///  The package cargo would publish holds no path under a `uses` folder,
 ///  and the list it was read from holds the crate's own sources.
 /// Why:
-///  A link packed below its name duplicates 195 files,
+///  A link packed below its name duplicates every source below the folder it names,
 ///  and an empty list would pass the first assertion without proving cargo answered.
 #[test]
 fn the_package_carries_no_copy_of_the_tree_under_a_uses_link() {

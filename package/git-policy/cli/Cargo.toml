@@ -10,8 +10,8 @@ repository = "https://github.com/Aquaticats/Monochromatic.git"
 include = [
   "src/native/**/*.rs",
   # A `uses/` link is a folder-tree aid; cargo follows symlinks, so without this negation the package
-  # would hold a copy of the tree under every link (the two links in `worktree_clone_mount/uses` alone
-  # add 195 files and 2056871 bytes, which `cargo package --list` shows).
+  # would hold a second copy of every source below the folders the links name (the links in
+  # `worktree_clone_mount/uses` alone double that folder's sources, which `cargo package --list` shows).
   "!src/**/uses/**",
   "src/native/dependent_version/dependent_version_fixtures/*.json",
   "src/native/service/service_units/*",

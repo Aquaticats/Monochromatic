@@ -5226,9 +5226,10 @@ Nothing here is a path-based mount or unmount on the account's tree.
 
 #### The walk
 
-The walk starts from the checkout Git reports,
-canonicalised and opened as its own root,
-and reaches `.claude/worktrees` and then the slot below it one plain name at a time.
+The walk starts from the checkout Git reports:
+its path is compared with its own canonical form and refused when the two differ,
+and the folder it names is opened as the walk's own root and reached one plain name at a time,
+first `.claude/worktrees` and then the slot below it.
 Each step is an `openat2` of one component with `RESOLVE_BENEATH`,
 `RESOLVE_NO_SYMLINKS`,
 `RESOLVE_NO_XDEV` and `RESOLVE_NO_MAGICLINKS`,
@@ -5253,6 +5254,13 @@ A checkout path that is not already its own canonical path is refused before the
 resolving it would mean walking from whichever folder the account's link names,
 so the walk never resolves the path it is given,
 and the refusal names the canonical path that does stand.
+`git rev-parse --show-toplevel` prints that canonical path:
+measured on this host at 2026-11-20T01:57:00-05:00 in a throwaway repository reached through a symbolic link,
+`pwd` printed the link and the command printed the folder it names,
+so a caller that passes what Git reports passes the path this walk accepts.
+Ancestor links get no exception either:
+the compare reads paths and consults no owner,
+so a path reached through a link root owns is refused as well.
 
 After an attach the slot is a mount point,
 so the second walk,
@@ -5405,8 +5413,12 @@ an exclusive `flock` needs no write bit of the file it locks,
 so a lock on the store is one every account that may read the store could hold,
 and that account would stall root's own sweep.
 The lock is asked for without waiting (`LOCK_NB`) and given up after two seconds,
-the same bound the removal's claim wait ships with,
-so a holder that never finishes refuses the append and says which lock file stood in the way
+which is 55 times the slowest hold measured through these two writers on this host's ZFS home dataset:
+1.577 to 2.243 ms for an append on a 1000-slot store,
+31.657 to 33.926 ms for an append on the widest store one read accepts,
+and 33.483 to 35.976 ms for that store's adoption, the slowest holder
+(the method, every sample and the `fsync` that reached the pool's device stand beside `STORE_LOCK_WAIT`),
+so a holder that never finishes refuses the write and says which lock file stood in the way
 instead of holding the command open.
 The kernel releases the lock when the descriptor closes however the run ends,
 so a killed run leaves no lock behind.
