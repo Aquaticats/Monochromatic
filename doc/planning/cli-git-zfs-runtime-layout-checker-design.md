@@ -643,6 +643,9 @@ a probe is a command this session ran, listed under
   So a module reporting `2.2.2-0ubuntu9.5`, a checkout build's `2.4.4-1_g1a2b3c4` or a module
   reporting the approved string are treated alike: each reaches the layout comparison, and that
   comparison is what decides.
+  The checkout build's string comes from `git describe`'s `zfs-2.4.4-1-g1a2b3c4` through the same
+  substitution the `META` fact names (`config/zfs-meta.m4:73-88`), so it carries the release, the
+  count of commits past the tag and the commit.
 
 ### The BTF files the kernel exposes
 
