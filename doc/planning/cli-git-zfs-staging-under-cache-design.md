@@ -519,7 +519,8 @@ read-only reads named.
   handle is the one field a later sweep cannot rebuild within a boot, which is what the recovery route and M6 rest
   on. The record sits in
   `~/.cache`, so the account can replace it; the project's threat model accepts that, and the sweep's folder identity
-  check is what refuses a record that describes some other folder (F29, "The staged-folder record").
+  check is what refuses a record that describes some other folder (F29, "The staged-folder record"). The device in
+  that identity is the mount's anonymous device, whose value across a reboot is L14's limit.
 - L11. A folder removed or renamed over from a namespace that does not hold its mounts detaches every mount at it in
   every namespace (F11), so a mount at a folder that is gone has no row anywhere. What stays is a detached mount held
   by whatever holds it, the refusal a removal then sees is the destroy's `dataset is busy` (F13) rather than a mount
@@ -532,10 +533,27 @@ read-only reads named.
   only one it has; M6 carries its arms and every one of them is owed.
 - L13. The other-boot settlement cannot use the recorded namespace pair, because the pair is void with the boot id that
   made the record one to settle. Its guards are the wrapper's own mount-table read and `rmdir`'s `EBUSY`, and both
-  hold only in the host namespace: a wrapper that has been unshared sees neither, and would detach whatever stands at
-  the folder, including a bind a binding invocation made after the wrapper's read. The receipt path's pair check
-  catches an unshared wrapper; this path has no equivalent, `doctor` reports the state, and no arm measures the
-  scene.
+  hold only in the host namespace: a wrapper whose namespace holds a private copy of `user-cache` that predates the
+  bind sees neither, and would detach whatever stands at the folder, including a bind a binding invocation made after
+  the wrapper's read. A namespace that holds a peer or a slave copy of the host's shared mounts receives propagation
+  and holds the bind's copy, so `rmdir` there refuses `EBUSY` (F31, F11), and the exposure is the private copy alone,
+  which is what a session that ran `mount --make-rprivate` leaves behind (F31). The receipt path's pair check catches
+  an unshared wrapper; this path has no equivalent, `doctor` reports the state, and no arm measures the scene.
+- L14. The folder identity the record and the claim carry includes the folder's device, and on ZFS that is the mount's
+  anonymous device: `sget_fc` takes it from `set_anon_super_fc` (`module/os/linux/zfs/zpl_super.c:872`),
+  `get_anon_bdev` allocates it as the lowest free minor of one global IDA that every file system without a block device
+  shares (Linux
+  `v6.8`, `fs/super.c:1177` to `:1214`), and `zpl_generic_fillattr` reports it as `st_dev`
+  (`module/os/linux/zfs/zfs_vnops_os.c:1751`). This host's mount list puts the ZFS mounts' anonymous minors among the
+  minors of tmpfs, devpts, cgroup2 and FUSE mounts (read 2026-11-19 with `findmnt --list`), so the number is allocated
+  at mount time from a counter other mounts also use and may differ after a reboot; nothing here measured that it
+  does. If it differs, the other-boot settlement's identity comparison fails and the wrapper keeps the folder, the
+  record and the claim and reports them: it fails closed, so the post-reboot orphan the settlement exists to clear
+  stays, becomes the administrator's, and `doctor` prints it. The risk is inherited rather than this design's: the
+  accepted proposal records and rechecks "device, inode, UID, permissions and access/default ACLs" from opened folders
+  in durable root records ([proposal][proposal], "Descriptor mount and unmount"), and the pin keeps the mount root's
+  device and inode ("Proposals the owner settled", accepted with "Veto none"). M6's device-across-a-reboot arm is the
+  measurement that settles it.
 
 ## The parts that need a design
 
@@ -658,7 +676,12 @@ purpose, under these rules:
   (Linux `v6.8`, `fs/namespace.c:3163` to `:3166`; `v7.3`, `:3789` to `:3790`), and the clone's parent is the
   account's mount. That mount is private when it was stacked after the bind's propagation change, a new mount under
   a private parent, and shared when it was stacked between the bind's attach and that change, because an attach into
-  a shared parent marks the attached tree shared (F6). A rollback from a shared parent refuses `EINVAL` at the
+  a shared parent marks the attached tree shared (F6). In that scene the clone's own attach propagates as well: an
+  attach under a shared mount is copied to every peer of the destination except the destination itself (Linux
+  `v6.8`, `fs/pnode.c:304` to `:305`), and the commit loop slides whatever already stands at that dentry under the
+  copy (`fs/namespace.c:2375` to `:2378`). The clone therefore has copies in the host namespace beside the one at the
+  folder, and the receipt and the all-namespace scan see more than one row for it. A rollback from a shared parent
+  refuses `EINVAL` at the
   source check before any attach, so the move does not happen and the proof never runs; the clone stays staged on the
   account's mount, the state the rule for a failed destination open or move names. The receipt names the refused
   step, the errno and the mount IDs it read, and M1's stacked-before-the-propagation-change arm records the scene.
@@ -1095,8 +1118,12 @@ Set up a clone at a slot, a private bind on a depth-one staging folder, and the 
   change what it finds. Assert the move succeeds, the clone is topmost at the folder with the account's mount as its
   parent row, and the rollback's `move_mount` refuses `EINVAL` at the source check, because
   the clone's parent is shared (`fs/namespace.c:3163` to `:3166`); assert the clone stays staged on the account's
-  mount, the receipt names the refused step and the errno, a reader namespace holding a peer or a slave copy of
-  `user-cache` shows both the account's mount and the clone (F22, F31), and nothing is unbound. Control: M1's
+  mount, the receipt names the refused step and the errno, and the host's rows by source name the clone more than
+  once, because the attach propagated into the bind's peer group (`fs/pnode.c:304` to `:305`). Record the bind's
+  parent row as it reads after the move, since an attach that propagates slides the mount already at that dentry
+  under the copy (`fs/namespace.c:2375` to `:2378`), and assert the bind's row is still present by its mountpoint and
+  root. Then assert a reader namespace holding a peer or a slave copy of `user-cache` shows both the account's mount
+  and the clone (F22, F31), and nothing is unbound. Control: M1's
   stacked-before-the-move arm in the same run, whose account's mount is private and whose rollback proceeds.
 - Stacked on the clone before the read: the account stacks a FUSE mount on the staged clone itself with
   `fusermount3` after the move and before the post-move check. Assert the topmost mount at the folder is the
@@ -1308,6 +1335,13 @@ Set up a clone at a slot, a private bind on a depth-one staging folder, and the 
   its namespace; assert `doctor` no longer
   prints the entry. Control: the same folder with a mount standing at it in the host namespace, whose `rmdir` refuses
   `EBUSY`, which the wrapper keeps and reports.
+- The device number across a reboot: write the record, then reboot the guest, then run the wrapper's settlement
+  against that record. Assert first that the guest's `st_dev` for the fixture home's `.cache` is the number it was
+  before the reboot, and record both numbers where it is not; then assert the settlement's outcome follows that
+  comparison: the folder settled where the number held, and kept, reported and printed by `doctor` where it changed,
+  which is L14's fail-closed case. Control: the same settlement within one boot, where the number cannot have
+  changed, so an arm that settles in both runs has shown nothing about the field; and the other-boot arm, whose
+  record describes a folder the same boot can still see.
 - A record whose folder is gone: remove the folder from a foreign namespace, or let an account cleanup delete it,
   and leave the record, then run a removal for that clone. Assert the wrapper creates the folder, the handler reads
   the record, its handle gives `ESTALE` (F29), no row in the handler's mount table names the folder path, the handler
@@ -1361,7 +1395,8 @@ host-namespace, copied-idle, copied-held, copied-mounted-under, foreign-namespac
 arm, M1's stacking arms, named as M1 names them, "Stacked before the move", "Stacked between the bind and its
 propagation change", "Stacked on the clone before the read", "Stacked over the folder and on the clone", "Stacked at
 the slot after the open", "Stacked at the slot before the rollback" and "Stacked before the move, rollback
-refused", and M6's record-place, atomic-write, folder-gone and other-boot arms. Way B needs Way A's handler
+refused", and M6's record-place, atomic-write, folder-gone, other-boot and device-across-a-reboot arms. Way B needs
+Way A's handler
 arms plus M7 and M8. Way C needs M1, M2, M3, M5, M6, M4's renamed arm and M7's Way C arm. Way D
 needs M1, M2, M3's propagation arms and its late-mount arm on `~/.cache`, M5, M6 and M7. Way E needs Way A's arms and
 M8's source arm. Way F needs Way A's arms and M4's renamed arm. No live way needs M9, which exists only to record the
@@ -1600,8 +1635,9 @@ is mounted at the folder now: a mount the account made there in this boot is not
 describes it. The wrapper therefore settles only where its own read of the mount table finds no row naming the folder
 path in its namespace, and leaves the folder and reports it otherwise, which is also the case where `rmdir` in the
 host namespace refuses `EBUSY` (F11), and that refusal is what catches a binding invocation that bound the folder
-between the wrapper's read and its `rmdir`. A wrapper that has been unshared sees neither the host's row nor that
-refusal, and would detach whatever stands at the folder with the folder's name, a bind of this design included when a
+between the wrapper's read and its `rmdir`. A wrapper whose namespace holds a private copy of `user-cache` that
+predates the bind sees neither the host's row nor that refusal (F31), and would detach whatever stands at the folder
+with the folder's name, a bind of this design included when a
 binding invocation made it after the wrapper's read; that is the exposure A4 bounds and L13 records. A sweep that
 runs before that settlement voids the handle and the namespace pair on the boot id alone, unmounts nothing and
 reports the state; it is a non-binding pass, so it does not rewrite the record, and the wrapper's settlement is where
@@ -1785,7 +1821,9 @@ reaches.
   produce; (c) leaving the folder to the administrator after `doctor` prints it; (d) a binding invocation that meets
   an other-boot record refusing to bind, leaving the record to the wrapper's settlement instead of rewriting it.
   Ranking a > d > c > b: a > d because a needs no wait and d makes a removal wait for one settlement; d > c because d
-  still settles itself once, where c needs a person; c > b because b promises a settlement that may never come.
+  still settles itself once, where c needs a person; c > b because b promises a settlement that may never come. Both
+  guards need the host namespace: a wrapper whose namespace holds a private copy of `user-cache` that predates the
+  bind is the case L13 records, and no arm measures that scene.
 - How the accepted no-implicit-remount default covers the rollback. The design reads the rollback as the accepted
   "Misplaced attach" rule applied within the invocation that made the move, so it is no exception, and "the
   exception" the default records stays the checked reattach the project answered for. Options: (a) this reading,
