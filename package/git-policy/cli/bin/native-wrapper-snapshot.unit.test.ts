@@ -6,7 +6,13 @@ import {
   existsSync,
   readFileSync,
 } from 'node:fs';
-import { mkdtempDisposable, } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtempDisposable,
+  readlink,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import {
   join,
   resolve,
@@ -22,6 +28,7 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import { copyEndToEndSnapshot, } from './native-e2e-snapshot.ts';
 import { copySourceSnapshot, } from './native-test-snapshot.ts';
 import {
+  copySnapshotEntries,
   copyWrapperSnapshot,
   pathCrates,
   subjectCrate,
@@ -164,6 +171,55 @@ await describe({
         for (const entry of wrapperSnapshotEntries({ context: scratchRoot(), }))
           expect(existsSync(entry.from)).toBe(true);
         expect(wrapperCrates).toEqual([subjectCrate, ...pathCrates]);
+      },
+    }),
+  ],
+});
+
+await describe({
+  name: copySnapshotEntries.name,
+  children: [
+    it({
+      name: 'copies a relative link as it stands, so it resolves inside the snapshot rather than at the folder it came from',
+      fn: async () => {
+        /**
+         Disposable folder holding the tree copied and the context it lands in.
+         */
+        await using root = await mkdtempDisposable(join(
+          scratchRoot(),
+          'wrapper-snapshot-link-',
+        ));
+        /**
+         Folder beside the links, which one link in `uses` names.
+         */
+        const target = join(root.path, 'source', 'folder', 'target');
+        await mkdir(target, { recursive: true, });
+        await writeFile(join(target, 'file.rs'), '// a source file\n');
+        /**
+         A `uses` folder holding the repository's own link, relative, as `AGENTS.md` rule LYD asks.
+         */
+        await mkdir(join(root.path, 'source', 'folder', 'uses'), { recursive: true, });
+        await symlink('../target', join(root.path, 'source', 'folder', 'uses', 'target'));
+        /**
+         Context receiving the copy.
+         */
+        const context = join(root.path, 'context');
+        await copySnapshotEntries({
+          context,
+          entries: [
+            {
+              from: join(root.path, 'source', 'folder'),
+              to: join(context, 'folder'),
+            },
+          ],
+        });
+        /**
+         The link as it landed in the snapshot, and the file one name below it.
+         */
+        const landed = join(context, 'folder', 'uses', 'target');
+        const throughTheLink = join(landed, 'file.rs');
+        expect(await readlink(landed)).toBe('../target');
+        expect(existsSync(throughTheLink)).toBe(true);
       },
     }),
   ],
