@@ -274,7 +274,8 @@ pub mod worktree_clone;
 pub mod worktree_clone_conversion_rules;
 
 /// The fence over a clone rung's bytes:
-/// which paths the clones may carry and the one Git run that writes the rest.
+/// which paths the clones may carry,
+/// and the one Git run that writes the rest.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_conversion_fence;
 

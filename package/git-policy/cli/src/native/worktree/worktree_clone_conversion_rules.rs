@@ -12,9 +12,12 @@
 //! an encoding or a filter can rewrite the whole file,
 //! and where a rule can only drop carriage returns on the way into the index,
 //! a file whose recorded size equals its blob's holds the blob's bytes
-//!  (the drop shrinks the file, so equal sizes leave nothing dropped).
-//! The rules here are Git's own, from `convert.c` (`convert_attrs`,
-//!  `output_eol`, `will_convert_lf_to_crlf`) at Git 2.56:
+//!  (the drop shrinks the file,
+//! so equal sizes leave nothing dropped).
+//! The rules here are Git's own,
+//! from `convert.c` (`convert_attrs`,
+//!  `output_eol`,
+//! `will_convert_lf_to_crlf`) at Git 2.56:
 //! a rule that may convert answers "Git writes it",
 //! so the error is always the expensive one and never a wrong worktree.
 //!
@@ -35,15 +38,22 @@ pub enum TextAttribute {
     /// No line-ending rule at all.
     #[default]
     Unspecified,
-    /// `text` alone: text, with the ending `core.autocrlf` or `core.eol` names.
+    /// `text` alone:
+    /// text,
+    /// with the ending `core.autocrlf` or `core.eol` names.
     Set,
-    /// `-text` (or `!text`): never convert.
+    /// `-text` (or `!text`):
+    /// never convert.
     Unset,
-    /// `text=input`: normalize on the way in, never add an ending on the way out.
+    /// `text=input`:
+    /// normalize on the way in,
+    /// never add an ending on the way out.
     Input,
-    /// `text=auto`: decide by the bytes.
+    /// `text=auto`:
+    /// decide by the bytes.
     Auto,
-    /// A value Git does not know, which it reads as no rule.
+    /// A value Git does not know,
+    /// which it reads as no rule.
     Other,
 }
 
@@ -59,21 +69,27 @@ pub enum EolAttribute {
     Crlf,
 }
 
-/// What `core.autocrlf` says, in Git's own three readings.
+/// What `core.autocrlf` says,
+/// in Git's own three readings.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AutoCrlf {
-    /// Unset or false: a worktree keeps its own endings.
+    /// Unset or false:
+    /// a worktree keeps its own endings.
     False,
-    /// `input`: normalize on the way in, never add an ending on the way out.
+    /// `input`:
+    /// normalize on the way in,
+    /// never add an ending on the way out.
     Input,
-    /// `true`: add the platform's ending on the way out.
+    /// `true`:
+    /// add the platform's ending on the way out.
     True,
 }
 
 /// What `core.eol` says.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EolSetting {
-    /// Unset, which means the platform's ending.
+    /// Unset,
+    /// which means the platform's ending.
     Unset,
     /// `lf`.
     Lf,
@@ -95,11 +111,13 @@ pub enum OutputEnding {
 /// The action `convert_attrs` makes of a path's attributes and the configuration.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CrlfAction {
-    /// Never convert, on either side.
+    /// Never convert,
+    /// on either side.
     Binary,
     /// `text` with the platform's ending.
     Text,
-    /// `text` with `eol=lf`, or `text=input`.
+    /// `text` with `eol=lf`,
+    /// or `text=input`.
     TextInput,
     /// `text` with `eol=crlf`.
     TextCrlf,
@@ -224,7 +242,8 @@ pub struct PathAttributes {
 pub enum FenceVerdict {
     /// The clone's bytes are the ones Git's checkout writes.
     Carry,
-    /// Git must write the path; the words say which rule can change the bytes.
+    /// Git must write the path;
+    /// the words say which rule can change the bytes.
     WriteThroughGit(String),
 }
 

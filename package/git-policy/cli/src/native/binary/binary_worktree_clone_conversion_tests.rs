@@ -11,7 +11,8 @@
 //! Every control asserts that the clone rung served its add,
 //! so a control that passes because the add fell to Git's checkout is not taken for a fence;
 //! the last two name the classes where the swap of the source's bytes for Git's own is invisible
-//! (`working-tree-encoding`, whose clean and checkout are inverses here,
+//! (`working-tree-encoding`,
+//! whose clean and checkout are inverses here,
 //! and a filter the design already declines).
 //!
 //! In TS you'd write (pseudocode):

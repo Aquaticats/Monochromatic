@@ -8,16 +8,19 @@
 //!  Cloning a source's working files and installing the source's index
 //! makes a worktree that every check calls clean,
 //!  even where Git's checkout would have written other bytes
-//! (`package/git-policy/cli/SPEC.md`, rung 2;
+//! (`package/git-policy/cli/SPEC.md`,
+//! rung 2;
 //! GitHub issue 6323).
 //! The clone may carry a path only where the checkout's conversion of its blob is the blob itself,
 //! with the source's file proven to hold that blob:
 //! `worktree_clone_conversion_rules::decide` decides that from Git's own attributes,
-//! `core.autocrlf`, `core.eol` and the recorded sizes.
+//! `core.autocrlf`,
+//! `core.eol` and the recorded sizes.
 //! The attributes come from one `git check-attr --all`,
 //! so every source Git reads is answered by Git,
 //! macros and precedence included;
-//! sizes come from one `git ls-tree -r -l`, and only when a line-ending rule may strip carriage returns;
+//! sizes come from one `git ls-tree -r -l`,
+//! and only when a line-ending rule may strip carriage returns;
 //! and the paths Git must write go through one `git checkout-index` in the destination,
 //! which applies the destination's own conversion.
 //! The source's bytes must be the blob's,
@@ -356,7 +359,8 @@ fn fence_sentence(path: &[u8], reason: &str) -> String {
 /// through one `git checkout-index --force --stdin`.
 /// Why:
 ///   Git owns the conversion,
-/// so asking it for these bytes is the only answer that needs no model of a filter, an encoding or an ending;
+/// so asking it for these bytes is the only answer that needs no model of a filter,
+/// an encoding or an ending;
 /// the run names the destination's Git directory and work tree,
 /// as the ladder's other runs do,
 /// so the destination's own settings decide.

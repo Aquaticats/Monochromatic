@@ -491,7 +491,8 @@ mod worktree_clone_zfs;
 
 /// Rung 2 under Git's checkout conversions:
 /// one control per conversion class,
-/// each comparing the worktree the clone rung served with real Git's own checkout of the same commit.
+/// each comparing the worktree the clone rung served
+/// with real Git's own checkout of the same commit.
 #[path = "binary_worktree_clone_conversion_tests.rs"]
 mod worktree_clone_conversion;
 

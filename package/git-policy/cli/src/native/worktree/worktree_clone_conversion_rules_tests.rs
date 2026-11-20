@@ -4,7 +4,8 @@
 
 use super::*;
 
-/// The config reading: `core.autocrlf` in Git's three readings and `core.eol`.
+/// The config reading:
+/// `core.autocrlf` in Git's three readings and `core.eol`.
 fn rules_of(entries: &[(&str, Option<&str>)]) -> ConversionRules {
     let owned: Vec<ConfigEntry> = entries.iter().map(|(key, value)| return entry_of(key, *value)).collect();
     return conversion_rules_from_config(owned.as_slice());
