@@ -462,6 +462,54 @@ pub fn reads_as_a_key_failure(text: &str) -> bool {
 }
 
 /// What:
+///  Whether text a failed push printed says this machine does not know the SSH host key.
+/// Why:
+///   The no-prompt rule sends OpenSSH's yes/no question for an unknown host key to a program that answers nothing,
+///  and an empty answer is not "yes",
+///  so the connection is refused before any login and OpenSSH prints `Host key verification failed.`
+///  (`confirm`,
+///  `sshconnect.c` at `V_10_6_P2` lines 603 to 627).
+///  That refusal is neither a credential the push lacked nor a fault it can retry away,
+///  so it gets its own sentence.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// text.includes('Host key verification failed')
+/// ```
+pub fn reads_as_unknown_host_key(text: &str) -> bool {
+    return text.contains(HOST_KEY_NOT_KNOWN_PHRASE);
+}
+
+/// The words OpenSSH prints when it will not connect to a host whose key this machine does not know.
+const HOST_KEY_NOT_KNOWN_PHRASE: &str = "Host key verification failed";
+
+/// What:
+///  The one sentence a refusal prints when the cause is a host key this machine does not know:
+///  it says the connection was refused before any login,
+///  and names the two ways to add the key that the wrapper does not touch,
+///  then to retry.
+/// Why:
+///   The project's answer of 2026-11-20 keeps the refusal the no-prompt rule causes at a terminal
+///  and puts the way out where a person meets it:
+///  connect once with plain `ssh <host>`,
+///  which still asks its own question,
+///  or add the host key to `known_hosts`,
+///  then push again.
+///  No retry can add a host key,
+///  so saying only that the push failed would leave the person with no move.
+///  The sentence is shared by the push's failure record and the upload's explanation,
+///  so the two faces cannot say different things about one refusal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// 'monochromatic-git-policy-cli: this machine does not know the SSH host key ...'
+/// ```
+pub const HOST_KEY_NOT_KNOWN_SENTENCE: &str = "monochromatic-git-policy-cli: this machine does not know the SSH host key of the \
+ remote, and no command the wrapper runs asks whether to trust a new one (`SSH_ASKPASS_REQUIRE=force` sends that yes/no \
+ question to a program that answers nothing), so the connection was refused before any login. Connect once with plain \
+ `ssh <host>`, which the wrapper does not touch and which still asks, or add the host key to `known_hosts`, then push again.";
+
+/// What:
 ///  The refusal that follows a failed upload which needed a login:
 ///  it names the server,
 /// says that no command the wrapper runs asks anyone for a credential,
@@ -479,8 +527,13 @@ pub fn reads_as_a_key_failure(text: &str) -> bool {
 /// so there is no branch left for a command at a terminal
 ///  and the words never name a terminal that did not decide anything.
 ///  `key_not_unlocked` is whether the program's own words say a key could not be used,
-/// which is when `ssh-add` is the way forward;
+/// which is when an agent and `ssh-add` are the way forward;
 ///  an HTTP server's refused password gets the credential-helper advice alone.
+///  The sentence starts the agent rather than assuming one runs,
+///  because the project's answer of 2026-11-20 is "We must support situations in which ssh-agent isn't there":
+///  it names `eval "$(ssh-agent)"` and `ssh-add`,
+///  or a key without a passphrase,
+///  which needs no agent.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -491,9 +544,10 @@ pub fn login_needed_message(server: &str, key_not_unlocked: bool) -> String {
         format!(
             " The key that server asked for was refused or could not be unlocked: with no program to ask a passphrase and \
              no terminal read, a key that no agent holds cannot be used, and a key the server does not accept answers \
-             the same way. Load the key into the agent first (`{SSH_ADD_COMMAND}` (`{SSH_ADD_COMMAND} <key file>` \
-             for a key outside the agent's default list, and `{SSH_ADD_COMMAND} -l` lists what the agent holds) and push \
-             again; a key the server still refuses needs the server's account to accept it."
+             the same way. Start an SSH agent with `eval \"$(ssh-agent)\"` and load the key with `{SSH_ADD_COMMAND}` \
+             (`{SSH_ADD_COMMAND} <key file>` for a key outside the agent's default list; `{SSH_ADD_COMMAND} -l` lists \
+             what the agent holds), or use a key without a passphrase, and push again; a key the server still refuses \
+             needs the server's account to accept it."
         )
     } else {
         String::new()

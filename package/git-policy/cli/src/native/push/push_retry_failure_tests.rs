@@ -87,6 +87,12 @@ const FORBIDDEN: &str = "remote: forbidden\nfatal: unable to access 'http://127.
 /// real `ssh` against a loopback `sshd` that accepts no key.
 const SSH_REFUSED: &str = "user@127.0.0.1: Permission denied (publickey).\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n";
 
+/// OpenSSH's refusal of a host key this machine does not know,
+/// which Git relays:
+/// `confirm` (`sshconnect.c` at `V_10_6_P2` lines 603 to 627) sends the yes/no question to the no-answer program,
+/// and an empty answer is not "yes".
+const HOST_KEY_NOT_KNOWN: &str = "Host key verification failed.\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n";
+
 /// `http.c` through curl,
 /// for a port nothing listens on.
 const CONNECTION_REFUSED: &str = "fatal: unable to access 'http://127.0.0.1:1/r.git/': Failed to connect to 127.0.0.1:1 after 0 ms: Could not connect to server\n";
@@ -126,6 +132,31 @@ fn a_github_protected_branch_refusal_is_tried_again() {
         unrecognised_rejection(GITHUB_PROTECTED_BRANCH),
         None,
         "a refusal the release knows is not reported as a reason it does not: {GITHUB_PROTECTED_BRANCH}"
+    );
+}
+
+/// What:
+///  A host key this machine does not know is final and worded,
+///  and the words say to connect once with plain `ssh <host>`,
+///  or to add the key to `known_hosts`,
+///  then to retry.
+/// Why:
+///   The project's answer of 2026-11-20 keeps the refusal the no-prompt rule causes and puts the way out in the
+///  words a person reads:
+///  no retry can add a host key,
+///  and plain `ssh` still asks its own question (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`).
+#[test]
+fn a_host_key_this_machine_does_not_know_is_final_and_says_how_to_add_it() {
+    assert_eq!(final_failure(HOST_KEY_NOT_KNOWN), Some(FinalFailure::HostKeyNotKnown), "{HOST_KEY_NOT_KNOWN}");
+    assert!(needs_the_person(HOST_KEY_NOT_KNOWN), "{HOST_KEY_NOT_KNOWN}");
+    let words: &str = plain_words(FinalFailure::HostKeyNotKnown).expect("an unknown host key is worded");
+    for said in ["plain `ssh <host>`", "`known_hosts`", "push again"] {
+        assert!(words.contains(said), "{said} in {words}");
+    }
+    assert_eq!(
+        unrecognised_rejection(HOST_KEY_NOT_KNOWN),
+        None,
+        "a refusal this release knows is not named as a reason it does not: {HOST_KEY_NOT_KNOWN}"
     );
 }
 

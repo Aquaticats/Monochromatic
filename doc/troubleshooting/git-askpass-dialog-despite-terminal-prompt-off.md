@@ -579,20 +579,42 @@ besides every credential prompt:
 - A passphrase-protected key with no agent fails at once:
   the passphrase cannot be read and the login fails rather than asking.
   This is the case the decision of 2026-11-19 counts as a credential,
-  and it is why the wrapper's own words say to run `ssh-add`
+  and it is why the wrapper's own words say how to start an agent and load the key,
+  or to use a key without a passphrase
   (`reads_as_a_key_failure` and `login_needed_message` in
   `package/git-policy/cli/src/native/lfs/lfs_pre_push.rs`).
+  A key without a passphrase needs no agent at all,
+  and `a_key_without_a_passphrase_connects_through_the_wrapper_with_no_agent` proves it
+  at a terminal and without one.
 - An unknown host key's yes/no question is not asked,
   and the key is refused
   (`Host key verification failed.`).
   The source is `confirm` in `sshconnect.c` at `V_10_6_P2` lines 603 to 627:
   it reads the answer with `read_passphrase`,
-  which returns an empty answer when `never` forbids the askpass program,
+  which returns an empty answer when the four variables forbid the askpass program,
   and an empty answer is not "yes".
+  The project's answer of 2026-11-20 keeps that refusal and has the wrapper say where the way out is:
+  connect once with plain `ssh <host>`,
+  which the wrapper does not touch and which still asks its own question,
+  or add the host key to `known_hosts`,
+  then push again
+  (`HOST_KEY_NOT_KNOWN_SENTENCE` in `package/git-policy/cli/src/native/lfs/lfs_pre_push.rs`,
+  read from OpenSSH's own words by `reads_as_unknown_host_key` and printed by the upload's explanation
+  and by the push's failure record).
+  `an_unknown_host_key_is_refused_at_a_terminal_and_never_asked` shows the refusal at a real pseudo-terminal,
+  beside a control whose plain `ssh` at the same terminal asks the question.
+- Signing a commit or a tag with an SSH key whose passphrase no agent holds fails the same way:
+  `load_identity` reads the passphrase with `read_passphrase(prompt, RP_ALLOW_STDIN)` (`ssh-keygen.c:309`),
+  the program answers nothing,
+  and Git reports
+  `error: Load key "…": incorrect passphrase supplied to decrypt private key?` and `error: unable to sign the tag`.
+  The same remedies apply:
+  start an agent and load the key,
+  or sign with a key without a passphrase.
 - The permission questions of a shared connection (`ControlMaster`),
   of a key an agent is asked to confirm,
   and of `AddKeysToAgent=ask` are not asked and are answered "no":
-  all of them go through `ask_permission` (`readpass.c` at `V_10_6_P2` lines 194 to 215),
+  all of them go through `ask_permission` (`readpass.c` at `V_10_6_P2` lines 196 to 221),
   whose `read_passphrase` call carries `RP_ALLOW_EOF`,
   so a forbidden askpass program returns no answer at all and the permission is refused
   (its callers are `mux.c:437`,
@@ -665,7 +687,7 @@ it is found with `execlp` on the child's `PATH` (`readpass.c:77`),
 and a program that fails leaves no answer
 (`ssh_askpass` returns NULL, and `read_passphrase` turns that into an empty answer at 179 to 181).
 `load_identity_file` reads an empty passphrase as one nobody gave and tries the next key
-(`sshconnect2.c` at `V_10_6_P2` lines 1546 to 1558),
+(`sshconnect2.c` at `V_10_6_P2` lines 1549 to 1558),
 so a key the agent holds still opens the connection and a key whose passphrase no agent holds fails at once.
 
 Measured on 2026-11-19 through the wrapper built from the fixed branch,
@@ -677,6 +699,10 @@ at a pseudo-terminal, with the throwaway `sshd` of the probe above:
 ### an ssh:// LFS endpoint through the wrapper at a terminal:
     `git-lfs push` exited with status 2 … the wrapper's login sentence, which names `ssh-add`, and no question
 ```
+
+The login sentence the tip prints also says how to start an agent and load the key,
+or to use a key without a passphrase;
+the transcript above is what the 2026-11-19 build printed.
 
 The same four variables were recorded in the environment of the `ssh` Git started
 (`GIT_ASKPASS="" GIT_TERMINAL_PROMPT="0" SSH_ASKPASS="false" SSH_ASKPASS_REQUIRE="force"`).
@@ -708,6 +734,13 @@ starts a throwaway `sshd` for the test account and a key protected by a passphra
 shows with a control that the same kind of pseudo-terminal carries `Enter passphrase for key`,
 and then requires that a `git ls-remote ssh://…` through the wrapper at such a terminal carries the question not at all
 and ends 128.
+`a_key_without_a_passphrase_connects_through_the_wrapper_with_no_agent`
+in the same file starts the same kind of `sshd` and a key protected by nothing,
+and requires that `git ls-remote ssh://…` through the wrapper connects and lists a ref
+both at a pseudo-terminal and with no terminal,
+with no `SSH_AUTH_SOCK` in the child's environment.
+`an_unknown_host_key_is_refused_at_a_terminal_and_never_asked`
+shows the host-key refusal beside a control that asks the question.
 `child_environment_tests.rs` pins the four variables and their order,
 and that a caller's own `SSH_ASKPASS` is replaced for these children.
 
@@ -721,7 +754,8 @@ The commit service's children get it through `service_child_overlay`,
 and every command the wrapper runs or forwards gets it through `invocation_overlay`,
 with or without a controlling terminal.
 That is the owner's answer of 2026-11-19T16:58:00-05:00
-(`doc/handover/cli-git-rust-implementation.md`, the entry beginning "The owner answered H1 and M4"):
+(`doc/handover/cli-git-rust-implementation.md`,
+the entry beginning "owner answered H1 and M4"):
 "Avoid ever asking for someone to type a username or password.",
 with an SSH key's passphrase counted as a credential ("Passphrases count too (Recommended)").
 It supersedes the earlier answer quoted under "What this repository does about it" above,
@@ -738,9 +772,16 @@ so an account that needs the window for a plain `ssh` of its own is unchanged.
 
 What a person meets is the wrapper's own sentence instead:
 a login the upload needed names the server and every way to give it a login without a person,
-and a key whose passphrase no agent holds is told to run `ssh-add`
+and a key whose passphrase no agent holds is told to start an agent with `eval "$(ssh-agent)"`,
+to load the key with `ssh-add`,
+or to use a key without a passphrase
 (`login_needed_message` in `src/native/lfs/lfs_pre_push.rs`),
 because OpenSSH's own `Permission denied (publickey)` does not say what to do.
+An unknown host key is told to connect once with plain `ssh <host>` or to add the key to `known_hosts`,
+then to retry (`HOST_KEY_NOT_KNOWN_SENTENCE` in the same file),
+because OpenSSH's own `Host key verification failed.` says nothing about what to do either.
+A command the wrapper forwards is replaced by real Git,
+so its reader gets Git's and OpenSSH's own words alone.
 
 [ssh-readpass]: https://github.com/openssh/openssh-portable/blob/V_10_6_P2/readpass.c#L232-L270
 [ssh-man-askpass-require]: https://man.openbsd.org/ssh#:~:text=SSH_ASKPASS_REQUIRE%20%20%20Allows%20further%20control%20over%20the%20use%20of%20an%20askpass

@@ -6597,7 +6597,7 @@ No command the wrapper runs or forwards asks a person for a credential
 with an SSH key's passphrase counted as a credential:
 "Passphrases count too (Recommended)";
 recorded in `doc/handover/cli-git-rust-implementation.md`,
-the entry beginning "The owner answered H1 and M4").
+the entry beginning "owner answered H1 and M4").
 The decision widens the service's "Never prompt (Recommended)" of 2026-11-07 to every command,
 and it supersedes the earlier answer that a command a person typed keeps Git's own prompting for credentials,
 so the controlling terminal decides nothing about a prompt any more.
@@ -6634,7 +6634,7 @@ with only these variables set.
 which sends the question to the program (`readpass.c:172-182`),
 a program that prints nothing and exits non-zero leaves no answer (`readpass.c:179-181`),
 and `load_identity_file` reads an empty passphrase as one nobody gave and tries the next key
-(`sshconnect2.c:1546-1558`).
+(`sshconnect2.c:1549-1558`).
 `ssh_askpass` finds the program with `execlp` (`readpass.c:77`),
 so a `PATH` without `false` fails the same way:
 the child cannot start it and exits non-zero.
@@ -6642,9 +6642,19 @@ the child cannot start it and exits non-zero.
 the wrapper ships for Linux only (`README.md`, "Requirements"),
 where coreutils or busybox puts it on `PATH`.
 A key the agent holds asks for no passphrase, so it still opens the connection.
+A key without a passphrase needs no agent at all:
+it opens the connection with none,
+at a terminal and without one,
+which a control against a throwaway `sshd` proves
+(`a_key_without_a_passphrase_connects_through_the_wrapper_with_no_agent`
+in `src/native/binary/binary_ssh_terminal_tests.rs`).
 A key whose passphrase no agent holds therefore fails at once,
 at a terminal or without one,
-and the words a person reads say to run `ssh-add`
+and the words a person reads say how to start an agent and load the key
+(`eval "$(ssh-agent)"`,
+then `ssh-add`,
+or `ssh-add <key file>` for a key outside the agent's default list),
+or to use a key without a passphrase
 (`reads_as_a_key_failure` and `login_needed_message` in `src/native/lfs/lfs_pre_push.rs`,
 from OpenSSH's own `Permission denied (publickey)`,
 which a server that simply does not accept the key prints as well,
@@ -6659,9 +6669,35 @@ and the permission questions of a shared connection (`ControlMaster`),
 of a key an agent is asked to confirm,
 and of `AddKeysToAgent=ask`,
 whose `ask_permission` treats a missing answer as "no"
-(`readpass.c:194-215`,
+(`readpass.c:196-221`,
 `mux.c:437`,
 `sshconnect.c:1794`).
+That refusal needs words of its own:
+a host key is not a credential the push lacked,
+and no retry adds one.
+Where the wrapper owns the child,
+the upload's explanation and the push's failure record print one sentence
+(`HOST_KEY_NOT_KNOWN_SENTENCE` in `src/native/lfs/lfs_pre_push.rs`,
+read from OpenSSH's own `Host key verification failed.` by `reads_as_unknown_host_key`):
+connect once with plain `ssh <host>`,
+which the wrapper does not touch and which still asks its own question,
+or add the host key to `known_hosts`,
+and then push again.
+A command the wrapper forwards is replaced by real Git
+(`replace_process_with_real_git` in `src/native/invocation/forwarding.rs`),
+so nothing of the wrapper's can print beside it,
+and its reader gets OpenSSH's and Git's own words alone.
+Signing a commit or a tag with an SSH key whose passphrase no agent holds fails the same way,
+with OpenSSH's own `incorrect passphrase supplied to decrypt private key?`
+(`load_identity` reads `read_passphrase(prompt, RP_ALLOW_STDIN)` at `ssh-keygen.c:309`,
+and `force` sends that question to the program,
+which answers nothing),
+and the same remedies apply:
+start an agent and load the key,
+or sign with a key without a passphrase.
+A control at a real pseudo-terminal shows the host-key refusal
+(`an_unknown_host_key_is_refused_at_a_terminal_and_never_asked`
+in `src/native/binary/binary_ssh_terminal_tests.rs`).
 Both variables also cover OpenSSH's own password and keyboard-interactive questions and a PKCS#11 token's PIN,
 which read the same function (`sshconnect2.c:1057`,
 `sshconnect2.c:1275`,
@@ -12657,7 +12693,7 @@ The step:
   which the owner accepted when choosing this rule on 2026-11-19T16:58:00-05:00
   ("Hide long words only",
   `doc/handover/cli-git-rust-implementation.md`,
-  the entry beginning "The owner answered H1 and M4"):
+  the entry beginning "owner answered H1 and M4"):
   the whole path after the host is not hidden,
   because `objects`,
   `info` and a repository's own name must stay readable,

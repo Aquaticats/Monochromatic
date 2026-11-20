@@ -513,7 +513,7 @@ pub const NO_ANSWER_PROGRAM: &str = "false";
 ///  so the question goes to the program (172-182),
 /// a program that fails leaves no answer (179-181),
 /// and `load_identity_file` reads an empty passphrase as one nobody gave and tries the next key
-///  (`sshconnect2.c:1546-1558`).
+///  (`sshconnect2.c:1549-1558`).
 ///  A key the agent holds needs no passphrase, so it still opens the connection.
 ///  The program's absence fails the same way:
 /// a child that cannot `execlp` it exits non-zero, which `ssh_askpass` reads as no answer.
