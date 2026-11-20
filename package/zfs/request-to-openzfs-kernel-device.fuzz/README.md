@@ -14,11 +14,11 @@ decodes and re-packs to the same bytes.
 The only path is the container campaign,
 because the repository forbids
 mounting the host's Rust sysroot into a container
-(`doc/troubleshooting/` records the Clippy E0514 it caused) and libFuzzer needs
-a nightly compiler.
+(`doc/handover/cli-git-rust-implementation.md` records the Clippy E0514 that
+mixing them caused) and libFuzzer needs a nightly compiler.
 
 ```bash
-# build the instrumented target and keep the binaries as evidence
+# build the instrumented target; the container is removed, so this proves the compile
 mise run //package/zfs/request-to-openzfs-kernel-device.fuzz:build
 
 # build, then fuzz for 30 seconds in a mount-free, network-free, bounded container
