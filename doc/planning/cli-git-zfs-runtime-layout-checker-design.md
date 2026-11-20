@@ -2842,6 +2842,8 @@ the answer and its date.
 #### Class 3 of this round: the three queries
 
 Each query ran on the DeepSeek provider through this session's search tool.
+That is the provider the class 3 bullet calls the second one,
+which reported 44 rows and reached the earlier reader in part.
 None sent an include or exclude filter,
 none sent a sort parameter,
 and each took the provider's own ranking.
