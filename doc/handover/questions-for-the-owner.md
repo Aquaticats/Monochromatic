@@ -329,7 +329,8 @@ or adopt the CSS rule (the tests change).
   Say "undo" to have `fix` fall back to a copy in that case,
   which loses the guarantee that a kill cannot leave a half-written file.
 - 2026-11-09T05:12:19-05:00,
-  the publish-list reader in `dependent_version` accepts only the line forms `package/config/pnpr/src/generated-config-render.ts` writes and refuses every other line by name and number.
+  the publish-list reader in `dependent_version` accepts only the line forms
+  `package/config/pnpr/src/generated-config-render.ts` writes and refuses every other line by name and number.
   No YAML crate was added.
   The agent found one viable crate,
   `yaml_serde` 0.10.7,
@@ -369,7 +370,8 @@ or adopt the CSS rule (the tests change).
   A dangling link named `find` that points elsewhere is left alone.
   Say "undo" to make a conflict exit non-zero or refuse the whole run.
 - 2026-11-09T02:08:59-05:00,
-  the audit `doc/planning/cli-git-tests-that-pass-without-their-race.md` asked whether its weak controls should get fixed now.
+  the audit `doc/planning/cli-git-tests-that-pass-without-their-race.md` asked whether its weak controls should get
+  fixed now.
   They are queued for a fix agent,
   in test code only,
   under your "Fix flaky tests properly."
@@ -532,7 +534,8 @@ or adopt the CSS rule (the tests change).
 Agent `commit-waiting-path-with-dozens-of-agents` measured landings waiting 9 to 13 seconds
 for the index lock's marker made ahead to finish its flush (`lock_stage_kind=pre`),
 and asked whether that marker may be published without its flush.
-Under the owner's "Please make any non-destructive options (when they are the ones I would likely have picked) yourself from now on for this session.",
+Under the owner's "Please make any non-destructive options (when they are the ones I would likely have picked)
+yourself from now on for this session.",
 "never discard user data" and "commits vs native git should not take 5s longer",
 the coordinator picked neither side of that trade:
 the flush stays, it starts as early as the code allows,
@@ -565,7 +568,8 @@ and recorded both in `doc/planning/git-policy-cli-full-tokio.md`:
   because it changes the helper every command's blocking work goes through;
   the plan records it as the alternative.
 
-Under the owner's "Please make any non-destructive options (when they are the ones I would likely have picked) yourself from now on for this session.",
+Under the owner's "Please make any non-destructive options (when they are the ones I would likely have picked)
+yourself from now on for this session.",
 the coordinator keeps both as built,
 and the next tokio agent builds on them.
 Say "undo" for either one.
