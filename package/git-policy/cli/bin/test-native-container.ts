@@ -24,11 +24,17 @@ import {
   nativeTestImageRepository,
 } from './native-gate-image-tag.ts';
 import { runGateChecks, } from './native-gate-checks.ts';
+import { gateClippyToolchain, } from './native-gate-clippy-toolchain.ts';
 import { runGateContainer, } from './native-gate-container.ts';
 import {
   gateContainerLimitOptions,
   gateLimitsFrom,
 } from './native-gate-container-limits.ts';
+import {
+  fixtureRootArguments,
+  gateFixtureRoot,
+  gateFixtureRootMountOptions,
+} from './native-gate-fixture-root.ts';
 import { gatePassedRecord, } from './native-gate-proof.ts';
 import {
   imageRootDirectory,
@@ -306,6 +312,10 @@ await writeFile(
       cachyosImage: testBase.cachyosImage,
       cachyosImageId: testBase.cachyosImageId,
       image,
+      fixtureRoot: {
+        path: gateFixtureRoot,
+        mount: gateFixtureRootMountOptions,
+      },
       limits,
       user: '1000:1000',
     },
@@ -314,22 +324,15 @@ await writeFile(
   )}\n`,
 );
 console.log(`Native wrapper verification evidence: ${evidence}`);
+// The Clippy step takes the repository's locked toolchain and refuses when its sysroot holds no Clippy: a sysroot
+// taken from the caller's environment was the default `nightly`, which has no Clippy component, so the image's older
+// `clippy-driver` compiled this crate against metadata a newer rustc wrote and failed with E0514
+// (doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md).
 /**
- Result of asking the host's `rustc` for its sysroot, which the Clippy container mounts read-only.
+ The repository's locked Rust toolchain, and the sysroot the Clippy container mounts read-only.
  */
-const sysroot = await runCommand({
-  command: 'rustc',
-  args: [
-    '--print',
-    'sysroot',
-  ],
-  capture: true,
-});
-/**
- Host Rust toolchain directory that the Clippy step mounts read-only.
- */
-const compiler = sysroot.stdout
-  .trim();
+const clippyToolchain = await gateClippyToolchain({ startDirectory: subjectDirectory, },);
+console.log(`The Clippy step runs the repository's locked Rust toolchain ${clippyToolchain.toolchain}: ${clippyToolchain.sysroot}`);
 // The suite and Clippy start together and the gate waits for both: a clean Clippy is silent, and a Clippy compile
 // behind the suite cost a fifth of the gate's wall time while both checks had nothing to say to each other. Each is
 // bounded, so a container that never ends refuses the gate instead of holding it open
@@ -344,6 +347,7 @@ await runGateChecks({
       deadlineMilliseconds,
       args: [
         ...limits,
+        ...fixtureRootArguments(),
         image,
       ],
     },);
@@ -362,7 +366,7 @@ await runGateChecks({
         '--security-opt',
         'label=disable',
         '--volume',
-        `${compiler}:/toolchain:ro`,
+        `${clippyToolchain.sysroot}:/toolchain:ro`,
         '--env',
         'PATH=/toolchain/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
         '--env',

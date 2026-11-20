@@ -5761,8 +5761,9 @@ and why:
   `strace --inject` stands in for the errors and delays,
   and `binary_subvolume_tests.rs` and
   `fs_kind_tests.rs` cover btrfs and the filesystem classification where the host offers them.
-  The gate runs on an
-  overlay filesystem.
+  The gate's fixtures live on a tmpfs,
+  which is a local file system with birth times,
+  and none of the three is reachable there.
 - High CPU load:
   a synthetic load is banned.
   The container gate's `--cpus` cap and the single-processor control stand in.
@@ -6058,8 +6059,31 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   A shell loop that a failing push-progress test never ended ran for 87 minutes on 2026-11-03 before this.
 - `native:test:host` runs the unit tests and `native:test:binary:host` runs the tests that start the built executable,
   both against the host's Git while iterating.
+- The gate's tests keep their fixtures on a tmpfs the test container makes:
+  `--tmpfs /work/package/git-policy/cli/target/gate-fixtures:rw,size=768m,mode=1777` and
+  `--env CLI_GIT_TEST_ROOT=/work/package/git-policy/cli/target/gate-fixtures`
+  (`bin/native-gate-fixture-root.ts`),
+  `CLI_GIT_TEST_ROOT` being the variable both faces of the suite already read to move their fixture root.
+  The root stays below the image's `/work` tree, where the root it replaces was,
+  because a fixture crate that runs Cargo reads the vendored-source mapping in `/work/.cargo/config.toml`
+  from its ancestors;
+  two `package_repair_prewarm_job` controls build a fixture workspace offline and need that mapping.
+  Without it the fixtures inherit the container root's file system,
+  which on a rootless podman whose storage sits on a ZFS dataset is a user-space
+  `fuse.fuse-overlayfs` mount over that dataset:
+  the mount records no birth time,
+  is on neither of the product's local-file-system lists,
+  and makes Git refuse `core.fsmonitor`,
+  and the dataset under it refuses a name that is not UTF-8 under `utf8only=on`.
+  The investigation measured those facts, and the causes that follow from them, behind 185 failures
+  of the suite on this host (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
+  A tmpfs answers all four the way the kernel overlay of the earlier btrfs host did.
+  The size is a ceiling under the container's memory bound,
+  because tmpfs pages count against that bound;
+  the measured whole-suite run peaked at 222 MiB of fixture bytes and 1192 MiB of the 2 GiB bound
+  (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
 - The controls that need a btrfs filesystem cannot run in the gate container,
-  which is an overlay:
+  whose fixture root is that tmpfs and never a btrfs filesystem:
   each one prints `BTRFS CONTROL NOT RUN: <control> (<what its fixture root is on>)` and passes there.
   `native:test:host:btrfs` is the other half of that bargain.
   It points `CLI_GIT_TEST_ROOT` at `${HOME}/temp/agent/cli-git-btrfs-fixtures`
@@ -6149,6 +6173,15 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   so a sidecar lock this package's dependencies moved past stops the gate in milliseconds
   instead of surfacing later in the sidecar's own build.
   Set `GIT_POLICY_NATIVE_IMAGE_TAG=<name>` to keep the images of parallel runs apart.
+  The Clippy step mounts the Rust toolchain `toolchain.lock.json` records, not the one the caller's environment
+  resolves (`bin/native-gate-clippy-toolchain.ts`):
+  `rustup which` names that toolchain's own sysroot,
+  and the gate refuses, naming the missing component and the command that installs it,
+  when the sysroot holds no Clippy.
+  A sysroot taken from the environment was rustup's default `nightly`,
+  which has no Clippy component,
+  so the image's older `clippy-driver` compiled this crate against metadata a newer rustc wrote
+  and the step failed with E0514.
   The test run uses `cargo nextest run --no-fail-fast`,
   so every test runs even after a failure and one flaky test
   never hides the rest;
@@ -6816,6 +6849,9 @@ because a release waits on that gate and its suite is what the CPUs shorten
   The same four tests at 1024 processes passed all 7,192.
 - The 2 GiB memory bound is the repository default,
   because four tests at once peaked at 978 MiB of it.
+  With the suite's fixture root on a tmpfs, whose pages count against the same bound, a whole suite on a ZFS
+  host peaked at 1192 MiB of it
+  (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
 
 A bound a person passes after the `--` still wins,
 with one exception:

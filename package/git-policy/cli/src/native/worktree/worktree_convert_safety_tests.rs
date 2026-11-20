@@ -291,12 +291,16 @@ fn a_difference_keeps_the_old_tree_and_nothing_is_copied() {
     std::fs::write(converting.join("README.md"), b"a later write to the old tree\n").expect("write to the old tree");
     std::fs::write(converting.join("late.txt"), b"only in the old tree\n").expect("late file in the old tree");
     let message: String = failure_of(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0);
-    assert!(message.contains("differs") && message.contains("kept"), "{message}");
+    assert!(message.contains("kept"), "{message}");
     assert_eq!(std::fs::read(worktree.join("README.md")).expect("installed"), b"an edit made to the installed worktree\n", "the installed edit is not overwritten");
     assert!(!worktree.join("late.txt").exists(), "nothing was copied from the old tree");
     assert!(converting.join("late.txt").exists(), "the old tree is kept whole");
-    // The person settles it by hand; the next run then removes the old tree.
+    // Which difference the walk meets first is no file system's promise, and the file only the old tree holds is
+    // one; settle that one and ask again, so the contents difference itself is the one reported.
     std::fs::remove_file(converting.join("late.txt")).expect("settled");
+    let settled: String = failure_of(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0);
+    assert!(settled.contains("README.md") && settled.contains("differs") && settled.contains("kept"), "{settled}");
+    // The person settles the rest by hand; the next run then removes the old tree.
     std::fs::copy(worktree.join("README.md"), converting.join("README.md")).expect("settled");
     let mtime = std::fs::metadata(worktree.join("README.md")).expect("metadata").modified().expect("mtime");
     std::fs::OpenOptions::new().write(true).open(converting.join("README.md")).expect("open").set_modified(mtime).expect("same time");

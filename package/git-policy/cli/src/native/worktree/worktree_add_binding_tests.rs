@@ -216,9 +216,13 @@ fn a_relative_pointer_without_links_is_bound() {
     std::fs::write(destination.join(".git"), "gitdir: ../repo/.git/worktrees/topic\n").expect("relative pointer");
     let bound: Bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
     assert_eq!(bound.binding.admin, repo.join(".git/worktrees/topic"));
-    assert!(pointer_target(destination.as_path(), b"gitdir: ../../../../../../..\n").is_ok(), "the root is a place");
+    // The climb is as deep as the destination is, so the pointer reaches the file system root whatever depth the
+    // fixture root gives the destination: a fixed count made the control depend on that depth.
+    let climbs: usize = destination.ancestors().count() - 1;
+    let to_the_root: String = "../".repeat(climbs);
+    assert!(pointer_target(destination.as_path(), format!("gitdir: {to_the_root}\n").as_bytes()).is_ok(), "the root is a place");
     assert!(pointer_target(destination.as_path(), b"gitdir: ").is_ok());
-    let climbing: String = "../".repeat(40);
+    let climbing: String = "../".repeat(climbs + 1);
     assert!(pointer_target(destination.as_path(), format!("gitdir: {climbing}x\n").as_bytes()).is_err(), "a pointer cannot climb out of the root");
     remove(root.as_path());
 }
