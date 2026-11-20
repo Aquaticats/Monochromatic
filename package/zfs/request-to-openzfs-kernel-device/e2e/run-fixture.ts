@@ -43,6 +43,77 @@ const CRATE_DIR = '/opt/zfs-step-2-crate';
 const ACCOUNT_POOL = 'zfsstep2-account';
 /** The `PATH` the guest's OpenZFS 2.4.4 userspace needs. */
 const OPENZFS_PATH = `${OPENZFS_PREFIX}/sbin:${OPENZFS_PREFIX}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
+/**
+ The guest kernel release the plan pins until step 23 supplies the host kernel.
+ The `mvm` Ubuntu 24.04 image boots it,
+ and the module BTF below exists only for the
+ kernel whose headers the module is built against,
+ so a moved image is refused here rather than
+ measured under an unrecorded release.
+ */
+const EXPECTED_KERNEL_RELEASE = '6.8.0-147-generic';
+/** The running kernel's own BTF, which module BTF is built against. */
+const KERNEL_BTF = '/sys/kernel/btf/vmlinux';
+/** Where the running kernel exposes each loaded module's BTF. */
+const MODULE_BTF = '/sys/kernel/btf/zfs';
+/**
+ sha256 of `zfs-2.4.4.tar.gz`,
+ from the project's signed `zfs-2.4.4.sha256.asc` asset
+ (`https://github.com/openzfs/zfs/releases/download/zfs-2.4.4/zfs-2.4.4.sha256.asc`).
+ */
+const OPENZFS_TARBALL_SHA256 = '2a3c70d55a37cc71618a95a60e81ad66530201eb118d37741dc92efcf848c8b1';
+/**
+ The rustup release the installer comes from.
+ Pinned: the digest below is that release's `rustup-init`,
+ so an unpinned download would
+ need a new digest with every rustup release.
+ */
+const RUSTUP_VERSION = '1.29.3';
+/** The pinned installer's own archive path. */
+const RUSTUP_INIT_URL = `https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/x86_64-unknown-linux-gnu/rustup-init`;
+/** sha256 of that installer (`rustup-init.sha256` beside it in the same release). */
+const RUSTUP_INIT_SHA256 = 'b1c8cb14e30889e7e2999e6b69e62d9e9b9ffc0f4df8180564d306d9680e6c55';
+/**
+ Milliseconds one host command may take:
+ a create,
+ a push,
+ a pull or the tarball.
+ */
+const HOST_COMMAND_TIMEOUT_MS = 120_000;
+/** Seconds one guest download may take before `curl` gives up. */
+const DOWNLOAD_TIMEOUT_SECONDS = 300;
+/** How often `curl` retries a download that failed mid-transfer. */
+const DOWNLOAD_RETRIES = 2;
+/** Milliseconds the package install may take on a cold mirror. */
+const PREPARE_PACKAGES_TIMEOUT_MS = 1_900_000;
+/** Milliseconds the OpenZFS userspace and module build may take. */
+const PREPARE_BUILD_TIMEOUT_MS = 2_500_000;
+/** Milliseconds the Rust toolchain and `cargo-nextest` install may take. */
+const PREPARE_TOOLCHAIN_TIMEOUT_MS = 1_600_000;
+/** Milliseconds the crate's release build inside the guest may take. */
+const CRATE_BUILD_TIMEOUT_MS = 1_500_000;
+/** Milliseconds one live suite may take. */
+const SUITE_TIMEOUT_MS = 1_200_000;
+/** Milliseconds the version and teardown records may take. */
+const RECORD_TIMEOUT_MS = 180_000;
+/**
+ Test threads the root suite uses:
+ its arms are I/O and CPU bound on their own pools,
+ and four kept the run under the suite timeout.
+ */
+const ROOT_SUITE_TEST_THREADS = 4;
+/**
+ Test threads the account suite uses:
+ its arms share one prepared pool,
+ so they run one at a time.
+ */
+const ACCOUNT_SUITE_TEST_THREADS = 1;
+/**
+ Seconds the guest's own `timeout` fires before mvm's kill,
+ so an overrun is written to
+ the guest's log instead of losing the transport.
+ */
+const GUEST_TIMEOUT_MARGIN_SECONDS = 60;
 
 /** The Debian packages the guest needs: the build tools, `pahole`, `strace`, Git. */
 const PACKAGES = [
@@ -112,7 +183,10 @@ function shellQuote(script: string): string {
 function host(options: Options, command: string, args: readonly string[], log: string): void {
   const output = openSync(join(options.logDir, log), 'w', 0o600);
   try {
-    const result = spawnSync(command, args, { stdio: ['ignore', output, output], timeout: 120_000, });
+    const result = spawnSync(command, args, {
+      stdio: ['ignore', output, output],
+      timeout: HOST_COMMAND_TIMEOUT_MS,
+    });
     if (result.error || result.status !== 0)
       throw result.error ?? new Error(`${command} ${args.join(' ')} exited ${result.status}; see ${log}`);
   } finally {
@@ -123,7 +197,8 @@ function host(options: Options, command: string, args: readonly string[], log: s
 /** Run one guest script through the guest agent, its output in its own log. */
 function guest(options: Options, script: string, log: string, timeout: number): void {
   const output = openSync(join(options.logDir, log), 'w', 0o600);
-  const command = `test "$(hostname)" = ${options.name} && timeout ${Math.floor(timeout / 1000) - 60} sh -ec ${shellQuote(script)}`;
+  const command =
+    `test "$(hostname)" = ${options.name} && timeout ${Math.floor(timeout / 1000) - GUEST_TIMEOUT_MARGIN_SECONDS} sh -ec ${shellQuote(script)}`;
   try {
     const result = spawnSync(
       'mvm',
@@ -161,40 +236,52 @@ function prepare(options: Options): void {
   const install = [
     'set -eu',
     'export DEBIAN_FRONTEND=noninteractive',
-    'apt-get -o Acquire::Retries=2 update > /root/zfs-prepare.log 2>&1',
-    `apt-get -o Acquire::Retries=2 -y install ${PACKAGES} "linux-headers-$(uname -r)" >> /root/zfs-prepare.log 2>&1`,
-    'curl --fail --location --retry 2 --max-time 180 --output /root/zfs-2.4.4.tar.gz https://github.com/openzfs/zfs/releases/download/zfs-2.4.4/zfs-2.4.4.tar.gz >> /root/zfs-prepare.log 2>&1',
+    'apt-get --option Acquire::Retries=2 update > /root/zfs-prepare.log 2>&1',
+    `apt-get --option Acquire::Retries=2 --yes install ${PACKAGES} "linux-headers-$(uname --kernel-release)" >> /root/zfs-prepare.log 2>&1`,
+    `test "$(uname --kernel-release)" = ${EXPECTED_KERNEL_RELEASE}`,
+    `curl --fail --location --retry ${DOWNLOAD_RETRIES} --max-time ${DOWNLOAD_TIMEOUT_SECONDS} --output /root/zfs-2.4.4.tar.gz https://github.com/openzfs/zfs/releases/download/zfs-2.4.4/zfs-2.4.4.tar.gz >> /root/zfs-prepare.log 2>&1`,
+    `printf '%s  %s\\n' ${OPENZFS_TARBALL_SHA256} /root/zfs-2.4.4.tar.gz | sha256sum --check --strict -`,
     'tar --extract --gzip --file /root/zfs-2.4.4.tar.gz --directory /root',
     `mkdir --parents ${FIXTURE_ROOT}`,
     `chmod 0755 ${FIXTURE_ROOT}`,
     'tail --lines=5 /root/zfs-prepare.log',
   ].join('\n');
-  guest(options, install, 'guest-prepare.log', 1_900_000);
+  guest(options, install, 'guest-prepare.log', PREPARE_PACKAGES_TIMEOUT_MS);
 
   const build = [
     'set -eu',
     `cd ${OPENZFS_SOURCE}`,
-    `./configure --prefix=${OPENZFS_PREFIX} --with-linux=/lib/modules/$(uname -r)/build > /root/zfs-build.log 2>&1`,
+    // Ubuntu's headers ship no `vmlinux`, and 6.8's scripts/Makefile.modfinal
+    // runs `pahole -J --btf_base vmlinux $@` for an out-of-tree module whenever
+    // CONFIG_DEBUG_INFO_BTF_MODULES is set (Ubuntu's is): the only missing piece
+    // is that file, so the kernel's own BTF is copied into the build directory
+    // and the module is built with `.BTF`, which the kernel then exposes at
+    // /sys/kernel/btf/zfs for the layout test.
+    `mkdir --parents /lib/modules/$(uname --kernel-release)/build`,
+    `if test ! -f /lib/modules/$(uname --kernel-release)/build/vmlinux; then cp ${KERNEL_BTF} /lib/modules/$(uname --kernel-release)/build/vmlinux; fi`,
+    `./configure --prefix=${OPENZFS_PREFIX} --with-linux=/lib/modules/$(uname --kernel-release)/build > /root/zfs-build.log 2>&1`,
     'make --jobs=4 >> /root/zfs-build.log 2>&1',
     'make --jobs=4 install >> /root/zfs-build.log 2>&1',
-    'depmod -a',
+    'depmod --all',
     'systemctl stop zfs-zed.service zfs-mount.service zfs-load-module.service 2>/dev/null || true',
-    'if test -d /sys/module/zfs; then modprobe -r zfs || true; fi',
-    'if test -d /sys/module/spl; then modprobe -r spl || true; fi',
-    'insmod /lib/modules/$(uname -r)/extra/spl.ko',
-    'insmod /lib/modules/$(uname -r)/extra/zfs.ko',
+    'if test -d /sys/module/zfs; then modprobe --remove zfs || true; fi',
+    'if test -d /sys/module/spl; then modprobe --remove spl || true; fi',
+    `insmod /lib/modules/$(uname --kernel-release)/extra/spl.ko`,
+    `insmod /lib/modules/$(uname --kernel-release)/extra/zfs.ko`,
+    `test -f ${MODULE_BTF}`,
     `LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib PATH=${OPENZFS_PATH} zfs version >> /root/zfs-build.log 2>&1`,
     `test "$(cat /sys/module/zfs/version)" = ${OPENZFS_RELEASE}`,
     'tail --lines=5 /root/zfs-build.log',
   ].join('\n');
-  guest(options, build, 'guest-build.log', 2_500_000);
+  guest(options, build, 'guest-build.log', PREPARE_BUILD_TIMEOUT_MS);
 
   const toolchain = [
     'set -eu',
     'if test ! -x /root/.cargo/bin/cargo; then',
-    '  curl --fail --location --retry 2 --max-time 300 --output /root/rustup-init https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init',
+    `  curl --fail --location --retry ${DOWNLOAD_RETRIES} --max-time ${DOWNLOAD_TIMEOUT_SECONDS} --output /root/rustup-init ${RUSTUP_INIT_URL}`,
+    `  printf '%s  %s\\n' ${RUSTUP_INIT_SHA256} /root/rustup-init | sha256sum --check --strict -`,
     '  chmod +x /root/rustup-init',
-    '  /root/rustup-init -y --profile minimal > /root/zfs-toolchain.log 2>&1',
+    '  /root/rustup-init --yes --profile minimal > /root/zfs-toolchain.log 2>&1',
     'fi',
     'if test ! -x /root/.cargo/bin/cargo-nextest; then',
     '  /root/.cargo/bin/cargo install cargo-nextest --locked >> /root/zfs-toolchain.log 2>&1',
@@ -202,7 +289,7 @@ function prepare(options: Options): void {
     '/root/.cargo/bin/cargo --version',
     '/root/.cargo/bin/cargo nextest --version',
   ].join('\n');
-  guest(options, toolchain, 'guest-toolchain.log', 1_600_000);
+  guest(options, toolchain, 'guest-toolchain.log', PREPARE_TOOLCHAIN_TIMEOUT_MS);
 }
 
 /** Push the crate, build it inside the guest, and run the root and account suites. */
@@ -228,35 +315,55 @@ function run(options: Options): void {
     'cargo build --release --tests --locked > /root/zfs-crate-build.log 2>&1',
     'tail --lines=3 /root/zfs-crate-build.log',
   ].join('\n');
-  guest(options, build, 'guest-crate-build.log', 1_500_000);
+  guest(options, build, 'guest-crate-build.log', CRATE_BUILD_TIMEOUT_MS);
 
+  // The root suite excludes the delegated arms, so no live test may skip here:
+  // an arm that skipped would be a passing test whose assertions never ran, and
+  // `SKIP <test>` at column 0 is what a returning live test prints.
   const rootSuite = [
     'set -eu',
     `cd ${CRATE_DIR}`,
     'export PATH=/root/.cargo/bin:$PATH',
     `export ${fixtureEnvironment(options)}`,
-    'if cargo nextest run --release --run-ignored all --no-fail-fast --status-level all --no-capture --test-threads 4 > /root/zfs-root-suite.log 2>&1; then status=0; else status=$?; fi',
+    'if cargo nextest run --release --locked --run-ignored all --no-fail-fast --status-level all ' +
+      `--no-capture --test-threads ${ROOT_SUITE_TEST_THREADS} -E "not test(live_account_tests)" ` +
+      '> /root/zfs-root-suite.log 2>&1; then status=0; else status=$?; fi',
     'tail --lines=30 /root/zfs-root-suite.log',
     'test "$status" = 0',
+    `! grep --quiet '^SKIP ' /root/zfs-root-suite.log`,
+    `grep --quiet '^MEASUREMENT guest kernel=' /root/zfs-root-suite.log`,
+    `grep --quiet '^layout zfs_cmd bytes=' /root/zfs-root-suite.log`,
+    `grep --quiet '^MEASUREMENT promoted-batch ' /root/zfs-root-suite.log`,
   ].join('\n');
-  guest(options, rootSuite, 'guest-root-suite.log', 1_200_000);
+  guest(options, rootSuite, 'guest-root-suite.log', SUITE_TIMEOUT_MS);
 
+  // The account episode is its own script so the delegated run keeps every
+  // assertion without a second layer of shell quoting: the suite must pass, no
+  // live arm may skip, and a line only a delegated arm prints must be there.
+  const accountScript = [
+    'set -eu',
+    `cd ${CRATE_DIR}`,
+    'if cargo nextest run --release --locked --run-ignored all --no-fail-fast --status-level all ' +
+      `--no-capture --test-threads ${ACCOUNT_SUITE_TEST_THREADS} -E "test(live_account_tests)" ` +
+      `> /home/${ACCOUNT}/zfs-account-suite.log 2>&1; then status=0; else status=$?; fi`,
+    `tail --lines=30 /home/${ACCOUNT}/zfs-account-suite.log`,
+    'test "$status" = 0',
+    `! grep --quiet '^SKIP ' /home/${ACCOUNT}/zfs-account-suite.log`,
+    `grep --quiet '^MEASUREMENT account ' /home/${ACCOUNT}/zfs-account-suite.log`,
+  ].join('\n');
   const accountSuite = [
     'set -eu',
     `chown --recursive ${ACCOUNT}:${ACCOUNT} ${CRATE_DIR}`,
-    `cp -a /root/.cargo /home/${ACCOUNT}/.cargo`,
-    `cp -a /root/.rustup /home/${ACCOUNT}/.rustup`,
+    `cp --archive /root/.cargo /home/${ACCOUNT}/.cargo`,
+    `cp --archive /root/.rustup /home/${ACCOUNT}/.rustup`,
     `chown --recursive ${ACCOUNT}:${ACCOUNT} /home/${ACCOUNT}/.cargo /home/${ACCOUNT}/.rustup`,
-    `cd ${CRATE_DIR}`,
     `runuser --preserve-environment -u ${ACCOUNT} -- env HOME=/home/${ACCOUNT} ` +
       `CARGO_HOME=/home/${ACCOUNT}/.cargo RUSTUP_HOME=/home/${ACCOUNT}/.rustup ` +
       `PATH=/home/${ACCOUNT}/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ` +
       `${fixtureEnvironment(options)} ` +
-      `sh -c 'if cargo nextest run --release --run-ignored all --no-fail-fast --status-level all ` +
-      `--test-threads 1 -E "test(live_account)" > /home/${ACCOUNT}/zfs-account-suite.log 2>&1; then status=0; ` +
-      `else status=$?; fi; tail --lines=30 /home/${ACCOUNT}/zfs-account-suite.log; test "$status" = 0'`,
+      `sh -ec ${shellQuote(accountScript)}`,
   ].join('\n');
-  guest(options, accountSuite, 'guest-account-suite.log', 1_200_000);
+  guest(options, accountSuite, 'guest-account-suite.log', SUITE_TIMEOUT_MS);
 }
 
 /** Record versions, the assertions' environment and the teardown evidence. */
@@ -268,13 +375,13 @@ function record(options: Options): void {
     `LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib PATH=${OPENZFS_PATH} zfs version`,
     'git --version',
     'pahole --version',
-    'strace -V | head --lines=1',
+    'strace --version | head --lines=1',
     '/root/.cargo/bin/rustc --version',
     '/root/.cargo/bin/cargo --version',
     '/root/.cargo/bin/cargo nextest --version',
     '} | tee /root/zfs-versions.log',
   ].join('\n');
-  guest(options, versions, 'guest-versions.log', 180_000);
+  guest(options, versions, 'guest-versions.log', RECORD_TIMEOUT_MS);
   const teardown = [
     'set -eu',
     '{ echo "pools after the suites:"',
@@ -285,13 +392,13 @@ function record(options: Options): void {
     `find ${FIXTURE_ROOT} -name 'pool.img' -print`,
     '} | tee /root/zfs-teardown.log',
   ].join('\n');
-  guest(options, teardown, 'guest-teardown.log', 180_000);
+  guest(options, teardown, 'guest-teardown.log', RECORD_TIMEOUT_MS);
   const share = [
     'set -eu',
     'test -d /mnt/shared',
     `cp /root/zfs-root-suite.log /home/${ACCOUNT}/zfs-account-suite.log /root/zfs-versions.log /root/zfs-teardown.log /mnt/shared/`,
   ].join('\n');
-  guest(options, share, 'guest-share-logs.log', 180_000);
+  guest(options, share, 'guest-share-logs.log', RECORD_TIMEOUT_MS);
   for (
     const [from, to] of [
       ['/mnt/shared/zfs-root-suite.log', 'root-suite.log'],
