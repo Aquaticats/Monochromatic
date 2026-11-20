@@ -217,8 +217,7 @@ impl Fixture {
             else {
                 continue;
             };
-            let (Ok(parsed_guid), Ok(parsed_txg)) =
-                (guid.parse::<u64>(), txg.parse::<u64>())
+            let (Ok(parsed_guid), Ok(parsed_txg)) = (guid.parse::<u64>(), txg.parse::<u64>())
             else {
                 continue;
             };

@@ -32,8 +32,13 @@ const OPENZFS_SOURCE = '/root/zfs-2.4.4';
 const OPENZFS_RELEASE = '2.4.4-1';
 /** The fixture's own directory inside the guest, above its pools' images. */
 const FIXTURE_ROOT = '/home/zfs-step-2-fixture';
-/** Where the crate is unpacked and built inside the guest. */
-const CRATE_DIR = '/root/zfs-step-2-crate';
+/**
+ Where the crate is unpacked and built inside the guest.
+ `/root` is unreadable to the delegated account,
+ so the tree lives under `/opt`,
+ which every account may traverse.
+ */
+const CRATE_DIR = '/opt/zfs-step-2-crate';
 /** The pool the delegated-account arms use, which the root suite prepares. */
 const ACCOUNT_POOL = 'zfsstep2-account';
 /** The `PATH` the guest's OpenZFS 2.4.4 userspace needs. */
@@ -230,8 +235,9 @@ function run(options: Options): void {
     `cd ${CRATE_DIR}`,
     'export PATH=/root/.cargo/bin:$PATH',
     `export ${fixtureEnvironment(options)}`,
-    'cargo nextest run --release --run-ignored all --no-fail-fast --status-level all --test-threads 4 2>&1 | tee /root/zfs-root-suite.log',
-    'test "${PIPESTATUS[0]}" = 0',
+    'if cargo nextest run --release --run-ignored all --no-fail-fast --status-level all --test-threads 4 > /root/zfs-root-suite.log 2>&1; then status=0; else status=$?; fi',
+    'tail --lines=30 /root/zfs-root-suite.log',
+    'test "$status" = 0',
   ].join('\n');
   guest(options, rootSuite, 'guest-root-suite.log', 1_200_000);
 
@@ -246,9 +252,9 @@ function run(options: Options): void {
       `CARGO_HOME=/home/${ACCOUNT}/.cargo RUSTUP_HOME=/home/${ACCOUNT}/.rustup ` +
       `PATH=/home/${ACCOUNT}/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ` +
       `${fixtureEnvironment(options)} ` +
-      'sh -c \'cargo nextest run --release --run-ignored all --no-fail-fast --status-level all ' +
-      '--test-threads 1 -E "test(live_account)" 2>&1 | tee /root/zfs-account-suite.log; ' +
-      'test "${PIPESTATUS[0]}" = 0\'',
+      `sh -c 'if cargo nextest run --release --run-ignored all --no-fail-fast --status-level all ` +
+      `--test-threads 1 -E "test(live_account)" > /home/${ACCOUNT}/zfs-account-suite.log 2>&1; then status=0; ` +
+      `else status=$?; fi; tail --lines=30 /home/${ACCOUNT}/zfs-account-suite.log; test "$status" = 0'`,
   ].join('\n');
   guest(options, accountSuite, 'guest-account-suite.log', 1_200_000);
 }
@@ -283,7 +289,7 @@ function record(options: Options): void {
   const share = [
     'set -eu',
     'test -d /mnt/shared',
-    'cp /root/zfs-root-suite.log /root/zfs-account-suite.log /root/zfs-versions.log /root/zfs-teardown.log /mnt/shared/',
+    `cp /root/zfs-root-suite.log /home/${ACCOUNT}/zfs-account-suite.log /root/zfs-versions.log /root/zfs-teardown.log /mnt/shared/`,
   ].join('\n');
   guest(options, share, 'guest-share-logs.log', 180_000);
   for (
@@ -332,7 +338,7 @@ const steps: Record<string, (checked: Options) => void> = {
 const chosen = options();
 mkdirSync(chosen.logDir, { recursive: true, mode: 0o700, });
 const step = steps[chosen.step];
-if (!step)
+if (step === undefined)
   throw new Error(`unknown step '${chosen.step}'; use ${Object.keys(steps).join(', ')}`);
 step(chosen);
 console.log(`zfs step 2 fixture: step '${chosen.step}' finished; logs in ${chosen.logDir}`);
