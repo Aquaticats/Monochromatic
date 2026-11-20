@@ -36,11 +36,11 @@
 //! interface ZfsCmd { zcName: Uint8Array; zcNvlistSrc: bigint; /* ... */ }
 //! ```
 
-/// The fixed field sizes and the struct size the design pins.
+// The fixed field sizes and the struct size the design pins.
 use super::abi_limits::{COMMAND_STRUCT_SIZE, MAX_VALUE_LEN, MAXNAMELEN, MAXPATHLEN};
-/// The C string reader the fixed fields need.
+// The C string reader the fixed fields need.
 use std::ffi::CStr;
-/// The offset macro of the pinning assertions.
+// The offset macro of the pinning assertions.
 use std::mem::offset_of;
 
 /// `zfs_share_t`:

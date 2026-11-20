@@ -20,31 +20,31 @@
 //! because a
 //!  replayed write could create a second snapshot or destroy a second time.
 
-/// The facts one answer supplies and what they mean.
+// The facts one answer supplies and what they mean.
 use super::call_outcome::{
     AnswerFacts, ReadFailure, interpret_read_failure, interpret_write_failure,
 };
-/// The failure type these calls return.
+// The failure type these calls return.
 use super::device_error::DeviceError;
-/// The one unsafe call.
+// The one unsafe call.
 use super::ioctl_call;
-/// The read retry rule and what one attempt returned.
+// The read retry rule and what one attempt returned.
 use super::read_reply::{ReadAttempt, retry_read};
-/// The decoded list a call returns.
+// The decoded list a call returns.
 use crate::nvlist::NvList;
-/// The request a call carries and the list it answers with.
+// The request a call carries and the list it answers with.
 use crate::requests::Request;
-/// The per-name failures a write reply carries.
+// The per-name failures a write reply carries.
 use crate::requests::element_errors;
-/// The owned descriptor,
-/// the file it came from and the raw handle the call needs.
+// The owned descriptor,
+// the file it came from and the raw handle the call needs.
 use std::fs::{File, OpenOptions};
-/// The descriptor the call needs and the ownership that closes it.
+// The descriptor the call needs and the ownership that closes it.
 use std::os::fd::{AsRawFd, OwnedFd, RawFd};
-/// The path the handle remembers.
+// The path the handle remembers.
 use std::path::{Path, PathBuf};
 
-/// The device file a live call is carried over.
+// The device file a live call is carried over.
 use super::DEVICE_PATH;
 
 /// An open `/dev/zfs` handle.

@@ -16,9 +16,9 @@
 //! because
 //!  their children go into the parent pair's own stream.
 
-/// The wire constants,
-/// type numbers,
-/// alignment and version check.
+// The wire constants,
+// type numbers,
+// alignment and version check.
 use super::data_type::{
     DATA_TYPE_BOOLEAN, DATA_TYPE_BOOLEAN_ARRAY, DATA_TYPE_BOOLEAN_VALUE, DATA_TYPE_BYTE,
     DATA_TYPE_BYTE_ARRAY, DATA_TYPE_DOUBLE, DATA_TYPE_HRTIME, DATA_TYPE_INT8, DATA_TYPE_INT8_ARRAY,
@@ -27,9 +27,9 @@ use super::data_type::{
     DATA_TYPE_UINT8, DATA_TYPE_UINT8_ARRAY, DATA_TYPE_UINT16, DATA_TYPE_UINT16_ARRAY,
     DATA_TYPE_UINT32, DATA_TYPE_UINT32_ARRAY, DATA_TYPE_UINT64, DATA_TYPE_UINT64_ARRAY,
 };
-/// The decoded value type.
+// The decoded value type.
 use super::value::NvData;
-/// The byte width of the element types.
+// The byte width of the element types.
 use std::mem::size_of;
 
 /// Append the unpadded value bytes of a non-list `data`,

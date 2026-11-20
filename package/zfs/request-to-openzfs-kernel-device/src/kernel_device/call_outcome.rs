@@ -16,11 +16,11 @@
 //! so it is one pure function per path and the device-free tests
 //!  pin every branch without a pool.
 
-/// The failure type a live call returns.
+// The failure type a live call returns.
 use super::device_error::DeviceError;
-/// The per-name failures a write reply carries.
+// The per-name failures a write reply carries.
 use crate::requests::ElementError;
-/// The request failure type and its reply refusal.
+// The request failure type and its reply refusal.
 use crate::requests::{Error, Operation, ReplyRefusal, ReplyRefusalReason};
 
 /// The facts one answer supplies.

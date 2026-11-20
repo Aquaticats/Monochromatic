@@ -20,11 +20,11 @@
 //!  caller's input instead of turning it into a kernel error number.
 //!  The text is owned so the request outlives the string it was built from.
 
-/// The field a name is bound for.
+// The field a name is bound for.
 use super::name_field::NameField;
-/// The struct a name is copied into.
+// The struct a name is copied into.
 use crate::layout::ZfsCmd;
-/// The formatting traits the diagnostics implement.
+// The formatting traits the diagnostics implement.
 use std::fmt;
 
 /// Why a name cannot be written into its field.

@@ -17,15 +17,15 @@
 //!  must name a root-owned file;
 //! this crate has no way to guess one.
 
-/// The failure type these requests return.
+// The failure type these requests return.
 use super::error::Error;
-/// The typed request numbers.
+// The typed request numbers.
 use super::operation::Operation;
-/// The request value and the name check.
+// The request value and the name check.
 use super::request::{Request, checked_name};
-/// The field a request name is bound for.
+// The field a request name is bound for.
 use crate::names::NameField;
-/// The codec list and value types.
+// The codec list and value types.
 use crate::nvlist::{NvData, NvList};
 
 /// One `ZFS_IOC_CHANNEL_PROGRAM` request's inputs.

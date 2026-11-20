@@ -22,9 +22,9 @@
 //! adding a name twice replaces the earlier
 //! pair instead of producing a list the kernel would refuse.
 
-/// The wire constants,
-/// type numbers,
-/// alignment and version check.
+// The wire constants,
+// type numbers,
+// alignment and version check.
 use super::data_type::{
     DATA_TYPE_BOOLEAN, DATA_TYPE_BOOLEAN_ARRAY, DATA_TYPE_BOOLEAN_VALUE, DATA_TYPE_BYTE,
     DATA_TYPE_BYTE_ARRAY, DATA_TYPE_DOUBLE, DATA_TYPE_HRTIME, DATA_TYPE_INT8, DATA_TYPE_INT8_ARRAY,

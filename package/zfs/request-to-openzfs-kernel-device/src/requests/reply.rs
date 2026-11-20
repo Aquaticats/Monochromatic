@@ -22,9 +22,9 @@
 //!  allocated,
 //! and a size longer than the buffer is refused rather than read.
 
-/// The codec list and refusal types.
+// The codec list and refusal types.
 use crate::nvlist::{NvError, NvList};
-/// The formatting traits the diagnostics implement.
+// The formatting traits the diagnostics implement.
 use std::fmt;
 
 /// Initial reply capacity:

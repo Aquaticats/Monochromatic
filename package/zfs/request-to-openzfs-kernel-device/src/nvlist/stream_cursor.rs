@@ -11,7 +11,7 @@
 //! One cursor that
 //!  owns the position keeps the check in one place.
 
-/// The codec own refusal type.
+// The codec own refusal type.
 use super::error::NvError;
 
 /// A position in a packed list,

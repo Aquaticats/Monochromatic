@@ -16,16 +16,16 @@
 //!  here,
 //! on the bytes the kernel would receive.
 
-/// The failure type these requests return.
+// The failure type these requests return.
 use super::error::Error;
-/// The typed request numbers.
+// The typed request numbers.
 use super::operation::Operation;
-/// The request value,
-/// the name check and the flag list builder.
+// The request value,
+// the name check and the flag list builder.
 use super::request::{Request, checked_name, flag_list};
-/// The field a request name is bound for.
+// The field a request name is bound for.
 use crate::names::NameField;
-/// The codec list type.
+// The codec list type.
 use crate::nvlist::NvList;
 
 /// `ZFS_IOC_SNAPSHOT` of `snapshots` in `pool`,
