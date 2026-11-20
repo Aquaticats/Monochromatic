@@ -803,6 +803,26 @@ the pick is not made here.
   No candidate is adopted,
   and no crate is added to a manifest.
 
+- `2026-11-20T18:16:05-05:00`,
+  the time this entry was written,
+  which no commit can carry.
+  The commits that carry the body this entry records are `3c45fc912e` at
+  2026-11-20T18:15:58-05:00 and `50eb28f7ed` at 2026-11-20T18:16:01-05:00.
+  The commit that carries this sentence names them.
+  This is the revision that writes the skill's vet report and closes the last item Q1 listed.
+  The report is `doc/audit/tech-btf-reader-for-the-zfs-layout-checker-vet-2026-11-20.md`,
+  with fingerprint `55c2be0183adaa6fbad912f852fb045a915c1593b344aa10095aa71bdec4677f`,
+  and it recommends `btf-rs` 2.0.1 with the `aarch64` target unrun and the start cost
+  unmeasured beside that recommendation.
+  It makes two changes here:
+  [The vet artifacts this brief could not write](#the-vet-artifacts-this-brief-could-not-write)
+  now names the report,
+  and [Q1](#q1-which-reader-parses-the-module-btf) names it and says the pick is the project's.
+  No candidate is adopted,
+  no crate is added to a manifest,
+  no decision record is edited,
+  and no ranking moves.
+
 ### Sources read
 
 Logs under `~/temp/agent` that this file cites are the author's session scratch.
