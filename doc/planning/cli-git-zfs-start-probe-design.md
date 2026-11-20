@@ -78,7 +78,7 @@ carried.
   source section and of its assumptions checked at setup rather than asserted. The three checkers ran on the design
   and on a broken copy, each failing there and passing here.
 
-- `2026-11-19T23:20:00-05:00` (commits `ac8a46addb`, `8bfdcd546e` and this one, this one included): the answer to a
+- `2026-11-19T23:20:00-05:00` (commits `ac8a46addb` and `8bfdcd546e`, and this one): the answer to a
   re-check of the applied answers. Its findings were weighed one by one and every one earned a fix, with none refused.
   `first-attach` now takes its claim at the first attempt that passes the key check, and that one rule is stated in
   the claim sentence, the step order, the M8 control and the operation-outcome sentence, with the reason for that
