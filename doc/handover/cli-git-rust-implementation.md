@@ -40560,7 +40560,18 @@ stated in this entry. What follows from them, as work:
   the pin compares) and six lows. GOING: `pi-zfs-runtime-layout-checker-decision-record-review-findings-fixed` and
   `pi-zfs-staging-under-cache-decision-record-review-findings-fixed` (DeepSeek on Neuralwatt, cap 160), each told that
   vetoed-nothing means settled and that the plan, as live work, is changed rather than noted; briefs under
-  `~/temp/agent/zfs-<topic>-decision-record-review-findings-fixed-2026-11-20/`. STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
+  `~/temp/agent/zfs-<topic>-decision-record-review-findings-fixed-2026-11-20/`. The layout fix round ended `idle` (87
+  turns) at `dd3897e8b6`: the four rules stated as settled, the lows restated in the record's voice, the plan's step 6
+  changed in place, Q2's two facts restored, no linter finding on added lines (shown with a planted positive control);
+  MERGED into `main` as `20a5c38b6f` (2026-11-20), its answered section moved out, both its worktrees removed. That
+  removal kept another journal, over `claim-watch`, for a service of the removed worktree that cannot return; added to
+  issue 6322. The staging fix round ended `idle` (113 turns) at `7f9455047a`: the pin's field set stated as accepted
+  with "no option of the three is still open", the pin sentence now "compares the source and the inode and never
+  compares the device", eight plan sentences changed in place and three proposal notes added where the staging work was
+  still called undesigned, the two unfixed lows fixed; it kept VM item 15's repeat that the review wanted dropped,
+  because the plan's step 9 asks for it. MERGED into `main` as `7763ecb4b3` (2026-11-20), its answered section moved out
+  and both its worktrees removed. ALL THREE DESIGNS ARE NOW IN `main` with their decision records; task 407 is done.
+  STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
   their VM arms wait for step 2's recipe and their merges for the gate fix), each DeepSeek on Neuralwatt, cap 510,
   from `main` `d6e78c9e8b`: `pi-zfs-step-3-reflink-rung-recognition-host-half`
   (`.claude/worktrees/zfs-step-3-reflink-rung-recognition`, `feat/git-policy-cli-zfs-recognition-in-the-reflink-rung`;
