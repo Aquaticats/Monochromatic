@@ -40629,8 +40629,17 @@ stated in this entry. What follows from them, as work:
   `pi-zfs-runtime-layout-checker-design-fourth-revision-narrow-check-findings-fixed` (DeepSeek on Neuralwatt, cap
   510), told the reflog times, to label with the time written and never set commit dates, and to give step 2's
   standing as of a named commit; brief under
-  `~/temp/agent/zfs-runtime-layout-checker-design-fourth-revision-narrow-check-findings-fixed-2026-11-19/`. Then a
-  diff-only Sonnet check and acceptance. START PROBE REVIEW ENDED (Sonnet, about 33 min; that folder's `keep/review.md`): not
+  `~/temp/agent/zfs-runtime-layout-checker-design-fourth-revision-narrow-check-findings-fixed-2026-11-19/`. It ended
+  `idle` (146 turns) at `b8de4a383d` (eight commits 23:03:27 to 23:09:47, each committer date equal to its reflog
+  record, none set by hand; that folder's `keep/report.md`), every finding fixed: the fourth revision's entry names
+  the reflog times and says once that the recorded dates were set by hand; the Q2 evidence corrected (a clone with
+  properties reaches five of the eight; `snapdev`, `volmode` and `zvol_set_common` read at the tags; two user
+  properties the wrapper sends); step 2's standing dated at `08c9dea25f`, read at 23:04:00; the 24-byte header
+  "expected, unmeasured" everywhere; a fourth veto-open choice named (the per-process cache with no disk cache), each
+  with its reason and alternative. Locators dated to `6c838ba11f`. GOING: a diff-only Sonnet check (brief under
+  `~/temp/agent/zfs-runtime-layout-checker-design-fifth-revision-diff-only-gate-check-2026-11-19/`). Then acceptance;
+  at acceptance the plan locators and step 2's standing are re-pinned, since step 2's branch is still moving. START
+  PROBE REVIEW ENDED (Sonnet, about 33 min; that folder's `keep/review.md`): not
   ready, no high, six mediums, all text: the companion sits in the add preflight but not in `doctor`, against the
   proposal's "Share preflight with `doctor`"; "That is the project's choice" claims a printed skip on a refused user
   namespace the project never chose (the Q6 option text named the skip only as a cost; the add going ahead is the
