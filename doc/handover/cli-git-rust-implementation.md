@@ -45436,6 +45436,10 @@ had a record. The record is named beside each answer.
 - During the 860 cut-over the owner's other processes were stopped: "Stop agents and adb for me",
   2026-11-08T06:45:53-05:00. The seven processes were sent TERM by PID after each command line was re-read,
   and all exited; the owner closed Zed and the terminals.
+- Prose fixes inside `doc/decision/` run with form only: "Yes, form only (Recommended)",
+  2026-11-10T08:08:51-05:00. Punctuation, emphasis, list markers and headings change; the owner's quoted words
+  and every other word stay, and each file's words are compared before and after. The work is on branch
+  `docs/decision-form-only-prose-and-moved-path-notes`.
 
 ### Answers about this machine and the owner's accounts (2026-11-07 to 2026-11-10)
 
