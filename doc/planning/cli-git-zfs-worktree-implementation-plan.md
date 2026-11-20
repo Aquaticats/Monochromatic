@@ -236,6 +236,13 @@ or says which step must pick it.
   as [cli-cargo][] and `src/native/source_guard/release_bins_tests.rs` both state.
   Step 5 picks the handling;
   the plan's suggestion is in "Where the design is silent".
+  (Amended 2026-11-20T06:45:32-05:00:
+  step 5 built it,
+  so one release archive now holds both executables,
+  and the sentences above describe the plan as it stood.
+  `package/git-policy/cli/doc/step-5-second-executable-2026-11-20.md` is the record,
+  and "How the release carries two executables" under "Gaps the design's open-item list does not name"
+  states the resolution.)
 
 ### Wrapper code the design reuses
 

@@ -7,7 +7,11 @@ It is installed as `git` ahead of the real Git on `PATH`,
 forwards every command to the real Git,
 and checks the commands and the commits that pass through it against policies the repository configures as data.
 
-The executable is `monochromatic-git-policy-cli`.
+The executable a caller runs is `monochromatic-git-policy-cli`.
+The crate's release also holds `mount-git-worktree-clone-datasets`,
+ the root-run clone-mount handler of the ZFS worktree route
+ (`SPEC.md`,
+ "The two executables and shipped policies").
 The library inside the crate is named `git_policy_cli`.
 
 How the owner wants this package designed and judged is in [DESIGN.md](DESIGN.md).
@@ -6546,6 +6550,16 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   `--repository <path>` names the checkout
   (otherwise the nearest folder above the caller whose `.git` is a folder)
   and `--dry-run` prints the same plan and changes nothing.
+  The install also refuses unless `mount-git-worktree-clone-datasets --version` prints the release's line,
+  and no release published so far carries that program:
+  `toolchain.lock.json` names it for this tree's release,
+  so installing any earlier release ends refused after the wrapper is installed and the lock is moved,
+  and nothing is committed under that release's name;
+  `mise run toolchain:install` on this tree's lock installs that release,
+  exits 0,
+  and prints `toolchain install: unresolved bins: mount-git-worktree-clone-datasets`.
+  The first release built from this tree carries both executables,
+  and the refusal then names nothing.
 
 ### Lint
 
