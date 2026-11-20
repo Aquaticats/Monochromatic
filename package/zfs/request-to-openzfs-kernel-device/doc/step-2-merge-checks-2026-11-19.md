@@ -109,6 +109,70 @@ and each check's whole output is `container-<check>.log`:
     `cargo clippy --release --all-targets -- -D warnings`,
     and `tsc --noEmit --project tsconfig.json`.
 
+## The lows round's rerun
+
+The round that answered this review's lows reran the gate checks on its branch,
+in the same image,
+neither rebuilt nor retagged,
+with the same mounts and caps,
+one container per check,
+each named `zfs-step-2-lows-2026-11-20-<check>`.
+Its logs are in this round's `keep/` folder,
+`/home/user/temp/agent/zfs-step-2-merge-lows-fixed-2026-11-20/keep/`,
+as `container-<check>.log` and `container-checks-summary.log`,
+taken between
+2026-11-20T01:16:13-05:00 and
+2026-11-20T01:16:38-05:00,
+with the linter rerun at
+2026-11-20T01:17:59-05:00.
+
+- nextest exits 0,
+  `178 tests run: 178 passed, 30 skipped`;
+  the one more than check 1 is the new device-free test of a failed write's reply.
+- Clippy exits 0.
+- Both `cargo fmt --check` runs exit 0 with no output.
+- `cargo doc` with `-Dwarnings` exits 0.
+- The sidecar's `cargo check` and its Clippy exit 0.
+- `file-enforcer check` on the worktree mount exits 1 with one drift,
+  the gitignored local file check 8 describes;
+  the main checkout's copy drifts the same way.
+- `file-enforcer write` on a tracked-only copy of the branch exits 0,
+  29 files written,
+  every one gitignored,
+  and `file-enforcer check` on the copy afterwards exits 0 with `drifted: 0`.
+- The linter exits 0 with the same single `warn`.
+  Its first run in this pass reported two `markdown/semantic-line-breaks` errors on
+  lines the lows round had just written;
+  both were fixed and its later runs are green.
+
+The red for the new test is
+`red-6-failed-write-reply-decode-error-replaces-the-kernel-error.patch`,
+also in that folder:
+with it,
+nextest fails on that test
+(`left: None`,
+`right: Some(7)`)
+and Clippy exits 0.
+
+The recipe changed in this round,
+so it ran once in a fresh guest on the `libvirt` backend,
+by the route `e2e/README.md` documents,
+in the user unit `zfs-step-2-lows-guest-run`
+(`MemoryMax=8G`,
+`CPUQuota=400%`,
+`TasksMax=1024`,
+`IOWeight=1`,
+`RuntimeMaxSec=3000`):
+`all --name zfs-step-2-lows-2026-11-20`.
+It exited 0 in 5 min 21 s,
+2026-11-20T01:08:44-05:00 to 2026-11-20T01:14:05-05:00.
+Its logs are `guest-run/` in that folder:
+root `199 tests run: 199 passed, 9 skipped`,
+account `9 tests run: 9 passed, 199 skipped`,
+no `^SKIP live_` line,
+the documented teardown,
+and `VM zfs-step-2-lows-2026-11-20 destroyed`.
+
 ## The bounded fuzz smoke
 
 `mise run //package/zfs/request-to-openzfs-kernel-device.fuzz:smoke`,
