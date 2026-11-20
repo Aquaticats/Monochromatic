@@ -40521,8 +40521,17 @@ stated in this entry. What follows from them, as work:
   unset (git-lfs exits 2 and writes nothing, while the notice says the keys were written); lows: `-l=false` read as on,
   three git-lfs citations off by some lines, an empty alias value skipped though Git and git-lfs honour it. GOING: the
   fourth round `pi-git-policy-cli-lfs-third-round-review-findings-fixed` (DeepSeek on Neuralwatt, cap 300); brief under
-  `~/temp/agent/git-policy-cli-lfs-third-round-review-findings-fixed-2026-11-19/`. Then its integration pass, after
-  the gate fix is in main.
+  `~/temp/agent/git-policy-cli-lfs-third-round-review-findings-fixed-2026-11-19/`. It ended `idle` (192 turns) at
+  `bbe9f26200` (one commit, seven files; report in that folder's `keep/report.md`, probes beside it): the notice now
+  states all three outcomes (the main `.git/config.worktree`, the linked worktree's `config.worktree`, no file at all
+  where Git refuses and git-lfs ends with status 2) and never claims a completed write, with a binary test walking the
+  four layouts against Git's own `git config --worktree`; `short_boolean_settings` reads a group's `=value` as pflag
+  does, also fixing `-m=false`, which set `--local`; citations corrected; the empty-alias finding rejected on
+  measurement (`git lfs env` keeps the unrewritten endpoint; `replaceUrlAlias` applies only a non-empty alias), pinned
+  by two guard cases with a positive control. Reds shown on `badd9f609c`. GOING: its short re-check on the Qwen plan,
+  `pi-qwen-review-lfs-fourth-round-at-bbe9f26200` (watched); brief under
+  `~/temp/agent/git-policy-cli-lfs-fourth-round-short-review-on-the-qwen-plan-2026-11-19/`. Then its integration pass,
+  after the gate fix is in main.
 - **The wrapper's container gate cannot pass on this ZFS host.** The LFS writer ran the gate's body
   (`node bin/test-native-container.ts`; the mise task's first step needs `cargo-shadow`, not installed here) twice:
   `9189 tests run: 9002 passed, 187 failed`, against 6 of 9,173 on the old Btrfs host. By its reading about 109 fail on
