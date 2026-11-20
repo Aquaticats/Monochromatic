@@ -40848,7 +40848,15 @@ stated in this entry. What follows from them, as work:
   split; the fish form `eval (ssh-agent -c)` beside the Bourne one; the host named where the wrapper knows it; gate 9312
   of 9315, the cause-H pair and cause G `package_repair::pnpm_runs_in_the_new_worktree_only`. GOING: its narrow
   integration re-check on Sonnet with one gate (brief under
-  `~/temp/agent/integration-recheck-lfs-after-the-integration-findings-2026-11-20/`).
+  `~/temp/agent/integration-recheck-lfs-after-the-integration-findings-2026-11-20/`). THE VET REPORT'S FINDINGS ROUND
+  ended at `d870b1786e`: terminal result "sensitivity unresolved", conditional rankings, no recommendation; at weight 1
+  (maximum 32) `btf-rs` 27.5 > `ebeepf` 24.5 > `pahole` 18.5 > `bpftool` 17.5, in-house 27.5 unranked (ineligible by the
+  record); only weighting maintenance (C5) at 4 or 5 moves the order (at 5 both programs pass `ebeepf`); a new criterion C8
+  (auditability) added at the refreeze; maintenance audits for all four; `bpftool` reports v7.8.0 while its package is
+  `bpf 7.3.4-1`; `btf-rs`'s C1 lowered to medium. Open questions for the owner: library or spawned program (an
+  unprivileged child is possible, the BTF files being mode `0444`); the priority of maintenance against deployment fit
+  and privilege; whether to reopen the in-house route; the held disk cache. GOING: its narrow re-check on Sonnet (brief
+  under `~/temp/agent/gate-recheck-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/`), then the owner's question.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
