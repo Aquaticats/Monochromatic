@@ -1,5 +1,16 @@
 # Staging under `~/.cache` and the wrapper's cleanup
 
+Amended 2026-11-20 in the question tool by the project's acceptance,
+answering "Accept,
+boundary (a) (Recommended)";
+the decision record is
+[`doc/decision/cli-git-zfs-staging-under-cache.md`](../decision/cli-git-zfs-staging-under-cache.md).
+The text below stands as accepted.
+Where the last diff-only gate check's lows correct a statement,
+the record carries the corrected form and this file keeps the accepted wording;
+this note is the only change the acceptance made here.
+The "non-final" and "unapproved" words below describe the design before that acceptance.
+
 Non-final, unapproved design proposal by an agent. It is not approved by the project owner and nothing in it is
 final. It designs the open item "Staging under `~/.cache` and the wrapper's cleanup" of the accepted ZFS worktree
 design, and it makes no decision that design or the project's answers of 2026-11-19 did not make, beyond the
