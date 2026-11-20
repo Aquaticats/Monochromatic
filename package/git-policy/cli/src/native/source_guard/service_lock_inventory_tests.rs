@@ -51,6 +51,7 @@ const COVERED_PREFIXES: &[&str] = &[
     "standards_review_",
     "commit_",
     "diagnostic_",
+    "slot_identity_",
 ];
 
 /// The source files that ship nothing:
@@ -116,6 +117,11 @@ const INVENTORY: &[&str] = &[
     "commit/commit_index_builds.rs",
     "commit/commit_prepare_part_durations.rs",
     "landing/service_index_prestage.rs",
+    // The lock file that keeps two writes to the store apart:
+    //  the read of the recorded identity store and the append that adds one slot are one step,
+    //  and so are the adoption's read and whole-file rename,
+    //  and the lock stands on a file only root may open, so no account that may read the store can hold it.
+    "worktree_clone_mount/slot_identity_store.rs",
 ];
 
 /// Every `.rs` file below `root`,
@@ -128,7 +134,13 @@ fn rust_files_below(root: &Path) -> Vec<String> {
     while let Some(directory) = pending.pop() {
         for entry in std::fs::read_dir(&directory).expect("a readable source directory").flatten() {
             let path: PathBuf = entry.path();
-            if path.is_dir() {
+            // The entry's own type, so a link is seen as a link: a `uses` folder holds one link per source folder its
+            // code uses (`AGENTS.md`, rule LYD), and following one would scan those sources under a second name.
+            let kind: std::fs::FileType = entry.file_type().expect("an entry's own type");
+            if kind.is_symlink() {
+                continue;
+            }
+            if kind.is_dir() {
                 pending.push(path);
             } else if path.extension().is_some_and(|extension| { return extension == "rs"; }) {
                 let relative: &Path = path.strip_prefix(root).expect("a path below the root");

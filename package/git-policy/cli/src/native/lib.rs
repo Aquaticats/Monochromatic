@@ -219,6 +219,39 @@ pub mod worktree_copying;
 /// The same re-export for `worktree_copying`.
 pub use worktree_copying::*;
 
+/// The descriptor attach of a ZFS worktree clone's mount:
+///  the walk,
+///  the recorded identities,
+///  the post-attach check,
+///  the rollback and the parent-adoption decision.
+/// It is Linux only,
+/// like every module it builds on:
+/// `openat2`,
+/// `flock` and `/proc/self/fdinfo` are the kernel's own.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_mount;
+
+/// The same re-export for `worktree_clone_mount`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_mount::*;
+
+/// The root-run clone-mount handler,
+/// `mount-git-worktree-clone-datasets`:
+///  its mode grammar,
+///  the two installed paths,
+///  the modes whose plan steps have not landed,
+///  and the administrator's parent adoption.
+/// It is the crate's second executable,
+///  so it is named through this path rather than a glob re-export:
+///  the program's words (`PROGRAM_NAME`,
+/// `run`,
+/// the install paths) belong to the handler,
+///  and no old flat path of the wrapper names them.
+/// It is Linux only,
+/// like the module it builds on.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_mount_handler;
+
 /// Btrfs subvolume worktrees and the filesystem primitives under them.
 pub mod subvolume;
 

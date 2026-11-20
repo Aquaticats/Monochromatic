@@ -30,7 +30,8 @@ export const subjectCrate = 'git-policy/cli';
 
 /**
  Path crates the subject links, as directories below `package`: the JSONC crate, the catalog specifier crate, the
- scanner with its engine and the Markdown linter library.
+ scanner with its engine, the Markdown linter library and the ZFS binding the root-run clone-mount handler makes its
+ `/dev/zfs` requests through.
  `native-wrapper-snapshot.unit.test.ts` checks this list against the path dependencies the manifests declare.
  */
 export const pathCrates = [
@@ -39,6 +40,7 @@ export const pathCrates = [
   'forbidden-strings/cli',
   'forbidden-strings/core',
   'linter/monochromatic-lint',
+  'zfs/request-to-openzfs-kernel-device',
 ] as const;
 
 /**
@@ -91,6 +93,11 @@ const crateEntryNames = {
     'src',
   ],
   'linter/monochromatic-lint': [
+    'Cargo.toml',
+    'Cargo.lock',
+    'src',
+  ],
+  'zfs/request-to-openzfs-kernel-device': [
     'Cargo.toml',
     'Cargo.lock',
     'src',
@@ -182,7 +189,13 @@ export async function copySnapshotEntries({
     return cp(
       entry.from,
       entry.to,
-      { recursive: true },
+      {
+        recursive: true,
+        // A link copied verbatim keeps its own relative target, so it resolves inside the snapshot it lands in. Node's
+        // default rewrites a link to the absolute path it resolved to on this host, and a `uses/` link then names a
+        // folder the image does not hold (`AGENTS.md`, rule LYD: every source folder carries one).
+        verbatimSymlinks: true,
+      },
     );
   }));
   /**

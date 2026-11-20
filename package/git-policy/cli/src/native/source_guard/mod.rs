@@ -22,8 +22,8 @@ mod hook_self_invocation_tests;
 #[path = "service_lock_inventory_tests.rs"]
 mod service_lock_inventory_tests;
 
-/// The crate declares only the executable the release archive holds;
-/// a second `[[bin]]` breaks cargo-binstall installs.
+/// The crate declares only the two executables the release archive holds;
+/// a `[[bin]]` the archive lacks breaks every cargo-binstall install.
 #[cfg(test)]
 #[path = "release_bins_tests.rs"]
 mod release_bins_tests;
@@ -72,3 +72,10 @@ pub(crate) mod source_scan_tests;
 #[cfg(test)]
 #[path = "no_start_at_login_tests.rs"]
 pub(crate) mod no_start_at_login_tests;
+
+/// The published package holds no copy of the tree under a `uses/` link:
+/// cargo follows each link,
+/// so `Cargo.toml`'s `include` list must negate the links' targets.
+#[cfg(test)]
+#[path = "packaged_uses_links_tests.rs"]
+mod packaged_uses_links_tests;

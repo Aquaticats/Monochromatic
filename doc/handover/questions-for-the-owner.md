@@ -671,3 +671,166 @@ picked) yourself from now on for this session."
   with the same meaning.
 - `package/test-fixture/data-sequence` keeps a `.` entry serving TypeScript source,
   following issue 1579's acceptance and the `hook-type` precedent.
+
+## Open: two `AGENTS.md` rules proposed after agent failures, recorded 2026-11-19T22:53:13-05:00
+
+Both wait for the owner's word, because `AGENTS.md` changes are the owner's to accept;
+until then every brief the coordinator writes carries the same instruction.
+Each code was checked against `AGENTS.md`, the skills and both forbidden-strings appendixes.
+
+### Stop only what you started
+
+What happened:
+at 22:34:24 a ZFS step 4 fix round's agent listed the running containers,
+took two that ran `cargo nextest` for its own,
+and removed both by ID (`podman rm --force --time 0 7a5c4dce9245 5982b11d2ac9`).
+One was another session's whole container gate,
+stopped after 8446 of 9199 tests;
+the other belonged to a third session.
+Rule `NLD` tells an agent to stop every process and unit it left,
+and says nothing about how it knows one is its own.
+The proposed rule,
+under the 50-word and 200-character limits:
+
+```text
+SYO:
+ Stop or remove only processes, units and containers you started,
+ known by a name or ID you recorded at start;
+ never one because `ps` or `podman ps` lists it.
+```
+
+### Commit dates are the clock's
+
+What happened:
+two design writers set `GIT_COMMITTER_DATE` and `GIT_AUTHOR_DATE` on fifteen commits,
+one of them to a time not yet reached,
+so a revision label could equal the last commit's `%cI` as their briefs asked;
+a label written into a commit cannot name that commit's own time.
+Rule `WHN` asks for a second-precise timestamp and names `git log --format=%cI` for a commit,
+which reads as permission to make the commit match.
+The proposed rule:
+
+```text
+KDT:
+ Never set `GIT_AUTHOR_DATE`, `GIT_COMMITTER_DATE` or `--date`;
+ a label naming a commit's time names one already made,
+ never the commit that writes the label.
+```
+
+## Open: link the already installed tools into the main checkout? (recorded 2026-11-19, about 23:20 -05:00)
+
+The plan's step 1 records that nothing is installed on this host until the mpm-shadow change you put first
+("A: mpm-shadow change first (Recommended)").
+Tonight a ZFS step 4 agent ran `mise run toolchain:install` in its worktree,
+and it reported `0 installed, 66 unchanged, 0 failed`:
+the locked tools are already in `~/.local/share/monochromatic-dev/toolchain`,
+`cargo-shadow` and `cargo-nextest` among them,
+and the run only made that worktree's `.cache/toolchain-bin` link folder.
+The main checkout has no such folder,
+so tasks that start with `cargo-shadow` (the wrapper's `native:test:container`, `test:git-image`) exit 127 there
+and every gate runs their second step by hand.
+Running the same task in the main checkout would install nothing and make the link folder,
+putting those tools on the checkout's `PATH` for every session.
+
+- Link them now (recommended): the documented task routes work again and no tool is installed;
+  the cost is that every session in the main checkout starts finding these tools at once.
+- Wait for the mpm-shadow change: nothing on `PATH` changes; gates keep running the second step by hand.
+
+Ranking: link now > wait, because the record's reason for waiting was an install that converges the whole toolchain,
+and the measurement shows nothing left to install.
+
+## Open: approve ZFS step 4's slot identity store format? (recorded 2026-11-20, about 02:00 -05:00)
+
+What it is:
+step 4 records, for each worktree slot, the identities the attach checks (device, inode, owner, permissions, access
+lists of the folders), in one root-controlled file the wrapper appends to, `git-worktree-clone-slot-identities`, as
+`package/git-policy/cli/SPEC.md` describes under "The recorded identities store".
+Step 8 will build on this format, and no decision record approves it yet; step 4's second integration pass asked that
+you do.
+
+- (a) One file, one line per slot, appended under a lock only root can open, waited for with a bounded deadline
+  (as built; recommended). One read sees the parent and every slot in one state, which step 8's checks rely on.
+- (b) A folder with one file per slot, each made with `O_EXCL`, no lock. Lock-free, which the repository's concurrency
+  rule prefers; it loses the single-read state and rewrites the format, every refusal that names a line and about a
+  thousand lines of controls.
+
+Ranking a > b: a keeps the one-read consistency step 8 needs and its lock covers one appended line, held only by root;
+b buys lock-freedom at the cost of that consistency and a rewrite.
+
+## Answered: ZFS step 3 makes a worktree add from a dirty checkout slower; what then? (recorded 2026-11-20, about 00:30 -05:00)
+
+Answered 2026-11-20 on the third asking, "A: merge with cloning on", recorded as
+`doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`, which also holds the partial-clone proposal that ends the
+waiver and the miss behind it.
+The same round chose "Tighten NQH" for `AGENTS.md`, committed the same day.
+This section moves out once step 3 merges.
+
+First asking: through the question tool on 2026-11-20, the owner replied "What? Why are we running checks?".
+The coordinator answered that in the session and asked again, adding a question about cloning only the unchanged files.
+The owner's replies, 2026-11-20:
+to what step 3 merges with now, "Then this was an even worse decision made and implies multiple agents missed the rule
+about the machine never being quiet." (read as: a fast path that needs a clean source was designed and measured as the
+main case on a machine whose main checkout other sessions keep dirty; no option was picked, so the merge choice is
+asked again);
+to "Should a writer design and measure a different clone path?" (clone every tracked file the proof shows unchanged,
+let Git write only the changed ones), "Yes, design and measure it (Recommended)".
+That proposal goes to `doc/planning/` with measurements and comes back to the owner before any code changes.
+
+### Why the clone path checks the source
+
+Git's `worktree add` writes each file from the commit.
+The clone path instead clones the files sitting in the source checkout (`FICLONE` of every tracked file) and installs
+the source's own index with the clones' stat data (`worktree_clone.rs`, `install_index_in`), because a reflink needs a
+file on disk with the same bytes and the commit's bytes live compressed in Git's object store.
+So the clone path gives the right worktree only when the source's files are exactly the commit's.
+Before it clones it proves that (`SPEC.md`, "Rung 2 needs a clean source"): no merge, rebase or other operation in
+progress, the index equal to `HEAD`'s tree, every tracked file matching its index entry, and no untracked file
+(the refusal kinds in `src/native/worktree/worktree_clean_stat_verdicts.rs`).
+Without the proof an uncommitted edit would be cloned into the new worktree, and the copied index would make its
+`git status` call the file clean.
+On `main` the wrapper does not know ZFS can clone, so on this host it goes straight to Git's checkout and never runs
+the proof; step 3 teaches it ZFS, so the proof now runs, and on a dirty source it finds the change and falls back to
+Git's checkout after spending the time.
+The steps measured on that path: `git ls-files` 79 to 133 ms against the control's 45 to 50, `git check-ignore` 36 to
+47 ms, `git status` 36 to 57 ms, and an in-process stat walk of about 34 ms
+(`~/temp/agent/zfs-step-3-integration-pass-findings-fixed-2026-11-19/keep/report-from-summary.md`).
+
+What it is:
+step 3 teaches the wrapper to see a ZFS dataset as able to share data blocks,
+so `git worktree add` from a clean source clones the files instead of checking them out.
+Your merge bar says a branch may not make anything `main` does well worse.
+
+What was measured on this machine (24,313 tracked files, the branch against `main` built the same way, alternating):
+
+- Clean source: the add now takes 0.51 to 1.57 times `main`'s time, median 0.66,
+  since the round cloned the files in parallel slices
+  (before that round it was about 1.9 times, which the integration pass rightly refused).
+  A source written in the last few seconds can add at most about 0.7 s once,
+  because OpenZFS waits for its write-out before cloning freshly written blocks.
+- Dirty source (uncommitted changes, so no clone happens): about 1.2 times `main`'s time, about +0.2 s.
+  `main` skipped the clone rung's checks on ZFS at once; the branch now runs them before it falls back to Git's
+  checkout. The round tried two ways to make those checks cheaper and neither reached parity.
+
+The main checkout here usually carries uncommitted files (it holds four now), so adds from it take the dirty path.
+
+What the clone saves on disk, measured by step 3's guest arm on 2026-11-20 (an encrypted test pool, the crate's own
+`src` as the tree, 2,456 files, 34.7 MB, Git's add and the wrapper's add alternated over two rounds, the pool's
+allocation read after a sync): a clean add saved 22,979,072 bytes, about two thirds of the tree.
+
+Options:
+
+- C. Do not take the clone rung on ZFS until the dirty-source checks cost no more than `main`'s, then turn it on
+  (recommended). Both paths behave exactly as `main` does today; the recognition, its tests and the guest arm stay. It
+  postpones a part of the accepted design (the clone rung on ZFS), which is why it is yours to choose.
+- A. Keep the clone rung on ZFS and waive the merge bar for this +0.2 s on a dirty-source add, recorded in
+  `doc/decision/`. Clean adds get faster now and save about two thirds of the tree's disk; most adds here, from a dirty
+  checkout, get slower by about 1 per cent of a real add (which also copies the ignored files) and save nothing.
+- B. Run the tracked-file check first and the untracked scan only if it passes: the dirty path about 50 ms cheaper,
+  the clean path about 34 ms dearer on every host whose snapshot rung is refused; still short of parity, so the bar is
+  still missed.
+- D. Choose the clone rung by a measured size threshold: departs from the ladder's design and rests on a guess.
+
+Ranking: C > A > B > D. C over A because the dirty path is the common one here, so A's cost lands on most adds and
+its saving on few, and C needs no waiver; A over B because B still misses the bar and moves cost onto other hosts; B over
+D because D leaves the design for a guessed threshold. The round's report, with every measurement:
+`~/temp/agent/zfs-step-3-integration-pass-findings-fixed-2026-11-19/keep/report-from-summary.md`.

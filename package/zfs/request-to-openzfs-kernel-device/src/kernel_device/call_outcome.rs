@@ -1,0 +1,205 @@
+//! What:
+//!  What one call's answer means before anything is read again:
+//! the error number,
+//!  the size the kernel left in the command struct,
+//! the bytes the reply buffer
+//!  holds,
+//! and the per-name failures the reply carried.
+//! Why:
+//!  The kernel answers a listing's end with `ESRCH`,
+//! asks a read for a bigger
+//!  buffer with `ENOMEM` and the size it needs,
+//! and answers a failed batch with
+//!  `EEXIST` plus an entry per name it refused.
+//! Telling those apart is the whole
+//!  retry rule,
+//! so it is one pure function per path and the device-free tests
+//!  pin every branch without a pool.
+
+/// The failure type a live call returns.
+use super::device_error::DeviceError;
+/// The per-name failures a write reply carries,
+/// and the request that reply arrived for.
+use crate::requests::{ElementError, Request, element_errors};
+/// The request failure type and its reply refusal.
+use crate::requests::{Error, Operation, ReplyRefusal, ReplyRefusalReason};
+
+/// The facts one answer supplies.
+pub(crate) struct AnswerFacts<'a> {
+    /// The request that was answered.
+    pub operation: Operation,
+    /// The dataset or pool the request named.
+    pub target: &'a str,
+    /// The error number the call failed with.
+    pub errno: i32,
+    /// The size the kernel left in the reply size field.
+    pub reported_reply_size: u64,
+    /// The bytes the reply buffer holds.
+    pub held: usize,
+}
+
+/// What a failed read means.
+#[derive(Debug)]
+pub(crate) enum ReadFailure {
+    /// The listing reached its end,
+    /// which is not a failure.
+    End,
+    /// The reply buffer was too small,
+    /// and the kernel named the size it needs.
+    NeedsBiggerReply {
+        /// The size the kernel named.
+        requested: u64,
+    },
+    /// The kernel refused the request,
+    /// with the operation,
+    /// target and error number.
+    Failed {
+        /// The refusal.
+        source: DeviceError,
+    },
+}
+
+/// Read a failed call as the end of a listing,
+/// a request for a bigger reply,
+/// or a failure.
+pub(crate) fn interpret_read_failure(facts: AnswerFacts<'_>) -> ReadFailure {
+    if facts.operation.lists() && facts.errno == libc::ESRCH {
+        return ReadFailure::End;
+    }
+    if facts.errno == libc::ENOMEM && facts.reported_reply_size > facts.held as u64 {
+        return ReadFailure::NeedsBiggerReply {
+            requested: facts.reported_reply_size,
+        };
+    }
+    return ReadFailure::Failed {
+        source: DeviceError::Request {
+            source: Error::Call {
+                operation: facts.operation,
+                target: facts.target.to_string(),
+                errno: facts.errno,
+            },
+        },
+    };
+}
+
+/// What a failed write means.
+///
+/// A write whose reply was too small is never replayed:
+/// by the time the kernel asks,
+/// it may already have changed state.
+/// That branch answers before any reply is decoded,
+/// so it reports the size the
+/// kernel asked for and the size the buffer held,
+/// and it carries no error number
+/// and no per-name failures:
+/// the kernel's `ENOMEM` is what the branch recognised,
+/// not a
+/// separate field,
+/// and a reply that was not read has no names to show.
+/// A refusal the kernel
+/// answered with per-name failures instead travels as [`Error::Elements`]
+/// with
+/// its error number.
+pub(crate) fn interpret_write_failure(
+    facts: AnswerFacts<'_>,
+    elements: Vec<ElementError>,
+) -> DeviceError {
+    if facts.errno == libc::ENOMEM && facts.reported_reply_size > facts.held as u64 {
+        return DeviceError::Request {
+            source: Error::Refuse {
+                operation: facts.operation,
+                target: facts.target.to_string(),
+                source: ReplyRefusal {
+                    requested: facts.reported_reply_size,
+                    held: facts.held,
+                    limit: crate::requests::MAXIMUM_REPLY_SIZE,
+                    reason: ReplyRefusalReason::NeverReplayAWrite,
+                },
+            },
+        };
+    }
+    if !elements.is_empty() {
+        return DeviceError::Request {
+            source: Error::Elements {
+                operation: facts.operation,
+                target: facts.target.to_string(),
+                errno: facts.errno,
+                elements,
+            },
+        };
+    }
+    return DeviceError::Request {
+        source: Error::Call {
+            operation: facts.operation,
+            target: facts.target.to_string(),
+            errno: facts.errno,
+        },
+    };
+}
+
+/// A read that finished without a list is a disagreement,
+/// not an empty answer.
+pub(crate) fn require_reply(
+    operation: Operation,
+    target: &str,
+    reply: Option<crate::nvlist::NvList>,
+) -> Result<crate::nvlist::NvList, DeviceError> {
+    return match reply {
+        Some(list) => Ok(list),
+        None => Err(DeviceError::MissingReply {
+            operation,
+            target: target.to_string(),
+        }),
+    };
+}
+
+/// The per-name failures a failed write's reply carries.
+///
+/// A reply that does not decode yields none,
+/// and its decode error is dropped on purpose:
+/// the kernel's error number is the fact a caller acts on,
+/// and a list that did
+/// not decode has no names to report,
+/// so the failure keeps the kernel's answer instead of
+/// replacing it with a decode error.
+pub(crate) fn write_failure_elements(
+    reply: Result<Option<crate::nvlist::NvList>, Error>,
+) -> Vec<ElementError> {
+    return match reply {
+        Ok(Some(list)) => element_errors(&list),
+        Ok(None) | Err(_) => Vec::new(),
+    };
+}
+
+/// What one failed write means,
+/// read from the reply its request holds.
+///
+/// This is the whole failed-write path of a live call,
+/// so the device-free tests can
+/// pin it with a request whose reply bytes do not decode,
+/// and the call site has no
+/// second copy of the rule to drift from it.
+/// The reply is read only when the size the kernel left is one the
+/// buffer holds:
+/// a bigger size names bytes that are not there,
+/// and those are not read.
+pub(crate) fn write_failure(
+    request: &Request,
+    errno: i32,
+    reported_reply_size: u64,
+    held: usize,
+) -> DeviceError {
+    let elements: Vec<ElementError> = if reported_reply_size <= held as u64 {
+        write_failure_elements(request.take_reply())
+    } else {
+        Vec::new()
+    };
+    let facts: AnswerFacts<'_> = AnswerFacts {
+        operation: request.operation(),
+        target: request.target(),
+        errno,
+        reported_reply_size,
+        held,
+    };
+    return interpret_write_failure(facts, elements);
+}

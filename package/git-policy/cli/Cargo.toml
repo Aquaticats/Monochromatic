@@ -9,6 +9,10 @@ repository = "https://github.com/Aquaticats/Monochromatic.git"
 # `include` patterns are gitignore-style, so an unanchored `README.md` would also package `e2e/README.md`.
 include = [
   "src/native/**/*.rs",
+  # A `uses/` link is a folder-tree aid; cargo follows symlinks, so without this negation the package
+  # would hold a second copy of every source below the folders the links name (the links in
+  # `worktree_clone_mount/uses` alone double that folder's sources, which `cargo package --list` shows).
+  "!src/**/uses/**",
   "src/native/dependent_version/dependent_version_fixtures/*.json",
   "src/native/service/service_units/*",
   "src/native/lock/index_lock_restart_manager.ps1",
@@ -25,19 +29,29 @@ path = "src/native/lib.rs"
 
 # The artifact is deliberately not named `git`: a `target/*/git` or a tool `bin/git` on PATH would shadow Git by accident.
 # The repository's mise tool entry links it as `git` in a per-worktree directory after installing it.
-# It is the crate's only executable: the resident commit service (doc/planning/cli-git-resident-service.md) is its mode
-# `monochromatic-git-policy-cli monochromatic-git-policy-cli service run`, which the operating system starts on demand through socket activation and the
-# wrapper never starts. The release archive holds exactly this one file, and cargo-binstall refuses an archive that lacks
-# any `[[bin]]` of the crate, so a second `[[bin]]` here breaks every install that does not compile
-# (`native_release_bins_tests`, `src/native/binary/binary_release_bins_tests.rs`, fails on it first).
+# The resident commit service (doc/planning/cli-git-resident-service.md) is a mode of this executable,
+# `monochromatic-git-policy-cli monochromatic-git-policy-cli service run`, which the operating system starts on demand
+# through socket activation and the wrapper never starts.
 [[bin]]
 name = "monochromatic-git-policy-cli"
 path = "src/native/main.rs"
+
+# The root-run mount handler of the ZFS worktree route: the resident clone-mount sweep the ZED event calls,
+# and the boot, shutdown and parent-adoption modes of the same program
+# (doc/decision/cli-git-zfs-worktree-design.md; doc/planning/cli-git-zfs-worktree-implementation-plan.md, step 5).
+# It is installed twice, at /usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets for service
+# calls and at /etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets for ZED events, and it is never named `git`.
+# cargo-binstall refuses an archive that lacks any `[[bin]]` of the crate, so one archive carries both executables and
+# `bin/native-release-bins.unit.test.ts` holds the four lists that count them together.
+[[bin]]
+name = "mount-git-worktree-clone-datasets"
+path = "src/native/mount_git_worktree_clone_datasets/main.rs"
 
 # cargo-binstall's default URL is {repo}/releases/download/v{version}/{name}-{target}-v{version},
 # but this repository tags each crate's release monochromatic-git-policy-cli-v<version> and names the archive
 # monochromatic-git-policy-cli-<version>-<target>, so without this table mise falls back to compiling from source.
 # Only Linux archives are released, and only for the GNU targets; any other target compiles from source.
+# `bin-dir` names each declared `[[bin]]` through `{ bin }`, so one archive entry unpacks both executables.
 # doc/troubleshooting/mise-cargo-binstall-falls-back-to-compiling.md has the evidence.
 [package.metadata.binstall]
 pkg-url = "{ repo }/releases/download/{ name }-v{ version }/{ name }-{ version }-{ target }{ archive-suffix }"
@@ -55,6 +69,12 @@ name = "native_candidates"
 path = "src/native/candidate/candidate_consumer_tests.rs"
 
 [dependencies]
+# The handler's typed /dev/zfs requests, and the ABI gate both programs run before their first ioctl, are this
+# repository's own binding rather than OpenZFS's CDDL library or a started `zfs` program
+# (doc/planning/cli-git-zfs-worktree-design-proposal.md, "Binding crate and compatibility"). The dependency is pinned
+# exactly because a published manifest keeps the version; the handler's modes that make requests arrive in steps 6 to 9,
+# and the two modes this step wires refuse first.
+monochromatic-zfs-request-to-openzfs-kernel-device = { path = "../../zfs/request-to-openzfs-kernel-device", version = "=0.1.0-alpha.1" }
 # Both native tools use the already adopted comment-preserving JSONC foundation.
 monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.3" }
 # The pure catalog specifier rule behind the `mono/catalog-specifiers` policy: manifest bytes in, findings out.

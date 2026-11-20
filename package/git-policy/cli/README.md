@@ -7,7 +7,11 @@ It is installed as `git` ahead of the real Git on `PATH`,
 forwards every command to the real Git,
 and checks the commands and the commits that pass through it against policies the repository configures as data.
 
-The executable is `monochromatic-git-policy-cli`.
+The executable a caller runs is `monochromatic-git-policy-cli`.
+The crate's release also holds `mount-git-worktree-clone-datasets`,
+ the root-run clone-mount handler of the ZFS worktree route
+ (`SPEC.md`,
+ "The two executables and shipped policies").
 The library inside the crate is named `git_policy_cli`.
 
 How the owner wants this package designed and judged is in [DESIGN.md](DESIGN.md).
@@ -1589,9 +1593,20 @@ Install it as a `cargo:` tool of [mise][mise],
 Otherwise it compiles the crate from source with the Rust toolchain.
 `cargo install monochromatic-git-policy-cli --locked` compiles the same executable into `~/.cargo/bin`.
 
-The installed file is `monochromatic-git-policy-cli`,
- not `git`.
-Link it as `git` in a directory that comes before the real Git on `PATH`:
+One archive carries two executables,
+ and an install places both:
+`monochromatic-git-policy-cli`,
+ the wrapper,
+ and `mount-git-worktree-clone-datasets`,
+ the root-run clone-mount handler of the ZFS worktree route
+ (`SPEC.md`,
+"The two executables and shipped policies").
+The wrapper is the file a caller runs as `git`;
+the handler is never linked as `git`,
+and a machine that never mounts a ZFS worktree clone leaves it unused.
+Only the wrapper is linked,
+ and not as the installed file's own name:
+link it as `git` in a directory that comes before the real Git on `PATH`:
 
 ```sh
 # Run in the repository once per checkout, after the installation.
@@ -6054,6 +6069,12 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
 - `native:check` type-checks every target.
   `native:clippy` lints every target with warnings denied.
   `native:build` writes the debug executable to `package/git-policy/cli/target/debug/monochromatic-git-policy-cli`.
+- This package has no `rustfmt` check, unlike the Rust packages that carry a `lint:rustfmt` task,
+  and its sources are not laid out as `cargo fmt` would write them:
+  `cargo fmt --check` in the gate image reported 1975 files on 2026-11-19,
+  on `main` as much as on any branch.
+  A review that runs it learns nothing about a change;
+  the checks this package keeps are the tasks listed here and the repository linter.
 - Every process a unit test starts dies with the test thread,
   however the test ends:
   start helpers with `spawn_owned` in `src/native/testing/test_support.rs`,
@@ -6114,6 +6135,16 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   Selected by name,
   the same controls are the `btrfs_*` tests of the library and the binary-level controls that call
   `on_btrfs_or_acknowledged` (`src/native/binary/binary_support_btrfs_controls.rs`).
+- The controls that need a kernel namespace fail the same way rather than passing unrun,
+  and the acknowledgement variable each refusal names is the only thing that lets one skip:
+  `CLI_GIT_TEST_NO_USER_NAMESPACES=1` for the controls that judge root-owned files inside an unprivileged user namespace,
+  and `CLI_GIT_TEST_NO_MOUNT_NAMESPACES=1` for the control that needs a mount in a mount namespace of its own.
+  A control that does not run prints `NAMESPACE CONTROL NOT RUN: <control> (<what the host refused>)` and passes,
+  and a run that states no variable fails naming the one to set.
+  The gate image sets neither,
+  because this host allows both
+  (`src/native/worktree_clone_mount/root_namespace_test_support.rs`,
+  `src/native/subvolume/fs_beneath_walk_chain_tests.rs`).
 - A wrapper release waits for that run,
   unless the version is an alpha:
   `native:release` dispatches nothing until `native:release:host-controls`
@@ -6520,6 +6551,16 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   `--repository <path>` names the checkout
   (otherwise the nearest folder above the caller whose `.git` is a folder)
   and `--dry-run` prints the same plan and changes nothing.
+  The install also refuses unless `mount-git-worktree-clone-datasets --version` prints the release's line,
+  and no release published so far carries that program:
+  `toolchain.lock.json` names it for this tree's release,
+  so installing any earlier release ends refused after the wrapper is installed and the lock is moved,
+  and nothing is committed under that release's name;
+  `mise run toolchain:install` on this tree's lock installs that release,
+  exits 0,
+  and prints `toolchain install: unresolved bins: mount-git-worktree-clone-datasets`.
+  The first release built from this tree carries both executables,
+  and the refusal then names nothing.
 
 ### Lint
 
@@ -7345,8 +7386,12 @@ composed and resumed is in
 
 ### Source layout
 
-The crate is one library and one executable (`monochromatic-git-policy-cli`,
-which is also the commit service in its service mode),
+The crate is one library and two executables
+(`monochromatic-git-policy-cli`,
+ which is also the commit service in its service mode,
+ and `mount-git-worktree-clone-datasets`,
+ the root-run clone-mount handler at `src/native/mount_git_worktree_clone_datasets/main.rs`
+ whose decisions are the library's `src/native/worktree_clone_mount_handler/`),
 and its sources live under `src/native/`.
 Each folder there is one subsystem,
 so a contributor opens a folder for a concern instead of searching a flat list of
@@ -7586,8 +7631,8 @@ starts on demand;
 the wrapper never starts it,
 and typed by hand with no socket from the manager and no address it refuses
 and starts nothing.
-The release archive holds that one executable,
-as cargo-binstall requires of every `[[bin]]`.
+The release archive holds both executables,
+ as cargo-binstall requires of every `[[bin]]`.
 
 What the service has to do after a command returns is a record in the worktree's Git directory,
 and a command that writes one wakes the service with one line over its socket.

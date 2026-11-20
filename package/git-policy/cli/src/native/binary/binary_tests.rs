@@ -966,3 +966,16 @@ mod kept_references;
 /// measured for the record and not asserted as a control.
 #[path = "binary_housekeeping_beside_a_commit_tests.rs"]
 mod housekeeping_beside_a_commit;
+
+/// The release's two executables on a machine without OpenZFS:
+/// both start,
+/// the handler refuses every mode whose step has not landed,
+/// and neither links a CDDL library.
+#[path = "binary_mount_git_worktree_clone_datasets_tests.rs"]
+mod mount_git_worktree_clone_datasets;
+
+/// The administrator's adoption end to end in the throwaway guest:
+/// the replacement is recorded,
+/// and each mismatch is refused without recording anything.
+#[path = "binary_zfs_adoption_guest_tests.rs"]
+mod zfs_adoption_guest;
