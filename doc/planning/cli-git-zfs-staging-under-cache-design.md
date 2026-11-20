@@ -1708,6 +1708,29 @@ add, so the name stays the revision's first commit rather than its last.
   commit cannot name its own hash; the prose checker under
   `~/temp/agent/zfs-staging-under-cache-design-second-revision-gate-recheck-2026-11-19/notes/` passes on this
   revision and fails on a control copy with planted faults.
+- `353d37ad15` at `2026-11-19T21:43:49-05:00`: this revision, answering the gate review of `e8f7ec4fa6`, which found
+  no high finding, six mediums and seven lows, and no change to a decision the project made. It gives a successful
+  rollback its end state: the clone at its slot proven by a fresh walk, the bind, folder, record and claim standing,
+  a refusal receipt naming the outcome "misplaced, rolled back", and the removal blocked again; splits the removal's
+  order into the passing sequence and the rollback exit; and names the same exit for the checked reattach of plan
+  step 9 and the cancel of plan step 17, with the cancelled-removal receipt the wrapper settles on (A5). It settles
+  the rollback's destination: the slot opened after the move from the recorded parent, with `RESOLVE_NO_XDEV`,
+  checked against the recorded slot identity, moved once, and proved by the accepted fresh walk, with the third
+  question's answer recorded as a second exception to "No implicit remount". It makes the rollback rule and the
+  pre-call refusal agree for a mount stacked on the clone, which rides along with the clone's subtree, and marks
+  that refusal as the writer's. It voids two kinds of record so neither blocks staging forever: one whose folder is
+  gone, unlinked by the wrapper before it creates the folder, and one from another boot, settled by the wrapper on its
+  own scan. It corrects the leftover that made the handle outlive a boot, states the descriptor kind the `mount_fd`
+  and the directory `fsync` need and why the no-capability arm cannot prove it at `v6.8`, fixes the stale claim that
+  the handover paragraph is uncommitted, scopes "Veto none" to the four items it names, lists the three departures,
+  corrects the ranking clause that every way now shares, names the answers the two hardening entries would reverse,
+  and adds the record's read and write rules. It also rechecks every plan citation against `main`'s plan
+  without changing one, and adds "Choices this revision marks for the project's veto" for the behaviour the project
+  never chose. Its label is the committer timestamp of `fc4e7f5dac` at `2026-11-19T21:47:54-05:00`, the last commit
+  that changed this revision's text before this label was written, because a commit cannot name its own hash; the
+  prose checker under
+  `~/temp/agent/zfs-staging-under-cache-design-second-revision-gate-recheck-2026-11-19/notes/` passes on this
+  revision and fails on a control copy with planted faults.
 
 ## Sources read
 
