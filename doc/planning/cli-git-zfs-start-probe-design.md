@@ -1084,9 +1084,9 @@ the line of the kernel or of a security module that answers it:
   (`kernel/user_namespace.c:986`) through `security_capable` (`kernel/capability.c:450` to `:458`), which
   AppArmor's `apparmor_capable` (`security/apparmor/lsm.c:198` to `:210`) answers under Ubuntu 24.04's default
   profile. A SELinux denial reaches the caller as this same `EPERM`, because `file_ns_capable` answers a bool
-  (`kernel/capability.c:450` to `:462`) and `map_write` had already set `-EPERM` (`kernel/user_namespace.c:982`),
+  (`kernel/capability.c:450` to `:462`) and `map_write` had already set `-EPERM` (`kernel/user_namespace.c:978`),
   so the hook's `-EACCES` (`security/selinux/avc.c:995` to `:1004`) never leaves that function. That check runs
-  before the line is parsed and before the permission check `new_idmap_permitted` makes (`:1054`), so with a line
+  before the line is parsed and before the permission check `new_idmap_permitted` makes (`:1056`), so with a line
   of the one extent this design builds, mapping the account's own effective id, this errno is the host denying the
   capability rather than the companion's line.
 - `unshare(CLONE_NEWNS)` answering `EPERM`: `unshare_nsproxy_namespaces` requires `CAP_SYS_ADMIN` in the caller's
@@ -1107,8 +1107,9 @@ malformed line at `kernel/user_namespace.c:990` or a `unshare(CLONE_NEWUSER)` fr
 not empty (`kernel/fork.c:3188` to `:3191`, an implied `CLONE_THREAD`); an `EPERM` from the
 `setgroups` write, which `proc_setgroups_write` gives only to a `deny` written after a `gid_map` (`:1264` to
 `:1278`, a defect of the companion's order) and not to this design's own write, which asks for no capability; an
-`EPERM` from the second mapping write, which the one-write rule answers (`kernel/user_namespace.c:978`); `ENOMEM`;
-and any errno a call was not named here to give, a seccomp filter's arbitrary answer included. That failure refuses
+`EPERM` from the second mapping write, which the one-write rule answers (`kernel/user_namespace.c:978` to `:981`);
+`ENOMEM`; and any errno a call was not named here to give, a seccomp filter's arbitrary answer included. That
+failure refuses
 the add as unproven. `EUSERS` is not in either set on any kernel this design supports: `unshare(2)` gives it only
 from Linux 3.11 to Linux 4.8, and `kernel/user_namespace.c` at v7.3 names it nowhere.
 
