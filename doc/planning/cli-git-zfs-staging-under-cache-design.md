@@ -2053,11 +2053,14 @@ the entry says what they add, so the name stays the revision's first commit rath
 - OpenZFS, tag `zfs-2.4.4`, commit `71a9f9578616a90c3c14bb59629fb4d31bfd68d1`:
   `module/os/linux/zfs/zpl_super.c`, `module/os/linux/zfs/zfs_vfsops.c`, `module/os/linux/zfs/zpl_export.c`,
   `module/zfs/dsl_dataset.c`, `module/zfs/dsl_destroy.c`, `cmd/zfs/zfs_main.c`.
-- This repository's `main` at `59152e567b`, against which every plan and proposal citation here was re-checked:
-  [decision][decision], [proposal][proposal], [measurements][measurements], [plan][plan], and `AGENTS.md`. The
-  branch's merge base with `main` is `73eaad0846`, so this branch does not carry `main`'s later commits. The round's
-  answers were read on 2026-11-19 from `doc/handover/cli-git-rust-implementation.md` in `main`, the paragraph
-  beginning `THE ROUND WAS ASKED`, committed at `c55ab25eb4`.
+- This repository's `main`, against which every plan and proposal citation here was re-checked: the earlier
+  revisions checked them at `59152e567b`, and this one re-read `main` at `8b1cec7883`, where the plan has gained four
+  lines at its container-base paragraph and the proposal is unchanged, so the plan's later line numbers moved and no
+  sentence the design quotes did. [decision][decision], [proposal][proposal], [measurements][measurements],
+  [plan][plan], and `AGENTS.md`. The branch's merge base with `main` is `73eaad0846`, so this branch does not carry
+  `main`'s later commits. The round's answers were read on 2026-11-19 from
+  `doc/handover/cli-git-rust-implementation.md` in `main`, the paragraph beginning `THE ROUND WAS ASKED`, committed
+  at `c55ab25eb4`.
 - Wrapper code: `package/git-policy/cli/src/native/subvolume/fs_beneath.rs`,
   `package/git-policy/cli/src/native/process/open_file_of_a_descriptor.rs`,
   `package/git-policy/cli/src/native/process/process_use.rs`,
