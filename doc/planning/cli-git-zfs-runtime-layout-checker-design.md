@@ -1282,10 +1282,10 @@ Frozen schedule, with the count each query returned:
     only BTF parser among them is `btf-rs`, and the rest are `aya-obj`'s forks and eBPF tooling.
 3.  crates.io `q=btf kernel`: 50 rows of 50, every one also in the `q=btf` listing; no new parser
     candidate.
-4.  crates.io `q=libbpf`: 91 rows of 91. The parsers in it are the ones the ledger already screens
-    (`libbpf-rs`, `libbpf-sys`, `aya-obj` and its forks); the remaining rows are eBPF loaders,
-    bindings, schedulers, profilers and tools. No pure-Rust BTF parser by description, and no
-    crate that names a split base.
+4.  crates.io `q=libbpf`: 91 rows of 91. The BTF-related rows in it are the ones the ledger
+    already screens (`libbpf-rs` and `libbpf-sys`, plus `aya-obj` and its forks); the remaining
+    rows are eBPF loaders, bindings, schedulers, profilers and tools. No pure-Rust BTF parser by
+    description, and no crate that names a split base.
 5.  GitHub repository search `BTF parser in:name,description`: 7 rows, listed under class 2.
 6.  GitHub repository search `BTF parser in:name,description language:rust`: 1 row,
     `retis-org/btf-rs`.
