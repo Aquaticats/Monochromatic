@@ -1099,6 +1099,15 @@ The dirty half stays step 11's,
 with the interim the owner decided on 2026-11-19,
 answering "Ship step 10 first (Recommended)".
 The binding record's home is a gap this plan names.
+Also blocked by issue 6323,
+found 2026-11-20:
+a snapshot or a clone keeps the source's bytes where Git's checkout would convert them
+(line endings,
+`ident`),
+and neither stat data nor Git's status can tell.
+It is reproduced on `main`'s btrfs rungs 1 and 2 and on step 3's ZFS clone rung,
+so this step's snapshot clone carries it too unless the fence the project chooses applies to rung 1;
+the fence's design and measured cost go to the project first.
 
 #### Depends on
 
@@ -1147,6 +1156,10 @@ Runs in the throwaway guest.
 #### Open items
 
 Blocked by "The dirty-main restore on rung 1".
+Also blocked by issue 6323,
+as step 10 is:
+the guest check of `main` found the dirty restore on btrfs keeping converted paths' source bytes too,
+because an entry whose stat data matches exactly never reaches the content judge.
 
 #### Depends on
 
