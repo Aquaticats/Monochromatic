@@ -830,8 +830,8 @@ Read-only commands,
      and any slot on another dataset than the source get Git's own checkout instead.
      It shares disk,
      and it is measured: on this host (2026-11-19) an add of 24,313 tracked files through this rung took 0.51 to
-     1.01 times as long as Git's own checkout through the same wrapper, median 0.66 over fifteen interleaved rounds
-     in three runs, once the source's data had been written out;
+     1.57 times as long as Git's own checkout through the same wrapper, median 0.66 over eighteen interleaved rounds
+     in four runs, once the source's data had been written out, the slowest round being the first on a cold fixture;
      with one thread it took 1.76 to 2.23 times as long, which is the result
      `doc/planning/cli-git-btrfs-worktree.md` reported for btrfs.
      A source whose data was written moments before the add can wait once for the pool to write it out

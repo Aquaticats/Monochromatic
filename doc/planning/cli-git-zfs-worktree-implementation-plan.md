@@ -563,8 +563,8 @@ recorded here because nothing else in the repository carried it:
 
 The host half is measured against a release build of `main` on this ZFS host, in throwaway repositories of this
 repository's 24,313 tracked files, the arms interleaved and alternating:
-a clean source with its data written out took 0.51 to 1.01 times as long as Git's own checkout, median 0.66, once
-the clones ran in slices,
+a clean source with its data written out took 0.51 to 1.57 times as long as Git's own checkout, median 0.66 over
+eighteen interleaved rounds in four runs, once the clones ran in slices,
 where one thread took 1.76 to 2.23 times as long.
 A source with uncommitted changes still pays the source checks and then ends in Git's own checkout:
 0.88 to 1.59 times the same build of `main`, median 1.17 in one run and 1.25 in another, about 0.2 seconds.
