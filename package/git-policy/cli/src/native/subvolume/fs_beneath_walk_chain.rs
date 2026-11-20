@@ -88,6 +88,29 @@ impl ChainRefusal {
 }
 
 /// What:
+///  One hop of a walk:
+///  the folder `name` below `parent`,
+///  refused when it is a link,
+///  a mount point or a folder on another device than `device`.
+/// Why:
+///   Every walk in this folder takes this one hop,
+///  so the device and boundary policy stands in one place:
+///  the chain keeps each hop it takes and the deepest-handle walk keeps only the one it is at,
+///  and neither can drift to another rule.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const next = openOneHop(parent, 'worktrees', checkoutDevice, 1); // throws ChainRefusal
+/// ```
+fn open_one_hop(parent: &File, name: &OsStr, device: u64, step: usize) -> Result<File, ChainRefusal> {
+    let next: File = open_directory_at(parent, name).map_err(|error| return ChainRefusal::of(step, error))?;
+    if device_of(&next).map_err(|error| return ChainRefusal::Unreadable { step, error })? != device {
+        return Err(ChainRefusal::Boundary { step });
+    }
+    return Ok(next);
+}
+
+/// What:
 ///  The handles of the directories `names` below `root`,
 ///  one per component,
 ///  each opened as `open_directory_at` opens them.
@@ -116,11 +139,7 @@ pub fn open_chain_beneath(root: &File, names: &[OsString]) -> Result<Vec<File>, 
             Some(held) => held,
             None => root,
         };
-        let next: File = open_directory_at(parent, name.as_os_str()).map_err(|error| return ChainRefusal::of(step, error))?;
-        if device_of(&next).map_err(|error| return ChainRefusal::Unreadable { step, error })? != device {
-            return Err(ChainRefusal::Boundary { step });
-        }
-        chain.push(next);
+        chain.push(open_one_hop(parent, name.as_os_str(), device, step)?);
     }
     return Ok(chain);
 }
@@ -132,15 +151,18 @@ pub fn open_chain_beneath(root: &File, names: &[OsString]) -> Result<Vec<File>, 
 ///  another device (a subvolume of a btrfs filesystem has its own).
 ///
 /// Why:
-///  A caller that acts on the deepest folder and names no hop is answered by the same walk the
-///  chain above runs,
-/// so no second loop here can keep another device or boundary policy.
+///  A caller that acts on the deepest folder and names no hop takes the same hop the chain above
+///  takes,
+///  so no second loop here can keep another device or boundary policy;
+///  only the handles kept differ,
+///  because this one holds one descriptor at a time and answers a path of any depth.
 pub fn open_directory_beneath(root: &File, names: &[OsString]) -> std::io::Result<File> {
-    let mut chain: Vec<File> = open_chain_beneath(root, names).map_err(|refusal| return refusal.as_io_error())?;
-    return match chain.pop() {
-        Some(deepest) => Ok(deepest),
-        None => root.try_clone(),
-    };
+    let device: u64 = device_of(root)?;
+    let mut current: File = root.try_clone()?;
+    for (step, name) in names.iter().enumerate() {
+        current = open_one_hop(&current, name.as_os_str(), device, step).map_err(|refusal| return refusal.as_io_error())?;
+    }
+    return Ok(current);
 }
 
 /// What:

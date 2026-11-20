@@ -15,9 +15,10 @@
 //! const refusal = holdCloneSlot({ checkout, slot, store }); // throws with a sentence naming the field
 //! ```
 
-use super::clone_folder_identity::{CloneFolderField, CloneFolderIdentity};
+use super::clone_folder_identity::{CloneFolderField, CloneFolderIdentity, field_names};
 use super::slot_identity_store_refusals::StoreRefusal;
-use crate::fs_beneath::ChainRefusal;
+use crate::fs_beneath_walk_chain::ChainRefusal;
+use std::path::PathBuf;
 
 /// What:
 ///  The kind of thing that stopped a walk.
@@ -32,7 +33,7 @@ use crate::fs_beneath::ChainRefusal;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type WalkRefusalReason = 'link' | 'boundary' | 'missing' | 'not-a-directory' | 'not-a-plain-name' | 'unreadable' | 'link-above';
+/// type WalkRefusalReason = 'link' | 'boundary' | 'missing' | 'not-a-directory' | 'not-a-plain-name' | 'unreadable' | 'unreadable-fields' | 'link-above';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WalkRefusalReason {
@@ -50,6 +51,10 @@ pub enum WalkRefusalReason {
     NotAPlainName,
     /// A component could not be opened for another reason.
     Unreadable,
+    /// A folder was opened but its own facts could not be read:
+    /// its identity,
+    /// its mount or the path its descriptor names.
+    UnreadableFields,
     /// The checkout path is reached through a link.
     LinkAmongTheAncestors,
     /// The checkout Git's path names could not be opened.
@@ -100,10 +105,15 @@ impl WalkRefusal {
                 "{subject} is not a directory. Ways forward: remove what holds that name and let the add create the slot folder; nothing is attached onto a file."
             ),
             WalkRefusalReason::NotAPlainName => format!(
-                "{subject} is no plain folder name below `.claude/worktrees`. Ways forward: name the slot exactly as `git worktree list` shows it below that folder, with no slash, no `..` and no leading dot."
+                "{subject} is no plain folder name below `.claude/worktrees`: {}. Ways forward: name the slot exactly as `git worktree list` shows it below that folder, with no slash, no `..` and no leading dot.",
+                self.detail
             ),
             WalkRefusalReason::Unreadable => format!(
                 "{subject} could not be opened: {}. Ways forward: give this account search permission on that folder and run the command again; the walk never widens a permission it was refused.",
+                self.detail
+            ),
+            WalkRefusalReason::UnreadableFields => format!(
+                "{subject} was opened, and its own facts could not be read: {}. Ways forward: run the command again; when the read keeps failing, check that this process can read the kernel's `/proc` entries for the folder and that its access and default ACLs fit the bound a read accepts, and report the answer the system gave.",
                 self.detail
             ),
             WalkRefusalReason::LinkAmongTheAncestors => format!(
@@ -140,6 +150,9 @@ pub enum CloneSlotRefusal {
     Store(StoreRefusal),
     /// The `.claude/worktrees` folder is not the one whose identity was recorded.
     ParentIdentity {
+        /// The checkout the store was compared with,
+        /// because one store records one checkout's folders.
+        checkout: PathBuf,
         /// The identity the store recorded.
         recorded: Box<CloneFolderIdentity>,
         /// The identity the walk read from the held folder.
@@ -176,8 +189,9 @@ impl CloneSlotRefusal {
         return match self {
             CloneSlotRefusal::Walk(refusal) => refusal.message(),
             CloneSlotRefusal::Store(refusal) => refusal.message(),
-            CloneSlotRefusal::ParentIdentity { recorded, found, fields } => format!(
-                "the `.claude/worktrees` parent folder is not the folder whose identity was recorded: the {} differs. Recorded: {}. Found: {}. A changed identity is not permission to adopt the replacement, so no clone is mounted. Ways forward: restore the folder whose identity is recorded; or, after a checkout restore or a controlled recreation, an administrator runs `mount-git-worktree-clone-datasets adopt-worktree-parent` with the intended replacement's device and inode and runs the command again.",
+            CloneSlotRefusal::ParentIdentity { checkout, recorded, found, fields } => format!(
+                "the `.claude/worktrees` parent folder below {} is not the folder whose identity was recorded: the {} differs. Recorded: {}. Found: {}. A changed identity is not permission to adopt the replacement, so no clone is mounted, and one store records one checkout: a folder of a second checkout never matches this record. Ways forward: restore the folder whose identity is recorded; or, after a checkout restore or a controlled recreation, an administrator runs `mount-git-worktree-clone-datasets adopt-worktree-parent` with the intended replacement's device and inode and runs the command again.",
+                checkout.display(),
                 field_names(fields),
                 recorded.describe(),
                 found.describe()
@@ -193,16 +207,6 @@ impl CloneSlotRefusal {
             ),
         };
     }
-}
-
-/// The fields that differ,
-/// as words a sentence can hold.
-fn field_names(fields: &[CloneFolderField]) -> String {
-    let mut names: Vec<&str> = Vec::new();
-    for field in fields {
-        names.push(field.name());
-    }
-    return names.join(", ");
 }
 
 /// What:
@@ -243,6 +247,17 @@ pub fn one_component_refusal(component: &str, error: &std::io::Error) -> WalkRef
     };
     let detail: String = if reason == WalkRefusalReason::Unreadable { error.to_string() } else { String::new() };
     return WalkRefusal { component: component.to_string(), reason, detail };
+}
+
+/// What:
+///  The refusal of one folder that was opened and whose own facts could not be read,
+///  such as its identity,
+///  its mount or the path its descriptor names.
+/// Why:
+///  An over-large ACL or a missing `/proc` line is not an open failure,
+///  and a person told the folder could not be opened looks in the wrong place.
+pub fn fields_refusal(component: &str, error: &std::io::Error) -> CloneSlotRefusal {
+    return CloneSlotRefusal::Walk(WalkRefusal { component: component.to_string(), reason: WalkRefusalReason::UnreadableFields, detail: error.to_string() });
 }
 
 /// The reason for an open failure inside a chain,

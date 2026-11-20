@@ -8,6 +8,7 @@
 
 use super::*;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
+use crate::fs_beneath_mount_facts::{mount_id_of, observed_path};
 use crate::fs_beneath_walk_chain::open_directory_beneath;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{fixture, remove};

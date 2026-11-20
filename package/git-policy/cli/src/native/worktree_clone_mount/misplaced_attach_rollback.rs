@@ -12,13 +12,14 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const plan = planRollback(misplaced, heldTargetPath, parentMountId);
+//! const plan = planRollback(misplaced, heldTarget, parentMountId); // heldTarget stays open in the plan
 //! const outcome = await unmountThroughDescriptor(plan); // Retained names both paths when it fails
 //! ```
 
 use super::attached_mount_identity::MountIdentity;
 use super::attach_post_check::MisplacedAttach;
-use std::path::{Path, PathBuf};
+use crate::fs_beneath_mount_facts::observed_path;
+use std::path::PathBuf;
 
 /// What:
 ///  The mount to take down and the two paths a report names.
@@ -29,16 +30,26 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Plan = { attachedMountId: bigint; mountedAt: string; canonicalSlot: string };
+/// type Plan = { attachedMountId: bigint; mountedAt: string; canonicalSlot: string; target: FileHandle };
 /// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
+///
+/// Why the descriptor and not only its path:
+///  an unmount that named a path would resolve it again and could take down whatever stands there by then,
+///  so the plan carries the very target the attach acted through and the unmount uses that handle.
+///  A plan is therefore not copyable:
+///  one mount has one holder, and the type says so.
+#[derive(Debug)]
 pub struct RollbackPlan {
     /// The mount the attach recorded.
     pub attached_mount_id: u64,
-    /// The path the held descriptor named when the attach landed.
+    /// The path the held target's descriptor names now,
+    /// which is where the mount landed.
     pub mounted_at: PathBuf,
     /// The slot the mount should have reached.
     pub canonical_slot: PathBuf,
+    /// The held target the attach acted through,
+    /// kept open so the unmount acts on the descriptor rather than on a path.
+    pub target: std::fs::File,
 }
 
 /// What:
@@ -78,7 +89,7 @@ impl RollbackRefusal {
                 crate::fs_mount_options::MOUNTINFO_PATH
             ),
             RollbackRefusal::NoPlaceRecorded { attached_mount_id } => format!(
-                "no rollback is planned for mount {attached_mount_id}: the attach recorded no path it landed on, so a report and an administrator would both be sent nowhere. Ways forward: an administrator reads the mount's point from `{}` and takes the clone's mount down through the descriptor route.",
+                "no rollback is planned for mount {attached_mount_id}: the held target's descriptor names no path a report can carry, so a report and an administrator would both be sent nowhere. Ways forward: an administrator reads the mount's point from `{}` and takes the clone's mount down through the descriptor route.",
                 crate::fs_mount_options::MOUNTINFO_PATH
             ),
         };
@@ -97,7 +108,7 @@ impl RollbackRefusal {
 /// ```ts
 /// type Outcome = { kind: 'rolled-back'; plan; mount } | { kind: 'retained'; plan; mount; reason };
 /// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Debug)]
 pub enum RollbackOutcome {
     /// The mount left the kernel,
     /// acting on the descriptor the attach used.
@@ -152,20 +163,21 @@ impl RollbackOutcome {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const plan = planRollback(misplaced, heldTargetPath, parentMountId);
+/// const plan = planRollback(misplaced, heldTarget, parentMountId);
 /// ```
 ///
 /// # Errors
 /// The recorded mount is the parent folder's own mount,
-/// or the place it landed is no path.
-pub fn plan_rollback(misplaced: &MisplacedAttach, mounted_at: &Path, parent_mount_id: u64) -> Result<RollbackPlan, RollbackRefusal> {
+/// or the held target's descriptor names no absolute path a report can carry.
+pub fn plan_rollback(misplaced: &MisplacedAttach, target: std::fs::File, parent_mount_id: u64) -> Result<RollbackPlan, RollbackRefusal> {
     if misplaced.attached_mount_id == parent_mount_id {
         return Err(RollbackRefusal::NoVerifiedMount { attached_mount_id: misplaced.attached_mount_id, parent_mount_id });
     }
+    let mounted_at: PathBuf = observed_path(&target).map_err(|_error| return RollbackRefusal::NoPlaceRecorded { attached_mount_id: misplaced.attached_mount_id })?;
     if mounted_at.as_os_str().is_empty() || !mounted_at.is_absolute() {
         return Err(RollbackRefusal::NoPlaceRecorded { attached_mount_id: misplaced.attached_mount_id });
     }
-    return Ok(RollbackPlan { attached_mount_id: misplaced.attached_mount_id, mounted_at: mounted_at.to_path_buf(), canonical_slot: misplaced.canonical_slot.clone() });
+    return Ok(RollbackPlan { attached_mount_id: misplaced.attached_mount_id, mounted_at, canonical_slot: misplaced.canonical_slot.clone(), target });
 }
 
 /// Controls stay out of the release executable.

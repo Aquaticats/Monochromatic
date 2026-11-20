@@ -4,7 +4,7 @@
 //! and a mount the table does not list is refused rather than guessed.
 
 use super::*;
-use crate::fs_beneath::mount_id_of;
+use crate::fs_beneath_mount_facts::mount_id_of;
 use crate::test_support::{fixture, remove};
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;

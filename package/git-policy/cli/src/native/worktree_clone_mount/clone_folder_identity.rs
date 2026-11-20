@@ -78,6 +78,26 @@ impl CloneFolderField {
 }
 
 /// What:
+///  The fields that differ,
+///  as words one sentence can hold.
+/// Why:
+///   The walk's refusal,
+///  the post-attach check and the adoption table each report the fields that moved,
+///  so the join lives beside the field names it joins and all three read the same words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const words = fieldNames(['mode', 'access-acl']); // 'mode, access ACL'
+/// ```
+pub fn field_names(fields: &[CloneFolderField]) -> String {
+    let mut names: Vec<&str> = Vec::new();
+    for field in fields {
+        names.push(field.name());
+    }
+    return names.join(", ");
+}
+
+/// What:
 ///  Every field the route records for one folder.
 /// Why:
 ///   Comparing whole records is what the route does,

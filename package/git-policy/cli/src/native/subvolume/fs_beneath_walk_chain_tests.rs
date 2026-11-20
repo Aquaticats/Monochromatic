@@ -169,9 +169,17 @@ struct MountedHere {
 impl MountedHere {
     /// Mount a tmpfs on `path`,
     /// which this process may only do as root in a mount namespace of its own.
+    ///
+    /// Why the kernel call and not `/usr/bin/mount`:
+    ///  util-linux keeps a mounted-filesystem table in `/run`, which this namespace may not write,
+    ///  and a mount it made without that entry is one its `umount` refuses to take down here.
     fn at(path: &Path) -> Self {
-        let mounted: std::process::Output = std::process::Command::new("mount").args(["-t", "tmpfs", "tmpfs"]).arg(path).output().expect("the mount command runs");
-        assert!(mounted.status.success(), "a tmpfs is mounted at {}: {}", path.display(), String::from_utf8_lossy(mounted.stderr.as_slice()));
+        let source: std::ffi::CString = std::ffi::CString::new("tmpfs").expect("a literal");
+        let kind: std::ffi::CString = std::ffi::CString::new("tmpfs").expect("a literal");
+        let target: std::ffi::CString = path_name(path);
+        // SAFETY: all three strings outlive the call, are NUL-terminated, and no data pointer is passed.
+        let mounted: libc::c_int = unsafe { libc::mount(source.as_ptr(), target.as_ptr(), kind.as_ptr(), 0, std::ptr::null()) };
+        assert_eq!(mounted, 0, "a tmpfs is mounted at {}: {}", path.display(), std::io::Error::last_os_error());
         let handle: File = open_directory(path).expect("the mounted folder");
         let id: u64 = mount_id_of(&handle).expect("the mount's ID");
         return Self { at: path.to_path_buf(), id };
@@ -180,7 +188,24 @@ impl MountedHere {
 
 #[cfg(target_os = "linux")]
 impl Drop for MountedHere {
+    /// Unmount what this control mounted,
+    /// detaching it if a plain unmount is still refused,
+    /// so a failed assertion never leaves a mount in the fixture tree this test removes next.
     fn drop(&mut self) {
-        let _unmounted: std::io::Result<std::process::Output> = std::process::Command::new("umount").arg(self.at.as_path()).output();
+        let target: std::ffi::CString = path_name(self.at.as_path());
+        // SAFETY: `target` is NUL-terminated and outlives both calls.
+        let plain: libc::c_int = unsafe { libc::umount2(target.as_ptr(), 0) };
+        if plain != 0 {
+            // SAFETY: the same string, with the flag that detaches a busy mount.
+            let _detached: libc::c_int = unsafe { libc::umount2(target.as_ptr(), libc::MNT_DETACH) };
+        }
     }
+}
+
+/// The bytes of `path` as a NUL-terminated string,
+/// for the kernel calls that take one.
+#[cfg(target_os = "linux")]
+fn path_name(path: &Path) -> std::ffi::CString {
+    use std::os::unix::ffi::OsStrExt;
+    return std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in a fixture path");
 }

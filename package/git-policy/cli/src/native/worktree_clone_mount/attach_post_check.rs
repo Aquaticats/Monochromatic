@@ -14,12 +14,12 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const outcome = postAttachCheck({ heldParent, heldParentMountId: 40, attachedMountId: 41, canonicalSlot }, lookAgainAtSlot(...));
+//! const outcome = postAttachCheck({ heldParent, heldParentMountId: 40, heldTargetMountId: 41, attachedMountId: 41, canonicalSlot }, lookAgainAtSlot(...));
 //! if (outcome.kind === 'misplaced') rollback(outcome);
 //! ```
 
 use super::attached_mount_identity::{MountIdentity, MountIdentityRefusal, mount_facts_of};
-use super::clone_folder_identity::{CloneFolderField, CloneFolderIdentity};
+use super::clone_folder_identity::{CloneFolderField, CloneFolderIdentity, field_names};
 use super::clone_slot_walk::FreshSlotLookup;
 use super::clone_slot_walk_refusals::CloneSlotRefusal;
 use crate::diagnostic_log::debug;
@@ -31,15 +31,19 @@ const TAG: &str = "attachPostCheck";
 /// What:
 ///  What the attach knows about the folders it acted on:
 ///  the parent folder's identity and mount,
+///  the mount the held target is on after the move,
 ///  the mount the attach made,
 ///  and the slot's canonical path.
 /// Why:
-///   Those four facts decide whether the fresh walk found the attach,
+///   Those five facts decide whether the fresh walk found the attach,
 ///  so they travel together from the walk to the check.
+///  The held target's own mount is the design's first proof taken literally:
+///  the folder the attach acted through must be the folder that received the mount,
+///  whatever a later lookup of the slot finds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Check = { heldParentIdentity; heldParentMountId; attachedMountId; canonicalSlot };
+/// type Check = { heldParentIdentity; heldParentMountId; heldTargetMountId; attachedMountId; canonicalSlot };
 /// ```
 #[derive(Clone, Debug)]
 pub struct AttachPostCheck<'a> {
@@ -47,6 +51,9 @@ pub struct AttachPostCheck<'a> {
     pub held_parent_identity: &'a CloneFolderIdentity,
     /// The mount the walk's parent folder is on.
     pub held_parent_mount_id: u64,
+    /// The mount the held target is on,
+    /// read from that descriptor after `move_mount` returned.
+    pub held_target_mount_id: u64,
     /// The mount ID the attach recorded for the mount it made,
     /// read from the descriptor `fsmount` returned.
     pub attached_mount_id: u64,
@@ -65,7 +72,7 @@ pub struct AttachPostCheck<'a> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type MisplacedReason = { kind: 'walk' } | { kind: 'parent'; fields } | { kind: 'mount'; fresh; attached } | { kind: 'parent-mount'; fresh; held } | { kind: 'path'; observed };
+/// type MisplacedReason = { kind: 'walk' } | { kind: 'parent'; fields } | { kind: 'held-target'; held; attached } | { kind: 'mount'; fresh; attached } | { kind: 'parent-mount'; fresh; held } | { kind: 'path'; observed };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MisplacedReason {
@@ -78,6 +85,13 @@ pub enum MisplacedReason {
     ParentChanged {
         /// The fields in which the folders differ.
         fields: Vec<CloneFolderField>,
+    },
+    /// The held target is not on the mount the attach made.
+    HeldTargetElsewhere {
+        /// The mount the held target's descriptor is on.
+        held: u64,
+        /// The mount the attach recorded.
+        attached: u64,
     },
     /// The mount at the canonical slot is not the mount the attach made.
     MountElsewhere {
@@ -110,23 +124,16 @@ impl MisplacedReason {
             MisplacedReason::WalkRefused { refusal } => format!("the canonical slot could not be walked after the attach: {}", refusal.message()),
             MisplacedReason::ParentChanged { fields } => format!(
                 "the folder above the canonical slot is not the one the attach held: the {} differs. The mount was attached through the held descriptor, so the canonical slot does not show it.",
-                names(fields)
+                field_names(fields)
+            ),
+            MisplacedReason::HeldTargetElsewhere { held, attached } => format!(
+                "the held target the attach mounted onto is on mount {held}, not mount {attached} that the attach made, so the folder the walk judged did not receive this mount."
             ),
             MisplacedReason::MountElsewhere { fresh, attached } => format!("the mount at the canonical slot is mount {fresh}, not mount {attached} that the attach made."),
             MisplacedReason::OtherParentMount { fresh, held } => format!("the slot's mount hangs on mount {fresh}, and the walk's parent folder is on mount {held}, so this is not the mount this walk made."),
             MisplacedReason::ObservedPathMoved { observed, canonical } => format!("the slot's descriptor names {} now, not the canonical slot {}.", observed.display(), canonical.display()),
         };
     }
-}
-
-/// The fields that differ,
-/// as words a sentence can hold.
-pub(super) fn names(fields: &[CloneFolderField]) -> String {
-    let mut names: Vec<&str> = Vec::new();
-    for field in fields {
-        names.push(field.name());
-    }
-    return names.join(", ");
 }
 
 /// What:
@@ -191,6 +198,9 @@ pub enum AttachOutcome {
 ///   Every arm is a refusal rather than a worktree,
 /// and each names the field, the mount or the path that differs,
 ///  so the report of a misplaced attach says what happened.
+///  The held target's mount is compared first because it is the one fact a stopped walk or another
+///  mount at the slot cannot explain away:
+///  the folder the attach acted through is the folder that had to receive the mount.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -202,6 +212,9 @@ pub enum AttachOutcome {
 /// so the mount cannot be recorded and the attach is rolled back.
 pub fn post_attach_check(check: &AttachPostCheck<'_>, fresh: Result<FreshSlotLookup, CloneSlotRefusal>) -> Result<AttachOutcome, MountIdentityRefusal> {
     let misplaced = |reason: MisplacedReason, found: Option<FreshSlotLookup>, attached: u64| return AttachOutcome::Misplaced(MisplacedAttach { reason, attached_mount_id: attached, canonical_slot: check.canonical_slot.to_path_buf(), fresh: found });
+    if check.held_target_mount_id != check.attached_mount_id {
+        return Ok(misplaced(MisplacedReason::HeldTargetElsewhere { held: check.held_target_mount_id, attached: check.attached_mount_id }, None, check.attached_mount_id));
+    }
     let found: FreshSlotLookup = match fresh {
         Ok(lookup) => lookup,
         Err(refusal) => return Ok(misplaced(MisplacedReason::WalkRefused { refusal: Box::new(refusal) }, None, check.attached_mount_id)),

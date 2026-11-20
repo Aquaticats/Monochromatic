@@ -21,7 +21,7 @@
 //! if (decision.ok) recordParentIdentity(store, decision.identity);
 //! ```
 
-use super::clone_folder_identity::{CloneFolderField, CloneFolderIdentity};
+use super::clone_folder_identity::{CloneFolderField, CloneFolderIdentity, field_names};
 use super::clone_slot_walk_refusals::WalkRefusal;
 use super::parent_adoption_facts::{BindingState, ParentPolicy, SlotState};
 
@@ -135,7 +135,7 @@ impl AdoptionRefusal {
             ),
             AdoptionRefusal::Policy { fields } => format!(
                 "the held `.claude/worktrees` folder does not hold the shape the recorded folder set: the {} differs from the policy. Nothing was recorded, because a replacement must not come back wider than the folder it replaces. Ways forward: give the folder the recorded owner, mode and ACLs and run the adoption again.",
-                super::attach_post_check::names(fields)
+                field_names(fields)
             ),
             AdoptionRefusal::BindingUnresolved { what, reason } => format!(
                 "the adoption cannot reconcile {what}: {reason}. Nothing was recorded, because a replacement is recorded only once every affected binding is known to be live or staged. Ways forward: settle or remove that binding as recovery requires, then run the adoption again."
@@ -147,7 +147,7 @@ impl AdoptionRefusal {
             AdoptionRefusal::FreshLookup { refusal } => format!("the fresh canonical lookup after the walk refused: {}. Nothing was recorded. Ways forward: fix what it names and run the adoption again.", refusal.message()),
             AdoptionRefusal::FreshLookupDiffers { fields } => format!(
                 "the fresh canonical lookup reached another folder than the held one: the {} differs. Nothing was recorded. Ways forward: stop the account from changing the folder, run the adoption again, and let it record only what both looks agree on.",
-                super::attach_post_check::names(fields)
+                field_names(fields)
             ),
         };
     }
