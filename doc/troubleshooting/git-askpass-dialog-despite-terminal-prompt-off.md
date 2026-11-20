@@ -545,6 +545,78 @@ a key's passphrase question neither asks for the program nor may read standard i
 (143 to 167),
 so it opens `/dev/tty` and asks (185).
 
+### What `never` also turned off, at a command with no controlling terminal
+
+Measured on this host's OpenSSH 10.6p2 against a throwaway `sshd` of the same account on `127.0.0.1`,
+in a throwaway `HOME` and `XDG_RUNTIME_DIR`,
+with no controlling terminal,
+with a recorder standing in for the desktop's password program
+(`~/temp/agent/git-policy-cli-lfs-review-findings-and-owner-answers-fixed-2026-11-19/scratch/measure-openssh-askpass-never.ts`,
+`logs/openssh-askpass-never.txt` there).
+Each case ran in a `known_hosts` file of its own,
+because a control that accepted the key would hide the next question:
+
+```text
+=== unknown host key, StrictHostKeyChecking=ask, SSH_ASKPASS_REQUIRE=prefer (control): exit 0
+    questions asked: ["The authenticity of host '[127.0.0.1]:45565 …' can't be established.", …,
+                      "Are you sure you want to continue connecting (yes/no/[fingerprint])? ",
+                      "Enter passphrase for key '…/': "]
+=== unknown host key, StrictHostKeyChecking=ask, SSH_ASKPASS_REQUIRE=never: exit 255
+    questions asked: []
+    ssh said: Host key verification failed.
+=== host key added by the previous case, StrictHostKeyChecking=accept-new, prefer (control): exit 0
+    questions asked: ["Enter passphrase for key '…/': "]
+=== host key known, accept-new, SSH_ASKPASS_REQUIRE=never: exit 255
+    questions asked: []
+    ssh said: user@127.0.0.1: Permission denied (publickey).
+=== host key known, accept-new, no SSH_ASKPASS_REQUIRE (control): exit 0
+    questions asked: ["Enter passphrase for key '…/': "]
+```
+
+So,
+besides every credential prompt:
+
+- A passphrase-protected key with no agent fails at once:
+  the passphrase cannot be read and the login fails rather than asking.
+  This is the case the decision of 2026-11-19 counts as a credential,
+  and it is why the wrapper's own words say to run `ssh-add`
+  (`reads_as_a_key_failure` and `login_needed_message` in
+  `package/git-policy/cli/src/native/lfs/lfs_pre_push.rs`).
+- An unknown host key's yes/no question is not asked,
+  and the key is refused
+  (`Host key verification failed.`).
+  The source is `confirm` in `sshconnect.c` at `V_10_6_P2` lines 603 to 627:
+  it reads the answer with `read_passphrase`,
+  which returns an empty answer when `never` forbids the askpass program,
+  and an empty answer is not "yes".
+- The permission questions of a shared connection (`ControlMaster`),
+  of a key an agent is asked to confirm,
+  and of `AddKeysToAgent=ask` are not asked and are answered "no":
+  all of them go through `ask_permission` (`readpass.c` at `V_10_6_P2` lines 194 to 215),
+  whose `read_passphrase` call carries `RP_ALLOW_EOF`,
+  so a forbidden askpass program returns no answer at all and the permission is refused
+  (its callers are `mux.c:437`,
+  `mux.c:548`,
+  `mux.c:833`,
+  `mux.c:1055`,
+  `mux.c:1145`,
+  `mux.c:1177`,
+  `ssh-agent.c:596` and `sshconnect.c:1794`).
+
+### What `never` did not turn off
+
+`force` with a program that answers nothing reaches one of these differently,
+which the section on that rule ("What this repository does instead") gives measured and read.
+
+- OpenSSH's notification that a security key must be touched.
+  It is not a question and has its own path:
+  [`notify_start`][ssh-readpass] in the same file reads `SSH_ASKPASS` and the display,
+  starts the program with `SSH_ASKPASS_PROMPT=none`,
+  and reads `SSH_ASKPASS_REQUIRE` only to accept `force`.
+  So a FIDO key whose presence must be confirmed can still open that window when the account names an askpass program,
+  a display and a standard error that is not a terminal.
+  It waits for the touch and asks nothing.
+
 ## `SSH_ASKPASS_REQUIRE=never` does not reach OpenSSH's own terminal question (found 2026-11-19)
 
 ### Symptom
@@ -639,79 +711,7 @@ and ends 128.
 `child_environment_tests.rs` pins the four variables and their order,
 and that a caller's own `SSH_ASKPASS` is replaced for these children.
 
-### What `never` also turned off, at a command with no controlling terminal
-
-Measured on this host's OpenSSH 10.6p2 against a throwaway `sshd` of the same account on `127.0.0.1`,
-in a throwaway `HOME` and `XDG_RUNTIME_DIR`,
-with no controlling terminal,
-with a recorder standing in for the desktop's password program
-(`~/temp/agent/git-policy-cli-lfs-review-findings-and-owner-answers-fixed-2026-11-19/scratch/measure-openssh-askpass-never.ts`,
-`logs/openssh-askpass-never.txt` there).
-Each case ran in a `known_hosts` file of its own,
-because a control that accepted the key would hide the next question:
-
-```text
-=== unknown host key, StrictHostKeyChecking=ask, SSH_ASKPASS_REQUIRE=prefer (control): exit 0
-    questions asked: ["The authenticity of host '[127.0.0.1]:45565 …' can't be established.", …,
-                      "Are you sure you want to continue connecting (yes/no/[fingerprint])? ",
-                      "Enter passphrase for key '…/': "]
-=== unknown host key, StrictHostKeyChecking=ask, SSH_ASKPASS_REQUIRE=never: exit 255
-    questions asked: []
-    ssh said: Host key verification failed.
-=== host key added by the previous case, StrictHostKeyChecking=accept-new, prefer (control): exit 0
-    questions asked: ["Enter passphrase for key '…/': "]
-=== host key known, accept-new, SSH_ASKPASS_REQUIRE=never: exit 255
-    questions asked: []
-    ssh said: user@127.0.0.1: Permission denied (publickey).
-=== host key known, accept-new, no SSH_ASKPASS_REQUIRE (control): exit 0
-    questions asked: ["Enter passphrase for key '…/': "]
-```
-
-So,
-besides every credential prompt:
-
-- A passphrase-protected key with no agent fails at once:
-  the passphrase cannot be read and the login fails rather than asking.
-  This is the case the decision of 2026-11-19 counts as a credential,
-  and it is why the wrapper's own words say to run `ssh-add`
-  (`reads_as_a_key_failure` and `login_needed_message` in
-  `package/git-policy/cli/src/native/lfs/lfs_pre_push.rs`).
-- An unknown host key's yes/no question is not asked,
-  and the key is refused
-  (`Host key verification failed.`).
-  The source is `confirm` in `sshconnect.c` at `V_10_6_P2` lines 603 to 627:
-  it reads the answer with `read_passphrase`,
-  which returns an empty answer when `never` forbids the askpass program,
-  and an empty answer is not "yes".
-- The permission questions of a shared connection (`ControlMaster`),
-  of a key an agent is asked to confirm,
-  and of `AddKeysToAgent=ask` are not asked and are answered "no":
-  all of them go through `ask_permission` (`readpass.c` at `V_10_6_P2` lines 194 to 215),
-  whose `read_passphrase` call carries `RP_ALLOW_EOF`,
-  so a forbidden askpass program returns no answer at all and the permission is refused
-  (its callers are `mux.c:437`,
-  `mux.c:548`,
-  `mux.c:833`,
-  `mux.c:1055`,
-  `mux.c:1145`,
-  `mux.c:1177`,
-  `ssh-agent.c:596` and `sshconnect.c:1794`).
-
-### What `never` did not turn off
-
-`force` with a program that answers nothing reaches one of these differently,
-and the section above says what it measured and read.
-
-- OpenSSH's notification that a security key must be touched.
-  It is not a question and has its own path:
-  [`notify_start`][ssh-readpass] in the same file reads `SSH_ASKPASS` and the display,
-  starts the program with `SSH_ASKPASS_PROMPT=none`,
-  and reads `SSH_ASKPASS_REQUIRE` only to accept `force`.
-  So a FIDO key whose presence must be confirmed can still open that window when the account names an askpass program,
-  a display and a standard error that is not a terminal.
-  It waits for the touch and asks nothing.
-
-### What this repository does about it
+### The whole rule in one list, and what a person meets
 
 `no_prompt_overlay` in `package/git-policy/cli/src/native/invocation/child_environment.rs`
 is the whole rule:
