@@ -45,7 +45,13 @@ pub const NVLIST_STRUCT_SIZE: usize = 24;
 /// Nested lists deeper than this are refused,
 /// so a hostile reply cannot
 /// recurse the decoder without bound.
-pub const MAX_DEPTH: usize = 64;
+/// 20 is the kernel module's own bound:
+/// `nvpair_max_recursion = 20` under `_KERNEL`
+/// (`module/nvpair/nvpair.c:152`);
+/// userspace uses 100 (`:154`),
+/// and this crate feeds the module,
+/// so it takes the module's number.
+pub const MAX_DEPTH: usize = 20;
 
 /// `DATA_TYPE_BOOLEAN`:
 /// a valueless flag whose presence is the information.

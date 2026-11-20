@@ -75,6 +75,8 @@ fn only_version_zero_is_accepted() {
 }
 
 #[test]
-fn the_nesting_bound_is_the_documented_one() {
-    assert_eq!(MAX_DEPTH, 64);
+fn the_nesting_bound_is_the_module_one() {
+    // `nvpair_max_recursion = 20` under `_KERNEL`
+    // (`module/nvpair/nvpair.c:152`).
+    assert_eq!(MAX_DEPTH, 20);
 }

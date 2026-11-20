@@ -167,6 +167,7 @@ pub fn decode_scalar_value(
         DATA_TYPE_STRING_ARRAY => decode_string_array(name, elements, value),
         other => Ok(NvData::Unknown {
             dtype: other,
+            elements,
             raw: value.to_vec(),
         }),
     };

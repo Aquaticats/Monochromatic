@@ -20,6 +20,7 @@
 use super::*;
 use crate::nvlist::NvData;
 use crate::nvlist::NvError;
+use crate::nvlist::data_type::MAX_DEPTH;
 
 /// A packed list of one string pair,
 /// whose bytes the tests then damage.
@@ -171,7 +172,7 @@ fn a_string_without_its_nul_is_refused() {
 #[test]
 fn nesting_past_the_bound_is_refused() {
     let mut cursor: Cursor<'_> = Cursor::new(&[0, 0, 0, 0]);
-    let error = decode_pairs(&mut cursor, 65).expect_err("deeper than the bound");
+    let error = decode_pairs(&mut cursor, MAX_DEPTH + 1).expect_err("deeper than the bound");
     assert_eq!(error, NvError::TooDeep);
 }
 
@@ -201,22 +202,28 @@ fn a_string_array_decodes_each_string() {
 }
 
 #[test]
-fn an_unknown_type_keeps_its_bytes() {
+fn an_unknown_type_keeps_its_bytes_and_element_count() {
     let mut list: NvList = NvList::new();
     list.push(
         "mystery",
         NvData::Unknown {
             dtype: 40,
+            elements: 1,
             raw: vec![1, 2, 3],
         },
     );
     let packed: Vec<u8> = list.pack().expect("an unknown type packs");
     let decoded: NvList = NvList::unpack(&packed).expect("an unknown type decodes");
+    // The pair's value region includes the alignment padding, so the kept
+    // bytes grow from three to eight; the element count is the pair's own.
     assert_eq!(
         decoded.get("mystery"),
         Some(&NvData::Unknown {
             dtype: 40,
+            elements: 1,
             raw: vec![1, 2, 3, 0, 0, 0, 0, 0]
         })
     );
+    let repacked: Vec<u8> = decoded.pack().expect("a decoded unknown type re-packs");
+    assert_eq!(repacked, packed);
 }

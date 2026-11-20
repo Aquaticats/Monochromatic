@@ -146,9 +146,13 @@ pub fn write_scalar_value(out: &mut Vec<u8>, data: &NvData) -> (i32, usize) {
         // An embedded list is written by the pair encoder, which also appends
         // its child stream; reaching here would mean the caller lost that.
         NvData::List { value: _ } | NvData::ListArray { value: _ } => (0, 0),
-        NvData::Unknown { dtype, raw } => {
+        NvData::Unknown {
+            dtype,
+            elements,
+            raw,
+        } => {
             out.extend_from_slice(raw);
-            (*dtype, 0)
+            (*dtype, *elements)
         }
     };
 }

@@ -136,6 +136,7 @@ fn each_value_reports_its_wire_type() {
         (
             NvData::Unknown {
                 dtype: 99,
+                elements: 0,
                 raw: Vec::new(),
             },
             99,

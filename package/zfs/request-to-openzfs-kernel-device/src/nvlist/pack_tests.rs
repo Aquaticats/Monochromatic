@@ -4,22 +4,39 @@
 //! What:
 //!  The device-free proof of the encoder:
 //! the exact bytes of one simple list,
-//!  a round trip of every value variant,
-//! the fixed point of decode and re-pack,
-//!  and every refusal (an interior NUL,
-//! an unknown version,
-//! a name past the
-//!  field width,
-//! nesting past the bound).
+//!  one pair of each shape,
+//! a round trip of every value variant,
+//!  the fixed point of decode and re-pack,
+//! and every refusal (an interior NUL,
+//!  an unknown version,
+//! a name past the field width,
+//! nesting past the
+//!  bound).
 //! Why:
 //!  The native encoding is the only one the kernel accepts on input;
 //! a byte in
 //!  the wrong place is a kernel read at the wrong offset,
 //! and the fixed point
 //!  is what the fuzz target asserts over arbitrary input.
+//!  Each golden vector's hex is the wire bytes the cited OpenZFS C rules give
+//!  that shape,
+//! so the test fails when the encoder and the module disagree,
+//!  not when this crate's decoder agrees with this crate's encoder.
 
 use super::*;
 use crate::nvlist::{NvData, NvError};
+
+/// Decode the hex a golden vector is written in,
+/// split at eight-byte boundaries for reading.
+fn bytes_of(hex: &str) -> Vec<u8> {
+    assert_eq!(hex.len() % 2, 0, "a golden vector is whole bytes");
+    return (0..hex.len() / 2)
+        .map(|index| {
+            let pair: &str = &hex[index * 2..index * 2 + 2];
+            return u8::from_str_radix(pair, 16).expect("a golden vector is hex");
+        })
+        .collect();
+}
 
 #[test]
 fn a_one_pair_list_has_the_native_header_and_a_zero_terminator() {
@@ -68,6 +85,139 @@ fn a_one_pair_list_has_the_native_header_and_a_zero_terminator() {
     );
     assert_eq!(&packed[pair_at + 16..pair_at + 20], b"abc\0");
     assert_eq!(&packed[packed.len() - 4..], &0i32.to_le_bytes());
+}
+
+#[test]
+fn a_string_pair_has_the_bytes_the_c_rules_give_it() {
+    // A pair is `nvp_size`, `nvp_name_sz`, `nvp_reserve`, `nvp_value_elem`,
+    // `nvp_type` (include/sys/nvpair.h:74-83), the name with its NUL padded
+    // to 8 bytes (`NVP_VALOFF`, module/nvpair/nvpair.c:147), then the
+    // NUL-terminated string padded to 8 bytes (`NVP_SIZE_CALC`, :135).
+    // The stream is the native header (0, 1, 0, 0), the root version and
+    // flag (:2890-2908), and the four-byte zero that ends a list (:2932).
+    let mut list: NvList = NvList::new();
+    list.add_str("name", "tank");
+    let packed: Vec<u8> = list.pack().expect("a string pair packs");
+    assert_eq!(
+        packed,
+        bytes_of(concat!(
+            "0001000000000000",
+            "0100000020000000",
+            "0500000001000000",
+            "090000006e616d65",
+            "0000000074616e6b",
+            "0000000000000000",
+        ))
+    );
+}
+
+#[test]
+fn an_embedded_list_pair_has_the_bytes_the_c_rules_give_it() {
+    // An embedded list's value is the 24-byte `nvlist_t` with its private
+    // pointer zeroed (`nvpair_native_embedded`,
+    // module/nvpair/nvpair.c:2951-2967), and its own pairs follow the parent
+    // pair's blob, ended by a four-byte zero (:2932-2949).
+    let mut inner: NvList = NvList::new();
+    inner.add_bool_flag("pool/ds@s1");
+    inner.add_bool_flag("pool/ds@s2");
+    let mut list: NvList = NvList::new();
+    list.push("snaps", NvData::List { value: inner });
+    let packed: Vec<u8> = list.pack().expect("an embedded list packs");
+    assert_eq!(
+        packed,
+        bytes_of(concat!(
+            "0001000000000000",
+            "0100000030000000",
+            "0600000001000000",
+            "13000000736e6170",
+            "7300000000000000",
+            "0100000000000000",
+            "0000000000000000",
+            "0000000020000000",
+            "0b00000000000000",
+            "01000000706f6f6c",
+            "2f64734073310000",
+            "0000000020000000",
+            "0b00000000000000",
+            "01000000706f6f6c",
+            "2f64734073320000",
+            "0000000000000000",
+            "00000000",
+        ))
+    );
+}
+
+#[test]
+fn a_string_array_pair_has_the_bytes_the_c_rules_give_it() {
+    // A string array's value is `nelem * 8` zeroed placeholders followed by
+    // that many NUL-terminated strings (`i_get_value_size`,
+    // module/nvpair/nvpair.c:1102-1114; `nvpair_native_string_array`,
+    // :2999-3013).
+    let mut list: NvList = NvList::new();
+    list.add_str_array("strings", vec!["a".to_string(), "bc".to_string()]);
+    let packed: Vec<u8> = list.pack().expect("a string array packs");
+    assert_eq!(
+        packed,
+        bytes_of(concat!(
+            "0001000000000000",
+            "0100000030000000",
+            "0800000002000000",
+            "1100000073747269",
+            "6e67730000000000",
+            "0000000000000000",
+            "0000000061006263",
+            "0000000000000000",
+        ))
+    );
+}
+
+#[test]
+fn an_nvlist_array_pair_has_the_bytes_the_c_rules_give_it() {
+    // An nvlist array's value is `nelem * 8` zeroed placeholders, then
+    // `nelem` 24-byte `nvlist_t` copies with their private pointers zeroed
+    // (`i_get_value_size`, module/nvpair/nvpair.c:1150-1153;
+    // `nvpair_native_embedded_array`, :2970-2996), and each list's pairs
+    // follow in turn, each ended by a four-byte zero.
+    let mut first: NvList = NvList::new();
+    first.add_u64("x", 1);
+    let mut second: NvList = NvList::new();
+    second.add_u64("y", 2);
+    let mut list: NvList = NvList::new();
+    list.push(
+        "listarray",
+        NvData::ListArray {
+            value: vec![first, second],
+        },
+    );
+    let packed: Vec<u8> = list.pack().expect("an nvlist array packs");
+    assert_eq!(
+        packed,
+        bytes_of(concat!(
+            "0001000000000000",
+            "0100000060000000",
+            "0a00000002000000",
+            "140000006c697374",
+            "6172726179000000",
+            "0000000000000000",
+            "0000000000000000",
+            "0000000000000000",
+            "0100000000000000",
+            "0000000000000000",
+            "0000000000000000",
+            "0100000000000000",
+            "0000000000000000",
+            "0000000020000000",
+            "0200000001000000",
+            "0800000078000000",
+            "0000000001000000",
+            "0000000000000000",
+            "2000000002000000",
+            "0100000008000000",
+            "7900000000000000",
+            "0200000000000000",
+            "0000000000000000",
+        ))
+    );
 }
 
 #[test]
@@ -131,6 +281,7 @@ fn every_value_variant_round_trips() {
         "mystery",
         NvData::Unknown {
             dtype: 40,
+            elements: 2,
             raw: vec![7, 0, 0, 0, 0, 0, 0, 0],
         },
     );

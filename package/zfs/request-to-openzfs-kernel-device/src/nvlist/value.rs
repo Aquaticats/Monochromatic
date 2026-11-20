@@ -176,10 +176,14 @@ pub enum NvData {
         value: Vec<NvList>,
     },
     /// A `data_type_t` this crate does not name;
-    /// its bytes are kept as read.
+    /// its element count and bytes are kept as read,
+    /// so a re-pack is faithful.
     Unknown {
         /// The type number the pair declared.
         dtype: i32,
+        /// The pair's `nvp_value_elem`,
+        /// the count the type's encoder wrote.
+        elements: usize,
         /// The pair's value bytes,
         /// unpadded.
         raw: Vec<u8>,

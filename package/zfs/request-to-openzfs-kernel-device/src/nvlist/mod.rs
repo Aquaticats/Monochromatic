@@ -25,6 +25,18 @@
 //! because a reply is
 //!  kernel-written bytes and a fuzz target feeds arbitrary ones.
 //!
+//! One deliberate difference from OpenZFS:
+//! a `data_type_t` this crate does not name is
+//! kept in [`NvData::Unknown`] with the pair's element count and value bytes,
+//! where the kernel refuses such a pair outright
+//! (`i_get_value_size`'s `default: return (-1)`,
+//! `module/nvpair/nvpair.c:1153-1156`).
+//! Keeping it makes a decode and re-pack a fixed point and lets a newer
+//! module's type be seen rather than hidden;
+//! no request forwards a decoded list to
+//! the kernel,
+//! so nothing built here sends one back.
+//!
 //! Files in this folder,
 //! each using only files listed before it:
 //!
