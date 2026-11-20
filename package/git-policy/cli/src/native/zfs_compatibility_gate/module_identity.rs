@@ -112,21 +112,44 @@ impl ModuleIdentity {
         };
     }
 
-    /// Whether the module that answered now is the one that answered before.
+    /// Whether the module that answered now is the one that answered the
+    ///  check's first read.
     ///
     /// The three values decide where the module carries any of them;
     /// where it
-    ///  carries none the two files' facts decide,
-    /// which is the weaker check the design
-    ///  states and `doctor` reports.
+    ///  carries none the check compares nothing it trusts and never refuses,
+    /// by
+    ///  the design's read order,
+    /// which is the weaker reload check `doctor` reports.
     pub fn same_as(&self, other: &Self) -> bool {
-        let carried: bool = self.version.is_some() || self.srcversion.is_some() || self.build_id.is_some();
-        if carried {
-            return self.version == other.version
-                && self.srcversion == other.srcversion
-                && self.build_id == other.build_id;
+        let carried: bool = self.carries_any();
+        if !carried {
+            return true;
         }
-        return self.base == other.base && self.module == other.module;
+        return self.version == other.version
+            && self.srcversion == other.srcversion
+            && self.build_id == other.build_id;
+    }
+
+    /// Whether the module that answered now is the one a remembered verdict
+    ///  was made from.
+    ///
+    /// The record's cache rule compares the three values with both files'
+    /// device,
+    ///  inode, size and modification time,
+    /// whichever values the module carries,
+    ///  so a replacement that keeps the values is still noticed.
+    pub fn same_module_as(&self, other: &Self) -> bool {
+        let values_hold: bool = !self.carries_any()
+            || (self.version == other.version
+                && self.srcversion == other.srcversion
+                && self.build_id == other.build_id);
+        return values_hold && self.base == other.base && self.module == other.module;
+    }
+
+    /// Whether the module carries any of the three identity values.
+    fn carries_any(&self) -> bool {
+        return self.version.is_some() || self.srcversion.is_some() || self.build_id.is_some();
     }
 
     /// Which identity attributes this module does not carry,

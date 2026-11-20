@@ -16,9 +16,9 @@ fn this_binary_runs_on_a_qualified_target() {
 }
 
 #[test]
-fn another_target_refuses_at_the_type_step() {
+fn another_target_refuses_at_the_target_step() {
     let refusal = target_refusal("aarch64").expect("aarch64 is not qualified");
-    assert_eq!(refusal.step, Step::Type);
+    assert_eq!(refusal.step, Step::Target);
     assert!(refusal.file.is_none());
     assert!(refusal.detail.contains("aarch64"), "{}", refusal.detail);
     assert!(refusal.detail.contains("x86_64"), "{}", refusal.detail);

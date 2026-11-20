@@ -18,6 +18,9 @@
 //!  the verdict is compared with the module's identity before it is reused,
 //! so
 //!  a reload is noticed between two uses in one long process.
+//!  The comparison and the cache are handed in,
+//! so a control can script both
+//!  without this machine's kernel files or device.
 //!  Nothing is written to disk:
 //! the cross-process cache is a question the design holds
 //!  open until a cost is measured,
@@ -32,10 +35,10 @@ use super::gate_paths::GatePaths;
 use super::gate_target::{current_target, target_refusal};
 use super::module_identity::ModuleIdentity;
 use monochromatic_zfs_request_to_openzfs_kernel_device::{
-    Compatible as LayoutCompatible, CompatibilityRefusal as Refusal,
-    CompatibilityStep as Step, LayoutRequest, check_module_layout,
+    Compatible as LayoutCompatible, CompatibilityRefusal as Refusal, CompatibilityStep as Step,
+    LayoutRequest, ZfsDevice, check_module_layout,
 };
-use std::sync::{Mutex, MutexGuard, OnceLock};
+use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
 
 /// The most attempts one check makes:
 /// the first,
@@ -97,6 +100,16 @@ impl BeforeRequests for LiveGate {
     }
 }
 
+/// What:
+///  One comparison:
+/// two files into a layout pass or the first refusal.
+/// Why:
+///  The live comparison reads this machine's two files,
+/// so a control hands in
+///  a scripted one and the order,
+/// the retry and the cache stay the same code.
+pub type Comparison<'a> = &'a dyn Fn(&GatePaths) -> Result<LayoutCompatible, Refusal>;
+
 /// The verdict this process remembers,
 /// with the identity it was made from.
 struct Remembered {
@@ -106,36 +119,90 @@ struct Remembered {
     identity: ModuleIdentity,
 }
 
+/// What:
+///  The verdict one process remembers,
+///  rechecked against the module's identity before a reuse.
+/// Why:
+///  The rule is one parse per process,
+/// so the cache is a value a control can
+///  construct instead of a process-wide static,
+/// and only the live gate takes the
+///  static one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class VerdictCache { answer(paths, compare): Verdict }
+/// ```
+pub struct VerdictCache {
+    /// The one remembered answer,
+    /// or nothing before the first check.
+    slot: Mutex<Option<Remembered>>,
+}
+
+/// One process's verdict,
+/// kept until the module's identity moves.
+impl Default for VerdictCache {
+    fn default() -> Self {
+        return Self::new();
+    }
+}
+
+impl VerdictCache {
+    /// An empty cache.
+    pub fn new() -> Self {
+        return VerdictCache {
+            slot: Mutex::new(None),
+        };
+    }
+
+    /// The gate's answer,
+    /// reused only while the module's identity holds.
+    pub fn answer(&self, paths: &GatePaths, compare: Comparison<'_>) -> Verdict {
+        let mut slot: MutexGuard<'_, Option<Remembered>> = self.slot.lock().unwrap_or_else(PoisonError::into_inner);
+        let now: ModuleIdentity = ModuleIdentity::read(paths);
+        if let Some(remembered) = slot.as_ref()
+            && remembered.identity.same_module_as(&now)
+        {
+            return remembered.verdict.clone();
+        }
+        let verdict: Verdict = check_with(paths, compare);
+        *slot = Some(Remembered {
+            verdict: verdict.clone(),
+            identity: now,
+        });
+        return verdict;
+    }
+}
+
 /// The one remembered answer of this process.
-static REMEMBERED: OnceLock<Mutex<Option<Remembered>>> = OnceLock::new();
+static REMEMBERED: OnceLock<VerdictCache> = OnceLock::new();
 
 /// The gate's answer for this process,
 /// rechecked against the module's identity before a reuse.
 pub fn before_requests() -> Verdict {
-    let cache: &Mutex<Option<Remembered>> = REMEMBERED.get_or_init(|| {
-        return Mutex::new(None);
-    });
-    let mut slot: MutexGuard<'_, Option<Remembered>> = cache.lock().unwrap_or_else(|poisoned| {
-        return poisoned.into_inner();
-    });
-    let paths: GatePaths = GatePaths::live();
-    let now: ModuleIdentity = ModuleIdentity::read(&paths);
-    if let Some(remembered) = slot.as_ref()
-        && remembered.identity.same_as(&now)
-    {
-        return remembered.verdict.clone();
-    }
-    let verdict: Verdict = check(&paths);
-    *slot = Some(Remembered {
-        verdict: verdict.clone(),
-        identity: now,
-    });
-    return verdict;
+    return before_requests_with(&GatePaths::live(), &compare, remembered_cache());
+}
+
+/// The gate's answer for one set of paths,
+/// one comparison and one cache.
+pub fn before_requests_with(paths: &GatePaths, compare: Comparison<'_>, cache: &VerdictCache) -> Verdict {
+    return cache.answer(paths, compare);
+}
+
+/// The cache the live gate remembers its one answer in.
+fn remembered_cache() -> &'static VerdictCache {
+    return REMEMBERED.get_or_init(VerdictCache::new);
 }
 
 /// Check one set of paths,
 /// in the design's order.
 pub fn check(paths: &GatePaths) -> Verdict {
+    return check_with(paths, &compare);
+}
+
+/// Check one set of paths against one comparison,
+/// in the design's order.
+pub fn check_with(paths: &GatePaths, compare: Comparison<'_>) -> Verdict {
     if let Some(refusal) = target_refusal(current_target()) {
         return Verdict::Refused(refusal);
     }
@@ -165,16 +232,13 @@ pub fn check(paths: &GatePaths) -> Verdict {
     return Verdict::Refused(ModuleIdentity::changed_under_the_check());
 }
 
-/// Open the device the way a request would,
+/// Open the device the way a request does,
 /// and close it again,
 /// so a missing or unopenable device refuses before any file is read.
 fn open_the_device(paths: &GatePaths) -> Result<(), Refusal> {
-    let answer: std::io::Result<std::fs::File> = std::fs::OpenOptions::new()
-        .read(true)
-        .open(paths.device.as_path());
-    return match answer {
-        Ok(file) => {
-            drop(file);
+    return match ZfsDevice::open_at(paths.device.as_path()) {
+        Ok(device) => {
+            drop(device);
             Ok(())
         }
         Err(error) => Err(Refusal {

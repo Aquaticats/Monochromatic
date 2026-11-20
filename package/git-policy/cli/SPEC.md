@@ -19183,8 +19183,12 @@ and reports a successful commit of another file.
 
 ### The start-time ZFS compatibility gate
 
-Both executables run one gate before their first request to `/dev/zfs`,
+The root-run handler `mount-git-worktree-clone-datasets` runs one gate before
+its first request to `/dev/zfs`,
 and no raw request is made until it passes.
+The wrapper `monochromatic-git-policy-cli` makes no request in this build and
+runs no gate;
+the step that gives the wrapper a ZFS request route adds that call.
 The gate is this repository's own code on both sides:
 `compatibility_check` in `package/zfs/request-to-openzfs-kernel-device`
 holds the bounded reader,
@@ -19233,14 +19237,21 @@ in this order:
   `ZFS_IOC_LAST`.
   The walk has a fixed order and stops at the first difference,
   naming the field path with both values.
+  The two endpoints are part of that contract,
+  so a release that only appends a request moves `ZFS_IOC_LAST` and refuses
+  even though no layout moved:
+  that is what the record's "the request numbers decide" requires,
+  and `ZFS_IOC_FIRST` and `ZFS_IOC_LAST` are the range's two endpoints it
+  names.
 - The identity is read again.
   A module that unloaded or was replaced under the check retries the whole
   check once,
   and refuses with "module changed while checking" only when the retry's own
   two identity reads also differ.
   A module that carries no release string,
-  `srcversion` or build ID weakens the reload check instead of refusing,
-  and `doctor` says which attribute is absent.
+  `srcversion` or build ID weakens the reload check instead of refusing.
+  This build's `doctor` reads no gate;
+  step 18 adds its gate read and the sentence naming the absent attribute.
 
 The gate proves no module release.
 The project's answer of 2026-11-19,
@@ -19268,14 +19279,17 @@ any difference and a module that changed under the check all refuse the same
 way:
 
 - The handler does not enter the mode,
-  so nothing is opened,
-  mounted,
-  unmounted or recorded,
+  so that mode opens nothing,
+  makes no request,
+  mounts nothing,
+  unmounts nothing and records nothing,
   and registrations and durable recovery state stay as they were.
-- The wrapper's ZFS route is unavailable,
-  and an unused slot takes the same-dataset reflink route or the ordinary Git
-  route instead,
-  which is the ladder's fallback for a slot nothing is attached to.
+- The wrapper has no ZFS route and makes no request in this build,
+  so its commands take the same-dataset reflink route or the ordinary Git
+  route as they do today.
+  The step that gives the wrapper a request route adds its gate call and the
+  fallback for an unused slot,
+  which is the ladder's route for a slot nothing is attached to.
   A clone that is already attached keeps its binding:
   a refusal never authorizes an unrelated mount or cleanup.
 
@@ -19285,7 +19299,8 @@ then states that every raw request,
 reads included,
 stays disabled,
 that registrations and durable recovery state stay as they were,
-that an unused slot takes the reflink or ordinary Git route,
+that no mode was entered so nothing was mounted,
+unmounted or recorded,
 and that no flag and no environment turns the refusal into a pass.
 It never offers a bypass.
 A compatible verdict prints one line naming the target,
