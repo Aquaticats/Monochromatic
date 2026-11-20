@@ -40929,7 +40929,15 @@ stated in this entry. What follows from them, as work:
   one place; the boundary question's options not saying what each changes; entry 6's option (a) given no cost). GOING:
   the sixth pass, `pi-zfs-staging-under-cache-design-fifth-revision-diff-check-findings-fixed` (DeepSeek on Neuralwatt,
   cap 400); brief under `~/temp/agent/zfs-staging-under-cache-design-fifth-revision-diff-check-findings-fixed-2026-11-20/`.
-  Then a last diff-only check on which only a high or medium blocks, then acceptance. The proposal
+  It ended `idle` (179 turns) at `c685cabebe` (six commits 00:03:37 to 00:14:39, dates real; that folder's
+  `keep/report-from-summary.md`, checkers self-contained in `keep/`), all eleven fixed: entry 1's (c) stated as losing the
+  accepted first half where the account stacks a mount at the slot, so it relaxes an accepted sentence and is the
+  project's decision, not a veto; the boundary question has no default and says what each option leaves; entry 7's
+  option (a) carries its cost; the pin's compared fields named once (source and mount-root inode; the device recorded,
+  never compared) and marked for the project's veto, with an M5 mismatched-inode arm. A second read by another vendor's
+  advisor found four defects in its first pass, fixed. GOING: the last diff-only check (brief under
+  `~/temp/agent/zfs-staging-under-cache-design-sixth-revision-diff-only-gate-check-2026-11-20/`), on which only a high or
+  medium blocks. Then the acceptance item beside the other two. The proposal
   and plan amendment
   for the dropped release proof waits for the layout checker's review. That answer was first written into
   `doc/handover/questions-for-the-owner.md`, whose header keeps it to open questions; the owner asked "Do you know what a
