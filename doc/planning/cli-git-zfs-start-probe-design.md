@@ -150,6 +150,40 @@ first written.
   edit. The three checkers ran on the design and on a broken copy, each failing
   there and passing here.
 
+- `2026-11-20T00:06:35-05:00` (commits `6c042f554e`, `4e39abeb27`, `7fdf14c1be`, `dd1ba8080f`, `245ab07319`,
+  `6b0315402e`, `7fecd7c918`, `13a00dc6cc` and `3b24cc40f3`, and every commit this round made after it): the answer
+  to a diff-only gate check of the fifth revision, read on Claude Sonnet from the diff `4258b3c3c9..3b833948e3`.
+  This label is the time this text was first written, not a commit time, and it names no commit of its own: the
+  commit that carries it and the commits after that one come later, so none of them can be named here. The check's
+  findings were weighed one by one; every one earned a fix, and one claim of its third medium was dismissed after
+  reading the kernel source. The three mediums: the endings list now draws the skip by the skip paragraph's own list
+  and every other failure, in the setup or after it, as an arm failure; the Answers record says only what Q6 asked
+  the project, and states the Ubuntu reach as this design's own, open to the project's veto; and the skip list
+  gained the refusals its own definition covers that it lacked, a kernel built without user namespaces, where
+  `unshare(CLONE_NEWUSER)` answers `EINVAL` and `/proc/self/ns/user` is absent, mount mediation's `EACCES` from
+  `security_sb_mount`, and the `EPERM` a policy denial gives at the capability checks `fsopen`, `mount`,
+  `mount_setattr`, `fsmount` and `move_mount` make. The one dismissal: SELinux's denial at the first mapping write
+  needs no skip entry, because `file_ns_capable` answers a bool and the caller sees `map_write`'s own `-EPERM`,
+  which the list already names. The residue widened to a mapping write whose line or opener is not the one this
+  design builds, with the ids read before the fork and M11's pass control as the cover, and to a host without
+  `/proc` mounted, which reads as a kernel without the option.
+  The lows: the claim is stated as taken after the key check and before the walk, the sweep's own refusals before any
+  attach attempt are listed as outside it, the step 8 note carries that order, and `fsconfig` joins the step names
+  beside `fsconfig-create`; the Q7 reading covers `identity-record`, says a shadowing attempt may never have called
+  the kernel, and the placement is put to the project as a question with the `fsopen` alternative; the revision
+  intro now says which commits are listed, which ten of them carry the pinned date, which labels are real times,
+  and that the `23:20:02` label is the time its text was first written; the fork rides the ceilinged runner with the
+  companion's deadline as its ceiling, and the add's whole wait is stated; a stuck child's directory is the next
+  preflight's to sweep, its name carries the PID namespace, and the second child rechecks `getppid()`; M11 answers
+  `EPERM` at the second mapping write through the test-only seam rather than a system call filter, runs every arm
+  but the restricted one at 0, and gains the mount-`EACCES` and no-user-namespace controls; the questions section
+  gives each veto what it holds back and its alternative, states the companion's provisional ceiling, and names the
+  two acceptance questions; and the header and sources list carry the kernel files read for these lines.
+  The three checkers ran on the design and on a broken copy, each failing there and passing here: 248 links and 0
+  problems, 0 prose problems, and 78 quoted passages with none missing once the copy is normalized, where the raw
+  design's three link-bearing blockquotes miss only because the checker keeps link markup inside a quotation, and
+  every one of them is verbatim in the proposal with links reduced.
+
 ## Answers of 2026-11-19
 
 Every question this design put to the owner was answered in the question tool between 2026-11-19T20:35 and
