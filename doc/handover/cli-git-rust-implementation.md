@@ -40358,7 +40358,27 @@ stated in this entry. What follows from them, as work:
   re-exported; the store passed into the adoption; the interleave sentence dropped and `SPEC.md` says the format is
   unapproved; the branch's handover change removed. Whole gate 9235 of 9237, the cause-H pair. One `git restore
   --no-enforce-worktree`, after saving the discarded patch. GOING: a Sonnet integration check with one gate run (brief
-  under `~/temp/agent/integration-check-zfs-step-4-pre-merge-round-2026-11-20/`). Then the merge. STEP 3 HOST HALF ENDED `idle` (201
+  under `~/temp/agent/integration-check-zfs-step-4-pre-merge-round-2026-11-20/`). Then the merge. It ended (Sonnet, about
+  35 min; that folder's `keep/review.md`): fit, no high or medium, six lows. Gate 9235 of 9237, the cause-H pair, the
+  same 9235 as the round's; a time-matched control showed every `fsync` sample reach the pool partition with two ZIL
+  commits (the disk reports write-through), so `LQM` is met; the lost-append probe red on the old code, green now. Lows:
+  the re-exported route writers unpinned (three planted mutants pass 18 of 18 store tests); three relative-position
+  comments; the lock comment says more than its probe showed; 2 ms is one eighteenth, the widest store 96.5 per cent of
+  the cap, the measurement on `home` while the store lives on `root`; one README skip line for two controls; the plan's
+  "administrator quiescence ... built here" while nothing builds it. MERGED into `main` as `dd752b10cf` (2026-11-20),
+  behind no caller yet. The screen locker again kept the author worktree (issue 6321); it and the three integration
+  worktrees were removed by hand. GOING: step 4's guest arms (items 2 and 7 with the built code, H1 gate 1's decoy
+  control, through a root-run integration test until step 5's binary exists) with the six lows,
+  `pi-zfs-step-4-guest-arm-and-merge-lows` (DeepSeek on Neuralwatt, cap 510) on
+  `feat/git-policy-cli-zfs-descriptor-attach-guest-arm` from `main` in `.claude/worktrees/zfs-step-4-guest-arm`; brief
+  under `~/temp/agent/zfs-step-4-guest-arm-and-merge-lows-2026-11-20/`. ALSO GOING, since steps 1 and 4 are in `main`:
+  step 5, `pi-zfs-step-5-second-executable` (DeepSeek on Neuralwatt, cap 510) on
+  `feat/git-policy-cli-zfs-second-executable` in `.claude/worktrees/zfs-step-5-second-executable`, told to publish
+  nothing and to report what a path dependency on the unpublished binding does to the wrapper's release checks, since
+  the plan says step 5 needs the binding's release and the project kept step 1 unpublished; brief under
+  `~/temp/agent/zfs-step-5-second-executable-2026-11-20/`. Coordinator slips this stretch: three background waits found
+  their process by name or waited on a stand-in PID (rule `PWT`); each was stopped or ended harmlessly, and the
+  coordinator now waits only on task notifications. STEP 3 HOST HALF ENDED `idle` (201
   turns, 51 min) at `fd10d8d0b0` (four commits; report and checks table in
   `~/temp/agent/zfs-step-3-reflink-rung-recognition-host-half-2026-11-19/keep/`): `FilesystemKind::Zfs` from
   `ZFS_SUPER_MAGIC`; rung 2 proves one dataset by mount source and device, with no ZFS ioctl or binding; a mounted clone
