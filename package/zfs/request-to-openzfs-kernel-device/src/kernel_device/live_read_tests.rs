@@ -174,28 +174,57 @@ fn the_granted_delegations_are_what_the_fixture_set() {
     let granted: &NvList = parent.get_list(&pool.clones).unwrap_or_else(|| {
         panic!("the reply carries no grants for the clone parent: {parent:?}");
     });
-    let local: &NvList = granted.get_list(&local_key).unwrap_or_else(|| {
-        panic!("the clone parent has no local grant for {local_key}: {granted:?}");
-    });
-    assert!(local.get("create").is_some());
-    assert!(local.get("mount").is_some());
-    let descendent: &NvList = granted.get_list(&descendent_key).unwrap_or_else(|| {
-        panic!("the clone parent has no descendent grant: {granted:?}");
-    });
-    assert!(descendent.get("mount").is_some());
-    assert!(descendent.get("destroy").is_some());
-    assert!(descendent.get("userprop").is_some());
-    assert!(descendent.get("clone").is_none());
+    let parent_local: Vec<String> = assert_permissions(granted, &local_key, &["create", "mount"]);
+    let parent_descendent: Vec<String> =
+        assert_permissions(granted, &descendent_key, &["destroy", "mount", "userprop"]);
     let checkout: NvList = device
         .get_fsacl(&pool.checkout)
         .expect("the checkout's grants are read");
     let on_checkout: &NvList = checkout.get_list(&pool.checkout).unwrap_or_else(|| {
         panic!("the reply carries no grants for the checkout: {checkout:?}");
     });
-    let clone_grant: &NvList = on_checkout.get_list(&descendent_key).unwrap_or_else(|| {
-        panic!("the checkout has no descendent grant: {on_checkout:?}");
+    let checkout_local: Vec<String> = assert_permissions(on_checkout, &local_key, &["snapshot"]);
+    let checkout_descendent: Vec<String> =
+        assert_permissions(on_checkout, &descendent_key, &["clone", "destroy", "mount"]);
+    println!(
+        "MEASUREMENT grants clone-parent {local_key}={parent_local:?} \
+         {descendent_key}={parent_descendent:?} checkout {local_key}={checkout_local:?} \
+         {descendent_key}={checkout_descendent:?}"
+    );
+}
+
+/// Assert that the delegations under `key` are exactly `wanted`,
+/// by name,
+/// so a
+/// permission the fixture did not grant cannot hide in the reply.
+///
+/// Returns the names in the reply,
+/// for the measurement line.
+///
+/// # Panics
+///
+/// When `granted` has no `key` at all,
+/// or the names under it are not `wanted`.
+fn assert_permissions(granted: &NvList, key: &str, wanted: &[&str]) -> Vec<String> {
+    let list: &NvList = granted.get_list(key).unwrap_or_else(|| {
+        panic!("the reply carries no {key} grant: {granted:?}");
     });
-    assert!(clone_grant.get("clone").is_some());
+    let mut found: Vec<String> = list
+        .iter()
+        .map(|pair| {
+            return pair.name.clone();
+        })
+        .collect();
+    found.sort();
+    let mut expected: Vec<String> = wanted
+        .iter()
+        .map(|name| {
+            return (*name).to_string();
+        })
+        .collect();
+    expected.sort();
+    assert_eq!(found, expected, "the delegations under {key}");
+    return found;
 }
 
 #[test]

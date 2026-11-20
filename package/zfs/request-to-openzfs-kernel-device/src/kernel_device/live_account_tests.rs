@@ -5,7 +5,9 @@
 //! the two-snapshot batch one request destroys,
 //! the
 //!  batch a dependent clone keeps whole,
-//! the requests the grants refuse,
+//! the snapshot it creates and destroys on the
+//!  checkout,
+//! the clone it makes with a creation-time user property,
 //! the
 //!  user property set on its own clone,
 //! and the same-name replacement whose
@@ -23,7 +25,7 @@ use super::ZfsDevice;
 use super::fixture::Fixture;
 use super::fixture::properties;
 use super::fixture_pool::FixturePool;
-use super::fixture_reply::{listing_names, property_str, property_u64};
+use super::fixture_reply::{listing_names, property_source, property_str, property_u64};
 use super::live_account_fixture_tests::{
     BATCH_ARM, CHECKOUT_SNAPSHOT, DEPENDENT_ARM, DEPENDENT_CLONE, FREE_SNAPSHOT, OWN_SNAPSHOTS,
     PINNED_SNAPSHOT, PROMOTED_BATCH_ARM, PROMOTED_DEPENDENT_CLONE, PROPERTY_ARM, READ_ARM,
@@ -31,6 +33,9 @@ use super::live_account_fixture_tests::{
 };
 use crate::kernel_device::DatasetIdentity;
 use crate::nvlist::NvList;
+
+/// The clone the account makes with a creation-time user property.
+const PROPS_CLONE: &str = "props-clone";
 
 /// The guest account the arm runs as,
 /// or `None` on a host run,
@@ -297,9 +302,8 @@ fn the_account_batch_with_a_dependent_clone_keeps_both_names() {
 
 #[test]
 #[ignore = "live: needs the mvm guest fixture; run it through the package's e2e recipe"]
-fn the_account_cannot_create_a_snapshot_of_the_checkout() {
-    let Some(fixture) =
-        delegated_fixture("live_account_tests::the_account_cannot_create_a_snapshot")
+fn the_account_snapshots_the_checkout_and_the_reply_carries_no_failure() {
+    let Some(fixture) = delegated_fixture("live_account_tests::the_account_snapshots_the_checkout")
     else {
         return;
     };
@@ -307,10 +311,84 @@ fn the_account_cannot_create_a_snapshot_of_the_checkout() {
     let pool: FixturePool<'_> = FixturePool::adopt(&fixture, &account_pool);
     let device: ZfsDevice = ZfsDevice::open().expect("the account opens the device");
     let snapshot: String = format!("{}@from-account", pool.checkout);
-    let error = device
+    let reply: Option<NvList> = device
         .snapshot(&pool.name, &[snapshot.as_str()], None)
-        .expect_err("no grant lets the account snapshot the checkout");
-    assert_eq!(error.errno(), Some(libc::EPERM));
+        .expect("the checkout's local snapshot grant lets the account create one");
+    let carried = reply
+        .as_ref()
+        .map_or_else(Vec::new, crate::requests::element_errors);
+    assert!(
+        carried.is_empty(),
+        "the created snapshot carries no per-name failure: {carried:?}"
+    );
+    let identity: DatasetIdentity = device
+        .objset_stats(&snapshot)
+        .expect("the account reads the snapshot it made");
+    assert_ne!(identity.stats.dds_is_snapshot, 0, "the name is a snapshot");
+    let listed: Vec<String> = listing_names(|cursor| {
+        return device.snapshot_list_next(&pool.checkout, cursor);
+    });
+    assert!(
+        listed.contains(&snapshot),
+        "the checkout lists the snapshot the account created: {listed:?}"
+    );
+    println!(
+        "MEASUREMENT account snapshot created=1 carried={} guid={}",
+        carried.len(),
+        identity.stats.dds_guid
+    );
+    // The design's checkout-origin grant reaches the checkout's descendants, so
+    // the account also removes the snapshot it made.
+    device
+        .destroy(&snapshot, false)
+        .expect("the checkout's descendent destroy grant reaches the snapshot");
+    let after: Vec<String> = listing_names(|cursor| {
+        return device.snapshot_list_next(&pool.checkout, cursor);
+    });
+    assert!(
+        !after.contains(&snapshot),
+        "the account removed its own snapshot: {after:?}"
+    );
+}
+
+#[test]
+#[ignore = "live: needs the mvm guest fixture; run it through the package's e2e recipe"]
+fn the_account_clones_with_a_creation_time_user_property() {
+    let Some(fixture) =
+        delegated_fixture("live_account_tests::the_account_clones_with_a_user_property")
+    else {
+        return;
+    };
+    let account_pool: String = fixture.account_pool.clone();
+    let pool: FixturePool<'_> = FixturePool::adopt(&fixture, &account_pool);
+    let device: ZfsDevice = ZfsDevice::open().expect("the account opens the device");
+    let target: String = format!("{}/{PROPS_CLONE}", pool.clones);
+    let origin: String = format!("{}@{CHECKOUT_SNAPSHOT}", pool.checkout);
+    let wanted: NvList = properties(&[("monochromatic:desired-state", "account-clone")]);
+    device
+        .clone(&target, &origin, Some(&wanted))
+        .expect("the descendent userprop grant lets the account set the property as it clones");
+    let identity: DatasetIdentity = device.objset_stats(&target).expect("the new clone is read");
+    assert_eq!(identity.stats.origin(), origin);
+    assert_eq!(
+        property_str(&identity.properties, "monochromatic:desired-state"),
+        "account-clone"
+    );
+    assert_eq!(
+        property_source(&identity.properties, "monochromatic:desired-state"),
+        target
+    );
+    println!("MEASUREMENT account clone with-props origin={origin} accepted=1");
+    device
+        .destroy(&target, false)
+        .expect("the descendent destroy grant reaches the clone the account made");
+    let children: Vec<String> = listing_names(|cursor| {
+        return device.dataset_list_next(&pool.clones, cursor);
+    });
+    assert!(
+        !children.contains(&target),
+        "the account removed the clone it made: {children:?}"
+    );
 }
 
 #[test]

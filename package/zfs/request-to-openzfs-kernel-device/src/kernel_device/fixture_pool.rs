@@ -165,20 +165,43 @@ impl<'a> FixturePool<'a> {
         self.armed = false;
     }
 
-    /// The design's proposed grants and nothing else:
-    /// pool `delegation` on,
+    /// The grants of the design's "Scoped delegation" and nothing else:
+    /// pool
+    /// `delegation` on,
+    /// local `create,mount` on the clone parent,
     /// local
-    /// `create,mount` on the clone parent,
+    /// `snapshot` on the checkout,
     /// descendent `clone` on the checkout,
     /// descendent
-    /// `mount,destroy,userprop` on the clone parent.
+    /// `mount,destroy` on the checkout,
+    /// and descendent `mount,destroy,userprop` on the
+    /// clone parent.
+    ///
+    /// The measurements' item 12 fixture deliberately omitted the checkout's
+    /// local `snapshot`
+    /// (`doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`),
+    /// and it never set the
+    /// checkout-origin `mount,destroy` the design later decided on.
+    /// The plan's step 2 names
+    /// the design's grants,
+    /// so the fixture carries those and not item 12's subset.
     pub(crate) fn grant_the_proposed_scope(&self) {
         let account: &str = self.fixture.account.as_str();
         self.fixture.zpool(&["set", "delegation=on", &self.name]);
         self.fixture
             .zfs(&["allow", "-l", "-u", account, "create,mount", &self.clones]);
         self.fixture
+            .zfs(&["allow", "-l", "-u", account, "snapshot", &self.checkout]);
+        self.fixture
             .zfs(&["allow", "-d", "-u", account, "clone", &self.checkout]);
+        self.fixture.zfs(&[
+            "allow",
+            "-d",
+            "-u",
+            account,
+            "mount,destroy",
+            &self.checkout,
+        ]);
         self.fixture.zfs(&[
             "allow",
             "-d",

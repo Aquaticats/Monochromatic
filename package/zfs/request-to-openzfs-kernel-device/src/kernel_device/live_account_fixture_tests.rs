@@ -2,8 +2,9 @@
 //!  The fixture the delegated-account arms run against,
 //! built by the root run before
 //!  the account process starts:
-//! one encrypted pool with the design's three grants,
-//!  one clone per arm,
+//! one encrypted pool with the grants of the design's "Scoped
+//!  delegation",
+//! one clone per arm,
 //! each with exactly the snapshots that arm needs,
 //! and one of those
 //!  clones promoted,
@@ -12,9 +13,9 @@
 //! Why:
 //!  A delegated arm proves nothing if root made its requests for it,
 //! and an
-//!  account cannot snapshot,
-//! so root must prepare the snapshots and then leave the
-//!  pool alone.
+//!  account cannot snapshot its clone's own names,
+//! so root must prepare the snapshots and then
+//!  leave the pool alone.
 //! Keeping the preparation in one test means the recipe has no
 //!  knowledge of the layout,
 //! and the account tests assert what it built.
