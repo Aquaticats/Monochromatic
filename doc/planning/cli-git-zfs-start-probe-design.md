@@ -260,7 +260,7 @@ dataset mount path. Not taken: root only, this design's own first rank, which wo
 the walk or the mount surface seen only where something mounts as the account; the project took the companion knowing
 that it never touches ZFS and skips on a host that refuses user namespaces. This design's skip also covers a host
 that grants the namespace and denies the capabilities inside it, and a host that grants the namespace and refuses
-a mount the setup makes inside it; and the Ubuntu guest, whose default profile denies the capabilities, is one of
+a mount the setup makes inside it; the Ubuntu guest, whose default profile denies the capabilities, is one of
 those hosts; that reach was not in the question, and [The account companion](#the-account-companion) states which
 refusals the skip covers, what follows a skip, and that both are this design's choice, open to the project's veto,
 rather than the round's.
