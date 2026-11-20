@@ -1192,6 +1192,7 @@ status. `doctor` does not start a service, create a test dataset, repair registr
   commands and the journal queries for `zfs-zed.service` and `reconcile-git-worktree-clone-mounts.service`.
   Show other enabled zedlets before recommending ZED enablement, including applicable syslog, notification,
   enclosure or scrub effects.
+
   Amended 2026-11-20 by the project's acceptance of the staging design:
   the folder's creation,
   its private bind and the wrapper's cleanup now have a design,
@@ -1733,6 +1734,7 @@ parts works.
   dataset mounts lands on the home underlay, and the dataset's later mount hides it. The cleanup also has to stop at
   any mount, because during an interrupted removal a clone is mounted inside the staging folder and a recursive
   delete there would delete the worktree's files.
+
   Amended 2026-11-20 by the project's acceptance of the staging design:
   the folder's creation,
   the private bind and what the wrapper removes now have a design,
@@ -1885,6 +1887,7 @@ test cannot be written until that part exists. None of them is a test for an opt
   mounted tree and that any retained staged mount is tracked and reported, since retaining it is the state the
   busy-unmount decision allows. The cleanup has no design yet
   ([Open items the decisions leave](#open-items-the-decisions-leave)).
+
   Amended 2026-11-20 by the project's acceptance of the staging design:
   the cleanup now has a design,
   in "What the wrapper removes and when" of
