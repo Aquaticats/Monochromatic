@@ -66,12 +66,6 @@ Each record is cited so the context is one read away.
   which is the coordinator's pick with the veto open;
   the alternative is an `mpm install` sweep over every worktree after the release.
   The newest-installed launcher pick has no `doc/decision/` record yet.
-- The rule codes `MXR`,
-  `RDC`,
-  `GCW` and `WXG` are retired but not reserved.
-  Rule `CRN` puts them in `forbidden-strings.append.local.txt`,
-  which is gitignored and is the owner's file;
-  that reservation is the last unmet line of issue 1720.
 - The umbrella list (`225a3b6318`) has three open points left:
   which of its disagreeing maintenance mutation records is right,
   whether to relink the 16,177 dangling links it counted in 172 of 239 readable worktrees,
@@ -96,7 +90,6 @@ Each record is cited so the context is one read away.
 - Should the mount unit's stop block guard its `luksClose`?
   A stop with no mapper now fails where the old stop hid the failure
   (`doc/handover/repository-move-dangling-link-items.md`).
-- May the dead `cli-git@` units of the old name and the 0.5.34 install folder be removed?
 
 Checked and not asked,
 because you have already answered them:
