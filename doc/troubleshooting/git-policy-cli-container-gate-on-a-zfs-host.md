@@ -520,9 +520,8 @@ fixture root, where a tree that instead exhausted the memory bound would end the
 out-of-memory kill. The integration pass of 2026-11-19 measured a whole suite on this root in the image
 `localhost/git-policy-native-test:integrate-git-policy-cli-container-gate-on-a-zfs-host`, 211 samples
 taken every few seconds across 780 s, and that record is kept in this package beside the other raw
-measurements
-(`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`, with the figures its reader printed,
-`perf/gate-resource-peaks-2026-11-19-integration-pass-summary.json`, beside it): `memory.peak`
+measurements (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`, with the figures its reader
+printed, `perf/gate-resource-peaks-2026-11-19-integration-pass-summary.json`, beside it): `memory.peak`
 1123.8 MiB of the 2048 MiB bound, the highest `memory.current` sampled 953.1 MiB, the fixture tmpfs at
 195.1 MiB, and the process pages, a sample's charge minus the fixture bytes in the same sample, at
 868.3 MiB. The bound therefore leaves about 1179.7 MiB for fixtures, and the 768 MiB ceiling is
