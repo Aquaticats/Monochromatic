@@ -380,6 +380,12 @@ The container is built from the wrapper's gate base image,
 `package/git-policy/cli/native-test-base.Containerfile`,
 which takes Rust and `cargo-nextest` from pacman,
 so the tests (rule `RNQ`) and Clippy run there.
+That base also bakes the pinned npm data tarballs of `browserslist-data.lock.json` into the cache
+`file-enforcer`'s `browserslist` rule reads,
+so `file-enforcer write` and `check` resolve `.browserslistrc` in a container with no network,
+and no home folder has to be mounted;
+the cache arrives with the image, from the one image build the container rule lets use the network
+(`package/git-policy/cli/README.md`, "Container base images").
 Inside it,
 `file-enforcer` (`cargo:monochromatic-file-enforcer-cli` `0.1.3`)
 and the repository linter (`cargo:monochromatic-lint` `0.5.2-alpha.8`)

@@ -7,7 +7,15 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { testBaseTag, } from './native-test-base.ts';
+import { testBaseTag, browserslistDataLockPath, } from './native-test-base.ts';
+
+/**
+ npm packages the repository's browserslist data lock pins.
+ */
+const pinnedDataPackages = [
+  'caniuse-lite',
+  'node-releases',
+] as const;
 
 /**
  Image ID of a CachyOS image, as `podman image inspect` prints it.
@@ -87,6 +95,57 @@ await describe({
           cachyosImageId: imageId,
           containerfileText: 'FROM y\n',
         }));
+      },
+    }),
+    it({
+      name: 'changes when the build arguments change',
+      fn: async () => {
+        expect(testBaseTag({
+          repository,
+          cachyosImageId: imageId,
+          containerfileText: 'FROM x\n',
+          buildArgumentsText: 'A=1',
+        })).not.toBe(testBaseTag({
+          repository,
+          cachyosImageId: imageId,
+          containerfileText: 'FROM x\n',
+          buildArgumentsText: 'A=2',
+        }));
+      },
+    }),
+    it({
+      name: 'native-test-base.Containerfile reads the pinned browserslist data through a build argument, typing none of its values',
+      fn: async () => {
+        /**
+         Text of the gate base's Containerfile.
+         */
+        const text = await readFile(
+          join(
+            import.meta.dirname,
+            '..',
+            'native-test-base.Containerfile',
+          ),
+          'utf8',
+        );
+        /**
+         The lock the build script passes to it, which stays the one source of the versions and digests.
+         */
+        const lock = JSON.parse(await readFile(
+          browserslistDataLockPath,
+          'utf8',
+        )) as Record<string, unknown>;
+        expect(text.includes('ARG BROWSERSLIST_DATA_LOCK')).toBe(true);
+        for (const name of pinnedDataPackages) {
+          /**
+           The pinned entry of one npm package.
+           */
+          const pinned = lock[name] as {
+            readonly version: string;
+            readonly integrity: string;
+          };
+          expect(text.includes(pinned.version)).toBe(false);
+          expect(text.includes(pinned.integrity)).toBe(false);
+        }
       },
     }),
     ...derivedContainerfiles.map(function baseRuleTest(path) {

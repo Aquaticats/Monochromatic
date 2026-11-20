@@ -1,16 +1,18 @@
 /**
  The base images of the container runners: the newest CachyOS image the host CPU runs, on its `latest` tag, plus what
  each runner needs from the network. The gate's base (`native-test-base.Containerfile`) adds the Rust toolchain, the
- build tools and the tools the tests start (Git, Node, pnpm, strace, cargo-nextest); the end-to-end base
+ build tools and the tools the tests start (Git, Node, pnpm, strace, cargo-nextest), plus the pinned browserslist data
+ tarballs an offline `file-enforcer check` resolves against; the end-to-end base
  (`e2e/concurrent-commits.Containerfile`) adds Node and Git. Every tool is a current pacman package, with no pin (owner
  decisions of 2026-11-04, recorded in both Containerfiles).
 
  The gate image builds without network from a content-addressed base, but the repository's container base rule
  (`doc/decision/container-base-distro.md`) forbids pinning a base to a version or a digest. This module keeps both:
- each run pulls the `latest` tag once, and the derived base image is named after what that pull returned and the
- Containerfile text. A pull that returns the image already held, and an unchanged Containerfile, find the derived base
- present and build nothing; an upstream update, or a change to the Containerfile, builds a new derived base with
- network, and every later step of the gate stays offline and cached on that base's ID.
+ each run pulls the `latest` tag once, and the derived base image is named after what that pull returned, the
+ Containerfile text and the build arguments. A pull that returns the image already held, an unchanged Containerfile and
+ unchanged arguments find the derived base present and build nothing; an upstream update, or a change to the
+ Containerfile or the arguments, builds a new derived base with network, and every later step of the gate stays offline
+ and cached on that base's ID.
  */
 import { createHash, } from 'node:crypto';
 import {
@@ -62,9 +64,28 @@ const gateContainerfilePath = resolve(
 );
 
 /**
- Repository of the gate's base image; its tag names the CachyOS image and the Containerfile it came from.
+ Repository of the gate's base image; its tag names the CachyOS image, the Containerfile it came from and the arguments
+ that build was given.
  */
 const gateRepository = 'localhost/git-policy-native-test-base';
+
+/**
+ Repository path of the browserslist data lock: the versions and sha512 digests of the pinned npm tarballs the gate's
+ base image caches for `file-enforcer`'s `browserslist` rule (`browserslist-data.lock.json` at the repository root).
+ */
+export const browserslistDataLockPath: string = resolve(
+  import.meta.dirname,
+  '..',
+  '..',
+  '..',
+  '..',
+  'browserslist-data.lock.json',
+);
+
+/**
+ Name of the build argument that carries the browserslist data lock into the gate base's Containerfile.
+ */
+const browserslistDataLockArgument = 'BROWSERSLIST_DATA_LOCK';
 
 /**
  Containerfile of the end-to-end suite's base image.
@@ -144,7 +165,8 @@ function shortHash(text: string): string {
 }
 
 /**
- Name the derived base image after its two inputs: the pulled CachyOS image and the Containerfile.
+ Name the derived base image after its inputs: the pulled CachyOS image, the Containerfile and the arguments the build is
+ given.
 
  @param repository - image repository the tag belongs to
 
@@ -152,7 +174,10 @@ function shortHash(text: string): string {
 
  @param containerfileText - text of the derived base's Containerfile
 
- @returns the image reference; it changes when either input changes and only then
+ @param buildArgumentsText - text of the arguments the build is given, which carry files the build reads instead of
+ copying them; empty when the build takes none
+
+ @returns the image reference; it changes when an input changes and only then
 
  @example
  ```ts
@@ -163,10 +188,12 @@ export function testBaseTag({
   repository,
   cachyosImageId,
   containerfileText,
+  buildArgumentsText = '',
 }: {
   readonly repository: string;
   readonly cachyosImageId: string;
   readonly containerfileText: string;
+  readonly buildArgumentsText?: string;
 },): string {
   /**
    Image ID digits, so the same image is named the same with or without the `sha256:` prefix.
@@ -177,7 +204,7 @@ export function testBaseTag({
   return `${repository}:${digits.slice(
     0,
     tagHashLength,
-  )}-${shortHash(containerfileText)}`;
+  )}-${shortHash(`${containerfileText}\n${buildArgumentsText}`)}`;
 }
 
 /**
@@ -307,6 +334,8 @@ export async function pullCachyosLatest(): Promise<PulledCachyos> {
 
  @param limits - container limits of the build
 
+ @param buildArguments - `NAME=value` arguments the Containerfile reads, which carry a file the build context lacks
+
  @throws NativeVerificationError when the build fails
  */
 async function buildDerivedImage({
@@ -314,11 +343,13 @@ async function buildDerivedImage({
   containerfilePath,
   cachyosImage,
   limits,
+  buildArguments,
 }: {
   readonly tag: string;
   readonly containerfilePath: string;
   readonly cachyosImage: string;
   readonly limits: ContainerLimits;
+  readonly buildArguments: readonly string[];
 },): Promise<void> {
   // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
   // whose backing device is unknowable.
@@ -351,6 +382,12 @@ async function buildDerivedImage({
       '--pull=never',
       '--build-arg',
       `CACHYOS_IMAGE=${cachyosImage}`,
+      ...buildArguments.flatMap(function buildArgument(argument) {
+        return [
+          '--build-arg',
+          argument,
+        ];
+      }),
       ...buildLimitArguments(limits),
       '--tag',
       tag,
@@ -372,6 +409,8 @@ async function buildDerivedImage({
 
  @param limits - container limits of a build, if one is needed
 
+ @param buildArguments - `NAME=value` arguments the build is given, which the tag names too
+
  @returns the derived image and whether this run built it
 
  @throws NativeVerificationError when the build fails
@@ -381,14 +420,16 @@ async function ensureDerivedImage({
   containerfilePath,
   source,
   limits,
+  buildArguments,
 }: {
   readonly repository: string;
   readonly containerfilePath: string;
   readonly source: PulledCachyos;
   readonly limits: ContainerLimits;
+  readonly buildArguments: readonly string[];
 },): Promise<TestBase> {
   /**
-   Reference of the derived image for these two inputs.
+   Reference of the derived image for these inputs.
    */
   const tag = testBaseTag({
     repository,
@@ -397,6 +438,7 @@ async function ensureDerivedImage({
       containerfilePath,
       'utf8',
     ),
+    buildArgumentsText: buildArguments.join('\n'),
   });
   /**
    ID of a derived image an earlier run built, when there is one.
@@ -415,6 +457,7 @@ async function ensureDerivedImage({
     containerfilePath,
     cachyosImage: source.cachyosImage,
     limits,
+    buildArguments,
   });
   /**
    ID of the image just built.
@@ -459,6 +502,9 @@ export async function ensureTestBase({
     containerfilePath: gateContainerfilePath,
     source: source ?? await pullCachyosLatest(),
     limits,
+    // The Containerfile copies nothing from its build context, so the lock file reaches it as an argument, whose text the
+    // tag names too: a changed lock builds a new base instead of leaving a cache the new lock no longer matches.
+    buildArguments: [`${browserslistDataLockArgument}=${await readFile(browserslistDataLockPath, 'utf8')}`],
   });
 }
 
@@ -491,5 +537,6 @@ export async function ensureEndToEndBase({
     containerfilePath: endToEndContainerfilePath,
     source: source ?? await pullCachyosLatest(),
     limits,
+    buildArguments: [],
   });
 }
