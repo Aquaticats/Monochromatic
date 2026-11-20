@@ -21,6 +21,13 @@ fn struct_size_is_the_module_btf_size() {
 }
 
 #[test]
+fn the_stats_struct_ends_with_the_flag_244_added() {
+    assert_eq!(size_of::<DmuObjsetStats>(), 288);
+    assert_eq!(offset_of!(DmuObjsetStats, dds_origin), 31);
+    assert_eq!(offset_of!(DmuObjsetStats, dds_flags), 287);
+}
+
+#[test]
 fn union_and_trailing_fields_sit_at_their_btf_offsets() {
     assert_eq!(offset_of!(ZfsCmd, zc_inject_overlay), 13_296);
     assert_eq!(size_of::<ZinjectRecord>(), 368);

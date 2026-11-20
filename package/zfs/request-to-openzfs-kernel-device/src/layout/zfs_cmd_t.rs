@@ -64,6 +64,10 @@ pub struct ZfsShare {
 
 /// `dmu_objset_stats_t`:
 /// what `OBJSET_STATS` and both listing requests fill.
+/// OpenZFS `zfs-2.4.4` added `dds_flags` as the last field
+/// (`include/sys/dmu.h:1032-1043`);
+/// it lands in the byte the earlier layout left as padding,
+/// so the struct stays 288 bytes.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct DmuObjsetStats {
@@ -85,6 +89,10 @@ pub struct DmuObjsetStats {
     /// The origin snapshot's name for a clone,
     /// empty otherwise.
     pub dds_origin: [u8; MAXNAMELEN],
+    /// `dmu_objset_flag_t`:
+    /// `DDS_FLAG_ENCRYPTED` and `DDS_FLAG_HAS_ENCRYPTED`,
+    /// the field `zfs-2.4.4` added at offset 287.
+    pub dds_flags: u8,
 }
 
 /// `struct drr_begin`:
@@ -364,6 +372,9 @@ fn text_field(field: &[u8]) -> String {
 const _: () = {
     assert!(size_of::<ZfsShare>() == 32);
     assert!(size_of::<DmuObjsetStats>() == 288);
+    // `dds_flags`, the field `zfs-2.4.4` added (`include/sys/dmu.h:1041`),
+    // sits in the padding byte after `dds_origin`.
+    assert!(offset_of!(DmuObjsetStats, dds_flags) == 287);
     assert!(size_of::<DrrBegin>() == 304);
     assert!(size_of::<ZinjectRecord>() == 368);
     assert!(size_of::<ZcDestroyControl>() == 368);
