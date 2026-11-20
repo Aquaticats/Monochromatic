@@ -391,4 +391,4 @@ No issue or comment was drafted or sent.
 [wayland-kcm]: https://fcitx-im.org/wiki/Using_Fcitx_5_on_Wayland#:~:text=Use%20%22Virtual%20keyboard%22%20KCM%20to%20launch%20fcitx5.
 [wayland-xmodifiers]: https://fcitx-im.org/wiki/Using_Fcitx_5_on_Wayland#:~:text=XMODIFIERS%3D%40im%3Dfcitx%20for%20XWayland%20application
 [kwin-vk-key]: https://github.com/KDE/kwin/blob/e99068b40ad042441b830b72d7968d98f505e26b/src/kcms/virtualkeyboard/kcmvirtualkeyboard.cpp#L61-L63
-[autostart-hidden]: https://specifications.freedesktop.org/autostart-spec/latest/#:~:text=which%20contains%20the%20key%20Hidden%3Dtrue
+[autostart-hidden]: https://specifications.freedesktop.org/autostart/latest/#startup:~:text=which%20contains%20the%20key
