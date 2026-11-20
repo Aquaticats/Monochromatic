@@ -1012,9 +1012,11 @@ first attach's outcome.
 Its deadline. The parent bounds the child with a monotonic deadline and, on expiry, kills the child's process group
 and refuses the managed attach as unproven, which is the same posture the deadline answer gives the probe. A refused
 start is retried inside the wrapper's five-second budget before any child exists, so that budget is spent outside
-this bound and an add can wait the budget and then the deadline. No value is stated, and step 10 cites the value
-beside [M11](#m11-the-account-companion-per-add)'s run; until that run exists, a shipped build's companion does not
-run in the preflight or in `doctor`, as [Who runs it, and where](#who-runs-it-and-where) states for the probe's own
+this bound; the runner then awaits a place for one ceiling and the job for another, both the companion's deadline,
+so the add's whole wait is that budget and those two ceilings and nothing else. No value is stated, and step 10
+cites the value beside [M11](#m11-the-account-companion-per-add)'s run; until that run exists, a shipped build's
+companion does not run in the preflight or in `doctor`, as [Who runs it, and where](#who-runs-it-and-where) states
+for the probe's own
 deadline, and the guest run of M11 is the one exception, through a `CLI_GIT_TEST_ONLY_*` switch and a test deadline
 that are compiled into the release executable and inert unless set (the decision in
 `doc/planning/cli-git-rust-open-decisions.md:3646` to `:3649`, which keeps the test-only crash switch in the release
@@ -1147,13 +1149,16 @@ its own:
   ordinary here (`doc/troubleshooting/run-wrapper-pids-max-refuses-fork-and-threads.md`), and a shortage that
   outlasts the budget is a host fault the add itself would meet.
 - A refused blocking-pool thread, which can arrive before any child exists: the fork goes through the wrapper's
-  budgeted runner (`.../foundation/blocking_jobs_within_the_budget.rs:187`), which takes the wrapper's one-shot claim
-  on the job's work before that work's first effect
+  ceilinged runner, `run_a_job_once_awaited_no_longer_than`
+  (`.../foundation/blocking_jobs_within_the_budget.rs:529`), awaited with the companion's deadline as its ceiling,
+  because the budget-only variant takes a place with no ceiling and would wait for one nothing gives back (`:508`
+  to `:520`). It takes the wrapper's one-shot claim on the job's work before that work's first effect
   (`.../foundation/the_claim_a_job_takes_before_running_it.rs:1` to `:24`), so a refusal the runner can promise
   about is `NoThreadToStart` and nothing was made, while one it cannot is reported as started or as maybe-run
-  (`.../foundation/blocking_job.rs:38` to `:67`). Either is an arm failure naming the pool thread and the claim's
-  answer, so the add is refused as unproven; without that claim a companion run could start after the add had
-  already answered.
+  (`.../foundation/blocking_job.rs:38` to `:67`). Both variants share that claim and the place's release
+  (`run_a_job_holding_the_place`, `:220` to `:257`). Either is an arm failure naming the pool thread and the
+  claim's answer, so the add is refused as unproven; without that claim a companion run could start after the add
+  had already answered.
 - A failed pipe, or a child that ends with no status line, or with one the parent cannot parse: an arm failure
   naming the pipe's failing call and its errno (`EMFILE` or `ENFILE` from a `pipe2`, or the child's own prelude
   failing), or naming `no status line` when the child's `_exit` came before its line.
