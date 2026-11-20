@@ -40119,7 +40119,18 @@ What follows from them, as work:
   the plan note overreaches in two clauses for an accepted plan. GOING: the round
   `pi-git-policy-cli-gate-base-image-browserslist-review-findings-fixed` (DeepSeek on Neuralwatt, cap 300): merge the
   githooks branch's wording commits first, then every finding, the plan note shrunk to the one fact step 1 needs; brief
-  under `~/temp/agent/git-policy-cli-gate-base-image-browserslist-review-findings-fixed-2026-11-19/`. The githooks
+  under `~/temp/agent/git-policy-cli-gate-base-image-browserslist-review-findings-fixed-2026-11-19/`. It ended `idle`
+  (111 turns) at `ce7266cf04` (merge `106a930020` with no conflict, then three commits; report in that folder's
+  `keep/report.md`, probes beside it): F1 an empty argument list hashes the Containerfile alone again (end-to-end tag
+  back to `6fa67475da3a-88d654dc4508`, a test red then green); the two records keep their command and gain the lock
+  argument in place; the fetch has a timeout, a `read(MAX+1)` size check, a redirect refusal and a status-200 check
+  (probes: redirect, 64 MiB plus one and a tampered digest each refused); the step reads every lock entry and the test
+  derives names from the lock (a forged three-package lock writes all three); the plan note shrunk to the one fact; the
+  author's earlier "7 of 7" corrected to nine names; base rebuilt twice, `check --outputs committed` exit 0 offline as
+  the gate's user, empty-cache control `browserslist-fetch-failed`. GOING: its short re-check on the Qwen plan,
+  `pi-qwen-review-gate-base-image-browserslist-round-at-ce7266cf04` (watched), the merge and the new fetch code first;
+  brief under `~/temp/agent/git-policy-cli-gate-base-image-browserslist-round-short-review-on-the-qwen-plan-2026-11-19/`.
+  Then the branch (which carries the githooks fix) goes into the LFS integration pass. The githooks
   fix's lows round ended `idle` (61 turns) at `8702d8a03e` (two commits; report in
   `~/temp/agent/git-policy-cli-gate-base-image-githooks-review-lows-fixed-2026-11-19/keep/report.md`): "most of its
   packages" with the image-wide counts; the entry is a top-level section labelled `2026-11-19T19:18:44-05:00`; the page
