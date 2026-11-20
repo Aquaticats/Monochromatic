@@ -35,8 +35,10 @@
 //! if (fence.gitWrites.length > 0) writeThroughGit(destination, admin, context, fence.gitWrites);
 //! ```
 
-use crate::diagnostic_log::debug;
 use crate::config_snapshot::ConfigEntry;
+use crate::diagnostic_log::debug;
+use crate::repo_read_index::parse_index;
+use crate::repo_read_layout::ObjectFormat;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_clean::{StatEntry, stored_stats};
 use crate::worktree_clone_conversion_rules::{ConversionRules, FenceVerdict, PathAttributes, apply_attribute, conversion_rules_from_config, decide, needs_blob_size};
@@ -360,6 +362,7 @@ pub fn fence_the_clone(source: &SnapshotSource, context: &GitContext) -> Result<
     match std::env::var("MONOCHROMATIC_CLONE_FENCE").unwrap_or_default().as_str() {
         "decline" => return decline_when_conversion_could_apply(source, entries.as_slice()),
         "all" => return Ok(all_paths_through_git(entries.as_slice())),
+        "off" => return Ok(Fence { git_writes: Vec::new(), carried: entries.len() }),
         _ => {}
     }
     let rules: ConversionRules = conversion_rules_from_config(config_of(source));
@@ -409,6 +412,50 @@ fn fence_sentence(path: &[u8], reason: &str) -> String {
 }
 
 /// What:
+///  Zero the instance data of the index entries for `paths`,
+/// with one `git update-index -z --index-info`,
+/// so the entry no longer vouches for whatever the rung put in the work tree.
+/// Why:
+///   `git checkout-index` in place writes a path only when its entry's stat data no longer matches the file
+/// (`entry.c`,
+///  `checkout_entry_ca`,
+/// `if (!changed) return 0;`),
+/// and both rungs can put bytes in the work tree that the entry's own fields still describe:
+/// the clone rung installs the source's index over a copy made here,
+/// and a btrfs snapshot keeps the source's inode and times, so the copied file *is* the file the source's index recorded.
+/// A zeroed entry matches nothing (`read-tree` leaves entries this way),
+/// so Git rewrites it and the first status hashes it once and finds it clean.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function zeroTheEntries(admin, destination, context, paths, hashLength); // throws the reason
+/// ```
+fn zero_the_entries(admin: &Path, destination: &Path, context: &GitContext, paths: &[Vec<u8>], hash_length: usize) -> Result<(), String> {
+    let index_path: PathBuf = admin.join("index");
+    let bytes: Vec<u8> = std::fs::read(index_path.as_path()).map_err(|error| return format!("the new worktree's index cannot be read ({error})"))?;
+    let format: ObjectFormat = if hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
+    let Some(entries) = parse_index(bytes.as_slice(), format) else {
+        return Err(String::from("the new worktree's index has a layout the reader does not know"));
+    };
+    let wanted: HashSet<&[u8]> = paths.iter().map(|path| return path.as_slice()).collect();
+    let mut input: Vec<u8> = Vec::new();
+    for entry in &entries {
+        if !wanted.contains(entry.path.as_slice()) || entry.mode & MODE_TYPE_MASK == MODE_SYMLINK {
+            continue;
+        }
+        let object: String = crate::repo_read_object::to_hex(entry.id.as_slice());
+        input.extend_from_slice(format!("{:o} {object}\t", entry.mode).as_bytes());
+        input.extend_from_slice(entry.path.as_slice());
+        input.push(0);
+    }
+    if input.is_empty() {
+        return Ok(());
+    }
+    let output: GitOutput = run_in(context, destination, words(&["update-index", "-z", "--index-info"]).as_slice(), Some(input), checkout_environment(admin, destination))?;
+    return if output.code == Some(0) { Ok(()) } else { Err(run_reason("`git update-index --index-info`", &output)) };
+}
+
+/// What:
 ///  Write the paths Git must write,
 /// in the destination,
 /// through one `git checkout-index --force --stdin`.
@@ -416,23 +463,17 @@ fn fence_sentence(path: &[u8], reason: &str) -> String {
 ///   Git owns the conversion,
 /// so asking it for these bytes is the only answer that needs no model of a filter,
 ///  an encoding or an ending;
-/// the run names the destination's Git directory and work tree,
+/// the runs name the destination's Git directory and work tree,
 /// as the ladder's other runs do,
 /// so the destination's own settings decide.
-/// `checkout-index` in place writes a path only when the entry's stat data no longer matches the file
-///  (`entry.c`,
-/// `checkout_entry_ca`,
-/// `if (!changed) return 0;`),
-/// which is why the index this rung installs keeps the seed's own fields for exactly these paths
-///  (`clone_tracked_files`, the `unproven` set):
-/// the source's fields cannot describe a copy made here,
-/// so Git rewrites the file from the index through its own conversion.
+/// The entries are zeroed first (`zero_the_entries`), because an entry that still matches the file is left alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function writeThroughGit(destination, admin, context, paths); // throws the reason
+/// function writeThroughGit(admin, destination, context, paths, hashLength); // throws the reason
 /// ```
-pub fn write_through_git(destination: &Path, admin: &Path, context: &GitContext, paths: &[Vec<u8>]) -> Result<(), String> {
+pub fn write_through_git(admin: &Path, destination: &Path, context: &GitContext, paths: &[Vec<u8>], hash_length: usize) -> Result<(), String> {
+    zero_the_entries(admin, destination, context, paths, hash_length)?;
     let mut input: Vec<u8> = Vec::new();
     for path in paths {
         input.extend_from_slice(path.as_slice());

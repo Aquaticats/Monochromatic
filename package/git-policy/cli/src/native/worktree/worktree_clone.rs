@@ -53,7 +53,7 @@ use crate::worktree_copy_stage_leaf_copying::PARALLEL_COPY_MAX_WORKERS;
 use crate::worktree_path_failure_message::subject_failure;
 use crate::worktree_clean::{StatEntry, metadata_differs_from_entry, stored_stats};
 use crate::worktree_snapshot_source::SnapshotSource;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::os::fd::AsRawFd;
@@ -633,28 +633,16 @@ fn clone_the_entries(work: EntriesToClone<'_, '_>) -> ClonedEntries {
 struct StatsMadeByTheClones<'a> {
     /// The fields by path.
     stats: &'a HashMap<Vec<u8>, StatFields>,
-    /// The paths whose installed entry must not vouch for the clone,
-    /// because Git's checkout writes different bytes there and `git checkout-index` writes a path only when its entry's
-    ///  stat data no longer matches the file (`entry.c`,
-    /// `checkout_entry_ca`,
-    /// `if (!changed) return 0;`).
-    /// These keep the seed's own fields,
-    /// which describe the source's file and cannot match a copy made here,
-    /// so Git rewrites them from the index through its own conversion.
-    unproven: &'a HashSet<Vec<u8>>,
 }
 
 impl StatLookup for StatsMadeByTheClones<'_> {
     fn stat_now(&mut self, path: &[u8]) -> Option<StatFields> {
-        if self.unproven.contains(path) {
-            return None;
-        }
         return self.stats.get(path).copied();
     }
 }
 
 /// `clone_all` in one turn, with the moments at which a control may move the tree.
-fn clone_with(source: &SnapshotSource, directories: &mut Directories, admin: &File, created: &mut Vec<Created>, unproven: &HashSet<Vec<u8>>, seams: &mut Seams<'_>) -> Result<(), String> {
+fn clone_with(source: &SnapshotSource, directories: &mut Directories, admin: &File, created: &mut Vec<Created>, seams: &mut Seams<'_>) -> Result<(), String> {
     let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
         return Err(String::from("the source's index changed shape"));
     };
@@ -674,7 +662,7 @@ fn clone_with(source: &SnapshotSource, directories: &mut Directories, admin: &Fi
     }
     (seams.before_index)();
     let index_entered: bool = begin_step("cloneIndex");
-    let installed: Result<String, String> = install_index_in(admin, source.clean.index_bytes.as_slice(), &mut StatsMadeByTheClones { stats: &stats, unproven }, source.clean.hash_length);
+    let installed: Result<String, String> = install_index_in(admin, source.clean.index_bytes.as_slice(), &mut StatsMadeByTheClones { stats: &stats }, source.clean.hash_length);
     end_step(index_entered);
     let report: String = installed?;
     debug_report(report.as_str());
@@ -798,7 +786,7 @@ fn clone_worker_count(entries: usize) -> usize {
 /// ```ts
 /// cloneInSlices({ source, entries, destination, admin, created, workers }); // throws a reason
 /// ```
-fn clone_in_slices(source: &SnapshotSource, entries: Arc<[StatEntry]>, destination: &File, admin: &File, created: &mut Vec<Created>, unproven: &HashSet<Vec<u8>>, workers: usize) -> Result<(), String> {
+fn clone_in_slices(source: &SnapshotSource, entries: Arc<[StatEntry]>, destination: &File, admin: &File, created: &mut Vec<Created>, workers: usize) -> Result<(), String> {
     let source_root: Arc<File> = Arc::new(subject_failure(open_root(source.root.as_path()), &"the source's root", "cannot be opened")?);
     let destination_held: Arc<File> = Arc::new(subject_failure(destination.try_clone(), &"the destination handle", "cannot be kept")?);
     let shared_source: Arc<SnapshotSource> = Arc::new(source.clone());
@@ -822,7 +810,7 @@ fn clone_in_slices(source: &SnapshotSource, entries: Arc<[StatEntry]>, destinati
             let mut directories: Directories = HashMap::new();
             directories.insert(Vec::new(), subject_failure(destination.try_clone(), &"the destination handle", "cannot be kept")?);
             let mut seams: Seams<'_> = Seams { after_lookup: &mut do_nothing, after_clone: &mut do_nothing, before_index: &mut do_nothing };
-            return clone_with(source, &mut directories, admin, created, unproven, &mut seams);
+            return clone_with(source, &mut directories, admin, created, &mut seams);
         }
     };
     let mut stats: HashMap<Vec<u8>, StatFields> = HashMap::new();
@@ -847,7 +835,7 @@ fn clone_in_slices(source: &SnapshotSource, entries: Arc<[StatEntry]>, destinati
         return Err(reason);
     }
     let index_entered: bool = begin_step("cloneIndex");
-    let installed: Result<String, String> = install_index_in(admin, source.clean.index_bytes.as_slice(), &mut StatsMadeByTheClones { stats: &stats, unproven }, source.clean.hash_length);
+    let installed: Result<String, String> = install_index_in(admin, source.clean.index_bytes.as_slice(), &mut StatsMadeByTheClones { stats: &stats }, source.clean.hash_length);
     end_step(index_entered);
     let report: String = installed?;
     debug_report(report.as_str());
@@ -858,18 +846,18 @@ fn clone_in_slices(source: &SnapshotSource, entries: Arc<[StatEntry]>, destinati
 /// every tracked file in the slices the host's budget allows,
 /// then the index;
 /// the caller removes `created` when this fails.
-fn clone_all(source: &SnapshotSource, destination: &File, admin: &File, created: &mut Vec<Created>, unproven: &HashSet<Vec<u8>>) -> Result<(), String> {
+fn clone_all(source: &SnapshotSource, destination: &File, admin: &File, created: &mut Vec<Created>) -> Result<(), String> {
     let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
         return Err(String::from("the source's index changed shape"));
     };
     let workers: usize = clone_worker_count(entries.len());
     if workers > 1 {
-        return clone_in_slices(source, Arc::from(entries), destination, admin, created, unproven, workers);
+        return clone_in_slices(source, Arc::from(entries), destination, admin, created, workers);
     }
     let mut directories: Directories = HashMap::new();
     directories.insert(Vec::new(), subject_failure(destination.try_clone(), &"the destination handle", "cannot be kept")?);
     let mut seams: Seams<'_> = Seams { after_lookup: &mut do_nothing, after_clone: &mut do_nothing, before_index: &mut do_nothing };
-    return clone_with(source, &mut directories, admin, created, unproven, &mut seams);
+    return clone_with(source, &mut directories, admin, created, &mut seams);
 }
 
 /// Log what the index install did.
@@ -899,13 +887,9 @@ fn debug_report(report: &str) {
 /// ```ts
 /// const cloned = await cloneTrackedFiles(source, destination, admin); // throws a reason
 /// ```
-pub fn clone_tracked_files(source: &SnapshotSource, destination: &File, admin: &File, git_writes: &[Vec<u8>]) -> Result<Cloned, String> {
-    let mut unproven: HashSet<Vec<u8>> = HashSet::new();
-    for path in git_writes {
-        unproven.insert(path.clone());
-    }
+pub fn clone_tracked_files(source: &SnapshotSource, destination: &File, admin: &File) -> Result<Cloned, String> {
     let mut created: Vec<Created> = Vec::new();
-    if let Err(reason) = clone_all(source, destination, admin, &mut created, &unproven) {
+    if let Err(reason) = clone_all(source, destination, admin, &mut created) {
         return Err(if created.is_empty() { reason } else { format!("{reason}; {} entries it created stay", created.len()) });
     }
     return Ok(Cloned { created });
