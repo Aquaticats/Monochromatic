@@ -2039,6 +2039,38 @@ the entry says what they add, so the name stays the revision's first commit rath
   copies of its output for this revision and the planted-fault control, moved there from the scratch folder that run
   used, passes on this revision and fails on a control copy with planted faults.
 
+- `146bc62e42` at `2026-11-19T23:25:49-05:00`: this revision, answering the narrow check of `f2e2f551fe`, which
+  found no high finding, one medium and eight lows, and no change to a decision the project made. Every finding was
+  accepted and fixed, and none was dismissed. The veto section now says what the project is asked: option (c) of
+  the rollback entry states that it keeps both halves of the accepted "prove both" proof and drops only the
+  writer's parent-row comparison, so a veto can still take it; the stacking entry states the combined-scene refusal
+  as the design's reading of the accepted "retaining and reporting it only if rollback fails", which departs from
+  the answer's label "Move it back at once", and names rolling back anyway as that label's literal reading; and the
+  scene boundary becomes its own question, with options and a reason per adjacent pair, named by the lead and by
+  "Questions the owner answered". The rollback's classification is now the accepted "Misplaced attach" rule applied
+  within the invocation that made the move, the reading under which the recorded "Keep, one exception
+  (Recommended)" and the sentences that say one exception stay true; its entry marks that reading for the project's
+  veto with "veto none" as the default, and a veto takes the second-exception reading, which amends those
+  sentences. The `ESTALE`-means-gone sentence states the pair of tests the record section gives; the receipt-only
+  sentences and the Way A bullet say the receipt path, with the other-boot settlement as the one removal it does
+  not gate; A1 reads an other-boot record as void; the list of who voids a record gains the binding invocation's
+  boot-id void; a record with no handle is the malformed case the read rule names, with its exit; and M6's
+  no-capability arm gains a binding invocation meeting a current-boot record. L14 records the folder identity's
+  device as ZFS's anonymous per-mount number, inherited from the accepted device-and-inode records, says that a
+  changed number makes the other-boot settlement fail closed and leaves the orphan to the administrator, and M6's
+  device-across-a-reboot arm settles it. The stacking rule and its M1 arm say the clone's attach propagates in that
+  window, so the host table holds more than one row for it, and the arm records the bind's parent row. L13 and the
+  record section scope the unshared-wrapper exposure to a private copy of `user-cache` that predates the bind, and
+  the other-boot veto entry points at L13. L2, F29 and "Sources read" carry the `v7.3` citations the text makes and
+  no others. Every plan and proposal citation was re-checked against `main` as it now stands: no quoted sentence
+  moved, and one quote lost a period it had added inside the quotation. Its label is the committer timestamp of
+  `7c17fb2766` at `2026-11-19T23:29:30-05:00`, the last commit that changed this revision's text before this label
+  was written, because a commit cannot name its own hash; this entry was written at
+  `2026-11-19T23:29:39-05:00`. The prose checker kept in
+  `~/temp/agent/zfs-staging-under-cache-design-fourth-revision-narrow-check-findings-fixed-2026-11-19/keep/`, with
+  its output for this revision and the planted-fault control, passes on this revision and fails on the control, and
+  the citation checker kept beside it finds every one of its checks in `main`'s plan and proposal.
+
 ## Sources read
 
 - Linux, upstream tag `v6.8`, files fetched by URL at that tag: `fs/namespace.c`, `fs/namei.c`, `fs/pnode.c`,
