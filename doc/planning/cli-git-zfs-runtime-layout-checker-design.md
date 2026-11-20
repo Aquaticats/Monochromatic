@@ -635,8 +635,13 @@ the pick is not made here.
   written into a commit cannot name that commit's own time or hash. The commits this round made
   before this entry are `64bbc146b8` at 23:03:27, `45455bb4b6` at 23:03:57, `6cee8c168d` at
   23:04:46, `e730648a86` at 23:05:24, `136e3fb202` at 23:06:45 and `7219884657` at 23:08:16, each
-  time the commit's own committer date and the worktree reflog's, to the second; no
-  `GIT_AUTHOR_DATE`, `GIT_COMMITTER_DATE` or `--date` was set for any of them. They are the
+  time the commit's own committer date and the worktree reflog's, to the second; the commit that
+  carries this entry is `fe6ba8ed59` at 23:09:10, and `b8de4a383d` at 23:09:47 is the wording fix
+  after it; no `GIT_AUTHOR_DATE`, `GIT_COMMITTER_DATE` or `--date` was set for any of them.
+  This label and the read of step 2 this entry records, 2026-11-19T23:04:00-05:00, are clock
+  readings that round took and did not keep, so neither is a commit time: the label sits between
+  `7219884657` and `fe6ba8ed59`, and the read sits between `45455bb4b6` at 23:03:57 and step 2's
+  move to `478a097260` at 23:04:45, which is why it saw `08c9dea25f` as the tip. They are the
   revision that answers the narrow gate check of the fourth revision, kept at
   `~/temp/agent/zfs-runtime-layout-checker-design-fourth-revision-narrow-gate-check-2026-11-19/keep/review.md`.
   That check is independent of this file's author (rule `IRW`) and is not an approval; it found no
@@ -681,6 +686,51 @@ the pick is not made here.
   read, and the four-line move a merge made in the plan shows: "Open items" at 764 to 766, "What it
   builds" at 715 to 719 with `module release,` on 716, and the "VM measurements" sentence at 754 to
   757. Every quotation is still word for word there.
+  The prose checker ran clean and its control moved every count it targets, under
+  [The prose checks](#the-prose-checks).
+  No product file, no plan step and no proposal step is edited here.
+- `2026-11-19T23:44:09-05:00`, the time this entry was written, which no commit can carry: a label
+  written into a commit cannot name that commit's own time or hash. The commits this round made
+  before this entry are `280f58b04b` at 23:40:24, `835ddd2e06` at 23:40:45, `22c3c345ac` at
+  23:41:14, `8511e04741` at 23:41:39 and `8d516064df` at 23:43:18, each time the commit's own
+  committer date and the worktree reflog's, to the second; no `GIT_AUTHOR_DATE`,
+  `GIT_COMMITTER_DATE` or `--date` was set for any of them. The commit that carries this entry and
+  the wording fix after it are named in that fix's own text, which changes this record alone. This
+  is the revision that answers the diff-only gate check of the fifth revision, kept at
+  `~/temp/agent/zfs-runtime-layout-checker-design-fifth-revision-diff-only-gate-check-2026-11-19/keep/review.md`.
+  That check is independent of this file's author (rule `IRW`) and is not an approval; it found no
+  high finding, no medium and fifteen lows, six of them to fix first, and called the file not ready
+  for the project.
+  The six, F1 to F6: `13bc5036d2` was one commit behind the tip, and that commit changed three
+  documentation files, so nothing says "three commits" any more; `08c9dea25f` was step 2's tip
+  when it was read, and the integrate branch's merge `58a1bba2f5` has it as its second parent; the
+  zvol run compared `zvol_set_common`, `zvol_set_ro` and `zvol_set_volthreading` at 2.3.0 and
+  2.4.4, the releases that carry those bodies, since 2.2.2 has none of them; the clone path's
+  count names the fourth revision's narrow check clone-handler run and the folder it comes from,
+  and the third re-check's roots-cut run is not its source; the prose checker's SHA-256 is recorded
+  under [The prose checks](#the-prose-checks), where the sentence that cites it says so; and the
+  cache's veto covers the per-process `OnceLock` and its recheck alone, with the disk cache left
+  where the project holds it, in Q3.
+  The nine that ride along, F7 to F15: the all-absent case says the two identity reads compare
+  nothing the check trusts and only the cache recheck compares the file facts; the header says
+  "marked there", and the fifth entry names the writer list rather than the header as the list that
+  carries the markers; the fifth entry names the commit that carries it, the wording fix after it,
+  and marks its own label and the read of step 2 as clock readings that round did not keep, bounded
+  by the commits and the branch's move they sit between; item 6's heading says the 24-byte header
+  passes in the guest and the 32-byte one device-free; the re-confirmed answer is "the same list
+  item", and its option 2 is the handover's wording with "decides" marked as the design's; the
+  clone path's five are "five of the seven on the property-set path"; the volume sentence begins
+  "Taken together", since the inserted `snapdev` and `volmode` block now precedes it; the layout
+  line, the kernel and the module are cited by their own record lines; the absent-identity rules
+  name both alternatives they did not take and what each costs; the evidence correction says the
+  `snapdev` and `volmode` reading came after the answer and why it does not change it; and the
+  sources list adds the `zfs_prop.c` read, with the two positional pointers replaced by the line
+  and the commit they name.
+  Step 2's standing is dated to `08c9dea25f`, read at 2026-11-19T23:04:00-05:00, and to
+  `69cef8fe3c`, read at 2026-11-19T23:40:09-05:00; its branch has moved since, so any change to it
+  leaves both paragraphs true as dated records.
+  Every Amendment line and every quoted answer was left as the fifth revision measured it: this
+  round changed no quotation and no locator in the proposal, the plan or the binding `README.md`.
   The prose checker ran clean and its control moved every count it targets, under
   [The prose checks](#the-prose-checks).
   No product file, no plan step and no proposal step is edited here.
@@ -896,6 +946,34 @@ Run in the revision that answered the narrow gate check of the fourth revision, 
 - The prose checker described under [The prose checks](#the-prose-checks), on this file and on a
   deliberately broken copy of it, run from the copy whose checksum the section records.
 
+Run in the revision that answered the diff-only gate check of the fifth revision, read only:
+
+- The diff-only check's kept review and its evidence folder,
+  `~/temp/agent/zfs-runtime-layout-checker-design-fifth-revision-diff-only-gate-check-2026-11-19/keep/`,
+  read for what each finding rests on before this revision weighed it.
+- `git rev-list --count 13bc5036d2..08c9dea25f`, `git log` and `git diff --stat` over that range,
+  and `git log --format=%p` on `58a1bba2f5`, which give the one commit, the three documentation
+  files it changed, and the integrate merge's two parents.
+- `git log` on step 2's branch again: its tip `69cef8fe3c` at 2026-11-19T23:40:09-05:00, four
+  commits on from `08c9dea25f`, and the integrate branch still at `58a1bba2f5`.
+- `git show 69cef8fe3c:` of step 2's `e2e/run-fixture.ts` and its measurement record, for the
+  recipe's copy of `/sys/kernel/btf/vmlinux`, its `test -f` after `insmod`, the test's
+  `pahole --btf_base` read and the record's layout line.
+- The third gate re-check's `trace-call-paths-output.txt` and its
+  `compare-handlers-registrations-and-reachable-callees-output.txt` in its `keep/evidence/` folder,
+  for the clone's path and the 7 of 46 the roots-cut run reports.
+- `show-which-differing-functions-the-clone-handler-alone-reaches.ts` and its kept output, in the
+  fourth revision's narrow check's `keep/evidence/` folder, for the clone path's count.
+- `rg` over the comparison folder's `zfs_ioctl-zfs-2.2.2.c`, `zfs_ioctl-zfs-2.3.0.c` and
+  `zfs_ioctl-zfs-2.4.4.c` for the three `zvol_set_*` calls, which show that 2.2.2 has none of
+  them.
+- `git show cb84b5769f:` of the main checkout's handover, for the follow-up answer's own words and
+  the three options it lists.
+- `git show fe6ba8ed59:` of this file, run through the prose checker, which reproduces the counts
+  that commit records.
+- `sha256sum` of the prose checker at the two paths that name it, and the checker on this file and
+  on the deliberately broken copy the control paragraph describes.
+
 Not run:
 
 - No VM, no container, no ZFS command that changes anything,
@@ -930,9 +1008,9 @@ Its ALL CAPS hits include the two quoted markers of the main checkout's handover
 "THE ROUND WAS ASKED" and "LAYOUT CHECKER REVIEW ENDED", which are a record's own words.
 This revision's counts: dashes 0, spaced hyphens 5, long lines 0 with the longest at 116, tables 0,
 heading issues 0, positional words 25, emphasis 0, ALL CAPS words 21, marker padding 0,
-bare dates 61, count words 286, digit-plus-noun hits 67 and link problems 0 over 15 reference
+bare dates 61, count words 299, digit-plus-noun hits 67 and link problems 0 over 15 reference
 definitions.
-Emphasis 0 and capitalised words 21 held, and count words went from 275 to 286 with the sentences
+Emphasis 0 and capitalised words 21 held, and count words went from 275 to 299 with the sentences
 this revision added; the rest held the counts `fe6ba8ed59` recorded, which the same checker
 reproduces on that commit's text: dashes 0, spaced hyphens 5, long lines 0 with the longest at
 116, tables 0, heading issues 0, positional words 25, emphasis 0, capitalised words 22, marker
@@ -943,7 +1021,7 @@ Control: the same checker on a copy in this round's scratch folder with one inje
 prose rule moved every count it targets: dashes 0 to 1, spaced hyphens 5 to 6, long lines 0 to 1
 with the longest at 220, tables 0 to 2, heading issues 0 to 4, positional words 25 to 26,
 emphasis 0 to 1, ALL CAPS words 21 to 22, marker padding 0 to 1, bare dates 61 to 62, count words
-286 to 288 and digit-plus-noun hits 67 to 68.
+299 to 301 and digit-plus-noun hits 67 to 68.
 Link problems rose from 0 to 26: 22 of them are the copy's own folder breaking the relative links to
 the sibling design files, and the other four are the injected missing anchor, the injected link to
 a file that does not exist, and the injected unused definition, which counts once as unused and
