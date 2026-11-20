@@ -739,7 +739,13 @@ putting those tools on the checkout's `PATH` for every session.
 Ranking: link now > wait, because the record's reason for waiting was an install that converges the whole toolchain,
 and the measurement shows nothing left to install.
 
-## Open: accept the ZFS runtime layout checker design? (ready 2026-11-20T00:06:01-05:00)
+## Answered: accept the ZFS runtime layout checker design? (ready 2026-11-20T00:06:01-05:00)
+
+The owner, through the question tool on 2026-11-20: "Accept as written (Recommended)".
+So the design at `22703f23df` is accepted with none of its four veto-open choices vetoed;
+its ten lows are fixed in the decision record's copy; the held Q3 (the disk cache) stays open until owed measurement
+item 10 runs.
+Next: the decision record and the amendments it names, then this section moves out.
 
 This goes to the question tool when you are back, with the other two ZFS designs if they are ready by then.
 
@@ -819,7 +825,14 @@ you do.
 Ranking a > b: a keeps the one-read consistency step 8 needs and its lock covers one appended line, held only by root;
 b buys lock-freedom at the cost of that consistency and a rewrite.
 
-## Open: accept the ZFS start-probe design? (ready 2026-11-20, about 01:20 -05:00)
+## Answered: accept the ZFS start-probe design? (ready 2026-11-20, about 01:20 -05:00)
+
+The owner, through the question tool on 2026-11-20: "Accept: skip goes ahead, claim early (Recommended)".
+So the design at `05d1102848` is accepted: a skipped account-helper check prints a line naming the refused call and the
+add goes ahead (Q-a, option a); the first-attach claim starts on entry, before the walk to the slot, so a refused walk
+or a drifted slot becomes that boot's record (Q-b, option a); neither deadline veto was taken; the sixteen lows are
+fixed in the decision record's copy.
+Next: the decision record and the amendments it names, then this section moves out.
 
 This goes to the question tool when you are back, with the other two ZFS designs.
 
@@ -879,7 +892,14 @@ Options:
 Ranking: accept > accept with other answers > send back, because no remaining finding changes behaviour, and each
 further round has so far found wording slips of the same size.
 
-## Open: accept the ZFS staging-under-cache design? (ready 2026-11-20, about 01:00 -05:00)
+## Answered: accept the ZFS staging-under-cache design? (ready 2026-11-20, about 01:00 -05:00)
+
+The owner, through the question tool on 2026-11-20: "Accept, boundary (a) (Recommended)".
+So the design at `c685cabebe` is accepted with none of its seven veto-open choices vetoed; the owner's Q3 limit ("move
+it back at once ... keep and report it only if the move back fails") covers only the scene where the clone landed on a
+mount the account stacked, and refusing when a mount sits on the clone alone is the design's own rule; the nine lows
+are fixed in the decision record's copy.
+Next: the decision record and the amendments it names, then this section moves out.
 
 This goes to the question tool when you are back, with the other ZFS designs.
 
@@ -940,6 +960,29 @@ Ranking: accept > accept with vetoes > send back, because no remaining finding c
 round has so far found wording slips of the same size.
 
 ## Open: ZFS step 3 makes a worktree add from a dirty checkout slower; what then? (recorded 2026-11-20, about 00:30 -05:00)
+
+Not answered yet: asked through the question tool on 2026-11-20, the owner replied "What? Why are we running checks?".
+The coordinator answers that in the session and asks again; this section says why below, in "Why the clone path checks
+the source".
+
+### Why the clone path checks the source
+
+Git's `worktree add` writes each file from the commit.
+The clone path instead clones the files sitting in the source checkout (`FICLONE` of every tracked file) and installs
+the source's own index with the clones' stat data (`worktree_clone.rs`, `install_index_in`), because a reflink needs a
+file on disk with the same bytes and the commit's bytes live compressed in Git's object store.
+So the clone path gives the right worktree only when the source's files are exactly the commit's.
+Before it clones it proves that (`SPEC.md`, "Rung 2 needs a clean source"): no merge, rebase or other operation in
+progress, the index equal to `HEAD`'s tree, every tracked file matching its index entry, and no untracked file
+(the refusal kinds in `src/native/worktree/worktree_clean_stat_verdicts.rs`).
+Without the proof an uncommitted edit would be cloned into the new worktree, and the copied index would make its
+`git status` call the file clean.
+On `main` the wrapper does not know ZFS can clone, so on this host it goes straight to Git's checkout and never runs
+the proof; step 3 teaches it ZFS, so the proof now runs, and on a dirty source it finds the change and falls back to
+Git's checkout after spending the time.
+The steps measured on that path: `git ls-files` 79 to 133 ms against the control's 45 to 50, `git check-ignore` 36 to
+47 ms, `git status` 36 to 57 ms, and an in-process stat walk of about 34 ms
+(`~/temp/agent/zfs-step-3-integration-pass-findings-fixed-2026-11-19/keep/report-from-summary.md`).
 
 What it is:
 step 3 teaches the wrapper to see a ZFS dataset as able to share data blocks,
