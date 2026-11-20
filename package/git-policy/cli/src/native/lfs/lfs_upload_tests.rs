@@ -57,7 +57,7 @@ fn run_with(
 }
 
 /// The same with the given variables added to the child's environment,
-/// which is where the wrapper puts the never-prompt pair of a command that has no controlling terminal.
+/// which is where the wrapper puts the no-prompt rule every command it runs carries.
 fn run_with_overlay(
     root: &std::path::Path,
     path: &[&std::path::Path],
@@ -737,13 +737,22 @@ fn an_upload_that_needed_a_login_names_the_server_and_how_to_give_one() {
     failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, LOGIN_NEEDED_LINE, 128);
     let state: String = root.join("state").to_string_lossy().into_owned();
     let variables = [("XDG_STATE_HOME", state.as_str())];
-    // The command has no controlling terminal, so the wrapper adds the never-prompt pair to its children.
-    let never_prompt: [(&str, &str); 2] = [(crate::child_environment::ASKPASS_VARIABLE, ""), (crate::child_environment::TERMINAL_PROMPT_VARIABLE, "0")];
+    // Every child is given the no-prompt rule, so the refusal's words must say that and never that a terminal decided it.
+    let no_prompt: [(&str, &str); 3] = [
+        (crate::child_environment::ASKPASS_VARIABLE, ""),
+        (crate::child_environment::TERMINAL_PROMPT_VARIABLE, "0"),
+        (crate::child_environment::ASKPASS_REQUIRE_VARIABLE, crate::child_environment::ASKPASS_REQUIRE_NEVER),
+    ];
     let (code, diagnostics) =
-        run_with_overlay(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables, &never_prompt);
+        run_with_overlay(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables, &no_prompt);
     assert_eq!(code, Some(128), "{diagnostics}");
     assert!(diagnostics.contains("the server `lfs.example.invalid`"), "the server is named: {diagnostics}");
-    assert!(diagnostics.contains("no controlling terminal"), "the reason nothing asked is stated: {diagnostics}");
+    assert!(diagnostics.contains("never lets a command ask"), "the reason nothing asked is stated: {diagnostics}");
+    assert!(
+        diagnostics.contains(crate::child_environment::ASKPASS_REQUIRE_VARIABLE),
+        "the words name the rule OpenSSH reads: {diagnostics}"
+    );
+    assert!(!diagnostics.contains("controlling terminal"), "no terminal decides this any more: {diagnostics}");
     assert!(diagnostics.contains("credential.helper"), "the way to store a login is named: {diagnostics}");
     assert!(diagnostics.contains("doc/troubleshooting/lfs-credential-in-url.md"), "the note is cited: {diagnostics}");
     assert!(!diagnostics.contains("user:secret"), "the credential part of the destination is never repeated: {diagnostics}");
@@ -751,37 +760,72 @@ fn an_upload_that_needed_a_login_names_the_server_and_how_to_give_one() {
 }
 
 /// What:
-///  A login failure at a terminal is not diagnosed as terminal-less:
-/// the wrapper added no never-prompt pair,
-/// and its words must say what it did instead of claiming a terminal and a prompt nobody had.
+///  A login failure whose stand-in has a terminal at it is explained with the same no-prompt rules,
+///  because the wrapper tells every command never to ask.
 /// Why:
-///   A stand-in at a terminal opens `/dev/tty` and prints the refusal git-lfs prints when every login it was given is
-///   rejected (`too many authentication attempts`);
-///  a refusal that says the command had no terminal sends its reader to fix a cause that was never there.
+///   The owner's answer of 2026-11-19T16:58:00-05:00 supersedes the rule that a command a person typed keeps Git's own
+///   prompting for credentials:
+///  a stand-in at a terminal opens `/dev/tty` and prints the refusal git-lfs prints when every login it was given is
+///  rejected (`too many authentication attempts`),
+///  and the words a person reads may not claim that a terminal changed what the wrapper allowed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(diagnostics).toContain('has a controlling terminal'); expect(diagnostics).not.toContain('no controlling terminal');
+/// expect(diagnostics).toContain('never lets a command ask'); expect(diagnostics).not.toContain('controlling terminal');
 /// ```
 #[test]
-fn an_upload_that_needed_a_login_at_a_terminal_is_not_told_there_was_none() {
+fn an_upload_that_needed_a_login_at_a_terminal_is_told_the_same_rule() {
     let root: PathBuf = fixture("lfs-upload-login-at-terminal");
     let counter: PathBuf = root.join("count.txt");
     failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, REFUSED_LOGIN_LINE, 128);
     let state: String = root.join("state").to_string_lossy().into_owned();
     let variables = [("XDG_STATE_HOME", state.as_str())];
-    // No overlay: the command has a controlling terminal, so no never-prompt pair reaches the child.
-    let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables);
+    // The overlay every command is given now, so the stand-in's terminal is the only difference from the case above.
+    let no_prompt: [(&str, &str); 3] = [
+        (crate::child_environment::ASKPASS_VARIABLE, ""),
+        (crate::child_environment::TERMINAL_PROMPT_VARIABLE, "0"),
+        (crate::child_environment::ASKPASS_REQUIRE_VARIABLE, crate::child_environment::ASKPASS_REQUIRE_NEVER),
+    ];
+    let (code, diagnostics) =
+        run_with_overlay(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables, &no_prompt);
     assert_eq!(code, Some(128), "{diagnostics}");
-    assert!(diagnostics.contains("has a controlling terminal"), "the terminal this command had is stated: {diagnostics}");
-    assert!(!diagnostics.contains("no controlling terminal"), "nothing claims the command had no terminal: {diagnostics}");
-    assert!(
-        !diagnostics.contains(&format!("{}` set to the empty string", crate::child_environment::ASKPASS_VARIABLE)),
-        "nothing claims the prompt variables were set: {diagnostics}"
-    );
+    assert!(diagnostics.contains("never lets a command ask"), "the rule is stated the same way: {diagnostics}");
+    assert!(!diagnostics.contains("controlling terminal"), "no terminal decides this any more: {diagnostics}");
     assert!(diagnostics.contains("credential.helper"), "the way to store a login is named: {diagnostics}");
-    assert!(diagnostics.contains("doc/troubleshooting/lfs-credential-in-url.md"), "the note is cited: {diagnostics}");
     assert!(!diagnostics.contains("user:secret"), "the credential part of the destination is never repeated: {diagnostics}");
+    remove(root.as_path());
+}
+
+/// What:
+///  An upload that fails because an SSH key's passphrase was never loaded says to run `ssh-add`.
+/// Why:
+///   The owner's answer of 2026-11-19 is that a passphrase counts as a credential:
+///  with `SSH_ASKPASS_REQUIRE=never` a key that no agent holds fails at once,
+///  and OpenSSH's own words (`Permission denied (publickey).`) do not say what to do about it,
+///  so the wrapper's explanation names the command that loads the key.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(diagnostics).toContain('ssh-add'); expect(diagnostics).toContain('needed a login')
+/// ```
+#[test]
+fn an_upload_whose_ssh_key_no_agent_holds_says_to_run_ssh_add() {
+    let root: PathBuf = fixture("lfs-upload-ssh-key");
+    let counter: PathBuf = root.join("count.txt");
+    failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, "ssh: connect to host 127.0.0.1 port 22: Permission denied (publickey).", 128);
+    let state: String = root.join("state").to_string_lossy().into_owned();
+    let variables = [("XDG_STATE_HOME", state.as_str())];
+    let no_prompt: [(&str, &str); 3] = [
+        (crate::child_environment::ASKPASS_VARIABLE, ""),
+        (crate::child_environment::TERMINAL_PROMPT_VARIABLE, "0"),
+        (crate::child_environment::ASKPASS_REQUIRE_VARIABLE, crate::child_environment::ASKPASS_REQUIRE_NEVER),
+    ];
+    let (code, diagnostics) =
+        run_with_overlay(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables, &no_prompt);
+    assert_eq!(code, Some(128), "{diagnostics}");
+    assert!(diagnostics.contains("needed a login"), "the failure is read as a login the program could not get: {diagnostics}");
+    assert!(diagnostics.contains("`ssh-add`"), "the command that loads the key is named: {diagnostics}");
+    assert!(diagnostics.contains("passphrase"), "the words say what the agent would have answered: {diagnostics}");
     remove(root.as_path());
 }
 
@@ -899,10 +943,52 @@ fn a_connected_stop_names_the_server_and_offers_no_rate_setting_when_nothing_mov
     for words in [silent, trickling] {
         assert_eq!(words.matches("Ways forward:").count(), 1, "one list of ways forward: {words}");
     }
-    let stop: String = format!("{}. {}\n", stopped_upload_words(&StopCause::Stalled(connected_report(0)), None), stopped_upload_tail());
+    let stop: String = format!("{} {}\n", stopped_upload_words(&StopCause::Stalled(connected_report(0)), None), stopped_upload_tail());
     assert_eq!(stop.matches("Ways forward:").count(), 1, "the tail adds no second list of ways forward: {stop}");
     assert!(!stop.contains("so this push was not started"), "the tail does not arrive inside the ways forward: {stop}");
     assert!(stop.contains("This push was not started and nothing was published"), "the tail says what happened to the push: {stop}");
+    assert!(!stop.contains(".."), "the stop's own full stop and the tail's join are one full stop: {stop}");
+    assert!(stop.contains("answers this time. This push was not started"), "the two sentences meet at one full stop: {stop}");
+}
+
+/// What:
+///  A stopped upload names the server the plan read,
+///  and the program's own words only when they name that same server.
+/// Why:
+///  `git-lfs` prints whatever it likes before it holds a connection:
+///  a documentation link first and its error second must not make the stop name
+///  `docs.example.invalid`,
+/// a host the upload never contacted;
+///  and when the plan read no endpoint at all,
+/// the program's own words are the only witness there is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(uploadServerOf(planWith('127.0.0.1:4000'), 'See https://docs.example.invalid/x')).toBe('127.0.0.1:4000')
+/// ```
+#[test]
+fn a_stopped_upload_names_the_plans_server_unless_the_program_names_it_too() {
+    let at_plan = |server: Option<&str>| -> UploadPlan {
+        return UploadPlan { lfs_server: server.map(str::to_owned), ..plan() };
+    };
+    let word_of_docs: &[u8] = b"See https://docs.example.invalid/git-lfs/troubleshooting for the list of causes.\n";
+    assert_eq!(
+        upload_server_of(&at_plan(Some("127.0.0.1:4000")), word_of_docs),
+        Some(String::from("127.0.0.1:4000")),
+        "a host the program names and the plan did not is not the server"
+    );
+    let held: &[u8] = b"batch response: Post \"https://lfs:plantedpass@127.0.0.1:4000/lfs/objects/batch\": refused\n";
+    assert_eq!(
+        upload_server_of(&at_plan(Some("127.0.0.1:4000")), held),
+        Some(String::from("127.0.0.1:4000")),
+        "the program's own words confirm the plan's server, with no credential in the name"
+    );
+    assert_eq!(
+        upload_server_of(&at_plan(None), held),
+        Some(String::from("127.0.0.1:4000")),
+        "a plan that read no server leaves the program's own words to name it"
+    );
+    assert_eq!(upload_server_of(&at_plan(None), b""), None, "a silent program with no plan names nothing");
 }
 
 //endregion

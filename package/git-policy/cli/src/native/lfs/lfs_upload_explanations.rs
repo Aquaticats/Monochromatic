@@ -28,7 +28,8 @@ use crate::bounded_push::{PUSH_DEADLINE_VARIABLE, STOPPED_EXIT_CODE, StopCause, 
 /// The texts of a failed or refused upload,
 /// and the reading that says a login was needed.
 use crate::lfs_pre_push::{
-    LFS_PROGRAM, failed_message, login_needed_message, missing_program_message, reads_as_a_login_failure, start_failed_message,
+    LFS_PROGRAM, failed_message, login_needed_message, missing_program_message, reads_as_a_key_failure, reads_as_a_login_failure,
+    start_failed_message,
 };
 /// The masks and the hosts a destination or a failure names.
 use crate::lfs_output_mask::{host_of, hosts_in, mask_url_secrets_text};
@@ -181,20 +182,21 @@ fn login_subject(destination: &std::ffi::OsStr, output: &str) -> String {
 ///   The wrapper is what refused to ask a person,
 /// so that failure is the one whose way forward only the wrapper can explain
 ///  (`doc/troubleshooting/lfs-credential-in-url.md`).
-///  `prompting_disabled` says whether the never-prompt pair was added to the program's environment:
-/// a command at a terminal keeps prompting,
-/// and a refusal that claimed otherwise would send its reader to fix a cause that was never there.
+///  The no-prompt rule is the same for every command the wrapper runs,
+/// so nothing here depends on a terminal,
+/// and the one thing read from the program's words is whether an SSH key's passphrase was the missing credential.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// failedMessage(status) + (readsAsALoginFailure(output) ? loginNeededMessage(loginSubject(destination), promptingDisabled) : '')
+/// failedMessage(status) + (readsAsALoginFailure(output) ? loginNeededMessage(loginSubject(destination), readsAsAKeyFailure(output)) : '')
 /// ```
-pub fn explanation_after_failure(status: &str, destination: &std::ffi::OsStr, output: &[u8], prompting_disabled: bool) -> String {
+pub fn explanation_after_failure(status: &str, destination: &std::ffi::OsStr, output: &[u8]) -> String {
     let mut text: String = failed_message(status);
     // `from_utf8_lossy` reads the program's words whatever their encoding; only the search matters here.
     let shown: String = String::from_utf8_lossy(output).into_owned();
     if reads_as_a_login_failure(shown.as_str()) {
-        text.push_str(login_needed_message(login_subject(destination, shown.as_str()).as_str(), prompting_disabled).as_str());
+        let key_not_unlocked: bool = reads_as_a_key_failure(shown.as_str());
+        text.push_str(login_needed_message(login_subject(destination, shown.as_str()).as_str(), key_not_unlocked).as_str());
     }
     return text;
 }
@@ -270,26 +272,24 @@ pub fn start_failed_attempt(program: &str, why: &str) -> PushAttempt {
 ///  tries the push again by itself.
 /// Both faces read one finished attempt here,
 /// so the two cannot report a failure differently.
-///  `prompting_disabled` reaches the explanation,
-/// which says what the wrapper did about prompting.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// attempt.exitCode === 0 ? undefined : explained({ exitCode, output: maskUserinfoText(attempt.output) }, destination, promptingDisabled);
+/// attempt.exitCode === 0 ? undefined : explained({ exitCode, output: maskUserinfoText(attempt.output) }, destination);
 /// ```
-pub fn failed_upload(attempt: &PushAttempt, destination: &std::ffi::OsStr, prompting_disabled: bool) -> Option<PushAttempt> {
+pub fn failed_upload(attempt: &PushAttempt, destination: &std::ffi::OsStr) -> Option<PushAttempt> {
     if attempt.exit_code == 0 {
         return None;
     }
     let shown: String = mask_url_secrets_text(attempt.output.as_str());
-    return Some(explained(PushAttempt { exit_code: attempt.exit_code, signal: attempt.signal, output: shown }, destination, prompting_disabled));
+    return Some(explained(PushAttempt { exit_code: attempt.exit_code, signal: attempt.signal, output: shown }, destination));
 }
 
 /// The failed attempt with the explanation after the program's own output;
 /// a stop says what a stop means,
 /// and a login the program needed says how to give it one,
 /// in the words of the prompting the wrapper left the program.
-pub fn explained(attempt: PushAttempt, destination: &std::ffi::OsStr, prompting_disabled: bool) -> PushAttempt {
+pub fn explained(attempt: PushAttempt, destination: &std::ffi::OsStr) -> PushAttempt {
     let explanation: String = if attempt.exit_code == STOPPED_EXIT_CODE {
         stopped_upload_tail()
     } else {
@@ -299,7 +299,7 @@ pub fn explained(attempt: PushAttempt, destination: &std::ffi::OsStr, prompting_
             Some(signal) => format!("was ended by signal {signal}"),
             None => format!("exited with status {}", attempt.exit_code),
         };
-        explanation_after_failure(ending.as_str(), destination, attempt.output.as_bytes(), prompting_disabled)
+        explanation_after_failure(ending.as_str(), destination, attempt.output.as_bytes())
     };
     let shown: &str = explanation.trim_end();
     let output: String = if attempt.output.is_empty() {

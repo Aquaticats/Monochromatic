@@ -14,10 +14,8 @@
 use super::{
     ASKPASS_VARIABLE, CHILD_SET_PREFIX, COUNT_VARIABLE, FORWARD_TARGET_VARIABLE, TERMINAL_PROMPT_VARIABLE, child_environment_overlay,
     ASKPASS_REQUIRE_NEVER, ASKPASS_REQUIRE_VARIABLE, environment_with_overlay, invocation_overlay, lockfile_pid_overlay, never_prompt_overlay,
-    prompting_disabled, service_child_overlay, ssh_never_askpass_overlay,
+    no_prompt_overlay, service_child_overlay, ssh_never_askpass_overlay,
 };
-/// The answer about the process's controlling terminal the invocation overlay is built from.
-use crate::control_terminal::Terminal;
 use std::ffi::OsString;
 use std::path::Path;
 use std::process::Command;
@@ -317,23 +315,26 @@ fn the_service_overlay_is_the_lockfile_overlay_then_the_never_prompt_pair_then_o
 }
 
 /// What:
-///  The service's children are told that OpenSSH never runs a password program,
-///  and a command the person typed is not.
+///  Every child of the wrapper,
+/// the service's and one a person typed alike,
+///  is told that OpenSSH never runs a password program.
 /// Why:
 ///   The pair of `GIT_ASKPASS` and `GIT_TERMINAL_PROMPT` stops Git and `git-lfs`,
 ///  and neither is read by OpenSSH,
-///  so an `ssh://` endpoint of a service push asked a password program through `SSH_ASKPASS` while the owner's decision was
+///  so an `ssh://` endpoint asked a password program through `SSH_ASKPASS` while the owner's decision was
 ///  "Never prompt" (the audit's reproduction counted two questions).
-///   `SPEC.md` decides the other path in one sentence:
-///  "A command the person typed is forwarded with the prompting Git has."
+///   The owner's answer of 2026-11-19T16:58:00-05:00 widened that decision to every command:
+///  "Avoid ever asking for someone to type a username or password.",
+///  and an SSH key's passphrase counts too,
+///  so the typed path that `SPEC.md` used to leave to Git's own prompting carries the same rule now.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// expect(envOf(serviceChildOverlay(inherited)).SSH_ASKPASS_REQUIRE).toBe('never');
-/// expect(envOf(invocationOverlay(inherited, git, 'absent')).SSH_ASKPASS_REQUIRE).toBe(inheritedValue)
+/// expect(envOf(invocationOverlay(inherited, git)).SSH_ASKPASS_REQUIRE).toBe('never')
 /// ```
 #[test]
-fn the_service_overlay_tells_openssh_never_to_ask_and_a_typed_command_does_not() {
+fn the_service_overlay_tells_openssh_never_to_ask_and_a_typed_command_does_too() {
     let inherited = environment(&[("SSH_ASKPASS", "/usr/bin/ksshaskpass"), ("SSH_ASKPASS_REQUIRE", "prefer")]);
     let service = environment_with_overlay(inherited.as_slice(), service_child_overlay(inherited.as_slice()).as_slice());
     let value = |environment: &[(OsString, OsString)], name: &str| -> Option<OsString> {
@@ -349,11 +350,11 @@ fn the_service_overlay_tells_openssh_never_to_ask_and_a_typed_command_does_not()
         Some(OsString::from("/usr/bin/ksshaskpass")),
         "the program stays in the environment: only its use is switched off"
     );
-    let typed = environment_with_overlay(inherited.as_slice(), invocation_overlay(inherited.as_slice(), Path::new("/usr/bin/git"), Terminal::Absent).as_slice());
+    let typed = environment_with_overlay(inherited.as_slice(), invocation_overlay(inherited.as_slice(), Path::new("/usr/bin/git")).as_slice());
     assert_eq!(
         value(typed.as_slice(), ASKPASS_REQUIRE_VARIABLE),
-        Some(OsString::from("prefer")),
-        "a command the person typed is forwarded with the prompting Git has"
+        Some(OsString::from(ASKPASS_REQUIRE_NEVER)),
+        "a command a person typed is told never to ask as well"
     );
 }
 
@@ -383,25 +384,33 @@ fn the_service_overlay_replaces_inherited_prompt_settings_and_keeps_ssh_askpass(
 }
 
 /// What:
-///  The overlay of a command whose process has no controlling terminal carries the never-prompt pair,
-/// and the one of a command at a terminal does not.
+///  The overlay of every command the wrapper forwards carries the no-prompt rule,
+///  whether or not the process has a controlling terminal.
 /// Why:
-///  This is the whole difference between a push a daemon started and a push a person typed;
-/// the pair is what
-///  keeps the desktop password dialog from opening on a machine whose `SSH_ASKPASS` names one.
+///  The owner's answer of 2026-11-19T16:58:00-05:00 is that no command the wrapper runs or forwards asks a person for
+///  a username or a password,
+/// terminal or not;
+///  that supersedes the earlier rule that a command a person typed keeps Git's own prompting,
+///  so the controlling terminal no longer decides anything here.
+///  The three variables are what keep a desktop password dialog from opening on a machine whose `SSH_ASKPASS` names one,
+///  and what makes a passphrase-protected key that no agent holds fail at once instead of asking.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(invocationOverlay(env, git, 'absent')).toContainEqual(['GIT_ASKPASS', '']);
-/// expect(invocationOverlay(env, git, 'present')).not.toContainEqual(['GIT_ASKPASS', '']);
+/// expect(invocationOverlay(env, git)).toContainEqual(['GIT_ASKPASS', '']);
+/// expect(invocationOverlay(env, git)).toContainEqual(['SSH_ASKPASS_REQUIRE', 'never']);
 /// ```
 #[test]
-fn the_invocation_overlay_never_prompts_only_without_a_controlling_terminal() {
+fn every_command_the_wrapper_forwards_never_prompts() {
     let inherited = environment(&[("HOME", "/home/someone")]);
     let mut expected = child_environment_overlay(inherited.as_slice(), Path::new("/usr/bin/git"));
-    assert_eq!(invocation_overlay(inherited.as_slice(), Path::new("/usr/bin/git"), Terminal::Present), expected);
     expected.extend(never_prompt_overlay());
-    assert_eq!(invocation_overlay(inherited.as_slice(), Path::new("/usr/bin/git"), Terminal::Absent), expected);
+    expected.extend(ssh_never_askpass_overlay());
+    assert_eq!(
+        invocation_overlay(inherited.as_slice(), Path::new("/usr/bin/git")),
+        expected,
+        "a command with a terminal at it is told never to ask as well"
+    );
 }
 
 /// A variable a caller set for its own Git children cannot reopen the prompt of an unattended command:
@@ -409,33 +418,29 @@ fn the_invocation_overlay_never_prompts_only_without_a_controlling_terminal() {
 #[test]
 fn the_never_prompt_pair_wins_over_a_caller_set_child_variable() {
     let inherited = environment(&[(format!("{CHILD_SET_PREFIX}{ASKPASS_VARIABLE}").as_str(), "/usr/bin/ksshaskpass")]);
-    let overlay = invocation_overlay(inherited.as_slice(), Path::new("/usr/bin/git"), Terminal::Absent);
+    let overlay = invocation_overlay(inherited.as_slice(), Path::new("/usr/bin/git"));
     let askpass: Vec<&OsString> = overlay.iter().filter(|(name, _value)| { return name == ASKPASS_VARIABLE; }).map(|(_name, value)| { return value; }).collect();
     assert_eq!(askpass.last(), Some(&&OsString::new()), "the last entry wins, as an environment block reads it: {askpass:?}");
 }
 
 /// What:
-///  The reading of whether a list of variables turns prompting off wants both halves of the never-prompt pair,
-/// and each half alone is not the pair.
+///  The whole no-prompt rule is the pair Git and `git-lfs` read followed by the variable OpenSSH reads,
+///  in that order,
+///  so one list is what every child of the wrapper gets.
 /// Why:
-///   The explanation after a failed login says what the wrapper did about prompting,
-///  so a list that carries only one of the two variables must not be read as "the prompt was disabled".
+///   The three variables are read by two programs,
+///  and a list that carried only the pair left an `ssh://` endpoint asking a passphrase program
+///  (the audit's reproduction counted two questions);
+///  one function owns the order,
+/// so no start can carry half of the rule.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(promptingDisabled([])).toBe(false); expect(promptingDisabled([['GIT_ASKPASS', ''], ['GIT_TERMINAL_PROMPT', '0']])).toBe(true);
+/// expect(noPromptOverlay()).toEqual([...neverPromptOverlay(), ...sshNeverAskpassOverlay()])
 /// ```
 #[test]
-fn prompting_is_disabled_only_by_both_halves_of_the_never_prompt_pair() {
-    assert!(!prompting_disabled(&environment(&[])), "an empty list turns nothing off");
-    assert!(!prompting_disabled(&environment(&[(ASKPASS_VARIABLE, "")])), "an empty askpass alone does not stop a terminal prompt");
-    assert!(!prompting_disabled(&environment(&[(TERMINAL_PROMPT_VARIABLE, "0")])), "a terminal refusal alone does not stop the askpass program");
-    assert!(
-        !prompting_disabled(&environment(&[(ASKPASS_VARIABLE, "/usr/bin/other"), (TERMINAL_PROMPT_VARIABLE, "0")])),
-        "an askpass program of the caller's own still answers"
-    );
-    assert!(
-        prompting_disabled(&environment(&[(ASKPASS_VARIABLE, ""), (TERMINAL_PROMPT_VARIABLE, "0")])),
-        "the pair itself turns prompting off"
-    );
+fn the_no_prompt_rule_is_the_pair_and_the_openssh_variable() {
+    let mut expected: Vec<(OsString, OsString)> = never_prompt_overlay();
+    expected.extend(ssh_never_askpass_overlay());
+    assert_eq!(no_prompt_overlay(), expected);
 }

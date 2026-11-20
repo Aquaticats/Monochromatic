@@ -39,8 +39,8 @@ use crate::bounded_push::{
     wait_until_done_noting,
 };
 /// The invocation's environment values,
-/// and whether its overlay turns prompting off for the children.
-use crate::child_environment::{environment_value, environment_with_overlay, prompting_disabled};
+/// merged with the overlay its children run under.
+use crate::child_environment::{environment_value, environment_with_overlay};
 /// The caller's own command-line configuration,
 /// as the variables the child reads.
 pub use crate::lfs_command_line_configuration::child_configuration_variables;
@@ -357,9 +357,6 @@ pub fn run_upload_interactive(
         // Terminal output error: the notice is advisory.
         let _written = diagnostics.write_all(submodule_notice().as_bytes());
     }
-    // The overlay carries the never-prompt pair only when this command has no controlling terminal, and the explanation of a
-    //  failed login says what the wrapper did about prompting.
-    let prompting_is_disabled: bool = prompting_disabled(overlay);
     // What: The caller's configuration, as Git hands it to a child: appended to the parameters the environment already holds.
     // Why:  Git reads those parameters after the numbered pairs, so a pair written there is the newest setting of its key;
     //  a caller's pair numbered before an inherited parameter lost to it, and `-c lfs.url=...` reached the upload as the
@@ -411,9 +408,11 @@ pub fn run_upload_interactive(
                 UploadEnd::Finished(outcome) => (exit_code(outcome), outcome),
                 UploadEnd::Stopped(cause) => {
                     // Terminal output error: the explanation carries the result.
+                    //  The stop's own sentence already ends with a full stop, so the tail starts after one full stop and not
+                    //  after a second one.
                     let server: Option<String> = upload_server_of(plan, relayed.as_slice());
                     let _written = diagnostics.write_all(
-                        format!("{}. {}\n", stopped_upload_words(&cause, server.as_deref()), stopped_upload_tail()).as_bytes(),
+                        format!("{} {}\n", stopped_upload_words(&cause, server.as_deref()), stopped_upload_tail()).as_bytes(),
                     );
                     return Some(i32::try_from(STOPPED_EXIT_CODE).unwrap_or(1));
                 }
@@ -427,8 +426,7 @@ pub fn run_upload_interactive(
             };
             // Terminal output error: see above.
             let _written = diagnostics.write_all(
-                explanation_after_failure(description.as_str(), remote.as_os_str(), relayed.as_slice(), prompting_is_disabled)
-                    .as_bytes(),
+                explanation_after_failure(description.as_str(), remote.as_os_str(), relayed.as_slice()).as_bytes(),
             );
             return Some(code);
         }
@@ -438,26 +436,35 @@ pub fn run_upload_interactive(
 
 /// What:
 ///  The LFS server a stopped upload was connected to:
-///  the one the program's own words named,
-///  else the one the plan read from the configuration.
+///  the one the plan read from the configuration,
+///  confirmed by the program's own words when they name that same server,
+///  and the program's own words alone when the plan read none.
 /// Why:
 ///   A stop that held a connection must say which server it waited for
 ///  (`package/git-policy/cli/SPEC.md`,
 ///  "A connected stop names the server it waited for");
-///  the program's own words name the server it really reached,
-///  and a program that printed nothing leaves the configured endpoint,
-///  which is what it was given.
+///  the plan answers with the endpoint git-lfs itself picks,
+///  and a program that printed nothing confirms nothing.
+///  The program's words are not trusted on their own when the plan named a server:
+///  a documentation link printed before the error named a host the upload never
+///  contacted (the short review's reproduction),
+///  which is the one thing this naming exists to prevent.
 ///  Neither form repeats a credential:
 ///  the host comes from the same authority rule the mask uses.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// hostsIn(text)[0] ?? plan.lfsServer
+/// const named = hostsIn(text)[0]; named === plan.lfsServer || plan.lfsServer === undefined ? named ?? plan.lfsServer : plan.lfsServer
 /// ```
 fn upload_server_of(plan: &UploadPlan, relayed: &[u8]) -> Option<String> {
     // `from_utf8_lossy` reads the program's words whatever their encoding; only the host search matters here.
     let shown: String = String::from_utf8_lossy(relayed).into_owned();
-    return hosts_in(shown.as_str()).into_iter().next().or_else(|| { return plan.lfs_server.clone(); });
+    let from_program: Option<String> = hosts_in(shown.as_str()).into_iter().next();
+    return match (plan.lfs_server.as_deref(), from_program) {
+        (Some(planned), Some(named)) if planned == named => Some(named),
+        (Some(planned), _named) => Some(planned.to_owned()),
+        (None, named) => named,
+    };
 }
 
 /// What:
@@ -510,7 +517,7 @@ pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<Pus
                 Err(SingleFlightError::Start(error)) => return Ok(Some(start_failed_attempt(program.as_str(), error.to_string().as_str()))),
                 Err(other) => return Err(other),
             };
-        if let Some(failed) = failed_upload(&attempt, remote.as_os_str(), prompting_disabled(git.environment.as_slice())) {
+        if let Some(failed) = failed_upload(&attempt, remote.as_os_str()) {
             return Ok(Some(failed));
         }
     }
@@ -551,7 +558,7 @@ pub async fn run_upload_bounded_awaiting(git: &PushGit, plan: &UploadPlan) -> Re
                 Err(SingleFlightError::Start(error)) => return Ok(Some(start_failed_attempt(program.as_str(), error.to_string().as_str()))),
                 Err(other) => return Err(other),
             };
-        if let Some(failed) = failed_upload(&attempt, remote.as_os_str(), prompting_disabled(git.environment.as_slice())) {
+        if let Some(failed) = failed_upload(&attempt, remote.as_os_str()) {
             return Ok(Some(failed));
         }
     }
