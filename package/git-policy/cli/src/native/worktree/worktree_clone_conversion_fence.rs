@@ -360,10 +360,18 @@ fn fence_sentence(path: &[u8], reason: &str) -> String {
 /// Why:
 ///   Git owns the conversion,
 /// so asking it for these bytes is the only answer that needs no model of a filter,
-/// an encoding or an ending;
+///  an encoding or an ending;
 /// the run names the destination's Git directory and work tree,
 /// as the ladder's other runs do,
 /// so the destination's own settings decide.
+/// `checkout-index` in place writes a path only when the entry's stat data no longer matches the file
+///  (`entry.c`,
+/// `checkout_entry_ca`,
+/// `if (!changed) return 0;`),
+/// which is why the index this rung installs keeps the seed's own fields for exactly these paths
+///  (`clone_tracked_files`, the `unproven` set):
+/// the source's fields cannot describe a copy made here,
+/// so Git rewrites the file from the index through its own conversion.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -375,23 +383,7 @@ pub fn write_through_git(destination: &Path, admin: &Path, context: &GitContext,
         input.extend_from_slice(path.as_slice());
         input.push(0);
     }
-    // What:
-    //  The destination, written as `git checkout-index`'s `--prefix`, ending with the separator it needs.
-    // Why:
-    //  A path given `--prefix` is written through the conversion without the check Git makes of an in-place entry:
-    //  `checkout-index` in place skips a path whose stat data matches its index entry (`entry.c`, `checkout_entry_ca`,
-    //  the `if (!changed) return 0;`), and the installed index vouches for exactly the bytes that are wrong.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const prefix = `--prefix=${destination}/`;
-    // ```
-    let mut prefix: OsString = OsString::from("--prefix=");
-    prefix.push(destination.as_os_str());
-    prefix.push("/");
-    crate::diagnostic_log::debug(TAG, format!("writing {} paths through Git in {}", paths.len(), destination.display()).as_str());
-    let output: GitOutput = run_in(context, destination, words(&["checkout-index", "--force", "-z", "--stdin"]).into_iter().chain([prefix]).collect::<Vec<OsString>>().as_slice(), Some(input), checkout_environment(admin, destination))?;
-    crate::diagnostic_log::debug(TAG, format!("checkout-index code {:?} stderr {}", output.code, String::from_utf8_lossy(output.stderr.as_slice()).trim()).as_str());
+    let output: GitOutput = run_in(context, destination, words(&["checkout-index", "--force", "-z", "--stdin"]).as_slice(), Some(input), checkout_environment(admin, destination))?;
     return if output.code == Some(0) { Ok(()) } else { Err(run_reason("`git checkout-index`", &output)) };
 }
 

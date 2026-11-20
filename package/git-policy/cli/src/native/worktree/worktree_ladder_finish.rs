@@ -214,7 +214,7 @@ fn serve_clones(source: &SnapshotSource, plan: &AddPlan, bound: &Bound, run_git:
     verify_association(bound)?;
     let target: Target = prepare_target(source, plan, context, bound)?;
     let fence: crate::worktree_clone_conversion_fence::Fence = crate::worktree_clone_conversion_fence::fence_the_clone(source, context)?;
-    let cloned: Cloned = clone_tracked_files(source, &bound.destination, &bound.admin)?;
+    let cloned: Cloned = clone_tracked_files(source, &bound.destination, &bound.admin, fence.git_writes.as_slice())?;
     let applied: Result<(), String> = match verify_association(bound) {
         Ok(()) => apply_difference(source, &target, plan.destination.as_path(), run_git),
         Err(reason) => Err(reason),
