@@ -312,6 +312,10 @@ fn zfs_and_another_filesystem_are_different_filesystems() {
     let overlay: CloneSide = CloneSide { path: PathBuf::from("/gate-fixtures/topic"), kind: FilesystemKind::Overlayfs, device: Some(57), mount_source: None };
     let reason: String = clone_domain_refusal(&checkout, &overlay).expect("a ZFS path and an overlay path are no one domain");
     assert!(reason.contains("/home/user/Monochromatic") && reason.contains("/gate-fixtures/topic"), "{reason}");
+    assert!(reason.contains("different filesystems"), "the refusal names the cause and not a missing dataset: {reason}");
+
+    let other: CloneSide = CloneSide { path: PathBuf::from("/gate-fixtures/topic"), kind: FilesystemKind::Other, device: Some(57), mount_source: None };
+    assert!(clone_domain_refusal(&overlay, &other).expect("an overlay path and an XFS path are no one domain").contains("different filesystems"));
 }
 
 /// btrfs keeps the rule it had:
