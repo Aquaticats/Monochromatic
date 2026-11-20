@@ -40279,7 +40279,21 @@ stated in this entry. What follows from them, as work:
   `~/temp/agent/integration-pass-zfs-step-4-host-half-descriptor-attach-2026-11-19/`), the whole gate, asked to judge
   the `uses` skip against the guards' purpose and the separate source layout move, the store lock against rule `NLK`,
   and whether the host half may merge before its guest arms. Whichever of steps 3 and 4 merges second needs its gate
-  on the merged tree. STEP 3 HOST HALF ENDED `idle` (201
+  on the merged tree. It ended (Sonnet, about 40 min; that folder's `keep/review.md`, logs in `keep/`): not fit to
+  merge now. High: the two `uses/` links make the wrapper's package carry 195 duplicate files (2,056,871 bytes;
+  `cargo package --list` 2256 on `main`, 2475 on the branch), because the wrapper's `Cargo.toml` `include` lacks step
+  1's `"!src/**/uses/**"`; with it, 2280. Mediums: the store's blocking `flock` is avoidable (rule `NLK`) and any account
+  that can read the store can hold it; 30 linter errors on the branch's own lines, against the fix round's "none". Lows
+  include `SPEC.md` saying a checkout reached through a link is refused while the code resolves it, and the store
+  recording a ZFS device number (anonymous per mount). Gate: 9222 of 9225; the cause-H pair and a third failure,
+  `shadow::shadow_pool_member::tests::an_entry_no_commit_reads_that_the_repository_lost_is_no_refusal`, which passed
+  alone in the same image and which the branch cannot reach: a separate incident, open until a failing run is caught
+  and measured. Whole `source_guard` set passed (75); a `uses` link outside its convention still fails 12 guard tests;
+  `include!` through any path, link or not, passes the guards (a gap older than the branch). The plan lets the host half
+  merge before its guest arms. GOING: `pi-zfs-step-4-integration-pass-findings-fixed` (DeepSeek on Neuralwatt, cap
+  510): the negation with a package-list control, a lock-free store or a root-only sidecar lock, the 30 line breaks,
+  the lows; brief under `~/temp/agent/zfs-step-4-integration-pass-findings-fixed-2026-11-20/`. Then a second integration
+  pass. STEP 3 HOST HALF ENDED `idle` (201
   turns, 51 min) at `fd10d8d0b0` (four commits; report and checks table in
   `~/temp/agent/zfs-step-3-reflink-rung-recognition-host-half-2026-11-19/keep/`): `FilesystemKind::Zfs` from
   `ZFS_SUPER_MAGIC`; rung 2 proves one dataset by mount source and device, with no ZFS ioctl or binding; a mounted clone
@@ -40879,8 +40893,15 @@ stated in this entry. What follows from them, as work:
   per-mount anonymous number that may change across a reboot, the other-boot settlement then failing closed to the
   administrator, with an owed reboot arm in M6; the propagation in the stacked-between window stated with an M1 assert.
   Six veto entries and one project question (the scene boundary). GOING: a diff-only Sonnet check (brief under
-  `~/temp/agent/zfs-staging-under-cache-design-fifth-revision-diff-only-gate-check-2026-11-19/`). Then acceptance. The
-  proposal
+  `~/temp/agent/zfs-staging-under-cache-design-fifth-revision-diff-only-gate-check-2026-11-19/`). It ended (Sonnet, about
+  28 min; that folder's `keep/review.md`): no high; every new kernel and OpenZFS citation matches; the Misplaced-attach
+  reading agrees with "Keep, one exception (Recommended)". Medium 1: entry 1's option (c) is said to keep both halves of
+  the accepted proof while the design's own rule and M1 arm say it drops one, which makes it the project's decision as
+  framed. Ten lows; Lows 4, 8 and 9 to fix before acceptance (the first asking's text still credited to the project in
+  one place; the boundary question's options not saying what each changes; entry 6's option (a) given no cost). GOING:
+  the sixth pass, `pi-zfs-staging-under-cache-design-fifth-revision-diff-check-findings-fixed` (DeepSeek on Neuralwatt,
+  cap 400); brief under `~/temp/agent/zfs-staging-under-cache-design-fifth-revision-diff-check-findings-fixed-2026-11-20/`.
+  Then a last diff-only check on which only a high or medium blocks, then acceptance. The proposal
   and plan amendment
   for the dropped release proof waits for the layout checker's review. That answer was first written into
   `doc/handover/questions-for-the-owner.md`, whose header keeps it to open questions; the owner asked "Do you know what a
