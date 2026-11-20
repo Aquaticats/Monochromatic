@@ -11,6 +11,7 @@ import { setTimeout as wait, } from 'node:timers/promises';
 import { POLL_MILLISECONDS, } from '../dist/final/node/index.mjs';
 import { seen, } from './stand-in-pi-log-fixture.ts';
 import {
+  ALREADY_PROCESSING_TEXT,
   answer,
   assistantFailure,
   assistantReply,
@@ -59,6 +60,22 @@ const PROMPT_THAT_STARTS_A_LONG_RUN = FAILING_ATTEMPTS_BEFORE_A_LONG_RUN + 1;
 const PROMPT_ANSWERED_AFTER_A_FEW_LOOKS = 3;
 
 /**
+ Which prompt the driver sends as the retry that answers the first failed attempt, counting from one.
+ */
+const RETRY_AFTER_THE_FIRST_FAILED_ATTEMPT = 2;
+
+/**
+ The scenario whose retry prompt meets a turn the agent started by itself, and whose turn recovers the error that retry answers.
+ */
+export const RETRY_MEETS_ITS_OWN_TURN_SCENARIO = 'retry-meets-its-own-turn';
+
+/**
+ The scenario whose retry prompt meets a turn the agent started by itself, and whose turn ends on the same error again, so the
+ retry the run owed goes after it.
+ */
+export const RETRY_MEETS_A_TURN_THAT_FAILED_AGAIN_SCENARIO = 'retry-meets-a-turn-that-failed-again';
+
+/**
  Leaves this process after a delay, so a test can watch what the driver does in the wait before it goes.
 
  @param milliseconds - how long to stay
@@ -76,6 +93,50 @@ async function leaveAfter(milliseconds: number,): Promise<void> {
 async function finishRunLater(text: string,): Promise<void> {
   await wait(LEAVE_AFTER_FAILURE_MILLISECONDS,);
   finishRun(text,);
+}
+
+/**
+ Starts the agent's turn of its own, which is open when the retry prompt reaches Pi, and answers that prompt the way Pi answers one
+ that meets a running turn: the agent is already processing.
+
+ Pi had already begun that turn when the prompt arrived, so its events are written before the answer, which is the order Pi's own
+ stream holds them in.
+
+ @param id - command's identifier
+ */
+function startATurnOfItsOwnAndAnswerBusy(id: unknown,): void {
+  emit({ type: 'agent_start', },);
+  emit({ type: 'turn_start', },);
+  emit({
+    type: 'response',
+    id,
+    success: false,
+    error: ALREADY_PROCESSING_TEXT,
+  },);
+}
+
+/**
+ Ends the agent's own turn after a delay, with the reply that recovers the error.
+
+ @param text - assistant's reply
+ */
+async function finishOwnTurnLater(text: string,): Promise<void> {
+  await wait(LEAVE_AFTER_FAILURE_MILLISECONDS,);
+  emit(assistantReply(text,),);
+  emit({ type: 'agent_end', },);
+  emit({ type: 'agent_settled', },);
+}
+
+/**
+ Ends the agent's own turn after a delay, on the error the retry answers again.
+
+ @param error - what the model said
+ */
+async function failOwnTurnLater(error: string,): Promise<void> {
+  await wait(LEAVE_AFTER_FAILURE_MILLISECONDS,);
+  emit(assistantFailure(error,),);
+  emit({ type: 'agent_end', },);
+  emit({ type: 'agent_settled', },);
 }
 
 /**
@@ -213,6 +274,39 @@ export const modelErrorPlays: ReadonlyMap<string, (id: unknown,) => void> = new 
       // leave the run's failure standing until the retry's reply cleared it, and a watch looking in that gap would end the run.
       emitErrorWithoutSettling(MODEL_ERROR_TEXT,);
       emit({ type: 'auto_retry_start', },);
+      finishRun(RECOVERED_REPLY,);
+    },
+  ],
+  [
+    RETRY_MEETS_ITS_OWN_TURN_SCENARIO,
+    function startATurnThatRecoversTheError(id,) {
+      if (seen.prompts === 1) {
+        answer({ id, },);
+        finishRunInError(TRANSIENT_ERROR_TEXT,);
+        return;
+      }
+      // The driver answered the settled failure with its retry prompt, and Pi had started a turn of its own by then. That turn
+      // replies a few looks after the busy answer, and its reply is what recovers the error.
+      startATurnOfItsOwnAndAnswerBusy(id,);
+      void finishOwnTurnLater(RECOVERED_REPLY,);
+    },
+  ],
+  [
+    RETRY_MEETS_A_TURN_THAT_FAILED_AGAIN_SCENARIO,
+    function startATurnThatFailsTheSameWayAgain(id,) {
+      if (seen.prompts === 1) {
+        answer({ id, },);
+        finishRunInError(TRANSIENT_ERROR_TEXT,);
+        return;
+      }
+      if (seen.prompts === RETRY_AFTER_THE_FIRST_FAILED_ATTEMPT) {
+        // The retry prompt meets the agent's own turn, which ends on the same error again a few looks later.
+        startATurnOfItsOwnAndAnswerBusy(id,);
+        void failOwnTurnLater(TRANSIENT_ERROR_TEXT,);
+        return;
+      }
+      // The attempt the run owed, now that the turn that met it ended on the error it answers.
+      answer({ id, },);
       finishRun(RECOVERED_REPLY,);
     },
   ],

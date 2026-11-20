@@ -20,6 +20,7 @@ import {
   writeLogLine,
 } from './stand-in-pi-log-fixture.ts';
 import {
+  ALREADY_PROCESSING_TEXT,
   answer,
   assistantReply,
   emit,
@@ -34,11 +35,6 @@ import {
  The scenario whose agent starts a turn of its own when the work it left running ends.
  */
 export const WAKES_ITSELF_SCENARIO = 'wakes-itself-when-the-work-ends';
-
-/**
- What Pi 1.5.2 answers a prompt with while its agent is streaming and the prompt named no streaming behaviour, word for word.
- */
-export const ALREADY_PROCESSING_TEXT: string = 'Agent is already processing. Specify streamingBehavior (\'steer\' or \'followUp\') to queue the message.';
 
 /**
  The reply of the turn the agent started by itself, which the run must end with.

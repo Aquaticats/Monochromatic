@@ -26,6 +26,13 @@ export const MODEL_ERROR_TEXT = 'no key for this provider';
 export const RECOVERED_REPLY = 'recovered';
 
 /**
+ What Pi 1.5.2 answers a prompt with while its agent is streaming and the prompt named no streaming behaviour, word for word
+ (`prompt()` in `dist/core/agent-session.js` of `@earendil-works/pi-coding-agent`). It says the agent is busy, never that the
+ message is unacceptable.
+ */
+export const ALREADY_PROCESSING_TEXT: string = 'Agent is already processing. Specify streamingBehavior (\'steer\' or \'followUp\') to queue the message.';
+
+/**
  A provider failure a retry can fix, shaped as one real run's feed recorded it on 2026-11-09
  (`pi-runs/repo-read-and-index-route-findings-on-main-1/summary.json`).
  */
