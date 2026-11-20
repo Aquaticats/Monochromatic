@@ -40167,7 +40167,24 @@ stated in this entry. What follows from them, as work:
   and the plan's VM items 5, 11 to 14, 17 and 18 through the crate, all in a throwaway guest, with live tests skipped
   by name on the host. Brief under `~/temp/agent/zfs-step-2-live-requests-and-guest-fixture-2026-11-19/`. The first
   launch passed the task folder as `--run-folder` and the driver refused it, rightly (the folder held `keep/` and
-  `scratch/`); the relaunch names `run-1`. STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
+  `scratch/`); the relaunch names `run-1`. STEP 2 ENDED `idle` (392 of 510 turns, 40 min 29 s, memory peak 8G with
+  9.4G swap) at `4c7a347ea2` (eight commits, 39 files, 5,720 lines added; report and container and guest logs in that
+  folder's `keep/`). It adds `src/kernel_device/` (one `unsafe libc::ioctl`, a grow-and-ask read loop of at most three
+  attempts, writes never replayed, `promote` test-only), the guest recipe `e2e/run-fixture.ts` with `e2e/README.md`,
+  `build-gate-image.ts` assembling `gate.Containerfile`'s context from the repository (closing step 1's low), mise
+  tasks `build:gate-image` and `e2e`, and `doc/guest-measurements-2026-11-19.md`. In the gate container 171 tests
+  passed and the 25 live ones were skipped by name; Clippy, fmt, rustdoc, `monochromatic-lint` (Dylint rule skipped
+  again) and `file-enforcer check` pass. In an Ubuntu 24.04 libvirt guest (kernel 6.8.0-147, OpenZFS 2.4.4-1) the root
+  suite passed 196 of 196 and the account suite 7; earlier red guest runs are kept. All three guests destroyed, `mvm
+  list` empty. Departures: the layout comparison reads the module's DWARF, because Ubuntu's tarball-built module has
+  no `/sys/kernel/btf/zfs`; this host's module has it (570234 bytes, 2.4.4-1, srcversion `A3553C308C29FD4B6595A72`,
+  read by the coordinator), and the step 6 checker reads BTF on the host, so the guest does not yet exercise that
+  source. The account arms are a second test-binary run as `ubuntu`; programs are built inside the guest (host glibc
+  is newer); the guest needs network; the two `.ts` files sit outside any tsconfig. GOING: its short review on the
+  Qwen plan, `pi-zfs-step-2-short-review-on-the-qwen-plan` (watched, cap 250 for the larger diff) in
+  `.claude/worktrees/pi-qwen-review-zfs-step-2-at-4c7a347ea2`, asked among other things whether the guest module can
+  carry BTF as the host's does; brief under `~/temp/agent/zfs-step-2-short-review-on-the-qwen-plan-2026-11-19/`. Then a
+  fix round, a Sonnet integration pass and the merge. STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
   their VM arms wait for step 2's recipe and their merges for the gate fix), each DeepSeek on Neuralwatt, cap 510,
   from `main` `d6e78c9e8b`: `pi-zfs-step-3-reflink-rung-recognition-host-half`
   (`.claude/worktrees/zfs-step-3-reflink-rung-recognition`, `feat/git-policy-cli-zfs-recognition-in-the-reflink-rung`;
