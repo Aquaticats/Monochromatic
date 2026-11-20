@@ -67,3 +67,51 @@ fn btrfs_a_created_subvolume_is_a_root_and_a_plain_directory_beside_it_is_not() 
     assert_eq!(is_subvolume_root(root.join("file").as_path()), Ok(false));
     remove(root.as_path());
 }
+
+/// What:
+///  A ZFS mount is its own kind,
+/// in the signed and the unsigned spelling of `f_type`.
+/// Why:
+///   Rung 2 of the cheap-worktree ladder may reflink only inside one ZFS dataset,
+/// so the ladder has to tell a ZFS mount from btrfs,
+/// overlayfs
+///  and everything else before it can ask which dataset a path is in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(classifyMagic(0x2fc12fc1n)).toBe('zfs');
+/// ```
+#[test]
+fn zfs_magic_number_maps_to_its_kind() {
+    assert_eq!(ZFS_SUPER_MAGIC, 0x2fc1_2fc1, "the value Linux's include/linux/magic.h records for OpenZFS, which the libc crate does not define");
+    assert_eq!(classify_magic(ZFS_SUPER_MAGIC), FilesystemKind::Zfs);
+    let extended: u64 = ZFS_SUPER_MAGIC | 0xffff_ffff_0000_0000;
+    assert_eq!(classify_magic(extended), FilesystemKind::Zfs);
+}
+
+/// What:
+///  A directory on a real ZFS mount answers with the ZFS kind.
+/// Why:
+///   The magic number is only as good as the `statfs` answer it classifies,
+/// and this host's checkout sits on a ZFS dataset;
+///  a container whose fixture root is not ZFS states that this control did not run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (kindOf(fixtureRoot) !== 'zfs') console.log('ZFS CONTROL NOT RUN'); else expect(kindOf(fixtureRoot)).toBe('zfs');
+/// ```
+#[test]
+fn zfs_a_real_mount_answers_with_its_kind() {
+    let root: PathBuf = fixture("fs-kind-zfs");
+    let kind: FilesystemKind = filesystem_kind(root.as_path()).expect("the fixture root answers");
+    if kind != FilesystemKind::Zfs {
+        eprintln!("ZFS CONTROL NOT RUN: zfs_a_real_mount_answers_with_its_kind (fixture root {} is on {kind:?}; the guest fixture of the ZFS plan's step 2 runs it)", root.display());
+        remove(root.as_path());
+        return;
+    }
+    assert_eq!(kind, FilesystemKind::Zfs);
+    let inside: PathBuf = root.join("plain");
+    std::fs::create_dir(&inside).expect("plain directory");
+    assert_eq!(filesystem_kind(inside.as_path()), Ok(FilesystemKind::Zfs), "a directory made in a ZFS mount is on that dataset");
+    remove(root.as_path());
+}

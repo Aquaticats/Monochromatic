@@ -264,10 +264,33 @@ fn device_of_path(path: &Path) -> Option<u64> {
 }
 
 /// What:
+///  Whether a kind of filesystem may share data blocks between files at all:
+/// btrfs,
+/// overlayfs and ZFS
+///  do,
+/// and the one filesystem whose clone support is not in the kind at all is XFS,
+/// whose first clone
+///  reveals it.
+/// Why:
+///   The kind answers for the three filesystems whose domain the ladder reads,
+/// so the answer is a question of
+///  its own and the device test is separate.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const kindMayClone = (kind: FilesystemKind) => kind === 'btrfs' || kind === 'overlayfs' || kind === 'zfs';
+/// ```
+fn kind_may_clone(kind: FilesystemKind) -> bool {
+    return matches!(kind, FilesystemKind::Btrfs | FilesystemKind::Overlayfs | FilesystemKind::Zfs);
+}
+
+/// What:
 ///  Whether the filesystem of `path` may share data blocks between files:
 /// btrfs,
 /// XFS (reflink is a per-filesystem
-///  feature that the first clone reveals) and overlayfs (a clone inside the overlay reaches the layers' filesystem).
+///  feature that the first clone reveals),
+/// overlayfs (a clone inside the overlay reaches the layers' filesystem) and ZFS
+///  (whose block cloning works inside one dataset and nowhere else).
 /// Why:
 ///   Other filesystems never clone,
 /// so the clone rung is not tried there.
@@ -277,10 +300,200 @@ fn device_of_path(path: &Path) -> Option<u64> {
 /// function mayClone(path: string): boolean;
 /// ```
 fn may_clone(path: &Path) -> bool {
-    if matches!(filesystem_kind(path), Ok(FilesystemKind::Btrfs | FilesystemKind::Overlayfs)) {
+    if kind_may_clone(filesystem_kind(path).unwrap_or(FilesystemKind::Other)) {
         return true;
     }
     return crate::fs_kind::is_xfs(path).unwrap_or(false);
+}
+
+/// What:
+///  What the clone rung reads about one side of a reflink:
+/// the path,
+/// the kind of filesystem that holds it,
+/// that
+///  filesystem's device number and the mount source the kernel reports for it.
+/// Why:
+///   A reflink shares data blocks only inside one clone domain,
+/// and each kind of filesystem names that domain
+///  differently:
+/// one btrfs filesystem has one mount source,
+/// one ZFS dataset is named by its mount source and is the one
+///  device that name's mount has,
+/// and every other filesystem shares blocks only with its own device.
+/// The facts are read
+///  apart from the decision so the decision can be controlled on any filesystem,
+/// and so proving a ZFS dataset needs
+///  only the mount table and the device number,
+/// never a call into the ZFS binding.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CloneSide = { path: string; kind: FilesystemKind; device?: number; mountSource?: string };
+/// ```
+struct CloneSide {
+    /// The path this side describes,
+    /// for the refusal's words.
+    path: PathBuf,
+    /// The kind of filesystem that holds it;
+    /// `Other` also when the kind cannot be read.
+    kind: FilesystemKind,
+    /// The device number of that filesystem's mount,
+    /// or nothing when the path cannot be examined.
+    device: Option<u64>,
+    /// The mount source of that mount,
+    /// or nothing when the table cannot name it;
+    /// read only where the
+    ///  decision uses it.
+    mount_source: Option<String>,
+}
+
+/// What:
+///  Read the clone facts of one path.
+/// Why:
+///   The mount table is read only for the two kinds whose clone domain is a mount,
+/// so an overlay or XFS
+///  ask costs one `statfs` and one `stat`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function cloneSideOf(path: string): CloneSide;
+/// ```
+fn clone_side_of(path: &Path) -> CloneSide {
+    let kind: FilesystemKind = filesystem_kind(path).unwrap_or(FilesystemKind::Other);
+    let device: Option<u64> = device_of_path(path);
+    let mount_source: Option<String> = match kind {
+        FilesystemKind::Btrfs | FilesystemKind::Zfs => read_mount_facts(path).ok().flatten().map(|facts| { return facts.source; }),
+        FilesystemKind::Overlayfs | FilesystemKind::Other => None,
+    };
+    return CloneSide { path: path.to_path_buf(), kind, device, mount_source };
+}
+
+/// What:
+///  The path whose filesystem receives the clones:
+/// the destination when something is already there,
+/// and its
+///  parent otherwise.
+/// Why:
+///   Before Git runs there is nothing at the destination,
+/// so the bytes land in its parent's filesystem;
+/// when
+///  the name is taken (a mounted clone at its slot is exactly that),
+/// the bytes land in what is there instead,
+/// and only a
+///  reflink into that filesystem shares blocks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cloneWriteTarget = ([destination, parent]: [string, string]) => existsSync(destination) ? destination : parent;
+/// ```
+fn clone_write_target((destination, parent): (&Path, &Path)) -> PathBuf {
+    if std::fs::metadata(destination).is_ok() {
+        return destination.to_path_buf();
+    }
+    return parent.to_path_buf();
+}
+
+/// What:
+///  Why the two sides are not one clone domain,
+/// or nothing when they are.
+/// Why:
+///   The kind decides how the domain is named,
+/// and a pair of different kinds is two domains whatever their
+///  device numbers say;
+/// the answer is a reason for the log rather than a word to the person,
+/// because nothing the person
+///  does on a filesystem that clones can make another filesystem clone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function cloneDomainRefusal(source: CloneSide, target: CloneSide): string | undefined;
+/// ```
+fn clone_domain_refusal(source: &CloneSide, target: &CloneSide) -> Option<String> {
+    if source.kind != target.kind {
+        return Some(different_filesystems(source, target));
+    }
+    return match source.kind {
+        FilesystemKind::Btrfs => one_mount_source(source, target),
+        FilesystemKind::Zfs => one_zfs_dataset(source, target),
+        FilesystemKind::Overlayfs | FilesystemKind::Other => one_device(source, target),
+    };
+}
+
+/// The refusal of two paths that are not on one filesystem.
+fn different_filesystems(source: &CloneSide, target: &CloneSide) -> String {
+    return format!("{} and {} are on different filesystems", source.path.display(), target.path.display());
+}
+
+/// What:
+///  The refusal of two btrfs paths whose mounts name different filesystems,
+/// or nothing when they name one.
+/// Why:
+///   A btrfs clone crosses subvolumes of one filesystem,
+/// whose every mount carries the same source in the mount table.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const oneMountSource = (source, target) => source.mountSource && source.mountSource === target.mountSource ? undefined : differentFilesystems(source, target);
+/// ```
+fn one_mount_source(source: &CloneSide, target: &CloneSide) -> Option<String> {
+    if source.mount_source.is_some() && source.mount_source == target.mount_source {
+        return None;
+    }
+    return Some(different_filesystems(source, target));
+}
+
+/// What:
+///  The refusal of two paths that are not on one device,
+/// or nothing when they are.
+/// Why:
+///   An overlay or XFS path shares blocks only with a path on its own device,
+/// and a device that cannot be read
+///  proves nothing either way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const oneDevice = (source, target) => source.device && source.device === target.device ? undefined : differentFilesystems(source, target);
+/// ```
+fn one_device(source: &CloneSide, target: &CloneSide) -> Option<String> {
+    let (Some(one), Some(other)) = (source.device, target.device) else {
+        return Some(format!("{} and {} cannot both be examined, so a reflink between them cannot be proven", source.path.display(), target.path.display()));
+    };
+    return if one == other { None } else { Some(different_filesystems(source, target)) };
+}
+
+/// What:
+///  The refusal of two ZFS paths that are not in one dataset,
+/// or nothing when they are.
+/// Why:
+///   A reflink shares data blocks only inside one dataset,
+/// and a dataset is named by its mount source and is the one device
+///  that name's mount has,
+/// so the pair is proven by both facts and refused when either is missing
+/// or they
+///  disagree;
+/// a mounted clone is a dataset of its own,
+/// which is what refuses it as a destination and as a source
+///  for a slot in the checkout's dataset.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const oneZfsDataset = (source, target) => source.mountSource === target.mountSource && source.device === target.device ? undefined : unproven(source, target);
+/// ```
+fn one_zfs_dataset(source: &CloneSide, target: &CloneSide) -> Option<String> {
+    let (Some(source_name), Some(target_name)) = (source.mount_source.as_deref(), target.mount_source.as_deref()) else {
+        return Some(format!("the ZFS dataset holding {} or {} cannot be named from the mount table, so a reflink between them cannot be proven", source.path.display(), target.path.display()));
+    };
+    let (Some(source_device), Some(target_device)) = (source.device, target.device) else {
+        return Some(format!("the device of {} or {} cannot be read, so a reflink between them cannot be proven", source.path.display(), target.path.display()));
+    };
+    if source_name == target_name && source_device == target_device {
+        return None;
+    }
+    return Some(format!(
+        "{} is in the ZFS dataset {source_name} (device {source_device}) and {} is in {target_name} (device {target_device}); a reflink shares data blocks only inside one dataset",
+        source.path.display(),
+        target.path.display()
+    ));
 }
 
 /// What:
@@ -288,10 +501,16 @@ fn may_clone(path: &Path) -> bool {
 /// either side is on a filesystem that never clones,
 /// or the
 ///  two are not in one clone domain (one btrfs filesystem,
+/// one ZFS dataset,
 /// or one device elsewhere).
 /// Why:
-///   A clone crosses subvolumes of one btrfs filesystem and nothing else;
-/// an overlay or XFS is one device.
+///   A clone crosses subvolumes of one btrfs filesystem,
+/// shares blocks inside one ZFS dataset and nowhere else,
+/// and
+///  an overlay or XFS is one device;
+/// the question is asked of the filesystem that would receive the clones,
+/// which is
+///  the destination when something already occupies it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -303,15 +522,11 @@ pub fn clone_refusal(identity: &WorktreeIdentity, plan: &AddPlan) -> Option<Stri
         Err(reason) => return Some(reason),
     };
     let Some(parent) = plan.destination.parent() else { return Some(String::from("the destination has no parent directory")) };
-    if !may_clone(root.as_path()) || !may_clone(parent) {
+    let target: PathBuf = clone_write_target((plan.destination.as_path(), parent));
+    if !may_clone(root.as_path()) || !may_clone(target.as_path()) {
         return Some(String::from("the filesystem does not share data blocks between files"));
     }
-    let one_domain: bool = if filesystem_kind(root.as_path()) == Ok(FilesystemKind::Btrfs) {
-        on_one_btrfs(root.as_path(), parent)
-    } else {
-        device_of_path(root.as_path()) == device_of_path(parent)
-    };
-    return if one_domain { None } else { Some(format!("{} and {} are on different filesystems", root.display(), parent.display())) };
+    return clone_domain_refusal(&clone_side_of(root.as_path()), &clone_side_of(target.as_path()));
 }
 
 /// Which kind of check refused a source,

@@ -1,6 +1,7 @@
 //! What:
 //!  Which kind of filesystem holds a path (btrfs,
 //! overlayfs,
+//! ZFS,
 //! other),
 //! whether a directory is the root of a btrfs
 //!  subvolume,
@@ -12,7 +13,9 @@
 //! so nothing is spawned:
 //! a snapshot needs btrfs and a subvolume root
 //!  (inode 256),
-//! a reflink works on btrfs and inside an overlay,
+//! a reflink works on btrfs,
+//! inside an overlay
+//!  and inside one ZFS dataset,
 //! and everything else keeps Git's own checkout.
 //!  `doc/planning/cli-git-btrfs-worktree.md` (section "Degradation ladder") has the measurements behind the ladder.
 //!
@@ -47,17 +50,33 @@ pub const BTRFS_SUBVOLUME_ROOT_INODE: u64 = 256;
 pub const BTRFS_STAND_IN_INODE: u64 = 2;
 
 /// What:
+///  The `f_type` of a ZFS mount.
+/// Why:
+///   Linux's `include/linux/magic.h` records OpenZFS's superblock magic as `0x2fc12fc1`,
+/// and the `libc` crate defines the btrfs and
+///  overlayfs numbers but not this one,
+/// so the number is written here beside those two.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ZFS_SUPER_MAGIC = 0x2fc12fc1n;
+/// ```
+pub const ZFS_SUPER_MAGIC: u64 = 0x2fc1_2fc1;
+
+/// What:
 ///  The filesystem kinds the ladder tells apart.
 ///  `#[derive(...)]` generates copying,
 /// debug printing and `==`.
 /// Why:
 ///   Btrfs allows snapshots and reflinks,
 /// overlayfs allows reflinks of files inside it,
-/// anything else gets Git's checkout.
+/// a ZFS mount shares blocks with its own dataset and no other,
+/// and
+///  anything else gets Git's checkout.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type FilesystemKind = 'btrfs' | 'overlayfs' | 'other';
+/// type FilesystemKind = 'btrfs' | 'overlayfs' | 'zfs' | 'other';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FilesystemKind {
@@ -66,6 +85,9 @@ pub enum FilesystemKind {
     /// `OVERLAYFS_SUPER_MAGIC`,
     /// the root of a container.
     Overlayfs,
+    /// `ZFS_SUPER_MAGIC`,
+    /// one mounted ZFS dataset.
+    Zfs,
     /// Every other `f_type`.
     Other,
 }
@@ -91,6 +113,9 @@ pub fn classify_magic(f_type: u64) -> FilesystemKind {
     }
     if low == (libc::OVERLAYFS_SUPER_MAGIC as u64 & 0xffff_ffff) {
         return FilesystemKind::Overlayfs;
+    }
+    if low == ZFS_SUPER_MAGIC {
+        return FilesystemKind::Zfs;
     }
     return FilesystemKind::Other;
 }
