@@ -298,9 +298,13 @@ fn a_death_by_the_lines_own_timeout_at_its_bound_is_the_bounds_ending() {
 /// Why:
 ///  The line's `timeout` re-raises on itself the signal its command died by (coreutils' `cleanup` in `src/timeout.c`),
 ///  so a `SIGKILL` a command chose and the `SIGKILL` the bound deals look the same in the status,
-///  and the bound the line states, already reached, is what tells them apart.
-///  Without that, this wait would call a command's own death the bound's.
-///  The wait is given the longer bound here too, so the exit is what it reads.
+///  and the bound the line states,
+///  already reached,
+///  is what tells them apart.
+///  Without that,
+///  this wait would call a command's own death the bound's.
+///  The wait is given the longer bound here too,
+///  so the exit is what it reads.
 #[test]
 fn a_command_that_kills_itself_before_its_bound_keeps_its_own_ending() {
     let made: Fixture = fixture("observe-own-kill-before-the-bound");
