@@ -465,6 +465,39 @@ the pick is not made here.
   `README.md` are not edited here, and the amendment under
   [the amendment these answers owe](#the-amendment-these-answers-owe-the-proposal-the-plan-and-the-binding-readme)
   is what they need.
+- `2026-11-19T21:40:21-05:00`, commit `affe04d592`, and the commit that carries this entry, which
+  changes only this record: the revision that applies the gate review of the answers round, kept at
+  `/home/user/temp/agent/zfs-runtime-layout-checker-design-owner-answers-gate-review-2026-11-19/keep/review.md`.
+  That review is independent of this file's author (rule `IRW`) and is not an approval; it found one
+  high finding, four mediums and thirteen lows, and called the file not ready for the project.
+  This revision applies the high finding (H1):
+  [the release string](#the-release-string-q2) states what the comparison read and did not read,
+  the layout-keeping 2.2.2 to 2.3.0 interval's change to a volume's property set, why the binding's
+  own call shapes see no change, and the `SET_PROP` registration and policy move at 2.4.4; the
+  claim that no release changes behaviour while keeping its layout is deleted, and
+  [the evidence correction](#the-evidence-correction-q2-asked-again) records the project's answer of
+  2026-11-19T21:31:47-05:00, "Keep: layout decides", with its three options.
+  It applies the mediums: owed measurement 16 says the full comparison alone refuses the patched
+  modules (M1); the checker's files sit in a sibling folder of `layout` and `requests`, named with
+  its `uses/` links and the rule it serves, and the design says the crate is merged at
+  `0.1.0-alpha.1` (M2); the in-house reader's remaining arguments go from the ledger, the
+  sensitivity close, Q1 and the ranking (M3); and the binding `README.md` joins the amendment, with
+  its replacement text and the sentence that step 6 changes its "What this crate does not do" list
+  (M4).
+  And it applies the lows: "the one interface change" becomes three layout changes at 2.4.4 and two
+  requests added at 2.3.0 (L1); every amendment line number is re-measured against `main` at
+  `e4003a8563` and cites its heading (L2); the replacements say "the project's answer" and the plan
+  ones break one clause per line (L3); the positional pointers name their heading (L4); Q1's
+  question is quoted without its extra word (L5); the answer record is cited by line range and this
+  section is called its durable copy (L6); the superseded proof and the superseded wording are
+  fixed (L7); `doctor`'s sentence compares the tested string exactly, as a writer's rule open to
+  veto (L8); an absent identity attribute degrades the reload check instead of refusing (L9); the
+  wrapper is named as the builder of the `Device` and `Identity` refusals (L10); and step 6's two
+  packages, gates, fuzz sidecar and dependency route are written out (L11).
+  L12 needs no change here, since it is about the round's report.
+  The gate review's four scripts were re-run against the same three tagged copies and reproduce its
+  counts, and the control run is recorded under [The prose checks](#the-prose-checks).
+  No product file, no plan step and no proposal step is edited here.
 
 ### Sources read
 
@@ -663,7 +696,7 @@ Control: the same checker on a copy in this revision's scratch folder with one i
 prose rule moved every count it targets: dashes 0 to 1, spaced hyphens 5 to 6, long lines 0 to 1
 with the longest at 170, tables 0 to 2, heading issues 0 to 3, positional words 25 to 26,
 emphasis 0 to 1, ALL CAPS words 15 to 16, marker padding 0 to 1, bare dates 60 to 61, count words
-211 to 216 and digit-plus-noun hits 67 to 68.
+216 to 221 and digit-plus-noun hits 67 to 68.
 Link problems rose from 0 to 24: 21 of them are the copy's own folder breaking the relative links to
 the sibling design files, and the other three are the injected missing anchor and the injected
 unused definition, which counts once as unused and once as a file that does not exist, so the
