@@ -22,7 +22,7 @@ It decides nothing that belongs to the owner: the choices that are the owner's a
 under [Questions for the owner](#questions-for-the-owner),
 the parts a writer can settle are
 under [What a writer can settle without asking](#what-a-writer-can-settle-without-asking),
-and each of the three rules a writer adopts there stands open to veto,
+and each rule a writer adopts there stands open to veto,
 with "veto none" as its default.
 Nothing here is implemented, released or approved.
 
@@ -40,7 +40,8 @@ The three first-round answers are recorded in the main checkout's
 `doc/handover/cli-git-rust-implementation.md`, at lines 40398 onward of the file at `e4003a8563`,
 inside one long paragraph that contains the sentence "THE ROUND WAS ASKED" rather than beginning
 with it; the follow-up answer to Q2 landed after that commit, at line 40463 of the file at
-`cb84b5769f`, in the paragraph that begins "LAYOUT CHECKER REVIEW ENDED".
+`cb84b5769f`, inside the long list item that begins at line 39945 and contains "LAYOUT CHECKER
+REVIEW ENDED" at lines 40451 and 40452 rather than beginning with it.
 That handover is a working file (rule `H0P`), so this section is the durable copy of the answers
 this design rests on.
 Each answer is quoted in the project's words under its own heading, and every other section of
@@ -217,18 +218,20 @@ The same paragraph records the three options it offered, in its own words: keep;
 refusing a property set aimed at anything but a filesystem dataset; and back to a release list.
 As the handover describes them:
 
-1.  Keep "Any version, layout decides", the answer Q2 already records.
+1.  Keep "Any version, layout decides", the answer Q2 already records; the handover's word is
+    "keep".
 2.  Layout decides, plus refusing a property set aimed at anything but a filesystem dataset.
-3.  Back to a release list of tested releases.
+3.  Back to a release list, which the handover words "back to a release list"; "of tested
+    releases" is the design's reading of it.
 
-Each option carried a stated cost, and the record neither ranks them nor gives a reason for the
-answer:
+The design states these costs, one per option, and the record neither ranks them nor gives a
+reason for the answer:
 
 - Option 2 guards a request shape the wrapper does not send, which is
   [the release string](#the-release-string-q2)'s reading of the wrapper's own call shapes.
-- Option 3 restores the cost the proposal's "Kernel-release readiness" records: a release
-  allowlist disables the managed route after every kernel package update until a new run passes
-  (lines 1297 to 1300).
+- Option 3 restores, by analogy with a kernel-release allowlist, the cost the proposal's
+  "Kernel-release readiness" records: a release allowlist disables the managed route after every
+  kernel package update until a new run passes (lines 1297 to 1300).
 - Option 1 keeps a gate a release that changes behaviour without moving a field passes, which
   [a release that keeps the layout and changes behaviour](#a-release-that-keeps-the-layout-and-changes-behaviour)
   states and [owed measurement](#owed-measurements) item 17 records.
@@ -1591,7 +1594,9 @@ the pre-scan, the expectations and the comparison.
 `src/lib.rs` declares it and re-exports its entry point beside `layout`'s, and the crate root gains
 a `src/uses/compatibility_check` link, as `src/uses/` already links each folder `src/lib.rs`
 declares.
-The folder's name is open to veto, with "veto none" as the default.
+It names what the folder does, comparing two files, while the plan's word "gate" also covers the
+device and identity steps the wrapper holds; the alternative is `compatibility_gate`, and the name
+is open to veto, with "veto none" as the default.
 Its expectations read `Operation::ALL` and `Operation::code()` from `src/requests/operation.rs`,
 which are public, and `ZfsCmd`, `DmuObjsetStats`, `ZinjectRecord`, `ZcInjectOverlay` and
 `ZcDestroyControl` from `src/layout/zfs_cmd_t.rs`.
@@ -1623,12 +1628,15 @@ device, inode, size and modification time, and `doctor` says which attribute is 
 can tell a weaker reload check from a refused one.
 When all three values are absent the reload check has no usable term: the file times do not stand
 in, because this host's `/sys/kernel/btf/zfs` modification time moved from 16:47:51 to 21:39:40
-while its `srcversion` and `version` stayed at 19:51:21 and 19:03:56, which is a time moving without
-a reload.
-So the check then re-runs the parse at most and never refuses, and `doctor` says so.
+while its `srcversion` and `version` stayed at 19:51:21 and 19:03:56, which is consistent with a
+time moving without a reload.
+So the check then has no term that could differ between its two identity reads and never refuses,
+and the per-process cache keeps the verdict it holds while each file's device, inode, size and
+modification time hold ([The cache](#the-cache)); a module replaced while those hold goes unseen,
+and `doctor` says so.
 A missing `/dev/zfs` or a missing BTF file is a
 refusal, as [What the checker must prove](#what-the-checker-must-prove) states.
-The rule is open to veto, with "veto none" as the default.
+The rules in this paragraph are open to veto, with "veto none" as the default.
 
 The second identity read closes the window in which the module unloads or is replaced between the
 first identity read and the BTF reads. It does not close the window during a single read;
@@ -1820,8 +1828,11 @@ Before each use, the cache's identity is rechecked against those three identity 
 files' identity (device, inode, size and modification time); a change re-runs the check.
 A sysfs modification time does not track a module load on this host (boot 11:12:11,
 `/sys/module/zfs/version` 19:03:56, `srcversion` 19:51:21), so
-the recheck can re-run a check that would have passed. The cost is a needless parse, never a
-stale pass.
+the recheck can re-run a check that would have passed. The cost is a needless parse, and a stale
+pass only where the cache has nothing but each file's device, inode, size and modification time to
+compare, which is the all-absent case
+[The read order and the reload race](#the-read-order-and-the-reload-race) states: there a
+replacement that keeps those four facts is reused.
 The BTF file is the clearest case: `/sys/kernel/btf/zfs` read 16:47:51 in the revision at
 `fa66afaed0`, which first recorded it, and 21:39:40 when this revision read it, while `version` and
 `srcversion` read the same times and values as before, which is consistent with the time moving
@@ -2882,9 +2893,9 @@ version made this choice; the cost is what may reopen it.
 
 ## What a writer can settle without asking
 
-Three of this section's rules are the writer's and open to veto, each with "veto none" as its
-default: the folder's name, the `doctor` sentence's exact-string trigger and the absent-identity
-rule.
+The rules marked here as open to veto are the writer's, each with "veto none" as its default: the
+folder's name, the `doctor` sentence's exact-string trigger, the absent-identity rules and the
+per-process cache with no disk cache.
 Each says so where it stands, and the sections that use them say so too.
 
 - The seam's shape, in the crate the owner named: the binding package holds the loader, the
@@ -2921,8 +2932,9 @@ Each says so where it stands, and the sections that use them say so too.
   rule, so this is open to veto, with "veto none" as the default ([The refusal](#the-refusal)).
 - An absent identity attribute degrades the reload check instead of refusing, while a missing device
   or BTF file refuses ([The read order and the reload race](#the-read-order-and-the-reload-race)).
-  When all three values are absent the reload check has no usable term and the check re-runs the
-  parse at most, which is open to veto with "veto none" as the default.
+  When all three values are absent the reload check has no usable term and the cache keeps the
+  verdict it holds while each file's device, inode, size and modification time hold.
+  Both rules are open to veto, with "veto none" as the default.
 - The pre-scan rules, including the sorted-by-offset section check, the widest-encoding walk and the
   refusal of a value the chosen reader cannot represent.
 - The file bounds, as proposals pending [Owed measurements](#owed-measurements) item 10:
@@ -2982,7 +2994,7 @@ Each says so where it stands, and the sections that use them say so too.
 - It made no choice that belongs to the owner. The owner's answers of 2026-11-19 settled the
   reader question's narrower form, the release string and the crate placement, and this revision
   applies them ([Answers of 2026-11-19](#answers-of-2026-11-19)). The per-process cache with no
-  disk cache stays writer-settled with a veto open, and
+  disk cache stays writer-settled, open to veto with "veto none" as the default, and
   [Q3](#q3-may-a-verification-be-cached-across-processes) is held behind a measurement.
 - It edited neither the design proposal nor the implementation plan, and
   [the amendment these answers owe](#the-amendment-these-answers-owe-the-proposal-the-plan-and-the-binding-readme)
