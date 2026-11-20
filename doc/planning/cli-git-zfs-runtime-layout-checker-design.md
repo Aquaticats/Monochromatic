@@ -695,8 +695,8 @@ the pick is not made here.
   23:41:14, `8511e04741` at 23:41:39 and `8d516064df` at 23:43:18, each time the commit's own
   committer date and the worktree reflog's, to the second; no `GIT_AUTHOR_DATE`,
   `GIT_COMMITTER_DATE` or `--date` was set for any of them. The commit that carries this entry is
-  `242b4454ea` at 23:44:16, and the commit that carries this sentence is the wording fix after it,
-  which changes this record alone. This
+  `242b4454ea` at 23:44:16, `9a987abde4` at 23:44:22 names it, and the commit that carries this
+  sentence is the wrapping fix after that, which changes only this record. This
   is the revision that answers the diff-only gate check of the fifth revision, kept at
   `~/temp/agent/zfs-runtime-layout-checker-design-fifth-revision-diff-only-gate-check-2026-11-19/keep/review.md`.
   That check is independent of this file's author (rule `IRW`) and is not an approval; it found no
@@ -2782,9 +2782,9 @@ Every measurement stays owed, and no item here touches this host's pool or modul
     patch would, which must refuse at `Member` with both offsets.
     Control: the untruncated pair passes.
 6.  The 24-byte header passes in the guest, and the 32-byte one device-free. A module whose BTF an
-    older tool emitted with the
-    24-byte header, and a module whose BTF reports `hdr_len` 32 (the host's kernel is
-    `7.3.5-1-cachyos`, unqualified for the product until step 23), must both parse and compare.
+    older tool emitted with the 24-byte header, and a module whose BTF reports `hdr_len` 32 (the
+    host's kernel is `7.3.5-1-cachyos`, unqualified for the product until step 23), must both parse
+    and compare.
     The 24-byte case's route is item 11's: copy `/sys/kernel/btf/vmlinux` into the guest's kernel
     build directory before the module build, which is what step 2's fix round did.
     A 6.8 guest's tools are expected, unmeasured, to emit no 32-byte file, so that shape is asserted
@@ -2873,11 +2873,11 @@ Every measurement stays owed, and no item here touches this host's pool or modul
     ask it.
     This item stays open until a run of the route lands on `main` for the design's own fixture:
     step 2's branch carries one, and `main` carries the handover's summary of it.
-    The revision that answers the diff-only gate check read the branch again at `69cef8fe3c`, read at
-    2026-11-19T23:40:09-05:00: it is four commits on from `08c9dea25f`, the integrate branch is still
-    at `58a1bba2f5`, and the recipe's copy of `/sys/kernel/btf/vmlinux`, its `test -f` after
-    `insmod`, the layout test's `pahole --btf_base` read and the record's layout line and
-    `KBUILD_BUILTIN` sentence say what this paragraph states.
+    The revision that answers the diff-only gate check read the branch again at
+    2026-11-19T23:40:09-05:00, when its tip was `69cef8fe3c`, four commits on from `08c9dea25f`;
+    the integrate branch was still at `58a1bba2f5`, and the recipe's copy of
+    `/sys/kernel/btf/vmlinux`, its `test -f` after `insmod`, the layout test's `pahole --btf_base`
+    read and the record's layout line and `KBUILD_BUILTIN` sentence say what this paragraph states.
 12. The refused state in `doctor`, in the guest. With a mismatched module loaded, assert `doctor`
     names the loaded module, the target and the file, keeps its exit status, and does not print a
     bypass; then with a compatible module assert it prints the compatible line.
