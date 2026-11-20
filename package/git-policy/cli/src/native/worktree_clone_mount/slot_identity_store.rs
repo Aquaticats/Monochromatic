@@ -57,7 +57,8 @@ pub const SLOT_IDENTITY_STORE_PATH: &str = "/var/lib/monochromatic-git-policy-cl
 ///  not a larger read.
 ///  An append that would make the file larger than this bound is refused
 ///  (`StoreRefusal::WouldNotFit`),
-///  so a store never grows past what its own read accepts.
+///  so an append never grows a store past what its own read accepts;
+///  the adoption's rewrite of the parent record has no such check yet (issue 6327).
 pub const STORE_MAXIMUM_BYTES: u64 = 1 << 20;
 
 /// The owner of a store,

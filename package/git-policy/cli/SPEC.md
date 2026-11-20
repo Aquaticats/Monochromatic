@@ -5408,8 +5408,9 @@ The read is bounded at one mebibyte,
 which a header and thousands of slot lines fit inside,
 and a larger file is refused by that bound rather than read into memory.
 An append that would make the file larger than that bound is refused before anything is written,
-so a store never grows past what its own read accepts;
-the widest store the writer grows is one record below the bound.
+so an append never grows a store past what its own read accepts;
+the widest store an append grows is one record below the bound.
+The adoption's rewrite of the parent record has no such check yet (issue 6327).
 A missing file refuses and names the setup run that writes it.
 
 The route reads the store through `SlotIdentityStore::read_under_root_control`,
