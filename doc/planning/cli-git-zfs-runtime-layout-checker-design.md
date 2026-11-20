@@ -465,8 +465,9 @@ the pick is not made here.
   `README.md` are not edited here, and the amendment under
   [the amendment these answers owe](#the-amendment-these-answers-owe-the-proposal-the-plan-and-the-binding-readme)
   is what they need.
-- `2026-11-19T21:40:21-05:00`, commit `affe04d592`, and the commit that carries this entry, which
-  changes only this record: the revision that applies the gate review of the answers round, kept at
+- `2026-11-19T21:40:21-05:00`, commit `affe04d592`, which applies the findings, and
+  `2026-11-19T21:41:00-05:00`, commit `92649a27f0`, which changes only this record: the revision
+  that applies the gate review of the answers round, kept at
   `/home/user/temp/agent/zfs-runtime-layout-checker-design-owner-answers-gate-review-2026-11-19/keep/review.md`.
   That review is independent of this file's author (rule `IRW`) and is not an approval; it found one
   high finding, four mediums and thirteen lows, and called the file not ready for the project.
