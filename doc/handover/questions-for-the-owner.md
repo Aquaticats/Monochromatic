@@ -959,9 +959,15 @@ Options:
 Ranking: accept > accept with vetoes > send back, because no remaining finding changes behaviour, and each further
 round has so far found wording slips of the same size.
 
-## Open: ZFS step 3 makes a worktree add from a dirty checkout slower; what then? (recorded 2026-11-20, about 00:30 -05:00)
+## Answered: ZFS step 3 makes a worktree add from a dirty checkout slower; what then? (recorded 2026-11-20, about 00:30 -05:00)
 
-Not answered yet: asked through the question tool on 2026-11-20, the owner replied "What? Why are we running checks?".
+Answered 2026-11-20 on the third asking, "A: merge with cloning on", recorded as
+`doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`, which also holds the partial-clone proposal that ends the
+waiver and the miss behind it.
+The same round chose "Tighten NQH" for `AGENTS.md`, committed the same day.
+This section moves out once step 3 merges.
+
+First asking: through the question tool on 2026-11-20, the owner replied "What? Why are we running checks?".
 The coordinator answered that in the session and asked again, adding a question about cloning only the unchanged files.
 The owner's replies, 2026-11-20:
 to what step 3 merges with now, "Then this was an even worse decision made and implies multiple agents missed the rule
