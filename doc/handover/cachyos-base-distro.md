@@ -141,7 +141,8 @@ through `ARG CACHYOS_IMAGE`,
   #1815.
 - Docs:
   `doc/troubleshooting/cachyos-container-binary-needs-newer-glibc-than-host.md`,
-   `doc/troubleshooting/cachyos-image-migration-package-differences.md` (`533ed23205`).
+   `doc/troubleshooting/cachyos-image-migration-package-differences.md` (`533ed23205`; renamed on 2026-11-19 to
+   `doc/troubleshooting/cachyos-image-package-and-tool-differences.md`).
 - `doc/decision/ide-releases.md` and `doc/runbook/release-the-ide.md` now name the Ubuntu 24.04 release image
    (monochromatic-ec,
   `8e843b1aa5`);

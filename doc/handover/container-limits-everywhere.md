@@ -15,7 +15,7 @@ memory and process limits sized to its job,
 with the disk weight coming from one shared constant.
 Owner,
 2026-11-07,
-answering the question in `doc/handover/questions-for-the-owner.md`:
+answering the question in the questions file then (this file is its record now):
 "All of them (Recommended)":
 "every container start gets the lowest disk weight and limits sized to its job,
 through one shared constant,

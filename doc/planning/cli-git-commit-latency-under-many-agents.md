@@ -3295,8 +3295,8 @@ because the owner chose the pool ahead of the alternatives
 ("Pool made ahead (Recommended),
 We don't need to build a shadow for every commit.
 Be smarter.",
-`doc/handover/questions-for-the-owner.md`,
-"May a commit take its private repository from a pool made ahead?"),
+`package/git-policy/cli/SPEC.md`,
+"A shadow taken from the pool"),
 which route the numbers pick:
 one that makes no shadow for a commit that needs none,
 or one that reuses a finished one.
@@ -3771,8 +3771,8 @@ A member of the pool is standing state the owner asked for
 ("Pool made ahead (Recommended),
 We don't need to build a shadow for every commit.
 Be smarter.",
-`doc/handover/questions-for-the-owner.md`,
-"The private repository every commit builds"),
+`package/git-policy/cli/SPEC.md`,
+"A shadow taken from the pool"),
 and the owner did not say where it lives.
 A directory whose emptiness is the wrapper's own proof that nothing leaked
 cannot also hold the one thing the wrapper keeps on purpose.
@@ -6147,3 +6147,13 @@ and the runs repeated with the order flipped between them.
 - The branch move's own `git update-ref` stays,
   with the reference lock wait and its bounds,
   because it is Git's compare-and-swap on the branch and the owner's "Never cut a branch write".
+
+## Owner answer on the stat-data landing's remaining findings
+
+Asked whether the three findings the sixth review of the stat-data landing left were worth another round, the
+owner answered at 2026-11-10T07:24:16-05:00: "yes, when we finish the kimi trial." The round ran on
+2026-11-10 on Kimi K3.1 Pro and named one new finding it could not reproduce on this host's btrfs: on a
+filesystem with whole-second timestamps, a same-size edit whose modification time is restored inside one
+second can be recorded as clean. The agent `kimi-trial-findings-on-main` takes that one; the three older
+findings stay, veto open, because two need another program to set a trap inside a microsecond window and the
+third is the stalled read the owner's "Keep waiting and say so" covers.

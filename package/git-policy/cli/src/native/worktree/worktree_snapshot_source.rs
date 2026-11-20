@@ -29,7 +29,7 @@ use crate::add_timing::{begin_work, end_work};
 use crate::diagnostic_log::debug;
 pub use crate::worktree_snapshot_source_changed_paths::{ChangedPaths, changed_paths, plain};
 use crate::config_snapshot::{ConfigEntry, ConfigSnapshot, read_config_snapshot, read_config_snapshot_awaiting};
-use crate::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
+use crate::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root, may_clone};
 use crate::fs_mount_options::read_mount_facts;
 use crate::lazy_runtime::run_on_runtime;
 use crate::transaction_git::GitContext;
@@ -261,26 +261,6 @@ fn device_of_path(path: &Path) -> Option<u64> {
         Ok(found) => Some(found.dev()),
         Err(_unreadable) => None,
     };
-}
-
-/// What:
-///  Whether the filesystem of `path` may share data blocks between files:
-/// btrfs,
-/// XFS (reflink is a per-filesystem
-///  feature that the first clone reveals) and overlayfs (a clone inside the overlay reaches the layers' filesystem).
-/// Why:
-///   Other filesystems never clone,
-/// so the clone rung is not tried there.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function mayClone(path: string): boolean;
-/// ```
-fn may_clone(path: &Path) -> bool {
-    if matches!(filesystem_kind(path), Ok(FilesystemKind::Btrfs | FilesystemKind::Overlayfs)) {
-        return true;
-    }
-    return crate::fs_kind::is_xfs(path).unwrap_or(false);
 }
 
 /// What:

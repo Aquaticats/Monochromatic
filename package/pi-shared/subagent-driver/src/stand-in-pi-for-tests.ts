@@ -355,7 +355,8 @@ async function actOnCommand({
     if (seen.answering > 0) {
       await writeLogLine('marker overlap',);
     }
-    if ((parsed.type === 'steer') && (scenario === 'crash-on-steer')) {
+    if ((seen.prompts > 1) && (scenario === 'crash-on-inbox-message')) {
+      // The message the driver delivers from the inbox: this Pi dies as it takes it, which no answer can name.
       exit(CRASH_STATUS,);
     }
     if (scenario === 'exits-after-prompt') {
@@ -365,7 +366,7 @@ async function actOnCommand({
       },);
       return;
     }
-    await playPrompt(parsed.id,);
+    await playPrompt(parsed,);
     return;
   }
   if ((parsed.type === 'get_session_stats') && (scenario === 'crash-on-stats')) {

@@ -2,9 +2,10 @@
 //!  The one place where a binary-level control states that it needs a btrfs fixture root,
 //! and what it does where there is none.
 //! Why:
-//!  The container gate runs on an overlay filesystem,
-//! where the btrfs ioctls cannot run,
-//! so a control there must not pass
+//!  The container gate's fixtures live on a tmpfs the container makes
+//! (`bin/native-gate-fixture-root.ts`),
+//! which is never a btrfs filesystem,
+//! so the btrfs ioctls cannot run there and a control there must not pass
 //!  as coverage it does not have.
 //! It fails with the filesystem it found unless the run states that the absence is
 //!  known,

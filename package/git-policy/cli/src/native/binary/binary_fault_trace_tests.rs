@@ -33,12 +33,13 @@
 //! for (const n of spread(await countCalls('write', flow))) { await runWithFault({ call: 'write', nth: n, effect: 'ENOSPC' }, flow); await expectRecovered(); }
 //! ```
 
+use git_policy_cli::fs_kind::may_clone;
 use super::commit::{git_text, remove_settled};
 use super::fault::{COMMIT_ARGUMENTS, Effect, Injection, When, staged_repository, verify_recovery_with};
 use super::fault_limits::check_limited_run;
 use super::fault_run::{end_the_pressure, in_batches, run_unsettled, run_watched, spawn_watched, unbounded_wrapper, with_manager};
 use super::strace::{strace_available, strace_program};
-use super::support::{Fixture, ServiceLaunch, fixture, hermetic, service_runtime, wrapper_first_path};
+use super::support::{ABSENT_ACKNOWLEDGED_VARIABLE, Fixture, ServiceLaunch, fixture, fixture_root, hermetic, service_runtime, wrapper_first_path};
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -639,8 +640,14 @@ struct Flow {
     /// The command line the wrapper runs.
     arguments: &'static [&'static str],
     /// The calls the wrapper is killed at in this flow,
-    /// measured as the calls it makes itself with no forks followed.
+    /// measured as the calls it makes itself with no forks followed,
+    /// on one file system that makes every call of the list.
     killed_at: &'static [&'static str],
+    /// The calls of `killed_at` that the fixture root's file system decides,
+    /// each with the fact that has the flow make it.
+    /// A call whose fact does not hold for the root a run measures is left out of that run's list,
+    /// so a flow that behaves one way on a cloning file system and another way elsewhere is covered on both.
+    decided_by_the_file_system: &'static [(&'static str, fn(&Path) -> bool)],
     /// Runs the next commands and requires that the repository recovered;
     /// the command line's first run is `killed`.
     recovered: fn(&Fixture, &Path, &Output) -> Result<(), String>,
@@ -656,6 +663,17 @@ fn flow_call_count(flow: &Flow, syscall: &'static str) -> usize {
     let count: usize = busiest_count(std::fs::read_to_string(&trace).unwrap_or_default().as_str(), syscall);
     remove_settled(&fixture);
     return count;
+}
+
+/// Whether a fixture root on `root`'s file system has `flow` make `call`:
+/// every call but the ones a file-system fact decides, which that fact answers.
+fn flow_makes(flow: &Flow, call: &str, root: &Path) -> bool {
+    return flow.decided_by_the_file_system.iter().all(|(decided, holds)| { return *decided != call || holds(root); });
+}
+
+/// The calls of `flow`'s kill list for a fixture root on `root`'s file system.
+fn kill_calls(flow: &Flow, root: &Path) -> Vec<&'static str> {
+    return flow.killed_at.iter().copied().filter(|call| { return flow_makes(flow, call, root); }).collect();
 }
 
 /// The wrapper is killed at the `n`th call of `syscall` in `flow`;
@@ -704,7 +722,8 @@ fn require_the_kill_list_is_made(flow: &Flow) {
         eprintln!("skipped: strace is not installed, so no call was counted");
         return;
     }
-    let counts: Vec<(&'static str, usize)> = flow.killed_at.iter().map(|syscall| { return (*syscall, flow_call_count(flow, syscall)); }).collect();
+    let root: PathBuf = fixture_root();
+    let counts: Vec<(&'static str, usize)> = kill_calls(flow, root.as_path()).into_iter().map(|syscall| { return (syscall, flow_call_count(flow, syscall)); }).collect();
     require_every_listed_call_is_made(flow.name, counts.as_slice());
 }
 
@@ -791,6 +810,7 @@ fn merge_flow() -> Flow {
         setup: merge_setup,
         arguments: &["merge", "--no-edit", "feature"],
         killed_at: &MERGE_KILL_CALLS,
+        decided_by_the_file_system: &[],
         recovered: merge_recovered,
     };
 }
@@ -1038,8 +1058,11 @@ fn copy_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<(),
 /// `rmdir`,
 /// `mkdir`,
 /// `chmod` and `ioctl` are every other state-changing call it makes;
-/// `ioctl` carries the `FICLONE` that fills each staged file and the btrfs subvolume creation (measured 2026-11-09),
-/// and `openat` counts reads too,
+/// `ioctl` carries the `FICLONE` that fills each staged file and the btrfs subvolume creation (measured 2026-11-09);
+/// it stands in this list only where the fixture root's file system shares data blocks between files,
+/// because the copy flow clones there and lets Git check the worktree out everywhere else
+/// (`may_clone` in `fs_kind`, recorded in `copy_flow`).
+/// `openat` counts reads too,
 /// because `strace --inject` names a call and an ordinal over all of them.
 const COPY_KILL_CALLS: [&str; 14] = [
     "write", "pwrite64", "fsync", "ftruncate", "openat", "openat2", "rename", "renameat2", "unlink", "rmdir", "mkdir", "chmod", "ioctl", "clone3",
@@ -1053,6 +1076,7 @@ fn copy_flow() -> Flow {
         setup: copy_setup,
         arguments: &["worktree", "add", "--quiet", "-b", "one", "../one"],
         killed_at: &COPY_KILL_CALLS,
+        decided_by_the_file_system: &[("ioctl", may_clone)],
         recovered: copy_recovered,
     };
 }
@@ -1156,7 +1180,28 @@ fn a_worktree_copy_killed_at_each_chmod_leaves_a_recoverable_repository() {
 
 /// A worktree add with the ignored-state copy,
 /// killed at each `ioctl` the wrapper makes in it.
+///
+/// The copy flow clones each staged file only where the fixture root's file system shares data blocks between files
+/// (`may_clone`); every other file system has Git check the worktree out instead,
+/// so there is no `ioctl` to be killed at and the control says it did not run rather than passing as coverage it has
+/// not.
+/// It fails with the fixture root it found unless the run states that the absence is known
+/// (`CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED`,
+/// which the gate image sets because its fixture root is a tmpfs that shares no data blocks).
 #[test]
 fn a_worktree_copy_killed_at_each_ioctl_leaves_a_recoverable_repository() {
+    let root: PathBuf = fixture_root();
+    if !flow_makes(&copy_flow(), "ioctl", root.as_path()) {
+        let acknowledged: bool = std::env::var_os(ABSENT_ACKNOWLEDGED_VARIABLE).is_some_and(|value| { return !value.is_empty(); });
+        assert!(
+            acknowledged,
+            "the control needs a fixture root on a file system that shares data blocks between files, so the copy flow \
+             clones and makes an ioctl, but {} shares none; set CLI_GIT_TEST_ROOT to a directory on such a file system, \
+             or set {ABSENT_ACKNOWLEDGED_VARIABLE}=1 to state that this run has none",
+            root.display()
+        );
+        eprintln!("skipped: the fixture root {} is on a file system that shares no data blocks between files, so the copy flow clones nothing and makes no ioctl", root.display());
+        return;
+    }
     sweep_wrapper_kill(&copy_flow(), "ioctl");
 }

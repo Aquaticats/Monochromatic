@@ -6,9 +6,17 @@
  that session as `idle` lost the work of two runs on 2026-11-12. Briefs tell agents that ending a turn while work runs is right,
  so this is where the driver makes that true.
 
+ That message can meet an agent that is already awake: Pi starts a turn of its own when a tool it ran in the background reports,
+ so the end of the work and the driver's message arrive together. Pi answers a prompt that meets a running agent with its busy
+ error unless the prompt names a streaming behaviour, and queues it into that turn when one is named; on 2026-11-19 the driver
+ read the busy error as a refusal, ended the run `prompt-rejected`, and cut off the turn the agent had already started. The
+ message now asks to be steered into the running turn, and the busy error is read as the agent being awake, never as a refusal of
+ the message (`a-busy-answer-of-pi.ts`).
+
  @module
  */
 
+import { foundTheAgentAlreadyAwake, } from './a-busy-answer-of-pi.ts';
 import { FEED_PREVIEW_CHARACTERS, } from './driver-constants.ts';
 import type { CommandAnswer, } from './driver-types.ts';
 import { preview, } from './previews-of-pi-messages.ts';
@@ -143,12 +151,17 @@ export async function askAboutItsWork({
     .settledCount();
   /**
    Pi's answer, waited for within the run's own deadline.
+
+   The message asks to be steered, so a turn the agent started by itself takes it instead of refusing it: Pi delivers a steering
+   message after the running assistant turn and before the next request, which is the agent reading what ended and going on. Pi
+   ignores the field while its agent rests, so the message starts a turn as it always did.
    */
   const answer = await watch.connection
     .send({
       command: {
         type: 'prompt',
         message: said,
+        streamingBehavior: 'steer',
       },
       deadline: watch.deadline,
     },);
@@ -169,6 +182,19 @@ export async function askAboutItsWork({
       },),
     },);
   delete waited.work;
+  // A Pi that answered that its agent is already processing refused nothing: the agent is awake in a turn of its own, which is
+  // the wake the work's end began, so the run stays up until that turn settles. Ending it here is what cut off a turn of the run
+  // of 2026-11-19 and reported a run that came back as one Pi refused.
+  if (foundTheAgentAlreadyAwake({ answer, },)) {
+    watch.record
+      .note({
+        kind: 'problem',
+        problem: 'Pi was already in a turn of its own when the message that names the ended work went, so the message was not '
+          + 'taken: the run stays up until that turn settles, and the agent was not told by it that its work ended',
+      },);
+    waited.wokenAtSettle = settledBefore;
+    return 'resumed';
+  }
   // A message Pi refused woke nobody, so nothing is owed a reply and the run cannot go on: the agent was never told its work ended.
   if (refusedByIt({ answer, },)) {
     return 'refused';

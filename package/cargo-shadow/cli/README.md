@@ -1608,3 +1608,9 @@ Before this change that host reported `872 tests run: 872 passed` with the same 
 [pnpm-resolution]: https://pnpm.io/settings/dependency-resolution
 [pnpm-update]: https://pnpm.io/cli/update
 [pnpm-install]: https://pnpm.io/cli/install
+
+## Owner answers of 2026-11-10
+
+- Asked whether `cargo-shadow lean` may remove a run record another user's process might hold, when that
+  process cannot be inspected, the owner answered at 2026-11-10T08:24:33-05:00: "Keep removing and
+  logging (Recommended)". So the sweep keeps removing and logs each record it removes.

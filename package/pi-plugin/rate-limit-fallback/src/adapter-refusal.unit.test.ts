@@ -19,7 +19,12 @@ import {
 /** The fixture representatives for the two adapters used by this pool. */
 const [OPENAI, QWEN,] = PHYSICAL_MODELS;
 
-/** Body message common to both synthetic HTTP refusals. */
+/**
+ Body message common to both synthetic HTTP refusals.
+
+ Made up: boundary is the adapter's formatting of a 429 body, which this suite compares byte for
+ byte (`doc/captures.md`, "Made-up texts").
+ */
 const MESSAGE = 'Request allowance exhausted for the current window';
 
 await describe({

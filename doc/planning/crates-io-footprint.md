@@ -118,10 +118,10 @@ verbatim:
   come first);
   the lock follows the newest release;
   test files stay in the crates that stay published.
-- Open for the owner,
-  in `doc/handover/questions-for-the-owner.md`:
-  where the libraries go,
-  and when the one release of each crate happens.
+- Answered by the owner in the question tool on 2026-11-07T02:03:01-05:00:
+  where the libraries go ("Four libraries (Recommended)", recorded in
+  `doc/planning/cli-git-source-layout-target-tree.md`),
+  and when the one release of each crate happens ("After the test gap is fixed", recorded in this file).
 
 ## What crates.io holds now
 

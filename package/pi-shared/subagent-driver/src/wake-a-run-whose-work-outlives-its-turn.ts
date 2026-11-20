@@ -14,15 +14,15 @@
  @module
  */
 
-import {
-  readdir,
-  readFile,
-  readlink,
-} from 'node:fs/promises';
 import { join, } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
 import { entriesOrNothingIn, } from './newest-finished-run-of-a-name.ts';
 import { writtenWordsIn, } from './parse-worktree-launcher-options.ts';
+import { PROCESS_ENDED_CODES, } from './process-ended-codes.ts';
+import {
+  READS_OF_A_PROCESS_FOLDER,
+  type ReadsOfAProcessFolder,
+} from './reads-of-a-process-folder.ts';
 import { isDigitsOnly, } from './text-of-an-option.ts';
 import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
 
@@ -151,7 +151,12 @@ export function isOwnFolder({
 
  The process folder is the seam: a test writes its own entries and never reads this machine's process table.
 
+ The reads are the other seam: a test hands over a read that answers what a process that ended gives, which is the one failure a
+ folder of files cannot produce.
+
  @param processFolder - the folder holding one entry per process, `/proc` here
+
+ @param reads - how one record of a process is read, which a test replaces
 
  @returns one entry per process whose working folder could be read
 
@@ -162,8 +167,10 @@ export function isOwnFolder({
  */
 export async function processesAtTheirFolders({
   processFolder,
+  reads = READS_OF_A_PROCESS_FOLDER,
 }: {
   readonly processFolder: string;
+  readonly reads?: ReadsOfAProcessFolder;
 },): Promise<readonly ProcessAtAFolder[]> {
   /**
    The entries of the process folder, of which a folder that is not there holds none: no process can be read, which is no work
@@ -181,7 +188,7 @@ export async function processesAtTheirFolders({
       /**
        The folder the process works in.
        */
-      const folder = await readlink(join(
+      const folder = await reads.link(join(
         processFolder,
         entry,
         'cwd',
@@ -192,6 +199,7 @@ export async function processesAtTheirFolders({
       const command = await commandNameIn({
         processFolder,
         entry,
+        reads,
       },);
       return [{
         pid: Number(entry,),
@@ -215,9 +223,14 @@ export async function processesAtTheirFolders({
 /**
  The failures that mean a process is none of this run's business: its folder is gone, is not a folder, or may not be read by this
  account.
+
+ A process that ended mid-scan arrives here as one of those. {@link commandNameIn} reads the `ESRCH` of a `comm` the kernel
+ released as a program unknown, so it never reaches this set, while a `cwd` link that ever answered `ESRCH` is left out here
+ exactly as the `ENOENT` Linux answers for a task it released, which the scan already counted as gone.
  */
 const SKIPPED_PROCESS_CODES: ReadonlySet<string> = new Set<string>([
   MISSING_PATH_CODE,
+  'ESRCH',
   'ENOTDIR',
   'EACCES',
   'EPERM',
@@ -230,32 +243,39 @@ const SKIPPED_PROCESS_CODES: ReadonlySet<string> = new Set<string>([
 
  @param entry - the process's entry in that folder
 
+ @param reads - how one record of a process is read, which a test replaces
+
  @returns the program's name, or `?` when the process ended before this read
 
  @example
  ```ts
- const command = await commandNameIn({ processFolder: '/proc', entry: '12', },);
+ const command = await commandNameIn({ processFolder: '/proc', entry: '12', reads: READS_OF_A_PROCESS_FOLDER, },);
  ```
  */
 async function commandNameIn({
   processFolder,
   entry,
+  reads,
 }: {
   readonly processFolder: string;
   readonly entry: string;
+  readonly reads: ReadsOfAProcessFolder;
 },): Promise<string> {
   try {
-    return (await readFile(
-      join(
-        processFolder,
-        entry,
-        'comm',
-      ),
-      'utf8',
-    )).trim();
+    return (await reads.text(join(
+      processFolder,
+      entry,
+      'comm',
+    ),)).trim();
   }
   catch (error) {
-    if ((errorCodeOf(error,) === MISSING_PATH_CODE) || (errorCodeOf(error,) === 'ENOTDIR')) {
+    /**
+     The code the operating system gave the read.
+     */
+    const code = errorCodeOf(error,);
+    // A process that ended between the listing and this read is gone, exactly as one whose folder is already gone is: the kernel
+    // answers `ESRCH` from a record whose task it released, which is no read that failed.
+    if (PROCESS_ENDED_CODES.has(code,) || (code === 'ENOTDIR')) {
       return '?';
     }
     throw error;

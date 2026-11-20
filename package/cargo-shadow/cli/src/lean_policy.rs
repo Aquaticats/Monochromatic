@@ -6,7 +6,8 @@
 //! each with the measurement or decision it rests on.
 //! Why:
 //! The owner decided on 2026-11-07 that these are measured and recorded as coordinator picks with the owner's veto open
-//! (`doc/handover/questions-for-the-owner.md`);
+//! (`doc/planning/lean-build-dirs.md`,
+//! "Owner decision and what was built");
 //! a shipped limit cites its measurement beside the value.
 //! The measurements and their dates are in `doc/planning/lean-build-dirs.md`,
 //! section "Measured picks,

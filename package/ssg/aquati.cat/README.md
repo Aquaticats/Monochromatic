@@ -303,3 +303,9 @@ HTML (entry points),
 
 Stale fingerprinted files from previous builds are cleaned up automatically
 before each fingerprinting run.
+
+## Owner answers of 2026-11-10
+
+- Asked which colours the quiz verdicts should use (issue 1540), the owner answered at
+  2026-11-10T08:16:10-05:00: "Green and red tokens (Recommended)". So the held branch
+  `fix/ssg-aquati-cat-ready-bugs` lands as it stands.

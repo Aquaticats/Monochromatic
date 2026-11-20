@@ -645,6 +645,11 @@ content-addressing cannot work for `get` (no value to hash),
 the floor when no behavior change is wanted,
  acceptable only because memoize never passes empty keys.
 
+The owner answered on 2026-11-10, in the question tool batch recorded at
+2026-11-10T08:10:46-05:00 for issues 1408 and 1412: "Reject empty keys (Recommended)".
+The change that applies it is on branch `fix/kv-store-core-rejects-empty-keys`,
+whose copy of this section records it in place of this note.
+
 ### Hazard 9: a flat per-key directory degrades at large keyspaces
 
 `clear` and `size` `readdir` the whole directory,

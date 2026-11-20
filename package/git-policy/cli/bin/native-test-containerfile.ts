@@ -108,10 +108,10 @@ export function testContainerfile({
         `CARGO_BUILD_JOBS=${String(jobs)}`,
         'CARGO_PROFILE_DEV_DEBUG=0',
         'CARGO_INCREMENTAL=0',
-        // The gate runs on an overlay filesystem, where the btrfs controls cannot run. They fail loudly unless the run
-        // states that this is known; with it they print one line per control that did not run, which
-        // `--success-output=final` brings into the log, and `native:test:host:btrfs` runs them on btrfs, setting
-        // nothing.
+        // The gate's fixture root is a tmpfs that is never a btrfs filesystem, so the btrfs controls cannot run there.
+        // They fail loudly unless the run states that this is known; with it they print one line per control that did
+        // not run, which `--success-output=final` brings into the log, and `native:test:host:btrfs` runs them on
+        // btrfs, setting nothing.
         'CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1',
       ].join(' '),
     }),
