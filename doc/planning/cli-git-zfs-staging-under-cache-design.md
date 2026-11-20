@@ -1680,8 +1680,9 @@ The answers of 2026-11-19 settled the ways, the questions and the four proposals
 2026-11-19", "Proposals the owner settled"). The behaviour this section lists is what this revision had to decide to
 carry those answers through, and the project never chose it: each entry says what the design does, which other
 options it had, and why it ranks where it does. A veto returns the entry to the writer; taking none of them leaves
-the design as it stands. The last entry is a question about how an accepted default is read rather than a behaviour
-to veto: its answer either amends those sentences on acceptance or says the rollback is outside the default.
+the design as it stands. One entry is a question rather than a veto, for the rollback's classification against "No
+implicit remount after a failure or restart": its answer either amends those sentences on acceptance or says the
+rollback is outside that default.
 
 - The rollback's destination and its proof. The design opens the slot after the move with the no-crossing walk plus
   `RESOLVE_NO_XDEV`, checks the descriptor and the mount row against the recorded slot identity, moves once, and
@@ -1912,6 +1913,39 @@ the entry says what they add, so the name stays the revision's first commit rath
   text before this label was written, because a commit cannot name its own hash; the prose checker under
   `~/temp/agent/zfs-staging-under-cache-design-second-revision-gate-recheck-2026-11-19/notes/` passes on this
   revision and fails on a control copy with planted faults.
+- `500e3d71d8` at `2026-11-19T22:36:35-05:00`: this revision, answering the gate re-check of `9f1e0c9087`, which
+  found no high finding, two mediums and seven lows, and no change to a decision the project made. Every finding was
+  accepted and fixed, and none was dismissed. The other-boot settlement reaches the places that still refused on a
+  different boot id: A1, A5, the writer's namespace bullet and the hardening entry state the receipt path, and a
+  record from another boot is settled on the wrapper's own mount-table read with `rmdir`'s `EBUSY` as the second
+  guard, which is also what catches a binding invocation that bound the folder after that read. The record section
+  gives its rules one precedence, the boot id first and on its own, then the handle for a current-boot record, then
+  the identity comparison; it says which invocation writes and that a sweep is a non-binding pass. The gone-folder
+  record's void test is the handler's alone, the wrapper unlinks no record of its own for it, and the section states
+  that `ESTALE` is necessary and not sufficient, that the path-keyed mount-row guard carries the safety, which narrow
+  scene that leaves open, and that widening the guard is an option in the veto entry for a record whose folder is
+  gone. A limit, L13, records the unshared wrapper the other-boot path cannot catch. Each record state that had no
+  exit now has one: the
+  renamed live folder through the sweep and the wrapper's identity scan, the binding invocation that meets an
+  other-boot record, a failure that is not `ESTALE`, and the litter a crash between `rmdir` and `unlinkat` leaves. The
+  rollback is recorded both as a second exception and as the accepted "Misplaced attach" rule applied within one
+  invocation, with the project asked to amend the sentences that say one exception or to say the rollback is outside
+  that default; the veto section gained that question, the entry for the rollback's destination and proof a third
+  option that proves by the fresh walk alone, the entry for the stacking scene the combined case named as the
+  answered one with its scene boundary put to the project, and the entry for a record whose folder is gone the
+  widened guard as an option, and every ranking now gives a reason per adjacent pair. M1's slot-at-the-open arm is
+  corrected, the rollback proof is said to detect a landing rather than prevent it, and a new arm stacks a mount
+  between the bind and its propagation change, which is why the rollback needs an unshared parent. M1's stacking arms
+  are named one to one where the Way A list names them; M6's no-capability arm says what it expects at `v6.8` and at
+  `v7.3`, and an M6 arm covers a binding invocation that meets an other-boot record. Two citation drifts are corrected
+  (`do_lock_mount` to `:2498`, `zpl_export.c:130` to `:131`), `Sources read` no longer points at deleted scratch and
+  names `fs/file.c`, `fs/sync.c` and the `fs/fhandle.c` lines, and the option text is quoted from `16e46d6f49`. The
+  revision-history lead and the "Questions the owner answered" lead say what their entries are. Every plan and
+  proposal citation was re-checked against `main` at `59152e567b` and none changed. Its label is the committer
+  timestamp of `c654189a65` at `2026-11-19T22:44:27-05:00`, the last commit that changed this revision's text before
+  this label was written, because a commit cannot name its own hash; the prose checker kept in
+  `~/temp/agent/zfs-staging-under-cache-design-third-revision-recheck-findings-fixed-2026-11-19/scratch/keep/` passes
+  on this revision and fails on a control copy with planted faults.
 
 ## Sources read
 
