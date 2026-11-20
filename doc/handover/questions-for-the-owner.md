@@ -962,8 +962,15 @@ round has so far found wording slips of the same size.
 ## Open: ZFS step 3 makes a worktree add from a dirty checkout slower; what then? (recorded 2026-11-20, about 00:30 -05:00)
 
 Not answered yet: asked through the question tool on 2026-11-20, the owner replied "What? Why are we running checks?".
-The coordinator answers that in the session and asks again; this section says why below, in "Why the clone path checks
-the source".
+The coordinator answered that in the session and asked again, adding a question about cloning only the unchanged files.
+The owner's replies, 2026-11-20:
+to what step 3 merges with now, "Then this was an even worse decision made and implies multiple agents missed the rule
+about the machine never being quiet." (read as: a fast path that needs a clean source was designed and measured as the
+main case on a machine whose main checkout other sessions keep dirty; no option was picked, so the merge choice is
+asked again);
+to "Should a writer design and measure a different clone path?" (clone every tracked file the proof shows unchanged,
+let Git write only the changed ones), "Yes, design and measure it (Recommended)".
+That proposal goes to `doc/planning/` with measurements and comes back to the owner before any code changes.
 
 ### Why the clone path checks the source
 
