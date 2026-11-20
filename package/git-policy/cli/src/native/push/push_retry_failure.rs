@@ -21,6 +21,9 @@
 /// The pause schedule of the plan,
 /// which the words of a counted failure measure their span with.
 use crate::push_retry::pause_before;
+/// The sentence a refusal prints for a host key this machine does not know,
+/// and the reading that says OpenSSH's words are that refusal.
+use crate::lfs_pre_push::{HOST_KEY_NOT_KNOWN_SENTENCE, reads_as_unknown_host_key};
 use std::time::Duration;
 
 /// The words of the reconcile's report of a conflict,
@@ -36,6 +39,9 @@ pub enum FinalFailure {
     Login,
     /// A hook on the server declined the push.
     Declined,
+    /// This machine does not know the SSH host key of the remote,
+    /// so OpenSSH refused the connection before any login.
+    HostKeyNotKnown,
 }
 
 /// The mark of a line in which the server rejected one reference;
@@ -167,9 +173,16 @@ pub fn protected_branch_refusal(output: &str) -> Option<&str> {
 /// and it is
 ///  retried within `PROTECTED_BRANCH_TRIES`,
 /// so it is not read as final here.
+///  A host key this machine does not know is final as well:
+/// no retry adds it,
+/// and the words of `plain_words` say to connect once with plain `ssh <host>` or add the key to `known_hosts`,
+/// then retry (the project's answer of 2026-11-20).
 pub fn final_failure(output: &str) -> Option<FinalFailure> {
     if output.contains(CONFLICT_PHRASE) {
         return Some(FinalFailure::Conflict);
+    }
+    if reads_as_unknown_host_key(output) {
+        return Some(FinalFailure::HostKeyNotKnown);
     }
     let protected: bool = protected_branch_refusal(output).is_some();
     for line in rejection_lines(output) {
@@ -234,6 +247,9 @@ pub fn unrecognised_rejection(output: &str) -> Option<String> {
 /// the person is told which one it was,
 ///  in words,
 /// above Git's own.
+///  A host key this machine does not know is the third:
+/// retrying asks the same machine again,
+/// so the words say how to add the key and then to retry.
 ///  A decline is the server's answer at that moment and nothing about a later try,
 /// so its words promise no outcome and say that a push by hand may succeed
 ///  (GitHub refused a push of `main` with `GH006` at `2026-11-09T23:30:11-05:00` and a plain `git push` of the same commit then succeeded:
@@ -252,8 +268,10 @@ pub fn plain_words(cause: FinalFailure) -> Option<&'static str> {
         FinalFailure::Login => Some(
             "monochromatic-git-policy-cli: the remote refused this push because it wants a login that the commit service does not have, or because the login it has lacks \
              permission, so the commit service stops pushing this branch until your next commit. Log in in a way the service can use (a credential \
-             helper, or an SSH key without a passphrase that its environment reaches) and make sure that login may push, then push by hand or commit again.",
+             helper, or an SSH key without a passphrase that its environment reaches; an agent in the service's environment with \
+             the key loaded by `ssh-add` does as well) and make sure that login may push, then push by hand or commit again.",
         ),
+        FinalFailure::HostKeyNotKnown => Some(HOST_KEY_NOT_KNOWN_SENTENCE),
         FinalFailure::Declined => Some(
             "monochromatic-git-policy-cli: the server refused this push: a hook on the server (a check the server runs before it accepts a push) declined it, with the message shown below. The commit service stops pushing this branch \
              until your next commit. A push by hand may succeed if the cause has cleared: fix what the message names, or wait, then push by hand or commit again.",

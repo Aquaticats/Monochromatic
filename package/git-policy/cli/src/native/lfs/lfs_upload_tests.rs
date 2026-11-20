@@ -799,19 +799,25 @@ fn an_upload_that_needed_a_login_at_a_terminal_is_told_the_same_rule() {
 }
 
 /// What:
-///  An upload that fails because an SSH key's passphrase was never loaded says to run `ssh-add`.
+///  An upload that fails because an SSH key's passphrase was never loaded says how to start an agent and load the key,
+///  or to use a key without a passphrase,
+///  and never assumes an agent is already there.
 /// Why:
-///   The owner's answer of 2026-11-19 is that a passphrase counts as a credential:
+///   The owner's answers of 2026-11-19 and 2026-11-20:
+///  a passphrase counts as a credential,
 ///  a key that no agent holds fails at once, at a terminal or without one,
-///  and OpenSSH's own words (`Permission denied (publickey).`) do not say what to do about it,
-///  so the wrapper's explanation names the command that loads the key.
+///  and OpenSSH's own words (`Permission denied (publickey).`) do not say what to do about it.
+///  The project's answer of 2026-11-20 also says a person must be able to work with no agent at all
+///  ("We must support situations in which ssh-agent isn't there"),
+///  so the sentence starts the agent rather than naming a command whose socket it assumes.
+///  Every bracket in what a person reads is closed, which the earlier sentence failed at.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(diagnostics).toContain('ssh-add'); expect(diagnostics).toContain('needed a login')
+/// expect(diagnostics).toContain('eval "$(ssh-agent)"'); expect(diagnostics).toContain('a key without a passphrase')
 /// ```
 #[test]
-fn an_upload_whose_ssh_key_no_agent_holds_says_to_run_ssh_add() {
+fn an_upload_whose_ssh_key_no_agent_holds_says_how_to_start_an_agent_or_use_a_key_without_a_passphrase() {
     let root: PathBuf = fixture("lfs-upload-ssh-key");
     let counter: PathBuf = root.join("count.txt");
     failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, "ssh: connect to host 127.0.0.1 port 22: Permission denied (publickey).", 128);
@@ -828,7 +834,49 @@ fn an_upload_whose_ssh_key_no_agent_holds_says_to_run_ssh_add() {
     assert_eq!(code, Some(128), "{diagnostics}");
     assert!(diagnostics.contains("needed a login"), "the failure is read as a login the program could not get: {diagnostics}");
     assert!(diagnostics.contains("`ssh-add`"), "the command that loads the key is named: {diagnostics}");
+    assert!(diagnostics.contains("`eval \"$(ssh-agent)\"`"), "the words say how to start an agent: {diagnostics}");
+    assert!(diagnostics.contains("a key without a passphrase"), "the words name the other way that needs no agent: {diagnostics}");
     assert!(diagnostics.contains("passphrase"), "the words say what the agent would have answered: {diagnostics}");
+    assert!(!diagnostics.contains("known_hosts"), "a refused key is not a host key this machine does not know: {diagnostics}");
+    assert_eq!(
+        diagnostics.matches('(').count(),
+        diagnostics.matches(')').count(),
+        "every bracket a person reads is closed: {diagnostics}"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  An upload refused because this machine does not know the SSH host key says to connect once with plain `ssh <host>`
+///  or add the key to `known_hosts`, then retry.
+/// Why:
+///   The project's answer of 2026-11-20 keeps the refusal the no-prompt rule causes at a terminal,
+///  and OpenSSH's own `Host key verification failed.` says nothing about what to do;
+///  no retry adds a host key, and plain `ssh`, which the wrapper does not touch, still asks the question.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(diagnostics).toContain('plain `ssh <host>`'); expect(diagnostics).toContain('known_hosts')
+/// ```
+#[test]
+fn an_upload_refused_for_an_unknown_host_key_says_how_to_add_it() {
+    let root: PathBuf = fixture("lfs-upload-unknown-host-key");
+    let counter: PathBuf = root.join("count.txt");
+    failing_stand_in(
+        root.join("bin").as_path(),
+        counter.as_path(),
+        99,
+        "Host key verification failed.\nfatal: Could not read from remote repository.",
+        2,
+    );
+    let state: String = root.join("state").to_string_lossy().into_owned();
+    let variables = [("XDG_STATE_HOME", state.as_str())];
+    let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &plan(), &variables);
+    assert_eq!(code, Some(2), "{diagnostics}");
+    for said in ["plain `ssh <host>`", "`known_hosts`", "push again"] {
+        assert!(diagnostics.contains(said), "{said} in {diagnostics}");
+    }
+    assert!(!diagnostics.contains("needed a login"), "a host key is not a credential the upload needed: {diagnostics}");
     remove(root.as_path());
 }
 
@@ -854,51 +902,98 @@ fn a_failure_that_names_no_login_keeps_the_words_it_had() {
 
 /// What:
 ///  A standard error longer than the relay cap is relayed as whole lines only,
-///  its last line is dropped whole when the cap falls inside it,
-///  the loss is said,
-///  and the explanation after it starts on a line of its own.
+///  the line the cap falls inside is dropped whole,
+///  and the loss is said on a line of its own.
 /// Why:
 ///   The audit's reproduction wrote filler so that the cap fell inside the password of a URL:
 ///  the mask ran after the cut,
 ///  a URL cut before its `@` shows no userinfo,
 ///  and the front of the password reached the terminal with no word that anything was missing.
+///  The read is driven from prepared bytes,
+///  because which ending a write of just over the cap gets is the timing of one look against one process:
+///  a whole gate of 2026-11-20 saw this control fail once with `Some(124)` against `Some(1)`,
+///  the flood look winning over the stand-in's own exit.
+///  The process's own ending is kept by `an_upload_that_keeps_printing_past_the_cap_is_stopped_by_the_flood_look`,
+///  whose stand-in stays alive after writing past the cap.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(diagnostics).not.toContain('planted'); expect(diagnostics).toContain('more than 4194304 bytes of standard error')
+/// const head = maskUrlSecretsWithin(bytes, MAX_RELAYED_BYTES); expect(head.cut).toBe(true); expect(text).not.toContain('planted')
 /// ```
 #[test]
 fn a_relay_past_the_cap_keeps_no_part_of_a_cut_url_and_says_it_was_cut() {
-    let root = fixture("lfs-upload-relay-cut");
+    let secret: &str = "plantedsecretpasswordABCDEFGH";
+    // Written from the parts, so the repository's credential scanner reads no URL userinfo here.
+    let url: String = format!("https://user:{secret}@lfs.example.invalid/objects/batch");
+    let first_line: &str = "first line\n";
+    // The cap falls after `https://user:planted`, so the rest of the password is what a raw cut would keep.
+    let kept_of_url: usize = format!("https://user:{}", &secret[..7]).len();
+    let limit: usize = usize::try_from(MAX_RELAYED_BYTES).expect("a cap");
+    let filler: usize = limit - kept_of_url - first_line.len();
+    let mut bytes: Vec<u8> = Vec::new();
+    bytes.extend_from_slice(first_line.as_bytes());
+    bytes.extend(std::iter::repeat_n(b'x', filler));
+    bytes.extend_from_slice(url.as_bytes());
+    bytes.push(b'\n');
+    // The parent reads one byte past the cap, so the read itself says more was printed than is relayed.
+    let read: usize = limit + 1;
+    let head: MaskedHead = mask_url_secrets_within(bytes.get(..read).unwrap_or_default(), MAX_RELAYED_BYTES);
+    let kept: String = String::from_utf8_lossy(head.text.as_slice()).into_owned();
+    assert!(head.cut, "the read says the output was longer than the cap");
+    assert_eq!(kept, first_line, "only the whole lines the cap holds are kept");
+    assert!(!kept.contains("planted"), "no part of the password survives the cut");
+    assert!(!kept.contains(secret), "the planted secret is not relayed");
+    let mut relayed: Vec<u8> = head.text;
+    relayed.extend_from_slice(shortened_relay_notice().as_bytes());
+    let diagnostics: String = String::from_utf8_lossy(relayed.as_slice()).into_owned();
+    let notice: String = shortened_relay_notice();
+    assert!(
+        notice.contains(&format!("more than {MAX_RELAYED_BYTES} bytes of standard error")),
+        "the relay says the output was cut: {notice}"
+    );
+    assert!(notice.ends_with('\n'), "the explanation after the notice starts on a line of its own: {notice:?}");
+    assert!(diagnostics.ends_with(notice.as_str()), "the notice is what the relayed text ends with: {}", &diagnostics[diagnostics.len().saturating_sub(400)..]);
+}
+
+/// What:
+///  An upload whose stand-in keeps printing past the cap is stopped by the flood look,
+///  with the program's own status replaced by the wrapper's stop,
+/// and what it printed before the stop is still relayed masked.
+/// Why:
+///   Which ending a write just past the cap gets is the timing of one look against one process,
+///  so the flood ending needs a program that is still alive after the write:
+///  the stand-in writes past the cap and then waits,
+///  which leaves the look no other ending to find,
+///  and this control is the only one that claims the flood ending at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(code).toBe(124); expect(diagnostics).toContain('wrote more than 4194304 bytes of output and was stopped')
+/// ```
+#[test]
+fn an_upload_that_keeps_printing_past_the_cap_is_stopped_by_the_flood_look() {
+    let root = fixture("lfs-upload-flood");
     let bin: PathBuf = root.join("bin");
     let secret: &str = "plantedsecretpasswordABCDEFGH";
     // Written from the parts, so the repository's credential scanner reads no URL userinfo here.
     let url: String = format!("https://user:{secret}@lfs.example.invalid/objects/batch");
-    // The cap falls after `https://user:planted`, so the rest of the password is what a raw cut would keep.
-    let kept_of_url: u64 = u64::try_from(format!("https://user:{}", &secret[..7]).len()).expect("a length");
-    let filler: u64 = MAX_RELAYED_BYTES - kept_of_url;
     std::fs::create_dir_all(bin.as_path()).expect("bin directory");
     executable(
         bin.join("git-lfs").as_path(),
         // The tools are named by absolute path: the fixture's `PATH` holds only the stand-in's own directory.
-        format!("#!/bin/sh\n/usr/bin/head -c {filler} /dev/zero | /usr/bin/tr '\\0' 'x' >&2\nprintf '%s\\n' '{url}' >&2\nexit 1\n").as_bytes(),
+        format!("#!/bin/sh\n/usr/bin/head -c {} /dev/zero | /usr/bin/tr '\\0' 'x' >&2\nprintf '%s\\n' '{url}' >&2\nexec /usr/bin/sleep 30\n", MAX_RELAYED_BYTES).as_bytes(),
     );
     let state: String = root.join("state").to_string_lossy().into_owned();
     let variables = [("XDG_STATE_HOME", state.as_str())];
     let (code, diagnostics) = run_with(root.as_path(), &[bin.as_path()], &[], &plan(), &variables);
-    assert_eq!(code, Some(1), "{diagnostics}");
-    assert!(!diagnostics.contains("planted"), "no part of the password survives the cut");
-    assert!(!diagnostics.contains(secret), "the planted secret is not relayed");
+    assert_eq!(code, Some(i32::try_from(STOPPED_EXIT_CODE).unwrap_or(1)), "the flood look stopped it: {diagnostics}");
     assert!(
-        diagnostics.contains(&format!("more than {MAX_RELAYED_BYTES} bytes of standard error")),
-        "the relay says the output was cut: {}",
-        &diagnostics[..diagnostics.len().min(400)]
-    );
-    assert!(
-        diagnostics.contains("\nmonochromatic-git-policy-cli: `git-lfs push` exited with status 1"),
-        "the explanation starts on a line of its own: {}",
+        diagnostics.contains(&format!("wrote more than {MAX_RELAYED_BYTES} bytes of output and was stopped")),
+        "the stop says why: {}",
         &diagnostics[diagnostics.len().saturating_sub(400)..]
     );
+    assert!(!diagnostics.contains("planted"), "no part of the password survives the stop");
+    assert!(diagnostics.contains("This push was not started"), "the push is said not to have started");
     remove(root.as_path());
 }
 

@@ -28,8 +28,8 @@ use crate::bounded_push::{PUSH_DEADLINE_VARIABLE, STOPPED_EXIT_CODE, StopCause, 
 /// The texts of a failed or refused upload,
 /// and the reading that says a login was needed.
 use crate::lfs_pre_push::{
-    LFS_PROGRAM, failed_message, login_needed_message, missing_program_message, reads_as_a_key_failure, reads_as_a_login_failure,
-    start_failed_message,
+    HOST_KEY_NOT_KNOWN_SENTENCE, LFS_PROGRAM, failed_message, login_needed_message, missing_program_message, reads_as_a_key_failure,
+    reads_as_a_login_failure, reads_as_unknown_host_key, start_failed_message,
 };
 /// The masks and the hosts a destination or a failure names.
 use crate::lfs_output_mask::{host_of, hosts_in, mask_url_secrets_text};
@@ -184,15 +184,22 @@ fn login_subject(destination: &std::ffi::OsStr, output: &str) -> String {
 ///  The no-prompt rule is the same for every command the wrapper runs,
 /// so nothing here depends on a terminal,
 /// and the one thing read from the program's words is whether an SSH key's passphrase was the missing credential.
+///  A host key this machine does not know is the other refusal the wrapper's own words must explain,
+/// because the rule turns OpenSSH's yes/no question into an empty answer,
+/// and no retry adds the key (the project's answer of 2026-11-20).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// failedMessage(status) + (readsAsALoginFailure(output) ? loginNeededMessage(loginSubject(destination), readsAsAKeyFailure(output)) : '')
+/// failedMessage(status) + (readsAsALoginFailure(output) ? loginNeededMessage(...) : '') + (readsAsUnknownHostKey(output) ? HOST_KEY_NOT_KNOWN_SENTENCE : '')
 /// ```
 pub fn explanation_after_failure(status: &str, destination: &std::ffi::OsStr, output: &[u8]) -> String {
     let mut text: String = failed_message(status);
     // `from_utf8_lossy` reads the program's words whatever their encoding; only the search matters here.
     let shown: String = String::from_utf8_lossy(output).into_owned();
+    if reads_as_unknown_host_key(shown.as_str()) {
+        text.push_str(HOST_KEY_NOT_KNOWN_SENTENCE);
+        text.push('\n');
+    }
     if reads_as_a_login_failure(shown.as_str()) {
         let key_not_unlocked: bool = reads_as_a_key_failure(shown.as_str());
         text.push_str(login_needed_message(login_subject(destination, shown.as_str()).as_str(), key_not_unlocked).as_str());
