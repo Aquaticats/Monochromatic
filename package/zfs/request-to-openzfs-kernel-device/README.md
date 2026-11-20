@@ -267,12 +267,17 @@ and
 ## What this crate does not do
 
 - It checks no kernel compatibility at start.
-  The start-time gate that compares the loaded module's release,
-  architecture,
+  The start-time gate that compares the loaded module's architecture,
   endianness and layout is step 6;
   the guest tests compare the fields and
   request numbers now,
   and no program refuses to start on a mismatch yet.
+  The module's release string is not part of the gate:
+  by the project's answer of 2026-11-19,
+  "Any version, layout decides",
+  the layout comparison and the request numbers decide,
+  and `doctor` prints the release string and says when it is not the tested text,
+  `2.4.4-1`.
 - It never retries a mutating request.
   A reply buffer grows only for reads;
   a write whose outcome is unknown is
