@@ -40617,7 +40617,20 @@ stated in this entry. What follows from them, as work:
   the user-property return; all three writer choices veto-open with "veto none". Amendment locators re-measured against
   `main` at `59152e567b`. Its `scratch/` stays for now because the design cites files in it. GOING: a narrow Sonnet
   check (brief under `~/temp/agent/zfs-runtime-layout-checker-design-fourth-revision-narrow-gate-check-2026-11-19/`),
-  also told that step 2's branch now ends at `08c9dea25f`. Then acceptance. START PROBE REVIEW ENDED (Sonnet, about 33 min; that folder's `keep/review.md`): not
+  also told that step 2's branch now ends at `08c9dea25f`. It ended (Sonnet, about 28 min; that folder's
+  `keep/review.md`, evidence in `keep/evidence/`): not ready, no high. M1: the revision entry's commit times are the
+  hand-set dates, not the reflog's (it also showed in a throwaway repository that the reflog ignores
+  `GIT_COMMITTER_DATE`). Lows: a clone with properties reaches five of the eight differing functions, not all eight;
+  `snapdev` and `volmode` also moved at 2.3.0, so `LONGNAME` is not the one filesystem case; the sweep nonce is a user
+  property too; a clone-path claim credited to a run that cannot show it; step 2's standing stale in six places; item
+  5 "reaches" for "asserts a pass on"; the 24-byte header unmeasured but stated as fact; residue in the re-confirmed Q2
+  record and in the veto-open choices' reasons. The requirement on step 2 matches what step 2 does at `08c9dea25f`;
+  the amendment quotations are word for word on `main`. GOING: the fifth revision,
+  `pi-zfs-runtime-layout-checker-design-fourth-revision-narrow-check-findings-fixed` (DeepSeek on Neuralwatt, cap
+  510), told the reflog times, to label with the time written and never set commit dates, and to give step 2's
+  standing as of a named commit; brief under
+  `~/temp/agent/zfs-runtime-layout-checker-design-fourth-revision-narrow-check-findings-fixed-2026-11-19/`. Then a
+  diff-only Sonnet check and acceptance. START PROBE REVIEW ENDED (Sonnet, about 33 min; that folder's `keep/review.md`): not
   ready, no high, six mediums, all text: the companion sits in the add preflight but not in `doctor`, against the
   proposal's "Share preflight with `doctor`"; "That is the project's choice" claims a printed skip on a refused user
   namespace the project never chose (the Q6 option text named the skip only as a cost; the add going ahead is the
