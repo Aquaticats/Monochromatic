@@ -1215,8 +1215,9 @@ Which process writes it, and when. The handler process that makes the first real
 writes it: `boot-reconcile` or the sweep, whichever attaches first, the sweep being the zedlet's default
 invocation with no argument (the [plan][plan], step 5) rather than a second path. `First` means first to claim the
 file, not first to attach: two handler processes can finish out of order, and the one that claims the name first
-is the one whose outcome is kept. The claim is taken on entry to the attach, by the first attempt that passes the key
-check and before the walk, and not by an attempt that check refuses: plan step 8 checks the encryption root and key
+is the one whose outcome is kept. The claim is taken by the first attempt that passes the key check, after that
+check and before the walk that opens the slot, and not by an attempt the check refuses: plan step 8 checks the
+encryption root and key
 state before the attach, and it "reports an unavailable key separately from identity or permission failures", so a
 key refusal is a finding about the key, which `doctor` and the handler's journal already report, and not an attach
 outcome this file keeps. This design chose that boundary over taking the claim at `fsopen`, and the reason is the
@@ -1225,8 +1226,10 @@ identity has drifted is exactly the operation failure this file exists to record
 check and not after it. The plan puts both checks before the attach (step 8's key check, and step 4's recorded slot
 identity that the compare reads) and does not order the slot's first-observation record against the key check, so
 this design takes the claim before that record: a slot whose identity cannot be read or written is an outcome the
-file keeps. The key check is the only step outside the claim, every refusal point the attach can reach has a step
-name, and a refusal inside the claim writes `outcome refused` with the failing call's
+file keeps. The key check and the sweep's own refusals before any attach attempt are what stay outside the claim:
+the clone's type, its GUID, its origin and properties, the slot's derivation and the intent parse all precede the
+walk in plan step 8, and none of them takes a claim. Every refusal point from the walk onward has a step name, and
+a refusal inside the claim writes `outcome refused` with the failing call's
 errno name, or with `errno none` where the refusal was a comparison or a policy check.
 It is that process, not the mode that supervises a probe and not the wrapper. It writes after the attach's outcome
 is known, either the verified mount at the slot or the failing step, and before it publishes this boot's receipt.
@@ -1237,12 +1240,16 @@ outcome without a receipt rather than a receipt without an outcome.
 
 How that rule reads against [Q7](#q7-whether-the-first-real-attach-records-its-outcome), as the project was asked it:
 the question asked for the one outcome from a real clone, a real slot and the host namespace, and this rule keeps
-the first attempt that could have produced one. A refusal at a check the claim covers, the walk or the identity
-compare, therefore becomes that boot's record, and an attempt that attached later in the same boot writes nothing,
-so `doctor` shows that boot's first attempt as refused and the later pass in the handler's journal alone. The
-alternative, claiming the name at `fsopen`, keeps only the attach calls' outcomes and loses a drifted slot's record,
-which is one of the failures the write exists to keep. The design keeps the first attempt and states this effect in
-place of hiding it; the alternative is named so the project can weigh it and is not taken.
+the first attempt that could have produced one. A refusal at a check the claim covers, the walk, the slot's
+first-observation record or the identity compare, therefore becomes that boot's record, and an attempt that attached
+later in the same boot writes nothing, so `doctor` shows that boot's first attempt as refused and the later pass in
+the handler's journal alone. Such a refusal may never have reached a kernel attach call, so the file can hold a
+boot's outcome that is no evidence about the kernel's attach path, where Q7 asked for the outcome of a real clone
+that `doctor` compares with the probe's result on the same build. The alternative, claiming the name at `fsopen`,
+keeps only the attach calls' outcomes and loses a drifted slot's record, which is one of the failures the write
+exists to keep. The design keeps the first attempt and states this effect in place of hiding it; the alternative is
+named so the project can weigh it, it is not taken here, and
+[Questions the owner answered](#questions-the-owner-answered) puts the placement to the project as a question.
 
 How one writer keeps it. The writer claims the name with an exclusive creation, the shape `write_exclusive_synced`
 has (`package/git-policy/cli/src/native/foundation/private_storage.rs:500`), writing the started line; a process that
@@ -1266,7 +1273,9 @@ Its format. One `key value` line per field, fixed keys and no free text, in the 
 `slot <the slot name>`, `clone <the clone's dataset name>` and `guid <the clone's GUID>`, or
 `outcome refused` with `slot <the slot name>`, `clone <the clone's dataset name>`, `guid <the clone's GUID>`,
 `step <the step>` and `errno <a name or none>`. The steps are the handler's own, in the order it runs them:
-`walk`, `identity-record`, `identity-compare`, `fsopen`, `fsconfig-create`, `fsmount`, `move-mount` and `verify`.
+`walk`, `identity-record`, `identity-compare`, `fsopen`, `fsconfig`, `fsconfig-create`, `fsmount`, `move-mount` and
+`verify`. `fsconfig` carries the source write and the option writes and `fsconfig-create` the one
+`FSCONFIG_CMD_CREATE` call, so every `fsconfig` call the attach makes has a name.
 `walk` is the no-crossing `openat2` walk from the pinned checkout, `identity-record` is the slot's first-observation
 record that plan step 8 writes before the attach, and `identity-compare` is the compare step 4 makes against a
 recorded identity. The key check is not one of them, because a refusal there takes no claim and writes nothing. The
@@ -1369,8 +1378,9 @@ same for the companion, citing the per-add deadline beside [M11](#m11-the-accoun
 companion does not run in the preflight until that value exists. Both of those are this design's own choices,
 pending the project's veto, with veto none as the default: the first is no deadline value before step 6's
 measurement, and the second is no companion deadline before step 10's. A provisional ceiling set now by the project's
-own decision would also satisfy `LQM` and let step 19 add the `ExecStartPre=` sooner; this design does not propose a
-number, and that choice is the project's.
+own decision would also satisfy `LQM` and let step 19 add the `ExecStartPre=` sooner, and a provisional ceiling for
+the companion would likewise let it run in a shipped preflight and in `doctor` before M11's value exists; this design
+proposes neither number, and those choices are the project's.
 
 The deadline's margin. The value ships as the slowest measured arm or whole-probe run plus a margin that covers the
 range between the interleaved rounds, so a run inside the range the harness already saw does not fail closed on
@@ -1609,7 +1619,9 @@ document cites, so one offset does not serve the whole file.
   as files it references rather than owns. It does not gain the preflight that reads them: that is step 10's shared
   `doctor` preflight, which treats an absent, stale, started, timed-out or blocked record as not current.
 - Step 8, "The attaching sweep for a clone that carries a mount request", gains the call to the `first-attach`
-  writer, its sweep being the path that makes the first attach after boot, and it reads the probe's record before
+  writer, with the order this design chose as its duty: the sweep takes the claim on the first attempt that passes
+  the key check and before it writes the slot's first-observation record, its sweep being the path that makes the
+  first attach after boot, and it reads the probe's record before
   any attach: on an absent, stale, started, timed-out, failed or unexercised record it attaches nothing and keeps
   every intent and registration, which is what [Q2](#q2-what-a-failed-arm-disables) and
   [Q4](#q4-whether-an-unexercised-arm-may-enable-the-route) decide.
@@ -1891,7 +1903,7 @@ scratch mount, the walk and its `ObjectId` compare, the descriptor attach of the
 the four
 refusal controls, and the move and the unmount from the second child. Every refusal control needs its success control
 beside it, the shape [M5](#m5-the-refusal-arm-refuses-for-the-right-reason) gives the probe's own, so a companion
-that refuses everything fails its own control, and every arm here runs with
+that refuses everything fails its own control, and every arm here but the restricted one runs with
 `kernel.apparmor_restrict_unprivileged_userns` at 0 on a guest that has the setting.
 
 Measure what the companion costs one add as a ratio to the same add with the companion disabled, interleaved in the
@@ -1903,10 +1915,16 @@ refuse the add, name the call and take the fallback route, with the switch off p
 refuse the add, and must leave `doctor` naming the setting and the skip. A transient unit carrying
 `SystemCallFilter=` for `unshare` with `SystemCallErrorNumber=EPERM` is the other refusal a host can show, and it
 must print the same skip line with that errno; a filter answering `EACCES`, the errno the SELinux and AppArmor hooks
-give, must print the same line. The other half of the line needs its own control: a filter answering `EINVAL` at any
-setup call, which is what a defect of the companion's own code would give, must refuse the add as a failed arm and
-must print no skip line, and a filter answering `EPERM` at the second mapping write must do the same, so a skip rule
-that took every errno from a call in the setup fails its own control. A guest booted with
+give, must print the same line; and a filter for `mount` answering `EACCES`, the mount mediation the skip list
+names, must do the same, naming `mount`. The other half of the line needs its own control: a filter answering `EINVAL`
+at a setup call on a guest whose `/proc/self/ns/user` exists, which is what a defect of the companion's own code
+would give, must refuse the add as a failed arm and must print no skip line; a `CLI_GIT_TEST_ONLY_*` fixture whose
+child answers `EPERM` at the second mapping write must do the same, and it needs that seam because
+`SystemCallFilter=` takes system call names and cannot single out one `write` of three (systemd.exec(5),
+`SystemCallFilter=`), so a skip rule that took every errno from a call in the setup fails its own control. A guest
+whose kernel is built without `CONFIG_USER_NS`, so `/proc/self/ns/user` is absent, is the other host refusal the
+skip list names: it must print the skip line naming `unshare` and `EINVAL`, must not refuse the add, and until such
+a guest exists this arm is unrun and this item says so. A guest booted with
 `kernel.apparmor_restrict_unprivileged_userns` at 1, on a
 distribution whose default profile denies capabilities inside the namespace, is the arm the skip boundary exists
 for: it must print the skip line naming the setup call the kernel denied and `EPERM`, must record which call it
@@ -1925,10 +1943,21 @@ descriptor calls it makes.
 The question round closed on 2026-11-19, and every answer is under
 [Answers of 2026-11-19](#answers-of-2026-11-19), which states each question, the option the project chose, the
 timestamp range and the option it did not take. No question of this design stays open. Three of its own choices stay
-open to the project's veto, each with veto none as the default: the companion's printed skip letting the add
-proceed, no probe deadline value before step 6's measurement, and no companion deadline before step 10's, which is
-why step 19 adds `ExecStartPre=` only when one is cited. What stays open beside them is measurement: every item under
-[Owed measurements](#owed-measurements) is unrun, and nothing here authorizes work on this host's pool.
+open to the project's veto, each with veto none as the default:
+
+- The companion's printed skip letting the add proceed. A veto refuses the managed add instead, which turns the
+  managed route off on every host that skips, the Ubuntu guest included.
+- No probe deadline value before step 6's measurement. A veto needs the project to name a provisional ceiling, and
+  step 19 then adds the unit's `ExecStartPre=` for the probe before that measurement, which is why the probe's
+  deadline sentence points at step 19.
+- No companion deadline before step 10's. A veto needs a provisional ceiling too, and the companion then runs in a
+  shipped preflight and in `doctor` before [M11](#m11-the-account-companion-per-add)'s value exists.
+
+Two questions travel beside those vetoes to the acceptance round, because each changes what the design keeps. One is
+the companion's skip, ranked against refusing the add, with its reach and the Ubuntu guest stated. The other is where
+the `first-attach` claim sits: before the walk, which keeps a drifted slot's refusal as that boot's record, against
+claiming at `fsopen`, which keeps only the attach calls' outcomes. What stays open beside them is measurement: every
+item under [Owed measurements](#owed-measurements) is unrun, and nothing here authorizes work on this host's pool.
 
 ## What a writer settles without asking
 
@@ -2034,14 +2063,18 @@ states.
   parent-death and unmount citations fetched `fs/namespace.c`, `fs/pnode.c`, `kernel/exit.c` and `kernel/sys.c` at
   v7.3 itself. For the account companion, Linux v7.3 `kernel/user_namespace.c` and `kernel/ucount.c` (fetched, for
   the `ENOSPC` of an exhausted namespace count, the capability check `map_write` makes before its parse, and the
-  setting that bounds the count), `kernel/capability.c` (fetched, for what `file_ns_capable` asks),
-  `kernel/fork.c` (fetched, for the `EINVAL` a `CLONE_NEWUSER` unshare from a multithreaded caller answers),
-  `kernel/nsproxy.c` and
-  `fs/namespace.c` (for the capability the mount namespace's own setup needs), `fs/namei.c` (for `rmdir` of a mount
-  point and `detach_mounts`) and `mm/shmem.c` (fetched, for tmpfs's `FS_USERNS_MOUNT` and its fs_context
+  setting that bounds the count), `kernel/capability.c` (fetched, for what `file_ns_capable` asks and that it answers
+  a bool), `kernel/fork.c` (fetched, for the `EINVAL` a `CLONE_NEWUSER` unshare from a multithreaded caller answers
+  and for `ksys_unshare`'s call to `unshare_userns`), `include/linux/user_namespace.h` (fetched, for the `EINVAL`
+  the inline `unshare_userns` answers on a kernel built without user namespaces) and `fs/proc/namespaces.c`
+  (fetched, for the user entry `/proc/<pid>/ns` has only with `CONFIG_USER_NS`), `kernel/nsproxy.c` and
+  `fs/namespace.c` (for the capability the mount namespace's own setup needs, and for `mount_setattr`'s
+  `may_mount` asking no mount hook), `fs/namei.c` (for `rmdir` of a mount point and `detach_mounts`) and
+  `mm/shmem.c` (fetched, for tmpfs's `FS_USERNS_MOUNT` and its fs_context
   operations). For the errno a refused user namespace answers, Linux v7.3
   `security/selinux/hooks.c`, `security/selinux/avc.c`, `security/apparmor/lsm.c`, `security/apparmor/task.c` and
-  `security/apparmor/lib.c` (fetched), each read at the hook `create_user_ns` calls and the one that hook reaches.
+  `security/apparmor/lib.c` (fetched), each read at the hook `create_user_ns` calls, the one that hook reaches, the
+  capability check the first mapping write makes, and the mount hook.
 - Ubuntu's 24.04 release notes, "Unprivileged user namespace restrictions", for the default AppArmor profile that
   allows the user namespace and denies the capabilities inside it, which the design's own measurement guest carries.
 - `user_namespaces(7)` and `unshare(2)` read on this host, for the mapping rules, the `setgroups` order and the
