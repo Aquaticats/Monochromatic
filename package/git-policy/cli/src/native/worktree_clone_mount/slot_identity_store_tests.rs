@@ -284,7 +284,8 @@ fn the_append_holds_one_lock_on_the_lock_file_from_the_read_to_the_write() {
 
 /// What:
 ///  The adoption's rewrite takes the same lock an append holds:
-///  run while an append holds it, the adoption refuses rather than replacing the file under that append,
+///  run while an append holds it,
+///  the adoption refuses rather than replacing the file under that append,
 ///  and the append's record is in the store afterwards.
 /// Why:
 ///  The adoption publishes a whole new file by rename,

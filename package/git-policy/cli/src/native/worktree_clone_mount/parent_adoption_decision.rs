@@ -61,7 +61,8 @@ pub struct AdoptionFacts {
     /// The store the adoption replaces the parent record in,
     /// whose own slot names every state above must cover.
     /// A caller cannot hand in a list of its own:
-    /// the names come from the store, never from the caller's account of it.
+    /// the names come from the store,
+    /// never from the caller's account of it.
     pub store: SlotIdentityStore,
     /// A fresh canonical lookup of the parent folder,
     /// or its refusal.

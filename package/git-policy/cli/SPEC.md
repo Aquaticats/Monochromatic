@@ -5416,8 +5416,10 @@ The lock is asked for without waiting (`LOCK_NB`) and given up after two seconds
 which is 55 times the slowest hold measured through these two writers on this host's ZFS home dataset:
 1.577 to 2.243 ms for an append on a 1000-slot store,
 31.657 to 33.926 ms for an append on the widest store one read accepts,
-and 33.483 to 35.976 ms for that store's adoption, the slowest holder
-(the method, every sample and the `fsync` that reached the pool's device stand beside `STORE_LOCK_WAIT`),
+and 33.483 to 35.976 ms for that store's adoption,
+the slowest holder
+(the method,
+every sample and the `fsync` that reached the pool's device stand beside `STORE_LOCK_WAIT`),
 so a holder that never finishes refuses the write and says which lock file stood in the way
 instead of holding the command open.
 The kernel releases the lock when the descriptor closes however the run ends,
@@ -5427,12 +5429,14 @@ the grammar's one file cannot be made safe by atomic rename,
 because two first-recording sweeps that both rebuild the file would let the later rename record an identity
 taken from a folder that changed in between,
 which is the refresh the design forbids.
-A folder with one file per slot, each made with `O_EXCL`,
+A folder with one file per slot,
+each made with `O_EXCL`,
 would record each slot without a lock and lose the one state a single read sees;
 this implementation keeps the single file,
 and the owner has not approved that format
 (the question is in `doc/handover/questions-for-the-owner.md`).
-The lock covers one read, check and append of one record,
+The lock covers one read,
+check and append of one record,
 and the adoption's read and rename of the whole file,
 and nothing else.
 The parent folder's record is written by the setup run (the plan's step 19),

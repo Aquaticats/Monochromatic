@@ -261,7 +261,8 @@ fn check_control(path: &Path, what: &str, held: &std::fs::File) -> Result<(), St
 ///  the route writes through `append_slot_identity_under_root_control`,
 ///  which makes the root-control check inside the same step.
 ///  The store is opened twice:
-///  once before the lock, so a store the setup run never wrote refuses without a lock file made beside its name,
+///  once before the lock,
+///  so a store the setup run never wrote refuses without a lock file made beside its name,
 ///  and once after the lock,
 ///  so a rewrite that replaced the file between the two cannot receive a line written into the replaced one.
 ///
@@ -344,7 +345,9 @@ fn append_under_the_lock(file: &mut std::fs::File, store: &Path, name: &str, ide
 ///  Its own read and the rename that publishes the new file are one step under the same lock an append holds,
 ///  so no append can land between them and be dropped by the rename;
 ///  the mode runs with managed operations quiesced because the design requires that of the adoption,
-///  and the lock, not the quiescence, is what keeps a surviving slot record from being lost.
+///  and the lock,
+///  not the quiescence,
+///  is what keeps a surviving slot record from being lost.
 ///  This is the grammar's own writer,
 ///  which a control drives on a fixture store;
 ///  the route writes through `record_parent_identity_under_root_control`.
@@ -439,11 +442,14 @@ const READABLE_OR_WRITABLE_BY_OTHERS: u32 = 0o077;
 ///  a write and the `fsync` calls of either.
 ///  Measured through this module's own writers on this host's ZFS `home` dataset on 2026-11-20,
 ///  with a probe that reads `/proc/diskstats` around every sample:
-///  an append on a 1000-slot store held the lock 1.577 to 2.243 ms (median 1.748, 40 samples),
+///  an append on a 1000-slot store held the lock 1.577 to 2.243 ms
+///  (median 1.748, 40 samples),
 ///  an append on the widest store one read accepts (1,011,406 bytes) 31.657 to 33.926 ms (10 samples),
-///  and an adoption of that store 33.483 to 35.976 ms (10 samples), the slowest holder measured;
+///  and an adoption of that store 33.483 to 35.976 ms (10 samples),
+///  the slowest holder measured;
 ///  every one of those samples moved this host's pool device by its `fsync`,
-///  while the same append without the two `fsync` calls moved no device at all (0.009 to 0.080 ms, 40 samples).
+///  while the same append without the two `fsync` calls moved no device at all
+///  (0.009 to 0.080 ms, 40 samples).
 ///  The two seconds below are 55 times that slowest hold,
 ///  which is the margin for a device that answers an `fsync` tens of times slower than this one,
 ///  and it ends the wait rather than holding a command open.
