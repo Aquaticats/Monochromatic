@@ -50,7 +50,7 @@ which no machine here can do.
   2026-11-20T18:07:38-05:00,
   the clock reading taken as this session's work began.
   Last updated:
-  2026-11-20T18:56:14-05:00,
+  2026-11-20T18:57:15-05:00,
   the write time of this revision.
 - Revisions:
   two.
@@ -102,11 +102,15 @@ which no machine here can do.
   Every record of both revisions,
   seven from the first and this revision's,
   is kept together in
-  `~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/keep/lock-record.json`,
-  It began as a copy of the first revision's file,
+  `~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/keep/lock-record.json`.
+  That file began as a copy of the first revision's file,
   which still sits at
   `~/temp/agent/zfs-layout-checker-reader-vet-report-2026-11-20/keep/lock-record.json`,
   and this revision's writer appended to it as the first one's did.
+  One departure is recorded rather than hidden:
+  the skill places a report directly in the main worktree,
+  while this one sits in the branch worktree where the work happens,
+  so its lock key is the SHA-256 of that path and a copy elsewhere would take another key.
 - Active audit owner:
   this revision's session,
   a Pi session in the worktree `.claude/worktrees/zfs-layout-checker-reader-validation`,
@@ -867,6 +871,8 @@ Each row names the candidate,
 its discovery source,
 its base category and overlays,
 and its screening result.
+Every version row's license and checksum is the crates.io index entry for that version,
+read on 2026-11-20.
 The base category is the same for every row and is stated once:
 inspectable open-source local technology,
 with the high-trust,
