@@ -40295,7 +40295,16 @@ What follows from them, as work:
   run on a branch made from `a755c6d20c` so it builds on the wake fix: `pi-driver-inbox-message-meets-a-started-turn`
   and `pi-driver-model-error-retry-meets-a-started-turn` (DeepSeek on Neuralwatt, cap 350 each; briefs under
   `~/temp/agent/` folders of those names dated 2026-11-19; the retry is asked to wait for the running turn and look
-  again rather than queue behind it). Merge order: the `ESRCH` fix, the wake fix, then the two follow-ups. Until the
+  again rather than queue behind it). The wake fix's review ended `idle` (77 turns; that folder's `keep/review.md`): no
+  behavioural defect; the fix checked against Pi 1.5.2's source; reds reproduced three ways; medium: the package's
+  `test:unit` imports the built library, so on a fresh worktree it runs a stale build (`buildAndTest` is the check);
+  lows: the troubleshooting page's feed pointer, a `WR5` pointer and `MD2` markers, the busy-answer prefix also matching
+  `pi-agent-core`'s other wording, a duplicated error constant, one call before its declaration. It found that the
+  retry's `countRetry` runs before the refusal is read, so a busy answer would already be counted; that note went into
+  the running retry follow-up's inbox. GOING: the wake fix's round `pi-driver-wake-race-review-findings-fixed`
+  (DeepSeek on Neuralwatt, cap 250), merging `main` (the `ESRCH` fix) first; brief under
+  `~/temp/agent/pi-driver-wake-race-review-findings-fixed-2026-11-19/`. Merge order: the `ESRCH` fix (IN MAIN), the wake
+  fix, then the two follow-ups. Until the
   first two are in main, every brief tells its agent to wait for its own jobs inside its turn. The second resume ended
   `idle` (40 turns)
   with its final report (that folder's `keep/report.md`): branch at `deed732fc1`, five commits (`ddec538f27`,
@@ -40319,8 +40328,21 @@ What follows from them, as work:
   `package_repair::pnpm_runs_in_the_new_worktree_only`, not two. The review worktree was removed. GOING: the second
   round `pi-git-policy-cli-container-gate-on-a-zfs-host-review-findings-fixed` (DeepSeek on Neuralwatt, cap 450) in the
   gate worktree; brief under
-  `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-review-findings-fixed-2026-11-19/`. Then the integration
-  pass (a gate review on Sonnet) and the merge.
+  `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-review-findings-fixed-2026-11-19/`. It ended `idle` (162
+  turns) at `6a96d4a28a` (seven commits; report in that folder's `keep/report.md`): the four overlay comments corrected;
+  the tmpfs ceiling lowered from `1500m` to `768m` with the measurement beside it (run 1's process pages 993.6 MiB, so
+  the 2 GiB bound leaves 1054 MiB for fixtures; a probe in the gate image showed a small tmpfs answering `ENOSPC` with
+  no OOM kill; the 23 prewarm controls pass on a 64 MiB tmpfs); the `ioctl` sweep now panics unless
+  `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED` is set, shown red unset and green set in the gate image; the unit test renamed;
+  run 1's suite output and Clippy stream recovered from the journal into the first run's `scratch/keep/` (its refusal
+  text was only in a session feed, which runs may not open); the cause accounting corrected to one uncovered name. The
+  `768m` ceiling has not met a whole gate run. GOING: the integration pass, a gate review by a Sonnet subagent (brief
+  `~/temp/agent/integration-pass-container-gate-on-a-zfs-host-2026-11-19/prompt.md`): branch
+  `integrate/git-policy-cli-container-gate-on-a-zfs-host` from `main` in a worktree of that name, the branch merged in
+  (merge base `cff64adfa0`, no wrapper commit on `main` since, `merge-tree` clean), the package's checks and one whole
+  container gate in a capped unit, the fail set to be exactly the two cause-H failures, the peaks read against `768m`.
+  It is named for what it covers, not numbered, because pass 59 is reserved for the landed-removal branch. On "fit" the
+  coordinator merges.
 - **GOING**: the hybrid provider prototype (the owner's "Hybrid, prototype first"), unit
   `pi-rate-limit-fallback-hybrid-prototype` (DeepSeek on Neuralwatt, turn cap 380, a quarter above the longest
   finished run on this package, 301; wall 300 minutes, the longest took 260), in
