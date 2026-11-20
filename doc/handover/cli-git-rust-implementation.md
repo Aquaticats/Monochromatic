@@ -40776,7 +40776,7 @@ stated in this entry. What follows from them, as work:
   rounds the next review is the gate review itself rather than a seventh short re-check. GOING: the Sonnet integration
   pass bundling the gate image branch `61f702030f` (brief under
   `~/temp/agent/integration-pass-git-policy-cli-lfs-with-the-gate-base-image-data-2026-11-19/`; integration branch
-  `integrate/git-policy-cli-lfs-and-gate-base-image-data`, one whole gate run). At about 2026-11-19T23:00-05:00 it and
+  `integrate/git-policy-cli-lfs-and-gate-base-image-data`, one whole gate run). Before 2026-11-19T22:15:22-05:00 it and
   the three design gate re-checks stopped on the Claude account's weekly limit (HTTP 429); after the owner logged in on
   a reset account, each was resumed from its saved transcript with a message, the integration pass told to check what
   it already made before running anything.
