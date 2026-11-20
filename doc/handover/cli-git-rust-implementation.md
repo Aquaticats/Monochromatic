@@ -40601,6 +40601,27 @@ stated in this entry. What follows from them, as work:
   module gate first and skips itself when the gate refuses, so the gate and the layout checker go first
   (`feat/git-policy-cli-zfs-start-time-compatibility-gate` in `.claude/worktrees/zfs-step-6-compatibility-gate`, brief
   under `~/temp/agent/zfs-step-6-compatibility-gate-and-layout-checker-2026-11-20/`) and the start probe follows on top.
+  THE PARTIAL-CLONE GATE REVIEW (Sonnet) ended: not ready
+  (`~/temp/agent/gate-review-of-the-partial-clone-proposal-on-sonnet-2026-11-20/keep/review.md`). H1: a clone keeps the
+  source's bytes where a checkout conversion would write others, and neither stat data nor Git's status can tell. M1:
+  the final proof cannot see a wrong cloned byte. M2: a dirty linked worktree is still refused, unsaid. M3 and M4: the
+  same-binary control followed the prototype in 8 of 8 pairs and was the slower each time; the reviewer's rerun gives
+  0.86 of `main` against the proposal's 0.74. M5: 1.54 of `main` at 6,000 modified paths (control 1.44), so "never
+  slower" and "B ends the waiver" do not stand. M6: the threshold is a guess between two points, B's rule would also
+  turn off rung 1 on btrfs (by reading), and "C over D" is contradicted. M7: the text changes are incomplete, three
+  inaccurate; five lows. So the cross-vendor re-review is not done: the fixed text gets a Sonnet re-check before it goes
+  to the owner. GOING: `pi-clone-rung-partial-clone-proposal-gate-review-findings-fixed` (DeepSeek on Neuralwatt, cap
+  510), M1 to M7 and L1 to L5 with H1 written as an open limit; brief under
+  `~/temp/agent/clone-rung-partial-clone-proposal-gate-review-findings-fixed-2026-11-20/`. H1 REPRODUCED by the
+  coordinator on step 3's integration tip `74caa69e7a` against `main` `2df9b1689b`
+  (`~/temp/agent/clone-rung-line-ending-reproduction-on-step-3-and-main-2026-11-20/keep/`, script and logs): clean
+  sources under `eol=crlf`, `core.autocrlf=true`, `ident`, and this repository's own `* text=auto eol=lf` over a CRLF
+  file that was `git add`ed all clone to bytes other than Git's checkout writes; a CRLF file not added is reported
+  modified by Git (its recorded size differs) and goes to Git's checkout. Issue 6323. STEP 3 IS HELD: on this host
+  `main` adds through Git's checkout and gets these bytes right, so step 3 as it is makes something `main` does well
+  worse, and both waivers cover time only; its integration check carries these scenarios as a required arm. The remedy
+  goes to the owner as its own question, with a fence's measured cost; rung 1 (the snapshot) has not been examined by
+  anyone and is checked in a btrfs guest before steps 10 and 11 are briefed.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
