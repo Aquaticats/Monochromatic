@@ -23,10 +23,9 @@ the measurements in
 and the build order in
 [`cli-git-zfs-worktree-implementation-plan.md`](../planning/cli-git-zfs-worktree-implementation-plan.md).
 The place the implementation interface will live is `package/git-policy/cli/SPEC.md`.
-The reviews the design answers number seven:
-its lead names six of them,
-and the seventh is the diff-only gate check of the sixth revision,
-kept at
+The design's lead names six reviews,
+and one more was run on the sixth revision:
+the diff-only gate check kept at
 `~/temp/agent/zfs-staging-under-cache-design-sixth-revision-diff-only-gate-check-2026-11-20/keep/review.md`,
 whose lows this record carries.
 
@@ -371,7 +370,7 @@ The first two statements this record carries as corrected.
 The other two are the design's own lead and revision history,
 which the acceptance leaves as accepted,
 and this record carries what those two places leave out:
-the design answers a seventh review,
+the lead leaves out a seventh review,
 the diff-only gate check of the sixth revision,
 kept at
 `~/temp/agent/zfs-staging-under-cache-design-sixth-revision-diff-only-gate-check-2026-11-20/keep/review.md`;
