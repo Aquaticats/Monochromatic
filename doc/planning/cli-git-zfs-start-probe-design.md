@@ -1124,9 +1124,8 @@ That last step, and the printing of the skip, are this design's own choice, not 
 can veto separately from the boundary: Q6's option text named a skip on a host that refuses user namespaces as one
 of its costs, so that a skip exists was before the project, while the add going ahead after it was not. The skip's
 reach matters to that choice, and the skip's boundary keeps it to the refusals the skip paragraph lists, bar the
-residue that paragraph names, with the Ubuntu guest among the hosts that skip. The choice differs from the direction
-Q4 chose for the probe's arms, where
-an arm that could not run keeps the route blocked. The reason: the companion touches no ZFS and its pass cannot
+residue that paragraph names, with the Ubuntu guest among the hosts that skip. The choice differs from the
+direction Q4 chose for the probe's arms, where an arm that could not run keeps the route blocked. The reason: the companion touches no ZFS and its pass cannot
 predict the root attach, so a host that refuses user namespaces would lose the whole managed route to a check that
 cannot speak about it, while the root probe's arms and the module gate still bound that route. The alternative is
 Q4's rule applied here: a skipped companion refuses the managed add, and the managed route is then off on hosts
@@ -1214,9 +1213,9 @@ invocation with no argument (the [plan][plan], step 5) rather than a second path
 file, not first to attach: two handler processes can finish out of order, and the one that claims the name first
 is the one whose outcome is kept. The claim is taken by the first attempt that passes the key check, after that
 check and before the walk that opens the slot, and not by an attempt the check refuses: plan step 8 checks the
-encryption root and key
-state before the attach, and it "reports an unavailable key separately from identity or permission failures", so a
-key refusal is a finding about the key, which `doctor` and the handler's journal already report, and not an attach
+encryption root and key state before the attach, and it "reports an unavailable key separately from identity or
+permission failures", so a key refusal is a finding about the key, which `doctor` and the handler's journal already
+report, and not an attach
 outcome this file keeps. This design chose that boundary over taking the claim at `fsopen`, and the reason is the
 order the handler runs: the slot's identity compare is a check of the real slot before the attach, and a slot whose
 identity has drifted is exactly the operation failure this file exists to record, so the claim is taken before that
@@ -1618,8 +1617,8 @@ document cites, so one offset does not serve the whole file.
 - Step 8, "The attaching sweep for a clone that carries a mount request", gains the call to the `first-attach`
   writer, with the order this design chose as its duty: the sweep takes the claim on the first attempt that passes
   the key check and before it writes the slot's first-observation record, its sweep being the path that makes the
-  first attach after boot, and it reads the probe's record before
-  any attach: on an absent, stale, started, timed-out, failed or unexercised record it attaches nothing and keeps
+  first attach after boot, and it reads the probe's record before any attach: on an absent, stale, started,
+  timed-out, failed or unexercised record it attaches nothing and keeps
   every intent and registration, which is what [Q2](#q2-what-a-failed-arm-disables) and
   [Q4](#q4-whether-an-unexercised-arm-may-enable-the-route) decide.
 - Step 10, "The add route from registration to verified fill", gains the account companion in its shared preflight
