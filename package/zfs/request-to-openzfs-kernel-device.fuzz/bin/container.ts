@@ -44,6 +44,12 @@ const corpus = join(scratch, 'corpus');
 const tag = process.env.ZFS_BINDING_IMAGE_TAG ?? 'step-1';
 /** The image holding the nightly toolchain, cargo-fuzz and both crates. */
 const image = `localhost/zfs-request-to-openzfs-kernel-device-fuzz:${tag}`;
+if (!existsSync(join(subject, 'Cargo.lock'))) {
+  throw new Error('the crate has no Cargo.lock; run the crate\'s lock task first');
+}
+if (!existsSync(join(source, 'Cargo.lock'))) {
+  throw new Error('the sidecar has no Cargo.lock; run the sidecar\'s lock task first');
+}
 /**
  The wrapper's gate base image, resolved from the CachyOS image this host's CPU
  runs and that gate's Containerfile, exactly as the wrapper's own runners resolve
@@ -194,14 +200,8 @@ function reportVersions() {
   ]);
 }
 
-if (!existsSync(join(subject, 'Cargo.lock'))) {
-  throw new Error('the crate has no Cargo.lock; run the crate\'s lock task first');
-}
-if (!existsSync(join(source, 'Cargo.lock'))) {
-  throw new Error('the sidecar has no Cargo.lock; run the sidecar\'s lock task first');
-}
-buildImage();
 console.log(`${base.built ? 'Built' : 'Found'} the gate base ${base.tag} (${base.id}) on ${base.cachyosImage} (${base.cachyosImageId})`);
+buildImage();
 reportVersions();
 runContainer(process.argv.includes('--build-only'));
 console.log(`A failing input and the growing corpus stay in ${scratch}`);
