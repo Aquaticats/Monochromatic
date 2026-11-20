@@ -925,9 +925,10 @@ goes with the thread that forked it. Nothing survives a logout, which removes `/
 When, and as whom. In the add preflight, after the wrapper's own start gate and before the add's claim, so that a
 refusal leaves no managed object, which is the preflight order the proposal already requires (the
 [proposal][proposal], lines 348 to 355). `doctor` runs the same check, under the shared preflight the proposal gives
-the two callers (the [proposal][proposal], lines 1152 to 1155), so a reason an add refuses is a reason `doctor`
-prints. It runs as the account and never as root; the managed attach itself still runs as root in the handler, so
-the companion is never evidence about that attach.
+the two callers (the [proposal][proposal], lines 1152 to 1155), so the reasons an add refuses are the classes
+`doctor` prints from its own fresh run, which can differ for a transient cause, and it prints `unknown` for what it
+cannot prove. It runs as the account and never as root; the managed attach itself still runs as root in the handler,
+so the companion is never evidence about that attach.
 
 What it refuses. A companion arm that ran and failed refuses that add's managed attach, prints one line, and leaves
 an unused slot to the same-dataset reflink or ordinary Git route; it keeps every existing binding and intent. It
@@ -936,11 +937,16 @@ it and prints its own outcome, which is the companion's verdict and is kept apar
 first attach's outcome.
 
 Its deadline. The parent bounds the child with a monotonic deadline and, on expiry, kills the child's process group
-and refuses the managed attach as unproven, which is the same posture the deadline answer gives the probe. No value
-is stated, and step 10 cites the value beside [M11](#m11-the-account-companion-per-add)'s run; until that run
-exists, a shipped build's companion does not run in the preflight or in `doctor`, as
-[Who runs it, and where](#who-runs-it-and-where) states for the probe's own deadline, and the guest run of M11 is
-the one exception, through a test-only switch and a test deadline that do not ship.
+and refuses the managed attach as unproven, which is the same posture the deadline answer gives the probe. A refused
+start is retried inside the wrapper's five-second budget before any child exists, so that budget is spent outside
+this bound and an add can wait the budget and then the deadline. No value is stated, and step 10 cites the value
+beside [M11](#m11-the-account-companion-per-add)'s run; until that run exists, a shipped build's companion does not
+run in the preflight or in `doctor`, as [Who runs it, and where](#who-runs-it-and-where) states for the probe's own
+deadline, and the guest run of M11 is the one exception, through a `CLI_GIT_TEST_ONLY_*` switch and a test deadline
+that are compiled into the release executable and inert unless set (the decision in
+`doc/planning/cli-git-rust-open-decisions.md:3646` to `:3649`, which keeps the test-only crash switch in the release
+executable because container tests exercise the installed one, and
+`doc/planning/cli-git-shipped-limits-audit.md:117` to `:119`).
 
 Its skip. The skip's boundary is the end of the namespace setup, not the first call: a failure of any call from
 `unshare(CLONE_NEWUSER)` through the private propagation, which is every call before the first one that touches the
@@ -997,11 +1003,22 @@ its own:
 - An arm failure after the setup: a refusal, printed on the failed-arm line.
 - A refused `fork`: a refusal, because a start the system refused started nothing and the wrapper's own rule is to
   start again: the parent pauses and retries within the wrapper's five-second budget
-  (`package/git-policy/cli/src/native/push/start_retry.rs:33` and `:257` to `:264`, `START_RETRY_BUDGET` and
-  `RetryStart::spawn_retrying`), and a budget that runs out is an arm failure naming `fork` and `EAGAIN`, printed on
-  the failed-arm line. This host's own record has such refusals as ordinary here
-  (`doc/troubleshooting/run-wrapper-pids-max-refuses-fork-and-threads.md`), and a shortage that outlasts the budget
-  is a host fault the add itself would meet.
+  (`package/git-policy/cli/src/native/push/start_retry.rs:33`, `START_RETRY_BUDGET`, over `retry_refused_start` at
+  `:246` and its `RefusableStart` at `:60`), and a budget that runs out is an arm failure naming `fork`, whose text
+  is the retry's own `WouldBlock` error with the count of refusals. This host's own record has such refusals as
+  ordinary here (`doc/troubleshooting/run-wrapper-pids-max-refuses-fork-and-threads.md`), and a shortage that
+  outlasts the budget is a host fault the add itself would meet.
+- A refused blocking-pool thread, which can arrive before any child exists: the fork goes through the wrapper's
+  budgeted runner (`.../foundation/blocking_jobs_within_the_budget.rs:187`), which takes the wrapper's one-shot claim
+  on the job's work before that work's first effect
+  (`.../foundation/the_claim_a_job_takes_before_running_it.rs:1` to `:24`), so a refusal the runner can promise
+  about is `NoThreadToStart` and nothing was made, while one it cannot is reported as started or as maybe-run
+  (`.../foundation/blocking_job.rs:38` to `:67`). Either is an arm failure naming the pool thread and the claim's
+  answer, so the add is refused as unproven; without that claim a companion run could start after the add had
+  already answered.
+- A failed pipe, or a child that ends with no status line, or with one the parent cannot parse: an arm failure
+  naming the pipe's failing call and its errno (`EMFILE` or `ENFILE` from a `pipe2`, or the child's own prelude
+  failing), or naming `no status line` when the child's `_exit` came before its line.
 - A scratch directory that cannot be made or written, because `$XDG_RUNTIME_DIR` is unset, unwritable or full: a
   refusal as unproven, printed with the failed-arm line, whose arm is `scratch` and whose call and errno are the
   failing one, in the wording the wrapper's provisioning already uses, which names `XDG_RUNTIME_DIR` and what to do
@@ -1016,7 +1033,9 @@ its own:
   `managed add refused: the account companion did not answer within its deadline; this slot takes <route>.`
 
 The lines themselves, then. On a failed arm:
-`managed add refused: the account companion's <arm> failed: <call> (errno <n> or signal <n>); this slot takes <route>.`
+`managed add refused: the account companion's <arm> failed: <what failed>; this slot takes <route>.`
+The `<what failed>` is `<call> (errno <n>)` when a call answered, or `the child (signal <n>)`, or
+`the pool thread (no thread to start)` or `the status pipe (no status line)` when none did.
 On a skip: `account companion skipped: <call> answered <errno>; user namespaces are unavailable here`, followed by
 the values it read, `user.max_user_namespaces=<value>`, `kernel.unprivileged_userns_clone=<value>` and
 `kernel.apparmor_restrict_unprivileged_userns=<value>`, with `absent` printed for each setting the running kernel
@@ -1025,10 +1044,11 @@ and the AppArmor setting exists only where that module is. On a pass it prints n
 error under the design's own reporting rules (the [proposal][proposal], lines 755 to 762).
 
 `doctor` prints the same classes: a pass, a failed arm with its call and errno, the skip with its settings, and
-`unknown` for the deadline, a refused `fork` that outlasted its budget, an unusable scratch directory, a refused
-mountinfo read and a signal death, which is the word plan step 18 uses for a check it cannot prove (the
-[plan][plan], line 1555). It runs a fresh companion, not the add's run, so a transient cause that refused one add
-can leave `doctor` printing a pass, and that add's own line is the record of it.
+`unknown` for the deadline, a refused `fork` that outlasted its budget, a refused pool thread, a failed pipe or a
+missing status line, an unusable scratch directory, a refused mountinfo read and a signal death, which is the word
+plan step 18 uses for a check it cannot prove (the [plan][plan], step 18's acceptance text, "reports an unreadable
+or unproven check as unknown"). It runs a fresh companion, not the add's run, so a transient cause that refused one
+add can leave `doctor` printing a pass, and that add's own line is the record of it.
 
 What it costs per add, and what sizes that. One fork, two `unshare` calls, two mapping writes, one tmpfs mount and
 its unmount, the walk and its identity compare, the refusal controls, and one more child for the move and the
@@ -1336,8 +1356,9 @@ the fingerprint, when the last probe ran, each arm and its outcome, any differen
 fingerprint and the live kernel, module or boot, the sources and mounts the probe used, and which route remains
 available. It prints the first real attach's outcome beside the probe's result, under its own label
 ([The first real attach's record](#the-first-real-attachs-record)), and the account companion's own outcome from
-the run `doctor` makes: a pass, a failed arm with its call and errno, or the skip with the two user-namespace
-settings it read ([The account companion](#the-account-companion)). The section goes to standard error and changes
+the run `doctor` makes: a pass, a failed arm with its call and errno, the skip with the three user-namespace
+settings it read, or `unknown` for every ending it cannot prove
+([The account companion](#the-account-companion)). The section goes to standard error and changes
 no exit status, as the design requires for setup findings (the [proposal][proposal], lines 1153 to 1155).
 
 The companion prints its own line on the add it refuses or skips, as [The account companion](#the-account-companion)
