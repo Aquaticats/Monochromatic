@@ -40260,7 +40260,14 @@ stated in this entry. What follows from them, as work:
   landed worktree is left the same way (`worktree_process_inside.rs:163`, `:268`), filed as issue 6321. GOING: the
   nine lows, `pi-zfs-step-2-merge-lows-fixed` (DeepSeek on Neuralwatt, cap 400) on
   `fix/zfs-request-to-openzfs-kernel-device-step-2-merge-lows` from `main` in `.claude/worktrees/zfs-step-2-merge-lows`;
-  brief under `~/temp/agent/zfs-step-2-merge-lows-fixed-2026-11-20/`.
+  brief under `~/temp/agent/zfs-step-2-merge-lows-fixed-2026-11-20/`. It ended `idle` (188 turns) at `e6ad1bba6b` (seven
+  commits, dates real; that folder's `keep/report-from-summary.md`), all nine fixed: the package states the grants and
+  why; the recipe refuses a name `mvm` already lists and destroys only a guest its own `create` made (red: the old
+  recipe destroyed a held guest); `write_failure` owns the failed-write path, with a call-site control (red: a variant
+  that drops the errno now fails it); the clone-path check named `dsl_props_set_check`; the records' counts, pointers,
+  `file-enforcer` result and withdrawn cause corrected. Guest 5 min 21 s, root 199 and account 9 passed; container checks
+  green (nextest 178). It caught a stale `CARGO_TARGET_DIR` serving a mutated build and reran clean. GOING: a Sonnet
+  integration pass with a guest run (brief under `~/temp/agent/integration-pass-zfs-step-2-merge-lows-2026-11-20/`).
   STEP 4 HOST HALF ENDED `idle` (259 turns, 49 min) at `185902f904` (three commits, 26 files, 4,336 lines added; report
   and logs in `~/temp/agent/zfs-step-4-descriptor-attach-host-half-2026-11-19/keep/`): `src/native/worktree_clone_mount/`
   (the no-crossing walk holding a descriptor per folder, six recorded identity fields with ACLs as raw xattr bytes, the
