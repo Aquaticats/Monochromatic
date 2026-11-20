@@ -1100,6 +1100,20 @@ the launcher that builds the session's environment asks it, once, before it make
   then rename it to one without the dot,
   because any other name is read at once.
   Pi gets it as a steer while it works and as a new prompt while it rests.
+  Every message is sent as a prompt that names `streamingBehavior: 'steer'`,
+  whichever state the driver's own read of the feed gave:
+  a turn Pi is in queues it there,
+  and a turn Pi starts between that read and the delivery takes it too,
+  because Pi reads the field only while its agent run is active
+  (`prompt()` in `dist/core/agent-session.js` of Pi 1.5.2).
+  A resting agent ignores the field and starts a turn as before,
+  and a `steer` command is never sent:
+  a steer command starts nothing,
+  so a resting Pi reads it only when another run comes.
+  The feed's `sentAs` says which of the two the driver's own read expected.
+  Because every message is a prompt, a message that starts with `/` is run as an extension or skill command
+  whether Pi works or rests (`prompt()` in `dist/core/agent-session.js`);
+  before this, a `steer` sent while Pi worked refused such a message and kept it aside.
   A message is read only while the driver is up:
   with the default idle window of `0` a settled run ends within one look of the folder,
   so a run that must be steered after it settles needs a positive `--idle-seconds`.
@@ -1108,8 +1122,19 @@ the launcher that builds the session's environment asks it, once, before it make
   A message Pi refused stays as `.failed-<name>`,
   and a later message of the same name that is also refused gets `.failed-<name>.<n>`,
   so no kept message replaces another.
+  Pi's answer that its agent is already processing is busy, never a refusal,
+  and so is its answer that a manual compaction or a branch summary is running,
+  which it gives before it even prepares a prompt:
+  the message goes back to the inbox and the next look sends it again.
+  The claim that look makes replaces the one the look before it left,
+  so a busy answer on every look adds no entry to the folder per look.
+  A newer message that takes the name is the one delivered,
+  and an older one whose name a newer message took stays readable under its dot name, never sent again.
   While a message is being delivered it is held under a dot name of its own,
   so a newer message published under the same name is neither deleted nor kept in its place.
+  A message Pi reports it took is Pi's from then on:
+  one queued into a running turn is lost if Pi is aborted or exits before that turn drains its queue,
+  which a `steer` command risked too.
 - `stop`:
   create this file to end the run early.
 
@@ -1794,6 +1819,24 @@ counted from the last reply that succeeded.
 An attempt waits for Pi to rest as well as for its own delay:
 a prompt handed to a Pi that is at work is queued behind that run or refused,
 and the error the attempt would answer may still be recovered by that run's own reply.
+A turn Pi starts of its own between that look and the prompt answers it with its busy error,
+which refuses nothing:
+the text names the streaming behaviour a prompt needs to join a running turn,
+and says only that the agent is already processing.
+The read matches the session's text alone, continuation included:
+`@earendil-works/pi-agent-core` throws errors that open with the same three words
+and name no streaming behaviour (`agent.js` in that package),
+so a prompt answered with one of those ends the run `prompt-rejected` as any refusal does.
+The driver reads that answer as the agent being busy, never as a refusal of the message,
+so no attempt is counted for the prompt Pi did not take:
+the failure stays where it stood,
+the run waits for that turn to settle,
+and the look after it reads what stands then.
+A turn that recovered the error needs no attempt,
+and one that ended on the same error gets the attempt the run already owed,
+counted once when it goes.
+The feed holds Pi's answer as a `retry_prompt` line with `success:false` and no `retry` line above it,
+which is what tells a prompt the driver sent from an attempt the run made.
 A failure stays in the summary until a reply succeeds:
 a prompt Pi consumes without starting a run and without replying recovers nothing,
 so the run ends on the failure it began with rather than as a run that came back.
@@ -1822,6 +1865,8 @@ which is zero for a run that never needed one.
 The `retry` line is written when the attempt goes,
 immediately before its `retry_prompt` line,
 so an attempt is counted only once it was sent.
+A prompt Pi answered as its agent already processing never became an attempt,
+so its `retry_prompt` line stands with no `retry` line above it.
 A wait the stop file,
 the wall clock or Pi's own exit cuts short leaves the failure standing with no attempt behind it:
 the run ends for that reason,

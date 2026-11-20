@@ -40,7 +40,10 @@ import {
   watchUntilEnded,
   MASKING_NOTHING,
 } from '../dist/final/node/index.mjs';
-import { ALREADY_PROCESSING_TEXT, } from './stand-in-pi-own-turn-plays-fixture.ts';
+import {
+  ALREADY_PROCESSING_TEXT,
+  CORE_ALREADY_PROCESSING_TEXT,
+} from './stand-in-pi-records-fixture.ts';
 
 /**
  Milliseconds in a second, so a limit the options state in seconds is derived from the deadline a test passes.
@@ -91,13 +94,6 @@ const PERMANENT_FAILURE_TEXT = 'Provider is not configured: neuralwatt';
  watch has nothing of its own to do about.
  */
 const RATE_LIMIT_FAILURE_TEXT = '429 {"error":{"message":"Too many requests"}}';
-
-/**
- The error `@earendil-works/pi-agent-core` 1.5.2 gives a prompt that meets a running agent, word for word (`agent.js` of that
- package): it says the agent is busy in different words from the session's own answer, so it is no answer about the message
- either, and a driver that waited for a settle on it would wait for a turn nobody started.
- */
-const CORE_ALREADY_PROCESSING_TEXT: string = 'Agent is already processing a prompt. Use steer() or followUp() to queue messages, or wait for completion.';
 
 /**
  The reply a recovering turn produces here, whose settle is what a woken run waits for.
@@ -542,6 +538,231 @@ function connectionWhosePiIsAlreadyProcessing({
 }
 
 /**
+ A connection whose Pi starts a turn of its own as the watch's message arrives, which is the race the driver's own read cannot
+ see: the record said Pi rested when the driver chose the delivery, and Pi opened a turn before it read the message.
+
+ Pi queues a prompt that names a streaming behaviour into that turn and refuses one that names none, which is what Pi 1.5.2 does
+ (`prompt()` in `dist/core/agent-session.js` of `@earendil-works/pi-coding-agent`).
+
+ @param record - the run's record, where the turn and the reply that ends it are observed
+
+ @returns the connection a watch reads
+ */
+function connectionWhosePiStartedItsOwnTurn({
+  record,
+}: {
+  readonly record: RecordOfPiRun
+},): ConnectionToPi {
+  return {
+    hasExited: () => false,
+    exitDetails: () => ({}),
+    write: function write() {
+      throw new Error('the watch was not expected to write without waiting for an answer',);
+    },
+    send: async function send({ command, }: CommandRequest,) {
+      // Pi started this turn between the driver's read and its message, so the record the read saw said nothing of it.
+      record.observe({
+        event: { type: 'agent_start', },
+        declineDialog: refuseDialog,
+      },);
+      record.observe({
+        event: { type: 'turn_start', },
+        declineDialog: refuseDialog,
+      },);
+      if (command.streamingBehavior === undefined) {
+        return {
+          ending: 'answered',
+          record: {
+            success: false,
+            error: ALREADY_PROCESSING_TEXT,
+          },
+        };
+      }
+      // The message is queued into the turn, whose reply and settle follow.
+      observeSuccessfulReply(record,);
+      return {
+        ending: 'answered',
+        record: {
+          success: true,
+          data: { disposition: 'queued', },
+        },
+      };
+    },
+    shutDown: async () => ({ stopped: true, }),
+  };
+}
+
+/**
+ A connection whose Pi answers the first attempts as busy and takes the one after them, which is what a Pi that read a delivery
+ naming steering as busy anyway would do: the message is neither refused nor delivered until Pi takes it.
+
+ @param sent - where the messages the watch sends are recorded
+
+ @param record - the run's record, where the reply to the taking send is observed
+
+ @param betweenAttempts - what happens while the driver holds the message under its claim, before its answer is read
+
+ @param busyAttempts - how many attempts Pi answers as busy before it takes one
+
+ @returns the connection a watch reads
+ */
+function connectionWhosePiIsBusyFor({
+  sent,
+  record,
+  betweenAttempts,
+  busyAttempts = 1,
+}: {
+  readonly sent: string[];
+  readonly record: RecordOfPiRun;
+  readonly betweenAttempts?: () => Promise<void>;
+  readonly busyAttempts?: number
+},): ConnectionToPi {
+  return {
+    hasExited: () => false,
+    exitDetails: () => ({}),
+    write: function write() {
+      throw new Error('the watch was not expected to write without waiting for an answer',);
+    },
+    send: async function send({ command, }: CommandRequest,) {
+      const { message } = command;
+      sent.push((typeof message) === 'string' ? message : '',);
+      /**
+       Which message this is, counted from the ones already sent.
+       */
+      const attempt = sent.length;
+      if (attempt <= busyAttempts) {
+        await betweenAttempts?.();
+        return {
+          ending: 'answered',
+          record: {
+            success: false,
+            error: ALREADY_PROCESSING_TEXT,
+          },
+        };
+      }
+      observeSuccessfulReply(record,);
+      return {
+        ending: 'answered',
+        record: { success: true, },
+      };
+    },
+    shutDown: async () => ({ stopped: true, }),
+  };
+}
+
+/**
+ A connection whose retry prompt meets a turn the agent started by itself, and whose turn replies and settles a few looks after the
+ busy answer, recovering the error the retry answers.
+
+ Pi had already begun that turn when the prompt arrived, so its start is observed before Pi's answer, which is the order Pi's own
+ stream holds them in.
+
+ @param sent - where the messages the watch sends are recorded
+
+ @param record - the run's record, where the turn's own reply and settle are observed
+
+ @returns the connection a watch reads
+ */
+function connectionWhoseRetryMeetsAnOwnTurnThatRecovers({
+  sent,
+  record,
+}: {
+  readonly sent: string[];
+  readonly record: RecordOfPiRun
+},): ConnectionToPi {
+  return {
+    hasExited: () => false,
+    exitDetails: () => ({}),
+    write: function write() {
+      throw new Error('the watch was not expected to write without waiting for an answer',);
+    },
+    send: async function send({ command, }: CommandRequest,) {
+      const { message } = command;
+      sent.push((typeof message) === 'string' ? message : '',);
+      record.observe({
+        event: { type: 'agent_start', },
+        declineDialog: refuseDialog,
+      },);
+      void (async function replyWhenTheTurnEnds() {
+        await wait(OWN_TURN_REPLY_MILLISECONDS,);
+        observeSuccessfulReply(record,);
+      })();
+      return {
+        ending: 'answered',
+        record: {
+          success: false,
+          error: ALREADY_PROCESSING_TEXT,
+        },
+      };
+    },
+    shutDown: async () => ({ stopped: true, }),
+  };
+}
+
+/**
+ A connection whose retry prompt meets a turn the agent started by itself, which ends on the same error a few looks later, and
+ whose every later prompt is the attempt the run owed, whose own turn ends on that error again.
+
+ @param sent - where the messages the watch sends are recorded
+
+ @param record - the run's record, where the turn's own failure and settle are observed
+
+ @returns the connection a watch reads
+ */
+function connectionWhoseRetryMeetsAnOwnTurnThatFailsAgain({
+  sent,
+  record,
+}: {
+  readonly sent: string[];
+  readonly record: RecordOfPiRun
+},): ConnectionToPi {
+  return {
+    hasExited: () => false,
+    exitDetails: () => ({}),
+    write: function write() {
+      throw new Error('the watch was not expected to write without waiting for an answer',);
+    },
+    send: async function send({ command, }: CommandRequest,) {
+      const { message } = command;
+      sent.push((typeof message) === 'string' ? message : '',);
+      /**
+       How many prompts this connection has taken, which the messages it recorded tell, so the first is told from the attempts
+       after it.
+       */
+      const taken = sent.length;
+      if (taken === 1) {
+        // The turn that met the retry prompt was already running, and it ends on the error the retry answers.
+        record.observe({
+          event: { type: 'agent_start', },
+          declineDialog: refuseDialog,
+        },);
+        void (async function failWhenTheTurnEnds() {
+          await wait(OWN_TURN_REPLY_MILLISECONDS,);
+          observeFailedAttempt(record, FAILURE_TEXT,);
+        })();
+        return {
+          ending: 'answered',
+          record: {
+            success: false,
+            error: ALREADY_PROCESSING_TEXT,
+          },
+        };
+      }
+      // The attempt Pi took starts its own turn, which ends on the same error again.
+      void (async function failWhenTheAttemptEnds() {
+        await wait(OWN_TURN_REPLY_MILLISECONDS,);
+        observeFailedAttempt(record, FAILURE_TEXT,);
+      })();
+      return {
+        ending: 'answered',
+        record: { success: true, },
+      };
+    },
+    shutDown: async () => ({ stopped: true, }),
+  };
+}
+
+/**
  One feed line as a record, so a test reads the feed the way the driver wrote it and nothing else.
 
  @param line - text of one feed line
@@ -706,6 +927,136 @@ await describe({
       },
     },),
     it({
+      name: 'delivers an inbox message a turn Pi started after the read can take, instead of keeping it aside',
+      fn: async () => {
+        await using run = await startRunThatSettled();
+        await writeFile(join(run.inbox, MESSAGE_NAME,), MESSAGE_TEXT,);
+        /**
+         Why the watch ended, with enough looks for the delivery and the idle end after it.
+         */
+        const endReason = await watchUntilEnded({
+          connection: connectionWhosePiStartedItsOwnTurn({ record: run.record, },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + HOLD_MILLISECONDS,
+        },);
+        // The turn Pi opened after the read took the message, so nothing of it was kept aside as one Pi refused.
+        expect(await readdir(run.inbox,),).toEqual([],);
+        /**
+         What the feed says about the delivery.
+         */
+        const delivered = (await feedOf(run.runFolder,)).find((entry,) => entry.kind === 'inbox',);
+        expect(delivered?.success,).toBe(true,);
+        // The driver's own read said Pi rested, which is the state in which the plain prompt met the turn.
+        expect(delivered?.sentAs,).toBe('prompt',);
+        expect(endReason,).toBe('idle',);
+      },
+    },),
+    it({
+      name: 'a busy answer leaves an inbox message for the next look rather than keeping it aside as refused',
+      fn: async () => {
+        await using run = await startRunWithAMessage();
+        /**
+         The messages the watch sent, of which a busy answer owes another.
+         */
+        const sent: string[] = [];
+        /**
+         Why the watch ended, with enough looks for both attempts and the idle end after them.
+         */
+        const endReason = await watchUntilEnded({
+          connection: connectionWhosePiIsBusyFor({ sent, record: run.record, },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + (2 * HOLD_MILLISECONDS),
+        },);
+        // Pi said only that its agent was busy, so the message went back to the inbox and was sent again, never kept aside.
+        expect(sent,).toEqual([MESSAGE_TEXT, MESSAGE_TEXT,],);
+        // The look that sent it again replaced the copy the busy answer left, and Pi took the message, so the inbox is empty.
+        expect(await readdir(run.inbox,),).toEqual([],);
+        /**
+         What the feed says about the two attempts.
+         */
+        const attempts = (await feedOf(run.runFolder,)).filter((entry,) => entry.kind === 'inbox',);
+        expect(attempts.map((entry,) => entry.success,),).toEqual([false, true,],);
+        expect(endReason,).toBe('idle',);
+      },
+    },),
+    it({
+      name: 'never puts a message a busy answer returned back over a newer one of its name',
+      fn: async () => {
+        await using run = await startRunWithAMessage();
+        /**
+         The messages the watch sent.
+         */
+        const sent: string[] = [];
+        /**
+         The newer message a producer publishes under the name while the older one is held as the driver's claim.
+         */
+        const newer = 'a newer message of the same name';
+        await watchUntilEnded({
+          connection: connectionWhosePiIsBusyFor({
+            sent,
+            record: run.record,
+            betweenAttempts: async function publishANewerMessage() {
+              await writeFile(join(run.inbox, MESSAGE_NAME,), newer,);
+            },
+          },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + (2 * HOLD_MILLISECONDS),
+        },);
+        // The newer message kept the name and went to Pi; the older one stays readable under its claim rather than replacing it.
+        expect(sent,).toEqual([MESSAGE_TEXT, newer,],);
+        /**
+         What the inbox holds once the run is over.
+         */
+        const kept = await readdir(run.inbox,);
+        expect(kept,).toHaveLength(1,);
+        /**
+         The name the older message was kept under.
+         */
+        const [keptName,] = kept;
+        if (keptName === undefined) {
+          throw new Error('the inbox held no entry for the message the busy answer returned',);
+        }
+        // A busy answer is not a refusal, so the message is not kept under the name that marks one.
+        expect(keptName.startsWith('.failed-',),).toBe(false,);
+        expect(await readFile(join(run.inbox, keptName,), 'utf8',),).toBe(MESSAGE_TEXT,);
+      },
+    },),
+    it({
+      name: 'a busy answer on every look leaves the message under one claim at a time, never one per look',
+      fn: async () => {
+        await using run = await startRunWithAMessage();
+        /**
+         The messages the watch sent.
+         */
+        const sent: string[] = [];
+        /**
+         How many attempts Pi answers as busy before it takes the message: enough rounds that a claim kept per look would show.
+         */
+        const busyAttempts = 2;
+        /**
+         Why the watch ended, with enough looks for every attempt and the idle end after the last.
+         */
+        const endReason = await watchUntilEnded({
+          connection: connectionWhosePiIsBusyFor({ sent, record: run.record, busyAttempts, },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + (HOLD_MILLISECONDS * (busyAttempts + 1)),
+        },);
+        // Each busy answer sent the message again, and Pi took the last attempt.
+        expect(sent,).toEqual(Array.from({ length: busyAttempts + 1, }, () => MESSAGE_TEXT,),);
+        // Every look's claim replaced the one before it, so no dot entry of an earlier round is left behind.
+        expect(await readdir(run.inbox,),).toEqual([],);
+        expect(endReason,).toBe('idle',);
+      },
+    },),
+    it({
       name: 'holds a retry back while Pi is at work on a run the retry did not start',
       fn: async () => {
         await using run = await startRunThatFailed({ atWork: true, },);
@@ -767,6 +1118,202 @@ await describe({
         expect(summary.modelError,).toBe(FAILURE_TEXT,);
         expect(summary.retries,).toBe(1,);
         expect(summary.modelErrorAttempts,).toBe(2,);
+      },
+    },),
+    it({
+      name: 'keeps a retry whose prompt met a turn the agent started itself, and sends no attempt when that turn recovers the error',
+      fn: async () => {
+        await using run = await startRunThatFailed({ atWork: false, },);
+        /**
+         The messages the watch sent, which a turn that recovered the error leaves at the one retry.
+         */
+        const sent: string[] = [];
+        /**
+         When the run must be over: after the retry met the turn, and after that turn's reply and settle.
+         */
+        const deadline = Date.now() + (3 * HOLD_MILLISECONDS);
+        const endReason = await watchUntilEnded({
+          connection: connectionWhoseRetryMeetsAnOwnTurnThatRecovers({
+            sent,
+            record: run.record,
+          },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: 3 * HOLD_MILLISECONDS,
+            retryCap: 3,
+            retryBaseSeconds: NO_WAIT_SECONDS,
+          },),
+          inbox: run.inbox,
+          deadline,
+        },);
+        // Pi answered that its agent was already processing, which refused nothing: the run ends with the reply of the turn
+        // that met the retry, and the attempt it was about to make was never counted.
+        expect(endReason,).toBe('idle',);
+        expect(sent,).toHaveLength(1,);
+        expect(run.record.retriesTaken(),).toBe(0,);
+        /**
+         What the feed holds of the prompt Pi did not take.
+         */
+        const feed = await feedOf(run.runFolder,);
+        expect(feed.some((entry,) => entry.kind === 'retry'),).toBe(false,);
+        const askedBack = feed.filter((entry,) => entry.kind === 'retry_prompt',);
+        expect(askedBack,).toHaveLength(1,);
+        expect(askedBack[0]?.success,).toBe(false,);
+        expect(String(feed.find((entry,) => entry.kind === 'problem')?.problem,),).toContain('already in a turn',);
+        /**
+         What the run's summary says, which names the turn the run waited for rather than an attempt it never made.
+         */
+        const summary = run.record.summarize({
+          endReason: 'idle',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        expect(summary.settled,).toBe(2,);
+        expect(summary.lastAssistantText,).toBe(RECOVERED_REPLY_TEXT,);
+        expect(summary.retries,).toBe(0,);
+        expect(summary.modelError,).toBeUndefined();
+      },
+    },),
+    it({
+      name: 'sends the retry it owed once the turn that met it ended on the same error, and counts that attempt once',
+      fn: async () => {
+        await using run = await startRunThatFailed({ atWork: false, },);
+        /**
+         The messages the watch sent: the retry that met the agent's own turn, and the attempt that turn's own failure earned.
+         */
+        const sent: string[] = [];
+        /**
+         When the run must be over: after both turns, the retry cap leaving no further attempt.
+         */
+        const deadline = Date.now() + (4 * HOLD_MILLISECONDS);
+        const endReason = await watchUntilEnded({
+          connection: connectionWhoseRetryMeetsAnOwnTurnThatFailsAgain({
+            sent,
+            record: run.record,
+          },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: 4 * HOLD_MILLISECONDS,
+            retryCap: 1,
+            retryBaseSeconds: NO_WAIT_SECONDS,
+          },),
+          inbox: run.inbox,
+          deadline,
+        },);
+        // The turn ended on the same error, so the attempt the run already owed went, and that attempt's own turn ended on it
+        // too, which leaves the cap spent and the failure standing.
+        expect(endReason,).toBe('model-error',);
+        expect(sent,).toHaveLength(2,);
+        expect(run.record.retriesTaken(),).toBe(1,);
+        /**
+         What the feed holds: one counted attempt, and the prompt Pi turned back before it.
+         */
+        const feed = await feedOf(run.runFolder,);
+        expect(feed.filter((entry,) => entry.kind === 'retry').map((entry,) => entry.attempt),).toEqual([1,],);
+        expect(feed.filter((entry,) => entry.kind === 'retry_prompt').map((entry,) => entry.success),)
+          .toEqual([false, true,],);
+        /**
+         What the run's summary says, whose one retry answers the error that stands.
+         */
+        const summary = run.record.summarize({
+          endReason: 'model-error',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        expect(summary.retries,).toBe(1,);
+        expect(summary.modelErrorAttempts,).toBe(2,);
+        expect(summary.modelError,).toBe(FAILURE_TEXT,);
+      },
+    },),
+    it({
+      name: 'ends a run whose retry prompt Pi refused for its own reason as one Pi refused, not as one it was busy with',
+      fn: async () => {
+        await using run = await startRunThatFailed({ atWork: false, },);
+        /**
+         The messages the watch sent, which is the one retry Pi turned back.
+         */
+        const sent: string[] = [];
+        /**
+         When the run must be over: a refusal ends it at once.
+         */
+        const deadline = Date.now() + HOLD_MILLISECONDS;
+        const endReason = await watchUntilEnded({
+          connection: answeringConnection({
+            sent,
+            refuses: true,
+          },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: HOLD_MILLISECONDS,
+            retryCap: 3,
+            retryBaseSeconds: NO_WAIT_SECONDS,
+          },),
+          inbox: run.inbox,
+          deadline,
+        },);
+        // Only Pi's answer that its agent is already processing is read as busy: any other refusal is the run's end, as it was.
+        expect(endReason,).toBe('prompt-rejected',);
+        expect(sent,).toHaveLength(1,);
+        expect(run.record.retriesTaken(),).toBe(1,);
+      },
+    },),
+    it({
+      name: 'ends a run as one Pi refused when its retry prompt meets the agent library\'s busy wording, which names no turn',
+      fn: async () => {
+        await using run = await startRunThatFailed({ atWork: false, },);
+        /**
+         The messages the watch sent, which is the one retry Pi turned back.
+         */
+        const sent: string[] = [];
+        /**
+         When the run must be over: a refusal ends it at once.
+         */
+        const deadline = Date.now() + HOLD_MILLISECONDS;
+        const endReason = await watchUntilEnded({
+          // This answer comes from the agent library, not from the session that started a turn: it names no streaming behaviour
+          // and no turn of its own, so it refused the message and the run ends rather than waiting for a settle nobody will produce.
+          connection: answeringConnection({
+            sent,
+            refuses: true,
+            refusal: CORE_ALREADY_PROCESSING_TEXT,
+          },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: HOLD_MILLISECONDS,
+            retryCap: 3,
+            retryBaseSeconds: NO_WAIT_SECONDS,
+          },),
+          inbox: run.inbox,
+          deadline,
+        },);
+        // The attempt went, so it is counted as the README says: its `retry` line stands, and Pi's answer to it is no success.
+        expect(endReason,).toBe('prompt-rejected',);
+        expect(sent,).toHaveLength(1,);
+        expect(run.record.retriesTaken(),).toBe(1,);
+        /**
+         What the feed holds of the attempt that went and the refusal it met: the run's own feed is closed first, which is what
+         flushes its last lines, as the end of the run's process does.
+         */
+        await run.record.close();
+        const feed = await feedOf(run.runFolder,);
+        expect(feed.filter((entry,) => entry.kind === 'retry').map((entry,) => entry.attempt),).toEqual([1,],);
+        expect(feed.filter((entry,) => entry.kind === 'retry_prompt').map((entry,) => entry.success),).toEqual([false,],);
+        /**
+         What the run's summary says, whose one retry stands with the refusal that ended the run.
+         */
+        const summary = run.record.summarize({
+          endReason: 'prompt-rejected',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        expect(summary.retries,).toBe(1,);
       },
     },),
     it({

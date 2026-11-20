@@ -280,6 +280,13 @@ TSK:
 In progress means work or a run on it is live now;
  waiting is pending.
 
+TKT:
+ Task-list titles name the work in plain words,
+ imperative,
+ under twelve words;
+ state,
+ commit hashes and evidence go in the task's description or the handover.
+
 ### Pre-response checklist
 
 CK9:

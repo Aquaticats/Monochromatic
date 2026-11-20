@@ -1,15 +1,16 @@
 /**
- What the stand-in Pi does when the work a run left running ends: it starts a turn of its own to read the result, as Pi does when
- a tool it ran in the background reports, and answers the message the driver sends at that same moment the way Pi answers a prompt
- that meets a running turn.
+ What the stand-in Pi does when a message the driver sends meets a turn the agent started by itself: it answers the message the way
+ Pi answers a prompt that meets a running turn. Two messages can meet such a turn, and each has its own scenario: the wake the
+ driver sends when the work a run left running ends, and a message the driver delivers from the run's inbox.
 
  Pi 1.5.2 refuses such a prompt when the client named no streaming behaviour, and queues it into the running turn when the client
  named one (`prompt()` in `dist/core/agent-session.js` of `@earendil-works/pi-coding-agent`). The turn's own reply is the run's
  last answer either way, so a driver that reads the refusal as the run's end loses that reply and cuts the turn off.
 
- The turn starts while the message is being taken, not on the work's own exit, because the driver asks what the run left running
- only when its view of Pi says Pi rests: a turn it had already seen would keep the run waiting instead of waking the agent. That is
- the race the run of 2026-11-19 lost, where Pi wrote `turn_start` 33 ms before the driver sent its wake.
+ The turn starts while the message is being taken, not before it, because the driver sends each message only when its own view of Pi
+ allows it: a wake goes once its view says Pi rests with no work left, and an inbox message goes with the delivery the driver chose
+ from that same view. That is the race the run of 2026-11-19 lost, where Pi wrote `turn_start` 33 ms before the driver sent its
+ wake.
 
  @module
  */
@@ -20,6 +21,7 @@ import {
   writeLogLine,
 } from './stand-in-pi-log-fixture.ts';
 import {
+  ALREADY_PROCESSING_TEXT,
   answer,
   assistantReply,
   emit,
@@ -36,9 +38,9 @@ import {
 export const WAKES_ITSELF_SCENARIO = 'wakes-itself-when-the-work-ends';
 
 /**
- What Pi 1.5.2 answers a prompt with while its agent is streaming and the prompt named no streaming behaviour, word for word.
+ The scenario whose agent starts a turn of its own as the driver delivers a message from the inbox.
  */
-export const ALREADY_PROCESSING_TEXT: string = 'Agent is already processing. Specify streamingBehavior (\'steer\' or \'followUp\') to queue the message.';
+export const INBOX_MEETS_ITS_OWN_TURN_SCENARIO = 'inbox-meets-the-turn-the-agent-started';
 
 /**
  The reply of the turn the agent started by itself, which the run must end with.
@@ -99,16 +101,16 @@ function answerRefusal({
 }
 
 /**
- Answers the message the driver sends when the work ends, as Pi answers a prompt that meets a turn already running.
+ Answers a message the driver sends, as Pi answers a prompt that meets a turn already running.
 
- Pi takes commands in the order they arrive, so a turn that began as the work ended is what this message meets. Starting it here
- is how the stand-in reproduces that ordering: the driver had already sent the message when this turn opened.
+ Pi takes commands in the order they arrive, so a turn that began as that message was sent is what it meets. Starting it here is
+ how the stand-in reproduces that ordering: the driver had already chosen the message when this turn opened.
 
  @param command - the prompt or steer Pi was sent
  */
-async function answerTheWake(command: PiRecord,): Promise<void> {
+async function answerIntoTheOwnTurn(command: PiRecord,): Promise<void> {
   startOwnTurn();
-  await writeLogLine('marker wake-met-an-open-turn',);
+  await writeLogLine('marker message-met-an-open-turn',);
   if (command.streamingBehavior === undefined) {
     answerRefusal({
       id: command.id,
@@ -126,7 +128,7 @@ async function answerTheWake(command: PiRecord,): Promise<void> {
     id: command.id,
     data: { disposition: 'queued', },
   },);
-  await writeLogLine(`marker wake-queued ${named}`,);
+  await writeLogLine(`marker message-queued ${named}`,);
   endOwnTurn();
 }
 
@@ -143,7 +145,7 @@ async function answerTheWake(command: PiRecord,): Promise<void> {
  */
 async function leaveWorkRunningAndWakeItself(command: PiRecord,): Promise<void> {
   if (seen.prompts > 1) {
-    await answerTheWake(command,);
+    await answerIntoTheOwnTurn(command,);
     return;
   }
   answer({ id: command.id, },);
@@ -152,7 +154,22 @@ async function leaveWorkRunningAndWakeItself(command: PiRecord,): Promise<void> 
 }
 
 /**
- What this scenario does with a prompt.
+ Plays the first prompt as a run that ends its turn, and the message the driver delivers from the inbox as one that meets the turn
+ the agent started by itself: the turn opens as Pi takes that message, which is after the driver read that its agent rested.
+
+ @param command - the prompt or steer Pi was sent
+ */
+async function finishThenMeetTheOwnTurn(command: PiRecord,): Promise<void> {
+  if (seen.prompts > 1) {
+    await answerIntoTheOwnTurn(command,);
+    return;
+  }
+  answer({ id: command.id, },);
+  finishRun('done',);
+}
+
+/**
+ What each scenario here does with a prompt.
 
  @param command - the prompt or steer Pi was sent
  */
@@ -160,5 +177,9 @@ export const ownTurnPlays: ReadonlyMap<string, (command: PiRecord,) => Promise<v
   [
     WAKES_ITSELF_SCENARIO,
     leaveWorkRunningAndWakeItself,
+  ],
+  [
+    INBOX_MEETS_ITS_OWN_TURN_SCENARIO,
+    finishThenMeetTheOwnTurn,
   ],
 ],);
