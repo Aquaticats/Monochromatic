@@ -516,6 +516,236 @@ function destroy(options: Options): void {
 
 //endregion Steps
 
+//region The step 4 arm: the descriptor attach against a real clone
+
+/**
+ The step 4 arm's fixture root:
+ the pool, the checkout dataset and the two clones the attach arms mount.
+ Separate from the step 2 and step 3 roots, so one arm never reads another's leftovers.
+ */
+const STEP4_FIXTURE_ROOT = '/home/zfs-step-4-attach-fixture';
+/** The step 4 pool, a 1 GiB encrypted image like the measurements' fixture. */
+const STEP4_POOL = 'zfsstep4';
+/** The snapshot both clones are made from, taken while the checkout dataset holds only its mountpoint. */
+const STEP4_CLONE_SNAPSHOT = `${STEP4_POOL}/checkout@attach-arm`;
+/** The dataset an arm mounts at the slot its walk held. */
+const STEP4_CLONE = `${STEP4_POOL}/clone-one`;
+/** The dataset that stays mounted at another slot while item 2's refusals run. */
+const STEP4_BESIDE_CLONE = `${STEP4_POOL}/clone-beside`;
+/**
+ Where the wrapper's packages are unpacked inside the guest.
+ The paths keep their repository-relative place,
+ because the packages depend on each other by `../../` paths.
+ The step 3 arm keeps its own copy of this list,
+ so either arm's tree can move without the other's.
+ */
+const STEP4_WRAPPER_ROOT = '/opt/zfs-step-4-repo';
+/** The wrapper crate itself, below that root. */
+const STEP4_WRAPPER_DIR = `${STEP4_WRAPPER_ROOT}/package/git-policy/cli`;
+/** The wrapper crate's own packages and the ones its manifests name by path. */
+const STEP4_WRAPPER_PACKAGES: readonly string[] = [
+  'package/git-policy/cli',
+  'package/catalog-specifier/core-rust',
+  'package/forbidden-strings/cli',
+  'package/forbidden-strings/core',
+  'package/jsonc-edit/core-rust',
+  'package/linter/monochromatic-lint',
+];
+/** The OpenZFS userspace's library and program paths, as shell assignments. */
+const STEP4_OPENZFS = `LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib PATH=/root/.cargo/bin:${OPENZFS_PREFIX}/sbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
+
+/**
+ The environment the attach arms read inside the guest.
+ The guest variable is what lets an arm mount at all: on any other machine each arm prints its `SKIP` line and returns,
+ and the suite step refuses to count such a line as a pass.
+ */
+function step4Environment(options: Options): string {
+  return `MONOCHROMATIC_ZFS_ATTACH_ARM_GUEST=${options.name} ` +
+    `MONOCHROMATIC_ZFS_ATTACH_ARM_ROOT=${STEP4_FIXTURE_ROOT} ` +
+    `MONOCHROMATIC_ZFS_ATTACH_ARM_ACCOUNT=${ACCOUNT} ` +
+    `MONOCHROMATIC_ZFS_ATTACH_ARM_CLONE=${STEP4_CLONE} ` +
+    `MONOCHROMATIC_ZFS_ATTACH_ARM_CLONE_BESIDE=${STEP4_BESIDE_CLONE}`;
+}
+
+/**
+ Make the step 4 pool:
+ a 1 GiB encrypted image,
+ the checkout dataset the arms' checkouts stand on,
+ an empty snapshot of it,
+ and two unmounted clones the arms mount at a slot.
+ The clones are legacy mountpoints, so ZFS never mounts them by itself, and no `canmount=off` is set, because that
+ property is userspace's own refusal and would leave the kernel's mount the arms exercise untested.
+ */
+function step4Pool(options: Options): void {
+  const script = [
+    'set -eu',
+    `export ${STEP4_OPENZFS}`,
+    `mkdir --parents ${STEP4_FIXTURE_ROOT}`,
+    `chmod 0755 ${STEP4_FIXTURE_ROOT}`,
+    `if zpool list -H -o name | grep --quiet "^${STEP4_POOL}$"; then zpool destroy -f ${STEP4_POOL}; fi`,
+    `rm --recursive --force ${STEP4_FIXTURE_ROOT}/checkout`,
+    `rm --force ${STEP4_FIXTURE_ROOT}/pool.img ${STEP4_FIXTURE_ROOT}/raw-key`,
+    `truncate --size 1G ${STEP4_FIXTURE_ROOT}/pool.img`,
+    `head --bytes 32 /dev/urandom > ${STEP4_FIXTURE_ROOT}/raw-key`,
+    `zpool create -o cachefile=none -O mountpoint=none -O encryption=aes-256-gcm -O keyformat=raw -O keylocation=file://${STEP4_FIXTURE_ROOT}/raw-key -O recordsize=32K -O compression=zstd-3 ${STEP4_POOL} ${STEP4_FIXTURE_ROOT}/pool.img`,
+    `zfs create -o mountpoint=${STEP4_FIXTURE_ROOT}/checkout ${STEP4_POOL}/checkout`,
+    `zfs snapshot ${STEP4_CLONE_SNAPSHOT}`,
+    `zfs clone -o mountpoint=legacy ${STEP4_CLONE_SNAPSHOT} ${STEP4_CLONE}`,
+    `zfs clone -o mountpoint=legacy ${STEP4_CLONE_SNAPSHOT} ${STEP4_BESIDE_CLONE}`,
+    // The account makes its own checkout below the dataset's root, so the walk's device compare sees one file
+    //  system, and root's store and lock stand outside it.
+    `chown ${ACCOUNT}:${ACCOUNT} ${STEP4_FIXTURE_ROOT}/checkout`,
+    `zfs list -o name,mountpoint,mounted,canmount -r ${STEP4_POOL}`,
+  ].join('\n');
+  guest({ options, script, log: 'step4-pool.log', timeout: RECORD_TIMEOUT_MS });
+}
+
+/**
+ Push the wrapper's packages, build the crate's tests inside the guest, and run step 4's attach arms.
+ One test thread: two arms mount a dataset, and the mount table is theirs to read while they run.
+ */
+function step4Arms(options: Options): void {
+  const repository = join(import.meta.dirname, '../../../..');
+  const tarball = join(options.logDir, 'step4-wrapper.tar.gz');
+  host({
+    options,
+    command: 'tar',
+    args: ['--create', '--gzip', '--file', tarball, '--exclude=target', '--exclude=node_modules', '--directory', repository, ...STEP4_WRAPPER_PACKAGES],
+    log: 'step4-host-package.log',
+  });
+  host({
+    options,
+    command: 'mvm',
+    args: ['--backend', 'libvirt', 'push', options.name, tarball, '/root/step4-wrapper.tar.gz'],
+    log: 'step4-guest-push.log',
+  });
+  const build = [
+    'set -eu',
+    'if test -f /mnt/shared/step4-wrapper.tar.gz; then cp /mnt/shared/step4-wrapper.tar.gz /root/step4-wrapper.tar.gz; fi',
+    `mkdir --parents ${STEP4_WRAPPER_ROOT}`,
+    `tar --extract --gzip --file /root/step4-wrapper.tar.gz --directory ${STEP4_WRAPPER_ROOT}`,
+    `cd ${STEP4_WRAPPER_DIR}`,
+    'export PATH=/root/.cargo/bin:$PATH',
+    // Two compiling jobs: the guest has four cores, and a linking test binary of this crate needs more than a
+    //  gigabyte, so an out-of-memory kill here would look like a compile failure.
+    'cargo build --release --tests --locked --jobs 2 > /root/step4-wrapper-build.log 2>&1',
+    'tail --lines=3 /root/step4-wrapper-build.log',
+  ].join('\n');
+  guest({ options, script: build, log: 'step4-wrapper-build.log', timeout: CRATE_BUILD_TIMEOUT_MS });
+
+  // Every arm's name carries the same prefix, and a returning arm prints `SKIP` at column 0, so the absence check is
+  //  an explicit `if`: POSIX `set -e` ignores a command whose status is inverted by `!`.
+  const suite = [
+    'set -eu',
+    `cd ${STEP4_WRAPPER_DIR}`,
+    'export HOME=/root',
+    `export ${STEP4_OPENZFS}`,
+    `export ${step4Environment(options)}`,
+    'if cargo nextest run --release --test-threads 1 --no-fail-fast --status-level all --no-capture ' +
+      '--lib --filterset "test(attach_arm_)" ' +
+      '> /root/step4-suite.log 2>&1; then status=0; else status=$?; fi',
+    'tail --lines=60 /root/step4-suite.log',
+    'test "$status" = 0',
+    'if grep --quiet "^SKIP worktree_clone_mount::attach_arm_tests::" /root/step4-suite.log; then echo "an attach arm returned without running"; exit 1; fi',
+    'grep --quiet "^MEASUREMENT attach-arm lands " /root/step4-suite.log',
+    'grep --quiet "^MEASUREMENT attach-arm setuid " /root/step4-suite.log',
+    'grep --quiet "^MEASUREMENT attach-arm refusals=" /root/step4-suite.log',
+    'grep --quiet "^MEASUREMENT attach-arm rename-trial=third " /root/step4-suite.log',
+    'grep --quiet "^MEASUREMENT attach-arm decoy " /root/step4-suite.log',
+  ].join('\n');
+  guest({ options, script: suite, log: 'step4-suite.log', timeout: SUITE_TIMEOUT_MS });
+}
+
+/** What step 4's pool and the mounts its arms made left behind, then the pool is destroyed. */
+function step4Teardown(options: Options): void {
+  const script = [
+    'set -eu',
+    `export ${STEP4_OPENZFS}`,
+    // An arm that was killed cannot have run its own guard, so every mount below the fixture root is taken down by
+    //  path here; a mount the arms already took down is not there, and that is not a failure.
+    `grep --fixed-strings " ${STEP4_FIXTURE_ROOT}/" /proc/self/mountinfo | cut --delimiter=' ' --fields=5 | sed 's/\\\\040/ /g' | while read -r mount_point; do umount "$mount_point" 2>/dev/null || true; done`,
+    `zpool destroy -f ${STEP4_POOL} 2>/dev/null || true`,
+    `rm --recursive --force ${STEP4_FIXTURE_ROOT}`,
+    '{ echo "pools after the step 4 arms:"',
+    'zpool list -H -o name || true',
+    'echo "datasets after the step 4 arms:"',
+    'zfs list -H -o name -r || true',
+    'echo "mounts left below the step 4 fixture root:"',
+    `grep --fixed-strings " ${STEP4_FIXTURE_ROOT}/" /proc/self/mountinfo || true`,
+    '} | tee /root/step4-teardown.log',
+  ].join('\n');
+  guest({ options, script, log: 'step4-teardown.log', timeout: RECORD_TIMEOUT_MS });
+}
+
+/** Record the step 4 arm's versions and pull its logs. */
+function step4Record(options: Options): void {
+  const versions = [
+    'set -eu',
+    `export ${STEP4_OPENZFS}`,
+    '{ uname --kernel-release',
+    'cat /sys/module/zfs/version',
+    'zfs version',
+    'git --version',
+    'mount --version | head --lines=1',
+    'setfacl --version',
+    '/root/.cargo/bin/rustc --version',
+    '/root/.cargo/bin/cargo nextest --version',
+    '} | tee /root/step4-versions.log',
+  ].join('\n');
+  guest({ options, script: versions, log: 'step4-versions.log', timeout: RECORD_TIMEOUT_MS });
+  const share = [
+    'set -eu',
+    'test -d /mnt/shared',
+    'for name in step4-suite step4-teardown step4-versions step4-wrapper-build; do if test -f /root/$name.log; then cp /root/$name.log /mnt/shared/; fi; done',
+  ].join('\n');
+  guest({ options, script: share, log: 'step4-guest-share-logs.log', timeout: RECORD_TIMEOUT_MS });
+  for (
+    const name of [
+      'step4-suite',
+      'step4-teardown',
+      'step4-versions',
+      'step4-wrapper-build',
+    ] as const
+  ) {
+    host({
+      options,
+      command: 'mvm',
+      args: ['--backend', 'libvirt', 'pull', options.name, `/mnt/shared/${name}.log`, join(options.logDir, `${name}.log`)],
+      log: `step4-host-pull-${name}.log`,
+    });
+  }
+}
+
+/**
+ Run the whole step 4 arm in the prepared guest and always leave the pool and the fixture root destroyed,
+ with the teardown evidence and the logs pulled out even when an arm failed.
+ */
+function step4(options: Options): void {
+  let failure: unknown = null;
+  try {
+    step4Pool(options);
+    step4Arms(options);
+  } catch (thrown) {
+    failure = thrown;
+  }
+  // The pool is the arm's own and is destroyed whatever happened, so a failed run leaves the guest as it found it; a
+  //  failed teardown is reported beside the arm's failure rather than in place of it.
+  try {
+    step4Teardown(options);
+  } catch (thrown) {
+    console.error(`zfs step 4 arm: destroying the pool also failed: ${thrown}`);
+  }
+  try {
+    step4Record(options);
+  } catch (thrown) {
+    console.error(`zfs step 4 arm: recording also failed: ${thrown}`);
+  }
+  if (failure !== null)
+    throw failure;
+}
+
+//endregion The step 4 arm: the descriptor attach against a real clone
+
 //region Entry point
 
 /** The steps by name, and the whole run. */
@@ -578,7 +808,15 @@ const steps: Record<string, (checked: Options) => void> = {
 
 const chosen = options();
 mkdirSync(chosen.logDir, { recursive: true, mode: 0o700, });
-const step = steps[chosen.step];
+/**
+ The steps this branch adds, which the recipe's own table below does not hold.
+ Kept in one place of its own so a branch that adds other steps merges beside it rather than through it.
+ */
+const step4Steps: Record<string, (checked: Options) => void> = {
+  'zfs-attach-arm': step4,
+  'zfs-attach-pool': step4Pool,
+};
+const step = steps[chosen.step] ?? step4Steps[chosen.step];
 if (step === undefined)
   throw new Error(`unknown step '${chosen.step}'; use ${Object.keys(steps).join(', ')}`);
 step(chosen);

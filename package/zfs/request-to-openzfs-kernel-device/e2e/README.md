@@ -29,6 +29,8 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- prepare --name my
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- run --name my-guest
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- record --name my-guest
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- destroy --name my-guest
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-attach-pool --name my-guest
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-attach-arm --name my-guest
 ```
 
 - `create` makes the guest with `mvm`,
@@ -286,6 +288,50 @@ which is the measurements' fixture.
   which the promotion leaves in place,
   so no other arm depends
   on the moved history.
+
+## The step 4 attach arm
+
+`zfs-attach-arm` runs step 4's guest arms of the wrapper's descriptor attach
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 4, "VM measurements")
+in a guest this recipe prepared:
+the clone mounted at the slot the walk held,
+item 7's setuid control on that mount's enforced flags,
+item 2's refusals with an account-owned parent and slot,
+the rename that lands an attach beside its slot and its descriptor rollback,
+and the decoy control of H1 gate 1.
+`zfs-attach-pool` makes the arm's own pool and fixtures alone,
+so a run that only needs them does not repeat the build.
+
+The arm's pool is `zfsstep4`:
+a 1 GiB encrypted image at `/home/zfs-step-4-attach-fixture`,
+a `checkout` dataset the tests' checkouts stand on,
+an empty snapshot of it,
+and the unmounted clones `clone-one` and `clone-beside`,
+which are legacy mountpoints,
+so ZFS never mounts them by itself
+and an arm's own kernel mount is the only one they see.
+The arm's tests live in the wrapper crate,
+`src/native/worktree_clone_mount/attach_arm_tests.rs`,
+and are `#[ignore]`d;
+one that cannot reach its fixture prints `SKIP worktree_clone_mount::attach_arm_tests::...`
+and returns,
+and the step fails on that line,
+so an arm that never ran is never counted as passed.
+
+Everything in this arm is a root-run integration test of the wrapper's module,
+not part of the account-side suite:
+until step 5's `mount-git-worktree-clone-datasets` binary exists,
+the `fsopen`, `fsconfig`, `fsmount` and `move_mount` calls are the test's own,
+and the production copies are what the arms will drive after that step.
+
+The step leaves the guest as it found it:
+the teardown takes down every mount still below the fixture root
+(a killed test cannot run its own guard),
+destroys the pool,
+removes the fixture root,
+and records what is left,
+and the guest itself is destroyed by the run that made it.
 
 ## Teardown evidence
 
