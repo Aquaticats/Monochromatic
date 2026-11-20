@@ -40944,8 +40944,22 @@ stated in this entry. What follows from them, as work:
   files since the integration branch's last merge (the open-questions cleanup's citations, `2a388f7a77`, `03c9cab486`,
   `f6767b56dc`). GOING: a narrow Sonnet gate check in the integration worktree (merges `ba2a19714d` and `main`, checks
   `main`'s three commits are comment-only, shows M1 red itself, and decides whether the whole gate must run again);
-  brief under `~/temp/agent/container-gate-on-a-zfs-host-third-round-narrow-gate-check-2026-11-19/`. On "fit", the
-  merge, then the LFS integration pass bundling the gate image branch.
+  brief under `~/temp/agent/container-gate-on-a-zfs-host-third-round-narrow-gate-check-2026-11-19/`. It ended "fit to
+  merge" (Sonnet, about 33 min; that folder's `keep/review.md`, logs, scripts and mutation diffs beside it): M1 fixed
+  (a shared root at `test_support.rs:122` passed the old control and fails the new one at `test_support_tests.rs:67`);
+  19 arms of the empty-`TMPDIR` drop and resolved comparison on both faces, old and merged code; one arm laxer on the
+  unit face (a `/tmp` link resolving outside), matching the binary face; `main`'s three commits comment-only in the
+  Rust files; no whole gate rerun needed (the round's only executable change is `system_temporary_directories` and the
+  unit control, called only by the two location controls; both earlier whole runs ended 9171 of 9173 with the two
+  cause-H tests failing). Three doc lows (an inexact "on the same code", a citation placed after figures the
+  repository does not keep, "3-second sample"); the coordinator fixed all three on the integration branch at
+  `06497c9eb8`. The check's merge of `ba2a19714d` made the wrapper remove the author worktree (landed-branch cleanup);
+  the branch ref stays at `ba2a19714d`. LANDED: merged into `main` as `f73900d5a0` at 2026-11-19 after
+  `git merge-tree` showed no conflict and no overlap with the main checkout's four uncommitted files; the wrapper handed
+  the integration worktree's removal to the commit service. NEXT: move this item's durable facts to
+  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md` and the package docs, then delete the item; the
+  LFS integration pass bundling the gate image branch (`61f702030f`) after the sixth LFS round; steps 3 and 4 may now
+  merge after their reviews.
 - **GOING**: the hybrid provider prototype (the owner's "Hybrid, prototype first"), unit
   `pi-rate-limit-fallback-hybrid-prototype` (DeepSeek on Neuralwatt, turn cap 380, a quarter above the longest
   finished run on this package, 301; wall 300 minutes, the longest took 260), in
