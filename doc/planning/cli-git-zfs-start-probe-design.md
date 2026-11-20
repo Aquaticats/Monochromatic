@@ -1429,7 +1429,7 @@ commit `73eaad0846`, the branch's base, and main's copy had gained nine lines be
   those are the two places the refusal is read.
 - Step 18, `doctor`, prints the probe dataset's creation, its `ready` snapshot, its user property and the
   configuration field that names it, as root-once commands it prints and never runs. It gains the reader of the
-  probe's record and of `first-attach`, the companion's outcome with the two user-namespace settings, and the checks
+  probe's record and of `first-attach`, the companion's outcome with the settings it read, and the checks
   that the dataset's encryption root is the pool's and that no delegation reaches the dataset.
 - Step 19, "The one-time migration, the immutable entry and the boot and shutdown units", builds the unit that
   carries the probe: `ExecStartPre=-` running the `start-probe` mode, before its `ExecStart` running
