@@ -4,6 +4,7 @@
 //!  the program a bounded line names,
 //!  the bound counted from the command's own start,
 //!  a command that ends by itself with its own status or signal,
+//!  a death by the signal the bounded line's own `timeout` sends at its bound,
 //!  one this wait ends at its bound,
 //!  a descendant in a session of its own that holds one of the command's pipes,
 //!  and the hand a signal at the bound goes through.
@@ -48,15 +49,16 @@ const TIMEOUT: &str = "/usr/bin/timeout";
 const SHELL: &str = "/bin/sh";
 
 /// The bound these controls give a command this wait must end,
-/// in seconds,
-/// as `timeout` takes it.
-const ONE_SECOND: &str = "1";
+/// in seconds:
+///  the number `timeout` is given,
+///  and the value the wait reads back as the bound that line states.
+const ONE_SECOND: u64 = 1;
 
 /// The bound these controls give a command that ends by itself,
 /// in seconds:
 ///  ample for a shell that exits at once,
 ///  and the bound the command's own line is read for.
-const AMPLE_SECONDS: &str = "30";
+const AMPLE_SECONDS: u64 = 30;
 
 /// How long a descendant of a control holds the pipes it inherited,
 /// in seconds.
@@ -77,6 +79,15 @@ const HOLDS_SECONDS: u64 = 30;
 ///  far past this window.
 const PATIENCE: Duration = Duration::from_secs(5);
 
+/// The bound a control gives a wait whose command states a shorter bound in its own line,
+/// in seconds.
+/// Why five:
+///  the line's own timer then fires with this wait's time still to spare,
+///  so the exit is what this wait reads and its deadline is not what decides,
+///  which is the order issue 6324 saw on a loaded host
+///  and which no control can force by holding this process back.
+const OUTLASTING_THE_LINES_BOUND_SECONDS: u64 = 5;
+
 /// How long a wait may take when the bound it is given has already passed,
 /// in seconds.
 /// Why a fifth of a second:
@@ -95,9 +106,9 @@ const ALREADY_SPENT_PATIENCE: Duration = Duration::from_millis(200);
 ///  and the bound this wait keeps is the one that line states;
 ///  the wait starts the program such a line names,
 ///  which it does from the environment the line sets.
-fn bounded_script(made: &Fixture, script: &Path, seconds: &str) -> Command {
+fn bounded_script(made: &Fixture, script: &Path, seconds: u64) -> Command {
     let mut command: Command = Command::new(TIMEOUT);
-    command.arg("--signal=KILL").arg(seconds).arg(script);
+    command.arg("--signal=KILL").arg(seconds.to_string()).arg(script);
     crate::support::hermetic(&mut command, made, std::ffi::OsStr::new("/usr/bin:/bin"));
     command.current_dir(made.root.as_path());
     return command;
@@ -203,7 +214,8 @@ fn a_bound_counts_from_the_commands_own_start() {
     // The command runs for longer than its own bound before the wait is called at all.
     std::thread::sleep(Duration::from_millis(1_200));
     let began: Instant = Instant::now();
-    let answer = wait_under_bound(child, Some(group), Duration::from_secs(1), b"");
+    // The command's own line states no bound of its own: it is a script of this control's, not a bounded form.
+    let answer = wait_under_bound(child, Some(group), Duration::from_secs(1), None, b"");
     let elapsed: Duration = began.elapsed();
     println!("the wait answered {:?} after {elapsed:?}", answer.ending);
     assert_eq!(answer.ending, Ending::AtTheBound, "a command past its bound is ended by this wait, not by itself");
@@ -232,12 +244,91 @@ fn the_inner_timer_of_a_child_is_never_the_ending_this_wait_reports() {
     let (child, group): (Child, libc::pid_t) = spawned_beside_the_control(&mut wrapped);
     // The permitted interleaving the review reproduced: this process does other work before it waits.
     std::thread::sleep(Duration::from_millis(100));
-    let answer = wait_under_bound(child, Some(group), Duration::from_secs(1), b"");
+    let answer = wait_under_bound(child, Some(group), Duration::from_secs(1), Some(Duration::from_secs(ONE_SECOND)), b"");
     println!("the wait answered {:?} with status {:?}", answer.ending, answer.status);
     assert_ne!(
         answer.ending,
         Ending::Itself,
         "the child's own `timeout` fired inside the bound this wait states, so this wait must not call that ending the child's own"
+    );
+    remove(&made);
+}
+
+/// What:
+///  A death by the `SIGKILL` the bounded line's own `timeout` sends at the bound is the bound's doing,
+///  though this wait read the exit rather than its own deadline running out first.
+/// Why:
+///  Issue 6324's gate failure:
+///  `timeout --signal=KILL 1 <a script that never answers>` dies by `SIGKILL` itself at its one second,
+///  because `SIGKILL` cannot be ignored and it signals its own group,
+///  and this wait then answers `code: None` with no ending named,
+///  as though the command had ended by itself.
+///  The two timers keep one value and this wait's deadline is the earlier of them,
+///  so a `SIGKILL` at the bound is this wait's to claim.
+///  The order is forced here with no host load:
+///  the wait is given a bound longer than the one the line states,
+///  so the line's own timer fires while this wait is still waiting for the exit and the exit is what it reads.
+#[test]
+fn a_death_by_the_lines_own_timeout_at_its_bound_is_the_bounds_ending() {
+    let made: Fixture = fixture("observe-line-timer-at-the-bound");
+    let command: PathBuf = script(&made, "kept-alive", format!("#!/bin/sh\nexec /usr/bin/sleep {HOLDS_SECONDS}\n").as_str());
+    let mut wrapped: Command = bounded_script(&made, command.as_path(), ONE_SECOND);
+    let (child, group): (Child, libc::pid_t) = spawned_beside_the_control(&mut wrapped);
+    let began: Instant = Instant::now();
+    let answer = wait_under_bound(child, Some(group), Duration::from_secs(OUTLASTING_THE_LINES_BOUND_SECONDS), Some(Duration::from_secs(ONE_SECOND)), b"");
+    let elapsed: Duration = began.elapsed();
+    println!("the wait answered {:?} with status {:?} after {elapsed:?}", answer.ending, answer.status);
+    assert_eq!(
+        std::os::unix::process::ExitStatusExt::signal(&answer.status),
+        Some(libc::SIGKILL),
+        "the line's own `timeout` ends its group and itself with `SIGKILL` at the one second it states: {:?}",
+        answer.status
+    );
+    assert_eq!(
+        answer.ending,
+        Ending::AtTheBound,
+        "a `SIGKILL` death at the bound the command's own line states is the bound's doing, not an ending the command chose"
+    );
+    remove(&made);
+}
+
+/// What:
+///  A command that kills itself with `SIGKILL` before the bound its line states keeps that ending,
+///  though its line's `timeout` dies by the same signal.
+/// Why:
+///  The line's `timeout` re-raises on itself the signal its command died by (coreutils' `cleanup` in `src/timeout.c`),
+///  so a `SIGKILL` a command chose and the `SIGKILL` the bound deals look the same in the status,
+///  and the bound the line states,
+///  already reached,
+///  is what tells them apart.
+///  Without that,
+///  this wait would call a command's own death the bound's.
+///  The wait is given the longer bound here too,
+///  so the exit is what it reads.
+#[test]
+fn a_command_that_kills_itself_before_its_bound_keeps_its_own_ending() {
+    let made: Fixture = fixture("observe-own-kill-before-the-bound");
+    let command: PathBuf = script(&made, "kills-itself", "#!/bin/sh\nkill -KILL $$\n");
+    let mut wrapped: Command = bounded_script(&made, command.as_path(), ONE_SECOND);
+    let (child, group): (Child, libc::pid_t) = spawned_beside_the_control(&mut wrapped);
+    let answer = wait_under_bound(
+        child,
+        Some(group),
+        Duration::from_secs(OUTLASTING_THE_LINES_BOUND_SECONDS),
+        Some(Duration::from_secs(ONE_SECOND)),
+        b"",
+    );
+    println!("the wait answered {:?} with status {:?}", answer.ending, answer.status);
+    assert_eq!(
+        std::os::unix::process::ExitStatusExt::signal(&answer.status),
+        Some(libc::SIGKILL),
+        "the line's `timeout` re-raises the signal its command died by, so the status is still a `SIGKILL` death: {:?}",
+        answer.status
+    );
+    assert_eq!(
+        answer.ending,
+        Ending::Itself,
+        "the command killed itself a moment after it started, so no bound of its line had been reached"
     );
     remove(&made);
 }
@@ -261,7 +352,7 @@ fn the_signal_at_the_bound_reaches_the_command_and_no_other_process() {
     beside.arg(HOLDS_SECONDS.to_string());
     beside.current_dir(made.root.as_path());
     let mut untouched: Child = beside.process_group(0).spawn().expect("the second child starts");
-    let answer = wait_under_bound(child, Some(group), Duration::from_secs(1), b"");
+    let answer = wait_under_bound(child, Some(group), Duration::from_secs(1), Some(Duration::from_secs(ONE_SECOND)), b"");
     let stayed: bool = untouched.try_wait().expect("the second child's state").is_none();
     let _ended: std::io::Result<()> = untouched.kill();
     let _waited: std::io::Result<std::process::ExitStatus> = untouched.wait();
