@@ -23,7 +23,7 @@ use std::ffi::{OsStr, OsString};
 use std::os::unix::process::CommandExt as _;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
-use crate::support_observation_bound::{Answer, UNSTATED_BOUND, spelled_command, stated_line_bound, wait_under_bound};
+use crate::support_observation_bound::{Answer, LineBound, line_bound_of, spelled_command, wait_under_bound};
 use crate::support_program_names_and_time_bound::TIME_BOUND_SECONDS;
 
 /// The signal `timeout --signal=KILL` re-raises on itself when the bound it was given was hit:
@@ -34,9 +34,10 @@ use crate::support_program_names_and_time_bound::TIME_BOUND_SECONDS;
 ///  the helpers that run a command under `/usr/bin/timeout` and read its status back need the mark
 ///  (`native_git_output`,
 ///  and `binary_resolution_tests` for a forwarding loop);
-///  the shared wait no longer reads it,
+///  the shared wait never decides an ending from it alone,
 ///  because a command that kills itself with `SIGKILL` shows the same signal,
-///  and only this wait's own act can say that the bound ended a command (`observe_with`).
+///  so the wait reads the status beside the bound the command's own line states,
+///  and only a death at or after that bound is the bound's (`observe_with`).
 pub const TIMED_OUT_SIGNAL: i32 = 9;
 
 /// What one finished process showed its caller.
@@ -241,14 +242,14 @@ pub fn shared_bound_misuse(command: &Command) -> Option<SharedBoundMisuse> {
 ///  The kill is claimed before the cleanup because the cleanup can take longer than the grace in which an unclaimed kill
 ///  aborts the process.
 ///  This child is not one this module started and leads no process group of its own,
-///  so `UNSTATED_BOUND` ends the child alone;
+///  so `LineBound::UNSTATED` ends the child alone;
 ///  the supervisor's controls use this wait for a child they spawn themselves.
 ///
 /// # Panics
 ///  With the supervisor's message when it ended the command.
 ///  When a process that outlived the child still holds one of its pipes after `PIPE_GRACE`.
 pub fn supervised_wait(child: Child, input: &[u8], cleanup: impl FnOnce()) -> Output {
-    let answer: Answer = wait_under_bound(child, None, UNSTATED_BOUND, None, input);
+    let answer: Answer = wait_under_bound(child, None, LineBound::UNSTATED, input);
     // The supervisor ended it:
     // a loop or a deadlock,
     // with the reason and the tasks of the tree in the message.
@@ -256,7 +257,7 @@ pub fn supervised_wait(child: Child, input: &[u8], cleanup: impl FnOnce()) -> Ou
         panic!("{message}");
     }
     cleanup();
-    answer.refuse_a_second_ending(UNSTATED_BOUND, "the command this control started", None);
+    answer.refuse_a_second_ending("the command this control started", None);
     return Output { status: answer.status, stdout: answer.stdout, stderr: answer.stderr };
 }
 
@@ -308,7 +309,7 @@ pub fn observe_without_waiting_for_the_after_commit_work(command: &mut Command, 
 ///  (`remaining_of`):
 ///  this wait's deadline is the earlier of the two,
 ///  and a command its own `timeout` ends at that bound is still the bound's doing (`Ending::AtTheBound`).
-///  The bound the line states goes to the wait beside its own,
+///  The bounds the line states and the wait keeps go to the wait as one value (`line_bound_of`),
 ///  so an exit this wait reads before that deadline names the same ending
 ///  (`ending_of_an_exit_read_first`).
 ///
@@ -334,8 +335,6 @@ fn observe_with(command: &mut Command, input: &[u8], waiting_for_the_after_commi
         ),
         None => {}
     }
-    let stated: Option<std::time::Duration> = stated_line_bound(command);
-    let bound: std::time::Duration = stated.unwrap_or(UNSTATED_BOUND);
     let spelled: String = spelled_command(command);
     let directory: Option<PathBuf> = command.get_current_dir().map(Path::to_path_buf);
     command.process_group(0);
@@ -347,7 +346,7 @@ fn observe_with(command: &mut Command, input: &[u8], waiting_for_the_after_commi
         .expect("process starts");
     let child_id: u32 = child.id();
     let group: libc::pid_t = libc::pid_t::try_from(child_id).expect("a process ID fits the pid type");
-    let answer: Answer = wait_under_bound(child, Some(group), bound, stated, input);
+    let answer: Answer = wait_under_bound(child, Some(group), line_bound_of(command), input);
     // The supervisor ended it: a loop or a deadlock, and its message names the reason and the tasks of the tree.
     //  The wait claimed that message before it reaped the command,
     //  and the cleanup runs after it here, because the cleanup can take longer than the grace in which an
@@ -358,7 +357,7 @@ fn observe_with(command: &mut Command, input: &[u8], waiting_for_the_after_commi
     if waiting_for_the_after_commit_work && let Some(at) = directory.as_deref() {
         settle_service_work(at);
     }
-    answer.refuse_a_second_ending(bound, spelled.as_str(), directory.as_deref());
+    answer.refuse_a_second_ending(spelled.as_str(), directory.as_deref());
     return Observed { code: answer.status.code(), stdout: answer.stdout, stderr: answer.stderr };
 }
 

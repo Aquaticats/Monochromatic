@@ -16,9 +16,12 @@
 //!  so this wait's deadline is the earlier of the two,
 //!  and a command the line's own `timeout` ends at that bound is still the bound's doing.
 //!  A wait that reads the exit rather than reaching that deadline names the same ending:
-//!  a death by `SIGKILL` in a line of this harness's bounded form is the bound's once that line's own bound has been reached,
+//!  a death by `SIGKILL` in a line of this harness's bounded form is the bound's once that line's own bound has been reached by this wait's clock,
 //!  because the line's `timeout` sends `SIGKILL` to the group it leads and dies with it,
-//!  while a command's own `SIGKILL` before its bound stays its own.
+//!  while a command's own `SIGKILL` read before its bound stays its own.
+//!  The status alone cannot say which of the two sent the signal,
+//!  so a command's own `SIGKILL` that this wait reads at or after its line's bound is read as the bound's,
+//!  and the start's truncation to whole clock ticks widens that by less than one tick.
 //!  A signal goes out only through a handle that still names the command:
 //!  a pinned process for the command itself,
 //!  and the process group only while the command,
@@ -29,7 +32,8 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const answer = waitUnderBound(child, group, bound, input); // { status, stdout, stderr, ending, heldOpen }
+//! const line = lineBoundOf(command); // { kept, stated }
+//! const answer = waitUnderBound(child, group, line, input); // { status, stdout, stderr, ending, heldOpen }
 //! ```
 
 use std::ffi::{OsStr, OsString};
@@ -73,9 +77,45 @@ pub const REAPING: std::time::Duration = std::time::Duration::from_secs(5);
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const bound = statedBound(command) ?? SHARED.backstop;
+/// const bound = SHARED.backstop; // the bound this wait keeps for a line that states none
 /// ```
 pub const UNSTATED_BOUND: std::time::Duration = super::supervisor::SHARED.backstop;
+
+/// What:
+///  The two bounds one command's own line gives this wait:
+///  the bound this wait keeps for the command,
+///  and the bound that line states.
+/// Why:
+///  One reading of the line answers both (`line_bound_of`),
+///  so no caller hands the wait a bound and a stated bound that no line gives:
+///  a command of this harness carries its bound in its own line,
+///  and a line that states none runs under the shared backstop.
+///  The stated bound is what tells the death the line's own `timeout` deals at that bound
+///  from a command's own `SIGKILL`,
+///  because the status alone cannot say which of the two sent the signal (`ending_of_an_exit_read_first`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type LineBound = { kept: Duration; stated: Duration | undefined }; // undefined: the line states no bound
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LineBound {
+    /// The bound this wait keeps for the command.
+    pub kept: std::time::Duration,
+    /// The bound the command's own line states,
+    /// when that line is this harness's bounded form.
+    pub stated: Option<std::time::Duration>,
+}
+
+impl LineBound {
+    /// The pair for a child whose own line states no bound of this harness's bounded form:
+    ///  the shared backstop,
+    ///  and nothing stated.
+    /// Why a constant:
+    ///  the supervisor's controls spawn their child themselves,
+    ///  so no `timeout` line of this harness is in front of it.
+    pub const UNSTATED: LineBound = LineBound { kept: UNSTATED_BOUND, stated: None };
+}
 
 /// Who ended one command this wait ran.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -98,10 +138,14 @@ pub enum Ending {
 ///  What one command showed its caller,
 ///  and who ended it.
 /// Why:
-///  The ending is this wait's own act and never a reading of the status the command came back with:
+///  The ending is this wait's own act when it ends the command at the bound,
+///  and a reading of the status when the exit reached it first:
 ///  a command that kills itself with `SIGKILL` before its bound is its own,
-///  and only a death at the bound is the bound's.
+///  and only a death by `SIGKILL` at or after the bound the command's own line states is the bound's.
 pub struct Answer {
+    /// The two bounds this wait was given,
+    ///  as one reading of the command's line gave them.
+    pub line: LineBound,
     /// Its own ending and what its pipes gave before it went.
     pub status: std::process::ExitStatus,
     /// Exact standard output bytes.
@@ -127,7 +171,8 @@ impl Answer {
     ///  and a pipe another process may still write to,
     ///  are the two ways it is not,
     ///  and each is said in the control's own failure instead of being passed off as a status.
-    pub fn refuse_a_second_ending(&self, bound: std::time::Duration, spelled: &str, directory: Option<&Path>) {
+    pub fn refuse_a_second_ending(&self, spelled: &str, directory: Option<&Path>) {
+        let bound: std::time::Duration = self.line.kept;
         let location: String = directory.map(|at| { return format!(" in {}", at.display()); }).unwrap_or_default();
         let held_sentence: Option<String> = match self.held_open.as_slice() {
             [] => None,
@@ -202,14 +247,15 @@ pub fn draining<R: std::io::Read + Send + 'static>(mut reader: R) -> (std::sync:
 ///  `group` is the group this wait made for the command,
 ///  or `None` for a child it did not start and that leads no group,
 ///  which the bound then ends alone.
-///  `stated` is the bound the command's own line states when that line is this harness's bounded form,
-///  which is what tells the death that line's `timeout` deals at that bound from a command's own `SIGKILL`:
-///  the status alone cannot say which of the two sent the signal (`ending_of_an_exit_read_first`).
-pub fn wait_under_bound(mut child: Child, group: Option<libc::pid_t>, bound: std::time::Duration, stated: Option<std::time::Duration>, input: &[u8]) -> Answer {
+///  `line` is the pair one reading of the command's own line gives (`line_bound_of`):
+///  the bound this wait keeps and the bound that line states,
+///  and the stated bound is what tells the death that line's `timeout` deals there from a command's own `SIGKILL`,
+///  because the status alone cannot say which of the two sent the signal (`ending_of_an_exit_read_first`).
+pub fn wait_under_bound(mut child: Child, group: Option<libc::pid_t>, line: LineBound, input: &[u8]) -> Answer {
     let id: u32 = child.id();
     let pid: libc::pid_t = libc::pid_t::try_from(id).expect("a process ID fits the pid type");
     let started: u64 = stat_of(pid).expect("a command this wait holds is readable until it is reaped").started;
-    let remaining: std::time::Duration = remaining_of(started, bound);
+    let remaining: std::time::Duration = remaining_of(started, line.kept);
     let (standard_output, output_end) = draining(child.stdout.take().expect("piped standard output"));
     let (standard_error, error_end) = draining(child.stderr.take().expect("piped standard error"));
     if let Some(mut standard_input) = child.stdin.take() {
@@ -238,7 +284,7 @@ pub fn wait_under_bound(mut child: Child, group: Option<libc::pid_t>, bound: std
                 // The claim comes before the reap for the same reason as the other arm's.
                 let claimed: Option<String> = take_kill(id);
                 let status: std::process::ExitStatus = reaped(&mut child);
-                (ending_of_an_exit_read_first(stated, started, status), claimed, status)
+                (ending_of_an_exit_read_first(line, started, status), claimed, status)
             }
             Ok(Err(error)) => panic!("the ending of the command {id} cannot be read: {error}"),
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
@@ -259,7 +305,7 @@ pub fn wait_under_bound(mut child: Child, group: Option<libc::pid_t>, bound: std
                     //  not a slow host;
                     //  the waiter reports the exit without reaping, and the reap below is then immediate.
                     let ended: std::io::Result<()> = exit_receiver.recv_timeout(REAPING).unwrap_or_else(|_| {
-                        panic!("the command {id} was ended at its bound of {bound:?} and not reaped within {REAPING:?}")
+                        panic!("the command {id} was ended at its bound of {:?} and not reaped within {REAPING:?}", line.kept)
                     });
                     ended.unwrap_or_else(|error| panic!("the ending of the command {id} cannot be read: {error}"));
                     (Ending::AtTheBound, claimed, reaped(&mut child))
@@ -280,6 +326,7 @@ pub fn wait_under_bound(mut child: Child, group: Option<libc::pid_t>, bound: std
         held_open.push("standard error");
     }
     return Answer {
+        line,
         status,
         stdout: standard_output.lock().expect("the bytes of a command's standard output").clone(),
         stderr: standard_error.lock().expect("the bytes of a command's standard error").clone(),
@@ -306,8 +353,20 @@ pub fn wait_under_bound(mut child: Child, group: Option<libc::pid_t>, bound: std
 ///  A command that kills itself with `SIGKILL` before its line's bound is its own,
 ///  and a line that is not this harness's bounded form carries no timer of the bound at all,
 ///  so both stay `Ending::Itself`.
-fn ending_of_an_exit_read_first(stated: Option<std::time::Duration>, started: u64, status: std::process::ExitStatus) -> Ending {
-    let Some(line_bound) = stated else { return Ending::Itself; };
+///  The status alone cannot say which of the two sent the signal,
+///  so a command's own `SIGKILL` that this wait reads at or after its line's bound is read as the bound's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (line.stated === undefined) return Ending.Itself; // no timer of the bound is in this line
+/// if (status.signal !== SIGKILL) return Ending.Itself; // only the line's `timeout` dies by the signal it sends
+/// if (remainingOf(started, line.stated) > 0) return Ending.Itself; // the line's bound was not reached yet
+/// return Ending.AtTheBound;
+/// ```
+fn ending_of_an_exit_read_first(line: LineBound, started: u64, status: std::process::ExitStatus) -> Ending {
+    // `undefined` here is `None`: a line that states no bound of its own carries no timer that could have ended it.
+    let Some(line_bound) = line.stated else { return Ending::Itself; };
+    // Only a death by `SIGKILL` can be the line's own `timeout`, which dies by the signal it sends to its group.
     if status.signal() != Some(libc::SIGKILL) {
         return Ending::Itself;
     }
@@ -316,6 +375,7 @@ fn ending_of_an_exit_read_first(stated: Option<std::time::Duration>, started: u6
     if !remaining_of(started, line_bound).is_zero() {
         return Ending::Itself;
     }
+    // Only a `SIGKILL` at or after the bound the line states is the bound's doing.
     return Ending::AtTheBound;
 }
 
@@ -446,28 +506,40 @@ fn in_front_of_a_bounded_program(command: &Command) -> Option<u64> {
 }
 
 /// What:
-///  The bound the command's own line states,
+///  The two bounds one command's own line gives this wait,
+///  read in one place:
+///  the bound this wait keeps,
+///  and the bound the line states,
 ///  when that line is this harness's bounded form,
 ///  `/usr/bin/timeout --signal=KILL <seconds>`;
-///  nothing for a line that is not that form or asks `timeout` for no limit.
+///  the shared backstop and nothing stated for any other line.
 /// Why:
 ///  Every command of this harness carries its bound in its own line,
-///  and a wait that read the bound back from a status could not tell it from a command's own 124,
-///  137 or signal;
-///  the wait keeps the same seconds as its own bound and as the bound the line states,
+///  and the wait keeps the same seconds as its own bound and as the bound the line states,
 ///  so it ends the command at the moment its line already states,
 ///  and it names the ending the line's own `timeout` deals at that moment (`ending_of_an_exit_read_first`).
+///  One reading answers both,
+///  so no caller pairs a bound with a stated bound its line does not have,
+///  and a wait that read the bound back from a status could not tell it from a command's own 124,
+/// 137 or signal.
 ///  A line of the form `timeout ... 0 ...` asks `timeout` for no limit at all,
 ///  and nothing waits without a bound,
-///  so that line answers nothing here and its caller keeps the backstop.
+///  so that line states nothing here and its caller keeps the backstop.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const stated = inFrontOfABoundedProgram(command) ? seconds : undefined; // undefined: the caller's backstop
+/// const seconds = inFrontOfABoundedProgram(command); // undefined: a line that states no bound, or no limit
+/// const line = { kept: seconds ?? sharedBackstop, stated: seconds };
 /// ```
-pub fn stated_line_bound(command: &Command) -> Option<std::time::Duration> {
-    let seconds: u64 = in_front_of_a_bounded_program(command)?;
-    return Some(std::time::Duration::from_secs(seconds));
+pub fn line_bound_of(command: &Command) -> LineBound {
+    let stated: Option<std::time::Duration> = match in_front_of_a_bounded_program(command) {
+        // A command under this harness's bounded form keeps the seconds its own line names.
+        Some(seconds) => Some(std::time::Duration::from_secs(seconds)),
+        // `None` is a line that states no bound, and the shared backstop is what this wait keeps for it.
+        None => None,
+    };
+    let kept: std::time::Duration = stated.unwrap_or(UNSTATED_BOUND);
+    return LineBound { kept, stated };
 }
 
 /// The command line as a person reads it:
