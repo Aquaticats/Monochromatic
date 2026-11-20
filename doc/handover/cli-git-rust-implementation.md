@@ -36808,7 +36808,10 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   Don't we still have a lot of things to fix before doing them?",
   and the questions file's entry of 2026-11-07 about the campaign that ran against that pause added "No
   further wrapper campaign starts until you lift the pause."; that entry left the file on 2026-11-19 and this
-  sentence is its record.
+  paragraph is its record.
+  The campaign ran over the 21 source files the tokio merges changed (label `tokio-062`,
+  `main` at `40ec469247`); it was let finish rather than discarded,
+  its results are recorded but not acted on, and nothing waits on it, alpha.2 included.
   Hook plumbing is done anyway:
   the post-landing campaign over `landed_disposal.rs`,
   `post_commit_hook.rs` and `post_landing.rs` recorded 19 mutants,
