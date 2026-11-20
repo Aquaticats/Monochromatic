@@ -40054,8 +40054,21 @@ What follows from them, as work:
   `.claude/worktrees/git-policy-cli-gate-base-image-githooks-page` on
   `fix/git-policy-cli-gate-base-image-finds-the-githooks-page`: reproduce, diagnose inside the image, fix so the
   `hooks_off_tests` guard still reads an installed copy, a red check, a troubleshooting section; brief under
-  `~/temp/agent/git-policy-cli-gate-base-image-githooks-page-2026-11-19/`. Then step 1's merge on its own package checks
-  in a container, and step 2. ENDED: the start-probe
+  `~/temp/agent/git-policy-cli-gate-base-image-githooks-page-2026-11-19/`. STEP 1'S FIX ROUND ENDED (`idle`, 214 turns,
+  six commits `b92a59d61e` to `7bc4fd81ee`; report in its folder's `keep/report.md`): every finding answered with a red
+  check first; 142 of 142 nextest tests, Clippy, `fmt`, `doc`, `file-enforcer write` and `check` offline (the gate image
+  bakes the pinned `caniuse-lite` tarballs, sha512-checked, from a recipe kept only in its scratch `keep/`), the linter
+  with no error, `cargo package` without `uses/`, a 31 s fuzz smoke with no crash; `dds_flags` mirrored at offset 287;
+  nesting bound 20 as the module; an unknown type keeps its element count; four golden vectors from the reviewer's
+  independent encoder; the fuzz smoke keeps artifacts and corpus and reads the nightly from the lock. It narrowed the
+  command buffer's cap from 1 MiB to a 16 KiB slab derived from the struct. The shell ate backticked identifiers in
+  `b92a59d61e`'s message; the next commit's body corrects it and a corrective commit comment is posted:
+  https://github.com/Aquaticats/Monochromatic/commit/b92a59d61e9a7caa73cbc4f71c20ef649a568d97#commitcomment-210946803.
+  GOING: a delta short review on the Qwen plan, `pi-qwen-review-zfs-step-1-delta-at-7bc4fd81ee` (watched), asking first
+  whether the 16 KiB cap meets steps 2 and 6, the reply ceiling's derivation, whether the nesting bound refuses a real
+  reply, and whether the offline `file-enforcer` route is reproducible from the repository; brief under
+  `~/temp/agent/zfs-step-1-fixes-delta-short-review-on-the-qwen-plan-2026-11-19/`. Then step 1's merge on its own
+  package checks in a container, and step 2. ENDED: the start-probe
   design (`idle`, 124 turns, `4167f50724`, 791 lines; recommends a root probe that mounts a read-only snapshot in a
   private mount namespace, no pool write; four owner questions; ten owed VM measurements) and the staging design
   (`idle`, 108 turns, `a709cd7f58` and `2258de74d8`, 645 lines), and the runtime layout checker design (`idle`, 220
