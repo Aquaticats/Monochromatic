@@ -278,7 +278,8 @@ so a run that meets them is not meeting a change of this file.
   so its `[profile.dev] panic = "unwind"` and its build override are unaffected.
   There is no `*.mutation` or `*.bench` sidecar beside this package,
   and mutation campaigns are paused.
-- `native-test-base.Containerfile` only installs tools,
+- `native-test-base.Containerfile` installs only tools and caches the pinned browserslist data tarballs,
+  neither of which touches a Cargo profile,
   and the image the gate builds is made from a copy of the sources:
   `bin/test-native-container.ts` copies them into a disposable build context
   (`copySourceSnapshot`)

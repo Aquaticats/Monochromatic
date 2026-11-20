@@ -11,7 +11,7 @@ Recorded 2026-11-07T13:27:00-05:00.
 Zig 0.17.1),
 and passed under the debug profile on the host and in the same image.
 The failure was first recorded on 2026-10-17 on two base images
-(`cachyos-image-migration-package-differences.md`,
+(`cachyos-image-package-and-tool-differences.md`,
 section "A test that fails on both images"),
 and was blamed on the daily update `d61dc1934a` on 2026-11-07 although that update moved no Slint crate
 (`slint` stayed 1.18.1;

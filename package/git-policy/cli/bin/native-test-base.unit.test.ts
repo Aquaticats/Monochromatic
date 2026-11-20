@@ -1,3 +1,4 @@
+import { createHash, } from 'node:crypto';
 import { readFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 
@@ -7,7 +8,36 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { testBaseTag, } from './native-test-base.ts';
+import { testBaseTag, browserslistDataLockPath, } from './native-test-base.ts';
+
+/**
+ Lock keys that hold something other than a pinned npm package: the format version and the Firefox ESR value, which
+ `DataLock::from_json` in `package/browserslist/core-rust/src/lock.rs` reads beside the packages.
+ */
+const lockKeysThatHoldNoPackage: ReadonlySet<string> = new Set([
+  'lockVersion',
+  'firefoxEsr',
+],);
+
+/**
+ Digits of a hash kept in an image tag, which these tests compute independently of the module they check.
+ */
+const tagHashDigits = 12;
+
+/**
+ Names of the npm packages a lock lists, derived from the lock so an added or renamed package is checked without an edit
+ here.
+
+ @param lock - parsed text of the repository's browserslist data lock
+
+ @returns every key that is not one of the lock's own non-package keys
+ */
+function pinnedPackageNames(lock: Readonly<Record<string, unknown>>,): readonly string[] {
+  return Object.keys(lock,)
+    .filter(function holdsPackage(name) {
+      return !lockKeysThatHoldNoPackage.has(name,);
+    },);
+}
 
 /**
  Image ID of a CachyOS image, as `podman image inspect` prints it.
@@ -87,6 +117,99 @@ await describe({
           cachyosImageId: imageId,
           containerfileText: 'FROM y\n',
         }));
+      },
+    }),
+    it({
+      name: 'keeps the tag of a build that takes no arguments the one its Containerfile text alone produces',
+      fn: async () => {
+        /**
+         Text of a Containerfile the end-to-end base is built from.
+         */
+        const containerfileText = 'FROM x\n';
+        /**
+         Full SHA-256 hex digest of the Containerfile text, computed here instead of through the module, so a changed
+         composition of the hashed text shows up as a failure.
+         */
+        const containerfileDigest = createHash('sha256',)
+          .update(containerfileText,)
+          .digest('hex',);
+        /**
+         The Containerfile's own hash, as the module's tags keep it.
+         */
+        const containerfileOnlyHash = containerfileDigest.slice(0, tagHashDigits);
+        /**
+         Tag of a build that is given no arguments: the end-to-end base's tag, which must not move for a Containerfile
+         and image that did not change.
+         */
+        const expected = `${repository}:${imageId.slice(0, tagHashDigits)}-${containerfileOnlyHash}`;
+        expect(testBaseTag({
+          repository,
+          cachyosImageId: imageId,
+          containerfileText,
+        },)).toBe(expected,);
+        expect(testBaseTag({
+          repository,
+          cachyosImageId: imageId,
+          containerfileText,
+          buildArgumentsText: '',
+        },)).toBe(expected,);
+      },
+    }),
+    it({
+      name: 'changes when the build arguments change',
+      fn: async () => {
+        expect(testBaseTag({
+          repository,
+          cachyosImageId: imageId,
+          containerfileText: 'FROM x\n',
+          buildArgumentsText: 'A=1',
+        })).not.toBe(testBaseTag({
+          repository,
+          cachyosImageId: imageId,
+          containerfileText: 'FROM x\n',
+          buildArgumentsText: 'A=2',
+        }));
+      },
+    }),
+    it({
+      name: 'native-test-base.Containerfile reads the pinned browserslist data from the lock through a build argument, typing none of its values',
+      fn: async () => {
+        /**
+         Text of the gate base's Containerfile.
+         */
+        const text = await readFile(
+          join(
+            import.meta.dirname,
+            '..',
+            'native-test-base.Containerfile',
+          ),
+          'utf8',
+        );
+        /**
+         The lock the build script passes to it, which stays the one source of the versions and digests.
+         */
+        const lock = JSON.parse(await readFile(
+          browserslistDataLockPath,
+          'utf8',
+        )) as Record<string, unknown>;
+        /**
+         The lock's packages, which the Containerfile takes from the lock rather than naming itself.
+         */
+        const pinnedDataPackages = pinnedPackageNames(lock,);
+        expect(text.includes('ARG BROWSERSLIST_DATA_LOCK',)).toBe(true,);
+        expect(pinnedDataPackages.length,).toBeGreaterThan(0,);
+        for (const name of pinnedDataPackages) {
+          /**
+           The pinned entry of one npm package.
+           */
+          const pinned = lock[name] as {
+            readonly version: string;
+            readonly integrity: string;
+          };
+          expect(text.includes(name,),).toBe(false,);
+          expect(text.includes(pinned.version,),).toBe(false,);
+          expect(text.includes(pinned.integrity,),).toBe(false,);
+        }
       },
     }),
     ...derivedContainerfiles.map(function baseRuleTest(path) {
