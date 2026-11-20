@@ -478,8 +478,7 @@ pub fn reads_as_a_key_failure(text: &str) -> bool {
 ///  the changed key is a different cause with its own warning and is left to OpenSSH's words,
 ///  as `main` leaves it,
 ///  and the strict-checking refusal is the unknown key this reading is for.
-///  The census is the transcript of each arm,
-/// measured against a throwaway `sshd` on `127.0.0.1` with OpenSSH 10.6p2
+///  Each arm's transcript was measured against a throwaway `sshd` on `127.0.0.1` with OpenSSH 10.6p2
 ///  and the wrapper's own two variables (`SSH_ASKPASS=false`,
 ///  `SSH_ASKPASS_REQUIRE=force`).
 ///
@@ -503,7 +502,7 @@ const HOST_KEY_NOT_KNOWN_PHRASE: &str = "Host key verification failed";
 const HOST_KEY_CHANGED_PHRASE: &str = "REMOTE HOST IDENTIFICATION HAS CHANGED";
 
 /// The line that ends OpenSSH's warning about a changed key,
-/// which a transcript may carry without the banner above it.
+/// which a transcript may carry without the banner.
 const HOST_KEY_CHANGE_UNDER_STRICT_CHECKING_PHRASE: &str = "has changed and you have requested strict checking";
 
 /// What:
