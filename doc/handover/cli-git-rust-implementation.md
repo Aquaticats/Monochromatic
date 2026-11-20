@@ -40209,7 +40209,17 @@ stated in this entry. What follows from them, as work:
   to the guest, as the brief narrowed the plan. GOING: its short review on the Qwen plan,
   `pi-zfs-step-4-host-half-short-review-on-the-qwen-plan` (watched, cap 250) in
   `.claude/worktrees/pi-qwen-review-zfs-step-4-at-185902f904`; brief under
-  `~/temp/agent/zfs-step-4-host-half-short-review-on-the-qwen-plan-2026-11-19/`. STEP 3 HOST HALF ENDED `idle` (201
+  `~/temp/agent/zfs-step-4-host-half-short-review-on-the-qwen-plan-2026-11-19/`. It ended `idle` (113 turns, 26 min;
+  that folder's `keep/review-from-summary.md`): the walk, the per-field controls, the post-attach comparisons and the
+  adoption table confirmed, the author's counts reproduced. High: the folder's `uses/` symbolic links fail 13 of the
+  wrapper's own source-guard tests (the scan refuses any link), so the whole gate fails; 74 of 74 pass on the base and
+  with the links removed; the author's filtered run hid it. Mediums: `fs_beneath.rs` at 324 code lines; the `SPEC.md`
+  store example is a file the reader refuses; recording a slot is check-then-append, and a concurrent duplicate makes
+  every later read refuse; nothing on this host fails if the last hop stops crossing a mount. Eleven lows. GOING:
+  `pi-zfs-step-4-host-half-short-review-findings-fixed` (DeepSeek on Neuralwatt, cap 510) in the step 4 worktree,
+  merging `main` first and running the whole `source_guard` set; brief under
+  `~/temp/agent/zfs-step-4-host-half-short-review-findings-fixed-2026-11-19/`. Lesson for every wrapper brief: run the
+  whole `source_guard` set, not only the touched modules. STEP 3 HOST HALF ENDED `idle` (201
   turns, 51 min) at `fd10d8d0b0` (four commits; report and checks table in
   `~/temp/agent/zfs-step-3-reflink-rung-recognition-host-half-2026-11-19/keep/`): `FilesystemKind::Zfs` from
   `ZFS_SUPER_MAGIC`; rung 2 proves one dataset by mount source and device, with no ZFS ioctl or binding; a mounted clone
