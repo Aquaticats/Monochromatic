@@ -1755,19 +1755,20 @@ add, so the name stays the revision's first commit rather than its last.
   step 9 and the cancel of plan step 17, with the cancelled-removal receipt the wrapper settles on (A5). It settles
   the rollback's destination: the slot opened after the move from the recorded parent, with `RESOLVE_NO_XDEV`,
   checked against the recorded slot identity, moved once, and proved by the accepted fresh walk, with the third
-  question's answer recorded as a second exception to "No implicit remount". It makes the rollback rule and the
-  pre-call refusal agree for a mount stacked on the clone, which rides along with the clone's subtree, and marks
-  that refusal as the writer's. It voids two kinds of record so neither blocks staging forever: one whose folder is
-  gone, unlinked by the wrapper before it creates the folder, and one from another boot, settled by the wrapper on its
-  own scan. It corrects the leftover that made the handle outlive a boot, states the descriptor kind the `mount_fd`
-  and the directory `fsync` need and why the no-capability arm cannot prove it at `v6.8`, fixes the stale claim that
-  the handover paragraph is uncommitted, scopes "Veto none" to the four items it names, lists the three departures,
-  corrects the ranking clause that every way now shares, names the answers the two hardening entries would reverse,
-  and adds the record's read and write rules. It also rechecks every plan citation against `main`'s plan
-  without changing one, and adds "Choices this revision marks for the project's veto" for the behaviour the project
-  never chose. Its label is the committer timestamp of `4baa56bf23` at `2026-11-19T21:49:07-05:00`, the last commit
-  that changed this revision's text before this label was written, because a commit cannot name its own hash; the
-  prose checker under
+  question's answer recorded as a second exception to "No implicit remount". It orders the two failing scenes so a
+  mount stacked on the clone is refused before any parent test, because a rollback would carry it, and separates a
+  failed open or move, which leaves the clone staged, from a successful move whose proof fails, which leaves the
+  clone at the slot and reported rather than staged. It voids two kinds of record so neither blocks staging forever:
+  one whose folder is gone, replaced by the handler on the handle's `ESTALE` with no mount row at the folder path, and
+  one from another boot, settled by the wrapper on its own mount-table read and `rmdir`'s `EBUSY`. It corrects the
+  leftover that made the handle outlive a boot, states the descriptor kind the `mount_fd` and the directory `fsync`
+  need and why the no-capability arm cannot prove it at `v6.8`, fixes the stale claim that the handover paragraph is
+  uncommitted, scopes "Veto none" to the four items it names, lists the three departures, corrects the ranking clause
+  that every way now shares, names the answers the two hardening entries would reverse, and adds the record's read
+  and write rules. It also rechecks every plan citation against `main`'s plan without changing one, and adds
+  "Choices this revision marks for the project's veto" for the behaviour the project never chose. Its label is the
+  committer timestamp of `f9320ad8dd` at `2026-11-19T21:56:00-05:00`, the last commit that changed this revision's
+  text before this label was written, because a commit cannot name its own hash; the prose checker under
   `~/temp/agent/zfs-staging-under-cache-design-second-revision-gate-recheck-2026-11-19/notes/` passes on this
   revision and fails on a control copy with planted faults.
 
