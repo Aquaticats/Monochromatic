@@ -1438,7 +1438,7 @@ destroy refusal a mounted dataset gives (F13) all protect the worktree's own dat
   ("Proposals the owner settled"). The ways not taken stay described as alternatives, and every measurement arm stays
   owed.
 - It runs no VM measurement and no host probe beyond read-only reads of `findmnt`, `stat`, `zfs list`, `zfs get`,
-  `rm --help` and `/proc/sys/kernel/random/boot_id`.
+  `rm --help`, `/proc/sys/kernel/random/boot_id` and the round's record in the handover.
 - It does not design the removal workflow, the mount handler's modes, the boot unit's ordering, the ABI gate, the
   all-namespace scan or the deferred-origin checks.
 - It does not change the measurements record, the proposal, the plan or any wrapper code.
@@ -1460,7 +1460,7 @@ the name stays the revision's first commit rather than its last.
   handle a later sweep recovers the folder with, the bind's own descriptor, the unbind's rule over the copies, the
   claim's place beside `v1`, the corrected mount-source mechanism, and the questions rebuilt as one choice among the
   ways plus three follow-ups.
-- `ca9ca049fd` at `2026-11-19T20:25:12-05:00`: this revision, answering the second re-check: the folder's component
+- `ca9ca049fd` at `2026-11-19T20:25:12-05:00`: the second re-check's revision, answering it: the folder's component
   derived on both sides from the clone's dataset GUID, the capability the recovery needs and the units that must keep
   it, the retained states split by cause, the corrected descriptor facts for a move's destination and for a copy
   with a mount under it, the durable staged-folder record that replaces the `/run` bind record, the questions rebuilt
@@ -1470,6 +1470,17 @@ the name stays the revision's first commit rather than its last.
   sweep of a folder a foreign namespace removed, the late mount a private `~/.cache` stops delivering, and a folder
   whose claim is gone; they also name which axis separates each pair of options in the first question, and keep a
   folder whose claim is gone instead of removing it.
+- `16bed58b7a` at `2026-11-19T20:48:31-05:00`: this revision, applying the project's answers of 2026-11-19:
+  "Answers of 2026-11-19" with each answer in the project's words and the threat-model sentence quoted, "Questions
+  the owner answered" in place of the questions with what each answer left untaken, "Proposals the owner settled" in
+  place of the veto list, and the staged-folder record moved beside the folder in `~/.cache` with its name, format,
+  atomic write, readers and lifetime. That commit and its later commits also add "Hardening the stated threat model may
+  make unnecessary", make Way A the design with the rollback of a clone that lands on a stacked mount, add the
+  pre-call and post-call mount checks and the arms the record's place and the rollback earn, and name the design's
+  own arms at the end of the measurements. Its label is the committer timestamp of `63eb187bdc`, the last commit that
+  changed this revision's text, because a commit cannot name its own; the prose checker under
+  `~/temp/agent/zfs-staging-under-cache-design-second-revision-gate-recheck-2026-11-19/notes/` passes on this revision
+  and fails on a control copy with planted faults.
 
 ## Sources read
 
