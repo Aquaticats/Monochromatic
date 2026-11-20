@@ -532,12 +532,9 @@ fn in_front_of_a_bounded_program(command: &Command) -> Option<u64> {
 /// const line = { kept: seconds ?? sharedBackstop, stated: seconds };
 /// ```
 pub fn line_bound_of(command: &Command) -> LineBound {
-    let stated: Option<std::time::Duration> = match in_front_of_a_bounded_program(command) {
-        // A command under this harness's bounded form keeps the seconds its own line names.
-        Some(seconds) => Some(std::time::Duration::from_secs(seconds)),
-        // `None` is a line that states no bound, and the shared backstop is what this wait keeps for it.
-        None => None,
-    };
+    // `.map` converts the seconds the line names, and `undefined` in TS is the `None` of a line that names none.
+    let stated: Option<std::time::Duration> = in_front_of_a_bounded_program(command).map(std::time::Duration::from_secs);
+    // `??` in TS: a line that states no bound runs under the shared backstop.
     let kept: std::time::Duration = stated.unwrap_or(UNSTATED_BOUND);
     return LineBound { kept, stated };
 }
