@@ -24,7 +24,6 @@ use super::{
     Platform, RealGitNotFound, RecordedGit, ResolutionInputs, ResolvedGit, SearchedCandidate, process_resolution_inputs,
     resolve_real_git,
 };
-use crate::control_terminal::Terminal;
 use crate::real_git_candidate::CandidateKind;
 use crate::service_provision::{ProvisionHost, SERVICE_UNIT_NAME, unit_texts};
 use crate::test_support::{executable, fixture, remove};
@@ -54,7 +53,6 @@ fn only_the_wrapper(root: &Path) -> ResolutionInputs {
         own_executable: root.join("wrapper/git"),
         service_unit: Some(root.join("unit")),
         // The fallback to the unit's record does not depend on a terminal.
-        terminal: Terminal::Present,
     };
 }
 

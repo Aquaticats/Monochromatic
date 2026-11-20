@@ -136,11 +136,23 @@ fn a_finished_push_keeps_the_interleaved_output_and_exit_code() {
     assert_eq!(clean.output, "remote: done");
 }
 
-/// A push ended by a signal has no exit code and reports one,
+/// What:
+///  A push ended by a signal keeps the signal:
+///  the attempt carries it and its code is `128 + N`,
+///  which is what the push path prints for a run a signal ended,
 ///  and it is not mistaken for a stopped push.
+/// Why:
+///   `1` was the old answer to a status the process never chose,
+///  and it is also a status Git chooses everywhere;
+///  the words a person reads must say which of the two happened.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(attempt.signal).toBe(9); expect(attempt.exitCode).toBe(128 + 9)
+/// ```
 #[cfg(unix)]
 #[test]
-fn a_push_ended_by_a_signal_reports_one() {
+fn a_push_ended_by_a_signal_keeps_the_signal() {
     let attempt: PushAttempt = run_bounded_push(
         shell("echo before; kill -9 $$"),
         Patience::Fixed(Duration::from_secs(60)),
@@ -148,7 +160,8 @@ fn a_push_ended_by_a_signal_reports_one() {
         scratch_environment().as_slice(),
     )
     .expect("runs");
-    assert_eq!(attempt.exit_code, 1);
+    assert_eq!(attempt.signal, Some(9));
+    assert_eq!(attempt.exit_code, i64::from(crate::forwarding::SIGNAL_EXIT_BASE + 9));
     assert_eq!(attempt.output, "before");
 }
 
@@ -410,16 +423,19 @@ fn a_tree_still_running_after_the_grace_is_swept_when_it_ends_and_its_lock_stays
 }
 
 /// What:
-///  A push that prints past the cap and ends between two looks keeps its own status,
-/// and the attempt says that its
-///  output was cut.
+///  A push that prints past the cap keeps its own status when it ends between two looks,
+/// and the attempt says that its output was cut;
+///  a run the flood look catches instead is the stopped push the wait already explains.
 /// Why:
 ///   The output is the log a person reads,
 /// not Git's answer,
-/// so the attempt is not turned into a stopped push;
-/// but the
-///  text kept is the head of what was printed,
+/// so an attempt that ended is not turned into a stopped push;
+/// but the text kept is the head of what was printed,
 /// and passing that for all of it is the silence the query caller had.
+///  Which of the two endings a write of just over the cap gets is the timing of one look against one process,
+///  so the control reads the ending it got and checks that ending;
+///  the cut line itself is controlled on its own, without a process,
+///  in `a_capped_output_keeps_whole_lines_and_says_it_was_cut`.
 #[cfg(unix)]
 #[test]
 fn a_push_that_floods_and_ends_keeps_its_status_and_says_its_output_was_cut() {
@@ -432,8 +448,12 @@ fn a_push_that_floods_and_ends_keeps_its_status_and_says_its_output_was_cut() {
         crate::test_support::scratch_environment().as_slice(),
     )
     .expect("a push attempt");
+    if attempt.exit_code == STOPPED_EXIT_CODE {
+        assert!(attempt.output.contains("wrote more than"), "the flood look stopped it, and says so: {}", attempt.output);
+        return;
+    }
     assert_eq!(attempt.exit_code, 0, "the push's own status is kept: {}", attempt.output);
-    assert!(attempt.output.contains("only the first"), "the attempt says its output was cut: {}", attempt.output);
+    assert!(attempt.output.contains("only the whole lines that fit"), "the attempt says its output was cut: {}", attempt.output);
     assert!(attempt.output.len() < usize::try_from(MAX_PUSH_OUTPUT).unwrap_or(usize::MAX) + 2048, "the kept output stays bounded");
 }
 
@@ -538,6 +558,75 @@ fn a_connected_stop_that_carried_bytes_names_them_and_the_floor_that_judged_them
         None,
     );
     assert!(silent.contains("with nothing moving"), "a connection that carried nothing says so: {silent}");
+    assert!(
+        !silent.contains(PUSH_MINIMUM_RATE_VARIABLE),
+        "a server that sent nothing has no line speed to lower, and the floor is the only bound there is: {silent}"
+    );
 }
 
 //endregion
+
+/// What:
+///  The words of a wait carry no program name of their own,
+///  and the line that goes into an attempt's output names the program once.
+/// Why:
+///  A wait is logged through a line that already names this program,
+///  and the same words are appended to the attempt's output;
+///  a line that carried the name itself printed it twice in the service's log
+///  (`[monochromatic-git-policy-cli] [monochromatic-git-policy-cli] monochromatic-git-policy-cli: ...`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(waitLineWords('git push', report)).not.toContain('monochromatic-git-policy-cli')
+/// ```
+#[test]
+fn the_words_of_a_wait_name_the_program_once() {
+    let report = WaitReport {
+        silent: CONNECTED_PUSH_QUIET_WINDOW,
+        elapsed: CONNECTED_PUSH_QUIET_WINDOW * 2,
+        window: CONNECTED_PUSH_QUIET_WINDOW,
+    };
+    let words: String = wait_line_words("git push", &report);
+    assert!(!words.contains("monochromatic-git-policy-cli"), "the words carry no program name: {words}");
+    let line: String = wait_line("git push", &report);
+    assert_eq!(line.matches("monochromatic-git-policy-cli").count(), 1, "the line names the program once: {line}");
+    // The diagnostic names this program once in its own prefix and tags the wait itself, so no name is printed twice in a row.
+    let diagnostic: String = crate::diagnostic_log::diagnostic_line("warn", "2026-11-19T00:00:00.000Z", "wait_with_clock", &words);
+    assert_eq!(diagnostic.matches("monochromatic-git-policy-cli").count(), 1, "the diagnostic names the program once: {diagnostic}");
+    assert!(diagnostic.contains("[wait_with_clock]"), "the wait itself is the tag: {diagnostic}");
+    assert!(line.ends_with(words.as_str()), "the line is the words with the name in front: {line}");
+}
+
+/// What:
+///  The output a bounded run printed past the cap is kept as whole lines only,
+///  and the read says it was cut,
+///  whatever the size the wait last looked at.
+/// Why:
+///  A cap applied to the raw bytes cut a URL in half,
+///  and half a URL hides no secret;
+///  the flag must come from the read,
+///  because a run that ends between two looks is read after its size was last checked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { text, cut } = readOutput(file); expect(text).not.toContain('planted'); expect(cut).toBe(true)
+/// ```
+#[test]
+fn a_capped_output_keeps_whole_lines_and_says_it_was_cut() {
+    let root = crate::test_support::fixture("bounded-push-capped-output");
+    let path: std::path::PathBuf = root.join("output.txt");
+    let secret: &str = "plantedsecretpassword";
+    let url: String = format!("https://user:{secret}@lfs.example.invalid/objects/batch");
+    // One line, then a line longer than the cap whose end is the URL: a cap applied to the raw bytes would cut the URL
+    //  open in front of its `@`, and a userinfo the mask cannot see keeps the front of the password.
+    let cap: usize = usize::try_from(MAX_PUSH_OUTPUT).expect("a cap");
+    let filler: String = "x".repeat(cap);
+    let text: String = format!("first line\n{filler}{url}\n");
+    std::fs::write(&path, text.as_bytes()).expect("output file");
+    let mut file: std::fs::File = std::fs::File::open(path.as_path()).expect("open");
+    let (shown, cut): (String, bool) = read_output(&mut file).expect("read");
+    assert!(cut, "the read says the output was longer than the cap");
+    assert_eq!(shown, "first line\n", "only the whole line before the cut is kept");
+    assert!(!shown.contains("planted"), "no part of the password survives: {shown}");
+    crate::test_support::remove(root.as_path());
+}

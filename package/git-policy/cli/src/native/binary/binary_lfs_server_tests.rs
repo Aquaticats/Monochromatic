@@ -946,7 +946,8 @@ fn published_url_form(fixture: &Fixture, origin: &Path) -> String {
 /// the LFS server asks for a login,
 /// `SSH_ASKPASS` names a recorder,
 /// the command's session has no controlling terminal,
-/// and the upload fails at once with the login the caller can act on.
+/// and the upload fails at once with the login the caller can act on,
+/// under the same no-prompt rule a command a person typed runs under.
 #[test]
 fn an_unattended_push_without_a_controlling_terminal_never_opens_the_password_dialog() {
     let fixture: Fixture = fixture("lfs-real-no-terminal");
@@ -974,18 +975,19 @@ fn an_unattended_push_without_a_controlling_terminal_never_opens_the_password_di
     // The refusal names the server that asked, from the program's own words, and says how to give it a login.
     let asked: String = format!("the server `127.0.0.1:{}`", server.port);
     assert!(stderr.contains(asked.as_str()), "the server that asked is named: {stderr}");
-    assert!(stderr.contains("no controlling terminal") && stderr.contains("credential.helper"), "{stderr}");
+    assert!(stderr.contains("never lets a command ask") && stderr.contains("credential.helper"), "{stderr}");
     assert!(stderr.contains("doc/troubleshooting/lfs-credential-in-url.md"), "{stderr}");
     assert!(stderr.contains("`git-lfs push` exited with status"), "the program's own status is kept: {stderr}");
     drop(server);
     remove_settled(&fixture);
 }
 
-/// A push a person typed keeps Git's and git-lfs's own prompting:
+/// A push a person typed does not open the password dialog either:
 /// with a controlling terminal in its session,
-/// the same login-requiring server reaches the password program.
+/// the same login-requiring server still reaches no password program,
+/// because the owner decided on 2026-11-19 that no command the wrapper runs or forwards asks for a credential.
 #[test]
-fn a_push_with_a_controlling_terminal_keeps_its_prompting() {
+fn a_push_with_a_controlling_terminal_never_opens_the_password_dialog() {
     let fixture: Fixture = fixture("lfs-real-terminal");
     let Some((repo, origin, server, _content)) = lfs_world(&fixture) else {
         return;
@@ -1004,8 +1006,9 @@ fn a_push_with_a_controlling_terminal_keeps_its_prompting() {
         Some(&at.slave),
     );
     let stderr: String = stderr_of(&pushed);
-    assert!(!questions(log.as_path()).is_empty(), "the route at a terminal asked nobody: {stderr}");
-    assert_ne!(pushed.code, Some(0), "the server refuses the login the stand-in gives: {stderr}");
+    assert!(!log.exists(), "the desktop password program was started at a terminal: {:?}", questions(log.as_path()));
+    assert_ne!(pushed.code, Some(0), "a login the caller does not have is a failure: {stderr}");
+    assert!(stderr.contains("no password"), "the refusal says the wrapper never asks: {stderr}");
     drop(server);
     remove_settled(&fixture);
 }

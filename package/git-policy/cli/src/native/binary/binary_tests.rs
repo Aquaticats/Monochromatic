@@ -508,6 +508,11 @@ mod push_stacking;
 #[path = "binary_lfs_pre_push_tests.rs"]
 mod lfs_pre_push;
 
+/// `git lfs install` through the executable:
+/// inside a repository it runs with `--skip-repo` and says why no hook is needed.
+#[path = "binary_lfs_install_tests.rs"]
+mod lfs_install;
+
 /// The parent that owns an LFS push explains a failed upload from Git's own trace,
 /// and no wrapper is started for it.
 #[path = "binary_lfs_parent_tests.rs"]

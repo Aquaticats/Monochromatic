@@ -24,20 +24,6 @@
 use std::ffi::{OsStr, OsString};
 /// `Path` is a borrowed filesystem path made of the same raw OS bytes.
 use std::path::{Path, PathBuf};
-/// What:
-///  Whether the invoking process has a controlling terminal,
-/// so a login question may reach a person.
-/// Why:
-///   The overlay of a command the caller typed differs by this one fact,
-/// and carrying it as a value keeps this module free of the
-///  process probe a control cannot arrange.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Terminal = 'present' | 'absent';
-/// ```
-use crate::control_terminal::Terminal;
-
 /// Git's count variable for environment-supplied configuration.
 pub const COUNT_VARIABLE: &str = "GIT_CONFIG_COUNT";
 
@@ -471,14 +457,14 @@ pub const TERMINAL_PROMPT_VARIABLE: &str = "GIT_TERMINAL_PROMPT";
 /// and they fail
 ///  with "terminal prompts disabled".
 /// `SSH_ASKPASS` stays in the environment:
-/// OpenSSH reads it for key passphrases.
-///  The owner's pick of 2026-11-07 is "Never prompt" for background Git and git-lfs
+/// OpenSSH reads it for key passphrases,
+/// and [`ssh_never_askpass_overlay`] is what stops OpenSSH from running it.
+///  The owner's pick of 2026-11-07 is "Never prompt" for background Git and git-lfs,
+///  and the answer of 2026-11-19T16:58:00-05:00 widened it to every command the wrapper runs or forwards
 ///  (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`,
-/// "What this repository does about it").
-/// It covers the service's children (`service_child_overlay`) and,
-/// through `invocation_overlay`,
-/// the children of any command
-///  whose process has no controlling terminal.
+/// "What this repository does about it"):
+///  "Avoid ever asking for someone to type a username or password."
+/// Both callers add this pair through [`no_prompt_overlay`].
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -491,44 +477,80 @@ pub fn never_prompt_overlay() -> Vec<(OsString, OsString)> {
     ];
 }
 
+/// The variable by which OpenSSH is told whether it may run a password program at all.
+pub const ASKPASS_REQUIRE_VARIABLE: &str = "SSH_ASKPASS_REQUIRE";
+
+/// The value of [`ASKPASS_REQUIRE_VARIABLE`] that means "never run one".
+///  `ssh(1)` reads it for every passphrase it would ask for (OpenSSH 10.6p2:
+///  `never` makes `ssh` never attempt to use one,
+///  `prefer` and `force` are the other two values),
+/// and this is the one an unattended child gets.
+pub const ASKPASS_REQUIRE_NEVER: &str = "never";
+
 /// What:
-///  Whether a list of variables turns prompting off for a Git or git-lfs child,
-/// by carrying the never-prompt pair.
+///  The variable that makes OpenSSH itself never ask a password program,
+///  which the two Git variables cannot do:
+///  `GIT_ASKPASS` and `GIT_TERMINAL_PROMPT` are Git's and `git-lfs`'s,
+/// and OpenSSH reads only `SSH_ASKPASS` and `SSH_ASKPASS_REQUIRE` for a key's passphrase.
 /// Why:
-///   The explanation after an upload needed a login says what the wrapper did about prompting,
-/// and this reads that answer from the pair
-///  itself instead of asking `/dev/tty` again:
-/// the pair is exactly what the child was given,
-/// and a child's own answer can differ from the caller's.
-///  The service's overlay always carries it;
-/// a command typed at a terminal does not.
+///   The owner's decision of 2026-11-07 ("Never prompt (Recommended)") is that the service never asks anyone for a login,
+///  and the answer of 2026-11-19T16:58:00-05:00 extended it to every command the wrapper runs or forwards,
+///  counting an SSH key's passphrase as a credential ("Passphrases count too").
+///  A `ssh://` endpoint of an upload or a push starts OpenSSH,
+///  which opened a passphrase question through `SSH_ASKPASS` while the wrapper believed nothing could ask
+///  (the audit's reproduction of an `ssh://` LFS endpoint asked twice).
+///  What it does not turn off:
+///  OpenSSH's notification of a security key's touch,
+///  which is not a question and is started by `notify_start` in `readpass.c`,
+///  and whose own condition is the askpass program,
+///  a display and a standard error that is not a terminal;
+///  and a host key that is not known still fails without asking.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const promptingDisabled = (variables) => variables.some(([name, value]) => name === 'GIT_ASKPASS' && value === '')
-///   && variables.some(([name, value]) => name === 'GIT_TERMINAL_PROMPT' && value === '0');
+/// const sshNeverAsk: [string, string][] = [['SSH_ASKPASS_REQUIRE', 'never']];
 /// ```
-pub fn prompting_disabled(variables: &[(OsString, OsString)]) -> bool {
-    let askpass: Option<OsString> = environment_value(variables, ASKPASS_VARIABLE);
-    let terminal: Option<OsString> = environment_value(variables, TERMINAL_PROMPT_VARIABLE);
-    let askpass_stops: bool = askpass.as_deref().is_some_and(OsStr::is_empty);
-    let terminal_stops: bool = terminal.as_deref() == Some(OsStr::new("0"));
-    return askpass_stops && terminal_stops;
+pub fn ssh_never_askpass_overlay() -> Vec<(OsString, OsString)> {
+    return vec![(OsString::from(ASKPASS_REQUIRE_VARIABLE), OsString::from(ASKPASS_REQUIRE_NEVER))];
+}
+
+/// What:
+///  The whole rule that stops a Git,
+/// git-lfs or OpenSSH run from asking a person for a credential:
+///  [`never_prompt_overlay`] and then [`ssh_never_askpass_overlay`].
+/// Why:
+///   Every command the wrapper starts gets one list,
+///  so no start added later can carry one half of the rule and not the other;
+///  the owner's answer of 2026-11-19T16:58:00-05:00 asks for exactly this for every command,
+///  with a terminal or without one,
+///  and supersedes the earlier answer that a command a person typed keeps Git's own prompting for credentials.
+///  Three variables are needed because two programs read them:
+///  Git and `git-lfs` read the pair,
+/// and OpenSSH reads only its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// [...neverPrompt, ...sshNeverAsk]
+/// ```
+pub fn no_prompt_overlay() -> Vec<(OsString, OsString)> {
+    let mut overlay: Vec<(OsString, OsString)> = never_prompt_overlay();
+    overlay.extend(ssh_never_askpass_overlay());
+    return overlay;
 }
 
 /// What:
 ///  Every variable the commit service adds for the Git and git-lfs children it starts on its own,
 /// with no person at a
 ///  terminal:
-/// the lock PID injection and the never-prompt pair.
+/// the lock PID injection and [`no_prompt_overlay`].
 /// Why:
 ///   The service's landing,
 /// upkeep,
 /// push,
 /// reconcile fetch and LFS upload all start from this one list,
 /// so a start added
-///  later cannot miss the pair.
-/// A command the person typed (`child_environment_overlay`) is left to Git's own prompting.
+///  later cannot miss the rule.
+///  A command the person typed gets the same rule from [`invocation_overlay`].
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -536,43 +558,39 @@ pub fn prompting_disabled(variables: &[(OsString, OsString)]) -> bool {
 /// ```
 pub fn service_child_overlay(environment: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
     let mut overlay: Vec<(OsString, OsString)> = lockfile_pid_overlay(environment);
-    overlay.extend(never_prompt_overlay());
+    // The service's children and a command a person typed share one no-prompt rule, so the two cannot drift apart.
+    overlay.extend(no_prompt_overlay());
     return overlay;
 }
 
 /// What:
 ///  Every variable the wrapper adds for a command the caller typed and every Git or git-lfs child of it:
-///  the lock PID injection and the forward-target marker,
-/// plus the never-prompt pair when the command has no controlling
-///  terminal.
+///  the lock PID injection,
+/// the forward-target marker,
+/// and [`no_prompt_overlay`].
 /// Why:
-///   A command whose process has no controlling terminal was not typed at one,
-/// so no login question can reach a person,
-/// and Git's and git-lfs's prompt programs would open a desktop window for nobody.
-/// The push of
-///  2026-11-10 did that for seven minutes while its errors sat in a private file
+///   A prompt program would open a desktop dialog nobody is there to answer,
+///  and the owner's answer of 2026-11-19T16:58:00-05:00 is that no command the wrapper runs or forwards asks a person
+///  for a username,
+/// a password or a key passphrase,
+///  with a terminal or without one.
+///  That supersedes the earlier answer that a command at a terminal keeps Git's own prompting,
+///  so the controlling terminal decides nothing here any more and the rule is planned for every command.
+///  The push of 2026-11-10 is why a terminal-less command was covered first:
+///  its dialog sat open for seven minutes while its errors waited in a private file
 /// (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`).
-/// A command at a terminal keeps Git's own prompting,
-/// which the owner asked for on 2026-11-07.
-///  The answer comes from the process's controlling terminal and never from whether standard input is a terminal:
-/// the incident's
-///  wrapper had its input at `/dev/null` and still inherited `DISPLAY`,
-/// which is all a dialog needs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// [...childEnvironmentOverlay(environment, realGit), ...(terminal === 'absent' ? neverPrompt() : [])]
+/// [...childEnvironmentOverlay(environment, realGit), ...noPromptOverlay()]
 /// ```
 pub fn invocation_overlay(
     environment: &[(OsString, OsString)],
     real_git: &Path,
-    terminal: Terminal,
 ) -> Vec<(OsString, OsString)> {
     let mut overlay: Vec<(OsString, OsString)> = child_environment_overlay(environment, real_git);
-    if terminal == Terminal::Absent {
-        // The pair goes last, so a variable the caller set for its own children (`CLI_GIT_CHILD_SET_*`) cannot reopen the prompt.
-        overlay.extend(never_prompt_overlay());
-    }
+    // The rule goes last, so a variable the caller set for its own children (`CLI_GIT_CHILD_SET_*`) cannot reopen the prompt.
+    overlay.extend(no_prompt_overlay());
     return overlay;
 }
 

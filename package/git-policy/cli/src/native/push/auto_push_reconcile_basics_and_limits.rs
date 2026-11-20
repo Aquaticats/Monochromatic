@@ -108,6 +108,7 @@ pub fn was_rejected_as_stale(output: &str) -> bool {
 pub(crate) fn unpublished(failed_prefix: &str, previous: &str, exit_code: i64, reason: &str) -> PushAttempt {
     return PushAttempt {
         exit_code: if exit_code == 0 { 1 } else { exit_code },
+        signal: None,
         output: format!("{previous}\n{failed_prefix}{reason}"),
     };
 }

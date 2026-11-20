@@ -5,7 +5,6 @@
 #![cfg(unix)]
 
 use crate::action::Action;
-use crate::control_terminal::Terminal;
 use crate::entry::plan_invocation;
 use crate::real_git::{Platform, ResolutionInputs};
 use crate::repository_link_identity::IDENTITY_RELATIVE_PATH;
@@ -27,7 +26,6 @@ fn inputs(root: &Path) -> ResolutionInputs {
         own_executable: own,
         service_unit: None,
         // A command typed at a terminal; these controls stop before an overlay is planned, so the answer only has to be stated.
-        terminal: Terminal::Present,
     };
 }
 

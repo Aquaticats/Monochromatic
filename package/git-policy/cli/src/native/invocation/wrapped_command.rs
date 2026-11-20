@@ -534,9 +534,16 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
         }
     }
     // The notices come first: they say what was saved before Git changes anything.
+    // `git lfs install` writes hooks the wrapper never runs: inside a repository it runs with `--skip-repo`, and the
+    //  notice says where this command asks for the filters and that no hook is needed. An answer of `OutsideWorktree`
+    //  is no repository at all (or a directory inside `.git`), and git-lfs writes no hook there.
+    let in_a_repository: bool = checks.facts.asked_location().is_some_and(|answer| {
+        return answer.is_ok_and(|location| { return location.identity != crate::worktree_identity::WorktreeIdentity::OutsideWorktree; });
+    });
+    let (arguments, hook_notice): (Vec<OsString>, String) = crate::lfs_install_arguments::with_skip_repo(pass.arguments, in_a_repository);
     return WrappedOutcome::Forward {
-        arguments: pass.arguments,
-        stderr: format!("{}{}", checks.notices.concat(), render_policy_events(0, events.as_slice())),
+        arguments,
+        stderr: format!("{}{}{}", checks.notices.concat(), hook_notice, render_policy_events(0, events.as_slice())),
     };
 }
 

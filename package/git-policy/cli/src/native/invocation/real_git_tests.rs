@@ -18,7 +18,6 @@ use super::{
     candidate_sequence, common_git_paths, executable_names, host_platform,
     process_resolution_inputs, search_path_for_real_git,
 };
-use crate::control_terminal::Terminal;
 use crate::real_git_candidate::CandidateKind;
 use crate::test_support::{executable, fixture, remove};
 use std::ffi::{OsStr, OsString};
@@ -35,7 +34,6 @@ fn inputs(path: &str, root: &Path) -> ResolutionInputs {
         own_executable: root.join("wrapper/git"),
         service_unit: None,
         // These controls read the PATH and nothing that depends on a terminal.
-        terminal: Terminal::Present,
     };
 }
 
