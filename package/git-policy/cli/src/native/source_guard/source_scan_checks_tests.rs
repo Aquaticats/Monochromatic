@@ -8,7 +8,7 @@
 use super::declaration::{Declaration, declarations, module_name};
 use super::{SourceFile, classified_sources, manifest_roots, module_tree, real_roots, release_root, source_root, write_tree};
 use crate::source_scan_tests::walk::discover;
-use crate::test_support::fixture;
+use crate::test_support::{fixture, remove};
 
 /// The classification of one path in a listing,
 /// or a panic naming the path when the listing lacks it.
@@ -183,6 +183,34 @@ fn the_walk_refuses_a_link() {
     write_tree(&linked, &[("real.rs", "")]);
     std::os::unix::fs::symlink(linked.join("nowhere.rs"), linked.join("dangling.rs")).expect("a dangling link");
     assert!(discover(&linked).is_err(), "a link may point outside the tree or nowhere");
+}
+
+/// What:
+///  A link inside a `uses` folder is the repository's own record of which source folders a folder's code uses,
+///  so the walk reads nothing through it and lists the folder's `.rs` files as it lists the others,
+///  while a link anywhere else still stops the walk.
+/// Why:
+///  Rule `LYD` asks every source folder for that `uses` folder,
+///  and the wrapper's own guards failed on those links before this control existed:
+///  a listing that refused them could not exist beside the layout the repository asks for,
+///  and a listing that skipped every link would let a link hide sources a scan must read.
+#[cfg(unix)]
+#[test]
+fn the_walk_reads_nothing_through_a_uses_folder_and_still_refuses_any_other_link() {
+    let tree = fixture("scan-walk-uses");
+    write_tree(&tree, &[("folder/mod.rs", "// a source file\n"), ("folder/uses/stray.rs", "// a source file beside the links\n")]);
+    std::fs::create_dir_all(tree.join("folder/uses")).expect("the uses folder");
+    std::os::unix::fs::symlink("../..", tree.join("folder/uses/other")).expect("a link to a folder beside this one");
+    assert_eq!(
+        discover(&tree).expect("the links of a uses folder are not read"),
+        vec!["folder/mod.rs".to_owned(), "folder/uses/stray.rs".to_owned()],
+        "the folder's own sources are listed and the link is not"
+    );
+    std::os::unix::fs::symlink(tree.join("folder/mod.rs"), tree.join("folder/link.rs")).expect("a link beside the sources");
+    let refused: String = discover(&tree).expect_err("a link anywhere else still stops the walk");
+    assert!(refused.contains("folder/link.rs"), "the link is named: {refused}");
+    assert!(refused.contains("symbolic link"), "the reason is given: {refused}");
+    remove(tree.as_path());
 }
 
 /// The manifest's library and binaries are release roots,
