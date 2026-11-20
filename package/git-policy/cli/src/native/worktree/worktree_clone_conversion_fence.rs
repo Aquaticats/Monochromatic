@@ -271,7 +271,8 @@ fn blob_sizes(context: &GitContext, root: &Path, commit: &str) -> Result<HashMap
     for record in output.stdout.split(|byte| return *byte == 0) {
         // `mode SP type SP object SP size TAB path`
         let Some(tab) = record.iter().position(|byte| return *byte == b'\t') else { continue };
-        let mut fields = record[..tab].split(|byte| return *byte == b' ');
+        // The size is right-aligned, so the words between the spaces hold empty ones that are not fields.
+        let mut fields = record[..tab].split(|byte| return *byte == b' ').filter(|word| return !word.is_empty());
         let (Some(_mode), Some(_kind), Some(_object), Some(size)) = (fields.next(), fields.next(), fields.next(), fields.next()) else { continue };
         let Ok(size_text) = std::str::from_utf8(size) else { continue };
         let Ok(size_value) = size_text.parse::<u64>() else { continue };
