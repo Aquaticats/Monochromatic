@@ -41,6 +41,8 @@ const TAG: &str = "attachPostCheck";
 ///  The held target's own mount is the design's first proof taken literally:
 ///  the folder the attach acted through must be the folder that received the mount,
 ///  whatever a later lookup of the slot finds.
+///  It is read at the target's name beneath the held parent,
+///  because the held target's descriptor keeps naming the mount it was opened on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -53,7 +55,12 @@ pub struct AttachPostCheck<'a> {
     /// The mount the walk's parent folder is on.
     pub held_parent_mount_id: u64,
     /// The mount the held target is on,
-    /// read from that descriptor after `move_mount` returned.
+    /// read at the target's name beneath the held parent after `move_mount` returned
+    /// (`mount_id_at_the_held_target`).
+    /// The held target's own descriptor is not the reader:
+    /// a descriptor keeps naming the mount it was opened on,
+    /// so it answers the parent's mount after a real attach,
+    /// and the guest measured exactly that.
     pub held_target_mount_id: u64,
     /// The mount ID the attach recorded for the mount it made,
     /// read from the descriptor `fsmount` returned.
@@ -89,7 +96,7 @@ pub enum MisplacedReason {
     },
     /// The held target is not on the mount the attach made.
     HeldTargetElsewhere {
-        /// The mount the held target's descriptor is on.
+        /// The mount resolved at the held target's name beneath the held parent.
         held: u64,
         /// The mount the attach recorded.
         attached: u64,
@@ -128,7 +135,7 @@ impl MisplacedReason {
                 field_names(fields)
             ),
             MisplacedReason::HeldTargetElsewhere { held, attached } => format!(
-                "the held target the attach mounted onto is on mount {held}, not mount {attached} that the attach made, so the folder the walk judged did not receive this mount."
+                "the held target's name beneath the held parent resolves to mount {held}, not mount {attached} that the attach made, so the folder the walk judged did not receive this mount."
             ),
             MisplacedReason::MountElsewhere { fresh, attached } => format!("the mount at the canonical slot is mount {fresh}, not mount {attached} that the attach made."),
             MisplacedReason::OtherParentMount { fresh, held } => format!("the slot's mount hangs on mount {fresh}, and the walk's parent folder is on mount {held}, so this is not the mount this walk made."),
@@ -203,7 +210,8 @@ pub enum AttachOutcome {
 ///  so the report of a misplaced attach says what happened.
 ///  The held target's mount is compared first because it is the one fact a stopped walk or another
 ///  mount at the slot cannot explain away:
-///  the folder the attach acted through is the folder that had to receive the mount.
+///  the folder the attach acted through is the folder that had to receive the mount,
+///  and its number is read at that folder's name beneath the held parent rather than from the held descriptor.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -386,6 +386,38 @@ pub fn hold_clone_slot_under_root_control(request: &HoldCloneSlotRequest<'_>) ->
 }
 
 /// What:
+///  The mount the kernel resolves at the held target's name beneath the held parent.
+/// Why:
+///   After `move_mount` the attach's mount stands at that name inside the parent folder the walk held,
+///  so this is the number that proves the held folder received the mount;
+///  the held target's own descriptor cannot answer it,
+///  because a descriptor keeps naming the mount it was opened on,
+///  and the guest read the parent's mount from it after a real attach
+///  (`package/git-policy/cli/SPEC.md`,
+/// "The post-attach check").
+///  The hop is `open_directory_at_a_mount`,
+///  which crosses a mount at the slot's own name while every folder above stays the one the walk reached,
+///  so a mount attached beside the slot is not reached here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mount = mountIdAtTheHeldTarget(held.parent, 'one'); // the mount now at that name, not the parent's
+/// ```
+///
+/// # Errors
+/// The walk's refusal of the slot's name,
+/// an open that names another object or no folder,
+/// or the folder's own facts not being readable.
+pub fn mount_id_at_the_held_target(held_parent: &std::fs::File, slot: &str) -> Result<u64, CloneSlotRefusal> {
+    let component: String = slot_component(slot);
+    if let Some(refusal) = slot_name_walk_refusal(component.as_str(), slot) {
+        return Err(refusal);
+    }
+    let slot_folder: std::fs::File = open_directory_at_a_mount(held_parent, OsStr::new(slot)).map_err(|error| return folder_refusal(component.as_str(), error))?;
+    return mount_id_of(&slot_folder).map_err(|error| return fields_refusal(component.as_str(), &error));
+}
+
+/// What:
 ///  Walk to the canonical slot again and read what the kernel finds there,
 ///  crossing a mount only at the slot itself.
 /// Why:
