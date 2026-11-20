@@ -1849,14 +1849,14 @@ Options:
     so the binding keeps the pre-scan; its release's masks lag its main branch; a small maintainer
     group; its own test suite is unrun.
     Cost: the shared shape, about 350 to 550 lines of source and 300 to 450 of tests, plus the
-    resolver for arrays and typedef chains and one fuzz target.
+    array-size arithmetic and one fuzz target.
     Why here: it is the only eligible library, since the skill admits a custom implementation only
     when every existing tool fails a hard constraint; its 90 of 104 trails the in-house reader's 92
     by two points, inside a band one step on C6 reverses.
 2.  An in-house reader in the binding, the owner's exception to the existing-tools rule, ranked
     second here.
     Pros: exact bounds and refusal semantics in one place; no new dependency or license; can read
-    lazily; no resolver shim, since the reader owns array and typedef sizes.
+    lazily; no array-size shim, since the reader owns array sizes.
     Cons: a parser of kernel bytes is ours to review, fuzz and maintain; the skill's existing-tools
     rule keeps it behind `btf-rs` while `btf-rs` passes.
     Cost: the same shared shape plus about 350 to 450 lines of reader source and 100 to 150 of
@@ -1870,8 +1870,8 @@ Options:
 3.  `pahole` 1.32 as a start-time program, ranked third.
     Pros: the command the design already names for the test-time comparison; `-C` prints the
     compared members; no new Rust dependency.
-    Cons: a runtime package; a root-spawned program in the handler; a text format; three
-    invocations for the struct, the nested type and the enum.
+    Cons: a runtime package; a root-spawned program in the handler; a text format; an invocation
+    each for the struct, the nested type and the enum.
     Why here: 60 of 104, and a runtime program costs the deployment and privilege points that
     options 1 and 2 do not.
 4.  `bpftool` 7.8.0 as a start-time program, ranked fourth.
