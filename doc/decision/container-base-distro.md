@@ -174,7 +174,8 @@ The decision followed a mutation-test image rebuild whose `dnf install` step ran
 
 ## Owner answer on the base image
 
-Asked on 2026-11-10 whether CachyOS images, being much heavier than Arch ones, should give way to Arch,
+Asked on 2026-11-10T09:15:14-05:00 whether CachyOS images, being much heavier than Arch ones, should give way
+to Arch,
 the owner wrote "If cachyos containers are much heavier than arch proper containers, switch to arch proper."
 and, after the compressed sizes from `skopeo inspect` (`cachyos-v4:latest` 406 MiB,
 `cachyos-v3:latest` 404 MiB, `cachyos:latest` 312 MiB, `archlinux:base` 128 MiB,
