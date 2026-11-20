@@ -27,14 +27,48 @@ use crate::nvlist::{NvError, NvList};
 /// The formatting traits the diagnostics implement.
 use std::fmt;
 
-/// Initial reply capacity,
-/// matching `libzfs_core`'s own first buffer.
+/// Initial reply capacity:
+/// 256 KiB,
+/// the buffer `libzfs` allocates when it is given no length for a
+/// `zc_nvlist_dst` (`zcmd_alloc_dst_nvlist`,
+/// `lib/libzfs/libzfs_util.c:1200-1204`).
+/// `libzfs_core` starts at `MAX(size * 2, 128 * 1024)` instead
+/// (`lib/libzfs_core/libzfs_core.c:250`);
+/// this crate takes the larger floor,
+/// and `initial_size` keeps `libzfs_core`'s doubling rule for a write.
 pub const INITIAL_REPLY_SIZE: usize = 256 * 1024;
 
-/// Most bytes a reply buffer may hold,
-/// so a hostile or buggy size cannot cost
-/// an unbounded allocation.
-pub const MAXIMUM_REPLY_SIZE: usize = 128 * 1024 * 1024;
+/// `ZCP_MAX_MEMLIMIT`:
+/// the module's largest channel-program memory limit,
+/// `10 * ZCP_DEFAULT_MEMLIMIT` with the default 10 MiB
+/// (`include/sys/fs/zfs.h:1874-1875`).
+const LARGEST_CHANNEL_PROGRAM_REPLY: usize = 100 * 1024 * 1024;
+
+/// Most bytes a reply buffer may hold:
+/// the next power of two at or above the module's largest channel-program
+/// memory limit
+/// (100 MiB,
+/// so 128 MiB),
+/// the largest reply this crate asks for.
+/// 128 MiB is also the ceiling the Linux module puts on an nvlist it parses
+/// (`MIN(memory / 4, 128 * 1024 * 1024)`,
+/// `module/os/linux/zfs/zfs_ioctl_os.c:197-204`),
+/// so a reply larger than any list the module itself would handle is refused
+/// rather than allocated.
+pub const MAXIMUM_REPLY_SIZE: usize = LARGEST_CHANNEL_PROGRAM_REPLY.next_power_of_two();
+
+/// What:
+///  The pinning of the reply cap:
+/// it stays above the module's largest channel-program reply,
+/// and it is the module's own nvlist ceiling,
+/// 128 MiB.
+/// Why:
+///  A changed derivation would otherwise ship a cap that no longer covers the
+///  reply it exists for.
+const _: () = {
+    assert!(LARGEST_CHANNEL_PROGRAM_REPLY < MAXIMUM_REPLY_SIZE);
+    assert!(MAXIMUM_REPLY_SIZE == 128 * 1024 * 1024);
+};
 
 /// What the reply of one request may be used for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -277,11 +311,12 @@ impl std::error::Error for ReplyError {
     }
 }
 
-/// The size a reply buffer starts at:
-/// the initial size,
-/// doubled for a write so
-/// its error list fits without a second call,
-/// and never past the cap.
+/// The size a reply starts from:
+/// [`INITIAL_REPLY_SIZE`] for a read,
+/// and for a write the larger of that and twice the input,
+/// which is `libzfs_core`'s rule with this crate's floor
+/// (`MAX(size * 2, 128 * 1024)`,
+/// `lib/libzfs_core/libzfs_core.c:250`).
 pub fn initial_size(use_of_reply: ReplyUse, input_length: usize) -> usize {
     return match use_of_reply {
         ReplyUse::Read => INITIAL_REPLY_SIZE,

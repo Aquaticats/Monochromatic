@@ -214,6 +214,13 @@ fn errno_text(errno: i32) -> String {
 /// A short hint for the error numbers these requests commonly return,
 /// empty for
 /// the rest.
+///
+/// `ENOMEM` is also how the kernel asks for a bigger reply buffer:
+/// `put_nvlist` answers it when the list it has is larger than
+/// `zc_nvlist_dst_size`,
+/// and leaves the size it needs there
+/// (`module/zfs/zfs_ioctl.c:1437-1447`),
+/// so the hint names both causes.
 fn errno_hint(operation: Operation, errno: i32) -> &'static str {
     if operation.lists() && errno == libc::ESRCH {
         return " (end of the listing)";
@@ -227,7 +234,7 @@ fn errno_hint(operation: Operation, errno: i32) -> &'static str {
         libc::EBUSY => " (busy: mounted, held, or has children)",
         libc::ENAMETOOLONG => " (name too long)",
         libc::EINVAL => " (invalid argument: a bad name, property or snapshot set?)",
-        libc::ENOMEM => " (the kernel ran out of memory)",
+        libc::ENOMEM => " (the kernel ran out of memory, or the reply buffer was too small)",
         libc::ENOSPC => " (no space left in the pool)",
         _ => "",
     };

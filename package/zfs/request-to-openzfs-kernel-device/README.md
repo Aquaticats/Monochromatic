@@ -124,9 +124,12 @@ A write that the kernel refuses per element also returns those names,
 for example the snapshots in a `DESTROY_SNAPS` batch that failed one by one:
 
 ```text
-destroy snapshots on pool/dataset failed: one or more snapshots failed (os error 1):
-pool/dataset@first: dataset does not exist (os error 2); +2 more
+DESTROY_SNAPS on 'pool/dataset' failed: Device or resource busy (os error 16) (busy: mounted, held, or has children); pool/dataset@s1: Device or resource busy (os error 16); pool/dataset@s2: Device or resource busy (os error 16)
 ```
+
+The device-free test `a_busy_snapshot_batch_prints_the_line_the_readme_shows`
+prints exactly that line,
+so this example cannot drift from the crate's output.
 
 A listing that reached its end says so by the kernel's `ESRCH`,
 which is not a

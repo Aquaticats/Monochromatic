@@ -86,6 +86,33 @@ fn a_per_name_failure_keeps_every_element_and_prints_four() {
 }
 
 #[test]
+fn a_busy_snapshot_batch_prints_the_line_the_readme_shows() {
+    let elements: Vec<ElementError> = ["s1", "s2"]
+        .iter()
+        .map(|suffix| {
+            return ElementError {
+                name: format!("pool/dataset@{suffix}"),
+                errno: libc::EBUSY,
+            };
+        })
+        .collect();
+    let error: Error = Error::Elements {
+        operation: Operation::DestroySnaps,
+        target: "pool/dataset".to_string(),
+        errno: libc::EBUSY,
+        elements,
+    };
+    // The README's failure example is this exact line; the test is what keeps
+    // the two from drifting apart.
+    assert_eq!(
+        error.to_string(),
+        "DESTROY_SNAPS on 'pool/dataset' failed: Device or resource busy (os error 16) \
+         (busy: mounted, held, or has children); pool/dataset@s1: Device or resource \
+         busy (os error 16); pool/dataset@s2: Device or resource busy (os error 16)"
+    );
+}
+
+#[test]
 fn a_name_failure_carries_the_errno_the_kernel_would_have_given() {
     let error: Error = Error::Name {
         operation: Operation::Clone,
@@ -177,6 +204,7 @@ fn the_memory_and_unknown_numbers_read_without_a_hint() {
         errno: libc::ENOMEM,
     };
     assert!(error.to_string().contains("ran out of memory"));
+    assert!(error.to_string().contains("the reply buffer was too small"));
     let unknown: Error = Error::Call {
         operation: Operation::Destroy,
         target: "pool".to_string(),
