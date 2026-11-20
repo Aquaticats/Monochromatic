@@ -88,6 +88,12 @@ The open item, quoted whole ([proposal][proposal], "Open items the decisions lea
 
 The answer the item carries, in the owner's words: "Under ~/.cache, and make the wrapper clean after itself."
 
+The round of 2026-11-19 answered what the item left undesigned. The wrapper creates one folder per removal, the
+handler binds it and makes the bind private for that removal, a later sweep finishes an interrupted removal by
+opening the folder from the recorded file handle, and a clone the move lands on a stacked mount goes back to its slot
+at once. "Answers of 2026-11-19" lists the questions with the project's own words, and "Questions the owner answered"
+records what each answer left untaken.
+
 ## Decisions of the accepted design that bound this proposal
 
 - Staging location. Decided as "Account-owned place", then placed by the answer quoted under "The open item and the
@@ -1099,9 +1105,10 @@ Set up a clone at a slot, a private bind on a depth-one staging folder, and the 
   into it. Assert the move fails `EINVAL` (F25), the clone's row is still in the boot namespace, and record the
   errno. Control: the same move inside one namespace (M2's covered-folder route) succeeds.
 
-Each live way needs M1, M2, M3, M5 and every arm of M6. Way A additionally needs M4's positive, host-namespace,
-copied-idle, copied-held, copied-mounted-under, foreign-namespace and renamed arms, and M7's two-folder arm. Way B
-needs Way A's handler arms plus M7 and M8. Way C needs M1, M2, M3, M5, M6, M4's renamed arm and M7's Way C arm. Way D
+Each live way needs M1, M2, M3, M5 and every arm of M6. Way A, the design, additionally needs M4's positive,
+host-namespace, copied-idle, copied-held, copied-mounted-under, foreign-namespace and renamed arms, M7's two-folder
+arm, M1's failed-rollback arm, and M6's record-place, atomic-write and other-boot arms. Way B needs Way A's handler
+arms plus M7 and M8. Way C needs M1, M2, M3, M5, M6, M4's renamed arm and M7's Way C arm. Way D
 needs M1, M2, M3's propagation arms and its late-mount arm on `~/.cache`, M5, M6 and M7. Way E needs Way A's arms and
 M8's source arm. Way F needs Way A's arms and M4's renamed arm. No live way needs M9, which exists only to record the
 refused way's failure.
@@ -1157,10 +1164,10 @@ whatever is mounted (F16). A staging claim is therefore a kind of its own, with 
   read instead of moving it aside, because an unreadable claim may name a folder whose state is unproven. It runs
   from a removal, for that repository's own claims, and no forwarded command pays for it. `doctor` reads the claims
   and prints what it finds; it settles none, because it changes nothing ("What a writer can settle without asking").
-- Its own settlement: `rmdir` of the folder, and only after the wrapper's mount-namespace identity and boot id match
-  the handler's recorded ones, after the clear receipt for the nonce the claim records arrived, and after the
-  recorded identity of the folder still matches. It never changes a mode, never deletes recursively, and never calls
-  the stage removal helper.
+- Its own settlement: `rmdir` of the folder, then `unlinkat` of the record beside it, and only after the wrapper's
+  mount-namespace identity and boot id match the handler's recorded ones, after the clear receipt for the nonce the
+  claim records arrived, and after the recorded identity of the folder still matches. It never changes a mode, never
+  deletes recursively, and never calls the stage removal helper.
 
 The claim carries the nonce of the `unmount` intent it is waiting for, the owner token and the folder's recorded
 identity (device, inode, birth time, owner, mode). Its filename is the folder's component, which the wrapper derives
@@ -1406,6 +1413,10 @@ destroy refusal a mounted dataset gives (F13) all protect the worktree's own dat
   all-namespace scan and by the wrapper's `rmdir` only after that receipt shows absence (A5).
 - The acceptance item's two halves are met by M1 and M6: after a completed removal no mount and no entry remain;
   after an interrupted one, nothing under a mounted tree is deleted and the retained mount is tracked and reported.
+- "The runtime files are a cache, not authority to act; rebuild them from live state and durable intent" is met
+  for every field of the staged-folder record but one, and that field is the departure quoted in "The staged-folder
+  record": no live state rebuilds the folder's handle once the handler's invocation has ended, and the project's
+  answer "Record the file handle (Recommended)" accepted that one field ("Answers of 2026-11-19").
 
 ## What this proposal does not do
 
