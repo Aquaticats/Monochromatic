@@ -3425,26 +3425,39 @@ The pros and cons of each candidate stand under
 
 ### The vet artifacts this brief could not write
 
-The skill asks for a vet report under `doc/audit/` when an evaluation crosses its threshold,
-with a fingerprint, a lock, the full evidence records and the pre-discovery check-in.
-This brief allows edits to this file only and allows no questions, so:
+The skill asks for a vet report under `doc/audit/` when an evaluation crosses its threshold.
+That report carries a fingerprint,
+a lock,
+the full evidence records and the pre-discovery check-in.
+This brief allowed edits to this file only and allowed no questions,
+so this record stands in place of that report,
+and one of the two artifacts it owed is now written:
 
-- the ledger, gates, source audits, arithmetic, sensitivity and the full discovery listing are
-  here instead;
-- the `doc/audit/tech-...-vet-YYYY-MM-DD.md` report is owed before any dependency is adopted;
-- the finalist validation of the three eligible finalists is recorded under
+- the ledger,
+  gates,
+  source audits,
+  arithmetic,
+  sensitivity and the full discovery listing are here instead;
+- the `doc/audit/tech-...-vet-YYYY-MM-DD.md` report is still owed before any dependency is
+  adopted;
+- the pre-discovery check-in is written under
+  [The pre-discovery check-in of 2026-11-20](#the-pre-discovery-check-in-of-2026-11-20),
+  with its subject,
+  its settled forks,
+  its source classes,
+  its schedule,
+  its options and the answer the project gave on that date;
+- the finalist validation of the four eligible finalists is recorded under
   [Finalist validation](#finalist-validation):
   `btf-rs`'s own suite ran from its repository at tag `v2.0.1`,
-  since the archive ships none,
+  since its archive ships none;
+  `ebeepf`'s suite ran from its published archive and from its repository;
   and `pahole` and `bpftool` ran through a repeatable harness.
-  The `aarch64` target stays unrun;
-- discovery's terminal result is blocked, not saturated
-  ([Discovery record](#discovery-record)), which is a second reason no candidate is recommended
-  and a reason a later round may add a candidate;
-- the check-in that lets the owner delegate discovery to a model of their choosing is not
-  written: [Discovery record](#discovery-record) states the schedule and the boards it did not
-  read, and this file carries no check-in artifact, which is a known gap rather than the owner
-  question the first version made of it;
+  The `aarch64` target stays unrun for both libraries;
+- discovery's terminal result is saturated with at least two survivors
+  ([Discovery record](#discovery-record)),
+  so the earlier reason a later round could add a candidate is closed:
+  a new name now needs a fresh schedule rather than a finished one;
 - no candidate is adopted and no crate is added to a manifest.
 
 ## Owed measurements
@@ -3673,8 +3686,9 @@ Answered in its narrower form, and the pick is still conditional.
 The owner was asked "is it a hard requirement that the parser is our own code and the product
 starts no second program" and answered "No, not required (Recommended)" on 2026-11-19
 ([Answers of 2026-11-19](#answers-of-2026-11-19)).
-So no named hard constraint admits the in-house reader, the skill's existing-tools rule keeps it
-ineligible, and the eligible order is options 1 to 3.
+So no named hard constraint admits the in-house reader.
+The skill's existing-tools rule keeps it ineligible.
+The eligible order is options 1 to 4.
 No option is recommended, and `btf-rs` 2.0.1 ranks first among the eligible options
 on eligibility and not on validation: no hard gate fails on the source evidence read, and the
 crate holds the split model, the type kinds and the tests the check needs, while this proposal's
@@ -3687,26 +3701,35 @@ with the `aarch64` target unrun as H3's own limit.
 The pick waits until these close:
 
 - the `doc/audit/` vet report does not exist;
-- discovery's terminal result is blocked, so a later round may add a candidate
-  ([Discovery record](#discovery-record));
-- the pre-discovery check-in is not written
-  ([The vet artifacts this brief could not write](#the-vet-artifacts-this-brief-could-not-write)).
+- the `aarch64` target has no build or run for either library finalist,
+  which is H3's own limit;
+- the start cost of the two libraries is unmeasured,
+  so C7 rests on a low-confidence range ([Owed measurements](#owed-measurements)).
 
 The scoring's baseline pair also flips or ties on one criterion at a time
-([Sensitivity](#sensitivity)), which does not cover simultaneous multi-input changes; that pair is
-`btf-rs` against the declined in-house reader, and the choice that remains is a library against a
-spawned program.
+([Sensitivity](#sensitivity)).
+That section does not cover simultaneous multi-input changes.
+That pair is `btf-rs` against the declined in-house reader.
+The pair the live choice turns on is `btf-rs` against `ebeepf`,
+and it reverses or ties on the same method too,
+which is why the order rests on the maintenance and provenance evidence rather than on the
+arithmetic.
+The choice that remains is a library against a spawned program.
 
 BTF (BPF Type Format) is the kernel's own description of its struct and enum layouts, published
 as files under `/sys/kernel/btf`. The gate reads the kernel's base file and the ZFS module's file
 and compares their field offsets and sizes with the ones the binding was built for. A dependency
 here is a library the binding links, or a program the gate starts.
 
-In plain words, the choice is between option 1 and options 2 and 3: take an `LGPL-2.1-or-later`
-dependency, a library under the GNU Lesser General Public License version 2.1 or later, which our
-`LGPL-3.0-or-later` product may link and redistribute, and whose 2.0.1 release lags its own main
-branch on the widened BTF masks; or start `pahole` or `bpftool` at each gate run, two separate
-programs the product must find and version, one of them in the root handler.
+In plain words the choice is between options 1 and 2 and options 3 and 4.
+Options 1 and 2 take a library under the GNU Lesser General Public License version 2.1 or later,
+or its BSD arm,
+which our `LGPL-3.0-or-later` product may link and redistribute.
+Option 1's 2.0.1 release lags its own main branch on the widened BTF masks.
+Option 2 is one release old and calls its own tree unreviewed AI-generated code.
+Options 3 and 4 start `pahole` or `bpftool` at each gate run,
+two separate programs the product must find and version,
+one of them in the root handler.
 A fourth route, about 350 to 450 source lines and 100 to 150 test lines of our own reader plus a
 fuzz target (a test that feeds random and mutated bytes to the parser and fails on a panic or a
 stall) and a review of it, stays priced under [Scored comparison](#scored-comparison) and is not
@@ -3750,19 +3773,49 @@ Options:
     Why here: it is the only eligible library, since the skill admits a custom implementation only
     when every existing tool fails a hard constraint, and the owner named no such constraint on
     2026-11-19; 90 of 104, and a library needs no program the product must find and version.
-2.  `pahole` 1.32 as a start-time program, ranked after option 1.
+2.  `ebeepf` 0.1.0,
+    a second library,
+    ranked after option 1.
+    Pros:
+    a split parser with a byte-level API and a path constructor;
+    `size_of` already multiplies array elements,
+    so the binding needs no array-size shim;
+    pure Rust with the default features off;
+    its suite and the design's checks ran
+    ([Finalist validation](#finalist-validation)).
+    Cons:
+    a dual `LGPL-2.1-only` and `BSD-2-Clause` crate,
+    so take it under the BSD arm;
+    one release,
+    one maintainer and no CI;
+    its own README calls the tree AI-generated code that has not been thoroughly reviewed;
+    its released masks are the same 5-bit kind and 16-bit count fields as `btf-rs`'s;
+    it accepts a split table as its own base;
+    and `parse_split` copies the base's types into the module's table.
+    Cost:
+    the shared shape without the array-size shim.
+    Why here:
+    87 of 104,
+    three points behind option 1 on maintenance and provenance alone,
+    and ahead of the tools because a library needs no program the product must find and version.
+3.  `pahole` 1.32 as a start-time program,
+    ranked after option 2.
     Pros: the command the design already names for the test-time comparison; `-C` prints the
     compared members; no new Rust dependency.
     Cons: a runtime package; a root-spawned program in the handler; a text format; an invocation
     each for the struct, the nested type and the enum.
     Why here: 60 of 104, and a runtime program costs the deployment and privilege points that
-    option 1 does not.
-3.  `bpftool` 7.8.0 as a start-time program, ranked after `pahole`.
+    options 1 and 2 do not.
+4.  `bpftool` 7.8.0 as a start-time program,
+    ranked after option 3.
     Pros: libbpf's reader; a documented base option and a raw type listing.
     Cons: the same runtime-program and root-path costs; the raw listing needs a type-id resolver
     in the wrapper before it can compare a member; the tool's version tracks the kernel's tools,
     not the distribution's.
-    Why here: 56 of 104, the lowest of the three options, for the resolver its output needs and
+    Why here:
+    56 of 104,
+    the lowest of the four options,
+    for the resolver its output needs and
     its medium diagnostic rating.
 
 Not offered: an in-house reader, because the owner answered on 2026-11-19 that our own parser and
@@ -3772,11 +3825,20 @@ existing-tools rule while it stays priced under [Scored comparison](#scored-comp
 (unmaintained, no base), `btfdump` (no base, tool first), `padlock-dwarf` (no base, wrong fit),
 `libbpf-rs` and `libbpf` (C build), and a BTF digest (the answer the project did not select).
 
-Ranking: option 1 > option 2 > option 3. Option 1 leads option 2 because a library in the
-wrapper's address space needs no program the product must find and version and no binary the root
-handler starts; the arithmetic agrees, 90 against 60. Option 2 leads option 3 because `pahole`'s
-`-C` output carries the compared members while `bpftool`'s raw dump needs a type-id resolver
-before anything can be compared; the arithmetic agrees, 60 against 56.
+Ranking:
+option 1 > option 2 > option 3 > option 4.
+Option 1 leads option 2 because both are libraries in the wrapper's address space,
+and the pair's 90 and 87 separate on maintenance and provenance:
+two releases,
+a merged out-of-bounds fix and a CI workflow on every push,
+against one release,
+one maintainer and a self-declared unreviewed tree.
+Option 2 leads option 3 because a library needs no program the product must find and version and no
+binary the root handler starts,
+and the arithmetic agrees at 87 against 60.
+Option 3 leads option 4 because `pahole`'s `-C` output carries the compared members while
+`bpftool`'s raw dump needs a type-id resolver before anything can be compared,
+and the arithmetic agrees at 60 against 56.
 The in-house reader has no place in this order: the owner's answer of 2026-11-19 left it
 ineligible, and [Scored comparison](#scored-comparison) keeps its price as what the route would
 have cost.
