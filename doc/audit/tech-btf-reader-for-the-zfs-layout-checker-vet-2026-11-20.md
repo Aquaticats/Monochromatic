@@ -50,7 +50,7 @@ which no machine here can do.
   2026-11-20T18:07:38-05:00,
   the clock reading taken as this session's work began.
   Last updated:
-  2026-11-20T18:52:51-05:00,
+  2026-11-20T18:56:14-05:00,
   the write time of this revision.
 - Revisions:
   two.
@@ -1282,8 +1282,8 @@ and on nothing that maps the binary to a source revision;
 both packages build from a source archive their build scripts name,
 and neither package records that archive here.
 That is the provenance a distribution package can offer,
-and it is why the tools' arms carry the depth gap
-[the section on their provenance and suites](#the-two-tools-provenance-and-suites) states.
+and the depth gap it leaves is what
+[The two tools' provenance and suites](#the-two-tools-provenance-and-suites) records.
 
 ## Host facts
 
@@ -1848,9 +1848,10 @@ in capped containers with no home mount and the network off:
 `HOME` inside the container and `CARGO_NET_OFFLINE=true`.
 
 - Toolchain:
-  the validation round's stable 1.100.0 plus the `rust-std-1.100.0-aarch64-unknown-linux-gnu` archive,
-  unpacked from the channel manifest dated 2026-11-12,
-  its SHA-256 checked against that manifest.
+  the validation round's stable 1.100.0 plus the `rust-std-1.100.0-aarch64-unknown-linux-gnu` archive.
+  The reviewer recorded that it took that archive from the channel manifest dated 2026-11-12 and that the
+  archive's SHA-256 matches the manifest;
+  this revision did not repeat that fetch and does not rest a claim on the hash.
   `rustup` was not used,
   which is what the `ebeepf` round's failed fetch needed.
 - `btf-rs` 2.0.1 archive:
@@ -1902,7 +1903,8 @@ The requests are the same shape for each repository:
 plus one detail read per sampled issue or pull request with its comments and its reviews.
 Every response is at
 `~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/keep/gh/`,
-and the two scripts that collected them are beside it.
+and the two scripts that collected them are kept in the same `keep/` folder,
+as `collect-maintenance-records.ts` and `collect-maintainer-actions.ts`.
 The sample rule is the skill's:
 all issues when at most 20 exist in the window,
 otherwise the 10 most recently updated.
@@ -1938,11 +1940,12 @@ otherwise the 10 most recently updated.
   So this is the skill's "active releases with weak public issue support" shape,
   and its issue history is too small to measure responsiveness from.
 - Pull requests:
-  14 in the window,
-  all sampled.
+  ten of the 14 rows the window returns,
+  sampled as the skill asks.
   Every merged one was reviewed and merged by a second maintainer,
   never by its author:
-  `amorenoz` merged PR 42 and 34,
+  `amorenoz` merged PR 42,
+  35 and 34,
   `vlrpl` merged 41,
   38,
   39,
@@ -2006,6 +2009,7 @@ otherwise the 10 most recently updated.
   Nothing was merged,
   nothing was reviewed,
   and the repository has no `.github` directory,
+  which the API answers 404 for when re-read in this revision,
   so there is no CI to lean on.
 - Release record:
   one release,
@@ -2081,7 +2085,9 @@ otherwise the 10 most recently updated.
   31 open items,
   last push 2026-11-09,
   license detection `NOASSERTION`,
-  which is the two license files the repository carries.
+  which is the three license files the repository carries
+  (`LICENSE`,
+  `LICENSE.BSD-2-Clause` and `LICENSE.GPL-2.0`).
 - Maintainer concentration:
   the contributors read returned a full page of 100,
   so the count is at least 100;
@@ -2105,11 +2111,18 @@ otherwise the 10 most recently updated.
 - Pull requests:
   ten of 75 in the window,
   sampled as the skill asks.
-  Seven are merged by `qmonnet`,
-  including three `dependabot` bumps and the periodic "Bpftool sync" pull requests that bring the kernel tree's
-  state across;
-  the one external fix among them (`#299`,
-  "fix line info offsets in CFG dump") is open with no review.
+  Nine are merged,
+  all by `qmonnet`,
+  and five of those are `dependabot` bumps,
+  each reviewed by `qmonnet` before it merged.
+  The one external code change among the merged (`#297`,
+  `include: add u128 to linux/types.h`) was reviewed twice,
+  and it merged in 0.7 days,
+  so nothing external was merged unreviewed in this sample.
+  The periodic "Bpftool sync" pull request (`#301`) brings the kernel tree's state across and carries no review,
+  which is its normal shape.
+  The one open external fix (`#299`,
+  "fix line info offsets in CFG dump") has no review yet.
   Merge latency is short for the mechanical ones,
   hours to days.
 - Release record:
@@ -2146,10 +2159,14 @@ with the commands kept.
 
 - `btf-rs` 2.0.1:
   2,749 lines of Rust in 7 files under `src/`,
-  the whole crate on the parse path;
+  of which the route the product calls,
+  `from_bytes` and `from_split_bytes` through `btf.rs`,
+  `cbtf.rs` and `section.rs`,
+  is about 2,000;
+  the rest is the optional ELF reader and the collection helpers;
   1 `unsafe` token,
   at `src/btf.rs:58`,
-  in the file-mapping constructor the product's `from_bytes` route does not call;
+  in the file-mapping constructor the product's route does not call;
   5 direct runtime dependencies
   (`btf-rs-derive`,
   `byteorder`,
@@ -2159,7 +2176,9 @@ with the commands kept.
   one of them same-author (`btf-rs-derive`,
   114 lines);
   no process execution and no network anywhere in `src/`;
-  one file open per parse and no other filesystem use.
+  five file-open or mapping sites in `btf.rs`,
+  which are the path-based constructors,
+  and none on the byte-slice route.
 - `ebeepf` 0.1.0:
   28,769 lines of Rust in 25 files under `src/`,
   of which the BTF reader is `src/btf.rs` at 1,926 lines,
@@ -2406,7 +2425,7 @@ Every claim here is now backed by the sample recorded in section "Maintenance au
 
 - `btf-rs` 4 medium:
   2,749 lines,
-  all of them the reader,
+  of which about 2,000 are the route the product calls,
   1 `unsafe` token outside the route the product calls,
   5 direct dependencies with one same-author proc-macro of 114 lines,
   no process execution and no network.
@@ -2637,11 +2656,10 @@ is how much maintenance and upstream responsiveness should count.
 The in-house pair is priced and not ranked,
 and its matrix is recorded because the project could reopen it:
 at the frozen baseline it ties at 27.5 each,
-and 47 tests move it,
+and 35 of its 47 tests move it,
 24 to a tie and 11 to a reversal.
 The reverses are the ones where `btf-rs` gains a step or the in-house ratings fall,
 for example `btf-rs` C1 3 to 4 at 28.5 against 27.5,
-`btf-rs` C1 3 to 5 is not defined,
 and every C6 weight above 1,
 because the in-house reader rates 2 there against `btf-rs`'s 3.
 
@@ -2875,8 +2893,8 @@ with the reason each adjacent pair sits that way.
   against one release,
   one maintainer,
   no CI and ten times the code for 7 percent of it used.
-  Fifty-one one-input tests leave that order,
-  which is the one pair the matrix does not move at these weights.
+  All 51 one-input tests on that pair leave the order,
+  which is the only adjacent pair the matrix does not move at these weights.
 - `ebeepf` leads `pahole` only while maintenance counts no more than three times deployment fit.
   The reason it leads at all is that a library needs no program the product must find and version
   and no binary the handler starts;
@@ -2886,7 +2904,7 @@ with the reason each adjacent pair sits that way.
   while `bpftool`'s raw dump needs a type-id resolver,
   and because `bpftool`'s parser adds 1,895 lines over the same libbpf.
   Eight one-input steps tie that pair and none reverses it,
-  so the order is right and the gap between them is not measurable at one decimal place.
+  so that order holds at the frozen baseline and its margin is one point of 32.
 
 ### If maintenance and responsiveness weigh 4
 
@@ -3037,7 +3055,7 @@ in the same breath:
   archives,
   package records and repository-host responses,
   and every execution record above is a kept log of a round run earlier in this worktree or by the gate review.
-- It ran no `aarch64` run and took no timing,
+- It ran nothing on `aarch64` and took no timing,
   and its `aarch64` build evidence is the gate review's,
   cited where it is kept.
 - It did not re-run the finalist suites,
@@ -3122,7 +3140,7 @@ all read 2026-11-20:
   [`libbpf/bpftool`](https://github.com/libbpf/bpftool) and
   [`libbpf/libbpf`](https://github.com/libbpf/libbpf),
   through their API,
-  and three read-only clones at depth 1.
+  and four read-only clones at depth 1.
 - the distribution's package database through `pacman`,
   for both tools' packages,
   their versions,
