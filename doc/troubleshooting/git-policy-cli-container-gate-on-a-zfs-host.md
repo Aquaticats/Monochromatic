@@ -528,9 +528,9 @@ figures taken from it are the samples' and not the run's. The samples' highest f
 195.1 MiB, and their highest process pages, a sample's charge minus the fixture bytes in the same sample,
 868.3 MiB; those are the maxima of two components and need not have been read in one sample. The
 conservative bound is the one beside the kernel's peak: the 2048 MiB bound leaves 924.2 MiB for fixtures,
-which the 768 MiB ceiling sits 156.2 MiB below, so a run whose fixtures pass the ceiling while its other
-pages hold to the peak that bound came from meets `ENOSPC` before the memory bound; the ceiling is also
-3.94 times the sampled fixture peak. The summary's own `headroomForFixturesMiB` and
+and the 768 MiB ceiling sits 156.2 MiB below that, so a run whose fixtures pass the ceiling while its
+other pages hold to the peak that bound came from meets `ENOSPC` before the memory bound; the ceiling is
+also 3.94 times the sampled fixture peak. The summary's own `headroomForFixturesMiB` and
 `ceilingBelowHeadroomByMiB` are the sampled process pages' arithmetic (1179.7 and 411.7 MiB), which the
 bound beside the kernel's peak replaces. A gate review's run on the same code, whose sampler record is not
 kept here, read a 916.4 MiB `memory.peak` and a 221.4 MiB sampled fixture peak, of which the ceiling is
