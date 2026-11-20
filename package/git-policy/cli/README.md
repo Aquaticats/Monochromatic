@@ -833,15 +833,36 @@ Read-only commands,
      a mounted clone used as the source of a slot in the checkout's dataset,
      and any slot on another dataset than the source get Git's own checkout instead.
      It shares disk,
-     and it is measured: on this host (2026-11-19) an add of 24,313 tracked files through this rung took 0.51 to
-     1.57 times as long as Git's own checkout through the same wrapper, median 0.69 over twenty-three interleaved
-     rounds in five runs, once the source's data had been written out, the slowest round being a first round on a
-     cold fixture; with the clones on one thread it took 1.76 to 2.23 times as long, its five rounds measured against
-     the same build of `main` through the same wrapper, where `doc/planning/cli-git-btrfs-worktree.md` measured a
-     prototype of this rung at parity on btrfs (median 2.1 s against 2.1 s to 2.4 s), a different arm in a different
+     and it is measured:
+     on this host (2026-11-19) an add of 24,313 tracked files through this rung took 0.51 to
+     1.57 times as long as Git's own checkout through the same wrapper,
+     median 0.69 over twenty-three interleaved
+     rounds in five runs,
+     once the source's data had been written out,
+     the slowest round being a first round on a
+     cold fixture;
+     with the clones on one thread it took 1.76 to 2.23 times as long,
+     its five rounds measured against
+     the same build of `main` through the same wrapper,
+     where `doc/planning/cli-git-btrfs-worktree.md` measured a
+     prototype of this rung at parity on btrfs (median 2.1 s against 2.1 s to 2.4 s),
+     a different arm in a different
      comparison.
      A source whose data was written moments before the add can wait once for the pool to write it out
-     (`zfs_bclone_wait_dirty`), by up to the pool's transaction timeout.
+     (`zfs_bclone_wait_dirty`),
+     by up to the pool's transaction timeout.
+     A ZFS destination whose pool has block cloning off (`zfs_bclone_enabled` reads 0) is declined before the proof,
+     because every clone into that dataset would be refused.
+     Two costs of this rung on ZFS are waived in `doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`
+     until the partial-clone proposal that record names lands or is rejected:
+     a source with uncommitted changes pays the proof and ends in Git's own checkout,
+     about 0.2 s more than on `main` (1.16 times at the median over 24,383 files),
+     and a clean add of a tree of many small files is slower than on `main`,
+     because cloning a small file costs more than Git's write of it
+     (1.33 times at 10,001 files of about 2.6 KB,
+     1.18 times at about 8.8 KB,
+     parity at about 26 KB,
+     and 0.64 times on this repository's own tree).
   3. Git's own checkout,
      then the ignored-state copy.
   The `git read-tree` of a rung and the fallback `git reset --hard` are Git steps the wrapper starts itself,
@@ -3169,7 +3190,8 @@ Commands without a table of their own (`rm`,
 ### The remote settings every worktree shares
 
 The owner chose "Refuse in worktrees (Recommended)" on 2026-11-10
- (this section; the questions file's section "A push URL changed from a worktree" left for it on 2026-11-19).
+ (this section;
+the questions file's section "A push URL changed from a worktree" left for it on 2026-11-19).
 Every worktree of a repository shares one `.git/config`,
  so a remote setting changed from a linked worktree changes the main checkout and every other worktree too.
 An agent had made a worktree outside the repository folder,
@@ -6084,7 +6106,8 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
 - `native:check` type-checks every target.
   `native:clippy` lints every target with warnings denied.
   `native:build` writes the debug executable to `package/git-policy/cli/target/debug/monochromatic-git-policy-cli`.
-- This package has no `rustfmt` check, unlike the Rust packages that carry a `lint:rustfmt` task,
+- This package has no `rustfmt` check,
+  unlike the Rust packages that carry a `lint:rustfmt` task,
   and its sources are not laid out as `cargo fmt` would write them:
   `cargo fmt --check` in the gate image reported 1975 files on 2026-11-19,
   on `main` as much as on any branch.
@@ -6104,7 +6127,8 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   `--env CLI_GIT_TEST_ROOT=/work/package/git-policy/cli/target/gate-fixtures`
   (`bin/native-gate-fixture-root.ts`),
   `CLI_GIT_TEST_ROOT` being the variable both faces of the suite already read to move their fixture root.
-  The root stays below the image's `/work` tree, where the root it replaces was,
+  The root stays below the image's `/work` tree,
+  where the root it replaces was,
   because a fixture crate that runs Cargo reads the vendored-source mapping in `/work/.cargo/config.toml`
   from its ancestors;
   two `package_repair_prewarm_job` controls build a fixture workspace offline and need that mapping.
@@ -6115,7 +6139,9 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   is on neither of the product's local-file-system lists,
   and makes Git refuse `core.fsmonitor`,
   and the dataset under it refuses a name that is not UTF-8 under `utf8only=on`.
-  The investigation measured those facts, and the causes that follow from them, behind 185 failures
+  The investigation measured those facts,
+  and the causes that follow from them,
+  behind 185 failures
   of the suite on this host (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
   A tmpfs answers all four the way the kernel overlay of the earlier btrfs host did.
   The size is a ceiling under the container's memory bound,
@@ -6124,10 +6150,12 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   and its kernel `memory.peak` was 1123.8 MiB of the 2048 MiB bound,
   while the highest charge any sample read,
   with 3 s between iterations,
-  was 953.1 MiB, 170.7 MiB below that peak,
+  was 953.1 MiB,
+  170.7 MiB below that peak,
   which is why its figures are the samples' and not the run's.
   The bound beside the kernel's peak leaves 924.2 MiB for fixtures,
-  so the 768 MiB ceiling sits 156.2 MiB below that, and a run whose other pages hold to that peak
+  so the 768 MiB ceiling sits 156.2 MiB below that,
+  and a run whose other pages hold to that peak
   meets the ceiling before the memory bound
   (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`,
   with the reasoning behind the 768 MiB value in
@@ -6158,10 +6186,14 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   so on this ZFS host `fs_kind_tests::zfs_a_real_mount_answers_with_its_kind` reads a real dataset
   and elsewhere an unacknowledged run fails it rather than passing a control that never ran.
   Two facts a person running it here meets:
-  `native:test:host` needs `cargo-nextest`, which this host does not install
-  (`error: no such command: nextest`; `cargo test --lib -- fs_kind worktree_clone_domain ...`
-  runs the same controls), and the same filters select the btrfs controls,
-  which need `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1` on a host with no btrfs, which the task does not set.
+  `native:test:host` needs `cargo-nextest`,
+  which this host does not install
+  (`error: no such command: nextest`;
+  `cargo test --lib -- fs_kind worktree_clone_domain ...`
+  runs the same controls),
+  and the same filters select the btrfs controls,
+  which need `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1` on a host with no btrfs,
+  which the task does not set.
 - The controls that need a kernel namespace fail the same way rather than passing unrun,
   and the acknowledgement variable each refusal names is the only thing that lets one skip:
   `CLI_GIT_TEST_NO_USER_NAMESPACES=1` for the controls that judge root-owned files inside an unprivileged user namespace,
@@ -6249,10 +6281,12 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   so a sidecar lock this package's dependencies moved past stops the gate in milliseconds
   instead of surfacing later in the sidecar's own build.
   Set `GIT_POLICY_NATIVE_IMAGE_TAG=<name>` to keep the images of parallel runs apart.
-  The Clippy step mounts the Rust toolchain `toolchain.lock.json` records, not the one the caller's environment
+  The Clippy step mounts the Rust toolchain `toolchain.lock.json` records,
+  not the one the caller's environment
   resolves (`bin/native-gate-clippy-toolchain.ts`):
   `rustup which` names that toolchain's own sysroot,
-  and the gate refuses, naming the missing component and the command that installs it,
+  and the gate refuses,
+  naming the missing component and the command that installs it,
   when the sysroot holds no Clippy.
   A sysroot taken from the environment was rustup's default `nightly`,
   which has no Clippy component,
@@ -6792,7 +6826,8 @@ the owner chose "B:
 off for internal Git (Recommended)".
 So `-c core.fsmonitor=false` reaches every Git the wrapper starts for its own work,
 and never a command the person typed
-(this section; the questions file's section on fsmonitor left for it on 2026-11-19).
+(this section;
+the questions file's section on fsmonitor left for it on 2026-11-19).
 
 The owner's earlier words,
 kept as history;
@@ -6893,9 +6928,14 @@ Pacman checks every package signature (`SigLevel = Required DatabaseOptional` in
 `mise run //package/git-policy/cli:test:git-image` prints the release of each tool the base image got;
 the wrapper's
 `MINIMUM_GIT_VERSION` follows the Git release printed there (an older Git draws a warning and is not refused).
-The CachyOS x86-64 image is a slimmed copy: most of its packages lost their manual pages, translations and docs, while
-the pacman database still lists every file and `--needed` never restores them, so the base image reinstalls Git
-whenever the installed copy lacks the `githooks(5)` page the hook-event guard test reads; its closing
+The CachyOS x86-64 image is a slimmed copy:
+most of its packages lost their manual pages,
+translations and docs,
+while
+the pacman database still lists every file and `--needed` never restores them,
+so the base image reinstalls Git
+whenever the installed copy lacks the `githooks(5)` page the hook-event guard test reads;
+its closing
 `man --where githooks` check still fails the build when the page is missing
 (`doc/troubleshooting/cachyos-image-package-and-tool-differences.md`).
 
@@ -6923,7 +6963,8 @@ built on this base:
 the wrapper's gate image as user 1000 with `HOME=/home/tester`,
 and an image built on the base without that switch as root,
 whose `/root/.cache/browserslist` is a symlink to it.
-Those tarballs are data, not tools,
+Those tarballs are data,
+not tools,
 so the owner decisions of 2026-11-04 that every tool is pacman's current package
 still hold for the tools of both images.
 
@@ -6935,7 +6976,8 @@ Each run of `native:test:container`,
 a registry that cannot be reached is reported and the copy the host holds is used).
 The derived base is tagged `<first digits of the pulled image ID>-<first digits of a hash of the Containerfile text and
 the build arguments>`,
-so a new CachyOS image, an edited Containerfile or a changed browserslist data lock builds a new base (with network,
+so a new CachyOS image,
+an edited Containerfile or a changed browserslist data lock builds a new base (with network,
 once) and every run after that finds it.
 The gate image then builds from the base's ID with no network,
 exactly as before,
@@ -6969,7 +7011,9 @@ because a release waits on that gate and its suite is what the CPUs shorten
   The same four tests at 1024 processes passed all 7,192.
 - The 2 GiB memory bound is the repository default,
   because four tests at once peaked at 978 MiB of it.
-  With the suite's fixture root on a tmpfs, whose pages count against the same bound, a whole suite on a ZFS
+  With the suite's fixture root on a tmpfs,
+  whose pages count against the same bound,
+  a whole suite on a ZFS
   host peaked at 1123.8 MiB of it
   (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`,
   read in `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
@@ -7551,7 +7595,8 @@ each with its sidecar test file.
 - The source scans (`source_guard/`) follow `mod` declarations from the `Cargo.toml` targets,
   so a file that no
   declaration reaches fails them.
-- A change that adds, moves or links anything under `src/` runs the whole `source_guard` set
+- A change that adds,
+  moves or links anything under `src/` runs the whole `source_guard` set
   (`cargo nextest run --lib -E 'test(source_guard)'` in the gate container),
   not only the tests of the modules it touched:
   the scans read the whole tree and refuse what they cannot prove they read,
@@ -8441,10 +8486,19 @@ the measurements and the migration plan are in `doc/planning/cli-git-resident-se
 
 ## Owner answers of 2026-11-10
 
-- Asked whether a forced `git checkout -f`, a forced `git switch -f` or a `git reset --hard` should refuse when
-  it would replace an ignored file, the owner answered at 2026-11-10T07:24:16-05:00: "Yes forced checkouts and
-  resets should refuse when they'd replace an ignored file." So those forms are rejected in a linked worktree
+- Asked whether a forced `git checkout -f`,
+  a forced `git switch -f` or a `git reset --hard` should refuse when
+  it would replace an ignored file,
+  the owner answered at 2026-11-10T07:24:16-05:00:
+  "Yes forced checkouts and
+  resets should refuse when they'd replace an ignored file."
+  So those forms are rejected in a linked worktree
   while it holds an ignored file at a path the written tree tracks.
-- Asked whether `add-explicit` should judge a pathspec by its spelling or by what it selects, the owner answered
-  at 2026-11-10T08:04:14-05:00: "However spelled (Recommended)": "Any spelling that selects everything is
-  refused, and the message says how many files it selected." Ordinary named paths skip the check.
+- Asked whether `add-explicit` should judge a pathspec by its spelling or by what it selects,
+  the owner answered
+  at 2026-11-10T08:04:14-05:00:
+  "However spelled (Recommended)":
+  "Any spelling that selects everything is
+  refused,
+  and the message says how many files it selected."
+  Ordinary named paths skip the check.
