@@ -40348,7 +40348,17 @@ stated in this entry. What follows from them, as work:
   `doc/handover/questions-for-the-owner.md`). GOING: `pi-zfs-step-4-second-pass-findings-fixed` (DeepSeek on
   Neuralwatt, cap 400): measure the locked append on this host and cite it, the adoption under the same lock with the
   probe as a test, the lows, and the branch's handover change removed; brief under
-  `~/temp/agent/zfs-step-4-second-pass-findings-fixed-2026-11-20/`. Then a diff-only check and the merge. STEP 3 HOST HALF ENDED `idle` (201
+  `~/temp/agent/zfs-step-4-second-pass-findings-fixed-2026-11-20/`. Then a diff-only check and the merge. It ended
+  `idle` (204 turns) at `75e2993663` (main merged as `5b49c71609` after a build; dates real; that folder's
+  `keep/report-from-summary.md`, probe and logs): the locked append measured on this host's home dataset with
+  `/proc/diskstats` showing each `fsync` reach the device (1000-slot store 1.58 to 2.24 ms; widest store 31.7 to 33.9 ms;
+  adoption 33.5 to 36.0 ms; no-`fsync` control 0.009 to 0.08 ms touching no device), so `STORE_LOCK_WAIT` stays 2 s,
+  cited as 55 times the slowest hold, and `STORE_LOCK_PAUSE` 2 ms with its reason; all four writers take the lock before
+  opening the store and the adoption's read and rename hold it (reds for both on old code); the checked writers
+  re-exported; the store passed into the adoption; the interleave sentence dropped and `SPEC.md` says the format is
+  unapproved; the branch's handover change removed. Whole gate 9235 of 9237, the cause-H pair. One `git restore
+  --no-enforce-worktree`, after saving the discarded patch. GOING: a Sonnet integration check with one gate run (brief
+  under `~/temp/agent/integration-check-zfs-step-4-pre-merge-round-2026-11-20/`). Then the merge. STEP 3 HOST HALF ENDED `idle` (201
   turns, 51 min) at `fd10d8d0b0` (four commits; report and checks table in
   `~/temp/agent/zfs-step-3-reflink-rung-recognition-host-half-2026-11-19/keep/`): `FilesystemKind::Zfs` from
   `ZFS_SUPER_MAGIC`; rung 2 proves one dataset by mount source and device, with no ZFS ioctl or binding; a mounted clone
