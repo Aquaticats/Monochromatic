@@ -161,6 +161,35 @@ pub struct LookAgainAtSlotRequest<'a> {
     pub slot: &'a str,
 }
 
+/// What:
+///  The `.claude/worktrees` folder the parent walk held:
+///  its descriptor,
+///  the identity the walk read from it,
+///  and the canonical path it was reached by.
+/// Why:
+///   The descriptor is what keeps the judged folder the one that was judged,
+///  even while the account above it renames or replaces a name;
+///  the identity is what the adoption compares with the record and with a fresh lookup,
+///  and the path is what a message names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type HeldParent = { folder: File; identity: CloneFolderIdentity; canonical: string };
+/// ```
+#[derive(Debug)]
+pub struct HeldWorktreesParent {
+    /// The `.claude/worktrees` folder, held open for reading.
+    pub folder: std::fs::File,
+    /// The device,
+    /// inode,
+    /// owner,
+    /// mode and ACLs the walk read for it.
+    pub identity: CloneFolderIdentity,
+    /// The canonical path of that folder,
+    /// as the walk reached it.
+    pub canonical: PathBuf,
+}
+
 #[cfg(test)]
 thread_local! {
     /// A control may make the slot's name hold another folder after its reading descriptor was opened,
@@ -222,6 +251,46 @@ fn walk_to_the_parent(checkout: &Path) -> Result<(std::fs::File, std::fs::File, 
         None => return Err(CloneSlotRefusal::Walk(WalkRefusal { component: String::from("the worktrees folder"), reason: WalkRefusalReason::Missing, detail: String::new() })),
     };
     return Ok((root, parent, canonical));
+}
+
+/// What:
+///  The `.claude/worktrees` folder,
+///  held by descriptor through the no-crossing walk,
+///  with the identity the walk read for it and its canonical path.
+/// Why:
+///   The administrator's adoption walks the parent folder and compares it with the recorded identity
+///  and with a fresh lookup of the same folder,
+///  and it does so while that folder is the one that changed:
+///  a walk that compared the parent against the store would refuse the very replacement it is asked to judge,
+///  so this walk reads the identity and compares nothing
+///  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+///  "Descriptor mount and unmount",
+///  "The administrator's adoption").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const parent = holdTheWorktreesParent(checkout); // the held folder and the identity the walk read
+/// ```
+///
+/// # Errors
+/// The walk's refusal at the checkout or at any canonical component.
+pub fn hold_the_worktrees_parent(checkout: &Path) -> Result<HeldWorktreesParent, WalkRefusal> {
+    let (_checkout_handle, parent, canonical): (std::fs::File, std::fs::File, PathBuf) = walk_to_the_parent(checkout).map_err(|refusal| {
+        return match refusal {
+            CloneSlotRefusal::Walk(walk) => walk,
+            other => WalkRefusal { component: canonical_or_given(checkout), reason: WalkRefusalReason::Checkout, detail: other.message() },
+        };
+    })?;
+    let identity: CloneFolderIdentity = CloneFolderIdentity::capture(&parent)
+        .map_err(|error| return WalkRefusal { component: WORKTREES_PARENT_NAMES.join("/"), reason: WalkRefusalReason::UnreadableFields, detail: error.to_string() })?;
+    let canonical_folder: PathBuf = canonical.join(WORKTREES_PARENT_NAMES[0]).join(WORKTREES_PARENT_NAMES[1]);
+    debug(TAG, "held the worktrees folder by descriptor and read its identity");
+    return Ok(HeldWorktreesParent { folder: parent, identity, canonical: canonical_folder });
+}
+
+/// The path a refusal names when the walk refused before it produced a canonical one.
+fn canonical_or_given(checkout: &Path) -> String {
+    return checkout.display().to_string();
 }
 
 /// What:

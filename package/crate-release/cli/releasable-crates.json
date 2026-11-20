@@ -27,7 +27,7 @@
     "scope": "git-policy/cli",
     "dispatchGate": ["node", "bin/native-release-host-controls.ts"],
     "pinFiles": ["package/git-policy/cli.fuzz/Cargo.toml"],
-    "checkBins": ["monochromatic-git-policy-cli"],
+    "checkBins": ["monochromatic-git-policy-cli", "mount-git-worktree-clone-datasets"],
     "lockDirs": ["package/git-policy/cli.fuzz"]
   },
   "monochromatic-mpm-shadow": {
@@ -182,8 +182,8 @@
   "monochromatic-zfs-request-to-openzfs-kernel-device": {
     "crateDir": "package/zfs/request-to-openzfs-kernel-device",
     "scope": "zfs/request-to-openzfs-kernel-device",
-    "pinFiles": ["package/zfs/request-to-openzfs-kernel-device.fuzz/Cargo.toml"],
+    "pinFiles": ["package/zfs/request-to-openzfs-kernel-device.fuzz/Cargo.toml", "package/git-policy/cli/Cargo.toml"],
     "checkBins": [],
-    "lockDirs": ["package/zfs/request-to-openzfs-kernel-device.fuzz"]
+    "lockDirs": ["package/zfs/request-to-openzfs-kernel-device.fuzz", "package/git-policy/cli"]
   }
 }

@@ -91,6 +91,38 @@ export function wrapperVersionLine({ version }: { readonly version: string; }): 
 }
 
 /**
+ The program the same release archive installs beside the wrapper: the root-run clone-mount handler.
+
+ One archive carries both executables (`Cargo.toml`, its `[[bin]]` tables), so an install that moved the wrapper moved
+ this program too, and an install that found only one of them did not install the release.
+
+ @example
+ ```ts
+ handlerProgram; // 'mount-git-worktree-clone-datasets'
+ ```
+ */
+export const handlerProgram = 'mount-git-worktree-clone-datasets';
+
+/**
+ The text the installed handler's `--version` prints for one release.
+
+ The handler prints `<program> <version>` (`worktree_clone_mount_handler::handler_mode_arguments::version_line`), so the
+ release asked for is named by this text and by nothing else.
+
+ @param version - the release an install moves to
+
+ @returns the text the installed handler has to print
+
+ @example
+ ```ts
+ handlerVersionLine({ version: '0.6.1-alpha.10' });
+ ```
+ */
+export function handlerVersionLine({ version }: { readonly version: string; }): string {
+  return `${handlerProgram} ${version}`;
+}
+
+/**
  The lines of one step's output that carry its summary: the lines the repository's own tool prints when it moved or
  wrote something, or when it installed a tool.
 
