@@ -1126,7 +1126,7 @@ the launcher that builds the session's environment asks it, once, before it make
   The claim that look makes replaces the one the look before it left,
   so a busy answer on every look adds no entry to the folder per look.
   A newer message that takes the name is the one delivered,
-  and an older one so replaced stays readable under that dot name, never sent again.
+  and an older one whose name a newer message took stays readable under its dot name, never sent again.
   While a message is being delivered it is held under a dot name of its own,
   so a newer message published under the same name is neither deleted nor kept in its place.
   A message Pi reports it took is Pi's from then on:
