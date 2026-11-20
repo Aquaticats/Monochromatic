@@ -289,6 +289,45 @@ fn config_of(source: &SnapshotSource) -> &[ConfigEntry] {
 }
 
 /// What:
+///  Option C measured with the same binary: the rung declines whenever any conversion source could apply,
+/// and carries every path when none could,
+///  so neither answer costs a Git run.
+/// Why:
+///   The whole point of the option is that it reads a few small files and nothing else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function declineWhenConversionCouldApply(source, entries): Fence; // throws the reason
+/// ```
+fn decline_when_conversion_could_apply(source: &SnapshotSource, entries: &[StatEntry]) -> Result<Fence, String> {
+    let rules: ConversionRules = conversion_rules_from_config(config_of(source));
+    let filter_setting: bool = config_of(source).iter().any(|entry| return entry.key.starts_with("filter."));
+    let shared_attributes: bool = source.common_dir.join("info/attributes").exists();
+    let named_attributes: bool = config_of(source).iter().any(|entry| return entry.key == "core.attributesfile");
+    if rules.auto_crlf != crate::worktree_clone_conversion_rules::AutoCrlf::False || filter_setting || shared_attributes || named_attributes || !source.clean.attribute_blobs.is_empty() {
+        return Err(String::from("the source has a conversion setting or an attributes file, and this build declines the rung rather than reading its paths (option C)"));
+    }
+    return Ok(Fence { git_writes: Vec::new(), carried: entries.len() });
+}
+
+/// What:
+///  Option D measured with the same binary: Git writes every tracked path, and no attribute is read.
+/// Why:
+///   The option's shape is exactly this, so its cost is the clone plus a checkout of the whole tree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const allPaths = (entries) => ({ gitWrites: entries.map((entry) => entry.path), carried: 0 });
+/// ```
+fn all_paths_through_git(entries: &[StatEntry]) -> Fence {
+    let mut git_writes: Vec<Vec<u8>> = Vec::with_capacity(entries.len());
+    for entry in entries {
+        git_writes.push(entry.path.clone());
+    }
+    return Fence { git_writes, carried: 0 };
+}
+
+/// What:
 ///  Decide every tracked path of the clean source:
 /// what the clones may carry and what Git must write.
 /// Why:
@@ -306,6 +345,22 @@ pub fn fence_the_clone(source: &SnapshotSource, context: &GitContext) -> Result<
     };
     if let Some(reason) = first_untracked_attributes(entries.as_slice(), source.root.as_path()) {
         return Err(reason);
+    }
+    // What:
+    //  The two measurement switches of this prototype: `decline` is option C (refuse the rung whenever anything could
+    //  convert, with no Git run at all) and `all` is option D (Git writes every tracked path, with no attribute read).
+    // Why:
+    //  A report of options has to time the options, and neither needs a second build: each is the same binary with one
+    //  variable set, so the arms differ in nothing else. Neither switch belongs in any merge.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const sw = process.env.MONOCHROMATIC_CLONE_FENCE;
+    // ```
+    match std::env::var("MONOCHROMATIC_CLONE_FENCE").unwrap_or_default().as_str() {
+        "decline" => return decline_when_conversion_could_apply(source, entries.as_slice()),
+        "all" => return Ok(all_paths_through_git(entries.as_slice())),
+        _ => {}
     }
     let rules: ConversionRules = conversion_rules_from_config(config_of(source));
     let attributes: HashMap<Vec<u8>, PathAttributes> = attributes_of(context, source.root.as_path(), entries.as_slice())?;
