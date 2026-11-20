@@ -68,7 +68,7 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- destroy --name my
 - `all` runs those five in order,
   destroys the guest its own `create` returned even when a later step fails,
   so a failed run leaves nothing running,
-  and attempts `record` first,
+  and attempts `record` first when its own `create` returned,
   which pulls both suite logs when a run reached both suites;
   a `create` that threw is never followed by `destroy`,
   because the guest is then either absent or not this run's to remove,

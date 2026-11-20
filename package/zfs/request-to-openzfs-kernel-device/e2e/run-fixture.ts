@@ -540,10 +540,10 @@ const steps: Record<string, (checked: Options) => void> = {
     } catch (thrown) {
       failure = thrown;
     }
-    if (failure !== null) {
-      // A failed step still leaves the suite logs in the guest: try to record
-      // them, so a run that reached both suites keeps its logs, and never let a
-      // failed record replace the step's failure.
+    if (failure !== null && created) {
+      // A failed step still leaves the suite logs in the guest this run made:
+      // try to record them, so a run that reached both suites keeps its logs,
+      // and never let a failed record replace the step's failure.
       try {
         record(checked);
       } catch (recordFailure) {
