@@ -40791,8 +40791,15 @@ stated in this entry. What follows from them, as work:
   rule (`doc/planning/cli-git-rust-open-decisions.md:3646` to `:3649`: compiled in, inert unless set). Three choices
   open to veto (the skip letting the add proceed; no probe deadline before step 6; no companion deadline before step
   10). The fourth revision's entry now gives the reflog times. GOING: a diff-only Sonnet check (brief under
-  `~/temp/agent/zfs-start-probe-design-fifth-revision-diff-only-gate-check-2026-11-19/`). Then acceptance, the companion
-  skip asked as a ranked question. STAGING ENDED `idle` at
+  `~/temp/agent/zfs-start-probe-design-fifth-revision-diff-only-gate-check-2026-11-19/`). It ended (Sonnet, about 29
+  min; that folder's `keep/review.md`): no high; kernel and wrapper lines check out; dates equal the reflog. Three text
+  mediums: the endings list still calls a namespace setup failure a skip; the Answers record says the project took the
+  companion knowing the Ubuntu guest skips, which Q6 as asked never said; the skip list omits a kernel built without
+  user namespaces, SELinux's `EACCES` counterpart and mount mediation. Eight lows. It recommends asking both the
+  companion skip and the claim's placement against Q7 as ranked questions. GOING: the sixth pass,
+  `pi-zfs-start-probe-design-fifth-revision-diff-check-findings-fixed` (DeepSeek on Neuralwatt, cap 400); brief under
+  `~/temp/agent/zfs-start-probe-design-fifth-revision-diff-check-findings-fixed-2026-11-19/`. Then a last diff-only
+  check on which only a high or medium blocks, then acceptance with those two questions. STAGING ENDED `idle` at
   `e8f7ec4fa6` (thirteen commits; report in its folder's `keep/report.md`). It records every answer and makes Way A the
   design. On Q3 it rolls the clone back by its own descriptor, staging it only if that fails. Its post-move check now
   asserts that the topmost mount is the clone with the bind as its parent; the run's own advisor found the old wording
