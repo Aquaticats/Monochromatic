@@ -6626,7 +6626,8 @@ which the owner counts as a credential (answer of 2026-11-19T16:58:00-05:00,
 (measured through this wrapper at a real pseudo-terminal, 2026-11-19),
 so the rule names a program that answers nothing and tells OpenSSH to use it everywhere.
 In a Rust test that is
-`.env("GIT_ASKPASS", "").env("GIT_TERMINAL_PROMPT", "0").env("SSH_ASKPASS", "false").env("SSH_ASKPASS_REQUIRE", "force")`.
+`.env("GIT_ASKPASS", "")`, `.env("GIT_TERMINAL_PROMPT", "0")`,
+`.env("SSH_ASKPASS", "false")` and `.env("SSH_ASKPASS_REQUIRE", "force")`.
 A test that has to see the prompt program start (the controls in `src/native/landing/service_push_retry_tests.rs`) points
 both `GIT_ASKPASS` and `SSH_ASKPASS` at a recorder that answers a name,
 so no window opens,
