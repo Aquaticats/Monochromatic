@@ -20,9 +20,12 @@ and nothing here was merged.
   `boot_reconcile_mode` (step 6),
   `shutdown_unmount_mode` (step 9)
   and `adopt_worktree_parent_mode`,
-  which is the one mode this build performs end to end
+  the one mode this build performs end to end in the guest
   (`worktree_clone_mount::parent_adoption_decision`,
-  step 4).
+  step 4),
+  whose slot read,
+  unresolved-binding refusal and surviving-slot compare have guest-free controls too;
+  the arms still owed a guest are stated under "What this round did not do".
   The two installed paths,
   `/usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets`
   and `/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets`,
@@ -150,7 +153,8 @@ What this means for the project:
   not a new class of problem.
 - Releasing the binding now moves the wrapper's exact pin and refreshes the wrapper's lock:
   the binding's `pinFiles` and `lockDirs` name `package/git-policy/cli`,
-  and the crate-release workflow test holds that list to the repository's manifests.
+  its `lockDirs` also name `package/git-policy/cli.fuzz`,
+  and the crate-release workflow test holds both lists to the repository's own files.
   So the binding must be released before the wrapper's pin moves,
   and a wrapper crates.io release must wait for the binding to be published at a plain or `rc` version.
 
@@ -204,6 +208,34 @@ What this means for the project:
 
 ## What this round did not do
 
+- The adoption arm runs one of the four refusals the plan's acceptance names.
+  `adopt-worktree-parent` is refused with a link,
+  a boundary,
+  an ACL mismatch or an unresolved live or staged binding;
+  the guest arm's markers are `refused=wrong-device`,
+  `refused=link`,
+  `refused=mode-widened` and `refused=slot-differs`,
+  so the link arm is the only one of the four that runs there.
+  `mode-widened` is a policy field and not an ACL mismatch;
+  no arm puts a mount at or above the parent,
+  plants an ACL,
+  stands a mount at a slot
+  or removes a surviving slot folder.
+  (Amended 2026-11-20T06:55:38-05:00,
+  in the round that took the integration pass's findings:
+  that round added guest-free controls over a fixture store and a fixture checkout,
+  covering a recorded slot whose folder is gone,
+  a slot name that is no folder,
+  the slot that agrees with its record and the one that differs
+  (`adopt_worktree_parent_mode_tests.rs`).
+  Still owed to a guest:
+  the standing-mount arm,
+  which reads as unresolved only where a mount can be made
+  (`slot_folder_reason`'s `EXDEV` sentence),
+  and the boundary and ACL refusals against a real mount.
+  `adopt_at`'s `NoParentRecord`,
+  `Store` and `Write` branches are reached by no control either.
+  Step 4's decision table has its own supplied-fact controls for every refusal kind.)
 - No release was dispatched and nothing was published.
 - `mise run //package/git-policy/cli:lint:monochromatic-lint` could not run here:
   `sh: line 1: monochromatic-lint: command not found`,
