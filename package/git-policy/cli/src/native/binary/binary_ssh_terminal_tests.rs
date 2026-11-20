@@ -93,15 +93,14 @@ fn read_terminal(master: &std::fs::File, collected: &mut Vec<u8>, wait_milliseco
     if ready <= 0 {
         return;
     }
+    // One read per look: the master is a blocking descriptor, so a second read waits for a byte that may never come.
     let mut buffer: [u8; 4096] = [0; 4096];
-    loop {
-        // SAFETY: the buffer is this function's, and the read writes at most its length into it.
-        let got: isize = unsafe { libc::read(master.as_raw_fd(), buffer.as_mut_ptr().cast(), buffer.len()) };
-        if got <= 0 {
-            return;
-        }
-        collected.extend_from_slice(buffer.get(..usize::try_from(got).unwrap_or(0)).unwrap_or_default());
+    // SAFETY: the buffer is this function's, and the read writes at most its length into it.
+    let got: isize = unsafe { libc::read(master.as_raw_fd(), buffer.as_mut_ptr().cast(), buffer.len()) };
+    if got <= 0 {
+        return;
     }
+    collected.extend_from_slice(buffer.get(..usize::try_from(got).unwrap_or(0)).unwrap_or_default());
 }
 
 /// What:
