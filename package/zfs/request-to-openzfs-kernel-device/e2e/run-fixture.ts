@@ -311,6 +311,10 @@ function prepare(options: Options): void {
   const install = [
     'set -eu',
     'export DEBIAN_FRONTEND=noninteractive',
+    // The image's own unattended upgrade starts at first boot and holds the dpkg lock for minutes; a guest created
+    // minutes ago then fails every install with `Could not get lock /var/lib/dpkg/lock-frontend`.
+    'systemctl stop unattended-upgrades.service apt-daily.service apt-daily-upgrade.service 2>/dev/null || true',
+    'timeout 600 sh -c \'while fuser /var/lib/dpkg/lock-frontend > /dev/null 2>&1; do sleep 2; done\'',
     'apt-get --option Acquire::Retries=2 update > /root/zfs-prepare.log 2>&1',
     `apt-get --option Acquire::Retries=2 --yes install ${PACKAGES} "linux-headers-$(uname --kernel-release)" >> /root/zfs-prepare.log 2>&1`,
     `test "$(uname --kernel-release)" = ${EXPECTED_KERNEL_RELEASE}`,
