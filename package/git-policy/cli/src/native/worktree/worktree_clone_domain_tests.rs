@@ -198,17 +198,23 @@ fn the_clones_land_in_the_destination_when_it_is_there_and_in_its_parent_otherwi
 /// while the parent a reverted rung would ask announces one here,
 /// so the
 ///  name the refusal gives is the whole difference.
+/// The assertion is the whole phrase and not the path,
+/// because another refusal can name a path that merely
+///  begins with `/proc`:
+/// a fixture folder below `/process-<pid>/` does,
+/// and a host whose root is one ZFS dataset answers a
+///  reverted rung with the dataset refusal that names it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(cloneRefusal(mainIdentity(root), planTo('/proc'))).toContain('/proc');
+/// expect(cloneRefusal(mainIdentity(root), planTo('/proc'))).toContain('/proc would receive the clones');
 /// ```
 #[test]
 fn the_clone_refusal_asks_the_filesystem_that_would_receive_the_clones() {
     let root: PathBuf = fixture("clone-refusal-write-target");
     let plan: AddPlan = plan_to(PathBuf::from("/proc"));
     let reason: String = clone_refusal(&main_identity(root.as_path()), &plan).expect("procfs announces no reflink, so it is no clone domain");
-    assert!(reason.contains("/proc"), "the refusal names the destination, whose filesystem would receive the clones: {reason}");
+    assert!(reason.contains("/proc would receive the clones"), "the refusal names the destination as the path that would receive the clones: {reason}");
     assert!(!reason.contains("different filesystems"), "the destination is refused as a filesystem that cannot clone and not as a domain beside its parent: {reason}");
     remove(root.as_path());
 }
