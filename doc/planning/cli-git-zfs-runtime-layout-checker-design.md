@@ -3522,16 +3522,26 @@ That report carries a fingerprint,
 a lock,
 the full evidence records and the pre-discovery check-in.
 This brief allowed edits to this file only and allowed no questions,
-so this record stands in place of that report,
-and one of the two artifacts it owed is now written:
+so this record stood in place of that report until 2026-11-20,
+and both of the artifacts it owed are now written:
 
 - the ledger,
   gates,
   source audits,
   arithmetic,
-  sensitivity and the full discovery listing are here instead;
-- the `doc/audit/tech-...-vet-YYYY-MM-DD.md` report is still owed before any dependency is
-  adopted;
+  sensitivity and the full discovery listing are here,
+  and the report takes them as its evidence;
+- the report is
+  [`doc/audit/tech-btf-reader-for-the-zfs-layout-checker-vet-2026-11-20.md`][vet-report],
+  written on 2026-11-20 with fingerprint
+  `55c2be0183adaa6fbad912f852fb045a915c1593b344aa10095aa71bdec4677f`.
+  It adds what this file could not hold:
+  the governing skill's commit and hash,
+  the lock record,
+  an execution manifest for each validated run,
+  an evidence record for every gate and score,
+  the pros and cons of every finalist,
+  and the recommendation with its limits beside it;
 - the pre-discovery check-in is written under
   [The pre-discovery check-in of 2026-11-20](#the-pre-discovery-check-in-of-2026-11-20),
   with its subject,
@@ -3550,7 +3560,9 @@ and one of the two artifacts it owed is now written:
   ([Discovery record](#discovery-record)),
   so the earlier reason a later round could add a candidate is closed:
   a new name now needs a fresh schedule rather than a finished one;
-- no candidate is adopted and no crate is added to a manifest.
+- no candidate is adopted,
+  no crate is added to a manifest,
+  and the pick is the project's to make.
 
 ## Owed measurements
 
@@ -3774,29 +3786,40 @@ owner's.
 
 ### Q1: which reader parses the module BTF
 
-Answered in its narrower form, and the pick is still conditional.
+Answered in its narrower form,
+and the pick is the project's to make.
 The owner was asked "is it a hard requirement that the parser is our own code and the product
 starts no second program" and answered "No, not required (Recommended)" on 2026-11-19
 ([Answers of 2026-11-19](#answers-of-2026-11-19)).
 So no named hard constraint admits the in-house reader.
 The skill's existing-tools rule keeps it ineligible.
 The eligible order is options 1 to 4.
-No option is recommended, and `btf-rs` 2.0.1 ranks first among the eligible options
-on eligibility and not on validation: no hard gate fails on the source evidence read, and the
-crate holds the split model, the type kinds and the tests the check needs, while this proposal's
-pre-scan closes the residuals it names.
+`btf-rs` 2.0.1 ranks first among them,
+and the vet report recommends it on the validation the rounds ran as well as on eligibility:
+no hard gate fails on the source evidence read,
+the crate holds the split model and the type kinds the check needs,
+and this proposal's pre-scan closes the residuals it names.
 Finalist validation,
 the first item that list held,
 is closed under
 [Finalist validation](#finalist-validation),
 with the `aarch64` target unrun as H3's own limit.
-The pick waits until these close:
+The vet report the same list named is written:
+[`doc/audit/tech-btf-reader-for-the-zfs-layout-checker-vet-2026-11-20.md`][vet-report],
+with fingerprint `55c2be0183adaa6fbad912f852fb045a915c1593b344aa10095aa71bdec4677f`.
+It recommends `btf-rs` 2.0.1,
+and it states two limits beside that recommendation:
 
-- the `doc/audit/` vet report does not exist;
 - the `aarch64` target has no build or run for either library finalist,
   which is H3's own limit;
 - the start cost of the two libraries is unmeasured,
   so C7 rests on a low-confidence range ([Owed measurements](#owed-measurements)).
+
+Those two are the last of the items that list held,
+and the report keeps them beside its recommendation rather than beneath a conclusion.
+The pick stays the project's:
+nothing here and nothing in that report adopts a reader,
+and the record's own Q1 section is where the project's answer will land.
 
 The scoring's baseline pair also flips or ties on one criterion at a time
 ([Sensitivity](#sensitivity)).
@@ -4106,6 +4129,7 @@ for the project, and this design does what option 1 says until that question is 
 [design-requirements]: cli-git-zfs-worktree-design-proposal.md#requirements-and-module-ownership
 [design-record]: ../decision/cli-git-zfs-worktree-design.md
 [vet]: ../audit/tech-rust-crate-for-openzfs-vet-2026-11-18.md
+[vet-report]: ../audit/tech-btf-reader-for-the-zfs-layout-checker-vet-2026-11-20.md
 [skill]: ../../.agents/skills/choosing-technology/SKILL.md
 [design-abi-gate]: cli-git-zfs-worktree-design-proposal.md#abi-gate-and-tests
 [design-doctor]: cli-git-zfs-worktree-design-proposal.md#what-doctor-checks-and-prints
