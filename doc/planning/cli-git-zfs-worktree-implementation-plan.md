@@ -4,7 +4,8 @@
 answering "Accept (Recommended)" in the question tool,
 at commit `9137efc5b4`.**
 Written by an agent and revised after a Sonnet gate review
-(32 findings, all applied in `55cab4075e`).
+(32 findings,
+ all applied in `55cab4075e`).
 This file puts the accepted design in build order,
 so each step can be handed to one writer as one task and reviewed on its own.
 It adds no decision of its own:
@@ -196,12 +197,14 @@ or says which step must pick it.
   Picked by "Tooling,
   retention and performance":
   "Exercise sanoid 2.3.0".
-- The guest's contents, and how the built programs reach it.
+- The guest's contents,
+ and how the built programs reach it.
   Not picked by the design.
   The measurements' guests were Ubuntu 24.04 with Git `2.43.0`,
   OpenZFS `2.4.4` built from the release tarball inside the guest,
   and their controls name `pahole` and `strace`.
-  The design asks for Git `2.56.1` in the guest ("Binding, Git and lifecycle")
+  The design asks for Git `2.56.1` in the guest ("Binding,
+ Git and lifecycle")
   and `pahole` there ("ABI gate and tests"),
   and says nothing about whether Rust builds inside the guest
   or host-built binaries are pushed to it and run against its libc.
@@ -263,7 +266,9 @@ and each step reuses rather than rewrites them.
   and step 22 sizes both.
   The design's citation of this constant is its owner's to correct,
   as "Where the design is silent" records.
-- `openat2` with `RESOLVE_BENEATH`, `RESOLVE_NO_SYMLINKS`, `RESOLVE_NO_XDEV` and
+- `openat2` with `RESOLVE_BENEATH`,
+ `RESOLVE_NO_SYMLINKS`,
+ `RESOLVE_NO_XDEV` and
   `RESOLVE_NO_MAGICLINKS` in
   `package/git-policy/cli/src/native/subvolume/fs_beneath.rs`,
   which "Descriptor mount and unmount" names as the base of the no-crossing walk.
@@ -375,7 +380,8 @@ Nothing.
 Step 1's checks all run in a container,
 and nothing is installed on this host.
 That is narrower than the owner's answer of 2026-11-19,
-"Container, narrow install (Recommended)",
+"Container,
+ narrow install (Recommended)",
 which allowed a narrow host install;
 the plan adopts the narrower route,
 the coordinator records it as adopted and open to the owner's veto,
@@ -390,7 +396,8 @@ The container is built from the wrapper's gate base image,
 which takes Rust and `cargo-nextest` from pacman,
 so the tests (rule `RNQ`) and Clippy run there.
 That base carries the pinned browserslist data that `file-enforcer`'s `browserslist` rule reads
-(`package/git-policy/cli/README.md`, "Container base images"),
+(`package/git-policy/cli/README.md`,
+ "Container base images"),
 so step 1's `file-enforcer write` and `check` need no home mount;
 `mise run //package/git-policy/cli:test:git-image` is how step 1 gets that base.
 Inside it,
@@ -409,7 +416,8 @@ The container never builds `cargo-fuzz` from source.
 Its row stays in `toolchain.lock.json` for the host install later,
 which still waits for the mpm-shadow change the owner put first on 2026-11-17
 in [handover][]'s new-system section,
-answering "A: mpm-shadow change first (Recommended)".
+answering "A:
+ mpm-shadow change first (Recommended)".
 
 The step merges when its tests and Clippy pass in that container,
 `file-enforcer write` and `check` pass there,
@@ -551,11 +559,162 @@ verify "late-mount visibility in confined consumers under shared and private che
 #### VM measurements
 
 A guest arm for the reflink and cross-dataset controls on the fixture's datasets.
-The host runs only the unit tests of `fs_kind`.
+The host half runs the `fs_kind` recognition,
+the clone-domain decision,
+the ladder's choice and one real read of this host's mounts;
+only the reflink and cross-dataset controls need the guest.
+The guest arm owes this list,
+recorded here because nothing else in the repository carried it:
+
+- Four binary-level controls beside the existing btrfs clone controls:
+ a same-dataset add serves rung 2,
+ asserting
+  `clones served` and FIEMAP-shared extents as `binary_worktree_clone_tests.rs` does;
+ a destination on the second
+  dataset is refused and Git fills the worktree;
+ a slot a mounted clone occupies is refused;
+ a mounted clone used as
+  the source of a checkout-dataset slot is refused.
+- Two arms on data keys:
+ a same-key cross-dataset `copy_file_range` that shares blocks must not qualify,
+ and a
+  different-key pair likewise,
+ since the domain decision never reads the keys.
+- A pool with block cloning enabled,
+ and a second arm with it off,
+ to prove the rung ends in Git's checkout rather
+  than a copy of the bytes.
+- A `ZFS` gate helper beside `on_btrfs_or_acknowledged` for `CLI_GIT_ZFS_ABSENT_ACKNOWLEDGED`,
+ or a guest run with
+  no acknowledgement,
+ so `zfs_a_real_mount_answers_with_its_kind` is a real control there.
+
+The FIEMAP reading the first bullet asks for has no ZFS form:
+ a guest ZFS file answers `FIEMAP`
+with no physical extent (`filefrag` reports `FIBMAP/FIEMAP unsupported`),
+ so the arm asserts the pool's own
+`bcloneused` and `bclonesaved` after `zpool sync` instead,
+ and its same-dataset reflink,
+ its copies and its counter
+readings are in `doc/troubleshooting/zfs-readings-a-clone-arm-cannot-take.md`.
+
+The host half is measured against a release build of `main` on this ZFS host,
+ in throwaway repositories of this
+repository's 24,313 tracked files,
+ the arms interleaved and alternating:
+a clean source with its data written out took 0.51 to 1.57 times as long as Git's own checkout,
+ median 0.69 over
+twenty-three interleaved rounds in five runs,
+ once the clones ran in slices,
+where one thread took 1.76 to 2.23 times as long.
+A source with uncommitted changes still pays the source checks and then ends in Git's own checkout:
+0.80 to 1.59 times the same build of `main`,
+ medians of 1.25,
+ 0.93,
+ 1.24 and 1.17 in its four runs,
+ about 0.2 seconds.
+That cost is the check that rung 2 requires and no snapshot can carry out here;
+ the measurements,
+ the options and
+their costs are with the integration pass that found it.
+
+The guest arm was written and run on 2026-11-20,
+ and the work is **unapproved and not final**.
+It is the recipe's `wrapper` step
+(`package/zfs/request-to-openzfs-kernel-device/e2e/README.md`,
+ "The step 3 arm"),
+which builds the wrapper's tests inside the guest and runs them one at a time:
+
+- The empty-file control runs the sliced engine with no reflink,
+ so it covers `clone_in_slices`,
+ the per-slice stat merge,
+ the single index install and the created order on this ZFS host and in the gate image,
+ where the btrfs
+  controls print `BTRFS CONTROL NOT RUN`:
+  forty empty tracked files in three forced slices,
+ the created entries in the
+  index's order,
+ and a clean first `git status`;
+ reversing the slice answers fails it with the two orders shown.
+- The seven controls pass:
+  a same-dataset add is served by clones (the diagnostic log's `clones served` line,
+ `bcloneused` and `bclonesaved`
+  both grown);
+  a destination on the second dataset,
+ a slot a mounted clone occupies and a mounted clone used as the source are each
+  refused with the two dataset names in the refusal and Git fills the worktree;
+  the same-key and the different-key pair are each refused,
+ and the copy between them is measured;
+  and with `zfs_bclone_enabled` written to 0 the clone rung ends in Git's checkout,
+ with no cloned block counted and
+  pool space spent.
+- What one clean same-dataset add saves on disk,
+ against Git's checkout of the same tree,
+ on the arm's pool:
+  the tree was this crate's own `src`,
+ 2,456 files and 34,719,432 bytes;
+ two alternating rounds measured Git's
+  checkout at 29,997,056 pool bytes and the clone rung at 7,017,984,
+ so the add saved about 22.98 MB (22,979,072 bytes),
+ with the pool
+  reporting `bcloneused` 11,663,872,
+ `bclonesaved` 23,327,744 and `bcloneratio` 3.00x.
+ The method and every reading
+  are in that README section.
+- The design proposal's "Rung 3" premise that a same-key cross-dataset `copy_file_range` shares blocks did not
+  reproduce in this guest:
+ same key and different key,
+ fresh or pre-sized destination,
+ the pool counted no cloned
+  block,
+ while a same-dataset copy of the same file counted its blocks.
+ The arms therefore assert the refusal and
+  record the copy's reading;
+ `doc/troubleshooting/zfs-readings-a-clone-arm-cannot-take.md` has the probes.
+- H1 gate 7,
+ with `kernel.apparmor_restrict_unprivileged_userns` at 0 inside the guest and the log saying so:
+  the permitted host mount of the clone is the control;
+ a confined user namespace is refused the same clone with no
+  flags and with `-o ro`,
+ `-o rw`,
+ `-o zfsutil` and `-o ro,zfsutil`,
+ each with `unable to open the dataset`,
+ although
+  the release tree the guest built declares `FS_USERNS_MOUNT`;
+  of the four late-mount arms a consumer already running saw the later clone with a shared checkout and not with a
+  private one,
+ and saw it under the read-only parent bind too when the checkout was shared,
+ so that bind hides a
+  later mount only under private propagation,
+ where the proposal's "can hide" holds alone;
+  and rung 2 served an add inside that confined consumer,
+ with the pool counting 512 cloned bytes over it.
+
+Each control was shown red first on the committed code with a one-hunk patch:
+ the ZFS clone domain refusing every
+pair (the same-dataset control fails),
+ and accepting every pair (both data-key arms and the three dataset refusals
+fail with "the add was not refused"),
+ an occupied destination ignored when the clone target is chosen (the
+mounted-clone slot control fails),
+ and a refused `FICLONE` reported as a clone (the block-cloning-off arm fails).
+The gate 7 arms carry their own control,
+ the permitted host mount,
+ and no patch of ours can make the kernel refuse
+it.
 
 #### Open items
 
-None.
+The clone rung's two limits are borrowed from btrfs measurements of the copy stage and `clone_tree`
+ (`PARALLEL_BREAK_EVEN_ENTRIES`,
+ `PARALLEL_COPY_MAX_WORKERS`),
+ and nothing measures this rung on XFS, overlayfs or ZFS,
+ nor between the break-even and the entry counts those measurements took,
+ which is where a small repository sits.
+An arm of a few hundred entries,
+ interleaved against the same control,
+ is owed before either limit is treated as measured here.
+The `worktree_clone.rs` doc of `clone_worker_count` states the borrow.
 
 #### Depends on
 
@@ -622,8 +781,12 @@ and its closing clause:
 until a private setup is verified";
 "H1 gate 5 recheck",
 the flags in `mountinfo` and the setuid and device controls;
-"Test parent adoption after recreation or rollback, and refuse it with a link, boundary, ACL mismatch
-or unresolved live/staged binding" (fourth bullet under "Boot, shutdown and setup"),
+"Test parent adoption after recreation or rollback,
+ and refuse it with a link,
+ boundary,
+ ACL mismatch
+or unresolved live/staged binding" (fourth bullet under "Boot,
+ shutdown and setup"),
 whose decision table this step tests and whose end-to-end arm step 5's mode runs.
 
 #### VM measurements
@@ -690,9 +853,13 @@ The plan's suggestion is in "Where the design is silent".
 #### Acceptance tests
 
 "Verify the release wrapper starts without OpenZFS and has no CDDL dependency"
-(first bullet under "Binding, Git and lifecycle").
+(first bullet under "Binding,
+ Git and lifecycle").
 The end-to-end arm of
-"Test parent adoption after recreation or rollback, and refuse it with a link, boundary, ACL mismatch
+"Test parent adoption after recreation or rollback,
+ and refuse it with a link,
+ boundary,
+ ACL mismatch
 or unresolved live/staged binding",
 through the mode this step wires.
 Otherwise the container gate and the release checks cover it,
@@ -928,7 +1095,8 @@ of "Mounts held by other namespaces":
 group live tasks by `/proc/<pid>/ns/mnt`,
 scan the matching `mountinfo` for each distinct namespace and its ZFS filesystem and exact dataset source,
 exclude new managed attaches with the standing `unmount` intent,
-and return holders and incomplete reads in a fresh, nonce- and GUID-bound result.
+and return holders and incomplete reads in a fresh,
+ nonce- and GUID-bound result.
 Step 16 consumes it before each snapshot-destroy request and before the head destroy,
 and step 18 reports its holders.
 
@@ -955,9 +1123,14 @@ the unmount from a handler invocation that did not attach,
 and "Repeat [VM item 15] with the built handler" in full:
 start "both readers and the confined Pi consumer after attach",
 "Prove a host-only detach with another namespace holding the source blocks the first snapshot request
-and that `doctor` names the holders; release them and show normal removal",
-"Exercise task churn, incomplete scans, divergent process roots and pinned
-namespaces without live members; bound and document what the deployment can exclude, and record how the run
+and that `doctor` names the holders;
+ release them and show normal removal",
+"Exercise task churn,
+ incomplete scans,
+ divergent process roots and pinned
+namespaces without live members;
+ bound and document what the deployment can exclude,
+ and record how the run
 reports the residual the destroy-anyway decision accepts".
 The same bullet's removal half is step 16's.
 "The wrapper's staging cleanup" under "Decided behaviours with no test yet".
@@ -997,7 +1170,8 @@ with the handler readiness report and the source-eligibility check;
 the per-add claim record in the Git common directory;
 the account-owned empty slot and Git's `worktree add --no-checkout` registration,
 with the pointer bytes recorded;
-the managed Git lock taken here, with that registration,
+the managed Git lock taken here,
+ with that registration,
 with its recorded reason and its pointer bytes;
 the checkout snapshot and fresh clone,
 with each GUID and `createtxg` recorded as it is confirmed,
@@ -1040,10 +1214,13 @@ and to repeat [VM item 1] on Git `2.56.1`.
 and around the origin and clone identity writes.
 Test `ENOSPC` at snapshot and clone" (third bullet).
 "Linked-source refusal" under "Decided behaviours with no test yet".
-"Cover recognized and rejected forms, dirty sources and a tracked write between preflight and snapshot
-that the frozen proof refuses" (second bullet under "Binding, Git and lifecycle"),
+"Cover recognized and rejected forms,
+ dirty sources and a tracked write between preflight and snapshot
+that the frozen proof refuses" (second bullet under "Binding,
+ Git and lifecycle"),
 for the recognized and rejected forms here,
-and "boundary-safe ignored cleanup, nested path omissions" from the same bullet.
+and "boundary-safe ignored cleanup,
+ nested path omissions" from the same bullet.
 The owner decided the interim on 2026-11-19,
 answering "Ship step 10 first (Recommended)":
 while step 11 is unlanded,
@@ -1061,13 +1238,17 @@ Runs in the throwaway guest.
 #### Open items
 
 Blocked by "The add-time Git lock" and "The dirty-main restore on rung 1".
-The lock lands here, in step 10,
+The lock lands here,
+ in step 10,
 with the registration it protects:
-"Add and Git registration" step 2 says "Take the decided managed Git lock here, with the registration",
+"Add and Git registration" step 2 says "Take the decided managed Git lock here,
+ with the registration",
 and VM item 6 measured an unlocked registration pruned at once
-("Unmounted, pruned or moved worktrees").
+("Unmounted,
+ pruned or moved worktrees").
 That placement is the plan's suggestion;
-the alternative, keeping the shipped add route refusing until step 13 lands,
+the alternative,
+ keeping the shipped add route refusing until step 13 lands,
 holds the whole route back for nothing it protects,
 so the plan takes the design's own order.
 Step 13 then adds `doctor`'s distinction,
@@ -1159,9 +1340,11 @@ The add section and the removal section both carry the states;
 "With the clone unmounted,
 verify `prune` keeps the registration with the pointer intact" (third bullet under "Binding,
 Git and lifecycle").
-"boundary-safe ignored cleanup, nested path omissions and mounted/unmounted `move`" from the second bullet,
+"boundary-safe ignored cleanup,
+ nested path omissions and mounted/unmounted `move`" from the second bullet,
 for the move refusal.
-"Test repair with surviving admin data and already-pruned state, with and without backup" (third bullet).
+"Test repair with surviving admin data and already-pruned state,
+ with and without backup" (third bullet).
 
 #### VM measurements
 
@@ -1189,7 +1372,8 @@ The lock's life after the add:
 recovery when the pointer is lost,
 and its release only in the authorized registration-cleanup step,
 after clone destruction is proven.
-The write path landed in step 10, with the registration.
+The write path landed in step 10,
+ with the registration.
 
 #### Design sections
 
@@ -1276,7 +1460,8 @@ in the fourth bullet under "Binding,
 Git and lifecycle".
 The arm whose bookmark the rule passes and whose removal then finishes is step 16's;
 the refusal arms are this step's.
-"Repeat the `origin`, `createtxg` and transferred-bookmark controls of [VM item 13],
+"Repeat the `origin`,
+ `createtxg` and transferred-bookmark controls of [VM item 13],
 including reverse promotion" from the same bullet.
 "Test proof invalidation after administrator lineage changes" from the same bullet:
 after a lineage change by an administrator the next removal refuses before its first delete.
@@ -1292,7 +1477,8 @@ Runs in the throwaway guest.
 
 Blocked in part by step 9's unmount for the order.
 The destruction plan's home and the binding record's home are gaps this plan names.
-The origin-cleanup record belongs to step 16, which settles the registration.
+The origin-cleanup record belongs to step 16,
+ which settles the registration.
 
 #### Depends on
 
@@ -1579,7 +1765,8 @@ Until then a host `doctor` run refuses at the gate or reports the check as not y
 It depends on those open items through the steps that build them,
 and blocks none.
 It reports the deferred-origin check before step 15 lands,
-and any check it cannot read or prove, as unknown.
+and any check it cannot read or prove,
+ as unknown.
 
 #### Depends on
 
@@ -1642,10 +1829,12 @@ shutdown and the checkout's own dataset");
 
 "Perform an actual reboot and shutdown with idle and busy legacy clones",
 including "Delay or fail import,
-key loading and checkout mounting; assert no nested dataset attaches or creates mountpoint folders in the
+key loading and checkout mounting;
+ assert no nested dataset attaches or creates mountpoint folders in the
 home underlay",
 "Verify direct checkout/home unmount names held clones,
-idle export/import with a clone succeeds and recovers, and
+idle export/import with a clone succeeds and recovers,
+ and
 busy export fails without a forced teardown",
 "Record root's exact-version behavior on destroy of a mounted clone in the guest;
 the wrapper must refuse before attempting it regardless of the tool result",
@@ -1654,12 +1843,18 @@ all under "Boot,
 shutdown and setup".
 "Re-applying checkout propagation" under "Decided behaviours with no test yet".
 The ordering and provider-hook arms of "Enable real ZED in the guest and exercise the configured ordering",
-including "replay, dropped events with and without a live caller, concurrent zedlets, stale receipts,
+including "replay,
+ dropped events with and without a live caller,
+ concurrent zedlets,
+ stale receipts,
 and pending unmount across restart",
-the "readiness/refusal controls with the handler absent, ABI unsupported and ZED stopped",
+the "readiness/refusal controls with the handler absent,
+ ABI unsupported and ZED stopped",
 and the repetition "with a second host's sanoid and ZED configuration in isolation"
 (whose sanoid half step 20 repeats).
-"Test which paths the actual Kopia job can see, whether it crosses a ZFS boundary, and restoration of
+"Test which paths the actual Kopia job can see,
+ whether it crosses a ZFS boundary,
+ and restoration of
 the checkout and configuration with origins still pinned" from the fourth bullet under "Boot,
 shutdown and setup".
 
@@ -1770,7 +1965,9 @@ The second bullet under "Tooling,
 retention and performance" asks:
 "Test real dependency preparation after add and after migration.
 Interleave the same-dataset control with the new checkout and mounted clone using the same lockfile and home store".
-"Check queued and inline repair, Cargo prewarm and cross-filesystem lock recovery, mise and launcher repair,
+"Check queued and inline repair,
+ Cargo prewarm and cross-filesystem lock recovery,
+ mise and launcher repair,
 and watch rebinding in the editor" from the same bullet.
 
 #### VM measurements
@@ -1845,7 +2042,8 @@ retention and performance" and "Open measurements" require:
 "Measure host storage costs separately from guest semantics",
 and the measurement record's "What this did not show" says a file-backed encrypted pool measures semantics,
 not performance on the host's storage.
-That half names its method before it runs (a read-only measurement, or a spare device),
+That half names its method before it runs (a read-only measurement,
+ or a spare device),
 and it is the owner's act on the owner's authorisation,
 never a step's.
 No shipped limit rests on either half until its measurement exists.
@@ -2101,7 +2299,8 @@ and the part that does.
 Step 1 can start today.
 It has no open item of the design's,
 it is its own package,
-and its checks are its own, in the container "How it merges" describes,
+and its checks are its own,
+ in the container "How it merges" describes,
 so the wrapper's container gate is not in its way.
 
 These can run beside it without touching a file it touches:
@@ -2138,9 +2337,11 @@ so each merge waits for the container gate.
 
 While all three designs are unwritten,
 the steps whose lists name no design are 1 to 5.
-Behind step 6, the start probe and the layout checker,
+Behind step 6,
+ the start probe and the layout checker,
 sit steps 6 to 23;
-behind step 9, staging,
+behind step 9,
+ staging,
 sit step 9 and steps 14 to 23.
 
 Parallel writers here need a worktree each.
@@ -2316,9 +2517,11 @@ the fourth is an accepted cost that `doctor` reports.
   One archive carrying both is forced rather than chosen:
   "Decided defaults" keeps the handler inside `package/git-policy/cli`
   ("Keep inside cli (Recommended)"),
-  and that entry says "the handler's code, tests and release move with the wrapper";
+  and that entry says "the handler's code,
+ tests and release move with the wrapper";
   the wrapper manifest's comment says cargo-binstall refuses an archive that lacks any `[[bin]]` of the crate.
-  So this is writer work in step 5, not an owner question.
+  So this is writer work in step 5,
+ not an owner question.
 - What removes a receipt for a clone that no longer exists.
   "Requests,
   results and ordering" and "Decided defaults" say nothing removes it,
@@ -2345,7 +2548,8 @@ and no entry changes a decision.
   and `### Doctor` extended in place.
 - Where the add-time Git lock lands.
   The design takes it at the registration:
-  "Take the decided managed Git lock here, with the registration"
+  "Take the decided managed Git lock here,
+ with the registration"
   ("Add and Git registration" step 2),
   and VM item 6 measured an unlocked registration pruned at once.
   The plan follows that order rather than keeping the add route refusing until step 13,
@@ -2356,7 +2560,8 @@ and no entry changes a decision.
   a Git lock in addition to the pointer copies.
   The plan suggests building the pointer half in step 12,
   the lock's write with the registration in step 10,
-  and its distinction, recovery and release in step 13,
+  and its distinction,
+ recovery and release in step 13,
   because the pointer half alone is what the unmounted states and the move refusal need.
 - How step 3 proves a same dataset.
   "Rung 2:

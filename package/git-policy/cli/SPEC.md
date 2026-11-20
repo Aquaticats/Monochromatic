@@ -242,7 +242,8 @@ because nothing was checked for changes before that destroy.
 The sections that describe those commands carry the same statement beside their guards:
 "Linked-worktree ignored-state synchronization" for the leave-out and the trash of a snapshot,
 and "Cheap worktree creation and removal on btrfs,
-XFS and overlayfs" for the conversion,
+XFS,
+overlayfs and ZFS" for the conversion,
 the removal and the migration.
 
 ## Single executable and shipped policies
@@ -1118,7 +1119,7 @@ and leaves value-position tokens with the same bytes untouched.
 An opted-out invocation performs no journal recovery;
 pending journals wait for the next repository invocation without the flag.
 
-### Cheap worktree creation and removal on btrfs, XFS and overlayfs
+### Cheap worktree creation and removal on btrfs, XFS, overlayfs and ZFS
 
 Design,
 measurements and the reasons for each choice:
@@ -2617,8 +2618,36 @@ and the package README names the gap left by
 gates that ran the claim-only source.
 
 Rung 2 needs a clean source on btrfs,
-XFS or overlayfs,
+XFS,
+overlayfs or ZFS,
 with the source and the destination in one clone domain.
+A clone domain is one btrfs filesystem,
+whose every mount carries one source in the mount table;
+one device,
+which overlayfs and XFS use;
+or one ZFS dataset,
+which rung 2 proves from the mount source the kernel reports (the dataset's own name)
+and the device of that name's mount,
+both read from `/proc/self/mountinfo` and from the inode's device number,
+with no ZFS ioctl and no call into the ZFS binding.
+Two paths are in one dataset only when that source and that device agree,
+so a pair whose dataset or whose device cannot be read is refused as unproved.
+Rung 2 asks the filesystem that would receive the clones:
+the destination when something already occupies it,
+its parent otherwise.
+A mounted ZFS clone at the destination is therefore refused,
+because the clones would land in that clone's dataset and not in the source's;
+so is a mounted clone used as the source of a slot in the checkout's dataset,
+and so is any destination on another dataset than the source,
+which a destination on a dataset mounted inside the source's own is,
+such as `~/.cache`, which this host's layout gives a dataset of its own
+(`zpcachyos/nosnap/user-cache`, which `findmnt -t zfs` lists).
+What a reflink needs is why:
+a clone shares data blocks only inside one dataset,
+`FICLONE` answers `EXDEV` across filesystems,
+and a `copy_file_range` that shares blocks across two datasets with one data key does not qualify.
+A refused or failed `FICLONE` ends the rung and never becomes a copy of the bytes;
+rung 3 fills the worktree.
 The same `--no-checkout` run is followed by `FICLONE` of every tracked file (mode and nanosecond times kept;
 links
 recreated),
@@ -2628,6 +2657,9 @@ and the same tree
 difference.
 A refusal removes nothing,
 because a name cannot be checked and unlinked in one step:
+the tracked files of a run longer than the rung's break-even are cloned in up to the host's budget of slices at
+once,
+so a failure stops the other slices at their next entry and what stays can run past the entry that failed;
 the entries the clones created stay,
 `git reset --hard` overwrites the tracked ones,
 a message counts them and names `git -C <path> status` for any other,

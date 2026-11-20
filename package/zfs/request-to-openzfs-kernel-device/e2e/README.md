@@ -29,6 +29,9 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- prepare --name my
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- run --name my-guest
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- record --name my-guest
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- destroy --name my-guest
+# the step 3 arm, on a guest the two steps above prepared:
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- wrapper --name my-guest
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- arm --name my-guest
 ```
 
 - `create` makes the guest with `mvm`,
@@ -62,6 +65,18 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- destroy --name my
   The root suite excludes the delegated arms and the account
   suite runs only them,
   each as the account the arm needs.
+- `wrapper` runs the step 3 arm of the plan
+  ([`doc/planning/cli-git-zfs-worktree-implementation-plan.md`](../../../../doc/planning/cli-git-zfs-worktree-implementation-plan.md),
+  step 3):
+  it pushes the wrapper's packages and builds their tests inside the guest,
+  makes a pool of its own,
+  runs the wrapper's ZFS clone controls and its disk measurement,
+  runs H1 gate 7,
+  destroys that pool,
+  and pulls the logs back.
+  `arm` runs `create`,
+ `prepare` and `wrapper` in order and destroys the guest,
+  which is how one green run is made from nothing.
 - `record` writes the versions and the teardown state to the log directory and pulls
   the suite logs back to it.
 - `destroy` destroys the guest and records what `mvm list` holds afterwards.
@@ -286,6 +301,165 @@ which is the measurements' fixture.
   which the promotion leaves in place,
   so no other arm depends
   on the moved history.
+
+## The step 3 arm: the wrapper's ZFS clone controls
+
+`wrapper` answers the question the plan's step 3 leaves to the guest:
+does rung 2 of the cheap-worktree ladder serve one ZFS dataset,
+and does every cross-dataset add end in Git's own checkout?
+
+It needs the guest `prepare` made
+(Rust,
+ `cargo-nextest`,
+ OpenZFS 2.4.4 and the kernel BTF),
+and it pushes the wrapper crate's packages,
+whose manifests name `../../` paths,
+so the repository root is what `--wrapper-repository` names (default:
+ the one
+this recipe lives in).
+The wrapper's tests are **built inside the guest** for the same reason the
+binding crate's are:
+the host's glibc is newer than Ubuntu 24.04's.
+
+The pool is `zfsstep3` under `/home/zfs-step-3-fixture`,
+built the way the measurements' fixture was:
+1 GiB,
+ `aes-256-gcm`,
+ a raw key,
+ `recordsize=32K`,
+ `compression=zstd-3`.
+Its datasets are
+`checkout` (the wrapper's fixture root),
+`second` (another dataset under the same key),
+`diffkey` (an encryption root of its own,
+ so under another key),
+and an empty snapshot `checkout@step-3-clone` for the controls that need a
+mounted clone.
+The controls read these variables,
+ which only this step sets:
+
+- `CLI_GIT_TEST_ROOT`:
+ `/home/zfs-step-3-fixture/checkout`,
+ the fixture root the
+  binary controls make their own directories in.
+- `CLI_GIT_ZFS_FIXTURE_GUEST`:
+ the guest's hostname.
+  A ZFS arm changes datasets,
+  so `binary_support_zfs_controls.rs` refuses to run anywhere else,
+  and prints `ZFS CONTROL NOT RUN` there instead.
+- `CLI_GIT_ZFS_TOOL_DIRECTORY`:
+ `/opt/openzfs-2.4.4/sbin`,
+  the `zfs` and `zpool` the controls make the clone and read the counters with.
+- `CLI_GIT_ZFS_SECOND_DATASET`,
+ `CLI_GIT_ZFS_DIFFERENT_KEY_DATASET`,
+  `CLI_GIT_ZFS_CLONE_SNAPSHOT`:
+ the second dataset's directory,
+  the other key's,
+  and the snapshot a mounted clone is made from.
+- `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1`:
+ this guest has no btrfs root,
+ and no btrfs control
+  runs in this step.
+- `CLI_GIT_ZFS_ABSENT_ACKNOWLEDGED` is **left unset**,
+ so
+  `zfs_a_real_mount_answers_with_its_kind` (a library control) really runs here.
+
+The arms run **one at a time** (`--test-threads 1`):
+the pool's block-clone counters count the whole pool,
+and the arm that proves the clone rung ends where cloning cannot happen turns
+the kernel's one block-cloning switch off for its own length.
+
+### What the arms read
+
+ZFS answers `FIEMAP` with no physical extent
+(`filefrag` reports `FIBMAP/FIEMAP unsupported` on a ZFS file),
+so the btrfs controls' shared-extent reading has no ZFS form.
+The readings are the pool's own,
+after `zpool sync` has committed the arm's transaction group:
+
+- `bcloneused`:
+ the space the pool's cloned blocks take.
+  It grows when an arm shares blocks,
+  and a byte copy never adds to it.
+- `bclonesaved` and `bcloneratio`:
+ the bytes a clone saved and the pool's own
+  ratio of the two.
+- `allocated`:
+ what the pool holds in all,
+  which is how an arm that wrote its own bytes shows it spent space.
+
+The measurement (`binary_worktree_clone_zfs_measurement_tests.rs`) runs Git's
+checkout and the wrapper's add over the same tree,
+alternating them for two rounds,
+and prints:
+
+```text
+MEASUREMENT zfs clone saved 22979072 bytes of 34719432 in 2456 files over 2 alternating rounds (Git's checkout used +29997056 bytes, the clone rung used +7017984 bytes and counted +11663872 cloned bytes; pool bcloneused 11663872, bclonesaved 23327744, bcloneratio 3.00x)
+```
+
+That run of 2026-11-20 measured the tree as this crate's own `src`:
+ 2,456 files
+and 34,719,432 bytes,
+written by Git's checkout at 29,997,056 pool bytes and by the clone rung at
+7,017,984,
+so a clean same-dataset add of that tree saved about 22.98 MB of pool space
+against Git's checkout.
+
+### H1 gate 7
+
+`step3GateSeven` runs the gate the plan's "Descriptor safety and mount
+authority" quotes:
+
+- the permitted host mount of the clone is the control,
+  because a refusal alone proves nothing;
+- a confined user namespace (`unshare --user --map-root-user --mount`) is asked to
+  attach the same clone with no flags and with `-o ro`,
+ `-o rw`,
+ `-o zfsutil` and
+  `-o ro,zfsutil`;
+  every attempt is refused with `unable to open the dataset`,
+  although OpenZFS declares `FS_USERNS_MOUNT` (the log counts the declaration in
+  the release tree the guest built);
+- four late-mount arms start a confined consumer before the clone is mounted and
+  read whether it sees the clone's marker:
+  shared and private propagation,
+  each with and without a read-only `rbind` of the fixture root.
+  What they measured on 2026-11-20:
+  shared without the bind `VISIBLE`,
+ private without it `HIDDEN`,
+  shared with the bind `VISIBLE`,
+ private with the bind `HIDDEN`.
+  So a read-only parent bind hides a mount made afterwards only under a
+  private checkout;
+  the design proposal's "Confined callers" says it "can hide" one,
+ which holds
+  for the private arm.
+- the same-dataset reflink fallback runs **inside** that confined consumer:
+  the wrapper is started as the guest's account in a user namespace,
+ and the
+  pool must count cloned bytes over that add.
+
+`kernel.apparmor_restrict_unprivileged_userns` is 1 on this image,
+which would make a confined consumer's mount attempt fail for the wrong
+reason (AppArmor refusing the user namespace),
+so the arms write 0 to it,
+print it before and during,
+and say so in the log.
+The file is the kernel's and the guest is thrown away with its pool.
+
+### What the arm's logs are
+
+`step3-pool.log`,
+ `step3-suite.log`,
+ `step3-gate-7.log`,
+`step3-wrapper-build.log`,
+ `step3-teardown.log` and `step3-versions.log`
+land in the log directory.
+The suite log is the whole nextest run rather than the tail the step prints,
+and `step3-teardown.log` shows the pool gone and the datasets gone,
+and names the pool's `pool.img` file,
+which `zpool destroy` leaves behind in the guest's fixture root and which goes
+with the guest.
 
 ## Teardown evidence
 

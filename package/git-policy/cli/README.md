@@ -819,9 +819,25 @@ Read-only commands,
   2. Clones (`FICLONE`) of every tracked file of a clean worktree,
      with its index,
      on btrfs,
-     XFS with reflink and
-     overlayfs.
-     It shares disk but takes about as long as Git's checkout.
+     XFS with reflink,
+     overlayfs and ZFS.
+     A clone crosses subvolumes of one btrfs filesystem and nothing else,
+     and on ZFS it stays inside one dataset,
+     which the wrapper proves from the dataset name the mount table reports and the device of that name's mount,
+     reading no ZFS ioctl:
+     a slot a mounted clone already occupies,
+     a mounted clone used as the source of a slot in the checkout's dataset,
+     and any slot on another dataset than the source get Git's own checkout instead.
+     It shares disk,
+     and it is measured: on this host (2026-11-19) an add of 24,313 tracked files through this rung took 0.51 to
+     1.57 times as long as Git's own checkout through the same wrapper, median 0.69 over twenty-three interleaved
+     rounds in five runs, once the source's data had been written out, the slowest round being a first round on a
+     cold fixture; with the clones on one thread it took 1.76 to 2.23 times as long, its five rounds measured against
+     the same build of `main` through the same wrapper, where `doc/planning/cli-git-btrfs-worktree.md` measured a
+     prototype of this rung at parity on btrfs (median 2.1 s against 2.1 s to 2.4 s), a different arm in a different
+     comparison.
+     A source whose data was written moments before the add can wait once for the pool to write it out
+     (`zfs_bclone_wait_dirty`), by up to the pool's transaction timeout.
   3. Git's own checkout,
      then the ignored-state copy.
   The `git read-tree` of a rung and the fallback `git reset --hard` are Git steps the wrapper starts itself,
@@ -6119,6 +6135,18 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   Selected by name,
   the same controls are the `btrfs_*` tests of the library and the binary-level controls that call
   `on_btrfs_or_acknowledged` (`src/native/binary/binary_support_btrfs_controls.rs`).
+- The control that needs a real ZFS mount follows the same rule,
+  under `CLI_GIT_ZFS_ABSENT_ACKNOWLEDGED`:
+  the gate image sets it because its fixture root is that tmpfs and never a ZFS dataset,
+  `native:test:host:btrfs` sets it because its root is btrfs by definition,
+  and `native:test:host` leaves it unset,
+  so on this ZFS host `fs_kind_tests::zfs_a_real_mount_answers_with_its_kind` reads a real dataset
+  and elsewhere an unacknowledged run fails it rather than passing a control that never ran.
+  Two facts a person running it here meets:
+  `native:test:host` needs `cargo-nextest`, which this host does not install
+  (`error: no such command: nextest`; `cargo test --lib -- fs_kind worktree_clone_domain ...`
+  runs the same controls), and the same filters select the btrfs controls,
+  which need `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1` on a host with no btrfs, which the task does not set.
 - The controls that need a kernel namespace fail the same way rather than passing unrun,
   and the acknowledgement variable each refusal names is the only thing that lets one skip:
   `CLI_GIT_TEST_NO_USER_NAMESPACES=1` for the controls that judge root-owned files inside an unprivileged user namespace,
