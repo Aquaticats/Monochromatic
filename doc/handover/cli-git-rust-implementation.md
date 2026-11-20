@@ -40167,7 +40167,16 @@ stated in this entry. What follows from them, as work:
   and the plan's VM items 5, 11 to 14, 17 and 18 through the crate, all in a throwaway guest, with live tests skipped
   by name on the host. Brief under `~/temp/agent/zfs-step-2-live-requests-and-guest-fixture-2026-11-19/`. The first
   launch passed the task folder as `--run-folder` and the driver refused it, rightly (the folder held `keep/` and
-  `scratch/`); the relaunch names `run-1`. THE OFFLINE
+  `scratch/`); the relaunch names `run-1`. STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
+  their VM arms wait for step 2's recipe and their merges for the gate fix), each DeepSeek on Neuralwatt, cap 510,
+  from `main` `d6e78c9e8b`: `pi-zfs-step-3-reflink-rung-recognition-host-half`
+  (`.claude/worktrees/zfs-step-3-reflink-rung-recognition`, `feat/git-policy-cli-zfs-recognition-in-the-reflink-rung`;
+  `fs_kind.rs`, `worktree_snapshot_source.rs` and the spec's rung 2 passage at `SPEC.md:2619`; told to stop and report
+  if the same-dataset proof needs `ZFS_IOC_OBJSET_STATS`) and `pi-zfs-step-4-descriptor-attach-host-half`
+  (`.claude/worktrees/zfs-step-4-descriptor-attach`, `feat/git-policy-cli-zfs-descriptor-attach-and-rollback`; the
+  walk, identity compare with a positive control per field, refusal wording, rollback plan, identity store and parent
+  record on fixture folders, nothing under `/var/lib`, no mount; the `first-attach` record left out because its design
+  is not accepted). Briefs under `~/temp/agent/zfs-step-{3,4}-*-host-half-2026-11-19/`. THE OFFLINE
   `file-enforcer` ROUTE: GOING `pi-git-policy-cli-gate-base-image-browserslist-data` (DeepSeek on Neuralwatt, cap 350)
   in `.claude/worktrees/git-policy-cli-gate-base-image-browserslist-data` on
   `fix/git-policy-cli-gate-base-image-carries-the-pinned-browserslist-data`, stacked on the githooks fix: the base
