@@ -487,12 +487,13 @@ const steps: Record<string, (checked: Options) => void> = {
       failure = thrown;
     }
     if (failure !== null) {
-      // A failed step still leaves the suite logs in the guest: pull them so the
-      // failure can be read, and never let a second failure replace the first.
+      // A failed step still leaves the suite logs in the guest: try to record
+      // them, so a run that reached both suites keeps its logs, and never let a
+      // failed record replace the step's failure.
       try {
         record(checked);
       } catch {
-        // The step's own failure is the report; a failed pull must not hide it.
+        // The step's own failure is the report; a failed record must not hide it.
       }
     }
     if (checked.keepGuest) {

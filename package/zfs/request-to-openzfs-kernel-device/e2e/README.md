@@ -66,8 +66,10 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- destroy --name my
 - `all` runs those five in order,
   destroys the guest even when a step fails,
   so a failed run leaves nothing running,
-  and pulls the suite logs of a failed run before it does;
-  `--keep-guest` skips the destruction so the guest can be inspected.
+  and attempts `record` first,
+  which pulls both suite logs when a run reached both suites;
+  `--keep-guest` skips the destruction,
+  so a failed run's guest can be inspected and its logs pulled by hand.
   `--log-dir <dir>` moves the logs (default
   `target/e2e-logs` under this package),
   and `--crate <dir>` names the crate to
