@@ -211,8 +211,10 @@ Each of these is decided, and this proposal keeps every one of them.
 
 - `doctor` is read-only: "Setup findings go to standard error and do not change `doctor`'s exit status. `doctor`
   does not start a service, create a test dataset, repair registrations or change configuration" (the
-  [proposal][proposal], lines 1153 to 1155). The probe's result reaches `doctor` by being read, never by
-  `doctor` running a probe.
+  [proposal][proposal], lines 1153 to 1155). The root probe's result reaches `doctor` by being read, never by
+  `doctor` running that probe. The account companion is the one check `doctor` runs itself, under the shared
+  preflight the proposal gives the two callers (the [proposal][proposal], lines 348 and 1152): it creates no
+  dataset, starts no service, and its namespaces die with its child, so the limits quoted here hold for it.
 
 - The wrapper must start without OpenZFS: "the wrapper must start even when OpenZFS is absent" (the
   [proposal][proposal], lines 152 to 153).
@@ -336,10 +338,6 @@ These lines are from the tag's commit `71a9f9578616`, cloned on 2026-11-19 from 
   not the account's grants.
 - An attach of an encrypted dataset with an unavailable key refuses at `fsconfig(create)` with `EACCES`
   ([measurements][measurements], item 5, line 231), which is the observable that shows `zfs_domount` ran.
-- A mounted dataset's `.zfs/snapshot` directory lists its snapshot names through `dmu_snapshot_list_next`, with
-  no ioctl and no delegation check (`module/os/linux/zfs/zpl_ctldir.c:281` to `:320`). Nothing in this design
-  reads that directory: the probe's source is the configured name, so no name is discovered at start and no
-  lookup by name can start the automounter (`module/os/linux/zfs/zpl_ctldir.c:255` to `:277`).
 - The CLI's legacy-mountpoint refusal is the userspace branch for an explicit `zfs mount`: it prints
   `cannot %s '%s': legacy mountpoint` (`cmd/zfs/zfs_main.c:7240` to `:7248`), not the fs_context path; item 10
   measured that branch and the descriptor attach beside it ([measurements][measurements], item 10, lines 359 to
@@ -372,9 +370,10 @@ These lines are from the tag's commit `71a9f9578616`, cloned on 2026-11-19 from 
   `/proc/modules` lists `zfs` with a use count of 10 (read-only, 2026-11-19).
 - Unprivileged user namespaces are enabled here: `/proc/sys/user/max_user_namespaces` reads `252369` and
   `/proc/sys/kernel/unprivileged_userns_clone` reads `1` (read-only, 2026-11-19).
-- The design's checkout dataset does not exist yet on this host: `findmnt --target /home/user/Monochromatic`
-  resolves to `/home` ([measurements][measurements], line 31). A probe on this host today would have no managed
-  ZFS source to attach.
+- The probe dataset and the configuration field that names it are the setup steps' output, and no step runs
+  them on this host (the [plan][plan], steps 18 to 20). Until the owner runs the commands those steps print, the
+  probe finds no name the parse accepts and records its attach arm and every arm after it as not exercised, as
+  [The source](#the-source-the-probe-dataset) states.
 
 ### The kernel headers and source
 
@@ -571,8 +570,9 @@ Each assumption is stated so a measurement can break it, and the measurement tha
   rather than attached.
 - The companion never reaches the dataset mount path, the key path or `/dev/zfs`, so its pass cannot predict the
   probe's or the product's attach, and its failure refuses an add without evidence that the root attach would
-  fail. It is skipped on a host that refuses user namespaces or has none left, and its skip is printed rather
-  than kept silent.
+  fail. It is skipped on a host that refuses user namespaces or has none left, its skip is printed, and the add
+  goes ahead after it. Those last two are this design's choices, open to the project's veto, and
+  [The account companion](#the-account-companion) states the reason and the alternative.
 - The companion's cost on every managed add, and the deadline that bounds it, are unmeasured until
   [M11](#m11-the-account-companion-per-add); no value is stated here.
 - The `first-attach` file records one operation and is not a compatibility verdict. It is written only by the
@@ -620,19 +620,25 @@ process that asks for it attaches it.
 Root-owned configuration pins its name and GUID beside the pool and dataset names that configuration already pins
 (the [proposal][proposal], line 319). The probe reads that name and checks it as a name, because it makes no ioctl;
 `doctor` is where the GUID and the user property are compared, through the ioctl the probe does not make. The
-snapshot is empty. Its key is the pool root's, which the boot unit already waits for before `ExecStart`, so an
-unavailable key is an `EACCES` refusal from the attach arm rather than a hidden gap. No sanoid section is needed to
-keep it out of snapshots: the only recursive section is the home template, `zpcachyos/ROOT/cos/home`, and
-`zpcachyos/nosnap` is outside that subtree (the [proposal][proposal], lines 1081 to 1092). The section this design
+snapshot is empty. Its key is the one its encryption root holds, and the dataset inherits that root from
+`zpcachyos/nosnap`; step 18's `doctor` reads the root and prints it beside the pool's, so this design reads it at
+setup rather than asserting it here. An unavailable key is an `EACCES` refusal from the attach arm rather than a
+hidden gap, and a root that is not the pool's is a setup finding `doctor` prints, not a probe verdict. No sanoid
+section is needed to keep it out of snapshots: the only recursive section is the home template,
+`zpcachyos/ROOT/cos/home`, and `zpcachyos/nosnap` is outside that subtree (the [proposal][proposal], lines 1081 to
+1092). The section this design
 adds in step 20 follows the configuration's convention of naming every exclusion, so a later recursive ancestor
 cannot silently include it.
 
-What the account can do to it: nothing. Delegation is scoped to the checkout dataset and the clone parent (the
-[proposal][proposal], lines 319 to 327), and that same passage says not to put unrelated ZFS descendants there.
-This dataset is under neither, so the account holds no `create`, `mount`, `destroy` or `userprop` on it and can
-neither create, rename, mount, snapshot nor destroy it. No account-run process and no automatic job pins or
-destroys it, so it cannot collide with the space guard or the sweep, which enumerate the pinned clone parent's
-children and never this dataset (the [proposal][proposal], lines 540 to 541).
+What the account can do to it: nothing, once `doctor` has shown that no grant reaches it. Delegation is scoped to
+the checkout dataset and the clone parent (the [proposal][proposal], lines 319 to 327), and that same passage says
+not to put unrelated ZFS descendants there. This dataset is under neither, so the account is expected to hold no
+`create`, `mount`, `destroy` or `userprop` on it and to be unable to create, rename, mount, snapshot or destroy
+it; that expectation is a reading of the configuration, and step 18's `doctor` checks the effective delegation,
+ancestor grants included, and prints any grant that reaches the dataset (the [plan][plan], step 18). No
+account-run process and no automatic job pins or destroys it, so it cannot collide with the space guard or the
+sweep, which enumerate the pinned clone parent's children and never this dataset (the [proposal][proposal],
+lines 540 to 541).
 
 How its existence is detected: the probe asks the kernel, not the pool. It attaches `<dataset>@ready` with
 `FSCONFIG_CMD_CREATE_EXCL`, and a missing dataset or snapshot is the `ENOENT` from `fsconfig(create)`, as the
@@ -766,57 +772,108 @@ residue.
 This is the second check the companion answer chose. It runs as the account, from the wrapper's own process, before
 each managed add, and it never touches ZFS, the key path or `/dev/zfs`.
 
-What it runs. The add preflight forks one child. The child calls `unshare(CLONE_NEWUSER)`, writes `deny` to
-`/proc/self/setgroups`, writes one line each to `uid_map` and `gid_map` mapping the account's own effective user and
-group to 0 in the new namespace, then calls `unshare(CLONE_NEWNS)`, makes every mount private, and mounts a tmpfs at
-a scratch directory the parent made for the run. Those writes are the ones an unprivileged caller may make: one
-line, its own effective ID, and `setgroups` denied before `gid_map` (`user_namespaces(7)`, the sections on defining
-the two mappings and on `/proc/pid/setgroups`). tmpfs declares `FS_USERNS_MOUNT` and carries fs_context
-operations, so the descriptor calls reach it without a path mount (`mm/shmem.c:5103`, `:5284`, `:5311` and `:5316`,
-read at v7.3).
+How the child starts. The add preflight forks one child, and the fork is made on the blocking pool rather than on a
+thread the runtime polls, because the wrapper's own source scan keeps blocking work off the runtime's workers
+(`package/git-policy/cli/src/native/source_guard/blocking_code_off_the_runtime_tests.rs:1` to `:40`). The wrapper's
+runtime is multithreaded and never dropped (`.../foundation/lazy_runtime.rs:1` to `:22`), and a fork leaves a child
+holding only the forking thread, so the child runs a fixed sequence of raw syscalls and nothing else: every buffer
+it writes is built before the fork, it formats its numbers into a stack array by hand, and no allocating call, no
+runtime call and no library call that takes a lock runs in it. A re-exec of the wrapper's own executable would give
+it a fresh single-threaded process, and this design cannot use one: the source guard fails any release line that
+starts the wrapper itself, an `argv[0]` dispatch included
+(`.../source_guard/no_self_invocation_tests.rs:1` to `:14`). The consequence is stated rather than hidden: the
+companion repeats the probe's syscall sequences in that island instead of calling the probe's allocating helpers,
+and [M11](#m11-the-account-companion-per-add) runs both against the same controls, so the checks stay the same.
+The parent calls `setpgid(child, child)` as soon as the fork returns, before any deadline can fire, and the child
+calls `setpgid(0, 0)` too, so the group the deadline kills exists even if the child dies before its own call,
+which is the rule the probe's arm 1 states for its worker.
 
-Then it runs the probe's own code on that tmpfs: the wrapper's no-crossing walk from the tmpfs root to the slot with
-the `ObjectId` compare, `fsopen` on `tmpfs` with `fsconfig`, `fsmount` and `move_mount` onto the held slot
+What it runs. The child calls `unshare(CLONE_NEWUSER)`, writes `deny` to `/proc/self/setgroups`, writes one line
+each to `uid_map` and `gid_map` mapping the account's own effective user and group to 0 in the new namespace, then
+calls `unshare(CLONE_NEWNS)`, makes every mount private, and mounts a tmpfs at the scratch directory the parent made
+for the run. Those writes are the ones an unprivileged caller may make: one line, its own effective ID, and
+`setgroups` denied before `gid_map` (`user_namespaces(7)`, the sections on defining the two mappings and on
+`/proc/pid/setgroups`). tmpfs declares `FS_USERNS_MOUNT` and carries fs_context operations, so the descriptor calls
+reach it without a path mount (`mm/shmem.c:5103`, `:5284`, `:5311` and `:5316`, read at v7.3).
+
+Then it walks its own tmpfs and makes the probe's calls there: the no-crossing walk from the tmpfs root to the slot
+with the `ObjectId` compare, `fsopen` on `tmpfs` with `fsconfig`, `fsmount` and `move_mount` onto the held slot
 descriptor, the mount facts read back from `/proc/self/mountinfo`, the four refusal controls, and the move and the
-unmount from a second child it forks. It makes no ZFS call, reads no file content, and mounts nothing outside its
-own namespaces. Its unmount is its own tmpfs mount in its own namespace, and the unmount answer leaves it unbarred
-for the same reason it leaves the probe's arm unbarred: neither is a product mount.
+unmount from a second child it forks, which is safe because the first child is single-threaded by then. It makes no
+ZFS call, reads no file content, and mounts nothing outside its own namespaces. Its unmount is its own tmpfs mount
+in its own namespace, and the unmount answer leaves it unbarred for the same reason it leaves the probe's arm
+unbarred: neither is a product mount.
+
+Where its scratch directory lives, and who removes it. The parent creates it under the account's runtime directory,
+`$XDG_RUNTIME_DIR`, in a subdirectory of its own for the run, the way the wrapper already keeps its own runtime
+state under that directory (`package/git-policy/cli/src/native/service/service_provision.rs:24`). It is not under
+the checkout, the slot tree, the staging folder or the clone parent, so no path mount or unmount touches the tree
+the plan's rule forbids (the [plan][plan], line 275), and it is not under the root-owned record directory. The
+parent removes its subdirectory when the child ends, a kill included; a wrapper killed outright leaves an empty
+directory, because the tmpfs mount inside it died with the child's namespace, and the next preflight removes every
+sibling whose name carries a pid no process holds (`kill(pid, 0)` answering `ESRCH`). Nothing survives a logout,
+which removes `/run/user/<uid>`.
 
 When, and as whom. In the add preflight, after the wrapper's own start gate and before the add's claim, so that a
 refusal leaves no managed object, which is the preflight order the proposal already requires (the
-[proposal][proposal], lines 348 to 355). It runs as the account and never as root; the managed attach itself still
-runs as root in the handler, so the companion is never evidence about that attach.
+[proposal][proposal], lines 348 to 355). `doctor` runs the same check, under the shared preflight the proposal gives
+the two callers (the [proposal][proposal], lines 1152 to 1155), so a reason an add refuses is a reason `doctor`
+prints. It runs as the account and never as root; the managed attach itself still runs as root in the handler, so
+the companion is never evidence about that attach.
 
 What it refuses. A companion arm that ran and failed refuses that add's managed attach, prints one line, and leaves
 an unused slot to the same-dataset reflink or ordinary Git route; it keeps every existing binding and intent. It
-refuses no removal, no reconcile and no other wrapper command, and it never writes the probe's record: `doctor`
-shows the probe's arms and the first attach's outcome, never a companion verdict.
+refuses no removal, no reconcile and no other wrapper command, and it never writes the probe's record: `doctor` runs
+it and prints its own outcome, which is the companion's verdict and is kept apart from the probe's arms and the
+first attach's outcome.
 
 Its deadline. The parent bounds the child with a monotonic deadline and, on expiry, kills the child's process group
 and refuses the managed attach as unproven, which is the same posture the deadline answer gives the probe. No value
-is stated; [M11](#m11-the-account-companion-per-add) measures the arms and sizes it.
+is stated, and step 10 cites the value beside [M11](#m11-the-account-companion-per-add)'s run; until that run
+exists, the companion does not run in the preflight, as [Who runs it, and where](#who-runs-it-and-where) states for
+the probe's own deadline.
 
-Its skip. A host that refuses user namespaces, or has none left, answers `unshare(CLONE_NEWUSER)` with `EPERM`,
-`ENOSPC` or `EUSERS` (`unshare(2)`, ERRORS); `kernel/user_namespace.c:91` to `:96` answers `ENOSPC` when the count
-passes `user.max_user_namespaces`, which `kernel/ucount.c:77` installs. The companion then prints one line naming
-the call, the errno and the two settings it read (`/proc/sys/user/max_user_namespaces` and
-`/proc/sys/kernel/unprivileged_userns_clone`), records its arms as not exercised, and does not refuse the add. That
-is the project's choice: it took a companion whose skip is printed rather than silent, and the unexercised-arm
-answer governs the probe record's arms, not this per-add check. `doctor` prints both settings and says that the
-companion skips while they answer so, so a host cannot lose the check without a printed reason.
+Its skip. Any error from the `unshare(CLONE_NEWUSER)` call itself is a refusal of the user namespace, and the
+companion treats every one of them as a skip: `EPERM`, `ENOSPC`, `EACCES`, `ENOMEM` or any other answer that call
+gives. The two expected here are `ENOSPC`, which `kernel/user_namespace.c:91` sets for both the depth limit and a
+count that passes `user.max_user_namespaces` (`kernel/ucount.c:77` installs the setting), and `EPERM`, which the
+same file sets for a chrooted caller or one without a mapping. `EUSERS` is not among them on any kernel this design
+supports: `unshare(2)` gives it only from Linux 3.11 to Linux 4.8, and `kernel/user_namespace.c` at v7.3 names it
+nowhere. `EACCES` is the third: `create_user_ns` calls `security_create_user_ns` (`:118`), SELinux's hook answers
+`avc_has_perm`, which denies with `EACCES` (`security/selinux/hooks.c:4732` to `:4736`), and AppArmor's
+`aa_profile_ns_perm` returns `aa_check_perms`, whose denial is `EACCES` (`security/apparmor/task.c:374` to `:394`,
+`security/apparmor/lib.c:438` to `:441`). A seccomp filter in an agent sandbox can answer any errno at all, which
+is why the skip is every error from that call and the arms after it are the only ones that can fail. The companion
+then prints one line naming the call, the errno and the two settings it read
+(`/proc/sys/user/max_user_namespaces` and `/proc/sys/kernel/unprivileged_userns_clone`), records its arms as not
+exercised, and does not refuse the add.
+
+That last step, and the printing of the skip, are this design's own choice, not the project's: Q6's option text
+named a skip on a host that refuses user namespaces as one of its costs, so that a skip exists was before the
+project, while the add going ahead after it was not. The choice differs from the direction Q4 chose for the probe's
+arms, where an arm that could not run keeps the route blocked. The reason: the companion touches no ZFS and its
+pass cannot predict the root attach, so a host that refuses user namespaces would lose the whole managed route to a
+check that cannot speak about it, while the root probe's arms and the module gate still bound that route. The
+alternative is Q4's rule applied here: a skipped companion refuses the managed add, and the managed route is then
+off on hosts that refuse user namespaces, with an unused slot taking the reflink or Git route. This design adopts
+the first and marks it open to the project's veto at acceptance; a veto takes the second, and nothing else in the
+design moves. `doctor` prints both settings and the companion's own outcome, so a host cannot lose the check
+without a printed reason.
 
 What it prints. On a failed arm:
 `managed add refused: the account companion's <arm> failed: <call> (errno <n>); this slot takes <route>.`
 On a skip: `account companion skipped: <call> answered <errno>; user namespaces are unavailable here`, followed by
-the values it read, `user.max_user_namespaces=<value>` and `kernel.unprivileged_userns_clone=<value>`. On a pass it
-prints nothing. The lines go to standard error under the design's own reporting rules (the [proposal][proposal],
-lines 755 to 762).
+the values it read, `user.max_user_namespaces=<value>` and `kernel.unprivileged_userns_clone=<value>`, with
+`absent` printed for the second when the running kernel has no such setting, which is every mainline kernel at
+v7.3: the setting is a distribution patch. On a pass it prints nothing. The lines go to standard error under the
+design's own reporting rules (the [proposal][proposal], lines 755 to 762).
 
 What it costs per add, and what sizes that. One fork, two `unshare` calls, two mapping writes, one tmpfs mount and
 its unmount, the walk and its identity compare, the refusal controls, and one more child for the move and the
 unmount, on every managed add. No duration is stated: [M11](#m11-the-account-companion-per-add) measures the cost as
 a ratio to the same add with the companion disabled, interleaved in the same round, with the range between rounds,
-and carries the controls that make that ratio able to fail.
+and carries the controls that make that ratio able to fail; the same run sizes the per-add deadline, which ships
+only with that value beside it.
 
 ### The first real attach's record
 
@@ -997,9 +1054,11 @@ refuses new managed attaches and keeps every other operation ([Q2](#q2-what-a-fa
 It creates no dataset, snapshot, bookmark or property, makes no ZFS ioctl request, starts no service, and writes
 no file outside the record's directory and the tmpfs inside it.
 
-The account companion adds nothing here: it runs in the add's own process, in namespaces of its own, and its tmpfs
-lives and dies with that child. Neither does the first real attach, beyond the one file it writes at the attach's
-end.
+The account companion adds nothing here: it runs in the add's own process, forks its child on the blocking pool,
+and its tmpfs lives and dies with that child's namespace. Its one residue is the empty scratch directory under
+`$XDG_RUNTIME_DIR`, which the parent removes and the next preflight sweeps
+([The account companion](#the-account-companion)). Neither does the first real attach, beyond the one file it
+writes at the attach's end.
 
 ### What it leaves when it fails or is interrupted
 
@@ -1022,6 +1081,11 @@ managed attach. The next boot's probe replaces it, and the next boot starts with
 
 The `first-attach` file has the same started state: a claim carrying the started line and no outcome is read as
 begun and not finished, never as a pass and never as a verdict.
+
+The companion leaves no record and no mount. Its child's namespace dies with it, so the tmpfs mount goes with it and
+the host sees an empty directory; that directory, under `$XDG_RUNTIME_DIR`, is the whole residue, removed by the
+parent when the child ends and by the next preflight after a wrapper kill. A killed child holds no mount outside
+its own namespace and no snapshot, so the probe's residue rules cover it as well.
 
 ### What a refusal prints
 
@@ -1098,9 +1162,10 @@ promotes, never sets a property, never writes a registration or a receipt, never
 never runs from `doctor`, and never offers a force flag. It never reads `.zfs/snapshot` at all: its source is the
 configured name, so the `.zfs` control directory is never opened, and no entry name in it is ever looked up.
 
-The account companion never touches ZFS, the key path or `/dev/zfs`, never runs as root, and mounts only inside the
-user and mount namespaces it makes for itself; it writes no record. The mounts the probe and the companion make
-live only in their own namespaces.
+The account companion never touches ZFS, the key path or `/dev/zfs`, never runs as root, mounts only inside the
+user and mount namespaces it makes for itself, and writes no record; `doctor` runs it and prints its outcome, which
+is the only companion verdict there is. The mounts the probe and the companion make live only in their own
+namespaces.
 
 ## Notes for the plan
 
