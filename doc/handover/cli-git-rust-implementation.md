@@ -40818,7 +40818,18 @@ stated in this entry. What follows from them, as work:
   read once and passed as one argument, which changes the wait's signature for every caller), mutations B and C red, the
   reviewer's stall green; no whole gate. GOING: a narrow integration re-check on Sonnet with one whole gate (brief under
   `~/temp/agent/integration-recheck-git-policy-cli-bounded-wait-after-findings-2026-11-20/`). A buildah folder a run left
-  with mode `d--x------` blocked `rm`; restoring owner permissions removed it.
+  with mode `d--x------` blocked `rm`; restoring owner permissions removed it. THE VET REPORT'S GATE REVIEW (Sonnet) came
+  back not ready (`~/temp/agent/gate-review-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/review.md`): H1 the
+  `btf-rs` recommendation is not one the skill allows (sensitivity unmet, no rating moved; the skill's outcome is
+  conditional rankings and none recommended); H2 the weights are the report's own, not the skill's weight 1 (at weight 1,
+  13 of 58 tests tie or reverse, and `ebeepf` against `pahole` flips at C5 weight 5); M1 no maintenance audit; M2 no
+  auditability measure (`btf-rs` 2,749 lines and 1 `unsafe`; `ebeepf` a 28,769-line loader with 57, its reader 1,926);
+  M3 the tools thinner than equal depth, C3's root premise wrong (the BTF files are mode `0444`); M4 `btf-rs`'s C1 high
+  unsupported; M5 the check-in came after the first twelve queries; M6 the design's Q1 stale. What holds: the archive
+  equals tag `v2.0.1`, the fingerprint reproduces, the consumer rerun passed 183 of 183, no missed reader; new evidence:
+  both libraries build for `aarch64` (build only). GOING: `pi-zfs-layout-checker-reader-vet-report-gate-review-findings-fixed`
+  (cap 400; brief under `~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/`); the
+  owner's question will then be the conditional rankings and the library-or-program choice.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
