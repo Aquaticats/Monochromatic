@@ -264,6 +264,87 @@ impl Drop for Sshd {
 }
 
 /// What:
+///  Make the two keys a control of the wrapper's SSH behaviour uses:
+///  a throwaway host key,
+///  and a client key protected by `phrase` (none for an empty one) which the throwaway `sshd` accepts.
+/// Why:
+///   The account's own keys, its agent and its `known_hosts` stay out of every control,
+///  and each control needs the same three files:
+///  the host key, the client key and the `authorized_keys` that names it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// makeKeys(sshDir, ''); // ssh-keygen -N '' for client_key and host_key, then authorized_keys = client_key.pub
+/// ```
+fn make_ssh_keys(keygen: &Path, ssh_directory: &Path, phrase: &str) {
+    for (name, protection) in [("client_key", phrase), ("host_key", "")] {
+        let key: PathBuf = ssh_directory.join(name);
+        let made: std::process::Output = Command::new(keygen)
+            .args(["-q", "-t", "ed25519", "-N", protection, "-f", key.to_str().expect("a UTF-8 path")])
+            .output()
+            .expect("ssh-keygen starts");
+        assert!(made.status.success(), "ssh-keygen failed: {}", String::from_utf8_lossy(made.stderr.as_slice()));
+    }
+    let authorized: String = std::fs::read_to_string(ssh_directory.join("client_key.pub")).expect("the public key");
+    std::fs::write(ssh_directory.join("authorized_keys"), authorized.as_bytes()).expect("authorized_keys");
+}
+
+/// What:
+///  The options a person's own `GIT_SSH_COMMAND` would carry for a key of the fixture's own,
+///  and nothing of the wrapper's rule.
+/// Why:
+///   `-F none` and `GlobalKnownHostsFile=none` keep the account's own files out:
+///  OpenSSH takes the home directory from the passwd entry and not from `HOME`,
+///  so a `~/.ssh/config` naming an `IdentityFile`, a `ProxyCommand` or an `Include` would change what either arm sees.
+///  `strict` is `no` for the controls that are about the key and `ask` for the control that is about the host key.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// sshArgs(sshDir, identity, port, 'no') // ['-F', 'none', '-i', identity, '-p', port, '-o', 'StrictHostKeyChecking=no', ...]
+/// ```
+fn ssh_arguments(ssh_directory: &Path, identity: &Path, port: u16, strict: &str) -> Vec<OsString> {
+    let known_hosts: PathBuf = ssh_directory.join("known_hosts");
+    return vec![
+        OsString::from("-F"),
+        OsString::from("none"),
+        OsString::from("-i"),
+        identity.to_path_buf().into_os_string(),
+        OsString::from("-p"),
+        OsString::from(port.to_string()),
+        OsString::from("-o"),
+        OsString::from("IdentitiesOnly=yes"),
+        OsString::from("-o"),
+        OsString::from("IdentityAgent=none"),
+        OsString::from("-o"),
+        OsString::from("GlobalKnownHostsFile=none"),
+        OsString::from("-o"),
+        OsString::from(format!("UserKnownHostsFile={}", known_hosts.display())),
+        OsString::from("-o"),
+        OsString::from(format!("StrictHostKeyChecking={strict}")),
+    ];
+}
+
+/// The same options as one `GIT_SSH_COMMAND` value, which is how a person's own command would carry them.
+fn ssh_command(ssh: &Path, arguments: &[OsString]) -> String {
+    let parts: Vec<String> = arguments.iter().map(|part| { return part.to_string_lossy().into_owned(); }).collect();
+    return format!("{} {}", ssh.display(), parts.join(" "));
+}
+
+/// A Git command of the fixture's own, run through the wrapper with the fixture's environment.
+fn git_through_wrapper(fixture: &Fixture, arguments: &[&str]) -> std::process::Output {
+    return Command::new(fixture.root.join("bin/git"))
+        .args(arguments)
+        .env_clear()
+        .env("PATH", wrapper_first_path(fixture))
+        .env("HOME", fixture.root.join("home"))
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .stdin(Stdio::null())
+        .current_dir(fixture.root.as_path())
+        .output()
+        .expect("git starts");
+}
+
+/// What:
 ///  A typed command over `ssh://` at a real terminal asks no passphrase,
 ///  and the control shows that the same terminal does show one when nothing forbids it.
 /// Why:
@@ -290,57 +371,23 @@ fn a_typed_command_over_ssh_at_a_terminal_asks_no_passphrase() {
     };
     let ssh_directory: PathBuf = fixture.root.join("ssh");
     std::fs::create_dir_all(ssh_directory.as_path()).expect("the ssh directory");
-    for (name, phrase) in [("client_key", KEY_PASSPHRASE), ("host_key", "")] {
-        let key: PathBuf = ssh_directory.join(name);
-        let made = Command::new(keygen.as_path())
-            .args(["-q", "-t", "ed25519", "-N", phrase, "-f", key.to_str().expect("a UTF-8 path")])
-            .output()
-            .expect("ssh-keygen starts");
-        assert!(made.status.success(), "ssh-keygen failed: {}", String::from_utf8_lossy(made.stderr.as_slice()));
-    }
-    let authorized: String = std::fs::read_to_string(ssh_directory.join("client_key.pub")).expect("the public key");
-    std::fs::write(ssh_directory.join("authorized_keys"), authorized.as_bytes()).expect("authorized_keys");
+    make_ssh_keys(keygen.as_path(), ssh_directory.as_path(), KEY_PASSPHRASE);
     let port: u16 = free_port();
     let server: Sshd = start_sshd(sshd.as_path(), &fixture, port, ssh_directory.as_path());
 
     // The repository the command reaches, made by the wrapper's own `git init`.
     let served: PathBuf = fixture.root.join("served.git");
-    let made = Command::new(fixture.root.join("bin/git"))
-        .args([OsString::from("init"), OsString::from("--bare"), OsString::from("--quiet"), served.clone().into_os_string()])
-        .env_clear()
-        .env("PATH", wrapper_first_path(&fixture))
-        .env("HOME", fixture.root.join("home"))
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .current_dir(fixture.root.as_path())
-        .output()
-        .expect("git init starts");
+    let served_text: String = served.to_string_lossy().into_owned();
+    let made: std::process::Output = git_through_wrapper(&fixture, &["init", "--bare", "--quiet", served_text.as_str()]);
     assert!(made.status.success(), "git init failed: {}", String::from_utf8_lossy(made.stderr.as_slice()));
-    let url: String = format!("ssh://127.0.0.1:{port}{}", served.display());
+    let url: String = format!("ssh://127.0.0.1:{port}{served_text}");
     let identity: PathBuf = ssh_directory.join("client_key");
-    let known_hosts: PathBuf = ssh_directory.join("known_hosts");
-    let ssh_program: String = ssh.display().to_string();
-    let known_hosts_option: String = format!("UserKnownHostsFile={}", known_hosts.display());
-    let port_number: String = port.to_string();
-    // The options a person's own `GIT_SSH_COMMAND` would carry, and nothing of the wrapper's rule.
-    let ssh_arguments: Vec<OsString> = vec![
-        OsString::from("-i"),
-        identity.into_os_string(),
-        OsString::from("-p"),
-        OsString::from(port_number),
-        OsString::from("-o"),
-        OsString::from("IdentitiesOnly=yes"),
-        OsString::from("-o"),
-        OsString::from("IdentityAgent=none"),
-        OsString::from("-o"),
-        OsString::from(known_hosts_option.as_str()),
-        OsString::from("-o"),
-        OsString::from("StrictHostKeyChecking=no"),
-    ];
+    let options: Vec<OsString> = ssh_arguments(ssh_directory.as_path(), identity.as_path(), port, "no");
 
     // The control: `ssh` alone at the same kind of terminal, with the wrapper's variables absent, asks the question.
     //  Without it, a transcript with no question could mean the terminal cannot show one.
     let control_at: Terminal = terminal();
-    let mut control_arguments: Vec<OsString> = ssh_arguments.clone();
+    let mut control_arguments: Vec<OsString> = options.clone();
     control_arguments.push(OsString::from("127.0.0.1"));
     control_arguments.push(OsString::from("true"));
     let control: AtTerminal = run_at(&fixture, ssh.as_path(), control_arguments.as_slice(), &[], &control_at, Some("Enter passphrase for key"));
@@ -352,7 +399,7 @@ fn a_typed_command_over_ssh_at_a_terminal_asks_no_passphrase() {
 
     // The claim: the same command through the wrapper at a terminal asks nothing and fails at once.
     let at: Terminal = terminal();
-    let ssh_command: String = format!("{ssh_program} {}", ssh_arguments.iter().map(|part| { return part.to_string_lossy().into_owned(); }).collect::<Vec<String>>().join(" "));
+    let ssh_command: String = ssh_command(ssh.as_path(), options.as_slice());
     let wrapped_arguments: Vec<OsString> = vec![OsString::from("ls-remote"), OsString::from(url.as_str())];
     let wrapped: AtTerminal = run_at(
         &fixture,
@@ -374,6 +421,178 @@ fn a_typed_command_over_ssh_at_a_terminal_asks_no_passphrase() {
         wrapped.transcript
     );
     assert!(wrapped.transcript.contains("Permission denied (publickey"), "the connection reached the key and was refused it: {:?}", wrapped.transcript);
+    drop(server);
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A key without a passphrase connects through the wrapper with no agent running,
+///  once at a real terminal and once with no terminal at all.
+/// Why:
+///   The project's answer of 2026-11-20 is "We must support situations in which ssh-agent isn't there":
+///  a key without a passphrase keeps working with no agent, and this control proves it.
+///  The no-prompt rule replaces the account's `SSH_ASKPASS` for these children and forbids every question,
+///  so a key that needs nothing from a person must still reach the server.
+///  No `SSH_AUTH_SOCK` reaches either child:
+///  the environment is built from named values only,
+///  and `-o IdentityAgent=none` keeps OpenSSH from finding an agent by itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(ptyRun(wrapper, ['ls-remote', url]).code).toBe(0); expect(run(wrapper, ['ls-remote', url]).stdout).toContain('refs/tags/probe')
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_key_without_a_passphrase_connects_through_the_wrapper_with_no_agent() {
+    let fixture: Fixture = fixture("ssh-terminal-no-agent");
+    let (Some(ssh), Some(keygen), Some(sshd)) = (program("ssh"), program("ssh-keygen"), program("sshd")) else {
+        eprintln!("skipped: ssh, ssh-keygen or sshd is not installed, so no real SSH connection was exercised");
+        remove_settled(&fixture);
+        return;
+    };
+    let ssh_directory: PathBuf = fixture.root.join("ssh");
+    std::fs::create_dir_all(ssh_directory.as_path()).expect("the ssh directory");
+    // An empty passphrase leaves the key protected by nothing, so no agent has to hold it.
+    make_ssh_keys(keygen.as_path(), ssh_directory.as_path(), "");
+    let port: u16 = free_port();
+    let server: Sshd = start_sshd(sshd.as_path(), &fixture, port, ssh_directory.as_path());
+
+    // The repository the command lists, with one ref to name, made by the wrapper's own Git.
+    let served: PathBuf = fixture.root.join("served.git");
+    let served_text: String = served.to_string_lossy().into_owned();
+    let made: std::process::Output = git_through_wrapper(&fixture, &["init", "--bare", "--quiet", served_text.as_str()]);
+    assert!(made.status.success(), "git init failed: {}", String::from_utf8_lossy(made.stderr.as_slice()));
+    let written: std::process::Output = git_through_wrapper(&fixture, &["-C", served_text.as_str(), "hash-object", "-w", "--stdin"]);
+    assert!(written.status.success(), "hash-object failed: {}", String::from_utf8_lossy(written.stderr.as_slice()));
+    let object: String = String::from_utf8_lossy(written.stdout.as_slice()).trim().to_owned();
+    // A tag may name any object, while a branch must name a commit, and the listing only needs a ref to print.
+    let pointed: std::process::Output =
+        git_through_wrapper(&fixture, &["-C", served_text.as_str(), "update-ref", "refs/tags/probe", object.as_str()]);
+    assert!(pointed.status.success(), "update-ref failed: {}", String::from_utf8_lossy(pointed.stderr.as_slice()));
+    let url: String = format!("ssh://127.0.0.1:{port}{served_text}");
+    let identity: PathBuf = ssh_directory.join("client_key");
+    let options: Vec<OsString> = ssh_arguments(ssh_directory.as_path(), identity.as_path(), port, "no");
+    let command_line: String = ssh_command(ssh.as_path(), options.as_slice());
+    let wrapped_arguments: Vec<OsString> = vec![OsString::from("ls-remote"), OsString::from(url.as_str())];
+
+    // Arm one: a real terminal, which is where a passphrase question would be asked.
+    let at: Terminal = terminal();
+    let at_terminal: AtTerminal = run_at(
+        &fixture,
+        fixture.root.join("bin/git").as_path(),
+        wrapped_arguments.as_slice(),
+        &[("GIT_SSH_COMMAND", command_line.as_str())],
+        &at,
+        None,
+    );
+    assert_eq!(
+        at_terminal.code,
+        Some(0),
+        "the key without a passphrase connected with no agent at a terminal: {:?}",
+        at_terminal.transcript
+    );
+    assert!(!at_terminal.transcript.contains("Permission denied"), "the key was accepted: {:?}", at_terminal.transcript);
+    assert!(!at_terminal.transcript.to_lowercase().contains("passphrase"), "no passphrase was asked for: {:?}", at_terminal.transcript);
+
+    // Arm two: no terminal at all, where a command that asked would find nothing to read.
+    let mut command: Command = bounded_for(&fixture, fixture.root.join("bin/git").as_path(), wrapper_first_path(&fixture).as_os_str(), TERMINAL_BOUND_SECONDS);
+    command
+        .args(wrapped_arguments.as_slice())
+        .env("GIT_SSH_COMMAND", command_line.as_str())
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    assert!(
+        !command.get_envs().any(|(name, _value)| { return name.to_string_lossy() == "SSH_AUTH_SOCK"; }),
+        "the child starts with no agent socket at all"
+    );
+    let without_terminal: std::process::Output = command.output().expect("the command without a terminal starts");
+    assert_eq!(
+        without_terminal.status.code(),
+        Some(0),
+        "the key without a passphrase connected with no agent and no terminal: {}",
+        String::from_utf8_lossy(without_terminal.stderr.as_slice())
+    );
+    assert!(
+        String::from_utf8_lossy(without_terminal.stdout.as_slice()).contains("refs/tags/probe"),
+        "the connection listed the ref: {}",
+        String::from_utf8_lossy(without_terminal.stdout.as_slice())
+    );
+    drop(server);
+    remove_settled(&fixture);
+}
+
+/// What:
+///  An unknown host key is refused at once through the wrapper at a terminal,
+///  and the same kind of terminal shows the question when nothing forbids it.
+/// Why:
+///   `SSH_ASKPASS_REQUIRE=force` sends OpenSSH's yes/no question for an unknown host key to a program that answers nothing,
+///  and an empty answer is not "yes",
+///  so the connection is refused before any login (`confirm`, `sshconnect.c` at `V_10_6_P2` lines 603 to 627).
+///  The project's answer of 2026-11-20 keeps that refusal and puts the way out in the words the wrapper owns,
+///  which plain `ssh` at this same terminal still shows a question.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(control.transcript).toContain('Are you sure you want to continue connecting'); expect(wrapped.transcript).toContain('Host key verification failed.')
+/// ```
+#[cfg(unix)]
+#[test]
+fn an_unknown_host_key_is_refused_at_a_terminal_and_never_asked() {
+    let fixture: Fixture = fixture("ssh-terminal-host-key");
+    let (Some(ssh), Some(keygen), Some(sshd)) = (program("ssh"), program("ssh-keygen"), program("sshd")) else {
+        eprintln!("skipped: ssh, ssh-keygen or sshd is not installed, so no real SSH connection was exercised");
+        remove_settled(&fixture);
+        return;
+    };
+    let ssh_directory: PathBuf = fixture.root.join("ssh");
+    std::fs::create_dir_all(ssh_directory.as_path()).expect("the ssh directory");
+    make_ssh_keys(keygen.as_path(), ssh_directory.as_path(), "");
+    let port: u16 = free_port();
+    let server: Sshd = start_sshd(sshd.as_path(), &fixture, port, ssh_directory.as_path());
+    // No `known_hosts` entry is ever written, so the server's key is unknown to both arms.
+    let identity: PathBuf = ssh_directory.join("client_key");
+    let options: Vec<OsString> = ssh_arguments(ssh_directory.as_path(), identity.as_path(), port, "ask");
+    let command_line: String = ssh_command(ssh.as_path(), options.as_slice());
+
+    // The control: `ssh` alone at the same kind of terminal, with the wrapper's variables absent, asks the question.
+    let control_at: Terminal = terminal();
+    let mut control_arguments: Vec<OsString> = options.clone();
+    control_arguments.push(OsString::from("127.0.0.1"));
+    control_arguments.push(OsString::from("true"));
+    let control: AtTerminal = run_at(
+        &fixture,
+        ssh.as_path(),
+        control_arguments.as_slice(),
+        &[],
+        &control_at,
+        Some("Are you sure you want to continue connecting"),
+    );
+    assert!(
+        control.transcript.contains("Are you sure you want to continue connecting"),
+        "the terminal shows OpenSSH's host-key question when nothing forbids it: {:?}",
+        control.transcript
+    );
+
+    // The claim: the same terminal, through the wrapper, is refused before any login and never asked.
+    let at: Terminal = terminal();
+    let url: String = format!("ssh://127.0.0.1:{port}/served.git");
+    let wrapped_arguments: Vec<OsString> = vec![OsString::from("ls-remote"), OsString::from(url.as_str())];
+    let wrapped: AtTerminal = run_at(
+        &fixture,
+        fixture.root.join("bin/git").as_path(),
+        wrapped_arguments.as_slice(),
+        &[("GIT_SSH_COMMAND", command_line.as_str())],
+        &at,
+        None,
+    );
+    assert!(!wrapped.transcript.contains("Are you sure"), "the host key was never asked about: {:?}", wrapped.transcript);
+    assert!(
+        wrapped.transcript.contains("Host key verification failed"),
+        "OpenSSH's refusal names the host key: {:?}",
+        wrapped.transcript
+    );
+    assert_eq!(wrapped.code, Some(128), "the connection failed at once instead of waiting: {:?}", wrapped.transcript);
     drop(server);
     remove_settled(&fixture);
 }
