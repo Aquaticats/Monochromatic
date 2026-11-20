@@ -2478,6 +2478,40 @@ re-admit `libbpf-rs` and a `dlopen` of `libbpf`, which is a choice for the owner
 - `object`, `goblin`, `scroll` and `libelf`: they expose an ELF section or a byte stream, not BTF
   types, so they are building blocks of the in-house reader, not candidates.
 - `trailofbits/btfparse` (C++): discovery found it; a C++ build fails H3.
+- The `libabigail` C++ ABI checker has a BTF front-end that calls libbpf's `btf__parse` for a base
+  and `btf__parse_split` for a module,
+  as its own commit `904c8eafccab` describes.
+  A C++ build and a libbpf link fail H3,
+  and the parser would be libbpf's,
+  which this ledger already refuses on H3.
+- Three Go libraries arrived with the class 3 pages:
+  `cilium/ebpf`,
+  whose `btf/` package holds a split reader;
+  `libbpfgo`,
+  Go bindings over libbpf's C library;
+  and `gbpf`,
+  a Go module the provider returned beside them.
+  The wrapper is Rust,
+  so H3 fails for want of any link path.
+- `coolbpf` is a C platform that wraps libbpf,
+  and its own README requires `elfutils-devel`,
+  `gcc` for the library and `clang` with `llvm` for the tools.
+  H3 fails,
+  and its parser would be libbpf's.
+- `bpf-compatible` and `bpf-compatible-rs` are BTF-portability helpers that resolve BTF files from
+  the btfhub archive;
+  `bpf-compatible-rs` 0.1.3's `src/lib.rs` holds archive-path helpers and no type model at all,
+  so the category fails.
+- `aquasecurity/btfhub` and the `btfhub-archive` repositories distribute BTF files rather than
+  parsing them,
+  so they are data sources.
+- `trailofbits/nate` is a Rust DWARF parser and not a BTF reader,
+  so the category fails.
+- `vock` is a Debian ITP for a command that reports which kernel code ran,
+  using KCOV or hardware tracing;
+  it is a tool rather than a parser.
+- `parttimenerd/btfparse` is a fork of `trailofbits/btfparse`,
+  which this list's `trailofbits/btfparse` bullet already refuses for its C++ build.
 
 ### Discovery record
 
@@ -2850,7 +2884,7 @@ Each list therefore ends on the provider's exhaustion rather than on a page cap.
   `ebpf-common`,
   `ebpfault`,
   and `bpf_tutorials_code`.
-  None is new.
+  None is new as a candidate.
 - `eunomia-bpf`:
   157 of 157.
   The BTF-adjacent ones are `bpf-compatible` (C),
@@ -2862,7 +2896,7 @@ Each list therefore ends on the provider's exhaustion rather than on a page cap.
   a `bpftool` mirror,
   a `libbpf-rs` fork,
   and a `vmlinux` mirror.
-  None is new.
+  None is new as a candidate.
 
 The boards came from two routes.
 `organization { projectsV2(first: 1) { totalCount } }` answers 1 for each of the three
