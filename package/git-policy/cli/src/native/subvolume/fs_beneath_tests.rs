@@ -8,6 +8,7 @@
 
 use super::*;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
+use crate::fs_beneath_walk_chain::open_directory_beneath;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{fixture, remove};
 use std::os::unix::ffi::OsStrExt;
@@ -262,63 +263,6 @@ fn names_are_exchanged_and_renamed_without_replacing() {
     assert_eq!(std::fs::read(root.join("b")).expect("kept"), b"a");
     rename_at(&held, OsStr::new("a"), &held, OsStr::new("c"), false).expect("rename to a free name");
     assert!(root.join("c").exists() && !root.join("a").exists());
-    remove(root.as_path());
-}
-
-/// What:
-///  A chain of directories is opened one component at a time,
-///  each handle keeps naming its own folder,
-///  and a link planted at any component stops the walk there.
-/// Why:
-///  The chain is what proves a parent folder's identity and holds the target folder,
-///  so a walk that kept only the last handle would let a rename between two lookups pass unseen.
-#[test]
-fn a_chain_keeps_a_handle_per_folder_and_stops_at_a_link() {
-    let root: PathBuf = fixture("beneath-chain");
-    std::fs::create_dir_all(root.join("one/two/three")).expect("tree");
-    std::fs::create_dir_all(root.join("elsewhere/two")).expect("elsewhere");
-    let held: File = open_directory(root.as_path()).expect("root");
-    let names: Vec<OsString> = [OsString::from("one"), OsString::from("two"), OsString::from("three")].to_vec();
-    let chain: Vec<File> = open_chain_beneath(&held, &names).expect("chain");
-    assert_eq!(chain.len(), names.len(), "one handle per component");
-    let mut named_path: PathBuf = root.clone();
-    for (name, handle) in ["one", "two", "three"].iter().zip(chain.iter()) {
-        named_path = named_path.join(name);
-        let named: std::fs::Metadata = std::fs::metadata(&named_path).expect("named");
-        let walked: std::fs::Metadata = handle.metadata().expect("walked");
-        assert_eq!((walked.dev(), walked.ino()), (named.dev(), named.ino()), "{}", named_path.display());
-    }
-    // The first handle still names the folder it was opened on after the folder moves.
-    std::fs::rename(root.join("one"), root.join("moved-one")).expect("rename");
-    assert_eq!(identity_of(&chain[0]).expect("identity"), identity_at(&held, OsStr::new("moved-one")).expect("moved"));
-    assert!(open_chain_beneath(&held, &[OsString::from("one"), OsString::from("two")]).is_err(), "the old name is gone");
-    // A link at the second component is refused, and the refusal names its position.
-    std::os::unix::fs::symlink(root.join("elsewhere/two"), root.join("moved-one/two-linked")).expect("link");
-    let refused: ChainRefusal = open_chain_beneath(&held, &[OsString::from("moved-one"), OsString::from("two-linked")]).expect_err("link in the way");
-    assert!(matches!(refused, ChainRefusal::Link { step: 1 }), "{refused:?}");
-    let empty: Vec<OsString> = Vec::new();
-    assert!(open_chain_beneath(&held, &empty).expect("nothing to walk").is_empty());
-    remove(root.as_path());
-}
-
-/// What:
-///  The last hop of a walk may be a mount point,
-///  while a link is still refused there,
-///  and the walk above it is unchanged.
-/// Why:
-///  Reading the mount a previous attach put at a slot needs the mounted root;
-///  following a link to it would reach a folder the account chose.
-#[test]
-fn the_last_hop_may_be_a_mount_point_and_never_a_link() {
-    let root: PathBuf = fixture("beneath-mount-hop");
-    std::fs::create_dir_all(root.join("real/inner")).expect("tree");
-    std::fs::create_dir_all(root.join("elsewhere")).expect("elsewhere");
-    std::os::unix::fs::symlink(root.join("elsewhere"), root.join("real/linked")).expect("link");
-    let held: File = open_directory(root.join("real").as_path()).expect("root");
-    let inner: File = open_directory_at_a_mount(&held, OsStr::new("inner")).expect("a plain folder is opened as before");
-    assert_eq!(identity_of(&inner).expect("identity"), identity_at(&held, OsStr::new("inner")).expect("named"));
-    assert!(open_directory_at_a_mount(&held, OsStr::new("linked")).is_err(), "a link is refused at the last hop too");
-    assert!(open_directory_at_a_mount(&held, OsStr::new("../real")).is_err(), "a name with a slash is no component");
     remove(root.as_path());
 }
 

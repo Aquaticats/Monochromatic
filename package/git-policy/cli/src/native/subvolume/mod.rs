@@ -46,6 +46,14 @@ pub mod fs_clone_exchange;
 #[cfg(target_os = "linux")]
 pub mod fs_beneath;
 
+/// What a held descriptor says about the mount it is on and the path the kernel finds at it now.
+#[cfg(target_os = "linux")]
+pub mod fs_beneath_mount_facts;
+
+/// The walk down a chain of one-name hops, and the last hop that may end on a mount.
+#[cfg(target_os = "linux")]
+pub mod fs_beneath_walk_chain;
+
 /// The directories a path walk has already opened,
 /// kept as one chain from the root,
 /// so a walk over paths in order opens each directory once.

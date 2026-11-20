@@ -19,7 +19,8 @@
 
 use crate::worktree_clean_content::ContentJudge;
 use crate::worktree_clean_content::unmodelled;
-use crate::fs_beneath::{open_directory_beneath, open_file_at};
+use crate::fs_beneath::open_file_at;
+use crate::fs_beneath_walk_chain::open_directory_beneath;
 use crate::repo_read_config_list::list_config;
 use crate::repo_read_config_text::{ConfigEntry, last_entry};
 use crate::worktree_attributes::{may_apply, parse_attribute_lines};

@@ -318,7 +318,7 @@ fn a_trash_whose_record_cannot_be_written_is_emptied_before_the_rung_returns() {
     std::fs::create_dir_all(worktree.join(crate::worktree_trash::TRASH_PARENT).join(&name).join("d0/payload")).expect("an entry");
     let held: std::fs::File = crate::fs_beneath::open_root(worktree.as_path()).expect("the worktree");
     let names: Vec<std::ffi::OsString> = crate::fs_beneath::plain_components(Path::new(crate::worktree_trash::TRASH_PARENT)).expect("a plain parent");
-    let parent: std::fs::File = crate::fs_beneath::open_directory_beneath(&held, names.as_slice()).expect("the trash parent");
+    let parent: std::fs::File = crate::fs_beneath_walk_chain::open_directory_beneath(&held, names.as_slice()).expect("the trash parent");
     let trash: std::fs::File = crate::fs_beneath::open_directory_at(&parent, std::ffi::OsStr::new(&name)).expect("the trash");
     let manifest: TrashManifest = TrashManifest {
         name: name.clone(),

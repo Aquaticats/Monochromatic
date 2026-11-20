@@ -33,7 +33,8 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::fs_beneath::{ObjectId, open_directory_beneath, open_root, plain_components};
+use crate::fs_beneath::{ObjectId, open_root, plain_components};
+use crate::fs_beneath_walk_chain::open_directory_beneath;
 use crate::fs_kind::{is_stand_in, is_subvolume_root};
 use crate::path_bytes::path_bytes_of;
 use crate::worktree_clean::stored_stats;
