@@ -561,9 +561,10 @@ the pick is not made here.
   The gate review's four scripts were re-run against the same three tagged copies and reproduce its
   counts, and the control run is recorded under [The prose checks](#the-prose-checks).
   No product file, no plan step and no proposal step is edited here.
-- `2026-11-19T22:33:00-05:00`, commit `b940ad1489` at 22:31:12, which applies the findings, and
-  the commit that carries this entry, which changes only this record and the `main` commit its
-  locators name: the revision that answers the third gate re-check, kept at
+- `2026-11-19T22:36:00-05:00`, commit `b940ad1489` at 22:31:12, which applies the findings,
+  `9075aab4bf` at 22:33:00, which names the `main` commit the locators were re-measured at and
+  narrows two quote spans, and the commit that carries this entry, which changes only this record:
+  the revision that answers the third gate re-check, kept at
   `/home/user/temp/agent/zfs-runtime-layout-checker-design-third-revision-gate-recheck-2026-11-19/keep/review.md`.
   That re-check is independent of this file's author (rule `IRW`) and is not an approval; it found no
   high finding, two mediums and nine lows, and called the file not ready for the project.
@@ -814,13 +815,13 @@ dashes 0, spaced hyphens 5, long lines 0 with the longest at 116, tables 0, head
 positional words 25, emphasis 0, marker padding 0, digit-plus-noun hits 67 and link problems 0,
 and ALL CAPS words went from 15 to 19 for the extra mentions of the quoted markers.
 Bare dates went from 60 to 61 for one more `([Answers of 2026-11-19](#answers-of-2026-11-19))`
-link, and count words from 216 to 249 as the file grew.
+link, and count words from 216 to 250 as the file grew.
 
 Control: the same checker on a copy in this revision's scratch folder with one injected defect per
 prose rule moved every count it targets: dashes 0 to 1, spaced hyphens 5 to 6, long lines 0 to 1
 with the longest at 220, tables 0 to 2, heading issues 0 to 4, positional words 25 to 26,
 emphasis 0 to 1, ALL CAPS words 19 to 20, marker padding 0 to 1, bare dates 61 to 62, count words
-249 to 251 and digit-plus-noun hits 67 to 68.
+250 to 252 and digit-plus-noun hits 67 to 68.
 Link problems rose from 0 to 26: 22 of them are the copy's own folder breaking the relative links to
 the sibling design files, and the other four are the injected missing anchor, the injected link to
 a file that does not exist, and the injected unused definition, which counts once as unused and
