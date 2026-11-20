@@ -852,6 +852,10 @@ function gateVersionArm(options: Options): void {
     'path.write_bytes(data.replace(old, b"2.4.4-2\\x00"))',
     'PY',
     'systemctl stop zfs-zed.service zfs-mount.service zfs-load-module.service 2>/dev/null || true',
+    `export LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib`,
+    `export PATH=${OPENZFS_PATH}`,
+    // The run step leaves the delegated account's pool in place for its suite, and a loaded pool holds the module.
+    'for pool in $(zpool list -H -o name 2>/dev/null); do zpool destroy -f "$pool"; done',
     'if test -d /sys/module/zfs; then modprobe --remove zfs || true; fi',
     'if test -d /sys/module/spl; then modprobe --remove spl || true; fi',
     'insmod "/lib/modules/$kernel/extra/spl.ko"',
