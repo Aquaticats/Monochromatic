@@ -814,10 +814,38 @@ the pick is not made here.
   with fingerprint `55c2be0183adaa6fbad912f852fb045a915c1593b344aa10095aa71bdec4677f`,
   and it recommends `btf-rs` 2.0.1 with the `aarch64` target unrun and the start cost
   unmeasured beside that recommendation.
+  That recommendation is superseded by the revision of `2026-11-20T18:53:17-05:00`,
+  which gives a conditional ranking and recommends none.
   It makes two changes here:
   [The vet artifacts this brief could not write](#the-vet-artifacts-this-brief-could-not-write)
   now names the report,
   and [Q1](#q1-which-reader-parses-the-module-btf) names it and says the pick is the project's.
+  No candidate is adopted,
+  no crate is added to a manifest,
+  no decision record is edited,
+  and no ranking moves.
+
+- `2026-11-20T18:53:17-05:00`,
+  the time this entry was written,
+  which no commit can carry.
+  The commits that carry the body this entry records are
+  `e83c0de1c3` at 2026-11-20T18:53:00-05:00,
+  which is the report,
+  and `2dabc04b5b` at 2026-11-20T18:53:11-05:00,
+  which is this file.
+  The commit that carries this sentence names them.
+  This is the revision that answers the gate review of the vet report,
+  written on Sonnet,
+  a different vendor from the report's author,
+  and kept at
+  `/home/user/temp/agent/gate-review-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/review.md`.
+  It makes three changes here:
+  [Q1](#q1-which-reader-parses-the-module-btf) says the report recommends none and gives its
+  conditional result;
+  option 1 stops calling itself the only eligible library and the widened-mask scenario names
+  options 3 and 4;
+  and [The check-in of 2026-11-20](#the-check-in-of-2026-11-20) says when that check-in was asked
+  relative to the twelve queries already run.
   No candidate is adopted,
   no crate is added to a manifest,
   no decision record is edited,
