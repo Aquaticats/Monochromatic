@@ -554,8 +554,9 @@ read-only reads named.
   stays, becomes the administrator's, and `doctor` prints it. The risk is inherited rather than this design's: the
   accepted proposal records and rechecks "device, inode, UID, permissions and access/default ACLs" from opened folders
   in durable root records ([proposal][proposal], "Descriptor mount and unmount"), and the pin keeps the mount root's
-  device and inode ("Proposals the owner settled", accepted with "Veto none"). M6's device-across-a-reboot arm is the
-  measurement that settles it.
+  inode and the device of the boot that wrote it ("Proposals the owner settled", accepted with "Veto none"), which
+  is why the pin compares no device across a boot. M6's device-across-a-reboot arm settles the record's field, and it
+  runs a staging step after the reboot as well, so the pin's comparison is seen not to be what fails there.
 
 ## The parts that need a design
 
@@ -574,10 +575,11 @@ clone, so two removals of one clone cannot share a folder and two clones cannot 
 filename: it is data in the receipt and in the claim ("The staging claim").
 
 The path from the pinned home to the folder crosses one mount, `~/.cache`, and that crossing is the deliberate one:
-the descriptor on the home reaches the dataset's mount, whose source and mount ID are checked against the pin, and
-every walk beneath that descriptor crosses nothing else, which is why `open_directory_at`'s `EXDEV` (F17) is the
-right refusal for a walk that must not cross and the wrong call for the one crossing that is wanted (F1, F28, and the
-accepted hop of [proposal][proposal], "Descriptor mount and unmount": "Omit `RESOLVE_NO_XDEV` only for that hop").
+the descriptor on the home reaches the dataset's mount, whose source and root inode are checked against the pin, and
+whose mount ID is checked against the `user-cache` row, and every walk beneath that descriptor crosses nothing else,
+which is why `open_directory_at`'s `EXDEV` (F17) is the right refusal for a walk that must not cross and the wrong
+call for the one crossing that is wanted (F1, F28, and the accepted hop of [proposal][proposal], "Descriptor mount
+and unmount": "Omit `RESOLVE_NO_XDEV` only for that hop").
 
 The handler's pre-bind check is then about the folder and its own record, not about the claim: a directory owned by
 the pinned UID, at the mode F1 records, empty, named exactly the derived component, reached under the `~/.cache`
@@ -832,8 +834,8 @@ stated threat model may make unnecessary" rather than as something the sentence 
 A bind made before `zpcachyos/nosnap/user-cache` mounts lands on the home underlay and is hidden when the dataset
 mounts later (F12). Nothing orders the two today, and the design's open item says so. Any way must either refuse to
 bind until the recorded mount source is present or be created after that mount exists. The pin is the dataset's
-source (`zpcachyos/nosnap/user-cache`) and the identity of the mount root under it, and never a mount ID across a
-boot (L10).
+source (`zpcachyos/nosnap/user-cache`) and the inode of the mount root under it, which are the fields "Proposals
+the owner settled" says every check compares, and never a mount ID across a boot (L10).
 
 ## Ways to meet it
 
@@ -844,12 +846,12 @@ that cost openly. Costs are enumerated work, not sizes or times; none is measure
 
 ### Way A: a claimed, depth-one folder per removal, bound and made private for that removal
 
-- The wrapper checks `~/.cache`'s mount source against the pin of "Proposals the owner settled" before it creates
+- The wrapper checks `~/.cache`'s mount against the pin of "Proposals the owner settled" before it creates
   anything, so a missing or replaced `user-cache` mount writes no entry on the home underlay (F12), then reads the
   clone's dataset GUID, creates `<home>/.cache/monochromatic-git-policy-cli-staging-<guid>` once per removal, at the
   mode F1 records, and claims it in a staging claim of its own kind ("The staging claim") before the folder exists.
   The component is the clone's GUID, never the intent's nonce, and the handler derives the same one (F15, F33).
-- The handler opens `~/.cache` by descriptor from the pinned home, checks the mount's source against the pin, opens
+- The handler opens `~/.cache` by descriptor from the pinned home, checks the mount against the pin, opens
   the folder by `openat2` under that descriptor with `O_PATH | O_DIRECTORY` and with `RESOLVE_BENEATH`,
   `RESOLVE_NO_SYMLINKS`, `RESOLVE_NO_MAGICLINKS` and `RESOLVE_NO_XDEV`, the last refusing `EXDEV` when a mount already
   covers the folder (F17), and keeps that descriptor, which is on the `user-cache` mount (F10, F17, F28). It then
@@ -1299,11 +1301,14 @@ Set up a clone at a slot, a private bind on a depth-one staging folder, and the 
   proves the descriptor kind. The host's own kernel takes the two tests the other way round: at `v7.3` the descriptor
   is taken first (`fs/fhandle.c:384`) and the capability test follows it (`:389` to `:392`), so on that kernel this
   arm refuses `EBADF` with an `O_PATH` `mount_fd` and `EPERM` with the `O_RDONLY` one, and the arm records which
-  kernel it ran and which errno it saw. Then run a binding invocation for the same clone from the same hardened unit,
-  so it meets that current-boot record rather than a sweep state: assert its first `open_by_handle_at` refuses
-  `EPERM` on either tag, because the `mount_fd` is `O_RDONLY` and the capability test refuses it, and that the handler
-  then refuses before its bind, names the failed step, and leaves the clone at its slot with nothing bound. Control:
-  the same removal from a unit that keeps both capabilities, which binds and proceeds.
+  kernel it ran and which errno it saw. Then run a binding invocation for the same clone from the same hardened
+  unit, in the state a handler killed between the record's write and its first bind leaves: the record of this boot
+  stands, no bind stands, and the clone is at its slot. Assert its first `open_by_handle_at` refuses
+  `EPERM` on either tag, because the `mount_fd` is `O_RDONLY` and the capability test refuses it, that the handler
+  voids nothing on that failure, because a failure other than `ESTALE` refuses rather than voiding, and that it
+  therefore refuses before its bind, names the failed step, and leaves the clone at its slot with nothing bound.
+  Control: the same state and the same removal from a unit that keeps both capabilities, whose handle resolves, so it
+  voids nothing, rewrites the record and binds.
 - A folder substituted from a foreign namespace: an account process in a private mount namespace created before the
   bind removes the folder and makes a new one of the same name, then the sweep runs. Assert `open_by_handle_at`
   refuses `ESTALE` (F29), that no namespace holds a row for the bind or the clone because the removal detached every
@@ -1343,9 +1348,11 @@ Set up a clone at a slot, a private bind on a depth-one staging folder, and the 
   against that record. Assert first that the guest's `st_dev` for the fixture home's `.cache` is the number it was
   before the reboot, and record both numbers where it is not; then assert the settlement's outcome follows that
   comparison: the folder settled where the number held, and kept, reported and printed by `doctor` where it changed,
-  which is L14's fail-closed case. Control: the same settlement within one boot, where the number cannot have
-  changed, so an arm that settles in both runs has shown nothing about the field; and the other-boot arm, whose
-  record describes a folder the same boot can still see.
+  which is L14's fail-closed case. Then, whichever way the settlement went, run a removal for that clone and assert
+  that its staging step binds the folder, because the pin compares the source and the mount root's inode and not the
+  device the reboot changed; record the pin's fields beside the two numbers. Control: the same settlement within one
+  boot, where the number cannot have changed, so an arm that settles in both runs has shown nothing about the field;
+  and the other-boot arm, whose record describes a folder the same boot can still see.
 - A record whose folder is gone: remove the folder from a foreign namespace, or let an account cleanup delete it,
   and leave the record, then run a removal for that clone. Assert the wrapper creates the folder, the handler reads
   the record, its handle gives `ESTALE` (F29), no row in the handler's mount table names the folder path, the handler
@@ -1712,16 +1719,21 @@ descriptor re-obtained from the handle on the second question's answer, and the 
 Every entry is now the design. The list stays because each entry names what the design decides beyond the accepted
 text.
 
-- Pinning the `user-cache` mount: the handler records the dataset's source and the mount root's device and inode,
-  and refuses to create a bind when the mount at `~/.cache` is not that source. The pin is one key of the
-  root-controlled `/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc` the proposal keeps root's
+- Pinning the `user-cache` mount: the handler records the dataset's source and the inode of the mount root under it,
+  and the device the boot that wrote the pin read at that root, and each check refuses when the mount at `~/.cache` is
+  not that source or the inode of its root is not the recorded one. Those two fields are what every check compares, at
+  boot reconcile, before every bind, and in the wrapper before it creates a folder, and this entry is the one place
+  that says which fields those are. The device is recorded for `doctor` to print and is never compared, because it is
+  the anonymous per-mount minor L14 names, whose value a reboot may change, so no durable root key can gate on it; no
+  check compares a mount ID (L10). The pin is one key of the root-controlled
+  `/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc` the proposal keeps root's
   ([proposal][proposal], "ZED reconciliation and mount safety"); the handler reads it before every bind, the boot
   reconcile reads it before it verifies staging, and the wrapper reads it before it creates a folder. This is new
   root configuration the accepted design does not pin, and it is what makes F12's ordering checkable rather than
   assumed. The proposal owes the boot-time shape of the same check ("Test staging setup at boot and refuse shared or
   replaced staging and checkout mounts until a private setup is verified"), and this design meets it by verifying the
   pin at boot reconcile and by verifying each removal's bind and the checkout's propagation before each move.
-  Accepted, veto none.
+  Accepted, veto none, and the fields the checks compare are the writer's, stated in this entry alone.
 - Reading the staging location from the Pinned UID's passwd home (A2), rather than from an environment variable a
   root handler does not have. Accepted, veto none.
 - Reading `umount2` on a descriptor's `/proc` path as an act on the held descriptor rather than on a path. The
@@ -1844,7 +1856,8 @@ own addition.
   Ranking a > d > c > b: a > d because a needs no wait and d makes a removal wait for one settlement; d > c because d
   still settles itself once, where c needs a person; c > b because b promises a settlement that may never come. Both
   guards need the host namespace: a wrapper whose namespace holds a private copy of `user-cache` that predates the
-  bind is the case L13 records, and no arm measures that scene.
+  bind is the case L13 records, and no arm measures that scene. The identity that settlement compares is the one L14
+  says a reboot may not leave in place.
 - How the accepted no-implicit-remount default covers the rollback. The design reads the rollback as the accepted
   "Misplaced attach" rule applied within the invocation that made the move, so it is no exception, and "the
   exception" the default records stays the checked reattach the project answered for. Options: (a) this reading,
@@ -1897,7 +1910,7 @@ because the design would lose a refusal that its arms currently assert, and two 
   third question's answer of 2026-11-19 ("Move it back at once (Recommended)") relies on the post-move check and the
   rollback, so taking this entry up reverses that answer too, which is the project's to decide.
 - The `user-cache` pin. A root configuration key, a boot-reconcile check and a per-removal check against the dataset's
-  source and the mount root's identity exist because a bind made before that dataset mounts lands on the home underlay
+  source and the mount root's inode exist because a bind made before that dataset mounts lands on the home underlay
   (F12). What it costs: one new root key, one boot step, two checks per removal and M5's three arms. What removing it
   would simplify: no root configuration for staging, no boot ordering step, and no per-removal source comparison.
   This one is not purely a defence against the account: it also catches a mount ordering accident, which the trusted
@@ -2100,16 +2113,16 @@ the entry says what they add, so the name stays the revision's first commit rath
 
 - Linux, upstream tag `v6.8`, files fetched by URL at that tag: `fs/namespace.c`, `fs/namei.c`, `fs/pnode.c`,
   `fs/open.c`, `fs/dcache.c`, `fs/proc/fd.c`, `fs/proc/base.c`, `fs/proc_namespace.c`, `fs/exportfs/expfs.c`,
-  `include/linux/exportfs.h`, `include/linux/namei.h`, `include/uapi/linux/mount.h`, `fs/file.c`, `fs/sync.c` and
-  `fs/fhandle.c`. The `fs/fhandle.c` lines this design cites are `:15` to `:75`, `:97` to `:113`, `:118` to `:135`,
-  `:142` to `:165`, `:170` to `:186`, `:235` and `:258` to `:266`. At `v7.3`, also read at that tag, they are `:170`
-  to `:197`, `:265` to `:282`, which carries the `ESTALE` normalization in `do_handle_to_path`, `:317` to `:362` and
-  `:384` to `:392`, and they are what the host kernel's order of the capability and descriptor tests rests on (M6,
-  F29). The `v7.3` `fs/namespace.c` line this design cites is `:3789` to `:3790`, the shared-parent refusal the
-  rollback meets ("The private bind").
+  `include/linux/exportfs.h`, `include/linux/namei.h`, `include/uapi/linux/mount.h`, `fs/file.c`, `fs/sync.c`,
+  `fs/super.c` and `fs/fhandle.c`. The `fs/fhandle.c` lines this design cites are `:15` to `:75`, `:97` to `:113`,
+  `:118` to `:135`, `:142` to `:165`, `:170` to `:186`, `:235` and `:258` to `:266`. At `v7.3`, also read at that
+  tag, they are `:170` to `:197`, `:265` to `:282`, which carries the `ESTALE` normalization in
+  `do_handle_to_path`, `:317` to `:362` and `:384` to `:392`, and they are what the host kernel's order of the
+  capability and descriptor tests rests on (M6, F29). The `v7.3` `fs/namespace.c` line this design cites is `:3789`
+  to `:3790`, the shared-parent refusal the rollback meets ("The private bind").
 - OpenZFS, tag `zfs-2.4.4`, commit `71a9f9578616a90c3c14bb59629fb4d31bfd68d1`:
-  `module/os/linux/zfs/zpl_super.c`, `module/os/linux/zfs/zfs_vfsops.c`, `module/os/linux/zfs/zpl_export.c`,
-  `module/zfs/dsl_dataset.c`, `module/zfs/dsl_destroy.c`, `cmd/zfs/zfs_main.c`.
+  `module/os/linux/zfs/zpl_super.c`, `module/os/linux/zfs/zfs_vnops_os.c`, `module/os/linux/zfs/zfs_vfsops.c`,
+  `module/os/linux/zfs/zpl_export.c`, `module/zfs/dsl_dataset.c`, `module/zfs/dsl_destroy.c`, `cmd/zfs/zfs_main.c`.
 - This repository's `main`, against which every plan and proposal citation here was re-checked: the earlier
   revisions checked them at `59152e567b`, and this one re-read `main` at `8b1cec7883`, where the plan has gained four
   lines at its container-base paragraph and the proposal is unchanged, so the plan's later line numbers moved and no
