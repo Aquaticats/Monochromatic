@@ -341,9 +341,11 @@ fn the_route_refuses_a_store_this_account_could_rewrite_before_it_walks() {
 }
 
 /// What:
-///  With a store root wrote, the route's walk holds the slot and records both identities.
+///  With a store root wrote,
+///  the route's walk holds the slot and records both identities.
 /// Why:
-///  The refusal above proves the control; this is the arm the route runs as root,
+///  The refusal above proves the control;
+///  this is the arm the route runs as root,
 ///  and it needs a user namespace because this account cannot write a root-owned store otherwise.
 #[cfg(target_os = "linux")]
 #[test]
@@ -368,7 +370,8 @@ fn the_route_holds_a_slot_whose_store_root_wrote() {
 /// Why:
 ///  `RESOLVE_NO_XDEV` refuses a mount point but not a subvolume,
 ///  and a nested subvolume at the slot is a folder on another device that no other check of the walk sees:
-///  without the device compare it was accepted, and the post-attach check would then report every correct
+///  without the device compare it was accepted,
+///  and the post-attach check would then report every correct
 ///  attach on it misplaced.
 ///  A subvolume needs a btrfs fixture root,
 ///  so the gate's tmpfs root acknowledges the control did not run and the host's btrfs task covers it.

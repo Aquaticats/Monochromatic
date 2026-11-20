@@ -177,7 +177,8 @@ pub(super) fn unreadable(path: &Path, refusal: ReadRefusal, limit: u64) -> Store
 /// Why:
 ///  A refused append is not a read problem:
 ///  a person who is told the file could not be read looks in the wrong place,
-///  so every failure to write, add to or flush the store has its own cause and its own repair.
+///  so every failure to write,
+///  add to or flush the store has its own cause and its own repair.
 pub(super) fn write_refusal(store: &Path, error: std::io::Error) -> StoreRefusal {
     return match error.kind() {
         std::io::ErrorKind::NotFound => StoreRefusal::Missing { path: store.to_path_buf() },

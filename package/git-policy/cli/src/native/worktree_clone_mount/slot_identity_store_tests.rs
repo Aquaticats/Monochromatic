@@ -240,13 +240,15 @@ fn can_lock_exclusively(path: &Path) -> bool {
 }
 
 /// What:
-///  The read, the check and the append are one step under one exclusive lock on the store's own descriptor:
+///  The read,
+///  the check and the append are one step under one exclusive lock on the store's own descriptor:
 ///  a second exclusive lock cannot be taken while they run,
 ///  and the same probe takes one once the append returns.
 /// Why:
 ///  Two sweeps that meet on one slot both read "no record" and both appended before this lock existed,
 ///  and the duplicate then refused every later read until an administrator edited a root-owned file.
-///  The probe is a second open description of the same file, which the kernel excludes from the first.
+///  The probe is a second open description of the same file,
+///  which the kernel excludes from the first.
 #[test]
 fn the_append_holds_one_lock_from_the_read_to_the_write() {
     let root: PathBuf = fixture("slot-store-lock");

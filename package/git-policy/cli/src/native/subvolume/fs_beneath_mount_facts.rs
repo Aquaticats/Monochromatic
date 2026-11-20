@@ -4,7 +4,8 @@
 //!  and the path its `/proc/self/fd` link names.
 //! Why:
 //!  An attach that landed beside its slot is seen by comparing the mount the attach recorded with
-//!  the mount a fresh lookup reaches, and by comparing the path a descriptor names with the slot's
+//!  the mount a fresh lookup reaches,
+//!  and by comparing the path a descriptor names with the slot's
 //!  canonical path
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Descriptor mount and unmount").

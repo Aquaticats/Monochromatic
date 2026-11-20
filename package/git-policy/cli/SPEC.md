@@ -5427,8 +5427,9 @@ one that does not is rolled back.
 
 The real `move_mount` onto a clone's mount and the five comparisons against a real mount are owed to the guest.
 The host controls prove the comparisons on fixture folders:
-a renamed `.claude`, a replaced parent folder, a held target on another mount and a different mount number are
-each refused,
+a renamed `.claude`,
+a replaced parent folder,
+a held target on another mount and a different mount number are each refused,
 and an untouched slot passes.
 The held target's comparison is shown with the numbers a real mount would report,
 because a fixture folder cannot change mounts.
@@ -5441,7 +5442,8 @@ The project decided "Roll back at once (Recommended)"
 A misplaced attach is planned as one unmount of the exact mount the attach recorded,
 acting on the descriptor the attach acted through,
 with neither force nor lazy detach.
-The plan carries that descriptor, the held target the attach mounted onto,
+The plan carries that descriptor,
+the held target the attach mounted onto,
 and gets the path it reports from the descriptor rather than from a caller,
 so an unmount has no path to resolve again and a plan cannot be copied to a second holder.
 The plan refuses when the recorded mount number is the mount the folders were already on,

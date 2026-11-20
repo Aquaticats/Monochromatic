@@ -57,7 +57,8 @@ pub(super) fn acl_token(acl: Option<&[u8]>) -> String {
 ///   A line this repository did not write must refuse rather than decode,
 ///  and `acl_token` writes `-` for no ACL and lowercase hexadecimal for an ACL of at least one byte,
 ///  so an empty field and an uppercase digit are not tokens this module wrote:
-///  `u8::from_str_radix` alone accepts both, which made a line nobody wrote read as an empty ACL.
+///  `u8::from_str_radix` alone accepts both,
+///  which made a line nobody wrote read as an empty ACL.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

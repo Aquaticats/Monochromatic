@@ -37,7 +37,8 @@ use std::path::PathBuf;
 ///  an unmount that named a path would resolve it again and could take down whatever stands there by then,
 ///  so the plan carries the very target the attach acted through and the unmount uses that handle.
 ///  A plan is therefore not copyable:
-///  one mount has one holder, and the type says so.
+///  one mount has one holder,
+///  and the type says so.
 #[derive(Debug)]
 pub struct RollbackPlan {
     /// The mount the attach recorded.

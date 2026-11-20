@@ -130,7 +130,8 @@ fn open_one_hop(parent: &File, name: &OsStr, device: u64, step: usize) -> Result
 /// ```
 ///
 /// # Errors
-/// The reason of the first component the walk refuses, and its position.
+/// The reason of the first component the walk refuses,
+/// and its position.
 pub fn open_chain_beneath(root: &File, names: &[OsString]) -> Result<Vec<File>, ChainRefusal> {
     let device: u64 = device_of(root).map_err(|error| return ChainRefusal::Unreadable { step: 0, error })?;
     let mut chain: Vec<File> = Vec::with_capacity(names.len());

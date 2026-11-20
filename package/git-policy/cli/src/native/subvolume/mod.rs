@@ -50,7 +50,8 @@ pub mod fs_beneath;
 #[cfg(target_os = "linux")]
 pub mod fs_beneath_mount_facts;
 
-/// The walk down a chain of one-name hops, and the last hop that may end on a mount.
+/// The walk down a chain of one-name hops,
+/// and the last hop that may end on a mount.
 #[cfg(target_os = "linux")]
 pub mod fs_beneath_walk_chain;
 

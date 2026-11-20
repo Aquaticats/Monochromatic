@@ -171,7 +171,8 @@ impl MountedHere {
     /// which this process may only do as root in a mount namespace of its own.
     ///
     /// Why the kernel call and not `/usr/bin/mount`:
-    ///  util-linux keeps a mounted-filesystem table in `/run`, which this namespace may not write,
+    ///  util-linux keeps a mounted-filesystem table in `/run`,
+    ///  which this namespace may not write,
     ///  and a mount it made without that entry is one its `umount` refuses to take down here.
     fn at(path: &Path) -> Self {
         let source: std::ffi::CString = std::ffi::CString::new("tmpfs").expect("a literal");

@@ -47,12 +47,14 @@ pub const SLOT_IDENTITY_STORE_PATH: &str = "/var/lib/monochromatic-git-policy-cl
 ///  (`private_storage::read_regular_file`).
 ///  A slot line holds a folder name of at most 255 bytes and an identity whose ACLs are in practice tens of bytes,
 ///  so 4096 slots of 256 bytes fit with the header inside one mebibyte;
-///  a checkout with more worktrees than that needs this bound raised, not a larger read.
+///  a checkout with more worktrees than that needs this bound raised,
+///  not a larger read.
 pub const STORE_MAXIMUM_BYTES: u64 = 1 << 20;
 
 /// The owner of a store,
 /// and of the folder that holds it:
-/// root, because only the root-run setup and adopt modes write either.
+/// root,
+/// because only the root-run setup and adopt modes write either.
 pub const STORE_OWNER: u32 = 0;
 
 /// The permission bits that let an account other than the owner write:
@@ -160,7 +162,8 @@ impl SlotIdentityStore {
         return SlotIdentityStore::read(path);
     }
 
-    /// The store `text` describes, with `path` as the file it came from.
+    /// The store `text` describes,
+    /// with `path` as the file it came from.
     fn from_text(path: &Path, text: &str) -> Result<SlotIdentityStore, StoreRefusal> {
         let records: Vec<StoredIdentity> = parse_records(path, text)?;
         debug(TAG, "read the recorded slot identities");
@@ -232,9 +235,13 @@ fn check_control(path: &Path, what: &str, held: &std::fs::File) -> Result<(), St
 ///   The first sweep that verifies a clone records its slot,
 ///  and a later run must never rewrite that record:
 ///  a slot identity is not refreshed because a new inode or mode appeared.
-///  The read, the check and the append are one step under one exclusive lock on the store's own descriptor,
+///  The read,
+///  the check and the append are one step under one exclusive lock on the store's own descriptor,
 ///  so two sweeps that meet on one slot record it once:
-///  without that, both would read no record, both would append, and the duplicate would refuse every later
+///  without that,
+///  both would read no record,
+///  both would append,
+///  and the duplicate would refuse every later
 ///  read of the store until an administrator edited a root-owned file.
 ///
 /// In TS you'd write (pseudocode):
@@ -313,8 +320,10 @@ pub fn record_parent_identity(store: &Path, identity: &CloneFolderIdentity) -> R
 ///  it covers one append and nothing else in this process or another,
 ///  it lives on the descriptor rather than on a name another process can replace,
 ///  and the kernel releases it when the descriptor closes however this call ends.
-///  It excludes only the writers that take the same lock, which are this module's two appends and its rewrite:
-///  a hand edit by root is not a race this route can lose to, because root writes the whole file.
+///  It excludes only the writers that take the same lock,
+///  which are this module's two appends and its rewrite:
+///  a hand edit by root is not a race this route can lose to,
+///  because root writes the whole file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
