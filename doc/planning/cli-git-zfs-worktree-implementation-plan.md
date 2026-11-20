@@ -310,6 +310,9 @@ with its `crateDir`,
 `pinFiles` and `lockDirs`,
 and the sidecar's lock file is recorded by the package task that pins it,
 as the sibling Rust packages do.
+The crate is also wired into both release workflows and versioned `0.1.0-alpha.1`,
+so the merge uploads nothing to crates.io,
+by the decision of 2026-11-19T20:03:36-05:00 ("Wire it as an alpha").
 
 #### Design sections
 

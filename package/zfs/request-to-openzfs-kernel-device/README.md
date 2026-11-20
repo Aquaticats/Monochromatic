@@ -41,7 +41,9 @@ A name-value list (`nvlist`) is how the kernel carries variable data:
 pairs of
 a name and a typed value,
 packed into one byte buffer.
-The same buffer layout serves every release,
+The same native list format serves every release,
+but the command struct around it differs between releases,
+as `PROVENANCE.md` records for `2.2.2` and `2.4.4`,
 so a caller that knows the struct
 and the list format needs no library from OpenZFS.
 This crate owns the struct,
@@ -119,7 +121,7 @@ Every failure returns the operation,
 the dataset or pool it named,
 and the
 kernel's error number,
-spelled out the way `zfs` prints it.
+spelled out as the operating system's message for that number and a hint.
 A write that the kernel refuses per element also returns those names,
 for example the snapshots in a `DESTROY_SNAPS` batch that failed one by one:
 
@@ -176,9 +178,34 @@ this crate links no C library,
 loads no CDDL code and
 starts no `zfs` program.
 
+## The gate image of step 1
+
+`gate.Containerfile` is the image this step's merge checks run in,
+as the plan's "How it merges" names it:
+the wrapper's gate base image,
+the two lock-row tools (`file-enforcer` and `monochromatic-lint`),
+both crates' locked dependencies,
+and the browserslist tarballs an offline `file-enforcer check` reads.
+Its base is passed as `GATE_BASE_IMAGE`,
+the tag the wrapper's resolver prints
+(`mise run //package/git-policy/cli:test:git-image`),
+never typed in the recipe.
+The checks run there as `podman run --rm --init --network none`,
+with no home folder and the worktree mounted read-only:
+`cargo nextest run --release`,
+Clippy with `-D warnings`,
+`cargo fmt --check` for both crates,
+`cargo doc` with `-Dwarnings`,
+the sidecar's `cargo check` and Clippy,
+`monochromatic-lint package/zfs`
+and `file-enforcer check`.
+The Dylint closure rule (`rust/avoidable-closure`) is **not checked**:
+that image has no `cargo dylint`,
+so the linter prints its skip for this package as it does for every package.
+
 ## Using it
 
-```rust
+```text
 use monochromatic_zfs_request_to_openzfs_kernel_device::{snapshot, NvList};
 
 let mut request = snapshot("pool", &["pool/dataset@before-merge"], None)?;
@@ -188,6 +215,7 @@ let reply = request.take_reply()?;
 ```
 
 The device-free tests run through `mise run //package/zfs/request-to-openzfs-kernel-device:test`
-inside the wrapper's gate container image,
+on the host,
+while this step's gate runs the same commands inside the wrapper's gate container image,
 and the bounded fuzz smoke through
 `mise run //package/zfs/request-to-openzfs-kernel-device.fuzz:smoke`.

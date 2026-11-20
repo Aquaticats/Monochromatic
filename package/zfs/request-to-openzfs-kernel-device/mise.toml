@@ -47,5 +47,5 @@ description = "Start the binding's release on GitHub and print the run URL: `-- 
 run = "node ../../crate-release/cli/bin/dispatch-release.ts --crate monochromatic-zfs-request-to-openzfs-kernel-device"
 
 [tasks."release:wait"]
-description = "Follow the release run that `release` printed, then the cargo-publish run it started, then check crates.io: `-- <run URL or id> <version>`"
+description = "Follow the release run that `release` printed, then the cargo-publish run it started, then check crates.io (a library has no GitHub release, so the check ends with PUBLISH CHECK FAILED naming only the missing release assets; the crates.io line is its result): `-- <run URL or id> <version>`"
 run = "node ../../crate-release/cli/bin/await-release.ts --crate monochromatic-zfs-request-to-openzfs-kernel-device"

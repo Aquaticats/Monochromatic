@@ -19,7 +19,7 @@ description = "Check the fuzz target compiles against the subject, with denied C
 run = ["cargo check --all-targets --locked --offline", "cargo clippy --all-targets --locked --offline -- -D warnings"]
 
 [tasks.build]
-description = "Build the instrumented target in a 2 GiB / 2 CPU container, then keep its binaries as the campaign's evidence"
+description = "Build the instrumented target in a 2 GiB / 2 CPU container; the container is removed, so this proves the compile and keeps no binary"
 run = "node bin/container.ts --build-only"
 
 [tasks.smoke]

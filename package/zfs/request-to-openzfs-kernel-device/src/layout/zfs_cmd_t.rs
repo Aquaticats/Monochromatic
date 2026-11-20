@@ -391,6 +391,17 @@ const _: () = {
     assert!(offset_of!(ZfsCmd, zc_inject_overlay) == 13_296);
     assert!(offset_of!(ZfsCmd, zc_cleanup_fd) == 13_664);
     assert!(offset_of!(ZfsCmd, zc_zoneid) == 13_736);
+    // Every field a request writes, pinned to the module's BTF too, because a
+    // swap among them would otherwise leave every device-free test green:
+    // `zc_cookie` is the cursor both list requests move.
+    assert!(offset_of!(ZfsCmd, zc_name) == 0);
+    assert!(offset_of!(ZfsCmd, zc_nvlist_src_size) == 4_104);
+    assert!(offset_of!(ZfsCmd, zc_nvlist_dst) == 4_112);
+    assert!(offset_of!(ZfsCmd, zc_nvlist_dst_size) == 4_120);
+    assert!(offset_of!(ZfsCmd, zc_value) == 4_144);
+    assert!(offset_of!(ZfsCmd, zc_string) == 12_336);
+    assert!(offset_of!(ZfsCmd, zc_cookie) == 12_616);
+    assert!(offset_of!(ZfsCmd, zc_objset_type) == 12_624);
     assert!(offset_of!(ZcDestroyControl, zc_defer_destroy) == 352);
     assert!(offset_of!(ZcDestroyControl, zc_flags) == 356);
     assert!(offset_of!(ZcDestroyControl, zc_action_handle) == 360);

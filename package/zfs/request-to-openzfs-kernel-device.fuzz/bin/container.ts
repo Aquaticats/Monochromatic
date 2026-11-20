@@ -8,6 +8,10 @@
  because the repository forbids mounting the host's sysroot into a container
  (that mix produced Clippy's E0514 on this host). Test runs then use
  `--network none`; only this image build may reach the network.
+ Its base is the wrapper's gate base image, resolved by that wrapper's own
+ module from the newest CachyOS `latest` and its Containerfile, so no base tag
+ is typed here (rule `BXD`,
+ `doc/decision/container-base-distro.md`).
  */
 import { execFileSync } from 'node:child_process';
 import {
@@ -20,6 +24,9 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join, resolve } from 'node:path';
+
+import { defaultContainerLimits } from '../../../git-policy/cli/bin/container-limits.ts';
+import { ensureTestBase } from '../../../git-policy/cli/bin/native-test-base.ts';
 
 /** This package's directory, the working directory of both tasks. */
 const source = process.cwd();
@@ -37,6 +44,18 @@ const corpus = join(scratch, 'corpus');
 const tag = process.env.ZFS_BINDING_IMAGE_TAG ?? 'step-1';
 /** The image holding the nightly toolchain, cargo-fuzz and both crates. */
 const image = `localhost/zfs-request-to-openzfs-kernel-device-fuzz:${tag}`;
+if (!existsSync(join(subject, 'Cargo.lock'))) {
+  throw new Error('the crate has no Cargo.lock; run the crate\'s lock task first');
+}
+if (!existsSync(join(source, 'Cargo.lock'))) {
+  throw new Error('the sidecar has no Cargo.lock; run the sidecar\'s lock task first');
+}
+/**
+ The wrapper's gate base image, resolved from the CachyOS image this host's CPU
+ runs and that gate's Containerfile, exactly as the wrapper's own runners resolve
+ it. Building a new one needs a network; every stage after it stays offline.
+ */
+const base = await ensureTestBase({ limits: defaultContainerLimits });
 /** Seconds the target runs; a smoke bound, never a campaign. */
 const seconds = 30;
 /** The repository's toolchain lock, which names the nightly the image installs. */
@@ -49,7 +68,9 @@ if (!nightlyDate) {
   throw new Error(`the toolchain lock names \`${nightly}\`, which is not a nightly release`);
 }
 /** The published nightly archive, unpacked rather than built or mounted from the host. */
-const nightlyArchive = `https://static.rust-lang.org/dist/${nightlyDate}/rust-nightly-x86_64-unknown-linux-gnu.tar.xz`;
+const nightlyArchiveName = 'rust-nightly-x86_64-unknown-linux-gnu.tar.xz';
+/** The archive's published URL and its `.sha256` beside it, which its own file names. */
+const nightlyArchive = `https://static.rust-lang.org/dist/${nightlyDate}/${nightlyArchiveName}`;
 
 /**
  Run one command with its output on this terminal.
@@ -66,17 +87,25 @@ function run(command, args) {
  The Containerfile, written into the disposable build context.
  */
 const containerfile = [
-  "# Built from the wrapper's gate base image, so Rust and cargo-nextest are",
-  '# pacman current packages, exactly as the gate image has them.',
-  'FROM localhost/git-policy-native-test-base:6fa67475da3a-97221c29742b',
+  "# Built from the wrapper's gate base image, resolved by",
+  '# package/git-policy/cli/bin/native-test-base.ts from the CachyOS image this',
+  '# host runs and that gate\'s Containerfile. Rust and cargo-nextest are pacman',
+  '# current packages there, exactly as the gate image has them. No base tag is',
+  '# typed here, so a CachyOS update or a Containerfile change moves this base',
+  '# with the wrapper (rule BXD, doc/decision/container-base-distro.md).',
+  `FROM ${base.id}`,
   "# cargo-fuzz is pacman's cargo-fuzz in this image's repositories.",
   'RUN ["pacman", "--disable-sandbox", "--sync", "--refresh", "--noconfirm", "--needed", "cargo-fuzz"]',
   '# The nightly toolchain is the compiler the instrumented build needs. Its',
   '# date and name come from toolchain.lock.json, and it is the published',
   '# nightly archive, unpacked here rather than mounted from the host and',
   '# never built from source; rustup would conflict with the image\'s pacman rust.',
-  `RUN ["curl", "--fail", "--silent", "--show-error", "--location", "--output", "/tmp/rust-nightly.tar.xz", "${nightlyArchive}"]`,
-  'RUN ["tar", "--extract", "--xz", "--file", "/tmp/rust-nightly.tar.xz", "--directory", "/tmp"]',
+  '# The published .sha256 is fetched beside it and checked, so a truncated or',
+  '# corrupted transfer fails the build instead of installing another toolchain.',
+  `RUN ["curl", "--fail", "--silent", "--show-error", "--location", "--output", "/tmp/${nightlyArchiveName}", "${nightlyArchive}"]`,
+  `RUN ["curl", "--fail", "--silent", "--show-error", "--location", "--output", "/tmp/${nightlyArchiveName}.sha256", "${nightlyArchive}.sha256"]`,
+  `RUN ["sh", "-c", "cd /tmp && sha256sum --check --strict ${nightlyArchiveName}.sha256"]`,
+  `RUN ["tar", "--extract", "--xz", "--file", "/tmp/${nightlyArchiveName}", "--directory", "/tmp"]`,
   'RUN ["/tmp/rust-nightly-x86_64-unknown-linux-gnu/install.sh", "--prefix=/opt/rust-nightly", "--without=rust-docs"]',
   'ENV PATH=/opt/rust-nightly/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
   'COPY subject /work/package/zfs/request-to-openzfs-kernel-device',
@@ -123,7 +152,7 @@ function buildImage() {
  @param buildOnly - stop after the instrumented build, keeping the binaries
  */
 function runContainer(buildOnly) {
-  const containerName = 'zfs-binding-fuzz';
+  const containerName = `zfs-binding-fuzz-${tag}`;
   run('podman', ['rm', '--force', '--ignore', containerName]);
   mkdirSync(artifacts, { recursive: true });
   mkdirSync(corpus, { recursive: true });
@@ -171,12 +200,7 @@ function reportVersions() {
   ]);
 }
 
-if (!existsSync(join(subject, 'Cargo.lock'))) {
-  throw new Error('the crate has no Cargo.lock; run the crate\'s lock task first');
-}
-if (!existsSync(join(source, 'Cargo.lock'))) {
-  throw new Error('the sidecar has no Cargo.lock; run the sidecar\'s lock task first');
-}
+console.log(`${base.built ? 'Built' : 'Found'} the gate base ${base.tag} (${base.id}) on ${base.cachyosImage} (${base.cachyosImageId})`);
 buildImage();
 reportVersions();
 runContainer(process.argv.includes('--build-only'));

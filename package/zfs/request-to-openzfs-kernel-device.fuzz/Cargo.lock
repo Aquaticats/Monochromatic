@@ -71,7 +71,7 @@ dependencies = [
 
 [[package]]
 name = "monochromatic-zfs-request-to-openzfs-kernel-device"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "libc",
 ]

@@ -13,9 +13,10 @@
 //! a nested list that is not the
 //!  `{value, source}` property shape could recurse without bound,
 //! so the
-//!  reader follows only the shapes the kernel documents,
-//! caps how many names it
-//!  keeps,
+//!  reader reads any other nested list in turn,
+//! bounded by the codec's depth
+//!  limit of 20 for a decoded reply,
+//! caps how many names it keeps,
 //! and ignores a zero error number.
 
 /// The codec list and value types.
