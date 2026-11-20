@@ -305,8 +305,8 @@ such as a bind of a subdirectory of the same dataset.
 The host observation is that check's,
 made on 2026-11-20,
 and it is labelled as measured here rather than as a ZFS constant.
-The design's hardening entry reads its cost as a pin comparison,
-not as a per-removal source comparison.
+What removing the pin would simplify is a pin comparison,
+not a per-removal source comparison.
 
 ### Low 3: the device-across-a-reboot arm's staging step
 
@@ -450,11 +450,11 @@ or the act of staging a copy.
 ### The notes and sentence changes this acceptance puts on the documents that waited on it
 
 Three documents said in words that this design did not exist yet.
-Each of their waiting places now carries a dated statement:
-the proposal and the accepted ZFS worktree design's record keep their text and gain an in-place note dated 2026-11-20,
-while the plan is live work and has its sentences changed instead.
+The proposal and the accepted ZFS worktree design's record keep their text
+and gain an in-place note dated 2026-11-20,
+while the plan is live work and states the accepted design in its own sentences instead.
 None of the statements changes a decision,
-and each names this record.
+and each of the notes names this record.
 
 - The proposal,
   [`cli-git-zfs-worktree-design-proposal.md`](../planning/cli-git-zfs-worktree-design-proposal.md),
