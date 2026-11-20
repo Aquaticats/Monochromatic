@@ -102,6 +102,7 @@ const child = spawn('sleep', ['60',], { stdio: 'ignore', },);
 const pid = child.pid;
 if (pid === undefined) throw new Error('the operating system started no process',);
 const handle = await open(`/proc/${String(pid,)}/comm`, 'r',);
+console.log(`opened /proc/${String(pid,)}/comm while pid ${String(pid,)} ran`,);
 child.kill('SIGKILL',);
 await once(child, 'exit',);
 

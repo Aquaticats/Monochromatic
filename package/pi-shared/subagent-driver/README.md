@@ -1394,11 +1394,18 @@ the program of a process whose `comm` is gone is unknown,
 while a process whose `cgroup` or `stat` is gone is not counted as the run's work.
 The `cwd` link a process works through is no such read:
 the kernel answers `ENOENT` for a task it released, which the scan already counts as gone.
+The scan also leaves out an entry whose link read answers `ESRCH`,
+so a kernel answering the link that way would end no run.
 On 2026-11-19 the driver read `comm` for a run's process, got `ESRCH`,
 and ended the run `idle` instead of waiting for the work that process still ran;
 the unit then stopped and killed the run's own watcher with it.
-Every other failure is unchanged:
-a read that truly fails still reaches `workProblem`.
+Every other failure is unchanged on the driver's own watch:
+`src/kept-while-work-runs.ts` puts a read that truly fails in `workProblem`,
+beside the end reason the run earned.
+The launcher's wake read through `finishTheRun` has no such guard:
+`src/finish-a-run.ts` reads the process folder for it with no `try`,
+so a read that truly fails there ends the launcher as an uncaught error
+and no `workProblem` is written.
 
 Each answer keeps the run for what it can see, and nothing more:
 a process the run's own process tree holds, in one of the run's folders and outside the run's own unit;

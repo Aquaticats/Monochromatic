@@ -215,7 +215,7 @@ export async function cgroupOf({
 
  @example
  ```ts
- const alive = processIsThere({ processFolder: '/proc', pid: 486667, },);
+ const alive = processIsThere({ processFolder: '/proc', pid: 486667, reads: READS_OF_A_PROCESS_FOLDER, },);
  ```
  */
 async function processIsThere({

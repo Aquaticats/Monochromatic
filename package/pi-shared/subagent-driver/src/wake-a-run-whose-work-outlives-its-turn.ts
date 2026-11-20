@@ -224,11 +224,13 @@ export async function processesAtTheirFolders({
  The failures that mean a process is none of this run's business: its folder is gone, is not a folder, or may not be read by this
  account.
 
- A process that ended mid-scan arrives here as one of those: the `comm` read answers `ESRCH` for it, which
- {@link commandNameIn} reads as a program unknown, and Linux answers `ENOENT` for the `cwd` link of a task it released.
+ A process that ended mid-scan arrives here as one of those. {@link commandNameIn} reads the `ESRCH` of a `comm` the kernel
+ released as a program unknown, so it never reaches this set, while a `cwd` link that ever answered `ESRCH` is left out here
+ exactly as the `ENOENT` Linux answers for a task it released, which the scan already counted as gone.
  */
 const SKIPPED_PROCESS_CODES: ReadonlySet<string> = new Set<string>([
   MISSING_PATH_CODE,
+  'ESRCH',
   'ENOTDIR',
   'EACCES',
   'EPERM',
@@ -247,7 +249,7 @@ const SKIPPED_PROCESS_CODES: ReadonlySet<string> = new Set<string>([
 
  @example
  ```ts
- const command = await commandNameIn({ processFolder: '/proc', entry: '12', },);
+ const command = await commandNameIn({ processFolder: '/proc', entry: '12', reads: READS_OF_A_PROCESS_FOLDER, },);
  ```
  */
 async function commandNameIn({

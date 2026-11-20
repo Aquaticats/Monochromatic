@@ -29,6 +29,7 @@ import {
   WAKE_LIMIT,
   WORK_POLL_MILLISECONDS,
   type ProcessAtAFolder,
+  type ReadsOfAProcessFolder,
   type WorktreeLauncherOptions,
   isOwnFolder,
   ownComponentOf,
@@ -400,9 +401,11 @@ function systemCallError({
 }
 
 /**
- Reads of a process folder a test hands over, where the record of the program one process runs answers an error instead.
+ Reads of a process folder a test hands over, where one record of one process answers an error instead.
 
  Every other record is read as it really is, so a case says which record the kernel answers an error for and nothing else moves.
+
+ @param read - which read of the record answers the error: the text of one record, or the link a folder is read through
 
  @param suffix - the end of the path whose record answers the error
 
@@ -412,27 +415,29 @@ function systemCallError({
 
  @example
  ```ts
- const reads = readsRefusingTheProgram({ suffix: '/13/comm', thrown: refused, },);
+ const reads = readsRefusingTheRecord({ read: 'text', suffix: '/13/comm', thrown: refused, },);
  ```
  */
-function readsRefusingTheProgram({
+function readsRefusingTheRecord({
+  read,
   suffix,
   thrown,
 }: {
+  readonly read: 'text' | 'link';
   readonly suffix: string;
   readonly thrown: NodeJS.ErrnoException;
-},): {
-  readonly text: (path: string) => Promise<string>;
-  readonly link: (path: string) => Promise<string>;
-} {
+},): ReadsOfAProcessFolder {
   return {
     text: async function textOf(path: string,) {
-      if (path.endsWith(suffix,)) {
+      if ((read === 'text') && path.endsWith(suffix,)) {
         throw thrown;
       }
       return await readFile(path, 'utf8',);
     },
     link: async function linkAt(path: string,) {
+      if ((read === 'link') && path.endsWith(suffix,)) {
+        throw thrown;
+      }
       return await readlink(path,);
     },
   };
@@ -607,7 +612,8 @@ await describe({
             }
             // The program a process runs, which the kernel answers `ESRCH` for once it released the task the entry named: kept as
             // a process whose program is unknown, which is the entry a record already gone gives, rather than a read that failed.
-            const commEnded = readsRefusingTheProgram({
+            const commEnded = readsRefusingTheRecord({
+              read: 'text',
               suffix: '/13/comm',
               thrown: systemCallError({ code: 'ESRCH', syscall: 'read', },),
             },);
@@ -618,7 +624,8 @@ await describe({
             ],);
             // A read that failed for a reason that names no ended process still reaches the caller.
             const refused = systemCallError({ code: 'EIO', syscall: 'read', },);
-            const broken = readsRefusingTheProgram({
+            const broken = readsRefusingTheRecord({
+              read: 'text',
               suffix: '/13/comm',
               thrown: refused,
             },);
@@ -628,6 +635,67 @@ await describe({
             let thrown: unknown;
             try {
               await readProcesses(broken,);
+            }
+            catch (error) {
+              thrown = error;
+            }
+            expect(thrown,).toBe(refused,);
+          },
+        },),
+        it({
+          name: 'treats a cwd link the kernel answers ESRCH for as a process that ended mid-scan, leaving it out exactly as a link that is already gone',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeProcess({
+              folder: processes,
+              pid: '12',
+              worksIn: '/repo/.claude/worktrees/pi-a',
+            },);
+            await writeProcess({
+              folder: processes,
+              pid: '13',
+              worksIn: '/elsewhere',
+              command: 'sleep',
+            },);
+            // The link a process works through, which no kernel among the ones the troubleshooting page pins answers `ESRCH` for.
+            // A kernel that ever did would be answering for a task it released, which is a process already gone rather than a
+            // read that failed.
+            /**
+             What the scan read, for a link the kernel answers `ESRCH` for.
+             */
+            const linkEnded = readsRefusingTheRecord({
+              read: 'link',
+              suffix: '/13/cwd',
+              thrown: systemCallError({ code: 'ESRCH', syscall: 'readlink', },),
+            },);
+            expect(await processesAtTheirFolders({
+              processFolder: processes,
+              reads: linkEnded,
+            },),).toEqual([{
+              pid: 12,
+              folder: '/repo/.claude/worktrees/pi-a',
+              command: 'cargo',
+            },],);
+            // A link read that failed for a reason naming no ended process still reaches the caller.
+            const refused = systemCallError({ code: 'EIO', syscall: 'readlink', },);
+            const broken = readsRefusingTheRecord({
+              read: 'link',
+              suffix: '/13/cwd',
+              thrown: refused,
+            },);
+            /**
+             What the read threw, when it threw.
+             */
+            let thrown: unknown;
+            try {
+              await processesAtTheirFolders({
+                processFolder: processes,
+                reads: broken,
+              },);
             }
             catch (error) {
               thrown = error;
