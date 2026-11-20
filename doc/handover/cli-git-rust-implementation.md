@@ -40714,6 +40714,26 @@ stated in this entry. What follows from them, as work:
   `vars.parse_usage_args`): issue 6326. GOING: `pi-mise-usage-args-reach-the-node-scripts` (cap 350) on
   `fix/mise-usage-args-reach-the-node-scripts` in `.claude/worktrees/mise-usage-args-reach-the-node-scripts`, told to
   prove each task with effect-free arguments only; brief under `~/temp/agent/mise-usage-args-reach-the-node-scripts-2026-11-20/`.
+  STEP 6'S FIRST PART ended `idle` (324 turns) at `ac59add52c` (its folder's `keep/report-from-summary.md`): the layout
+  checker in the binding package (`src/compatibility_check/`, bounded reads, header and section checks, every member's
+  offset and size, the request range), the gate in the handler (`zfs_compatibility_gate/`, per-process verdict rechecked
+  against module identity, never on disk), the three request-making modes behind it, `SPEC.md`'s `### The start-time ZFS
+  compatibility gate`; 45 controls red on a stub then green; a control on this host's real BTF found two defects (an
+  integer's size read in bits; `ZFS_IOC_LAST` as `0x5a59` for `0x5a89`); guest arms on the checker's entry point (an
+  untested release text with the approved layout passes; a dropped `dds_flags` refuses at `Member`); gate 9289 of 9291,
+  the cause-H pair. BUT it ships an IN-HOUSE BTF DECODER, which the record's Q1 makes ineligible while the reader pick is
+  owed (`btf-rs` 2.0.1, then `pahole`, then `bpftool`; the pick waits on `btf-rs`'s own test suite, the `doc/audit/` vet
+  report, discovery's terminal result and the pre-discovery check-in). The coordinator's brief listed the record's answers
+  but did not state that consequence, which is the miss; the next step 6 brief states it. So step 6 cannot merge until the
+  project picks and the decoder is replaced behind the seam. The plan's guest-arm sentence contradicted the record's Q2
+  ("Any version, layout decides") and was corrected on `main`. GOING: `pi-zfs-layout-checker-reader-finalist-validation`
+  (cap 400) on `docs/planning-cli-git-zfs-layout-checker-reader-validation` in
+  `.claude/worktrees/zfs-layout-checker-reader-validation`, the first item (`btf-rs`'s suite in a sealed container,
+  `pahole` and `bpftool` through a repeatable harness); brief under
+  `~/temp/agent/zfs-layout-checker-reader-finalist-validation-2026-11-20/`. GOING: step 6's gate review on Sonnet on
+  everything but the decoder (brief under `~/temp/agent/gate-review-zfs-step-6-compatibility-gate-and-layout-checker-2026-11-20/`).
+  The pre-discovery check-in (who runs the rest of discovery: the web class past its providers' page limits and the
+  `libbpf`, `trailofbits` and `eunomia-bpf` boards) goes to the owner now.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
