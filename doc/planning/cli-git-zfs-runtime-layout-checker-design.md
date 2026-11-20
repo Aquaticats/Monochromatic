@@ -595,7 +595,8 @@ the pick is not made here.
   own guard rather than `KBUILD_BUILTIN`, records the step 2 short review's guest probe and its
   throwaway guest, and marks the 24-byte header that route produces; owed measurement item 11 states
   what this design requires of step 2, where step 2 stands at `4c7a347ea2` and at `13bc5036d2` (the
-  branch's tip was `08c9dea25f`, three commits after it), and that step 2's question to the owner is
+  branch's tip was `08c9dea25f`, one commit after it, which changed three documentation files), and
+  that step 2's question to the owner is
   answered by the accepted gate; item 5 gains the device-free pass on copies of this host's pair
   with its two negative controls, the only arm before step 23 that asserts a pass on the 32-byte
   header; item 6 names the 24-byte route; and the writer list and the assumption about step 2's
@@ -649,8 +650,8 @@ the pick is not made here.
   `main` at `6c838ba11f`, and gives step 2's standing at `08c9dea25f`, read at
   2026-11-19T23:04:00-05:00, so the next change to step 2 leaves that paragraph true as a dated
   record; the four other places that described step 2 as it stood at `4c7a347ea2` and `13bc5036d2`
-  say the same, and the fourth revision's entry notes that `13bc5036d2` was three commits behind the
-  tip.
+  say the same, and the fourth revision's entry notes that `13bc5036d2` was one commit behind the
+  tip, whose commit changed three documentation files.
   Items 5 and 6, lows 6 and 7: item 5 is the only arm that asserts a pass on the 32-byte shape,
   item 10 reaches the same pair without asserting one, its negative control is the byte edit that
   moves the two members as item 16's patch would, and the 24-byte header a 6.8 guest's tools write
@@ -863,7 +864,7 @@ Run in the revision that answered the narrow gate check of the fourth revision, 
   does not do", re-measured against `main` at `6c838ba11f` with
   `check-amendment-quotations-against-a-main-commit.ts`; every quotation is word for word there,
   and the lines it prints are the locators this file now carries.
-- `git log`, `git rev-parse` and `git merge-base` on step 2's branch: its tip `08c9dea25f`, the
+- `git log`, `git rev-parse` and `git merge-base` on step 2's branch: its tip then `08c9dea25f`, the
   integrate branch at `58a1bba2f5`, and its absence from `main` at `6c838ba11f`, read at
   2026-11-19T23:04:00-05:00.
 - `git show 08c9dea25f:` for step 2's `e2e/run-fixture.ts`, its `live_btf_tests.rs` and its
@@ -2736,15 +2737,16 @@ Every measurement stays owed, and no item here touches this host's pool or modul
     `6c838ba11f`) and "Verify exact ioctl values and Rust layout against the running module's BTF"
     (`:468`), so the test compares the file the gate reads and not the module's DWARF.
     It does not require step 2 to use this design's reader; that choice is step 2's.
-    Where step 2 stood at `08c9dea25f`, read at 2026-11-19T23:04:00-05:00. That commit is the tip of
-    its branch and of the integrate branch at `58a1bba2f5`, and it is not on `main` at `6c838ba11f`.
+    Where step 2 stood at `08c9dea25f`, read at 2026-11-19T23:04:00-05:00. That commit was its
+    branch's tip when that read was taken, and the integrate branch's merge `58a1bba2f5` has it as
+    its second parent; it is not on `main` at `6c838ba11f`.
     Its recipe copies `/sys/kernel/btf/vmlinux` into the guest's kernel build directory before the
     build, asserts `/sys/kernel/btf/zfs` exists after `insmod`, and the layout test reads that file
     with `pahole --btf_base /sys/kernel/btf/vmlinux`. Its record says `KBUILD_BUILTIN` "decides when
     the command is re-triggered, not whether it runs" (record lines 163 to 165), which is the
     Makefile reading under [When the module carries no BTF](#when-the-module-carries-no-btf), and
-    its kept recorded run reports this layout line on `6.8.0-147-generic`, with the module at
-    `2.4.4-1` (record lines 199 to 205):
+    its kept recorded run reports this layout line (record line 204) on `6.8.0-147-generic` (record
+    line 56), with the module at `2.4.4-1` (record lines 44, 70 and 72):
     `layout zfs_cmd bytes=13744 dmu_objset_stats=288 zinject_record=368 drr_begin=304 source=/sys/kernel/btf/zfs`
     `main`'s handover records that fresh guest run and the recipe's two steps, at lines
     40200 to 40223 of the file at `6c838ba11f`, and it holds no copy of the record itself.
@@ -2760,6 +2762,11 @@ Every measurement stays owed, and no item here touches this host's pool or modul
     ask it.
     This item stays open until a run of the route lands on `main` for the design's own fixture:
     step 2's branch carries one, and `main` carries the handover's summary of it.
+    The revision that answers the diff-only gate check read the branch again at `69cef8fe3c`, read at
+    2026-11-19T23:40:09-05:00: it is four commits on from `08c9dea25f`, the integrate branch is still
+    at `58a1bba2f5`, and the recipe's copy of `/sys/kernel/btf/vmlinux`, its `test -f` after
+    `insmod`, the layout test's `pahole --btf_base` read and the record's layout line and
+    `KBUILD_BUILTIN` sentence say what this paragraph states.
 12. The refused state in `doctor`, in the guest. With a mismatched module loaded, assert `doctor`
     names the loaded module, the target and the file, keeps its exit status, and does not print a
     bypass; then with a compatible module assert it prints the compatible line.
