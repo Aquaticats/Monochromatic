@@ -948,51 +948,82 @@ that are compiled into the release executable and inert unless set (the decision
 executable because container tests exercise the installed one, and
 `doc/planning/cli-git-shipped-limits-audit.md:117` to `:119`).
 
-Its skip. The skip's boundary is the end of the namespace setup, not the first call: a failure of any call from
-`unshare(CLONE_NEWUSER)` through the private propagation, which is every call before the first one that touches the
-scratch tmpfs, is a skip, and arm failures start at the tmpfs attach. That boundary is the wrapper's own
-precedent: its test control runs `unshare --user --map-root-user --mount --propagation private /bin/true` and treats
-a non-zero answer from any part of that setup as "unavailable", with a stated reason
-(`package/git-policy/cli/src/native/binary/binary_worktree_removal_around_a_volume_tests.rs:164` to `:182`).
+Its skip. The skip is drawn on the refusals that mean this host will not give the companion a user namespace, or
+will not let it use the capabilities inside one. Each is a call and an errno that a named line of the kernel's own
+namespace setup answers:
 
-The reason the boundary has to reach past the first call: a kernel can grant the user namespace and take the
-capabilities inside it away, and Ubuntu 24.04's default AppArmor profile does exactly that, as its release notes
-say: the profile "allows the use of user namespaces for unprivileged and unconfined applications but will deny the
-subsequent use of any capabilities within the user namespace". That guest is the one every measurement in this
-design runs on. There `unshare(CLONE_NEWUSER)` succeeds, the two map writes succeed, and the next call answers
-`EPERM`: `unshare_nsproxy_namespaces` requires `CAP_SYS_ADMIN` in the caller's user namespace
-(`kernel/nsproxy.c:221` to `:223`), and `may_mount` requires it over the mount namespace's own
-(`fs/namespace.c:2062` to `:2066`). A boundary at the first call would make that a failed arm, so every managed add
-on such a host would be refused and the probe's pass controls could not pass there either.
+- `unshare(CLONE_NEWUSER)` answering `ENOSPC`: `kernel/user_namespace.c:91` sets it for the depth limit and for
+  `inc_user_namespaces` answering none, which `user.max_user_namespaces` bounds (`kernel/ucount.c:77` installs the
+  setting).
+- `unshare(CLONE_NEWUSER)` answering `EPERM`: the same file, `:105` for a chrooted caller, `:113` for a caller with
+  no mapping in the parent namespace, and `security_create_user_ns` (`:118`) answering `EPERM` from a policy hook.
+- `unshare(CLONE_NEWUSER)` answering `EACCES`: that same hook, SELinux's `avc_has_perm`
+  (`security/selinux/hooks.c:4734` to `:4739`, `security/selinux/avc.c:1188`) and AppArmor's `apparmor_userns_create`
+  (`security/apparmor/lsm.c:1050`) reaching `aa_check_perms` (`security/apparmor/task.c:374` to `:394`, its denial at
+  `security/apparmor/lib.c:440`).
+- The first mapping write answering `EPERM`: `map_write` checks `file_ns_capable(file, map_ns, CAP_SYS_ADMIN)`
+  (`kernel/user_namespace.c:986`) through `security_capable` (`kernel/capability.c:450` to `:458`), which
+  AppArmor's `apparmor_capable` (`security/apparmor/lsm.c:198` to `:210`) answers under Ubuntu 24.04's default
+  profile. That check runs before the line is parsed, so this errno is the host denying the capability, not a
+  malformed line.
+- `unshare(CLONE_NEWNS)` answering `EPERM`: `unshare_nsproxy_namespaces` requires `CAP_SYS_ADMIN` in the caller's
+  user namespace (`kernel/nsproxy.c:221` to `:223`).
+- The private propagation, through `mount_setattr` or `mount`, answering `EPERM`: `may_mount` requires
+  `CAP_SYS_ADMIN` over the mount namespace's own (`fs/namespace.c:2063` to `:2066`).
 
-Every errno of a call in the setup is a skip, not a list of them. The two expected on a kernel that allows
-unprivileged namespaces are `ENOSPC`, which `kernel/user_namespace.c:91` sets for both the depth limit and a count
-that passes `user.max_user_namespaces` (`kernel/ucount.c:77` installs the setting), and `EPERM`, which the same
-file sets for a chrooted caller or one without a mapping, and which the mount namespace's own capability check sets
-on the restricted kernel. `EUSERS` is not among them on any kernel this design supports: `unshare(2)` gives it
-only from Linux 3.11 to Linux 4.8, and `kernel/user_namespace.c` at v7.3 names it nowhere. `EACCES` is the third:
-`create_user_ns` calls `security_create_user_ns` (`:118`), SELinux's hook answers `avc_has_perm`, which denies with
-`EACCES` and whose documentation says so (`security/selinux/hooks.c:4734` to `:4739`; `security/selinux/avc.c:1188`),
-and AppArmor's hook is `apparmor_userns_create` (`security/apparmor/lsm.c:1050`), which reaches `aa_profile_ns_perm`
-and then `aa_check_perms` (`security/apparmor/task.c:374` to `:394`), whose denial is `EACCES`
-(`security/apparmor/lib.c:440`) and `ENOENT` for a hidden permission (`:443`). A seccomp filter in an agent sandbox
-can answer any errno at all, which is why the skip is every error from a call in the setup and the calls after it
-are the only ones that can fail. The companion then prints one line naming the call, the errno and the settings it
-read (`/proc/sys/user/max_user_namespaces`, `/proc/sys/kernel/unprivileged_userns_clone` and, where the running
-kernel has it, `kernel.apparmor_restrict_unprivileged_userns`), records its arms as not exercised, and does not
-refuse the add.
+Everything else the setup can answer is an arm failure, so a defect in the companion's own code lands on the
+refused side rather than the skip: `EINVAL` from any of those calls, which is the malformed line at
+`kernel/user_namespace.c:990`, an id the parent does not map, and a `unshare(CLONE_NEWUSER)` from a caller whose
+thread group is not empty (`kernel/fork.c:3188` to `:3191`, an implied `CLONE_THREAD`); an `EPERM` from the second
+mapping write or from any call after the first write succeeded; `ENOMEM`; and any errno a call was not named here to
+give, a seccomp filter's arbitrary answer included. That failure refuses the add as unproven. `EUSERS` is not in
+either set on any kernel this design supports: `unshare(2)` gives it only from Linux 3.11 to Linux 4.8, and
+`kernel/user_namespace.c` at v7.3 names it nowhere.
 
-That last step, and the printing of the skip, are this design's own choice, not the project's: Q6's option text
-named a skip on a host that refuses user namespaces as one of its costs, so that a skip exists was before the
-project, while the add going ahead after it was not. The choice differs from the direction Q4 chose for the probe's
-arms, where an arm that could not run keeps the route blocked. The reason: the companion touches no ZFS and its
-pass cannot predict the root attach, so a host that refuses user namespaces would lose the whole managed route to a
-check that cannot speak about it, while the root probe's arms and the module gate still bound that route. The
-alternative is Q4's rule applied here: a skipped companion refuses the managed add, and the managed route is then
-off on hosts that refuse user namespaces, with an unused slot taking the reflink or Git route. This design adopts
-the first and marks it open to the project's veto at acceptance, with veto none as the default; a veto takes the
-second, and nothing else in the design moves. `doctor` prints the settings it read and the companion's own outcome,
-so a host cannot lose the check without a printed reason.
+The line can be drawn because those refusal paths are enumerable and each of those errnos has a line that answers
+it, and because the capability check inside `map_write` runs before the parse, so the one errno the Ubuntu
+restriction and a malformed line could share is told apart. What it costs is the other direction: a sandbox that
+answers an arbitrary errno at a setup call is now a refused add rather than a skip, which is the fail-closed side,
+and this machine's threat model trusts it against that case.
+
+The wrapper's own control draws a related line: it runs
+`unshare --user --map-root-user --mount --propagation private /bin/true` and fails the run unless the run states the
+host has no user namespaces, by setting `CLI_GIT_NO_USER_NAMESPACE_ACKNOWLEDGED`
+(`package/git-policy/cli/src/native/binary/binary_worktree_removal_around_a_volume_tests.rs:165` to `:183`,
+the variable at `:38`). The companion is a shipped check rather than a control, so it prints the skip instead of
+failing every add on such a host, and what follows a printed skip is this design's choice rather than the project's,
+marked open to the project's veto where [The account companion](#the-account-companion) states it with its reason.
+
+The Ubuntu restriction, in detail. A kernel can grant the user namespace and take the capabilities inside it away,
+and Ubuntu 24.04's default AppArmor profile does exactly that, as its release notes say: the profile "allows the use
+of user namespaces for unprivileged and unconfined applications but will deny the subsequent use of any capabilities
+within the user namespace". That guest is the one every measurement in this design runs on. Reading mainline v7.3, the
+call that answers there is the first mapping write, not `unshare(CLONE_NEWNS)`: `map_write` asks for
+`CAP_SYS_ADMIN` over the new namespace before it parses anything (`kernel/user_namespace.c:986`), and the profile
+is what answers that check, so `unshare(CLONE_NEWUSER)` succeeds, `setgroups` may succeed, and the first map write
+answers `EPERM`. That is a reading of mainline source, not a run on that guest's patched 6.8 kernel, and
+[M6](#m6-user-namespace-limits) and [M11](#m11-the-account-companion-per-add) record which call it named rather
+than assuming this one. A boundary at the first call would make it a failed arm, so every managed add on such a
+host would be refused and the probe's pass controls could not pass there either.
+
+The companion then prints one line naming the call, the errno and the settings it read
+(`/proc/sys/user/max_user_namespaces`, `/proc/sys/kernel/unprivileged_userns_clone` and, where the running kernel
+has it, `kernel.apparmor_restrict_unprivileged_userns`), records its arms as not exercised, and does not refuse the
+add.
+
+That last step, and the printing of the skip, are this design's own choice, not the project's, and one the project
+can veto separately from the boundary: Q6's option text named a skip on a host that refuses user namespaces as one
+of its costs, so that a skip exists was before the project, while the add going ahead after it was not. The skip's
+reach matters to that choice, and the skip's boundary keeps it to the host's refusals, defects excluded, with the
+Ubuntu guest among the hosts that skip. The choice differs from the direction Q4 chose for the probe's arms, where
+an arm that could not run keeps the route blocked. The reason: the companion touches no ZFS and its pass cannot
+predict the root attach, so a host that refuses user namespaces would lose the whole managed route to a check that
+cannot speak about it, while the root probe's arms and the module gate still bound that route. The alternative is
+Q4's rule applied here: a skipped companion refuses the managed add, and the managed route is then off on hosts
+that refuse user namespaces, the Ubuntu guest included, with an unused slot taking the reflink or Git route. This
+design adopts the first and marks it open to the project's veto at acceptance, with veto none as the default; a veto
+takes the second, and nothing else in the design moves. `doctor` prints the settings it read and the companion's own
+outcome, so a host cannot lose the check without a printed reason.
 
 Every ending, and the line it prints. The companion's run ends in one of these, and each has a class and a line of
 its own:
@@ -1225,9 +1256,9 @@ number, and that choice is the project's.
 The deadline's margin. The value ships as the slowest measured arm or whole-probe run plus a margin that covers the
 range between the interleaved rounds, so a run inside the range the harness already saw does not fail closed on
 noise. The measurement runs on a guest and the deadline guards this host, and a file-backed guest pool measures
-semantics rather than this host's storage (the [plan][plan], lines 1834 to 1842, which makes that half the owner's act
-on the owner's authorisation); a reading of the same run on this host's storage is the owner's act for the same
-reason, and until it exists the value is the guest's.
+semantics rather than this host's storage (the [plan][plan], step 22's storage half, which makes that half the
+owner's act on the owner's authorisation); a reading of the same run on this host's storage is the owner's act for
+the same reason, and until it exists the value is the guest's.
 
 The unit sets no `TimeoutStartSec=`. A start timeout bounds a oneshot's `ExecStart` as well as its
 `ExecStartPre=`: the timer is armed per command with `s->timeout_start_usec` (systemd v262 `service.c:2991`,
@@ -1433,9 +1464,17 @@ namespaces.
 
 These are notes for the plan's own text, and this design edits no plan step. Each note names its step by heading,
 because the plan's line numbers move: every plan line number this document cites elsewhere is a line of the plan at
-commit `73eaad0846`, the branch's base, and main's copy had gained nine lines before step 4 when this round read it
-(`git show main:doc/planning/cli-git-zfs-worktree-implementation-plan.md`).
+commit `73eaad0846`, the branch's base, and the two places this design reads a line of main's copy name their step
+and its text rather than a number (`git show main:doc/planning/cli-git-zfs-worktree-implementation-plan.md`, read at
+main's `8b1cec7883`, whose plan is 2451 lines). Main's copy has moved twice since the base: a nine-line gain before
+step 4, and then the four lines the merge `30431ecc14` added to step 1, which is why one offset does not serve
+both ends of the file.
 
+- Step 3, "ZFS recognition in the reflink rung and the ladder's refusals", owns H1 gate 7, which exercises a
+  confined consumer's clone attach. That gate meets Ubuntu 24.04's capability denial when the setting is at 1, so
+  its `EPERM` reading must be taken with `kernel.apparmor_restrict_unprivileged_userns` at 0, and its control needs a
+  tmpfs mount in the same user namespace beside the permitted host mount, so a denial cannot pass for the gate's own
+  refusal. [M6](#m6-user-namespace-limits) states the same rule for its arms.
 - Step 4, "The descriptor attach, its identity checks and its rollback", gains the `first-attach` writer, its format
   and its exclusive claim, because the attach module is where a failing step and its errno are known. It also owns
   the reader of the host facts the fingerprint holds (kernel release, module version, `srcversion` and the handler's
@@ -1625,18 +1664,24 @@ Gates: the probe's walk, its refusal controls and the wrapper's `openat2` flags.
 ### M6: user namespace limits
 
 As the account, attempt the probe's attach of a ZFS source that no namespace mounts, inside a user namespace, and
-require `EPERM` from `zfs_domount`. Then repeat with the source mounted in the guest's initial namespace and
+require `EPERM` from `zfs_domount`, with `kernel.apparmor_restrict_unprivileged_userns` at 0 on a guest that has
+the setting, so a capability denial cannot answer in place of `zfs_domount`. Then repeat with the source mounted in
+the guest's initial namespace and
 require `EBUSY` from the matched extant superblock instead, because `sget_fc` refuses a superblock from another
 user namespace before `zfs_domount` runs (Linux v6.8 `fs/super.c:779` to `:786`). Control: a tmpfs mount in the
 same user namespace succeeds, and root's attach in the init namespace succeeds. Then disable unprivileged
 namespaces in the guest (`user.max_user_namespaces` set to 0) and record that the account arm is skipped with a
 stated reason rather than failing the boot. Then boot a guest with `kernel.apparmor_restrict_unprivileged_userns` set
 to 1, where the user namespace is granted and its capabilities are denied, and require the same skip, naming the
-call that failed and `EPERM`, which is the restricted arm [M11](#m11-the-account-companion-per-add) runs.
+setup call that failed and `EPERM`, which is the restricted arm [M11](#m11-the-account-companion-per-add) runs.
 
 M6 is a separate arm from H1 gate 7, which plan step 3 owns: gate 7 exercises a confined consumer's attach of the
 clone, while M6 exercises the probe's own source as the account, and neither replaces the other. Both run on the
-Ubuntu guest, so both meet the restriction [The account companion](#the-account-companion) states for the skip.
+Ubuntu guest, so both meet the restriction [The account companion](#the-account-companion) states for the skip, and
+both therefore run with `kernel.apparmor_restrict_unprivileged_userns` at 0 for their refusal readings: with the
+setting at 1 an `EPERM` from the capability denial looks the same as the `EPERM` M6 and gate 7 expect, so M6's tmpfs
+control and gate 7's permitted host mount would pass for the wrong reason. Gate 7's own note is under
+[Notes for the plan](#notes-for-the-plan).
 
 Gates: the assumption that every ZFS arm needs root, the companion's `EPERM` reading, and the skip path
 [M11](#m11-the-account-companion-per-add) measures.
@@ -1661,7 +1706,7 @@ Record the handler's first real attach after boot as the `first-attach` file wri
 that made the attach, and compare its outcome with the probe's snapshot arm on the same build. Controls, each of
 which must fail its arm when it is broken: an unloaded-key clone attach must write nothing, because plan step 8's
 key check refuses it before any call, and the handler's journal and `doctor` must name the unavailable key instead;
-in a test-only build that skips that check the same fixture must write `outcome refused` with
+with the `CLI_GIT_TEST_ONLY_*` switch that skips that check set, the same fixture must write `outcome refused` with
 `step fsconfig-create` and the `EACCES` item 5 measured, on the same boot as a passing probe arm; a second attach in
 the same boot must write nothing, because its claim answers `EEXIST`; a handler check that refuses inside the claim,
 such as the identity compare, must write `errno none` and pass the reader; a slot behind a nested mount, which the
@@ -1691,9 +1736,10 @@ untested-release arm needs the custom CachyOS template that no built-in or local
 [proposal][proposal], lines 1826 to 1834; [measurements][measurements], item 16, lines 668 to 706); until it
 exists, run this arm on the Ubuntu guest with a labelled limit that says it is not the host release.
 
-Two more arms use deliberate faults rather than releases. A test-only build that keeps one extra descriptor open
-on the attached mount must make the move and unmount arm fail with `EBUSY`, and the same build closing it must
-pass, so that arm's unmount is shown to check the mount rather than pass vacuously (`fs/namespace.c:2010`). A
+Two more arms use deliberate faults rather than releases. The handler's `CLI_GIT_TEST_ONLY_*` switch that makes it
+keep one extra descriptor open on the attached mount must make the move and unmount arm fail with `EBUSY`, and the
+same switch turned off must pass, so that arm's unmount is shown to check the mount rather than pass vacuously
+(`fs/namespace.c:2010`). A
 `SIGKILL` to the mode process must leave the unit's `ExecStart` to run, which is what `ExecStartPre=-` buys, and
 must leave a started record that the add preflight and `doctor` read as not current rather than as a pass.
 
@@ -1716,9 +1762,12 @@ Gates: the probe's source and the setup steps.
 
 ### M11: the account companion, per add
 
-Run the built companion in the add preflight on the guest. The guest run enables it through a test-only switch that
-carries a test deadline of its own, neither of which ships: in a shipped build, until this item's value exists, the
-companion does not run in the preflight (as [The account companion](#the-account-companion) states). Record each arm:
+Run the built companion in the add preflight on the guest. The guest run enables it through a
+`CLI_GIT_TEST_ONLY_*` switch that carries a test deadline of its own, both compiled into the release executable and
+inert unless set: in a shipped build, until this item's value exists, the
+companion does not run in the preflight (as [The account companion](#the-account-companion) states). Record every arm
+the run exercises, and require that no pass arm prints a skip line, so a companion that skipped while the run calls
+it a pass fails its own control. Record each arm:
 the user namespace and its mapping writes, the mount namespace and its private propagation, the tmpfs scratch
 mount, the walk and its `ObjectId` compare, the descriptor attach of the second tmpfs, the flags read back, the four
 refusal controls, and the move and the unmount from the second child. Every refusal control needs its success control
@@ -1729,17 +1778,21 @@ that refuses everything fails its own control, and every arm here runs with
 Measure what the companion costs one add as a ratio to the same add with the companion disabled, interleaved in the
 same round, and report the range between rounds; size the per-add deadline from that measurement and from no other.
 Controls that make the number and the verdict able to fail: the interleaved disabled arm, which must show the
-difference the ratio reports; a test-only build whose child answers `EPERM` from `fsmount`, which must refuse the
-add, name the call and take the fallback route, with a second build that passes; and a guest booted with
+difference the ratio reports; a `CLI_GIT_TEST_ONLY_*` fixture whose child answers `EPERM` from `fsmount`, which must
+refuse the add, name the call and take the fallback route, with the switch off passing; and a guest booted with
 `user.max_user_namespaces` set to 0, which must print the skip line naming `ENOSPC` and the setting, must not
 refuse the add, and must leave `doctor` naming the setting and the skip. A transient unit carrying
 `SystemCallFilter=` for `unshare` with `SystemCallErrorNumber=EPERM` is the other refusal a host can show, and it
 must print the same skip line with that errno; a filter answering `EACCES`, the errno the SELinux and AppArmor hooks
-give, must print the same line, so a skip rule that lists errnos instead of taking every one from a call in the
-setup fails its own control. A guest booted with `kernel.apparmor_restrict_unprivileged_userns` at 1, on a
+give, must print the same line. The other half of the line needs its own control: a filter answering `EINVAL` at any
+setup call, which is what a defect of the companion's own code would give, must refuse the add as a failed arm and
+must print no skip line, and a filter answering `EPERM` at the second mapping write must do the same, so a skip rule
+that took every errno from a call in the setup fails its own control. A guest booted with
+`kernel.apparmor_restrict_unprivileged_userns` at 1, on a
 distribution whose default profile denies capabilities inside the namespace, is the arm the skip boundary exists
-for: it must print the skip line naming `unshare(CLONE_NEWNS)` and `EPERM`, must not refuse the add, and must leave
-`doctor` naming the setting and the skip. A guest whose kernel has no
+for: it must print the skip line naming the setup call the kernel denied and `EPERM`, must record which call it
+named (the first mapping write on a mainline reading, as [The account companion](#the-account-companion) states),
+must not refuse the add, and must leave `doctor` naming the setting and the skip. A guest whose kernel has no
 `/proc/sys/kernel/unprivileged_userns_clone` must print `absent` for it rather than nothing. And because the child
 repeats the probe's syscall sequence in its own no-allocation island, this
 run compares that sequence against the probe's arms on the same controls, so an island that diverged from the probe
@@ -1754,9 +1807,9 @@ The question round closed on 2026-11-19, and every answer is under
 [Answers of 2026-11-19](#answers-of-2026-11-19), which states each question, the option the project chose, the
 timestamp range and the option it did not take. No question of this design stays open. Two of its own choices stay
 open to the project's veto, each with veto none as the default: the companion's printed skip letting the add
-proceed, and no deadline value before step 6's measurement, which is why step 19 adds `ExecStartPre=` only when one
-is cited. What stays open beside them is measurement: every item under [Owed measurements](#owed-measurements) is
-unrun, and nothing here authorizes work on this host's pool.
+proceed, no probe deadline value before step 6's measurement, and no companion deadline before step 10's, which is
+why step 19 adds `ExecStartPre=` only when one is cited. What stays open beside them is measurement: every item under
+[Owed measurements](#owed-measurements) is unrun, and nothing here authorizes work on this host's pool.
 
 ## What a writer settles without asking
 
@@ -1844,7 +1897,8 @@ states.
   16, 18, 19, 20 and 22, "What can start now", "Open items and the step that needs each", and "Where the design is
   silent: this plan's suggestions". Every plan line number this document cites is a line of the plan at commit
   `73eaad0846`, the branch's base; [Notes for the plan](#notes-for-the-plan) states that base and names each step
-  by heading, because main's copy had already moved nine lines before step 4.
+  by heading, and it names the two places that read main's copy by their step and text, because main's copy moved
+  after the base and moved again after the fourth revision read it.
 - [The measurements record][measurements], the items this document cites, each with the measured output beside
   it.
 - OpenZFS `zfs-2.4.4` at commit `71a9f9578616`, cloned on 2026-11-19:
