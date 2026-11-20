@@ -150,3 +150,7 @@ mod blob_fixture;
 /// written as data a test can move one field in.
 #[cfg(test)]
 mod approved_module_fixture;
+/// The gate's one live arm in the throwaway guest.
+#[cfg(test)]
+#[path = "live_gate_tests.rs"]
+mod live_gate_tests;
