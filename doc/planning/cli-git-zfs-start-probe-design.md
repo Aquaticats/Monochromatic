@@ -934,16 +934,18 @@ ends down and then calling `close_range(5, ~0U, 0)`, the way the probe's holder 
 ([The pipes and parent-death signals each child owns](#the-pipes-and-parent-death-signals-each-child-owns)): the
 runtime holds epoll, event and socket descriptors, a caller's pipe may be open, and a copy of a pipe end or of a
 lock descriptor in a child that outlives the wrapper holds that pipe or lock open. Third, the parent never waits on
-a child that `SIGKILL` cannot end: it kills the child it can and hands it to the wrapper's reaper for a stuck child
-(`package/git-policy/cli/src/native/process/stuck_children_reaped_when_the_kernel_lets_go.rs:1` to `:32`), which is
-the rule [Limits](#limits) states for the probe's own child.
+a child that `SIGKILL` cannot end: it kills the child it can and leaves a thread to wait for it in the shape the
+wrapper's reaper states (`package/git-policy/cli/src/native/process/stuck_children_reaped_when_the_kernel_lets_go.rs:1`
+to `:32`; its `reap_soon` takes a `std::process::Child` at `:57`, so this raw-forked pid needs that rule written
+for a pid, which step 6 does), which is the rule [Limits](#limits) states for the probe's own child.
 
 Its parent-death signal, and what a killed wrapper leaves. The child sets `PR_SET_PDEATHSIG` to `SIGKILL` and
 rechecks `getppid()`, as the probe's children do, so a wrapper killed outright takes its child with it, and the
 child's namespace and the tmpfs inside it go when the child ends, which leaves the empty directory the next
 preflight sweeps. The second child that moves and unmounts is forked by the first, and it sets its own
-parent-death signal after that fork, so it goes when the first child dies: the single-threaded first child blocks
-until it has reaped it, which is what keeps that signal's forking thread alive. That signal follows the forking
+parent-death signal after that fork and rechecks `getppid()`, as the probe's children do, so it goes when the first
+child dies: the single-threaded first child blocks until it has reaped it, which is what keeps that signal's forking
+thread alive. That signal follows the forking
 thread rather than the process
 (`doc/troubleshooting/pdeathsig-fires-when-the-parent-thread-ends.md`), and a blocking-pool thread idles out after
 ten seconds without work (tokio 1.54.1 `src/runtime/blocking/pool.rs:231`, `KEEP_ALIVE`; the wrapper's builder sets no
@@ -975,8 +977,9 @@ state under that directory (`package/git-policy/cli/src/native/service/service_p
 the checkout, the slot tree, the staging folder or the clone parent, so no path mount or unmount touches the tree
 the plan's rule forbids (the [plan][plan], line 275), and it is not under the root-owned record directory. The
 parent removes its subdirectory when the child ends, a kill included, and only after it has reaped the child, so a
-child that `SIGKILL` cannot end keeps its directory, its namespace and the mount in it until the wait returns. The
-next preflight sweeps the siblings a kill leaves, and it removes only a directory it can prove dead: the name
+child that `SIGKILL` cannot end keeps its directory, its namespace and the mount in it until the wait returns, and
+that directory is the next preflight's to sweep once the wait returns; no other process removes it. The next
+preflight sweeps the directories a kill leaves, and it removes only a directory it can prove dead: the name
 carries the pid and the birth identity the wrapper records for its own processes
 (`.../process/process_identity.rs:1` to `:22`), and the sweep removes a name
 only when its pid names no process in this namespace (`kill(pid, 0)` answering `ESRCH`) and no process holds that
@@ -984,12 +987,14 @@ recorded identity. That test is the wrapper's, not the child's: the directory is
 carries the wrapper's pid and identity, and what the sweep proves is that this run's wrapper is gone. A live child
 of a dead wrapper, which a signal not yet delivered or an uninterruptible wait leaves, therefore reads as dead to
 the sweep, and that is benign: that run's wrapper is gone, nothing reads its answer, and the mount the `rmdir`
-detaches then lives in that child's own namespace. A name written by a wrapper in another PID namespace names
-another process here, so the sweep judges such a name the wrapper's own way, by the age of its recorded identity
-rather than by `kill(pid, 0)`, and past that age it refuses to remove the directory and names it
-(`.../process/pid_namespace.rs:1` to `:40`). That care is load-bearing: the tmpfs mount inside a live child's
-directory lives in that child's namespace, `rmdir` of the directory from the host namespace is not refused for such
-a mount, because `is_local_mountpoint` looks at the caller's namespace, and the call then detaches that mount in
+detaches then lives in that child's own namespace. The name carries the PID namespace too, as
+`current_pid_namespace()` gives it (`.../process/pid_namespace.rs:122` to `:133`): a name written by a wrapper in
+another PID namespace names another process here, so the sweep judges it the wrapper's own way, by the directory's
+own file time as its age (`foreign_record_age`, `:202`), rather than by `kill(pid, 0)`, and past
+`FOREIGN_OWNER_PATIENCE` (`:108`) it refuses to remove the directory and names it (`:147` to `:200`). That care is
+load-bearing: the tmpfs mount inside a live child's directory lives in that child's namespace, `rmdir` of the
+directory from the host namespace is not refused for such a mount, because `is_local_mountpoint` looks at the
+caller's namespace, and the call then detaches that mount in
 every namespace
 (`fs/namei.c:5502` to `:5521`, `detach_mounts`), so a sweep that guessed would end a live run's mount. The
 parent-death signal makes a wrapper's own death leave an empty directory rather than a live one, because the child
