@@ -160,7 +160,8 @@ The answer the item carries, in the owner's words: "Under ~/.cache, and make the
   force-unmount result would change two statements in this file: the busy-teardown rule that reports which clone
   holds the mount and never forces or detaches it ... and the staging step's unmount without force or lazy detach."
 - The handler's record of slot identity is root's ([proposal][proposal], "Descriptor mount and unmount"): records
-  live in `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities`.
+  live in `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities`. The staged-folder record is
+  not one of those, and by the project's answer it lives in `~/.cache` instead ("The staged-folder record").
 
 ## Facts
 
@@ -412,21 +413,25 @@ read-only reads named.
 
 - A1. The handler acts in the host mount namespace, as the design states, and the wrapper normally does too. The
   `EBUSY` protection of F11 holds only inside the namespace that holds the mount, so the handler records the device
-  and inode of its `/proc/self/ns/mnt` beside the boot id that gives them meaning (F32) in one durable record per
+  and inode of its `/proc/self/ns/mnt` beside the boot id that gives them meaning (F32) in one record per
   clone GUID, and the wrapper reads that record, compares the pair with its own, and refuses on a mismatch or on a
   different boot id before it removes any folder. The record also carries the folder's file handle and identity,
-  which is what a later sweep opens the folder from (F29, L12). It lives under
-  `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-staged-folder-records/<guid>.json` as root's state, not
-  under `/run`: the accepted text keeps that directory to receipts named by dataset GUID and calls its contents a
-  cache, which this record is deliberately not ("The staged-folder record").
+  which is what a later sweep opens the folder from (F29, L12). It lives at
+  `<home>/.cache/monochromatic-git-policy-cli-staging-<guid>.json`, beside the folder of the same component, by the
+  project's answer "In ~/.cache" and under the threat model that answer states ("Answers of 2026-11-19"). It is
+  therefore data the account can read and replace, which the project's sentence accepts, and it is a cache of the
+  folder's handle rather than root's authority: a record that does not match the folder's identity is a refusal, and
+  never proof ("The staged-folder record").
 - A2. The account home the staging target lives in is the passwd home of the pinned UID, not `$HOME` or
-  `$XDG_CACHE_HOME`, because a root handler has neither and the answer names `~/.cache`. That trust source is a
-  proposal of this design ("Proposals the owner may veto").
+  `$XDG_CACHE_HOME`, because a root handler has neither and the answer names `~/.cache`. The project accepted that
+  trust source without veto ("Proposals the owner settled").
 - A3. `~/.cache` stays the mount of `zpcachyos/nosnap/user-cache` at boot and is not replaced by the account between
   setup and a removal. If it is replaced, the source-and-parent identity check refuses rather than adopts it.
-- A4. The account does not deliberately sabotage its own staging, which is the same-account residual the delegated
-  destroy decision already accepts ([proposal][proposal], "Clone removal identity protection"). Routine cleaning of
-  `~/.cache` is not sabotage and is covered by "Limits".
+- A4. The account does not deliberately sabotage its own staging, which is what the project's threat model for this
+  machine states directly: the account is trusted, and root and the account are not a security boundary here
+  ("Answers of 2026-11-19"). It is also the same-account residual the delegated destroy decision already accepts
+  ([proposal][proposal], "Clone removal identity protection"). Routine cleaning of `~/.cache` is not sabotage and is
+  covered by "Limits".
 - A5. The removal flow obtains a receipt for its `unmount` nonce, showing the clone absent in every namespace and the
   bind gone from the host namespace, before the wrapper removes anything; a removal whose receipt never arrives, or
   arrives unclear, keeps its staged state reported and removes no folder. A refused unbind is a clear receipt of the
@@ -434,7 +439,8 @@ read-only reads named.
 - A6. The staging folder is only ever a mountpoint carrier: nothing but the bind and the moved mount is put inside
   it, so a successful unbind leaves it empty.
 - A7. A staged mount's presence in the host namespace is acceptable to the account, since the folder sits in the
-  account's own `~/.cache`, at the mode F1 records.
+  account's own `~/.cache`, at the mode F1 records, and the project treats the account as trusted ("Answers of
+  2026-11-19").
 
 ## Limits
 
@@ -461,10 +467,12 @@ read-only reads named.
   settle without asking") and leaves the clone's worktree files inside the mount, so a reattach after such a delete
   restores what the delete did not remove.
 - L10. A mount ID is unique only while its mount structure lives (F21), and a reboot gives new structures; a mount
-  namespace's inode number is boot-scoped in the same way. A durable record may therefore carry a mount ID or a
-  namespace pair only beside the boot id that gives it meaning (F32), and a reader voids both when the boot id
+  namespace's inode number is boot-scoped in the same way. A record may therefore carry a mount ID or a namespace
+  pair only beside the boot id that gives it meaning (F32), and a reader voids both when the boot id
   differs. This design's staged-folder record carries the namespace pair and no mount ID at all; the folder's file
-  handle is the one field that outlives a boot, which is what the recovery route and M6 rest on.
+  handle is the one field that outlives a boot, which is what the recovery route and M6 rest on. The record sits in
+  `~/.cache`, so the account can replace it; the project's threat model accepts that, and the sweep's folder identity
+  check is what refuses a record that describes some other folder (F29, "The staged-folder record").
 - L11. A folder removed or renamed over from a namespace that does not hold its mounts detaches every mount at it in
   every namespace (F11), so a mount at a folder that is gone has no row anywhere. What stays is a detached mount held
   by whatever holds it, the refusal a removal then sees is the destroy's `dataset is busy` (F13) rather than a mount
@@ -509,10 +517,10 @@ shape is all the handler can check, and a folder the account substituted before 
 as it stands; the wrapper's own claim identity is what then refuses to remove it, and the receipt and `doctor` report
 it (M1).
 
-The owner's words name the wrapper as the cleaner; who creates the folder is part of Q1, because the proposal's rule
-stops the handler from creating or removing "account slots" and calls its slot descriptors descriptors "for mount
-management, not privileged writes into the account's tree", and whether a staging folder is such a slot is a
-writer's reading of those lines.
+The owner's words name the wrapper as the cleaner, and the first question's answer made that the design: the
+wrapper creates the folder. The proposal's rule stops the handler from creating or removing "account slots" and
+calls its slot descriptors descriptors "for mount management, not privileged writes into the account's tree", and
+whether a staging folder is such a slot was a writer's reading of those lines; the answer settles it for the folder.
 
 ### The private bind
 
@@ -529,16 +537,23 @@ flag set the accepted hop already prescribes ([proposal][proposal], "Descriptor 
 of that file), and confirmed by the mount ID `/proc/self/fdinfo` prints (F28, F21). That lookup is not a path-based
 mount or unmount: it is a read that names the mount, the propagation change runs on the descriptor, and the only
 calls that carry a path string are `mount(2)` and `umount2`, whose argument is a descriptor's `/proc` path, a reading
-this design puts to the owner ("Proposals the owner may veto"). The bind is a mount in the host namespace at a path
-inside the account's tree, which is the exposure the decided default accepts ([proposal][proposal], "Decided
+the project accepted without veto ("Proposals the owner settled"). The bind is a mount in the host namespace at a
+path inside the account's tree, which is the exposure the decided default accepts ([proposal][proposal], "Decided
 defaults"); its copies in other namespaces are a further exposure this design states rather than denies, and the
-unbind's rule over them is F22 and F30.
+unbind's rule over them is F22 and F30. The project's sentence treats the account as trusted and root and the
+account as no security boundary ("Answers of 2026-11-19"), so these exposures are documented rather than defended
+against here; "Hardening the stated threat model may make unnecessary" lists the checks that guard them anyway.
 
 The move is the one step whose destination does not keep the covered mount: `move_mount`'s destination follows the
 stack to its top mount (F14), so a mount the account stacks on the folder after the bind receives the clone on top
-of itself. The design does not try to prevent that, which no descriptor can do, and it checks for it instead: the
-post-move check compares the topmost mount at the folder with the bind's row and refuses when they differ, which M1
-arms.
+of itself, and no descriptor call closes that window. The project's answer to what the handler then does is "Move it
+back at once (Recommended)" ("Answers of 2026-11-19"), which is the accepted rule for a clone that lands somewhere
+other than its slot ("Misplaced attach" under [proposal][proposal], "Project decisions"): the post-move check
+compares the topmost mount at the folder with the bind's row, and where they differ the handler moves the clone's own
+mount back to its slot by that mount's descriptor and the slot's, with `MOVE_MOUNT_F_EMPTY_PATH` and
+`MOVE_MOUNT_T_EMPTY_PATH`. Where the rollback fails, the clone stays staged, the receipt carries the misplaced state
+and `doctor` reports it, and the removal refuses; keeping it staged is the state the busy-unmount decision allows.
+M1 arms the rollback and its failed arm.
 
 ### The unmount call from staging
 
@@ -550,12 +565,15 @@ bind. The lookup lands on the topmost mount at that folder, so the first call un
 unmounts the bind, and both calls meet the decided sentence because the string they receive names a descriptor in
 `/proc`, not a path inside the account's tree. The descriptor keeps a pathname substitution out of the call, but it
 cannot keep a mount the account stacks on the folder out of the stack the kernel selects (F24): the call removes the
-topmost mount whatever it is, so after each call the handler asserts the transition it expected, that the recorded
-clone is gone and the recorded bind is now topmost, then that the bind is gone and no mount is left. A topmost mount
-that is not the recorded one means the call removed something else, and the handler refuses, reports, and unbinds
-nothing. F7 also means the call needs no name under any ancestor, so a rename of an ancestor cannot take the staged
-mount out of reach. The reviewed draft tested only a descriptor opened through the clone, which F10 says holds the
-clone and must refuse (F9); M2 keeps that reading as the control.
+topmost mount whatever it is. The handler therefore never calls on a topmost mount it did not record: it checks the
+topmost mount's identity before each call and refuses without calling when that mount is not the recorded clone or
+the recorded bind, then checks the transition after each call, that the recorded clone is gone and the recorded bind
+is now topmost, then that the bind is gone and no mount is left. A mount stacked after the move is a different scene
+from the one the third question answered, because no clone landed on it: the refusal leaves the clone on the bind,
+reports the stacked mount, and unbinds nothing ("Answers of 2026-11-19"). F7 also means the call needs no name under
+any ancestor, so a rename of an ancestor cannot take the staged mount out of reach. The reviewed draft tested only a
+descriptor opened through the clone, which F10 says holds the clone and must refuse (F9); M2 keeps that reading as
+the control.
 
 That descriptor lives one handler invocation. A later sweep has no descriptor of its own and cannot make one by name:
 a by-name open crosses the bind or the clone (F28) and the descriptor it returns pins the very mount the sweep would
@@ -575,17 +593,18 @@ resolves gets `ESTALE` (F29), and the folder that handle named is gone from ever
 so there is nothing left to unmount: what remains is a detached mount that its holders keep alive, and only those
 holders ending frees the dataset (F11, L11). A copy of the bind in another namespace that a process works inside
 refuses the unbind with `EBUSY` (F30), and the host's bind stays. In each of the three the sweep unmounts nothing,
-removes nothing, reports the retained state and leaves the question of what may act on it to Q2. None of this is
-measured (L12, M6).
+removes nothing and reports the retained state, which the second question's answer leaves to the administrator and to
+a later removal; none of them is a case where the design guesses ("Answers of 2026-11-19"). None of this is measured
+(L12, M6).
 
 The accepted design asks for "the interface that unmounts a staged mount from the held descriptor" and for an act
 "on the held descriptor and never on a path inside the folder the account can change". This design reads the held
-descriptor as the folder descriptor the handler holds from before the bind, which is what its own calls use, and it
-reads the recorded handle as the way a later sweep holds that same folder again: a handle names the inode and
-generation the descriptor named, and it is not a path. All three readings are the owner's, because the sentence's
+descriptor as the folder descriptor the handler holds from before the bind, and, where no descriptor outlives the
+invocation, the recorded handle as the way a later sweep holds that same folder again: a handle names the inode and
+generation the descriptor named, and it is not a path. All three readings are the project's, because the sentence's
 words are: that `umount2` on a descriptor's `/proc` path acts on the held descriptor, that the same call is not a path
-unmount, and that a descriptor reopened from the record is the held descriptor too. They sit in "Proposals the owner
-may veto", and Q2's first option is what the third one costs.
+unmount, and that a descriptor reopened from the record is the held descriptor too. All three were put to the project
+and accepted without veto ("Proposals the owner settled").
 
 ### What the wrapper removes and when
 
@@ -602,8 +621,14 @@ handle of F29 survives a rename; a name does not). Because the component is the 
 wrapper can match an entry to a clone, and to that clone's staged-folder record, without the claim. Two proofs stay
 apart: the wrapper removes a folder only where its own claim and that claim's recorded identity agree with it, and
 `doctor` prints as an orphan every entry that matches no live clone's GUID or no clone's record, and removes none.
-`doctor` lists `~/.cache` by descriptor, prints each entry it cannot match and the state of each it can, and only a
-removal's own sweep settles a folder ("The staged-folder record").
+The record is a file beside the folder and is removed by `unlinkat` of that same component and suffix after the
+folder's `rmdir`, so the settlement removes one folder and one file and never a tree. `doctor` lists `~/.cache` by
+descriptor, keeps folders and records apart by kind and suffix, prints each entry it cannot match and the state of
+each it can, and only a removal's own sweep settles a folder ("The staged-folder record").
+
+The claim's proof is what defends against a name the wrapper did not make, and the project's sentence treats the
+account as trusted ("Answers of 2026-11-19"). The design keeps the proof anyway, as one entry of "Hardening the
+stated threat model may make unnecessary" rather than as something the sentence removed.
 
 ### Ordering against the mount of `~/.cache`
 
@@ -620,7 +645,7 @@ none is measured.
 
 ### Way A: a claimed, depth-one folder per removal, bound and made private for that removal
 
-- The wrapper checks `~/.cache`'s mount source against the pin of "Proposals the owner may veto" before it creates
+- The wrapper checks `~/.cache`'s mount source against the pin of "Proposals the owner settled" before it creates
   anything, so a missing or replaced `user-cache` mount writes no entry on the home underlay (F12), then reads the
   clone's dataset GUID, creates `<home>/.cache/monochromatic-git-policy-cli-staging-<guid>` once per removal, at the
   mode F1 records, and claims it in a staging claim of its own kind ("The staging claim") before the folder exists.
@@ -660,7 +685,8 @@ Pros: no privileged write into the account's tree; the creator is also the clean
 lives one removal, so concurrent removals use their own folders and their own binds and need no lock; the unmount
 and unbind act on a descriptor's own path and never on a name inside the account's tree (F7); the depth-one folder
 removes the renamable ancestor the reviewed draft carried, and the recorded handle survives a rename of the folder
-from a foreign namespace (F29), so only a recovery the handle cannot serve waits on Q2; the retained staged state the
+from a foreign namespace (F29), so only a recovery the handle cannot serve is left to the administrator; the retained
+staged state the
 busy decision allows is a folder whose name and record this design can prove and report.
 
 Cons: the account can remove the empty folder before the first bind and replace it, and the first bind has no
@@ -686,8 +712,8 @@ host-namespace, foreign-namespace, renamed and copied arms, M5, every arm of M6,
 ### Way B: a root-made target per removal, bound for that removal
 
 - Root creates `<home>/.cache/monochromatic-git-policy-cli-staging-<guid>` mode `0700` owned by root, says so in the
-  staged-folder record under `/var/lib/monochromatic-git-policy-cli/`, binds it, makes it private, moves the clone
-  onto it, unmounts, unbinds, and the wrapper removes the target after the clear receipt. Root draws the name here,
+  staged-folder record, binds it, makes it private, moves the clone onto it, unmounts, unbinds, and the wrapper
+  removes the target after the clear receipt. Root draws the name here,
   which is the one way the handler does not have to derive it (F33, A1).
 - The wrapper creates no folder; it records the removal and waits for receipts.
 
@@ -715,8 +741,8 @@ Test cost: Way A's arms plus M8, and the same device-free tests for the wrapper'
 - Each removal's unmount is one call, on the clone only: after that the folder is a plain directory inside the bind,
   not the root of a mount, so a second `umount2` through a folder descriptor would fail `path_mounted` (F8). The
   bind is removed by the stop pass, which needs its own anchor: either a descriptor the boot unit kept alive or a
-  path unmount under `~/.cache`, which the decided sentence forbids; Q2 answers for a retained bind whose anchor is
-  gone.
+  path unmount under `~/.cache`, which the decided sentence forbids; the second question's answer leaves a retained
+  bind's handle to a later sweep.
 
 Pros: the bind exists before any removal, so a removal never waits for a mount transition; the boot unit's start
 reconcile gains one setup step instead of an on-demand step; the folders inside one private bind do not interact, so
@@ -726,7 +752,8 @@ target as forcing one).
 Cons: a mount in the host namespace for the whole boot; every removal's folder sits inside it, so an account
 `rmdir` from a foreign namespace detaches the bind and every staged mount with it (F11); the stop pass must unmount
 a staged clone before the bind, and must never force it; the stop pass also needs an anchor for the bind itself,
-which a boot-once process does not keep (Q2); the boot unit must order the bind after the `user-cache` mount, which
+which a boot-once process does not keep, and the recorded-handle route is the design's answer only for the folder it
+was recorded for; the boot unit must order the bind after the `user-cache` mount, which
 nothing does today (F12); the bind's copies in peer and slave namespaces live and go with it, with the same busy rule
 as Way A's (F22, F30); the bind's removal falls to the boot unit rather than to the wrapper, so the owner's "make
 the wrapper clean after itself" does not cover it.
@@ -1065,14 +1092,15 @@ otherwise have had to add a decision the accepted design did not make, or revers
 veto list were answered on 2026-11-19, and "Answers of 2026-11-19" lists them with the answers in the project's
 words. What each answer left untaken, in the project's terms:
 
-- Q1's other two ways. Making `~/.cache` private once at boot would change an existing mount, which the accepted
-  proposal puts outside this work, and letting root create the folder writes into the account's tree, against the
-  proposal's rule on slots. Both stay described under "Ways to meet it" as ways not taken.
-- Q2's other two routes. A boot-long supervisor holding every staged folder open adds a privileged process whose
-  crash returns the removal to the administrator, and waiting for the administrator makes every handler crash leave a
-  worktree unremovable until a person acts.
-- Q3's other two answers. Leaving the clone on the mount the account stacked keeps the dataset busy on a mount the
-  handler did not make, and moving it onto the folder's bind again repeats the step that was interfered with.
+- The first question's other two ways. Making `~/.cache` private once at boot would change an existing mount, which
+  the accepted proposal puts outside this work, and letting root create the folder writes into the account's tree,
+  against the proposal's rule on slots. Both stay described under "Ways to meet it" as ways not taken.
+- The second question's other two routes. A boot-long supervisor holding every staged folder open adds a privileged
+  process whose crash returns the removal to the administrator, and waiting for the administrator makes every handler
+  crash leave a worktree unremovable until a person acts.
+- The third question's other two answers. Leaving the clone on the mount the account stacked keeps the dataset busy on
+  a mount the handler did not make, and moving it onto the folder's bind again repeats the step that was interfered
+  with.
 - The one proposal the project did not take as written: the record under
   `/var/lib/monochromatic-git-policy-cli/`, which now lives in `~/.cache` ("The staged-folder record").
 
@@ -1150,29 +1178,63 @@ the staging sweep must remove the folder by `rmdir` and the recovery pass must s
 A later sweep needs three things a receipt cannot give it: the folder's file handle, because a name may have moved
 or gone (F29), the folder's identity, because the handle alone is not the proof, and the boot id with the
 mount-namespace pair that say whether a recorded mount ID or inode still means anything (F32, L10). They live in one
-root-owned record per clone GUID, at
-`/var/lib/monochromatic-git-policy-cli/git-worktree-clone-staged-folder-records/<guid>.json`, beside the slot
-identities the accepted design keeps under that directory ([proposal][proposal], "Descriptor mount and unmount"),
-root-owned mode `0644` in a root-owned directory that the wrapper can read and cannot write.
+record per clone GUID, at `<home>/.cache/monochromatic-git-policy-cli-staging-<guid>.json`: the folder's own
+component with a `.json` suffix, beside the folder of that component, so one name pair under `~/.cache` says which
+folder a clone's mount waits in and which record describes it (F33). The suffix is one no staging claim keeps (F27),
+and no journal pass lists `~/.cache` at all. The record is a file and not a folder, so the staging folder stays the
+empty mountpoint carrier A6 describes, and the unlink that removes the record is not a delete under any mount.
 
-The accepted text says two things about root's files, and the record is placed so that both stay true. "Publish in
+The handler writes it before the first bind, through the `~/.cache` descriptor and so on the `user-cache` dataset, at
+mode `0644`, and the write is atomic: the handler creates `<component>.json.tmp` beside the record with
+`O_CREAT | O_EXCL`, writes and `fsync`s it, renames it over `<component>.json` with `renameat`, and `fsync`s the
+directory. A reader therefore sees the whole record of one write or the one before it and never half of one, and a
+temporary name a killed handler leaves is a stray file the next removal overwrites. The wrapper, `doctor` and a later
+sweep read it; the handler is the only writer, and the wrapper's settlement unlinks it after the folder's `rmdir`
+succeeds.
+
+The record is written by root into a directory the account owns, so it is data the account can read, replace or
+delete. The project's answer to where it lives accepts that and states why: "We have to assume my machine isn't
+compromised. sudo is passwordless here anyway." ("Answers of 2026-11-19"). It is therefore not authority against the
+account. It is the only cache the design has of a handle no live state can rebuild once the handler's invocation has
+ended, and both the sweep and the wrapper check it against the folder's own identity before acting on it (F29, A1).
+Writing it is also a privileged write into the account's tree, which the accepted sentence about the handler's
+descriptors does not allow: they serve "mount management, not privileged writes into the account's tree"
+([proposal][proposal], "Descriptor mount and unmount"). The project's answer puts the record there, so this design
+takes that departure for this one file, at this one name, and keeps every other handler write inside its descriptors'
+own mount management.
+
+The accepted text says two things about root's files, and the record's place keeps both. "Publish in
 `/run/git-worktree-clone-mount-results`, using only the canonical numeric dataset GUID as the receipt filename"
 ([proposal][proposal], "Requests, results and ordering") holds because the design writes nothing else into that
-directory: the record is not a receipt and does not live there. "The runtime files are a cache, not authority to
-act; rebuild them from live state and durable intent" ([proposal][proposal], "Requests, results and ordering")
-holds because the record is durable root state and not a runtime file: what a boot id voids, the next removal
-rebuilds, and the handle it carries is the one field no live state can rebuild once the handler's invocation has
-ended. That field in a durable record is a proposal this design puts to the owner, not an accepted sentence.
+directory, and nothing into `/var/lib/monochromatic-git-policy-cli/` for staging: the record is not a receipt and
+does not live beside the slot identities. "The runtime files are a cache, not authority to act; rebuild them from
+live state and durable intent" ([proposal][proposal], "Requests, results and ordering") holds for every field but
+one, and the one is the departure this paragraph records. The folder's identity is re-read from the folder, the
+namespace pair and boot id are re-read from the running handler, and the handle alone cannot be rebuilt from live
+state once the invocation that opened the folder has ended. The project's answer "Record the file handle
+(Recommended)" accepted that field ("Answers of 2026-11-19"); what it buys is a way to open a folder, not to unmount
+anything, because the record names no mount, carries no mount ID, and every act after it is checked against the
+folder's identity and the live mount table (F29, F21).
 
-The record holds the folder's component, the clone's dataset name and GUID, the folder's identity, its file handle,
-the nonce of the intent it last served, the handler's mount-namespace device and inode, and the boot id those belong
-to. It carries no bind mount ID: the bind's row is read live, from its root field, its parent and its mountpoint
-(F21), which is what lets the whole record be written before the bind (F29). The namespace pair and the boot id are
-the boot-scoped fields, and a reader voids them when the boot id is not the one it reads now (L10). A later
-invocation for the same GUID reads the record before it binds: a record whose identity does not match the folder
-refuses, and a record with no handle refuses too, because the handler that wrote it did not bind. The wrapper reads
-the record before it removes a folder, which is where its mount-namespace check comes from (A1), `doctor` reads it to
-print a folder's age, and no request and no receipt carries any field of it (F15).
+The record is one JSON object. It holds the folder's component, the clone's dataset name and GUID, the folder's
+identity, its file handle, the nonce of the intent it last served, the handler's mount-namespace device and inode,
+and the boot id those belong to. It carries no bind mount ID: the bind's row is read live, from its root field, its
+parent and its mountpoint (F21), which is what lets the whole record be written before the bind (F29). The namespace
+pair and the boot id are the boot-scoped fields, and a reader voids them when the boot id is not the one it reads now
+(L10). A later invocation for the same GUID reads the record before it binds: a record whose identity does not match
+the folder refuses, and a record with no handle refuses too, because the handler that wrote it did not bind. The
+wrapper reads the record before it removes a folder, which is where its mount-namespace check comes from (A1), and
+`doctor` reads it to print a folder's age and to keep a record apart from a folder when it lists `~/.cache`. No
+request and no receipt carries any field of it (F15).
+
+Its lifetime is the folder's, with one exception. It is written before the first bind, replaced atomically by every
+later invocation for that GUID, and unlinked after the folder's `rmdir`. A record whose folder is gone is an orphan
+`doctor` prints and no pass removes, because only a removal's settlement unlinks a record. A reboot drops every
+mount, so a record carrying another boot id is void: a sweep reads it, voids the handle and the namespace pair
+because the boot id differs, unmounts nothing on that record and reports it, and the next removal for that clone
+rewrites it (F32, L10).
+Nothing else ages it out, and no timer touches it.
+
 
 ## What a writer can settle without asking
 
@@ -1190,11 +1252,12 @@ print a folder's age, and no request and no receipt carries any field of it (F15
   (F11, A1).
 - That a later `unmount` intent's staging sweep completes an interrupted removal's unmount and unbind from the
   recorded handle (F29), re-verifying the folder's identity and the mount table's rows before it acts, and that
-  anything the handle cannot serve stays staged and reported (Q2).
+  anything the handle cannot serve stays staged and reported.
 - The identity fields checked before each move and before each removal: device, inode, birth time, owner, mode,
   access and default ACLs from the held descriptor, plus the mount's source and parent (F17, F18, F21).
-- The handler's state records: one durable staged-folder record per clone GUID, holding what "The staged-folder
-  record" names, in the place that section names, and no other durable field of this design (A1, L10).
+- The record's place, shape and atomic write: one record per clone GUID beside the folder of the same component
+  under `~/.cache`, mode `0644`, written by the handler before the first bind through a temporary name renamed over
+  the final one, holding what "The staged-folder record" names, and unlinked after the folder's `rmdir` (A1, L10).
 - The receipt and notice wording for a retained staged mount, a mounted folder that cannot be unmounted, a handle
   that no longer resolves, a copy that refused the unbind, a detached mount that still holds the dataset, an orphan
   folder, and a folder the wrapper cannot prove it made.
@@ -1212,7 +1275,10 @@ print a folder's age, and no request and no receipt carries any field of it (F15
 - That the staging claims live in the place and the shape "The staging claim" names, and the records in the place and
   the shape "The staged-folder record" names.
 
-## Proposals the owner may veto
+## Proposals the owner settled
+
+The project answered the whole list with "Veto none (Recommended)" ("Answers of 2026-11-19"), so every entry is
+now the design. The list stays because each entry names what the design decides beyond the accepted text.
 
 - Pinning the `user-cache` mount: the handler records the dataset's source and the mount root's device and inode,
   and refuses to create a bind when the mount at `~/.cache` is not that source. The pin is one key of the
@@ -1223,23 +1289,29 @@ print a folder's age, and no request and no receipt carries any field of it (F15
   assumed. The proposal owes the boot-time shape of the same check ("Test staging setup at boot and refuse shared or
   replaced staging and checkout mounts until a private setup is verified"), and this design meets it by verifying the
   pin at boot reconcile and by verifying each removal's bind and the checkout's propagation before each move.
+  Accepted, veto none.
 - Reading the staging location from the Pinned UID's passwd home (A2), rather than from an environment variable a
-  root handler does not have.
+  root handler does not have. Accepted, veto none.
 - Reading `umount2` on a descriptor's `/proc` path as an act on the held descriptor rather than on a path. The
   argument is a string, and what makes it safe is that the kernel never resolves a name of the account's tree: it
   jumps to the descriptor's own location (F7). `umount2` has no form that takes a descriptor, so this reading is the
-  only way to act from the held descriptor at all, and the owner may veto it.
+  only way to act from the held descriptor at all. Accepted, veto none, and the design unmounts this way.
 - Reading a `mount(2)` call whose source and target are the same descriptor's `/proc` path as not being a path-based
-  mount. The call does receive a string, and the sentence it would test is "No path-based mount or unmount on the
+  mount. The call does receive a string, and the sentence it tests is "No path-based mount or unmount on the
   account's tree" ([plan][plan], "What the design forbids"); the design reads the forbidden thing as a name inside
-  that tree, and the owner may veto that reading, which would leave the bind ways without a bind.
-- Reading a descriptor re-obtained from the recorded file handle as "the held descriptor" the accepted sentence names,
-  rather than only a descriptor a running process still holds. Q2 offers three routes and this reading is the first
-  one's cost, so it stands only if that route is taken (F29, L12).
-- Keeping the folder's file handle in a durable record under `/var/lib/monochromatic-git-policy-cli/` ("The
-  staged-folder record"). The accepted text calls the runtime files a cache and tells root to rebuild them from live
-  state and durable intent; a handle cannot be rebuilt from live state once the handler's invocation has ended, so
-  the record is authority to act that the accepted text does not name, and the owner may veto it.
+  that tree. Accepted, veto none, and the design binds this way.
+- Reading a descriptor re-obtained from the recorded file handle as "the held descriptor" the accepted sentence
+  names, rather than only a descriptor a running process still holds. Accepted with the file-handle route the second
+  question's answer took (F29, L12).
+- The folder's file handle. The design first put it in a durable record under
+  `/var/lib/monochromatic-git-policy-cli/`. The project asked why a durable root record was needed when it need not
+  survive a reboot, was told that a reboot drops every mount and was offered a per-boot root file in `/run`, asked
+  why not `~/.cache`, was told that any program running as the account could swap a handle there and steer a root
+  unmount, and answered "In ~/.cache", with the sentence this design now designs to: "We have to assume my machine
+  isn't compromised. sudo is passwordless here anyway." The record therefore lives beside the folder, at
+  `<home>/.cache/monochromatic-git-policy-cli-staging-<guid>.json`, and that sentence is the threat model stated
+  under "Answers of 2026-11-19" ("The staged-folder record").
+
 
 ## How the accepted sentences are met
 
@@ -1247,10 +1319,10 @@ print a folder's age, and no request and no receipt carries any field of it (F15
   which binds, verifies and unbinds within one invocation. It does bite for an interrupted one: a bind, and possibly
   a staged clone, outlives that invocation (M6), so the staging sweep opens the folder from the recorded handle
   (F29), re-verifies the folder's identity and the mount table's rows for the bind's source and parent before it
-  acts, and reports instead when the handle no longer resolves (Q2). Way C, which keeps a bind across sweeps by
+  acts, and reports instead when the handle no longer resolves. Way C, which keeps a bind across sweeps by
   design, verifies it before each move.
 - "Test staging setup at boot and refuse shared or replaced staging and checkout mounts until a private setup is
-  verified" is met twice: at boot reconcile, the pin of "Proposals the owner may veto" is checked; at each removal,
+  verified" is met twice: at boot reconcile, the pin of "Proposals the owner settled" is checked; at each removal,
   the handler refuses when the checkout's propagation is not private (the move would fail anyway, F5) or when the
   bind it made does not read private in the mount table (F23). The spec's wording asks for a boot test; this design
   adds the per-removal test beside it and says which sentence it strengthens rather than replaces.
@@ -1261,10 +1333,10 @@ print a folder's age, and no request and no receipt carries any field of it (F15
 
 ## What this proposal does not do
 
-- It adds no decision the accepted design did not make. The ways, the ranking and the questions are proposals, and
-  none of them is adopted here. It proposes root configuration (the pin), a location rule (the passwd home), a
-  durable record ("The staged-folder record") and three readings of decided sentences, and marks every one of them
-  for veto.
+- It adds no decision that the accepted design or the project's answers of 2026-11-19 did not make. The answers
+  settled the ways and the questions ("Answers of 2026-11-19"), and the proposals they left open are now the design
+  ("Proposals the owner settled"). The ways not taken stay described as alternatives, and every measurement arm stays
+  owed.
 - It runs no VM measurement and no host probe beyond read-only reads of `findmnt`, `stat`, `zfs list`, `zfs get`,
   `rm --help` and `/proc/sys/kernel/random/boot_id`.
 - It does not design the removal workflow, the mount handler's modes, the boot unit's ordering, the ABI gate, the
