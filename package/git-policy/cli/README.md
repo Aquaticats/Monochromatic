@@ -6787,17 +6787,24 @@ That rule fetches a missing tarball into `$HOME/.cache/browserslist`
 (`DataSource::user_default` in `package/browserslist/core-rust/src/source.rs`),
 so offline it fails with `browserslist-fetch-failed`,
 which a step run in a container with `--network none` cannot repair.
-The base therefore downloads exactly the versions `browserslist-data.lock.json` pins,
+The base therefore downloads every package the lock lists,
+at exactly the version it pins for each,
+within the bounds that rule's own fetch applies (a body of at most 64 MiB,
+no redirect and a 60-second timeout),
 refuses any whose sha512 differs from the lock's,
 and writes each under the hex digest name the rule reads.
 The lock's text arrives as the `BROWSERSLIST_DATA_LOCK` build argument,
 because the Containerfile copies nothing from its build context,
 and it is part of the image tag as well;
 the file stays the one source of the versions and digests.
-One verified copy under `/home/tester/.cache/browserslist` serves both users that run images built on this base:
+One verified copy under `/home/tester/.cache/browserslist` serves both users this repository's runners give an image
+built on this base:
 the wrapper's gate image as user 1000 with `HOME=/home/tester`,
 and an image built on the base without that switch as root,
 whose `/root/.cache/browserslist` is a symlink to it.
+Those tarballs are data, not tools,
+so the owner decisions of 2026-11-04 that every tool is pacman's current package
+still hold for the tools of both images.
 
 Each run of `native:test:container`,
 `test:git-image`,
