@@ -58,6 +58,55 @@ fn an_install_inside_a_repository_runs_with_skip_repo_and_its_notice() {
 }
 
 /// What:
+///  The notice names the scope the caller asked for,
+///  because `--local`,
+/// `--worktree`,
+/// `--system` and `--file` write the keys somewhere else than the global file,
+///  and `--manual`'s hook instructions are not printed by a run that installs no hook.
+/// Why:
+///   The short review measured every form through the wrapper with git-lfs 3.8.1:
+///  `--local` writes `<repo>/.git/config`,
+///  `--worktree` writes `<repo>/.git/config.worktree` only when `extensions.worktreeConfig` is set,
+///  `--file=<path>` writes that file,
+///  and the global file stays empty in all three;
+///  the notice said "the global `filter.lfs.*` keys were written as usual" for every one of them,
+///  which is false for three.
+///  `--manual` asks git-lfs for the instructions that merge its hooks into this repository by hand,
+///  and this run installs no hook,
+/// so none are printed and the notice has to say why.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(withSkipRepo(words('lfs install --local'), true)[1]).toContain("this repository's `.git/config`")
+/// ```
+#[test]
+fn the_notice_names_the_scope_the_caller_asked_for() {
+    for (case, typed, wanted) in [
+        ("the default scope is the global file", vec!["lfs", "install"], "global configuration"),
+        ("--force keeps the global scope", vec!["lfs", "install", "--force"], "global configuration"),
+        ("--local names the repository's own file", vec!["lfs", "install", "--local"], "this repository's `.git/config`"),
+        ("-l names it too", vec!["lfs", "install", "-l"], "this repository's `.git/config`"),
+        ("--worktree names the worktree file and its condition", vec!["lfs", "install", "--worktree"], "`.git/config.worktree`"),
+        ("--system names the system file", vec!["lfs", "install", "--system"], "system configuration"),
+        ("--file names the file it was given", vec!["lfs", "install", "--file=/work/elsewhere.conf"], "`/work/elsewhere.conf`"),
+        ("--file's value may be the next word", vec!["lfs", "install", "--file", "elsewhere.conf"], "`elsewhere.conf`"),
+    ] {
+        let (_, notice) = with_skip_repo(words(typed.as_slice()), true);
+        assert!(notice.contains(wanted), "{case}: the notice names the scope: {notice}");
+        if !wanted.contains("global") {
+            assert!(!notice.contains("The global `filter.lfs.*` keys"), "{case}: a local scope is not called global: {notice}");
+        }
+    }
+    let (_, worktree_notice) = with_skip_repo(words(&["lfs", "install", "--worktree"]), true);
+    assert!(worktree_notice.contains("extensions.worktreeConfig"), "the worktree notice says when Git reads that file: {worktree_notice}");
+    let (_, manual) = with_skip_repo(words(&["lfs", "install", "--manual"]), true);
+    assert!(manual.contains("`--manual`"), "the notice answers what `--manual` asked for: {manual}");
+    assert!(manual.contains("none are printed here"), "the notice says the hook instructions are not printed: {manual}");
+    let (_, force_manual) = with_skip_repo(words(&["lfs", "install", "-m"]), true);
+    assert!(force_manual.contains("`--manual`"), "the short form of `--manual` is read too: {force_manual}");
+}
+
+/// What:
 ///  A caller who already wrote `--skip-repo` keeps one copy of it and is told the same thing,
 ///  because the reason is the wrapper's.
 /// Why:
@@ -72,5 +121,5 @@ fn an_install_inside_a_repository_runs_with_skip_repo_and_its_notice() {
 fn a_caller_who_wrote_the_option_already_keeps_one_copy_and_gets_the_notice() {
     let (rewritten, notice) = with_skip_repo(words(&["lfs", "install", SKIP_REPO_OPTION, "--local"]), true);
     assert_eq!(rewritten, words(&["lfs", "install", SKIP_REPO_OPTION, "--local"]));
-    assert!(notice.contains("`filter.lfs.*` keys were written"), "{notice}");
+    assert!(notice.contains("this repository's `.git/config`"), "the notice still names the scope: {notice}");
 }
