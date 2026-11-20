@@ -986,6 +986,39 @@ await describe({
       },
     },),
     it({
+      name: 'ends a run whose retry prompt Pi refused for its own reason as one Pi refused, not as one it was busy with',
+      fn: async () => {
+        await using run = await startRunThatFailed({ atWork: false, },);
+        /**
+         The messages the watch sent, which is the one retry Pi turned back.
+         */
+        const sent: string[] = [];
+        /**
+         When the run must be over: a refusal ends it at once.
+         */
+        const deadline = Date.now() + HOLD_MILLISECONDS;
+        const endReason = await watchUntilEnded({
+          connection: answeringConnection({
+            sent,
+            refuses: true,
+          },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: HOLD_MILLISECONDS,
+            retryCap: 3,
+            retryBaseSeconds: NO_WAIT_SECONDS,
+          },),
+          inbox: run.inbox,
+          deadline,
+        },);
+        // Only Pi's answer that its agent is already processing is read as busy: any other refusal is the run's end, as it was.
+        expect(endReason,).toBe('prompt-rejected',);
+        expect(sent,).toHaveLength(1,);
+        expect(run.record.retriesTaken(),).toBe(1,);
+      },
+    },),
+    it({
       name: 'ends a run on a 429 with no attempt of its own, whatever retries the run would allow',
       fn: async () => {
         await using run = await startRunThatFailed({
