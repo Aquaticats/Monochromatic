@@ -267,6 +267,17 @@ pub mod worktree_add_binding;
 #[cfg(target_os = "linux")]
 pub mod worktree_clone;
 
+/// Git's conversion rules for one path,
+/// read from its attributes and `core.autocrlf`/`core.eol`,
+/// as the decision whether a clone may carry the file.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_rules;
+
+/// The fence over a clone rung's bytes:
+/// which paths the clones may carry and the one Git run that writes the rest.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_fence;
+
 /// What both filling rungs read from Git's `--no-checkout` result,
 /// and the one step that applies the tree difference.
 #[cfg(target_os = "linux")]

@@ -213,6 +213,7 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
 fn serve_clones(source: &SnapshotSource, plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<String, String> {
     verify_association(bound)?;
     let target: Target = prepare_target(source, plan, context, bound)?;
+    let fence: crate::worktree_clone_conversion_fence::Fence = crate::worktree_clone_conversion_fence::fence_the_clone(source, context)?;
     let cloned: Cloned = clone_tracked_files(source, &bound.destination, &bound.admin)?;
     let applied: Result<(), String> = match verify_association(bound) {
         Ok(()) => apply_difference(source, &target, plan.destination.as_path(), run_git),
@@ -221,6 +222,9 @@ fn serve_clones(source: &SnapshotSource, plan: &AddPlan, bound: &Bound, run_git:
     if let Err(reason) = applied {
         warn(TAG, format!("monochromatic-git-policy-cli: {}", leftover_report(cloned.created(), plan.destination.as_path())).as_str());
         return Err(reason);
+    }
+    if !fence.git_writes.is_empty() {
+        crate::worktree_clone_conversion_fence::write_through_git(plan.destination.as_path(), target.admin.as_path(), context, fence.git_writes.as_slice())?;
     }
     return Ok(target.line);
 }
