@@ -52,8 +52,11 @@ pub const BTRFS_STAND_IN_INODE: u64 = 2;
 /// What:
 ///  The `f_type` of a ZFS mount.
 /// Why:
-///   Linux's `include/linux/magic.h` records OpenZFS's superblock magic as `0x2fc12fc1`,
-/// and the `libc` crate defines the btrfs and
+///   OpenZFS defines it as `ZFS_SUPER_MAGIC` in `include/sys/fs/zfs.h` of OpenZFS `zfs-2.4.4`,
+/// the header the ZFS binding package names
+///  (`package/zfs/request-to-openzfs-kernel-device`),
+/// and writes that value into its `statfs` answer;
+/// the `libc` crate defines the btrfs and
 ///  overlayfs numbers but not this one,
 /// so the number is written here beside those two.
 ///

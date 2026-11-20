@@ -109,28 +109,46 @@ fn every_kind_answers_whether_it_may_clone() {
 /// ```
 #[test]
 fn zfs_magic_number_maps_to_its_kind() {
-    assert_eq!(ZFS_SUPER_MAGIC, 0x2fc1_2fc1, "the value Linux's include/linux/magic.h records for OpenZFS, which the libc crate does not define");
+    assert_eq!(ZFS_SUPER_MAGIC, 0x2fc1_2fc1, "the value `include/sys/fs/zfs.h` of OpenZFS `zfs-2.4.4` defines as `ZFS_SUPER_MAGIC` and writes into `statfs`, which the libc crate does not define");
     assert_eq!(classify_magic(ZFS_SUPER_MAGIC), FilesystemKind::Zfs);
     let extended: u64 = ZFS_SUPER_MAGIC | 0xffff_ffff_0000_0000;
     assert_eq!(classify_magic(extended), FilesystemKind::Zfs);
 }
+
+/// The environment variable that acknowledges "this run has no ZFS fixture root".
+/// The container gate image sets it,
+/// because its fixture root is a tmpfs and never a ZFS dataset,
+/// and the btrfs host task sets it too,
+/// because its fixture root is btrfs by definition;
+/// a run that believes it is on ZFS leaves it unset,
+/// so this control fails instead of
+///  recording a pass for coverage it never had.
+const ZFS_ABSENT_ACKNOWLEDGED_VARIABLE: &str = "CLI_GIT_ZFS_ABSENT_ACKNOWLEDGED";
 
 /// What:
 ///  A directory on a real ZFS mount answers with the ZFS kind.
 /// Why:
 ///   The magic number is only as good as the `statfs` answer it classifies,
 /// and this host's checkout sits on a ZFS dataset;
-///  a container whose fixture root is not ZFS states that this control did not run.
+///  a container whose fixture root is not ZFS prints the line that says this control did not run,
+/// and
+///  fails unless the run acknowledged that it has no ZFS fixture root.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (kindOf(fixtureRoot) !== 'zfs') console.log('ZFS CONTROL NOT RUN'); else expect(kindOf(fixtureRoot)).toBe('zfs');
+/// if (kindOf(fixtureRoot) !== 'zfs') expectAcknowledged('CLI_GIT_ZFS_ABSENT_ACKNOWLEDGED'); else expect(kindOf(fixtureRoot)).toBe('zfs');
 /// ```
 #[test]
 fn zfs_a_real_mount_answers_with_its_kind() {
     let root: PathBuf = fixture("fs-kind-zfs");
     let kind: FilesystemKind = filesystem_kind(root.as_path()).expect("the fixture root answers");
     if kind != FilesystemKind::Zfs {
+        let acknowledged: bool = std::env::var_os(ZFS_ABSENT_ACKNOWLEDGED_VARIABLE).is_some_and(|value| { return !value.is_empty(); });
+        assert!(
+            acknowledged,
+            "the control zfs_a_real_mount_answers_with_its_kind needs a ZFS fixture root, but {} is on {kind:?}; set CLI_GIT_TEST_ROOT to a directory on ZFS, or set {ZFS_ABSENT_ACKNOWLEDGED_VARIABLE}=1 to state that this run has none",
+            root.display()
+        );
         eprintln!("ZFS CONTROL NOT RUN: zfs_a_real_mount_answers_with_its_kind (fixture root {} is on {kind:?}; the guest fixture of the ZFS plan's step 2 runs it)", root.display());
         remove(root.as_path());
         return;
