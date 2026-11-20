@@ -35,8 +35,8 @@ step 9's design.
 
 The design put three questions and a list of veto-open proposals to the project, in the question tool between
 `2026-11-19T20:35` and `2026-11-19T20:43:51-05:00`. The record is `doc/handover/cli-git-rust-implementation.md` in
-the main checkout, the paragraph beginning `THE ROUND WAS ASKED`; that paragraph is uncommitted there, so this
-branch's copy of the file does not carry it. The answers, in the project's words:
+`main`, the paragraph beginning `THE ROUND WAS ASKED`, committed at `c55ab25eb4`; this branch forked before that
+commit and so does not carry it. The answers, in the project's words:
 
 - Where a clone's mount waits, and who creates the folder: "Private bind per removal (Recommended)". Way A is
   therefore the design: the wrapper creates one folder per removal, the handler binds it, makes the bind private and
@@ -53,23 +53,25 @@ branch's copy of the file does not carry it. The answers, in the project's words
   the held descriptor and that a `mount(2)` on it is not path-based. Each is now the design ("Proposals the owner
   settled").
 - Where the handle record lives: "In ~/.cache". The design had placed it in
-  `/var/lib/monochromatic-git-policy-cli/`; the project asked why a durable root record was needed when it need not
-  survive a reboot, was told that a reboot drops every mount and was offered a per-boot root file in `/run`, asked
-  why not `~/.cache`, was told that any program running as the account could swap a handle there and steer a root
-  unmount, and answered with the sentence that follows.
+  `/var/lib/monochromatic-git-policy-cli/`; the coordinator agreed the record need not be durable, the handover
+  recording "a reboot drops every mount", and recommended a per-boot root file in `/run`; the project asked "Why not
+  ~/.cache ?", was told that any program running as the account could swap a handle there and steer a root unmount,
+  and answered with the sentence that follows.
 
 The threat model that answer states, and that this design now designs to, is the project's own sentence for this
 machine: "We have to assume my machine isn't compromised. sudo is passwordless here anyway." The account is
 trusted, and root and the account are not a security boundary here. Where the design argues about what the account
 could do, it says whether the argument survives that sentence, and "Hardening the stated threat model may make
-unnecessary" lists every check that exists only because a draft of this design assumed otherwise. Those entries are
-suggestions for the project to decide: none is dropped on the strength of the sentence alone.
+unnecessary" lists the checks a hostile account motivated, with the entries that answer more than that saying so.
+Those entries are suggestions for the project to decide: none is dropped on the strength of the sentence alone.
 
 The design follows every answer, and each place says so: the record's place and name in "The staged-folder
 record", the binding route in "The private bind" and "The unmount call from staging", the rollback in "The private
 bind", the arms in "Owed measurements in a throwaway VM", and the settled proposals in "Proposals the owner
-settled". Where an answer departs from a sentence of the accepted design, that sentence is quoted beside the
-departure: the record's one field that a cache cannot rebuild is the departure, in "The staged-folder record".
+settled". Three answers depart from a sentence of the accepted design, and each departure quotes the sentence beside
+it: the record's one field that a cache cannot rebuild, and the privileged write of the record into the account's
+tree, both in "The staged-folder record"; and the rollback as a second exception to "No implicit remount after a
+failure or restart", in "The private bind".
 
 ## The open item and the answer it carries
 
@@ -121,7 +123,7 @@ records what each answer left untaken.
 - Private staging and private parent ([proposal][proposal], "Mounts held by other namespaces"): "This descriptor
   route requires a verified private immediate parent and verified private staging, not private ancestors of the
   checkout", and "Private staging does not eliminate the all-namespace check" ([proposal][proposal], "Project
-  decisions", the checkout propagation bullet, lines 1245 to 1246 of that file).
+  decisions", the checkout propagation bullet).
 - Staging counts as a live mount ([proposal][proposal], "Mounts held by other namespaces"): the design defines
   "Unmounted" as absence "in every mount namespace holding the clone's ZFS source, including binds and staging", and
   "a missing or mismatched unmount still blocks removal outright".
@@ -516,7 +518,7 @@ The path from the pinned home to the folder crosses one mount, `~/.cache`, and t
 the descriptor on the home reaches the dataset's mount, whose source and mount ID are checked against the pin, and
 every walk beneath that descriptor crosses nothing else, which is why `open_directory_at`'s `EXDEV` (F17) is the
 right refusal for a walk that must not cross and the wrong call for the one crossing that is wanted (F1, F28, and the
-accepted hop of [proposal][proposal], "Descriptor mount and unmount", lines 651 to 655 of that file).
+accepted hop of [proposal][proposal], "Descriptor mount and unmount": "Omit `RESOLVE_NO_XDEV` only for that hop").
 
 The handler's pre-bind check is then about the folder and its own record, not about the claim: a directory owned by
 the pinned UID, at the mode F1 records, empty, named exactly the derived component, reached under the `~/.cache`
@@ -545,16 +547,17 @@ to be the root of its own mount (F14), and the folder is not the root of `user-c
 the bind's descriptor with the design's only by-name lookup after a mount covers the folder: a name under the
 `~/.cache` descriptor opened with `O_PATH | O_DIRECTORY` and with `RESOLVE_BENEATH`, `RESOLVE_NO_SYMLINKS` and
 `RESOLVE_NO_MAGICLINKS`, omitting `RESOLVE_NO_XDEV` for that one hop so the walk crosses into the bind, which is the
-flag set the accepted hop already prescribes ([proposal][proposal], "Descriptor mount and unmount", lines 651 to 655
-of that file), and confirmed by the mount ID `/proc/self/fdinfo` prints (F28, F21). That lookup is not a path-based
-mount or unmount: it is a read that names the mount, the propagation change runs on the descriptor, and the only
-calls that carry a path string are `mount(2)` and `umount2`, whose argument is a descriptor's `/proc` path, a reading
-the project accepted without veto ("Proposals the owner settled"). The bind is a mount in the host namespace at a
-path inside the account's tree, which is the exposure the decided default accepts ([proposal][proposal], "Decided
-defaults"); its copies in other namespaces are a further exposure this design states rather than denies, and the
-unbind's rule over them is F22 and F30. The project's sentence treats the account as trusted and root and the
-account as no security boundary ("Answers of 2026-11-19"), so these exposures are documented rather than defended
-against here; "Hardening the stated threat model may make unnecessary" lists the checks that guard them anyway.
+flag set the accepted hop already prescribes ([proposal][proposal], "Descriptor mount and unmount": "Omit
+`RESOLVE_NO_XDEV` only for that hop"), and confirmed by the mount ID `/proc/self/fdinfo` prints (F28, F21). That
+lookup is not a path-based mount or unmount: it is a read that names the mount, the propagation change runs on the
+descriptor, and the only calls that carry a path string are `mount(2)` and `umount2`, whose argument is a descriptor's
+`/proc` path, a reading the project accepted without veto ("Proposals the owner settled"). The bind is a mount in
+the host namespace at a path inside the account's tree, which is the exposure the decided default accepts
+([proposal][proposal], "Decided defaults"); its copies in other namespaces are a further exposure this design states
+rather than denies, and the unbind's rule over them is F22 and F30. The project's sentence treats the account as
+trusted and root and the account as no security boundary ("Answers of 2026-11-19"), so these exposures are
+documented rather than defended against here; "Hardening the stated threat model may make unnecessary" lists the
+checks that guard them anyway.
 
 The move is the one step whose destination does not keep the covered mount: `move_mount`'s destination follows the
 stack to its top mount (F14), so a mount the account stacks on the folder after the bind receives the clone on top
@@ -677,9 +680,9 @@ resolves gets `ESTALE` (F29), and the folder that handle named is gone from ever
 so there is nothing left to unmount: what remains is a detached mount that its holders keep alive, and only those
 holders ending frees the dataset (F11, L11). A copy of the bind in another namespace that a process works inside
 refuses the unbind with `EBUSY` (F30), and the host's bind stays. In each of the three the sweep unmounts nothing,
-removes nothing and reports the retained state, which the second question's answer leaves to the administrator and to
-a later removal; none of them is a case where the design guesses ("Answers of 2026-11-19"). None of this is measured
-(L12, M6).
+removes nothing and reports the retained state. What then clears it is the writer's reading, not the second
+question's answer, which settled the sweep's route and not who clears a refusal: the administrator, or a later
+removal that binds the folder again. None of this is measured (L12, M6).
 
 The accepted design asks for "the interface that unmounts a staged mount from the held descriptor" and for an act
 "on the held descriptor and never on a path inside the folder the account can change". This design reads the held
@@ -738,11 +741,12 @@ that cost openly. Costs are enumerated work, not sizes or times; none is measure
   The component is the clone's GUID, never the intent's nonce, and the handler derives the same one (F15, F33).
 - The handler opens `~/.cache` by descriptor from the pinned home, checks the mount's source against the pin, opens
   the folder by `openat2` under that descriptor with `O_PATH | O_DIRECTORY` and with `RESOLVE_BENEATH`,
-  `RESOLVE_NO_SYMLINKS` and `RESOLVE_NO_MAGICLINKS`, and keeps that descriptor, which is on the `user-cache` mount
-  (F10, F17, F28). It then checks shape and its own record rather than the claim: directory, owner, mode, empty, the
-  derived component, and the descriptor's mount ID against the `user-cache` row (F21, F28, "The staging target and
-  who creates it"). It records the folder's file handle, its identity and its own mount-namespace identity and the
-  boot id in the staged-folder record (A1, F29), attaches the bind with the descriptor's path as both source and
+  `RESOLVE_NO_SYMLINKS`, `RESOLVE_NO_MAGICLINKS` and `RESOLVE_NO_XDEV`, the last refusing `EXDEV` when a mount already
+  covers the folder (F17), and keeps that descriptor, which is on the `user-cache` mount (F10, F17, F28). It then
+  checks shape and its own record rather than the claim: directory, owner, mode, empty, the derived component, and
+  the descriptor's mount ID against the `user-cache` row (F21, F28, "The staging target and who creates it"). It
+  records the folder's file handle, its identity and its own mount-namespace identity and the boot id in the
+  staged-folder record (A1, F29), attaches the bind with the descriptor's path as both source and
   target (`/proc/self/fd/<n>`), opens the bind by name under the `~/.cache` descriptor with the accepted hop's flags
   and no `RESOLVE_NO_XDEV` so the lookup crosses into the bind, checks that descriptor's `mnt_id` in
   `/proc/self/fdinfo` against the bind's row (F28, F21), and makes it private with
@@ -770,13 +774,14 @@ that cost openly. Costs are enumerated work, not sizes or times; none is measure
 - The folder's only ancestor inside `~/.cache` is the mount root of the dataset, which the account cannot rename in
   the host namespace (F11), so no ordinary ancestor can carry the bind away.
 
-Pros: no privileged write of content into the account's tree, since the handler writes one record file and creates no
-directory of root's there; the creator of the folder is also the cleaner; one claim per removal; the bind lives one
-removal, so concurrent removals use their own folders and their own binds and need no lock; the unmount and unbind
-act on a descriptor's own path and never on a name inside the account's tree (F7); the depth-one folder removes the
-renamable ancestor the reviewed draft carried, and the recorded handle survives a rename of the folder from a foreign
-namespace (F29), so only a recovery the handle cannot serve is left to the administrator; the retained staged state
-the busy decision allows is a folder whose name and record this design can prove and report.
+Pros: no privileged write of content into the account's tree, since the handler writes one record file, the departure
+"The staged-folder record" quotes, and creates no directory of root's there; the creator of the folder is also the
+cleaner; one claim per removal; the bind lives one removal, so concurrent removals use their own folders and their
+own binds and need no lock; the unmount and unbind act on a descriptor's own path and never on a name inside the
+account's tree (F7); the depth-one folder removes the renamable ancestor the reviewed draft carried, and the recorded
+handle survives a rename of the folder from a foreign namespace (F29), so only a recovery the handle cannot serve is
+left to the administrator; the retained staged state the busy decision allows is a folder whose name and record this
+design can prove and report.
 
 Cons: the account can remove the empty folder before the first bind and replace it, and the first bind has no
 identity to compare, so the replacement is bound and recorded as it stands while the wrapper then refuses to remove
@@ -944,8 +949,9 @@ reader can see why the others were not taken. Order: A > D > B > C > E > F.
   under `~/.cache` to confined readers. A's price is the recovery anchor and the copied bind's unbind rule: a sweep
   without the capability cannot clear a retained bind, and a copy a process works inside refuses the unbind (F29,
   F30), while D has no bind to recover and no copy to be busy.
-- D > B, because D has no privileged write into the account's tree and no root-owned object under an
-  account-owned parent, and B's content protection covers a folder that holds no content (A6).
+- D > B, because D has no root-made directory in the account's tree and no root-owned object under an
+  account-owned parent, and B's content protection covers a folder that holds no content (A6). The record write
+  that every way now shares ("The staged-folder record") does not separate them.
 - B > C, because B's object and bind live one removal, while C keeps a host-namespace bind for a whole boot, puts
   every staged mount inside it, and moves a mount transition into boot reconcile where nothing orders it after the
   `user-cache` mount (F12).
@@ -1141,10 +1147,15 @@ Set up a clone at a slot, a private bind on a depth-one staging folder, and the 
   records `EBUSY` from its first call, with its descriptor's `fdinfo` mount ID equal to the clone's row (F10, F28),
   and then that the handle sweep unmounts the clone and then the bind. Control: the handle sweep's success in the same
   run, so the arm shows the handle route does what the name route cannot.
-- No capability: run the sweep of the kill-after-the-move state from a unit that drops `CAP_DAC_READ_SEARCH`. Assert
-  the first `open_by_handle_at` refuses `EPERM` (`fs/fhandle.c:182` to `:186`), nothing is unmounted, nothing is
-  removed, the retained state is reported, and `doctor` prints it. Control: the same state swept by a unit that keeps
-  both capabilities in the same run, which unmounts and reports as the kill-after-the-move arm says.
+- No capability: run the sweep of the kill-after-the-move state from a unit that drops `CAP_DAC_READ_SEARCH`, with
+  the `mount_fd` opened as "The staged-folder record" says, `O_RDONLY | O_DIRECTORY`. Assert the first
+  `open_by_handle_at` refuses `EPERM` (`fs/fhandle.c:182` to `:186`), nothing is unmounted, nothing is removed, the
+  retained state is reported, and `doctor` prints it. Control: the same state swept by a unit that keeps both
+  capabilities in the same run, which unmounts and reports as the kill-after-the-move arm says. At `v6.8` the
+  capability test runs before the descriptor is taken (`fs/fhandle.c:170` to `:182`), so this arm refuses `EPERM`
+  with either descriptor kind and cannot catch an `O_PATH` `mount_fd`; a second control keeps both capabilities and
+  asserts that the `O_PATH` `mount_fd` gives `EBADF` while the `O_RDONLY` one opens the folder, which is the arm that
+  proves the descriptor kind.
 - A folder substituted from a foreign namespace: an account process in a private mount namespace created before the
   bind removes the folder and makes a new one of the same name, then the sweep runs. Assert `open_by_handle_at`
   refuses `ESTALE` (F29), that no namespace holds a row for the bind or the clone because the removal detached every
@@ -1278,10 +1289,12 @@ whatever is mounted (F16). A staging claim is therefore a kind of its own, with 
   read instead of moving it aside, because an unreadable claim may name a folder whose state is unproven. It runs
   from a removal, for that repository's own claims, and no forwarded command pays for it. `doctor` reads the claims
   and prints what it finds; it settles none, because it changes nothing ("What a writer can settle without asking").
-- Its own settlement: `rmdir` of the folder, then `unlinkat` of the record beside it, and only after the wrapper's
-  mount-namespace identity and boot id match the handler's recorded ones, after one of the three receipts or scans
-  A5 and "The staged-folder record" name, and after the recorded identity of the folder still matches. It never
-  changes a mode, never deletes recursively, and never calls the stage removal helper.
+- Its own settlement: `rmdir` of the folder, then `unlinkat` of the record beside it, and only after the recorded
+  identity of the folder still matches and one of two conditions holds: a clear receipt or a cancelled-removal
+  receipt for the nonce the claim records (A5), whose scans the wrapper re-checks against the handler's recorded
+  mount-namespace pair and boot id; or the wrapper's own scan of a record from another boot, where that boot id
+  differs and the namespace pair is void with it ("The staged-folder record"). A refused step settles nothing. It
+  never changes a mode, never deletes recursively, and never calls the stage removal helper.
 
 The claim carries the nonce of the `unmount` intent it is waiting for, the owner token and the folder's recorded
 identity (device, inode, birth time, owner, mode). Its filename is the folder's component, which the wrapper derives
@@ -1333,6 +1346,14 @@ under its `~/.cache` descriptor, creates the temporary name beside the record wi
 the whole record of one write or the one before it and never half of one, and a temporary name needs no settlement of
 its own because the next write replaces it. The wrapper, `doctor` and a later sweep read it; the handler is the only
 writer, and the wrapper's settlement unlinks it after the folder's `rmdir` succeeds.
+
+That descriptor, the one the record's directory `fsync` syncs and a sweep hands `open_by_handle_at` as its
+`mount_fd`, is opened `O_RDONLY | O_DIRECTORY` and never `O_PATH`: both calls take the descriptor through `fdget`,
+which masks `FMODE_PATH` and refuses an `O_PATH` one with `EBADF` (`fs/fhandle.c:118` to `:135`, `fs/file.c:1131` and
+`:1157`; `fs/sync.c:206` to `:214`). The folder descriptor stays `O_PATH | O_DIRECTORY`, which `name_to_handle_at`
+takes the handle from (F29). The wrapper's `open_directory_at` already opens `O_RDONLY | O_DIRECTORY` and its handle
+helper `O_PATH | O_DIRECTORY`, both through a walk that always sets `RESOLVE_NO_XDEV` (F17), so the cache descriptor
+is a helper call; the by-name hop into the bind is new code, because that helper would refuse it.
 
 The record is written by root into a directory the account owns, so it is data the account can read, replace or
 delete. The project's answer to where it lives accepts that and states why: "We have to assume my machine isn't
@@ -1464,8 +1485,11 @@ Nothing else ages a record out, and no timer touches it.
 
 ## Proposals the owner settled
 
-The project answered the whole list with "Veto none (Recommended)" ("Answers of 2026-11-19"), so every entry is
-now the design. The list stays because each entry names what the design decides beyond the accepted text.
+The project answered four of these entries, the `~/.cache` lookup, the pin and the two `/proc`-path readings, with
+"Veto none (Recommended)" ("Answers of 2026-11-19"), and the other two rest on answers of the same round: the
+descriptor re-obtained from the handle on the second question's answer, and the record's place on "In ~/.cache".
+Every entry is now the design. The list stays because each entry names what the design decides beyond the accepted
+text.
 
 - Pinning the `user-cache` mount: the handler records the dataset's source and the mount root's device and inode,
   and refuses to create a bind when the mount at `~/.cache` is not that source. The pin is one key of the
@@ -1545,10 +1569,12 @@ the design as it stands.
 ## Hardening the stated threat model may make unnecessary
 
 The project's sentence treats the account as trusted and root and the account as no security boundary on this machine
-("Answers of 2026-11-19"). Several checks in this design exist only because a draft assumed the opposite. None is
-removed here on the strength of that sentence: each is listed with what it costs today and what dropping it would
-simplify, as a suggestion for the project to decide. Taking one up is a revision of this design, not a reading of the
-sentence, because the design would lose a refusal that its arms currently assert.
+("Answers of 2026-11-19"). Several checks in this design were added because a draft assumed a hostile account. Some
+of them also catch an accident or a correctness case, and each entry says which. None is removed here on the
+strength of that sentence: each is listed with what it costs today and what dropping it would simplify, as a
+suggestion for the project to decide. Taking one up is a revision of this design, not a reading of the sentence,
+because the design would lose a refusal that its arms currently assert, and two entries would reverse an answer of
+2026-11-19 as well.
 
 - The account-owned folder, and the root-owned alternatives of Ways B and E. The design reasons about who owns the
   staging folder, checks its owner and mode before binding, keeps M1's replacement arms and M8, and the project
@@ -1571,13 +1597,17 @@ sentence, because the design would lose a refusal that its arms currently assert
   `fusermount3`. What it costs: a second privileged move per misplaced attach, an unmeasured failed-rollback route,
   two checks per removal, and `doctor` text for a misplaced state. What removing it would simplify: the removal keeps
   the accepted misplaced-attach rule as the only rollback path and needs no staging-specific check, and the mount
-  table is read once per call instead of twice. The design keeps both checks, and M1 and M2 keep their controls.
+  table is read once per call instead of twice. The design keeps both checks, and M1 and M2 keep their controls. The
+  third question's answer of 2026-11-19 ("Move it back at once (Recommended)") relies on the post-move check and the
+  rollback, so taking this entry up reverses that answer too, which is the project's to decide.
 - The `user-cache` pin. A root configuration key, a boot-reconcile check and a per-removal check against the dataset's
   source and the mount root's identity exist because a bind made before that dataset mounts lands on the home underlay
   (F12). What it costs: one new root key, one boot step, two checks per removal and M5's three arms. What removing it
   would simplify: no root configuration for staging, no boot ordering step, and no per-removal source comparison.
   This one is not purely a defence against the account: it also catches a mount ordering accident, which the trusted
-  account sentence does not make impossible, so dropping it needs a different answer to the ordering question.
+  account sentence does not make impossible, so dropping it needs a different answer to the ordering question. The
+  pin itself got "Veto none (Recommended)" in the same round ("Proposals the owner settled"), so this entry reverses
+  an answer of 2026-11-19 as well as changing the ordering answer.
 - The wrapper's mount-namespace pair and boot-id check. The wrapper compares `/proc/self/ns/mnt`'s device and inode
   and the boot id with the handler's recorded ones before it removes a folder. What it costs: two record fields, one
   comparison, one refusal and M6's namespace arms. What removing it would simplify: the record carries no namespace
@@ -1634,9 +1664,11 @@ destroy refusal a mounted dataset gives (F13) all protect the worktree's own dat
 
 ## Revisions
 
-Each revision is named by the first commit that carries it, with that commit's committer timestamp
-(`git log --format=%cI`). Later commits of one revision amend its text in place, and the entry says what they add, so
-the name stays the revision's first commit rather than its last.
+Each revision is named by the first commit that carries it, whose committer timestamp its entry gives
+(`git log --format=%cI`). An entry whose revision was still changing when its label was written gives, beside the
+name, the second-precise timestamp of the last commit that changed the revision's text instead; a revision of one
+commit has no such label to add. Later commits of one revision amend its text in place, and the entry says what they
+add, so the name stays the revision's first commit rather than its last.
 
 - `a709cd7f58` at `2026-11-19T18:02:34-05:00`: the first complete design, with its facts, ways, questions and
   measurement arms.
@@ -1683,8 +1715,8 @@ the name stays the revision's first commit rather than its last.
   `module/zfs/dsl_dataset.c`, `module/zfs/dsl_destroy.c`, `cmd/zfs/zfs_main.c`.
 - This repository at `73eaad0846`: [decision][decision], [proposal][proposal], [measurements][measurements],
   [plan][plan], and `AGENTS.md`. The round's answers were read on 2026-11-19 from
-  `doc/handover/cli-git-rust-implementation.md` in the main checkout, the paragraph beginning
-  `THE ROUND WAS ASKED`.
+  `doc/handover/cli-git-rust-implementation.md` in `main`, the paragraph beginning `THE ROUND WAS ASKED`, committed
+  at `c55ab25eb4`.
 - Wrapper code: `package/git-policy/cli/src/native/subvolume/fs_beneath.rs`,
   `package/git-policy/cli/src/native/process/open_file_of_a_descriptor.rs`,
   `package/git-policy/cli/src/native/process/process_use.rs`,
