@@ -40590,8 +40590,18 @@ stated in this entry. What follows from them, as work:
   measurement (`git lfs env` keeps the unrewritten endpoint; `replaceUrlAlias` applies only a non-empty alias), pinned
   by two guard cases with a positive control. Reds shown on `badd9f609c`. GOING: its short re-check on the Qwen plan,
   `pi-qwen-review-lfs-fourth-round-at-bbe9f26200` (watched); brief under
-  `~/temp/agent/git-policy-cli-lfs-fourth-round-short-review-on-the-qwen-plan-2026-11-19/`. Then its integration pass,
-  after the gate fix is in main.
+  `~/temp/agent/git-policy-cli-lfs-fourth-round-short-review-on-the-qwen-plan-2026-11-19/`. It ended `idle` (80 turns,
+  no rate-limit error; that folder's `keep/review.md`), with nothing worse than `main`. It confirmed the notice in all
+  four layouts, the pflag reading for every spelling git-lfs accepts (pflag v1.0.9 `flag.go:1078-1081`), the
+  empty-alias rejection, the corrected citations, and three reds of its own. Five lows:
+  - an empty `insteadOf` base is skipped (`lfs_upload_plan.rs:430`), though git-lfs applies it (inherited);
+  - the notice still names a destination for invocations git-lfs refuses (two scopes, exit 2; a value pflag rejects,
+    exit 127);
+  - a comment at `wrapped_command.rs:537` and a doc at `lfs_install_arguments.rs:108-112` this round made false;
+  - a grammar slip at `SPEC.md:11874`.
+  GOING: the fifth round, `pi-git-policy-cli-lfs-fourth-round-review-findings-fixed` (DeepSeek on Neuralwatt, cap 510),
+  in the same worktree; brief under `~/temp/agent/git-policy-cli-lfs-fourth-round-review-findings-fixed-2026-11-19/`.
+  Then a short re-check, then the integration pass after the gate fix is in main.
 - **The wrapper's container gate cannot pass on this ZFS host.** The LFS writer ran the gate's body
   (`node bin/test-native-container.ts`; the mise task's first step needs `cargo-shadow`, not installed here) twice:
   `9189 tests run: 9002 passed, 187 failed`, against 6 of 9,173 on the old Btrfs host. By its reading about 109 fail on
