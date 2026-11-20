@@ -1061,9 +1061,9 @@ executable because container tests exercise the installed one, and
 switch: a shipped run names nothing, so the switch stays inert, and the guest run sets it and a test deadline of its
 own, which is a control value and never a shipped one.
 
-Its skip. The skip is drawn on the refusals that mean this host will not give the companion a user namespace, or
-will not let it use the capabilities inside one. Each is a call and an errno, with the line of the kernel or of a
-security module that answers it:
+Its skip. The skip is drawn on the refusals that mean this host will not give the companion a user namespace, will
+not let it use the capabilities inside one, or will not let it mount inside one. Each is a call and an errno, with
+the line of the kernel or of a security module that answers it:
 
 - `unshare(CLONE_NEWUSER)` answering `ENOSPC`: `kernel/user_namespace.c:91` sets it for the depth limit and for
   `inc_user_namespaces` answering none, which `user.max_user_namespaces` bounds (`kernel/ucount.c:77` installs the
