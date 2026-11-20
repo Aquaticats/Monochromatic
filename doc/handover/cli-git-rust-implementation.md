@@ -40730,8 +40730,20 @@ stated in this entry. What follows from them, as work:
   when the wrapper is killed outright. GOING: the fifth revision,
   `pi-zfs-start-probe-design-fourth-revision-narrow-check-findings-fixed` (DeepSeek on Neuralwatt, cap 510), told the
   reflog times, to label with the time written and never set commit dates; brief under
-  `~/temp/agent/zfs-start-probe-design-fourth-revision-narrow-check-findings-fixed-2026-11-19/`. Then a diff-only Sonnet
-  check and acceptance, the companion skip asked as a ranked question. STAGING ENDED `idle` at
+  `~/temp/agent/zfs-start-probe-design-fourth-revision-narrow-check-findings-fixed-2026-11-19/`. It ended `idle` (255
+  turns) at `3b833948e3` (twelve commits 23:16:15 to 23:26:04, dates real; that folder's `keep/report-from-summary.md`,
+  checkers and kernel excerpts in its `scratch/keep/`), every finding fixed and one part dismissed with a fetched source
+  (`detach_mounts` is at `fs/namei.c:5521`). The claim is taken on entry to the attach, before the walk and the slot's
+  first-observation record, every step inside named (`walk`, `identity-record`, `identity-compare`, `fsopen`, ...), and
+  the design says plainly that a check refusal shadows a later pass in the same boot. The endings add a refused pool
+  thread, a failed pipe and a missing status line; the fork retry cites `retry_refused_start`. The skip is drawn by call
+  and errno (named with v7.3 lines), every other setup answer an arm failure, one residue stated; under the Ubuntu
+  restriction the first map write answers `EPERM` (`user_namespace.c:986`). Test-only switches follow the recorded
+  rule (`doc/planning/cli-git-rust-open-decisions.md:3646` to `:3649`: compiled in, inert unless set). Three choices
+  open to veto (the skip letting the add proceed; no probe deadline before step 6; no companion deadline before step
+  10). The fourth revision's entry now gives the reflog times. GOING: a diff-only Sonnet check (brief under
+  `~/temp/agent/zfs-start-probe-design-fifth-revision-diff-only-gate-check-2026-11-19/`). Then acceptance, the companion
+  skip asked as a ranked question. STAGING ENDED `idle` at
   `e8f7ec4fa6` (thirteen commits; report in its folder's `keep/report.md`). It records every answer and makes Way A the
   design. On Q3 it rolls the clone back by its own descriptor, staging it only if that fails. Its post-move check now
   asserts that the topmost mount is the clone with the bind as its parent; the run's own advisor found the old wording
