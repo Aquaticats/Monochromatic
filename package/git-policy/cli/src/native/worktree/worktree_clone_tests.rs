@@ -5,7 +5,8 @@
 //! modes and times with the source's index
 //!  installed,
 //! a source that changed after the check,
-//! and the clearing of a partial destination.
+//! the clearing of a partial destination,
+//! and an empty run through the slices on any filesystem.
 
 use super::*;
 use crate::fs_btrfs_test_support::btrfs_fixture;
@@ -133,6 +134,127 @@ fn many_file_fixture(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
     let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
     let admin: PathBuf = repo.join(".git/worktrees/topic");
     return (repo, destination, admin);
+}
+
+/// An ordinary-directory repository with `MANY_FILES` empty tracked files under `many/`,
+/// committed,
+/// and a `--no-checkout`
+///  worktree beside it.
+fn empty_many_file_fixture(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
+    let repo: PathBuf = std::fs::canonicalize(repository(root, "repo")).expect("canonical");
+    for index in 0..MANY_FILES {
+        tracked(repo.as_path(), many_path(index).as_str(), b"");
+    }
+    commit_all(repo.as_path(), "empty");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
+    let admin: PathBuf = repo.join(".git/worktrees/topic");
+    return (repo, destination, admin);
+}
+
+/// The frozen entries of the source's index,
+/// and handles on the destination and the administrative directory,
+/// as the sliced controls hold them.
+fn sliced_handles(source: &SnapshotSource, destination: &Path, admin: &Path) -> (Arc<[StatEntry]>, File, File) {
+    let entries: Arc<[StatEntry]> = Arc::from(stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length).expect("entries"));
+    return (entries, open_root(destination).expect("destination"), open_root(admin).expect("administrative directory"));
+}
+
+/// What:
+///  Empty tracked files go through the slices with no `FICLONE` at all:
+/// every entry is made in the index's order,
+///  and the installed index leaves the destination clean at once.
+/// Why:
+///   A file with no bytes is cloned by being created and given the source's fields,
+/// so this control needs no
+///  reflink recency and no reflink at all:
+/// it covers `clone_in_slices`, the per-slice stat merge, the single
+///  index install and the created order on ZFS and in the gate image,
+/// where the btrfs controls print `BTRFS CONTROL NOT RUN`
+///  and pass without doing anything.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(createdFilesOfATreeOfEmptyFiles).toEqual(indexOrder);
+/// ```
+#[test]
+fn the_slices_clone_every_empty_entry_without_a_reflink() {
+    let root: PathBuf = crate::test_support::fixture("clone-slices-empty");
+    let (repo, destination, admin) = empty_many_file_fixture(root.as_path());
+    let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
+    let (entries, held, administrative) = sliced_handles(&source, destination.as_path(), admin.as_path());
+    let mut created: Vec<Created> = Vec::new();
+    clone_in_slices(&source, Arc::clone(&entries), &held, &administrative, &mut created, SLICES_OF_A_CONTROL).expect("clones");
+    let listed: Vec<String> = entries.iter().map(|entry: &StatEntry| { return String::from_utf8_lossy(entry.path.as_slice()).into_owned(); }).collect();
+    let made: Vec<String> = created.iter().filter(|entry: &&Created| { return !entry.directory; }).map(|entry: &Created| { return joined_names(entry.names.as_slice()); }).collect();
+    assert_eq!(made, listed, "the slices' entries stay in the index's order");
+    for path in listed.iter() {
+        let bytes: Vec<u8> = std::fs::read(destination.join(path.as_str())).expect("a cloned entry");
+        assert!(bytes.is_empty(), "{path} is empty, so the clone needed no reflink");
+    }
+    assert_eq!(git_text(destination.as_path(), &["status", "--porcelain=v1"]), "", "the first status of the clone is clean");
+    remove(root.as_path());
+}
+
+/// What:
+///  The wait for the slices is a step of the add's own record,
+/// entered where the thread that waits for them holds the recording.
+/// Why:
+///   A slice runs as a job of the blocking pool,
+/// which holds no recording of the add,
+/// so a step entered inside a slice is
+///  lost from the record and the step's name would depend on the engine that ran.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(record.steps.cloneEntries.calls).toBe(1);
+/// ```
+#[test]
+fn the_wait_for_the_slices_is_a_step_of_the_record() {
+    let root: PathBuf = crate::test_support::fixture("clone-slices-step");
+    let (repo, destination, admin) = empty_many_file_fixture(root.as_path());
+    let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
+    let (entries, held, administrative) = sliced_handles(&source, destination.as_path(), admin.as_path());
+    let mut created: Vec<Created> = Vec::new();
+    let common: PathBuf = repo.join(".git");
+    crate::add_timing::begin(common.clone(), true);
+    clone_in_slices(&source, entries, &held, &administrative, &mut created, SLICES_OF_A_CONTROL).expect("clones");
+    crate::add_timing::finish(0);
+    let text: String = std::fs::read_to_string(common.join(crate::add_timing::ADD_TIMING_FILE)).expect("the add's record");
+    let record: serde_json::Value = serde_json::from_str(text.trim_end()).expect("one JSON object");
+    assert_eq!(record["steps"]["cloneEntries"]["calls"], 1, "the slices' wait is a step of the record: {record}");
+    remove(root.as_path());
+}
+
+/// What:
+///  The record names how the run was split:
+/// its entries,
+/// its slices and the workers their wait was spread across.
+/// Why:
+///   Whether the slices ran at all is otherwise visible only as a side effect of the work sums,
+/// so a reader
+///  of the record cannot tell a sliced run from a serial one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(record.notes.cloneSlices).toBe(`${entries} entries in ${slices} slices, up to ${workers} workers`);
+/// ```
+#[test]
+fn the_record_names_the_slices_the_run_was_split_into() {
+    let root: PathBuf = crate::test_support::fixture("clone-slices-note");
+    let (repo, destination, admin) = empty_many_file_fixture(root.as_path());
+    let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
+    let (entries, held, administrative) = sliced_handles(&source, destination.as_path(), admin.as_path());
+    let mut created: Vec<Created> = Vec::new();
+    let common: PathBuf = repo.join(".git");
+    crate::add_timing::begin(common.clone(), true);
+    clone_in_slices(&source, entries, &held, &administrative, &mut created, SLICES_OF_A_CONTROL).expect("clones");
+    crate::add_timing::finish(0);
+    let text: String = std::fs::read_to_string(common.join(crate::add_timing::ADD_TIMING_FILE)).expect("the add's record");
+    let record: serde_json::Value = serde_json::from_str(text.trim_end()).expect("one JSON object");
+    let expected: String = format!("{MANY_FILES} entries in {SLICES_OF_A_CONTROL} slices, up to {SLICES_OF_A_CONTROL} workers");
+    assert_eq!(record["notes"]["cloneSlices"].as_str(), Some(expected.as_str()), "the record names the run's slices: {record}");
+    remove(root.as_path());
 }
 
 /// Every entry of a run the slices own is cloned into its directory,

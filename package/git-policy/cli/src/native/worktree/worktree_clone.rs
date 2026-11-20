@@ -40,7 +40,7 @@
 //! await cloneTrackedFiles(source, destination, admin); // throws a reason
 //! ```
 
-use crate::add_timing::{begin_step, begin_work, end_step, note_work};
+use crate::add_timing::{begin_step, begin_work, end_step, note, note_work};
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{create_file_at, entry_metadata_at, make_directory_at, open_directory_at, open_directory_beneath, open_file_at, open_root, plain_components, read_link_at, set_times_at, symlink_at};
 use crate::fs_clone_exchange::clone_file;
@@ -581,6 +581,10 @@ struct ClonedEntries {
 /// and a failure is carried out with what
 ///  the run had made by then,
 /// because nothing it created is removed.
+/// The caller enters the `cloneEntries` step around the whole run:
+/// a slice of a parallel run works on a blocking thread,
+/// which holds no recording of the add,
+/// so a step entered here would be lost.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -598,7 +602,6 @@ fn clone_the_entries(work: EntriesToClone<'_, '_>) -> ClonedEntries {
         Err(error) => return ClonedEntries { created, stats, failure: Some(format!("the destination handle cannot be kept ({error})")) },
     };
     directories.insert(Vec::new(), held_destination);
-    let entries_entered: bool = begin_step("cloneEntries");
     for at in positions {
         if failed.load(Ordering::Relaxed) {
             break;
@@ -607,12 +610,10 @@ fn clone_the_entries(work: EntriesToClone<'_, '_>) -> ClonedEntries {
         let run: OneEntry<'_, '_> = OneEntry { entry, source, source_root, directories: &mut directories, held_source: &mut held_source, seams: &mut *seams };
         let outcome: Result<(), String> = clone_one_entry(run, EntryResults { created: &mut created, stats: &mut stats, spent: &mut spent });
         if let Err(reason) = outcome {
-            end_step(entries_entered);
             spent.note();
             return ClonedEntries { created, stats, failure: Some(reason) };
         }
     }
-    end_step(entries_entered);
     spent.note();
     return ClonedEntries { created, stats, failure: None };
 }
@@ -650,7 +651,9 @@ fn clone_with(source: &SnapshotSource, directories: &mut Directories, admin: &Fi
     };
     let positions: Vec<usize> = (0..entries.len()).collect();
     let unshared: AtomicBool = AtomicBool::new(false);
+    let entries_entered: bool = begin_step("cloneEntries");
     let cloned: ClonedEntries = clone_the_entries(EntriesToClone { entries: entries.as_slice(), positions: positions.as_slice(), source, source_root: &root, destination, seams, failed: &unshared });
+    end_step(entries_entered);
     let ClonedEntries { created: made, stats, failure }: ClonedEntries = cloned;
     created.extend(made);
     if let Some(reason) = failure {
@@ -734,6 +737,19 @@ async fn clone_the_slices(states: Vec<SliceOfClones>) -> Vec<Result<ClonedEntrie
 ///   Making files by cloning is the copy stage's own load on the filesystem's metadata locks,
 /// so the ceiling
 ///  measured for that stage is the ceiling here.
+/// Both limits are borrowed:
+/// they were measured on btrfs reflinked trees of this repository,
+/// for copies of whole
+///  files, the install and `clone_tree`,
+/// and never for this rung,
+/// not on XFS, overlayfs or ZFS,
+/// and not between the break-even this rung uses and the entry counts those
+///  measurements took,
+/// which is where a small repository sits;
+/// the borrow is stated here,
+/// and
+///  measuring this rung at a few hundred entries is owed (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+/// step 3's open items).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -760,6 +776,10 @@ fn clone_worker_count(entries: usize) -> usize {
 /// so the entries stay in the index's order.
 /// The slices clone in one turn when no runtime can be entered here,
 /// which is the same work on one thread.
+/// The step around the fan-out is entered on this thread,
+/// so the record holds the wait for the slices,
+/// and a note names the entries, the slices and the workers the wait was split across,
+/// because neither is visible in a record that only sums the work per slice.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -777,7 +797,12 @@ fn clone_in_slices(source: &SnapshotSource, entries: Arc<[StatEntry]>, destinati
         states.push(SliceOfClones { entries: Arc::clone(&entries), positions: (at..at + chunk.len()).collect(), source: Arc::clone(&shared_source), source_root: Arc::clone(&source_root), destination: Arc::clone(&destination_held), failed: Arc::clone(&failed) });
         at += chunk.len();
     }
-    let answers: Vec<Result<ClonedEntries, String>> = match crate::lazy_runtime::run_on_runtime(clone_the_slices(states)) {
+    let slices: usize = states.len();
+    note("cloneSlices", format!("{} entries in {} slices, up to {} workers", entries.len(), slices, workers).as_str());
+    let entries_entered: bool = begin_step("cloneEntries");
+    let ran = crate::lazy_runtime::run_on_runtime(clone_the_slices(states));
+    end_step(entries_entered);
+    let answers: Vec<Result<ClonedEntries, String>> = match ran {
         Ok(answers) => answers,
         Err(refusal) => {
             debug(TAG, format!("the clones run in one turn ({refusal})").as_str());
