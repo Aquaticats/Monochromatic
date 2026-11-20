@@ -639,10 +639,10 @@ which builds the wrapper's tests inside the guest and runs them one at a time:
  against Git's checkout of the same tree,
  on the arm's pool:
   the tree was this crate's own `src`,
- 2,456 files and 34,719,420 bytes;
+ 2,456 files and 34,719,432 bytes;
  two alternating rounds measured Git's
-  checkout at 29,999,616 pool bytes and the clone rung at 7,016,448,
- so the add saved about 22.98 MB,
+  checkout at 29,997,056 pool bytes and the clone rung at 7,017,984,
+ so the add saved about 22.98 MB (22,979,072 bytes),
  with the pool
   reporting `bcloneused` 11,663,872,
  `bclonesaved` 23,327,744 and `bcloneratio` 3.00x.

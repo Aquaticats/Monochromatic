@@ -389,14 +389,14 @@ alternating them for two rounds,
 and prints:
 
 ```text
-MEASUREMENT zfs clone saved 22983168 bytes of 34719420 in 2456 files over 2 alternating rounds (Git's checkout used +29999616 bytes, the clone rung used +7016448 bytes and counted +11663872 cloned bytes; pool bcloneused 11663872, bclonesaved 23327744, bcloneratio 3.00x)
+MEASUREMENT zfs clone saved 22979072 bytes of 34719432 in 2456 files over 2 alternating rounds (Git's checkout used +29997056 bytes, the clone rung used +7017984 bytes and counted +11663872 cloned bytes; pool bcloneused 11663872, bclonesaved 23327744, bcloneratio 3.00x)
 ```
 
 That run of 2026-11-20 measured the tree as this crate's own `src`:
  2,456 files
-and 34,719,420 bytes,
-written by Git's checkout at 29,999,616 pool bytes and by the clone rung at
-7,016,448,
+and 34,719,432 bytes,
+written by Git's checkout at 29,997,056 pool bytes and by the clone rung at
+7,017,984,
 so a clean same-dataset add of that tree saved about 22.98 MB of pool space
 against Git's checkout.
 
