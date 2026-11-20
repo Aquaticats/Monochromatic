@@ -465,12 +465,13 @@ and each names this record.
   its private bind and the wrapper's cleanup,
   and the next paragraph's "has no design yet" sentence for the interface that unmounts from staging.
   The staging-folder check of "What doctor checks and prints" carries a note
-  inside its "have no design yet" sentence for the folder's creation,
+  after its "have no design yet" sentence for the folder's creation,
   its private bind and the wrapper's cleanup.
   The open item "Staging under `~/.cache` and the wrapper's cleanup" carries a note
-  that covers both its "are undesigned" sentence and its "is not designed either" sentence.
+  after its "are undesigned" sentence,
+  covering that sentence and its "is not designed either" sentence.
   The acceptance test "The wrapper's staging cleanup" under "Decided behaviours with no test yet"
-  carries a note inside its "has no design yet" sentence.
+  carries a note after its "has no design yet" sentence.
   The notes name the accepted design and this record,
   and they keep the point that nothing is built yet:
   no unmount runs from staging until step 9 ships that interface.
