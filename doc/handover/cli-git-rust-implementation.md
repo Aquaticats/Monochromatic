@@ -40353,7 +40353,8 @@ stated in this entry. What follows from them, as work:
   Git's checkout" is false for ZFS. Gate on `main` plus the branch: 9187 of 9189, the cause-H pair only, all 74
   `source_guard` tests pass. The plan means "What each step runs where", and lets the host half merge before its guest
   arm (the gate is its only merge condition). Also: `cargo fmt --check` in the gate image fails on 1975 files across
-  the whole tree, so no branch can pass it there (an open defect of the gate image or the toolchain, not this branch);
+  the whole tree, so no branch can pass it there (not a defect: the package has no `rustfmt` check and its sources are
+  not laid out as `cargo fmt` writes them; its `README.md` says so since `4b024a485c`);
   `native:test:host` cannot run here without `cargo-nextest` on the checkout's `PATH`. The coordinator read on the host:
   `zfs_bclone_enabled` 1, `feature@block_cloning` active, `zfs_bclone_wait_dirty` 1. OpenZFS `zfs-2.4.4`
   `module/zfs/zfs_vnops.c:1839` to `:1857` (read; excerpt in
