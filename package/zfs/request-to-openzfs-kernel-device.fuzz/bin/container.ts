@@ -25,8 +25,8 @@ import {
 } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-import { defaultContainerLimits } from '../../git-policy/cli/bin/container-limits.ts';
-import { ensureTestBase } from '../../git-policy/cli/bin/native-test-base.ts';
+import { defaultContainerLimits } from '../../../git-policy/cli/bin/container-limits.ts';
+import { ensureTestBase } from '../../../git-policy/cli/bin/native-test-base.ts';
 
 /** This package's directory, the working directory of both tasks. */
 const source = process.cwd();
