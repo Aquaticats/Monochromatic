@@ -9,8 +9,9 @@ accepted design, the plan (every section list and step it names) and the measure
 question round returned and the threat-model sentence recorded beside them, OpenZFS `zfs-2.4.4` sources, the
 running kernel's exported system calls, this host's `include/uapi/linux/mount.h`, systemd v262 `service.c`, `unit.c`
 and `exec-invoke.c`, Linux v6.8 and v7.3 `fs/super.c`, `fs/fsopen.c` at v5.2, v6.5, v6.6 and v7.3, Linux v7.3
-`kernel/user_namespace.c`, `kernel/ucount.c` and `mm/shmem.c`, and the wrapper's own code (fetched, because this
-host's 7.3.5 tree ships no `fs` sources). No kernel source
+`kernel/user_namespace.c`, `kernel/ucount.c`, `kernel/nsproxy.c`, `fs/namespace.c`, `fs/namei.c` and `mm/shmem.c`,
+Ubuntu 24.04's release notes for the user-namespace restriction its default AppArmor profile applies, and the
+wrapper's own code (fetched, because this host's 7.3.5 tree ships no `fs` sources). No kernel source
 was read for the first draft, which is how a non-existent mount attribute and a wrong `errno` survived it; the
 kernel statements under [The kernel the design names](#the-kernel-the-design-names) name the version each was read
 from. What stays open: every measurement under [Owed measurements](#owed-measurements), none of which ran. The
@@ -119,10 +120,10 @@ can silently not run.
 
 ### Q4: whether an unexercised arm may enable the route
 
-Chosen: "Block until it has run (Recommended)", in the round of 2026-11-19T20:35 to 2026-11-19T20:43:51-05:00. An arm
-that could not run keeps the managed route blocked, with the per-operation effects the failed-arm answer states. Not
-taken: reporting the gap and keeping the route enabled, which would let a broken kernel pass with the gap visible only
-in `doctor`, now that the source always exists.
+Chosen: "Block until it has run (Recommended)", in the round of 2026-11-19T20:35 to 2026-11-19T20:43:51-05:00. A probe
+arm that could not run keeps the managed route blocked, with the per-operation effects the failed-arm answer states.
+Not taken: reporting the gap and keeping the route enabled, which would let a broken kernel pass with the gap visible
+only in `doctor`, now that the source always exists.
 
 ### Q5: whether a missed deadline fails closed
 
@@ -319,6 +320,8 @@ These lines are from the tag's commit `71a9f9578616`, cloned on 2026-11-19 from 
 - The ZFS filesystem type declares `FS_USERNS_MOUNT` (`module/os/linux/zfs/zpl_super.c:1096` and `:1098`), so a
   user namespace may ask for the filesystem, which is the declaration the design's H1 gate 7 already expects to
   be refused in a confined namespace (the [proposal][proposal], lines 1940 to 1942).
+  [M6](#m6-user-namespace-limits) is a separate arm that expects the same refusal for the probe's own source as the
+  account, and it repeats nothing of gate 7.
 - The kernel's own check refuses that request: `zfs_domount` returns `EPERM` when the caller is not in the global
   zone and the dataset is not visible there (`module/os/linux/zfs/zfs_vfsops.c:1357` to `:1366`).
 - `inglobalzone` is true only for a credential whose user namespace is `init_user_ns`
@@ -395,6 +398,9 @@ These lines are from the tag's commit `71a9f9578616`, cloned on 2026-11-19 from 
   `/proc/modules` lists `zfs` with a use count of 10 (read-only, 2026-11-19).
 - Unprivileged user namespaces are enabled here: `/proc/sys/user/max_user_namespaces` reads `252369` and
   `/proc/sys/kernel/unprivileged_userns_clone` reads `1` (read-only, 2026-11-19).
+  `kernel.apparmor_restrict_unprivileged_userns` is absent here, because no AppArmor module is loaded:
+  `/sys/kernel/security/lsm` reads `capability,landlock,lockdown,yama,bpf` (read-only, 2026-11-19), and that
+  setting is a distribution patch, as `unprivileged_userns_clone` is.
 - The probe dataset and the configuration field that names it are the setup steps' output, and no step runs
   them on this host (the [plan][plan], steps 18 to 20). Until the owner runs the commands those steps print, the
   probe finds no name the parse accepts and records its attach arm and every arm after it as not exercised, as
@@ -446,7 +452,10 @@ These lines are from the tag's commit `71a9f9578616`, cloned on 2026-11-19 from 
 - Item 16 recorded that no built-in or local image booted `7.3.5-1-cachyos` with OpenZFS `2.4.4`, and that the
   remote catalog was not queried ([measurements][measurements], item 16, lines 668 to 706).
 - The guest every measured item ran on is `6.8.0-147-generic` with OpenZFS userspace and module `2.4.4-1`
-  ([measurements][measurements], lines 37 to 39, 669 to 673).
+  ([measurements][measurements], lines 37 to 39, 669 to 673). Its distribution's default AppArmor profile denies
+  capabilities inside an unprivileged user namespace (Ubuntu 24.04 release notes), and no item in the record ran an
+  unprivileged user namespace on it, so [M11](#m11-the-account-companion-per-add)'s pass controls run with
+  `kernel.apparmor_restrict_unprivileged_userns` at 0 and its skip arm runs with the setting at 1.
 
 ### The wrapper's code
 
@@ -525,7 +534,10 @@ Each assumption is stated so a measurement can break it, and the measurement tha
 - The account can make a user namespace and a mount namespace on this host, map its own ID to 0 there, and mount a
   tmpfs inside them, so the companion runs. This rests on `user_namespaces(7)` and
   `/proc/sys/user/max_user_namespaces` reading `252369` and `/proc/sys/kernel/unprivileged_userns_clone` reading
-  `1` here (read-only, 2026-11-19); [M11](#m11-the-account-companion-per-add) measures the arms and the skip.
+  `1` here (read-only, 2026-11-19); [M11](#m11-the-account-companion-per-add) measures the arms and the skip. It also
+  needs a kernel that grants the namespace and still allows the mount namespace and the tmpfs inside it, which a
+  kernel carrying Ubuntu 24.04's default AppArmor profile does not: there the setup answers `EPERM` and the companion
+  skips, which M11 measures with `kernel.apparmor_restrict_unprivileged_userns` at 1 and at 0.
 - tmpfs accepts the descriptor calls the companion makes, so its attach, move and unmount arms reach a real mount
   without ZFS: it declares `FS_USERNS_MOUNT` and carries fs_context operations (`mm/shmem.c:5103`, `:5284`,
   `:5311` and `:5316`, read at v7.3). [M11](#m11-the-account-companion-per-add)'s success control breaks or
@@ -598,8 +610,9 @@ Each assumption is stated so a measurement can break it, and the measurement tha
   to the proposal's floor sentence, which [Notes for the plan](#notes-for-the-plan) records.
 - The companion never reaches the dataset mount path, the key path or `/dev/zfs`, so its pass cannot predict the
   probe's or the product's attach, and its failure refuses an add without evidence that the root attach would
-  fail. It is skipped on a host that refuses user namespaces or has none left, its skip is printed, and the add
-  goes ahead after it. Those last two are this design's choices, open to the project's veto, and
+  fail. It is skipped on a host that refuses user namespaces, has none left, or grants the namespace and denies the
+  capabilities inside it, its skip is printed, and the add goes ahead after it. Those last two are this design's
+  choices, open to the project's veto, and
   [The account companion](#the-account-companion) states the reason and the alternative.
 - The companion's cost on every managed add, and the deadline that bounds it, are unmeasured until
   [M11](#m11-the-account-companion-per-add); no value is stated here.
@@ -727,7 +740,8 @@ design, and the plan's steps 18 to 20 build the commands and configuration that 
     second namespace, not a second mount record. It starts after arm 5 and before the move, because a probe that
     has already unmounted has no mount for a holder to hold, and it waits on its control pipe for the mode's
     signal. The mode stops and reaps it between arm 7's two scan passes, and reads the outcome line it wrote to
-    its status pipe. Its pipes and its parent-death signal are the protocol described after the arms.
+    its status pipe. Its pipes and its parent-death signal are the protocol under
+    [The pipes and parent-death signals each child owns](#the-pipes-and-parent-death-signals-each-child-owns).
 7.  Namespace scan, in two passes, before anything is unmounted. Run the probe's own scan: group live tasks by
     `/proc/<pid>/ns/mnt`, read a representative `mountinfo` per namespace, and match the ZFS filesystem and exact
     source. In the first pass, while the worker's mount and the holder's both exist, require the set of
@@ -769,6 +783,8 @@ the attach arm and every arm after it as not exercised, because the design has n
 controls in the walk arm are expected refusals: an arm that attaches instead of refusing fails the probe, so the
 harness has a positive control for its own check.
 
+### The pipes and parent-death signals each child owns
+
 The mode, the worker and each child speak over pipes that belong to one child each, so no end of file can arrive
 from another process's copy and no child inherits a channel meant for a sibling. Every pipe is created
 immediately before the fork that needs it, and the forking process keeps one end and closes the others as soon as
@@ -788,12 +804,13 @@ live thread behind it.
 Requests are single bytes. The worker asks for the holder to start before the move and to stop between the scan's
 passes; the mode forks, stops and reaps the holder on those requests and writes the outcome back on its reply
 pipe. The mode does no work between reading a request and answering it, so neither process can wait on the other
-for a pipe the other is waiting to fill. The holder and the worker write one line per arm, naming the arm and its
-errno, to their own status pipes, which the mode reads until end of file; the unmount child writes to the pipe its
-worker owns and the worker relays that line. The mode therefore writes every field of the record from values it
-read itself. The worker sets no parent-death signal of its own, because it must finish its unmount and report even
-when the mode dies; [M3](#m3-interruption-leaves-nothing) records that kill, and [Limits](#limits) names the
-residue.
+for a pipe the other is waiting to fill. The holder and the worker write one line when each step of theirs ends,
+naming the arm, the step and its errno, to their own status pipes, which the mode reads until end of file; arm 8's
+move, arm 8's unmount and the closing scan are steps of their own, so the mode can name which one was in flight. The
+unmount child writes to the pipe its worker owns and the worker relays that line. The mode therefore writes every
+field of the record from values it read itself. The worker sets no parent-death signal of its own, because it must
+finish its unmount and report even when the mode dies; [M3](#m3-interruption-leaves-nothing) records that kill, and
+[Limits](#limits) names the residue.
 
 ### The account companion
 
@@ -807,14 +824,46 @@ runtime is multithreaded and never dropped (`.../foundation/lazy_runtime.rs:1` t
 holding only the forking thread, so the child runs a fixed sequence of raw syscalls and nothing else: every buffer
 it writes is built before the fork, it formats its numbers into a stack array by hand, and no allocating call, no
 runtime call and no library call that takes a lock runs in it. A re-exec of the wrapper's own executable would give
-it a fresh single-threaded process, and this design cannot use one: the source guard fails any release line that
-starts the wrapper itself, an `argv[0]` dispatch included
-(`.../source_guard/no_self_invocation_tests.rs:1` to `:14`). The consequence is stated rather than hidden: the
-companion repeats the probe's syscall sequences in that island instead of calling the probe's allocating helpers,
-and [M11](#m11-the-account-companion-per-add) runs both against the same controls, so the checks stay the same.
+it a fresh single-threaded process, and this design cannot use one: the bar is the project's own decision in
+`doc/planning/cli-git-no-self-invocation.md`, enforced by a textual scan that fails any release line starting the
+wrapper itself, an `argv[0]` dispatch included
+(`.../source_guard/no_self_invocation_tests.rs:1` to `:14`), and by `clippy.toml`'s ban on
+`std::env::current_exe`; the scan's two `ALLOWED` entries name identification and a shim text, so no entry could
+excuse a start. A separate small helper executable is not barred, because it is not the wrapper, and it is not
+proposed: plan step 5, "The second executable and what the release ships", already prices a second executable for
+this release (its `[[bin]]`, its install paths, the binstall table, the `checkBins` and `pinFiles` rows, the lock's
+`bins` row, the sidecar-lock refresh and the install text, and the one-executable test it changes), and a helper
+would add a third executable and a version handshake between it and the wrapper for no evidence the island does not
+already give. The consequence is stated rather than hidden: the companion repeats the probe's syscall sequences in
+that island instead of calling the probe's allocating helpers, and
+[M11](#m11-the-account-companion-per-add) runs both against the same controls, so the checks stay the same.
 The parent calls `setpgid(child, child)` as soon as the fork returns, before any deadline can fire, and the child
 calls `setpgid(0, 0)` too, so the group the deadline kills exists even if the child dies before its own call,
 which is the rule the probe's arm 1 states for its worker.
+
+The island's shape is the wrapper's own, and three conditions come with it. The release code forks this way in a
+possibly multithreaded process, builds every buffer before the fork, and has the child call only the file's own
+reads, its `write` and `_exit`
+(`package/git-policy/cli/src/native/process/open_file_of_a_descriptor_in_a_child.rs:101` to `:134`). First, the
+companion's child ends in `_exit` on every path, because the release profile unwinds a panic
+(`package/git-policy/cli/Cargo.toml:157`), and a child that did not end there would unwind into the parent's frames
+and run a second copy of the wrapper. Second, the child closes every descriptor it inherited, moving its two pipe
+ends down and then calling `close_range(5, ~0U, 0)`, the way the probe's holder and unmount child do
+([The pipes and parent-death signals each child owns](#the-pipes-and-parent-death-signals-each-child-owns)): the
+runtime holds epoll, event and socket descriptors, a caller's pipe may be open, and a copy of a pipe end or of a
+lock descriptor in a child that outlives the wrapper holds that pipe or lock open. Third, the parent never waits on
+a child that `SIGKILL` cannot end: it kills the child it can and hands it to the wrapper's reaper for a stuck child
+(`package/git-policy/cli/src/native/process/stuck_children_reaped_when_the_kernel_lets_go.rs:1` to `:32`), which is
+the rule [Limits](#limits) states for the probe's own child.
+
+Its parent-death signal, and what a killed wrapper leaves. The child sets `PR_SET_PDEATHSIG` to `SIGKILL` and
+rechecks `getppid()`, as the probe's children do, so a wrapper killed outright takes its child with it, and the
+child's namespace and the tmpfs inside it go with the child, which leaves the empty directory the next preflight
+sweeps. That signal follows the forking thread rather than the process
+(`doc/troubleshooting/pdeathsig-fires-when-the-parent-thread-ends.md`), and a blocking-pool thread idles out after
+ten seconds without work (tokio 1.54.1 `src/runtime/blocking/pool.rs:231`, `KEEP_ALIVE`; the wrapper's builder sets no
+`thread_keep_alive`, `.../foundation/lazy_runtime.rs:164` to `:170`), so the signal is safe here only because the
+thread that forked the child blocks until it has reaped that child or its deadline fires.
 
 What it runs. The child calls `unshare(CLONE_NEWUSER)`, writes `deny` to `/proc/self/setgroups`, writes one line
 each to `uid_map` and `gid_map` mapping the account's own effective user and group to 0 in the new namespace, then
@@ -837,10 +886,16 @@ Where its scratch directory lives, and who removes it. The parent creates it und
 state under that directory (`package/git-policy/cli/src/native/service/service_provision.rs:24`). It is not under
 the checkout, the slot tree, the staging folder or the clone parent, so no path mount or unmount touches the tree
 the plan's rule forbids (the [plan][plan], line 275), and it is not under the root-owned record directory. The
-parent removes its subdirectory when the child ends, a kill included; a wrapper killed outright leaves an empty
-directory, because the tmpfs mount inside it died with the child's namespace, and the next preflight removes every
-sibling whose name carries a pid no process holds (`kill(pid, 0)` answering `ESRCH`). Nothing survives a logout,
-which removes `/run/user/<uid>`.
+parent removes its subdirectory when the child ends, a kill included. The next preflight sweeps the siblings a kill
+leaves, and it removes only a directory it can prove dead: the name carries the pid and the birth identity the
+wrapper records for its own processes (`.../process/process_identity.rs:1` to `:22`), and the sweep removes a name
+only when its pid names no process in this namespace (`kill(pid, 0)` answering `ESRCH`) and no process holds that
+recorded identity. That care is load-bearing: the tmpfs mount inside a live child's directory lives in that child's
+namespace, `rmdir` of the directory from the host namespace is not refused for such a mount, because
+`is_local_mountpoint` looks at the caller's namespace, and the call then detaches that mount in every namespace
+(`fs/namei.c:5502` to `:5521`, `detach_mounts`), so a sweep that guessed would end a live run's mount. The
+parent-death signal makes a wrapper's own death leave an empty directory rather than a live one, because the child
+goes with the thread that forked it. Nothing survives a logout, which removes `/run/user/<uid>`.
 
 When, and as whom. In the add preflight, after the wrapper's own start gate and before the add's claim, so that a
 refusal leaves no managed object, which is the preflight order the proposal already requires (the
@@ -858,23 +913,43 @@ first attach's outcome.
 Its deadline. The parent bounds the child with a monotonic deadline and, on expiry, kills the child's process group
 and refuses the managed attach as unproven, which is the same posture the deadline answer gives the probe. No value
 is stated, and step 10 cites the value beside [M11](#m11-the-account-companion-per-add)'s run; until that run
-exists, the companion does not run in the preflight or in `doctor`, as
-[Who runs it, and where](#who-runs-it-and-where) states for the probe's own deadline.
+exists, a shipped build's companion does not run in the preflight or in `doctor`, as
+[Who runs it, and where](#who-runs-it-and-where) states for the probe's own deadline, and the guest run of M11 is
+the one exception, through a test-only switch and a test deadline that do not ship.
 
-Its skip. Any error from the `unshare(CLONE_NEWUSER)` call itself is a refusal of the user namespace, and the
-companion treats every one of them as a skip: `EPERM`, `ENOSPC`, `EACCES`, `ENOMEM` or any other answer that call
-gives. The two expected here are `ENOSPC`, which `kernel/user_namespace.c:91` sets for both the depth limit and a
-count that passes `user.max_user_namespaces` (`kernel/ucount.c:77` installs the setting), and `EPERM`, which the
-same file sets for a chrooted caller or one without a mapping. `EUSERS` is not among them on any kernel this design
-supports: `unshare(2)` gives it only from Linux 3.11 to Linux 4.8, and `kernel/user_namespace.c` at v7.3 names it
-nowhere. `EACCES` is the third: `create_user_ns` calls `security_create_user_ns` (`:118`), SELinux's hook answers
-`avc_has_perm`, which denies with `EACCES` (`security/selinux/hooks.c:4734` to `:4739`), and AppArmor's
-`aa_profile_ns_perm` returns `aa_check_perms`, whose denial is `EACCES` (`security/apparmor/task.c:374` to `:394`,
-`security/apparmor/lib.c:440`). A seccomp filter in an agent sandbox can answer any errno at all, which
-is why the skip is every error from that call and the arms after it are the only ones that can fail. The companion
-then prints one line naming the call, the errno and the two settings it read
-(`/proc/sys/user/max_user_namespaces` and `/proc/sys/kernel/unprivileged_userns_clone`), records its arms as not
-exercised, and does not refuse the add.
+Its skip. The skip's boundary is the end of the namespace setup, not the first call: a failure of any call from
+`unshare(CLONE_NEWUSER)` through the private propagation, which is every call before the first one that touches the
+scratch tmpfs, is a skip, and arm failures start at the tmpfs attach. That boundary is the wrapper's own
+precedent: its test control runs `unshare --user --map-root-user --mount --propagation private /bin/true` and treats
+a non-zero answer from any part of that setup as "unavailable", with a stated reason
+(`package/git-policy/cli/src/native/binary/binary_worktree_removal_around_a_volume_tests.rs:159` to `:181`).
+
+The reason the boundary has to reach past the first call: a kernel can grant the user namespace and take the
+capabilities inside it away, and Ubuntu 24.04's default AppArmor profile does exactly that, as its release notes
+say: the profile "allows the use of user namespaces for unprivileged and unconfined applications but will deny the
+subsequent use of any capabilities within the user namespace". That guest is the one every measurement in this
+design runs on. There `unshare(CLONE_NEWUSER)` succeeds, the two map writes succeed, and the next call answers
+`EPERM`: `unshare_nsproxy_namespaces` requires `CAP_SYS_ADMIN` in the caller's user namespace
+(`kernel/nsproxy.c:221` to `:223`), and `may_mount` requires it over the mount namespace's own
+(`fs/namespace.c:2062` to `:2066`). A boundary at the first call would make that a failed arm, so every managed add
+on such a host would be refused and the probe's pass controls could not pass there either.
+
+Every errno of a call in the setup is a skip, not a list of them. The two expected on a kernel that allows
+unprivileged namespaces are `ENOSPC`, which `kernel/user_namespace.c:91` sets for both the depth limit and a count
+that passes `user.max_user_namespaces` (`kernel/ucount.c:77` installs the setting), and `EPERM`, which the same
+file sets for a chrooted caller or one without a mapping, and which the mount namespace's own capability check sets
+on the restricted kernel. `EUSERS` is not among them on any kernel this design supports: `unshare(2)` gives it
+only from Linux 3.11 to Linux 4.8, and `kernel/user_namespace.c` at v7.3 names it nowhere. `EACCES` is the third:
+`create_user_ns` calls `security_create_user_ns` (`:118`), SELinux's hook answers `avc_has_perm`, which denies with
+`EACCES` and whose documentation says so (`security/selinux/hooks.c:4734` to `:4739`; `security/selinux/avc.c:1188`),
+and AppArmor's hook is `apparmor_userns_create` (`security/apparmor/lsm.c:1050`), which reaches `aa_profile_ns_perm`
+and then `aa_check_perms` (`security/apparmor/task.c:374` to `:394`), whose denial is `EACCES`
+(`security/apparmor/lib.c:440`) and `ENOENT` for a hidden permission (`:443`). A seccomp filter in an agent sandbox
+can answer any errno at all, which is why the skip is every error from a call in the setup and the calls after it
+are the only ones that can fail. The companion then prints one line naming the call, the errno and the settings it
+read (`/proc/sys/user/max_user_namespaces`, `/proc/sys/kernel/unprivileged_userns_clone` and, where the running
+kernel has it, `kernel.apparmor_restrict_unprivileged_userns`), records its arms as not exercised, and does not
+refuse the add.
 
 That last step, and the printing of the skip, are this design's own choice, not the project's: Q6's option text
 named a skip on a host that refuses user namespaces as one of its costs, so that a skip exists was before the
@@ -884,17 +959,51 @@ pass cannot predict the root attach, so a host that refuses user namespaces woul
 check that cannot speak about it, while the root probe's arms and the module gate still bound that route. The
 alternative is Q4's rule applied here: a skipped companion refuses the managed add, and the managed route is then
 off on hosts that refuse user namespaces, with an unused slot taking the reflink or Git route. This design adopts
-the first and marks it open to the project's veto at acceptance; a veto takes the second, and nothing else in the
-design moves. `doctor` prints both settings and the companion's own outcome, so a host cannot lose the check
-without a printed reason.
+the first and marks it open to the project's veto at acceptance, with veto none as the default; a veto takes the
+second, and nothing else in the design moves. `doctor` prints the settings it read and the companion's own outcome,
+so a host cannot lose the check without a printed reason.
 
-What it prints. On a failed arm:
-`managed add refused: the account companion's <arm> failed: <call> (errno <n>); this slot takes <route>.`
+Every ending, and the line it prints. The companion's run ends in one of these, and each has a class and a line of
+its own:
+
+- A pass: nothing is printed, and the add goes on.
+- A namespace setup failure: a skip, printed with the call and its errno as the skip line gives it, and the add goes
+  on, which is this design's choice open to the project's veto.
+- An arm failure after the setup: a refusal, printed on the failed-arm line.
+- A refused `fork`: a refusal, because a start the system refused started nothing and the wrapper's own rule is to
+  start again: the parent pauses and retries within the wrapper's five-second budget
+  (`package/git-policy/cli/src/native/push/start_retry.rs:33` and `:257` to `:264`, `START_RETRY_BUDGET` and
+  `RetryStart::spawn_retrying`), and a budget that runs out is an arm failure naming `fork` and `EAGAIN`, printed on
+  the failed-arm line. This host's own record has such refusals as ordinary here
+  (`doc/troubleshooting/run-wrapper-pids-max-refuses-fork-and-threads.md`), and a shortage that outlasts the budget
+  is a host fault the add itself would meet.
+- A scratch directory that cannot be made or written, because `$XDG_RUNTIME_DIR` is unset, unwritable or full: a
+  refusal as unproven, printed with the failed-arm line, whose arm is `scratch` and whose call and errno are the
+  failing one, in the wording the wrapper's provisioning already uses, which names `XDG_RUNTIME_DIR` and what to do
+  (`.../service/service_provision.rs:306` to `:308`, `:408` and `:427`).
+- A mountinfo read past the buffer the parent built before the fork: an arm failure naming the read and its bound,
+  which is the wrapper's own `MOUNT_TABLE_LIMIT`, where a table past the bound is refused rather than read whole
+  (`.../foundation/plain_file.rs:209`; `.../subvolume/fs_mount_options.rs:344` to `:348`), so the add is refused as
+  unproven.
+- A child that dies of a signal before its first status line, from a seccomp `SIGSYS` or the memory killer: an arm
+  failure naming the signal with no errno, printed on the failed-arm line, so the add is refused as unproven.
+- A deadline expiry: a refusal as unproven, printed as
+  `managed add refused: the account companion did not answer within its deadline; this slot takes <route>.`
+
+The lines themselves, then. On a failed arm:
+`managed add refused: the account companion's <arm> failed: <call> (errno <n> or signal <n>); this slot takes <route>.`
 On a skip: `account companion skipped: <call> answered <errno>; user namespaces are unavailable here`, followed by
-the values it read, `user.max_user_namespaces=<value>` and `kernel.unprivileged_userns_clone=<value>`, with
-`absent` printed for the second when the running kernel has no such setting, which is every mainline kernel at
-v7.3: the setting is a distribution patch. On a pass it prints nothing. The lines go to standard error under the
-design's own reporting rules (the [proposal][proposal], lines 755 to 762).
+the values it read, `user.max_user_namespaces=<value>`, `kernel.unprivileged_userns_clone=<value>` and
+`kernel.apparmor_restrict_unprivileged_userns=<value>`, with `absent` printed for each setting the running kernel
+does not have: `unprivileged_userns_clone` is a distribution patch and is absent on every mainline kernel at v7.3,
+and the AppArmor setting exists only where that module is. On a pass it prints nothing. The lines go to standard
+error under the design's own reporting rules (the [proposal][proposal], lines 755 to 762).
+
+`doctor` prints the same classes: a pass, a failed arm with its call and errno, the skip with its settings, and
+`unknown` for the deadline, a refused `fork` that outlasted its budget, an unusable scratch directory, a refused
+mountinfo read and a signal death, which is the word plan step 18 uses for a check it cannot prove (the
+[plan][plan], line 1555). It runs a fresh companion, not the add's run, so a transient cause that refused one add
+can leave `doctor` printing a pass, and that add's own line is the record of it.
 
 What it costs per add, and what sizes that. One fork, two `unshare` calls, two mapping writes, one tmpfs mount and
 its unmount, the walk and its identity compare, the refusal controls, and one more child for the move and the
@@ -911,7 +1020,7 @@ mode `0644` in that root-owned `0755` directory, read-only to the wrapper and `d
 
 Which process writes it, and when. The handler process that makes the first real clone attach after the current boot
 writes it: `boot-reconcile` or the sweep, whichever attaches first, the sweep being the zedlet's default
-invocation with no argument (the [plan][plan], step 5) rather than a second path. "First" means first to claim the
+invocation with no argument (the [plan][plan], step 5) rather than a second path. `First` means first to claim the
 file, not first to attach: two handler processes can finish out of order, and the one that claims the name first
 is the one whose outcome is kept. The claim is taken by the first attempt that passes the key check, and not by an
 attempt that check refuses: plan step 8 checks the encryption root and key state before the attach, and it "reports
@@ -953,13 +1062,17 @@ Its format. One `key value` line per field, fixed keys and no free text, in the 
 `step <the step>` and `errno <a name or none>`. The steps are the handler's own, in the order it runs them:
 `identity-compare`, `fsopen`, `fsconfig-create`, `fsmount`, `move-mount` and `verify`. The key check is not one of
 them, because a refusal there takes no claim and writes nothing. A step that is one of the handler's checks writes
-`errno none`, because no call answered, and a step that is a call writes the errno name the call gave. A reader refuses a set of lines with an unknown key, a repeated key, a missing required
-key or a value it cannot parse, and reports the file as unreadable rather than guessing.
+`errno none`, because no call answered, and a step that is a call writes the errno name the call gave. A reader
+refuses a set of lines with an unknown key, a repeated key, a missing required key or a value it cannot parse, and
+reports the file as unreadable rather than guessing.
 
 How `doctor` reads it. In the same section as the probe's result, opened by path with `open_regular_file` and
 bounded by `read_regular_file`'s limit, so a link or a named pipe at the name is refused rather than waited on
 (`.../foundation/private_storage.rs:785` and `:817`). That open takes a path and is not a directory-relative open,
-which is enough here: the name sits in a root-owned `0755` directory and the open refuses a link at it. It prints
+which is enough here: the name sits in a root-owned `0755` directory and the open refuses a link at it. It is a
+deliberate departure from the proposal's sentence for receipts, which are "opened relative to the trusted
+directory" (the [proposal][proposal], lines 550 to 553): these two runtime files are not receipts that authorize
+anything, and root and the account are trusted here under the threat model the answers assume. It prints
 the outcome and, for a refusal, the step and the errno; an absent file as no real attach this boot; a started line
 as begun and not finished; a boot ID that differs from this boot as stale; and an unreadable file as unreadable.
 
@@ -1021,16 +1134,18 @@ then; what the next boot reads in that case is the started record that
 with its namespace, so a worker that survives an uninterruptible wait, which `SIGKILL` cannot interrupt, holds
 nothing in the host mount table; it can hold the snapshot busy until the wait returns, which is under
 [Limits](#limits). The holder and the unmount child each carry a parent-death signal and the pipes their forking
-process owns, described after the arms, so an interruptible child does not outlive the thread that forked it, and
-a child inside an uninterruptible kernel wait can outlive it until that wait returns; the unit's own `KillMode=`
+process owns, as
+[The pipes and parent-death signals each child owns](#the-pipes-and-parent-death-signals-each-child-owns)
+states, so an interruptible child does not outlive the thread that forked it, and a child inside an uninterruptible
+kernel wait can outlive it until that wait returns; the unit's own `KillMode=`
 default of `control-group` sends nothing until the unit stops, so it bounds a leaked process only after a failed
 or finished run (`systemd.kill(5)`, `KillMode=`). A missed deadline writes a timed-out result and the route fails
-closed ([Q5](#q5-whether-a-missed-deadline-fails-closed)). That result names the arm in flight when the deadline
-fired and the arm the last status line named: the mode reads one line per arm, so the arm after the last line it
-read is the one that was running. Removal therefore does not guess: [Q2](#q2-what-a-failed-arm-disables)'s rule
-treats an in-flight move, unmount or scan arm as failed, so removal of a mounted clone is refused when the deadline
-caught one of those three, and a timeout that caught any other arm keeps the failed-arm answer's effects for new
-attaches only.
+closed ([Q5](#q5-whether-a-missed-deadline-fails-closed)). That result names the step in flight when the deadline
+fired and the step the last status line named: the mode reads one line per step, so the step after the last line it
+read is the one that was running, and arm 8's move, arm 8's unmount and the closing scan each have their own line.
+Removal therefore does not guess: [Q2](#q2-what-a-failed-arm-disables)'s rule treats a move, unmount or scan step
+that was in flight as a failed arm, so removal of a mounted clone is refused when the deadline caught one of those
+three, and a timeout that caught any other step keeps the failed-arm answer's effects for new attaches only.
 
 Where the deadline's value comes from. No workload measurement exists, and rule `LQM` asks for a measurement or an
 owner decision beside every shipped limit, so no number ships uncited. Step 6 runs [M4](#m4-what-the-probe-costs)'s
@@ -1040,9 +1155,18 @@ boot arms re-measure the login delay at boot, and the value is re-cited there if
 step 6's run exists, step 19 does not add the unit's `ExecStartPre=` for the probe, so no wedge can hold up
 `systemd-user-sessions.service` in the meantime, and the probe runs only from the transient unit. Step 10 does the
 same for the companion, citing the per-add deadline beside [M11](#m11-the-account-companion-per-add)'s run, and the
-companion does not run in the preflight until that
-value exists. A provisional ceiling set now by the project's own decision would also satisfy `LQM` and let step 19
-add the `ExecStartPre=` earlier; this design does not propose a number, and that choice is the project's.
+companion does not run in the preflight until that value exists. Both of those are this design's own choices,
+pending the project's veto, with veto none as the default: the first is no deadline value before step 6's
+measurement, and the second is no companion deadline before step 10's. A provisional ceiling set now by the project's
+own decision would also satisfy `LQM` and let step 19 add the `ExecStartPre=` sooner; this design does not propose a
+number, and that choice is the project's.
+
+The deadline's margin. The value ships as the slowest measured arm or whole-probe run plus a margin that covers the
+range between the interleaved rounds, so a run inside the range the harness already saw does not fail closed on
+noise. The measurement runs on a guest and the deadline guards this host, and a file-backed guest pool measures
+semantics rather than this host's storage (the [plan][plan], lines 1834 to 1842, which makes that half the owner's act
+on the owner's authorisation); a reading of the same run on this host's storage is the owner's act for the same
+reason, and until it exists the value is the guest's.
 
 The unit sets no `TimeoutStartSec=`. A start timeout bounds a oneshot's `ExecStart` as well as its
 `ExecStartPre=`: the timer is armed per command with `s->timeout_start_usec` (systemd v262 `service.c:2991`,
@@ -1188,7 +1312,7 @@ the module's `srcversion`, the boot ID from `/proc/sys/kernel/random/boot_id`, a
 in the shape `binary_identity` records. A module's build ID where the kernel exports one, under
 `/sys/module/zfs/notes/`, joins the fingerprint too; that directory is empty on this host, so `srcversion` is the
 build input that is always readable there. The record also holds the time of the run, each arm's outcome, errno
-and source, the arm in flight and the last arm that finished when it timed out, the holder's and the worker's
+and source, the step in flight and the last step that finished when it timed out, the holder's and the worker's
 namespace identities, the chosen source, whether the source existed, and the resulting verdict. The probe's own
 fields are written only by the mode process, from the lines it reads on the status pipes. The first real attach's
 outcome goes into a second file beside it, `first-attach`, written by the handler process that made that attach, as
@@ -1216,9 +1340,10 @@ route ([Q4](#q4-whether-an-unexercised-arm-may-enable-the-route)) with those sam
 `doctor` reports which arm did not run and why.
 
 A result naming a missed deadline is written as timed out, and the route fails closed
-([Q5](#q5-whether-a-missed-deadline-fails-closed)): the record is not current, it names the arm in flight and the
-last arm that finished, and an in-flight move, unmount or scan arm is treated as failed for removal while every
-other timeout carries the failed-arm answer's effects for new attaches only ([Q2](#q2-what-a-failed-arm-disables)).
+([Q5](#q5-whether-a-missed-deadline-fails-closed)): the record is not current, it names the step in flight and the
+last step that finished, and a move, unmount or scan step in flight is treated as a failed arm for removal while
+every other timeout carries the failed-arm answer's effects for new attaches only
+([Q2](#q2-what-a-failed-arm-disables)).
 
 A module or kernel whose fingerprint changed since the record makes the record stale; the next boot's probe
 replaces it, and an add in between reads stale readiness, which the preflight must report as not current rather
@@ -1265,12 +1390,13 @@ commit `73eaad0846`, the branch's base, and main's copy had gained nine lines be
   `doctor` preflight, which treats an absent, stale, started, timed-out or blocked record as not current.
 - Step 8, "The attaching sweep for a clone that carries a mount request", gains the call to the `first-attach`
   writer, its sweep being the path that makes the first attach after boot, and it reads the probe's record before
-  any attach: on a failed or unexercised record it attaches nothing and keeps every intent and registration, which
-  is what [Q2](#q2-what-a-failed-arm-disables) and [Q4](#q4-whether-an-unexercised-arm-may-enable-the-route) decide.
+  any attach: on an absent, stale, started, timed-out, failed or unexercised record it attaches nothing and keeps
+  every intent and registration, which is what [Q2](#q2-what-a-failed-arm-disables) and
+  [Q4](#q4-whether-an-unexercised-arm-may-enable-the-route) decide.
 - Step 10, "The add route from registration to verified fill", gains the account companion in its shared preflight
   before the claim, the refused-arm answer's refusal rule, the unexercised-arm answer's block, and the timing run
   that sizes the companion's per-add deadline ([M11](#m11-the-account-companion-per-add)). `doctor` runs the same
-  companion under the shared preflight step 18 builds.
+  companion under the shared preflight step 10 builds here, which step 18's `doctor` gains the checks for.
 - Step 14, "Removal: the lineage proof, the plan and the removal intent", and step 16, "The snapshot batch, the head
   destroy, origin cleanup and the Git settle", carry the removal half of the failed-arm answer: removal of a mounted
   clone is refused when the failed or timed-out arm is the move, the unmount or the scan. Step 14 builds the
@@ -1288,17 +1414,21 @@ commit `73eaad0846`, the branch's base, and main's copy had gained nine lines be
   dataset, the section that names it as an exclusion beside the others; no step applies it on this host.
 - Step 22, "The measurements that size waits and retention", keeps sizing the mount-request deadline of step 7 and
   the unmount deadline of step 9. The probe's and the companion's deadlines are not its work: steps 6 and 10 cite
-  them beside their own runs, because those steps ship before step 22.
+  them beside their own runs, because those steps ship before step 22, and that narrowing of step 22's "every shipped
+  limit cited beside its measurement" and its "to size any shipped deadline" is a plan change the amendments name.
 - The measurement homes, one place each: M1, M2, M3, M5, M7 and M9's fault arms in step 6's guest arms, with
   M9's untested-release arm in step 23, which qualifies the CachyOS template; M4's arm and whole-probe timings in
   step 6 and its boot-and-login reading in step 19's boot arms; M8 in step 8's sweep on the guest; M10's setup half
-  with step 19's guest setup and its refusal readings in step 6; M11 in step 10's guest arms; and M6's
-  root-and-account half in step 6, with its skip half repeated in step 10's disabled-namespace boot. No value ships
-  before the step that runs its measurement, and step 22 sizes only the waits it names.
+  with step 19's guest setup and its refusal readings in step 6; M11 in step 10's guest arms, which gain a run with
+  the companion enabled by a test-only switch, a boot with unprivileged namespaces disabled and a boot with
+  `kernel.apparmor_restrict_unprivileged_userns` at 1; and M6's root-and-account half in step 6, with its
+  restricted-namespace arm repeated in step 10's guest arms. M6 is a separate arm from step 3's H1 gate 7, which
+  exercises a confined consumer's clone attach, and it replaces nothing there. No value ships before the step that
+  runs its measurement, and step 22 sizes only the waits it names.
 
 ### Amendments these notes ask for
 
-Three sentences outside this design need an amendment note beside them once the branch lands. None of them is edited
+Four sentences outside this design need an amendment note beside them once the branch lands. None of them is edited
 here.
 
 - The plan's preface, "no unmount runs before the third": [Q1](#q1-whether-the-plan-bars-the-probes-unmount-arm)
@@ -1310,6 +1440,10 @@ here.
   [Q4](#q4-whether-an-unexercised-arm-may-enable-the-route) blocks that route, as [Limits](#limits) states.
 - The proposal's exclusion count, "Use the eight exclusions named in the planning decision" (the
   [proposal][proposal], line 1083): the probe dataset's own section is a ninth exclusion, and step 20 writes it.
+- Plan step 22, "The measurements that size waits and retention": its "every shipped limit cited beside its
+  measurement" and its acceptance text "to size any shipped deadline or optional scan interval" would reach the two
+  deadlines too, though steps 6 and 10 cite them beside their own runs before step 22 ships, so the sentence needs
+  the note that narrows it to the mount-request deadline of step 7 and the unmount deadline of step 9.
 
 ## Owed measurements
 
@@ -1393,14 +1527,14 @@ the slot, the move-target directory, the record and its directory, whether any n
 source after the kill, and whether a second run succeeds. Control: the same probe allowed to finish, and a run
 killed before `unshare` returns.
 
-Hold one arm past the deadline, once with the move arm and once with the unmount arm, and require the timed-out
-record to name the arm in flight as that one and the last arm that finished as the one before it, and require
-removal of a mounted clone to be refused after each. Control: the same hold with the deadline raised past the
-arm's measured duration, which must record that arm as passed, so a mode that names the arm in flight always
+Hold one arm past the deadline, once with the move step of arm 8 and once with its unmount step, and require the
+timed-out record to name the step in flight as that one and the last step that finished as the one before it, and
+require removal of a mounted clone to be refused after each. Control: the same hold with the deadline raised past
+the step's measured duration, which must record that step as passed, so a mode that names the step in flight always
 fails its own control.
 
 Gates: the claims that it leaves nothing in the host mount table and nothing outside the record's directory, the
-started record, the parent's deadline path, the arm a timed-out record names, and each child's parent-death signal,
+started record, the parent's deadline path, the step a timed-out record names, and each child's parent-death signal,
 `getppid()` recheck and pipes.
 
 ### M4: what the probe costs
@@ -1434,7 +1568,13 @@ require `EBUSY` from the matched extant superblock instead, because `sget_fc` re
 user namespace before `zfs_domount` runs (Linux v6.8 `fs/super.c:779` to `:786`). Control: a tmpfs mount in the
 same user namespace succeeds, and root's attach in the init namespace succeeds. Then disable unprivileged
 namespaces in the guest (`user.max_user_namespaces` set to 0) and record that the account arm is skipped with a
-stated reason rather than failing the boot.
+stated reason rather than failing the boot. Then boot a guest with `kernel.apparmor_restrict_unprivileged_userns` set
+to 1, where the user namespace is granted and its capabilities are denied, and require the same skip, naming the
+call that failed and `EPERM`, which is the restricted arm [M11](#m11-the-account-companion-per-add) runs.
+
+M6 is a separate arm from H1 gate 7, which plan step 3 owns: gate 7 exercises a confined consumer's attach of the
+clone, while M6 exercises the probe's own source as the account, and neither replaces the other. Both run on the
+Ubuntu guest, so both meet the restriction [The account companion](#the-account-companion) states for the skip.
 
 Gates: the assumption that every ZFS arm needs root, the companion's `EPERM` reading, and the skip path
 [M11](#m11-the-account-companion-per-add) measures.
@@ -1512,12 +1652,15 @@ Gates: the probe's source and the setup steps.
 
 ### M11: the account companion, per add
 
-Run the built companion in the add preflight on the guest, and record each arm: the user namespace and its mapping
-writes, the mount namespace and its private propagation, the tmpfs scratch mount, the walk and its `ObjectId`
-compare, the descriptor attach of the second tmpfs, the flags read back, the four refusal controls, and the move
-and the unmount from the second child. Every refusal control needs its success control beside it, the shape
-[M5](#m5-the-refusal-arm-refuses-for-the-right-reason) gives the probe's own, so a companion that refuses
-everything fails its own control.
+Run the built companion in the add preflight on the guest. The guest run enables it through a test-only switch that
+carries a test deadline of its own, neither of which ships: in a shipped build, until this item's value exists, the
+companion does not run in the preflight (as [The account companion](#the-account-companion) states). Record each arm:
+the user namespace and its mapping writes, the mount namespace and its private propagation, the tmpfs scratch
+mount, the walk and its `ObjectId` compare, the descriptor attach of the second tmpfs, the flags read back, the four
+refusal controls, and the move and the unmount from the second child. Every refusal control needs its success control
+beside it, the shape [M5](#m5-the-refusal-arm-refuses-for-the-right-reason) gives the probe's own, so a companion
+that refuses everything fails its own control, and every arm here runs with
+`kernel.apparmor_restrict_unprivileged_userns` at 0 on a guest that has the setting.
 
 Measure what the companion costs one add as a ratio to the same add with the companion disabled, interleaved in the
 same round, and report the range between rounds; size the per-add deadline from that measurement and from no other.
@@ -1528,8 +1671,12 @@ add, name the call and take the fallback route, with a second build that passes;
 refuse the add, and must leave `doctor` naming the setting and the skip. A transient unit carrying
 `SystemCallFilter=` for `unshare` with `SystemCallErrorNumber=EPERM` is the other refusal a host can show, and it
 must print the same skip line with that errno; a filter answering `EACCES`, the errno the SELinux and AppArmor hooks
-give, must print the same line, so a skip rule that lists errnos instead of taking every one from that call fails
-its own control. A guest whose kernel has no `/proc/sys/kernel/unprivileged_userns_clone` must print `absent` for it
+give, must print the same line, so a skip rule that lists errnos instead of taking every one from a call in the
+setup fails its own control. A guest booted with `kernel.apparmor_restrict_unprivileged_userns` at 1, on a
+distribution whose default profile denies capabilities inside the namespace, is the arm the skip boundary exists
+for: it must print the skip line naming `unshare(CLONE_NEWNS)` and `EPERM`, must not refuse the add, and must leave
+`doctor` naming the setting and the skip. A guest whose kernel has no
+`/proc/sys/kernel/unprivileged_userns_clone` must print `absent` for it
 rather than nothing. And because the child repeats the probe's syscall sequence in its own no-allocation island, this
 run compares that sequence against the probe's arms on the same controls, so an island that diverged from the probe
 fails its own control.
@@ -1541,9 +1688,11 @@ descriptor calls it makes.
 
 The question round closed on 2026-11-19, and every answer is under
 [Answers of 2026-11-19](#answers-of-2026-11-19), which states each question, the option the project chose, the
-timestamp range and the option it did not take. No question of this design stays open. What stays open is
-measurement: every item under [Owed measurements](#owed-measurements) is unrun, and nothing here authorizes work on
-this host's pool.
+timestamp range and the option it did not take. No question of this design stays open. Two of its own choices stay
+open to the project's veto, each with veto none as the default: the companion's printed skip letting the add
+proceed, and no deadline value before step 6's measurement, which is why step 19 adds `ExecStartPre=` only when one
+is cited. What stays open beside them is measurement: every item under [Owed measurements](#owed-measurements) is
+unrun, and nothing here authorizes work on this host's pool.
 
 ## What a writer settles without asking
 
@@ -1564,11 +1713,13 @@ this host's pool.
   propose one. A record whose fingerprint no longer matches the running kernel, module or boot is stale, and the
   managed route then refuses the attach and keeps the intent (the [proposal][proposal], lines 351 to 352).
 - That the holder is forked by the mode process and the unmount child by the worker, that each child carries a
-  parent-death signal and pipes of its own as the protocol after the arms states, and that the mode kills the
-  worker's process group at the deadline.
+  parent-death signal and pipes of its own as
+  [The pipes and parent-death signals each child owns](#the-pipes-and-parent-death-signals-each-child-owns) states,
+  and that the mode kills the worker's process group at the deadline.
 - That the holder starts before the move and attaches its own mount of the same source.
-- That the protocol after the arms settles who closes which pipe end, when a child moves its ends to low
-  descriptors, and that the mode writes the record from the outcome lines it reads.
+- That [The pipes and parent-death signals each child owns](#the-pipes-and-parent-death-signals-each-child-owns)
+  settles who closes which pipe end, when a child moves its ends to low descriptors, and that the mode writes the
+  record from the outcome lines it reads.
 - That the namespace arm's holder runs at every start, with its cost under [M4](#m4-what-the-probe-costs), and
   that the scan is judged against the probe's own namespaces rather than against an empty set.
 - That the move and unmount arm closes every descriptor the worker holds on the attached mount before it forks,
@@ -1587,17 +1738,16 @@ this host's pool.
 - The `first-attach` file's keys, its claim, its staged rename and the reader's refusals, as
   [The first real attach's record](#the-first-real-attachs-record) states, and that the handler process that made
   the attach is the only writer.
-- That the account companion runs in the add preflight before the claim, in a child of the wrapper's process, that
-  its failure refuses only that add's managed attach, and that its skip is printed rather than turned into a
-  refusal.
-- That `doctor` reads the result and never runs a probe, and that no force flag exists.
+- That the account companion runs in the add preflight before the claim, in a child of the wrapper's process, and
+  that its failure refuses only that add's managed attach.
+- That `doctor` reads the result and never runs the root probe, and that no force flag exists.
 - That the probe is a handler mode named `start-probe`, run as `ExecStartPre=-` of the existing unit, that it runs
   the module gate first and skips itself when the gate refuses, that the mode process enforces the deadline and
   exits successfully whenever it reaches its own end, and that no on-demand channel is added.
-- The deadline's value, set only after [M4](#m4-what-the-probe-costs) measures the arms, and the companion's
-  per-add deadline, set only after [M11](#m11-the-account-companion-per-add); the unit carries no start timeout, and no
-  plan step sizes one: step 22 sizes the mount-request deadline of step 7, the unmount deadline of step 9 and any
-  shipped deadline those waits would need (the [plan][plan], lines 1778 to 1779 and 1811 to 1812).
+- That no unit start timeout is added and no plan step sizes one: step 22 sizes the mount-request deadline of
+  step 7, the unmount deadline of step 9 and any shipped deadline those waits would need (the [plan][plan], lines
+  1778 to 1779 and 1811 to 1812). The two deadlines' values are this design's own choice pending the veto, stated
+  in the deadline's value and margin paragraphs under [Who runs it, and where](#who-runs-it-and-where).
 - The fallback for an unused slot and the preservation of existing bindings, which the accepted design already
   decides.
 
@@ -1642,14 +1792,19 @@ states.
 - The kernel header and source named under [The kernel headers and source](#the-kernel-headers-and-source): this
   host's `/usr/include/linux/mount.h` (linux-api-headers 1:7.1-1), the 7.3.5 tree's
   `/usr/src/linux-cachyos/include/uapi/linux/mount.h`, Linux v6.8 and v7.3 `fs/super.c`, Linux v7.3
-  `fs/fsopen.c`, `fs/namespace.c`, `fs/pnode.c`, `kernel/exit.c` and `kernel/sys.c`, with `fs/fsopen.c` fetched at
+  `fs/fsopen.c`, `fs/namespace.c`, `fs/pnode.c`, `kernel/exit.c`, `kernel/sys.c` and `kernel/nsproxy.c`, with
+  `fs/fsopen.c` fetched at
   v5.2, v5.11, v5.12, v5.15 and v6.0 to v6.7 as well. The round that added the parent-death and unmount citations
   fetched `fs/namespace.c`, `fs/pnode.c`, `kernel/exit.c` and `kernel/sys.c` at v7.3 itself. For the account
   companion, Linux v7.3 `kernel/user_namespace.c` and `kernel/ucount.c` (fetched, for the `ENOSPC` of an exhausted
-  namespace count and the setting that bounds it) and `mm/shmem.c` (fetched, for tmpfs's `FS_USERNS_MOUNT` and
+  namespace count and the setting that bounds it), `kernel/nsproxy.c` and `fs/namespace.c` (for the capability the
+  mount namespace's own setup needs), `fs/namei.c` (for `rmdir` of a mount point and `detach_mounts`) and
+  `mm/shmem.c` (fetched, for tmpfs's `FS_USERNS_MOUNT` and
   its fs_context operations). For the errno a refused user namespace answers, Linux v7.3
-  `security/selinux/hooks.c`, `security/apparmor/task.c` and `security/apparmor/lib.c` (fetched), each read at the
-  hook `create_user_ns` calls.
+  `security/selinux/hooks.c`, `security/selinux/avc.c`, `security/apparmor/lsm.c`, `security/apparmor/task.c` and
+  `security/apparmor/lib.c` (fetched), each read at the hook `create_user_ns` calls and the one that hook reaches.
+- Ubuntu's 24.04 release notes, "Unprivileged user namespace restrictions", for the default AppArmor profile that
+  allows the user namespace and denies the capabilities inside it, which the design's own measurement guest carries.
 - `user_namespaces(7)` and `unshare(2)` read on this host, for the mapping rules, the `setgroups` order and the
   errnos a refused namespace creation answers.
 - systemd v262 `src/core/service.c`, `src/core/unit.c` and `src/core/exec-invoke.c` (fetched), and
@@ -1658,16 +1813,24 @@ states.
 - This host, read only, 2026-11-19: `uname --kernel-release`, `/sys/module/zfs/version`, `/proc/kallsyms`,
   `/proc/filesystems`, `/sys/kernel/btf/`, `/dev/zfs` mode, `/proc/modules` (for the `zfs` use count),
   `/proc/spl/kstat/zfs/zpcachyos/txgs`, `/sys/module/zfs/parameters/zfs_txg_history` and `zfs_txg_timeout`,
-  `findmnt --target /`, `/proc/sys/user/max_user_namespaces` and `/proc/sys/kernel/unprivileged_userns_clone`.
+  `findmnt --target /`, `/proc/sys/user/max_user_namespaces`, `/proc/sys/kernel/unprivileged_userns_clone` and the
+  absence of `kernel.apparmor_restrict_unprivileged_userns` with `/sys/kernel/security/lsm`.
 - The wrapper's code: `package/git-policy/cli/src/native/subvolume/fs_beneath.rs`,
   `.../subvolume/fs_mount_options.rs`, `.../subvolume/subvolume_remove_walk.rs`,
   `.../health/doctor_filesystem.rs`, `.../service/wait_ceilings.rs`, `.../service/service_provision.rs`,
   `.../invocation/git_version.rs`, `.../invocation/git_version_cache.rs`,
   `.../foundation/private_storage.rs`, `.../foundation/private_storage_replacing_a_record.rs`,
-  `.../foundation/lazy_runtime.rs`, `.../source_guard/no_self_invocation_tests.rs`,
+  `.../foundation/plain_file.rs`, `.../foundation/lazy_runtime.rs`, `.../process/process_identity.rs`,
+  `.../process/open_file_of_a_descriptor_in_a_child.rs`,
+  `.../process/stuck_children_reaped_when_the_kernel_lets_go.rs`, `.../push/start_retry.rs`,
+  `.../source_guard/no_self_invocation_tests.rs`,
   `.../source_guard/blocking_code_off_the_runtime_tests.rs`,
-  `.../binary/binary_worktree_removal_around_a_volume_tests.rs`, and `package/git-policy/cli/SPEC.md`
+  `.../binary/binary_worktree_removal_around_a_volume_tests.rs`, `clippy.toml`, and `package/git-policy/cli/SPEC.md`
   "Compatibility and degradation".
+- The project's own records the companion's child relies on: `doc/planning/cli-git-no-self-invocation.md` (the bar on
+  starting the wrapper), `doc/troubleshooting/run-wrapper-pids-max-refuses-fork-and-threads.md` (a refused `fork`
+  under a session's task budget) and `doc/troubleshooting/pdeathsig-fires-when-the-parent-thread-ends.md` (what the
+  parent-death signal follows), with tokio 1.54.1 `src/runtime/blocking/pool.rs` for the pool's keep-alive.
 
 [decision]: ../decision/cli-git-zfs-worktree-design.md
 [measurements]: cli-git-zfs-measurements-owed-before-acceptance.md
