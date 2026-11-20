@@ -598,6 +598,10 @@ descriptor and a slot descriptor it opens for the purpose:
   refusal receipt, unbinds nothing and removes nothing, and the removal refuses. Keeping the clone staged is the
   state the busy-unmount decision allows.
 
+The move back is the project's answer, and the accepted rules are applied to it; what this design adds is the
+destination's `RESOLVE_NO_XDEV`, its slot-identity and mount-row checks, and the one-attempt proof, all the writer's
+and marked for the project's veto ("Choices this revision marks for the project's veto").
+
 Where the topmost mount at the folder is not the clone while the clone's parent row is still the bind, something was
 stacked on the clone after the move. A move takes the clone's whole subtree, so that mount is a child of the clone
 and would travel with it (`attach_recursive_mnt`, the `moving` branch, Linux `v6.8`, `fs/namespace.c:2350` to
@@ -630,7 +634,8 @@ claim then wait for the staging sweep M6's first arm defines for an empty bind: 
 back at its slot, so a later sweep opens the folder from the record's handle, verifies the folder's identity and the
 bind's row, and unbinds the bind when the topmost mount at the folder is the recorded bind. While the account's mount
 covers it, the sweep's pre-call check refuses as it does for any mount it did not make, and reports both. The
-removal's next attempt starts at the slot, where the project's option text put the block.
+removal's next attempt starts at the slot, where the project's option text put the block. The receipt's wording and
+the settlement that follows are the writer's, marked for the project's veto; the outcome is the option text's.
 
 The checked reattach of "Busy unmount after a staging move" and the guarded `cancel-worktree-removal` end with the
 same staging state and a different receipt. Plan step 9 builds the reattach and plan step 17 the cancel, and each
@@ -1435,6 +1440,9 @@ another namespace that outlived the reboot cannot exist, because the reboot drop
 that settlement voids the handle and the namespace pair on the boot id alone, unmounts nothing and reports the
 state; it does not rewrite the record, because only a handler invocation writes one, and the wrapper's settlement is
 where a leftover record from another boot stops being read.
+
+The two void rules and their settlements are the writer's, marked for the project's veto ("Choices this revision
+marks for the project's veto").
 
 Nothing else ages a record out, and no timer touches it.
 
