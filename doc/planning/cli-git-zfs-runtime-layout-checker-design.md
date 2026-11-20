@@ -102,6 +102,30 @@ the pick is not made here.
   2's own reader choice, the Way 2 contradiction, the header sum and the `hdr_len`-relative
   offsets, the C1 and C4 effects, the `git describe` shape and the status banner.
   No accepted decision and no plan step changed.
+- `2026-11-19T20:17:01-05:00`, commit `fa66afaed0`, and the commit that carries this entry, which
+  changes only this record: the revision answering the second gate re-check of `3c547a825d`, kept
+  at
+  `/home/user/temp/agent/zfs-runtime-layout-checker-design-second-revision-gate-recheck-2026-11-19/keep/review.md`.
+  That re-check is independent of this file's author (rule `IRW`) and is not an approval; it found
+  no high finding and called the file not ready for the owner, with N1 to N6 as mediums and N7 to
+  N15 as lows. This revision answers every one of them: the bounding list states only what the
+  record decides, with the `/dev/zfs` request format cited to the proposal's "Requirements and
+  module ownership" (N1); Q1 says no option is recommended, lists what is outstanding and calls
+  its answer revisable, with option 2 available only under a named constraint and the eligible
+  order given as 1 > 3 > 4 (N2, N3); the readiness sentence splits ready, conditional and held
+  (N4); item 10's failing thresholds and Q3's trigger cite the gate review's single probe run as
+  one run with no control, and the base cap and the peak threshold are set together (N5); the
+  discovery record adds the per-query fields, splits its rounds, corrects the board statement and
+  the release count to 31, and records one second-provider attempt for the web class (N6); Q2
+  cites the plan's step 6 and offers the exact string and an allowlist as options (N7); the
+  comparison says how an entry is matched, gives the record's offset in bytes and bits, orders its
+  refusals, and drops the Way 2 contradiction (N8); every score is provisional and the tally is of
+  the stated labels (N9); each revision entry names its commits (N10); the count and positional
+  words are fixed and the checker and its control are recorded (N11); Q1, Q3 and Q4 gloss every
+  term and Q4 stops claiming a package that does not exist (N12); the reload identity adds
+  `srcversion` and the module's build ID, with a cache arm owed (N13); and items 5 and 10 name
+  their device-free route (N15). N14 needed no change. No fact was changed without re-running the
+  command behind it. No accepted decision and no plan step changed.
 
 ### Sources read
 
@@ -250,7 +274,7 @@ name, a licence name, a measured result being compared, or a date inside a measu
 Control: the same checker on a copy with one injected defect per prose rule moved every count it
 targets, so a clean report on this file is not vacuous: dashes 0 to 2, spaced hyphens 5 to 7, long
 lines 0 to 1, tables 0 to 3, heading issues 0 to 1, positional words 26 to 27, emphasis 0 to 1,
-marker padding 0 to 2, bare dates 8 to 9, count words 149 to 153 and link problems 0 to 3. The
+marker padding 0 to 2, bare dates 8 to 9, count words 152 to 156 and link problems 0 to 3. The
 ALL-CAPS and digit-plus-noun reports stayed put, because the injected set targets neither.
 
 ## The open item and the decisions that bound it
