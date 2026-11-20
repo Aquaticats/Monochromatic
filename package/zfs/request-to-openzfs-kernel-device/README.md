@@ -141,15 +141,101 @@ failure:
 so a
 caller never mistakes an exhausted cursor for a lost read.
 
+## The live calls
+
+`kernel_device::ZfsDevice` opens `/dev/zfs` once and carries a packed request to
+the kernel:
+
+```text
+let device = ZfsDevice::open()?;                       // /dev/zfs, read and write
+let identity = device.objset_stats("pool/dataset")?;   // stats and properties
+let names = device.get_bookmarks("pool/dataset", &[])?;
+let listed = device.snapshot_list_next("pool/dataset", 0)?; // None at the end
+```
+
+- One `unsafe` call,
+  in `src/kernel_device/ioctl_call.rs`,
+  sends the number and
+  the command buffer's address;
+  everything else is safe Rust.
+- A read that the kernel answers with `ENOMEM` and a size past the buffer grows
+  the buffer to it and asks again,
+  at most twice;
+  a third answer that still does
+  not fit is reported,
+  never looped on.
+  This is how a property list larger than
+  the 256 KiB the crate starts from is read.
+- A write is never sent twice.
+  A write whose reply was too small is reported
+  with the kernel's error number and any per-name failures it supplied.
+- A listing that reached its end is `Ok(None)`,
+  not an error:
+  only `ESRCH` on a
+  listing request means that,
+  and `Error::is_end_of_list` says so too.
+- `objset_stats` returns `DatasetIdentity`,
+  the kernel's statistics (identity,
+  origin,
+  flags) and the property values with their sources;
+  each listing step
+  returns `ListedObject`,
+  with the name and cursor the kernel wrote.
+- `promote` exists in the live handle for tests only (`#[cfg(test)]`),
+  because
+  promoting a worktree clone moves checkout history into a removable dataset.
+  Its refusal carries the conflicting snapshot's name the kernel leaves in
+  `zc_string`.
+
+## The guest fixture
+
+A live request must never reach this host's pool,
+so the live tests are
+`#[ignore]`d and run only in a throwaway `mvm` guest:
+
+```text
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- all
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- run --name my-guest
+```
+
+A plan check run on this host reports every live test as skipped,
+and
+`--run-ignored` on a host does not touch the device either:
+the tests read five
+`MONOCHROMATIC_ZFS_FIXTURE_*` variables and refuse to run unless the machine's
+hostname is the guest the recipe created.
+`e2e/README.md` lists the guest's
+contents (Ubuntu 24.04,
+OpenZFS 2.4.4 built from the release tarball against the
+guest's own kernel headers,
+Git,
+`pahole`,
+`strace`,
+Rust built inside the
+guest),
+the variables,
+the pools each arm builds and the teardown evidence.
+
+Between the arms,
+the root run prepares a delegated pool whose account holds
+only the design's three grants (`create,mount` on the clone parent,
+`clone` on
+the checkout,
+`mount,destroy,userprop` on the clone parent),
+and the account
+suite runs as that account,
+so a delegated refusal names the permission the
+kernel wanted.
+
 ## What this crate does not do
 
-- It sends no request by itself.
-  Step 2 of the implementation plan adds the live calls that open `/dev/zfs`
-  and carry a packed request there.
-- It checks no kernel compatibility.
+- It checks no kernel compatibility at start.
   The start-time gate that compares the loaded module's release,
   architecture,
-  endianness and BTF layout is step 6.
+  endianness and layout is step 6;
+  the guest tests compare the fields and
+  request numbers now,
+  and no program refuses to start on a mismatch yet.
 - It never retries a mutating request.
   A reply buffer grows only for reads;
   a write whose outcome is unknown is
@@ -159,6 +245,11 @@ caller never mistakes an exhausted cursor for a lost read.
   Privileges and delegations are the kernel's decision,
   made when the request
   arrives.
+- It starts no `zfs` program and links no OpenZFS library.
+  The guest tests use the `zfs` program to build their fixtures,
+  which is a
+  test's own setup,
+  not this crate's work.
 
 ## The codec and its origin
 
@@ -178,9 +269,9 @@ this crate links no C library,
 loads no CDDL code and
 starts no `zfs` program.
 
-## The gate image of step 1
+## The gate image of step 2
 
-`gate.Containerfile` is the image this step's merge checks run in,
+`gate.Containerfile` is the image this package's merge checks run in,
 as the plan's "How it merges" names it:
 the wrapper's gate base image,
 the two lock-row tools (`file-enforcer` and `monochromatic-lint`),
@@ -190,8 +281,21 @@ Its base is passed as `GATE_BASE_IMAGE`,
 the tag the wrapper's resolver prints
 (`mise run //package/git-policy/cli:test:git-image`),
 never typed in the recipe.
-The checks run there as `podman run --rm --init --network none`,
-with no home folder and the worktree mounted read-only:
+`build-gate-image.ts` is the repository file that assembles the build context
+the Containerfile reads
+(the two lock-row archives,
+checked against `toolchain.lock.json`'s sha256,
+and the crate with its fuzz sidecar under `deps/`);
+it prints the tag it built:
+
+```text
+mise run //package/zfs/request-to-openzfs-kernel-device:build:gate-image -- --tag <tag>
+```
+
+The checks run there as `podman run --rm --init --network none --cpus 4
+--memory 4g --pids-limit 512`,
+with no home folder,
+no `/dev/zfs` and the worktree mounted read-only:
 `cargo nextest run --release`,
 Clippy with `-D warnings`,
 `cargo fmt --check` for both crates,
@@ -199,6 +303,10 @@ Clippy with `-D warnings`,
 the sidecar's `cargo check` and Clippy,
 `monochromatic-lint package/zfs`
 and `file-enforcer check`.
+The live tests are in that run and are reported as skipped:
+they are
+`#[ignore]`d,
+and the guest recipe is the only thing that runs them.
 The Dylint closure rule (`rust/avoidable-closure`) is **not checked**:
 that image has no `cargo dylint`,
 so the linter prints its skip for this package as it does for every package.
@@ -206,13 +314,19 @@ so the linter prints its skip for this package as it does for every package.
 ## Using it
 
 ```text
-use monochromatic_zfs_request_to_openzfs_kernel_device::{snapshot, NvList};
+use monochromatic_zfs_request_to_openzfs_kernel_device::ZfsDevice;
 
-let mut request = snapshot("pool", &["pool/dataset@before-merge"], None)?;
-// Step 2 carries `request.command_abi_address()` to `libc::ioctl`; the packed
-// input list and the reply buffer live inside `request` for that call.
-let reply = request.take_reply()?;
+let device = ZfsDevice::open()?;                                 // /dev/zfs
+device.clone("pool/clones/work", "pool/checkout@origin", None)?; // ZFS_IOC_CLONE
+let identity = device.objset_stats("pool/clones/work")?;         // stats + properties
+let own = device.snapshot_list_next("pool/clones/work", 0)?;     // None at the end
 ```
+
+A crate that only builds requests calls `snapshot`,
+`clone` and the other
+constructors and reads the same fields without a device,
+which is what the
+device-free tests do.
 
 The device-free tests run through `mise run //package/zfs/request-to-openzfs-kernel-device:test`
 on the host,
