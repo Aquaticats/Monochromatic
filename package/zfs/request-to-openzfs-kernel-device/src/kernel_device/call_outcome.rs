@@ -16,11 +16,11 @@
 //! so it is one pure function per path and the device-free tests
 //!  pin every branch without a pool.
 
-// The failure type a live call returns.
+/// The failure type a live call returns.
 use super::device_error::DeviceError;
-// The per-name failures a write reply carries.
+/// The per-name failures a write reply carries.
 use crate::requests::ElementError;
-// The request failure type and its reply refusal.
+/// The request failure type and its reply refusal.
 use crate::requests::{Error, Operation, ReplyRefusal, ReplyRefusalReason};
 
 /// The facts one answer supplies.
@@ -86,9 +86,19 @@ pub(crate) fn interpret_read_failure(facts: AnswerFacts<'_>) -> ReadFailure {
 /// A write whose reply was too small is never replayed:
 /// by the time the kernel asks,
 /// it may already have changed state.
-/// The per-name failures it did supply come with the error number,
-/// so a
-/// caller sees which names the kernel refused and why.
+/// That branch answers before any reply is decoded,
+/// so it reports the size the
+/// kernel asked for and the size the buffer held,
+/// and it carries no error number
+/// and no per-name failures:
+/// the kernel's `ENOMEM` is what the branch recognised,
+/// not a
+/// separate field,
+/// and a reply that was not read has no names to show.
+/// A refusal the kernel
+/// answered with per-name failures instead travels as [`Error::Elements`]
+/// with
+/// its error number.
 pub(crate) fn interpret_write_failure(
     facts: AnswerFacts<'_>,
     elements: Vec<ElementError>,

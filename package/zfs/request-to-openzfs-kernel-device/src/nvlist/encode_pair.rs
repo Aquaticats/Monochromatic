@@ -19,15 +19,15 @@
 //!  the kernel's framing of the whole list,
 //! so it is refused before the patch.
 
-// The wire constants,
-// type numbers,
-// alignment and version check.
+/// The wire constants,
+/// type numbers,
+/// alignment and version check.
 use super::data_type::{MAX_DEPTH, NVLIST_STRUCT_SIZE, NVPAIR_HDR_SIZE, align8, check_version};
-// The scalar writer and its NUL checks.
+/// The scalar writer and its NUL checks.
 use super::encode_scalar_value::{contains_nul, value_contains_nul, write_scalar_value};
-// The codec own refusal type.
+/// The codec own refusal type.
 use super::error::NvError;
-// The pair and value types the writer encodes.
+/// The pair and value types the writer encodes.
 use super::value::{NvData, NvPair};
 
 /// Encode a pair sequence and its 4-byte zero terminator.

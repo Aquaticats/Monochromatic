@@ -18,15 +18,15 @@
 //! and
 //!  none of them takes a general-purpose property setter.
 
-// The failure type these requests return.
+/// The failure type these requests return.
 use super::error::Error;
-// The typed request numbers.
+/// The typed request numbers.
 use super::operation::Operation;
-// The request value and the name check.
+/// The request value and the name check.
 use super::request::{Request, checked_name};
-// The field a request name is bound for.
+/// The field a request name is bound for.
 use crate::names::NameField;
-// The codec list type.
+/// The codec list type.
 use crate::nvlist::NvList;
 
 /// `ZFS_IOC_SET_PROP` on `target`,

@@ -14,18 +14,18 @@
 //! and the
 //!  listing steps also carry the kernel's cursor and statistics.
 
-// The check that a finished read wrote a list.
+/// The check that a finished read wrote a list.
 use super::call_outcome::require_reply;
-// The handle they are methods of.
+/// The handle they are methods of.
 use super::device::ZfsDevice;
-// The failure type these calls return.
+/// The failure type these calls return.
 use super::device_error::DeviceError;
-// One step of a listing,
-// and the identity read's statistics with its properties.
+/// One step of a listing,
+/// and the identity read's statistics with its properties.
 use super::listed_object::{DatasetIdentity, ListedObject};
-// The decoded list a read returns.
+/// The decoded list a read returns.
 use crate::nvlist::NvList;
-// The request constructors and the request value.
+/// The request constructors and the request value.
 use crate::requests::{
     Request, dataset_list_next, get_bookmarks, get_fsacl, objset_stats, snapshot_list_next,
 };

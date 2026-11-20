@@ -16,13 +16,13 @@
 //!  stream differently,
 //! so it is refused before a byte is written.
 
-// The version this codec reads and writes.
+/// The version this codec reads and writes.
 use super::data_type::check_version;
-// The pair writer that emits an embedded list children.
+/// The pair writer that emits an embedded list children.
 use super::encode_pair::encode_pairs;
-// The codec own refusal type.
+/// The codec own refusal type.
 use super::error::NvError;
-// The list the writer encodes.
+/// The list the writer encodes.
 use super::value::NvList;
 
 /// The stream header the kernel expects on input:

@@ -17,7 +17,7 @@
 //!  past.
 //! The variants carry the offsets so a diagnostic points at the byte.
 
-// The formatting traits the diagnostics implement.
+/// The formatting traits the diagnostics implement.
 use std::fmt;
 
 /// A packed list this crate refuses.

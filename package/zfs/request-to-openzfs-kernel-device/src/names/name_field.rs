@@ -12,7 +12,7 @@
 //!  and each of the three fields has a different bound,
 //!  so the bound travels with the field rather than with the check.
 
-// The bounds each name field reports.
+/// The bounds each name field reports.
 use crate::layout::{MAX_VALUE_LEN, MAXNAMELEN, MAXPATHLEN};
 
 /// One of the fixed text fields a request writes a name into.

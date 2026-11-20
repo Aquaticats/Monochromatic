@@ -15,17 +15,17 @@
 //! and the end-of-listing case can be told apart from
 //!  a lost read by the operation it belongs to.
 
-// The per-name failures and their diagnostic suffix.
+/// The per-name failures and their diagnostic suffix.
 use super::element_error::{ElementError, elements_suffix};
-// The typed request numbers.
+/// The typed request numbers.
 use super::operation::Operation;
-// The reply decode error and the growth refusal.
+/// The reply decode error and the growth refusal.
 use super::reply::{ReplyError, ReplyRefusal};
-// The name refusal a request reports.
+/// The name refusal a request reports.
 use crate::names::NameError;
-// The codec refusal type.
+/// The codec refusal type.
 use crate::nvlist::NvError;
-// The formatting traits the diagnostics implement.
+/// The formatting traits the diagnostics implement.
 use std::fmt;
 
 /// A request that could not be built or answered.

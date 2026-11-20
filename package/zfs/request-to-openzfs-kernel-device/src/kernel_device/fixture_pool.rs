@@ -18,10 +18,10 @@
 //!  create,
 //! and the pool is destroyed as the test ends.
 
-// The fixture that runs the programs,
-// and the release every live test needs.
+/// The fixture that runs the programs,
+/// and the release every live test needs.
 use super::fixture::{Fixture, OPENZFS_RELEASE};
-// The path type the image and key need.
+/// The path type the image and key need.
 use std::path::PathBuf;
 
 /// The encryption the measurements' fixture used.
@@ -280,7 +280,7 @@ fn size_argument() -> String {
 /// A fresh raw key,
 /// long enough for `aes-256-gcm` and never reused across pools.
 fn raw_key() -> Vec<u8> {
-    // The trait that fills the key's bytes from the random device.
+    /// The trait that fills the key's bytes from the random device.
     use std::io::Read;
     let mut key: Vec<u8> = vec![0; RAW_KEY_BYTES];
     std::fs::File::open("/dev/urandom")

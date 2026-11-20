@@ -22,7 +22,7 @@
 //! so a
 //!  caller cannot reach an operation the design did not pick.
 
-// The formatting traits the diagnostics implement.
+/// The formatting traits the diagnostics implement.
 use std::fmt;
 
 /// `ZFS_IOC_OBJSET_STATS`:

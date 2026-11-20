@@ -19,9 +19,9 @@
 //! caps how many names it keeps,
 //! and ignores a zero error number.
 
-// The codec list and value types.
+/// The codec list and value types.
 use crate::nvlist::{NvData, NvList};
-// The formatting traits the diagnostics implement.
+/// The formatting traits the diagnostics implement.
 use std::fmt;
 
 /// Most elements kept from one reply.

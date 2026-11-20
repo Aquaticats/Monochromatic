@@ -13,9 +13,9 @@
 //! keeping them beside `zfs_cmd`'s table
 //!  would pass the folder's line limit.
 
-// The mirrored records and the name-field size.
+/// The mirrored records and the name-field size.
 use crate::layout::{DrrBegin, MAXNAMELEN, ZfsShare, ZfsStat, ZinjectRecord};
-// The offset and size operators the tables are built from.
+/// The offset and size operators the tables are built from.
 use std::mem::{offset_of, size_of};
 
 /// The bytes `zfs_share` must report,

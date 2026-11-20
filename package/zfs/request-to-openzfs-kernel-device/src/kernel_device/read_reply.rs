@@ -13,11 +13,11 @@
 //! the
 //!  write path never comes through here.
 
-// The failure type a live call returns.
+/// The failure type a live call returns.
 use super::device_error::DeviceError;
-// The decoded list a read returns.
+/// The decoded list a read returns.
 use crate::nvlist::NvList;
-// The request whose reply grows.
+/// The request whose reply grows.
 use crate::requests::Request;
 
 /// What one attempt at a read returned.

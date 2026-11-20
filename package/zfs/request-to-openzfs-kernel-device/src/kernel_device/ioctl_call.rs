@@ -11,9 +11,9 @@
 //! and every rule about what that
 //!  answer means lives in `call_outcome.rs` where a test can read it.
 
-// The packed request the call carries.
+/// The packed request the call carries.
 use crate::requests::Request;
-// The error number a failed call leaves.
+/// The error number a failed call leaves.
 use std::os::fd::RawFd;
 
 /// Send one request to the device.

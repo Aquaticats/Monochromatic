@@ -14,11 +14,11 @@
 //! one reader with
 //!  the shape's source beside it keeps them in one place.
 
-// The live failure type the listing reader passes through.
+/// The live failure type the listing reader passes through.
 use super::device_error::DeviceError;
-// One step of a listing.
+/// One step of a listing.
 use super::listed_object::ListedObject;
-// The decoded reply list.
+/// The decoded reply list.
 use crate::nvlist::NvList;
 
 /// The numeric value of `property` in an `OBJSET_STATS` reply.

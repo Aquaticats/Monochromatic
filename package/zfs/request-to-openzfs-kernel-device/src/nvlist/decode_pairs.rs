@@ -19,20 +19,20 @@
 //! and every other value is
 //!  decoded by the bounded scalar decoder beside this file.
 
-// The wire constants,
-// type numbers,
-// alignment and version check.
+/// The wire constants,
+/// type numbers,
+/// alignment and version check.
 use super::data_type::{NVLIST_STRUCT_SIZE, NVPAIR_HDR_SIZE, align8, check_version};
-// The decoder for values that stay inside their pair.
+/// The decoder for values that stay inside their pair.
 use super::decode_scalar_value::decode_scalar_value;
-// The codec own refusal type.
+/// The codec own refusal type.
 use super::error::NvError;
-// The checked position in a packed list.
+/// The checked position in a packed list.
 use super::stream_cursor::Cursor;
-// The decoded list,
-// pair and value types.
+/// The decoded list,
+/// pair and value types.
 use super::value::{NvData, NvList, NvPair};
-// The byte width of the element types.
+/// The byte width of the element types.
 use std::mem::size_of;
 
 /// Decode a pair sequence up to and including the format's 4-byte zero.

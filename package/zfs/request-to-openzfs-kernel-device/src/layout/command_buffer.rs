@@ -24,13 +24,13 @@
 //! a
 //!  pointer-sized integer would differ on a future 128-bit target.
 
-// The size the mirrored struct must have.
+/// The size the mirrored struct must have.
 use super::abi_limits::COMMAND_STRUCT_SIZE;
-// The mirrored struct the buffer is laid over.
+/// The mirrored struct the buffer is laid over.
 use super::zfs_cmd_t::ZfsCmd;
-// The formatting traits the diagnostics implement.
+/// The formatting traits the diagnostics implement.
 use std::fmt;
-// The deref traits that expose the struct over the words.
+/// The deref traits that expose the struct over the words.
 use std::ops::{Deref, DerefMut};
 
 /// Bytes a command buffer holds when a caller asks for no size:

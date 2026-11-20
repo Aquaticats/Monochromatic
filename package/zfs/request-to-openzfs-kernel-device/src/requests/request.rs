@@ -21,19 +21,19 @@
 //!  owned bytes after the reply grows,
 //! never hand-computed at a call site.
 
-// The failure type these requests return.
+/// The failure type these requests return.
 use super::error::Error;
-// The typed request numbers.
+/// The typed request numbers.
 use super::operation::Operation;
-// The reply buffer and what it is for.
+/// The reply buffer and what it is for.
 use super::reply::{ReplyBuffer, ReplyUse};
-// The buffer and struct a request writes into.
+/// The buffer and struct a request writes into.
 use crate::layout::{CommandBuffer, ZfsCmd};
-// The checked name types and their field bounds.
+/// The checked name types and their field bounds.
 use crate::names::{CheckedName, NameField};
-// The codec list type.
+/// The codec list type.
 use crate::nvlist::NvList;
-// The formatting traits the diagnostics implement.
+/// The formatting traits the diagnostics implement.
 use std::fmt;
 
 /// A request ready to be carried to `/dev/zfs` by a live call.

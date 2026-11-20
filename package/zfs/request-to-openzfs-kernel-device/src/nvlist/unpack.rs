@@ -14,15 +14,15 @@
 //! because another encoding would make every offset
 //!  in the loop mean something else.
 
-// The version this codec reads and writes.
+/// The version this codec reads and writes.
 use super::data_type::check_version;
-// The pair loop that reads an embedded list children.
+/// The pair loop that reads an embedded list children.
 use super::decode_pairs::decode_pairs;
-// The codec own refusal type.
+/// The codec own refusal type.
 use super::error::NvError;
-// The checked position in a packed list.
+/// The checked position in a packed list.
 use super::stream_cursor::Cursor;
-// The list and pair types the reader builds.
+/// The list and pair types the reader builds.
 use super::value::{NvList, NvPair};
 
 /// The methods of `NvList`.

@@ -16,13 +16,13 @@
 //!  one type means a caller never matches on an untyped `io::Error` to find
 //!  out whether the device was merely absent.
 
-// The failure type a packed request returns.
+/// The failure type a packed request returns.
 use crate::requests::Error;
-// The request identifiers the two disagreement variants name.
+/// The request identifiers the two disagreement variants name.
 use crate::requests::Operation;
-// The formatting traits the diagnostics implement.
+/// The formatting traits the diagnostics implement.
 use std::fmt;
-// The path type the open failure names.
+/// The path type the open failure names.
 use std::path::PathBuf;
 
 /// Why a live call could not be made or answered.

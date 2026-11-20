@@ -22,13 +22,13 @@
 //! so the live call is behind the test build
 //!  rather than behind a comment.
 
-// The handle they are methods of.
+/// The handle they are methods of.
 use super::device::ZfsDevice;
-// The failure type these calls return.
+/// The failure type these calls return.
 use super::device_error::DeviceError;
-// The decoded list a write may answer with.
+/// The decoded list a write may answer with.
 use crate::nvlist::NvList;
-// The request constructors and the request value.
+/// The request constructors and the request value.
 use crate::requests::{Request, clone, destroy, destroy_snaps, set_prop, snapshot};
 
 /// The methods of `ZfsDevice` that write.

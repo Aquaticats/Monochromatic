@@ -14,9 +14,9 @@
 //! and the property
 //!  list carries each property's value and source.
 
-// The statistics both list requests fill.
+/// The statistics both list requests fill.
 use crate::layout::DmuObjsetStats;
-// The decoded property list.
+/// The decoded property list.
 use crate::nvlist::NvList;
 
 /// One dataset or snapshot a listing returned.
