@@ -1730,12 +1730,14 @@ rollback is outside that default.
   Ranking a > d > c > b: a > d because a is the guard the answered route needs, on one key, while d reads a second
   key and keeps a record in one more scene; d > c because d clears the block where c blocks every later staging of
   that clone; c > b because b can lose a live recovery handle.
-- A record from another boot. The wrapper settles the folder, the record, any temporary name and the claim once the
-  boot id differs, with its own mount-table read and `rmdir`'s `EBUSY` as the guards. Options: (a) this route; (b)
-  waiting for a later removal of that clone to rewrite the record, which the standing `unmount` intent may never
-  produce; (c) leaving the folder to the administrator after `doctor` prints it. Ranking a > c > b: a > c because a
-  settles a folder no bind of this design can hold from the previous boot while c at least reports it once; c > b
-  because b promises a settlement that may never come.
+- A record from another boot. The handler voids such a record on the boot id alone, without opening its handle, and
+  writes its own before it binds; the wrapper settles the folder, the record, any temporary name and the claim once
+  the boot id differs, with its own mount-table read and `rmdir`'s `EBUSY` as the guards. Options: (a) this route;
+  (b) waiting for a later removal of that clone to rewrite the record, which the standing `unmount` intent may never
+  produce; (c) leaving the folder to the administrator after `doctor` prints it; (d) a binding invocation that meets
+  an other-boot record refusing to bind, leaving the record to the wrapper's settlement instead of rewriting it.
+  Ranking a > d > c > b: a > d because a needs no wait and d makes a removal wait for one settlement; d > c because d
+  still settles itself once, where c needs a person; c > b because b promises a settlement that may never come.
 - The rollback's classification against "No implicit remount after a failure or restart" is a question for the
   project rather than a veto of a behaviour, and the design behaves the same whichever answer it gets. "The private
   bind" states both readings: a second exception to the default, beside "the checked reattach of a removal that
