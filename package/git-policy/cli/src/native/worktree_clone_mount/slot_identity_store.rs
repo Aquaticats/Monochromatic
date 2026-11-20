@@ -532,7 +532,7 @@ fn check_lock_control(path: &Path, held: &std::fs::File) -> Result<(), StoreRefu
         None
     };
     return match reason {
-        Some(reason) => Err(StoreRefusal::NotUnderRootControl { path: path.to_path_buf(), what: String::from("the lock that keeps two appends apart"), reason }),
+        Some(refusal) => Err(StoreRefusal::NotUnderRootControl { path: path.to_path_buf(), what: String::from("the lock that keeps two appends apart"), reason: refusal }),
         None => Ok(()),
     };
 }

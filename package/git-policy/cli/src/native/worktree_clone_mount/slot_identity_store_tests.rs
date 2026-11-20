@@ -9,7 +9,7 @@ use super::*;
 use crate::clone_folder_identity::CloneFolderIdentity;
 use crate::test_support::{fixture, remove};
 use std::os::fd::AsRawFd;
-use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
+use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
