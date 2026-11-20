@@ -801,6 +801,66 @@ Options:
 Ranking: accept > accept with vetoes > send back, because no remaining finding changes behaviour or a decision, while
 each further round has so far found new wording slips of the same size.
 
+## Open: accept the ZFS start-probe design? (ready 2026-11-20, about 01:20 -05:00)
+
+This goes to the question tool when you are back, with the other two ZFS designs.
+
+What it is:
+the check that runs at boot and before a managed worktree add,
+proving that a ZFS clone can be attached safely on this host before the managed route is used:
+a root probe at boot that records its outcome,
+and an account companion in each add's preflight that checks a mount made as the account in a throwaway user namespace,
+answering your round of 2026-11-19 (Q1 "Product mounts only", Q2 "Refuse new attaches only", Q3 "Dedicated dataset",
+Q4 "Block until it has run", Q5 "Fail closed", Q6 "Root plus account companion", Q7 "Write first-attach") and your
+threat model ("We have to assume my machine isn't compromised. sudo is passwordless here anyway.").
+It is `doc/planning/cli-git-zfs-start-probe-design.md` on branch `docs/planning-cli-git-zfs-start-probe-design` at
+`05d1102848`.
+
+What checked it:
+seven revisions by DeepSeek writers against a gate review, a re-check, a narrow check and three diff-only checks on
+Claude Sonnet; the last (`~/temp/agent/zfs-start-probe-design-seventh-revision-medium-check-2026-11-20/keep/review.md`)
+found no high and no medium finding and called it ready.
+One revision had hand-set commit dates; the design now states the real times, and a corrective commit comment is posted.
+Two limits to know: what it says the Ubuntu 24.04 guest does is read from mainline Linux v7.3 source, not run on that
+guest's 6.8 kernel; and the guest tests it adds for the companion (M11's new controls) have not run yet.
+
+Two questions the last checks recommend asking you directly:
+
+- When the companion cannot run its check and skips, does the add go ahead?
+  The skip covers three kinds of host: one that refuses the account a user namespace, one that grants it and denies
+  the capabilities inside it, and one that refuses a mount the companion makes while setting up (the Ubuntu 24.04 guest
+  is the second kind). Your Q6 question spoke of the first kind only.
+  (a) The add goes ahead with a printed line naming the refused call (the design's choice).
+  (b) The add is refused, as Q4 does for the root probe's arms: the managed route is then off on every host of those
+  three kinds.
+  Ranking a > b: a check that cannot speak about the root attach should not turn the route off on a host that refuses
+  the account's namespace; b is the stricter and one-line change.
+- Where does the `first-attach` record start, given that Q7 asked for "the outcome of the first real attach after
+  boot"?
+  (a) On entry to the attach, after the key check and before the walk to the slot (the design's choice): a refused walk
+  or a drifted slot identity becomes that boot's record, so a later attach that succeeds in the same boot is shown in
+  the journal, not in the record.
+  (b) At the first attach call (`fsopen`): only the attach calls' outcomes are recorded, and a drifted slot identity is
+  never recorded there.
+  Ranking a > b: a drifted slot is exactly the failure the record exists to keep; a's cost is that the record can name
+  a refusal that never reached a kernel attach call, which the design says plainly.
+
+Two more choices the design makes itself, open to your veto, default "veto none": no deadline value ships for the
+root probe before step 6's measurement, and none for the companion before step 10's.
+
+Sixteen lows the last two checks found, carried here (full text in those two reviews): among them the third skip case
+worded two ways, a `mount_setattr` example from Q6 that still skips, the claim's position wording and a missing step 8
+note, commit counts in revision entries, and M11 lacking a control for the skip side.
+
+Options:
+
+- Accept, answering the two questions (recommended a and a), no vetoes: the lows are fixed in the decision record's copy.
+- Accept with other answers or vetoes: name which.
+- Send it back for the lows first.
+
+Ranking: accept > accept with other answers > send back, because no remaining finding changes behaviour, and each
+further round has so far found wording slips of the same size.
+
 ## Open: accept the ZFS staging-under-cache design? (ready 2026-11-20, about 01:00 -05:00)
 
 This goes to the question tool when you are back, with the other ZFS designs.

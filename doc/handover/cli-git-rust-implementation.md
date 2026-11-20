@@ -40883,8 +40883,13 @@ stated in this entry. What follows from them, as work:
   `mount` and `mount_setattr` and ends when the scratch tmpfs is in place; an `EPERM` from `fsopen`, `fsmount` or
   `move_mount` after that is an arm failure again, so M11's `fsmount` control agrees; the Answers record, the veto
   sentence and the project question state the same three-case reach. GOING: a Sonnet check of just that diff (brief
-  under `~/temp/agent/zfs-start-probe-design-seventh-revision-medium-check-2026-11-20/`). Then the acceptance item.
-  STAGING ENDED `idle` at
+  under `~/temp/agent/zfs-start-probe-design-seventh-revision-medium-check-2026-11-20/`). It ended (Sonnet, about 17
+  min; that folder's `keep/review.md`): READY, no high, no medium, seven lows (sixteen with the previous check's nine);
+  MED-1 fixed, the six cited v7.3 lines hold. It asks the acceptance round to say that the Ubuntu sequence is a mainline
+  reading and M11's new controls are unrun. The acceptance item, with the two direct questions (the companion skip; the
+  claim placement against Q7), the two deadline vetoes and the lows, waits in `doc/handover/questions-for-the-owner.md`
+  ("accept the ZFS start-probe design?"). ALL THREE ZFS DESIGNS ARE NOW READY FOR ACCEPTANCE; they go to the owner in
+  the question tool together. STAGING ENDED `idle` at
   `e8f7ec4fa6` (thirteen commits; report in its folder's `keep/report.md`). It records every answer and makes Way A the
   design. On Q3 it rolls the clone back by its own descriptor, staging it only if that fails. Its post-move check now
   asserts that the topmost mount is the clone with the bind as its parent; the run's own advisor found the old wording
