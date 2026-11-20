@@ -154,13 +154,19 @@ fn checked(result: libc::c_int) -> std::io::Result<libc::c_int> {
 }
 
 /// `openat2` of one plain name below `dir`,
-/// resolving nothing but the name itself.
+/// resolving nothing but the name itself and refusing a mount point at it.
 fn open_beneath(dir: &File, name: &OsStr, flags: libc::c_int, mode: u32) -> std::io::Result<File> {
+    return open_beneath_by(dir, name, flags, mode, RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_XDEV | RESOLVE_NO_MAGICLINKS);
+}
+
+/// `openat2` of one plain name below `dir`,
+/// with the `resolve` bits passed as they are.
+fn open_beneath_by(dir: &File, name: &OsStr, flags: libc::c_int, mode: u32, resolve: u64) -> std::io::Result<File> {
     let c_name = name_of(name)?;
     let how: OpenHow = OpenHow {
         flags: (flags | libc::O_CLOEXEC) as u64,
         mode: u64::from(mode),
-        resolve: RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_XDEV | RESOLVE_NO_MAGICLINKS,
+        resolve,
     };
     // SAFETY: `c_name` is a NUL-terminated string and `how` a live `open_how` of the size passed, both outliving the call;
     // `dir` is an open descriptor.
@@ -240,6 +246,107 @@ pub fn open_directory_beneath(root: &File, names: &[OsString]) -> std::io::Resul
     return Ok(current);
 }
 
+/// What:
+///  The handles of the directories `names` below `root`,
+///  one per component,
+///  each opened as `open_directory_at` opens them.
+/// Why:
+///   A caller that must compare a parent folder's identity with the one it recorded,
+///  and then act on the folder below it by descriptor,
+///  needs the parent and the target as separate handles from one walk:
+///  a second lookup by path can reach another object,
+///  and the parent's identity is what proves where the target hangs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [claude, worktrees, slot] = openChainBeneath(checkout, ['.claude', 'worktrees', 'slot']);
+/// ```
+///
+/// # Errors
+/// The reason of the first component the walk refuses, and its position.
+pub fn open_chain_beneath(root: &File, names: &[OsString]) -> Result<Vec<File>, ChainRefusal> {
+    let device: u64 = device_of(root).map_err(|error| ChainRefusal::Unreadable { step: 0, error })?;
+    let mut chain: Vec<File> = Vec::with_capacity(names.len());
+    for (step, name) in names.iter().enumerate() {
+        let parent: &File = match chain.last() {
+            Some(held) => held,
+            None => root,
+        };
+        let next: File = open_directory_at(parent, name.as_os_str()).map_err(|error| ChainRefusal::of(step, error))?;
+        if device_of(&next).map_err(|error| ChainRefusal::Unreadable { step, error })? != device {
+            return Err(ChainRefusal::Boundary { step });
+        }
+        chain.push(next);
+    }
+    return Ok(chain);
+}
+
+/// What:
+///  Why a walk of one chain stopped,
+///  and which component stopped it.
+/// Why:
+///   The component's position is what a caller turns into the folder's name for the person,
+/// and the kind is what chooses the sentence:
+/// a link planted in the way,
+/// a boundary the walk never crosses,
+/// or another failure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ChainRefusal = { kind: 'link' | 'boundary' | 'unreadable'; step: number; error?: Error };
+/// ```
+#[derive(Debug)]
+pub enum ChainRefusal {
+    /// The component at `step` is a link,
+    /// which is never followed.
+    Link {
+        /// Position of the component in the chain.
+        step: usize,
+    },
+    /// The component at `step` is a mount point or a folder on another device.
+    Boundary {
+        /// Position of the component in the chain.
+        step: usize,
+    },
+    /// The component at `step` could not be opened,
+    /// for this reason.
+    Unreadable {
+        /// Position of the component in the chain.
+        step: usize,
+        /// What the open answered.
+        error: std::io::Error,
+    },
+}
+
+impl ChainRefusal {
+    /// The refusal for the open failure at `step`,
+    /// by the error number it carries.
+    fn of(step: usize, error: std::io::Error) -> ChainRefusal {
+        return match error.raw_os_error() {
+            Some(libc::ELOOP) => ChainRefusal::Link { step },
+            Some(libc::EXDEV) => ChainRefusal::Boundary { step },
+            _ => ChainRefusal::Unreadable { step, error },
+        };
+    }
+}
+
+/// What:
+///  Open the directory `name` of `parent` as `open_directory_at` opens it,
+///  except that a mount point at `name` itself is crossed.
+/// Why:
+///   A caller that reads the folder a previous attach mounted a clone on needs the mounted root,
+///  while every component above that folder must still be the walked ones:
+///  the walk refuses a mount anywhere else,
+///  and only this last hop may be one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mounted = openDirectoryAtAMount(worktrees, 'my-slot'); // crosses an existing mount at the slot only
+/// ```
+pub fn open_directory_at_a_mount(parent: &File, name: &OsStr) -> std::io::Result<File> {
+    return open_beneath_by(parent, name, libc::O_RDONLY | libc::O_DIRECTORY, 0, RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_MAGICLINKS);
+}
+
 /// The device number of an open file.
 pub fn device_of(file: &File) -> std::io::Result<u64> {
     use std::os::unix::fs::MetadataExt;
@@ -306,6 +413,48 @@ pub fn read_link_at(dir: &File, name: &OsStr) -> std::io::Result<PathBuf> {
 /// for tools that take a path.
 pub fn handle_path(directory: &File) -> PathBuf {
     return Path::new("/proc/self/fd").join(directory.as_raw_fd().to_string());
+}
+
+/// What:
+///  The path the kernel now finds at the name a held handle was opened at.
+/// Why:
+///   A descriptor keeps the object it was opened on,
+/// so the path it reports is what that object is called now:
+/// a folder renamed after the open reports the new name,
+/// which is how an attach that landed beside its slot is seen.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const now = await readlink('/proc/self/fd/' + handle.fd);
+/// ```
+pub fn observed_path(handle: &File) -> std::io::Result<PathBuf> {
+    return std::fs::read_link(handle_path(handle));
+}
+
+/// What:
+///  The mount ID the kernel has recorded for the mount an open handle is on,
+///  read from `/proc/self/fdinfo`.
+/// Why:
+///   Two folders are on one mount exactly when the kernel gives them one number,
+/// and a fresh lookup that answers another number than the attach recorded
+///  is the attach landing somewhere else,
+///  not a worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mntId = Number(readFileSync(`/proc/self/fdinfo/${fd}`, 'utf8').match(/^mnt_id:\s+(\d+)$/m)?.[1]);
+/// ```
+///
+/// # Errors
+/// The read failure,
+/// or a refusal naming `what` because the text holds no mount ID.
+pub fn mount_id_of(handle: &File) -> std::io::Result<u64> {
+    let text: String = std::fs::read_to_string(Path::new("/proc/self/fdinfo").join(handle.as_raw_fd().to_string()))?;
+    for line in text.lines() {
+        let Some(rest) = line.strip_prefix("mnt_id:") else { continue };
+        return rest.trim().parse::<u64>().map_err(|_error| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("the mount ID of {} is not a number: {}", handle_path(handle).display(), rest.trim())));
+    }
+    return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, format!("the kernel reports no mount ID for {}", handle_path(handle).display())));
 }
 
 /// The metadata of the entry `name` in `dir`,

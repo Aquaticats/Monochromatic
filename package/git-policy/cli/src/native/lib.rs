@@ -219,6 +219,16 @@ pub mod worktree_copying;
 /// The same re-export for `worktree_copying`.
 pub use worktree_copying::*;
 
+/// The descriptor attach of a ZFS worktree clone's mount:
+///  the walk,
+///  the recorded identities,
+///  the post-attach check,
+///  the rollback and the parent-adoption decision.
+pub mod worktree_clone_mount;
+
+/// The same re-export for `worktree_clone_mount`.
+pub use worktree_clone_mount::*;
+
 /// Btrfs subvolume worktrees and the filesystem primitives under them.
 pub mod subvolume;
 
