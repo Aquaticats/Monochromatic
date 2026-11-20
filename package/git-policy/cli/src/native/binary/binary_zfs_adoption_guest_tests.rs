@@ -138,7 +138,11 @@ fn create_fixture() -> Fixture {
 /// and read its device and inode.
 fn replace_parent(fixture: &Fixture) -> (u64, u64) {
     let parent: PathBuf = fixture.parent();
-    std::fs::remove_dir(parent.as_path()).expect("the recorded folder goes");
+    // The recorded folder is renamed aside rather than removed, so its inode stays allocated and the new folder
+    // cannot reuse it: a remove and a create in one step got the same inode on the guest's file system, which made
+    // the arm prove nothing.
+    let aside: PathBuf = parent.with_file_name("worktrees-before-the-adoption");
+    std::fs::rename(parent.as_path(), aside.as_path()).expect("the recorded folder is moved aside");
     std::fs::create_dir(parent.as_path()).expect("the replacement folder is made");
     std::fs::set_permissions(parent.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the replacement keeps the recorded mode");
     let metadata: std::fs::Metadata = std::fs::metadata(parent.as_path()).expect("the replacement's facts read");
