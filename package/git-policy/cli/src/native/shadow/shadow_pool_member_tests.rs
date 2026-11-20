@@ -35,6 +35,52 @@ fn creation(root: &Path, template: &ShadowTemplate, name: &str) -> PathBuf {
     return shadow;
 }
 
+/// What:
+///  The names of the entries a common Git directory collects that no commit reads,
+///  which the test writes and then takes away.
+/// Why:
+///  A member holds no link to any of them,
+/// so losing one is no reason to refuse it,
+///  and a busy repository drops every one of them without a person doing anything
+///  (`shadow_links.rs`,
+///  `is_shared_shadow_entry`).
+const UNREAD_ENTRY_NAMES: [&str; 4] = [
+    "FETCH_HEAD",
+    "monochromatic-git-policy-cli-commit-timing.jsonl",
+    "lost-found",
+    "cli-git-captures",
+];
+
+/// What:
+///  Writes the entries above into the repository's common Git directory,
+///  registers a linked worktree beside it,
+///  and answers that common directory.
+/// Why:
+///  The `worktrees` entry is state no commit reads that the repository loses by itself,
+///  so the fixture writes it as a registration Git can read:
+///  the automatic maintenance Git starts after every commit it makes
+///  (`maintenance run --auto`,
+/// detached by default,
+///  `prepare_auto_maintenance` in Git's `run-command.c`)
+///  runs its `worktree-prune` task,
+///  which removes a `worktrees/<id>` that holds no `gitdir` file
+///  and then the folder it leaves empty
+///  (`should_prune_worktree` in Git's `worktree.c`,
+///  `delete_worktrees_dir_if_empty` in `builtin/worktree.c`).
+///  A folder written here by hand was gone before the test removed it in a whole gate
+///  (issue 6325),
+///  and the control beside the test forces that upkeep in the foreground,
+///  which is the order that took it.
+fn write_unread_state(root: &Path, repo: &Path) -> PathBuf {
+    let common: PathBuf = repo.join(".git");
+    for name in UNREAD_ENTRY_NAMES {
+        std::fs::write(common.join(name), b"state").expect("an entry no commit reads");
+    }
+    let another: PathBuf = root.join("another");
+    git(repo, &["worktree", "add", "--quiet", "--detach", another.to_str().expect("fixture")]);
+    return common;
+}
+
 /// A creation's own tree is what a member must be.
 #[test]
 fn a_creation_is_what_a_member_must_be() {
@@ -343,27 +389,68 @@ fn a_worktree_that_keeps_its_own_info_is_refused() {
 fn an_entry_no_commit_reads_that_the_repository_lost_is_no_refusal() {
     let root: PathBuf = fixture("shadow-pool-member-unread-state-gone");
     let repo: PathBuf = repository_of(root.as_path());
-    let common: PathBuf = repo.join(".git");
-    let went: [&str; 4] = [
-        "FETCH_HEAD",
-        "monochromatic-git-policy-cli-commit-timing.jsonl",
-        "lost-found",
-        "cli-git-captures",
-    ];
-    for name in went {
-        std::fs::write(common.join(name), b"state").expect("an entry no commit reads");
-    }
-    std::fs::create_dir_all(common.join("worktrees").join("another")).expect("another worktree's state");
+    let common: PathBuf = write_unread_state(root.as_path(), repo.as_path());
     let template: ShadowTemplate = template_of(repo.as_path());
     let shadow: PathBuf = creation(root.as_path(), &template, "created");
-    for name in went {
+    for name in UNREAD_ENTRY_NAMES {
         std::fs::remove_file(common.join(name)).expect("gone");
     }
+    // The folder goes as a removed worktree leaves it, and its registration is one Git keeps (`write_unread_state`).
     std::fs::remove_dir_all(common.join("worktrees")).expect("gone");
     assert_eq!(
         refusal(&template, shadow.as_path()).expect("checked"),
         None,
         "state no commit reads is no reason to refuse a member"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  The upkeep Git runs after a commit it makes takes a folder that is named as a worktree registration
+///  and holds no `gitdir` file,
+///  with the empty `worktrees` folder behind it.
+/// Why:
+///  Issue 6325:
+///  such a folder is not a registration Git can read,
+///  so the first automatic maintenance the repository runs removes it,
+///  and a test may not require it to still be there.
+///  This control runs that upkeep in the foreground,
+///  which is the order under which a whole gate lost the entry,
+///  so the cause is measured with no host load and no timing luck.
+#[test]
+fn an_upkeep_of_the_repository_takes_a_folder_that_holds_no_gitdir() {
+    let root: PathBuf = fixture("shadow-pool-member-unread-state-upkeep");
+    let repo: PathBuf = repository_of(root.as_path());
+    let common: PathBuf = repo.join(".git");
+    std::fs::create_dir_all(common.join("worktrees").join("another")).expect("a folder named as a registration");
+    git(repo.as_path(), &["maintenance", "run", "--auto", "--no-detach"]);
+    assert!(
+        std::fs::symlink_metadata(common.join("worktrees").as_path()).is_err(),
+        "the upkeep takes the folder that holds no gitdir file, and the empty folder behind it"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  The upkeep Git runs after a commit it makes leaves every entry the member control writes,
+///  the linked worktree's registration among them.
+/// Why:
+///  The control above shows what that upkeep takes,
+///  so the state the member control depends on must be a registration Git can read,
+///  which is what `write_unread_state` makes.
+///  A test that wrote a folder by hand instead fails here.
+#[test]
+fn the_state_the_member_control_writes_is_state_the_upkeep_keeps() {
+    let root: PathBuf = fixture("shadow-pool-member-unread-state-upkeep-registered");
+    let repo: PathBuf = repository_of(root.as_path());
+    let common: PathBuf = write_unread_state(root.as_path(), repo.as_path());
+    git(repo.as_path(), &["maintenance", "run", "--auto", "--no-detach"]);
+    for name in UNREAD_ENTRY_NAMES {
+        assert!(std::fs::symlink_metadata(common.join(name).as_path()).is_ok(), "the upkeep leaves {name}");
+    }
+    assert!(
+        common.join("worktrees").join("another").is_dir(),
+        "the upkeep leaves the registration the fixture writes, because Git can read it"
     );
     remove(root.as_path());
 }
