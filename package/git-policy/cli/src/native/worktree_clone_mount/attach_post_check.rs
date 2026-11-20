@@ -10,7 +10,8 @@
 //!  "Descriptor mount and unmount").
 //!  The measured trials moved a held descriptor with a renamed `.claude` and the attach landed there,
 //!  and only the fresh walk detected it;
-//!  that is a refusal, not a worktree.
+//!  that is a refusal,
+//!  not a worktree.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -177,7 +178,8 @@ pub struct MisplacedAttach {
 pub enum AttachOutcome {
     /// The mount the attach made is the mount the canonical slot shows.
     Attached {
-        /// The mount, as the kernel lists it.
+        /// The mount,
+        /// as the kernel lists it.
         mount: MountIdentity,
         /// The parent folder's identity the fresh walk read.
         parent_identity: CloneFolderIdentity,
@@ -196,7 +198,8 @@ pub enum AttachOutcome {
 ///  Compare the mount the attach made with what a fresh walk of the canonical slot finds.
 /// Why:
 ///   Every arm is a refusal rather than a worktree,
-/// and each names the field, the mount or the path that differs,
+/// and each names the field,
+/// the mount or the path that differs,
 ///  so the report of a misplaced attach says what happened.
 ///  The held target's mount is compared first because it is the one fact a stopped walk or another
 ///  mount at the slot cannot explain away:

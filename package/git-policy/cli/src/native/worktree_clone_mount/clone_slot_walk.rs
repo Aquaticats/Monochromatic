@@ -5,8 +5,9 @@
 //!  and comparing the two folders against the identities the store recorded;
 //!  and the second walk that reads what stands at the canonical slot after an attach.
 //! Why:
-//!  The mount must not resolve a path the account can change, must check the target folder's recorded
-//!  identity rather than its kind, and must attach to the opened folder rather than to a path
+//!  The mount must not resolve a path the account can change,
+//!  must check the target folder's recorded identity rather than its kind,
+//!  and must attach to the opened folder rather than to a path
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Descriptor mount and unmount",
 //!  applying item 3 of the nested-clone research).

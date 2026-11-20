@@ -5253,7 +5253,8 @@ A checkout reached through a link is refused before the walk starts:
 the path is resolved by the kernel and may name another folder.
 
 After an attach the slot is a mount point,
-so the second walk, the one the post-attach check repeats,
+so the second walk,
+the one the post-attach check repeats,
 crosses a mount only at the slot itself:
 the last hop keeps `RESOLVE_BENEATH`,
 `RESOLVE_NO_SYMLINKS` and `RESOLVE_NO_MAGICLINKS` and omits `RESOLVE_NO_XDEV`,
@@ -5262,7 +5263,8 @@ The unmount route's own final hop is the plan's step 9;
 this section owns only the hop the post-attach check reads.
 
 A slot is opened twice:
-for reading, because the ACLs can only be read through a reading descriptor,
+for reading,
+because the ACLs can only be read through a reading descriptor,
 and as the mount target,
 which may be a path-only descriptor.
 The two must name one folder,
@@ -5382,7 +5384,8 @@ and its slot named like an existing one can never be recorded.
 That is the design's single managed checkout and the file is machine-global;
 the parent-identity refusal names the checkout it compared.
 This grammar is this implementation's own:
-the design and the plan name the file and the fields, not their encoding.
+the design and the plan name the file and the fields,
+not their encoding.
 
 #### The flags
 
@@ -5462,7 +5465,9 @@ by a fresh process that verifies the mount number and the clone's source first.
 That is the stranded state the acceptance asks a report to show,
 and a second move against an unverified mount is never issued.
 
-The rollback's own unmount, and a rollback that really fails, are owed to the guest.
+The rollback's own unmount,
+and a rollback that really fails,
+are owed to the guest.
 The host controls prove the plan and the descriptor it carries,
 the refusal of an identity that proves no attach,
 and both reports.
@@ -5510,12 +5515,14 @@ The decision holds no device and starts no mount:
 its inputs are the no-crossing walk's answer,
 the device and inode the administrator identified independently from the restored checkout,
 the policy,
-every affected binding, every surviving slot and a fresh canonical lookup.
+every affected binding,
+every surviving slot and a fresh canonical lookup.
 The policy is the recorded folder's own owner,
 mode and ACLs,
 so a replacement cannot come back wider than the folder it replaces.
 
-The decision refuses, in this order:
+The decision refuses,
+in this order:
 
 - a walk that refused a link,
   a boundary,

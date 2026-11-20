@@ -183,7 +183,8 @@ fn an_unrecorded_slot_or_parent_asks_for_the_run_that_writes_it() {
 }
 
 /// What:
-///  A link planted at `.claude`, at `.claude/worktrees` or at the slot is refused,
+///  A link planted at `.claude`,
+///  at `.claude/worktrees` or at the slot is refused,
 ///  and the sentence names the component,
 ///  while the same tree without a link passes.
 /// Why:

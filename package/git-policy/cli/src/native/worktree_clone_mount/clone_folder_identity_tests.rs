@@ -10,7 +10,8 @@ use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::PathBuf;
 
 /// The version of the kernel's ACL extended-attribute header
-/// (`POSIX_ACL_XATTR_VERSION`, `include/uapi/linux/posix_acl_xattr.h`).
+/// (`POSIX_ACL_XATTR_VERSION`).
+/// Its path in the kernel tree is `include/uapi/linux/posix_acl_xattr.h`.
 const ACL_VERSION: u32 = 2;
 
 /// The ACL entry tag of a named user
@@ -37,7 +38,8 @@ const ACL_OTHER: u16 = 0x20;
 /// (`ACL_UNDEFINED_ID`).
 const ACL_UNDEFINED_ID: u32 = u32::MAX;
 
-/// One ACL entry: its tag,
+/// One ACL entry:
+/// its tag,
 /// its permission bits and its user or group ID.
 type AclEntry = (u16, u16, u32);
 
@@ -103,7 +105,8 @@ fn capture_reads_the_folder_the_descriptor_holds() {
 ///  A difference in exactly one field is reported as that field,
 ///  and equal identities report nothing.
 /// Why:
-///  This is the positive control of the compare, field by field:
+///  This is the positive control of the compare,
+///  field by field:
 ///  a compare that reported the wrong field would send a person to the wrong cause.
 #[test]
 fn each_field_alone_is_told_apart() {
@@ -145,7 +148,8 @@ fn each_field_alone_is_told_apart() {
 ///  and an access ACL whose entries changed while its mode stayed is seen too.
 /// Why:
 ///   The design's measurements found an ACL drift passing a mode-only check,
-///  so the control changes only an ACL entry, with the same mask and owner,
+///  so the control changes only an ACL entry,
+///  with the same mask and owner,
 ///  and requires the access ACL to be the one reported.
 #[test]
 fn a_permission_change_and_each_acl_are_seen_apart() {

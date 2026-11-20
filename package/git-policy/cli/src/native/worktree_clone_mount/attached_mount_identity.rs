@@ -45,7 +45,8 @@ const TAG: &str = "attachedMountIdentity";
 pub const ATTACH_MOUNT_FLAGS: libc::c_ulong = libc::MS_NOSUID | libc::MS_NODEV;
 
 /// What:
-///  One mount, described by every fact an attach or a rollback records.
+///  One mount,
+///  described by every fact an attach or a rollback records.
 /// Why:
 ///   A report and a later unmount both compare several facts,
 ///  so one value carries them together:

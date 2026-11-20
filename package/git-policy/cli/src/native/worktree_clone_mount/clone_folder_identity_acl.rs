@@ -17,17 +17,20 @@
 
 use std::os::fd::AsRawFd;
 
-/// The extended attribute holding a folder's access ACL
-/// (`system.posix_acl_access`, `acl(5)`).
+/// The extended attribute holding a folder's access ACL.
+/// Its name is `system.posix_acl_access`.
+/// `acl(5)` documents it.
 pub(super) const ACCESS_ACL_ATTRIBUTE: &[u8] = b"system.posix_acl_access\0";
 
-/// The extended attribute holding a folder's default ACL
-/// (`system.posix_acl_default`, `acl(5)`).
+/// The extended attribute holding a folder's default ACL.
+/// Its name is `system.posix_acl_default`.
+/// `acl(5)` documents it.
 pub(super) const DEFAULT_ACL_ATTRIBUTE: &[u8] = b"system.posix_acl_default\0";
 
 /// The largest ACL blob a read accepts,
 /// the kernel's own bound on one extended attribute value
-/// (`XATTR_SIZE_MAX`, `xattr(7)`).
+/// (`XATTR_SIZE_MAX`).
+/// `xattr(7)` documents it.
 pub const MAXIMUM_ACL_BYTES: usize = 65536;
 
 /// An ACL's words in a report:

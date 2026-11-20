@@ -31,7 +31,8 @@ use std::os::unix::fs::MetadataExt;
 const TAG: &str = "cloneFolderIdentity";
 
 /// The permission bits of a mode:
-/// `S_IRWXU`, `S_IRWXG` and `S_IRWXO`,
+/// `S_IRWXU`,
+/// `S_IRWXG` and `S_IRWXO`,
 /// without the file type bits.
 pub const PERMISSION_BITS: u32 = 0o7777;
 
@@ -109,7 +110,8 @@ pub fn field_names(fields: &[CloneFolderField]) -> String {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CloneFolderIdentity {
-    /// The device number, from `fstat`.
+    /// The device number,
+    /// from `fstat`.
     pub device: u64,
     /// The inode number,
     /// from `fstat`.

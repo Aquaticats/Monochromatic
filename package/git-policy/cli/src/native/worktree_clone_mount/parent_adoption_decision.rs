@@ -3,7 +3,8 @@
 //!  whether a `.claude/worktrees` folder that was recreated or restored may replace the recorded one,
 //!  and why not when it may not.
 //! Why:
-//!  Only an administrator may adopt a legitimate replacement, with managed operations quiesced,
+//!  Only an administrator may adopt a legitimate replacement,
+//!  with managed operations quiesced,
 //!  starting from the pinned checkout's no-crossing walk;
 //!  the replacement must be identified by device and inode independently,
 //!  its owner,
