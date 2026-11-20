@@ -5161,7 +5161,18 @@ fractional or non-numeric value is ignored.
   and a command typed at a terminal gets the same four variables as one whose process has no controlling terminal,
   because no command the wrapper runs or forwards asks a person for a credential.
   An SSH key whose passphrase no agent holds therefore fails at once, at a terminal or without one,
-   and the words say to run `ssh-add`.
+   while a key without a passphrase needs no agent at all,
+   which a control against a throwaway `sshd` proves.
+  A failed LFS upload's explanation says how to start an agent (`eval "$(ssh-agent)"`) and load the key with
+   `ssh-add` (`ssh-add <key file>` for a key outside the default list),
+   or to use a key without a passphrase;
+  a command the wrapper forwards is replaced by real Git,
+   so its reader has OpenSSH's own `Permission denied (publickey).` alone.
+  An unknown host key fails at once as well,
+   and the upload's explanation and the push's failure record say to connect once with plain `ssh <host>`
+   or add the host key to `known_hosts`,
+   then retry;
+  a forwarded command shows OpenSSH's own `Host key verification failed.` alone.
   The evidence is in [the askpass troubleshooting note][askpass-dialog].
   The failure record the next command shows says that the service keeps trying,
   and goes when the push lands.
