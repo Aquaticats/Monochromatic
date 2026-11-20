@@ -6789,8 +6789,11 @@ so offline it fails with `browserslist-fetch-failed`,
 which a step run in a container with `--network none` cannot repair.
 The base therefore downloads every package the lock lists,
 at exactly the version it pins for each,
-within the bounds that rule's own fetch applies (a body of at most 64 MiB,
-no redirect and a 60-second timeout),
+within the bounds that rule's own fetch applies:
+a body of at most 64 MiB (`MAX_TARBALL_BYTES` in `package/browserslist/core-rust/src/source.rs`),
+no redirect,
+a status of exactly 200 and one 60-second bound on the whole request
+(`package/browserslist/core-rust/src/fetch.rs`),
 refuses any whose sha512 differs from the lock's,
 and writes each under the hex digest name the rule reads.
 The lock's text arrives as the `BROWSERSLIST_DATA_LOCK` build argument,

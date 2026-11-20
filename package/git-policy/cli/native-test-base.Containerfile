@@ -52,9 +52,10 @@ RUN --mount=type=cache,target=/var/cache/pacman/pkg,sharing=locked \
 #        Neither the packages, their versions nor their digests are typed below: BROWSERSLIST_DATA_LOCK carries the
 #        text of the repository's browserslist-data.lock.json, which stays the one source of them, and that text is
 #        part of the image tag, so a changed lock builds a new base instead of leaving a cache that no longer matches.
-#        Each download carries the bounds the rule's own fetch applies (package/browserslist/core-rust/src/fetch.rs:
-#        a body of at most 64 MiB, no redirect, a status of exactly 200, a 60-second timeout), so this cache holds
-#        nothing the rule would refuse.
+#        Each download carries the bounds the rule's own fetch applies (a body of at most 64 MiB, from
+#        package/browserslist/core-rust/src/source.rs; no redirect, a status of exactly 200 and one 60-second bound on
+#        the whole request, from package/browserslist/core-rust/src/fetch.rs), so this cache holds nothing the rule
+#        would refuse.
 #        The rule reads `$HOME/.cache/browserslist` and names each tarball after the hex of the digest the lock pins
 #        (package/browserslist/core-rust/src/source.rs and src/integrity.rs).
 #        Two users run images built on this base: the plan's own gate image as root (`HOME=/root`), and the wrapper's
@@ -71,6 +72,7 @@ import json
 import os
 import pathlib
 import string
+import threading
 import urllib.error
 import urllib.request
 
@@ -79,10 +81,9 @@ import urllib.request
 # lock that gains or renames a package is followed here without an edit.
 NOT_PACKAGES = ("lockVersion", "firefoxEsr")
 REGISTRY = "https://registry.npmjs.org"
-# The bounds the reader puts on the same download (package/browserslist/core-rust/src/fetch.rs): a body of at most
-# MAX_TARBALL_BYTES, no redirect, a status of exactly 200, and REQUEST_TIMEOUT for the request. Python's timeout bounds
-# each socket operation where the reader bounds the whole request, so only a registry that trickles bytes can hold this
-# build longer than the reader allows.
+# The bounds the reader puts on the same download: a body of at most MAX_TARBALL_BYTES
+# (package/browserslist/core-rust/src/source.rs), and no redirect, a status of exactly 200 and one
+# REQUEST_TIMEOUT_SECONDS bound on the whole request (package/browserslist/core-rust/src/fetch.rs, get_bytes).
 REQUEST_TIMEOUT_SECONDS = 60
 MAX_TARBALL_BYTES = 64 * 1024 * 1024
 # The bytes a version may hold so it stays safe in a URL path; the reader refuses others (lock.rs, valid_version).
@@ -129,16 +130,40 @@ def pinned(name, entry):
     return version, integrity, expected
 
 
-# The tarball bytes of one pinned package, within the reader's timeout and size bounds
-def download(name, version):
+# One download, refusing any non-200 answer, redirect, transport failure or oversized body with a named line
+def fetch_tarball(name, version):
     url = f"{REGISTRY}/{name}/-/{name}-{version}.tgz"
-    with urllib.request.build_opener(RefuseRedirects).open(url, timeout=REQUEST_TIMEOUT_SECONDS) as answer:
-        if answer.status != 200:
-            raise SystemExit(f"{name} {version}: {url} answered HTTP {answer.status}, not 200")
-        tarball = answer.read(MAX_TARBALL_BYTES + 1)
+    try:
+        with urllib.request.build_opener(RefuseRedirects).open(url) as answer:
+            if answer.status != 200:
+                raise SystemExit(f"{name} {version}: {url} answered HTTP {answer.status}, not 200")
+            tarball = answer.read(MAX_TARBALL_BYTES + 1)
+    except (urllib.error.HTTPError, urllib.error.URLError) as error:
+        raise SystemExit(f"{name} {version}: {url}: {error}") from error
     if len(tarball) > MAX_TARBALL_BYTES:
         raise SystemExit(f"{name} {version}: the download is longer than the reader's {MAX_TARBALL_BYTES} bytes")
     return tarball
+
+
+# The tarball bytes of one pinned package, the whole request bounded as the reader bounds it: a registry that trickles
+# bytes cannot hold this build past REQUEST_TIMEOUT_SECONDS, and one that stalls speaks the reader's own sentence.
+def download(name, version):
+    outcome = {}
+
+    def attempt():
+        try:
+            outcome["tarball"] = fetch_tarball(name, version)
+        except BaseException as error:
+            outcome["error"] = error
+
+    worker = threading.Thread(target=attempt, name=f"download {name} {version}", daemon=True)
+    worker.start()
+    worker.join(REQUEST_TIMEOUT_SECONDS)
+    if worker.is_alive():
+        raise SystemExit(f"{name} {version}: no complete answer within {REQUEST_TIMEOUT_SECONDS} seconds")
+    if "error" in outcome:
+        raise outcome["error"]
+    return outcome["tarball"]
 
 
 lock_text = os.environ.get("BROWSERSLIST_DATA_LOCK", "")
