@@ -136,7 +136,8 @@ impl ModuleIdentity {
     ///
     /// The record's cache rule compares the three values with both files'
     /// device,
-    ///  inode, size and modification time,
+    ///  inode,
+    ///  size and modification time,
     /// whichever values the module carries,
     ///  so a replacement that keeps the values is still noticed.
     pub fn same_module_as(&self, other: &Self) -> bool {

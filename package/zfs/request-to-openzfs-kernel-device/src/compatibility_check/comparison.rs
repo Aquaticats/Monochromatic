@@ -32,8 +32,9 @@
 //! compareRequests();
 //! ```
 
-/// The expectation vocabulary.
+/// The reader-neutral declaration this walk reads.
 use super::declaration::{ContainerKind, DeclaredMember, DeclaredType, Declaration};
+/// The expectation table this walk compares against.
 use super::expectations::{ExpectedContainer, ExpectedMember, ZFS_CMD};
 /// The one difference value this walk returns.
 use super::mismatch::Mismatch;

@@ -42,7 +42,8 @@ use std::path::{Path, PathBuf};
 /// a type whose shape moved,
 /// a member,
 /// an enumerator or a base type size.
-///  `Device`, `Identity` and `Target` are the caller's three steps,
+///  `Device`,
+///  `Identity` and `Target` are the caller's three steps,
 /// which the binding never performs itself.
 ///
 /// In TS you'd write (pseudocode):

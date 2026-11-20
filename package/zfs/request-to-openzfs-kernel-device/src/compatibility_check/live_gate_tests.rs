@@ -59,7 +59,7 @@ fn the_running_modules_declaration_answers_what_the_arm_expects() {
         .trim()
         .to_string();
     let module: std::path::PathBuf = Path::new(MODULE_BTF).to_path_buf();
-    let module_bytes: u64 = std::fs::metadata(&module).map(|metadata| { return metadata.len(); }).unwrap_or(0);
+    let module_bytes: u64 = std::fs::metadata(&module).map(std::fs::Metadata::len).unwrap_or(0);
     let verdict: Result<Compatible, Refusal> = check_module_layout(&LayoutRequest {
         base_btf: Path::new(BASE_BTF),
         module_btf: module.as_path(),
