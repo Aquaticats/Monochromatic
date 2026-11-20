@@ -7,7 +7,7 @@ use crate::fs_kind::may_clone;
 use crate::test_support::{fixture, remove};
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_ladder_test_support::{main_identity, plan_to};
-use crate::worktree_snapshot_source::clone_refusal;
+use crate::worktree_snapshot_source::{CloneRungQuestions, clone_refusal, clone_refusal_asked};
 
 /// The dataset the design gives the checkout:
 /// `doc/planning/cli-git-zfs-worktree-design-proposal.md`,
@@ -278,4 +278,59 @@ fn zfs_two_dataset_names_on_one_device_are_refused() {
     let second: CloneSide = zfs_side("/home/user/Monochromatic/.claude/worktrees/topic", CLONE_DATASET, CHECKOUT_DEVICE);
     let reason: String = clone_domain_refusal(&first, &second).expect("two dataset names are two datasets");
     assert!(reason.contains(CHECKOUT_DATASET) && reason.contains(CLONE_DATASET), "{reason}");
+}
+
+/// What:
+///  The rung asks the clone domain decision and hands its answer back as the refusal.
+/// Why:
+///   Every other control of the rung meets filesystems this host or the gate really has,
+/// and the destination is refused as a filesystem that cannot clone before the domain is asked at all,
+/// so
+///  replacing the domain call with "no refusal" left every control green
+/// (`~/temp/agent/integration-pass-zfs-step-3-with-the-dirty-source-waiver-2026-11-20/keep/review.md`,
+/// finding L2).
+/// A control that answers the two questions itself sees the call on any filesystem,
+/// including the gate's tmpfs fixtures.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(cloneRefusalAsked(identity, plan, { mayClone: () => true, domainRefusal: () => 'two domains this control names' })).toContain('two domains this control names');
+/// ```
+#[test]
+fn the_clone_refusal_asks_the_clone_domain_decision() {
+    let root: PathBuf = fixture("clone-refusal-asks-the-domain");
+    let plan: AddPlan = plan_to(root.join("topic"));
+    let may: &mut dyn FnMut(&Path) -> bool = &mut |_path: &Path| { return true; };
+    let mut no_pool_refusal = |_path: &Path| -> Option<String> { return None; };
+    let answered: &mut dyn FnMut((&Path, &Path)) -> Option<String> = &mut |_sides: (&Path, &Path)| { return Some(String::from("the two sides are two domains this control names")); };
+    let reason: String = clone_refusal_asked(&main_identity(root.as_path()), &plan, &mut CloneRungQuestions { may_clone: may, block_cloning: &mut no_pool_refusal, domain_refusal: answered }).expect("the rung asks the domain decision");
+    assert!(reason.contains("two domains this control names"), "the refusal is the domain decision's own answer: {reason}");
+    remove(root.as_path());
+}
+
+/// What:
+///  The rung asks the pool's block-cloning switch before it asks the clone domain,
+/// so a destination whose pool has block cloning off is declined before the proof and the domain question.
+/// Why:
+///   No host that merges this branch can run the refusal for real,
+/// because a pool with block cloning off is what the cost needs and this one reads 1,
+/// so
+///  a control that answers the question itself is the only one that can see the call;
+/// it fails the domain closure on purpose,
+/// which is also the control for the order of the two questions.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(cloneRefusalAsked(identity, plan, { mayClone: () => true, blockCloning: () => 'the pool says no', domainRefusal: () => { throw new Error('asked too late'); } })).toContain('the pool says no');
+/// ```
+#[test]
+fn the_clone_refusal_asks_the_pool_switch_before_the_clone_domain() {
+    let root: PathBuf = fixture("clone-refusal-asks-the-switch");
+    let plan: AddPlan = plan_to(root.join("topic"));
+    let may: &mut dyn FnMut(&Path) -> bool = &mut |_path: &Path| { return true; };
+    let off: &mut dyn FnMut(&Path) -> Option<String> = &mut |target: &Path| { return Some(format!("{} cannot take the clones because a control says this pool has block cloning off", target.display())); };
+    let too_late: &mut dyn FnMut((&Path, &Path)) -> Option<String> = &mut |_sides: (&Path, &Path)| { panic!("the clone domain was asked although the pool switch had already refused the clones"); };
+    let reason: String = clone_refusal_asked(&main_identity(root.as_path()), &plan, &mut CloneRungQuestions { may_clone: may, block_cloning: off, domain_refusal: too_late }).expect("the switch's answer is the refusal");
+    assert!(reason.contains("a control says this pool has block cloning off"), "the refusal is the switch question's own answer: {reason}");
+    remove(root.as_path());
 }

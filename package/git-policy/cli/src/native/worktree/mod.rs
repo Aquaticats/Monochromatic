@@ -117,7 +117,9 @@ pub mod worktree_remove_outcome;
 pub mod worktree_remove_notices;
 
 /// The half of a removal that goes around a volume it did not make:
-/// the record a killed pass leaves, the continuation that record proves, and the pass.
+/// the record a killed pass leaves,
+/// the continuation that record proves,
+/// and the pass.
 pub mod worktree_remove_around;
 pub mod worktree_remove_hand_over;
 
@@ -271,13 +273,19 @@ pub mod worktree_clone;
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_paths;
 
-/// One entry of the frozen index made in the destination, and the run of entries one slice owns.
+/// One entry of the frozen index made in the destination,
+/// and the run of entries one slice owns.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_entry;
 
-/// The clone rung's run of entries in slices, and the index install that follows it.
+/// The clone rung's run of entries in slices,
+/// and the index install that follows it.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_slices;
+
+/// The pool's block-cloning switch and what the clone rung does when it reads off.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_block_cloning;
 
 /// What both filling rungs read from Git's `--no-checkout` result,
 /// and the one step that applies the tree difference.

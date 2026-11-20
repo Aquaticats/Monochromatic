@@ -570,3 +570,41 @@ fn btrfs_a_destination_link_replaced_before_the_index_is_not_certified() {
     assert_ne!(recorded.ino, std::fs::symlink_metadata(destination.join("link")).expect("replacement").ino() as u32);
     remove(root.as_path());
 }
+
+/// What:
+///  A non-empty tracked file is offered to the clone on whatever filesystem the run is on:
+///  where the filesystem clones,
+///  the destination holds the source's bytes,
+///  and where it refuses `FICLONE`,
+///  the rung ends with the clone's own refusal.
+/// Why:
+///   Every control that clones real bytes is btrfs- or ZFS-gated,
+/// so replacing the clone call with nothing left the whole suite green
+/// (`~/temp/agent/integration-pass-zfs-step-3-with-the-dirty-source-waiver-2026-11-20/keep/review.md`,
+/// finding L2);
+/// an empty file is made without a clone,
+/// so only a file with bytes can tell whether the clone was attempted,
+/// and the gate's tmpfs answers with a refused `FICLONE` rather than a clone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const outcome = cloneEntry(aFileOfBytes);
+/// if (outcome.ok) expect(destination).toBe(sourceBytes); else expect(outcome.reason).toContain('the clone was refused');
+/// ```
+#[test]
+fn a_file_with_bytes_is_offered_to_the_clone_wherever_the_run_is() {
+    let root: PathBuf = crate::test_support::fixture("clone-non-empty-file");
+    let (repo, destination, _admin) = clone_fixture(root.as_path());
+    let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
+    let (entries, source_root, destination_root) = handles(&source, repo.as_path(), destination.as_path());
+    let bytes: Vec<u8> = std::fs::read(repo.join("plain.txt")).expect("the tracked file");
+    assert!(!bytes.is_empty(), "the control needs a file with bytes, which is the case no other control clones");
+    let mut created: Vec<Created> = Vec::new();
+    let mut seams: Seams<'_> = Seams { after_lookup: &mut || {}, after_clone: &mut || {}, before_index: &mut || {} };
+    let outcome: Result<(), String> = entry_through((&source_root, &destination_root), &["plain.txt"], entry_of(entries.as_slice(), "plain.txt"), &source, &mut created, &mut seams);
+    match outcome {
+        Ok(()) => assert_eq!(std::fs::read(destination.join("plain.txt")).expect("the clone"), bytes, "a filesystem that clones gives the destination the source's bytes"),
+        Err(reason) => assert!(reason.contains("the clone was refused"), "the file was offered to the clone and the filesystem refused it: {reason}"),
+    }
+    remove(root.as_path());
+}
