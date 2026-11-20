@@ -265,7 +265,11 @@ Each of these is decided, and this proposal keeps every one of them.
   [proposal][proposal], lines 1153 to 1155). The root probe's result reaches `doctor` by being read, never by
   `doctor` running that probe. The account companion is the one check `doctor` runs itself, under the shared
   preflight the proposal gives the two callers (the [proposal][proposal], lines 348 and 1152): it creates no
-  dataset, starts no service, and its namespaces die with its child, so the limits quoted here hold for it.
+  dataset, starts no service, and its namespaces die with its child, so the limits quoted here hold for it. It makes
+  one directory under the account's `$XDG_RUNTIME_DIR` for the run, mounts its child's tmpfs inside that directory,
+  and removes it when the child ends; that directory is the one change `doctor` causes, it lies outside the
+  checkout, the slots, the staging folder and the record's directory, and the next preflight sweeps one a kill left
+  ([The account companion](#the-account-companion)).
 
 - The wrapper must start without OpenZFS: "the wrapper must start even when OpenZFS is absent" (the
   [proposal][proposal], lines 152 to 153).
