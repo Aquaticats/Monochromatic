@@ -1695,8 +1695,9 @@ rollback is outside that default.
   offered: the third question's answer is to move it back at once, so that would reverse an answer of 2026-11-19
   rather than complete it, and a rule that refused whenever the slot were not provably free would reduce to (a)'s
   pre-open `EXDEV` refusal, because the slot cannot be proven free at the move. Ranking a > c > b: a > c because a
-  runs the accepted proof while c drops the one clause that discriminates; c > b because b also lets a mount stacked
-  at the slot receive the clone, repeating the misplacement the rollback undoes.
+  keeps the parent clause, the only one that tells a clone on the slot's parent from one on a mount stacked at the
+  slot, while c leaves that scene to the fresh walk; c > b because b also lets a mount stacked at the slot receive the
+  clone, repeating the misplacement the rollback undoes.
 - The scene where a mount is stacked on the clone after the move, and where that scene ends. The design refuses,
   leaves the clone staged with the account's mount over it, reports both, and unbinds nothing. Two scenes share the
   refusal, and they stand differently: the combined scene, a mount on the folder the clone landed on and a second
@@ -1930,10 +1931,10 @@ the entry says what they add, so the name stays the revision's first commit rath
   other-boot record, a failure that is not `ESTALE`, and the litter a crash between `rmdir` and `unlinkat` leaves. The
   rollback is recorded both as a second exception and as the accepted "Misplaced attach" rule applied within one
   invocation, with the project asked to amend the sentences that say one exception or to say the rollback is outside
-  that default; the veto section gained that question, the entry for the rollback's destination and proof a third
-  option that proves by the fresh walk alone, the entry for the stacking scene the combined case named as the
-  answered one with its scene boundary put to the project, and the entry for a record whose folder is gone the
-  widened guard as an option, and every ranking now gives a reason per adjacent pair. M1's slot-at-the-open arm is
+  that default; the veto section gained that question; the entry for the rollback's destination and proof gained a
+  third option that proves by the fresh walk alone; the entry for the stacking scene gained the combined case named as
+  the answered one and its scene boundary put to the project; and the entry for a record whose folder is gone gained
+  the widened guard as an option; and every ranking now gives a reason per adjacent pair. M1's slot-at-the-open arm is
   corrected, the rollback proof is said to detect a landing rather than prevent it, and a new arm stacks a mount
   between the bind and its propagation change, which is why the rollback needs an unshared parent. M1's stacking arms
   are named one to one where the Way A list names them; M6's no-capability arm says what it expects at `v6.8` and at
