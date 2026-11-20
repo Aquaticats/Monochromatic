@@ -18,10 +18,12 @@
 
  The size is a ceiling under the container's memory bound: tmpfs pages count against the container's memory, so a
  fixture tree that outgrows the ceiling fails with `ENOSPC` naming the fixture root instead of ending the run with an
- out-of-memory kill. The integration pass of 2026-11-19 measured a whole suite on this root at 868.3 MiB of process
- pages and a 195.1 MiB fixture peak, so the gate's 2048 MiB bound leaves about 1179.7 MiB for fixtures; this ceiling
- sits 411.7 MiB below that headroom, at 38% of the bound, so a runaway fixture tree meets the ceiling first (the
- record is `perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`, read in
+ out-of-memory kill. The integration pass of 2026-11-19 ran a whole suite on this root: its kernel `memory.peak` was
+ 1123.8 MiB of the gate's 2048 MiB bound, and its 3-second samples read at most 868.3 MiB of process pages and a
+ 195.1 MiB fixture peak, which add to less than that peak because a sampler that slow can miss it. What the bound
+ leaves beside the kernel's peak is 924.2 MiB, and this ceiling sits 156.2 MiB below that, at 38% of the bound, so a
+ runaway fixture tree meets the ceiling first (the record is
+ `perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`, read in
  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
  */
 import { imagePackageRoot, } from './native-layered-build.ts';
@@ -39,11 +41,14 @@ export const gateFixtureRoot: string = `${imagePackageRoot}/${subjectCrate}/targ
 /**
  Size of the tmpfs mounted at {@link gateFixtureRoot}.
 
- Measured by the integration pass of 2026-11-19, 211 samples taken every few seconds across 780 s and kept in
- `perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`: the whole gate suite held at most 868.3 MiB of process
- pages and peaked at 195.1 MiB of fixture bytes, so the gate's 2048 MiB bound leaves about 1179.7 MiB for fixtures.
- This ceiling is 3.94 times the fixture peak and 411.7 MiB below that headroom, so a fixture tree that outgrows it
- meets this ceiling before it meets the memory bound.
+ Measured by the integration pass of 2026-11-19, 211 samples taken every 3 s across 780 s and kept in
+ `perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`: the whole gate suite's kernel `memory.peak` was
+ 1123.8 MiB of the gate's 2048 MiB bound, and those samples read at most 953.1 MiB of `memory.current`, 868.3 MiB of
+ process pages and 195.1 MiB of fixture bytes, less than the peak because a sampler that slow can miss it. The bound
+ beside the kernel's peak leaves 924.2 MiB for fixtures, and this ceiling sits 156.2 MiB below it, at 3.94 times the
+ sampled fixture peak, so a fixture tree that outgrows the ceiling meets it before it meets the memory bound. A gate
+ review's run on the same code read 916.4 MiB of `memory.peak` and a 221.4 MiB sampled fixture peak, of which this
+ ceiling is 3.47 times.
  */
 export const gateFixtureRootSize: string = '768m';
 

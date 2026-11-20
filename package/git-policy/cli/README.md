@@ -6084,9 +6084,14 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   A tmpfs answers all four the way the kernel overlay of the earlier btrfs host did.
   The size is a ceiling under the container's memory bound,
   because tmpfs pages count against that bound:
-  the integration pass of 2026-11-19 measured a whole suite there at a 195.1 MiB fixture peak and a
-  1123.8 MiB `memory.peak` of the 2048 MiB bound,
-  which leaves about 1179.7 MiB for fixtures after that run's own 868.3 MiB of process pages
+  the integration pass of 2026-11-19 ran a whole suite there,
+  and its kernel `memory.peak` was 1123.8 MiB of the 2048 MiB bound,
+  while its 3-second samples read at most 868.3 MiB of process pages and a 195.1 MiB fixture peak,
+  which add to less than that peak because a sampler that slow can miss it.
+  The bound beside the kernel's peak leaves 924.2 MiB for fixtures,
+  so the 768 MiB ceiling sits 156.2 MiB below that;
+  a gate review's run on the same code read 916.4 MiB of `memory.peak` and a 221.4 MiB sampled fixture peak,
+  of which the ceiling is 3.47 times
   (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`,
   with the reasoning behind the 768 MiB value in
   `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
