@@ -261,17 +261,12 @@ These decisions bound what the checker may do:
   It is not an allowlist of kernel releases: the project chose "Probe at start" for that, and
   "The runtime module gate of "A: Test plus runtime gate" stays"
   ([Kernel-release readiness][design-project-decisions]).
-- The reader lives in the binding, as a proposal the owner may veto. The project chose
+- The reader lives in the project's own binding package: the project chose
   "Our own small binding (Recommended)",
   with `package/zfs/request-to-openzfs-kernel-device`, and both binaries "use the same binding and compatibility
   gate, even for reads". The binding "owns the `/dev/zfs` request format", and the verification method is decided
   while "the profile-checking dependency that checker needs is chosen with its design, which has none yet"
   ([Binding crate and compatibility][design-binding]).
-  The record does not decide where the reader lives: both binaries are one cargo package,
-  `package/git-policy/cli`, so a reader in the binding and a reader in the wrapper package both satisfy the
-  record. Rule `OWK` makes placement across components the named owner's, so
-  [Q4](#q4-which-crate-holds-the-layout-reader) asks it, and the binding's ownership of the
-  request format is the reason this file proposes the binding.
 - The approved release is OpenZFS `zfs-2.4.4`; the request numbers and struct layout are the ones in its headers
   ([Requests and input ownership](cli-git-zfs-worktree-design-proposal.md#requests-and-input-ownership)).
 - The test-time BTF comparison the design keeps is separate: it compares the binding's compiled layout with the
@@ -286,6 +281,12 @@ These decisions bound what the checker may do:
 - The build owes a start-time test: "Run it against a module whose field layout differs from the approved release
   and assert raw requests are disabled with no force flag"
   ([Decided behaviours with no test yet][design-decided]).
+
+The decisions do not decide which crate holds the reader: both binaries are one cargo package,
+`package/git-policy/cli`, so a reader in the binding and a reader in the wrapper package both
+satisfy the record. Rule `OWK` makes placement across components the named owner's, so
+[Q4](#q4-which-crate-holds-the-layout-reader) asks it, and the binding's ownership of the request
+format is the reason this file proposes the binding.
 
 ### What the decisions leave this design to settle
 
