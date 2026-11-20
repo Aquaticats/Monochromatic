@@ -40829,7 +40829,17 @@ stated in this entry. What follows from them, as work:
   equals tag `v2.0.1`, the fingerprint reproduces, the consumer rerun passed 183 of 183, no missed reader; new evidence:
   both libraries build for `aarch64` (build only). GOING: `pi-zfs-layout-checker-reader-vet-report-gate-review-findings-fixed`
   (cap 400; brief under `~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/`); the
-  owner's question will then be the conditional rankings and the library-or-program choice.
+  owner's question will then be the conditional rankings and the library-or-program choice. THE ISSUE 6325 FIX'S
+  INTEGRATION PASS (Sonnet) came back not fit, one test change from fit (its folder's `keep/review.md`): the causal chain
+  holds (Git's detached maintenance removes a `worktrees/<id>` without `gitdir` about 1 ms after the commit returns); but
+  the new control `an_upkeep_of_the_repository_takes_a_folder_that_holds_no_gitdir` fails when the fixture's own detached
+  maintenance still holds `objects/maintenance.lock` (the forced run then no-ops and exits zero; 18 of 1200 host rounds),
+  and its sibling passes vacuously then; the doc omits the landing's own `git maintenance run --auto` in the user's
+  repository (`service_work.rs:706`); gate 9277 of 9279, the cause-H pair. GOING:
+  `pi-git-policy-cli-shadow-pool-integration-pass-findings-fixed` in the coordinator-made worktree
+  `.claude/worktrees/git-policy-cli-shadow-pool-findings`, suggested to switch automatic maintenance off in the fixture's
+  own Git runs and show the red deterministically by holding the lock by hand (brief under
+  `~/temp/agent/git-policy-cli-shadow-pool-integration-pass-findings-fixed-2026-11-20/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
