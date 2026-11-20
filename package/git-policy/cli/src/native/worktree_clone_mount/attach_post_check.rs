@@ -174,7 +174,10 @@ pub enum AttachOutcome {
         mount: MountIdentity,
         /// The parent folder's identity the fresh walk read.
         parent_identity: CloneFolderIdentity,
-        /// The path the slot's descriptor named.
+        /// The canonical slot the mount was expected at.
+        canonical_slot: PathBuf,
+        /// The path the slot's descriptor named,
+        /// which equals the canonical slot when the check passes.
         observed_path: PathBuf,
     },
     /// The mount is somewhere else,
@@ -229,7 +232,7 @@ pub fn post_attach_check(check: &AttachPostCheck<'_>, fresh: Result<FreshSlotLoo
         observed_path: found.observed_path.clone(),
     };
     debug(TAG, "the mount at the canonical slot is the one the attach made");
-    return Ok(AttachOutcome::Attached { mount, parent_identity: found.parent_identity, observed_path: found.observed_path });
+    return Ok(AttachOutcome::Attached { mount, parent_identity: found.parent_identity, canonical_slot: check.canonical_slot.to_path_buf(), observed_path: found.observed_path });
 }
 
 /// Controls stay out of the release executable.

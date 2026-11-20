@@ -5309,7 +5309,9 @@ and each ACL is its bytes in lowercase hexadecimal,
 with `-` for a folder that has none.
 A slot's key is one plain folder name:
 no slash,
-no space and no control character.
+no space,
+no control character,
+and neither `.` nor `..`.
 
 Reading refuses the whole file when any line is not one this repository wrote,
 naming the line,

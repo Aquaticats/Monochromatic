@@ -265,15 +265,15 @@ pub fn open_directory_beneath(root: &File, names: &[OsString]) -> std::io::Resul
 /// # Errors
 /// The reason of the first component the walk refuses, and its position.
 pub fn open_chain_beneath(root: &File, names: &[OsString]) -> Result<Vec<File>, ChainRefusal> {
-    let device: u64 = device_of(root).map_err(|error| ChainRefusal::Unreadable { step: 0, error })?;
+    let device: u64 = device_of(root).map_err(|error| return ChainRefusal::Unreadable { step: 0, error })?;
     let mut chain: Vec<File> = Vec::with_capacity(names.len());
     for (step, name) in names.iter().enumerate() {
         let parent: &File = match chain.last() {
             Some(held) => held,
             None => root,
         };
-        let next: File = open_directory_at(parent, name.as_os_str()).map_err(|error| ChainRefusal::of(step, error))?;
-        if device_of(&next).map_err(|error| ChainRefusal::Unreadable { step, error })? != device {
+        let next: File = open_directory_at(parent, name.as_os_str()).map_err(|error| return ChainRefusal::of(step, error))?;
+        if device_of(&next).map_err(|error| return ChainRefusal::Unreadable { step, error })? != device {
             return Err(ChainRefusal::Boundary { step });
         }
         chain.push(next);
@@ -452,7 +452,7 @@ pub fn mount_id_of(handle: &File) -> std::io::Result<u64> {
     let text: String = std::fs::read_to_string(Path::new("/proc/self/fdinfo").join(handle.as_raw_fd().to_string()))?;
     for line in text.lines() {
         let Some(rest) = line.strip_prefix("mnt_id:") else { continue };
-        return rest.trim().parse::<u64>().map_err(|_error| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("the mount ID of {} is not a number: {}", handle_path(handle).display(), rest.trim())));
+        return rest.trim().parse::<u64>().map_err(|_error| return std::io::Error::new(std::io::ErrorKind::InvalidData, format!("the mount ID of {} is not a number: {}", handle_path(handle).display(), rest.trim())));
     }
     return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, format!("the kernel reports no mount ID for {}", handle_path(handle).display())));
 }

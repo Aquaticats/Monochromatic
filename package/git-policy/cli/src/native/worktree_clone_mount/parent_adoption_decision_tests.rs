@@ -76,9 +76,9 @@ fn a_folder_the_administrator_did_not_identify_is_refused() {
     assert!(refused.message().contains("device"), "{}", refused.message());
     let mut wrong_inode: AdoptionFacts = adopting(&held);
     wrong_inode.identified_inode = held.inode + 1;
-    let refused: AdoptionRefusal = decide_adoption(&wrong_inode).expect_err("another inode");
-    assert!(matches!(refused, AdoptionRefusal::Identity { field: CloneFolderField::Inode, .. }), "{refused:?}");
-    assert!(refused.message().contains("Nothing was recorded"), "{}", refused.message());
+    let refused_2: AdoptionRefusal = decide_adoption(&wrong_inode).expect_err("another inode");
+    assert!(matches!(refused_2, AdoptionRefusal::Identity { field: CloneFolderField::Inode, .. }), "{refused_2:?}");
+    assert!(refused_2.message().contains("Nothing was recorded"), "{}", refused_2.message());
     remove(root.as_path());
 }
 
@@ -103,13 +103,13 @@ fn each_policy_field_is_a_refusal() {
         facts.walk = Ok(replacement.clone());
         facts.identified_device = replacement.device;
         facts.identified_inode = replacement.inode;
-        let refused: AdoptionRefusal = decide_adoption(&facts).expect_err(field);
-        match &refused {
-            AdoptionRefusal::Policy { fields } => assert!(fields.iter().any(|moved| moved.name() == *field), "{field}: {refused:?}"),
+        let refused_3: AdoptionRefusal = decide_adoption(&facts).expect_err(field);
+        match &refused_3 {
+            AdoptionRefusal::Policy { fields } => assert!(fields.iter().any(|moved| { return moved.name() == *field; }), "{field}: {refused_3:?}"),
             other => panic!("{field}: {other:?}"),
         }
-        assert!(refused.message().contains(field), "{field}: {}", refused.message());
-        assert!(refused.message().contains("Ways forward"), "{}", refused.message());
+        assert!(refused_3.message().contains(field), "{field}: {}", refused_3.message());
+        assert!(refused_3.message().contains("Ways forward"), "{}", refused_3.message());
     }
     remove(root.as_path());
 }
@@ -126,11 +126,11 @@ fn a_link_or_a_boundary_in_the_walk_is_refused() {
     for (reason, expected) in [(WalkRefusalReason::LinkInTheWay, "never follows a link"), (WalkRefusalReason::BoundaryCrossed, "never crosses such a boundary")] {
         let mut facts: AdoptionFacts = adopting(&held);
         facts.walk = Err(walk_refusal(".claude/worktrees", reason));
-        let refused: AdoptionRefusal = decide_adoption(&facts).expect_err("the walk refused");
-        assert!(matches!(refused, AdoptionRefusal::Walk { .. }), "{refused:?}");
-        assert!(refused.message().contains(".claude/worktrees"), "{}", refused.message());
-        assert!(refused.message().contains(expected), "{}", refused.message());
-        assert!(refused.message().contains("nothing was recorded"), "{}", refused.message());
+        let refused_4: AdoptionRefusal = decide_adoption(&facts).expect_err("the walk refused_4");
+        assert!(matches!(refused_4, AdoptionRefusal::Walk { .. }), "{refused_4:?}");
+        assert!(refused_4.message().contains(".claude/worktrees"), "{}", refused_4.message());
+        assert!(refused_4.message().contains(expected), "{}", refused_4.message());
+        assert!(refused_4.message().contains("nothing was recorded"), "{}", refused_4.message());
     }
     remove(root.as_path());
 }
@@ -147,25 +147,25 @@ fn an_unresolved_binding_a_differing_slot_and_a_fresh_lookup_mismatch_are_refuse
     let (root, held): (PathBuf, CloneFolderIdentity) = planted_identity("adoption-bindings");
     let mut unresolved: AdoptionFacts = adopting(&held);
     unresolved.bindings.push(BindingState::Unresolved { what: String::from("slot three"), reason: String::from("its mount row is unreadable") });
-    let refused: AdoptionRefusal = decide_adoption(&unresolved).expect_err("an unresolved binding");
-    assert!(matches!(refused, AdoptionRefusal::BindingUnresolved { .. }), "{refused:?}");
-    assert!(refused.message().contains("slot three") && refused.message().contains("its mount row is unreadable"), "{}", refused.message());
-    assert!(refused.message().contains("recovery"), "{}", refused.message());
+    let refused_5: AdoptionRefusal = decide_adoption(&unresolved).expect_err("an unresolved binding");
+    assert!(matches!(refused_5, AdoptionRefusal::BindingUnresolved { .. }), "{refused_5:?}");
+    assert!(refused_5.message().contains("slot three") && refused_5.message().contains("its mount row is unreadable"), "{}", refused_5.message());
+    assert!(refused_5.message().contains("recovery"), "{}", refused_5.message());
     let mut differing_slot: AdoptionFacts = adopting(&held);
     differing_slot.slots.push(SlotState::Differs { slot: String::from("four"), field: CloneFolderField::Mode });
-    let refused: AdoptionRefusal = decide_adoption(&differing_slot).expect_err("a slot that differs");
-    assert!(matches!(refused, AdoptionRefusal::SlotDiffers { .. }), "{refused:?}");
-    assert!(refused.message().contains("`four`") && refused.message().contains("mode"), "{}", refused.message());
-    assert!(refused.message().contains("never overwrites"), "{}", refused.message());
+    let refused_6: AdoptionRefusal = decide_adoption(&differing_slot).expect_err("a slot that differs");
+    assert!(matches!(refused_6, AdoptionRefusal::SlotDiffers { .. }), "{refused_6:?}");
+    assert!(refused_6.message().contains("`four`") && refused_6.message().contains("mode"), "{}", refused_6.message());
+    assert!(refused_6.message().contains("never overwrites"), "{}", refused_6.message());
     let mut fresh_stopped: AdoptionFacts = adopting(&held);
     fresh_stopped.fresh = Err(walk_refusal(".claude/worktrees", WalkRefusalReason::Missing));
-    let refused: AdoptionRefusal = decide_adoption(&fresh_stopped).expect_err("the fresh lookup stopped");
-    assert!(matches!(refused, AdoptionRefusal::FreshLookup { .. }), "{refused:?}");
-    assert!(refused.message().contains("not there"), "{}", refused.message());
+    let refused_7: AdoptionRefusal = decide_adoption(&fresh_stopped).expect_err("the fresh lookup stopped");
+    assert!(matches!(refused_7, AdoptionRefusal::FreshLookup { .. }), "{refused_7:?}");
+    assert!(refused_7.message().contains("not there"), "{}", refused_7.message());
     let mut fresh_other: AdoptionFacts = adopting(&held);
     fresh_other.fresh = Ok(CloneFolderIdentity { inode: held.inode + 1, ..held.clone() });
-    let refused: AdoptionRefusal = decide_adoption(&fresh_other).expect_err("the fresh lookup reached another folder");
-    assert!(matches!(refused, AdoptionRefusal::FreshLookupDiffers { ref fields } if fields.contains(&CloneFolderField::Inode)), "{refused:?}");
-    assert!(refused.message().contains("inode"), "{}", refused.message());
+    let refused_8: AdoptionRefusal = decide_adoption(&fresh_other).expect_err("the fresh lookup reached another folder");
+    assert!(matches!(refused_8, AdoptionRefusal::FreshLookupDiffers { ref fields } if fields.contains(&CloneFolderField::Inode)), "{refused_8:?}");
+    assert!(refused_8.message().contains("inode"), "{}", refused_8.message());
     remove(root.as_path());
 }

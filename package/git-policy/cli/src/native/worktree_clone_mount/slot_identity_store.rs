@@ -102,10 +102,8 @@ impl SlotIdentityStore {
     /// when the sweep recorded one.
     pub fn slot(&self, name: &str) -> Option<&CloneFolderIdentity> {
         for record in &self.records {
-            if let StoredIdentity::Slot { name: recorded, identity } = record {
-                if recorded == name {
-                    return Some(identity);
-                }
+            if let StoredIdentity::Slot { name: recorded, identity } = record && recorded == name {
+                return Some(identity);
             }
         }
         return None;

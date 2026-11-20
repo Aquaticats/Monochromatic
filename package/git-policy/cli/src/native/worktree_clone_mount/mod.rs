@@ -52,6 +52,8 @@
 //!   whether the mount the attach made is the mount the canonical slot shows.
 //! - `misplaced_attach_rollback.rs`:
 //!   the plan that takes a misplaced mount down and the report it leaves.
+//! - `parent_adoption_facts.rs`:
+//!   the policy a replacement must hold and the state of each binding and slot.
 //! - `parent_adoption_decision.rs`:
 //!   the table that decides whether a recreated parent folder may be recorded.
 //!
@@ -96,6 +98,9 @@ pub mod attach_post_check;
 /// and its report.
 pub mod misplaced_attach_rollback;
 
+/// The shapes an adoption compares against.
+pub mod parent_adoption_facts;
+
 /// The administrator's decision to record a recreated parent folder.
 pub mod parent_adoption_decision;
 
@@ -119,5 +124,7 @@ pub use clone_slot_walk::{FreshSlotLookup, HeldCloneSlot, HoldCloneSlotRequest, 
 pub use attach_post_check::{AttachOutcome, AttachPostCheck, MisplacedAttach, MisplacedReason, post_attach_check};
 /// The rollback plan and its report.
 pub use misplaced_attach_rollback::{RollbackOutcome, RollbackPlan, RollbackRefusal, plan_rollback};
+/// The shapes an adoption compares against.
+pub use parent_adoption_facts::{BindingState, ParentPolicy, SlotState};
 /// The adoption decision.
-pub use parent_adoption_decision::{Adoption, AdoptionFacts, AdoptionRefusal, BindingState, ParentPolicy, SlotState, decide_adoption};
+pub use parent_adoption_decision::{Adoption, AdoptionFacts, AdoptionRefusal, decide_adoption};

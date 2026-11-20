@@ -45,9 +45,9 @@ fn the_plan_names_the_mount_and_refuses_an_identity_that_proves_no_mount() {
     assert!(refused.message().contains("no attach is proved"), "{}", refused.message());
     assert!(refused.message().contains("41"), "{}", refused.message());
     for no_path in [Path::new(""), Path::new("relative/path")] {
-        let refused: RollbackRefusal = plan_rollback(&misplaced, no_path, 40).expect_err("a place a report cannot name");
-        assert!(matches!(refused, RollbackRefusal::NoPlaceRecorded { attached_mount_id: 41 }), "{refused:?}");
-        assert!(refused.message().contains("mount 41"), "{}", refused.message());
+        let refused_2: RollbackRefusal = plan_rollback(&misplaced, no_path, 40).expect_err("a place a report cannot name");
+        assert!(matches!(refused_2, RollbackRefusal::NoPlaceRecorded { attached_mount_id: 41 }), "{refused_2:?}");
+        assert!(refused_2.message().contains("mount 41"), "{}", refused_2.message());
     }
 }
 

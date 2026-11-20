@@ -123,7 +123,7 @@ impl StoreRefusal {
                 path.display()
             ),
             StoreRefusal::SlotAlreadyRecorded { path, slot } => format!(
-                "{} already records an identity for the clone slot `{slot}`, and no command ever refreshes a slot identity because a new inode or mode appeared. Ways forward: restore the folder whose identity is recorded, or settle the binding with the removal workflow; only an administrator's `adopt-worktree-parent` may replace the parent folder's record, and never a slot's.",
+                "{} already records an identity for the clone slot `{slot}`, and a slot identity is never refreshed because a new inode or mode appeared. Ways forward: restore the folder whose identity is recorded, or settle the binding with the removal workflow; only an administrator's `adopt-worktree-parent` may replace the parent folder's record, and never a slot's.",
                 path.display()
             ),
             StoreRefusal::SlotName { slot, reason } => format!(

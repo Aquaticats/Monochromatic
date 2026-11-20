@@ -61,7 +61,7 @@ pub(super) fn acl_from_token(token: &str) -> Option<Option<Vec<u8>>> {
     }
     let mut bytes: Vec<u8> = Vec::with_capacity(token.len() / 2);
     let digits: &[u8] = token.as_bytes();
-    for pair in digits.chunks_exact(2) {
+    for pair in digits.as_chunks::<2>().0 {
         let text: &str = std::str::from_utf8(pair).ok()?;
         bytes.push(u8::from_str_radix(text, 16).ok()?);
     }
@@ -96,7 +96,7 @@ pub(super) fn read_acl(folder: &std::fs::File, attribute: &[u8], field: &str) ->
             _ => Err(error),
         };
     }
-    let length: usize = usize::try_from(size).map_err(|_error| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("the {field} is {size} bytes, which does not fit")))?;
+    let length: usize = usize::try_from(size).map_err(|_error| return std::io::Error::new(std::io::ErrorKind::InvalidData, format!("the {field} is {size} bytes, which does not fit")))?;
     if length > MAXIMUM_ACL_BYTES {
         return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, format!("the {field} is {length} bytes, larger than the {MAXIMUM_ACL_BYTES} bytes a read accepts")));
     }

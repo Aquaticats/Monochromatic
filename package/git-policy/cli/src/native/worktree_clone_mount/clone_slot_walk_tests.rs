@@ -151,10 +151,10 @@ fn each_recorded_field_of_the_slot_is_a_refusal() {
     ];
     for (field, identity) in &changed {
         built.record("one", &built.parent_identity(), identity);
-        let refused: CloneSlotRefusal = hold_clone_slot(&request(&built, "one")).expect_err(field);
-        assert!(names_slot_field(&refused, field), "{field}: {}", refused.message());
-        assert!(refused.message().contains("`one`"), "{}", refused.message());
-        assert!(refused.message().contains("never refreshed"), "{}", refused.message());
+        let refused_2: CloneSlotRefusal = hold_clone_slot(&request(&built, "one")).expect_err(field);
+        assert!(names_slot_field(&refused_2, field), "{field}: {}", refused_2.message());
+        assert!(refused_2.message().contains("`one`"), "{}", refused_2.message());
+        assert!(refused_2.message().contains("never refreshed"), "{}", refused_2.message());
     }
     remove(built.checkout.parent().expect("root"));
 }
@@ -170,13 +170,13 @@ fn an_unrecorded_slot_or_parent_asks_for_the_run_that_writes_it() {
     let built: Fixture = fixture_slot("clone-walk-unrecorded");
     let parent: CloneFolderIdentity = built.parent_identity();
     std::fs::write(&built.store, format!("{HEADER}\nparent - {}\n", parent.encode())).expect("store");
-    let refused: CloneSlotRefusal = hold_clone_slot(&request(&built, "one")).expect_err("no slot record");
-    assert!(matches!(refused, CloneSlotRefusal::Store(StoreRefusal::NoSlotRecord { .. })), "{refused:?}");
-    assert!(refused.message().contains("sweep"), "{}", refused.message());
+    let refused_3: CloneSlotRefusal = hold_clone_slot(&request(&built, "one")).expect_err("no slot record");
+    assert!(matches!(refused_3, CloneSlotRefusal::Store(StoreRefusal::NoSlotRecord { .. })), "{refused_3:?}");
+    assert!(refused_3.message().contains("sweep"), "{}", refused_3.message());
     std::fs::write(&built.store, format!("{HEADER}\nslot one {}\n", built.slot_identity().encode())).expect("store");
-    let refused: CloneSlotRefusal = hold_clone_slot(&request(&built, "one")).expect_err("no parent record");
-    assert!(matches!(refused, CloneSlotRefusal::Store(StoreRefusal::NoParentRecord { .. })), "{refused:?}");
-    assert!(refused.message().contains("setup"), "{}", refused.message());
+    let refused_4: CloneSlotRefusal = hold_clone_slot(&request(&built, "one")).expect_err("no parent record");
+    assert!(matches!(refused_4, CloneSlotRefusal::Store(StoreRefusal::NoParentRecord { .. })), "{refused_4:?}");
+    assert!(refused_4.message().contains("setup"), "{}", refused_4.message());
     remove(built.checkout.parent().expect("root"));
 }
 
@@ -193,21 +193,21 @@ fn a_link_planted_in_the_way_is_refused_naming_the_component() {
     hold_clone_slot(&request(&built, "one")).expect("positive control");
     let elsewhere: PathBuf = built.checkout.parent().expect("root").join("elsewhere");
     std::fs::create_dir_all(elsewhere.join("worktrees/one")).expect("elsewhere tree");
-    std::fs::rename(&built.slot, &elsewhere.join("worktrees/one-target")).expect("slot away");
+    std::fs::rename(&built.slot, elsewhere.join("worktrees/one-target")).expect("slot away");
     std::os::unix::fs::symlink(elsewhere.join("worktrees"), &built.slot).expect("slot link");
-    let refused: CloneSlotRefusal = hold_clone_slot(&request(&built, "one")).expect_err("a link at the slot");
-    assert!(matches!(refused, CloneSlotRefusal::Walk(WalkRefusal { reason: WalkRefusalReason::LinkInTheWay, .. })), "{refused:?}");
-    assert!(refused.message().contains(".claude/worktrees/one"), "the slot is named: {}", refused.message());
-    assert!(refused.message().contains("never follows a link"), "{}", refused.message());
+    let refused_5: CloneSlotRefusal = hold_clone_slot(&request(&built, "one")).expect_err("a link at the slot");
+    assert!(matches!(refused_5, CloneSlotRefusal::Walk(WalkRefusal { reason: WalkRefusalReason::LinkInTheWay, .. })), "{refused_5:?}");
+    assert!(refused_5.message().contains(".claude/worktrees/one"), "the slot is named: {}", refused_5.message());
+    assert!(refused_5.message().contains("never follows a link"), "{}", refused_5.message());
     std::fs::remove_file(&built.slot).expect("link away");
     // A link at the worktrees folder itself, and one at `.claude`.
     std::fs::create_dir(elsewhere.join("claude-worktrees")).expect("elsewhere claude");
     let held_parent: PathBuf = elsewhere.join("claude-worktrees");
     std::fs::rename(&built.parent, &held_parent).expect("parent away");
     std::os::unix::fs::symlink(&held_parent, &built.parent).expect("parent link");
-    let refused: CloneSlotRefusal = hold_clone_slot(&request(&built, "one")).expect_err("a link at the parent");
-    assert!(matches!(refused, CloneSlotRefusal::Walk(WalkRefusal { reason: WalkRefusalReason::LinkInTheWay, .. })), "{refused:?}");
-    assert!(refused.message().contains(".claude/worktrees"), "{}", refused.message());
+    let refused_6: CloneSlotRefusal = hold_clone_slot(&request(&built, "one")).expect_err("a link at the parent");
+    assert!(matches!(refused_6, CloneSlotRefusal::Walk(WalkRefusal { reason: WalkRefusalReason::LinkInTheWay, .. })), "{refused_6:?}");
+    assert!(refused_6.message().contains(".claude/worktrees"), "{}", refused_6.message());
     std::fs::remove_file(&built.parent).expect("link away");
     remove(built.checkout.parent().expect("root"));
 }
@@ -223,18 +223,18 @@ fn a_link_planted_in_the_way_is_refused_naming_the_component() {
 #[test]
 fn a_missing_component_and_a_name_that_is_no_component_are_refused() {
     let built: Fixture = fixture_slot("clone-walk-missing");
-    let refused: CloneSlotRefusal = hold_clone_slot(&request(&built, "../escape")).expect_err("no plain name");
-    assert!(matches!(refused, CloneSlotRefusal::Walk(WalkRefusal { reason: WalkRefusalReason::NotAPlainName, .. })), "{refused:?}");
-    assert!(refused.message().contains("../escape"), "the input is named: {}", refused.message());
+    let refused_7: CloneSlotRefusal = hold_clone_slot(&request(&built, "../escape")).expect_err("no plain name");
+    assert!(matches!(refused_7, CloneSlotRefusal::Walk(WalkRefusal { reason: WalkRefusalReason::NotAPlainName, .. })), "{refused_7:?}");
+    assert!(refused_7.message().contains("../escape"), "the input is named: {}", refused_7.message());
     let file: PathBuf = built.parent.join("file-slot");
     std::fs::write(&file, b"x").expect("file");
-    let refused: CloneSlotRefusal = hold_clone_slot(&request(&built, "file-slot")).expect_err("a file is no slot folder");
-    assert!(matches!(refused, CloneSlotRefusal::Walk(WalkRefusal { reason: WalkRefusalReason::NotADirectory, .. })), "{refused:?}");
-    assert!(refused.message().contains("file-slot"), "{}", refused.message());
+    let refused_8: CloneSlotRefusal = hold_clone_slot(&request(&built, "file-slot")).expect_err("a file is no slot folder");
+    assert!(matches!(refused_8, CloneSlotRefusal::Walk(WalkRefusal { reason: WalkRefusalReason::NotADirectory, .. })), "{refused_8:?}");
+    assert!(refused_8.message().contains("file-slot"), "{}", refused_8.message());
     std::fs::remove_dir_all(&built.parent).expect("parent away");
-    let refused: CloneSlotRefusal = hold_clone_slot(&request(&built, "one")).expect_err("the parent is gone");
-    assert!(matches!(refused, CloneSlotRefusal::Walk(WalkRefusal { reason: WalkRefusalReason::Missing, .. })), "{refused:?}");
-    assert!(refused.message().contains(".claude/worktrees"), "{}", refused.message());
+    let refused_9: CloneSlotRefusal = hold_clone_slot(&request(&built, "one")).expect_err("the parent is gone");
+    assert!(matches!(refused_9, CloneSlotRefusal::Walk(WalkRefusal { reason: WalkRefusalReason::Missing, .. })), "{refused_9:?}");
+    assert!(refused_9.message().contains(".claude/worktrees"), "{}", refused_9.message());
     remove(built.checkout.parent().expect("root"));
 }
 
@@ -255,12 +255,12 @@ fn a_slot_that_changed_between_the_two_opens_is_refused() {
             std::fs::create_dir(&slot).expect("a replacement at the name");
         }));
     });
-    let refused: Result<HeldCloneSlot, CloneSlotRefusal> = hold_clone_slot(&request(&built, "one"));
+    let refused_10: Result<HeldCloneSlot, CloneSlotRefusal> = hold_clone_slot(&request(&built, "one"));
     AFTER_THE_SLOT_IS_READ.with(|hook| { return *hook.borrow_mut() = None });
-    let refused: CloneSlotRefusal = refused.expect_err("the two descriptors name different folders");
-    assert!(matches!(refused, CloneSlotRefusal::TargetAnotherObject { .. }), "{refused:?}");
-    assert!(refused.message().contains("`one`"), "{}", refused.message());
-    assert!(refused.message().contains("different folders") || refused.message().contains("one names"), "{}", refused.message());
+    let refused_11: CloneSlotRefusal = refused_10.expect_err("the two descriptors name different folders");
+    assert!(matches!(refused_11, CloneSlotRefusal::TargetAnotherObject { .. }), "{refused_11:?}");
+    assert!(refused_11.message().contains("`one`"), "{}", refused_11.message());
+    assert!(refused_11.message().contains("different folders") || refused_11.message().contains("one names"), "{}", refused_11.message());
     remove(built.checkout.parent().expect("root"));
 }
 
@@ -283,10 +283,10 @@ fn the_second_walk_reads_the_canonical_slot() {
     assert_eq!(again.mount_id, crate::fs_beneath::mount_id_of(&held.target).expect("the held target's mount"), "the slot is on the mount the held target is on");
     let elsewhere: PathBuf = built.checkout.parent().expect("root").join("elsewhere");
     std::fs::create_dir_all(elsewhere.join("one")).expect("elsewhere");
-    std::fs::rename(&built.parent, &elsewhere.join("worktrees")).expect("parent away");
+    std::fs::rename(&built.parent, elsewhere.join("worktrees")).expect("parent away");
     std::os::unix::fs::symlink(elsewhere.join("worktrees"), &built.parent).expect("parent link");
-    let refused: CloneSlotRefusal = look_again_at_the_slot(&LookAgainAtSlotRequest { checkout: built.checkout.as_path(), slot: "one" }).expect_err("a link at the parent");
-    assert!(matches!(refused, CloneSlotRefusal::Walk(WalkRefusal { reason: WalkRefusalReason::LinkInTheWay, .. })), "{refused:?}");
+    let refused_12: CloneSlotRefusal = look_again_at_the_slot(&LookAgainAtSlotRequest { checkout: built.checkout.as_path(), slot: "one" }).expect_err("a link at the parent");
+    assert!(matches!(refused_12, CloneSlotRefusal::Walk(WalkRefusal { reason: WalkRefusalReason::LinkInTheWay, .. })), "{refused_12:?}");
     std::fs::remove_file(&built.parent).expect("link away");
     remove(built.checkout.parent().expect("root"));
 }
@@ -303,8 +303,8 @@ fn a_checkout_that_is_not_there_is_refused() {
     let root: PathBuf = fixture("clone-walk-no-checkout");
     let absent: PathBuf = root.join("absent");
     let request: HoldCloneSlotRequest<'_> = HoldCloneSlotRequest { checkout: absent.as_path(), slot: "one", store: Path::new("/nonexistent/store") };
-    let refused: CloneSlotRefusal = hold_clone_slot(&request).expect_err("no checkout");
-    assert!(matches!(refused, CloneSlotRefusal::Walk(_)), "{refused:?}");
-    assert!(refused.message().contains("checkout"), "{}", refused.message());
+    let refused_13: CloneSlotRefusal = hold_clone_slot(&request).expect_err("no checkout");
+    assert!(matches!(refused_13, CloneSlotRefusal::Walk(_)), "{refused_13:?}");
+    assert!(refused_13.message().contains("checkout"), "{}", refused_13.message());
     remove(root.as_path());
 }

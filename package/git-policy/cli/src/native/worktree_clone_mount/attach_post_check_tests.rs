@@ -49,7 +49,8 @@ fn the_mount_the_attach_made_is_the_one_the_slot_shows() {
     };
     let outcome: AttachOutcome = post_attach_check(&check, Ok(fresh.clone())).expect("the mount table is readable");
     match outcome {
-        AttachOutcome::Attached { mount, parent_identity, observed_path } => {
+        AttachOutcome::Attached { mount, parent_identity, canonical_slot, observed_path } => {
+            assert_eq!(canonical_slot, held.canonical_slot);
             assert_eq!(mount.mount_id, fresh.mount_id);
             assert_eq!(mount.parent_mount_id, fresh.parent_mount_id);
             assert_eq!((mount.device, mount.inode), (fresh.slot_identity.device, fresh.slot_identity.inode));
@@ -74,14 +75,14 @@ fn the_mount_the_attach_made_is_the_one_the_slot_shows() {
 fn another_mount_at_the_slot_is_misplaced() {
     let (root, held, checkout): (PathBuf, HeldCloneSlot, PathBuf) = held_slot("post-check-elsewhere");
     let fresh: FreshSlotLookup = look_again_at_the_slot(&LookAgainAtSlotRequest { checkout: checkout.as_path(), slot: "one" }).expect("the slot is there");
-    let check: AttachPostCheck<'_> = AttachPostCheck {
+    let check_2: AttachPostCheck<'_> = AttachPostCheck {
         held_parent_identity: &held.parent_identity,
         held_parent_mount_id: fresh.parent_mount_id,
         attached_mount_id: fresh.mount_id + 1,
         canonical_slot: held.canonical_slot.as_path(),
     };
-    let outcome: AttachOutcome = post_attach_check(&check, Ok(fresh.clone())).expect("the mount table is readable");
-    match outcome {
+    let outcome_2: AttachOutcome = post_attach_check(&check_2, Ok(fresh.clone())).expect("the mount table is readable");
+    match outcome_2 {
         AttachOutcome::Misplaced(misplaced) => {
             assert!(matches!(misplaced.reason, MisplacedReason::MountElsewhere { fresh: found, attached } if found == fresh.mount_id && attached == fresh.mount_id + 1), "{misplaced:?}");
             let message: String = misplaced.reason.message();
@@ -103,27 +104,27 @@ fn another_mount_at_the_slot_is_misplaced() {
 fn another_parent_mount_and_a_replaced_parent_are_misplaced() {
     let (root, held, checkout): (PathBuf, HeldCloneSlot, PathBuf) = held_slot("post-check-parent");
     let fresh: FreshSlotLookup = look_again_at_the_slot(&LookAgainAtSlotRequest { checkout: checkout.as_path(), slot: "one" }).expect("the slot is there");
-    let check: AttachPostCheck<'_> = AttachPostCheck {
+    let check_3: AttachPostCheck<'_> = AttachPostCheck {
         held_parent_identity: &held.parent_identity,
         held_parent_mount_id: fresh.parent_mount_id + 1,
         attached_mount_id: fresh.mount_id,
         canonical_slot: held.canonical_slot.as_path(),
     };
-    let outcome: AttachOutcome = post_attach_check(&check, Ok(fresh.clone())).expect("the mount table is readable");
-    assert!(matches!(outcome, AttachOutcome::Misplaced(MisplacedAttach { reason: MisplacedReason::OtherParentMount { .. }, .. })), "{outcome:?}");
+    let outcome_3: AttachOutcome = post_attach_check(&check_3, Ok(fresh.clone())).expect("the mount table is readable");
+    assert!(matches!(outcome_3, AttachOutcome::Misplaced(MisplacedAttach { reason: MisplacedReason::OtherParentMount { .. }, .. })), "{outcome_3:?}");
     // The account renames `.claude` away and puts another tree at the canonical path.
     let old_parent: PathBuf = checkout.join(".claude-old");
     std::fs::rename(checkout.join(".claude"), &old_parent).expect("claude away");
     std::fs::create_dir_all(checkout.join(".claude/worktrees/one")).expect("replacement tree");
     let fresh_after: FreshSlotLookup = look_again_at_the_slot(&LookAgainAtSlotRequest { checkout: checkout.as_path(), slot: "one" }).expect("the replacement is walkable");
-    let check: AttachPostCheck<'_> = AttachPostCheck {
+    let check_4: AttachPostCheck<'_> = AttachPostCheck {
         held_parent_identity: &held.parent_identity,
         held_parent_mount_id: fresh.parent_mount_id,
         attached_mount_id: fresh.mount_id,
         canonical_slot: held.canonical_slot.as_path(),
     };
-    let outcome: AttachOutcome = post_attach_check(&check, Ok(fresh_after)).expect("the mount table is readable");
-    match outcome {
+    let outcome_4: AttachOutcome = post_attach_check(&check_4, Ok(fresh_after)).expect("the mount table is readable");
+    match outcome_4 {
         AttachOutcome::Misplaced(misplaced) => {
             assert!(matches!(misplaced.reason, MisplacedReason::ParentChanged { ref fields } if fields.contains(&CloneFolderField::Inode)), "{misplaced:?}");
             assert!(misplaced.reason.message().contains("inode"), "{}", misplaced.reason.message());
@@ -143,15 +144,15 @@ fn another_parent_mount_and_a_replaced_parent_are_misplaced() {
 fn a_stopped_walk_a_moved_path_and_an_unreadable_table_are_reported() {
     let (root, held, checkout): (PathBuf, HeldCloneSlot, PathBuf) = held_slot("post-check-stopped");
     let fresh: FreshSlotLookup = look_again_at_the_slot(&LookAgainAtSlotRequest { checkout: checkout.as_path(), slot: "one" }).expect("the slot is there");
-    let check: AttachPostCheck<'_> = AttachPostCheck {
+    let check_5: AttachPostCheck<'_> = AttachPostCheck {
         held_parent_identity: &held.parent_identity,
         held_parent_mount_id: fresh.parent_mount_id,
         attached_mount_id: fresh.mount_id,
         canonical_slot: held.canonical_slot.as_path(),
     };
     let walked_away: CloneSlotRefusal = look_again_at_the_slot(&LookAgainAtSlotRequest { checkout: root.as_path(), slot: "one" }).expect_err("the checkout has no slot");
-    let outcome: AttachOutcome = post_attach_check(&check, Err(walked_away)).expect("no table is read when the walk stopped");
-    match outcome {
+    let outcome_5: AttachOutcome = post_attach_check(&check_5, Err(walked_away)).expect("no table is read when the walk stopped");
+    match outcome_5 {
         AttachOutcome::Misplaced(misplaced) => {
             assert!(matches!(misplaced.reason, MisplacedReason::WalkRefused { .. }), "{misplaced:?}");
             assert_eq!(misplaced.fresh, None);
@@ -161,8 +162,8 @@ fn a_stopped_walk_a_moved_path_and_an_unreadable_table_are_reported() {
     }
     let mut moved: FreshSlotLookup = fresh.clone();
     moved.observed_path = root.join("elsewhere");
-    let outcome: AttachOutcome = post_attach_check(&check, Ok(moved)).expect("the table is readable");
-    assert!(matches!(outcome, AttachOutcome::Misplaced(MisplacedAttach { reason: MisplacedReason::ObservedPathMoved { .. }, .. })), "{outcome:?}");
+    let outcome_6: AttachOutcome = post_attach_check(&check_5, Ok(moved)).expect("the table is readable");
+    assert!(matches!(outcome_6, AttachOutcome::Misplaced(MisplacedAttach { reason: MisplacedReason::ObservedPathMoved { .. }, .. })), "{outcome_6:?}");
     let unknown: u64 = u64::MAX;
     let refused: MountIdentityRefusal = mount_facts_of(unknown).expect_err("no mount has that number");
     assert!(matches!(refused, MountIdentityRefusal::NoMountEntry { mount_id } if mount_id == unknown), "{refused:?}");
