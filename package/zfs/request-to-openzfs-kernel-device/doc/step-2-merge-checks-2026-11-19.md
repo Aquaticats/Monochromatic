@@ -49,7 +49,7 @@ and each check's whole output is `container-<check>.log`:
 
 1. `cargo nextest run --release --locked --offline --status-level all`:
    exit 0,
-   `Summary [   0.179s] 177 tests run: 177 passed, 30 skipped`
+   `177 tests run: 177 passed, 30 skipped`
    (the 30 are the `#[ignore]`d live tests).
 2. `cargo clippy --release --locked --offline --all-targets -- -D warnings`:
    exit 0.
@@ -108,26 +108,40 @@ and each check's whole output is `container-<check>.log`:
 ## The bounded fuzz smoke
 
 `mise run //package/zfs/request-to-openzfs-kernel-device.fuzz:smoke`,
-with `ZFS_BINDING_IMAGE_TAG` set so the image was this run's own
-(`localhost/zfs-request-to-openzfs-kernel-device-fuzz:zfs-step-2-integration-pass-findings-fixed-2026-11-19`),
-built it from the wrapper's gate base
+with `ZFS_BINDING_IMAGE_TAG` set so each run built its own image.
+It ran twice:
+first on the tree as it stood before the last documentation commits
+(`fuzz-smoke.log`,
+image
+`localhost/zfs-request-to-openzfs-kernel-device-fuzz:zfs-step-2-integration-pass-findings-fixed-2026-11-19`),
+then on the shipped tree (`fuzz-smoke-shipped.log`,
+image
+`localhost/zfs-request-to-openzfs-kernel-device-fuzz:zfs-step-2-findings-fixed-shipped-2026-11-19`).
+Both passed,
+and the shipped tree leaves `src/nvlist/` and the sidecar byte-identical to
+`08c9dea25f`,
+the tip the first run built
+(`git diff 08c9dea25f..HEAD -- src/nvlist request-to-openzfs-kernel-device.fuzz`
+is empty).
+Each run built the image from the wrapper's gate base
 `localhost/git-policy-native-test-base:6fa67475da3a-97221c29742b`,
 and ran the target for its 30-second bound with no network,
 no home folder,
 2 CPUs and 2 GiB.
-It exited 0 and printed:
+The shipped run exited 0 and printed:
 
 ```text
 cargo 1.102.0-nightly (ede6cefea 2026-11-11)
 rustc 1.102.0-nightly (5f4effd57 2026-11-13)
 cargo-fuzz 0.13.2
-Done 2152978 runs in 31 second(s)
+Done 1673755 runs in 31 second(s)
 ```
 
-The log is `fuzz-smoke.log`.
-The run found no failing input;
+The first run printed the same versions and
+`Done 2152978 runs in 31 second(s)`.
+Neither run found a failing input;
 the growing corpus and any artifacts stay in
-`node_modules/.monochromatic/zfs-binding-fuzz/` of the checkout that ran it,
+`node_modules/.monochromatic/zfs-binding-fuzz/` of the checkout that ran them,
 which is gitignored.
 The image's nightly is the one `toolchain.lock.json`'s `rust` row names,
 and both crates' locked dependencies were fetched at image-build time,
