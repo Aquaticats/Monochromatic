@@ -586,16 +586,16 @@ the pick is not made here.
   the revision that answers the third gate re-check, kept at
   `/home/user/temp/agent/zfs-runtime-layout-checker-design-third-revision-gate-recheck-2026-11-19/keep/review.md`.
   The five commits' recorded dates, 22:31:12, 22:33:00, 22:36:00, 22:40:00 and 22:43:00, were set
-  by hand and are not when they were made; the times above are the ones the design worktree's
-  reflog recorded, to the second, and the corrective comment 210970301 on `71829d109c` records the
-  same five times.
+  by hand and are not when they were made; the five times this entry gives are the ones the design
+  worktree's reflog recorded, to the second, and the corrective comment 210970301 on `71829d109c`
+  records the same five times.
   That re-check is independent of this file's author (rule `IRW`) and is not an approval; it found no
   high finding, two mediums and nine lows, and called the file not ready for the project.
   Medium 1: [When the module carries no BTF](#when-the-module-carries-no-btf) states the Makefile's
   own guard rather than `KBUILD_BUILTIN`, records the step 2 short review's guest probe and its
   throwaway guest, and marks the 24-byte header that route produces; owed measurement item 11 states
   what this design requires of step 2, where step 2 stands at `4c7a347ea2` and at `13bc5036d2` (the
-  branch's tip was `08c9dea25f`, three commits later), and that step 2's question to the owner is
+  branch's tip was `08c9dea25f`, three commits after it), and that step 2's question to the owner is
   answered by the accepted gate; item 5 gains the device-free pass on copies of this host's pair
   with its two negative controls, the only arm before step 23 that asserts a pass on the 32-byte
   header; item 6 names the 24-byte route; and the writer list and the assumption about step 2's
@@ -806,6 +806,29 @@ Run in the revision that answered this gate re-check, read only:
 - The prose checker described under [The prose checks](#the-prose-checks), on this file and on a
   deliberately broken copy of it.
 
+Run in the revision that answered the narrow gate check of the fourth revision, read only:
+
+- `git show main:<path>` for the proposal's "ABI gate and tests", the plan's step 6 "What it
+  builds", "Open items" and "VM measurements", and the binding `README.md`'s "What this crate
+  does not do", re-measured against `main` at `6c838ba11f` with
+  `check-amendment-quotations-against-a-main-commit.ts`; every quotation is word for word there,
+  and the lines it prints are the locators this file now carries.
+- `git log`, `git rev-parse` and `git merge-base` on step 2's branch: its tip `08c9dea25f`, the
+  integrate branch at `58a1bba2f5`, and its absence from `main` at `6c838ba11f`, read at
+  2026-11-19T23:04:00-05:00.
+- `git show 08c9dea25f:` for step 2's `e2e/run-fixture.ts`, its `live_btf_tests.rs` and its
+  measurement record, for the recipe's copy of `/sys/kernel/btf/vmlinux` and its assert after
+  `insmod`, the test's `pahole --btf_base` read, and the recorded layout line.
+- The narrow check's kept review and its `keep/evidence/` folder, for the clone-handler run's
+  output, the reflog times and the two BTF header readings; the clone-handler run itself was read
+  there and not re-run.
+- `gh api` of the corrective commit comment 210970301 on `71829d109c`, which records the same five
+  reflog times this file's revision entry gives.
+- `gh api` of `module/zfs/zvol.c` at `zfs-2.2.2` and `zfs-2.3.0`, for `zvol_set_common`'s arrival
+  at 2.3.0 in place of the two functions 2.2.2 called.
+- The prose checker described under [The prose checks](#the-prose-checks), on this file and on a
+  deliberately broken copy of it, run from the copy whose checksum the section records.
+
 Not run:
 
 - No VM, no container, no ZFS command that changes anything,
@@ -818,7 +841,7 @@ Not run:
 
 A checker written for the revision gate re-check, kept at
 `/home/user/temp/agent/zfs-runtime-layout-checker-design-revision-gate-recheck-2026-11-19/notes/check-prose.ts`,
-read this file after the revision that answered the third gate re-check.
+read this file after the revision that answered the narrow gate check of the fourth revision.
 The checker is not part of the repository, so its path is a scratch path like the logs this file
 cites.
 It reports no em or en dash, no line of 120 characters or more (the longest is 116), no table,
@@ -835,24 +858,24 @@ is the list marker of the `README.md` bullet quoted in
 [the amendment these answers owe](#the-amendment-these-answers-owe-the-proposal-the-plan-and-the-binding-readme).
 Its ALL CAPS hits include the two quoted markers of the main checkout's handover paragraphs,
 "THE ROUND WAS ASKED" and "LAYOUT CHECKER REVIEW ENDED", which are a record's own words.
-The checks that this revision's edits could move kept their counts from the revision before it:
-dashes 0, spaced hyphens 5, long lines 0 with the longest at 116, tables 0, heading issues 0,
-positional words 25, emphasis 0, marker padding 0, digit-plus-noun hits 67 and link problems 0,
-and ALL CAPS words went from 15 to 19 for the extra mentions of the quoted markers.
-Bare dates went from 60 to 61 for one more `([Answers of 2026-11-19](#answers-of-2026-11-19))`
-link, and count words from 216 to 250 as the file grew.
+This revision's counts: dashes 0, spaced hyphens 5, long lines 0 with the longest at 116, tables 0,
+heading issues 0, positional words 25, emphasis 0, ALL CAPS words 21, marker padding 0,
+bare dates 61, count words 261, digit-plus-noun hits 67 and link problems 0.
+ALL CAPS words went from 19 to 21, for the quoted markers and these sentences about them, and
+count words from 250 to 261 as the file grew; the rest held the counts the revision before it
+recorded.
 
-Control: the same checker on a copy in this revision's scratch folder with one injected defect per
+Control: the same checker on a copy in this round's scratch folder with one injected defect per
 prose rule moved every count it targets: dashes 0 to 1, spaced hyphens 5 to 6, long lines 0 to 1
-with the longest at 220, tables 0 to 2, heading issues 0 to 4, positional words 25 to 26,
-emphasis 0 to 1, ALL CAPS words 19 to 20, marker padding 0 to 1, bare dates 61 to 62, count words
-250 to 252 and digit-plus-noun hits 67 to 68.
+with the longest at 200, tables 0 to 3, heading issues 0 to 2, positional words 25 to 26,
+emphasis 0 to 1, ALL CAPS words 21 to 22, marker padding 0 to 1, bare dates 61 to 62, count words
+261 to 263 and digit-plus-noun hits 67 to 68.
 Link problems rose from 0 to 26: 22 of them are the copy's own folder breaking the relative links to
 the sibling design files, and the other four are the injected missing anchor, the injected link to
 a file that does not exist, and the injected unused definition, which counts once as unused and
 once as a file that does not exist, so the checker detects each kind it reports.
 The copy, its generator and the two logs are in
-`~/temp/agent/zfs-runtime-layout-checker-design-third-revision-recheck-findings-fixed-2026-11-19/scratch/`.
+`~/temp/agent/zfs-runtime-layout-checker-design-fourth-revision-narrow-check-findings-fixed-2026-11-19/scratch/`.
 
 ## The open item and the decisions that bound it
 
@@ -2675,8 +2698,8 @@ Every measurement stays owed, and no item here touches this host's pool or modul
     `layout zfs_cmd bytes=13744 dmu_objset_stats=288 zinject_record=368 drr_begin=304 source=/sys/kernel/btf/zfs`
     `main`'s handover records that fresh guest run and the recipe's two steps, at lines
     40200 to 40223 of the file at `6c838ba11f`, and it holds no copy of the record itself.
-    Earlier, at `4c7a347ea2`, the test read the module's DWARF and the record gave `KBUILD_BUILTIN`
-    as the reason the guest could produce no module BTF.
+    The fix round began at `4c7a347ea2`, where the test read the module's DWARF and the record gave
+    `KBUILD_BUILTIN` as the reason the guest could produce no module BTF.
     The guest's own `/sys/kernel/btf/vmlinux` is recorded: the step 2 short review's probe read it as
     raw BTF with magic `9f eb 01 00` and copied it into the build directory, which is the `cp` the
     recipe now runs and which fails there without the file under `set -eu`.
