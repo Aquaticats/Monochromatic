@@ -1668,9 +1668,9 @@ the pre-scan, the expectations and the comparison.
 `src/lib.rs` declares it and re-exports its entry point beside `layout`'s, and the crate root gains
 a `src/uses/compatibility_check` link, as `src/uses/` already links each folder `src/lib.rs`
 declares.
-It names what the folder does, comparing two files, while the plan's word "gate" also covers the
-device and identity steps the wrapper holds; the alternative is `compatibility_gate`, and the name
-is open to veto, with "veto none" as the default.
+The name says what the folder does, comparing two files, while the plan's word "gate" also covers
+the device and identity steps the wrapper holds; the alternative is `compatibility_gate`, and the
+name is open to veto, with "veto none" as the default.
 Its expectations read `Operation::ALL` and `Operation::code()` from `src/requests/operation.rs`,
 which are public, and `ZfsCmd`, `DmuObjsetStats`, `ZinjectRecord`, `ZcInjectOverlay` and
 `ZcDestroyControl` from `src/layout/zfs_cmd_t.rs`.
@@ -2674,7 +2674,7 @@ Every measurement stays owed, and no item here touches this host's pool or modul
     24-byte header, and a module whose BTF reports `hdr_len` 32 (the host's kernel is
     `7.3.5-1-cachyos`, unqualified for the product until step 23), must both parse and compare.
     The 24-byte case's route is item 11's: copy `/sys/kernel/btf/vmlinux` into the guest's kernel
-    build directory before the module build, which is what step 2's fix round does.
+    build directory before the module build, which is what step 2's fix round did.
     A 6.8 guest's tools are expected, unmeasured, to emit no 32-byte file, so that shape is asserted
     by item 5's device-free arm rather than here.
     Control: a file with `hdr_len` 16, and a file whose sections overlap, must refuse.
