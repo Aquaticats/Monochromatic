@@ -40388,9 +40388,12 @@ stated in this entry. What follows from them, as work:
   the owner asked "Why not ~/.cache ?", was told any program running as the account could swap a handle there and steer
   a root unmount, and answered "In ~/.cache . We have to assume my machine isn't compromised. sudo is passwordless here
   anyway." So the handle record lives in `~/.cache`, and the threat model for this machine is the owner's: the account
-  is trusted, and root and the account are not a security boundary here. NEXT: one round per design to apply these
+  is trusted, and root and the account are not a security boundary here. GOING: one round per design applying these
   answers (each records them with the owner's words and the timestamp; the staging round also lists, as suggestions
-  only, any other hardening against the account that the owner's threat model makes unnecessary). That answer was
+  only, any other hardening against the account that the owner's threat model makes unnecessary):
+  `pi-zfs-start-probe-design-owner-answers-applied`, `pi-zfs-runtime-layout-checker-design-owner-answers-applied` and
+  `pi-zfs-staging-under-cache-design-owner-answers-applied` (DeepSeek on Neuralwatt, cap 300 each); briefs under
+  `~/temp/agent/zfs-*-design-owner-answers-applied-2026-11-19/`. That answer was
   first written into
   `doc/handover/questions-for-the-owner.md`, whose header keeps it to open questions; the owner asked "Do you know what a
   questions file is?", the answer moved here, and the owner said "Fix the bigger mess too.": that file still held about
@@ -40412,7 +40415,14 @@ stated in this entry. What follows from them, as work:
   bullet (dead `cli-git@` units, the 0.5.34 folder) was already done; lows: a stale bullet on four retired codes, the
   kv-store answer only on an unmerged branch, the report's counts. GOING: the second round
   `pi-open-questions-cleanup-review-findings-fixed` (DeepSeek on Neuralwatt, cap 300), allowed to change comments only in
-  code; brief under `~/temp/agent/open-questions-cleanup-review-findings-fixed-2026-11-19/`. Then merge. By the owner's
+  code; brief under `~/temp/agent/open-questions-cleanup-review-findings-fixed-2026-11-19/`. It ended `idle` (146
+  turns) at `b9de5c4304` (13 commits; report in that folder's `keep/report.md`): F1 to F9 and F11 to F13 fixed, F10
+  dismissed on evidence (SPEC holds the words across a line break); the error-class answer moved to
+  `doc/planning/propagating-pattern-owners.md`; the campaign record restored beside the pause; the Pi trial figures in
+  a new `doc/planning/pi-agent-concurrency-limit-and-the-2026-11-09-trial.md`. The coordinator checked that every `.rs`
+  change is a comment line (a filter that lists the code lines of `6a96d4a28a..d8f8861a8e` as its positive control) and
+  merged: IN MAIN as `308d3103d4`; the file is 673 lines. Still open for the owner: the run's suggested rule letting
+  agents add a moved-path note to a decision record. By the owner's
   answers of
   2026-11-19T17:10:00-05:00 (questions file) the LFS review and the provider rebuild finish and nothing else off the
   ineligible option ranked first in the layout checker). By the owner's answers of
@@ -40734,7 +40744,18 @@ stated in this entry. What follows from them, as work:
   package's `perf/` and cited beside 768m. GOING: the Sonnet review of the repair commits `6a96d4a28a..d8f8861a8e` in the
   integration worktree (merges the new tip and `main`, runs the changed modules in the gate image, decides whether the
   whole gate must run again); brief under
-  `~/temp/agent/container-gate-on-a-zfs-host-repair-commits-gate-review-2026-11-19/`. Then the merge.
+  `~/temp/agent/container-gate-on-a-zfs-host-repair-commits-gate-review-2026-11-19/`. It came back NOT FIT on one medium
+  (logs in that folder's `keep/`; integration branch at `207c542eca`, pushed): the whole gate on the merged tree read
+  9171 of 9173 with only the two cause-H failures, but the `process-<pid>` assertion in
+  `test_support_tests.rs:64` now sits inside the no-variable branch, so the gate no longer checks that each test
+  process gets its own fixture folder, which `main`'s gate did (a mutation to a shared folder passed on the gate root);
+  lows: an empty `TMPDIR` gives a false red, the comparison is lexical so symlinks escape it, a doc sentence on
+  milliseconds, peak figures stated as exact though sampled (the conservative bound 2048 − 1123.8 = 924.2 MiB still
+  leaves 768m 156.2 MiB below), older figures not marked as history, two partial commit subjects. The merge again
+  removed the author's worktree; re-created from the branch. GOING: the third round
+  `pi-git-policy-cli-container-gate-on-a-zfs-host-repair-review-findings-fixed` (DeepSeek on Neuralwatt, cap 250), with
+  the review's narrow re-check and no whole gate; brief under
+  `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-repair-review-findings-fixed-2026-11-19/`. Then the merge.
 - **GOING**: the hybrid provider prototype (the owner's "Hybrid, prototype first"), unit
   `pi-rate-limit-fallback-hybrid-prototype` (DeepSeek on Neuralwatt, turn cap 380, a quarter above the longest
   finished run on this package, 301; wall 300 minutes, the longest took 260), in
