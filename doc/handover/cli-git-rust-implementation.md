@@ -40480,8 +40480,18 @@ stated in this entry. What follows from them, as work:
   anything but a filesystem dataset; back to a release list); answer: "Keep: layout decides". GOING:
   `pi-zfs-runtime-layout-checker-design-owner-answers-gate-review-findings-fixed` (DeepSeek on Neuralwatt, cap 510) in
   the design worktree, steered with that answer; brief under
-  `~/temp/agent/zfs-runtime-layout-checker-design-owner-answers-gate-review-findings-fixed-2026-11-19/`. Then a short
-  re-check, then acceptance. START PROBE REVIEW ENDED (Sonnet, about 33 min; that folder's `keep/review.md`): not
+  `~/temp/agent/zfs-runtime-layout-checker-design-owner-answers-gate-review-findings-fixed-2026-11-19/`. It ended `idle`
+  (211 turns, 11 min) at `0fbfc6c073` (three commits; that folder's `keep/report.md`): H1 restated (what the
+  comparison read and skipped, the volume change, why the wrapper's own user property reaches the default path, the
+  contradicted sentence deleted and the effect on the binding called unmeasured); the re-confirmed answer recorded in
+  "The evidence correction, Q2 asked again"; M1 to M4 fixed (the checker goes in a new sibling folder
+  `src/compatibility_check/` with `uses/layout` and `uses/requests`); twelve lows fixed, L12 dismissed as about the
+  report. Amendment texts for the proposal (235 to 236), plan step 6 (711 to 715 and 760 to 762) and the binding README
+  (149 to 152) are in its report, not applied. Writer choices open to veto: `doctor` compares the exact text `2.4.4-1`;
+  an absent `srcversion` or build-id note degrades the reload check instead of refusing; the folder name. GOING: a
+  Sonnet gate re-check of the revision (brief under
+  `~/temp/agent/zfs-runtime-layout-checker-design-third-revision-gate-recheck-2026-11-19/`), also asked how the gate
+  treats a module without BTF given step 2's finding. Then acceptance. START PROBE REVIEW ENDED (Sonnet, about 33 min; that folder's `keep/review.md`): not
   ready, no high, six mediums, all text: the companion sits in the add preflight but not in `doctor`, against the
   proposal's "Share preflight with `doctor`"; "That is the project's choice" claims a printed skip on a refused user
   namespace the project never chose (the Q6 option text named the skip only as a cost; the add going ahead is the
