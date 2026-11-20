@@ -40254,7 +40254,13 @@ stated in this entry. What follows from them, as work:
   built stays (`localhost/zfs-request-to-openzfs-kernel-device-fuzz:integration-recheck-zfs-step-2-after-its-findings-round-2026-11-19`,
   5.39 GB) for later smoke runs. The two step 2 integration worktrees are removed; the wrapper left the author worktree
   `.claude/worktrees/zfs-step-2-live-requests-and-guest-fixture`, because a process of this account hid its working
-  folder, to remove once nothing runs there. Steps 3 and 4's guest arms can now be written on step 2's recipe.
+  folder, to remove once nothing runs there. Steps 3 and 4's guest arms can now be written on step 2's recipe. That
+  process was KDE's screen locker (`kscreenlocker_greet`, started when the screen locked, younger than the worktree), so
+  the worktree was removed by hand (its service journal kept, as the wrapper said); while a screen stays locked every
+  landed worktree is left the same way (`worktree_process_inside.rs:163`, `:268`), filed as issue 6321. GOING: the
+  nine lows, `pi-zfs-step-2-merge-lows-fixed` (DeepSeek on Neuralwatt, cap 400) on
+  `fix/zfs-request-to-openzfs-kernel-device-step-2-merge-lows` from `main` in `.claude/worktrees/zfs-step-2-merge-lows`;
+  brief under `~/temp/agent/zfs-step-2-merge-lows-fixed-2026-11-20/`.
   STEP 4 HOST HALF ENDED `idle` (259 turns, 49 min) at `185902f904` (three commits, 26 files, 4,336 lines added; report
   and logs in `~/temp/agent/zfs-step-4-descriptor-attach-host-half-2026-11-19/keep/`): `src/native/worktree_clone_mount/`
   (the no-crossing walk holding a descriptor per folder, six recorded identity fields with ACLs as raw xattr bytes, the
