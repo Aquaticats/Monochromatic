@@ -54,15 +54,17 @@ fn settling_keeps_removes_and_accepts_a_tree_that_is_gone() {
 /// Fixtures are created beside the build output,
 /// never in the system temporary directory,
 /// and a run that moves the root keeps the moved root out of the system temporary directory too.
+/// The root's last component is this process's own directory whichever root the run chose,
+/// so the names under it that are not fixtures' own are the process's.
 #[test]
 fn the_fixture_root_is_not_the_system_temporary_directory() {
     let root: PathBuf = fixture_root();
     if std::env::var_os(FIXTURE_ROOT_VARIABLE).is_none() {
-        // The last component is this process's own directory, so the names under it that are not fixtures' own are the
-        //  process's: the build output above `test-fixtures` is shared by every checkout that builds here.
+        // The build output above `test-fixtures` is shared by every checkout that builds here, and a moved root cannot
+        //  satisfy this assertion, which is why only this one is inside the arm without the variable.
         assert!(root.parent().is_some_and(|above| { return above.ends_with("test-fixtures"); }), "{}", root.display());
-        assert!(root.ends_with(format!("process-{}", std::process::id()).as_str()), "{}", root.display());
     }
+    assert!(root.ends_with(format!("process-{}", std::process::id()).as_str()), "{}", root.display());
     for directory in system_temporary_directories() {
         assert!(!root.starts_with(&directory), "{} is under the system temporary directory {}", root.display(), directory.display());
     }
