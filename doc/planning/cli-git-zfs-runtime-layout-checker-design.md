@@ -244,7 +244,7 @@ one.
 The Q2 answer supersedes a proof three accepted or merged files state, and none is edited here.
 The plan asks that a citation name its heading, never its line
 (`cli-git-zfs-worktree-implementation-plan.md:52-54`), so each heading named in this section
-carries the lines that hold it in `main` at `970dfeaeec`, as a locator beside the heading.
+carries the lines that hold it in `main` at `59152e567b`, as a locator beside the heading.
 Line numbers move between commits, so each locator is a convenience and the heading is the
 citation.
 The design proposal lists the module release among the gate's proofs
@@ -282,7 +282,7 @@ lines 149 to 152:
 All three were right when they were accepted or merged; the project's answer of 2026-11-19
 supersedes one proof the gate makes, so it makes no release check, and the release string it reads
 is identity and `doctor` reporting.
-The third file's text is quoted from `main` at `970dfeaeec`, by heading and bullet, because the
+The third file's text is quoted from `main` at `59152e567b`, by heading and bullet, because the
 lines move: step 2's branch, unmerged, rewrites that same bullet to open "It checks no kernel
 compatibility at start" and keeps its own "release" wording, so whichever of step 2 and this
 amendment merges first, the other re-quotes the bullet.
@@ -341,12 +341,12 @@ Binding `README.md`, replacing the second bullet of "What this crate does not do
 ```
 
 One more line of the plan belongs to this amendment and is no replacement.
-Step 6's "VM measurements", lines 748 to 754 on `main` at `970dfeaeec`, holds "Two arms in the
+Step 6's "VM measurements", lines 748 to 754 on `main` at `59152e567b`, holds "Two arms in the
 throwaway guest: an untested release, and a module whose field layout differs from the approved
 one, each asserting that raw requests are disabled."
 The "untested release" arm is the start probe's, a kernel release and not a module release: the
 proposal's "Decided behaviours with no test yet" pairs "an untested release" with the probe
-(line 1841), and the probe "admits untested releases" (lines 628 to 629 and 1303 to 1305), so the
+(line 1841), and the probe "admits untested releases" (lines 628 to 629 and 1303 to 1304), so the
 arm's assertion that raw requests are disabled is not this design's to make and stays a matter for
 the probe design and the plan.
 Q2's "Any version, layout decides" leaves a module-release arm nothing to assert, since an
@@ -384,7 +384,7 @@ have to pin the source of every build, which is the exact-profile cost the recor
 rule wide enough to admit a rebuild admits a behaviour change too.
 The project accepted an analogous stance before this file existed, for kernel releases rather than
 module ones: the proposal's "Kernel-release readiness" says a functional probe "admits untested
-releases and leaves unmeasured behaviour to appear on the host" (lines 1303 to 1305, the same
+releases and leaves unmeasured behaviour to appear on the host" (lines 1303 to 1304, the same
 words at lines 628 to 629).
 
 ## Status and sources
@@ -561,8 +561,9 @@ the pick is not made here.
   The gate review's four scripts were re-run against the same three tagged copies and reproduce its
   counts, and the control run is recorded under [The prose checks](#the-prose-checks).
   No product file, no plan step and no proposal step is edited here.
-- `2026-11-19T22:31:12-05:00`, the commit that carries this entry: the revision that answers the
-  third gate re-check, kept at
+- `2026-11-19T22:33:00-05:00`, commit `b940ad1489` at 22:31:12, which applies the findings, and
+  the commit that carries this entry, which changes only this record and the `main` commit its
+  locators name: the revision that answers the third gate re-check, kept at
   `/home/user/temp/agent/zfs-runtime-layout-checker-design-third-revision-gate-recheck-2026-11-19/keep/review.md`.
   That re-check is independent of this file's author (rule `IRW`) and is not an approval; it found no
   high finding, two mediums and nine lows, and called the file not ready for the project.
@@ -590,7 +591,7 @@ the pick is not made here.
   the tests run" and an analogy with the kernel-release stance, and the start probe's newer tip
   `3dff37b556` is named (L8); and the amendment says what plan step 6's "untested release" arm is
   and that the guest's BTF file waits on item 11 (L9).
-  Every amendment line was re-measured against `main` at `970dfeaeec`, the commit this revision read,
+  Every amendment line was re-measured against `main` at `59152e567b`, the commit this revision read,
   and the `README.md` bullet is located by heading and bullet because step 2's branch rewrites it.
   The prose checker ran clean and its control moved every count it targets, under
   [The prose checks](#the-prose-checks).
@@ -771,7 +772,7 @@ Run in the revision that answered this gate re-check, read only:
   values stayed.
 - `git show main:<path>` for the proposal's "ABI gate and tests" and "Kernel-release readiness",
   the plan's step 6 and "Where the tests run", and the binding `README.md`'s "What this crate does
-  not do", to re-measure every amendment line against `main` at `970dfeaeec`.
+  not do", to re-measure every amendment line against `main`, last read at `59152e567b`.
 - The gate re-check's kept review, its scripts' outputs and its source excerpts, and the step 2 short
   review's first finding, all read for what each one reproduced.
 - Its excerpt of step 2's measurement record and `README.md` at `4c7a347ea2`, and `git show` of
