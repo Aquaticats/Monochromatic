@@ -947,7 +947,7 @@ Its skip. The skip's boundary is the end of the namespace setup, not the first c
 scratch tmpfs, is a skip, and arm failures start at the tmpfs attach. That boundary is the wrapper's own
 precedent: its test control runs `unshare --user --map-root-user --mount --propagation private /bin/true` and treats
 a non-zero answer from any part of that setup as "unavailable", with a stated reason
-(`package/git-policy/cli/src/native/binary/binary_worktree_removal_around_a_volume_tests.rs:159` to `:181`).
+(`package/git-policy/cli/src/native/binary/binary_worktree_removal_around_a_volume_tests.rs:164` to `:182`).
 
 The reason the boundary has to reach past the first call: a kernel can grant the user namespace and take the
 capabilities inside it away, and Ubuntu 24.04's default AppArmor profile does exactly that, as its release notes
