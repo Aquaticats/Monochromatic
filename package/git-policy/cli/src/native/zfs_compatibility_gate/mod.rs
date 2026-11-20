@@ -46,13 +46,15 @@
 //! if (verdict.refusal) return reportRefusal(verdict.refusal);
 //! ```
 
-/// The device, identity and type-information paths one check reads.
+/// The device,
+/// identity and type-information paths one check reads.
 pub mod gate_paths;
 /// The target allowlist the managed route is qualified for.
 pub mod gate_target;
 /// The loaded module's identity and each file's own facts.
 pub mod module_identity;
-/// The check, its one retry and the per-process cache.
+/// The check,
+/// its one retry and the per-process cache.
 pub mod gate_verdict;
 /// The words the caller and `doctor` print.
 pub mod gate_words;
@@ -78,7 +80,8 @@ mod gate_target_tests;
 #[cfg(test)]
 #[path = "module_identity_tests.rs"]
 mod module_identity_tests;
-/// The check, its retry and its cache.
+/// The check,
+/// its retry and its cache.
 #[cfg(test)]
 #[path = "gate_verdict_tests.rs"]
 mod gate_verdict_tests;

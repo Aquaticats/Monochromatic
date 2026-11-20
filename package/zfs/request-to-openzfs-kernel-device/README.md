@@ -248,8 +248,8 @@ and the words a person reads.
 The verdict is remembered per process and never written to disk
 (`doc/decision/cli-git-zfs-runtime-layout-checker.md`).
 
-The reader is this crate's own minimal decoder for the two checked files, kept
-behind `btf_decode.rs`.
+The reader is this crate's own minimal decoder for the two checked files,
+kept behind `btf_decode.rs`.
 The project's reader pick (Q1 of the design) is still owed,
 and the design measured a dependency for it;
 until that pick lands this decoder serves the gate and the pick replaces it
