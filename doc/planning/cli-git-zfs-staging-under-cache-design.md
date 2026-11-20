@@ -1477,8 +1477,8 @@ the name stays the revision's first commit rather than its last.
   atomic write, readers and lifetime. That commit and its later commits also add "Hardening the stated threat model may
   make unnecessary", make Way A the design with the rollback of a clone that lands on a stacked mount, add the
   pre-call and post-call mount checks and the arms the record's place and the rollback earn, and name the design's
-  own arms at the end of the measurements. Its label is the committer timestamp of `68dc9f29d6` at
-  `2026-11-19T21:02:51-05:00`, the last commit that changed this revision before this label was written, because a
+  own arms at the end of the measurements. Its label is the committer timestamp of `7ce390f69a` at
+  `2026-11-19T21:03:31-05:00`, the last commit that changed this revision before this label was written, because a
   commit cannot name its own hash; the prose checker under
   `~/temp/agent/zfs-staging-under-cache-design-second-revision-gate-recheck-2026-11-19/notes/` passes on this
   revision and fails on a control copy with planted faults.
