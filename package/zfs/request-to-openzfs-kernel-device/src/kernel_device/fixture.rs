@@ -20,15 +20,16 @@
 //!  ends,
 //! so the guest's own disks are the only thing a run touches.
 
-// The codec list the creation-time properties travel in.
+/// The codec list the creation-time properties travel in.
 use crate::nvlist::NvList;
-// The environment the fixture reads, and the process it starts.
+/// The environment the fixture reads,
+/// and the process it starts.
 use std::env;
-// The one-argument type the environment lookup returns.
+/// The one-argument type the environment lookup returns.
 use std::ffi::OsString;
-// The path types the fixture root and the program paths are.
+/// The path types the fixture root and the program paths are.
 use std::path::{Path, PathBuf};
-// The process the fixture runs its userspace through.
+/// The process the fixture runs its userspace through.
 use std::process::{Command, Output};
 
 /// The variable naming the guest a live test may run in.

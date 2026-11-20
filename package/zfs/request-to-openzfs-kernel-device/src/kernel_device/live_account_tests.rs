@@ -241,11 +241,17 @@ fn the_account_batch_with_a_dependent_clone_on_a_promoted_clone_keeps_both_names
     let after: Vec<String> = listing_names(|cursor| {
         return device.snapshot_list_next(&promoted, cursor);
     });
-    let mut kept: Vec<String> = after.clone();
+    let mut kept: Vec<String> = after;
     let mut wanted: Vec<String> = before;
     kept.sort();
     wanted.sort();
     assert_eq!(kept, wanted, "a refused batch keeps every name");
+    println!(
+        "MEASUREMENT account promoted mixed-batch refused={:?} elements={} kept={}",
+        failure.errno(),
+        failure.elements().len(),
+        kept.len()
+    );
 }
 
 #[test]
@@ -287,12 +293,6 @@ fn the_account_batch_with_a_dependent_clone_keeps_both_names() {
     kept.sort();
     wanted.sort();
     assert_eq!(kept, wanted, "a refused batch keeps every name");
-    println!(
-        "MEASUREMENT account promoted mixed-batch refused={:?} elements={} kept={}",
-        failure.errno(),
-        failure.elements().len(),
-        after.len()
-    );
 }
 
 #[test]

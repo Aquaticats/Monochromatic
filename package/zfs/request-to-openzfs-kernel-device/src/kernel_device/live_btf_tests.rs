@@ -30,8 +30,9 @@ use super::live_btf_nested_fields::{
     zfs_share_fields, zfs_stat_fields, zinject_record_fields,
 };
 use crate::requests::Operation;
-// The program that prints a type's layout.
+/// The path type the module BTF's location is built from.
 use std::path::PathBuf;
+/// The process that runs `pahole`.
 use std::process::Command;
 
 /// Where the running kernel exposes each loaded module's own type information.
