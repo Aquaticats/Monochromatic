@@ -40108,8 +40108,21 @@ What follows from them, as work:
   jsonc-edit library is, version `0.1.0-alpha.1`, so the merge uploads nothing to crates.io. GOING:
   `pi-zfs-step-1-integration-findings-fixed` (DeepSeek on Neuralwatt, cap 480) in the author's worktree: merge `main`,
   that answer with one sentence in the plan's step 1 citing it, then findings 2 to 9; brief under
-  `~/temp/agent/zfs-step-1-integration-findings-fixed-2026-11-19/`. Then a fresh Sonnet pass on its tip, merge, step 2;
-  the plan's stale status paragraph is the coordinator's to edit after the merge. THE OFFLINE
+  `~/temp/agent/zfs-step-1-integration-findings-fixed-2026-11-19/`. It ended `idle` (197 turns) at `9ad03c6335` (merge
+  of `main` clean, then ten commits; report in that folder's `keep/report.md`, every red and green under `keep/logs/`):
+  both workflows wired as jsonc-edit is (`zr-detect`, `zr-publish-crate`), version `0.1.0-alpha.1`, both locks refreshed
+  by Cargo; its trace of a push of the alpha: `should_publish` true, every crates.io step gated on `goes_to_crates_io`,
+  which the label action sets false, and no release job; the five crate-release tests pass; the plan gained one sentence
+  at line 313; the README fence is `text`; the fuzz script takes its base from the wrapper's resolver and the saved
+  `gate.Containerfile` from `ARG GATE_BASE_IMAGE`; `offset_of!` pins for every field a request writes and a cap-boundary
+  test, each red then green; the closure rule recorded as not checked. 144 tests, Clippy, `fmt`, `doc`, `file-enforcer
+  check` clean, the linter with only the Dylint skip, the 30-second smoke in the rebuilt fuzz image. Three commit
+  messages were defective (apostrophes lost to shell quoting in `86cc34faae` and `081c2e8ce1`; a pass claimed before
+  the build ended in `9700c485f2`); corrective commit comments posted on GitHub. GOING: the second Sonnet integration
+  pass on `9ad03c6335` in the same integration worktree (merges `main` and the tip, runs the crate-release suite on the
+  merged tree and on `main` as a control, traces every crate's publish job for the merge push, reruns the merge
+  condition's checks, shows two reds); brief under `~/temp/agent/zfs-step-1-integration-pass-after-findings-fixed-2026-11-19/`.
+  On "fit", merge, step 2; the plan's stale status paragraph is the coordinator's to edit after the merge. THE OFFLINE
   `file-enforcer` ROUTE: GOING `pi-git-policy-cli-gate-base-image-browserslist-data` (DeepSeek on Neuralwatt, cap 350)
   in `.claude/worktrees/git-policy-cli-gate-base-image-browserslist-data` on
   `fix/git-policy-cli-gate-base-image-carries-the-pinned-browserslist-data`, stacked on the githooks fix: the base
