@@ -980,9 +980,9 @@ Set up a clone at a slot, a private bind on a depth-one staging folder, and the 
   and reported. Control: the same three folders with nothing wrong in them, which must each be removed by `rmdir`,
   so a sweep that keeps every folder fails the arm.
 - A claim lost with the common directory: remove the repository's staging claim and leave the folder, its record and
-  its handle standing. Assert the sweep removes the folder by `rmdir` after the clear receipt, because the component
-  and the record prove it, and that `doctor` printed it as an orphan before that. Control: a folder whose GUID matches
-  no live clone, which must stay.
+  its handle standing. Assert the sweep keeps the folder, reports it, and that `doctor` prints it as an orphan,
+  because without that claim nothing proves the wrapper made the folder. Control: the same folder with its claim
+  standing and its identity matching, which the sweep removes by `rmdir` after the clear receipt.
 
 ### M7. Two removals at once
 
@@ -1051,6 +1051,10 @@ namespace holds it, made when the kernel propagates a mount into that namespace.
 handler writes for one removal attempt, naming the outcome. `~/.cache` here is the ZFS dataset the account's cache
 directory is mounted from. The wrapper is the unprivileged command you run. The handler is the root program that does
 the mounting. `doctor` is the read-only health report the wrapper prints.
+
+Each option is a complete design, so this question covers who creates the folder and how long the mount lives at the
+same time: who creates it is what separates the first option from the third, and how long a mount lives is what
+separates the first from the second.
 
 1.  "Bind one folder per removal, and make that bind private (Recommended)": the wrapper creates the folder, the
     handler binds it, makes the bind private and moves the clone onto it, and the unbind ends the bind.
