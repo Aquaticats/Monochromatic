@@ -15,9 +15,9 @@ was read for the first draft, which is how a non-existent mount attribute and a 
 kernel statements under [The kernel the design names](#the-kernel-the-design-names) name the version each was read
 from. What stays open: every measurement under [Owed measurements](#owed-measurements), none of which ran. The
 questions this design put to the owner were answered on 2026-11-19, and [Answers of 2026-11-19](#answers-of-2026-11-19)
-records each one with the option the project chose; the body beside it follows those answers. The design is
-accepted with its open items still open, and this file changes no decision of it. Nothing here authorizes work on
-this host's pool.
+records each one with the option the project chose; the body beside it follows those answers. The accepted ZFS
+worktree design is accepted with its open items still open, and this file changes no decision of it. Nothing here
+authorizes work on this host's pool.
 
 ## Revisions
 
@@ -882,22 +882,33 @@ mount namespace. The file is `first-attach`, beside `result` in `/run/git-worktr
 mode `0644` in that root-owned `0755` directory, read-only to the wrapper and `doctor`.
 
 Which process writes it, and when. The handler process that makes the first real clone attach after the current boot
-writes it: `boot-reconcile`, the attaching sweep a ZED event starts, or the no-argument sweep, whichever attaches
-first. It is that process, not the mode that supervises a probe and not the wrapper. It writes after the attach's
-outcome is known, either the verified mount at the slot or the failing step and its errno, and before it publishes
-this boot's receipt and readiness, so a reader that sees the readiness sees the file too, and a crash between the
-two leaves an outcome without a receipt rather than a receipt without an outcome.
+writes it: `boot-reconcile` or the sweep, whichever attaches first, the sweep being the zedlet's default
+invocation with no argument (the [plan][plan], step 5) rather than a second path. "First" means first to claim the
+file, not first to attach: two handler processes can finish out of order, and the one that claims the name first
+is the one whose outcome is kept. The claim is taken by the first attempt that reaches `fsopen`, and not by an
+attempt the handler's own checks refuse before that call: plan step 8 checks the encryption root and the key before
+any attach, and that refusal is a finding about the key, which `doctor` and the handler's journal already report.
+It is that process, not the mode that supervises a probe and not the wrapper. It writes after the attach's outcome
+is known, either the verified mount at the slot or the failing step, and before it publishes this boot's receipt.
+When the writing process is `boot-reconcile`, it also writes before readiness, so a reader that sees the readiness
+`boot-reconcile`
+publishes sees the file too; a sweep that attaches later writes after readiness was published, and the file's own
+time is what orders the two. A crash between the write and the receipt leaves an outcome without a receipt rather
+than a receipt without an outcome.
 
 How one writer keeps it. The writer claims the name with an exclusive creation, the shape `write_exclusive_synced`
 has (`package/git-policy/cli/src/native/foundation/private_storage.rs:500`), writing the started line; a process that
-finds the claim answers `EEXIST` and writes nothing. The winner then stages the outcome in a sibling in the same
-directory and renames it over the claimed name in one step, the shape `replace_private_file` has
-(`.../foundation/private_storage_replacing_a_record.rs:54`), written with the record's own owner and mode rather than
-the private `0600` the wrapper's helpers give the account's own files. A reader therefore sees the started line or
-the whole outcome, and a winner that dies between the claim and the rename leaves the started line, which every
-reader reports as begun and not finished, as it reports the probe's started record. The claim is per boot because
-the directory is on `/run`; the outcome also carries the boot ID, and a reader whose boot differs reads the file as
-stale.
+finds the claim answers `EEXIST` and writes nothing. Both writes set `0644` explicitly, because the helpers it takes
+their shape from publish at `0600`: the claim goes through `write_then_publish`'s mode argument, which
+`write_private_file` already uses (`:424` and `:392` to `:397`), and the staged outcome, which `replace_private_file`
+creates at `0600`, is `fchmod`ed before its rename
+(`.../foundation/private_storage_replacing_a_record.rs:54`). The winner then stages the outcome in a sibling in the
+same directory and renames it over the claimed name in one step, in that `replace_private_file` shape, with the
+record's own owner and mode rather than the private `0600` the wrapper's helpers give the account's own files. A
+reader therefore sees the started line or the whole outcome, and a winner that dies between the claim and the rename
+leaves the started line, which every reader reports as begun and not finished, as it reports the probe's started
+record. The claim is per boot because the directory is on `/run`; the outcome also carries the boot ID, and a reader
+whose boot differs reads the file as stale.
 
 Its format. One `key value` line per field, fixed keys and no free text, in the shape the probe's record uses:
 `v1` first, then `kind operation-outcome`, `state started` or the outcome, `boot <id>`, `kernel <release>`,
@@ -905,14 +916,18 @@ Its format. One `key value` line per field, fixed keys and no free text, in the 
 `operation attach`, and then either `outcome attached` with `mount <mount ID>`, `flags <the flags read back>`,
 `slot <the slot name>`, `clone <the clone's dataset name>` and `guid <the clone's GUID>`, or
 `outcome refused` with `slot <the slot name>`, `clone <the clone's dataset name>`, `guid <the clone's GUID>`,
-`step <the failing step>` and `errno <name>`. A reader refuses a set of lines with an unknown key, a repeated key,
-a missing required key or a value it cannot parse, and reports the file as unreadable rather than guessing.
+`step <the step>` and `errno <a name or none>`. The steps are the handler's own, in the order it runs them:
+`key-check`, `identity-compare`, `fsopen`, `fsconfig-create`, `fsmount`, `move-mount` and `verify`. A step that is
+one of the handler's checks writes `errno none`, because no call answered, and a step that is a call writes the
+errno name the call gave. A reader refuses a set of lines with an unknown key, a repeated key, a missing required
+key or a value it cannot parse, and reports the file as unreadable rather than guessing.
 
-How `doctor` reads it. In the same section as the probe's result, opened relative to the root-owned directory with
-`open_regular_file` and bounded by `read_regular_file`'s limit, so a link or a named pipe at the name is refused
-rather than waited on (`.../foundation/private_storage.rs:785` and `:817`). It prints the outcome and, for a
-refusal, the step and the errno; an absent file as no real attach this boot; a started line as begun and not
-finished; a boot ID that differs from this boot as stale; and an unreadable file as unreadable.
+How `doctor` reads it. In the same section as the probe's result, opened by path with `open_regular_file` and
+bounded by `read_regular_file`'s limit, so a link or a named pipe at the name is refused rather than waited on
+(`.../foundation/private_storage.rs:785` and `:817`). That open takes a path and is not a directory-relative open,
+which is enough here: the name sits in a root-owned `0755` directory and the open refuses a link at it. It prints
+the outcome and, for a refusal, the step and the errno; an absent file as no real attach this boot; a started line
+as begun and not finished; a boot ID that differs from this boot as stale; and an unreadable file as unreadable.
 
 How it stays an operation outcome. Its own `kind` line says `operation-outcome` and it has no verdict field, and no
 consumer gates on it: the add preflight reads the probe's record and the module gate, never this file, and a
@@ -922,12 +937,14 @@ attach did on this boot, so a clone whose key was unloaded, a slot whose identit
 failed reads as an operation failure and the probe's arms are unchanged. Where the two differ, `doctor` prints the
 difference as a difference and names both, without calling either a verdict on the other.
 
-Which plan steps carry the duty. Step 4, the attach module, builds the outcome line and the writer, because it is
-where the failing step and the errno are known (the [plan][plan], lines 549 to 634). Step 8, the attaching sweep,
-calls it, and its sweep is the path that makes the first attach after boot (lines 831 to 886). Step 7's readiness
-record references the file rather than owning it, as it does the probe's record (lines 762 to 779). Step 18's
-`doctor` gains the reader beside the probe's result (lines 1490 to 1571). [M8](#m8-the-real-clone-attach-as-evidence)
-measures the file against the probe's snapshot arm on one build.
+Which plan steps carry the duty. Step 4, "The descriptor attach, its identity checks and its rollback", builds the
+outcome line, the writer and the reader of the host facts the fingerprint holds (kernel release, module version,
+`srcversion` and the handler's binary identity), because it is where the failing step and the errno are known. Step
+8, "The attaching sweep for a clone that carries a mount request", calls it, and its sweep is the path that makes
+the first attach after boot. Step 7, "The intent property, the receipts and the readiness record", references the
+file rather than owning it, as it does the probe's record. Step 18, `doctor`, gains the reader beside the probe's
+result. [M8](#m8-the-real-clone-attach-as-evidence) measures the file against the probe's snapshot arm on one
+build. The line numbers inside [Notes for the plan](#notes-for-the-plan) name the plan's base.
 
 ### Who runs it, and where
 
@@ -973,8 +990,24 @@ process owns, described after the arms, so an interruptible child does not outli
 a child inside an uninterruptible kernel wait can outlive it until that wait returns; the unit's own `KillMode=`
 default of `control-group` sends nothing until the unit stops, so it bounds a leaked process only after a failed
 or finished run (`systemd.kill(5)`, `KillMode=`). A missed deadline writes a timed-out result and the route fails
-closed ([Q5](#q5-whether-a-missed-deadline-fails-closed)); the deadline's value comes from
-[M4](#m4-what-the-probe-costs).
+closed ([Q5](#q5-whether-a-missed-deadline-fails-closed)). That result names the arm in flight when the deadline
+fired and the arm the last status line named: the mode reads one line per arm, so the arm after the last line it
+read is the one that was running. Removal therefore does not guess: [Q2](#q2-what-a-failed-arm-disables)'s rule
+treats an in-flight move, unmount or scan arm as failed, so removal of a mounted clone is refused when the deadline
+caught one of those three, and a timeout that caught any other arm keeps the failed-arm answer's effects for new
+attaches only.
+
+Where the deadline's value comes from. No workload measurement exists, and rule `LQM` asks for a measurement or an
+owner decision beside every shipped limit, so no number ships uncited. Step 6 runs [M4](#m4-what-the-probe-costs)'s
+arm and whole-probe timings in its guest arms, through the transient unit
+[M9](#m9-the-untested-release-and-the-refused-release) describes, and the value ships beside that run; step 19's
+boot arms re-measure the login delay at boot, and the
+value is re-cited there if the boot reading differs. Until step 6's run exists, step 19 does not add the unit's
+`ExecStartPre=` for the probe, so no wedge can hold up `systemd-user-sessions.service` in the meantime, and the
+probe runs only from the transient unit. Step 10 does the same for the companion, citing the per-add deadline
+beside [M11](#m11-the-account-companion-per-add)'s run, and the companion does not run in the preflight until that
+value exists. A provisional ceiling set now by the project's own decision would also satisfy `LQM` and let step 19
+add the `ExecStartPre=` earlier; this design does not propose a number, and that choice is the project's.
 
 The unit sets no `TimeoutStartSec=`. A start timeout bounds a oneshot's `ExecStart` as well as its
 `ExecStartPre=`: the timer is armed per command with `s->timeout_start_usec` (systemd v262 `service.c:2991`,
@@ -1004,13 +1037,16 @@ The wrapper's own per-invocation start check stays the module gate. The wrapper 
 record it already must read before an add (the [proposal][proposal], lines 351 to 352) and reports it.
 
 The account companion is not part of this placement: it is the wrapper's per-add check, described under
-[The account companion](#the-account-companion), and no boot unit runs it.
+[The account companion](#the-account-companion), `doctor` runs it under the shared preflight, and no boot unit
+runs it.
 
 ### Where the verdict is enforced, and where the record lives
 
 The record is `/run/git-worktree-clone-mount-probe/result`: a root-owned file, mode `0644`, in a root-owned
 directory of mode `0755` that the mode process creates itself if it is absent, the same shape as the receipts
-directory `/run/git-worktree-clone-mount-results` (the [proposal][proposal], lines 550 to 553). The mode creates
+directory `/run/git-worktree-clone-mount-results` (the [proposal][proposal], lines 550 to 553). The writer of
+`first-attach` creates the same directory with the same owner and mode when it is absent, because a sweep can
+reach its first attach before the boot probe has written anything. The mode creates
 that directory rather than relying on the unit's `RuntimeDirectory=`, because systemd removes a runtime directory
 when the unit reaches its dead state, failed included (systemd v262 `service.c:2591` to `:2599`, `unit.c:6452` to
 `:6459`; `systemd.exec(5)`, `RuntimeDirectory=`), and that would delete the record exactly when a failed arm's
@@ -1116,10 +1152,11 @@ the module's `srcversion`, the boot ID from `/proc/sys/kernel/random/boot_id`, a
 in the shape `binary_identity` records. A module's build ID where the kernel exports one, under
 `/sys/module/zfs/notes/`, joins the fingerprint too; that directory is empty on this host, so `srcversion` is the
 build input that is always readable there. The record also holds the time of the run, each arm's outcome, errno
-and source, the holder's and the worker's namespace identities, the chosen source, whether the source existed, and
-the resulting verdict. The probe's own fields are written only by the mode process, from the lines it reads on the
-status pipes. The first real attach's outcome goes into a second file beside it, `first-attach`, written by the
-handler process that made that attach, as [The first real attach's record](#the-first-real-attachs-record) states:
+and source, the arm in flight and the last arm that finished when it timed out, the holder's and the worker's
+namespace identities, the chosen source, whether the source existed, and the resulting verdict. The probe's own
+fields are written only by the mode process, from the lines it reads on the status pipes. The first real attach's
+outcome goes into a second file beside it, `first-attach`, written by the handler process that made that attach, as
+[The first real attach's record](#the-first-real-attachs-record) states:
 that file has its own writer per boot and its own claim, so each file has one writer and no lock is needed. The
 wrapper and `doctor` read both and write neither.
 
@@ -1143,7 +1180,9 @@ route ([Q4](#q4-whether-an-unexercised-arm-may-enable-the-route)) with those sam
 `doctor` reports which arm did not run and why.
 
 A result naming a missed deadline is written as timed out, and the route fails closed
-([Q5](#q5-whether-a-missed-deadline-fails-closed)): the record is not current and the same effects follow.
+([Q5](#q5-whether-a-missed-deadline-fails-closed)): the record is not current, it names the arm in flight and the
+last arm that finished, and an in-flight move, unmount or scan arm is treated as failed for removal while every
+other timeout carries the failed-arm answer's effects for new attaches only ([Q2](#q2-what-a-failed-arm-disables)).
 
 A module or kernel whose fingerprint changed since the record makes the record stale; the next boot's probe
 replaces it, and an add in between reads stale readiness, which the preflight must report as not current rather
