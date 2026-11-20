@@ -96,10 +96,28 @@ the notices below are what those grants require.
   in `stream_cursor.rs`.
 - Additions:
   `NvData::data_type` (the wire type a value encodes as),
-  a
-  documented nesting bound,
-  and the same depth bound refused on both the read
-  and the write side.
+  and the documentation of the depth bound;
+  the original already refused that bound on both the read and the write
+  side (`src/nvlist.rs:409` and `:600`),
+  so only the documentation is new.
+- Not carried:
+  the `NvList` helpers `get_u64_array`,
+  `add_byte_array` and
+  `add_uint8_array` (`src/nvlist.rs:308`,
+  `:359`,
+  `:365`),
+  which no request of this crate builds,
+  and the original's reference-encoder test
+  (`pack_matches_reference_encoder`,
+  `src/nvlist.rs:1259-1279`),
+  replaced by the golden vectors in `src/nvlist/pack_tests.rs`.
+- An unknown `data_type_t` is kept rather than refused:
+  `NvData::Unknown` carries the type number,
+  the pair's element count and its value bytes,
+  so a decode and re-pack is a fixed point,
+  where OpenZFS refuses such a pair
+  (`i_get_value_size`'s `default: return (-1)`,
+  `module/nvpair/nvpair.c:1153-1156`).
 
 ### The layout (`src/layout/zfs_cmd_t.rs`)
 
@@ -115,6 +133,9 @@ the notices below are what those grants require.
   `zc_action_handle` sit at 13648,
   13652 and 13656 and `zc_cleanup_fd` starts at
   13664.
+  It also carries `dds_flags`,
+  the byte `zfs-2.4.4` added to `dmu_objset_stats_t`
+  (`include/sys/dmu.h:1041`).
   The size assertions follow the module's BTF for `zfs-2.4.4`.
 - The buffer that owns the zeroed words,
   its size bounds and its fixed-width
