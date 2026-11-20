@@ -15788,8 +15788,9 @@ quoting every path value under git-config value syntax at the final interpolatio
 
 The creation of a shadow is about forty calls that create a directory entry on the volume a commit already waits on,
 and the owner chose to stop paying it on every commit
-(`doc/handover/questions-for-the-owner.md`,
-"May a commit take its private repository from a pool made ahead?",
+(this section; the questions file's section "May a commit take its private repository from a pool made ahead?"
+left for it on 2026-11-19,
+with the answer
 "Pool made ahead (Recommended),
 We don't need to build a shadow for every commit.
 Be smarter.").
