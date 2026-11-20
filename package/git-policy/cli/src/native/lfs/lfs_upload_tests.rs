@@ -938,7 +938,10 @@ fn a_failure_that_names_no_login_keeps_the_words_it_had() {
 ///  the mask ran after the cut,
 ///  a URL cut before its `@` shows no userinfo,
 ///  and the front of the password reached the terminal with no word that anything was missing.
-///  The read is driven from prepared bytes,
+///  The read is driven from a prepared file through the shipped `relayed_head`,
+///  so a change to the shipped read, its one byte past the cap or its notice fails this control;
+///  a test that repeated those steps in its own body would pass with the shipped steps removed.
+///  A file rather than a process,
 ///  because which ending a write of just over the cap gets is the timing of one look against one process:
 ///  a whole gate of 2026-11-20 saw this control fail once with `Some(124)` against `Some(1)`,
 ///  the flood look winning over the stand-in's own exit.
@@ -947,7 +950,7 @@ fn a_failure_that_names_no_login_keeps_the_words_it_had() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const head = maskUrlSecretsWithin(bytes, MAX_RELAYED_BYTES); expect(head.cut).toBe(true); expect(text).not.toContain('planted')
+/// const text = relayedHead(file.open(bytes)); expect(text).toContain(notice()); expect(text).not.toContain('planted')
 /// ```
 #[test]
 fn a_relay_past_the_cap_keeps_no_part_of_a_cut_url_and_says_it_was_cut() {
@@ -964,17 +967,17 @@ fn a_relay_past_the_cap_keeps_no_part_of_a_cut_url_and_says_it_was_cut() {
     bytes.extend(std::iter::repeat_n(b'x', filler));
     bytes.extend_from_slice(url.as_bytes());
     bytes.push(b'\n');
-    // The parent reads one byte past the cap, so the read itself says more was printed than is relayed.
-    let read: usize = limit + 1;
-    let head: MaskedHead = mask_url_secrets_within(bytes.get(..read).unwrap_or_default(), MAX_RELAYED_BYTES);
-    let kept: String = String::from_utf8_lossy(head.text.as_slice()).into_owned();
-    assert!(head.cut, "the read says the output was longer than the cap");
+    let root: PathBuf = fixture("lfs-upload-relay-over-cap");
+    let path: PathBuf = root.join("stderr.txt");
+    std::fs::write(path.as_path(), bytes.as_slice()).expect("the prepared output");
+    let mut captured: std::fs::File = std::fs::File::open(path.as_path()).expect("open");
+    let relayed: Vec<u8> = relayed_head(&mut captured).expect("the shipped read answers");
+    let diagnostics: String = String::from_utf8_lossy(relayed.as_slice()).into_owned();
+    let kept: String = diagnostics.trim_end_matches(shortened_relay_notice().as_str()).to_string();
+    assert!(diagnostics.len() > kept.len(), "the read says the output was longer than the cap: {}", &diagnostics[diagnostics.len().saturating_sub(400)..]);
     assert_eq!(kept, first_line, "only the whole lines the cap holds are kept");
     assert!(!kept.contains("planted"), "no part of the password survives the cut");
     assert!(!kept.contains(secret), "the planted secret is not relayed");
-    let mut relayed: Vec<u8> = head.text;
-    relayed.extend_from_slice(shortened_relay_notice().as_bytes());
-    let diagnostics: String = String::from_utf8_lossy(relayed.as_slice()).into_owned();
     let notice: String = shortened_relay_notice();
     assert!(
         notice.contains(&format!("more than {MAX_RELAYED_BYTES} bytes of standard error")),
@@ -982,6 +985,7 @@ fn a_relay_past_the_cap_keeps_no_part_of_a_cut_url_and_says_it_was_cut() {
     );
     assert!(notice.ends_with('\n'), "the explanation after the notice starts on a line of its own: {notice:?}");
     assert!(diagnostics.ends_with(notice.as_str()), "the notice is what the relayed text ends with: {}", &diagnostics[diagnostics.len().saturating_sub(400)..]);
+    remove(root.as_path());
 }
 
 /// What:
