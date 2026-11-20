@@ -17,7 +17,8 @@
 //! and then it prints one line naming itself and the reason it did not
 //!  run.
 //! The guest recipe of `package/zfs/request-to-openzfs-kernel-device`
-//! (`e2e/README.md`, the step 3 arm) is the one place that sets the variables
+//! (`e2e/README.md`,
+ the step 3 arm) is the one place that sets the variables
 //!  below,
 //! and it runs the arms one at a time,
 //! because the pool's block-clone counters count the whole pool.
@@ -49,7 +50,8 @@ pub const GUEST_VARIABLE: &str = "CLI_GIT_ZFS_FIXTURE_GUEST";
 pub const ZFS_ABSENT_ACKNOWLEDGED_VARIABLE: &str = "CLI_GIT_ZFS_ABSENT_ACKNOWLEDGED";
 
 /// The directory of the OpenZFS 2.4.4 userspace the guest builds:
-/// `zfs` and `zpool`, which make the datasets,
+/// `zfs` and `zpool`,
+ which make the datasets,
 /// the mounted clone and the counter readings.
 pub const TOOL_DIRECTORY_VARIABLE: &str = "CLI_GIT_ZFS_TOOL_DIRECTORY";
 
@@ -216,8 +218,8 @@ pub fn run_tool(tool: &str, arguments: &[String]) -> String {
 /// const pool = mountSource(fixtureRoot).split('/')[0];
 /// ```
 pub fn pool_name(fixture: &Fixture) -> String {
-    let source: Option<String> = read_mount_facts(fixture.root.as_path()).ok().flatten().map(|facts| { return facts.source; });
-    let source: String = source.unwrap_or_else(|| { panic!("the mount table names no source for the fixture root {}", fixture.root.display()) });
+    let named: Option<String> = read_mount_facts(fixture.root.as_path()).ok().flatten().map(|facts| { return facts.source; });
+    let source: String = named.unwrap_or_else(|| { panic!("the mount table names no source for the fixture root {}", fixture.root.display()) });
     let pool: &str = source.split('/').next().unwrap_or(source.as_str());
     assert!(!pool.is_empty(), "the mount source {source} names no pool");
     return pool.to_string();

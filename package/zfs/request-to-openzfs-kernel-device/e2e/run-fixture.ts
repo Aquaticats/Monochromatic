@@ -903,6 +903,7 @@ const steps: Record<string, (checked: Options) => void> = {
   record,
   destroy,
   wrapper: step3,
+  pool: step3Pool,
   arm: (checked: Options): void => {
     runThenDestroy(checked, [create, prepare, step3,]);
   },
