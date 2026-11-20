@@ -24,8 +24,8 @@ decision of it. Nothing here authorizes work on this host's pool.
 
 ## Revisions
 
-Each revision is labelled with a time and names the commits the round made before it; the sentences below say, for
-each label, whether the time is a commit's own. A label written into a commit cannot name that commit's own time or
+Each revision is labelled with a time and names the commits the round made before it, and each entry says whether
+its label is a commit's own time. A label written into a commit cannot name that commit's own time or
 hash, so the commit carrying an entry always comes after its label. The entries labelled `18:02:41` through
 `20:31:12` carry the `%cI` of a commit their round made. The entry labelled `20:58:00` carries a committer date that
 round pinned on `e850455f55` and `3dff37b556`, whose author dates are `20:57:31` and `20:58:12`, so it is not the
@@ -694,8 +694,7 @@ Each assumption is stated so a measurement can break it, and the measurement tha
   none left, or grants the namespace and denies the capabilities or the mount inside it; the skip is printed and the
   add goes ahead after it. That reach is the refusals the skip paragraph lists and no other failure, bar the one
   mapping-write residue that paragraph names, so a defect in the companion's own setup code is an arm failure; the
-  skip's printing and the
-  add going ahead after it are this design's choices, open to the project's veto, and
+  skip's printing and the add going ahead after it are this design's choices, open to the project's veto, and
   [The account companion](#the-account-companion) states the reason and the alternative.
 - The companion's cost on every managed add, and the deadline that bounds it, are unmeasured until
   [M11](#m11-the-account-companion-per-add); no value is stated here.
@@ -946,8 +945,7 @@ child's namespace and the tmpfs inside it go when the child ends, which leaves t
 preflight sweeps. The second child that moves and unmounts is forked by the first, and it sets its own
 parent-death signal after that fork and rechecks `getppid()`, as the probe's children do, so it goes when the first
 child dies: the single-threaded first child blocks until it has reaped it, which is what keeps that signal's forking
-thread alive. That signal follows the forking
-thread rather than the process
+thread alive. That signal follows the forking thread rather than the process
 (`doc/troubleshooting/pdeathsig-fires-when-the-parent-thread-ends.md`), and a blocking-pool thread idles out after
 ten seconds without work (tokio 1.54.1 `src/runtime/blocking/pool.rs:231`, `KEEP_ALIVE`; the wrapper's builder sets no
 `thread_keep_alive`, `.../foundation/lazy_runtime.rs:164` to `:170`), so the signal is safe here only because the
@@ -961,8 +959,8 @@ group to 0 in the new namespace, then calls `unshare(CLONE_NEWNS)`, makes every 
 the scratch directory the parent made for the run. Those writes are the ones an unprivileged caller may make: one
 line, its own effective ID, and `setgroups` denied before `gid_map` (`user_namespaces(7)`, the sections on
 defining the two mappings and on `/proc/pid/setgroups`). tmpfs declares `FS_USERNS_MOUNT` and carries fs_context
-operations, so the descriptor calls
-reach it without a path mount (`mm/shmem.c:5103`, `:5284`, `:5311` and `:5316`, read at v7.3).
+operations, so the descriptor calls reach it without a path mount (`mm/shmem.c:5103`, `:5284`, `:5311` and `:5316`,
+read at v7.3).
 
 Then it walks its own tmpfs and makes the probe's calls there: the no-crossing walk from the tmpfs root to the slot
 with the `ObjectId` compare, `fsopen` on `tmpfs` with `fsconfig`, `fsmount` and `move_mount` onto the held slot
@@ -995,8 +993,7 @@ own file time as its age (`foreign_record_age`, `:202`), rather than by `kill(pi
 `FOREIGN_OWNER_PATIENCE` (`:108`) it refuses to remove the directory and names it (`:147` to `:200`). That care is
 load-bearing: the tmpfs mount inside a live child's directory lives in that child's namespace, `rmdir` of the
 directory from the host namespace is not refused for such a mount, because `is_local_mountpoint` looks at the
-caller's namespace, and the call then detaches that mount in
-every namespace
+caller's namespace, and the call then detaches that mount in every namespace
 (`fs/namei.c:5502` to `:5521`, `detach_mounts`), so a sweep that guessed would end a live run's mount. The
 parent-death signal makes a wrapper's own death leave an empty directory rather than a live one, because the child
 goes with the thread that forked it. Nothing survives a logout, which removes `/run/user/<uid>`.
@@ -1022,9 +1019,8 @@ this bound; the runner then awaits a place for one ceiling and the job for anoth
 so the add's whole wait is that budget and those two ceilings and nothing else. No value is stated, and step 10
 cites the value beside [M11](#m11-the-account-companion-per-add)'s run; until that run exists, a shipped build's
 companion does not run in the preflight or in `doctor`, as [Who runs it, and where](#who-runs-it-and-where) states
-for the probe's own
-deadline, and the guest run of M11 is the one exception, through a `CLI_GIT_TEST_ONLY_*` switch and a test deadline
-that are compiled into the release executable and inert unless set (the decision in
+for the probe's own deadline, and the guest run of M11 is the one exception, through a `CLI_GIT_TEST_ONLY_*` switch
+and a test deadline that are compiled into the release executable and inert unless set (the decision in
 `doc/planning/cli-git-rust-open-decisions.md:3646` to `:3649`, which keeps the test-only crash switch in the release
 executable because container tests exercise the installed one, and
 `doc/planning/cli-git-shipped-limits-audit.md:117` to `:119`). The hold is the missing value rather than the
