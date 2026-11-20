@@ -245,11 +245,41 @@ and "Cheap worktree creation and removal on btrfs,
 XFS and overlayfs" for the conversion,
 the removal and the migration.
 
-## Single executable and shipped policies
+## The two executables and shipped policies
 
-The release artifact is one executable,
- `monochromatic-git-policy-cli`.
-Every policy is compiled into it;
+One release archive carries two executables,
+ and they are the whole of it:
+`monochromatic-git-policy-cli`,
+ which is the program a caller runs as `git`,
+ and `mount-git-worktree-clone-datasets`,
+ which is the root-run clone-mount handler of the ZFS worktree route
+ (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+ "Binding crate and compatibility").
+One archive and not two because cargo-binstall refuses an archive that lacks any `[[bin]]` of the crate,
+ so the manifest,
+ the release job,
+ the release list and the toolchain lock name both executables and nothing else
+ (`src/native/source_guard/release_bins_tests.rs`,
+ `bin/native-release-bins.unit.test.ts`).
+The handler answers three modes and a default invocation,
+ is installed at `/usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets`
+ and at `/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets`,
+ is never linked as `git`,
+ and carries no policy:
+ it owns clone attachment,
+ unmount and the recorded folder identities,
+ and it shares the ZFS binding and the compatibility gate with the wrapper.
+The default invocation,
+ which is how the installed ZED event starts it,
+ runs the clone-mount sweep;
+`boot-reconcile`,
+`shutdown-unmount`
+ and `adopt-worktree-parent` are the named modes,
+ and each refuses until the plan step that builds it lands
+ (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 5).
+Both executables start on a machine whose kernel has no ZFS device and neither links one of OpenZFS's CDDL libraries.
+Every policy is compiled into the wrapper;
  no configuration loads code,
  and there are no plugins.
 The built-in policies run at their default severity without being listed.

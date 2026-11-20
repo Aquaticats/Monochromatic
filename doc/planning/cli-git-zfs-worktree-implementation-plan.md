@@ -236,6 +236,13 @@ or says which step must pick it.
   as [cli-cargo][] and `src/native/source_guard/release_bins_tests.rs` both state.
   Step 5 picks the handling;
   the plan's suggestion is in "Where the design is silent".
+  (Amended 2026-11-20T06:45:32-05:00:
+  step 5 built it,
+  so one release archive now holds both executables,
+  and the sentences above describe the plan as it stood.
+  `package/git-policy/cli/doc/step-5-second-executable-2026-11-20.md` is the record,
+  and "How the release carries two executables" under "Gaps the design's open-item list does not name"
+  states the resolution.)
 
 ### Wrapper code the design reuses
 
@@ -2336,6 +2343,9 @@ the fourth is an accepted cost that `doctor` reports.
   `## Single executable and shipped policies` in [spec][] states that the release artifact is one executable,
   while "Binding crate and compatibility" and "Decided defaults" keep a second binary in the same package.
   Step 5 changes this.
+  It did,
+  at `b2e231c17d` (2026-11-20T03:44:29-05:00):
+  the section is now `## The two executables and shipped policies`.
   One archive carrying both is forced rather than chosen:
   "Decided defaults" keeps the handler inside `package/git-policy/cli`
   ("Keep inside cli (Recommended)"),
