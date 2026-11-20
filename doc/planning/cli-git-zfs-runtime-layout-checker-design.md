@@ -778,6 +778,28 @@ the pick is not made here.
   The other three items Q1 lists stay open,
   and that section restates each one.
 
+- `2026-11-20T17:46:00-05:00`,
+  the time this entry was written,
+  which no commit can carry.
+  The commits that carry the body this entry records are `40fea4e6eb` at
+  2026-11-20T17:43:38-05:00,
+  `ae597db4a4` at 2026-11-20T17:44:36-05:00,
+  and `ac364c61e6` at 2026-11-20T17:45:30-05:00.
+  The commit that carries this sentence names them.
+  This is the revision that finishes discovery.
+  It writes the pre-discovery check-in of 2026-11-20,
+  records the three class 3 queries and the class 2 repository and project lists,
+  and ends with the skill's saturated terminal result.
+  It adds `ebeepf` 0.1.0 as a fourth finalist,
+  audits its source,
+  validates it in a capped container with the network off,
+  scores it at 87 of 104,
+  and moves the eligible order to `btf-rs` 2.0.1 > `ebeepf` 0.1.0 > `pahole` 1.32 >
+  `bpftool` 7.8.0.
+  The `doc/audit/` vet report and the `aarch64` target stay open.
+  No candidate is adopted,
+  and no crate is added to a manifest.
+
 ### Sources read
 
 Logs under `~/temp/agent` that this file cites are the author's session scratch.
