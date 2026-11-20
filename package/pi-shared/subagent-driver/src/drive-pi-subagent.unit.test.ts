@@ -61,11 +61,13 @@ import {
   REPORTED_PROCESS_ID,
 } from './stand-in-pi-scenario-plays-fixture.ts';
 import {
+  INBOX_MEETS_ITS_OWN_TURN_SCENARIO,
   OWN_TURN_REPLY,
   WAKES_ITSELF_SCENARIO,
 } from './stand-in-pi-own-turn-plays-fixture.ts';
 import {
   ALREADY_PROCESSING_TEXT,
+  COMPACTION_REFUSAL_TEXT,
   LONG_REPLY,
   MODEL_ERROR_TEXT,
   PERMANENT_ERROR_TEXT,
@@ -286,6 +288,14 @@ const TEST_TEARDOWN_ALLOWANCE_SECONDS = 120;
 const WORK_OUTLASTED_WALL_SECONDS = 8;
 /** Characters in a file name that leave no room for a prefix, which most file systems cap at 255 bytes. */
 const LONGEST_FILE_NAME_CHARACTERS = 250;
+/**
+ The message a test drops in the inbox, named so the command log shows which delivery it went as.
+ */
+const INBOX_MESSAGE = 'a message a turn the agent started takes';
+/**
+ The message a test drops in the inbox while a manual compaction holds the session, which Pi refuses once and takes after it.
+ */
+const COMPACTION_INBOX_MESSAGE = 'a message sent while the session compacts';
 /**
  Milliseconds a test waits for a line before giving up on it. A line that cannot come any more is noticed when the driver ends,
  so this is only the bound that keeps a test from waiting for ever on a driver that stays up and says nothing.
@@ -921,7 +931,7 @@ await describe({
         expect(run.summary.endReason,).toBe('idle',);
         expect(run.status,).toBe(CLEAN_STATUS,);
         expect(run.summary.lastAssistantText,).toBe(OWN_TURN_REPLY,);
-        expect(run.markers,).toContain('wake-met-an-open-turn',);
+        expect(run.markers,).toContain('message-met-an-open-turn',);
         /**
          The messages the driver sent Pi, of which the wake is the last.
          */
@@ -929,7 +939,7 @@ await describe({
         expect(prompts.length,).toBe(2,);
         // The wake names the streaming behaviour that queues it into the running turn, which is what keeps Pi from refusing it.
         expect(prompts.at(-1)?.streamingBehavior,).toBe('steer',);
-        expect(run.markers,).toContain('wake-queued steer',);
+        expect(run.markers,).toContain('message-queued steer',);
         /**
          The wake's place in the feed, and the last turn that started before it.
          */
@@ -944,9 +954,81 @@ await describe({
         expect(run.summary.turns,).toBeGreaterThanOrEqual(2,);
       },
     },),
+    it({
+      name: 'an inbox message a turn the agent started after the driver read it meets is delivered, not kept aside as refused',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: INBOX_MEETS_ITS_OWN_TURN_SCENARIO,
+          idleSeconds: LONG_IDLE_SECONDS,
+          whileRunning: async (running,) => {
+            // The agent's own turn ends before the message is published, so the driver's read of the feed says Pi rests.
+            await waitForFeed({ ...running, text: '"kind":"settled","n":1', },);
+            await dropInInbox({ runFolder: running.runFolder, text: INBOX_MESSAGE, },);
+            await waitForFeed({ ...running, text: '"kind":"inbox"', },);
+            await writeFile(join(running.runFolder, 'stop',), '',);
+          },
+        },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('stop-file',);
+        // The turn opened as the message went, so the message belongs to it: kept aside, it would never be delivered.
+        expect(run.inbox,).toEqual([],);
+        /**
+         What the feed says about the delivery.
+         */
+        const delivered = run.feed.find((entry,) => entry.kind === 'inbox',);
+        expect(delivered?.success,).toBe(true,);
+        // The driver's own read said Pi rested, so it meant the message as a new prompt; the named steering is what a turn that opened
+        // after that read took it with.
+        expect(delivered?.sentAs,).toBe('prompt',);
+        expect(run.markers,).toContain('message-met-an-open-turn',);
+        expect(run.markers,).toContain('message-queued steer',);
+        /**
+         The command the message went as.
+         */
+        const sent = run.sentCommands.find((command,) => command.message === INBOX_MESSAGE,);
+        expect(sent?.type,).toBe('prompt',);
+        expect(sent?.streamingBehavior,).toBe('steer',);
+      },
+    },),
     // This holds the end-to-end delivery path; the race of a settle read between the inbox
     // scan and the decision is held by `checks the inbox again when Pi settled after the watch
     // read it` in `watch-pi-run.unit.test.ts`.
+    it({
+      name: 'an inbox message Pi refused while a manual compaction ran is delivered on the next look, not kept aside',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'compaction-refuses-the-inbox-message',
+          idleSeconds: LONG_IDLE_SECONDS,
+          whileRunning: async (running,) => {
+            await waitForFeed({ ...running, text: '"kind":"settled","n":1', },);
+            await dropInInbox({ runFolder: running.runFolder, text: COMPACTION_INBOX_MESSAGE, },);
+            // Pi answers the message as a session that is compacting, which refuses the moment rather than the message.
+            await waitForLine({ ...running, file: running.log, text: 'marker prompt-refused-while-compacting', },);
+            // The message went back to the inbox, and the look after the refusal sends it again.
+            await waitForLine({ ...running, file: running.log, text: 'marker message-taken-after-compacting', },);
+            await writeFile(join(running.runFolder, 'stop',), '',);
+          },
+        },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('stop-file',);
+        // A compaction is not a refusal of the message: nothing of it was kept aside, and the message reached Pi.
+        expect(run.inbox,).toEqual([],);
+        /**
+         What the feed says about the two sends.
+         */
+        const attempts = run.feed.filter((entry,) => entry.kind === 'inbox',);
+        expect(attempts.map((entry,) => entry.success,),).toEqual([false, true,],);
+        expect(attempts[0]?.error,).toBe(COMPACTION_REFUSAL_TEXT,);
+        /**
+         The commands the message went as, which are one per attempt.
+         */
+        const sends = run.sentCommands.filter((command,) => command.message === COMPACTION_INBOX_MESSAGE,);
+        expect(sends.map((command,) => command.type,),).toEqual(['prompt', 'prompt',],);
+        expect(sends.map((command,) => command.streamingBehavior,),).toEqual(['steer', 'steer',],);
+        expect(run.markers,).toContain('prompt-refused-while-compacting',);
+        expect(run.markers,).toContain('message-taken-after-compacting',);
+      },
+    },),
     it({
       name: 'a zero idle window still lets Pi answer a message already queued when it settles',
       fn: async () => {
@@ -1275,7 +1357,7 @@ await describe({
       name: 'a Pi that exits while the watch runs ends it as pi-exited',
       fn: async () => {
         const run = await runDriver({
-          scenario: 'crash-on-steer',
+          scenario: 'crash-on-inbox-message',
           idleSeconds: LONG_IDLE_SECONDS,
           whileRunning: async (running,) => {
             await waitForLine({ ...running, file: running.log, text: '"message":"hello"', },);
@@ -1707,7 +1789,7 @@ await describe({
       },
     },),
     it({
-      name: 'a message dropped between agent_end and agent_settled goes as a steer',
+      name: 'a message dropped between agent_end and agent_settled is sent as a prompt that names steering',
       fn: async () => {
         const run = await runDriver({
           scenario: 'settle-gap',
@@ -1719,7 +1801,10 @@ await describe({
           },
         },);
         expect(run.feed.find((entry,) => entry.kind === 'inbox')?.sentAs,).toBe('steer',);
-        expect(run.commands,).toContain('steer',);
+        // No `steer` command is sent: a steer command starts nothing, so a resting Pi reads it only when another run comes.
+        expect(run.commands,).not.toContain('steer',);
+        expect(run.sentCommands.filter((command,) => command.message === 'more',).map((command,) => command.streamingBehavior),)
+          .toEqual(['steer',],);
         // The record still holds Pi at work (only agent_settled clears it), so the teardown asks Pi to abort. This is the
         // claim the wall-clock test cannot make: it has no way to know Pi started a turn before its clock ran out.
         expect(run.commands,).toContain('abort',);
@@ -1804,7 +1889,9 @@ await describe({
             await writeFile(join(running.runFolder, 'stop',), '',);
           },
         },);
-        expect(run.sentCommands.filter((command,) => command.type === 'steer',).map((command,) => command.message),)
+        expect(run.sentCommands.filter((command,) => (command.type === 'prompt')
+          && ((command.message === 'first sent') || (command.message === 'second arrived')),)
+          .map((command,) => command.message),)
           .toEqual(['first sent', 'second arrived',],);
         expect(run.feed.filter((entry,) => entry.kind === 'inbox',).length,).toBe(2,);
       },

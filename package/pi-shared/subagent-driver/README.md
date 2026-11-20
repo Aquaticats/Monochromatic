@@ -1100,6 +1100,20 @@ the launcher that builds the session's environment asks it, once, before it make
   then rename it to one without the dot,
   because any other name is read at once.
   Pi gets it as a steer while it works and as a new prompt while it rests.
+  Every message is sent as a prompt that names `streamingBehavior: 'steer'`,
+  whichever state the driver's own read of the feed gave:
+  a turn Pi is in queues it there,
+  and a turn Pi starts between that read and the delivery takes it too,
+  because Pi reads the field only while its agent run is active
+  (`prompt()` in `dist/core/agent-session.js` of Pi 1.5.2).
+  A resting agent ignores the field and starts a turn as before,
+  and a `steer` command is never sent:
+  a steer command starts nothing,
+  so a resting Pi reads it only when another run comes.
+  The feed's `sentAs` says which of the two the driver's own read expected.
+  Because every message is a prompt, a message that starts with `/` is run as an extension or skill command
+  whether Pi works or rests (`prompt()` in `dist/core/agent-session.js`);
+  before this, a `steer` sent while Pi worked refused such a message and kept it aside.
   A message is read only while the driver is up:
   with the default idle window of `0` a settled run ends within one look of the folder,
   so a run that must be steered after it settles needs a positive `--idle-seconds`.
@@ -1108,8 +1122,19 @@ the launcher that builds the session's environment asks it, once, before it make
   A message Pi refused stays as `.failed-<name>`,
   and a later message of the same name that is also refused gets `.failed-<name>.<n>`,
   so no kept message replaces another.
+  Pi's answer that its agent is already processing is busy, never a refusal,
+  and so is its answer that a manual compaction or a branch summary is running,
+  which it gives before it even prepares a prompt:
+  the message goes back to the inbox and the next look sends it again.
+  The claim that look makes replaces the one the look before it left,
+  so a busy answer on every look adds no entry to the folder per look.
+  A newer message that takes the name is the one delivered,
+  and an older one whose name a newer message took stays readable under its dot name, never sent again.
   While a message is being delivered it is held under a dot name of its own,
   so a newer message published under the same name is neither deleted nor kept in its place.
+  A message Pi reports it took is Pi's from then on:
+  one queued into a running turn is lost if Pi is aborted or exits before that turn drains its queue,
+  which a `steer` command risked too.
 - `stop`:
   create this file to end the run early.
 

@@ -40,6 +40,13 @@ export const ALREADY_PROCESSING_TEXT: string = 'Agent is already processing. Spe
 export const CORE_ALREADY_PROCESSING_TEXT: string = 'Agent is already processing a prompt. Use steer() or followUp() to queue messages, or wait for completion.';
 
 /**
+ The error Pi 1.5.2 throws for a prompt that arrives while a manual compaction or a branch summary runs, word for word
+ (`prompt()` in `dist/core/agent-session.js` of `@earendil-works/pi-coding-agent`). The guard is read before the prompt is
+ prepared, so a named streaming behaviour does not queue the message either; it refuses the moment, never the message.
+ */
+export const COMPACTION_REFUSAL_TEXT: string = 'Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.';
+
+/**
  A provider failure a retry can fix, shaped as one real run's feed recorded it on 2026-11-09
  (`pi-runs/repo-read-and-index-route-findings-on-main-1/summary.json`).
  */
