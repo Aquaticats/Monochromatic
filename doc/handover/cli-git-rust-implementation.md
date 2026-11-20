@@ -40578,8 +40578,17 @@ stated in this entry. What follows from them, as work:
   the crate-root `src/uses/compatibility_check` link, citations). GOING:
   `pi-zfs-runtime-layout-checker-design-third-revision-recheck-findings-fixed` (DeepSeek on Neuralwatt, cap 510) in
   the design worktree; brief under
-  `~/temp/agent/zfs-runtime-layout-checker-design-third-revision-recheck-findings-fixed-2026-11-19/`. Then a narrow
-  Sonnet check of the fixed lines, then acceptance. START PROBE REVIEW ENDED (Sonnet, about 33 min; that folder's `keep/review.md`): not
+  `~/temp/agent/zfs-runtime-layout-checker-design-third-revision-recheck-findings-fixed-2026-11-19/`. It ended `idle`
+  (187 turns) at `71829d109c` (five commits, one file; that folder's `keep/report.md`), all eleven fixed and none
+  dismissed: the design now states the `Makefile.modfinal` guard and step 2's requirement as a requirement (its layout
+  test reads the loaded module's BTF file against the vmlinux base), says where step 2 stands, and places a passing
+  assertion for the host's 32-byte header reader in owed measurement 5 (a device-free comparison on copies of this
+  host's pair, two negative controls; not run, since the comparison entry point does not exist yet); the Q2 evidence
+  adds the clone `props` path, says "the wrapper's call shapes", corrects `longname` (2.2.2 refuses it `EINVAL`) and
+  the user-property return; all three writer choices veto-open with "veto none". Amendment locators re-measured against
+  `main` at `59152e567b`. Its `scratch/` stays for now because the design cites files in it. GOING: a narrow Sonnet
+  check (brief under `~/temp/agent/zfs-runtime-layout-checker-design-fourth-revision-narrow-gate-check-2026-11-19/`),
+  also told that step 2's branch now ends at `08c9dea25f`. Then acceptance. START PROBE REVIEW ENDED (Sonnet, about 33 min; that folder's `keep/review.md`): not
   ready, no high, six mediums, all text: the companion sits in the add preflight but not in `doctor`, against the
   proposal's "Share preflight with `doctor`"; "That is the project's choice" claims a printed skip on a refused user
   namespace the project never chose (the Q6 option text named the skip only as a cost; the add going ahead is the
