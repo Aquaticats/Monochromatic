@@ -36781,8 +36781,8 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   Neither recorded pause names fuzzing:
   one covers Windows and macOS ("Ignore Win and mac until I say so."),
   the other covers wrapper mutation campaigns
-  (this file, entry "Told, not a question: a wrapper mutation campaign ran against a recorded pause"
-  as it stood on 2026-11-07, before that entry left the questions file).
+  (the questions file's entry "Told, not a question: a wrapper mutation campaign ran against a recorded pause"
+  of 2026-11-07, which left that file on 2026-11-19; this paragraph is its record now).
   Every lane defers them to this list
   (`doc/handover/cli-git-native-interop.md`,
   `doc/handover/cli-git-native-capture.md`,
