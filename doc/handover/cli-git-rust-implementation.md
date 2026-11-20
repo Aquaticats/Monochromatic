@@ -40504,8 +40504,19 @@ stated in this entry. What follows from them, as work:
   leftovers). It ran a C stand-in of the companion's chain on this host with controls and confirmed every cited kernel
   line. GOING: `pi-zfs-start-probe-design-owner-answers-gate-review-findings-fixed` (DeepSeek on Neuralwatt, cap 510)
   in the design worktree; brief under
-  `~/temp/agent/zfs-start-probe-design-owner-answers-gate-review-findings-fixed-2026-11-19/`. Then a short re-check,
-  then acceptance with the M2 skip put to the owner. STAGING ENDED `idle` at
+  `~/temp/agent/zfs-start-probe-design-owner-answers-gate-review-findings-fixed-2026-11-19/`. It ended `idle` (186
+  turns, 12 min) at `c134086edd` (twelve commits; that folder's `keep/report.md`), every finding fixed, none dismissed:
+  `doctor` runs the companion under the shared preflight; the companion forks on the blocking pool into a raw-syscall
+  island with `setpgid` on both sides (a re-exec is barred by the source guard's no-self-invocation test, by its
+  reading); any error from `unshare(CLONE_NEWUSER)` is the skip (it found `EUSERS` gone since 4.9 and LSM `EACCES`
+  in the sources); a pre-attach refusal takes no `first-attach` claim; plan notes rewritten by heading, with a home
+  for each measurement M1 to M11; a timed-out record names the arm in flight. Marked open to veto: the companion's
+  printed skip lets the add proceed (alternative: refuse it, as Q4 does for the probe); no deadline value ships before
+  step 6's own measurement, and step 19 adds no `ExecStartPre=` until one is cited (alternative: a provisional ceiling
+  by the project's decision). The review's run evidence sits in its folder's `scratch/`, not `keep/`, so that scratch
+  stays. GOING: a Sonnet gate re-check (brief under
+  `~/temp/agent/zfs-start-probe-design-third-revision-gate-recheck-2026-11-19/`). Then acceptance with both vetoes
+  asked. STAGING ENDED `idle` at
   `e8f7ec4fa6` (thirteen commits; report in its folder's `keep/report.md`). It records every answer and makes Way A the
   design. On Q3 it rolls the clone back by its own descriptor, staging it only if that fails. Its post-move check now
   asserts that the topmost mount is the clone with the bind as its parent; the run's own advisor found the old wording
