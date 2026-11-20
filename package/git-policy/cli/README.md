@@ -1592,9 +1592,19 @@ Install it as a `cargo:` tool of [mise][mise],
 Otherwise it compiles the crate from source with the Rust toolchain.
 `cargo install monochromatic-git-policy-cli --locked` compiles the same executable into `~/.cargo/bin`.
 
-The installed file is `monochromatic-git-policy-cli`,
- not `git`.
-Link it as `git` in a directory that comes before the real Git on `PATH`:
+One archive carries two executables,
+ and an install places both:
+`monochromatic-git-policy-cli`,
+ the wrapper,
+ and `mount-git-worktree-clone-datasets`,
+ the root-run clone-mount handler of the ZFS worktree route
+ (`SPEC.md`, "The two executables and shipped policies").
+The wrapper is the file a caller runs as `git`;
+the handler is never linked as `git`,
+and a machine that never mounts a ZFS worktree clone leaves it unused.
+Only the wrapper is linked,
+ and not as the installed file's own name:
+link it as `git` in a directory that comes before the real Git on `PATH`:
 
 ```sh
 # Run in the repository once per checkout, after the installation.
@@ -7344,8 +7354,12 @@ composed and resumed is in
 
 ### Source layout
 
-The crate is one library and one executable (`monochromatic-git-policy-cli`,
-which is also the commit service in its service mode),
+The crate is one library and two executables
+(`monochromatic-git-policy-cli`,
+ which is also the commit service in its service mode,
+ and `mount-git-worktree-clone-datasets`,
+ the root-run clone-mount handler at `src/native/mount_git_worktree_clone_datasets/main.rs`
+ whose decisions are the library's `src/native/worktree_clone_mount_handler/`),
 and its sources live under `src/native/`.
 Each folder there is one subsystem,
 so a contributor opens a folder for a concern instead of searching a flat list of
@@ -7585,8 +7599,8 @@ starts on demand;
 the wrapper never starts it,
 and typed by hand with no socket from the manager and no address it refuses
 and starts nothing.
-The release archive holds that one executable,
-as cargo-binstall requires of every `[[bin]]`.
+The release archive holds both executables,
+ as cargo-binstall requires of every `[[bin]]`.
 
 What the service has to do after a command returns is a record in the worktree's Git directory,
 and a command that writes one wakes the service with one line over its socket.
