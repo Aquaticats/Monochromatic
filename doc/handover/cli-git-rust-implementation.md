@@ -40376,7 +40376,17 @@ stated in this entry. What follows from them, as work:
   `feat/git-policy-cli-zfs-second-executable` in `.claude/worktrees/zfs-step-5-second-executable`, told to publish
   nothing and to report what a path dependency on the unpublished binding does to the wrapper's release checks, since
   the plan says step 5 needs the binding's release and the project kept step 1 unpublished; brief under
-  `~/temp/agent/zfs-step-5-second-executable-2026-11-20/`. Coordinator slips this stretch: three background waits found
+  `~/temp/agent/zfs-step-5-second-executable-2026-11-20/`. Step 5 ended `idle` (387 turns) at `e78338a6e8` (that
+  folder's `keep/report-from-summary.md`, logs in its `scratch/`): the `[[bin]]` `mount-git-worktree-clone-datasets`
+  with the sweep and `boot-reconcile` and `shutdown-unmount` refusing until their steps, `adopt-worktree-parent` doing
+  step 4's decision end to end (passed in a guest: recorded, and refused for a wrong device, a link, a widened mode and a
+  differing slot); the install paths checked as root in a throwaway container; the path dependency pinned
+  `=0.1.0-alpha.1`; every release list counting two executables in one archive; the toolchain lock rewritten
+  `--lockfile-only`. Whole gate 9270 of 9272, the cause-H pair. The release tooling's crates.io check passes an alpha
+  wrapper release and refuses a crates.io one, which the linter's alpha pin already refused, so the unpublished binding
+  needs no owner question now. The linter did not run (not linked in that worktree). `aea55bd922` does not compile alone
+  (corrective comment 211012674). GOING: its integration pass (Sonnet), brief under
+  `~/temp/agent/integration-pass-zfs-step-5-second-executable-2026-11-20/`. Coordinator slips this stretch: three background waits found
   their process by name or waited on a stand-in PID (rule `PWT`); each was stopped or ended harmlessly, and the
   coordinator now waits only on task notifications. STEP 3 HOST HALF ENDED `idle` (201
   turns, 51 min) at `fd10d8d0b0` (four commits; report and checks table in
@@ -40498,7 +40508,30 @@ stated in this entry. What follows from them, as work:
   `src/native/worktree/worktree_clone.rs`. GOING: `pi-zfs-step-3-merge-main-after-step-4` (DeepSeek on Neuralwatt, cap
   250), resolving both and rerunning the touched modules and `source_guard`; brief under
   `~/temp/agent/zfs-step-3-merge-main-after-step-4-2026-11-20/`. Then an integration pass; the merge waits for the
-  owner's dirty-path answer. STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
+  owner's dirty-path answer. It ended `idle` (114 turns) at `73908f4fd7` (that folder's `keep/report-from-summary.md`):
+  both README bullets kept; the sliced loop kept with `open_directory_beneath` imported from its new home
+  `fs_beneath_walk_chain` (its boundary sentence widened to "is a mount point or on another device"; no control asserts
+  it). Whole gate 9265 of 9267, the cause-H pair; touched modules 181 of 181; package list without `uses`. THE OWNER
+  ANSWERED (2026-11-20): asked why the clone path runs checks at all, then "Then this was an even worse decision made and
+  implies multiple agents missed the rule about the machine never being quiet." (the clean-source fast path was designed
+  and measured as the main case on a machine whose main checkout other sessions keep dirty), then "A: merge with cloning
+  on", recorded as the waiver `doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`; "Tighten NQH" (committed);
+  and "Yes, design and measure it" for cloning the unchanged files of a dirty source. GOING: the integration pass
+  (Sonnet) under the waiver, told to measure clean and dirty adds and the other filesystems against the bar (brief under
+  `~/temp/agent/integration-pass-zfs-step-3-with-the-dirty-source-waiver-2026-11-20/`); and the partial-clone proposal,
+  `pi-clone-rung-partial-clone-of-a-dirty-source` (DeepSeek on Neuralwatt, cap 510) on
+  `docs/planning-cli-git-clone-rung-partial-clone-of-a-dirty-source` from `73908f4fd7` in
+  `.claude/worktrees/clone-rung-partial-clone-of-a-dirty-source`, a proposal with a prototype and measurements that
+  comes back to the owner (brief under
+  `~/temp/agent/clone-rung-partial-clone-of-a-dirty-source-design-and-measurement-2026-11-20/`). Steps 3 and 5 merge
+  cleanly with each other and with `main`. THE THREE ZFS DESIGNS ACCEPTED the same day (recorded in
+  `doc/handover/questions-for-the-owner.md`): the layout checker as written, the start probe with the skip going ahead
+  and the claim on entry, staging with boundary (a). GOING: one decision-record writer each in its design worktree,
+  `pi-zfs-runtime-layout-checker-decision-record`, `pi-zfs-start-probe-decision-record`,
+  `pi-zfs-staging-under-cache-decision-record` (DeepSeek on Neuralwatt, cap 250), each merging `main`, writing
+  `doc/decision/cli-git-zfs-<topic>.md` with the last check's lows fixed in its copy and the amendments the design
+  names; briefs under `~/temp/agent/zfs-<topic>-decision-record-2026-11-20/`. Then each design branch merges into `main`
+  and its answered section leaves the questions file. STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
   their VM arms wait for step 2's recipe and their merges for the gate fix), each DeepSeek on Neuralwatt, cap 510,
   from `main` `d6e78c9e8b`: `pi-zfs-step-3-reflink-rung-recognition-host-half`
   (`.claude/worktrees/zfs-step-3-reflink-rung-recognition`, `feat/git-policy-cli-zfs-recognition-in-the-reflink-rung`;
@@ -41295,7 +41328,12 @@ stated in this entry. What follows from them, as work:
   `.claude/worktrees/git-policy-cli-lfs-seventh-round` on the branch (merges `main` first): M1 as behaviour with a red
   pseudo-terminal probe first, the lows weighed, the whole `source_guard` set and one whole gate; brief under
   `~/temp/agent/git-policy-cli-lfs-integration-pass-findings-fixed-2026-11-19/`. Then a narrow Sonnet check of the M1
-  fix and the merge.
+  fix and the merge. It ended on its wall clock (4 h 30 min, 171 turns, mid-edit "Now README:") with no commit since the
+  merge `06296ab900` and edits uncommitted in ten files (`README.md`, `SPEC.md`, `binary_lfs_server_tests.rs`,
+  `binary_tests.rs`, `child_environment.rs` and its tests, `entry.rs` and its tests, `lfs_output_mask.rs`,
+  `lfs_pre_push.rs`): it never committed as it went. GOING (2026-11-20): `pi-git-policy-cli-lfs-round-seven-resumed`,
+  the same session resumed with `--session` (run-2 in that folder, DeepSeek on Neuralwatt, cap 400), told to commit
+  what is there first, broken or not, then finish the brief.
 - **The wrapper's container gate passes on this ZFS host** since the merge `f73900d5a0` of 2026-11-19: fixtures on a
   tmpfs root under `/work`, Clippy from the lock's toolchain, and location controls that prove where fixtures land.
   The causes, measurements, limits and rejected host changes are in
