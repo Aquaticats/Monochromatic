@@ -188,7 +188,7 @@ both crates' locked dependencies,
 and the browserslist tarballs an offline `file-enforcer check` reads.
 Its base is passed as `GATE_BASE_IMAGE`,
 the tag the wrapper's resolver prints
-(`mise run //package/git-policy/cli:native:image:build`),
+(`mise run //package/git-policy/cli:test:git-image`),
 never typed in the recipe.
 The checks run there as `podman run --rm --init --network none`,
 with no home folder and the worktree mounted read-only:
