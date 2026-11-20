@@ -40678,9 +40678,17 @@ stated in this entry. What follows from them, as work:
   properties the wrapper sends); step 2's standing dated at `08c9dea25f`, read at 23:04:00; the 24-byte header
   "expected, unmeasured" everywhere; a fourth veto-open choice named (the per-process cache with no disk cache), each
   with its reason and alternative. Locators dated to `6c838ba11f`. GOING: a diff-only Sonnet check (brief under
-  `~/temp/agent/zfs-runtime-layout-checker-design-fifth-revision-diff-only-gate-check-2026-11-19/`). Then acceptance;
-  at acceptance the plan locators and step 2's standing are re-pinned, since step 2's branch is still moving. START
-  PROBE REVIEW ENDED (Sonnet, about 33 min; that folder's `keep/review.md`): not
+  `~/temp/agent/zfs-runtime-layout-checker-design-fifth-revision-diff-only-gate-check-2026-11-19/`). It ended (Sonnet,
+  about 27 min; that folder's `keep/review.md`): no high, no medium; the eight dates equal the reflog (with a positive
+  control), the Q2 fixes right and the new OpenZFS citations holding. Six lows checkable from Git or the cited files
+  ("three commits" is one; `08c9dea25f` is an integration tip's second parent; the `zvol_*` functions compared "at the
+  three tags" though 2.2.2 has none; a clone-path count credited to a run not in that folder; a checksum said to be
+  recorded where none is; the per-process cache not marked veto-open where it stands, and its "no disk cache" half
+  belongs to the held Q3), nine riding along. GOING: the sixth pass,
+  `pi-zfs-runtime-layout-checker-design-fifth-revision-diff-check-findings-fixed` (DeepSeek on Neuralwatt, cap 400),
+  brief under `~/temp/agent/zfs-runtime-layout-checker-design-fifth-revision-diff-check-findings-fixed-2026-11-19/`.
+  Then a diff-only check of the edited lines and acceptance; at acceptance the plan locators and step 2's standing are
+  re-pinned, since step 2's branch is still moving. START PROBE REVIEW ENDED (Sonnet, about 33 min; that folder's `keep/review.md`): not
   ready, no high, six mediums, all text: the companion sits in the add preflight but not in `doctor`, against the
   proposal's "Share preflight with `doctor`"; "That is the project's choice" claims a printed skip on a refused user
   namespace the project never chose (the Q6 option text named the skip only as a cost; the add going ahead is the
