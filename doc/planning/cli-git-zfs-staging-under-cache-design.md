@@ -1334,6 +1334,60 @@ now the design. The list stays because each entry names what the design decides 
   `<home>/.cache/monochromatic-git-policy-cli-staging-<guid>.json`, and that sentence is the threat model stated
   under "Answers of 2026-11-19" ("The staged-folder record").
 
+## Hardening the stated threat model may make unnecessary
+
+The project's sentence treats the account as trusted and root and the account as no security boundary on this machine
+("Answers of 2026-11-19"). Several checks in this design exist only because a draft assumed the opposite. None is
+removed here on the strength of that sentence: each is listed with what it costs today and what dropping it would
+simplify, as a suggestion for the project to decide. Taking one up is a revision of this design, not a reading of the
+sentence, because the design would lose a refusal that its arms currently assert.
+
+- The account-owned folder, and the root-owned alternatives of Ways B and E. The design reasons about who owns the
+  staging folder, checks its owner and mode before binding, keeps M1's replacement arms and M8, and rejected a
+  root-owned `0700` bind because the account could substitute the target. Under a trusted account that whole argument
+  loses its premise: the folder's ownership protects against a substitution the project's sentence says will not
+  happen. What it costs: a shape check on every bind, the replacement arms, and Way B's and Way E's extra root
+  objects and their lifecycles. What removing it would simplify: the folder could be made by either side, the owner
+  and mode checks would go, and the two root-owned ways would need no defence for an account that is not hostile.
+  F11 still bounds this: root ownership does not stop a rename or `rmdir` from another mount namespace, so dropping
+  the argument buys less than it first appears.
+- The claim's identity proof, and the orphan scan that replaces it. The wrapper removes a folder only where its own
+  claim and that claim's recorded identity agree with the folder; a folder whose claim is gone is kept and reported;
+  `doctor` lists every entry it cannot match to a live clone. What it costs: the staging claim kind with its own
+  place, suffix, reader and settlement ("The staging claim"), the orphan scan, the "kept folders" and "claim lost"
+  arms of M6, and the notice wording for each. What removing it would simplify: settlement becomes `rmdir` of any
+  entry whose component is a live clone's dataset GUID after a clear receipt, the claim kind leaves the build, and
+  `doctor` prints the folder without proving who made it.
+- The stacking defences. The post-move check and the rollback it triggers, the topmost-mount check before each
+  `umount2`, M1's two stacking arms and M2's substituted-top-mount arm all answer a mount the account stacked with
+  `fusermount3`. What it costs: a second privileged move per misplaced attach, an unmeasured failed-rollback route,
+  two checks per removal, and `doctor` text for a misplaced state. What removing it would simplify: the removal keeps
+  the accepted misplaced-attach rule as the only rollback path and needs no staging-specific check, and the mount
+  table is read once per call instead of twice. The design keeps both checks, and M1 and M2 keep their controls.
+- The `user-cache` pin. A root configuration key, a boot-reconcile check and a per-removal check against the dataset's
+  source and the mount root's identity exist because a bind made before that dataset mounts lands on the home underlay
+  (F12). What it costs: one new root key, one boot step, two checks per removal and M5's three arms. What removing it
+  would simplify: no root configuration for staging, no boot ordering step, and no per-removal source comparison.
+  This one is not purely a defence against the account: it also catches a mount ordering accident, which the trusted
+  account sentence does not make impossible, so dropping it needs a different answer to the ordering question.
+- The wrapper's mount-namespace pair and boot-id check. The wrapper compares `/proc/self/ns/mnt`'s device and inode
+  and the boot id with the handler's recorded ones before it removes a folder. What it costs: two record fields, one
+  comparison, one refusal and M6's namespace arms. What removing it would simplify: the record carries no namespace
+  pair, and the wrapper's removal path is one check shorter. It also catches an accidentally unshared wrapper, which
+  is a tooling accident rather than an attack, so the sentence alone does not retire it.
+- The folder's shape checks. The handler refuses a folder that is not owned by the pinned UID, not at the mode F1
+  records, or not empty. What it costs: a `stat` of a few fields on every bind and the replacement arms. What
+  removing it would simplify: the handler binds the folder as it finds it, which A6 says holds nothing but mounts,
+  so no content can be at stake.
+- The record's identity check before a sweep acts. The sweep re-reads the folder's identity after opening it from the
+  handle and refuses on a mismatch. What it costs: one check per recovery and M6's foreign-namespace substitution
+  arm. What removing it would simplify: the sweep acts on whatever the handle resolves to. It is also the backstop
+  F29 names for a folder re-made in one transaction group with a reused object number, so it is a correctness check
+  and not only a defence.
+
+The rest of the design's refusals are not on this list because they answer something other than a hostile account: a
+busy mount (F9), a shared checkout (F5), a missing capability (F29), a receipt that never arrives (A5), and the
+destroy refusal a mounted dataset gives (F13) all protect the worktree's own data or the caller's own state.
 
 ## How the accepted sentences are met
 
