@@ -40540,7 +40540,20 @@ stated in this entry. What follows from them, as work:
   an absent `srcversion` or build-id note degrades the reload check instead of refusing; the folder name. GOING: a
   Sonnet gate re-check of the revision (brief under
   `~/temp/agent/zfs-runtime-layout-checker-design-third-revision-gate-recheck-2026-11-19/`), also asked how the gate
-  treats a module without BTF given step 2's finding. Then acceptance. START PROBE REVIEW ENDED (Sonnet, about 33 min; that folder's `keep/review.md`): not
+  treats a module without BTF given step 2's finding. It ended (stopped once by the weekly limit, resumed; that
+  folder's `keep/review.md` and `keep/evidence/`): the earlier high and mediums fixed in substance, every figure
+  reproduced, the amendment quotations matching `main`, the placement free of folder loops (by reading), the three
+  writer choices sound. Not ready: medium 1, the design states step 2 produces module BTF while step 2 reads DWARF
+  (its fix round is closing that); medium 2, the Q2 evidence omits `zfs_ioc_clone`'s `props` path, says "binding" for
+  the wrapper's call shapes, gets `longname` wrong (2.2.2 refuses the name), and has a user property reach the default
+  path when it returns at the user-property early return, the same in all three releases. None of it touches the Q2
+  answer; the user-property return strengthens it. Nine lows (an extra "that" in Q1's quotation, the follow-up's record
+  commit `cb84b5769f`, only one of three writer choices marked veto-open, a README clause the answers did not decide,
+  the crate-root `src/uses/compatibility_check` link, citations). GOING:
+  `pi-zfs-runtime-layout-checker-design-third-revision-recheck-findings-fixed` (DeepSeek on Neuralwatt, cap 510) in
+  the design worktree; brief under
+  `~/temp/agent/zfs-runtime-layout-checker-design-third-revision-recheck-findings-fixed-2026-11-19/`. Then a narrow
+  Sonnet check of the fixed lines, then acceptance. START PROBE REVIEW ENDED (Sonnet, about 33 min; that folder's `keep/review.md`): not
   ready, no high, six mediums, all text: the companion sits in the add preflight but not in `doctor`, against the
   proposal's "Share preflight with `doctor`"; "That is the project's choice" claims a printed skip on a refused user
   namespace the project never chose (the Q6 option text named the skip only as a cost; the add going ahead is the
