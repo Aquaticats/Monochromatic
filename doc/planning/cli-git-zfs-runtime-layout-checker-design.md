@@ -111,10 +111,12 @@ The registrations, policies and callees. Of the 51 functions of `zfs_ioctl.c` re
 from the twelve handlers and from the nine policy functions their registrations name, 10 have
 different bodies in the three tags: the two handlers, and eight of the 28 functions `SET_PROP`
 and its policy reach, whose `zfs_ioc_set_prop` text is identical in all three. That path has two
-entry points. `SET_PROP` reaches the eight through `zfs_set_prop_nvlist`, and `zfs_ioc_clone`
-applies a clone's `props` through the same function (`module/zfs/zfs_ioctl.c:3634-3639`, 2.3.0),
-so a clone created with properties runs the same eight: with `SET_PROP`'s own roots cut, 7 of the
-46 functions the other eleven handlers reach still differ, five of the seven the property-set
+entry points. `SET_PROP` reaches the eight in three ways: five through `zfs_set_prop_nvlist`, one,
+`props_skip`, through its own handler, and two, `zfs_secpolicy_recv` and `zfs_secpolicy_setprops`,
+through the policy its 2.4.4 registration names. `zfs_ioc_clone` applies a clone's `props` through
+the same function (`module/zfs/zfs_ioctl.c:3634-3639`, 2.3.0), so a clone created with properties
+reaches those five and none of the other three: with `SET_PROP`'s own roots cut, 7 of the 46
+functions the other eleven handlers reach still differ, five of the seven the property-set
 functions.
 Of the eight, six are inert for the wrapper's call shapes: a `VERIFY` spelling in `props_skip`,
 `zfs_prop_set_userquota` and `zfs_check_settable`, an empty
@@ -125,7 +127,8 @@ kept the layout, and the new `zfs_secpolicy_setprops` for the interval that chan
 registration's move.
 That count covers callees in `zfs_ioctl.c`; the callees that live in other files, the `dsl_*`,
 `dmu_*`, `zvol_*` and `spa_*` functions, were read only for `zvol_set_ro`,
-`zvol_set_volthreading` and the clone pair `dmu_objset_clone` and `dsl_dataset_clone`.
+`zvol_set_volthreading`, `zvol_set_common` and the clone pair `dmu_objset_clone` and
+`dsl_dataset_clone`.
 
 A behaviour change that kept the layout, 2.2.2 to 2.3.0. That interval keeps the layout: the
 declarations of `zfs_cmd_t`, `zinject_record_t` and `dmu_objset_stats_t` are identical across it,
@@ -134,23 +137,33 @@ struct member. Across it `zfs_prop_set_special` changed: it gains `ZFS_PROP_VOLT
 `ZFS_PROP_READONLY` through `zvol_set_ro` and `ZFS_PROP_LONGNAME`, and it sends `SNAPDEV` and
 `VOLMODE` through `zvol_set_common` (`module/zfs/zfs_ioctl.c:2556-2634`, 2.3.0, the `LONGNAME`
 case ending at 2634).
+`SNAPDEV` and `VOLMODE` are properties of a filesystem dataset as well as a volume
+(`module/zcommon/zfs_prop.c:441-443` and `:486-489`, 2.3.0), and the routing those two names take
+changed at 2.3.0: `zfs_prop_set_special` sends both through `zvol_set_common`
+(`module/zfs/zfs_ioctl.c:2565-2568`), where 2.2.2 called `zvol_set_snapdev` and `zvol_set_volmode`
+(`:2526-2531`).
+2.2.2 has no `zvol_set_common`: its `module/zfs/zvol.c` holds `zvol_set_snapdev` at `:1621` and
+`zvol_set_volmode` at `:1708`, and 2.3.0's `zvol_set_common` is at `:1963`.
+So what that routing does when it meets a filesystem dataset is unread, because the body was
+compared with neither 2.2.2 function's.
 So a volume's property set answers differently at 2.3.0 with the layout kept, and no comparison of
 layout can see it.
 For the wrapper's call shapes it is no change, and that is a source reading, not a measurement.
-The wrapper sends one user property and a sweep nonce: the mount desired-state property
+The wrapper sends two user properties: the mount desired-state property
 `org.monochromatic:git-worktree-clone-mount-desired-state`, named as `SET_PROP`'s own change under
 [Requests and input ownership](cli-git-zfs-worktree-design-proposal.md#requests-and-input-ownership),
 line 175, and quoted under
 [Requests, results and ordering](cli-git-zfs-worktree-design-proposal.md#requests-results-and-ordering),
-line 537. The proposal sends it in the clone's `props` first and falls back to `SET_PROP`
-(lines 371 to 377), so both property paths carry it, and `zfs_ioc_clone` reaches the same
-`zfs_set_prop_nvlist` call for it.
+line 537, and the sweep nonce `org.monochromatic:git-worktree-clone-mount-sweep-nonce` (line 557).
+The proposal sends the desired-state property in the clone's `props` only if the delegated creation
+path is verified, and otherwise sets it with `SET_PROP` (lines 371 to 377), so both property paths
+can carry it, and `zfs_ioc_clone` reaches the same `zfs_set_prop_nvlist` call for it.
 In all three releases a user property returns at `zfs_prop_set_special`'s user-property check,
 before its `switch`, at the same four lines (`module/zfs/zfs_ioctl.c:2456-2460` at 2.2.2,
 `:2486-2490` at 2.3.0, `:2636-2640` at 2.4.4), and the value is set afterwards through the generic
 property path; it reaches no release-specific case. On a filesystem dataset name `zvol_set_ro`
 returns -1, because no volume carries that name (`module/zfs/zvol.c:386-401`, 2.3.0).
-`LONGNAME` is the one case a filesystem dataset would meet, and no caller names it: 2.2.2 has no
+No caller names any of those cases, `LONGNAME` included: 2.2.2 has no
 `ZFS_PROP_LONGNAME`, so `zprop_name_to_prop` returns `ZPROP_INVAL`, which is `ZPROP_USERPROP`,
 `zfs_prop_user` needs a colon, and `zfs_set_prop_nvlist` refuses the name as an invalid property
 with `EINVAL` (`module/zfs/zfs_ioctl.c:2627-2637`, 2.2.2); 2.3.0 holds the dataset and answers
@@ -741,9 +754,9 @@ Run in the revision that answered this gate review, read only:
 - The gate review's four scripts, re-run from a copy of its compare script in this revision's
   scratch folder against the same three `zfs_ioctl-*.c` and `zfs_h-*.h` copies: the handler,
   key-table, registration and policy comparison, the reachable-function comparison, the same with
-  its roots cut to `SET_PROP`, which is also the run that shows the clone path reaches the
-  property-set functions, and the enum evaluation. They report the same counts the review's
-  outputs record.
+  its roots cut to `SET_PROP`, and the enum evaluation. They report the same counts the review's
+  outputs record; the clone path's count among them is not from these runs, since a run cut to
+  `SET_PROP`'s roots cannot show it.
 - `diff` and `awk` over the `zfs_prop_set_special`, `zfs_check_settable`, `zvol_set_common`,
   `zvol_set_ro` and `zvol_set_volthreading` bodies at the three tags, and over the
   `zfs_secpolicy_setprops` and `zfs_secpolicy_read` bodies at 2.4.4.
@@ -780,8 +793,9 @@ Run in the revision that answered this gate re-check, read only:
 - `git show main:<path>` for the proposal's "ABI gate and tests" and "Kernel-release readiness",
   the plan's step 6 and "Where the tests run", and the binding `README.md`'s "What this crate does
   not do", to re-measure every amendment line against `main`, last read at `59152e567b`.
-- The gate re-check's kept review, its scripts' outputs and its source excerpts, and the step 2 short
-  review's first finding, all read for what each one reproduced.
+- The gate re-check's kept review, its scripts' outputs and its source excerpts, including its
+  clone-handler run's output in its `keep/evidence/` folder, which is where the clone path's count
+  comes from, and the step 2 short review's first finding, all read for what each one reproduced.
 - Its excerpt of step 2's measurement record and `README.md` at `4c7a347ea2`, and `git show` of
   that record at `13bc5036d2`, for where step 2 stands on the module's BTF file.
 - The prose checker described under [The prose checks](#the-prose-checks), on this file and on a
