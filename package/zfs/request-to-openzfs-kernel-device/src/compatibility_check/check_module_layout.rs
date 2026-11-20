@@ -104,15 +104,27 @@ pub fn check_module_layout(request: &LayoutRequest<'_>) -> Result<Compatible, Re
         bound: BASE_BTF_BOUND,
         step: Step::BaseBtf,
     })?;
-    let _module_bytes: Vec<u8> = read_bounded(&ReadRequest {
+    let base: Sections<'_> = read_sections(&base_bytes, request.base_btf)?;
+    let module_bytes: Vec<u8> = read_bounded(&ReadRequest {
         path: request.module_btf,
         bound: MODULE_BTF_BOUND,
         step: Step::ModuleBtf,
     })?;
+    let module: Sections<'_> = read_sections(&module_bytes, request.module_btf)?;
+    let base_types: TypeInformation<'_> =
+        TypeInformation::alone(base.types, base.strings, request.base_btf)?;
+    let module_types: TypeInformation<'_> =
+        TypeInformation::over_base(module.types, module.strings, &base_types, request.module_btf)?;
+    compare(&module_types).map_err(|mismatch: Mismatch| {
+        return refusal_at(mismatch.step, request.module_btf, mismatch.detail);
+    })?;
+    compare_requests(&module_types).map_err(|mismatch: Mismatch| {
+        return refusal_at(mismatch.step, request.module_btf, mismatch.detail);
+    })?;
     return Ok(Compatible {
         base_bytes: base_bytes.len(),
-        module_bytes: 0,
-        base_header_bytes: 0,
-        module_header_bytes: 0,
+        module_bytes: module_bytes.len(),
+        base_header_bytes: base.header_bytes,
+        module_header_bytes: module.header_bytes,
     });
 }

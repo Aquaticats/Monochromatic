@@ -121,11 +121,59 @@ enum Which {
 ///
 /// # Errors
 /// A refusal at the header step naming the file and the check that failed.
-pub fn read_sections<'a>(_bytes: &'a [u8], _path: &Path) -> Result<Sections<'a>, Refusal> {
+pub fn read_sections<'a>(bytes: &'a [u8], path: &Path) -> Result<Sections<'a>, Refusal> {
+    let step: Step = Step::Header;
+    if bytes.len() < OLDEST_HEADER_BYTES {
+        return Err(refusal_at(
+            step,
+            path,
+            format!(
+                "it holds {} bytes, fewer than the {OLDEST_HEADER_BYTES}-byte oldest header",
+                bytes.len()
+            ),
+        ));
+    }
+    check_magic(bytes, path)?;
+    if bytes[2] != VERSION {
+        return Err(refusal_at(
+            step,
+            path,
+            format!("its format version is {}, not {VERSION}", bytes[2]),
+        ));
+    }
+    if bytes[3] != FLAGS {
+        return Err(refusal_at(
+            step,
+            path,
+            format!("its flags byte is {}, not {FLAGS}", bytes[3]),
+        ));
+    }
+    let header_bytes: usize = read_u32(bytes, 4) as usize;
+    if header_bytes < OLDEST_HEADER_BYTES || header_bytes > bytes.len() {
+        return Err(refusal_at(
+            step,
+            path,
+            format!(
+                "its header length is {header_bytes} bytes, and this reader accepts {OLDEST_HEADER_BYTES} up to {} bytes",
+                bytes.len()
+            ),
+        ));
+    }
+    if header_bytes != OLDEST_HEADER_BYTES && header_bytes < LAYOUT_HEADER_BYTES {
+        return Err(refusal_at(
+            step,
+            path,
+            format!(
+                "its header is {header_bytes} bytes, between the {OLDEST_HEADER_BYTES}-byte oldest header and the {LAYOUT_HEADER_BYTES}-byte header whose layout fields this reader knows"
+            ),
+        ));
+    }
+    let places: Vec<Placed> = places_of(bytes, header_bytes);
+    let (types, strings): (&[u8], &[u8]) = cut_sections(bytes, header_bytes, &places, path, step)?;
     return Ok(Sections {
-        header_bytes: 0,
-        types: &[],
-        strings: &[],
+        header_bytes,
+        types,
+        strings,
     });
 }
 
