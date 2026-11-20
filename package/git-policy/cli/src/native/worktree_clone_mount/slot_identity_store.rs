@@ -443,13 +443,15 @@ const READABLE_OR_WRITABLE_BY_OTHERS: u32 = 0o077;
 ///  Measured through this module's own writers on this host's ZFS `home` dataset on 2026-11-20,
 ///  with a probe that reads `/proc/diskstats` around every sample:
 ///  an append on a 1000-slot store held the lock 1.577 to 2.243 ms
-///  (median 1.748, 40 samples),
+///  (median 1.748,
+///  40 samples),
 ///  an append on the widest store one read accepts (1,011,406 bytes) 31.657 to 33.926 ms (10 samples),
 ///  and an adoption of that store 33.483 to 35.976 ms (10 samples),
 ///  the slowest holder measured;
 ///  every one of those samples moved this host's pool device by its `fsync`,
 ///  while the same append without the two `fsync` calls moved no device at all
-///  (0.009 to 0.080 ms, 40 samples).
+///  (0.009 to 0.080 ms,
+///  40 samples).
 ///  The two seconds below are 55 times that slowest hold,
 ///  which is the margin for a device that answers an `fsync` tens of times slower than this one,
 ///  and it ends the wait rather than holding a command open.
