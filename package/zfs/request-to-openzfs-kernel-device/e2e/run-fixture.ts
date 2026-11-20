@@ -16,7 +16,7 @@
 //        host-built binary would not start there; building in the guest keeps the
 //        test binary matched to the guest's own libc and needs no cross toolchain.
 //
-// Usage: node e2e/run-fixture.ts <create|prepare|run|record|destroy|all>
+// Usage: node e2e/run-fixture.ts <create|prepare|run|record|destroy|all|zfs-attach-pool|zfs-attach-arm>
 //          [--name <guest>] [--log-dir <dir>] [--crate <dir>] [--keep-guest]
 // `create` refuses a name `mvm list` already reports, and `all` destroys only a
 // guest its own `create` returned, so no run removes another run's guest.
@@ -313,7 +313,9 @@ function prepare(options: Options): void {
     'export DEBIAN_FRONTEND=noninteractive',
     // The image's own unattended upgrade starts at first boot and holds the dpkg lock for minutes; a guest created
     // minutes ago then fails every install with `Could not get lock /var/lib/dpkg/lock-frontend`.
-    'systemctl stop unattended-upgrades.service apt-daily.service apt-daily-upgrade.service 2>/dev/null || true',
+    // The timers are masked as well as the services stopped: a timer that fires later would put a newer kernel on the
+    // disk, which a restart would boot against the kernel this recipe pins and checks only here.
+    'systemctl mask --now unattended-upgrades.service apt-daily.service apt-daily-upgrade.service apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true',
     'timeout 600 sh -c \'while fuser /var/lib/dpkg/lock-frontend > /dev/null 2>&1; do sleep 2; done\'',
     'apt-get --option Acquire::Retries=2 update > /root/zfs-prepare.log 2>&1',
     `apt-get --option Acquire::Retries=2 --yes install ${PACKAGES} "linux-headers-$(uname --kernel-release)" >> /root/zfs-prepare.log 2>&1`,
@@ -554,6 +556,8 @@ const STEP4_WRAPPER_PACKAGES: readonly string[] = [
   'package/forbidden-strings/core',
   'package/jsonc-edit/core-rust',
   'package/linter/monochromatic-lint',
+  // Step 5's handler, which the wrapper crate names by path from this merge on.
+  'package/zfs/request-to-openzfs-kernel-device',
 ];
 /** The OpenZFS userspace's library and program paths, as shell assignments. */
 const STEP4_OPENZFS = `LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib PATH=/root/.cargo/bin:${OPENZFS_PREFIX}/sbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
@@ -579,7 +583,7 @@ function step4Environment(options: Options): string {
  the checkout dataset the arms' checkouts stand on,
  an empty snapshot of it,
  and two unmounted clones the arms mount at a slot.
- `acltime=posixacl` is set because the identities the arms record include the access and default ACLs,
+ `acltype=posixacl` is set because the identities the arms record include the access and default ACLs,
  and a dataset that stores no POSIX ACL refuses the change the item 2 arm plants.
  The clones are legacy mountpoints, so ZFS never mounts them by itself, and no `canmount=off` is set, because that
  property is userspace's own refusal and would leave the kernel's mount the arms exercise untested.
@@ -817,7 +821,7 @@ const steps: Record<string, (checked: Options) => void> = {
 const chosen = options();
 mkdirSync(chosen.logDir, { recursive: true, mode: 0o700, });
 /**
- The steps this branch adds, which the recipe's own table below does not hold.
+ The steps this branch adds, which the recipe's own `steps` table does not hold.
  Kept in one place of its own so a branch that adds other steps merges beside it rather than through it.
  */
 const step4Steps: Record<string, (checked: Options) => void> = {
@@ -826,7 +830,7 @@ const step4Steps: Record<string, (checked: Options) => void> = {
 };
 const step = steps[chosen.step] ?? step4Steps[chosen.step];
 if (step === undefined)
-  throw new Error(`unknown step '${chosen.step}'; use ${Object.keys(steps).join(', ')}`);
+  throw new Error(`unknown step '${chosen.step}'; use ${[...Object.keys(steps), ...Object.keys(step4Steps)].join(', ')}`);
 step(chosen);
 console.log(`zfs step 2 fixture: step '${chosen.step}' finished; logs in ${chosen.logDir}`);
 

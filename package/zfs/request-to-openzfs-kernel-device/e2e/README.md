@@ -41,6 +41,8 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-attach-arm --
   The `hetzner` backend is never used:
   it rents an outside server.
 - `prepare` checks the guest runs the plan's kernel release,
+  stops and masks the image's unattended-upgrade services and timers,
+  waits for the `dpkg` lock they may still hold,
   installs the packages,
   copies the kernel's own BTF into the kernel build directory so the module is
   built with BTF,
@@ -293,13 +295,19 @@ which is the measurements' fixture.
 
 `zfs-attach-arm` runs step 4's guest arms of the wrapper's descriptor attach
 (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-step 4, "VM measurements")
+step 4,
+"VM measurements")
 in a guest this recipe prepared:
 the clone mounted at the slot the walk held,
 item 7's setuid control on that mount's enforced flags,
 item 2's refusals with an account-owned parent and slot,
 the rename that lands an attach beside its slot and its descriptor rollback,
+a mount made beside the held slot that the post-attach check's first proof refuses,
 and the decoy control of H1 gate 1.
+The check's first proof reads the mount at the held target's name beneath the held parent
+(a fresh `openat2` beneath that descriptor),
+never the held target's own descriptor,
+which keeps naming the mount it was opened on.
 `zfs-attach-pool` makes the arm's own pool and fixtures alone,
 so a run that only needs them does not repeat the build.
 
@@ -322,7 +330,9 @@ so an arm that never ran is never counted as passed.
 Everything in this arm is a root-run integration test of the wrapper's module,
 not part of the account-side suite:
 until step 5's `mount-git-worktree-clone-datasets` binary exists,
-the `fsopen`, `fsconfig`, `fsmount` and `move_mount` calls are the test's own,
+the `fsopen`,
+`fsconfig`,
+`fsmount` and `move_mount` calls are the test's own,
 and the production copies are what the arms will drive after that step.
 
 The step leaves the guest as it found it:
