@@ -274,7 +274,8 @@ and
   and no program refuses to start on a mismatch yet.
   The module's release string is not part of the gate:
   by the project's answer of 2026-11-19,
-  "Any version, layout decides",
+  "Any version,
+  layout decides",
   the layout comparison and the request numbers decide,
   and `doctor` prints the release string and says when it is not the tested text,
   `2.4.4-1`.
