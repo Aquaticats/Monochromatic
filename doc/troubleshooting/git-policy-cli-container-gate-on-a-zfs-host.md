@@ -518,7 +518,7 @@ as a local working tree. It also gives the copy flow no clone, which is cause E 
 
 Those four are the facts the btrfs host's kernel overlay gave, so the birth-time, mount-type and monitor
 controls passed in the gate's run on that host: a tmpfs root gives that coverage back rather than
-trading it away, which is why this workaround needed no owner's decision.
+trading it away, which is why this workaround needed no decision from the project.
 
 The size is a ceiling under the container's 2 GiB memory bound, because tmpfs pages count against that
 bound: a fixture tree that outgrows the ceiling fails with `ENOSPC` on the path being written below the
