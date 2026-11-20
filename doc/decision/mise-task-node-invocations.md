@@ -180,3 +180,13 @@ Reopen if any of these change:
   is a measured bottleneck in a real workflow.
 - The dispatched entries are refactored to a uniform `export function main()` shape
   that makes in-process import robust without relying on top-level side effects.
+
+## Correction, 2026-11-20
+
+This decision's empirical finding that "A `usage` spec instead consumes the args into
+`usage_*` env vars and they do not append" holds only while mise runs its usage parser,
+which it skips for `-h`/`--help` after `--`. That case appends the words to the end of the
+inline script, inside the TypeScript, which is the failure of issue 6326 and is explained
+in `doc/troubleshooting/mise-inline-task-arguments-land-in-the-script.md`.
+`vars.parse_usage_args` now recovers those words from the marker comment that ends each
+root task body, and `root-task-shared-shapes.unit.test.ts` holds every body to it.
