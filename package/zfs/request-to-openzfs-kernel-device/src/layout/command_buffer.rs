@@ -65,6 +65,9 @@ pub const MAXIMUM_COMMAND_BUFFER_SIZE: usize = DEFAULT_COMMAND_BUFFER_SIZE;
 const _: () = {
     assert!(DEFAULT_COMMAND_BUFFER_SIZE > COMMAND_STRUCT_SIZE);
     assert!(DEFAULT_COMMAND_BUFFER_SIZE == MAXIMUM_COMMAND_BUFFER_SIZE);
+    // The slab is the 16 KiB the doc names, so a struct that grew past it stops
+    // the build here instead of turning the default into 32 KiB unannounced.
+    assert!(DEFAULT_COMMAND_BUFFER_SIZE == 16 * 1024);
 };
 
 /// A command buffer size this crate refuses to allocate.
