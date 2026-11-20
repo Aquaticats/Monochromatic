@@ -40386,7 +40386,21 @@ stated in this entry. What follows from them, as work:
   wrapper release and refuses a crates.io one, which the linter's alpha pin already refused, so the unpublished binding
   needs no owner question now. The linter did not run (not linked in that worktree). `aea55bd922` does not compile alone
   (corrective comment 211012674). GOING: its integration pass (Sonnet), brief under
-  `~/temp/agent/integration-pass-zfs-step-5-second-executable-2026-11-20/`. Coordinator slips this stretch: three background waits found
+  `~/temp/agent/integration-pass-zfs-step-5-second-executable-2026-11-20/`. It ended (Sonnet, about 46 min; that
+  folder's `keep/review.md`, integration branch `integrate/git-policy-cli-zfs-second-executable` at `4d55b3a277`): fit on
+  one condition, `package/git-policy/cli.fuzz` missing from the binding row's `lockDirs` in
+  `package/crate-release/cli/releasable-crates.json`, so a binding release would leave that sidecar lock stale. Release
+  tooling confirmed (alpha passes, `0.6.1` and `-rc.1` refused naming the linter and the binding; one archive with both
+  executables from the workflow's own packaging block); the toolchain lock moved only the wrapper's `bins` row and the
+  digest. Gate 9269 of 9272: the cause-H pair and a third,
+  `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other` (origin's
+  ref not yet the worktree's HEAD, the second push still retrying), in code the branch does not touch, passing alone and
+  in the author's gate; a separate incident, not this branch's. Lows: 101 linter errors on added lines, the adoption arm
+  covering one of four refusals, stale one-executable text, a lock window the pinned `alpha.44` cannot meet. GOING:
+  `pi-zfs-step-5-integration-pass-condition-and-lint-fixed` (DeepSeek on Neuralwatt, cap 300): the `lockDirs` line, the
+  added-line linter errors, the stale text, the adoption refusal's control if it can be built without a guest; brief
+  under `~/temp/agent/zfs-step-5-integration-pass-condition-and-lint-fixed-2026-11-20/`. Then the merge. Coordinator
+  slips this stretch: three background waits found
   their process by name or waited on a stand-in PID (rule `PWT`); each was stopped or ended harmlessly, and the
   coordinator now waits only on task notifications. STEP 3 HOST HALF ENDED `idle` (201
   turns, 51 min) at `fd10d8d0b0` (four commits; report and checks table in
