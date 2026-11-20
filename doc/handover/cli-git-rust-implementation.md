@@ -40626,9 +40626,19 @@ stated in this entry. What follows from them, as work:
   with the host mount table unchanged. On the two veto-open choices: neither must be a project decision, and it
   recommends asking the companion skip as a ranked question at acceptance anyway. GOING:
   `pi-zfs-start-probe-design-third-revision-recheck-findings-fixed` (DeepSeek on Neuralwatt, cap 510) in the design
-  worktree; brief under `~/temp/agent/zfs-start-probe-design-third-revision-recheck-findings-fixed-2026-11-19/`. Then a
-  narrow Sonnet check of the touched lines, then acceptance with the companion skip asked as a ranked question and the
-  deadline rule stated as the design's. STAGING ENDED `idle` at
+  worktree; brief under `~/temp/agent/zfs-start-probe-design-third-revision-recheck-findings-fixed-2026-11-19/`. It
+  ended `idle` (198 turns) at `4258b3c3c9` (eleven commits, one file; that folder's `keep/report.md`), every finding
+  fixed and none dismissed. The claim is now taken by the first attempt that passes the key check (an unavailable key
+  stays outside it, as plan step 8 reports it separately; the identity compare is inside and writes `errno none`). The
+  companion's endings are closed, each with a class and a line, and `doctor` prints `unknown` for what it cannot prove.
+  The skip covers any failure from `unshare(CLONE_NEWUSER)` through the private propagation and prints
+  `kernel.apparmor_restrict_unprivileged_userns`; M6 and M11 gained a restricted arm. The child closes inherited
+  descriptors, ends in `_exit`, and sets `PR_SET_PDEATHSIG` while its forking pool thread blocks until it reaps it. M11
+  enables the companion through a test-only switch. The deadline ships as the slowest measured run plus a margin, and
+  a host-storage reading is the owner's act. A fourth amendment (plan step 22's limit sentence). Both choices stay
+  open to veto with "veto none". GOING: a narrow Sonnet check (brief under
+  `~/temp/agent/zfs-start-probe-design-fourth-revision-narrow-gate-check-2026-11-19/`). Then acceptance with the
+  companion skip asked as a ranked question and the deadline rule stated as the design's. STAGING ENDED `idle` at
   `e8f7ec4fa6` (thirteen commits; report in its folder's `keep/report.md`). It records every answer and makes Way A the
   design. On Q3 it rolls the clone back by its own descriptor, staging it only if that fails. Its post-move check now
   asserts that the topmost mount is the clone with the bind as its parent; the run's own advisor found the old wording
