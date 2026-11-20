@@ -215,6 +215,11 @@ and six reads (twelve requests) and six controls for its flex lane.
 
 ## Limits of this measurement
 
+- The highest reading is a sample maximum over the forty-six reads,
+  not a tail bound:
+  the figures support that two seconds was never too short for these reads,
+  not a coverage guarantee for future ones.
+  The failure mode in `## Why two seconds stays` is what keeps an overrun cheap.
 - One machine,
   one network path,
   one set of accounts,
