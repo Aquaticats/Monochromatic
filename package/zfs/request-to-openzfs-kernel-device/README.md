@@ -97,7 +97,8 @@ generic property setter.
   name in `zc_string`.
 - `ZFS_IOC_SNAPSHOT` (`0x5a23`):
   snapshots named in the input list's `snaps` member,
-  created from one pool.
+  created from one pool,
+  with the optional `props` member applied to each.
 - `ZFS_IOC_DESTROY_SNAPS` (`0x5a3b`):
   an explicit snapshot name set,
   without a `defer` member,
@@ -351,6 +352,13 @@ it runs on the host).
 The Dylint closure rule (`rust/avoidable-closure`) is **not checked**:
 that image has no `cargo dylint`,
 so the linter prints its skip for this package as it does for every package.
+
+The round that ran those checks records their summaries,
+the bounded fuzz smoke and
+the guest run in
+[`doc/step-2-merge-checks-2026-11-19.md`](doc/step-2-merge-checks-2026-11-19.md),
+and the live arms' measured values in
+[`doc/guest-measurements-2026-11-19.md`](doc/guest-measurements-2026-11-19.md).
 
 ## Using it
 

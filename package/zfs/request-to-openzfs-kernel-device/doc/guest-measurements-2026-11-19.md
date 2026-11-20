@@ -30,11 +30,15 @@ in the run's own `keep/` folder beside the
 brief that asked for the run;
 this file cites them by name.
 
-This record replaces the one this file held before the short review of
-2026-11-19:
-its run read the module file's DWARF and left the promoted batches
-unasserted,
-and this one reads the running module's own BTF and asserts both.
+This record is the third one this file has held.
+The first read the module
+file's DWARF and left the promoted batches unasserted;
+the second read the running
+module's own BTF and asserted both;
+this one adds the snapshot requests of
+`ZFS_IOC_SNAPSHOT`,
+the grants of "Scoped delegation" and the creation-time user
+properties the earlier rounds left half covered.
 
 ## Where and how
 
@@ -113,7 +117,7 @@ and its image and
 key folder with it.
 
 Logs:
-`recorded-run-2026-11-19-review-fixes/` is one end-to-end run of the recipe's
+`final-guest-logs/` is one end-to-end run of the recipe's
 steps in order
 (`create`,
 `prepare`,
@@ -126,11 +130,11 @@ ran both suites,
 recorded the versions and the teardown,
 and destroyed the guest.
 It holds `root-suite.log`
-(194 tests,
+(198 tests,
 all passing,
 with the `MEASUREMENT` block quoted here and the account arms
 filtered out),
-`account-suite.log` (8 tests),
+`account-suite.log` (9 tests),
 `versions.log`,
 `teardown.log`,
 `guest-prepare.log`,
@@ -139,8 +143,12 @@ filtered out),
 `guest-account-suite.log`,
 `mvm-create.log`,
 `mvm-destroy.log` and `mvm-list-after-destroy.log`.
-`red-half-2026-11-19-review-fixes/` holds the two deliberately broken copies
-whose live assertions failed (the "Red half" section).
+The "Red half" section names the two broken trees,
+and
+`red-a-guest-logs/` and `red-b-guest-logs/` hold the suite logs that show their
+arms failing.
+The container checks and the bounded fuzz smoke are in
+[`step-2-merge-checks-2026-11-19.md`](step-2-merge-checks-2026-11-19.md).
 
 ## The layout comparison against the module's BTF
 
@@ -197,7 +205,7 @@ Tests:
 and `...::the_release_header_assigns_every_request_the_number_this_crate_sends`.
 
 Recorded
-(`recorded-run-2026-11-19-review-fixes/root-suite.log`,
+(`final-guest-logs/root-suite.log`,
 the layout line):
 
 ```text
@@ -255,7 +263,7 @@ and `@worktree-own` was made on the clone.
 Before promoting:
 
 ```text
-MEASUREMENT before-promote checkout snapshots=[("@earliest", 13963875300632313367, 187), ("@origin", 13754703787189190893, 188), ("@checkout-later", 15075639309643733013, 189)] bookmark=(13963875300632313367, 187)
+MEASUREMENT before-promote checkout snapshots=[("@earliest", 9333165960992643606, 187), ("@origin", 8485399216297222521, 188), ("@checkout-later", 1205331036627513157, 189)] bookmark=(9333165960992643606, 187)
 ```
 
 (names shortened here;
@@ -264,7 +272,7 @@ the log has them whole).
 and the reply to the next `OBJSET_STATS` reads reported:
 
 ```text
-MEASUREMENT after-promote checkout origin=.../worktree-clone-datasets/promotion@origin promoted origin='' moved=[("...promotion@earliest", 13963875300632313367, 187), ("...promotion@origin", 13754703787189190893, 188), ("...promotion@worktree-own", 2370971146889672287, 192)]
+MEASUREMENT after-promote checkout origin=.../worktree-clone-datasets/promotion@origin promoted origin='' moved=[("...promotion@earliest", 9333165960992643606, 187), ("...promotion@origin", 8485399216297222521, 188), ("...promotion@worktree-own", 11080022020877705138, 192)]
 ```
 
 So the origin and the older checkout snapshot moved into the promoted clone
@@ -275,7 +283,7 @@ and the checkout became a clone of
 `promotion@origin`.
 The bookmark moved to the promoted clone with the same
 `(guid, createtxg)` tuple,
-`(13963875300632313367, 187)`.
+`(9333165960992643606, 187)`.
 
 The assertion is per moved snapshot:
 `live_promote_tests::promotion_moves_the_older_history_without_changing_identity`
@@ -301,7 +309,7 @@ again,
 and the identity read each time:
 
 ```text
-MEASUREMENT replacement guids before=9799189540936918528 after=16898917760837061338
+MEASUREMENT replacement guids before=3161467627020030295 after=14143032801145742831
 ```
 
 A reused name is a different object.
@@ -316,6 +324,42 @@ part of this crate (its
 request constructor is;
 see the README's request table),
 and no arm sends it.
+
+## The add route's snapshot request
+
+Before this round `ZFS_IOC_SNAPSHOT` had no live success:
+the one call expected
+`EPERM`,
+which the kernel answers before it creates anything,
+so neither creation,
+nor
+the `props` member,
+nor the reply were exercised.
+One request now snapshots the
+checkout and a clone of it with a creation-time user property
+(the request refuses two
+snapshots of one filesystem,
+so the two names are two datasets),
+and as the
+delegated account one snapshot of the checkout with the design's local
+`snapshot` grant:
+
+```text
+MEASUREMENT snapshot-ioctl created=2 carried=0 names=zfsstep2-snapshot/home/checkout@from-binding,zfsstep2-snapshot/home/worktree-clone-datasets/snapshot-pair@from-binding
+MEASUREMENT account snapshot created=1 carried=0 guid=1027673512245966461
+```
+
+The root arm asserts the reply decodes with no per-name failure,
+each snapshot's
+GUID against `zfs get`,
+and the property read back with the snapshot as its source;
+the
+account arm reads its snapshot back and removes it with the checkout's
+`mount,destroy` descendent grant.
+Tests:
+`live_write_tests::a_snapshot_set_with_a_user_property_creates_each_and_answers_with_no_failure`
+and
+`live_account_tests::the_account_snapshots_the_checkout_and_the_reply_carries_no_failure`.
 
 ## Items 14, 17 and 18: the snapshot batches, as root and as the account
 
@@ -340,7 +384,7 @@ one request,
 root:
 
 ```text
-MEASUREMENT promoted-batch own=.../promotion@own-one,.../promotion@own-two carried=0 refused=Some(17) elements=1 kept=[...@earliest, ...@without-dependent, ...@origin, ...@worktree-own, ...@with-dependent]
+MEASUREMENT promoted-batch own=.../promotion@own-one,.../promotion@own-two carried=0 refused=Some(17) elements=1 kept=[...@origin, ...@with-dependent, ...@earliest, ...@without-dependent, ...@worktree-own]
 MEASUREMENT dependent clone origin=.../promotion@with-dependent
 ```
 
@@ -361,15 +405,20 @@ and every other arm clones the checkout's later snapshot,
 which the
 promotion leaves in place,
 so no other arm depends on the moved history:
-only the design's three grants (`create,mount` local on the clone parent,
-`clone` descendent on the checkout,
-`mount,destroy,userprop` descendent on the
-clone parent).
+the design's grants,
+which this fixture carries (`create,mount` local on the clone parent,
+`snapshot` local on the checkout,
+`clone` and `mount,destroy` descendent on the checkout,
+`mount,destroy,userprop` descendent on the clone parent).
+The measurements' item 12 fixture omitted the checkout's two grants;
+the plan's step 2 names the design's set,
+so the fixture follows "Scoped delegation" and not item 12's subset.
 The promoted arms report:
 
 ```text
 MEASUREMENT account promoted own-batch destroyed=2 carried=0 kept=4
 MEASUREMENT account promoted mixed-batch refused=Some(17) elements=1 kept=6
+MEASUREMENT account clone with-props origin=zfsstep2-account/home/checkout@checkout-later accepted=1
 ```
 
 - `live_account_tests::the_account_destroys_its_own_snapshots_on_a_promoted_clone`:
@@ -388,7 +437,14 @@ MEASUREMENT account promoted mixed-batch refused=Some(17) elements=1 kept=6
   `::the_account_batch_with_a_dependent_clone_keeps_both_names` repeat them on
   an unpromoted clone,
   item 18's shape;
-  `::the_account_cannot_create_a_snapshot_of_the_checkout` gets `EPERM`;
+  `::the_account_snapshots_the_checkout_and_the_reply_carries_no_failure`
+  creates a checkout snapshot with the local `snapshot` grant,
+  reads it back
+  and removes it with the descendent `destroy` grant;
+  `::the_account_clones_with_a_creation_time_user_property` clones the
+  checkout's
+  later snapshot with a `monochromatic:` user property and checks it reads back
+  with the clone as its source;
   `::the_account_sets_a_user_property_on_its_clone_and_not_on_the_parent`
   is accepted on the clone and gets `EPERM` on the parent,
   because the grant is
@@ -448,41 +504,73 @@ The remaining reads:
 
 `GET_FSACL` on the clone parent and the checkout reported the fixture's grants
 keyed by `ul$<uid>` (local) and `ud$<uid>` (descendent) for the account's uid,
-with `create,mount` local,
-`mount,destroy,userprop` descendent on the clone
-parent,
-and `clone` descendent on the checkout,
-and nothing else
+with `create,mount` local on the clone parent and `mount,destroy,userprop`
+descendent on it,
+`snapshot` local on the checkout and `clone` with `mount,destroy`
+descendent on it.
+The test compares the complete name set under each of those four
+keys,
+so a permission the fixture did not grant would fail it
 (`live_read_tests::the_granted_delegations_are_what_the_fixture_set`).
+Recorded:
+
+```text
+MEASUREMENT grants clone-parent ul$1000=["create", "mount"] ud$1000=["destroy", "mount", "userprop"] checkout ul$1000=["snapshot"] ud$1000=["clone", "destroy", "mount"]
+```
 
 ## Red half
 
-Two copies of the committed crate,
-each with one deliberate break,
-ran one live test that had to fail.
-`red-half-2026-11-19-review-fixes/` holds each copy's suite log and its
-one-hunk patch:
+Five one-hunk patches on two copies of the committed crate,
+run in two guests,
+and each new or changed live arm failed while its patch was in place.
+`red-a-guest-logs/`,
+`red-a-root-suite.log` and
+`red-b-guest-logs/` hold the suite logs;
+each patch file sits beside them in the run's `keep/` folder.
 
-- `red-btf.patch` and `red-btf.log`:
-  `zc_defer_destroy`'s expected offset is eight bytes too high in
-  `live_btf_fields.rs`;
-  `live_btf_tests::the_running_modules_type_information_matches_the_rust_mirror`
-  failed with `assertion left == right failed: the offset of zc_defer_destroy`,
-  `left: 13648` (the guest's `/sys/kernel/btf/zfs` through `pahole`) and
-  `right: 13656` (the broken table).
-  That is the layout assertion itself,
-  not fixture setup.
-- `red-promoted-batch.patch` and `red-promoted-batch.log`:
-  `destroy_snaps` packs only the first name (`snapshots.get(..1)`);
-  `live_batch_tests::a_promoted_clone_destroys_its_own_snapshots_and_refuses_the_dependent_one`
+`red-a` root arms (`zfs-step-2-findings-red-roots`,
+kept with `--keep-guest` so its full root log could be pulled):
+
+- `red-1-snapshot-props-ignored.patch`:
+  `ZfsDevice::snapshot` passes `None` instead of the request's properties.
+  `live_write_tests::a_snapshot_set_with_a_user_property_creates_each_and_answers_with_no_failure`
+  failed with `the reply carries no 'monochromatic:request'`,
+  which is the `props` member this arm guards.
+- `red-2-clone-props-ignored.patch`:
+  `ZfsDevice::clone` passes `None`.
+  The accepted-property arm failed with
+  `the reply carries no 'monochromatic:desired-state'`.
+- `red-3-refused-property-value-at-the-limit-minus-one.patch`:
+  the refused arm sends one byte less than `ZAP_MAXVALUELEN`,
+  so the kernel accepts the clone.
+  Its `expect_err` failed with
+  `the kernel refuses a user property value past its limit: Some(NvList ...)`.
+- `198 tests run: 195 passed, 3 failed, 9 skipped`,
+  and those three were the only failures.
+
+`red-b` account arms (`zfs-step-2-findings-red-account`):
+
+- `red-4-checkout-snapshot-grant-removed.patch`:
+  the fixture stops granting local `snapshot` on the checkout.
+  `live_account_tests::the_account_snapshots_the_checkout_and_the_reply_carries_no_failure`
   failed with
-  `the two own names are gone: [...@own-two, ...]`,
-  so the batch destroyed
-  only `own-one` and the promoted-clone assertion caught it.
+  `operation: Snapshot, target: "zfsstep2-account", errno: 1`,
+  the `EPERM` the removed grant leaves.
+- `red-2-clone-props-ignored.patch` again:
+  `live_account_tests::the_account_clones_with_a_creation_time_user_property`
+  failed with `the reply carries no 'monochromatic:desired-state'`.
+- Both hunks also break three root arms,
+  so the copy of the recipe that ran this red narrows its root `--filterset`
+  to leave them out
+  (`red-5-root-suite-filter-narrowed-for-the-account-red.patch`);
+  the account suite itself ran unchanged.
+- `195 tests run: 195 passed, 12 skipped` in the root suite and
+  `9 tests run: 7 passed, 2 failed, 198 skipped` in the account suite.
 
-Each copy's step failed only when its test failed;
-a copy that kept passing
-would have stopped the run.
+The earlier round's two red halves (`red-btf` and
+`red-promoted-batch`)
+are in that round's history and were not rerun;
+their subject code did not change here.
 
 ## What this run did not show
 
@@ -490,10 +578,19 @@ would have stopped the run.
   a `defer` key,
   sets larger than two
   names,
-  name sets from more than one dataset,
+  name sets from more than one dataset in a destroy batch,
   and request or batch limits.
   Items 14,
   17 and 18 left those open and this run does not close them.
+- A user property the kernel refuses in a snapshot request's `props` member:
+  the
+  refused arm sends the over-long value to `ZFS_IOC_CLONE`,
+  which reaches the same
+  value check through another function.
+- A snapshot of a clone as the delegated account:
+  the design grants local
+  `snapshot` on the checkout only,
+  so that arm snapshots the checkout.
 - A head destroy interleaved with a batch,
   a snapshot created between the
   inspection and the request,

@@ -64,8 +64,9 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- destroy --name my
   the suite logs back to it.
 - `destroy` destroys the guest and records what `mvm list` holds afterwards.
 - `all` runs those five in order,
-  destroys the guest even when a step fails (so a failed run leaves nothing
-  running), and pulls the suite logs of a failed run before it does;
+  destroys the guest even when a step fails,
+  so a failed run leaves nothing running,
+  and pulls the suite logs of a failed run before it does;
   `--keep-guest` skips the destruction so the guest can be inspected.
   `--log-dir <dir>` moves the logs (default
   `target/e2e-logs` under this package),
@@ -120,10 +121,10 @@ not a recipe detail.
   for the plan's later arms.
 - Rust and `cargo-nextest`:
   the pinned Rust `1.100.0` through the pinned `rustup` release,
-  then the pinned
-  `cargo-nextest 0.9.152`;
+  then the pinned `cargo-nextest 0.9.152`;
   `versions.log` records what a run actually used.
-  The apt packages float with the image, which `versions.log` records too.
+  The apt packages float with the image,
+  which `versions.log` records too.
 
 The crate is **built inside the guest**,
 not on this host and pushed:
