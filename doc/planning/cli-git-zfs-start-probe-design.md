@@ -2,9 +2,9 @@
 
 **Non-final, unapproved proposal by an agent.** This document designs one open item of the accepted ZFS worktree
 design, "The start probe a kernel-release answer asks for", so that step 6 of the implementation plan can be
-written. A Pi session wrote it on 2026-11-19, revised it twice the same day to answer a gate review of commit
-`4167f50724` and then a gate re-check of `fa52e2e948`; it is not accepted. It was written without running a VM, a
-probe or any pool command, from the sources listed under [Sources read](#sources-read). What it checked: the
+written. A Pi session wrote it on 2026-11-19 and revised it in the rounds listed under [Revisions](#revisions); it
+is not accepted. It was written without running a VM, a probe or any pool command, from the sources listed under
+[Sources read](#sources-read). What it checked: the
 accepted design, the plan (every section list and step it names) and the measurements record, OpenZFS `zfs-2.4.4`
 sources, the running kernel's exported system calls, this host's `include/uapi/linux/mount.h`, systemd v262
 `service.c`, `unit.c` and `exec-invoke.c`, Linux v6.8 and v7.3 `fs/super.c`, `fs/fsopen.c` at v5.2, v6.5, v6.6 and
@@ -15,6 +15,19 @@ from. What stays open:
 the owner questions under [Questions for the owner](#questions-for-the-owner), and every measurement under
 [Owed measurements](#owed-measurements), none of which ran. The design is accepted with its open items still
 open, and this file changes no decision of it. Nothing here authorizes work on this host's pool.
+
+## Revisions
+
+Each revision is labelled with the commit's own timestamp, read with `git log --format=%cI`, and names the work it
+carried.
+
+- `2026-11-19T18:02:41-05:00` (commit `4167f50724`): the first draft.
+- `2026-11-19T18:40:12-05:00` (`eee32e31fd`): the answer to a gate review of that draft, by the commit that says
+  so.
+- `2026-11-19T18:41:09-05:00` (`fa52e2e948`): the mount header fields cited at their exact lines.
+- `2026-11-19T19:27:20-05:00` (`45aca9ab4a`): the answer to a first gate re-check.
+- `2026-11-19T19:33:27-05:00` (`370c6cb9e2`): the start-probe arms, the txg window and the owner questions
+  tightened.
 
 ## The open item, the answer, and what bounds them
 
@@ -82,7 +95,7 @@ Each of these is decided, and this proposal keeps every one of them.
 - The probe admits untested releases: "The probe admits untested releases and leaves unmeasured behaviour to
   appear on the host" (the [proposal][proposal], lines 629 to 630). A partial pass is therefore not a defect of
   this design, provided the missing piece is reported; whether a missing piece may enable the route is
-  [Q5](#q5-whether-an-unexercised-arm-may-enable-the-route).
+  [Q4](#q4-whether-an-unexercised-arm-may-enable-the-route).
 
 - Existing bindings and intent survive an unavailable route: "it preserves existing bindings and intent while
   the route is unavailable" (the [proposal][proposal], line 1306), and an unused slot takes "the applicable
@@ -122,10 +135,10 @@ Each of these is decided, and this proposal keeps every one of them.
   `v1:<nonce>:unmount` (lines 537 to 539). A probe cannot be triggered by a third intent or a new channel, which
   is why this design places it in the existing boot unit.
 
-- The handler's mount and unmount modes "Run both modes in the host mount namespace" (the [proposal][proposal],
-  line 496), and this proposal keeps that. The probe is not one of those modes: it attaches nothing for a
-  worktree, it runs in a child mount namespace of its own, and the limit that it therefore cannot prove the
-  host's propagation is stated under [Limits](#limits).
+- The handler's `boot-reconcile` and `shutdown-unmount` modes "Run both modes in the host mount namespace" (the
+  [proposal][proposal], line 496), and this proposal keeps that. The probe is not one of those modes: it attaches
+  nothing for a worktree, it runs in a child mount namespace of its own, and the limit that it therefore cannot
+  prove the host's propagation is stated under [Limits](#limits).
 
 - No production kernel request and no unmount runs early: the [plan][plan], lines 82 to 88 record that "No
   production kernel request runs before the first two, and no unmount runs before the third", and the third is
@@ -147,8 +160,8 @@ Each of these is decided, and this proposal keeps every one of them.
   235). That gate is a set of reads. This proposal reads "start" in its sentence as the start of a process that
   will make raw requests, which covers every wrapper invocation and the boot unit's `ExecStart` (the
   [proposal][proposal], lines 500 to 505). A functional probe needs root and mounts, so it cannot run in every
-  wrapper invocation; which start it must cover is put to the owner as
-  [Q2](#q2-which-start-the-probe-covers), and the recommendation places it in the boot unit.
+  wrapper invocation; this design places it in the boot unit and settles that as a writer's item under
+  [What a writer settles without asking](#what-a-writer-settles-without-asking).
 - The probe is a separate check from the module gate, and the gate's failure path is decided while the probe's is
   not (the [proposal][proposal], lines 617 to 620 and 1294 to 1306).
 - The syscall floor is stated as Linux 5.6 for `openat2` and 5.2 for the mount APIs, and the demonstrated guest
@@ -187,7 +200,9 @@ These lines are from the tag's commit `71a9f9578616`, cloned on 2026-11-19 from 
   `ENOENT`: `zpl_get_tree` returns the error from `dmu_objset_hold`
   (`module/os/linux/zfs/zpl_super.c:857` to `:859`), and the hold sets `ENOENT` for a missing head dataset and
   for a missing snapshot (`module/zfs/dsl_dataset.c:825` to `:847`). The probe therefore detects a missing probe
-  dataset, or a missing snapshot of it, only as the `ENOENT` from `fsconfig(create)`.
+  dataset, or a missing snapshot of it, only as the `ENOENT` from `fsconfig(create)`, and an unimported pool answers
+  the same `ENOENT` from `spa_open` (`module/zfs/spa.c:6478` to `:6482`), so the record names the arm and not the
+  cause.
 - The fs_context path takes `fc->source` as the dataset name, holds that objset, and calls `sget_fc` keyed on it;
   it calls `zfs_domount` only when the returned superblock has no root yet
   (`module/os/linux/zfs/zpl_super.c:850` to `:920`). A second attach of an already mounted dataset therefore
@@ -257,7 +272,7 @@ These lines are from the tag's commit `71a9f9578616`, cloned on 2026-11-19 from 
   identity on this kernel (read-only, 2026-11-19).
 - The root filesystem is on ZFS and the module is in use, so the module cannot be unloaded or reloaded without a
   reboot: `findmnt --target /` names `zpcachyos/ROOT/cos/root` ([measurements][measurements], lines 26 to 29) and
-  `/proc/modules` lists `zfs` with use count ten (read-only, 2026-11-19).
+  `/proc/modules` lists `zfs` with a use count of 10 (read-only, 2026-11-19).
 - Unprivileged user namespaces are enabled here: `/proc/sys/user/max_user_namespaces` reads `252369` and
   `/proc/sys/kernel/unprivileged_userns_clone` reads `1` (read-only, 2026-11-19).
 - The design's checkout dataset does not exist yet on this host: `findmnt --target /home/user/Monochromatic`
@@ -421,14 +436,22 @@ Each assumption is stated so a measurement can break it, and the measurement tha
   floor.
 - A probe refusal names an arm and an errno. It cannot say whether one particular clone would attach, and it is
   not a substitute for the module gate's device and layout checks.
+- The module gate the mode runs first may open `/dev/zfs` for the access check the accepted gate asks for (the
+  [proposal][proposal], lines 235 to 237); the probe's own arms never do. A device that fails the gate's check is
+  therefore a gate verdict, not an arm's, and the scope of "never opens `/dev/zfs`" is the arms.
 - The probe reads no file content from the attached source; it proves the mount through `fstatfs`, a bounded
   directory read and mount facts. A source whose root directory is unreadable to root is therefore not detected
   by content.
 - A probe that holds a snapshot for its duration can make a concurrent `zfs destroy` of that exact snapshot
   refuse `EBUSY`; [M2](#m2-the-mount-table-and-the-pool-are-unchanged) records whether that window is
-  observable. The holder and the unmount child end with the process that forked them, so neither outlives a
-  probe killed at its deadline ([M3](#m3-interruption-leaves-nothing)). The residue is the worker: a `SIGKILL`
-  cannot interrupt a kernel wait, so a worker inside one holds the snapshot until the wait returns.
+  observable. The holder and the unmount child each carry a parent-death signal set after their own fork and the
+  pipes their forking process owns, so an interruptible child does not outlive that thread unless it died between
+  the fork and the call that sets the signal, which the child's `getppid()` recheck covers
+  ([M3](#m3-interruption-leaves-nothing)). A child inside an uninterruptible kernel wait survives its `SIGKILL`
+  until the wait returns, exactly as the worker does, so those bounds cover an interruptible child rather than
+  every child. The residue is the worker: it sets no parent-death signal, so a mode killed alone leaves it
+  running, and a `SIGKILL` cannot interrupt a kernel wait, so a worker inside one holds the snapshot until the wait
+  returns.
 - The snapshot name is account-influenced under [Way 1](#way-1-a-root-probe-on-a-live-snapshot): the account
   holds `snapshot` on the checkout (the [proposal][proposal], lines 319 to 321). The probe mounts the first name
   whose exclusive create succeeds, read-only, with `nosuid` and `nodev`, and reads no content from it.
@@ -446,9 +469,9 @@ Each assumption is stated so a measurement can break it, and the measurement tha
 
 ## Ways to meet the open item
 
-The ways that remain follow. Each states who runs it and where, what it exercises, what it changes at start, what
-it leaves behind, what a refusal prints, and its costs. Cost is stated as the work to write and to test, never as
-a duration, because no measurement of this work exists.
+The ways that remain each state who runs it and where, what it exercises, what it changes at start, what it
+leaves behind, what a refusal prints, and its costs. Cost is stated as the work to write and to test, never as a
+duration, because no measurement of this work exists.
 
 [Way 2](#way-2-ruled-out-by-the-accepted-design) is not one of them: the accepted design rules it out, so it is
 recorded and dropped rather than ranked.
@@ -532,39 +555,50 @@ user-namespace skip control.
 ### Way 4: the product's first attach as the probe
 
 It runs no separate check. The handler's first real attach after boot is already the functional evidence, and its
-outcome is written into the `first-attach` file beside the probe's record; later managed attaches read that record.
+outcome can be written into the `first-attach` file beside the probe's record; later managed attaches read that
+record. Whether the file exists is [Q7](#q7-whether-the-first-real-attach-records-its-outcome).
 
 What it changes at start: nothing extra. What it leaves when it fails: exactly what a failed first attach leaves,
 a claimed and registered slot that needs the design's recovery.
 
-For it: zero extra work, the exact topology (a real clone, its slot, the host namespace, ZED ordering) and no
+For it: no separate check, the exact topology (a real clone, its slot, the host namespace, ZED ordering) and no
 synthetic source.
 
 Against it: it runs after the first attach, which is the attach the answer wants qualified, so it cannot refuse
 it; it needs a clone to exist, so a fresh host never probes; and it reports an operation's failure as a
 compatibility verdict, which mixes two different questions.
 
-Build cost: a record block only. Test cost: one VM arm on the built handler, plus the existing add controls.
+Build cost: a record block, one write in the product's attach path, a reader in `doctor` and a new measurement.
+Test cost: one VM arm on the built handler, plus the existing add controls. The write is a duty plan steps 4 and
+8 carry, since they build the attach, and no record decides it, which is why it is the owner's question rather
+than this design's.
 
 ### Way 5: a setup-time probe dataset
 
 It runs the same root probe as [Way 1](#way-1-a-root-probe-on-a-live-snapshot), from the same place, with one
 difference: the source is a dataset the root-once setup creates, not a snapshot the probe finds. The setup
 command that `doctor` prints (administrative commands printed by `doctor` do not run inside the wrapper, the
-[proposal][proposal], line 153) creates the dataset and one empty snapshot, and records the name in the root-owned
-configuration the handler reads.
+[proposal][proposal], line 153) creates the dataset and one empty snapshot, and records its name in the root-owned
+configuration the handler reads, beside the pool and dataset names and GUIDs that configuration already pins (the
+[proposal][proposal], line 319). The probe reads that name and checks it as a name, since it makes no ioctl;
+`doctor` is where the GUIDs are compared.
 
 The example this design names, for the owner to accept or replace at
-[Q4](#q4-whether-a-setup-time-probe-dataset-exists), is the dataset `zpcachyos/nosnap/git-worktree-probe` with
-the snapshot `ready`. It sits under the unmounted container `zpcachyos/nosnap`, which the sanoid configuration
-already carries as `autosnap = no` and whose children are the pool's unmounted exclusion datasets (the
-[proposal][proposal], lines 1099 to 1124). Its properties are `mountpoint=legacy`, `canmount=off`,
-`com.sun:auto-snapshot=false` and the user property
-`org.monochromatic:git-worktree-probe-source=v1`, which `doctor` reads to name the source; the snapshot is empty.
+[Q3](#q3-whether-a-setup-time-probe-dataset-exists), is the dataset `zpcachyos/nosnap/git-worktree-probe` with
+the snapshot `ready`. It sits under the container `zpcachyos/nosnap`, which is unmounted (`mountpoint=none`,
+`canmount=off`) and carries `autosnap = no` with each of its children (the [proposal][proposal], lines 1098 to
+1124); those children are mounted caches, and the container is the one dataset there that nothing mounts. Its
+properties are `mountpoint=legacy`, `canmount=off`, `com.sun:auto-snapshot=false` and the user property
+`org.monochromatic:git-worktree-probe-source=v1`, which `doctor` reads through an ioctl to name the source; the
+probe reads no property, because that is a raw request it does not make. The snapshot is empty.
 Nothing mounts a legacy dataset automatically and `canmount=off` stops `zfs mount -a` and the mount generator too
-(the [proposal][proposal], lines 262 to 270), so no automatic mount or snapshot job reaches it and only a root
-process that asks for it attaches it. Its key is the pool root's, which the boot unit already waits for before
-`ExecStart`; an unavailable key is then an `EACCES` refusal from the attach arm, reported rather than hidden.
+(the [proposal][proposal], lines 262 to 270), so no automatic mount job reaches it and only a root process that
+asks for it attaches it. Its key is the pool root's, which the boot unit already waits for before `ExecStart`; an
+unavailable key is then an `EACCES` refusal from the attach arm, reported rather than hidden. No sanoid section is
+needed to keep it out of snapshots: the only recursive section is the home template,
+`zpcachyos/ROOT/cos/home`, and `zpcachyos/nosnap` is outside that subtree (the [proposal][proposal], lines 1081
+to 1092). The section this design names in step 20 follows the configuration's existing convention of naming
+every exclusion, so a later recursive ancestor cannot silently include it.
 
 What the account can do to it: nothing. Delegation is scoped to the checkout dataset and the clone parent (the
 [proposal][proposal], lines 319 to 327), and that same passage says not to put unrelated ZFS descendants there.
@@ -574,7 +608,10 @@ neither create, rename, mount, snapshot nor destroy it. That is the property
 
 How its existence is detected: the probe asks the kernel, not the pool. It attaches `<dataset>@ready` with
 `FSCONFIG_CMD_CREATE_EXCL`, and a missing dataset or snapshot is the `ENOENT` from `fsconfig(create)`, as the
-OpenZFS facts state ([Facts](#openzfs-at-zfs-244)). A missing name is reported as an unexercised attach arm and
+OpenZFS facts state ([Facts](#openzfs-at-zfs-244)). `ENOENT` alone does not name the cause: `spa_open` returns
+it for a pool that is not imported (`module/zfs/spa.c:6478` to `:6482`), so the record names the arm and the call
+rather than the cause: an existing dataset whose attach answered `ENOENT` is a failure `doctor` reports as such,
+after it checks that the configured dataset exists. A missing name is reported as an unexercised attach arm and
 never created.
 
 What it changes at start: the same list as [Way 1](#way-1-a-root-probe-on-a-live-snapshot) minus the directory
@@ -590,7 +627,7 @@ directory read, and no account-run process and no automatic job pins or destroys
 the space guard or the sweep.
 
 Against it: it adds an object to the pool's layout, which is why it is the owner's question
-([Q4](#q4-whether-a-setup-time-probe-dataset-exists)) and not this proposal's decision. It needs the setup
+([Q3](#q3-whether-a-setup-time-probe-dataset-exists)) and not this proposal's decision. It needs the setup
 command, a sanoid exclusion section and the user property, and it is one more thing that can go missing or drift.
 A further root process could still attach it, which arm 7's scan reports as a foreign mount rather than hides.
 Making it a clone of the checkout snapshot instead of an independent dataset would exercise a real clone shape,
@@ -600,16 +637,18 @@ and leaves the clone shape to [Way 4](#way-4-the-products-first-attach-as-the-pr
 What it changes in the plan, all of it named here rather than decided:
 
 - Step 18, `doctor`: the root-once and setup commands it prints gain the dataset creation, its snapshot and the
-  configuration field, and its filesystem section gains the probe result (the [plan][plan], lines 1490 to 1530).
-- Step 19, the migration and the units: the setup gains the commands, and the boot unit gains `ExecStartPre=`
-  running the probe (the [plan][plan], lines 1572 to 1593).
+  configuration field (the [plan][plan], lines 1490 to 1530). The probe result in the filesystem section is not
+  this way's cost, because every answer needs it.
+- Step 19, the migration and the units: the setup gains the commands (the [plan][plan], lines 1572 to 1593). The
+  boot unit's `ExecStartPre=-` is not this way's cost either, because every answer needs the unit to run the
+  probe.
 - Step 20, sanoid coverage: the dataset gets its own `autosnap = no` section beside the named exclusions, with
   the `com.sun:auto-snapshot=false` marker, and the guard's report names it (the [plan][plan], lines 1677 to
   1700).
 - No step of the sweep, the destroy-anyway path or preflight changes. The dataset is outside the pinned clone
   parent whose immediate children those steps enumerate (the [proposal][proposal], lines 540 to 541), and no
   account grant reaches it, so none of them can meet it. A draft of this design assumed a place under that parent,
-  which would have changed all three.
+  which would have changed every one of those steps.
 
 Build cost: [Way 1](#way-1-a-root-probe-on-a-live-snapshot) plus the setup command's dataset creation, the
 configuration field, the exclusion and the missing-dataset report. Test cost: the same as
@@ -624,7 +663,7 @@ ruled out by the accepted design.
 Way 5 ranks first because it is [Way 1](#way-1-a-root-probe-on-a-live-snapshot) with a source that always exists
 and that nothing else mounts, so every arm runs on every boot, the exclusive create proves the superblock is new,
 and no account-influenced name is read. It ranks above Way 1 because of that, and the layout change it needs is
-the owner's to accept at [Q4](#q4-whether-a-setup-time-probe-dataset-exists): with a yes the recommendation's
+the owner's to accept at [Q3](#q3-whether-a-setup-time-probe-dataset-exists): with a yes the recommendation's
 source is Way 5, and without that answer this design uses Way 1.
 
 Way 1 ranks second because it reaches `zfs_domount` and the key path at start on a host whose checkout already
@@ -636,31 +675,35 @@ invocation, but it cannot refuse a bad ZFS attach, and it is skipped exactly whe
 above Way 4 because Way 4 cannot refuse anything: its evidence arrives after the attach it would have qualified,
 and it never runs on a host without clones.
 
-Way 4 ranks fourth and is still part of the recommendation, folded in free: the first real attach's outcome lands
-in the `first-attach` file beside the probe's record with no new mechanism, which is the only evidence about a
-real clone in the host namespace that any way gives.
+Way 4 ranks fourth. Its record is the owner's to accept at
+[Q7](#q7-whether-the-first-real-attach-records-its-outcome), because it adds a write to the product's attach path,
+a second file, a reader in `doctor` and a new measurement, and no record decides that write. This design therefore
+does not call it free and does not settle it. It is the only evidence about a real clone in the host namespace
+that any way gives.
 
 Way 1 and Way 3 are complements, not alternatives: Way 3's per-invocation check is
-[Q7](#q7-whether-the-account-runs-a-companion-probe), and [the ranking](#ranking) orders the ways that could serve
+[Q6](#q6-whether-the-account-runs-a-companion-probe), and [the ranking](#ranking) orders the ways that could serve
 as the start check's own evidence.
 
 The recommended shape is the probe's arms under [The proposed probe](#the-proposed-probe), sourced from
-[Way 5](#way-5-a-setup-time-probe-dataset) if the owner answers [Q4](#q4-whether-a-setup-time-probe-dataset-exists)
+[Way 5](#way-5-a-setup-time-probe-dataset) if the owner answers [Q3](#q3-whether-a-setup-time-probe-dataset-exists)
 yes and from [Way 1](#way-1-a-root-probe-on-a-live-snapshot) if not, with
-[Way 4](#way-4-the-products-first-attach-as-the-probe)'s record folded in and
+[Way 4](#way-4-the-products-first-attach-as-the-probe)'s record only if the owner answers
+[Q7](#q7-whether-the-first-real-attach-records-its-outcome) yes, and
 [Way 3](#way-3-an-account-probe-with-no-zfs) only if the owner wants a per-invocation companion.
 
 ## The proposed probe
 
 This section proposes the recommended shape in the detail the open item asks for. The arms are the same whichever
-answer [Q4](#q4-whether-a-setup-time-probe-dataset-exists) gives; only the source differs. Every part of it is a
+answer [Q3](#q3-whether-a-setup-time-probe-dataset-exists) gives; only the source differs. Every part of it is a
 writer's proposal inside an undesigned item, and the questions under
 [Questions for the owner](#questions-for-the-owner) can change parts of it.
 
 ### The arms
 
-1.  Namespace and scratch. The mode process forks a worker, and the worker calls `setpgid(0, 0)` so the mode can
-    kill the whole group, then `unshare(CLONE_NEWNS)`. It makes every mount in the new namespace private
+1.  Namespace and scratch. The mode process forks a worker and calls `setpgid(worker, worker)` at once, so the
+    group exists even if the worker dies before its own call, and the worker calls `setpgid(0, 0)` as well. The
+    worker then calls `unshare(CLONE_NEWNS)`. It makes every mount in the new namespace private
     (`mount_setattr` with `AT_RECURSIVE` and `attr.propagation = MS_PRIVATE`, or
     `mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL)`), and mounts a fresh tmpfs on the scratch mount point the
     mode created. It then creates the slot, the move-target directory and a refusal tree inside the tmpfs. Until
@@ -693,15 +736,14 @@ writer's proposal inside an undesigned item, and the questions under
     `nosuid,nodev,ro` flags; `fstatfs` the mount and read a bounded number of directory entries; no file content
     is read. The arm reports the flags it asked for; it does not prove that a later mount is refused them.
 6.  A holder for the namespace arm. The mode process forks the holder, not the worker, so the holder inherits no
-    descriptor on the worker's mount and no mount it did not make; it closes every descriptor numbered higher
-    than standard error before it runs. It sets `PR_SET_PDEATHSIG` to `SIGKILL` and holds a control pipe whose
-    end of file ends it. It unshares its own mount namespace, makes it private, and attaches the same source
-    read-only at the directory `holder`, which the mode created beside `scratch`: its mount lives in its own
-    namespace, and the worker's tmpfs is not visible to it. It uses the plain `FSCONFIG_CMD_CREATE`, because
-    reusing the worker's superblock is what this arm wants: it needs a mount in a second namespace, not a second
-    superblock. It starts after arm 5 and before the move, because a probe that has already unmounted has no
-    mount for a holder to hold, and it waits for the mode's signal. The mode stops and reaps it between arm 7's two
-    scan passes.
+    descriptor on the worker's mount and no mount it did not make. It unshares its own mount namespace, makes it
+    private, and attaches the same source read-only at the directory `holder`, which the mode created beside
+    `scratch`: its mount lives in its own namespace, and the worker's tmpfs is not visible to it. It uses the plain
+    `FSCONFIG_CMD_CREATE`, because reusing the worker's superblock is what this arm wants: it needs a mount in a
+    second namespace, not a second mount record. It starts after arm 5 and before the move, because a probe that
+    has already unmounted has no mount for a holder to hold, and it waits on its control pipe for the mode's
+    signal. The mode stops and reaps it between arm 7's two scan passes, and reads the outcome line it wrote to
+    its status pipe. Its pipes and its parent-death signal are the protocol described after the arms.
 7.  Namespace scan, in two passes, before anything is unmounted. Run the probe's own scan: group live tasks by
     `/proc/<pid>/ns/mnt`, read a representative `mountinfo` per namespace, and match the ZFS filesystem and exact
     source. In the first pass, while the worker's mount and the holder's both exist, require the set of
@@ -714,22 +756,59 @@ writer's proposal inside an undesigned item, and the questions under
     report is not absence. This scan is probe-private; step 9 builds the product's (the [plan][plan], lines 909 to
     916), and this design proposes that step 9 reuse this grouping and source match rather than write a second
     scanner of the same mechanism.
-8.  The move target and the unmount, from a second process. The worker forks a child, which sets
-    `PR_SET_PDEATHSIG` to `SIGKILL` and holds the same control pipe. The child reopens the slot through the
-    recorded parent, moves the mount from the held mount descriptor onto the move-target directory descriptor,
-    verifies it there with `mountinfo`, closes every descriptor that would hold it busy, and unmounts it by path
-    inside the probe's own tmpfs. The worker waits for the child, bounded by the mode's deadline, and then runs the
-    scan once more: no namespace may mention the source. It never unmounts a path in the account's tree, which is
-    the only tree the accepted rule forbids (the [plan][plan], line 275). This is probe-private code: it proves
-    that a second process can move and unmount what another process attached, and it does not exercise the
-    product's unmount from a held descriptor, which step 9 owns.
-9.  Teardown. Unmount the tmpfs, and exit. The holder is already gone, because arm 7 stopped it. The mode
-    process writes the record only after the worker exits or its deadline passes.
+8.  The move target and the unmount, from a second process. Before it forks, the worker closes the mount
+    descriptor `fsmount` returned and every descriptor whose path is on the attached mount, including the ones the
+    verify arm opened there. Each of them holds a reference on that mount, and a non-lazy unmount refuses while the
+    mount's count exceeds the one its parent holds plus the one the unmounting path walk takes
+    (`fs/namespace.c:2010` calls `propagate_mount_busy(mnt, 2)`; the count test is `fs/pnode.c:371` to `:374`,
+    reached from `:501` to `:513`; the `fsmount` file holds such a reference because `dentry_open` puts the path in
+    it, `fs/namespace.c:4705`, and marks it `FMODE_NEED_UNMOUNT`, `:4715`). A child's close cannot do that work for
+    the worker: `fork` copies descriptors, and the open file description lives while any copy does. The worker then
+    forks a child with its own control pipe and status pipe, and the child rechecks `getppid()`, resolves the slot
+    and the move-target directories inside the tmpfs by path, and moves the mount with `move_mount` between those
+    two paths. `move_mount` looks both paths up with `filename_lookup` and drops those references when it returns
+    (`fs/namespace.c:4747`, `:4789` to `:4812`), so the child holds nothing when it unmounts. It verifies the mount
+    point from `/proc/self/mountinfo`, which is not on the mounted tree, and unmounts by path with `umount2`,
+    which must not answer `EBUSY`: an `EBUSY` there fails this arm. The worker waits for the child,
+    bounded by the mode's deadline, and then runs the scan once more: no namespace may mention the source. It never
+    unmounts a path in the account's tree, which is the only tree the accepted rule forbids (the [plan][plan], line
+    275). This is probe-private code: it proves that a second process can move and unmount what another process
+    attached, and it does not exercise the product's unmount from a held descriptor, which step 9 owns.
+9.  Teardown. The worker writes its last outcome line, closes its status pipe and exits; the death of the mount
+    namespace removes the tmpfs and everything mounted inside it, so the probe unmounts no path of its own. The
+    holder is already gone, because the mode stopped it between the scan's passes. The mode process writes the
+    record only after the worker exits or its deadline passes.
 
 If an arm fails, the worker stops at that arm, records its name and errno, tears the namespace down, and reports.
 A name held by another namespace is not a failure: arm 3 tries the next one. The refusal controls in the walk arm
 are expected refusals: an arm that attaches instead of refusing fails the probe, so the harness has a positive
 control for its own check.
+
+The mode, the worker and each child speak over pipes that belong to one child each, so no end of file can arrive
+from another process's copy and no child inherits a channel meant for a sibling. Every pipe is created
+immediately before the fork that needs it, and the forking process keeps one end and closes the others as soon as
+the fork returns: the mode keeps one request pipe and one reply pipe to the worker, and one control pipe and one
+status pipe to the holder, and the worker keeps one control pipe and one status pipe to the unmount child. The
+mode cannot own that child's ends, since the child is its worker's, so the worker relays its outcome line to the
+mode and the mode's bound on that child is the process group's `SIGKILL`. The holder and the unmount child each
+move their control read end to descriptor 3 and their status write end to descriptor 4, then close every
+descriptor numbered 5 or higher with `close_range(5, ~0U, 0)`, so those two pipes survive the sweep that clears
+everything else. A child sets `PR_SET_PDEATHSIG` to `SIGKILL` and then rechecks `getppid()`, because the kernel
+sends the signal from `forget_original_parent`, which runs for the thread that forked the child rather than for
+the process (`kernel/exit.c:729` to `:732`, `PR_SET_PDEATHSIG(2const)`, CAVEATS), and because a forking thread
+that died before the call leaves `getppid()` as the only signal (`kernel/sys.c:2552` to `:2561`). The mode is
+single-threaded and forks from the thread that lives until it exits, so every child's parent-death signal has a
+live thread behind it.
+
+Requests are single bytes. The worker asks for the holder to start before the move and to stop between the scan's
+passes; the mode forks, stops and reaps the holder on those requests and writes the outcome back on its reply
+pipe. The mode does no work between reading a request and answering it, so neither process can wait on the other
+for a pipe the other is waiting to fill. The holder and the worker write one line per arm, naming the arm and its
+errno, to their own status pipes, which the mode reads until end of file; the unmount child writes to the pipe its
+worker owns and the worker relays that line. The mode therefore writes every field of the record from values it
+read itself. The worker sets no parent-death signal of its own, because it must finish its unmount and report even
+when the mode dies; [M3](#m3-interruption-leaves-nothing) records that kill, and [Limits](#limits) names the
+residue.
 
 ### Who runs it, and where
 
@@ -737,8 +816,15 @@ Root, from the handler binary, inside the private mount namespace the run create
 host mount namespace, never runs as the account, and never runs inside `doctor`.
 
 Placement: a new mode of the handler binary, `start-probe`, beside `boot-reconcile`, `shutdown-unmount` and
-`adopt-worktree-parent` (the [plan][plan], lines 640 to 641 list those three; step 6 adds this fourth name to that
-list), run as `ExecStartPre=` of the existing boot unit.
+`adopt-worktree-parent` (the [plan][plan], lines 640 to 641 list those; step 6 adds `start-probe` to the list),
+run as `ExecStartPre=-` of the existing boot unit. The dash prefix is load-bearing: without it a probe that exits
+non-zero, panics or dies of a signal makes the unit fail before `ExecStart`, so the reconcile is skipped and the
+unit's stop action runs at boot, which is the outcome the placement exists to avoid. With the prefix such an exit
+is recorded and has no further effect, and `ExecStart` still runs (`systemd.service(5)`, the special executable
+prefixes). The prefix covers a non-zero or signal exit and not a timeout, which is one reason the unit sets none:
+an expiry in `ExecStartPre=` sends the unit to its stop action whatever the prefix says (`systemd.service(5)`,
+`ExecStartPre=`; systemd v262 `service.c:3047` to `:3057` spawns that command with the start timeout, and `:5156`
+to `:5166` turns an expiry there into the stop path).
 `reconcile-git-worktree-clone-mounts.service` already runs as root at boot, already orders after the key and
 checkout providers, and already publishes readiness (the [proposal][proposal], lines 492 to 505). `ExecStartPre=`
 is the service manager's own child process, so the `unshare` inside the probe cannot change the namespace the
@@ -753,17 +839,22 @@ probe as skipped with the gate's own reason and enables nothing, because the gat
 an unrelated mount" (the [proposal][proposal], lines 243 to 244); a skipped probe is not a probe verdict either
 way.
 
-The mode process enforces the deadline rather than the worker: it forks the worker into a process group of its
-own, waits for it with a monotonic deadline, and on expiry sends `SIGKILL` to that whole group and to the holder,
-reaps the worker only with `WNOHANG`, records a timed-out result, writes the record and exits successfully without
-waiting further. It exits successfully in every case because the unit's start must continue: a failed or
-timed-out probe is a verdict in the record, never a failed unit. The worker's mounts die with its namespace, so a
-worker that survives an uninterruptible wait, which `SIGKILL` cannot interrupt, holds nothing in the host mount
-table; it can hold the snapshot busy until the wait returns, which is under [Limits](#limits). The holder and the
-unmount child carry `PR_SET_PDEATHSIG` set to `SIGKILL` and a control pipe whose end of file ends them, so neither
-outlives the process that forked it; the unit's own `KillMode=` default of `control-group` is a second bound
-rather than the only one (`systemd.kill(5)`, `KillMode=`). What a missed deadline does to the route is
-[Q6](#q6-whether-a-missed-deadline-fails-closed); the deadline's value comes from
+The mode process enforces the deadline rather than the worker: it forks the worker, puts it in a process group of
+its own, waits for it with a monotonic deadline, and on expiry sends `SIGKILL` to that whole group and to the
+holder, reaps the worker only with `WNOHANG`, records a timed-out result, writes the record and exits without
+waiting further. It exits successfully whenever it reaches its own end, because the unit's start must continue: a
+failed or timed-out probe is a verdict in the record, never a failed unit. A mode that panics, aborts, takes a
+signal or is killed for memory never reaches that end, and the dash prefix is what keeps the unit's start going
+then; what the next boot reads in that case is the started record that
+[the interruption section](#what-it-leaves-when-it-fails-or-is-interrupted) describes. The worker's mounts die
+with its namespace, so a worker that survives an uninterruptible wait, which `SIGKILL` cannot interrupt, holds
+nothing in the host mount table; it can hold the snapshot busy until the wait returns, which is under
+[Limits](#limits). The holder and the unmount child each carry a parent-death signal and the pipes their forking
+process owns, described after the arms, so an interruptible child does not outlive the thread that forked it, and
+a child inside an uninterruptible kernel wait can outlive it until that wait returns; the unit's own `KillMode=`
+default of `control-group` sends nothing until the unit stops, so it bounds a leaked process only after a failed
+or finished run (`systemd.kill(5)`, `KillMode=`). What a missed deadline does to the route is
+[Q5](#q5-whether-a-missed-deadline-fails-closed); the deadline's value comes from
 [M4](#m4-what-the-probe-costs).
 
 The unit sets no `TimeoutStartSec=`. A start timeout bounds a oneshot's `ExecStart` as well as its
@@ -772,10 +863,14 @@ armed at `:2178`), and a command that times out sends the unit to its stop actio
 `shutdown-unmount`. The reconcile's duration is unsized until plan step 22, so any value that fits the probe could
 kill the reconcile mid-attach and then unmount what it had attached. The oneshot default is no start timeout at
 all (systemd v262 `service.c:1225` to `:1227`; `systemd.service(5)`, `TimeoutStartSec=`), the probe's own deadline
-bounds the probe, and step 22 sizes the reconcile's own waits. The accepted unit is ordered before
-`systemd-user-sessions.service` (the [proposal][proposal], lines 496 to 498), so the probe delays a login by its
-own run time; [M4](#m4-what-the-probe-costs) measures that delay and [Limits](#limits) records that the probe does
-not run in the host namespace.
+bounds the worker and the holder, and the mode's own phases are short and non-blocking rather than timed. No step
+sizes a unit start timeout: plan step 22 sizes the mount-request deadline of step 7 and the unmount deadline of
+step 9, and asks for workloads to size any shipped deadline (the [plan][plan], lines 1778 to 1779 and 1811 to
+1812). A mode wedged in one of its own phases would therefore hold up `systemd-user-sessions.service` until it was
+killed by hand, which [M4](#m4-what-the-probe-costs) reports beside the login delay it measures. The accepted unit
+is ordered before `systemd-user-sessions.service` (the [proposal][proposal], lines 496 to 498), so the probe delays
+a login by its own run time; [M4](#m4-what-the-probe-costs) measures that delay and [Limits](#limits) records that
+the probe does not run in the host namespace.
 
 Nothing re-runs the probe between boots except a restart of the checkout provider: the unit requires that
 provider and orders after it (the [proposal][proposal], lines 483 to 486), and `Requires=` stops or restarts the
@@ -804,26 +899,26 @@ namespace, so the host sees empty directories there after a run and the record f
 
 Step 6 builds the mode and its writer. The unit that carries the `Type=oneshot`, `RemainAfterExit=yes` and
 `ExecStart` running `boot-reconcile` is step 19's (the [plan][plan], lines 1591 to 1593), and it gains
-`ExecStartPre=` running the probe; step 7's readiness record references the probe's record rather than owning it
+`ExecStartPre=-` running the probe; step 7's readiness record references the probe's record rather than owning it
 (the [plan][plan], lines 762 to 779 and 825 to 829). Until step 19 lands, the probe runs from the guest's
 transient test unit named under [M9](#m9-the-untested-release-and-the-refused-release), so the design does not
 wait on the unit.
 
 Every process that makes a raw ZFS request reads it before doing so: the wrapper's add preflight, where the
 proposal already requires a readiness report (the [proposal][proposal], lines 351 to 352), the handler's
-`boot-reconcile` mode, the handler's mount mode, and the handler's sweep mode that a ZED event starts (the
-[plan][plan], lines 645 to 647). The wrapper's other invocations make no raw request and read nothing. The sweep
-and the boot unit are independent triggers (the [proposal][proposal], lines 478 to 480 name both), so a sweep can
-reach the record before the unit's probe has written it; an absent or stale record then refuses the attach and
-keeps the intent, which is the decided behaviour for a missing readiness report (the [proposal][proposal], lines
-351 to 352) and needs no new rule. The module gate binds both binaries (the [proposal][proposal], lines 235 to
-237); the probe's verdict binds at least every attach path, and what else a failure disables is
-[Q3](#q3-what-a-failed-arm-disables).
+`boot-reconcile` mode, its `shutdown-unmount` mode, and the sweep the no-argument invocation runs, which a ZED
+event starts (the [plan][plan], lines 640 to 647). The wrapper's other invocations make no raw request and read
+nothing. The sweep and the boot unit are independent triggers (the [proposal][proposal], lines 478 to 480 name
+both), so a sweep can reach the record before the unit's probe has written it; an absent or stale record then
+refuses the attach and keeps the intent, which is the decided behaviour for a missing readiness report (the
+[proposal][proposal], lines 351 to 352) and needs no new rule. The module gate binds both binaries (the
+[proposal][proposal], lines 235 to 237); the probe's verdict binds at least every attach path, and what else a
+failure disables is [Q2](#q2-what-a-failed-arm-disables).
 
 ### What it changes at start
 
 - One worker process, the mode process that forks it and enforces its deadline, a holder the mode forks, and an
-  unmount child the worker forks, each short-lived.
+  unmount child the worker forks, each short-lived, with one control pipe and one status pipe per child.
 - One new private mount namespace for the worker and one for the holder, made private before any mount is made.
 - One tmpfs for scratch, no larger than the probe needs to hold a few directories and a link.
 - One mount of a read-only source, and the superblock it creates, for the duration of the run.
@@ -850,14 +945,16 @@ attach, which is the decided behaviour for a missing readiness report (the [prop
 The one residue a killed probe can leave is a started record: the mode process writes one, with the fingerprint
 and no result, by atomic rename before it forks the worker, and the final record replaces it the same way. Both
 live in the record's directory on `/run`, so neither is on disk, and `doctor` can say the probe began and did not
-finish. The next boot starts with an empty directory.
+finish. A reader that finds a started record with no result reads it as not current rather than as a pass, which is
+the same rule as an absent record, so a mode that panicked or was killed leaves a boot whose adds refuse the
+managed attach. The next boot's probe replaces it, and the next boot starts with an empty directory.
 
 ### What a refusal prints
 
 The wrapper prints one line to standard error on the managed operation it refuses, naming the probe arm, the
 running kernel release, the module version, the failed call and its errno, the route the slot will use instead,
 and the `doctor` command that prints the last result. It never suggests a force flag, because the gate has none
-and this probe adds none. Which operations a failed arm refuses is [Q3](#q3-what-a-failed-arm-disables).
+and this probe adds none. Which operations a failed arm refuses is [Q2](#q2-what-a-failed-arm-disables).
 
 `doctor` prints a new section under the existing filesystem report, headed by its section marker pattern, with
 the fingerprint, when the last probe ran, each arm and its outcome, any difference between the recorded
@@ -876,10 +973,13 @@ in the shape `binary_identity` records. A module's build ID where the kernel exp
 `/sys/module/zfs/notes/`, joins the fingerprint too; that directory is empty on this host, so `srcversion` is the
 build input that is always readable there. The record also holds the time of the run, each arm's outcome, errno
 and source, the holder's and the worker's namespace identities, the chosen source, whether the source existed, and
-the resulting verdict. The probe's own fields are written only by the mode process. The first real attach's
-outcome, which [Way 4](#way-4-the-products-first-attach-as-the-probe) folds in, goes into a second file beside it,
-`first-attach`, written by the handler process that made that attach, under the same atomic rename; each file has
-one writer, so no lock is needed. The wrapper and `doctor` read both and write neither.
+the resulting verdict. The probe's own fields are written only by the mode process, from the lines it reads on the
+status pipes. The first real attach's outcome, which
+[Way 4](#way-4-the-products-first-attach-as-the-probe) describes, goes into a second file beside it,
+`first-attach`, only if the owner answers
+[Q7](#q7-whether-the-first-real-attach-records-its-outcome) yes; the handler process that made that attach writes
+it, under the same atomic rename, and each file then has one writer, so no lock is needed. The wrapper and `doctor`
+read both and write neither.
 
 The record is not authority to act. It is a cache of an observation, and the wrapper rebuilds nothing from it
 except the verdict and its wording, the way the design treats its other runtime files (the [proposal][proposal],
@@ -890,15 +990,15 @@ lines 555 to 556).
 A result with every arm passed enables managed attaches for that boot and module identity.
 
 A result naming a failed attach, walk, move or unmount arm, or a failed namespace arm, is a real observation.
-What it disables is the owner's answer to [Q3](#q3-what-a-failed-arm-disables); the options there state the effect
+What it disables is the owner's answer to [Q2](#q2-what-a-failed-arm-disables); the options there state the effect
 on unused slots, on boot reconcile, and on removal of mounted and unmounted clones.
 
 A result naming an unexercised arm, because no source existed, every candidate was held, or the kernel refused the
 exclusive create, is reported. Whether it enables the route is the owner's answer to
-[Q5](#q5-whether-an-unexercised-arm-may-enable-the-route).
+[Q4](#q4-whether-an-unexercised-arm-may-enable-the-route).
 
 A result naming a missed deadline is written as timed out. Whether the route then refuses or continues is the
-owner's answer to [Q6](#q6-whether-a-missed-deadline-fails-closed).
+owner's answer to [Q5](#q5-whether-a-missed-deadline-fails-closed).
 
 A module or kernel whose fingerprint changed since the record makes the record stale; the next boot's probe
 replaces it, and an add in between reads stale readiness, which the preflight must report as not current rather
@@ -906,14 +1006,20 @@ than as a pass.
 
 ### What the probe never does
 
-It never mounts by path on an account-controlled tree, never runs the `zfs` program, never opens `/dev/zfs`,
-never creates or destroys a dataset or snapshot, never promotes, never sets a property, never writes a
-registration or a receipt, never runs in the host mount namespace, never runs from `doctor`, and never offers a
-force flag. It never looks up a name inside `.zfs/snapshot`: opening that directory resolves the two components
-`.zfs` and `snapshot` by name, and beyond them the probe reads the directory's entries with `getdents` and never
-opens, stats or resolves an entry it finds, because such a lookup starts the automounter and can mount into a
-namespace the probe does not control (`module/os/linux/zfs/zpl_ctldir.c:255` to `:277`,
-`module/os/linux/zfs/zfs_ctldir.c:1190` to `:1198`). The mounts it makes live only in its own namespace.
+Its arms never open `/dev/zfs`, because the dataset mount path in the kernel makes no ZFS ioctl request:
+`zpl_get_tree` holds the objset and reaches `zfs_domount`, which calls `zfsvfs_create`
+(`module/os/linux/zfs/zpl_super.c:850` to `:920`, `module/os/linux/zfs/zfs_vfsops.c:1347` to `:1375`). The module
+gate the mode runs first may open it, because the accepted gate checks device access (the [proposal][proposal],
+lines 235 to 237) and step 6 designs that check; `stat`, `access(2)` and a plain `open` all answer "missing
+device" without a raw request, so this design does not choose between them. Beyond that, it never mounts by path on
+an account-controlled tree, never runs the `zfs` program, never creates or destroys a dataset or snapshot, never
+promotes, never sets a property, never writes a registration or a receipt, never runs in the host mount namespace,
+never runs from `doctor`, and never offers a force flag. It never looks up a name inside `.zfs/snapshot`: opening
+that directory resolves the two components `.zfs` and `snapshot` by name, and beyond them the probe reads the
+directory's entries with `getdents` and never opens, stats or resolves an entry it finds, because such a lookup
+starts the automounter and can mount into a namespace the probe does not control
+(`module/os/linux/zfs/zpl_ctldir.c:255` to `:277`, `module/os/linux/zfs/zfs_ctldir.c:1190` to `:1198`). The mounts
+it makes live only in its own namespace.
 
 ## Owed measurements
 
@@ -921,7 +1027,7 @@ Every item here is owed before the probe can be trusted. None ran for this propo
 disposable file-backed pool inside a throwaway VM, never on this host's pool and never with its `/dev/zfs`.
 
 The recommended shape needs M1, M2, M3, M4, M5, M7, M8 and M9, plus M10 where the owner answers
-[Q4](#q4-whether-a-setup-time-probe-dataset-exists) yes. [Way 3](#way-3-an-account-probe-with-no-zfs) needs M2,
+[Q3](#q3-whether-a-setup-time-probe-dataset-exists) yes. [Way 3](#way-3-an-account-probe-with-no-zfs) needs M2,
 M4, M5, M6 and M9. [Way 4](#way-4-the-products-first-attach-as-the-probe) needs M8 and M9.
 
 ### M1: which source exercises the dataset mount path
@@ -951,33 +1057,37 @@ after, plus the dataset list, the checkout's `atime` property and the pool histo
 kstat is the one that can show a write: pool history records administrative commands only, since the mount path
 has no history call (`module/os/linux/zfs/zfs_vfsops.c:1911` to `:1964`) and the kstat is installed at
 `module/zfs/spa_stats.c:288` to `:304`. Its columns are `txg`, `birth`, `state`, `ndirty`, `nread`, `nwritten`,
-`reads`, `writes` and four times (`module/zfs/spa_stats.c:206` to `:214`).
+`reads` and `writes`, followed by the completion times (`module/zfs/spa_stats.c:206` to `:214`).
 
 The txg comparison is by row, not by the highest txg: an idle pool commits a txg on its own timer, every
 `zfs_txg_timeout` seconds (5 by default, `module/zfs/txg.c:532` to `:553`), so the highest txg always moves and a
-before-and-after comparison of counters proves nothing. The window is every row whose `txg` is no lower than the
-first reading's highest, call that value `T0`, the txg the probe could have dirtied while it was open. Read the
-first time, note `T0`, and run the probe; read again and require, for every committed row whose `txg` is no lower
-than `T0`, `ndirty`, `nwritten` and `writes` to be zero, and require at least one such committed row to exist, so
-a run that committed nothing fails instead of passing vacuously. A row still in the open state has not committed,
-so its counters are not evidence either way.
+before-and-after comparison of counters proves nothing. The window carries a start fence and an end fence, both a
+sync. Run `zpool sync` in the guest, then read the kstat and call the then-open row's txg `T0`: the sync committed
+everything written before it, so `T0` starts clean and the probe's writes can land only in `T0` or later. Run the
+probe, run `zpool sync` again, and read the kstat again: that sync commits everything the probe wrote, so the
+highest committed row is the window's end, and a late write cannot hide in the row that is still open. Require,
+for every committed row whose `txg` is no lower than `T0`, `ndirty`, `nwritten` and `writes` to be zero, and
+require such a row to exist: the end sync commits `T0` itself, so that requirement is met unless the history list
+has already dropped the row, which the `zfs_txg_history` bound turns into an unmeasured report rather than a pass.
 
-The measurement therefore needs a pool the harness keeps otherwise idle, because a write from anything else lands
-in the same window and cannot be told from the probe's; the harness records the window's rows with their counters
-so a nonzero row can be attributed. Read the second time soon enough that `T0` is still in the list, because the
-list keeps `zfs_txg_history` rows, 100 on this host (read-only `/sys/module/zfs/parameters/zfs_txg_history`);
-with the parameter at 0 the reading is empty, which the design reports as unmeasured rather than as zero writes.
-The positive control is the same rule with a deliberate write in a scratch dataset: that write must appear on a
-committed row whose `txg` is no lower than `T0`, including when it lands in the txg that was open at the first
-reading, with a nonzero `ndirty`, `nwritten` or `writes`, so a harness that never reads the file, or that only
-looks at rows past `T0`, fails its own control.
+An idle txg writes nothing: with nothing changed in it, an empty config dirty list and no multihost protection,
+the uberblock write is skipped (`module/zfs/vdev_label.c:2064` to `:2079`), so a committed row with zero `ndirty`,
+`nwritten` and `writes` is the expected reading for a probe that wrote nothing. The measurement therefore needs a
+pool the harness keeps otherwise idle, because a write from anything else lands in the same window and cannot be
+told from the probe's; the harness records the window's rows with their counters so a nonzero row can be
+attributed. Read the second time soon enough that `T0` is still in the list, because the list keeps
+`zfs_txg_history` rows, 100 on this host (read-only `/sys/module/zfs/parameters/zfs_txg_history`); with the
+parameter at 0 the reading is empty, which the design reports as unmeasured rather than as zero writes.
 
-Controls, each fixture-only and never shipped: a deliberate mount in the guest's initial namespace, which must
-show the mount-table difference the harness looks for; a deliberate write in a scratch dataset, which must leave
-the nonzero committed row in the window, and one made during the open txg to exercise the `T0` row itself; and a
-deliberate `open` of an entry name inside `.zfs/snapshot`, which must change the guest's initial mount table,
-because the automounter mounts through a helper (`module/zfs/zfs_ctldir.c:1190` to `:1198`). The call is an
-`open`: `stat`, `lstat` and `fstatat` do not automount (`statx(2)`).
+Controls, each fixture-only and never shipped: the idle window, which runs the same syncs and readings with
+`sleep` standing in for the probe and must read zero on every row of the window, so a harness that reports zero
+for a pool something else is writing fails its own control; a deliberate mount in the guest's initial namespace,
+which must show the mount-table difference the harness looks for; a deliberate write in a scratch dataset, which
+must leave a nonzero committed row in the window, including one made inside `T0` itself, so a harness that never
+reads the file, or that only looks past the window, fails its own control; and a deliberate `open` of an entry name
+inside `.zfs/snapshot`, which must change the guest's initial mount table, because the automounter mounts through a
+helper (`module/os/linux/zfs/zfs_ctldir.c:1190` to `:1198`). The call is an `open`: `stat`, `lstat` and `fstatat`
+do not automount (`statx(2)`).
 
 Gates: [Way 1](#way-1-a-root-probe-on-a-live-snapshot), [Way 3](#way-3-an-account-probe-with-no-zfs) and
 [Way 5](#way-5-a-setup-time-probe-dataset); also the claim that a probe leaves no pool write, the access-time
@@ -995,7 +1105,7 @@ source after the kill, and whether a second run succeeds. Control: the same prob
 killed before `unshare` returns.
 
 Gates: the claims that it leaves nothing in the host mount table and nothing outside the record's directory, the
-started record, the parent's deadline path, and each child's `PR_SET_PDEATHSIG` and control pipe.
+started record, the parent's deadline path, and each child's parent-death signal, `getppid()` recheck and pipes.
 
 ### M4: what the probe costs
 
@@ -1028,17 +1138,18 @@ namespaces in the guest (`user.max_user_namespaces` set to 0) and record that th
 stated reason rather than failing the boot.
 
 Gates: [Way 3](#way-3-an-account-probe-with-no-zfs)'s skip path, the assumption that every ZFS arm needs root, and
-[Q7](#q7-whether-the-account-runs-a-companion-probe).
+[Q6](#q6-whether-the-account-runs-a-companion-probe).
 
 ### M7: the namespace arm sees a known holder and reports only the probe's own namespaces
 
-Record the scan's three results in order: the worker's and the holder's namespaces while both mounts exist, the
-worker's namespace alone after the holder is stopped, and no namespace after the unmount. Repeat with the source
-already mounted in a second namespace before the probe runs, and require the attach arm to answer `EBUSY` and the
-probe to record that name as held instead of refusing spuriously. Repeat with a root mount of the same source made
-in a further namespace during the run, and require the first pass to name it and the arm to fail rather than hide
-it. Repeat with a namespace pinned and no live member in it, and record that the scan does not name it and reports
-the source clear: a clear report is not absence, which the document says wherever it relies on the scan.
+Record the scan's two passes and what each must show: the worker's and the holder's namespaces while both mounts
+exist, the worker's namespace alone after the holder is stopped, and no namespace after the unmount. Repeat with
+the source already mounted in a second namespace before the probe runs, and require the attach arm to answer
+`EBUSY` and the probe to record that name as held instead of refusing spuriously. Repeat with a root mount of the
+same source made in a further namespace during the run, and require the first pass to name it and the arm to fail
+rather than hide it. Repeat with a namespace pinned and no live member in it, and record that the scan does not
+name it and reports the source clear: a clear report is not absence, which the document says wherever it relies on
+the scan.
 
 Gates: [Way 1](#way-1-a-root-probe-on-a-live-snapshot)'s namespace arm, the exclusive create as the freshness
 oracle, and the limit that a process-visible scan is not proof of absence.
@@ -1071,11 +1182,17 @@ untested-release arm needs the custom CachyOS template that no built-in or local
 [proposal][proposal], lines 1826 to 1834; [measurements][measurements], item 16, lines 668 to 706); until it
 exists, run this arm on the Ubuntu guest with a labelled limit that says it is not the host release.
 
+Two more arms use deliberate faults rather than releases. A test-only build that keeps one extra descriptor open
+on the attached mount must make the move and unmount arm fail with `EBUSY`, and the same build closing it must
+pass, so that arm's unmount is shown to check the mount rather than pass vacuously (`fs/namespace.c:2010`). A
+`SIGKILL` to the mode process must leave the unit's `ExecStart` to run, which is what `ExecStartPre=-` buys, and
+must leave a started record that the add preflight and `doctor` read as not current rather than as a pass.
+
 Gates: every way, and the acceptance item.
 
 ### M10: the setup-time dataset, if the owner adds one
 
-If [Q4](#q4-whether-a-setup-time-probe-dataset-exists) is answered yes, measure the setup command's creation and
+If [Q3](#q3-whether-a-setup-time-probe-dataset-exists) is answered yes, measure the setup command's creation and
 its idempotent second run, the space it takes, that nothing else mounts it, that the sweep and the destroy-anyway
 path never see it, that the sanoid configuration excludes it, and what the probe records when the dataset or its
 snapshot is missing (`ENOENT` from `fsconfig(create)`). Control:
@@ -1088,14 +1205,15 @@ Gates: [Way 5](#way-5-a-setup-time-probe-dataset) only.
 
 Each question is separable from the others, each option states its costs, and the ranking gives the reason for
 every adjacent pair. The order is the order of dependence, so an answer never needs a later question's answer:
-the plan reading, then the start, then what a failure disables, then the source, then the two questions that
-inherit the source and the failure, then the companion. Each question opens with a concrete case and describes
-every option in words rather than by a section name, so it can be read and answered in the question tool without
-this document beside it. Where an answer changes the plan or a decision, the question says so.
+the plan reading, then what a failure disables, then the source, then the questions that inherit those answers,
+then the companion, then the second record file, which nothing else needs. Each question opens with a concrete
+case and describes every option in words rather than by a section name, so it can be read and answered in the
+question tool without this document beside it. Where an answer changes the plan or a decision, the question says
+so.
 
 ### Q1: whether the plan bars the probe's unmount arm
 
-The plan names three designs that block the route early, the start probe, the runtime layout checker and the
+The plan names the designs that block the route early, the start probe, the runtime layout checker and the
 staging design, and says of them that "No production kernel request runs before the first two, and no unmount
 runs before the third" (the [plan][plan], lines 82 to 88). Step 9 builds the staging design. The reading in one
 line: this design takes the sentence as production-only, so the probe's own unmount arm runs from step 6, because
@@ -1108,45 +1226,25 @@ used.
   and unmount a mount arrives with the rest of the probe. Cons: a reader has to accept that the sentence is about
   the product's mounts.
 - The sentence covers every unmount, including the probe's. The probe's move and unmount arms, and the scan that
-  judges them, are built in step 9 instead, still inside the probe's own namespace. Pros: the sentence keeps its
-  literal scope and the arm is written beside the product's unmount code. Cons: step 6 ships a gate with an
-  unexercised unmount half, and step 9 grows a second consumer of its staging design.
+  judges them, are built in step 9 instead, still inside the probe's own namespace, and the rest of the probe,
+  including the holder, stays in step 6. Pros: the sentence keeps its literal scope and the arm is written beside
+  the product's unmount code. Cons: step 6 ships a gate with an unexercised unmount half, and step 9 grows a
+  second consumer of its staging design.
 
 Ranking: that reading holds, then the literal reading, because the probe unmounts nothing the account or the
 product owns and the evidence is worth having with the rest of the gate; the literal reading costs a gate that
 never exercises half of what the answer names.
 
-### Q2: which start the probe covers
-
-The answer's words are "Probe at start", and the module gate reads that as the start of each process that will
-make raw requests (the [proposal][proposal], line 235). A functional probe needs root and mount calls, so it
-cannot be that. The case: a person reboots, logs in and runs a managed add. Before the login is admitted, the boot
-unit's `ExecStartPre=` has run the probe, and the add reads the record and finds the kernel, module and boot it
-names are the running ones.
-
-- Boot only (Recommended). One root process per boot, one implementation, no new trigger path, and no
-  per-invocation cost. A record whose fingerprint no longer matches the running kernel, module or boot is stale,
-  and the managed route then refuses the attach and keeps the intent (the [proposal][proposal], lines 351 to 352).
-  Cons: on a host where the module could be reloaded without a reboot, the record would stay stale until the next
-  boot.
-
-Ranking: boot only, and no rerun trigger is offered as an alternative, because a module cannot be reloaded on this
-host without a reboot: the root filesystem is on ZFS and the module is in use, so a module change arrives with a
-reboot that runs the probe again ([The kernel the design names](#the-kernel-the-design-names)). A trigger keyed to
-a module load is a mechanism this host cannot exercise; if the owner wants one anyway, it is a new question and a
-new mechanism, because it would add a second writer of the record and a probe that can race an attach. The probe
-does run again when the checkout provider is restarted, since this unit requires that provider
-([Who runs it, and where](#who-runs-it-and-where)).
-
-### Q3: what a failed arm disables
+### Q2: what a failed arm disables
 
 An arm that ran and failed is a real observation, and what it disables is open. The arms are: the walk to the
-slot, the attach, the move and the unmount, and the namespace scan. The case: after a kernel package update the
+slot, the attach, the move, the unmount and the namespace scan. The case: after a kernel package update the
 probe's attach arm fails with `EPERM`. A person then runs an add for a worktree whose slot has no clone yet, and
-later removes a clone whose worktree they no longer need. Under the recommended option the add takes the reflink
-or ordinary Git route and prints one line, and the removal succeeds for a clone that is not mounted. Under the
-second option the add takes the same fallback but both kinds of removal are refused until the kernel changes.
-Under the third the add proceeds into the attach the probe just saw fail.
+later removes a clone whose worktree they no longer need. The option that refuses new managed attaches and keeps
+every other operation lets the add take the reflink or ordinary Git route and print one line, and lets the removal
+succeed for a clone that is not mounted. The option that mirrors the module gate takes the same fallback but
+refuses removal for a mounted clone and an unmounted one alike until the kernel changes. The option that warns and
+continues lets the add proceed into the attach the probe just saw fail.
 
 Every option that refuses attaches leaves existing unmounted clones unmounted until the route returns, which is
 the availability cost the allowlist answer was chosen against: the project kept a functional probe instead of an
@@ -1154,12 +1252,14 @@ exact release allowlist because an allowlist would disable the route after every
 [proposal][proposal], lines 1294 to 1306). The option that refuses nothing loses that protection instead.
 
 - Refuse new managed attaches, keep every other operation (Recommended). Unused slots take the same-dataset
-  reflink or ordinary Git route, which needs no ZFS attach. Boot reconcile attaches nothing new and keeps every
-  intent and registration. Removal of a clone that is not mounted stays available through the module-gated
-  ioctls. Removal of a mounted clone needs an unmount and the scan of every task's namespace, so when the failed
-  arm is the move, the unmount or the scan, that removal is refused and reported rather than silently degraded.
-  Pros: the recovery path that needs no attach stays available, which is exactly when a person needs it. Cons: the
-  managed route is half available, and a reader must know that attach and removal are gated separately.
+  reflink (a cheap copy-on-write copy of the dataset's blocks) or ordinary Git route, which needs no ZFS attach.
+  Boot reconcile attaches nothing at all and keeps every intent and registration. Removal of a clone that is not
+  mounted stays available through the module-gated ioctls, the raw ZFS requests the module gate guards and the
+  mount calls it does not. Removal of a mounted clone needs an unmount and the scan of every task's namespace, so
+  when the failed arm is the move, the unmount or the scan, that removal is refused and reported rather than
+  silently degraded. Pros: the recovery path that needs no attach stays available, which is exactly when a person
+  needs it. Cons: the managed route is half available, and a reader must know that attach and removal are gated
+  separately.
 - Mirror the module gate, the start check that disables raw requests when the loaded module does not match the
   binary: refuse every ZFS operation. Unused slots take the reflink or Git route. Boot reconcile attaches nothing
   and unmounts nothing, keeping intent. Removal refuses for a mounted clone and an unmounted one alike, because
@@ -1174,83 +1274,97 @@ Ranking: refuse new attaches and keep the rest, then mirror the module gate, the
 removal without an attach is the recovery path a broken attach needs, and a warning leaves the failure to land
 mid-operation.
 
-### Q4: whether a setup-time probe dataset exists
+### Q3: whether a setup-time probe dataset exists
 
-The probe needs a ZFS source to attach, and today the only candidate is a snapshot of the checkout, whose name the
-account can create (the [proposal][proposal], lines 319 to 321) and which may not exist yet or may already be
-held. The alternative is one small dataset created once by root: `zpcachyos/nosnap/git-worktree-probe`, with one
-empty snapshot named `ready`, sitting under the unmounted container `zpcachyos/nosnap` that the sanoid
-configuration already marks `autosnap = no`. Its properties are `mountpoint=legacy`, `canmount=off`,
-`com.sun:auto-snapshot=false` and a user property naming it as the probe's source, so nothing mounts it
-automatically and no recursive sanoid ancestor reaches it. The account holds no grant there, so it can neither
-create, mount, rename, snapshot nor destroy it, and the sweep that lists the clone parent's children never sees
-it. The probe notices its absence by trying to attach it: a missing dataset or a missing `ready` is the `ENOENT`
-from `fsconfig(create)`, reported as an unexercised arm and never created.
+The probe needs a ZFS source to attach. With no new dataset the only candidate is a snapshot of the checkout,
+whose name the account can create (the [proposal][proposal], lines 319 to 321). The accepted configuration keeps
+the home template recursive, and that template reaches the checkout dataset and each clone by descent and
+snapshots home hourly (the [proposal][proposal], lines 1081 to 1092), so such a snapshot usually exists; the same
+passage lets the account destroy any checkout snapshot (the [proposal][proposal], lines 324 to 326), the space
+guard prunes home's hourlies, and a namespace that already holds a snapshot makes the probe skip it. The
+alternative is one small dataset created once by root: `zpcachyos/nosnap/git-worktree-probe`, with one empty
+snapshot named `ready`, sitting under the container `zpcachyos/nosnap`, which is unmounted and carries
+`autosnap = no` (the [proposal][proposal], lines 1098 to 1124). Its properties are `mountpoint=legacy`,
+`canmount=off`, `com.sun:auto-snapshot=false` and a user property naming it as the probe's source, so nothing
+mounts it automatically and no recursive sanoid ancestor reaches it. The account holds no grant there, so it can
+neither create, mount, rename, snapshot nor destroy it, and the sweep that lists the clone parent's children never
+sees it. The probe notices its absence by trying to attach it: a missing dataset or a missing `ready` is the
+`ENOENT` from `fsconfig(create)`, reported as an unexercised arm (a step that could not run) and never created.
 
-The case: a fresh host, migrated and rebooted, before any clone exists. Without the dataset the probe finds no
-unheld checkout snapshot and records the attach arm as not exercised. With the dataset the probe attaches `ready`
-on every boot, and the attach arm always runs.
+The case: a fresh host, migrated and rebooted, before any clone exists and before sanoid's first hourly snapshot
+of the checkout. Without the dataset the probe finds no unheld checkout snapshot and records the attach arm as not
+exercised. With the dataset the probe attaches `ready` on every boot, and the attach arm always runs.
 
 - Yes, the setup-time probe dataset (Recommended). It changes what the setup command that `doctor` prints creates,
-  `doctor`'s own filesystem section, the boot unit's `ExecStartPre=`, and the sanoid sections with their guard
-  report: steps 18, 19 and 20 of the plan. Pros: the source always exists, nothing outside root mounts it, every
-  arm runs on every boot, the attach's exclusive create proves a fresh superblock, no account-influenced name is
-  read, and no directory read happens at start. Cons: a new object in the layout, with a sanoid section, a
-  configuration field and a way to go missing or drift, which the probe reports as an unexercised arm.
+  the plan's step 19 setup commands, and the sanoid sections with their guard report: steps 18 to 20 of the plan.
+  The boot unit's `ExecStartPre=-` and the `doctor` filesystem section are not part of this cost, because every
+  answer needs them. Pros: the source always exists, nothing outside root mounts it, every arm runs on every boot,
+  the attach's exclusive create (a command that makes the kernel refuse a source whose superblock, its record of
+  that mount, already exists) proves a fresh mount, no account-influenced name is read, and no directory read
+  happens at start. Cons: a new object in the layout, with a sanoid section, a configuration field and a way to go
+  missing or drift, which the probe reports as an unexercised arm.
 - No, a snapshot of the checkout (the design's Way 1). Pros: no layout change, nothing new in the sanoid
-  configuration, the sweep or preflight. Cons: the source can be absent or already held, so the arms can be
-  unexercised on a fresh host and while any other namespace holds that snapshot, the name is account-influenced,
-  and the one directory read may update its access time.
-- No, a snapshot of the checkout (the design's Way 1). Pros: no layout change, nothing new in the sanoid
-  configuration, the sweep or preflight. Cons: the source can be absent or already held, so the arms can be
-  unexercised on a fresh host and while any other namespace holds that snapshot, the name is account-influenced,
-  and the one directory read may update its access time.
+  configuration, the sweep or preflight, and the hourly template usually leaves a snapshot to take. Cons: the
+  source can be absent right after migration, can be destroyed by the account or a prune between the directory
+  read and the attach (an `ENOENT` the attach arm reports), or be held by another namespace, so the arms can be
+  unexercised while any of that lasts; the name is account-influenced; the one directory read may update its
+  access time; and the probe's own hold can make a prune of that exact snapshot fail `EBUSY`.
 
 Ranking: yes, then no, because a source that always exists and that nothing else mounts is what makes every arm
-run and removes the reuse and influence questions at their root; the layout cost is one object with a named
-place and its exclusion, while the cost of no is arms that silently do not run. This design ships Way 1's source
-until the owner answers yes, so the answer decides the source and nothing else.
+run and removes the reuse and influence questions at their root; the layout cost is one object with a named place
+and its exclusion, while the cost of no is steps that silently do not run and a source the account can remove.
+This design ships Way 1's source until the owner answers yes, so the answer decides the source and the layout
+change.
 
-### Q5: whether an unexercised arm may enable the route
+### Q4: whether an unexercised arm may enable the route
 
 An arm is unexercised when it could not run, not when it ran and failed. The case: a fresh host whose probe found
-no unheld source, so its attach arm is recorded as not exercised. A person runs their first managed add. Under
-the first option the add proceeds and prints a line saying which arm did not run, and `doctor` repeats the gap.
-Under the second the add takes the same-dataset reflink or ordinary Git route instead of a managed attach and
-prints that line, and every managed attach waits until a source exists.
+no unheld source, so its attach arm is recorded as not exercised. A person runs their first managed add. The
+option that reports the gap and keeps the route enabled lets the add proceed and print a line naming the arm that
+did not run, which `doctor` repeats. The option that blocks the managed route sends the add to the same-dataset
+reflink or ordinary Git route instead of a managed attach, prints that line, and holds every managed attach until
+a source exists.
 
 The causes differ by source. With a checkout snapshot the attach arm can be unexercised because no snapshot
-exists or because other namespaces hold every candidate. With the setup-time dataset of
-[Q4](#q4-whether-a-setup-time-probe-dataset-exists) it is unexercised only when the dataset or its `ready`
-snapshot is missing, and on a kernel older than 6.6, which refuses the command that proves the source is fresh.
+exists, because a prune or the account destroyed the one the probe found before it attached, or because other
+namespaces hold every candidate. With the setup-time dataset of
+[Q3](#q3-whether-a-setup-time-probe-dataset-exists) it is unexercised only when the dataset or its `ready`
+snapshot is missing, which `doctor` then reports as a failure rather than a gap, and on a kernel older than 6.6,
+which refuses the command that proves the source is fresh.
 
-- Reported, and the route stays enabled (Recommended today). Pros: a host with no snapshot keeps a working route,
-  the answer's "admits untested releases" posture holds, and `doctor` names the gap. Cons: the arms the answer
-  exists to exercise may never run, so a broken kernel passes with the gap visible only in `doctor`.
-- An unexercised arm blocks the managed route, with the same per-operation effects
-  [Q3](#q3-what-a-failed-arm-disables) states. Pros: the route is only ever enabled by evidence. Cons: with a
-  checkout snapshot a fresh host has no source until the first add, and the first add needs the route, so the
-  route could never start; with the setup-time dataset that objection goes away, which makes this the stronger
-  answer if [Q4](#q4-whether-a-setup-time-probe-dataset-exists) is answered yes.
+- Reported, and the route stays enabled. Pros: a host with no source keeps a working route, the answer's "admits
+  untested releases" posture holds, and `doctor` names the gap. Cons: the steps the answer exists to run may never
+  run, so a broken kernel passes with the gap visible only in `doctor`.
+- The unexercised arm blocks the managed route, with the same per-operation effects
+  [Q2](#q2-what-a-failed-arm-disables) states: an unused slot takes the reflink or ordinary Git route, removal of
+  a clone that is not mounted stays available unless that answer refused every ZFS operation, and removal of a
+  mounted clone follows the failed-arm answer when the arm that did not run is the move, the unmount or the scan.
+  Pros: the route is only ever enabled by evidence. Cons: with a checkout snapshot the route stays blocked from
+  the first boot until the next boot after a snapshot exists, because the probe runs at boot only apart from a
+  checkout-provider restart and the first add does not create one; with the setup-time dataset that objection goes
+  away, which makes this the stronger answer if
+  [Q3](#q3-whether-a-setup-time-probe-dataset-exists) is answered yes.
 
-Ranking: reported and enabled, then blocked, because a source that can be absent on a fresh host turns blocking
-into a boot-time lockout; if [Q4](#q4-whether-a-setup-time-probe-dataset-exists) is answered yes, this ranking
-reverses, because the source then always exists and the route can be gated on evidence without a lockout. The
-recommendation marked in the first option is therefore the one for today's source, and the owner who answers
-[Q4](#q4-whether-a-setup-time-probe-dataset-exists) yes should expect to prefer the second option here.
+Ranking, by the answer to [Q3](#q3-whether-a-setup-time-probe-dataset-exists). If the setup-time dataset exists,
+the unexercised arm blocks first and reporting comes second, because the source then always exists and evidence
+can gate the route without a lockout, so an owner who answers yes there should expect to prefer blocking here. If
+the source is a checkout snapshot, reporting comes first and blocking second, because a source that can be absent
+turns blocking into a lockout until the next boot.
 
-### Q6: whether a missed deadline fails closed
+### Q5: whether a missed deadline fails closed
 
 The probe runs as a parent process, the mode, that forks the work into a worker and enforces a deadline over it,
 and it records a timeout either way. The case: a kernel whose attach blocks in the kernel, so the probe never
 finishes. The login the boot unit orders before is admitted late, the record says timed out, and the next add
 either refuses and prints why, or proceeds on the strength of a record that says the probe could not finish.
 
-- Fail closed (Recommended). A timeout leaves no pass, so the record is not current, adds are refused, existing
-  bindings and intent are kept, and the per-operation effects are whatever [Q3](#q3-what-a-failed-arm-disables)
-  answers. Pros: a kernel that hangs an attach neither blocks a login indefinitely nor silently enables the
-  route, and it matches the gate's posture of no force flag. Cons: a slow but working kernel loses the route
-  until a timing measurement sizes the deadline ([M4](#m4-what-the-probe-costs)).
+- Fail closed (Recommended). A timeout leaves no pass, so the record is not current and adds are refused, with
+  their reason printed: an unused slot takes the reflink or ordinary Git route, removal of a clone that is not
+  mounted stays available, and removal of a mounted clone follows the answer
+  [Q2](#q2-what-a-failed-arm-disables) gives for a failed-arm case. Existing bindings and intent are kept. Pros: a
+  kernel that hangs an attach neither blocks a login indefinitely nor silently enables the route, and it matches
+  the gate's posture of no force flag. Cons: a slow but working kernel loses the route until a timing measurement
+  sizes the deadline ([M4](#m4-what-the-probe-costs)).
 - Fail open, with a warning. Pros: availability is never lost to a slow boot. Cons: an attach that hangs is
   attempted on the strength of a record that says the probe could not finish, which is the failure the answer
   exists to catch.
@@ -1258,57 +1372,101 @@ either refuses and prints why, or proceeds on the strength of a record that says
 Ranking: fail closed, then fail open, because the probe's whole value is that a missing pass is not a pass, and
 the cost is a deadline that measurement can size.
 
-### Q7: whether the account runs a companion probe
+### Q6: whether the account runs a companion probe
 
 The companion is a second, smaller check that runs as the account, in a user and mount namespace, and exercises
 the walk, a tmpfs mount and unmount, and the refusal controls, without touching ZFS (the design's Way 3). The
-case: a kernel update changes what the account's user namespace may pass to `mount_setattr`, so the companion's
-mount call refuses with `EPERM` while the boot probe, running as root, passes. Under the first option nothing
-more runs and the add reads the record the boot wrote, so the failure appears later as a refused mount. Under the
-second the add runs the companion first and stops with a line naming the mount call, before any root work starts.
+case: a kernel update changes what a user namespace may pass to `mount_setattr`, so a mount made as the account
+refuses with `EPERM` while the root probe, in the init user namespace, passes. The product's own attach runs as
+root, so the companion cannot stand in for the probe and its failure does not show that the attach would fail. The
+root-only option runs nothing more: the add reads the record the boot wrote, and the account-side regression is
+seen only where something makes an account-side mount. The root-plus-companion option runs the companion first and
+stops with a line naming the mount call, before any root work starts.
 
 - Root only (Recommended). Pros: one implementation, no user-namespace dependency, and the arm that matters needs
-  root anyway. Cons: a syscall or namespace regression is seen only at the next boot, never before a given
-  invocation.
+  root anyway. Cons: an account-side regression of the walk or the mount surface is seen only where an
+  account-side mount is attempted, which the managed attach path does not do.
 - Root plus an account companion. Pros: a per-invocation check of the walk, the mount surface and the wrapper's
   helpers before any root act, and the wrapper's tests already carry the skip control. Cons: a second
-  implementation, a check that never touches ZFS, and a skip exactly on hosts where user namespaces are refused.
+  implementation, a check that never touches ZFS and so never predicts the root attach's outcome, and a skip
+  exactly on hosts where user namespaces are refused.
 
 Ranking: root only, then the companion, because the account arm cannot observe the dataset mount path, which is
-the failure the answer asks about, and its per-invocation timing is not yet measured.
+the failure the answer asks about, so a companion that refuses would stop a managed attach without evidence that
+the attach would fail; its per-invocation timing is unmeasured either way.
+
+### Q7: whether the first real attach records its outcome
+
+The product's first managed attach after a boot either succeeds or fails, and nothing keeps its outcome today: the
+handler reports it in the journal, and the probe's record holds only the probe's arms. The design can have the
+handler process that made that attach write the outcome to a second file, `first-attach`, beside the probe's
+record, so `doctor` shows it next to the probe's result. No part of the decision record, the proposal or the plan
+decides that write.
+
+The case: a fresh host whose probe passed on a snapshot, and whose first managed add attaches a real clone
+read-write at a real slot in the host namespace. With the file, `doctor` can show that attach's outcome beside the
+probe's. Without it, the only evidence about a real clone that boot is a journal line.
+
+- No, the probe record only (Recommended). Pros: no new write in the attach path, no second file, and an
+  operation's failure cannot be read as a compatibility verdict. Cons: the one outcome from a real clone, a real
+  slot and the host namespace is not kept, so `doctor` can show the probe and not the product.
+- Yes, write `first-attach`. Pros: the outcome from a real clone, a real slot and the host namespace is kept, and
+  `doctor` compares it with the probe's result on the same build. Cons: a new duty in the attach path, which plan
+  steps 4 and 8 build, a second file, a `doctor` reader and a new measurement
+  ([M8](#m8-the-real-clone-attach-as-evidence)), and an operation's failure read as a compatibility verdict.
+
+Ranking: the probe record only, then writing `first-attach`, because that write is a duty in the product's attach
+path that no record decides, and because it mixes an operation's failure with a compatibility verdict; the file
+earns its place only if evidence from a real clone is worth that duty and that ambiguity.
 
 ## What a writer settles without asking
 
-- The arm order, the private-namespace setup before any mount, and every syscall the probe uses.
 - The scratch location: the record's directory under `/run`, the tmpfs mounted at its scratch mount point, the
   slot, the move-target directory and the refusal tree inside that tmpfs, and that the probe never touches the
   account-owned staging folder or the checkout's own directories.
 - The source selection rule: the first accepted candidate in the order the read returns, a valid component name,
   the dataset-name bound, trying the next name when the exclusive create answers `EBUSY`, and the not-exercised
   record when no candidate qualifies.
-- That the holder is forked by the mode process and the unmount child by the worker, that each child carries
-  `PR_SET_PDEATHSIG` set to `SIGKILL` and a control pipe, and that the mode kills the worker's process group at
-  the deadline.
+- The arm order, the private-namespace setup before any mount, and every syscall the probe uses.
+- That the probe runs at boot only: one root process per boot, from `ExecStartPre=-` of the existing unit, with
+  no on-demand trigger and no second writer of the record. A module cannot be reloaded on this host without a
+  reboot, so a module change arrives with a reboot that runs the probe again
+  ([The kernel the design names](#the-kernel-the-design-names)); the probe also runs again when the checkout
+  provider is restarted, because the unit requires that provider
+  ([Who runs it, and where](#who-runs-it-and-where)). A trigger keyed to a module load would add a second writer
+  of the record and a probe that can race an attach, and this host cannot exercise it, so this design does not
+  propose one. A record whose fingerprint no longer matches the running kernel, module or boot is stale, and the
+  managed route then refuses the attach and keeps the intent (the [proposal][proposal], lines 351 to 352).
+- That the holder is forked by the mode process and the unmount child by the worker, that each child carries a
+  parent-death signal and pipes of its own as the protocol after the arms states, and that the mode kills the
+  worker's process group at the deadline.
 - That the holder starts before the move and attaches its own mount of the same source.
+- That the protocol after the arms settles who closes which pipe end, when a child moves its ends to low
+  descriptors, and that the mode writes the record from the outcome lines it reads.
 - That the namespace arm's holder runs at every start, with its cost under [M4](#m4-what-the-probe-costs), and
   that the scan is judged against the probe's own namespaces rather than against an empty set.
-- That the unmount is by path inside the probe's own tmpfs, and that the probe therefore does not validate the
-  product's held-descriptor unmount. Whether the plan's sentence bars that arm at all is
-  [Q1](#q1-whether-the-plan-bars-the-probes-unmount-arm), not a reading this design settles.
+- That the move and unmount arm closes every descriptor the worker holds on the attached mount before it forks,
+  and that its unmount must not answer `EBUSY`.
 - That the probe reads no file content, only `fstatfs`, a bounded directory listing on its own mount, and, under
   [Way 1](#way-1-a-root-probe-on-a-live-snapshot) only, `getdents` on `.zfs/snapshot`.
 - The mount flags, the read-only request, the exclusive create as the freshness oracle, and the `EBUSY` handling
   [M1](#m1-which-source-exercises-the-dataset-mount-path) measures.
-- The record's directory, mode, fields and atomic-rename write, the `first-attach` file beside it, and the started
-  record before the fork.
+- That the unmount is by path inside the probe's own tmpfs, and that the probe therefore does not validate the
+  product's held-descriptor unmount. Whether the plan's sentence bars that arm at all is
+  [Q1](#q1-whether-the-plan-bars-the-probes-unmount-arm), not a reading this design settles.
+- That the probe tears down without unmounting its own tmpfs, whose removal is the namespace's death.
 - The wording of the wrapper line, the `doctor` section and the journal line, under the design's own reporting
   rules (the [proposal][proposal], lines 755 to 762).
 - That `doctor` reads the result and never runs a probe, and that no force flag exists.
-- That the probe is a handler mode named `start-probe`, run as `ExecStartPre=` of the existing unit, that it runs
+- The record's directory, mode, fields and atomic-rename write, and the started record before the fork. The
+  `first-attach` file is not settled here; it is [Q7](#q7-whether-the-first-real-attach-records-its-outcome).
+- That the probe is a handler mode named `start-probe`, run as `ExecStartPre=-` of the existing unit, that it runs
   the module gate first and skips itself when the gate refuses, that the mode process enforces the deadline and
-  always exits successfully, and that no on-demand channel is added.
+  exits successfully whenever it reaches its own end, and that no on-demand channel is added.
 - The deadline's value, set only after [M4](#m4-what-the-probe-costs) measures the arms; the unit carries no
-  start timeout, which keeps its `ExecStart` unbounded until step 22 sizes the reconcile.
+  start timeout, and no plan step sizes one: step 22 sizes the mount-request deadline of step 7, the unmount
+  deadline of step 9 and any shipped deadline those waits would need (the [plan][plan], lines 1778 to 1779 and
+  1811 to 1812).
 - The fallback for an unused slot and the preservation of existing bindings, which the accepted design already
   decides.
 
@@ -1316,10 +1474,10 @@ the failure the answer asks about, and its per-invocation timing is not yet meas
 
 It does not introduce an allowlist, does not withdraw or loosen the module gate, does not authorize a path mount
 or a new request channel, does not add a force flag, does not make the probe a `doctor` action, does not create
-or destroy a dataset at start, does not change the intent vocabulary, does not move the handler's mount and
-unmount modes out of the host mount namespace, does not add a pool object of its own (the setup-time probe dataset
-is the owner's act, printed by `doctor` and put as
-[Q4](#q4-whether-a-setup-time-probe-dataset-exists)), does not change any removal, promote, staging or delegation
+or destroy a dataset at start, does not change the intent vocabulary, does not move the handler's `boot-reconcile`
+and `shutdown-unmount` modes out of the host mount namespace, does not add a pool object of its own (the setup-time
+probe dataset is the owner's act, printed by `doctor` and put as
+[Q3](#q3-whether-a-setup-time-probe-dataset-exists)), does not change any removal, promote, staging or delegation
 decision, and does not decide any of the remaining blocking designs. It also does not bring the discarded
 pool-writing probe back: that one contradicts the accepted design, as
 [its note](#way-2-ruled-out-by-the-accepted-design) states.
@@ -1339,14 +1497,16 @@ pool-writing probe back: that one contradicts the accepted design, as
   it.
 - OpenZFS `zfs-2.4.4` at commit `71a9f9578616`, cloned on 2026-11-19:
   `module/os/linux/zfs/zpl_super.c`, `module/os/linux/zfs/zfs_vfsops.c`,
-  `module/os/linux/zfs/zpl_ctldir.c`, `module/os/linux/zfs/zfs_ioctl_os.c`,
-  `module/os/linux/spl/spl-zone.c`, `module/zfs/zfs_ioctl.c`, `module/zfs/zfs_ctldir.c`,
-  `module/zfs/dmu_objset.c`, `module/zfs/dsl_crypt.c`, `module/zfs/dsl_dataset.c`,
-  `module/zfs/spa_stats.c`, `module/zfs/txg.c` and `cmd/zfs/zfs_main.c`.
+  `module/os/linux/zfs/zpl_ctldir.c`, `module/os/linux/zfs/zfs_ctldir.c`,
+  `module/os/linux/zfs/zfs_ioctl_os.c`, `module/os/linux/spl/spl-zone.c`, `module/zfs/zfs_ioctl.c`,
+  `module/zfs/dmu_objset.c`, `module/zfs/dsl_crypt.c`, `module/zfs/dsl_dataset.c`, `module/zfs/spa.c`,
+  `module/zfs/spa_stats.c`, `module/zfs/txg.c`, `module/zfs/vdev_label.c` and `cmd/zfs/zfs_main.c`.
 - The kernel header and source named under [The kernel headers and source](#the-kernel-headers-and-source): this
   host's `/usr/include/linux/mount.h` (linux-api-headers 1:7.1-1), the 7.3.5 tree's
-  `/usr/src/linux-cachyos/include/uapi/linux/mount.h`, Linux v6.8 and v7.3 `fs/super.c`, and Linux v7.3
-  `fs/fsopen.c`, with `fs/fsopen.c` fetched at v5.2, v5.11, v5.12, v5.15 and v6.0 to v6.7 as well.
+  `/usr/src/linux-cachyos/include/uapi/linux/mount.h`, Linux v6.8 and v7.3 `fs/super.c`, Linux v7.3
+  `fs/fsopen.c`, `fs/namespace.c`, `fs/pnode.c`, `kernel/exit.c` and `kernel/sys.c`, with `fs/fsopen.c` fetched at
+  v5.2, v5.11, v5.12, v5.15 and v6.0 to v6.7 as well. The round that added the parent-death and unmount citations
+  fetched `fs/namespace.c`, `fs/pnode.c`, `kernel/exit.c` and `kernel/sys.c` at v7.3 itself.
 - systemd v262 `src/core/service.c`, `src/core/unit.c` and `src/core/exec-invoke.c` (fetched), and
   `systemd.service(5)`, `systemd.exec(5)`, `systemd.unit(5)`, `systemd.kill(5)` and `statx(2)` read on this host.
 - `PR_SET_PDEATHSIG(2const)` on this host, for the parent-death signal and the cases that clear it.
