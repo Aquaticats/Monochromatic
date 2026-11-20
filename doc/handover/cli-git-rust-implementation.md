@@ -40402,7 +40402,20 @@ stated in this entry. What follows from them, as work:
   under `~/temp/agent/zfs-step-5-integration-pass-condition-and-lint-fixed-2026-11-20/`. Then the merge. Coordinator
   slips this stretch: three background waits found
   their process by name or waited on a stand-in PID (rule `PWT`); each was stopped or ended harmlessly, and the
-  coordinator now waits only on task notifications. STEP 3 HOST HALF ENDED `idle` (201
+  coordinator now waits only on task notifications. Step 4's guest-arm round ended `idle` (434 turns) at
+  `ef83d2a73c` (that folder's `keep/report-from-summary.md`): five root-run arms in
+  `src/native/worktree_clone_mount/attach_arm_tests.rs`, ignored outside the guest (a clone mounted at the held slot with
+  `rw,nosuid,nodev,relatime`; a setuid program kept at euid 1000 under the module's flags; eleven refusals; three rename
+  trials rolled back through the descriptor; H1 gate 1's decoy), three reds in one guest and green in a fresh one; low 1
+  pinned with route-writer controls (three reds); the lock numbers re-measured over the whole bound (25 times the
+  slowest hold, about a fortieth for the pause) with the probe kept in the tree; low 6 dismissed as step 5's mode with
+  the design's lines, so the plan's step 4 line "Adoption needs administrator quiescence and the recorded parent
+  identity, both built here" is wrong on its first half (the coordinator corrects the plan after step 5 merges, since
+  step 5 edits the plan too); the recipe's `prepare` taught to wait out the image's first-boot upgrade. Whole gate 9236
+  of 9238, the cause-H pair. It ran two red drivers in one guest at once and caught the bad evidence; the linter did not
+  run (not linked). It merges cleanly with `main` and step 5, and conflicts with step 3 only in
+  `package/zfs/request-to-openzfs-kernel-device/e2e/README.md`. GOING: its integration pass (Sonnet) with a guest run;
+  brief under `~/temp/agent/integration-pass-zfs-step-4-guest-arms-and-lows-2026-11-20/`. STEP 3 HOST HALF ENDED `idle` (201
   turns, 51 min) at `fd10d8d0b0` (four commits; report and checks table in
   `~/temp/agent/zfs-step-3-reflink-rung-recognition-host-half-2026-11-19/keep/`): `FilesystemKind::Zfs` from
   `ZFS_SUPER_MAGIC`; rung 2 proves one dataset by mount source and device, with no ZFS ioctl or binding; a mounted clone
