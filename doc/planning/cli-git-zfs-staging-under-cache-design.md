@@ -1734,7 +1734,7 @@ add, so the name stays the revision's first commit rather than its last.
   corrects the ranking clause that every way now shares, names the answers the two hardening entries would reverse,
   and adds the record's read and write rules. It also rechecks every plan citation against `main`'s plan
   without changing one, and adds "Choices this revision marks for the project's veto" for the behaviour the project
-  never chose. Its label is the committer timestamp of `fc4e7f5dac` at `2026-11-19T21:47:54-05:00`, the last commit
+  never chose. Its label is the committer timestamp of `4baa56bf23` at `2026-11-19T21:49:07-05:00`, the last commit
   that changed this revision's text before this label was written, because a commit cannot name its own hash; the
   prose checker under
   `~/temp/agent/zfs-staging-under-cache-design-second-revision-gate-recheck-2026-11-19/notes/` passes on this
