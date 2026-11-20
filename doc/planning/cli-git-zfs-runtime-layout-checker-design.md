@@ -1708,16 +1708,21 @@ layout and the request numbers to decide and a missing identity file is not a gr
 identity reads then compare whichever of the three values the module carries, plus each file's
 device, inode, size and modification time, and `doctor` says which attribute is absent so a reader
 can tell a weaker reload check from a refused one.
-When all three values are absent the reload check has no usable term: the file times do not stand
-in, because this host's `/sys/kernel/btf/zfs` modification time moved from 16:47:51 to 21:39:40
+When all three values are absent the two identity reads compare nothing the check trusts: the file
+times do not stand in, because this host's `/sys/kernel/btf/zfs` modification time moved from
+16:47:51 to 21:39:40
 while its `srcversion` and `version` stayed at 19:51:21 and 19:03:56, which is consistent with a
 time moving without a reload.
 So the check then has no term that could differ between its two identity reads and never refuses,
-and the per-process cache keeps the verdict it holds while each file's device, inode, size and
-modification time hold ([The cache](#the-cache)); a module replaced while those hold goes unseen,
-and `doctor` says so.
+and only the cache recheck compares the file facts there, keeping the verdict it holds while each
+file's device, inode, size and modification time hold ([The cache](#the-cache)); a module replaced
+while those hold goes unseen, and `doctor` says so.
 A missing `/dev/zfs` or a missing BTF file is a
 refusal, as [What the checker must prove](#what-the-checker-must-prove) states.
+The two alternatives this paragraph did not take are refusing when no identity value exists, which
+would refuse a module the layout comparison can still judge, and parsing the two files again on
+every use when none exists, which costs a parse per use only for such a module and would see a file
+swapped while the other facts hold.
 The rules in this paragraph are open to veto, with "veto none" as the default.
 
 The second identity read closes the window in which the module unloads or is replaced between the
@@ -1925,8 +1930,11 @@ when all three values are absent the reload check has no usable term, as
 [the read order and the reload race](#the-read-order-and-the-reload-race) states.
 Whether a reload changes the inode number is unverified, and
 [item 9's second arm](#owed-measurements) is the one that tests a cache spanning a reload.
-Per-process caching with no disk cache is writer-settled: it needs no owner choice while the
-start cost is unmeasured.
+The per-process `OnceLock` and its identity recheck are the writer's rule, open to veto, with
+"veto none" as the default; the alternative is to parse the two files on every use. The disk cache
+is not this design's to settle: "no disk cache" is
+[Q3](#q3-may-a-verification-be-cached-across-processes)'s option 1, so the project decides it when
+owed measurement item 10 has run, and this design writes no verdict to disk meanwhile.
 
 The wrapper already writes one disk cache: a private per-user file holding the text `git version`
 prints, keyed by the executable's canonical path, size, modification time, change time, device and
@@ -2936,8 +2944,9 @@ have cost.
 ### Q3: may a verification be cached across processes
 
 Held until [Owed measurements](#owed-measurements) item 10 measures the start cost.
-Nothing needs the answer before that run: per-process caching with no disk cache is writer-settled,
-so the gate works the moment it is built.
+Nothing needs the answer before that run: the per-process cache is open to veto as a writer's rule,
+so the gate works the moment it is built, and a veto of that rule means parsing the two files on
+every use rather than holding a disk cache.
 The question returns only if item 10 measures the added time above its 100 ms median threshold or
 the peak above 256 MiB. Those thresholds are this file's proposal, not a measurement: item 10
 names the one reading behind them, the gate review's single probe run with no control and no
@@ -2983,8 +2992,10 @@ version made this choice; the cost is what may reopen it.
 
 The rules marked here as open to veto are the writer's, each with "veto none" as its default: the
 folder's name, the `doctor` sentence's exact-string trigger, the absent-identity rules and the
-per-process cache with no disk cache.
+per-process cache.
 Each says so where it stands, and the sections that use them say so too.
+The disk cache is not among them: [Q3](#q3-may-a-verification-be-cached-across-processes) holds it
+for the project, and this design does what option 1 says until that question is answered.
 
 - The seam's shape, in the crate the owner named: the binding package holds the loader, the
   pre-scan, the expectations, the comparison and the reader, and the wrapper supplies the paths,
@@ -3044,7 +3055,9 @@ Each says so where it stands, and the sections that use them say so too.
 - The refusal value, its steps, the order the comparison walks and the words the caller and
   `doctor` print, including the loaded module, its release string, the target, the file and the
   first mismatch, and no bypass.
-- The per-process `OnceLock` and the identity recheck, and no disk cache; Q3 waits on item 10.
+- The per-process `OnceLock` and the identity recheck, open to veto with "veto none" as the
+  default; the alternative is parsing the two files on every use. The disk cache is Q3's, held on
+  item 10.
 - The architecture allowlist: `x86_64` only until an `aarch64` guest qualifies the managed route.
 - Endianness from the BTF magic against the target.
 - The test placement and fixtures: device-free unit tests with small generated BTF blobs, the
@@ -3081,9 +3094,10 @@ Each says so where it stands, and the sections that use them say so too.
 - It changed no file except this one.
 - It made no choice that belongs to the owner. The owner's answers of 2026-11-19 settled the
   reader question's narrower form, the release string and the crate placement, and this revision
-  applies them ([Answers of 2026-11-19](#answers-of-2026-11-19)). The per-process cache with no
-  disk cache stays writer-settled, open to veto with "veto none" as the default, and
-  [Q3](#q3-may-a-verification-be-cached-across-processes) is held behind a measurement.
+  applies them ([Answers of 2026-11-19](#answers-of-2026-11-19)). The per-process `OnceLock` and
+  its recheck stand open to veto with "veto none" as the default, and
+  [Q3](#q3-may-a-verification-be-cached-across-processes) holds the disk-cache question behind a
+  measurement.
 - It edited neither the design proposal nor the implementation plan, and
   [the amendment these answers owe](#the-amendment-these-answers-owe-the-proposal-the-plan-and-the-binding-readme)
   writes out the text they need.
