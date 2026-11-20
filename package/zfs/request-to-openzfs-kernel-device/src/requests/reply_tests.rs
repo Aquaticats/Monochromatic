@@ -73,6 +73,16 @@ fn a_read_past_the_cap_is_refused() {
 }
 
 #[test]
+fn a_read_exactly_at_the_cap_grows_to_it() {
+    let mut buffer: ReplyBuffer = ReplyBuffer::new(ReplyUse::Read, 0);
+    let grown: usize = buffer
+        .grow_to_requested(MAXIMUM_REPLY_SIZE as u64)
+        .expect("the cap itself is allowed");
+    assert_eq!(grown, MAXIMUM_REPLY_SIZE);
+    assert_eq!(buffer.len(), MAXIMUM_REPLY_SIZE);
+}
+
+#[test]
 fn a_write_never_grows() {
     let mut buffer: ReplyBuffer = ReplyBuffer::new(ReplyUse::Mutation, 0);
     let refusal: ReplyRefusal = buffer
