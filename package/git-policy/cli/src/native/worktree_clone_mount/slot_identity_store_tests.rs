@@ -534,7 +534,7 @@ fn the_route_s_writes_refuse_a_store_or_lock_this_account_could_rewrite() {
     let refused_lock: StoreRefusal = append_slot_identity_under_root_control(path.as_path(), "two", &identity(402)).expect_err("an account that may open the lock could hold it");
     assert!(matches!(refused_lock, StoreRefusal::NotUnderRootControl { .. }), "{refused_lock:?}");
     assert!(refused_lock.message().contains("0644"), "the mode is named: {}", refused_lock.message());
-    assert!(refused_lock.message().contains("the lock that keeps two appends apart"), "the lock is named: {}", refused_lock.message());
+    assert!(refused_lock.message().contains("the lock that keeps two writes to the store apart"), "the lock is named: {}", refused_lock.message());
     std::fs::set_permissions(lock.as_path(), std::fs::Permissions::from_mode(STORE_LOCK_MODE)).expect("the lock back to root's own");
     append_slot_identity_under_root_control(path.as_path(), "two", &identity(402)).expect("a root-owned store records a second slot");
     std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o666)).expect("a store another account can write");

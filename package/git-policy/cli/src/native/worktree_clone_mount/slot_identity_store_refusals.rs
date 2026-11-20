@@ -109,7 +109,7 @@ pub enum StoreRefusal {
         /// What the write answered.
         reason: String,
     },
-    /// Another run held the lock that keeps two appends apart
+    /// Another run held the lock that keeps two writes to the store apart
     /// for longer than this run allows.
     Locked {
         /// The lock file that was asked for.
@@ -166,7 +166,7 @@ impl StoreRefusal {
                 path.display()
             ),
             StoreRefusal::Locked { path, waited } => format!(
-                "the lock that keeps two appends apart at {} is held by another run, and this append waited {} ms for it. Nothing was written. Ways forward: the holder is another append or the adoption's rewrite of this store; run the command again once it ends, and report this store and its lock file when it never ends.",
+                "the lock that keeps two writes to the store apart at {} is held by another run, and this write waited {} ms for it. Nothing was written. Ways forward: the holder is another append or the adoption's rewrite of this store; run the command again once it ends, and report this store and its lock file when it never ends.",
                 path.display(),
                 waited.as_millis()
             ),

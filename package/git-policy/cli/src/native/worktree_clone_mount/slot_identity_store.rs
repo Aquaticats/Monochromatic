@@ -18,7 +18,7 @@
 //!  and it writes through `append_slot_identity_under_root_control` and
 //!  `record_parent_identity_under_root_control`,
 //!  which make the same refusal inside the step that holds the lock.
-//!  The lock that keeps two appends apart stands on a file beside the store that only root may open,
+//!  The lock that keeps two writes to the store apart stands on a file beside the store that only root may open,
 //!  because an exclusive `flock` needs no write bit:
 //!  a lock on the store itself is one the account that may read it could hold against root's own sweep.
 //!
@@ -404,7 +404,7 @@ fn replace_the_parent_record(store: &Path, read: &SlotIdentityStore, identity: &
     return Ok(());
 }
 
-/// Where the lock that keeps two appends apart stands:
+/// Where the lock that keeps two writes to the store apart stands:
 /// a file beside the store.
 /// Why:
 ///  A lock on the store's own descriptor is a lock on a file the attach's account may read:
@@ -432,17 +432,30 @@ pub const STORE_LOCK_MODE: u32 = 0o600;
 /// The permission bits that let an account other than the owner open a lock file.
 const READABLE_OR_WRITABLE_BY_OTHERS: u32 = 0o077;
 
-/// How long an append waits for another run's lock before it refuses.
+/// How long a write waits for another run's lock before it refuses.
 /// Why:
-///  The only holder is another append or the adoption's rewrite of this same store,
-///  which is one line written and two `fsync`s;
-///  the bound is the same two seconds the removal's claim wait ships with
-///  (`lock/abandoned_lock_proving.rs`),
+///  The holders are one append and the adoption's rewrite of this same store,
+///  so the wait must cover a read,
+///  a write and the `fsync` calls of either.
+///  Measured through this module's own writers on this host's ZFS `home` dataset on 2026-11-20,
+///  with a probe that reads `/proc/diskstats` around every sample:
+///  an append on a 1000-slot store held the lock 1.577 to 2.243 ms (median 1.748, 40 samples),
+///  an append on the widest store one read accepts (1,011,406 bytes) 31.657 to 33.926 ms (10 samples),
+///  and an adoption of that store 33.483 to 35.976 ms (10 samples), the slowest holder measured;
+///  every one of those samples moved this host's pool device by its `fsync`,
+///  while the same append without the two `fsync` calls moved no device at all (0.009 to 0.080 ms, 40 samples).
+///  The two seconds below are 55 times that slowest hold,
+///  which is the margin for a device that answers an `fsync` tens of times slower than this one,
 ///  and it ends the wait rather than holding a command open.
 pub const STORE_LOCK_WAIT: std::time::Duration = std::time::Duration::from_secs(2);
 
-/// The pause between two asks for the lock,
-/// which is short enough that a held lock is taken again as soon as it is free.
+/// The pause between two asks for the lock.
+/// Why:
+///  A waiter gives the CPU up between asks,
+///  and it takes the lock within one pause of its release;
+///  two milliseconds is a twentieth of the slowest hold measured above (35.976 ms),
+///  so the added latency stays a fraction of a hold,
+///  and the shipped wait holds at most a thousand asks.
 pub const STORE_LOCK_PAUSE: std::time::Duration = std::time::Duration::from_millis(2);
 
 /// The wait this run allows for the lock,
@@ -554,7 +567,7 @@ fn check_lock_control(path: &Path, held: &std::fs::File) -> Result<(), StoreRefu
         None
     };
     return match reason {
-        Some(refusal) => Err(StoreRefusal::NotUnderRootControl { path: path.to_path_buf(), what: String::from("the lock that keeps two appends apart"), reason: refusal }),
+        Some(refusal) => Err(StoreRefusal::NotUnderRootControl { path: path.to_path_buf(), what: String::from("the lock that keeps two writes to the store apart"), reason: refusal }),
         None => Ok(()),
     };
 }

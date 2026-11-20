@@ -407,7 +407,7 @@ pub(super) const ALLOWED: &[Allowed] = &[
     Allowed {
         file: "worktree_clone_mount/slot_identity_store.rs",
         rule: "blocking-sleep",
-        why: "the pause between two asks for the lock file that keeps two appends of one slot record apart, bounded by `STORE_LOCK_WAIT` (2 s) and ended at once when the lock is this run's. The lock file is root's own with mode 0600, so only root's own sweep can hold it at all. No `async fn` encloses it: the append runs on the sweep's own thread, and the kernel's `flock` has no timeout on Linux, so a retried ask is what bounds it. The entry goes when the append is a task, where `tokio::time::sleep` ends the pause",
+        why: "the pause between two asks for the lock file that keeps two writes to the store apart, bounded by `STORE_LOCK_WAIT` (2 s) and ended at once when the lock is this run's. The lock file is root's own with mode 0600, so only root's own process can hold it at all. No `async fn` encloses it: the append and the adoption's rewrite run on their own threads, and the kernel's `flock` has no timeout on Linux, so a retried ask is what bounds it. The entry goes when either write is a task, where `tokio::time::sleep` ends the pause",
     },
     Allowed {
         file: "process/child_awaited_through_a_pidfd.rs",
