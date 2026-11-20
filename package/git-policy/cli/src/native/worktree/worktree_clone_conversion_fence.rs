@@ -104,16 +104,30 @@ fn run_reason(what: &str, output: &GitOutput) -> String {
 /// ```ts
 /// function runIn(context, cwd, arguments, input, environment): GitOutput;
 /// ```
-fn run_in(context: &GitContext, cwd: &Path, arguments: &[&str], input: Option<Vec<u8>>, environment: Vec<(OsString, OsString)>) -> Result<GitOutput, String> {
+fn run_in(context: &GitContext, cwd: &Path, arguments: &[OsString], input: Option<Vec<u8>>, environment: Vec<(OsString, OsString)>) -> Result<GitOutput, String> {
     let request: GitRequest = GitRequest {
         cwd: cwd.to_path_buf(),
-        arguments: arguments.iter().map(|argument| return OsString::from(argument)).collect(),
+        arguments: arguments.to_vec(),
         without_prefix: true,
         environment,
         input,
         ..GitRequest::default()
     };
     return run_git(context, &request).map_err(|error| return format!("a Git run of the fence could not start ({error})"));
+}
+
+/// What:
+///  A command line's words as the owned strings a request carries.
+/// Why:
+///   One request takes an owned argument a caller built (`--prefix`),
+/// so every request of the fence is built the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const words = (list: string[]) => list.map((word) => word);
+/// ```
+fn words(list: &[&str]) -> Vec<OsString> {
+    return list.iter().map(|word| return OsString::from(word)).collect();
 }
 
 /// What:
@@ -216,7 +230,7 @@ fn attributes_of(context: &GitContext, root: &Path, entries: &[StatEntry]) -> Re
         input.extend_from_slice(entry.path.as_slice());
         input.push(0);
     }
-    let output: GitOutput = run_in(context, root, &["check-attr", "--all", "-z", "--stdin"], Some(input), Vec::new())?;
+    let output: GitOutput = run_in(context, root, &words(&["check-attr", "--all", "-z", "--stdin"]), Some(input), Vec::new())?;
     if output.code != Some(0) {
         return Err(format!("the attributes of the source cannot be read: {}", run_reason("`git check-attr`", &output)));
     }
@@ -244,7 +258,7 @@ fn attributes_of(context: &GitContext, root: &Path, entries: &[StatEntry]) -> Re
 /// function blobSizes(context, root, commit): Map<string, number>;
 /// ```
 fn blob_sizes(context: &GitContext, root: &Path, commit: &str) -> Result<HashMap<Vec<u8>, u64>, String> {
-    let output: GitOutput = run_in(context, root, &["ls-tree", "-r", "-l", "-z", commit], None, Vec::new())?;
+    let output: GitOutput = run_in(context, root, &words(&["ls-tree", "-r", "-l", "-z", commit]), None, Vec::new())?;
     if output.code != Some(0) {
         return Err(format!("the sizes of the committed blobs cannot be read: {}", run_reason("`git ls-tree`", &output)));
     }
@@ -357,7 +371,21 @@ pub fn write_through_git(destination: &Path, admin: &Path, context: &GitContext,
         input.extend_from_slice(path.as_slice());
         input.push(0);
     }
-    let output: GitOutput = run_in(context, destination, &["checkout-index", "--force", "-z", "--stdin"], Some(input), checkout_environment(admin, destination))?;
+    // What:
+    //  The destination, written as `git checkout-index`'s `--prefix`, ending with the separator it needs.
+    // Why:
+    //  A path given `--prefix` is written through the conversion without the check Git makes of an in-place entry:
+    //  `checkout-index` in place skips a path whose stat data matches its index entry (`entry.c`, `checkout_entry_ca`,
+    //  the `if (!changed) return 0;`), and the installed index vouches for exactly the bytes that are wrong.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const prefix = `--prefix=${destination}/`;
+    // ```
+    let mut prefix: OsString = OsString::from("--prefix=");
+    prefix.push(destination.as_os_str());
+    prefix.push("/");
+    let output: GitOutput = run_in(context, destination, &words(&["checkout-index", "--force", "-z", "--stdin"]).into_iter().chain([prefix]).collect::<Vec<OsString>>().as_slice(), Some(input), checkout_environment(admin, destination))?;
     return if output.code == Some(0) { Ok(()) } else { Err(run_reason("`git checkout-index`", &output)) };
 }
 
