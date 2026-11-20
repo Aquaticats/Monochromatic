@@ -887,8 +887,11 @@ the rule [Limits](#limits) states for the probe's own child.
 
 Its parent-death signal, and what a killed wrapper leaves. The child sets `PR_SET_PDEATHSIG` to `SIGKILL` and
 rechecks `getppid()`, as the probe's children do, so a wrapper killed outright takes its child with it, and the
-child's namespace and the tmpfs inside it go with the child, which leaves the empty directory the next preflight
-sweeps. That signal follows the forking thread rather than the process
+child's namespace and the tmpfs inside it go when the child ends, which leaves the empty directory the next
+preflight sweeps. The second child that moves and unmounts is forked by the first, and it sets its own
+parent-death signal after that fork, so it goes when the first child dies: the single-threaded first child blocks
+until it has reaped it, which is what keeps that signal's forking thread alive. That signal follows the forking
+thread rather than the process
 (`doc/troubleshooting/pdeathsig-fires-when-the-parent-thread-ends.md`), and a blocking-pool thread idles out after
 ten seconds without work (tokio 1.54.1 `src/runtime/blocking/pool.rs:231`, `KEEP_ALIVE`; the wrapper's builder sets no
 `thread_keep_alive`, `.../foundation/lazy_runtime.rs:164` to `:170`), so the signal is safe here only because the
@@ -915,12 +918,22 @@ Where its scratch directory lives, and who removes it. The parent creates it und
 state under that directory (`package/git-policy/cli/src/native/service/service_provision.rs:24`). It is not under
 the checkout, the slot tree, the staging folder or the clone parent, so no path mount or unmount touches the tree
 the plan's rule forbids (the [plan][plan], line 275), and it is not under the root-owned record directory. The
-parent removes its subdirectory when the child ends, a kill included. The next preflight sweeps the siblings a kill
-leaves, and it removes only a directory it can prove dead: the name carries the pid and the birth identity the
-wrapper records for its own processes (`.../process/process_identity.rs:1` to `:22`), and the sweep removes a name
+parent removes its subdirectory when the child ends, a kill included, and only after it has reaped the child, so a
+child that `SIGKILL` cannot end keeps its directory, its namespace and the mount in it until the wait returns. The
+next preflight sweeps the siblings a kill leaves, and it removes only a directory it can prove dead: the name
+carries the pid and the birth identity the wrapper records for its own processes
+(`.../process/process_identity.rs:1` to `:22`), and the sweep removes a name
 only when its pid names no process in this namespace (`kill(pid, 0)` answering `ESRCH`) and no process holds that
-recorded identity. That care is load-bearing: the tmpfs mount inside a live child's directory lives in that child's
-namespace, `rmdir` of the directory from the host namespace is not refused for such a mount, because
+recorded identity. That test is the wrapper's, not the child's: the directory is made before the fork, so the name
+carries the wrapper's pid and identity, and what the sweep proves is that this run's wrapper is gone. A live child
+of a dead wrapper, which a signal not yet delivered or an uninterruptible wait leaves, therefore reads as dead to
+the sweep, and that is benign: that run's wrapper is gone, nothing reads its answer, and the mount the `rmdir`
+detaches then lives in that child's own namespace. A name written by a wrapper in another PID namespace names
+another process here, so the sweep judges such a name the wrapper's own way, by the age of its recorded identity
+rather than by `kill(pid, 0)`, and past that age it refuses to remove the directory and names it
+(`.../process/pid_namespace.rs:1` to `:40`). That care is load-bearing: the tmpfs mount inside a live child's
+directory lives in that child's namespace, `rmdir` of the directory from the host namespace is not refused for such
+a mount, because
 `is_local_mountpoint` looks at the caller's namespace, and the call then detaches that mount in every namespace
 (`fs/namei.c:5502` to `:5521`, `detach_mounts`), so a sweep that guessed would end a live run's mount. The
 parent-death signal makes a wrapper's own death leave an empty directory rather than a live one, because the child
