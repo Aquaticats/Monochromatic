@@ -67,8 +67,9 @@ carried.
   and marked open to the project's veto. Its child's start is specified: a fork on the blocking pool whose child runs
   a raw-syscall island, because the source guard forbids the re-exec the review offered, with `setpgid` called at once
   and the scratch directory placed outside the managed tree. `first-attach` gains its step names, `errno none` for a
-  check, the rule that a pre-attach refusal takes no claim, `0644` writes both ways, a path open, and the ordering a
-  later sweep really has. The deadline's value is sourced from step 6's own M4 run and step 10's own M11 run, with
+  check, the rule that a refusal at the key check takes no claim, `0644` writes both ways, a path open, and the
+  ordering a later sweep really has. The deadline's value is sourced from step 6's own M4 run and step 10's own M11
+  run, with
   what both steps do until those exist, and a timed-out record names the arm in flight. The plan notes were rechecked
   against the plan as main has it, now cite steps by heading, and carry the duties of steps 8, 14, 16, 18, 19 and 20
   and each measurement's step. The lows: the skip errno set checked against the kernel source (`ENOSPC` since Linux
