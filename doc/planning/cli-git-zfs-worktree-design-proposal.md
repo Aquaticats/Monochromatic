@@ -673,6 +673,17 @@ used a private bind of a directory on the guest root filesystem, not this locati
 location, its lifecycle and the cleanup are untested product requirements, and the placement was one of the
 defaults the project answered ([Decided defaults](#decided-defaults)).
 
+Amended 2026-11-20 by the project's acceptance of that design:
+the folder's creation,
+its private bind and the wrapper's cleanup now have a design,
+and so does the interface that unmounts a staged mount from the held descriptor,
+in "The unmount call from staging" of
+[`cli-git-zfs-staging-under-cache-design.md`](cli-git-zfs-staging-under-cache-design.md),
+whose decision record is
+[`cli-git-zfs-staging-under-cache.md`](../decision/cli-git-zfs-staging-under-cache.md).
+Both keep their point that nothing is built yet:
+no unmount runs from staging until step 9 ships that interface.
+
 Recheck the canonical lookup before moving. The synchronized substitution in [VM item 4][vm-unmount] was
 caught by that check; the move uses the verified descriptor, not a new slot path lookup. Move to the decided
 staging folder, verify the mount there, release descriptors that would hold it busy, then unmount without force

@@ -92,6 +92,13 @@ and the staging design in the entry beginning "Staging under `~/.cache` and the 
 No production kernel request runs before the first two,
 and no unmount runs before the third.
 
+Amended 2026-11-20:
+the staging design was accepted that day,
+so the third waits on its build and not on a design,
+and no unmount runs before step 9 ships it.
+Its record is
+[`doc/decision/cli-git-zfs-staging-under-cache.md`](../decision/cli-git-zfs-staging-under-cache.md).
+
 ## Dependencies and their state
 
 Each entry names whether the design picked the dependency,
@@ -980,6 +987,15 @@ Open item 3's receiving path,
 how root's finding reaches the unprivileged wrapper,
 lands in step 17;
 step 16 and step 18 read the result this step records.
+
+Amended 2026-11-20:
+that design was accepted
+([record](../decision/cli-git-zfs-staging-under-cache.md)),
+so step 9's blockage and the wait of steps 9,
+14,
+16 and 17 now stand for its build alone:
+those steps wait on that build,
+not on a design.
 
 #### Depends on
 
@@ -2281,6 +2297,10 @@ and whether the answer is the owner's or a writer's design work.
   step 9,
   blocking for every unmount,
   writer design work.
+  Amended 2026-11-20:
+  designed and accepted
+  ([record](../decision/cli-git-zfs-staging-under-cache.md)),
+  so it blocks on the build alone.
 - "What re-applies private propagation after a replacement mount":
   step 19,
   blocking for its acceptance item,
