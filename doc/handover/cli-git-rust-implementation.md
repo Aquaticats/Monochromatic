@@ -40111,7 +40111,18 @@ What follows from them, as work:
   writer's weights, scoring and cost basis, a false `libbpf-rs` licence exit, discovery not saturated, Q2 to Q4 not all
   real choices, crate placement stated as decided), F11 (step 2's guest needs a module with BTF). GOING: its fix round
   `pi-zfs-runtime-layout-checker-design-gate-review-findings-fixed` (DeepSeek on Neuralwatt, cap 450; brief under
-  `~/temp/agent/zfs-runtime-layout-checker-design-gate-review-findings-fixed-2026-11-19/`). By the owner's answers of
+  `~/temp/agent/zfs-runtime-layout-checker-design-gate-review-findings-fixed-2026-11-19/`). It ended `idle` (199 turns,
+  `8bef7121d0`, `c25dde66a5`, `a3bb5a8c21`, 1,830 lines; report in that folder's `keep/report.md`): F1 to F19 answered;
+  sections sorted by offset as v7.3 does (checked on this host's vmlinux: type 0, layout 3,789,716, strings 3,789,796);
+  owed measurement 2's primary arm patches 2.4.4 so the release rule passes and the `Member` step refuses; all three
+  2.2.2 differences listed; the ioctl-first way bounded out and Way 2 stated not to meet the answer; C6 re-derived (the
+  in-house reader now scores 92 against `btf-rs`'s 90 of 104, and `btf-rs` ranks first only by the skill's rule that an
+  existing tool passing every hard constraint comes before custom code, stated openly); the `libbpf-rs` licence exit
+  deleted; all 81 rows of `q=btf` recorded and the web class marked blocked; owner questions now Q1 (the reader), Q2
+  (adopted release rule `2.4.4` or `2.4.4-<anything>` with a veto, asking only whether to narrow it for git snapshots),
+  Q3 held until item 10; crate placement a proposal with a veto; step 2's handoff line written. GOING: a Sonnet gate
+  re-check of the revision (brief under
+  `~/temp/agent/zfs-runtime-layout-checker-design-revision-gate-recheck-2026-11-19/`). By the owner's answers of
   2026-11-19T17:10:00-05:00 (questions file) the LFS review and the provider rebuild finish and nothing else off the
   ZFS path starts, and owner questions off the ZFS path wait in the questions file (new rule `QWP`).
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
