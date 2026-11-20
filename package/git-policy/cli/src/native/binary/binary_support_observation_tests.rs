@@ -4,6 +4,7 @@
 //!  the program a bounded line names,
 //!  the bound counted from the command's own start,
 //!  a command that ends by itself with its own status or signal,
+//!  a death by the signal the bounded line's own `timeout` sends at its bound,
 //!  one this wait ends at its bound,
 //!  a descendant in a session of its own that holds one of the command's pipes,
 //!  and the hand a signal at the bound goes through.
@@ -76,6 +77,15 @@ const HOLDS_SECONDS: u64 = 30;
 ///  so a wait that waits for it shows itself
 ///  far past this window.
 const PATIENCE: Duration = Duration::from_secs(5);
+
+/// The bound a control gives a wait whose command states a shorter bound in its own line,
+/// in seconds.
+/// Why five:
+///  the line's own timer then fires with this wait's time still to spare,
+///  so the exit is what this wait reads and its deadline is not what decides,
+///  which is the order issue 6324 saw on a loaded host
+///  and which no control can force by holding this process back.
+const OUTLASTING_THE_LINES_BOUND_SECONDS: u64 = 5;
 
 /// How long a wait may take when the bound it is given has already passed,
 /// in seconds.
@@ -238,6 +248,44 @@ fn the_inner_timer_of_a_child_is_never_the_ending_this_wait_reports() {
         answer.ending,
         Ending::Itself,
         "the child's own `timeout` fired inside the bound this wait states, so this wait must not call that ending the child's own"
+    );
+    remove(&made);
+}
+
+/// What:
+///  A death by the `SIGKILL` the bounded line's own `timeout` sends at the bound is the bound's doing,
+///  though this wait read the exit rather than its own deadline running out first.
+/// Why:
+///  Issue 6324's gate failure:
+///  `timeout --signal=KILL 1 <a script that never answers>` dies by `SIGKILL` itself at its one second,
+///  because `SIGKILL` cannot be ignored and it signals its own group,
+///  and this wait then answers `code: None` with no ending named,
+///  as though the command had ended by itself.
+///  The two timers keep one value and this wait's deadline is the earlier of them,
+///  so a `SIGKILL` at the bound is this wait's to claim.
+///  The order is forced here with no host load:
+///  the wait is given a bound longer than the one the line states,
+///  so the line's own timer fires while this wait is still waiting for the exit and the exit is what it reads.
+#[test]
+fn a_death_by_the_lines_own_timeout_at_its_bound_is_the_bounds_ending() {
+    let made: Fixture = fixture("observe-line-timer-at-the-bound");
+    let command: PathBuf = script(&made, "kept-alive", format!("#!/bin/sh\nexec /usr/bin/sleep {HOLDS_SECONDS}\n").as_str());
+    let mut wrapped: Command = bounded_script(&made, command.as_path(), ONE_SECOND);
+    let (child, group): (Child, libc::pid_t) = spawned_beside_the_control(&mut wrapped);
+    let began: Instant = Instant::now();
+    let answer = wait_under_bound(child, Some(group), Duration::from_secs(OUTLASTING_THE_LINES_BOUND_SECONDS), b"");
+    let elapsed: Duration = began.elapsed();
+    println!("the wait answered {:?} with status {:?} after {elapsed:?}", answer.ending, answer.status);
+    assert_eq!(
+        std::os::unix::process::ExitStatusExt::signal(&answer.status),
+        Some(libc::SIGKILL),
+        "the line's own `timeout` ends its group and itself with `SIGKILL` at the one second it states: {:?}",
+        answer.status
+    );
+    assert_eq!(
+        answer.ending,
+        Ending::AtTheBound,
+        "a `SIGKILL` death at the bound the command's own line states is the bound's doing, not an ending the command chose"
     );
     remove(&made);
 }
