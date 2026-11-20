@@ -11866,14 +11866,19 @@ ends the command with status 2,
 and advises `git lfs update --manual` or `--force`,
 neither of which can work while that directory cannot exist.
 The `filter.lfs.*` keys are what the wrapper's own upload needs,
-and one notice before git-lfs runs says where this command asks for them:
-the keys go to the scope it names when git-lfs runs the command,
+and one notice before git-lfs runs states the request the caller's words make rather than a completed write:
+this command asks git-lfs to put the keys in the scope it names,
 the wrapper runs the upload itself before each push,
 no `pre-push` hook is installed in this repository and none is needed,
 and the `post-checkout`,
 `post-commit` and `post-merge` hooks are not needed either.
+The request is the only claim a notice built from the words alone can make:
+git-lfs can still stop after it reads them well,
+for example on a global `filter.lfs.clean` that differs from what it writes,
+with status 2 and no `filter.lfs.*` key written (measured),
+and its own message answers that.
 The notice names the scope the caller asked for,
-because the keys do not always go to the global file:
+because git-lfs does not always put the keys in the global file:
 `--local` writes this repository's `.git/config`,
 `--system` the system file,
 `--file <path>` that file,
@@ -11882,7 +11887,7 @@ and `--worktree` writes `config.worktree` in this worktree's Git directory while
 or this repository's `.git/config` when it is not and the repository holds one worktree;
 when it is not and the repository holds several, no file is written at all,
 because Git refuses the write and git-lfs ends with status 2
-(`commands/command_install.go:40-58`,
+(`commands/command_install.go:37-59`,
 `lfs/attribute.go:154-190` and `git/config.go:137-140`;
 measured with git-lfs 3.8.1 and plain `git` 2.56.1,
 every file read back through `git config --file <p> --list`,
@@ -11895,8 +11900,9 @@ a boolean option whose `=value` is no `strconv.ParseBool` spelling (`-l=yes`, `-
 and `--file` with no word after it are refused by git-lfs 3.8.1 itself,
 with statuses 2, 127 and 127 measured through the wrapper,
 every configuration file read before and after each run;
-the notice then names the word or the count git-lfs refuses and says that no `filter.lfs.*` key is written to any
-configuration file,
+the notice then names the word or the count git-lfs refuses, except where a word this reading does not name came
+first,
+and says that no `filter.lfs.*` key is written to any configuration file,
 and the multi-destination refusal still records `lfs.repositoryformatversion` in this repository's `.git/config`
 before it stops.
 An option this reading does not name is passed through as typed,
@@ -11904,12 +11910,31 @@ so a command git-lfs refuses for another reason (`--bogus`, an unknown short let
 words select;
 the flag parser's own message is the answer there, and a list of every option git-lfs registers would go stale as
 git-lfs adds one.
+When such an option comes before a word this reading refuses,
+the notice states the refusal and names no reason,
+because pflag stops at the earlier word,
+which the parser's own message names (`git lfs install -z -l=yes` answers
+`unknown shorthand flag: 'z' in -z` while the reading refuses `-l=yes`, measured),
+and a count of destinations is decided only after every word is read,
+so a word this reading does not name anywhere drops that reason too.
 A run with `--manual` that git-lfs runs is told why the hook instructions it asked for are not printed:
 they are instructions for merging a hook this wrapper installs nowhere and never runs,
 and a refused command prints none of them for the refusal's own reason, so its notice adds no such sentence.
-Outside a repository the command is forwarded as it was typed (git-lfs writes no hook there),
-a help query is answered as it was typed,
-and a caller who wrote `--skip-repo` already keeps one copy and gets the same notice.
+Outside a repository the command is forwarded as it was typed (git-lfs writes no hook there).
+A help query is answered as it was typed, however it is spelled:
+`--help`, `-h`, `--help=true` and a group that carries `h` (`-lh`) all print help with status 0 and write no key,
+so none of them gets the option or the notice,
+while `--help=false` and `-lh=false` run the command,
+a word the parser refuses beats help (`-lh --local=yes` is refused),
+and a word after `--` is no help query
+(`git lfs install -- -h` ran into the hook write with status 2 until this was read).
+A `--skip-repo` after `--` is no option either, so the wrapper adds its own copy there too.
+A caller who wrote `--skip-repo` with a true value keeps one copy and gets the same notice.
+A caller who wrote it false gets the wrapper's copy right after that word,
+because git-lfs keeps the last value of a repeated flag, so a copy before it would be undone:
+`git lfs install --skip-repo=false` wrote the global keys and then ended with status 2 and
+`mkdir /dev/null: not a directory` until this was read,
+and the notice says that the caller's word did not win.
 What this does not cover,
 left as it was and recorded here:
 `git lfs update` and `git lfs install hooks` still write the shims into that directory,

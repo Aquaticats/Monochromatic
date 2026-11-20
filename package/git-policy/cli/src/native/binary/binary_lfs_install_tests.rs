@@ -56,9 +56,42 @@ fn an_install_in_a_repository_runs_with_skip_repo_and_explains_why() {
     assert_eq!(words, vec!["install", "--skip-repo", "--force"], "the program's own options are kept, and one is added");
     assert!(said.contains("`git lfs install` ran with `--skip-repo`"), "the person is told what was added: {said}");
     assert!(said.contains("no `pre-push` hook is installed in this repository and none is needed"), "{said}");
-    assert!(said.contains("`filter.lfs.*` keys go, as this command asked, to"), "{said}");
+    assert!(said.contains("This command asks git-lfs to put the `filter.lfs.*` keys in your global configuration"), "{said}");
     assert!(!said.contains("keys were written"), "the notice never promises a write: {said}");
     assert!(!said.contains("git lfs update --manual"), "no advice that cannot work is offered: {said}");
+}
+
+/// What:
+///  A caller who wrote `--skip-repo=false` gets the wrapper's copy right after that word,
+///  and the notice says the caller's word did not win.
+/// Why:
+///   git-lfs keeps the last value of a repeated flag,
+///  so the copy the wrapper puts right after `install` is undone by a later `--skip-repo=false`:
+///  measured with git-lfs 3.8.1 through the wrapper, that command wrote the global keys and then ended with status 2 and
+///  `mkdir /dev/null: not a directory`, the failure the option exists to prevent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ran = runWrapped(fixture, repo, ['lfs', 'install', '--skip-repo=false']); expect(read(record)).toEqual(['install', '--skip-repo=false', '--skip-repo'])
+/// ```
+#[test]
+fn a_caller_who_turned_skip_repo_off_gets_the_wrappers_copy_after_it() {
+    let fixture: Fixture = fixture("lfs-install-skip-repo-off");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let record: PathBuf = fixture.root.join("git-lfs-arguments.txt");
+    recording_stand_in(&fixture, record.as_path());
+    let ran: Observed = run_wrapped(&fixture, repo.as_path(), &["lfs", "install", "--skip-repo=false"]);
+    let said: String = stderr_of(&ran);
+    assert_eq!(ran.code, Some(0), "{said}");
+    let given: String = std::fs::read_to_string(record.as_path()).unwrap_or_default();
+    let words: Vec<&str> = given.lines().collect();
+    assert_eq!(
+        words,
+        vec!["install", "--skip-repo=false", "--skip-repo"],
+        "the program reads the wrapper's copy last, so the caller's false cannot undo it"
+    );
+    assert!(said.contains("The last word that set `--skip-repo` turned it off"), "the person is told which word won: {said}");
+    assert!(said.contains("they are skipped all the same"), "the person is told the hooks are still skipped: {said}");
 }
 
 /// The write git-lfs makes when `--worktree` is asked for.
