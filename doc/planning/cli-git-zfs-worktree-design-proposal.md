@@ -248,13 +248,17 @@ on the acceptance of
 [the runtime layout checker design](cli-git-zfs-runtime-layout-checker-design.md)
 ([decision record](../decision/cli-git-zfs-runtime-layout-checker.md)):
 the gate proves no module release.
-By the project's answer of 2026-11-19, "Any version, layout decides",
+By the project's answer of 2026-11-19,
+"Any version,
+layout decides",
 the layout comparison and the request numbers decide,
 and `doctor` prints the module's release string and says when it is not the tested text,
 `2.4.4-1`.
-The paragraph above stands as it was accepted, so `module release` in its list of proofs is
-superseded, and the gate it describes proves architecture,
-endianness, request contract and the kernel and module BTF layout.
+The proof list in "ABI gate and tests" stands as it was accepted,
+so `module release` in it is superseded,
+and the gate it describes proves architecture,
+endianness,
+request contract and the kernel and module BTF layout.
 
 Test the codec, request packing, bounded decoding, and the fail-closed gate without a device. Fuzz the adapted codec.
 Run every live ioctl, migration, handler and fault test against a file-backed pool inside a disposable VM, never

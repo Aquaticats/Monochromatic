@@ -7,7 +7,8 @@ with none of the four veto-open choices vetoed.
 The decision record is
 [`doc/decision/cli-git-zfs-runtime-layout-checker.md`](../decision/cli-git-zfs-runtime-layout-checker.md),
 which also states the corrections the last gate check's lows asked for.
-This body stands as accepted, at `22703f23df`,
+This body stands as accepted,
+at `22703f23df`,
 and the banner below records how the file was written before that acceptance;
 the acceptance supersedes it as this file's standing.
 
