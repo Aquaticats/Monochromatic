@@ -9,17 +9,21 @@ Every kernel fact here is read at upstream Linux `v6.8`, in the files listed und
 OpenZFS fact is read at tag `zfs-2.4.4`. Nothing in this design was measured, on any host or any guest: every
 measurement it owes stays owed, and no sentence here reports a run.
 
-This revision answers three independent reviews, all outside this repository, and then applies the project's answers
-of 2026-11-19. The reviews are the gate review of tip `2258de74d8`, its first re-check of tip `3972d4bf90`, and the
-second re-check of tip `a879cd9be8`, under
+This revision answers four independent reviews, all outside this repository, and then applies the project's answers
+of 2026-11-19. The reviews are the gate review of tip `2258de74d8`, its first re-check of tip `3972d4bf90`, the
+second re-check of tip `a879cd9be8`, and the gate review of tip `e8f7ec4fa6`, under
 `~/temp/agent/zfs-staging-under-cache-design-gate-review-2026-11-19/keep/`,
-`~/temp/agent/zfs-staging-under-cache-design-revision-gate-recheck-2026-11-19/keep/` and
-`~/temp/agent/zfs-staging-under-cache-design-second-revision-gate-recheck-2026-11-19/keep/`. No review's finding
+`~/temp/agent/zfs-staging-under-cache-design-revision-gate-recheck-2026-11-19/keep/`,
+`~/temp/agent/zfs-staging-under-cache-design-second-revision-gate-recheck-2026-11-19/keep/` and
+`~/temp/agent/zfs-staging-under-cache-design-owner-answers-gate-review-2026-11-19/keep/`. No review's finding
 numbers are used here: every reference is to a fact, an assumption, a limit or a measurement arm of this design.
 The reviews' points stay where they apply: the folder's name derived on both sides from the clone's dataset GUID in
 "The staging target and who creates it", the staged-folder record in A1 and "The staged-folder record", the recovery
 capability in "The unmount call from staging" and M6, the retained states split by cause in F11 and L11, and the
-corrected descriptor facts in F14 and F30. The project's answers of 2026-11-19, and the threat model they state, are
+corrected descriptor facts in F14 and F30. The last review's points stay where they apply too: the rollback's end
+state and destination in "The private bind" and M1, the record's two void cases in "The staged-folder record" and
+M6, the descriptor kinds in that section, and the choices that review asked be marked as the writer's in "Choices
+this revision marks for the project's veto". The project's answers of 2026-11-19, and the threat model they state, are
 listed under "Answers of 2026-11-19" and followed throughout. The revision history, with each commit's committer
 timestamp from `git log --format=%cI`, is under "Revisions".
 
@@ -524,7 +528,8 @@ The handler's pre-bind check is then about the folder and its own record, not ab
 the pinned UID, at the mode F1 records, empty, named exactly the derived component, reached under the `~/.cache`
 descriptor, on the mount whose ID `/proc/self/fdinfo` prints for that descriptor and which equals the `user-cache`
 row's (F17, F21, F28). A record for this GUID that already stands must match the folder's identity or the handler
-refuses; where there is no record yet, the handler writes one before it binds (A1, F29, "The staged-folder record").
+refuses, unless the wrapper has already voided it as a record whose folder is gone ("The staged-folder record");
+where there is no record, the handler writes one before it binds (A1, F29, "The staged-folder record").
 No channel from the claim to the handler exists, so this design adds none and states that the handler never reads a
 claim. One consequence is stated rather than hidden: before the first bind there is no identity to compare with, so
 shape is all the handler can check, and a folder the account substituted before that first bind is bound and recorded
@@ -1015,9 +1020,9 @@ Set up a clone at a slot, a private bind on a depth-one staging folder, and the 
   nothing is unbound. Control: M1's stacked-before-the-move arm, whose slot stands uncovered and whose rollback
   proceeds.
 - Stacked before the move, rollback refused: the same stacking, and the slot's directory removed from a foreign
-  namespace before the rollback, so the rollback's destination is gone and the move refuses. Assert the clone stays
-  staged, the receipt carries the misplaced state, `doctor` prints it, nothing is unbound, and the clone's source row
-  is not at its slot. Control: M1's stacking arm in the same run, where the slot stands and the rollback succeeds.
+  namespace before the rollback, so the slot open refuses `ENOENT`. Assert the clone stays staged, the receipt carries
+  the misplaced state, `doctor` prints it, nothing is unbound, and the clone's source row is not at its slot.
+  Control: M1's stacking arm in the same run, where the slot stands and the rollback succeeds.
 - The bind's descriptor: after the bind and before the propagation change, open the folder by name under the
   `~/.cache` descriptor with `O_PATH | O_DIRECTORY` and with `RESOLVE_BENEATH`, `RESOLVE_NO_SYMLINKS` and
   `RESOLVE_NO_MAGICLINKS`, and no `RESOLVE_NO_XDEV`; assert `/proc/self/fdinfo/<n>` prints the mount ID of the bind's
