@@ -561,13 +561,17 @@ the pick is not made here.
   The gate review's four scripts were re-run against the same three tagged copies and reproduce its
   counts, and the control run is recorded under [The prose checks](#the-prose-checks).
   No product file, no plan step and no proposal step is edited here.
-- `2026-11-19T22:43:00-05:00`, commit `b940ad1489` at 22:31:12, which applies the findings,
-  `9075aab4bf` at 22:33:00, which names the `main` commit the locators were re-measured at and
-  narrows two quote spans, `9f1194e79a` at 22:36:00, which records these commits and the checker's
-  counts, `0fe23040da` at 22:40:00, which names the revision that first recorded the BTF file's
-  time, and the commit that carries this entry, which makes the read order quote the tested module's
-  text as `2.4.4-1`: the revision that answers the third gate re-check, kept at
+- `2026-11-19T22:27:09-05:00`, commit `b940ad1489`, which applies the findings, `9075aab4bf` at
+  22:28:26, which names the `main` commit the locators were re-measured at and narrows two quote
+  spans, `9f1194e79a` at 22:28:56, which records these commits and the checker's counts,
+  `0fe23040da` at 22:29:32, which names the revision that first recorded the BTF file's time, and
+  `71829d109c` at 22:30:30, which makes the read order quote the tested module's text as `2.4.4-1`:
+  the revision that answers the third gate re-check, kept at
   `/home/user/temp/agent/zfs-runtime-layout-checker-design-third-revision-gate-recheck-2026-11-19/keep/review.md`.
+  The five commits' recorded dates, 22:31:12, 22:33:00, 22:36:00, 22:40:00 and 22:43:00, were set
+  by hand and are not when they were made; the times above are the ones the design worktree's
+  reflog recorded, to the second, and the corrective comment 210970301 on `71829d109c` records the
+  same five times.
   That re-check is independent of this file's author (rule `IRW`) and is not an approval; it found no
   high finding, two mediums and nine lows, and called the file not ready for the project.
   Medium 1: [When the module carries no BTF](#when-the-module-carries-no-btf) states the Makefile's
