@@ -123,8 +123,8 @@ as `container-<check>.log` and `container-checks-summary.log`,
 taken between
 2026-11-20T01:16:13-05:00 and
 2026-11-20T01:16:38-05:00,
-with the linter rerun at
-2026-11-20T01:17:59-05:00.
+with the linter's own reruns after them,
+whose times `container-checks-summary.log` holds.
 
 - nextest exits 0,
   `178 tests run: 178 passed, 30 skipped`;
