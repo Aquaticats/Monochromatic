@@ -367,9 +367,9 @@ untested module release whose layout matches passes the gate: the module-release
 of its own now, and
 [a release that keeps the layout and changes behaviour](#a-release-that-keeps-the-layout-and-changes-behaviour)
 states what such a release does.
-The same line's "The BTF comparison runs against the guest's `/sys/kernel/btf/zfs`" waits on
-[owed measurement](#owed-measurements) item 11, the run that first makes that file exist in the
-guest.
+The same line's "The BTF comparison runs against the guest's `/sys/kernel/btf/zfs`" waits on a
+guest whose module carries that file: step 2's recipe makes it exist at `08c9dea25f`, unmerged, and
+[owed measurement](#owed-measurements) item 11 is the design's own fixture's run.
 
 ### A release that keeps the layout and changes behaviour
 
@@ -590,11 +590,12 @@ the pick is not made here.
   Medium 1: [When the module carries no BTF](#when-the-module-carries-no-btf) states the Makefile's
   own guard rather than `KBUILD_BUILTIN`, records the step 2 short review's guest probe and its
   throwaway guest, and marks the 24-byte header that route produces; owed measurement item 11 states
-  what this design requires of step 2, where step 2 stands at `4c7a347ea2` and at its fix round's
-  tip `13bc5036d2`, and that step 2's question to the owner is answered by the accepted gate; item 5
-  gains the device-free pass on copies of this host's pair with its two negative controls, the only
-  arm before step 23 that reaches the 32-byte header; item 6 names the 24-byte route; and the writer
-  list and the assumption about step 2's test are restated.
+  what this design requires of step 2, where step 2 stands at `4c7a347ea2` and at `13bc5036d2` (the
+  branch's tip was `08c9dea25f`, three commits later), and that step 2's question to the owner is
+  answered by the accepted gate; item 5 gains the device-free pass on copies of this host's pair
+  with its two negative controls, the only arm before step 23 that asserts a pass on the 32-byte
+  header; item 6 names the 24-byte route; and the writer list and the assumption about step 2's
+  test are restated.
   Medium 2: [the release string](#the-release-string-q2) adds `zfs_ioc_clone`'s `props` path into the
   same functions, writes "the wrapper's call shapes", states that callees outside `zfs_ioctl.c`
   were read only for the four named, says a user property returns at the user-property check in all
@@ -1161,15 +1162,17 @@ a probe is a command this session ran, listed under
   recorded.
 - So the missing file, not `KBUILD_BUILTIN`, is what leaves that module without BTF, and giving the
   build a `vmlinux` is the route nobody had tried.
-  Step 2's record gives `KBUILD_BUILTIN` as the cause, which the `Makefile.modfinal` lines this
-  section quotes do not support.
+  Step 2's record gave `KBUILD_BUILTIN` as the cause at `4c7a347ea2`, which the `Makefile.modfinal`
+  lines this section quotes do not support; its record at `08c9dea25f` says `KBUILD_BUILTIN`
+  "decides when the command is re-triggered, not whether it runs" (its lines 163 to 165).
   The step 2 short review (a same-vendor second pass, not an independent review under rule `IRW`)
   tried the route in a throwaway guest: it copied `/sys/kernel/btf/vmlinux` into
   `/lib/modules/6.8.0-147-generic/build/vmlinux`, built a trivial out-of-tree module, and got a
   `BTF [M]` line, a `.BTF` section and `/sys/kernel/btf/probe` with its struct printed.
   That was a trivial module, not OpenZFS, so it shows the route exists in a 6.8 guest and not that
   the design's guest fixture has taken it.
-  A 6.8 guest's tools are expected to write the 24-byte header, so the file that route produces is
+  A 6.8 guest's tools are expected, unmeasured, to write the 24-byte header, so the file that route
+  produces is
   [item 6](#owed-measurements)'s older case, not the 32-byte shape this host's reader meets.
 - Whether the same guest's packaged `2.2.2-0ubuntu9.5` module carried BTF was not recorded.
   A distribution package may carry it, and an out-of-tree build without a `vmlinux`
@@ -1229,8 +1232,8 @@ a probe is a command this session ran, listed under
 
 - The layout compiled into the binding is the layout in the pinned `zfs-2.4.4` headers.
   Step 2's layout test is what proves it; nothing on `main` carries that test yet, and step 2's
-  branch holds it unmerged at `4c7a347ea2`, reading the module's DWARF until its fix round moved it
-  to the module's BTF file.
+  branch holds it unmerged, reading the module's DWARF at `4c7a347ea2` and the module's BTF file at
+  `08c9dea25f`.
 - A module whose layout matches the compiled expectations behaves as the approved release for
   the requests the binding sends. The checker proves layout and request numbers, not code, and the
   2.2.2 to 2.3.0 interval is a case where this assumption fails for a volume's property set, which is
@@ -2575,19 +2578,20 @@ Every measurement stays owed, and no item here touches this host's pool or modul
     The same device-free harness runs the comparison on copies of this host's two BTF files, the
     module reporting `2.4.4-1` with `srcversion` `A3553C308C29FD4B6595A72`, and asserts it reports
     compatible with both `hdr_len` 32.
-    That is the only arm before step 23 that reaches the 32-byte-header shape, because a 6.8 guest's
-    tools write the 24-byte one.
+    That is the only arm before step 23 that asserts a pass on the 32-byte-header shape, because a
+    6.8 guest's tools are expected, unmeasured, to write the 24-byte one; item 10 feeds copies of the
+    same pair to the comparison, which reaches the shape without asserting a pass on it.
     Its negative controls are the same two files with one byte of the magic changed, which must
-    refuse at `Header`, and with the member swap of item 16 applied, which must refuse at `Member`
-    with both offsets.
+    refuse at `Header`, and with the byte edit that moves the two members' offsets as item 16's
+    patch would, which must refuse at `Member` with both offsets.
     Control: the untruncated pair passes.
 6.  The header variants both pass, in the guest. A module whose BTF an older tool emitted with the
     24-byte header, and a module whose BTF reports `hdr_len` 32 (the host's kernel is
     `7.3.5-1-cachyos`, unqualified for the product until step 23), must both parse and compare.
     The 24-byte case's route is item 11's: copy `/sys/kernel/btf/vmlinux` into the guest's kernel
     build directory before the module build, which is what step 2's fix round does.
-    A 6.8 guest's tools emit no 32-byte file, so that shape is asserted by item 5's device-free arm
-    rather than here.
+    A 6.8 guest's tools are expected, unmeasured, to emit no 32-byte file, so that shape is asserted
+    by item 5's device-free arm rather than here.
     Control: a file with `hdr_len` 16, and a file whose sections overlap, must refuse.
 7.  The request contract is checked, in the guest. Renumber one `zfs_ioc` value in a patched module
     and assert the refusal names the request and both values. Control: the unpatched module passes,
@@ -2635,28 +2639,42 @@ Every measurement stays owed, and no item here touches this host's pool or modul
     could reach about 512 MiB, past this threshold, so this item sets each of them and
     [Q3](#q3-may-a-verification-be-cached-across-processes)'s trigger is this same threshold.
 11. The guest fixture for step 6, in the guest. The tarball module the design's guest built carries
-    no BTF. Repeat item 1 with a packaged module that carries BTF or with a tarball build given a
-    `vmlinux` in its build directory, record which route produced the BTF and its release string,
-    and record whether the guest exposes `/sys/kernel/btf/vmlinux`, which nothing records today.
+    no BTF, so the design's own fixture still needs the route: repeat item 1 with a packaged module
+    that carries BTF or with a tarball build given a `vmlinux` in its build directory, and record
+    which route produced the BTF and its release string.
     Control: the same guest's module built without BTF, which must refuse with the missing-BTF step
     and offer the fallback.
-    What this design requires of step 2 is one thing: its layout test reads the loaded module's BTF
-    file through the design's command and the vmlinux base, so the test compares the file the gate
-    reads and not the module's DWARF. It does not require step 2 to use this design's reader;
-    that choice is step 2's.
-    Where step 2 stands. At `4c7a347ea2` its test read the module's DWARF, and its record gave
-    `KBUILD_BUILTIN` as the reason the guest could produce no module BTF, which the Makefile reading
-    under [When the module carries no BTF](#when-the-module-carries-no-btf) contradicts. The step 2
-    short review's guest probe then produced module BTF by copying `/sys/kernel/btf/vmlinux` into the
-    kernel build directory, and step 2's fix round, unmerged at `13bc5036d2`, makes the recipe copy
-    that file before the build, makes the test read `/sys/kernel/btf/zfs`, and describes a recorded
-    run that asserts the file exists. `main` records the guest's lack of the file and that probe in
-    its handover, and records no guest that has produced it, so this item stays open until a
-    recorded run of the route on an OpenZFS module lands on `main`.
-    Step 2's own question to the owner, whether step 6's gate needs the BTF file, is already
-    answered: the accepted gate disables raw requests on missing required BTF, and "kernel/module
-    BTF layout" is one of its proofs (see [What the checker must prove](#what-the-checker-must-prove)).
-    This item is the run that proves the recipe.
+    The requirement this item holds step 2 to is the plan's, not this design's: step 2's layout
+    comparison test reads the loaded module's BTF file against the vmlinux base, "The layout
+    comparison test against the running module's BTF"
+    (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, line 443 on `main` at
+    `6c838ba11f`) and "Verify exact ioctl values and Rust layout against the running module's BTF"
+    (`:468`), so the test compares the file the gate reads and not the module's DWARF.
+    It does not require step 2 to use this design's reader; that choice is step 2's.
+    Where step 2 stood at `08c9dea25f`, read at 2026-11-19T23:04:00-05:00. That commit is the tip of
+    its branch and of the integrate branch at `58a1bba2f5`, and it is not on `main` at `6c838ba11f`.
+    Its recipe copies `/sys/kernel/btf/vmlinux` into the guest's kernel build directory before the
+    build, asserts `/sys/kernel/btf/zfs` exists after `insmod`, and the layout test reads that file
+    with `pahole --btf_base /sys/kernel/btf/vmlinux`. Its record says `KBUILD_BUILTIN` "decides when
+    the command is re-triggered, not whether it runs" (record lines 163 to 165), which is the
+    Makefile reading under [When the module carries no BTF](#when-the-module-carries-no-btf), and
+    its kept recorded run reports this layout line on `6.8.0-147-generic`, with the module at
+    `2.4.4-1` (record lines 199 to 205):
+    `layout zfs_cmd bytes=13744 dmu_objset_stats=288 zinject_record=368 drr_begin=304 source=/sys/kernel/btf/zfs`
+    `main`'s handover records that fresh guest run and the recipe's two steps, at lines
+    40200 to 40223 of the file at `6c838ba11f`, and it holds no copy of the record itself.
+    Earlier, at `4c7a347ea2`, the test read the module's DWARF and the record gave `KBUILD_BUILTIN`
+    as the reason the guest could produce no module BTF.
+    The guest's own `/sys/kernel/btf/vmlinux` is recorded: the step 2 short review's probe read it as
+    raw BTF with magic `9f eb 01 00` and copied it into the build directory, which is the `cp` the
+    recipe now runs and which fails there without the file under `set -eu`.
+    The owner question belongs to the record at `4c7a347ea2`, which asked whether step 6's gate needs
+    the BTF file. The accepted gate answers it, since a missing required BTF disables raw requests
+    and "kernel/module BTF layout" is one of its proofs (see
+    [What the checker must prove](#what-the-checker-must-prove)), and the record at the tip does not
+    ask it.
+    This item stays open until a run of the route lands on `main` for the design's own fixture:
+    step 2's branch carries one, and `main` carries the handover's summary of it.
 12. The refused state in `doctor`, in the guest. With a mismatched module loaded, assert `doctor`
     names the loaded module, the target and the file, keeps its exit status, and does not print a
     bypass; then with a compatible module assert it prints the compatible line.
@@ -2939,14 +2957,14 @@ Each says so where it stands, and the sections that use them say so too.
   ([Dependencies and their state][plan-deps], lines 126 to 132), where the design's command is
   `pahole --btf_base`. If Q1's reader serves both, that is step 2's choice to make; this design
   does not assign it.
-- Step 2's layout test reads the loaded module's BTF file with the vmlinux base, and that is this
-  design's requirement of step 2 rather than a choice, because the test then compares the file the
-  gate reads and not the module's DWARF.
-  Step 2 stands at an unmerged branch whose test read DWARF at `4c7a347ea2` and whose fix round at
-  `13bc5036d2` copies `/sys/kernel/btf/vmlinux` into the build directory and reads the module's BTF
-  file.
-  [Owed measurements](#owed-measurements) item 11 is the run that records which route produces the
-  file in the guest and whether the guest exposes `/sys/kernel/btf/vmlinux`.
+- Step 2's layout test reads the loaded module's BTF file with the vmlinux base. That is the plan's
+  requirement of step 2 and not this design's, because the test then compares the file the gate
+  reads and not the module's DWARF ([Owed measurements](#owed-measurements) item 11 cites the
+  plan's lines).
+  At `08c9dea25f`, read at 2026-11-19T23:04:00-05:00, its recipe copies `/sys/kernel/btf/vmlinux`
+  into the build directory and reads the module's BTF file; at `4c7a347ea2` its test read DWARF.
+  [Owed measurements](#owed-measurements) item 11 is the run that records the design's own fixture's
+  route.
 - The refusal's interaction with the design's fallback for an unused slot and the failure path for
   a bound clone; the design decides the behaviour, the writer writes the words.
 - The check's placement in step 6, beside the start probe, and the step-2 test remaining the
