@@ -6560,12 +6560,17 @@ check them with `git diff --cached -- <file>`.
 ### Git commands that may need a login
 
 NDG:
- Git or git-lfs commands this package's tests,
-scripts or agents start that may reach a login set `GIT_ASKPASS` to the empty string and `GIT_TERMINAL_PROMPT=0`
+ Git,
+git-lfs or ssh commands this package's tests,
+scripts or agents start that may reach a login set `GIT_ASKPASS` to the empty string,
+ `GIT_TERMINAL_PROMPT=0` and `SSH_ASKPASS_REQUIRE=never`
  ([why][askpass-dialog]).
 
-Set only `GIT_TERMINAL_PROMPT=0` and the desktop's password dialog still opens on a host whose `SSH_ASKPASS` names one.
-In a Rust test that is `.env("GIT_ASKPASS", "").env("GIT_TERMINAL_PROMPT", "0")`.
+Set only `GIT_TERMINAL_PROMPT=0` and the desktop's password dialog still opens on a host whose `SSH_ASKPASS` names one;
+leave out `SSH_ASKPASS_REQUIRE` and an `ssh://` remote still asks for a key's passphrase,
+which the owner counts as a credential (answer of 2026-11-19T16:58:00-05:00,
+"Passphrases count too").
+In a Rust test that is `.env("GIT_ASKPASS", "").env("GIT_TERMINAL_PROMPT", "0").env("SSH_ASKPASS_REQUIRE", "never")`.
 A test that has to see the prompt program start (the controls in `src/native/landing/service_push_retry_tests.rs`) points
 both `GIT_ASKPASS` and `SSH_ASKPASS` at a recorder that answers a name,
 so no window opens,
@@ -6575,16 +6580,21 @@ naming only `SSH_ASKPASS` would leave the host's own `GIT_ASKPASS` to be the pro
 runs,
 and the recorder's empty log would then prove nothing.
 
-The wrapper adds the same pair to a forwarded command whose process has no controlling terminal
-(`invocation_overlay` in `src/native/invocation/child_environment.rs`).
-A control that compares a forwarded command's environment builds the pair from the same reading,
-`control_terminal()`
-(`expected_overlay` in `src/native/invocation/entry_tests.rs`).
-A control that froze the environment without the pair passed at a person's terminal and failed under a test runner,
+The wrapper adds the same three variables to every command it forwards
+(`no_prompt_overlay` and `invocation_overlay` in `src/native/invocation/child_environment.rs`),
+with or without a controlling terminal:
+the owner's answer of 2026-11-19T16:58:00-05:00 is that no command the wrapper runs or forwards asks for a credential.
+A control that compares a forwarded command's environment builds the rule from those two functions
+(`forward` in `src/native/invocation/entry_tests.rs`),
+so no control depends on the terminal the runner happens to have.
+That dependence used to be real:
+before this rule,
+a control that froze the environment without the pair passed at a
+person's terminal and failed under a test runner,
 an agent's shell or a container started without `--tty`,
-which is how the campaigns start theirs:
-`podman run --network=none <campaign image> sh -c tty` printed `not a tty`,
-and the `invocation::entry` group ran 36 tests with 10 of them failed on a clean tree (2026-11-10).
+which is how the campaigns start theirs (`podman run --network=none <campaign image> sh -c tty` printed `not a tty`,
+and the `invocation::entry` group ran 36 tests with 10 of them failed on a clean tree,
+2026-11-10).
 
 ### Controls that depend on timing
 
