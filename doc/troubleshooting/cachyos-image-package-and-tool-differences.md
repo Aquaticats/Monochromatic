@@ -1,8 +1,9 @@
-# Moving Fedora build images to CachyOS: package and tool differences that broke a build or a test
+# CachyOS build images: package and tool differences that broke a build or a test
 
-Observed on 2026-10-29 while moving the music-player,
+The first entries were written on 2026-10-29 while moving the music-player,
 terminal and IDE images from Fedora to `docker.io/cachyos/cachyos`
-(see [container-base-distro](../decision/container-base-distro.md)).
+(see [container-base-distro](../decision/container-base-distro.md));
+later entries name their own date and need not come from that move.
 Each item names the exact failure,
 the cause that was read from the image,
 and the change that fixed it.
@@ -167,3 +168,51 @@ and pacman takes the first repository that has a package,
 not the
 newest version:
 the image got `nodejs 26.12.1-2` from `cachyos-v4` while `extra` held `26.13.0-1`.
+
+## The x86-64 CachyOS image lost the manual pages its pacman database still lists (2026-11-19T19:18:44-05:00)
+
+A fresh build of `package/git-policy/cli/native-test-base.Containerfile` without a `--build-arg`, so from the
+Containerfile's default `docker.io/cachyos/cachyos:latest`, stopped at its closing step:
+
+```text
+git version 2.56.1
+...
+No manual entry for githooks
+Error: building at STEP "RUN sh -c git --version && ... && man --where githooks": while running runtime: exit status 16
+```
+
+Since 2026-11-19 that command also needs
+`--build-arg BROWSERSLIST_DATA_LOCK="$(cat browserslist-data.lock.json)"`:
+without it the same build stops before that closing check, at the step that caches the pinned browserslist data, with
+`BROWSERSLIST_DATA_LOCK is empty: build with the text of browserslist-data.lock.json as that argument`.
+The recorded run predates that step.
+
+The same file built from `docker.io/cachyos/cachyos-v4:latest`, the image `package/test-harness/core-matrix` resolves
+on this host, and the existing gate base image
+`localhost/git-policy-native-test-base:6fa67475da3a-97221c29742b` answers `/usr/share/man/man5/githooks.5.gz`.
+
+The cause is the x86-64 image, not the package, the repository or a `NoExtract` rule.
+`pacman --query --check git` in `docker.io/cachyos/cachyos:latest` reports `757 total files, 240 altered files`,
+and the missing files are the package's whole `/usr/share/man` and `/usr/share/locale` trees, which
+`pacman --query --list git` still lists; the same command in `docker.io/cachyos/cachyos-v4:latest` reports
+`0 altered files`.
+The image was built as a slimmed copy that removed manual pages, translations, info pages and docs from most of its
+packages while keeping the pacman database that names them: `xz` still reports `400 total files, 0 altered files`,
+where `bash` lost 62 files, `coreutils` 257 and `perl` 966.
+The image's whole `pacman --query --check` names 21,090 missing files, one of them `/etc/resolv.conf` and the rest
+under `/usr/share`: 17,079 manual pages, 2,416 locale files, 761 docs, 563 i18n files, 221 info pages and 49
+gtk-doc files.
+`/etc/pacman.conf` carries no `NoExtract` line in either image, only the commented `#NoExtract   =` one.
+Because the Containerfile installs with `--needed`, pacman reads such a package as complete:
+`warning: git-2.56.1-1 is up to date -- skipping`.
+It therefore never re-extracts the page, and `man-db` has nothing to render for the hook-event guard test.
+Reinstalling the same package from the synced database restores `757 total files, 0 altered files`, the page included.
+Fix:
+`native-test-base.Containerfile` reinstalls `git` when its installed copy lacks
+`/usr/share/man/man5/githooks.5.gz`, and its closing `man --where githooks` check still stops the build when the page is
+absent (a layer that removes the page and runs that check exits 16).
+A build from either CachyOS image, given that lock argument, now succeeds and prints `/usr/share/man/man5/githooks.5.gz`
+at its closing check.
+Residual:
+the image repairs `git` only, so a slimmed package whose other files a test needs gets the same reinstall when that test
+fails; `--needed` can never restore a slimmed package's files on its own.

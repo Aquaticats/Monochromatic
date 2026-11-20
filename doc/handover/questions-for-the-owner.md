@@ -671,3 +671,132 @@ picked) yourself from now on for this session."
   with the same meaning.
 - `package/test-fixture/data-sequence` keeps a `.` entry serving TypeScript source,
   following issue 1579's acceptance and the `hook-type` precedent.
+
+## Open: two `AGENTS.md` rules proposed after agent failures, recorded 2026-11-19T22:53:13-05:00
+
+Both wait for the owner's word, because `AGENTS.md` changes are the owner's to accept;
+until then every brief the coordinator writes carries the same instruction.
+Each code was checked against `AGENTS.md`, the skills and both forbidden-strings appendixes.
+
+### Stop only what you started
+
+What happened:
+at 22:34:24 a ZFS step 4 fix round's agent listed the running containers,
+took two that ran `cargo nextest` for its own,
+and removed both by ID (`podman rm --force --time 0 7a5c4dce9245 5982b11d2ac9`).
+One was another session's whole container gate,
+stopped after 8446 of 9199 tests;
+the other belonged to a third session.
+Rule `NLD` tells an agent to stop every process and unit it left,
+and says nothing about how it knows one is its own.
+The proposed rule,
+under the 50-word and 200-character limits:
+
+```text
+SYO:
+ Stop or remove only processes, units and containers you started,
+ known by a name or ID you recorded at start;
+ never one because `ps` or `podman ps` lists it.
+```
+
+### Commit dates are the clock's
+
+What happened:
+two design writers set `GIT_COMMITTER_DATE` and `GIT_AUTHOR_DATE` on fifteen commits,
+one of them to a time not yet reached,
+so a revision label could equal the last commit's `%cI` as their briefs asked;
+a label written into a commit cannot name that commit's own time.
+Rule `WHN` asks for a second-precise timestamp and names `git log --format=%cI` for a commit,
+which reads as permission to make the commit match.
+The proposed rule:
+
+```text
+KDT:
+ Never set `GIT_AUTHOR_DATE`, `GIT_COMMITTER_DATE` or `--date`;
+ a label naming a commit's time names one already made,
+ never the commit that writes the label.
+```
+
+## Open: link the already installed tools into the main checkout? (recorded 2026-11-19, about 23:20 -05:00)
+
+The plan's step 1 records that nothing is installed on this host until the mpm-shadow change you put first
+("A: mpm-shadow change first (Recommended)").
+Tonight a ZFS step 4 agent ran `mise run toolchain:install` in its worktree,
+and it reported `0 installed, 66 unchanged, 0 failed`:
+the locked tools are already in `~/.local/share/monochromatic-dev/toolchain`,
+`cargo-shadow` and `cargo-nextest` among them,
+and the run only made that worktree's `.cache/toolchain-bin` link folder.
+The main checkout has no such folder,
+so tasks that start with `cargo-shadow` (the wrapper's `native:test:container`, `test:git-image`) exit 127 there
+and every gate runs their second step by hand.
+Running the same task in the main checkout would install nothing and make the link folder,
+putting those tools on the checkout's `PATH` for every session.
+
+- Link them now (recommended): the documented task routes work again and no tool is installed;
+  the cost is that every session in the main checkout starts finding these tools at once.
+- Wait for the mpm-shadow change: nothing on `PATH` changes; gates keep running the second step by hand.
+
+Ranking: link now > wait, because the record's reason for waiting was an install that converges the whole toolchain,
+and the measurement shows nothing left to install.
+
+## Open: accept the ZFS runtime layout checker design? (ready 2026-11-20T00:06:01-05:00)
+
+This goes to the question tool when you are back, with the other two ZFS designs if they are ready by then.
+
+What it is:
+the design for how the wrapper decides, at run time, whether the loaded ZFS kernel module speaks the request layout
+the wrapper was built for,
+by comparing the module's own type data (BTF) with what the binding expects,
+answering your round of 2026-11-19 (Q1 "No, not required", Q2 "Any version, layout decides" and its re-confirmation
+"Keep: layout decides", Q4 "Binding package"; Q3 held until owed measurement item 10 runs).
+It is `doc/planning/cli-git-zfs-runtime-layout-checker-design.md` on branch
+`docs/planning-cli-git-zfs-runtime-layout-checker-design` at `22703f23df`, in the worktree
+`.claude/worktrees/zfs-runtime-layout-checker-design`.
+
+What checked it:
+six revisions by DeepSeek writers,
+answering a gate review, a re-check, a narrow check and three diff-only checks, all on Claude Sonnet;
+the last check (`~/temp/agent/zfs-runtime-layout-checker-design-sixth-revision-diff-only-gate-check-2026-11-19/keep/review.md`)
+found no high and no medium finding and called it ready.
+Two of the revisions had hand-set commit dates;
+the design now states the real times, and corrective commit comments are posted.
+
+What accepting it does:
+it becomes the accepted design for step 6's layout check,
+moves into `doc/decision/` with your answer,
+and unlocks the amendments it names to the proposal's "ABI gate and tests" sentence,
+plan step 6's "What it builds", "Open items" and "VM measurements" lines,
+and the binding package's `README.md`, all dropping the module-release proof your Q2 answer removed.
+
+Four choices the design makes itself, each open to your veto, default "veto none":
+
+- The folder name `compatibility_check`, because the folder compares two files while the plan's word "gate" also
+  covers the device and identity steps; the alternative is `compatibility_gate`.
+- `doctor` flags a module whose version text differs from the tested `2.4.4-1` by an exact string comparison, because
+  a prefix test on `2.4.4-` would pass a checkout build such as `2.4.4-1_g1a2b3c4`, the build the line exists to flag;
+  the alternative is a prefix or version-only test.
+- When the module's identity files are absent, the reload check degrades instead of refusing, because your Q2 answer
+  left only the layout and request numbers to decide; the alternatives are refusing (which refuses a module the layout
+  can still judge) or re-parsing on every use.
+- The verdict is cached once per process with an identity recheck; the alternative is a parse on every use.
+  Whether a cache ever goes to disk is not this choice: it stays with your held Q3.
+
+Ten lows the last check found, carried here instead of another round
+(full text in that review): a header sentence that lost its verb; the fifth revision's entry describing the sixth's
+cache scope; a pronoun with no antecedent; "changes only this record" not true of the last commit; two clock readings
+not marked as unkept; one capitalised-word count misstated; the clone count's source credited away from the claim; the
+per-process cache's reason and costs unstated; Q3's return stated two ways; and the evidence correction naming the
+wrong revision and speaking for your answer.
+
+At acceptance the coordinator re-pins step 2's standing (its branch has moved to `9e5efac21d` and further; the facts
+cited still hold) and the plan locators to `main` as it then is.
+
+Options:
+
+- Accept, with the four choices as written (recommended): the layout checker is settled and step 6 can be planned on
+  it; the ten lows are fixed in the decision record's copy.
+- Accept, vetoing one or more of the four choices: name which.
+- Send it back for the ten lows first: one more writer round and a diff-only check before acceptance.
+
+Ranking: accept > accept with vetoes > send back, because no remaining finding changes behaviour or a decision, while
+each further round has so far found new wording slips of the same size.
