@@ -114,11 +114,14 @@ different bodies in the three tags: the two handlers, and eight of the 28 functi
 and its policy reach, whose `zfs_ioc_set_prop` text is identical in all three. That path has two
 entry points. `SET_PROP` reaches the eight in three ways: five through `zfs_set_prop_nvlist`, one,
 `props_skip`, through its own handler, and two, `zfs_secpolicy_recv` and `zfs_secpolicy_setprops`,
-through the policy its 2.4.4 registration names. `zfs_ioc_clone` applies a clone's `props` through
-the same function (`module/zfs/zfs_ioctl.c:3634-3639`, 2.3.0), so a clone created with properties
-reaches those five and none of the other three: with `SET_PROP`'s own roots cut, 7 of the 46
-functions the other eleven handlers reach still differ, five of the seven the property-set
-functions.
+through the policy its 2.4.4 registration names. The third gate re-check's
+`trace-call-paths-output.txt`, in its `keep/evidence/`, walks from each handler and reaches
+`zfs_prop_set_special` through `zfs_set_prop_nvlist` from `zfs_ioc_set_prop` and from
+`zfs_ioc_clone` alike. `zfs_ioc_clone` applies a clone's `props` through that function
+(`module/zfs/zfs_ioctl.c:3634-3639`, 2.3.0), so a clone created with properties reaches those five
+and none of the other three: with `SET_PROP`'s own roots cut, 7 of the 46 functions the other
+eleven handlers reach still differ, five of the seven on the property-set path
+(`compare-handlers-registrations-and-reachable-callees-output.txt`, in the same folder).
 Of the eight, six are inert for the wrapper's call shapes: a `VERIFY` spelling in `props_skip`,
 `zfs_prop_set_userquota` and `zfs_check_settable`, an empty
 `switch` case `zfs_check_settable` loses, a permission path `zfs_secpolicy_recv` takes only when
@@ -644,8 +647,10 @@ the pick is not made here.
   functions 2.3.0 folds into `zvol_set_common`, and what that does to a filesystem dataset is
   unread; the callee list gains `zvol_set_common`, so it matches the run that diffed its body; the
   sweep nonce is a second user property and the clone `props` route is conditional on the delegated
-  creation path; and the clone path's count is credited to the gate re-check's clone-handler run,
-  which this revision read rather than re-ran.
+  creation path; and the clone path's count is the narrow check's clone-handler run,
+  `show-which-differing-functions-the-clone-handler-alone-reaches.ts` and its output in that
+  check's `keep/evidence/`, which this revision read rather than re-ran, so the gate re-check's
+  roots-cut run is not its source.
   Step 2, low 5: owed measurement item 11 states the requirement as the plan's, with its lines on
   `main` at `6c838ba11f`, and gives step 2's standing at `08c9dea25f`, read at
   2026-11-19T23:04:00-05:00, so the next change to step 2 leaves that paragraph true as a dated
@@ -813,8 +818,9 @@ Run in the revision that answered this gate review, read only:
   its roots cut to `SET_PROP`, and the enum evaluation. They report the same counts the review's
   outputs record; the clone path's count among them is not from these runs, since a run cut to
   `SET_PROP`'s roots cannot show it.
-- `diff` and `awk` over the `zfs_prop_set_special`, `zfs_check_settable`, `zvol_set_common`,
-  `zvol_set_ro` and `zvol_set_volthreading` bodies at the three tags, and over the
+- `diff` and `awk` over the `zfs_prop_set_special` and `zfs_check_settable` bodies at the three
+  tags, over the `zvol_set_common`, `zvol_set_ro` and `zvol_set_volthreading` bodies at 2.3.0 and
+  2.4.4, which are the releases that carry them, and over the
   `zfs_secpolicy_setprops` and `zfs_secpolicy_read` bodies at 2.4.4.
 - `grep` for `ZFS_IOC_SET_PROP`'s registration line at the three tags, and for the two request
   names added at 2.3.0.
@@ -850,8 +856,9 @@ Run in the revision that answered this gate re-check, read only:
   the plan's step 6 and "Where the tests run", and the binding `README.md`'s "What this crate does
   not do", to re-measure every amendment line against `main`, last read at `59152e567b`.
 - The gate re-check's kept review, its scripts' outputs and its source excerpts, including its
-  clone-handler run's output in its `keep/evidence/` folder, which is where the clone path's count
-  comes from, and the step 2 short review's first finding, all read for what each one reproduced.
+  `trace-call-paths-output.txt` and its
+  `compare-handlers-registrations-and-reachable-callees-output.txt` in its `keep/evidence/` folder,
+  and the step 2 short review's first finding, all read for what each one reproduced.
 - Its excerpt of step 2's measurement record and `README.md` at `4c7a347ea2`, and `git show` of
   that record at `13bc5036d2`, for where step 2 stands on the module's BTF file.
 - The prose checker described under [The prose checks](#the-prose-checks), on this file and on a
