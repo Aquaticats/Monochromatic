@@ -40221,7 +40221,19 @@ stated in this entry. What follows from them, as work:
   `d6e78c9e8b`, though the gate's whole runs passed them. GOING: its short review on the Qwen plan,
   `pi-zfs-step-3-host-half-short-review-on-the-qwen-plan` (watched, cap 250) in
   `.claude/worktrees/pi-qwen-review-zfs-step-3-at-fd10d8d0b0`, asked to settle both; brief under
-  `~/temp/agent/zfs-step-3-host-half-short-review-on-the-qwen-plan-2026-11-19/`. STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
+  `~/temp/agent/zfs-step-3-host-half-short-review-on-the-qwen-plan-2026-11-19/`. It ended `idle` (146 turns, 16 min;
+  that folder's `keep/review-from-summary.md` and command log): the same-dataset proof sound against OpenZFS
+  (`__zpl_show_devname` prints the objset's current name; `zpl_test_super` reuses one superblock per dataset) and no
+  case `main` served by rung 2 now falls to Git (the shapes newly refused lost to `EXDEV` on `main`). Both `fault_trace`
+  failures are `main`'s, fixed after the branch's base (`ddec538f27`, `cc75aa6c31`); `main` also moved `may_clone` into
+  `fs_kind.rs`. Mediums: a real-read control asks `/` as another filesystem and fails where the checkout shares `/`;
+  the destination rule has no control through `clone_refusal` (reverting it failed none of 102); the ZFS real-mount
+  control passes without running, unlike the btrfs controls' acknowledgement. Lows: the magic constant cited to a
+  Linux header that lacks it (it is OpenZFS's `include/sys/fs/zfs.h`), a false other-dataset example in `SPEC.md`, the
+  file over the code-line budget, two docs citing the renamed heading, literal device numbers, one doc sentence. The
+  plan's step 3 contradicts itself on what the host runs. GOING: `pi-zfs-step-3-host-half-short-review-findings-fixed`
+  (DeepSeek on Neuralwatt, cap 510) in the step 3 worktree, merging `main` first; brief under
+  `~/temp/agent/zfs-step-3-host-half-short-review-findings-fixed-2026-11-19/`. STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
   their VM arms wait for step 2's recipe and their merges for the gate fix), each DeepSeek on Neuralwatt, cap 510,
   from `main` `d6e78c9e8b`: `pi-zfs-step-3-reflink-rung-recognition-host-half`
   (`.claude/worktrees/zfs-step-3-reflink-rung-recognition`, `feat/git-policy-cli-zfs-recognition-in-the-reflink-rung`;
@@ -40747,8 +40759,27 @@ stated in this entry. What follows from them, as work:
   `monochromatic-lint` not run. GOING: its short re-check on the Qwen plan,
   `pi-git-policy-cli-lfs-fifth-round-short-review-on-the-qwen-plan` (watched, cap 190) in
   `.claude/worktrees/pi-qwen-review-lfs-fifth-round-at-0dea92e201`; brief under
-  `~/temp/agent/git-policy-cli-lfs-fifth-round-short-review-on-the-qwen-plan-2026-11-19/`. Then the integration pass
-  after the gate fix is in main.
+  `~/temp/agent/git-policy-cli-lfs-fifth-round-short-review-on-the-qwen-plan-2026-11-19/`. It ended `idle` (123 turns;
+  that folder's `keep/review.md`, probes and two reds beside it): every modelled refusal and accepted word list
+  confirmed through the wrapper (54 lists), the pflag reading and git-lfs's refusal order confirmed, the empty-base
+  change confirmed; nine lows: help queries other than the exact `--help`/`-h` (`-lh`, `--help=true`) got a destination
+  sentence, and `-- -h` got no `--skip-repo` (exit 2); a positional `--skip-repo` after `--` was taken for the option;
+  a caller's `--skip-repo=false` undid the inserted copy; the "because" clause could name a later word than git-lfs
+  refuses; four doc and citation slips; three untested cases. On the merge bar: for unknown options, help queries and
+  a failure after a good parse, `main` printed only git-lfs's message while the branch claimed the keys "go" to a file.
+  GOING then ENDED: the sixth round `pi-git-policy-cli-lfs-fifth-round-review-findings-fixed` (DeepSeek on Neuralwatt,
+  cap 510), `idle` (138 turns, 21 min) at `c5b9e753ec` (two commits; report and probes before and after in
+  `~/temp/agent/git-policy-cli-lfs-fifth-round-review-findings-fixed-2026-11-19/keep/`): all nine accepted, seven reds
+  on `0dea92e201`, 13 of 13 green; the notice now reads "This command asks git-lfs to put the keys in X", true when
+  git-lfs then writes nothing; for `--skip-repo=false` it took another remedy than the review's, inserting the copy
+  after the caller's word and saying so, because withholding it would bring back the status-2 hook write. After six
+  rounds the next review is the gate review itself rather than a seventh short re-check. GOING: the Sonnet integration
+  pass bundling the gate image branch `61f702030f` (brief under
+  `~/temp/agent/integration-pass-git-policy-cli-lfs-with-the-gate-base-image-data-2026-11-19/`; integration branch
+  `integrate/git-policy-cli-lfs-and-gate-base-image-data`, one whole gate run). At about 2026-11-19T23:00-05:00 it and
+  the three design gate re-checks stopped on the Claude account's weekly limit (HTTP 429); after the owner logged in on
+  a reset account, each was resumed from its saved transcript with a message, the integration pass told to check what
+  it already made before running anything.
 - **The wrapper's container gate passes on this ZFS host** since the merge `f73900d5a0` of 2026-11-19: fixtures on a
   tmpfs root under `/work`, Clippy from the lock's toolchain, and location controls that prove where fixtures land.
   The causes, measurements, limits and rejected host changes are in
