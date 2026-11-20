@@ -8,7 +8,7 @@
 use super::*;
 use crate::fs_beneath::open_root;
 use crate::fs_clone_exchange::clone_file;
-use crate::test_support::{git, git_context, git_text, repository};
+use crate::test_support::{git, git_context, git_output, git_text, repository};
 use crate::worktree_clean::head_commit;
 use crate::worktree_ladder_target::Target;
 use crate::worktree_snapshot_source::{SnapshotSource, source_or_dirty};
@@ -52,6 +52,30 @@ fn clone_capable_fixture(name: &str) -> Option<PathBuf> {
 }
 
 /// What:
+///  Wait until a new whole second has begun and let Git record the index again,
+/// so no staged entry is as new as the index
+///  file.
+/// Why:
+///   Git treats an entry modified in the same second as the index as racy and hashes it,
+/// and the partial clone writes such
+///  an entry rather than cloning it,
+/// so a control of the object-name guard needs an index that is later than its
+///  entries.
+/// The refresh reports a path it could not refresh with a failure status,
+/// which this control has already caused on
+///  purpose.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function settleTheIndex(repo: string): void;
+/// ```
+fn settle_the_index(repo: &Path) {
+    let now: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("a clock after 1970");
+    std::thread::sleep(std::time::Duration::from_secs(1) - std::time::Duration::from_nanos(u64::from(now.subsec_nanos())) + std::time::Duration::from_millis(20));
+    let _refreshed = git_output(repo, &["update-index", "--really-refresh"]);
+}
+
+/// What:
 ///  A main checkout with a tracked plain file,
 /// an executable,
 /// a link,
@@ -89,8 +113,10 @@ const COMMITTED_EDIT: &[u8] = b"the commit's bytes\n";
 const PERSONAL_EDIT: &[u8] = b"a change nobody committed\n";
 /// The bytes the staged path's commit holds.
 const COMMITTED_STAGED: &[u8] = b"what the commit holds\n";
-/// The bytes the person staged for the staged path.
-const STAGED_BYTES: &[u8] = b"what the person staged\n";
+/// The bytes the person staged for the staged path,
+/// as long as the commit's own,
+/// so only the object name tells the two apart and no stat field can.
+const STAGED_BYTES: &[u8] = b"what the person stold\n";
 /// The bytes the deleted path's commit holds.
 const COMMITTED_DELETED: &[u8] = b"a path the person deleted\n";
 
@@ -123,6 +149,7 @@ fn dirty_repository(root: &Path) -> Dirty {
     std::fs::write(repo.join("edited.txt"), PERSONAL_EDIT).expect("the person's change");
     std::fs::write(repo.join("staged.txt"), STAGED_BYTES).expect("the staged change");
     git(repo.as_path(), &["add", "--", "staged.txt"]);
+    settle_the_index(repo.as_path());
     std::fs::remove_file(repo.join("deleted.txt")).expect("the person's deletion");
     std::fs::write(repo.join("untracked.txt"), b"nobody tracks this\n").expect("the untracked file");
     git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
@@ -178,6 +205,7 @@ fn the_unchanged_paths_are_cloned_and_the_changed_ones_written() {
     let Some(root) = clone_capable_fixture("clone-partial") else { return };
     let dirty: Dirty = dirty_repository(root.as_path());
     let part: PartCloned = clone_and_prove(&dirty);
+    eprintln!("DEBUG cloned={} written={} staged=[{}] edited=[{}]", part.cloned, part.written, String::from_utf8_lossy(&std::fs::read(dirty.destination.join("staged.txt")).unwrap_or_default()), String::from_utf8_lossy(&std::fs::read(dirty.destination.join("edited.txt")).unwrap_or_default()));
     // The two paths nothing changed, the executable and the link are clones; the three a change touches are Git's.
     assert_eq!(part.cloned, 3, "kept.txt, bin/tool.sh and link are cloned; edited.txt, staged.txt and deleted.txt are not");
     assert_eq!(part.written, 3);
