@@ -22,6 +22,13 @@ fn arguments(words: &[&str]) -> Vec<OsString> {
     return words.iter().map(|word| return OsString::from(*word)).collect();
 }
 
+/// One line reaches the stream with the newline that ends it,
+/// so no two lines run together.
+#[test]
+fn one_line_carries_its_own_newline() {
+    assert_eq!(super::line_to_write("mount-git-worktree-clone-datasets 0.6.1-alpha.44"), "mount-git-worktree-clone-datasets 0.6.1-alpha.44\n");
+}
+
 /// The two statuses are zero and the wrapper's own refusal status.
 #[test]
 fn the_two_statuses_are_zero_and_the_refusal_status() {

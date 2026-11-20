@@ -25,6 +25,7 @@ use super::handler_mode_arguments::{self, HandlerMode};
 use super::shutdown_unmount_mode;
 use crate::diagnostic_lines_off_the_calling_thread::write;
 use std::ffi::OsString;
+use std::io::Write;
 
 /// The status of an invocation that did what it was asked.
 pub const EXIT_DONE: i32 = 0;
@@ -35,19 +36,55 @@ pub const EXIT_DONE: i32 = 0;
 pub const EXIT_REFUSED: i32 = 2;
 
 /// What:
-///  Say one line to the process's standard error,
+///  The bytes of one whole line,
+///  its newline included.
+/// Why:
+///   The door writes exactly the bytes it is handed,
+///  so a caller that passed its sentence alone ran the next line into it:
+///  two `--version` runs printed `mount-git-worktree-clone-datasets 0.6.1-alpha.44mount-git-worktree-clone-datasets 0.6.1-alpha.44`,
+///  and a refusal followed the line before it with no break.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lineToWrite = (line) => `${line}\n`;
+/// ```
+fn line_to_write(line: &str) -> String {
+    return format!("{line}\n");
+}
+
+/// What:
+///  Say one report line on the process's standard output,
+///  which is where a command's answer belongs.
+/// Why:
+///   `--help` and `--version` are the program's answer,
+///  and a person who pipes it (`mount-git-worktree-clone-datasets --version | grep`) reads standard output:
+///  a report on standard error would print on the terminal and leave the pipe empty.
+///  The write is small and line-terminated,
+///  exactly what the wrapper's own exit report writes to the same stream (`invocation::write_exit`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reportLine = (line) => process.stdout.write(lineToWrite(line));
+/// ```
+fn report_line(line: &str) {
+    let _written = std::io::stdout().write_all(line_to_write(line).as_bytes());
+}
+
+/// What:
+///  Say one whole line to the process's standard error,
 ///  through the door every diagnostic line goes through.
 /// Why:
 ///   `eprintln!` takes the stream handle every writer of this process shares,
 ///  and a reader that stopped draining it would hold this program where it stands;
-///  the door hands the line to the thread that never holds its caller.
+///  the door hands the line to the thread that never holds its caller,
+///  and the line reaches it with the newline that ends it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const say = (line) => write(line); // the diagnostic door
+/// const say = (line) => write(lineToWrite(line)); // the diagnostic door
 /// ```
 fn say(line: &str) {
-    write(line);
+    write(line_to_write(line).as_str());
 }
 
 /// What:
@@ -97,11 +134,11 @@ pub fn run(arguments: &[OsString]) -> i32 {
     };
     return match mode {
         HandlerMode::Help => {
-            say(handler_mode_arguments::usage().as_str());
+            report_line(handler_mode_arguments::usage().as_str());
             EXIT_DONE
         }
         HandlerMode::Version => {
-            say(handler_mode_arguments::version_line().as_str());
+            report_line(handler_mode_arguments::version_line().as_str());
             EXIT_DONE
         }
         HandlerMode::AttachingSweep => report(attaching_sweep_mode::run().map_err(|awaiting| return awaiting.message())),

@@ -95,12 +95,12 @@ description = "Ask cargo whether every manifest the gate builds still resolves a
 run = "node bin/native-lock-check.ts"
 
 [tasks."native:build"]
-description = "Build the native wrapper executable on the host, for differential runs that start it by path"
-run = "cargo build --locked --offline --bin monochromatic-git-policy-cli"
+description = "Build the crate's two executables on the host, for differential runs that start them by path"
+run = "cargo build --locked --offline --bins"
 
 [tasks."native:build:release"]
-description = "Build the optimised native wrapper executable on the host, for timing runs that start it by path (`target/release/monochromatic-git-policy-cli`); nothing is installed"
-run = "cargo build --locked --offline --release --bin monochromatic-git-policy-cli"
+description = "Build the crate's two optimised executables on the host, for timing runs that start them by path (`target/release/monochromatic-git-policy-cli` and `target/release/mount-git-worktree-clone-datasets`); nothing is installed"
+run = "cargo build --locked --offline --release --bins"
 
 [tasks."native:check"]
 description = "Type-check the native wrapper library, executable and test targets without running them"
@@ -142,7 +142,7 @@ description = "Lint the native wrapper with Clippy, warnings denied; matches the
 run = "cargo clippy --locked --offline --all-targets -- -D warnings"
 
 [tasks.build]
-description = "Build the native wrapper executable `monochromatic-git-policy-cli` in release mode, the artifact the cargo-installed `git` runs"
+description = "Build the crate's two executables in release mode: `monochromatic-git-policy-cli`, the artifact the cargo-installed `git` runs, and `mount-git-worktree-clone-datasets`, the root-run clone-mount handler"
 run = "cargo build --release --locked --offline --bins"
 
 [tasks."native:perf"]

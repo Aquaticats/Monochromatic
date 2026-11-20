@@ -66,6 +66,23 @@ fn dynamic_link_listing(binary: &str) -> (bool, String) {
 }
 
 /// What:
+///  What one executable prints on its standard output,
+///  and the status it answered with.
+/// Why:
+///   A report a person pipes is read from standard output,
+///  and the release workflow's smoke run pipes the handler's version through `grep`,
+///  so a report on the other stream would leave that pipe empty.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { status, stdout } = spawnSync(binary, args, { stdio: ['ignore', 'pipe', 'ignore'] });
+/// ```
+fn reported(binary: &str, arguments: &[&str]) -> (Option<i32>, String) {
+    let output: std::process::Output = Command::new(binary).args(arguments).output().expect("the release's executable runs");
+    return (output.status.code(), String::from_utf8_lossy(output.stdout.as_slice()).into_owned());
+}
+
+/// What:
 ///  What one executable prints when it is started with the arguments given,
 ///  and the status it answered with.
 /// Why:
@@ -120,7 +137,9 @@ fn the_matcher_names_a_planted_cddl_library_and_nothing_else() {
 fn the_handler_answers_its_version_and_refuses_its_unbuilt_modes() {
     let (version_status, version) = started(RELEASE_BINS[1], &["--version"]);
     assert_eq!(version_status, Some(0), "{version}");
-    assert!(version.contains("mount-git-worktree-clone-datasets"), "{version}");
+    let (report_status, report) = reported(RELEASE_BINS[1], &["--version"]);
+    assert_eq!(report_status, Some(0), "{report}");
+    assert_eq!(report, format!("mount-git-worktree-clone-datasets {}\n", env!("CARGO_PKG_VERSION")));
     assert!(version.contains(env!("CARGO_PKG_VERSION")), "{version}");
     for (arguments, step) in [([].as_slice(), "plan step 8"), (["boot-reconcile"].as_slice(), "plan step 6"), (["shutdown-unmount"].as_slice(), "plan step 9")] {
         let (status, said) = started(RELEASE_BINS[1], arguments);
@@ -134,7 +153,7 @@ fn the_handler_answers_its_version_and_refuses_its_unbuilt_modes() {
 /// which is what the release workflow's smoke run checks.
 #[test]
 fn the_wrapper_answers_its_own_help() {
-    let (help_status, help) = started(RELEASE_BINS[0], &["monochromatic-git-policy-cli", "--help"]);
+    let (help_status, help) = reported(RELEASE_BINS[0], &["monochromatic-git-policy-cli", "--help"]);
     assert_eq!(help_status, Some(0), "{help}");
     assert!(help.contains("Usage: git monochromatic-git-policy-cli"), "{help}");
 }
