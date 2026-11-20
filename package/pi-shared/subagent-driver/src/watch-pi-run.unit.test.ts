@@ -1020,6 +1020,60 @@ await describe({
       },
     },),
     it({
+      name: 'ends a run as one Pi refused when its retry prompt meets the agent library\'s busy wording, which names no turn',
+      fn: async () => {
+        await using run = await startRunThatFailed({ atWork: false, },);
+        /**
+         The messages the watch sent, which is the one retry Pi turned back.
+         */
+        const sent: string[] = [];
+        /**
+         When the run must be over: a refusal ends it at once.
+         */
+        const deadline = Date.now() + HOLD_MILLISECONDS;
+        const endReason = await watchUntilEnded({
+          // This answer comes from the agent library, not from the session that started a turn: it names no streaming behaviour
+          // and no turn of its own, so it refused the message and the run ends rather than waiting for a settle nobody will produce.
+          connection: answeringConnection({
+            sent,
+            refuses: true,
+            refusal: CORE_ALREADY_PROCESSING_TEXT,
+          },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: HOLD_MILLISECONDS,
+            retryCap: 3,
+            retryBaseSeconds: NO_WAIT_SECONDS,
+          },),
+          inbox: run.inbox,
+          deadline,
+        },);
+        // The attempt went, so it is counted as the README says: its `retry` line stands, and Pi's answer to it is no success.
+        expect(endReason,).toBe('prompt-rejected',);
+        expect(sent,).toHaveLength(1,);
+        expect(run.record.retriesTaken(),).toBe(1,);
+        /**
+         What the feed holds of the attempt that went and the refusal it met: the run's own feed is closed first, which is what
+         flushes its last lines, as the end of the run's process does.
+         */
+        await run.record.close();
+        const feed = await feedOf(run.runFolder,);
+        expect(feed.filter((entry,) => entry.kind === 'retry').map((entry,) => entry.attempt),).toEqual([1,],);
+        expect(feed.filter((entry,) => entry.kind === 'retry_prompt').map((entry,) => entry.success),).toEqual([false,],);
+        /**
+         What the run's summary says, whose one retry stands with the refusal that ended the run.
+         */
+        const summary = run.record.summarize({
+          endReason: 'prompt-rejected',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        expect(summary.retries,).toBe(1,);
+      },
+    },),
+    it({
       name: 'ends a run on a 429 with no attempt of its own, whatever retries the run would allow',
       fn: async () => {
         await using run = await startRunThatFailed({
