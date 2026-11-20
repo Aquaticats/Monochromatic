@@ -11,25 +11,18 @@
  error unless the prompt names a streaming behaviour, and queues it into that turn when one is named; on 2026-11-19 the driver
  read the busy error as a refusal, ended the run `prompt-rejected`, and cut off the turn the agent had already started. The
  message now asks to be steered into the running turn, and the busy error is read as the agent being awake, never as a refusal of
- the message.
+ the message (`a-busy-answer-of-pi.ts`).
 
  @module
  */
 
+import { foundTheAgentAlreadyAwake, } from './a-busy-answer-of-pi.ts';
 import { FEED_PREVIEW_CHARACTERS, } from './driver-constants.ts';
 import type { CommandAnswer, } from './driver-types.ts';
 import { preview, } from './previews-of-pi-messages.ts';
 import { fieldsOf, } from './read-pi-fields.ts';
 import type { WatchRequest, } from './watch-request.ts';
 import { wakeMessageOf, } from './work-the-run-left-running.ts';
-
-/**
- The start of the error Pi 1.5.2 answers a prompt with when its agent is already in a turn and the prompt named no streaming
- behaviour (`prompt()` in `dist/core/agent-session.js` of `@earendil-works/pi-coding-agent`): "Agent is already processing.
- Specify streamingBehavior ('steer' or 'followUp') to queue the message." It says the agent is busy, never that the message is
- unacceptable.
- */
-const AGENT_ALREADY_PROCESSING = 'Agent is already processing';
 
 /**
  Where the driver stands with the work a run left running.
@@ -251,37 +244,6 @@ export async function askAboutItsWorkOrReportAFailure({
       .noteWorkProblem(String(error,),);
     return 'nothing';
   }
-}
-
-/**
- Tells whether Pi answered that its agent is already in a turn of its own, which refuses this message for no reason of its own.
-
- @param answer - how waiting for Pi's answer ended
-
- @returns whether Pi said its agent was already processing
-
- @example
- ```ts
- const busy = { ending: 'answered', record: { success: false, error: 'Agent is already processing' }, } as const;
- const awake = foundTheAgentAlreadyAwake({ answer: busy, },);
- ```
- */
-function foundTheAgentAlreadyAwake({ answer, }: { readonly answer: CommandAnswer },): boolean {
-  if (answer.ending !== 'answered') {
-    return false;
-  }
-  /**
-   Pi's own record, which is what an answered wait carries.
-   */
-  const { record } = answer;
-  if (record.success !== false) {
-    return false;
-  }
-  /**
-   What Pi said of the message.
-   */
-  const { error, } = record;
-  return ((typeof error) === 'string') && error.startsWith(AGENT_ALREADY_PROCESSING,);
 }
 
 /**

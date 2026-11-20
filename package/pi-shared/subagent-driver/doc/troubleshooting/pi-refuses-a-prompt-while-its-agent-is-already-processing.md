@@ -203,13 +203,19 @@ Each was read on 2026-11-19, in the code named.
   Left unchanged by the fix for the wake.
 - The model-error retry (`answerWithAnotherAttempt` in `answer-a-model-error.ts`) sends only when its view of the
   feed says Pi rests (`answerModelError` returns `still-running` while `record.isRunning()`).
-  A turn Pi starts after that read makes the retry prompt meet the busy answer,
-  which that code reads as a refusal and ends the run `prompt-rejected`.
-  Queueing the retry behind the running turn would be wrong:
-  the retry waits precisely because that turn may recover the error itself.
-  A correct fix reads the busy answer as Pi having been at work, drops the attempt it was about to count,
-  and looks again after the turn settles.
-  Left unchanged here, because it needs its own attempt bookkeeping and test.
+  A turn Pi starts after that read makes the retry prompt meet the busy answer.
+  Queueing the retry behind the running turn would be wrong,
+  because the retry waits precisely because that turn may recover the error itself.
+  Since the fix of 2026-11-19 the busy answer is read as Pi having been at work:
+  no attempt is counted for the prompt Pi did not take,
+  the run waits for that turn to settle,
+  and the look after it reads what stands then,
+  so a turn that recovered the error needs no attempt
+  and one that ended on the same error gets the attempt the run already owed, counted once.
+  A refusal Pi makes for its own reason still ends the run `prompt-rejected`.
+  The read is `foundTheAgentAlreadyAwake` in `a-busy-answer-of-pi.ts`;
+  the tests are in `src/watch-pi-run.unit.test.ts` and `src/drive-pi-subagent.unit.test.ts`,
+  over the stand-in scenarios `retry-meets-its-own-turn` and `retry-meets-a-turn-that-failed-again`.
 - The first prompt (`sendFirstPrompt` in `take-the-first-prompt.ts`) is what starts the run's first turn,
   so no turn exists for it to meet; a Pi with no active run answers it as it always did.
   This package's own extension starts no turn.

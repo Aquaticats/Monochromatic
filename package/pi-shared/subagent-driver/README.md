@@ -1771,6 +1771,20 @@ counted from the last reply that succeeded.
 An attempt waits for Pi to rest as well as for its own delay:
 a prompt handed to a Pi that is at work is queued behind that run or refused,
 and the error the attempt would answer may still be recovered by that run's own reply.
+A turn Pi starts of its own between that look and the prompt answers it with its busy error,
+which refuses nothing:
+the text names the streaming behaviour a prompt needs to join a running turn,
+and says only that the agent is already processing.
+The driver reads that answer as the agent being busy, never as a refusal of the message,
+so no attempt is counted for the prompt Pi did not take:
+the failure stays where it stood,
+the run waits for that turn to settle,
+and the look after it reads what stands then.
+A turn that recovered the error needs no attempt,
+and one that ended on the same error gets the attempt the run already owed,
+counted once when it goes.
+The feed holds Pi's answer as a `retry_prompt` line with `success:false` and no `retry` line above it,
+which is what tells a prompt the driver sent from an attempt the run made.
 A failure stays in the summary until a reply succeeds:
 a prompt Pi consumes without starting a run and without replying recovers nothing,
 so the run ends on the failure it began with rather than as a run that came back.
@@ -1799,6 +1813,8 @@ which is zero for a run that never needed one.
 The `retry` line is written when the attempt goes,
 immediately before its `retry_prompt` line,
 so an attempt is counted only once it was sent.
+A prompt Pi answered as its agent already processing never became an attempt,
+so its `retry_prompt` line stands with no `retry` line above it.
 A wait the stop file,
 the wall clock or Pi's own exit cuts short leaves the failure standing with no attempt behind it:
 the run ends for that reason,
