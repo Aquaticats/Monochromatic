@@ -40305,7 +40305,27 @@ stated in this entry. What follows from them, as work:
   whole gate, `rustfmt`, the linter. The short review's worktree is removed. GOING: a Sonnet integration pass (brief
   under `~/temp/agent/integration-pass-zfs-step-3-host-half-reflink-rung-2026-11-19/`), running the whole gate and the
   host tests on this ZFS host, and asked whether the plan lets the host half merge before its guest arm (which needs
-  step 2's recipe and is not written yet). STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
+  step 2's recipe and is not written yet). It ended (Sonnet, about 46 min; that folder's `keep/review.md`, timing logs
+  in `keep/`): not fit to merge now. High, under the merge bar: on this ZFS host `git worktree add` through the
+  branch's release build took 1.96 to 2.64 times as long as the installed wrapper with a clean source (median 2.17,
+  about 1.2 s more on 24311 files) and 1.29 to 1.41 times as long with a dirty source, where no clone happens (about
+  0.35 s more, because `main` returned early on ZFS and the branch runs the source checks first). Its control was the
+  installed wrapper, not `main` built the same way. Medium: the `/proc` destination control passes here with the rule
+  reverted (inferred: `"/proc"` is a prefix of the fixture's `/process-<pid>/`); README line 831's "about as long as
+  Git's checkout" is false for ZFS. Gate on `main` plus the branch: 9187 of 9189, the cause-H pair only, all 74
+  `source_guard` tests pass. The plan means "What each step runs where", and lets the host half merge before its guest
+  arm (the gate is its only merge condition). Also: `cargo fmt --check` in the gate image fails on 1975 files across
+  the whole tree, so no branch can pass it there (an open defect of the gate image or the toolchain, not this branch);
+  `native:test:host` cannot run here without `cargo-nextest` on the checkout's `PATH`. The coordinator read on the host:
+  `zfs_bclone_enabled` 1, `feature@block_cloning` active, `zfs_bclone_wait_dirty` 1, under which a clone of data not
+  yet written out waits for the transaction group; the review's sources were freshly written. The wrapper removed the
+  step 3 worktree when the pass merged the branch (its landed-worktree removal), so it was made again at the same path.
+  GOING: `pi-zfs-step-3-integration-pass-findings-fixed` (DeepSeek on Neuralwatt, cap 510): find the cause first
+  (control from `main` built the same way, alternating arms, run-to-run spread, the stage split, fresh against synced
+  sources), fix the order or cost of what the branch does, and stop with options if the only fix departs from the
+  accepted design; the `/proc` control and the README; brief under
+  `~/temp/agent/zfs-step-3-integration-pass-findings-fixed-2026-11-19/`. Then a second integration pass. STEPS 3 AND
+  4, HOST HALVES, GOING (the plan's "What can start now" lists both;
   their VM arms wait for step 2's recipe and their merges for the gate fix), each DeepSeek on Neuralwatt, cap 510,
   from `main` `d6e78c9e8b`: `pi-zfs-step-3-reflink-rung-recognition-host-half`
   (`.claude/worktrees/zfs-step-3-reflink-rung-recognition`, `feat/git-policy-cli-zfs-recognition-in-the-reflink-rung`;
@@ -40813,8 +40833,18 @@ stated in this entry. What follows from them, as work:
   `pi-zfs-staging-under-cache-design-fourth-revision-narrow-check-findings-fixed` (DeepSeek on Neuralwatt, cap 510),
   told that the recorded answer suggests the "Misplaced attach" reading as the design's, veto-open, and to state Low 4
   as a limit with an owed reboot arm; brief under
-  `~/temp/agent/zfs-staging-under-cache-design-fourth-revision-narrow-check-findings-fixed-2026-11-19/`. Then a
-  diff-only Sonnet check and acceptance. The proposal
+  `~/temp/agent/zfs-staging-under-cache-design-fourth-revision-narrow-check-findings-fixed-2026-11-19/`. It ended
+  `idle` (129 turns) at `94bcd5c53e` (seven commits 23:25:49 to 23:30:43, dates real; that folder's
+  `keep/report-from-summary.md`, checkers and outputs in `keep/`), every finding fixed: entry 1 states both accepted
+  halves and that (c) drops only the writer's parent-row clause; the combined-scene refusal is stated as the design's
+  reading departing from the answer's label "Move it back at once", the first asking's option text labelled as such;
+  the scene boundary is its own question with options; the rollback is read as "Misplaced attach", no exception, so
+  "Keep, one exception (Recommended)" and its sentences stand, open to veto; L14 states the ZFS device number as a
+  per-mount anonymous number that may change across a reboot, the other-boot settlement then failing closed to the
+  administrator, with an owed reboot arm in M6; the propagation in the stacked-between window stated with an M1 assert.
+  Six veto entries and one project question (the scene boundary). GOING: a diff-only Sonnet check (brief under
+  `~/temp/agent/zfs-staging-under-cache-design-fifth-revision-diff-only-gate-check-2026-11-19/`). Then acceptance. The
+  proposal
   and plan amendment
   for the dropped release proof waits for the layout checker's review. That answer was first written into
   `doc/handover/questions-for-the-owner.md`, whose header keeps it to open questions; the owner asked "Do you know what a
