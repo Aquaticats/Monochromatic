@@ -757,8 +757,8 @@ Test cost: Way A's arms plus M8, and the same device-free tests for the wrapper'
 - Each removal's unmount is one call, on the clone only: after that the folder is a plain directory inside the bind,
   not the root of a mount, so a second `umount2` through a folder descriptor would fail `path_mounted` (F8). The
   bind is removed by the stop pass, which needs its own anchor: either a descriptor the boot unit kept alive or a
-  path unmount under `~/.cache`, which the decided sentence forbids; the second question's answer leaves a retained
-  bind's handle to a later sweep.
+  path unmount under `~/.cache`, which the decided sentence forbids. No answer covers a boot-made bind whose anchor
+  is gone, because the recorded handle names a staged folder and not that bind.
 
 Pros: the bind exists before any removal, so a removal never waits for a mount transition; the boot unit's start
 reconcile gains one setup step instead of an on-demand step; the folders inside one private bind do not interact, so
@@ -1477,8 +1477,8 @@ the name stays the revision's first commit rather than its last.
   atomic write, readers and lifetime. That commit and its later commits also add "Hardening the stated threat model may
   make unnecessary", make Way A the design with the rollback of a clone that lands on a stacked mount, add the
   pre-call and post-call mount checks and the arms the record's place and the rollback earn, and name the design's
-  own arms at the end of the measurements. Its label is the committer timestamp of `626712681c` at
-  `2026-11-19T21:02:19-05:00`, the last commit that changed this revision before this label was written, because a
+  own arms at the end of the measurements. Its label is the committer timestamp of `68dc9f29d6` at
+  `2026-11-19T21:02:51-05:00`, the last commit that changed this revision before this label was written, because a
   commit cannot name its own hash; the prose checker under
   `~/temp/agent/zfs-staging-under-cache-design-second-revision-gate-recheck-2026-11-19/notes/` passes on this
   revision and fails on a control copy with planted faults.
