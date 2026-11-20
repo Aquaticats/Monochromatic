@@ -883,6 +883,8 @@ with `git remote set-url --push origin DISABLED` before any other command:
 - `anakryiko/btfdump` at `e5951d4b2e2e7ce6c36001c1b48c1c239c9759dc` (crate `btfdump` 0.0.5).
 - `gidotencate/padlock` at `6a7d045f2c6b0cb64549ddebe5825411e25178fa` (`padlock-dwarf` 0.82.0).
 - `libbpf/libbpf-rs` at `6d771ee9835fcf517dbcf1d29e25a97480425d45` (crate `libbpf-rs` 0.27.2).
+- `kxxt/ebeepf` at `5de05465bd9445d89b13a967e198d0aeffd71ec4` (crate `ebeepf` 0.1.0),
+  cloned for this round under its own scratch root.
 
 Registry evidence: the crates.io API for those crates' metadata and versions,
 and the query schedule recorded under
@@ -1064,6 +1066,34 @@ Run in the revision that validated the finalists:
   `bpftool btf dump file ... --base-btf ... format raw` for the module and the base,
   and each tool on the module without a base as a negative control,
   driven by `tools-layout-check.ts`.
+
+Run in the revision that finished discovery:
+
+- Three web queries through the session's search tool,
+  one page each,
+  recorded with their provider,
+  page and row counts under [Discovery record](#discovery-record).
+- `gh api --paginate --slurp` for the three organizations' public repository lists,
+  and `gh api graphql` for each organization's projects count,
+  plus `curl` of the three board listing pages and the three board pages themselves.
+- `curl` of the crates.io version entry and the 0.1.0 archive,
+  and `sha256sum` of the archive,
+  which equals the version entry's `checksum`.
+- `gh repo clone kxxt/ebeepf -- --depth 1`,
+  `git rev-parse HEAD`,
+  and `git remote set-url --push origin DISABLED`.
+- `podman build` of one image that adds the distribution's Rust 1.100.0 and clang to the base,
+  then `podman run` once per step,
+  with the fetch steps' network on and every later step's network off,
+  for `cargo build`,
+  `cargo test`,
+  `cargo fmt --check`,
+  `cargo clippy --lib -- -D warnings`,
+  and the consumer program on the two BTF copies.
+- The design file's linter,
+  `monochromatic-lint`,
+  against the lines this round adds,
+  with zero findings on them.
 
 Not run:
 
