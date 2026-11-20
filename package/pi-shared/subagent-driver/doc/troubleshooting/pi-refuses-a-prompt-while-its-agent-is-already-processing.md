@@ -11,8 +11,8 @@ and Pi answers with a failed response:
 ```
 
 A run this package drove on 2026-11-19 hit it with its wake message,
-33 ms after Pi started a turn by itself to show the agent a background job's result
-(`pi-runs/...-1/feed.jsonl`, lines quoted in `kept-while-work-runs.ts`):
+33 ms after Pi started a turn by itself to show the agent a background job's result.
+These are that run's own `feed.jsonl` lines, cut to the parts that matter:
 
 ```text
 {"t":398896,"kind":"turn_start","n":42}
@@ -120,8 +120,12 @@ The runnable harness is the package's own stand-in Pi, in its scenario
 `wakes-itself-when-the-work-ends` (`src/stand-in-pi-own-turn-plays-fixture.ts`):
 
 ```sh
+mise run //package/pi-shared/subagent-driver:build
 mise run //package/pi-shared/subagent-driver:test:unit src/drive-pi-subagent.unit.test.ts
 ```
+
+The build comes first because the suite imports the library's built chunk, not its source:
+`mise run //package/pi-shared/subagent-driver:buildAndTest` builds and then runs the whole suite.
 
 It plays a first prompt that leaves a real `sleep` reported through the `process` tool,
 then starts a turn of its own as the work ends, before it takes the driver's wake,
@@ -160,7 +164,7 @@ The control beside it,
 shows a refusal still ends the run `prompt-rejected`.
 
 Not run: a `followUp` wake against the stand-in. Its delivery point is read from
-`agent-loop.js` above, not measured here.
+the steering and follow-up drains quoted under `## Root cause` (`agent-loop.js:191` and `:196`), not measured here.
 
 ## Verified workarounds
 
@@ -172,13 +176,23 @@ Both are the package's own, in `kept-while-work-runs.ts`.
   Tradeoff: the message is delivered after the running turn rather than during it,
   and the loop may take further turns inside that run, so the wake can cost another turn;
   a turn that ends in an error or an abort returns before the drain, so that run does not deliver it.
-- Read Pi's "Agent is already processing" answer as the agent being awake, not as a refusal:
+- Read the answer that names `streamingBehavior` as the agent being awake, not as a refusal:
   keep the run up for the turn that is running and let its settle be the run's end.
   Tradeoff: the message is then not delivered at all.
   The answer establishes only that the agent is streaming:
   it says nothing of what that turn is doing or which ended work the agent knows about,
   so this branch is a fallback for a Pi that refused despite the steering field,
   and it keeps the agent's own turn rather than telling it anything.
+
+The two answers differ after their first words.
+Pi's session says `Agent is already processing. Specify streamingBehavior ('steer' or 'followUp') to queue the message.`
+only when it has already started a turn of its own, and queues the message into that turn.
+`@earendil-works/pi-agent-core` 1.5.2 throws
+`Agent is already processing a prompt. Use steer() or followUp() to queue messages, or wait for completion.`
+(`agent.js` in that package), which names no turn of the session's own and starts none,
+so a prompt answered with it is read as refused rather than as busy.
+The unit test "ends a run as one Pi refused when the busy wording is pi-agent-core's"
+(`src/watch-pi-run.unit.test.ts`) pins that wording apart from the session's.
 
 ## What does not work
 
@@ -218,16 +232,16 @@ Each was read on 2026-11-19, in the code named.
 
 Nothing is filed, and nothing is worth filing.
 
-1. Is it really upstream's fault?
-   No. Pi documents the requirement and its answer names the fix.
-   The defect was this package's reading of the answer.
-2. Can upstream fix it? There is nothing to fix: the answer is the intended one for a prompt that named no
-   behaviour, and the field that avoids it is documented.
-3. Are they supporting this use case? Yes: `docs/rpc-commands.md` covers streaming prompts,
-   `steer`, `follow_up` and their dispositions.
-4. Would the repo welcome our contribution? Not assessed: no filing is planned.
-5. Will they likely fix it? Not assessed: the behaviour is intended, so there is no bug to act on.
-6. Have we prototyped a fix? Not needed for upstream; the consumer-side fix is in `kept-while-work-runs.ts`.
+1.  Is it really upstream's fault?
+    No. Pi documents the requirement and its answer names the fix.
+    The defect was this package's reading of the answer.
+2.  Can upstream fix it? There is nothing to fix: the answer is the intended one for a prompt that named no
+    behaviour, and the field that avoids it is documented.
+3.  Are they supporting this use case? Yes: `docs/rpc-commands.md` covers streaming prompts,
+    `steer`, `follow_up` and their dispositions.
+4.  Would the repo welcome our contribution? Not assessed: no filing is planned.
+5.  Will they likely fix it? Not assessed: the behaviour is intended, so there is no bug to act on.
+6.  Have we prototyped a fix? Not needed for upstream; the consumer-side fix is in `kept-while-work-runs.ts`.
 
 The `.out-of-scope/` check found `pi-gpt55-long-context.md` as the only Pi entry,
 which covers model context metadata and not RPC prompt behaviour,
