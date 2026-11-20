@@ -603,13 +603,15 @@ The host half is measured against a release build of `main` on this ZFS host,
 repository's 24,313 tracked files,
  the arms interleaved and alternating:
 a clean source with its data written out took 0.51 to 1.57 times as long as Git's own checkout,
- median 0.66 over
-eighteen interleaved rounds in four runs,
+ median 0.69 over
+twenty-three interleaved rounds in five runs,
  once the clones ran in slices,
 where one thread took 1.76 to 2.23 times as long.
 A source with uncommitted changes still pays the source checks and then ends in Git's own checkout:
-0.88 to 1.59 times the same build of `main`,
- median 1.17 in one run and 1.25 in another,
+0.80 to 1.59 times the same build of `main`,
+ medians of 1.25,
+ 0.93,
+ 1.24 and 1.17 in its four runs,
  about 0.2 seconds.
 That cost is the check that rung 2 requires and no snapshot can carry out here;
  the measurements,
@@ -623,6 +625,17 @@ It is the recipe's `wrapper` step
  "The step 3 arm"),
 which builds the wrapper's tests inside the guest and runs them one at a time:
 
+- The empty-file control runs the sliced engine with no reflink,
+ so it covers `clone_in_slices`,
+ the per-slice stat merge,
+ the single index install and the created order on this ZFS host and in the gate image,
+ where the btrfs
+  controls print `BTRFS CONTROL NOT RUN`:
+  forty empty tracked files in three forced slices,
+ the created entries in the
+  index's order,
+ and a clean first `git status`;
+ reversing the slice answers fails it with the two orders shown.
 - The seven controls pass:
   a same-dataset add is served by clones (the diagnostic log's `clones served` line,
  `bcloneused` and `bclonesaved`
@@ -692,7 +705,16 @@ it.
 
 #### Open items
 
-None.
+The clone rung's two limits are borrowed from btrfs measurements of the copy stage and `clone_tree`
+ (`PARALLEL_BREAK_EVEN_ENTRIES`,
+ `PARALLEL_COPY_MAX_WORKERS`),
+ and nothing measures this rung on XFS, overlayfs or ZFS,
+ nor between the break-even and the entry counts those measurements took,
+ which is where a small repository sits.
+An arm of a few hundred entries,
+ interleaved against the same control,
+ is owed before either limit is treated as measured here.
+The `worktree_clone.rs` doc of `clone_worker_count` states the borrow.
 
 #### Depends on
 

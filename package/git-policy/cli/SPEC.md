@@ -2657,6 +2657,9 @@ and the same tree
 difference.
 A refusal removes nothing,
 because a name cannot be checked and unlinked in one step:
+the tracked files of a run longer than the rung's break-even are cloned in up to the host's budget of slices at
+once,
+so a failure stops the other slices at their next entry and what stays can run past the entry that failed;
 the entries the clones created stay,
 `git reset --hard` overwrites the tracked ones,
 a message counts them and names `git -C <path> status` for any other,
