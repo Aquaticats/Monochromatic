@@ -7443,6 +7443,13 @@ each with its sidecar test file.
 - The source scans (`source_guard/`) follow `mod` declarations from the `Cargo.toml` targets,
   so a file that no
   declaration reaches fails them.
+- A change that adds, moves or links anything under `src/` runs the whole `source_guard` set
+  (`cargo nextest run --lib -E 'test(source_guard)'` in the gate container),
+  not only the tests of the modules it touched:
+  the scans read the whole tree and refuse what they cannot prove they read,
+  a symbolic link among them.
+  A run filtered to the touched modules once passed while a new folder's links failed 13 of these scans,
+  which the whole gate would have shown.
 - Paths in tooling name the folder,
   for example `src/native/command/command_add.rs`.
   A mutation scope may name subfolders (`--file src/native/command/command_add.rs`);
