@@ -13,6 +13,13 @@ The execution record is
 [`doc/handover/cli-git-rust-implementation.md`](../handover/cli-git-rust-implementation.md).
 The place the implementation interface will live is `package/git-policy/cli/SPEC.md`.
 
+Amended 2026-11-20:
+the open item "Staging under `~/.cache` and the wrapper's cleanup" is designed,
+accepted that day,
+and recorded in
+[`cli-git-zfs-staging-under-cache.md`](cli-git-zfs-staging-under-cache.md);
+the other open items stay open.
+
 ## Decision
 
 The project accepted the ZFS worktree route for the Git wrapper, answering "Accept now (Recommended)":
