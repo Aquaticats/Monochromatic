@@ -15,9 +15,15 @@ A change to the order is a plan edit the owner sees.
 ## Status and sources
 
 The design is accepted,
-and nothing of the route is built:
-there is no `package/zfs/`,
-and the wrapper has no ZFS route.
+and step 1 alone is built,
+as of its merge on 2026-11-19:
+`package/zfs/request-to-openzfs-kernel-device` and its fuzz sidecar,
+released only as the alpha `0.1.0-alpha.1`,
+which never goes to crates.io.
+Its merge checks passed in its container,
+except that the repository linter skipped its Dylint rule `rust/avoidable-closure`,
+as it does on every Rust package here while `cargo dylint` is not installed.
+The wrapper has no ZFS route.
 The checkout still lives on the home dataset,
 and no pool,
 dataset or unit on this host was changed while this plan was written.
@@ -310,6 +316,9 @@ with its `crateDir`,
 `pinFiles` and `lockDirs`,
 and the sidecar's lock file is recorded by the package task that pins it,
 as the sibling Rust packages do.
+The crate is also wired into both release workflows and versioned `0.1.0-alpha.1`,
+so the merge uploads nothing to crates.io,
+by the decision of 2026-11-19T20:03:36-05:00 ("Wire it as an alpha").
 
 #### Design sections
 

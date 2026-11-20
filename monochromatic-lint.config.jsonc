@@ -39,6 +39,24 @@
       },
     },
   },
+  // The ZFS binding package's folder tree shows who depends on whom: every
+  // source folder links the folders its code uses, and the folder's top doc
+  // lists its files in dependency order (AGENTS.md rules LYD, LYL and LYF).
+  {
+    "name": "layout-zfs-request-to-openzfs-kernel-device",
+    "files": [
+      "package/zfs/request-to-openzfs-kernel-device/**/*.rs",
+      "package/zfs/request-to-openzfs-kernel-device.fuzz/**/*.rs",
+    ],
+    "rules": {
+      "rust/folder-uses-links": {
+        "severity": "error",
+      },
+      "rust/file-order-in-folder": {
+        "severity": "error",
+      },
+    },
+  },
   // The IDE has no finding left, so it holds the line at error severity.
   {
     "name": "closure-check-ide",

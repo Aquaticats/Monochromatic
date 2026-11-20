@@ -171,6 +171,7 @@
         "package/jsonc-edit/core-rust.fuzz",
         "package/linter/monochromatic-lint.fuzz",
         "package/xml-edit/core-rust.fuzz",
+        "package/zfs/request-to-openzfs-kernel-device.fuzz",
       ],
       "edits": [
         { "guard": ["profile", "release"], "path": ["profile", "release", "panic"], "value": "unwind" },
