@@ -40252,7 +40252,24 @@ stated in this entry. What follows from them, as work:
   `pi-zfs-step-4-host-half-short-review-findings-fixed` (DeepSeek on Neuralwatt, cap 510) in the step 4 worktree,
   merging `main` first and running the whole `source_guard` set; brief under
   `~/temp/agent/zfs-step-4-host-half-short-review-findings-fixed-2026-11-19/`. Lesson for every wrapper brief: run the
-  whole `source_guard` set, not only the touched modules. STEP 3 HOST HALF ENDED `idle` (201
+  whole `source_guard` set, not only the touched modules. It ended `idle` (327 turns) at `6b2253bfbf` (merge
+  `26a74ecd09` with no conflict, then eight commits whose dates match the reflog; that folder's `keep/report.md`, logs
+  and reds in `keep/`): the high fixed by keeping the links and teaching the guard's walk to skip a `uses` folder
+  (`is_uses_folder`, with a control that a link anywhere else still fails), and a second guard that followed the links
+  (`service_lock_inventory_tests.rs`) fixed; `fs_beneath.rs` split under the limit; the `SPEC.md` store example read
+  by a control; a slot append serialised under a store lock; a real tmpfs mount in a user namespace proves the last
+  hop crosses a mount; the attach's first proof compares the held target's own mount; lows fixed but one dismissed
+  (an old report's scratch path). Container gate set: 146 of 146 (touched modules and the whole `source_guard`
+  set); Clippy and `lint:types` clean; the package linter 71 to 47 findings, none on its lines. `8dd157f8eb`'s message
+  leaves out half its content; a corrective commit comment is posted (210972542). It reported its removal of the two
+  containers plainly and named every later container. Its `toolchain:install` reported `0 installed, 66 unchanged`
+  (the tools sit in `~/.local/share/monochromatic-dev/toolchain`; the main checkout has no `.cache/toolchain-bin`
+  link folder, a question now in `doc/handover/questions-for-the-owner.md`). The short review's worktree is removed.
+  GOING: a Sonnet integration pass (brief under
+  `~/temp/agent/integration-pass-zfs-step-4-host-half-descriptor-attach-2026-11-19/`), the whole gate, asked to judge
+  the `uses` skip against the guards' purpose and the separate source layout move, the store lock against rule `NLK`,
+  and whether the host half may merge before its guest arms. Whichever of steps 3 and 4 merges second needs its gate
+  on the merged tree. STEP 3 HOST HALF ENDED `idle` (201
   turns, 51 min) at `fd10d8d0b0` (four commits; report and checks table in
   `~/temp/agent/zfs-step-3-reflink-rung-recognition-host-half-2026-11-19/keep/`): `FilesystemKind::Zfs` from
   `ZFS_SUPER_MAGIC`; rung 2 proves one dataset by mount source and device, with no ZFS ioctl or binding; a mounted clone
@@ -40770,7 +40787,22 @@ stated in this entry. What follows from them, as work:
   its expectation at v6.8 and v7.3. An advisor pass by another vendor added a record precedence (boot id first), L13
   and an M6 arm for a binding invocation meeting an other-boot record. GOING: a narrow Sonnet check (brief under
   `~/temp/agent/zfs-staging-under-cache-design-fourth-revision-narrow-gate-check-2026-11-19/`). Then acceptance with the
-  five vetoes and the project question asked. The proposal
+  five vetoes and the project question asked. It ended (Sonnet, about 28 min; that folder's `keep/review.md`, evidence
+  in `keep/evidence/`): not ready, one small text revision away, no high, nothing endangering data or contradicting the
+  record; the new rules sound against v6.8, v7.3 and `zfs-2.4.4` (reading; one unprivileged probe on 7.3.5 showed the
+  descriptor test runs before the capability test). Medium 1: the veto section blurs what the project is asked (entry
+  1's option (c) may drop half the accepted "prove both"; the combined scene credited to the first asking's option
+  text, while the project answered the second; a scene-boundary question with no options). Option (b) of the
+  classification question sets the design against the project's recorded "Keep, one exception (Recommended)"
+  (proposal line 1443). Lows: an `ESTALE`-means-gone sentence left; receipt-only sentences and a voider list that
+  differ; dead pointers; and Low 4, worth a measurement: the folder identity includes `st_dev`, an anonymous per-mount
+  number on ZFS that may differ after a reboot, so the other-boot settlement could refuse and leave the orphan (a risk
+  inherited from the accepted proposal's device-and-inode records). GOING: the fifth revision,
+  `pi-zfs-staging-under-cache-design-fourth-revision-narrow-check-findings-fixed` (DeepSeek on Neuralwatt, cap 510),
+  told that the recorded answer suggests the "Misplaced attach" reading as the design's, veto-open, and to state Low 4
+  as a limit with an owed reboot arm; brief under
+  `~/temp/agent/zfs-staging-under-cache-design-fourth-revision-narrow-check-findings-fixed-2026-11-19/`. Then a
+  diff-only Sonnet check and acceptance. The proposal
   and plan amendment
   for the dropped release proof waits for the layout checker's review. That answer was first written into
   `doc/handover/questions-for-the-owner.md`, whose header keeps it to open questions; the owner asked "Do you know what a

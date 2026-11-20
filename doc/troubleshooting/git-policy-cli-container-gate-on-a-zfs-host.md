@@ -27,10 +27,16 @@ error[E0514]: found crate `monochromatic_jsonc_edit` compiled by an incompatible
 On the previous host, a Btrfs machine, the same gate failed six of 9,173 tests
 (`doc/handover/cli-git-rust-implementation.md`, the gate on `0f07c4f0ee`). This host fails 185.
 
-The mise task cannot be run as written here either: its first step
-`cargo-shadow lean records target/verification` fails, because `cargo-shadow` and `cargo-nextest` are
-not installed on this host (`mise ls` prints nothing). Every run below is the task's second step,
+The mise task cannot be run as written in the main checkout either: its first step
+`cargo-shadow lean records target/verification` fails with status 127, because `cargo-shadow` is not on the
+checkout's `PATH` (`mise ls` prints nothing). Every run below is the task's second step,
 `node bin/test-native-container.ts`, or the image it builds, run the way the gate runs it.
+As read on 2026-11-19 at about 23:20 (-05:00), the locked tools are present in the toolchain root
+`~/.local/share/monochromatic-dev/toolchain` (`cargo-monochromatic-cargo-shadow` among them):
+what the main checkout lacks is its `.cache/toolchain-bin` link folder.
+`mise run toolchain:install` in a worktree reported `0 installed, 66 unchanged, 0 failed` and made that folder there.
+Whether the main checkout gets the same folder waits for the project,
+because the plan's step 1 records that nothing is installed on this host until the mpm-shadow change.
 
 ## The host, as measured
 

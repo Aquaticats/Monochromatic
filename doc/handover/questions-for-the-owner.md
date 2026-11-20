@@ -716,3 +716,25 @@ KDT:
  a label naming a commit's time names one already made,
  never the commit that writes the label.
 ```
+
+## Open: link the already installed tools into the main checkout? (recorded 2026-11-19, about 23:20 -05:00)
+
+The plan's step 1 records that nothing is installed on this host until the mpm-shadow change you put first
+("A: mpm-shadow change first (Recommended)").
+Tonight a ZFS step 4 agent ran `mise run toolchain:install` in its worktree,
+and it reported `0 installed, 66 unchanged, 0 failed`:
+the locked tools are already in `~/.local/share/monochromatic-dev/toolchain`,
+`cargo-shadow` and `cargo-nextest` among them,
+and the run only made that worktree's `.cache/toolchain-bin` link folder.
+The main checkout has no such folder,
+so tasks that start with `cargo-shadow` (the wrapper's `native:test:container`, `test:git-image`) exit 127 there
+and every gate runs their second step by hand.
+Running the same task in the main checkout would install nothing and make the link folder,
+putting those tools on the checkout's `PATH` for every session.
+
+- Link them now (recommended): the documented task routes work again and no tool is installed;
+  the cost is that every session in the main checkout starts finding these tools at once.
+- Wait for the mpm-shadow change: nothing on `PATH` changes; gates keep running the second step by hand.
+
+Ranking: link now > wait, because the record's reason for waiting was an install that converges the whole toolchain,
+and the measurement shows nothing left to install.
