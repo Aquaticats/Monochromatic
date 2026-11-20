@@ -9,7 +9,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = { workspace = true }
-monochromatic-zfs-request-to-openzfs-kernel-device = { path = "../request-to-openzfs-kernel-device", version = "=0.1.0" }
+monochromatic-zfs-request-to-openzfs-kernel-device = { path = "../request-to-openzfs-kernel-device", version = "=0.1.0-alpha.1" }
 
 # cargo-fuzz discovers targets through `cargo metadata`, so the harness needs an
 # explicit bin entry.
