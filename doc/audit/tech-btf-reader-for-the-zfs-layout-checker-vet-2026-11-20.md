@@ -41,9 +41,10 @@ which are the design's own counts.
   and a refusal disables raw requests.
 - Started:
   2026-11-20T18:07:38-05:00,
-  the scratch folder's creation time.
+  the clock reading taken as this session's work began.
   Last updated:
-  2026-11-20T18:14:36-05:00.
+  2026-11-20T18:16:40-05:00,
+  the report's last content change.
 - Governing skill:
   [`.agents/skills/choosing-technology/SKILL.md`][skill] at commit
   `45d42d9b23d2f2752f9c512683b45905e13afe99`,
@@ -58,8 +59,9 @@ which are the design's own counts.
   section "Fingerprint input".
   Script:
   `~/temp/agent/zfs-layout-checker-reader-vet-report-2026-11-20/keep/compute-the-vet-report-fingerprint.ts`,
-  run 2026-11-20T18:07:57-05:00,
-  exit 0.
+  run twice,
+  the second at 2026-11-20T18:16:26-05:00,
+  both exit 0 and both printing that value.
 - Lock:
   `~/temp/agent/technology-vet-locks/` + the SHA-256 of the absolute report path + `.lock`.
   This report is new,
@@ -577,7 +579,7 @@ Screening survivors:
 
 A corroboration this report ran,
 read only,
-2026-11-20T18:08:17-05:00:
+the response written at 2026-11-20T18:08:38-05:00 by its own file modification time:
 `curl --silent --user-agent '...' 'https://crates.io/api/v1/crates?q=btf&per_page=100&page=1'`,
 HTTP 200,
 `total` 81 and 81 rows,
@@ -956,7 +958,7 @@ on a run.
 
 ## Host facts
 
-This report re-measured the host read-only on 2026-11-20T18:08:44-05:00,
+This report re-measured the host read-only at 2026-11-20T18:16:26-05:00,
 so the validation evidence below describes today's module and not a file that has since been replaced:
 
 - Kernel `7.3.5-1-cachyos`,
@@ -1137,19 +1139,20 @@ elapsed milliseconds and exit status per step.
 
 - Fingerprint script:
   `node compute-the-vet-report-fingerprint.ts` in `~/temp/agent/zfs-layout-checker-reader-vet-report-2026-11-20/keep`,
-  2026-11-20T18:07:57-05:00,
   exit 0,
-  printed the canonical JSON and the hash.
+  printed the canonical JSON and the hash;
+  the second run at 2026-11-20T18:16:26-05:00 printed the same hash.
 - Registry corroboration:
   the `curl` call in section "Query schedule",
-  2026-11-20T18:08:17-05:00,
-  HTTP 200,76,457 bytes kept.
+  written at 2026-11-20T18:08:38-05:00,
+  HTTP 200,
+  76,457 bytes kept.
 - Host reads:
   `uname`,
   `cat` of the two identity files,
   `stat` and `sha256sum` of the four files,
   `uptime --since`,
-  2026-11-20T18:08:44-05:00,
+  the same readings re-run at 2026-11-20T18:16:26-05:00,
   exit 0,
   output in section "Host facts".
 - Report write:
@@ -1160,7 +1163,8 @@ elapsed milliseconds and exit status per step.
 - Verification:
   `monochromatic-lint` on the two committed files and `pandoc --from=gfm` on this report,
   both after the write,
-  recorded in the commit message and the final report of the session.
+  with the lint findings filtered to the lines `git diff main...HEAD` adds,
+  and both recorded in this session's final report.
 - Nothing here fetched,
   built,
   installed or ran a candidate.
