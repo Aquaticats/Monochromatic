@@ -827,3 +827,31 @@ so they detect the regression.
 - The trace has few binary changes (12 of 12,984) and renames (42),
   so windows often contain none;
   the synthetic scenarios do not add binary or rename cases of their own.
+
+## The ZFS adoption arm
+
+`mount-git-worktree-clone-datasets-guest.ts` runs one end-to-end arm of the root-run clone-mount handler's
+`adopt-worktree-parent` mode,
+which is the mode plan step 5 wires
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 5).
+The arm writes `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities` and opens a checkout
+as root,
+so it runs only in a throwaway guest:
+the driver borrows the ZFS binding's recipe
+(`package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts`)
+for the guest's creation,
+its OpenZFS 2.4.4 preparation and its destruction,
+builds this crate's `native_binary` test target inside it from the same repository-shaped snapshot the container gate
+builds from,
+and runs the one control the guest's variable enables.
+
+```sh
+# package/git-policy/cli
+mise run //package/git-policy/cli:e2e:mount-git-worktree-clone-datasets -- all
+```
+
+The run passes only when the pulled `adoption-arm.log` carries every `ADOPTION` line the driver expects
+and no `SKIPPED` line,
+so an arm that returned without running fails the run.
+`--keep-guest` keeps a failed run's guest to inspect.
