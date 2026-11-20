@@ -254,10 +254,13 @@ and the account
 suite runs as that account,
 so a delegated refusal names the permission the
 kernel wanted.
-The measurements' item 12 fixture omitted the checkout's `snapshot` and
-`mount,destroy` grants;
-the plan names the design's set,
-so the fixture carries those,
+The plan's step 2 names the whole "Scoped delegation" list,
+and its note at the merge records that the measurements' item 12 fixture
+set all but the checkout's local `snapshot` and its descendent `mount,destroy`;
+the fixture sets all five,
+because the acceptance text's "only the proposed grants" needs the
+checkout's `snapshot` for the add route's first write as the account,
+which item 12's subset could not exercise,
 and
 `e2e/README.md` says which arm proves each.
 

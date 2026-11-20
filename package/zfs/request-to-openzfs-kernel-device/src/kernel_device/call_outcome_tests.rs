@@ -7,6 +7,7 @@
 //!  one is refused rather than replayed,
 //! per-name failures travel with the error
 //!  number,
+//! a failed write whose reply does not decode keeps the error number,
 //! and a missing reply is a disagreement rather than an empty answer.
 //! Why:
 //!  These rules decide whether a mutating request is ever sent twice.
@@ -17,12 +18,14 @@
 
 use super::call_outcome::{
     AnswerFacts, ReadFailure, interpret_read_failure, interpret_write_failure, require_reply,
-    write_failure_elements,
+    write_failure, write_failure_elements,
 };
 use super::device_error::DeviceError;
+use crate::names::NameField;
 use crate::nvlist::NvList;
 use crate::requests::{
-    ElementError, Error, INITIAL_REPLY_SIZE, Operation, ReplyError, ReplyRefusalReason,
+    ElementError, Error, INITIAL_REPLY_SIZE, Operation, ReplyError, ReplyRefusalReason, Request,
+    checked_name,
 };
 
 #[test]
@@ -155,6 +158,37 @@ fn a_write_failure_keeps_the_failures_a_decodable_reply_names() {
 #[test]
 fn a_write_failure_without_a_reply_names_no_failures() {
     assert!(write_failure_elements(Ok(None)).is_empty());
+}
+
+#[test]
+fn a_failed_write_whose_reply_does_not_decode_keeps_the_kernel_error_number() {
+    let checked = checked_name(
+        Operation::Clone,
+        "pool/clone",
+        NameField::CommandName,
+        "pool/clone",
+    )
+    .expect("the name fits");
+    let mut request: Request = Request::new(Operation::Clone, checked);
+    // The kernel says it wrote four bytes, and they are not a native list.
+    request.reply_mut().as_mut_bytes()[..4].copy_from_slice(&[u8::MAX; 4]);
+    request.command_mut().zc_nvlist_dst_filled = 1;
+    request.command_mut().zc_nvlist_dst_size = 4;
+    let reported: u64 = request.command().zc_nvlist_dst_size;
+    let held: usize = request.reply().len();
+    let error: DeviceError = write_failure(&request, libc::E2BIG, reported, held);
+    assert_eq!(
+        error.errno(),
+        Some(libc::E2BIG),
+        "the kernel's error number survives a reply that did not decode"
+    );
+    let Some(request_error) = error.request() else {
+        panic!("a write failure is a request failure");
+    };
+    assert!(
+        request_error.elements().is_empty(),
+        "a reply that did not decode names no failures"
+    );
 }
 
 #[test]

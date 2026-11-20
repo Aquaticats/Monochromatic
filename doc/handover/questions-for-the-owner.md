@@ -801,6 +801,144 @@ Options:
 Ranking: accept > accept with vetoes > send back, because no remaining finding changes behaviour or a decision, while
 each further round has so far found new wording slips of the same size.
 
+## Open: approve ZFS step 4's slot identity store format? (recorded 2026-11-20, about 02:00 -05:00)
+
+What it is:
+step 4 records, for each worktree slot, the identities the attach checks (device, inode, owner, permissions, access
+lists of the folders), in one root-controlled file the wrapper appends to, `git-worktree-clone-slot-identities`, as
+`package/git-policy/cli/SPEC.md` describes under "The recorded identities store".
+Step 8 will build on this format, and no decision record approves it yet; step 4's second integration pass asked that
+you do.
+
+- (a) One file, one line per slot, appended under a lock only root can open, waited for with a bounded deadline
+  (as built; recommended). One read sees the parent and every slot in one state, which step 8's checks rely on.
+- (b) A folder with one file per slot, each made with `O_EXCL`, no lock. Lock-free, which the repository's concurrency
+  rule prefers; it loses the single-read state and rewrites the format, every refusal that names a line and about a
+  thousand lines of controls.
+
+Ranking a > b: a keeps the one-read consistency step 8 needs and its lock covers one appended line, held only by root;
+b buys lock-freedom at the cost of that consistency and a rewrite.
+
+## Open: accept the ZFS start-probe design? (ready 2026-11-20, about 01:20 -05:00)
+
+This goes to the question tool when you are back, with the other two ZFS designs.
+
+What it is:
+the check that runs at boot and before a managed worktree add,
+proving that a ZFS clone can be attached safely on this host before the managed route is used:
+a root probe at boot that records its outcome,
+and an account companion in each add's preflight that checks a mount made as the account in a throwaway user namespace,
+answering your round of 2026-11-19 (Q1 "Product mounts only", Q2 "Refuse new attaches only", Q3 "Dedicated dataset",
+Q4 "Block until it has run", Q5 "Fail closed", Q6 "Root plus account companion", Q7 "Write first-attach") and your
+threat model ("We have to assume my machine isn't compromised. sudo is passwordless here anyway.").
+It is `doc/planning/cli-git-zfs-start-probe-design.md` on branch `docs/planning-cli-git-zfs-start-probe-design` at
+`05d1102848`.
+
+What checked it:
+seven revisions by DeepSeek writers against a gate review, a re-check, a narrow check and three diff-only checks on
+Claude Sonnet; the last (`~/temp/agent/zfs-start-probe-design-seventh-revision-medium-check-2026-11-20/keep/review.md`)
+found no high and no medium finding and called it ready.
+One revision had hand-set commit dates; the design now states the real times, and a corrective commit comment is posted.
+Two limits to know: what it says the Ubuntu 24.04 guest does is read from mainline Linux v7.3 source, not run on that
+guest's 6.8 kernel; and the guest tests it adds for the companion (M11's new controls) have not run yet.
+
+Two questions the last checks recommend asking you directly:
+
+- When the companion cannot run its check and skips, does the add go ahead?
+  The skip covers three kinds of host: one that refuses the account a user namespace, one that grants it and denies
+  the capabilities inside it, and one that refuses a mount the companion makes while setting up (the Ubuntu 24.04 guest
+  is the second kind). Your Q6 question spoke of the first kind only.
+  (a) The add goes ahead with a printed line naming the refused call (the design's choice).
+  (b) The add is refused, as Q4 does for the root probe's arms: the managed route is then off on every host of those
+  three kinds.
+  Ranking a > b: a check that cannot speak about the root attach should not turn the route off on a host that refuses
+  the account's namespace; b is the stricter and one-line change.
+- Where does the `first-attach` record start, given that Q7 asked for "the outcome of the first real attach after
+  boot"?
+  (a) On entry to the attach, after the key check and before the walk to the slot (the design's choice): a refused walk
+  or a drifted slot identity becomes that boot's record, so a later attach that succeeds in the same boot is shown in
+  the journal, not in the record.
+  (b) At the first attach call (`fsopen`): only the attach calls' outcomes are recorded, and a drifted slot identity is
+  never recorded there.
+  Ranking a > b: a drifted slot is exactly the failure the record exists to keep; a's cost is that the record can name
+  a refusal that never reached a kernel attach call, which the design says plainly.
+
+Two more choices the design makes itself, open to your veto, default "veto none": no deadline value ships for the
+root probe before step 6's measurement, and none for the companion before step 10's.
+
+Sixteen lows the last two checks found, carried here (full text in those two reviews): among them the third skip case
+worded two ways, a `mount_setattr` example from Q6 that still skips, the claim's position wording and a missing step 8
+note, commit counts in revision entries, and M11 lacking a control for the skip side.
+
+Options:
+
+- Accept, answering the two questions (recommended a and a), no vetoes: the lows are fixed in the decision record's copy.
+- Accept with other answers or vetoes: name which.
+- Send it back for the lows first.
+
+Ranking: accept > accept with other answers > send back, because no remaining finding changes behaviour, and each
+further round has so far found wording slips of the same size.
+
+## Open: accept the ZFS staging-under-cache design? (ready 2026-11-20, about 01:00 -05:00)
+
+This goes to the question tool when you are back, with the other ZFS designs.
+
+What it is:
+when the wrapper removes a worktree whose ZFS clone is still mounted and cannot unmount it yet,
+it moves the clone's mount aside into a private bind under `~/.cache`,
+records the clone's file handle there so a later run can find it again,
+and moves it back at once if anything goes wrong,
+answering your round of 2026-11-19 (Q1 "Private bind per removal", Q2 "Record the file handle", Q3 "Move it back at
+once", "Veto none" for the four named proposals, the handle record "In ~/.cache" with its threat model) and the
+proposal's "Keep, one exception (Recommended)".
+It is `doc/planning/cli-git-zfs-staging-under-cache-design.md` on branch
+`docs/planning-cli-git-zfs-staging-under-cache-design` at `c685cabebe`.
+
+What checked it:
+six revisions by DeepSeek writers against a gate review, a re-check, a narrow check and two diff-only checks on Claude
+Sonnet; the last (`~/temp/agent/zfs-staging-under-cache-design-sixth-revision-diff-only-gate-check-2026-11-20/keep/review.md`)
+found no high and no medium finding and called it ready. Its commit dates are real throughout.
+
+What you are asked, beside accepting:
+
+- One question with no default, because the answer decides whether a refusal is recorded in your name:
+  where your Q3 answer's own limit ("move it back at once ... retaining and reporting it only if rollback fails")
+  reaches when a mount sits on the clone.
+  (a) Only the combined scene, where the clone landed on a mount the account stacked and a second mount sits on the
+  clone, is your answer's limit; refusing when a mount sits on the clone alone is the design's own rule (recommended).
+  (b) Your answer's limit reaches both scenes.
+  (c) Neither: "Move it back at once" governs literally, and the wrapper tries the move back in both scenes, carrying
+  the stacked mount along.
+  Ranking a > b > c: (a) keeps the stacked mount where the account put it and names the design as the author of the
+  clone-alone refusal; (b) records that refusal as yours; (c) carries a mount the account made to a place it did not
+  choose.
+- One choice that would change an accepted sentence, so it is yours, not a veto: entry 1's option (c), proving the
+  rollback's destination by the fresh walk alone without the parent-row check, which loses the accepted "prove both"
+  in the scene where the account stacks a mount at the slot. The design ranks it below its own route.
+- Seven choices the design makes itself, each open to your veto, default "veto none": the rollback's destination and
+  its proof; refusing when a mount is stacked on the clone; the end state and receipts after a rollback, a reattach and
+  a cancel; clearing a record whose folder is gone only on a stale handle with no mount row at its path; clearing a
+  record from another boot by its boot id with the wrapper's own settlement; reading the rollback as no exception to
+  "No implicit remount", so your "Keep, one exception" and its sentences stand; and the record's compared fields (the
+  dataset's source and the mount root's inode, the device recorded and never compared because ZFS numbers it anew each
+  mount). The last check notes that every ZFS mount root here reads inode 34, so the inode tells no dataset from
+  another and serves only to catch a subdirectory bound at `~/.cache`.
+
+Nine lows the last check found, carried here (full text in that review): the field set marked for veto in one place
+but not listed with options; the inode point above; a reboot test step with no starting state; the boundary
+question naming one conflicting answer pair where there are several; entry 6's answer to the race reason not
+separating the rollback from the reattach; stale counts and leads; five blurred wordings; an M5 assertion that cannot
+fail; five ragged line breaks.
+
+Options:
+
+- Accept, with the question answered and no vetoes (recommended): the lows are fixed in the decision record's copy.
+- Accept with vetoes or option (c): name which.
+- Send it back for the lows first.
+
+Ranking: accept > accept with vetoes > send back, because no remaining finding changes behaviour, and each further
+round has so far found wording slips of the same size.
+
 ## Open: ZFS step 3 makes a worktree add from a dirty checkout slower; what then? (recorded 2026-11-20, about 00:30 -05:00)
 
 What it is:
@@ -821,20 +959,24 @@ What was measured on this machine (24,313 tracked files, the branch against `mai
 
 The main checkout here usually carries uncommitted files (it holds four now), so adds from it take the dirty path.
 
+What the clone saves on disk, measured by step 3's guest arm on 2026-11-20 (an encrypted test pool, the crate's own
+`src` as the tree, 2,456 files, 34.7 MB, Git's add and the wrapper's add alternated over two rounds, the pool's
+allocation read after a sync): a clean add saved 22,979,072 bytes, about two thirds of the tree.
+
 Options:
 
-- C. Do not take the clone rung on ZFS yet; turn it on when step 3's guest arm has measured the disk it saves
-  (recommended). Both paths behave exactly as `main` does today; the recognition and its tests stay. It postpones a
-  part of the accepted design (the clone rung on ZFS), which is why it is yours to choose.
+- C. Do not take the clone rung on ZFS until the dirty-source checks cost no more than `main`'s, then turn it on
+  (recommended). Both paths behave exactly as `main` does today; the recognition, its tests and the guest arm stay. It
+  postpones a part of the accepted design (the clone rung on ZFS), which is why it is yours to choose.
 - A. Keep the clone rung on ZFS and waive the merge bar for this +0.2 s on a dirty-source add, recorded in
-  `doc/decision/`. Clean adds get faster now; most adds here, from a dirty checkout, get slower by about 1 per cent of a
-  real add (which also copies the ignored files).
+  `doc/decision/`. Clean adds get faster now and save about two thirds of the tree's disk; most adds here, from a dirty
+  checkout, get slower by about 1 per cent of a real add (which also copies the ignored files) and save nothing.
 - B. Run the tracked-file check first and the untracked scan only if it passes: the dirty path about 50 ms cheaper,
   the clean path about 34 ms dearer on every host whose snapshot rung is refused; still short of parity, so the bar is
   still missed.
 - D. Choose the clone rung by a measured size threshold: departs from the ladder's design and rests on a guess.
 
 Ranking: C > A > B > D. C over A because the dirty path is the common one here, so A's cost lands on most adds and
-its gain on few, and C needs no waiver; A over B because B still misses the bar and moves cost onto other hosts; B over
+its saving on few, and C needs no waiver; A over B because B still misses the bar and moves cost onto other hosts; B over
 D because D leaves the design for a guessed threshold. The round's report, with every measurement:
 `~/temp/agent/zfs-step-3-integration-pass-findings-fixed-2026-11-19/keep/report-from-summary.md`.

@@ -6067,6 +6067,12 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
 - `native:check` type-checks every target.
   `native:clippy` lints every target with warnings denied.
   `native:build` writes the debug executable to `package/git-policy/cli/target/debug/monochromatic-git-policy-cli`.
+- This package has no `rustfmt` check, unlike the Rust packages that carry a `lint:rustfmt` task,
+  and its sources are not laid out as `cargo fmt` would write them:
+  `cargo fmt --check` in the gate image reported 1975 files on 2026-11-19,
+  on `main` as much as on any branch.
+  A review that runs it learns nothing about a change;
+  the checks this package keeps are the tasks listed here and the repository linter.
 - Every process a unit test starts dies with the test thread,
   however the test ends:
   start helpers with `spawn_owned` in `src/native/testing/test_support.rs`,

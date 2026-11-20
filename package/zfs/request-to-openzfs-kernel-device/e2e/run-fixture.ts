@@ -18,10 +18,12 @@
 //
 // Usage: node e2e/run-fixture.ts <create|prepare|run|record|destroy|all>
 //          [--name <guest>] [--log-dir <dir>] [--crate <dir>] [--keep-guest]
+// `create` refuses a name `mvm list` already reports, and `all` destroys only a
+// guest its own `create` returned, so no run removes another run's guest.
 // Every step writes one log per command under the log directory and prints it.
 
 import { spawnSync, } from 'node:child_process';
-import { closeSync, mkdirSync, openSync, } from 'node:fs';
+import { closeSync, mkdirSync, openSync, writeFileSync, } from 'node:fs';
 import { join, } from 'node:path';
 
 //region Constants
@@ -247,6 +249,29 @@ function host({ options, command, args, log }: HostCommand): void {
   }
 }
 
+/** One host command whose standard output the recipe reads back. */
+interface HostCapture {
+  readonly options: Options;
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly log: string;
+}
+
+/**
+ Run one host command and return its standard output, its output kept in its own log.
+ Throws what {@link host} throws, so a listing that failed is never read as no guest.
+ */
+function hostCapture({ options, command, args, log }: HostCapture): string {
+  const result = spawnSync(command, args, {
+    encoding: 'utf8',
+    timeout: HOST_COMMAND_TIMEOUT_MS,
+  });
+  writeFileSync(join(options.logDir, log), `${result.stdout}${result.stderr}`, { mode: 0o600, });
+  if (result.error || result.status !== 0)
+    throw result.error ?? new Error(`${command} ${args.join(' ')} exited ${result.status}; see ${log}`);
+  return result.stdout;
+}
+
 /** One guest script, its log and the time it may take. */
 interface GuestScript {
   readonly options: Options;
@@ -287,8 +312,32 @@ function fixtureEnvironment(options: Options): string {
 
 //region Steps
 
-/** Create the guest. */
+/** The guest names `mvm list` reports, so `create` never adopts one. */
+function guestNames(options: Options): readonly string[] {
+  const listing: string = hostCapture({
+    options,
+    command: 'mvm',
+    args: ['--backend', 'libvirt', 'list'],
+    log: 'mvm-list-before-create.log',
+  });
+  const names: string[] = [];
+  for (const line of listing.split('\n')) {
+    // `mvm list` pads each name to a fixed column and follows it with the state,
+    // so the first whitespace-separated token is the whole name.
+    const [name = ''] = line.trim().split(' ');
+    if (name.length > 0)
+      names.push(name);
+  }
+  return names;
+}
+
+/** Create the guest, refusing a name another run already holds. */
 function create(options: Options): void {
+  const held: readonly string[] = guestNames(options);
+  if (held.includes(options.name))
+    throw new Error(
+      `guest '${options.name}' already exists; pass another --name so this run destroys only the guest it creates`,
+    );
   host({ options, command: 'mvm', args: ['--backend', 'libvirt', 'create', options.name], log: 'mvm-create.log' });
 }
 
@@ -909,37 +958,49 @@ const steps: Record<string, (checked: Options) => void> = {
   },
   all: (checked: Options): void => {
     let failure: unknown = null;
+    let created: boolean = false;
     try {
       create(checked);
+      // From here the guest is this run's to destroy; a `create` that threw
+      // made nothing, or a partial guest whose state is not this run's to
+      // judge, so `all` leaves it in place.
+      created = true;
       prepare(checked);
       run(checked);
       record(checked);
     } catch (thrown) {
       failure = thrown;
     }
-    if (failure !== null) {
-      // A failed step still leaves the suite logs in the guest: try to record
-      // them, so a run that reached both suites keeps its logs, and never let a
-      // failed record replace the step's failure.
+    if (failure !== null && created) {
+      // A failed step still leaves the suite logs in the guest this run made:
+      // try to record them, so a run that reached both suites keeps its logs,
+      // and never let a failed record replace the step's failure.
       try {
         record(checked);
-      } catch {
-        // The step's own failure is the report; a failed record must not hide it.
+      } catch (recordFailure) {
+        // The step's own failure is the report; a failed record is reported
+        // beside it, never in place of it.
+        console.error(`zfs step 2 fixture: recording '${checked.name}' also failed: ${recordFailure}`);
       }
     }
-    if (checked.keepGuest) {
+    if (checked.keepGuest && created) {
       console.log(`zfs step 2 fixture: --keep-guest kept '${checked.name}' to inspect and destroy`);
-    } else if (failure === null) {
-      destroy(checked);
-    } else {
-      // The guest is destroyed even when a step failed, which is what makes a
-      // failed run leave nothing behind; a failed destruction is reported beside
-      // the step's failure rather than in place of it.
+    } else if (!checked.keepGuest && created) {
+      // The guest this run created is destroyed even when a later step failed,
+      // so a failed run leaves nothing running; a failed destruction is
+      // reported beside the step's failure rather than in place of it.
       try {
         destroy(checked);
       } catch (destruction) {
+        if (failure === null)
+          throw destruction;
         console.error(`zfs step 2 fixture: destroying '${checked.name}' also failed: ${destruction}`);
       }
+    } else if (!checked.keepGuest) {
+      console.error(
+        `zfs step 2 fixture: no guest was destroyed, because this run did not create '${checked.name}'; ` +
+          `run 'mvm --backend libvirt list' and destroy a partial guest yourself`,
+      );
     }
     if (failure !== null)
       throw failure;

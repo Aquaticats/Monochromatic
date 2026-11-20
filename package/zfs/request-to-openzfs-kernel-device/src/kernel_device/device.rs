@@ -20,11 +20,8 @@
 //! because a
 //!  replayed write could create a second snapshot or destroy a second time.
 
-/// The facts one answer supplies and what they mean.
-use super::call_outcome::{
-    AnswerFacts, ReadFailure, interpret_read_failure, interpret_write_failure,
-    write_failure_elements,
-};
+/// The facts one answer supplies.
+use super::call_outcome::{AnswerFacts, ReadFailure, interpret_read_failure, write_failure};
 /// The failure type these calls return.
 use super::device_error::DeviceError;
 /// The one unsafe call.
@@ -176,22 +173,6 @@ impl ZfsDevice {
         let Some(errno) = failure else {
             return Ok(request.take_reply()?);
         };
-        // A reply the kernel says is bigger than the buffer is not read: the
-        // size field names bytes the buffer does not hold. A reply that does not
-        // decode names no failures either, and the kernel's error number is
-        // kept: the decode error is dropped rather than reported in its place.
-        let elements = if reported <= held as u64 {
-            write_failure_elements(request.take_reply())
-        } else {
-            Vec::new()
-        };
-        let facts: AnswerFacts<'_> = AnswerFacts {
-            operation: request.operation(),
-            target: request.target(),
-            errno,
-            reported_reply_size: reported,
-            held,
-        };
-        return Err(interpret_write_failure(facts, elements));
+        return Err(write_failure(request, errno, reported, held));
     }
 }
