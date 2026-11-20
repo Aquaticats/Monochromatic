@@ -40789,7 +40789,12 @@ stated in this entry. What follows from them, as work:
   (M1 and the wiring low; new worktree `.claude/worktrees/git-policy-cli-bounded-wait-findings`),
   `pi-mise-usage-args-in-package-tasks` (the 16 package files and `try`), the fence's gate review on Sonnet (with the
   known gaps declared) and the shadow fix's integration pass on Sonnet. The partial clone waits on the fence's review:
-  its gain must be weighed with the fence's cost.
+  its gain must be weighed with the fence's cost. THE VET REPORT ended `idle` at `6ed02591cf`:
+  `doc/audit/tech-btf-reader-for-the-zfs-layout-checker-vet-2026-11-20.md`, recommending `btf-rs` 2.0.1 (90 of 104; the
+  only eligible library with releases, a merged out-of-bounds fix and CI; no spawned program), with the stricter reading
+  (the sensitivity rule literally unmet on the `btf-rs` against `ebeepf` pair, so "recommend none") recorded as the
+  project's to take; limits `aarch64` unrun and the start cost unmeasured. GOING: its gate review on Sonnet (brief under
+  `~/temp/agent/gate-review-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/`), then the reader question to the owner.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
