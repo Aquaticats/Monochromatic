@@ -9,7 +9,9 @@ accepted design, the plan (every section list and step it names) and the measure
 question round returned and the threat-model sentence recorded beside them, OpenZFS `zfs-2.4.4` sources, the
 running kernel's exported system calls, this host's `include/uapi/linux/mount.h`, systemd v262 `service.c`, `unit.c`
 and `exec-invoke.c`, Linux v6.8 and v7.3 `fs/super.c`, `fs/fsopen.c` at v5.2, v6.5, v6.6 and v7.3, Linux v7.3
-`kernel/user_namespace.c`, `kernel/ucount.c`, `kernel/nsproxy.c`, `fs/namespace.c`, `fs/namei.c` and `mm/shmem.c`,
+`kernel/user_namespace.c`, `include/linux/user_namespace.h`, `kernel/ucount.c`, `kernel/nsproxy.c`,
+`kernel/capability.c`, `kernel/fork.c`, `fs/proc/namespaces.c`, `fs/namespace.c`, `fs/namei.c`, the SELinux hooks
+`security/selinux/hooks.c` and `security/selinux/avc.c`, and `mm/shmem.c`,
 Ubuntu 24.04's release notes for the user-namespace restriction its default AppArmor profile applies, and the
 wrapper's own code (fetched, because this host's 7.3.5 tree ships no `fs` sources). No kernel source
 was read for the first draft, which is how a non-existent mount attribute and a wrong `errno` survived it; the
@@ -24,8 +26,12 @@ decision of it. Nothing here authorizes work on this host's pool.
 
 Each revision is labelled with a time that was real when the entry was written, and names the commits the round made
 before it. A label written into a commit cannot name that commit's own time or hash, so the commit carrying an
-entry always comes after its label. The first three entries carry the `%cI` of a commit their round made; the fourth
-and fifth say where their times come from.
+entry always comes after its label. The entries labelled `18:02:41` through `20:31:12` carry the `%cI` of a commit
+their round made. The entry labelled `20:58:00` carries a committer date that round pinned on `e850455f55` and
+`3dff37b556`, whose author dates are `20:57:31` and `20:58:12`, so it is not the time they were made. The entry
+labelled `21:44:02` carries the real `%cI` of `1a9c0b27b2`, a time that round also pinned on the label and wrap
+commits after it. The entry labelled `22:37:46` states the worktree's reflog times, because the commits it lists
+carry `23:20:00` as their `%cI`. The entry labelled `23:20:02` is the time its text was first written.
 
 - `2026-11-19T18:02:41-05:00` (commit `4167f50724`): the first draft.
 - `2026-11-19T18:40:12-05:00` (`eee32e31fd`): the answer to a gate review of that draft, by the commit that says
@@ -84,10 +90,11 @@ and fifth say where their times come from.
   22:33:58, `85cadbb152` at 22:34:15, `e7326f2bc2` at 22:34:24, `fe5271211e` at 22:34:37, `a7c8686afa` at 22:34:50,
   `8d9d1cb280` at 22:35:06, `32583a3331` at 22:36:15, `5ea3a66008` at 22:36:52 and `4258b3c3c9` at 22:37:46, all on
   2026-11-19 and all `-05:00`, and the small text, wrap, naming and label commits after them): the answer to a
-  re-check of the applied answers. Those ten commits carry author and committer dates that were set by hand to
-  `2026-11-19T23:20:00-05:00`, which is not when they were made, so `git log --format=%cI` shows a value that was
-  never the time of the commit; the times this entry states are the worktree's own reflog times for those commits,
-  and a corrective commit comment on GitHub names the same ten. Its findings were weighed one
+  re-check of the applied answers. Eleven commits are listed. The ten from `8bfdcd546e` through `4258b3c3c9` carry
+  author and committer dates that were set by hand to `2026-11-19T23:20:00-05:00`, which is not when they were made,
+  so `git log --format=%cI` shows a value that was never the time of the commit; `ac8a46addb` carries its own real
+  dates, 22:28:26 as author and committer. The times this entry states are the worktree's own reflog times for all
+  eleven, and a corrective commit comment on GitHub names the same ten pinned commits. Its findings were weighed one
   by one and every one earned a fix, with none refused.
   `first-attach` then took its claim at the first attempt that passes the key check, and that one rule was stated in
   the claim sentence, the step order, the M8 control and the operation-outcome sentence, with the reason for that
@@ -116,8 +123,8 @@ and fifth say where their times come from.
 
 - `2026-11-19T23:20:02-05:00` (commits `467efadbaa`, `98e9d232cf`, `bac8e1227c`, `1f4e5d2d29` and `7b9f0fe62c`, and
   every commit this round made after it): the answer to a narrow gate check of the fourth
-  revision, read on Claude Sonnet from the diff `c134086edd..4258b3c3c9`. This label is the time the entry's text
-  was written, not a commit time, and it names no commit of its own: the commit that carries it, the wrap and label
+  revision, read on Claude Sonnet from the diff `c134086edd..4258b3c3c9`. This label is the time the entry's text was
+  first written, not a commit time, and it names no commit of its own: the commit that carries it, the wrap and label
   commits after that one, and this entry's own hash all come after it, so none of them can be named here. The
   check's findings were weighed one by one: every one earned a fix, and one part of a low was dismissed after
   reading the source. The three mediums: `first-attach`'s claim now covers the descriptor walk and the slot's
@@ -202,10 +209,11 @@ Chosen: "Root plus account companion", in the round of 2026-11-19T20:35 to 2026-
 runs the small user-namespace companion before each managed add, and the root probe stays the only evidence about the
 dataset mount path. Not taken: root only, this design's own first rank, which would leave an account-side regression of
 the walk or the mount surface seen only where something mounts as the account; the project took the companion knowing
-that it never touches ZFS and skips on a host that refuses user namespaces, the Ubuntu guest whose default profile
-denies the capabilities inside a user namespace included, and [The account companion](#the-account-companion) states
-which refusals that skip covers and that what follows a skip is this design's choice, open to the
-project's veto, rather than the round's.
+that it never touches ZFS and skips on a host that refuses user namespaces. This design's skip also covers a host
+that grants the namespace and denies the capabilities inside it, the Ubuntu guest whose default profile does so
+included; that reach was not in the question, and [The account companion](#the-account-companion) states which
+refusals the skip covers, what follows a skip, and that both are this design's choice, open to the project's veto,
+rather than the round's.
 
 ### Q7: whether the first real attach records its outcome
 
@@ -681,9 +689,11 @@ Each assumption is stated so a measurement can break it, and the measurement tha
   to the proposal's floor sentence, which [Notes for the plan](#notes-for-the-plan) records.
 - The companion never reaches the dataset mount path, the key path or `/dev/zfs`, so its pass cannot predict the
   probe's or the product's attach, and its failure refuses an add without evidence that the root attach would
-  fail. It is skipped on a host that refuses user namespaces, has none left, or grants the namespace and denies the
-  capabilities inside it, its skip is printed, and the add goes ahead after it. The skip covers those host refusals
-  and no other failure, so a defect in the companion's own setup code is an arm failure; the skip's printing and the
+  fail. It is skipped on a host that will not give it a user namespace (a kernel built without them included), has
+  none left, or grants the namespace and denies the capabilities or the mount inside it; the skip is printed and the
+  add goes ahead after it. That reach is the refusals the skip paragraph lists and no other failure, bar the one
+  mapping-write residue that paragraph names, so a defect in the companion's own setup code is an arm failure; the
+  skip's printing and the
   add going ahead after it are this design's choices, open to the project's veto, and
   [The account companion](#the-account-companion) states the reason and the alternative.
 - The companion's cost on every managed add, and the deadline that bounds it, are unmeasured until
