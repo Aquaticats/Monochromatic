@@ -864,9 +864,20 @@ Ranking:
 
 ## What this leaves owed
 
-- The gate's whole suite in the gate image:
-  started in this round,
-  and its verdict is in the round's report rather than in this document.
+- The gate's whole suite in the gate image ran at this branch's tip:
+  9,291 tests,
+  9,287 passed,
+  4 failed and 28 skipped,
+  and the four failures are none of this rung's:
+  two `repair::package_repair_prewarm_job` controls whose fixture cannot resolve `serde` offline in that image,
+  and two commit-service controls that find a `cli-git-lock-holders` entry a control does not expect.
+  The gate is what a merge runs again,
+  so these figures name what this round saw and not a green gate.
+- The standing notice's control over the steps an add enters failed on the first gate run,
+  because the partial clone's five steps had no sentence;
+  the sentences are written and the control passes.
+- `worktree_clone.rs` was already over the package's 300-code-line limit before this change,
+  and the four functions this prototype added to it belong in a sibling when the rung is written for a merge.
 - A ladder ceiling for `git checkout-index`:
   the prototype runs it through the captured runner,
   which bounds it,
