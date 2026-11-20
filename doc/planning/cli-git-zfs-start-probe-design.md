@@ -24,14 +24,15 @@ decision of it. Nothing here authorizes work on this host's pool.
 
 ## Revisions
 
-Each revision is labelled with a time that was real when the entry was written, and names the commits the round made
-before it. A label written into a commit cannot name that commit's own time or hash, so the commit carrying an
-entry always comes after its label. The entries labelled `18:02:41` through `20:31:12` carry the `%cI` of a commit
-their round made. The entry labelled `20:58:00` carries a committer date that round pinned on `e850455f55` and
-`3dff37b556`, whose author dates are `20:57:31` and `20:58:12`, so it is not the time they were made. The entry
-labelled `21:44:02` carries the real `%cI` of `1a9c0b27b2`, a time that round also pinned on the label and wrap
-commits after it. The entry labelled `22:37:46` states the worktree's reflog times, because the commits it lists
-carry `23:20:00` as their `%cI`. The entry labelled `23:20:02` is the time its text was first written.
+Each revision is labelled with a time and names the commits the round made before it; the sentences below say, for
+each label, whether the time is a commit's own. A label written into a commit cannot name that commit's own time or
+hash, so the commit carrying an entry always comes after its label. The entries labelled `18:02:41` through
+`20:31:12` carry the `%cI` of a commit their round made. The entry labelled `20:58:00` carries a committer date that
+round pinned on `e850455f55` and `3dff37b556`, whose author dates are `20:57:31` and `20:58:12`, so it is not the
+time they were made. The entry labelled `21:44:02` carries the real `%cI` of `1a9c0b27b2`, a time that round also
+pinned on the label and wrap commits after it. The entry labelled `22:37:46` states the worktree's reflog times,
+because the commits it lists carry `23:20:00` as their `%cI`. The entry labelled `23:20:02` is the time its text was
+first written.
 
 - `2026-11-19T18:02:41-05:00` (commit `4167f50724`): the first draft.
 - `2026-11-19T18:40:12-05:00` (`eee32e31fd`): the answer to a gate review of that draft, by the commit that says
@@ -1031,8 +1032,8 @@ switch: a shipped run names nothing, so the switch stays inert, and the guest ru
 own, which is a control value and never a shipped one.
 
 Its skip. The skip is drawn on the refusals that mean this host will not give the companion a user namespace, or
-will not let it use the capabilities inside one. Each is a call and an errno that a named line of the kernel's own
-namespace setup answers:
+will not let it use the capabilities inside one. Each is a call and an errno, with the line of the kernel or of a
+security module that answers it:
 
 - `unshare(CLONE_NEWUSER)` answering `ENOSPC`: `kernel/user_namespace.c:91` sets it for the depth limit and for
   `inc_user_namespaces` answering none, which `user.max_user_namespaces` bounds (`kernel/ucount.c:77` installs the
@@ -1060,15 +1061,15 @@ namespace setup answers:
   capability rather than the companion's line.
 - `unshare(CLONE_NEWNS)` answering `EPERM`: `unshare_nsproxy_namespaces` requires `CAP_SYS_ADMIN` in the caller's
   user namespace (`kernel/nsproxy.c:221` to `:223`).
-- The private propagation through `mount_setattr` answering `EPERM`: `wants_mount_setattr` asks `may_mount`
-  (`fs/namespace.c:5298`), which requires `CAP_SYS_ADMIN` over the mount namespace's own (`:2063` to `:2066`), and
-  that path asks no mount hook, so this `EPERM` is its only refusal there.
-- A `mount` call answering `EPERM`: the same `may_mount` check, after the hook named next
-  (`fs/namespace.c:4270` to `:4271`).
+- A capability check a mount call makes answering `EPERM`: `may_mount` requires `CAP_SYS_ADMIN` over the mount
+  namespace's own (`fs/namespace.c:2063` to `:2066`) and answers a bool, so a policy hook's denial there reaches the
+  caller as `EPERM`; `fsopen` asks it (`fs/fsopen.c:127` to `:128`), as do `mount` (`fs/namespace.c:4270` to
+  `:4271`), `mount_setattr` (`:5298`), `fsmount` (`:4619`) and `move_mount` (`:4754`).
 - A `mount` call answering `EACCES`: `path_mount` asks `security_sb_mount` before `may_mount`
   (`fs/namespace.c:4267`), and SELinux's `selinux_mount` answers `EACCES` (`security/selinux/hooks.c:2820` to
   `:2833`, wired to that hook at `:7694`), which is mount mediation the errno list would otherwise miss. It covers
-  the tmpfs mount at the scratch directory and the propagation when the companion makes that with `mount`.
+  the `mount` that puts the scratch tmpfs in place, and the propagation when the companion makes that with `mount`;
+  `mount_setattr` and the descriptor calls ask no mount hook, so none of them answers this `EACCES`.
 
 Everything else the setup can answer is an arm failure, so a defect in the companion's own code lands on the
 refused side rather than the skip: `EINVAL` from any of those calls where `/proc/self/ns/user` exists, which is the
@@ -1076,10 +1077,10 @@ malformed line at `kernel/user_namespace.c:990` or a `unshare(CLONE_NEWUSER)` fr
 not empty (`kernel/fork.c:3188` to `:3191`, an implied `CLONE_THREAD`); an `EPERM` from the
 `setgroups` write, which `proc_setgroups_write` gives only to a `deny` written after a `gid_map` (`:1264` to
 `:1278`, a defect of the companion's order) and not to this design's own write, which asks for no capability; an
-`EPERM` from the second mapping write or from any call after the first write succeeded; `ENOMEM`; and any errno a
-call was not named here to give, a seccomp filter's arbitrary answer included. That failure refuses the add as
-unproven. `EUSERS` is not in either set on any kernel this design supports: `unshare(2)` gives it only from Linux
-3.11 to Linux 4.8, and `kernel/user_namespace.c` at v7.3 names it nowhere.
+`EPERM` from the second mapping write, which the one-write rule answers (`kernel/user_namespace.c:978`); `ENOMEM`;
+and any errno a call was not named here to give, a seccomp filter's arbitrary answer included. That failure refuses
+the add as unproven. `EUSERS` is not in either set on any kernel this design supports: `unshare(2)` gives it only
+from Linux 3.11 to Linux 4.8, and `kernel/user_namespace.c` at v7.3 names it nowhere.
 
 The line can be drawn because the refusals these calls answer today are named here, each with the line that
 answers it, and because the capability check inside `map_write` runs before both the parse and the permission
