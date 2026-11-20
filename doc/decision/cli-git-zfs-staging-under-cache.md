@@ -402,7 +402,8 @@ The design names amendments to other documents only under options the project di
   its "the one remount the no-implicit-remount decision allows",
   and the plan's entries on what a cancelled removal restores,
   all in the design's "Choices this revision marks for the project's veto".
-- The rollback entry's option (c) amends the accepted "prove both" of the same design's proofs.
+- The rollback entry's option (c) would amend an accepted sentence,
+  the "prove both" proof the design applies to the rollback.
 
 The project answered "Keep,
 one exception (Recommended)" and took neither option,
