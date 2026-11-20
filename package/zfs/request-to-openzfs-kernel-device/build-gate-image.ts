@@ -147,13 +147,14 @@ function copyCrates(context: string): void {
 
 /** The base image the wrapper's resolver prints, built first when absent. */
 function baseImage(given: string | undefined): string {
-  if (given)
+  if (given !== undefined && given !== '')
     return given;
   const printed = capture('mise', ['run', '//package/git-policy/cli:test:git-image'], repoRoot());
   const match = /(?:Built|Found) the gate base (\S+)/.exec(printed);
-  if (!match?.[1])
+  const tag = match?.[1];
+  if (tag === undefined || tag === '')
     throw new Error(`the base image resolver printed no tag:\n${printed}`);
-  return match[1];
+  return tag;
 }
 
 //endregion Build
