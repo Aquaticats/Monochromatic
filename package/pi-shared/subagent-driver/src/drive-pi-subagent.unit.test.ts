@@ -61,6 +61,7 @@ import {
   REPORTED_PROCESS_ID,
 } from './stand-in-pi-scenario-plays-fixture.ts';
 import {
+  INBOX_MEETS_ITS_OWN_TURN_SCENARIO,
   OWN_TURN_REPLY,
   WAKES_ITSELF_SCENARIO,
 } from './stand-in-pi-own-turn-plays-fixture.ts';
@@ -281,6 +282,10 @@ const TEST_TEARDOWN_ALLOWANCE_SECONDS = 120;
 const WORK_OUTLASTED_WALL_SECONDS = 8;
 /** Characters in a file name that leave no room for a prefix, which most file systems cap at 255 bytes. */
 const LONGEST_FILE_NAME_CHARACTERS = 250;
+/**
+ The message a test drops in the inbox, named so the command log shows which delivery it went as.
+ */
+const INBOX_MESSAGE = 'a message a turn the agent started takes';
 /**
  Milliseconds a test waits for a line before giving up on it. A line that cannot come any more is noticed when the driver ends,
  so this is only the bound that keeps a test from waiting for ever on a driver that stays up and says nothing.
@@ -916,7 +921,7 @@ await describe({
         expect(run.summary.endReason,).toBe('idle',);
         expect(run.status,).toBe(CLEAN_STATUS,);
         expect(run.summary.lastAssistantText,).toBe(OWN_TURN_REPLY,);
-        expect(run.markers,).toContain('wake-met-an-open-turn',);
+        expect(run.markers,).toContain('message-met-an-open-turn',);
         /**
          The messages the driver sent Pi, of which the wake is the last.
          */
@@ -924,7 +929,7 @@ await describe({
         expect(prompts.length,).toBe(2,);
         // The wake names the streaming behaviour that queues it into the running turn, which is what keeps Pi from refusing it.
         expect(prompts.at(-1)?.streamingBehavior,).toBe('steer',);
-        expect(run.markers,).toContain('wake-queued steer',);
+        expect(run.markers,).toContain('message-queued steer',);
         /**
          The wake's place in the feed, and the last turn that started before it.
          */
@@ -937,6 +942,42 @@ await describe({
         expect(run.feed[woke]?.success,).toBe(true,);
         expect(run.feed[woke]?.disposition,).toBe('queued',);
         expect(run.summary.turns,).toBeGreaterThanOrEqual(2,);
+      },
+    },),
+    it({
+      name: 'an inbox message a turn the agent started after the driver read it meets is delivered, not kept aside as refused',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: INBOX_MEETS_ITS_OWN_TURN_SCENARIO,
+          idleSeconds: LONG_IDLE_SECONDS,
+          whileRunning: async (running,) => {
+            // The agent's own turn ends before the message is published, so the driver's read of the feed says Pi rests.
+            await waitForFeed({ ...running, text: '"kind":"settled","n":1', },);
+            await dropInInbox({ runFolder: running.runFolder, text: INBOX_MESSAGE, },);
+            await waitForFeed({ ...running, text: '"kind":"inbox"', },);
+            await writeFile(join(running.runFolder, 'stop',), '',);
+          },
+        },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('stop-file',);
+        // The turn opened as the message went, so the message belongs to it: kept aside, it would never be delivered.
+        expect(run.inbox,).toEqual([],);
+        /**
+         What the feed says about the delivery.
+         */
+        const delivered = run.feed.find((entry,) => entry.kind === 'inbox',);
+        expect(delivered?.success,).toBe(true,);
+        // The driver's own read said Pi rested, so it meant the message as a new prompt; the named steering is what a turn that opened
+        // after that read took it with.
+        expect(delivered?.sentAs,).toBe('prompt',);
+        expect(run.markers,).toContain('message-met-an-open-turn',);
+        expect(run.markers,).toContain('message-queued steer',);
+        /**
+         The command the message went as.
+         */
+        const sent = run.sentCommands.find((command,) => command.message === INBOX_MESSAGE,);
+        expect(sent?.type,).toBe('prompt',);
+        expect(sent?.streamingBehavior,).toBe('steer',);
       },
     },),
     // This holds the end-to-end delivery path; the race of a settle read between the inbox
