@@ -299,6 +299,34 @@ the pick is not made here.
   `srcversion` and the module's build ID, with a cache arm owed (N13); and items 5 and 10 name
   their device-free route (N15). N14 needed no change. No fact was changed without re-running the
   command behind it. No accepted decision and no plan step changed.
+- `2026-11-19T20:52:14-05:00`, commit `f46cf1a4c8`, and the commit that carries this entry, which
+  adds this record and the checker's counts: the revision that applies the owner's answers of
+  2026-11-19, asked in the question tool between 2026-11-19T20:35 and 2026-11-19T20:43:51-05:00
+  and recorded in the main checkout's `doc/handover/cli-git-rust-implementation.md`, in the
+  paragraph beginning "THE ROUND WAS ASKED".
+  [Answers of 2026-11-19](#answers-of-2026-11-19) records each answer in its words, with the
+  evidence the release-string exchange rested on, and the body follows them: the gate compares no
+  release string, so the version text, `srcversion` and the build ID are identity for the cache and
+  for `doctor`, which prints the release and says when it is not the tested `2.4.4`; the crate
+  placement is settled in the binding package; the in-house reader is ineligible by the owner's
+  narrower answer and its options are renumbered; and Q2 and Q4 are gone from the questions, with
+  one sentence each on what was not taken and why.
+  The Q2 answer reverses the "module release" proof the proposal lists and plan step 6 calls
+  decided, so
+  [the amendment these answers owe](#the-amendment-these-answers-owe-the-proposal-and-the-plan)
+  quotes both files and writes the exact replacement text for the coordinator, and
+  [a release that keeps the layout and changes behaviour](#a-release-that-keeps-the-layout-and-changes-behaviour)
+  states what such a release would now do and what, if anything, catches it, with owed measurement
+  17 as the arm that records it. Owed measurements 2 and 16 follow the answers too, and item 2's
+  third arm loses the test seam the removed release rule needed.
+  The three-release comparison behind the answer was re-read with a read-only script of this
+  revision's own, which confirms no key table changed and two handlers changed by one line each.
+  The prose checker ran clean on this file and on a deliberately broken copy, and its counts are
+  under [The prose checks](#the-prose-checks).
+  No fact was changed without re-running the command behind it. No accepted decision changed, and
+  no plan step changed; the proposal and the plan are not edited here, and the amendment under
+  [the amendment these answers owe](#the-amendment-these-answers-owe-the-proposal-and-the-plan)
+  is what they need.
 
 ### Sources read
 
@@ -469,14 +497,16 @@ It reports no em or en dash, no line of 120 characters or more (the longest is 1
 no heading problem, no italics or bold, no numbered-marker problem and no broken link.
 Its positional-word, count-word and bare-date hits are the ones the rules leave: a quoted section
 name, a licence name, a measured result being compared, or a date inside a measurement.
-Its four spaced-hyphen hits are arithmetic inside code spans, `tr - _`, `__stop_BTF - __start_BTF`,
-`ZFS_IOC_LAST - ZFS_IOC_FIRST` and `sizeof (zinject_record_t) - 16`, which the rule leaves alone.
+Its spaced-hyphen hits sit on four lines, and every one is arithmetic inside a code span, which the
+rule leaves alone; the arithmetic is the release-string fact's `tr` substitution, the base file's
+section-length subtraction, the request table's index size and owed measurement 2's pad
+expression.
 
 Control: the same checker on a copy in this revision's scratch folder with one injected defect per
 prose rule moved every count it targets: dashes 0 to 1, spaced hyphens 4 to 5, long lines 0 to 1
 with the longest at 170, tables 0 to 2, heading issues 0 to 3, positional words 29 to 30,
-emphasis 0 to 1, ALL CAPS words 14 to 15, marker padding 0 to 1, bare dates 52 to 53, count words
-169 to 174 and digit-plus-noun hits 66 to 67.
+emphasis 0 to 1, ALL CAPS words 15 to 16, marker padding 0 to 1, bare dates 55 to 56, count words
+175 to 180 and digit-plus-noun hits 66 to 67.
 Link problems rose from 0 to 22, and 20 of those 22 are the copy's own folder breaking the relative
 links to the sibling design files; the other two are the injected missing anchor and the injected
 unused definition, so the checker does detect each kind it reports.
