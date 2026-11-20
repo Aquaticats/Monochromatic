@@ -451,7 +451,7 @@ read-only reads named.
   and inode of its `/proc/self/ns/mnt` beside the boot id that gives them meaning (F32) in one record per
   clone GUID, and the wrapper reads that record, compares the pair with its own, and refuses on a mismatch before it
   removes any folder. That comparison belongs to the receipt path, where the record is this boot's and the pair means
-  what it says. A record from another boot takes the other route: the wrapper voids it and settles the folder,
+  what it says. A record from another boot takes the other route: the wrapper reads it as void and settles the folder,
   record, temporary name and claim on its own mount-table read, as "The staged-folder record" says. The record also
   carries the folder's file handle and identity, which is what a later sweep opens the folder from (F29, L12). It
   lives at
@@ -758,9 +758,10 @@ before the bind does not bind: it refuses, reports the failed step, and the clon
 the accepted design already blocks a removal on.
 
 What a sweep then finds is not one state but three, and they need different answers. A sweep whose process lacks the
-capability gets `EPERM` from its first `open_by_handle_at` and unmounts nothing. A sweep whose handle no longer
-resolves gets `ESTALE` (F29), and the folder that handle named is gone from every namespace with every mount at it,
-so there is nothing left to unmount: what remains is a detached mount that its holders keep alive, and only those
+capability gets `EPERM` from its first `open_by_handle_at` and unmounts nothing. A sweep whose handle gives
+`ESTALE` while no row in its mount table names the folder path treats the folder as gone, which is the pair of tests
+"The staged-folder record" states and not proof that the inode died, so there is nothing at that path for it to
+unmount: what remains is a detached mount that its holders keep alive, and only those
 holders ending frees the dataset (F11, L11). A copy of the bind in another namespace that a process works inside
 refuses the unbind with `EBUSY` (F30), and the host's bind stays. In each of the three the sweep unmounts nothing,
 removes nothing and reports the retained state. What then clears it is the writer's reading, not the second
@@ -848,8 +849,10 @@ that cost openly. Costs are enumerated work, not sizes or times; none is measure
   descriptor on the clone is closed (F10) and after the holder scan is clear. A later sweep runs the same two calls
   from the handle of F29, in the same order and with the same checks (M6).
 - The handler unbinds, scans every namespace for the clone's source, writes the receipt, and the wrapper removes the
-  folder by `rmdir` only after that clear receipt, after its own mount-namespace identity matches the handler's
-  recorded one, and after re-checking the folder's identity against the claim the wrapper wrote (A5, F11). The unbind
+  folder by `rmdir` only after that clear receipt on the receipt path, after its own mount-namespace identity
+  matches the handler's recorded one, and after re-checking the folder's identity against the claim the wrapper
+  wrote (A5, F11); the settlement of a record from another boot is the one removal that receipt does not gate, and it
+  runs on the wrapper's own mount-table read and `rmdir`'s `EBUSY` (A5, "The staged-folder record"). The unbind
   unmounts the copies in peer and slave namespaces too; a copy a process works inside refuses the whole unbind with
   `EBUSY`, and the handler then reports the copy, its namespace and the processes holding it instead of claiming the
   bind is gone (F22, F30). A copy that carries a mount under it is left mounted by a successful unbind, so the
@@ -1265,7 +1268,11 @@ Set up a clone at a slot, a private bind on a depth-one staging folder, and the 
   proves the descriptor kind. The host's own kernel takes the two tests the other way round: at `v7.3` the descriptor
   is taken first (`fs/fhandle.c:384`) and the capability test follows it (`:389` to `:392`), so on that kernel this
   arm refuses `EBADF` with an `O_PATH` `mount_fd` and `EPERM` with the `O_RDONLY` one, and the arm records which
-  kernel it ran and which errno it saw.
+  kernel it ran and which errno it saw. Then run a binding invocation for the same clone from the same hardened unit,
+  so it meets that current-boot record rather than a sweep state: assert its first `open_by_handle_at` refuses
+  `EPERM` on either tag, because the `mount_fd` is `O_RDONLY` and the capability test refuses it, and that the handler
+  then refuses before its bind, names the failed step, and leaves the clone at its slot with nothing bound. Control:
+  the same removal from a unit that keeps both capabilities, which binds and proceeds.
 - A folder substituted from a foreign namespace: an account process in a private mount namespace created before the
   bind removes the folder and makes a new one of the same name, then the sweep runs. Assert `open_by_handle_at`
   refuses `ESTALE` (F29), that no namespace holds a row for the bind or the clone because the removal detached every
@@ -1520,8 +1527,11 @@ tested first and on its own: a record carrying another boot id is void, and its 
 are not consulted. For a record of this boot the handle is tested next: `ESTALE` with no mount row at the folder path
 voids, and a failure other than `ESTALE` refuses rather than voiding, because the record may still be the only handle
 to a live mount; `EPERM` from the capability test and `EBADF` from the descriptor both fail before any decode, and
-`ENOMEM` is the one decode error the export code leaves unnormalized (F29). A record with no handle refuses, because
-the handler that wrote it did not bind. Only a record that passes both void tests reaches the identity comparison,
+`ENOMEM` is the one decode error the export code leaves unnormalized (F29). A record that carries no handle is the
+malformed case the record's read rule names: it is read as unrecorded, the handler writes a fresh one before it
+binds, and a sweep that meets one unmounts nothing and reports the folder as unrecorded, because the handler never
+writes a record for a folder it binds without its handle. Only a record that passes both void tests reaches the
+identity comparison,
 where a mismatch refuses. A binding invocation that finds another boot's record standing voids it on the boot id and
 writes its own before it binds, which is what keeps the boot-id proof true for every folder bound in this boot. The
 cost is stated: a handler unit that drops `CAP_DAC_READ_SEARCH` refuses every staging whose folder already has a
@@ -1634,8 +1644,9 @@ Nothing else ages a record out, and no timer touches it.
   the final one, read under the bound and no-follow rule of "The staged-folder record", holding what that section
   names, and unlinked after the folder's `rmdir` (A1, L10).
 - Who voids a record: the handler, before it binds, for a record whose handle gives `ESTALE` while no row in its
-  mount table names the folder path; and the wrapper's own settlement for a record from another boot, with its
-  mount-table read and `rmdir`'s `EBUSY` as the guards ("The staged-folder record").
+  mount table names the folder path; a binding invocation, for a record from another boot, which it voids on the boot
+  id alone and replaces with its own before it binds; and the wrapper's own settlement for a record from another
+  boot, with its mount-table read and `rmdir`'s `EBUSY` as the guards ("The staged-folder record").
 - The receipt and notice wording for a retained staged mount, a mounted folder that cannot be unmounted, a handle
   that no longer resolves, a copy that refused the unbind, a detached mount that still holds the dataset, an orphan
   folder, a folder the wrapper cannot prove it made, a rollback refused and a rollback that landed on a stacked
@@ -1866,7 +1877,8 @@ destroy refusal a mounted dataset gives (F13) all protect the worktree's own dat
   bind it made does not read private in the mount table (F23). The spec's wording asks for a boot test; this design
   adds the per-removal test beside it and says which sentence it strengthens rather than replaces.
 - "Unmounted" as absence in every namespace holding the source, including binds and staging, is met by the receipt's
-  all-namespace scan and by the wrapper's `rmdir` only after that receipt shows absence (A5).
+  all-namespace scan and by the wrapper's `rmdir` only after that receipt shows absence on the receipt path (A5),
+  with the settlement of a record from another boot as the one removal the receipt does not gate.
 - The acceptance item's two halves are met by M1 and M6: after a completed removal no mount and no entry remain;
   after an interrupted one, nothing under a mounted tree is deleted and the retained mount is tracked and reported.
 - "The runtime files are a cache, not authority to act; rebuild them from live state and durable intent" is met
