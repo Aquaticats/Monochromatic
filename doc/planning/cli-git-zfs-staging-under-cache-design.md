@@ -9,8 +9,9 @@ Every kernel fact here is read at upstream Linux `v6.8`, in the files listed und
 OpenZFS fact is read at tag `zfs-2.4.4`. Nothing in this design was measured, on any host or any guest: every
 measurement it owes stays owed, and no sentence here reports a run.
 
-This revision answers three independent reviews, all outside this repository: the gate review of tip `2258de74d8`,
-its first re-check of tip `3972d4bf90`, and the second re-check of tip `a879cd9be8`, under
+This revision answers three independent reviews, all outside this repository, and then applies the project's answers
+of 2026-11-19. The reviews are the gate review of tip `2258de74d8`, its first re-check of tip `3972d4bf90`, and the
+second re-check of tip `a879cd9be8`, under
 `~/temp/agent/zfs-staging-under-cache-design-gate-review-2026-11-19/keep/`,
 `~/temp/agent/zfs-staging-under-cache-design-revision-gate-recheck-2026-11-19/keep/` and
 `~/temp/agent/zfs-staging-under-cache-design-second-revision-gate-recheck-2026-11-19/keep/`. No review's finding
@@ -1468,7 +1469,9 @@ the name stays the revision's first commit rather than its last.
   `module/os/linux/zfs/zpl_super.c`, `module/os/linux/zfs/zfs_vfsops.c`, `module/os/linux/zfs/zpl_export.c`,
   `module/zfs/dsl_dataset.c`, `module/zfs/dsl_destroy.c`, `cmd/zfs/zfs_main.c`.
 - This repository at `73eaad0846`: [decision][decision], [proposal][proposal], [measurements][measurements],
-  [plan][plan], and `AGENTS.md`.
+  [plan][plan], and `AGENTS.md`. The round's answers were read on 2026-11-19 from
+  `doc/handover/cli-git-rust-implementation.md` in the main checkout, the paragraph beginning
+  `THE ROUND WAS ASKED`.
 - Wrapper code: `package/git-policy/cli/src/native/subvolume/fs_beneath.rs`,
   `package/git-policy/cli/src/native/process/open_file_of_a_descriptor.rs`,
   `package/git-policy/cli/src/native/process/process_use.rs`,
