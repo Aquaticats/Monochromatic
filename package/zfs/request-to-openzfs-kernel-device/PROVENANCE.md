@@ -137,7 +137,12 @@ the notices below are what those grants require.
   13664.
   It also carries `dds_flags`,
   the byte `zfs-2.4.4` added to `dmu_objset_stats_t`
-  (`include/sys/dmu.h:1041`).
+  (`include/sys/dmu.h:1041`),
+  and `DmuObjsetStats::origin`,
+  which reads `dds_origin` the way
+  `dmu_objset_stats` fills it,
+  as the snapshot name a clone was made from and an empty
+  string otherwise.
   The size assertions follow the module's BTF for `zfs-2.4.4`.
 - The buffer that owns the zeroed words,
   its size bounds and its fixed-width

@@ -389,6 +389,10 @@ The container is built from the wrapper's gate base image,
 `package/git-policy/cli/native-test-base.Containerfile`,
 which takes Rust and `cargo-nextest` from pacman,
 so the tests (rule `RNQ`) and Clippy run there.
+That base carries the pinned browserslist data that `file-enforcer`'s `browserslist` rule reads
+(`package/git-policy/cli/README.md`, "Container base images"),
+so step 1's `file-enforcer write` and `check` need no home mount;
+`mise run //package/git-policy/cli:test:git-image` is how step 1 gets that base.
 Inside it,
 `file-enforcer` (`cargo:monochromatic-file-enforcer-cli` `0.1.3`)
 and the repository linter (`cargo:monochromatic-lint` `0.5.2-alpha.8`)
@@ -429,7 +433,11 @@ a `legacy`,
 `canmount=off` clone parent,
 a checkout dataset,
 and the grants of "Scoped delegation",
-as the measurements' item 12 fixture set them.
+as the measurements' item 12 fixture set them
+(a note added at step 2's merge `1ead5ca9fa` of 2026-11-20:
+that fixture left out the checkout's local `snapshot` and its descendent `mount,destroy`,
+so step 2 sets the whole "Scoped delegation" list,
+which the acceptance text's "only the proposed grants" names).
 The recipe also says what the guest carries and how the built programs reach it:
 the Git version,
 OpenZFS userspace,

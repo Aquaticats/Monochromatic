@@ -27,10 +27,16 @@ error[E0514]: found crate `monochromatic_jsonc_edit` compiled by an incompatible
 On the previous host, a Btrfs machine, the same gate failed six of 9,173 tests
 (`doc/handover/cli-git-rust-implementation.md`, the gate on `0f07c4f0ee`). This host fails 185.
 
-The mise task cannot be run as written here either: its first step
-`cargo-shadow lean records target/verification` fails, because `cargo-shadow` and `cargo-nextest` are
-not installed on this host (`mise ls` prints nothing). Every run below is the task's second step,
+The mise task cannot be run as written in the main checkout either: its first step
+`cargo-shadow lean records target/verification` fails with status 127, because `cargo-shadow` is not on the
+checkout's `PATH` (`mise ls` prints nothing). Every run below is the task's second step,
 `node bin/test-native-container.ts`, or the image it builds, run the way the gate runs it.
+As read on 2026-11-19 at about 23:20 (-05:00), the locked tools are present in the toolchain root
+`~/.local/share/monochromatic-dev/toolchain` (`cargo-monochromatic-cargo-shadow` among them):
+what the main checkout lacks is its `.cache/toolchain-bin` link folder.
+`mise run toolchain:install` in a worktree reported `0 installed, 66 unchanged, 0 failed` and made that folder there.
+Whether the main checkout gets the same folder waits for the project,
+because the plan's step 1 records that nothing is installed on this host until the mpm-shadow change.
 
 ## The host, as measured
 
@@ -749,3 +755,41 @@ Two whole suites ran on this host against the branch's tree, each in the gate's 
   root shares no data blocks between files either, which is the arm the `ioctl` control now skips; the
   gate and a campaign therefore agree about the fixture file system, which a gate pass reused as a
   campaign baseline now relies on.
+
+## A gate that ends with status 137 and no memory kill
+
+On 2026-11-19 an integration pass's gate ended with
+`NativeVerificationError: the test run failed: podman run failed (status 137, signal none).`
+after 8446 of 9199 tests had passed and none had failed.
+It was not a memory kill:
+the container scope's journal line read `912M memory peak` against its 2 GiB bound,
+and `journalctl -u systemd-oomd` had no entry in that window.
+
+The user journal showed the cause.
+In the same second as the podman that ran the suite logged `container died`,
+a different podman process (`podman[3180925]`) logged `container remove` for that container
+and for another session's container:
+
+```text
+# journalctl --user --since '2026-11-19 22:34:15' --until '2026-11-19 22:34:30'
+podman[3180925]: container remove 7a5c4dce9245... (image=.../git-policy-native-test:..., name=pedantic_bardeen)
+podman[3180925]: container remove 5982b11d2ac9... (image=.../git-policy-native-test-base:..., name=strange_mayer)
+```
+
+That process was another session's agent cleaning up:
+it listed the running containers,
+took two that were running `cargo nextest` for its own,
+and ran `podman rm --force --time 0 7a5c4dce9245 5982b11d2ac9`.
+Many sessions run gates and guests on this machine at once,
+so a container's image or command says nothing about who started it.
+Briefs now tell every agent to stop or remove only what it started,
+known by a name it gave it or the ID its own command printed.
+
+To tell this case apart from a memory kill,
+read the user journal around the time the gate stopped for a `container remove` line
+from a podman process other than the one that logged the container's start.
+The integration pass then reran only the tests that had not passed,
+in the same image with the gate's limits and fixture root,
+rather than the whole suite a second time:
+751 of 753 passed,
+and the two failures were the standing cause-H pair.

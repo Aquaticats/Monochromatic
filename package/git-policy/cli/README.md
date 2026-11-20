@@ -6828,7 +6828,8 @@ Two derived base images carry what the network-free image builds need:
   where the tests expect the real Git),
   Node,
   pnpm,
-  `strace` and cargo-nextest.
+  `strace` and cargo-nextest,
+  plus the pinned npm data tarballs that `file-enforcer check` resolves a `.browserslistrc` against.
   The gate image and the mutation images build on it.
 - `e2e/concurrent-commits.Containerfile` builds `localhost/cli-git-concurrent-e2e`:
   CachyOS with the distribution's Git
@@ -6849,6 +6850,39 @@ Pacman checks every package signature (`SigLevel = Required DatabaseOptional` in
 `mise run //package/git-policy/cli:test:git-image` prints the release of each tool the base image got;
 the wrapper's
 `MINIMUM_GIT_VERSION` follows the Git release printed there (an older Git draws a warning and is not refused).
+The CachyOS x86-64 image is a slimmed copy: most of its packages lost their manual pages, translations and docs, while
+the pacman database still lists every file and `--needed` never restores them, so the base image reinstalls Git
+whenever the installed copy lacks the `githooks(5)` page the hook-event guard test reads; its closing
+`man --where githooks` check still fails the build when the page is missing
+(`doc/troubleshooting/cachyos-image-package-and-tool-differences.md`).
+
+The base image also caches the two npm tarballs the `browserslist` rule of `file-enforcer`
+(`package/file-enforcer/cli/src/kind_browserslist.rs`) resolves a `.browserslistrc` against.
+That rule fetches a missing tarball into `$HOME/.cache/browserslist`
+(`DataSource::user_default` in `package/browserslist/core-rust/src/source.rs`),
+so offline it fails with `browserslist-fetch-failed`,
+which a step run in a container with `--network none` cannot repair.
+The base therefore downloads every package the lock lists,
+at exactly the version it pins for each,
+within the bounds that rule's own fetch applies:
+a body of at most 64 MiB (`MAX_TARBALL_BYTES` in `package/browserslist/core-rust/src/source.rs`),
+no redirect,
+a status of exactly 200 and one 60-second bound on the whole request
+(`package/browserslist/core-rust/src/fetch.rs`),
+refuses any whose sha512 differs from the lock's,
+and writes each under the hex digest name the rule reads.
+The lock's text arrives as the `BROWSERSLIST_DATA_LOCK` build argument,
+because the Containerfile copies nothing from its build context,
+and it is part of the image tag as well;
+the file stays the one source of the versions and digests.
+One verified copy under `/home/tester/.cache/browserslist` serves both users this repository's runners give an image
+built on this base:
+the wrapper's gate image as user 1000 with `HOME=/home/tester`,
+and an image built on the base without that switch as root,
+whose `/root/.cache/browserslist` is a symlink to it.
+Those tarballs are data, not tools,
+so the owner decisions of 2026-11-04 that every tool is pacman's current package
+still hold for the tools of both images.
 
 Each run of `native:test:container`,
 `test:git-image`,
@@ -6856,8 +6890,9 @@ Each run of `native:test:container`,
 `test:e2e:concurrent:native:image` first pulls the `latest` tag with `podman pull --policy=newer`
 (one small request when nothing changed;
 a registry that cannot be reached is reported and the copy the host holds is used).
-The derived base is tagged `<first digits of the pulled image ID>-<first digits of the Containerfile hash>`,
-so a new CachyOS image or an edited Containerfile builds a new base (with network,
+The derived base is tagged `<first digits of the pulled image ID>-<first digits of a hash of the Containerfile text and
+the build arguments>`,
+so a new CachyOS image, an edited Containerfile or a changed browserslist data lock builds a new base (with network,
 once) and every run after that finds it.
 The gate image then builds from the base's ID with no network,
 exactly as before,
@@ -7469,6 +7504,13 @@ each with its sidecar test file.
 - The source scans (`source_guard/`) follow `mod` declarations from the `Cargo.toml` targets,
   so a file that no
   declaration reaches fails them.
+- A change that adds, moves or links anything under `src/` runs the whole `source_guard` set
+  (`cargo nextest run --lib -E 'test(source_guard)'` in the gate container),
+  not only the tests of the modules it touched:
+  the scans read the whole tree and refuse what they cannot prove they read,
+  a symbolic link among them.
+  A run filtered to the touched modules once passed while a new folder's links failed 13 of these scans,
+  which the whole gate would have shown.
 - Paths in tooling name the folder,
   for example `src/native/command/command_add.rs`.
   A mutation scope may name subfolders (`--file src/native/command/command_add.rs`);
