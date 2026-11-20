@@ -31,13 +31,16 @@ published archive,
 fetches the two crates' locked dependencies at image-build time,
 and then runs the target with `--network none`,
 no home folder,
+only the corpus and artifacts folders of the run's scratch mounted,
 no `/dev/zfs` and explicit CPU,
 memory and PID bounds.
 It prints the `rustc`,
 `cargo` and `cargo-fuzz` versions it used.
-The nightly is `nightly-2026-11-16`,
-the toolchain the repository's own `RUSTUP_TOOLCHAIN` names;
-it is unpacked rather than mounted from the host,
+The nightly is the one `toolchain.lock.json`'s `rust` row names
+(`nightly-2026-11-16` when this was written),
+and `bin/container.ts` builds the published archive's URL from that version,
+so a lock bump moves the fuzz image with it.
+It is unpacked rather than mounted from the host,
 because a container never mounts the host's Rust sysroot.
 
 ## The target
@@ -45,8 +48,9 @@ because a container never mounts the host's Rust sysroot.
 There is one target,
 `nvlist_codec`,
 named for the code it exercises.
-Its corpus and artifacts directories are gitignored;
-a crash lands in
-`artifacts/nvlist_codec/` inside the run's container and is lost with it,
-so a
-finding is filed with the input copied out by hand.
+Its corpus and artifacts directories are gitignored,
+and `bin/container.ts` mounts both from
+`node_modules/.monochromatic/zfs-binding-fuzz/` into the run,
+so a crash's input at `artifacts/nvlist_codec/` and the growing corpus
+outlive the container that found it;
+a finding is filed with that input attached.

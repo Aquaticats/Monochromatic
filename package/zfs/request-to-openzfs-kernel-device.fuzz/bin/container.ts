@@ -15,6 +15,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -28,12 +29,27 @@ const subject = resolve(source, '..', 'request-to-openzfs-kernel-device');
 const repository = resolve(source, '..', '..', '..');
 /** Gitignored scratch shared by the repository's campaigns, outside both copied trees. */
 const scratch = join(repository, 'node_modules', '.monochromatic', 'zfs-binding-fuzz');
+/** Where the fuzzer's failing inputs land, mounted into the run so they survive it. */
+const artifacts = join(scratch, 'artifacts');
+/** The corpus, mounted into the run so a later run starts from what earlier ones found. */
+const corpus = join(scratch, 'corpus');
 /** Image tag; concurrent worktrees set ZFS_BINDING_IMAGE_TAG so one run never reuses another's image. */
 const tag = process.env.ZFS_BINDING_IMAGE_TAG ?? 'step-1';
 /** The image holding the nightly toolchain, cargo-fuzz and both crates. */
 const image = `localhost/zfs-request-to-openzfs-kernel-device-fuzz:${tag}`;
 /** Seconds the target runs; a smoke bound, never a campaign. */
 const seconds = 30;
+/** The repository's toolchain lock, which names the nightly the image installs. */
+const toolchainLock = JSON.parse(readFileSync(join(repository, 'toolchain.lock.json'), 'utf8'));
+/** The nightly the lock pins, for example `nightly-2026-11-16`. */
+const nightly = toolchainLock.tools.rust.version;
+/** The date part of the nightly, the directory `static.rust-lang.org` publishes it under. */
+const nightlyDate = nightly.startsWith('nightly-') ? nightly.slice('nightly-'.length) : null;
+if (!nightlyDate) {
+  throw new Error(`the toolchain lock names \`${nightly}\`, which is not a nightly release`);
+}
+/** The published nightly archive, unpacked rather than built or mounted from the host. */
+const nightlyArchive = `https://static.rust-lang.org/dist/${nightlyDate}/rust-nightly-x86_64-unknown-linux-gnu.tar.xz`;
 
 /**
  Run one command with its output on this terminal.
@@ -55,10 +71,11 @@ const containerfile = [
   'FROM localhost/git-policy-native-test-base:6fa67475da3a-97221c29742b',
   "# cargo-fuzz is pacman's cargo-fuzz in this image's repositories.",
   'RUN ["pacman", "--disable-sandbox", "--sync", "--refresh", "--noconfirm", "--needed", "cargo-fuzz"]',
-  '# The nightly toolchain is the compiler the instrumented build needs. It is the',
-  '# published nightly archive, unpacked here rather than mounted from the host and',
+  '# The nightly toolchain is the compiler the instrumented build needs. Its',
+  '# date and name come from toolchain.lock.json, and it is the published',
+  '# nightly archive, unpacked here rather than mounted from the host and',
   '# never built from source; rustup would conflict with the image\'s pacman rust.',
-  'RUN ["curl", "--fail", "--silent", "--show-error", "--location", "--output", "/tmp/rust-nightly.tar.xz", "https://static.rust-lang.org/dist/2026-11-16/rust-nightly-x86_64-unknown-linux-gnu.tar.xz"]',
+  `RUN ["curl", "--fail", "--silent", "--show-error", "--location", "--output", "/tmp/rust-nightly.tar.xz", "${nightlyArchive}"]`,
   'RUN ["tar", "--extract", "--xz", "--file", "/tmp/rust-nightly.tar.xz", "--directory", "/tmp"]',
   'RUN ["/tmp/rust-nightly-x86_64-unknown-linux-gnu/install.sh", "--prefix=/opt/rust-nightly", "--without=rust-docs"]',
   'ENV PATH=/opt/rust-nightly/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
@@ -98,13 +115,19 @@ function buildImage() {
 }
 
 /**
- Run the target in a bounded container with no network and no host mounts.
+ Run the target in a bounded container with no network and no host home folder.
+
+ The corpus and artifacts directories are mounted from {@link scratch},
+ so a failing input outlives the container that found it.
 
  @param buildOnly - stop after the instrumented build, keeping the binaries
  */
 function runContainer(buildOnly) {
   const containerName = 'zfs-binding-fuzz';
   run('podman', ['rm', '--force', '--ignore', containerName]);
+  mkdirSync(artifacts, { recursive: true });
+  mkdirSync(corpus, { recursive: true });
+  const inside = (name) => `/work/package/zfs/request-to-openzfs-kernel-device.fuzz/${name}`;
   const command = buildOnly
     ? ['cargo', 'fuzz', 'build', '--fuzz-dir', '.']
     : [
@@ -122,6 +145,8 @@ function runContainer(buildOnly) {
     '--memory', '2g',
     '--pids-limit', '512',
     '--blkio-weight', '10',
+    '--volume', `${artifacts}:${inside('artifacts')}:Z`,
+    '--volume', `${corpus}:${inside('corpus')}:Z`,
     image,
     ...command,
   ]);
@@ -155,3 +180,4 @@ if (!existsSync(join(source, 'Cargo.lock'))) {
 buildImage();
 reportVersions();
 runContainer(process.argv.includes('--build-only'));
+console.log(`A failing input and the growing corpus stay in ${scratch}`);
