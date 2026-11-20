@@ -40872,7 +40872,14 @@ stated in this entry. What follows from them, as work:
   (`file_ns_capable` returns a bool and `map_write` already set `-EPERM`); the residue is two stated cases; the claim
   placement is put to the project beside the companion skip; the fork's wait has a ceiling. GOING: the last diff-only
   check (brief under `~/temp/agent/zfs-start-probe-design-sixth-revision-diff-only-gate-check-2026-11-20/`), on which
-  only a high or medium blocks. Then the acceptance item beside the layout checker's. STAGING ENDED `idle` at
+  only a high or medium blocks. It ended (Sonnet, about 25 min; that folder's `keep/review.md`): one medium, no high,
+  nine lows carried to acceptance. MED-1: the sixth pass (commit `6b0315402e`) widened the skip to an `EPERM` from
+  `fsopen`, `mount`, `mount_setattr`, `fsmount` or `move_mount` anywhere, which contradicts M11's control (an `EPERM`
+  from `fsmount` refuses), turns Q6's own case into a skip, and adds no host. It confirmed the SELinux first-write
+  dismissal. GOING: a narrow fix of MED-1 only,
+  `pi-zfs-start-probe-design-sixth-revision-check-medium-fixed` (DeepSeek on Neuralwatt, cap 250); brief under
+  `~/temp/agent/zfs-start-probe-design-sixth-revision-check-medium-fixed-2026-11-20/`. Then a diff-only check of those
+  lines and the acceptance item. STAGING ENDED `idle` at
   `e8f7ec4fa6` (thirteen commits; report in its folder's `keep/report.md`). It records every answer and makes Way A the
   design. On Q3 it rolls the clone back by its own descriptor, staging it only if that fails. Its post-move check now
   asserts that the topmost mount is the clone with the bind as its parent; the run's own advisor found the old wording
