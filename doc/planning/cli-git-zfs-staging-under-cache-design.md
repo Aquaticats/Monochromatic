@@ -1446,10 +1446,11 @@ and the design says who voids each instead of leaving it to refuse every later s
 
 A record whose folder is gone is void, and the handler voids it, because only the handler can prove it. The handle
 the record carries names the folder's inode and generation and resolves only while that inode lives (F29), so
-`ESTALE` is the kernel's own statement that the dentry is dead and, with it, that every mount at it was detached in
-every namespace (F11). Before it binds, the handler reads the record; where the handle gives `ESTALE` and no row in
-the host mount table names the folder path, it replaces the record with one describing the folder it is about to
-bind, under the write rule of this section, and its receipt says it replaced a void record and why. A record whose
+`ESTALE` is the kernel's own statement that the recorded inode is gone, an unlinked object or a different generation
+(F29), and, with it, that every mount at that dentry was detached in every namespace (F11). Before it binds, the
+handler reads the record; where the handle gives `ESTALE` and no row in the host mount table names the folder path,
+it replaces the record with one describing the folder it is about to bind, under the write rule of this section, and
+its receipt says it replaced a void record and why. A record whose
 handle resolves is never void, whatever the folder's identity now is: a resolving handle means the recorded inode
 lives, and a folder renamed from a foreign namespace keeps its handle (F29), so such a record is kept and reported,
 and a removal refuses while it stands, because the mount it may name is still somebody's. The wrapper unlinks no record
