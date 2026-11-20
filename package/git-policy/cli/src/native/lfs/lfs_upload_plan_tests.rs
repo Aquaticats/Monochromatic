@@ -578,6 +578,14 @@ fn the_awaited_face_of_the_plan_asks_and_answers_as_the_synchronous_face_does() 
 ///  A destination that is a URL is no LFS endpoint:
 ///  `git lfs push` takes a remote name and not a URL (`commands/command_push.go`),
 ///  so the configuration answers and nothing about the URL does.
+///  An empty `url.<base>.insteadOf` value is left out on purpose:
+///  Git rewrites with it (`git remote get-url --push` shows the replacement prepended to the whole URL),
+///  and git-lfs does not, because its rewrite applies only a matched alias longer than nothing
+///  (`lfsapi/endpoint_finder.go:361-378`),
+///  so the host git-lfs contacts with such a configuration is the unrewritten one.
+///  Measured with git-lfs 3.8.1: `git lfs env` printed `Endpoint=https://alias.invalid/repo.git/info/lfs` for an
+///  empty alias under `https://127.0.0.1:13/`, while `git remote get-url --push` printed
+///  `https://127.0.0.1:13/https://alias.invalid/repo.git`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -686,6 +694,24 @@ fn the_plan_names_the_lfs_server_of_its_destination() {
             ],
             vec!["upstream", "main"],
             Some("127.0.0.1:39503"),
+        ),
+        (
+            "an empty alias value is never applied, as git-lfs reads its own table",
+            vec![
+                ("lfs.url", "https://alias.invalid/lfs"),
+                ("url.https://127.0.0.1:39504/.insteadof", ""),
+            ],
+            vec!["origin", "main"],
+            Some("alias.invalid"),
+        ),
+        (
+            "the positive control: the same base with the alias it names rewrites the endpoint",
+            vec![
+                ("lfs.url", "https://alias.invalid/lfs"),
+                ("url.https://127.0.0.1:39505/.insteadof", "https://alias.invalid/"),
+            ],
+            vec!["origin", "main"],
+            Some("127.0.0.1:39505"),
         ),
         (
             "a destination that is a URL is not an endpoint of its own",

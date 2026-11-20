@@ -18,7 +18,7 @@
 //!  which git-lfs's own help describes as "Skips installation of hooks into the local repository;
 //!  use if you want to install the LFS filters but not make changes to the hooks",
 //!  and the wrapper says in one notice what the person would otherwise have to work out:
-//!  the filters were written and no hook is needed here.
+//!  where this command's filters go and that no hook is needed here.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -62,6 +62,37 @@ fn boolean_value(text: &str) -> Option<bool> {
 fn long_boolean(text: &str, option: &str) -> Option<bool> {
     let value: &str = text.strip_prefix(option)?.strip_prefix('=')?;
     return boolean_value(value);
+}
+
+/// What:
+///  The booleans one group of short options sets,
+///  in the order pflag reads them.
+/// Why:
+///   pflag reads a group letter by letter,
+///  and a `=` after a letter gives that letter its value and ends the group:
+///  `-l=false` withdraws `--local`,
+///  and `-lw=false` sets `--local` while withdrawing `--worktree`.
+///  A value no pflag boolean spells sets nothing, as `boolean_value` reads it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function shortBooleanSettings(letters: string): Array<[letter: string, value: boolean]>
+/// ```
+fn short_boolean_settings(letters: &str) -> Vec<(char, bool)> {
+    let mut settings: Vec<(char, bool)> = Vec::new();
+    let mut remaining: &str = letters;
+    while let Some(letter) = remaining.chars().next() {
+        let after: &str = remaining.strip_prefix(letter).unwrap_or_default();
+        if let Some(text) = after.strip_prefix('=') {
+            if let Some(value) = boolean_value(text) {
+                settings.push((letter, value));
+            }
+            return settings;
+        }
+        settings.push((letter, true));
+        remaining = after;
+    }
+    return settings;
 }
 
 /// What:
@@ -110,10 +141,13 @@ pub fn with_skip_repo(arguments: Vec<OsString>, in_a_repository: bool) -> (Vec<O
 ///  the global file by default,
 ///  `--local` this repository's `.git/config`,
 ///  `--worktree` this worktree's configuration while Git's `extensions.worktreeConfig` is set,
-///  and this repository's `.git/config` when it is not (git-lfs's own help says "the same as `--local`" then),
+///  this repository's `.git/config` when it is not and the repository holds one worktree,
+///  and nothing at all when it is not and the repository holds several (Git refuses that write and git-lfs ends with
+///  status 2),
 ///  `--system` the system file,
 ///  and `--file <path>` that file.
-///  The scope is read from the words so the notice can name the file that really holds the keys,
+///  The scope is read from the words so the notice can name where the keys go,
+///  or, for `--worktree`, every place Git may put them,
 ///  rather than calling every scope global.
 ///
 /// In TS you'd write (pseudocode):
@@ -150,6 +184,8 @@ impl InstallScope {
     ///  A long option's `=value` is read as pflag reads it:
     ///  `--local=true` asks for that scope and `--worktree=false` withdraws it,
     ///  with the last value of one option winning.
+    ///  A short form's `=value` is read as pflag reads it too:
+    ///  `-l=false` withdraws `--local` and `-lw=false` sets `--local` while withdrawing `--worktree`.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -186,10 +222,10 @@ impl InstallScope {
             } else if text == "--system" {
                 system = true;
             } else if let Some(letters) = text.strip_prefix('-').filter(|letters| { return !letters.starts_with('-'); }) {
-                for letter in letters.chars() {
+                for (letter, value) in short_boolean_settings(letters) {
                     match letter {
-                        'l' => local = true,
-                        'w' => worktree = true,
+                        'l' => local = value,
+                        'w' => worktree = value,
                         _other => {}
                     }
                 }
@@ -232,10 +268,12 @@ impl InstallScope {
                 manual = value;
             } else if text == "--manual" {
                 manual = true;
-            } else if let Some(letters) = text.strip_prefix('-').filter(|letters| { return !letters.starts_with('-'); })
-                && letters.contains('m')
-            {
-                manual = true;
+            } else if let Some(letters) = text.strip_prefix('-').filter(|letters| { return !letters.starts_with('-'); }) {
+                for (letter, value) in short_boolean_settings(letters) {
+                    if letter == 'm' {
+                        manual = value;
+                    }
+                }
             }
         }
         return manual;
@@ -245,8 +283,12 @@ impl InstallScope {
     ///  Where this scope writes the keys,
     ///  as a person reads it.
     /// Why:
-    ///   The notice names the file the keys really went to,
+    ///   The notice names the file the keys go to,
     ///  so a person who reads their global file and finds nothing knows where to look.
+    ///  `--worktree` is the one scope the wrapper cannot answer without asking Git,
+    ///  and it asks nothing on every `git lfs install`:
+    ///  so it names each outcome Git chooses instead,
+    ///  including the one where Git refuses and writes no file.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -257,8 +299,10 @@ impl InstallScope {
             InstallScope::Global => String::from("your global configuration"),
             InstallScope::Local => String::from("this repository's `.git/config`"),
             InstallScope::Worktree => String::from(
-                "this worktree's configuration (`.git/config.worktree`) while `extensions.worktreeConfig` is set, and \
-                 this repository's `.git/config` when it is not (git-lfs then writes where `--local` does)",
+                "this worktree's configuration (`config.worktree` in this worktree's Git directory) while \
+                 `extensions.worktreeConfig` is set, this repository's `.git/config` when it is not and the repository \
+                 holds one worktree, or no file at all when it is not and the repository holds several, where Git \
+                 refuses the write and git-lfs ends with status 2",
             ),
             InstallScope::System => String::from("the system configuration"),
             InstallScope::File(path) => format!("`{path}`"),
@@ -272,7 +316,7 @@ impl InstallScope {
 ///   The command then says only "Git LFS initialized.",
 ///  which does not say that no hook was installed or that none is needed,
 ///  and the person who ran it in a repository is the one who would wonder.
-///  It names where the keys were written,
+///  It names where the keys go,
 ///  the hooks that were not,
 ///  and the step that replaces them;
 ///  and a run with `--manual` says why the instructions that option asks for are not printed:
@@ -281,12 +325,13 @@ impl InstallScope {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `monochromatic-git-policy-cli: \`git lfs install\` ran with \`--skip-repo\` ... The \`filter.lfs.*\` keys were written to ${where} ...`
+/// `monochromatic-git-policy-cli: \`git lfs install\` ran with \`--skip-repo\` ... The \`filter.lfs.*\` keys go,
+/// as this command asked, to ${where} ...`
 /// ```
 fn notice(scope: InstallScope, manual: bool) -> String {
     let mut text: String = format!(
         "monochromatic-git-policy-cli: `git lfs install` ran with `--skip-repo`, which the wrapper adds. The `filter.lfs.*` \
-         keys were written to {}, as this command asked. The wrapper does not run traditional hooks, \
+         keys go, as this command asked, to {}. The wrapper does not run traditional hooks, \
          and it uploads the Git LFS objects itself before each push, so no `pre-push` hook is installed in this repository and \
          none is needed; the `post-checkout`, `post-commit` and `post-merge` hooks it would install are not needed here \
          either. Without the option git-lfs tries to write its hooks into the directory the wrapper disables, which fails \

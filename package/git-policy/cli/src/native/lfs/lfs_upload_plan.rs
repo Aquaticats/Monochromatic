@@ -348,8 +348,8 @@ pub(crate) fn lfs_destination(remote: &OsStr, directory: &Path, configured: bool
 ///  a path) answers nothing,
 ///  so the stop falls back to the words of the program that saw the server.
 ///  Every endpoint is rewritten through the URL alias tables before its host is read,
-///  as git-lfs rewrites it before parsing (`NewEndpoint` calls `ReplaceUrlAlias`,
-/// `lfsapi/endpoint_finder.go:222` and `:331-343`):
+///  as git-lfs rewrites it before parsing (`NewEndpoint` calls it, `lfsapi/endpoint_finder.go:234-235`;
+///  `ReplaceUrlAlias`, `:345-357`):
 ///  `url.<base>.pushInsteadOf` first for an upload,
 ///  `url.<base>.insteadOf` after it,
 ///  so the stop names the host the upload contacted rather than the alias it was configured with.
@@ -404,10 +404,16 @@ pub fn lfs_server_of(remote: &OsStr, all: &[(String, String)]) -> Option<String>
 ///  as `(alias, replacement)` pairs.
 /// Why:
 ///  `url.<base>.pushInsteadOf` and `url.<base>.insteadOf` rewrite a URL before git-lfs parses it
-///  (`lfsapi/endpoint_finder.go:222`),
-///  and an upload reads the push table first and the fetch table after it (`ReplaceUrlAlias`, `:331-343`).
+///  (`lfsapi/endpoint_finder.go:234-235`),
+///  and an upload reads the push table first and the fetch table after it (`ReplaceUrlAlias`, `:345-357`).
 ///  A key's base is the replacement and its value is the alias;
-///  a later value of one alias wins, as it does in git-lfs's own table (`storeAlias`, `:380-393`).
+///  a later value of one alias wins, as it does in git-lfs's own table (`storeAlias`, `:399-407`).
+///  An empty alias is left out because git-lfs never applies one:
+///  it keeps the empty value and rewrites only when the longest matching alias is longer than nothing
+///  (`replaceUrlAlias`, `:361-378`),
+///  so the endpoint it contacts is the unrewritten URL;
+///  Git does rewrite it (`git remote get-url --push` shows the replacement), and this table follows git-lfs because
+///  git-lfs is the program that makes the request.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

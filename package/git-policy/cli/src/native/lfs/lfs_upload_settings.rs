@@ -114,7 +114,7 @@ pub struct PlanError(pub String);
 /// (git-lfs 3.8.1,
 /// `lfsapi/endpoint_finder.go:99` and `:128`),
 /// and `url.<base>.insteadOf` and `url.<base>.pushInsteadOf` rewrite that endpoint before it is read
-/// (`:222` and `:331-343`).
+/// (`:234-235` and `:345-357`).
 pub const SETTINGS_REGEXP: &str =
     "^(branch\\..*\\.(pushremote|remote)|remote\\.pushdefault|remote\\..*\\.(push|pushurl|mirror|url|lfsurl|lfspushurl)|push\\.default|url\\..*\\.(pushinsteadof|insteadof)|lfs\\.(url|pushurl))$";
 

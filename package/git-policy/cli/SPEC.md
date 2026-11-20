@@ -9771,8 +9771,17 @@ in-process reader can) gives every value of the multi-valued keys.
   the last `remote.<name>.pushurl` and `remote.<name>.url`,
   then the same four of `origin` when the named remote answered nothing.
   Each endpoint is rewritten through `url.<base>.pushInsteadOf` and then `url.<base>.insteadOf` before its host is read,
-  as git-lfs rewrites it before parsing (`:222` and `:331-343`),
+  as git-lfs rewrites it before parsing (`:234-235` and `:345-357`),
   and a later value of one key wins, as git-lfs reads its configuration (`config/git_fetcher.go:121-128`).
+  An empty `url.<base>.insteadOf` value rewrites nothing here,
+  because git-lfs itself applies only a matched alias longer than nothing
+  (`replaceUrlAlias`, `:361-378`),
+  while Git rewrites with it:
+  measured with git-lfs 3.8.1,
+  `git lfs env` printed `Endpoint=https://alias.invalid/repo.git/info/lfs` for an empty alias under
+  `https://127.0.0.1:13/`,
+  and `git remote get-url --push` printed `https://127.0.0.1:13/https://alias.invalid/repo.git`.
+  The plan keeps git-lfs's answer because git-lfs is the program that makes the request.
   Measured against git-lfs 3.8.1 on this host:
   with `lfs.pushurl` and `lfs.url` both set the batch request went to `lfs.pushurl`,
   and with `lfs.url` and `remote.origin.lfsurl` both set it went to `lfs.url`.
@@ -11850,10 +11859,9 @@ which fails with `mkdir /dev/null: not a directory`,
 ends the command with status 2,
 and advises `git lfs update --manual` or `--force`,
 neither of which can work while that directory cannot exist.
-The `filter.lfs.*` keys are written either way,
-which is all the wrapper's own upload needs,
-and one notice before git-lfs runs says so:
-the keys were written,
+The `filter.lfs.*` keys are what the wrapper's own upload needs,
+and one notice before git-lfs runs says where this command asks for them:
+the keys go to the scope it names,
 the wrapper runs the upload itself before each push,
 no `pre-push` hook is installed in this repository and none is needed,
 and the `post-checkout`,
@@ -11863,11 +11871,17 @@ because the keys do not always go to the global file:
 `--local` writes this repository's `.git/config`,
 `--system` the system file,
 `--file <path>` that file,
-and `--worktree` this worktree's configuration (`.git/config.worktree`) while `extensions.worktreeConfig` is set,
-and this repository's `.git/config` when it is not,
-where git-lfs's own help says the option is "the same as `--local`"
-(`commands/command_install.go:40-58` and `lfs/attribute.go:154-190`;
-measured with git-lfs 3.8.1 and read back through `git config --file <p> --list`).
+and `--worktree` writes `config.worktree` in this worktree's Git directory while `extensions.worktreeConfig` is set
+(`<repo>/.git/config.worktree` in the main worktree and `<repo>/.git/worktrees/<name>/config.worktree` in a linked one),
+this repository's `.git/config` when it is not and the repository holds one worktree,
+and no file at all when it is not and the repository holds several,
+where Git refuses the write and git-lfs ends with status 2
+(`commands/command_install.go:40-58`,
+`lfs/attribute.go:154-190` and `git/config.go:137-140`;
+measured with git-lfs 3.8.1 and plain `git` 2.56.1,
+every file read back through `git config --file <p> --list`,
+and `src/native/binary/binary_lfs_install_tests.rs` pins all four layouts against Git's own
+`git config --worktree`).
 A run with `--manual` is told why the hook instructions it asked for are not printed:
 they are instructions for merging a hook this wrapper installs nowhere and never runs.
 Outside a repository the command is forwarded as it was typed (git-lfs writes no hook there),
