@@ -757,7 +757,9 @@ the pick is not made here.
   the time this entry was written,
   which no commit can carry:
   a label written into a commit cannot name that commit's own time or hash.
-  The commits this round made before this entry are named by the commit that follows it.
+  The commit that carries the body this entry records is `22006100f1`
+  at 2026-11-20T14:18:23-05:00,
+  and the commit that carries this sentence names it.
   This is the revision that runs the first item Q1 lists,
   the finalist validation of the three eligible finalists,
   and records it under [Finalist validation](#finalist-validation).
