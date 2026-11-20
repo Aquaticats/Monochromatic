@@ -356,7 +356,7 @@ Tradeoffs:
   nothing starts Fcitx at login until the override is deleted.
 - Changes the Fcitx package makes to its autostart entry no longer apply for this user.
 
-### Open gap: `XMODIFIERS`
+### `XMODIFIERS` for XWayland applications
 
 No inspected session process carried `XMODIFIERS`,
 `GTK_IM_MODULE`,
@@ -365,8 +365,26 @@ No inspected session process carried `XMODIFIERS`,
 Fcitx's Plasma setup asks for `XMODIFIERS=@im=fcitx` for XWayland applications ([Fcitx Wayland guide][wayland-xmodifiers]),
 and `rg XMODIFIERS` over KWin's `src/` found no code that sets it.
 Typing in an XWayland application was not tested.
-The variable was not set in this session;
-whether to set it is the user's decision.
+
+The user chose to set it for the whole session,
+over per-application launchers or leaving it unset:
+
+```ini
+# ~/.config/environment.d/60-fcitx-xmodifiers.conf
+XMODIFIERS=@im=fcitx
+```
+
+Running `/usr/lib/systemd/user-environment-generators/30-systemd-environment-d-generator`
+after the write emitted `XMODIFIERS=@im=fcitx`.
+The value reaches applications only from the next login,
+which was not tested.
+Plasma's replacement of `PATH` at login ([plasma-overwrites-environment-d-path.md](plasma-overwrites-environment-d-path.md))
+concerns a variable the login environment already carries;
+whether `XMODIFIERS` reaches applications launched from Plasma is unverified until a login.
+
+Tradeoff:
+every application started in the session sees `XMODIFIERS`,
+including X11 applications that would otherwise ignore Fcitx.
 
 ### What does not work
 
