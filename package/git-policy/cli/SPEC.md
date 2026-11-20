@@ -6690,7 +6690,8 @@ and its reader gets OpenSSH's and Git's own words alone.
 Signing a commit or a tag with an SSH key whose passphrase no agent holds fails the same way,
 with OpenSSH's own `incorrect passphrase supplied to decrypt private key?`
 (`load_identity` reads `read_passphrase(prompt, RP_ALLOW_STDIN)` at `ssh-keygen.c:309`,
-so the terminal is not read),
+and `force` sends that question to the program,
+which answers nothing),
 and the same remedies apply:
 start an agent and load the key,
 or sign with a key without a passphrase.
