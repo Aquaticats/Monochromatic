@@ -621,6 +621,56 @@ the pick is not made here.
   The prose checker ran clean and its control moved every count it targets, under
   [The prose checks](#the-prose-checks).
   No product file, no plan step and no proposal step is edited here.
+- `2026-11-19T23:08:29-05:00`, the time this entry was written, which no commit can carry: a label
+  written into a commit cannot name that commit's own time or hash. The commits this round made
+  before this entry are `64bbc146b8` at 23:03:27, `45455bb4b6` at 23:03:57, `6cee8c168d` at
+  23:04:46, `e730648a86` at 23:05:24, `136e3fb202` at 23:06:45 and `7219884657` at 23:08:16, each
+  time the commit's own committer date and the worktree reflog's, to the second; no
+  `GIT_AUTHOR_DATE`, `GIT_COMMITTER_DATE` or `--date` was set for any of them. They are the
+  revision that answers the narrow gate check of the fourth revision, kept at
+  `~/temp/agent/zfs-runtime-layout-checker-design-fourth-revision-narrow-gate-check-2026-11-19/keep/review.md`.
+  That check is independent of this file's author (rule `IRW`) and is not an approval; it found no
+  high finding, one medium and nine lows, and called the file not ready for the project.
+  The medium: the fourth revision entry's commit times were the recorded dates, not the times the
+  commits were made. Its five commits were pushed and are not rewritten, so `64bbc146b8` corrects
+  the entry in place: it names all five with the times the worktree's reflog recorded, and says once
+  that the recorded dates were set by hand and are not when they were made, as the corrective
+  comment 210970301 on `71829d109c` records.
+  The Q2 evidence, lows 1 to 4: [the release string](#the-release-string-q2) says `SET_PROP` reaches
+  the eight in three ways, five through `zfs_set_prop_nvlist`, one through its own handler and two
+  through its 2.4.4 policy, and that a clone created with properties reaches the five; `snapdev` and
+  `volmode` are filesystem properties whose routing changed at 2.3.0, where 2.2.2 called the two
+  functions 2.3.0 folds into `zvol_set_common`, and what that does to a filesystem dataset is
+  unread; the callee list gains `zvol_set_common`, so it matches the run that diffed its body; the
+  sweep nonce is a second user property and the clone `props` route is conditional on the delegated
+  creation path; and the clone path's count is credited to the gate re-check's clone-handler run,
+  which this revision read rather than re-ran.
+  Step 2, low 5: owed measurement item 11 states the requirement as the plan's, with its lines on
+  `main` at `6c838ba11f`, and gives step 2's standing at `08c9dea25f`, read at
+  2026-11-19T23:04:00-05:00, so the next change to step 2 leaves that paragraph true as a dated
+  record; the four other places that described step 2 as it stood at `4c7a347ea2` and `13bc5036d2`
+  say the same, and the fourth revision's entry notes that `13bc5036d2` was three commits behind the
+  tip.
+  Items 5 and 6, lows 6 and 7: item 5 is the only arm that asserts a pass on the 32-byte shape,
+  item 10 reaches the same pair without asserting one, its negative control is the byte edit that
+  moves the two members as item 16's patch would, and the 24-byte header a 6.8 guest's tools write
+  is expected and unmeasured in all three places that state it.
+  The re-confirmed answer and the veto-open choices, lows 8 and 9: the follow-up answer sits inside
+  the list item that contains "LAYOUT CHECKER REVIEW ENDED" and does not begin with it; the three
+  options quote the handover's words and name where the design expands them; the costs are the
+  design's; option 3's cost is the kernel-release analogy; the folder name has its reason and the
+  alternative `compatibility_gate`; both absent-identity rules stand open to veto in the read order
+  and in the writer list; the header and the writer list no longer count three rules, and list the
+  cache among those open to veto; the BTF file's time is consistent with a move without a reload;
+  and the all-absent case says the cache keeps its verdict while each file's identity holds, so a
+  stale pass is possible there and the sentence about needless parses says so.
+  Every amendment line was re-measured against `main` at `6c838ba11f`, the commit this revision
+  read, and the four-line move a merge made in the plan shows: "Open items" at 764 to 766, "What it
+  builds" at 715 to 719 with `module release,` on 716, and the "VM measurements" sentence at 754 to
+  757. Every quotation is still word for word there.
+  The prose checker ran clean and its control moved every count it targets, under
+  [The prose checks](#the-prose-checks).
+  No product file, no plan step and no proposal step is edited here.
 
 ### Sources read
 
@@ -859,17 +909,17 @@ is the list marker of the `README.md` bullet quoted in
 Its ALL CAPS hits include the two quoted markers of the main checkout's handover paragraphs,
 "THE ROUND WAS ASKED" and "LAYOUT CHECKER REVIEW ENDED", which are a record's own words.
 This revision's counts: dashes 0, spaced hyphens 5, long lines 0 with the longest at 116, tables 0,
-heading issues 0, positional words 25, emphasis 0, ALL CAPS words 21, marker padding 0,
-bare dates 61, count words 261, digit-plus-noun hits 67 and link problems 0.
-ALL CAPS words went from 19 to 21, for the quoted markers and these sentences about them, and
-count words from 250 to 261 as the file grew; the rest held the counts the revision before it
+heading issues 0, positional words 25, emphasis 0, ALL CAPS words 22, marker padding 0,
+bare dates 61, count words 275, digit-plus-noun hits 67 and link problems 0.
+ALL CAPS words went from 19 to 22, for the quoted markers and these sentences about them, and
+count words from 250 to 275 as the file grew; the rest held the counts the revision before it
 recorded.
 
 Control: the same checker on a copy in this round's scratch folder with one injected defect per
 prose rule moved every count it targets: dashes 0 to 1, spaced hyphens 5 to 6, long lines 0 to 1
 with the longest at 200, tables 0 to 3, heading issues 0 to 2, positional words 25 to 26,
-emphasis 0 to 1, ALL CAPS words 21 to 22, marker padding 0 to 1, bare dates 61 to 62, count words
-261 to 263 and digit-plus-noun hits 67 to 68.
+emphasis 0 to 1, ALL CAPS words 22 to 23, marker padding 0 to 1, bare dates 61 to 62, count words
+275 to 277 and digit-plus-noun hits 67 to 68.
 Link problems rose from 0 to 26: 22 of them are the copy's own folder breaking the relative links to
 the sibling design files, and the other four are the injected missing anchor, the injected link to
 a file that does not exist, and the injected unused definition, which counts once as unused and
