@@ -7,7 +7,8 @@ dies by `SIGKILL` itself when its timer fires.
 answered that death as the command's own ending whenever the exit reached the wait before the wait's
 deadline ran out,
 so a control read `code: None` with no bound verdict instead of the verdict it asserts (issue 6324).
-What host load does to the same harness bound is
+The harness also runs a hang guard of its own;
+what host load does to that is
 [native binary tests hit the shared bound under host load](native-binary-tests-hit-the-shared-bound-under-host-load.md).
 
 ## Symptom
@@ -51,8 +52,9 @@ its ignore of the signal,
 and its re-raise behave the same.
 The two files differ in ptrace handling,
 in the order `cleanup` sends signals and prints diagnostics,
-and in `send_sig`'s shape,
-and no conclusion below rests on those.
+in `send_sig`'s shape,
+and in smaller edits;
+no conclusion below rests on any of them.
 The harness names `/usr/bin/timeout` by its absolute path,
 so the `timeout-cli` that can come first on `PATH` never runs here
 ([timeout-cli consumes flags right after the command](timeout-cli-consumes-flags-right-after-command.md)).
