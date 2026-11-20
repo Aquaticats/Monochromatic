@@ -40795,6 +40795,13 @@ stated in this entry. What follows from them, as work:
   (the sensitivity rule literally unmet on the `btf-rs` against `ebeepf` pair, so "recommend none") recorded as the
   project's to take; limits `aarch64` unrun and the start cost unmeasured. GOING: its gate review on Sonnet (brief under
   `~/temp/agent/gate-review-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/`), then the reader question to the owner.
+  THE MISE PACKAGE ROUND ended at `c9793c6165`: the 31 package parser bodies in 16 files and the root `try` task carry the
+  marker and recover their words from the shared root vars (no copy in any package file); each red then green under a stub
+  that records child-process and file-write calls; the unit test holds every package body to the marker (red with one
+  removed). Left, measured and documented: 60 package tasks with a usage spec, an inline body and no shared parser still
+  break on `-- --help`, and a task with no usage spec gets every argument pasted; they need their own recovery design.
+  GOING: its integration pass on Sonnet (brief under
+  `~/temp/agent/integration-pass-mise-usage-args-reach-the-node-scripts-2026-11-20/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
