@@ -7,7 +7,7 @@ it is not the project's
 acceptance of step 2,
 and the owner alone decides that.
 
-It records the three checks the plan's "How it merges" names for step 2
+It records the checks the plan's "How it merges" names for step 2
 ([`cli-git-zfs-worktree-implementation-plan.md`](../../../../doc/planning/cli-git-zfs-worktree-implementation-plan.md),
 "How it merges" and "Step 2"):
 the tests and Clippy in the package's gate image,
@@ -15,6 +15,9 @@ the tests and Clippy in the package's gate image,
 the bounded fuzz smoke,
 and the repository linter;
 then the guest recipe that is the step's own acceptance.
+The fuzz smoke is the one the earlier integration pass could not run,
+so this round closes the merge sentence
+"the bounded fuzz smoke passes" with its own run.
 The live arms' measured values are in
 [`guest-measurements-2026-11-19.md`](guest-measurements-2026-11-19.md);
 this file records the checks around them.
@@ -37,7 +40,7 @@ Every check ran as
 with the worktree mounted read-only at `/work`,
 a scratch `CARGO_TARGET_DIR`,
 and `CARGO_NET_OFFLINE=true`.
-The two `cargo fmt --check` runs took `--cpus 2`;
+The two `cargo fmt --check` checks ran with `--cpus 2`;
 the `file-enforcer write` check ran on a writable tracked-only copy instead of
 the read-only mount.
 The driver recorded each real exit status in
@@ -50,11 +53,18 @@ and each check's whole output is `container-<check>.log`:
    (the 30 are the `#[ignore]`d live tests).
 2. `cargo clippy --release --locked --offline --all-targets -- -D warnings`:
    exit 0.
-3. `cargo fmt --check` (crate): exit 0, no output.
-4. `cargo fmt --check` (sidecar): exit 0, no output.
-5. `RUSTDOCFLAGS=-Dwarnings cargo doc --no-deps --locked --offline`: exit 0.
-6. Sidecar `cargo check --locked --offline`: exit 0.
-7. Sidecar `cargo clippy --locked --offline -- -D warnings`: exit 0.
+3. `cargo fmt --check` (crate):
+   exit 0,
+   no output.
+4. `cargo fmt --check` (sidecar):
+   exit 0,
+   no output.
+5. `RUSTDOCFLAGS=-Dwarnings cargo doc --no-deps --locked --offline`:
+   exit 0.
+6. Sidecar `cargo check --locked --offline`:
+   exit 0.
+7. Sidecar `cargo clippy --locked --offline -- -D warnings`:
+   exit 0.
 8. `file-enforcer check` on the read-only worktree mount:
    exit 0,
    `check-clean`,
@@ -144,7 +154,8 @@ The recipe exited 0 and printed
 It took 5 min 30 s,
 from `mvm-create.log` to `mvm-list-after-destroy.log`.
 
-- Guest: kernel `6.8.0-147-generic`,
+- Guest:
+  kernel `6.8.0-147-generic`,
   OpenZFS userspace and module `2.4.4-1`,
   Git `2.43.0`,
   `pahole v1.25`,
@@ -153,7 +164,8 @@ from `mvm-create.log` to `mvm-list-after-destroy.log`.
   `cargo-nextest 0.9.152` (`final-guest-logs/versions.log`).
   The kernel release is asserted by `prepare`,
   and both toolchain versions are the constants the recipe installs.
-- Root suite: `Summary [   8.835s] 198 tests run: 198 passed, 9 skipped`
+- Root suite:
+  `Summary [   8.835s] 198 tests run: 198 passed, 9 skipped`
   (the 9 are the delegated arms,
   filtered out of the root run).
 - Account suite,
@@ -168,7 +180,8 @@ from `mvm-create.log` to `mvm-list-after-destroy.log`.
   `MEASUREMENT snapshot-ioctl `;
   `account-suite.log` has the `MEASUREMENT account ` lines,
   including the two the new arms print.
-- Teardown: `teardown.log` lists only the delegated pool `zfsstep2-account`,
+- Teardown:
+  `teardown.log` lists only the delegated pool `zfsstep2-account`,
   as documented;
   `mvm-destroy.log` records
   `VM zfs-step-2-findings-final destroyed`,
@@ -238,7 +251,8 @@ because each failed for a reason outside the arms:
   and the caps were raised for every later run.
 - `red-b-aborted-attempt-logs/` holds a run that started the recipe from the
   worktree while passing the red tree only as `--crate`.
-  The recipe is the worktree's, so its root filter was the shipped one and the
+  The recipe is the worktree's,
+  so its root filter was the shipped one and the
   root suite stopped before the account episode;
   the red copy's own recipe was then run instead.
 
