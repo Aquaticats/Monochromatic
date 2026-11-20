@@ -3,8 +3,9 @@
  green run has to hold.
 
  The gate's fixtures live on a tmpfs the container makes, so no fixture root there is a btrfs filesystem; each control
- that needs the btrfs ioctls prints `BTRFS CONTROL NOT RUN` and passes, so the container gate is green without them. The owner decided on 2026-11-10 that a real wrapper
- release waits for `native:test:host:btrfs` on a btrfs host and that a control which did not run fails it.
+ that needs the btrfs ioctls prints `BTRFS CONTROL NOT RUN` and passes, so the container gate is green without them. The
+ owner decided on 2026-11-10 that a real wrapper release waits for `native:test:host:btrfs` on a btrfs host and that a
+ control which did not run fails it.
  */
 //region The run and its deadline
 

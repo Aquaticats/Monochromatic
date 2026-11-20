@@ -1,0 +1,18 @@
+{
+  "file": "perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl",
+  "samples": 211,
+  "samplesWithFixtureBytes": 210,
+  "samplesWithoutFixtureBytes": 1,
+  "first": "2026-11-20T00:24:34.956Z",
+  "last": "2026-11-20T00:37:34.758Z",
+  "memoryMaxMiB": "2048.0",
+  "memoryPeakMiB": "1123.8",
+  "memoryCurrentMaxMiB": "953.1",
+  "fixtureBytesPeakMiB": "195.1",
+  "processPagesPeakMiB": "868.3",
+  "headroomForFixturesMiB": "1179.7",
+  "tmpfsCeilingMiB": 768,
+  "ceilingBelowHeadroomByMiB": "411.7",
+  "ceilingOverFixturePeak": "3.94",
+  "oomKills": 0
+}
