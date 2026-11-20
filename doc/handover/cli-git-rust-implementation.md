@@ -40531,7 +40531,15 @@ stated in this entry. What follows from them, as work:
   `pi-zfs-staging-under-cache-decision-record` (DeepSeek on Neuralwatt, cap 250), each merging `main`, writing
   `doc/decision/cli-git-zfs-<topic>.md` with the last check's lows fixed in its copy and the amendments the design
   names; briefs under `~/temp/agent/zfs-<topic>-decision-record-2026-11-20/`. Then each design branch merges into `main`
-  and its answered section leaves the questions file. STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
+  and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
+  (`doc/decision/cli-git-zfs-runtime-layout-checker.md`, the ten lows fixed in its copy, notes in the proposal's "ABI
+  gate and tests" and plan step 6, the binding README's gate list edited); the start-probe writer ended `idle` (102
+  turns) at `a3b6ad04b7` (`doc/decision/cli-git-zfs-start-probe.md`, seven lows, four in-place amendments to the plan and
+  the proposal). Both merged `main` cleanly; each report is in its folder's `keep/`. GOING: a short review of each on the
+  Qwen plan (`pi-short-review-zfs-layout-decision-record`, `pi-short-review-zfs-start-probe-decision-record`, watched to
+  the end), each in its own detached worktree `.claude/worktrees/review-zfs-<topic>-decision-record`; briefs under
+  `~/temp/agent/short-review-of-the-zfs-<topic>-decision-record-on-the-qwen-plan-2026-11-20/`. STEPS 3 AND 4, HOST
+  HALVES, GOING (the plan's "What can start now" lists both;
   their VM arms wait for step 2's recipe and their merges for the gate fix), each DeepSeek on Neuralwatt, cap 510,
   from `main` `d6e78c9e8b`: `pi-zfs-step-3-reflink-rung-recognition-host-half`
   (`.claude/worktrees/zfs-step-3-reflink-rung-recognition`, `feat/git-policy-cli-zfs-recognition-in-the-reflink-rung`;
