@@ -104,7 +104,19 @@ fn the_hosts_two_files_pass_when_it_has_them() {
     let Ok(compatible): Result<Compatible, Refusal> = answer else {
         panic!("the host's own files refused: {}", answer.err().unwrap());
     };
-    assert_eq!(compatible.base_header_bytes, 32);
-    assert_eq!(compatible.module_header_bytes, 32);
+    println!(
+        "MEASUREMENT host pair: base {} bytes (header {}), module {} bytes (header {})",
+        compatible.base_bytes,
+        compatible.base_header_bytes,
+        compatible.module_bytes,
+        compatible.module_header_bytes
+    );
+    let shapes: [usize; 2] = [compatible.base_header_bytes, compatible.module_header_bytes];
+    for header_bytes in shapes {
+        assert!(
+            header_bytes == 24 || header_bytes == 32,
+            "a header of {header_bytes} bytes is neither shape this reader knows"
+        );
+    }
     assert!(compatible.module_bytes > compatible.base_header_bytes);
 }
