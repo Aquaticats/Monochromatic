@@ -457,18 +457,15 @@ Read-only commands,
   The plan's own Git questions are bounded the same
    way,
   so a Git that never answers is stopped and named.
-  A push whose process has no controlling terminal uploads with `GIT_ASKPASS` set to the empty string and
+  Every push uploads with `GIT_ASKPASS` set to the empty string,
    `GIT_TERMINAL_PROMPT=0`,
+   `SSH_ASKPASS=false` and `SSH_ASKPASS_REQUIRE=force`,
+  whether or not its process has a controlling terminal,
   so a login it does not have fails at once instead of opening a desktop password window for nobody
    to answer,
-  and the refusal names the server and how to store a login in a credential helper (see "Git commands that may need a
-   login").
-  A push typed at a terminal keeps Git's and `git-lfs`'s own prompting.
-  That refusal says which prompting the wrapper left:
-  a push with a terminal is told the wrapper kept Git's and `git-lfs`'s own prompting and names a variable or setting
-   that would have refused the login,
-  and only a push without one is told the never-prompt pair was added,
-  so no person is sent to fix a missing terminal that was there.
+  and the refusal names the server,
+   says the wrapper never lets a command ask for a credential,
+   and says how to store a login in a credential helper (see "Git commands that may need a login").
   `--dry-run` pushes and the wrapper's own probes never upload.
   `--no-verify`,
   `GIT_LFS_SKIP_PUSH` and `-c hook.cli-git-lfs-pre-push.enabled=false` skip it.
@@ -5142,10 +5139,14 @@ fractional or non-numeric value is ignored.
   which is the login
    failure above,
   and no desktop password dialog opens for nobody to answer.
-  `SSH_ASKPASS` stays in the environment for OpenSSH's key passphrases,
-  and a command typed at a terminal keeps Git's own prompting
-   while one whose process has no controlling terminal gets the same pair,
-  because nobody can answer it.
+  OpenSSH reads neither of those,
+  so its own two variables name a program that prints nothing and exits non-zero (`SSH_ASKPASS=false`)
+   and send every question to it (`SSH_ASKPASS_REQUIRE=force`),
+   which reaches the questions OpenSSH asks at a terminal as well,
+  and a command typed at a terminal gets the same four variables as one whose process has no controlling terminal,
+  because no command the wrapper runs or forwards asks a person for a credential.
+  An SSH key whose passphrase no agent holds therefore fails at once, at a terminal or without one,
+   and the words say to run `ssh-add`.
   The evidence is in [the askpass troubleshooting note][askpass-dialog].
   The failure record the next command shows says that the service keeps trying,
   and goes when the push lands.
@@ -6626,12 +6627,23 @@ check them with `git diff --cached -- <file>`.
 ### Git commands that may need a login
 
 NDG:
- Git or git-lfs commands this package's tests,
-scripts or agents start that may reach a login set `GIT_ASKPASS` to the empty string and `GIT_TERMINAL_PROMPT=0`
+ Git,
+git-lfs or ssh commands this package's tests,
+scripts or agents start that may reach a login set `GIT_ASKPASS` to the empty string,
+ `GIT_TERMINAL_PROMPT=0`,
+ `SSH_ASKPASS=false` and `SSH_ASKPASS_REQUIRE=force`
  ([why][askpass-dialog]).
 
-Set only `GIT_TERMINAL_PROMPT=0` and the desktop's password dialog still opens on a host whose `SSH_ASKPASS` names one.
-In a Rust test that is `.env("GIT_ASKPASS", "").env("GIT_TERMINAL_PROMPT", "0")`.
+Set only `GIT_TERMINAL_PROMPT=0` and the desktop's password dialog still opens on a host whose `SSH_ASKPASS` names one;
+leave out the two OpenSSH variables and an `ssh://` remote still asks for a key's passphrase,
+which the owner counts as a credential (answer of 2026-11-19T16:58:00-05:00,
+"Passphrases count too");
+`SSH_ASKPASS_REQUIRE=never` alone stops the askpass program and not OpenSSH's own question at a terminal
+(measured through this wrapper at a real pseudo-terminal, 2026-11-19),
+so the rule names a program that answers nothing and tells OpenSSH to use it everywhere.
+In a Rust test that is
+`.env("GIT_ASKPASS", "")`, `.env("GIT_TERMINAL_PROMPT", "0")`,
+`.env("SSH_ASKPASS", "false")` and `.env("SSH_ASKPASS_REQUIRE", "force")`.
 A test that has to see the prompt program start (the controls in `src/native/landing/service_push_retry_tests.rs`) points
 both `GIT_ASKPASS` and `SSH_ASKPASS` at a recorder that answers a name,
 so no window opens,
@@ -6641,16 +6653,21 @@ naming only `SSH_ASKPASS` would leave the host's own `GIT_ASKPASS` to be the pro
 runs,
 and the recorder's empty log would then prove nothing.
 
-The wrapper adds the same pair to a forwarded command whose process has no controlling terminal
-(`invocation_overlay` in `src/native/invocation/child_environment.rs`).
-A control that compares a forwarded command's environment builds the pair from the same reading,
-`control_terminal()`
-(`expected_overlay` in `src/native/invocation/entry_tests.rs`).
-A control that froze the environment without the pair passed at a person's terminal and failed under a test runner,
+The wrapper adds the same four variables to every command it forwards
+(`no_prompt_overlay` and `invocation_overlay` in `src/native/invocation/child_environment.rs`),
+with or without a controlling terminal:
+the owner's answer of 2026-11-19T16:58:00-05:00 is that no command the wrapper runs or forwards asks for a credential.
+A control that compares a forwarded command's environment builds the rule from those two functions
+(`forward` in `src/native/invocation/entry_tests.rs`),
+so no control depends on the terminal the runner happens to have.
+That dependence used to be real:
+before this rule,
+a control that froze the environment without the pair passed at a
+person's terminal and failed under a test runner,
 an agent's shell or a container started without `--tty`,
-which is how the campaigns start theirs:
-`podman run --network=none <campaign image> sh -c tty` printed `not a tty`,
-and the `invocation::entry` group ran 36 tests with 10 of them failed on a clean tree (2026-11-10).
+which is how the campaigns start theirs (`podman run --network=none <campaign image> sh -c tty` printed `not a tty`,
+and the `invocation::entry` group ran 36 tests with 10 of them failed on a clean tree,
+2026-11-10).
 
 ### Controls that depend on timing
 

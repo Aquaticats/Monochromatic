@@ -1258,7 +1258,15 @@ fn a_background_lfs_upload_never_starts_the_hosts_askpass_program() {
         created: String::from("2026-11-07T07:00:00.000Z"),
         tries: 0,
     };
-    let plan: crate::lfs_upload_plan::UploadPlan = crate::lfs_upload_plan::UploadPlan { remotes: vec![std::ffi::OsString::from("origin")], refs: vec![std::ffi::OsString::from("main")], everything: false, submodules: false, full_scan: false, objects: None };
+    let plan: crate::lfs_upload_plan::UploadPlan = crate::lfs_upload_plan::UploadPlan {
+        remotes: vec![std::ffi::OsString::from("origin")],
+        refs: vec![std::ffi::OsString::from("main")],
+        everything: false,
+        submodules: false,
+        full_scan: false,
+        objects: None,
+        lfs_server: None,
+    };
     // The lookup of `git-lfs` takes the first `PATH` of the environment, so the stand-in's directory replaces the inherited one.
     let mut git: crate::auto_push_single_flight::PushGit = handlers.push_git(&item);
     git.environment.retain(|(name, _)| { return name != "PATH"; });

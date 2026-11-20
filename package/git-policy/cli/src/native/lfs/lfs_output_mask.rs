@@ -32,24 +32,28 @@
 //! angle bracket,
 //! backtick,
 //! white space or control character.
-//!  A path segment,
-//! a query key and a fragment key is kept only while it is a plain label:
+//!  A path segment is kept only while it is a plain label:
 //! the letters `a` to `z` and the separators `-`,
 //! `.`,
 //! `_` and `~` alone,
 //! which is what `lfs`,
 //! `objects`,
 //! `batch`,
-//! `info` and `repo.git` are.
+//! `info` and `repo.git` are,
+//! and none of its unbroken runs of lowercase letters is as long as
+//!  [`LONGEST_PLAIN_WORD`],
+//! because a token written in lowercase letters alone reads as a label otherwise.
+//! A query key and a fragment key are kept while they are a plain label.
 //! A token carries a capital,
 //! a digit,
 //! a percent encoding or another punctuation mark,
 //! and a value is a secret wherever it sits,
 //! so it is always hidden.
 //!  What this cannot do:
-//! a token that is made of lowercase letters alone reads as a label,
-//! so a path segment of that shape is not hidden here.
-//! Whether a whole path should be hidden instead is an open question for the owner.
+//! a token made of fewer than [`LONGEST_PLAIN_WORD`] lowercase letters alone still reads as a label,
+//! which the owner accepted when choosing this rule on 2026-11-19;
+//! and a query key of that shape is not hidden either,
+//! because the rule is about path words.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -58,6 +62,35 @@
 
 /// What replaces the userinfo of a URL and every other secret-shaped part of it.
 pub const CREDENTIALS_MASK: &str = "<credentials>";
+
+/// What:
+///  The longest run of lowercase letters a path segment may hold and still be printed as it stands:
+///  a longer unbroken word is a token and is replaced by [`CREDENTIALS_MASK`].
+/// Why:
+///  A token written in lowercase letters alone reads as a plain label under the rule above,
+///  and hiding every path segment after the host refused the names a person needs (`objects`,
+/// `info`,
+///  a repository's own name).
+///  The owner's answer of 2026-11-19T16:58:00-05:00 ("Hide long words only",
+///  `doc/handover/cli-git-rust-implementation.md`,
+///  the entry beginning "The owner answered H1 and M4") chose the length as the rule:
+///  twenty or more unbroken lowercase letters read as a token,
+///  and the cost the owner accepted is that a shorter lowercase token still prints.
+pub const LONGEST_PLAIN_WORD: usize = 20;
+
+/// Whether the mask this module writes starts at `offset` of `text`.
+/// Why:
+///   Masking runs again on text that was already masked,
+///  because the attempt the auto-push records is masked where it is made and
+///  once more where it is written down;
+///  and the mask holds the `>` and `<` this module reads as the end of a URL,
+///  so a second pass that did not know it over its own mask would cut the URL short and
+///  print the mask again beside it (`?token=<credentials><credentials>`) or drop a host.
+fn mask_starts_at(text: &[u8], offset: usize) -> bool {
+    return text
+        .get(offset..)
+        .is_some_and(|rest| { return rest.starts_with(CREDENTIALS_MASK.as_bytes()); });
+}
 
 /// What:
 ///  The part of a destination that names the server a person must recognize:
@@ -205,24 +238,38 @@ fn next_separator(text: &[u8], from: usize) -> Option<usize> {
 
 /// The end of the authority that starts at `from`:
 /// the first byte that ends one,
-/// or the end of the text.
+/// or the end of the text;
+/// a mask already written stands inside the authority as it stands.
 fn authority_end_of(text: &[u8], from: usize) -> usize {
-    for (offset, byte) in text[from..].iter().enumerate() {
-        if ends_authority(*byte) {
-            return from + offset;
+    let mut offset: usize = from;
+    while offset < text.len() {
+        if mask_starts_at(text, offset) {
+            offset += CREDENTIALS_MASK.len();
+            continue;
         }
+        if ends_authority(text[offset]) {
+            return offset;
+        }
+        offset += 1;
     }
     return text.len();
 }
 
 /// The end of the URL whose authority ended at `from`:
 /// the first byte that ends a URL in running text,
-/// or the end of the text.
+/// or the end of the text;
+/// a mask already written is part of the URL it stands in.
 fn url_end_of(text: &[u8], from: usize) -> usize {
-    for (offset, byte) in text[from..].iter().enumerate() {
-        if ends_url(*byte) {
-            return from + offset;
+    let mut offset: usize = from;
+    while offset < text.len() {
+        if mask_starts_at(text, offset) {
+            offset += CREDENTIALS_MASK.len();
+            continue;
         }
+        if ends_url(text[offset]) {
+            return offset;
+        }
+        offset += 1;
     }
     return text.len();
 }
@@ -251,6 +298,37 @@ fn is_plain_label(label: &[u8]) -> bool {
     return label.iter().all(is_label_byte);
 }
 
+/// What:
+///  Whether a label holds an unbroken run of lowercase letters as long as [`LONGEST_PLAIN_WORD`],
+///  which is what a token written in lowercase letters alone looks like.
+/// Why:
+///   The rule a person can check against a URL they wrote is one number:
+///  a word of that many letters is a token,
+///  a shorter one is a name (`objects`,
+/// `info`,
+/// a repository called `notes`);
+///  every byte that is not a lowercase letter breaks a word,
+///  so `repository-name.git` holds no long word.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// /[a-z]{20}/.test(label)
+/// ```
+fn has_a_long_word(label: &[u8]) -> bool {
+    let mut run: usize = 0;
+    for byte in label {
+        if byte.is_ascii_lowercase() {
+            run += 1;
+            if run >= LONGEST_PLAIN_WORD {
+                return true;
+            }
+        } else {
+            run = 0;
+        }
+    }
+    return false;
+}
+
 /// Append one label as it stands when it is plain,
 /// and the mask when it is not.
 fn push_label(label: &[u8], masked: &mut Vec<u8>) {
@@ -261,18 +339,28 @@ fn push_label(label: &[u8], masked: &mut Vec<u8>) {
     }
 }
 
-/// Append the path of a URL with every segment that is not a plain label masked.
+/// Append one path segment as it stands while it is a plain label of short words,
+/// and the mask when it is not.
+fn push_path_label(label: &[u8], masked: &mut Vec<u8>) {
+    if is_plain_label(label) && !has_a_long_word(label) {
+        masked.extend_from_slice(label);
+    } else {
+        masked.extend_from_slice(CREDENTIALS_MASK.as_bytes());
+    }
+}
+
+/// Append the path of a URL with every segment that is not a plain label of short words masked.
 fn push_masked_path(path: &[u8], masked: &mut Vec<u8>) {
     let mut from: usize = 0;
     loop {
         match path.get(from..).and_then(next_slash) {
             Some(offset) => {
-                push_label(&path[from..from + offset], masked);
+                push_path_label(&path[from..from + offset], masked);
                 masked.push(b'/');
                 from += offset + 1;
             }
             None => {
-                push_label(path.get(from..).unwrap_or_default(), masked);
+                push_path_label(path.get(from..).unwrap_or_default(), masked);
                 return;
             }
         }
@@ -438,6 +526,60 @@ pub fn mask_url_secrets(text: &[u8]) -> Vec<u8> {
 /// ```
 pub fn mask_url_secrets_text(text: &str) -> String {
     return String::from_utf8_lossy(mask_url_secrets(text.as_bytes()).as_slice()).into_owned();
+}
+
+/// Whether a byte ends a line.
+fn is_line_feed(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// What:
+///  The masked head of a run's output,
+///  and whether a cap kept only part of it.
+/// Why:
+///   The two are one answer:
+///  a caller that relays the text must say when it is not all of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type MaskedHead = { text: Uint8Array; cut: boolean };
+/// ```
+pub struct MaskedHead {
+    /// The masked bytes of the whole lines the cap holds.
+    pub text: Vec<u8>,
+    /// Whether the output was longer than the cap,
+    /// so `text` is its head and not all of it.
+    pub cut: bool,
+}
+
+/// What:
+///  The masked head of `text` that fits in `cap` bytes,
+/// and whether there was more.
+/// Why:
+///   A cap applied to the raw bytes cuts a URL in half,
+///  and half a URL hides no secret:
+///  a cut before the `@` of a userinfo keeps the front of a password,
+///  and the mask that runs afterwards cannot see a userinfo that is not there.
+///  So the cut falls on a line break and only whole lines are kept,
+///  which the mask reads as it reads any line,
+///  and the last line is dropped whole when it does not fit.
+///  What is dropped is said by the caller,
+///  so the person reading the output knows it is the head of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function maskUrlSecretsWithin(text: Uint8Array, cap: number): MaskedHead;
+/// ```
+pub fn mask_url_secrets_within(text: &[u8], cap: u64) -> MaskedHead {
+    let limit: usize = usize::try_from(cap).unwrap_or(usize::MAX);
+    if text.len() <= limit {
+        return MaskedHead { text: mask_url_secrets(text), cut: false };
+    }
+    let kept: usize = text
+        .get(..limit)
+        .and_then(|head| { return head.iter().rposition(is_line_feed); })
+        .map_or(0, |at| { return at + 1; });
+    return MaskedHead { text: mask_url_secrets(text.get(..kept).unwrap_or_default()), cut: true };
 }
 
 /// What:

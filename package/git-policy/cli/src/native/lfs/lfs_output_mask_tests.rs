@@ -243,6 +243,64 @@ fn a_token_in_the_path_of_an_lfs_url_is_hidden() {
     );
 }
 
+/// What:
+///  A path word of [`LONGEST_PLAIN_WORD`] or more unbroken lowercase letters is hidden,
+///  and the short labels a real LFS URL's path is made of stay as they are.
+/// Why:
+///   The owner's answer of 2026-11-19T16:58:00-05:00 ("Hide long words only",
+/// recorded in
+///  `doc/handover/questions-for-the-owner.md`) settled the audit's H1:
+///  a token made of lowercase letters alone read as a plain label and was printed and journaled,
+///  and hiding every path segment after the host was refused;
+///  so the length is the only rule,
+///  `objects`,
+/// `info`,
+/// `lfs`,
+/// `batch` and a repository's own short name stay readable,
+///  and the cost the owner accepted is that a shorter lowercase token still prints.
+///  The words are built from the constant,
+/// so a change to it moves the control with it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(masked(`https://h.invalid/${'a'.repeat(20)}/lfs`)).toBe(`https://h.invalid/${MASK}/lfs`)
+/// ```
+#[test]
+fn a_long_unbroken_word_in_a_path_is_hidden_and_short_labels_stay() {
+    let at_the_edge: String = "a".repeat(LONGEST_PLAIN_WORD - 1);
+    let at_the_limit: String = "a".repeat(LONGEST_PLAIN_WORD);
+    let longer: String = "a".repeat(LONGEST_PLAIN_WORD + 4);
+    assert_eq!(
+        masked(&format!("https://lfs.example.invalid/{at_the_edge}/lfs")),
+        format!("https://lfs.example.invalid/{at_the_edge}/lfs"),
+        "a word one letter under the limit is a label"
+    );
+    assert_eq!(
+        masked(&format!("https://lfs.example.invalid/{at_the_limit}/lfs")),
+        format!("https://lfs.example.invalid/{CREDENTIALS_MASK}/lfs"),
+        "a word at the limit is hidden"
+    );
+    assert_eq!(
+        masked(&format!("https://lfs.example.invalid/{longer}/objects/batch")),
+        format!("https://lfs.example.invalid/{CREDENTIALS_MASK}/objects/batch"),
+        "a longer word is hidden and the short labels after it stay"
+    );
+    // A word is broken by every byte that is not a lowercase letter, so a real folder name of short words stays.
+    let broken: String = format!("{short}.{short}", short = "a".repeat(LONGEST_PLAIN_WORD - 1));
+    assert_eq!(
+        masked(&format!("https://lfs.example.invalid/{broken}/lfs")),
+        format!("https://lfs.example.invalid/{broken}/lfs"),
+        "hyphens and dots break a word"
+    );
+    for plain in [
+        "https://lfs.example.invalid/objects/batch",
+        "https://lfs.example.invalid/repository-name.git/info/lfs",
+        "http://127.0.0.1:36437/silent.git",
+    ] {
+        assert_eq!(masked(plain), plain, "a path of short labels stays readable");
+    }
+}
+
 /// Every value of a query is hidden and every plain key stays,
 /// so a person still sees which settings the server was given.
 #[test]
@@ -310,6 +368,71 @@ fn a_long_line_of_tokens_is_hidden_in_linear_time() {
         assert!(!result.contains(canary), "{canary} survives in a line of 100000 URLs");
     }
     assert!(result.contains(&format!("https://{CREDENTIALS_MASK}@host/{CREDENTIALS_MASK}/lfs?token={CREDENTIALS_MASK} ")), "the masked shape is kept");
+}
+
+/// What:
+///  Masking text that was already masked changes nothing,
+///  and no mask is written twice.
+/// Why:
+///   The auto-push masks the upload's output where it makes the attempt and once more where it writes it down,
+///  and the second pass cut the URL at the mask's own `<`,
+///  printing `?token=<credentials><credentials>`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(mask(mask(text))).toBe(mask(text))
+/// ```
+#[test]
+fn masking_twice_leaves_the_text_as_masking_once() {
+    // Written from the parts, so the repository's credential scanner reads no URL userinfo here.
+    let with_userinfo: String = format!("batch response: Server error https://user:{}@lfs.example.invalid/objects/batch from HTTP 503", "planted-secret");
+    for text in [
+        with_userinfo.as_str(),
+        "batch response: Server error https://lfs.example.invalid/lfs?token=planted9query7value from HTTP 503",
+        "https://lfs.example.invalid/plantedpath55/lfs?token=CANARYQUERY7720&ref=main",
+        "Post \"ssh://git@host:22/repo.git\": refused",
+        "the push went to origin",
+    ] {
+        let once: String = masked(text);
+        assert_eq!(masked(once.as_str()), once, "{text}");
+        assert_eq!(once.matches(CREDENTIALS_MASK).count(), masked(once.as_str()).matches(CREDENTIALS_MASK).count(), "{text}");
+    }
+}
+
+/// What:
+///  The masked head of a run's output keeps whole lines only,
+///  and says whether the cap cut it.
+/// Why:
+///   A cap applied to the raw bytes cut the password of a URL in front of its `@`,
+///  and a userinfo the mask cannot see keeps the front of the password.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { text, cut } = maskUrlSecretsWithin(stderr, cap); expect(text).not.toContain('planted');
+/// ```
+#[test]
+fn a_capped_head_keeps_whole_lines_and_hides_a_url_the_cut_would_open() {
+    let secret: &str = "plantedsecretpassword";
+    let url: String = format!("https://user:{secret}@lfs.example.invalid/objects/batch");
+    // The filler holds no line break, so the URL's own line is the only complete one.
+    let filler: String = "x".repeat(64);
+    let whole: String = format!("first line\n{filler}{url}\nlast line\n");
+    let cap: u64 = u64::try_from(whole.len()).expect("a length");
+    let kept: MaskedHead = mask_url_secrets_within(whole.as_bytes(), cap);
+    assert!(!kept.cut, "the whole text fits");
+    assert_eq!(String::from_utf8_lossy(kept.text.as_slice()).into_owned(), masked(whole.as_str()));
+
+    // A cap that falls inside the URL keeps the line before it and drops that line whole.
+    let cut_at: u64 = u64::try_from("first line\n".len() + filler.len() + 12).expect("a length");
+    let cut: MaskedHead = mask_url_secrets_within(whole.as_bytes(), cut_at);
+    assert!(cut.cut, "the text is longer than the cap");
+    let shown: String = String::from_utf8_lossy(cut.text.as_slice()).into_owned();
+    assert_eq!(shown, "first line\n", "only the whole line before the cut is kept: {shown}");
+    assert!(!shown.contains("planted"), "no part of the password survives: {shown}");
+
+    // A cap inside a line that holds no break at all keeps nothing rather than half a URL.
+    let none: MaskedHead = mask_url_secrets_within(whole.as_bytes(), 4);
+    assert!(none.cut && none.text.is_empty(), "{:?}", String::from_utf8_lossy(none.text.as_slice()));
 }
 
 //endregion

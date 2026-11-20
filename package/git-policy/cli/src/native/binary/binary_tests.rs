@@ -508,6 +508,11 @@ mod push_stacking;
 #[path = "binary_lfs_pre_push_tests.rs"]
 mod lfs_pre_push;
 
+/// `git lfs install` through the executable:
+/// inside a repository it runs with `--skip-repo` and says why no hook is needed.
+#[path = "binary_lfs_install_tests.rs"]
+mod lfs_install;
+
 /// The parent that owns an LFS push explains a failed upload from Git's own trace,
 /// and no wrapper is started for it.
 #[path = "binary_lfs_parent_tests.rs"]
@@ -533,6 +538,11 @@ mod push_scope;
 /// The same upload with the real `git-lfs` against an LFS server written inline.
 #[path = "binary_lfs_server_tests.rs"]
 mod lfs_server;
+
+/// A typed command over `ssh://` at a real terminal asks no SSH key passphrase:
+/// the terminal shows the question for a control, and the wrapper's rule ends the run instead.
+#[path = "binary_ssh_terminal_tests.rs"]
+mod ssh_terminal;
 
 /// The configuration of a push,
 /// given on its command line,

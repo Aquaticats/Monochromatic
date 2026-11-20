@@ -143,13 +143,20 @@ pub(crate) fn traffic_clause(report: &StopReport) -> String {
 /// Why:
 ///   The floor is a setting and the window is not,
 /// so a person on a line slower than the floor is told which of the two to change.
+///  A connection that carried nothing is not that case:
+///  no line speed is what stopped it,
+///  no smaller number lets a server that sent nothing through,
+///  and offering the setting would remove the only bound there is
+///  (`package/git-policy/cli/SPEC.md`,
+///  "A connection that carried nothing keeps the older wording,
+///  which is the true one there: nothing moved").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `set ${PUSH_MINIMUM_RATE_VARIABLE} to a smaller number to let a slower line through`
+/// report.minimum === 0 || report.carried === 0 ? '' : `set ${PUSH_MINIMUM_RATE_VARIABLE} to a smaller number ...`
 /// ```
 pub(crate) fn floor_clause(report: &StopReport) -> String {
-    if report.minimum == 0 {
+    if report.minimum == 0 || report.carried == 0 {
         return String::new();
     }
     return format!(

@@ -29,9 +29,6 @@ use crate::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
 use crate::child_environment::{
     FORWARD_TARGET_VARIABLE, environment_value, invocation_overlay,
 };
-/// The two answers to "has this process a controlling terminal",
-/// which decides whether the overlay of a typed command carries the never-prompt pair.
-use crate::control_terminal::Terminal;
 use crate::effective_target::default_allowed_worktree_dirs;
 use crate::forwarding::replace_process_with_real_git;
 use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
@@ -222,7 +219,6 @@ pub fn plan_invocation(
         resolved.path,
         global_clean,
         &layout,
-        inputs.terminal,
     );
     // `.as_deref()` lends the optional owned notice as an optional borrowed one.
     return with_leading_notice(action, notice.as_deref());
@@ -240,7 +236,7 @@ pub fn plan_invocation(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function planWithRealGit(args: string[], environment: [string, string][], realGit: string, globalClean: string[], layout: GlobalLayout, terminal: Terminal): Action;
+/// function planWithRealGit(args: string[], environment: [string, string][], realGit: string, globalClean: string[], layout: GlobalLayout): Action;
 /// ```
 fn plan_with_real_git(
     arguments: &[OsString],
@@ -248,14 +244,13 @@ fn plan_with_real_git(
     real_git: PathBuf,
     global_clean: Vec<OsString>,
     layout: &GlobalLayout,
-    terminal: Terminal,
 ) -> Action {
-    // What: Every Git and git-lfs child of this invocation gets the overlay, and one whose process has no controlling terminal
-    //  is told never to prompt, so a missing login fails at once instead of opening a desktop dialog nobody can answer.
+    // What: Every Git and git-lfs child of this invocation gets the overlay, which tells it never to ask a person for a
+    //  credential, so a missing login fails at once instead of opening a desktop dialog nobody can answer.
     // Why:  The push itself, its LFS upload and the upload plan's questions all start from this one list, so no start added
-    //  later on this route can miss the pair.
-    let overlay: Vec<(OsString, OsString)> =
-        invocation_overlay(environment, real_git.as_path(), terminal);
+    //  later on this route can miss the rule. It is the same for every command: the owner's answer of 2026-11-19 is that
+    //  no command this wrapper runs or forwards asks for a username, a password or a key passphrase.
+    let overlay: Vec<(OsString, OsString)> = invocation_overlay(environment, real_git.as_path());
     // What: Top-level `--version`, `-v`, `--help` and `-h` run Git as a child and add the announcement.
     // Why:  The layout is already known here, so every other invocation pays one enum comparison;
     //       the other queries keep the exact process replacement below.

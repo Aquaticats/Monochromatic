@@ -361,6 +361,14 @@ recorded in `ad1802df3c` (2026-11-07T06:37:42-05:00):
   built with a test that first reproduces the dialog.
   Foreground commands the user types and the wrapper forwards keep Git's normal prompting.
   The work is on branch `fix/git-policy-cli-background-git-never-prompts`.
+  Superseded on 2026-11-19 for credentials:
+  the owner then answered
+  "Avoid ever asking for someone to type a username or password."
+  for every command,
+  terminal or not
+  (see "What this repository does about it" under
+  "An `ssh://` endpoint asks through `SSH_ASKPASS`"),
+  so the sentence above is the record of 2026-11-07 and no longer what the wrapper does.
 - Asked how agents should be kept from opening the dialog,
   the owner answered "Neither,
   rule pkg-local.":
@@ -420,9 +428,11 @@ The ten are `a_global_prefix_keeps_the_query_announced`,
 `policy_commands_outside_a_worktree_use_defaults`,
 `policy_commands_validate_configuration_then_run_policies` and
 `the_opt_out_and_short_circuit_forms_are_not_settled`.
-The expectation is `expected_overlay` now,
-which asks `control_terminal()` the way the plan does,
-so a session with a terminal and one without each check the overlay its own answer produces.
+The expectation then was `expected_overlay`,
+which asked `control_terminal()` the way the plan did,
+so a session with a terminal and one without each checked the overlay its own answer produced.
+`control_terminal()` and its module were deleted on 2026-11-19T19:08:41-05:00 (`9ec2a9980b`),
+because no command the wrapper runs or forwards prompts and no code asked the terminal any more.
 Measured on branch `fix/git-policy-cli-fsmonitor-off-for-the-wrappers-own-git`
 after it merged the jam-fix integration,
 with `mise run //package/git-policy/cli:native:test:host -- invocation::entry::`:
@@ -479,6 +489,261 @@ because the first constraint fails.
     there is no defect to fix upstream;
     the fix belongs in how we start Git.
 
+## An `ssh://` endpoint asks through `SSH_ASKPASS` (found 2026-11-19)
+
+### Symptom
+
+A service push or LFS upload to an `ssh://` endpoint still asked the desktop's password program,
+while the decision above said the service never asks anyone for a login.
+The audit's reproduction
+(`/home/user/temp/agent/lfs-path-of-main-audit-on-sonnet-2026-11-19/reproductions/F-ssh-askpass-still-opens-for-a-command-without-a-terminal/`)
+ran a typed push with no controlling terminal against a throwaway `sshd` on `127.0.0.1`,
+with a made-up passphrase-protected key and a recorder standing in for the dialog,
+and counted two questions:
+
+```text
+push exit 2; password-program questions: 2
+  asked: Enter passphrase for key '/…/F-ssh-askpass':
+```
+
+### Root cause
+
+OpenSSH reads neither `GIT_ASKPASS` nor `GIT_TERMINAL_PROMPT`.
+It reads `SSH_ASKPASS` and `SSH_ASKPASS_REQUIRE`
+([`readpass.c`][ssh-readpass]:
+`read_passphrase` takes the askpass program when the platform names one,
+when no terminal can be opened,
+or when the variable says `force`),
+so the pair that stops Git and `git-lfs` left OpenSSH free to ask.
+
+### What `SSH_ASKPASS_REQUIRE=never` does
+
+The host's OpenSSH 10.6p2 says of it
+([`ssh(1)`][ssh-man-askpass-require]):
+
+```text
+If this variable is set to "never" then ssh will never attempt to use one.
+If it is set to "prefer", then ssh will prefer to use the askpass program instead of the TTY when requesting passwords.
+Finally, if the variable is set to "force", then the askpass program will be used for all passphrase input regardless of whether DISPLAY is set.
+```
+
+An `ssh` probe with the same kind of key and recorder,
+run twice on 2026-11-19:
+
+```text
+=== without SSH_ASKPASS_REQUIRE: ssh exit 0; password-program questions: 1
+=== with SSH_ASKPASS_REQUIRE=never: ssh exit 255; password-program questions: 0; user@127.0.0.1: Permission denied (publickey).
+```
+
+That probe ran with no controlling terminal,
+so it measured the arm where `never` reaches OpenSSH's `use_askpass` fallback.
+At a terminal it does not,
+and the integration pass of 2026-11-19 measured that:
+`SSH_ASKPASS_REQUIRE=never` clears only `allow_askpass` in `read_passphrase`
+(`readpass.c` at `V_10_6_P2` lines 130 to 138),
+a key's passphrase question neither asks for the program nor may read standard input
+(143 to 167),
+so it opens `/dev/tty` and asks (185).
+
+### What `never` also turned off, at a command with no controlling terminal
+
+Measured on this host's OpenSSH 10.6p2 against a throwaway `sshd` of the same account on `127.0.0.1`,
+in a throwaway `HOME` and `XDG_RUNTIME_DIR`,
+with no controlling terminal,
+with a recorder standing in for the desktop's password program
+(`~/temp/agent/git-policy-cli-lfs-review-findings-and-owner-answers-fixed-2026-11-19/scratch/measure-openssh-askpass-never.ts`,
+`logs/openssh-askpass-never.txt` there).
+Each case ran in a `known_hosts` file of its own,
+because a control that accepted the key would hide the next question:
+
+```text
+=== unknown host key, StrictHostKeyChecking=ask, SSH_ASKPASS_REQUIRE=prefer (control): exit 0
+    questions asked: ["The authenticity of host '[127.0.0.1]:45565 …' can't be established.", …,
+                      "Are you sure you want to continue connecting (yes/no/[fingerprint])? ",
+                      "Enter passphrase for key '…/': "]
+=== unknown host key, StrictHostKeyChecking=ask, SSH_ASKPASS_REQUIRE=never: exit 255
+    questions asked: []
+    ssh said: Host key verification failed.
+=== host key added by the previous case, StrictHostKeyChecking=accept-new, prefer (control): exit 0
+    questions asked: ["Enter passphrase for key '…/': "]
+=== host key known, accept-new, SSH_ASKPASS_REQUIRE=never: exit 255
+    questions asked: []
+    ssh said: user@127.0.0.1: Permission denied (publickey).
+=== host key known, accept-new, no SSH_ASKPASS_REQUIRE (control): exit 0
+    questions asked: ["Enter passphrase for key '…/': "]
+```
+
+So,
+besides every credential prompt:
+
+- A passphrase-protected key with no agent fails at once:
+  the passphrase cannot be read and the login fails rather than asking.
+  This is the case the decision of 2026-11-19 counts as a credential,
+  and it is why the wrapper's own words say to run `ssh-add`
+  (`reads_as_a_key_failure` and `login_needed_message` in
+  `package/git-policy/cli/src/native/lfs/lfs_pre_push.rs`).
+- An unknown host key's yes/no question is not asked,
+  and the key is refused
+  (`Host key verification failed.`).
+  The source is `confirm` in `sshconnect.c` at `V_10_6_P2` lines 603 to 627:
+  it reads the answer with `read_passphrase`,
+  which returns an empty answer when `never` forbids the askpass program,
+  and an empty answer is not "yes".
+- The permission questions of a shared connection (`ControlMaster`),
+  of a key an agent is asked to confirm,
+  and of `AddKeysToAgent=ask` are not asked and are answered "no":
+  all of them go through `ask_permission` (`readpass.c` at `V_10_6_P2` lines 194 to 215),
+  whose `read_passphrase` call carries `RP_ALLOW_EOF`,
+  so a forbidden askpass program returns no answer at all and the permission is refused
+  (its callers are `mux.c:437`,
+  `mux.c:548`,
+  `mux.c:833`,
+  `mux.c:1055`,
+  `mux.c:1145`,
+  `mux.c:1177`,
+  `ssh-agent.c:596` and `sshconnect.c:1794`).
+
+### What `never` did not turn off
+
+`force` with a program that answers nothing reaches one of these differently,
+which the section on that rule ("What this repository does instead") gives measured and read.
+
+- OpenSSH's notification that a security key must be touched.
+  It is not a question and has its own path:
+  [`notify_start`][ssh-readpass] in the same file reads `SSH_ASKPASS` and the display,
+  starts the program with `SSH_ASKPASS_PROMPT=none`,
+  and reads `SSH_ASKPASS_REQUIRE` only to accept `force`.
+  So a FIDO key whose presence must be confirmed can still open that window when the account names an askpass program,
+  a display and a standard error that is not a terminal.
+  It waits for the touch and asks nothing.
+
+## `SSH_ASKPASS_REQUIRE=never` does not reach OpenSSH's own terminal question (found 2026-11-19)
+
+### Symptom
+
+The wrapper's own rule was the three variables
+`GIT_ASKPASS=""`, `GIT_TERMINAL_PROMPT=0` and `SSH_ASKPASS_REQUIRE=never`,
+and `SPEC.md` said the controlling terminal decided nothing about a prompt any more.
+An integration pass ran the branch through the built wrapper at a real pseudo-terminal:
+`git ls-remote ssh://…` printed `Enter passphrase for key '…'` and waited,
+with a throwaway `sshd` on `127.0.0.1`, a passphrase-protected key, no agent and no display.
+The same command with no controlling terminal failed at once,
+which is the arm the earlier measurements had covered.
+
+### Why the variable could not be enough
+
+OpenSSH reads `SSH_ASKPASS_REQUIRE` once, at the start of `read_passphrase`,
+and the two values do different things:
+
+```text
+if ((s = getenv(SSH_ASKPASS_REQUIRE_ENV)) != NULL) {
+	if (strcasecmp(s, "force") == 0) {
+		use_askpass = 1;
+		allow_askpass = 1;
+	} else if (strcasecmp(s, "prefer") == 0)
+		use_askpass = allow_askpass;
+	else if (strcasecmp(s, "never") == 0)
+		allow_askpass = 0;
+}
+```
+
+`never` clears only `allow_askpass`,
+which decides whether the askpass program may run at all;
+`use_askpass` is what decides whether the question goes to a program or to `readpassphrase`.
+A passphrase question enters the branch that opens `/dev/tty` and sets `use_askpass` only where no terminal opens,
+so at a terminal it reads the terminal.
+`force` sets both flags, and then the program is what answers.
+
+### What this repository does instead
+
+`SSH_ASKPASS=false` and `SSH_ASKPASS_REQUIRE=force`
+(`ssh_no_answer_overlay` in
+`package/git-policy/cli/src/native/invocation/child_environment.rs`),
+with the never-prompt pair for Git and `git-lfs`.
+`false` is the standard program that prints nothing and reports failure,
+it is found with `execlp` on the child's `PATH` (`readpass.c:77`),
+and a program that fails leaves no answer
+(`ssh_askpass` returns NULL, and `read_passphrase` turns that into an empty answer at 179 to 181).
+`load_identity_file` reads an empty passphrase as one nobody gave and tries the next key
+(`sshconnect2.c` at `V_10_6_P2` lines 1546 to 1558),
+so a key the agent holds still opens the connection and a key whose passphrase no agent holds fails at once.
+
+Measured on 2026-11-19 through the wrapper built from the fixed branch,
+at a pseudo-terminal, with the throwaway `sshd` of the probe above:
+
+```text
+### control: `ssh` alone at a terminal, no variables: Enter passphrase for key '…' (waited)
+### through the wrapper at a terminal: user@127.0.0.1: Permission denied (publickey).; exit 128, no question
+### an ssh:// LFS endpoint through the wrapper at a terminal:
+    `git-lfs push` exited with status 2 … the wrapper's login sentence, which names `ssh-add`, and no question
+```
+
+The same four variables were recorded in the environment of the `ssh` Git started
+(`GIT_ASKPASS="" GIT_TERMINAL_PROMPT="0" SSH_ASKPASS="false" SSH_ASKPASS_REQUIRE="force"`).
+Before the change, the same probe on the branch tip printed `Enter passphrase for key '…'` and waited.
+
+What the four variables do to OpenSSH's other questions, measured and read:
+
+- An unknown host key's yes/no question is not asked.
+  Measured with `StrictHostKeyChecking=ask` and a `known_hosts` file of its own:
+  the control printed `Are you sure you want to continue connecting (yes/no/[fingerprint])?` and waited,
+  and the same command with the two variables printed `Host key verification failed.` and exited 255.
+  The source is `confirm` (`sshconnect.c` at `V_10_6_P2` lines 603 to 627):
+  the failing program leaves an empty answer, and an empty answer is not "yes".
+- OpenSSH's password and keyboard-interactive questions and a PKCS#11 token's PIN read the same function
+  (`sshconnect2.c:1057`, `:1275`, `:2130`),
+  so they are empty answers too and the login fails at once.
+- A security key's touch notice is not a question and is not measured here (no such key on this host).
+  Read from the source: it is written to standard error when standard error is a terminal
+  (`notify_start`, `readpass.c` lines 252 to 255);
+  otherwise `force` starts the named program anyway (262 to 267),
+  which is `false` here and prints nothing,
+  so a session with no terminal on standard error shows no touch notice and the key still waits for the touch.
+
+### Tests that hold it
+
+`a_typed_command_over_ssh_at_a_terminal_asks_no_passphrase`
+(`package/git-policy/cli/src/native/binary/binary_ssh_terminal_tests.rs`)
+starts a throwaway `sshd` for the test account and a key protected by a passphrase,
+shows with a control that the same kind of pseudo-terminal carries `Enter passphrase for key`,
+and then requires that a `git ls-remote ssh://…` through the wrapper at such a terminal carries the question not at all
+and ends 128.
+`child_environment_tests.rs` pins the four variables and their order,
+and that a caller's own `SSH_ASKPASS` is replaced for these children.
+
+### The whole rule in one list, and what a person meets
+
+`no_prompt_overlay` in `package/git-policy/cli/src/native/invocation/child_environment.rs`
+is the whole rule:
+the never-prompt pair (`GIT_ASKPASS` set to the empty string and `GIT_TERMINAL_PROMPT=0`)
+and OpenSSH's two (`SSH_ASKPASS=false` and `SSH_ASKPASS_REQUIRE=force`, `ssh_no_answer_overlay`) in one list.
+The commit service's children get it through `service_child_overlay`,
+and every command the wrapper runs or forwards gets it through `invocation_overlay`,
+with or without a controlling terminal.
+That is the owner's answer of 2026-11-19T16:58:00-05:00
+(`doc/handover/cli-git-rust-implementation.md`, the entry beginning "The owner answered H1 and M4"):
+"Avoid ever asking for someone to type a username or password.",
+with an SSH key's passphrase counted as a credential ("Passphrases count too (Recommended)").
+It supersedes the earlier answer quoted under "What this repository does about it" above,
+that foreground commands the user types keep Git's normal prompting for credentials,
+and `package/git-policy/cli/SPEC.md` no longer says "A command the person typed is forwarded with the prompting Git has".
+A probe through a real service on 2026-11-19 recorded `SSH_ASKPASS_REQUIRE=never`, which was the rule then, in the
+environment of the `git-lfs` child the auto-push started,
+and the probes of 2026-11-19T23:00-05:00 recorded all four variables in the environment of the `ssh` Git started,
+and `src/native/invocation/child_environment_tests.rs` and
+`src/native/binary/binary_lfs_server_tests.rs` pin both routes:
+the service's children and a push a person typed with a terminal at it start no password program.
+The account's own `SSH_ASKPASS` is replaced for these children and for nothing else,
+so an account that needs the window for a plain `ssh` of its own is unchanged.
+
+What a person meets is the wrapper's own sentence instead:
+a login the upload needed names the server and every way to give it a login without a person,
+and a key whose passphrase no agent holds is told to run `ssh-add`
+(`login_needed_message` in `src/native/lfs/lfs_pre_push.rs`),
+because OpenSSH's own `Permission denied (publickey)` does not say what to do.
+
+[ssh-readpass]: https://github.com/openssh/openssh-portable/blob/V_10_6_P2/readpass.c#L232-L270
+[ssh-man-askpass-require]: https://man.openbsd.org/ssh#:~:text=SSH_ASKPASS_REQUIRE%20%20%20Allows%20further%20control%20over%20the%20use%20of%20an%20askpass
 [git-prompt]: https://github.com/git/git/blob/a018953688f1b10bddf91bff8747068f5f4746a4/prompt.c#L46-L77
 [lfs-creds-order]: https://github.com/git-lfs/git-lfs/blob/a662a6dbfedf706cfa9fc7a5b7bcc7ba2e2c8a65/creds/creds.go#L104-L121
 [lfs-creds-prompt]: https://github.com/git-lfs/git-lfs/blob/a662a6dbfedf706cfa9fc7a5b7bcc7ba2e2c8a65/creds/creds.go#L280-L282

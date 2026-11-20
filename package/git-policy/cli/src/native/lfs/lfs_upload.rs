@@ -35,12 +35,12 @@ use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
 /// the least traffic the upload's connection must carry,
 /// and the line that says how a longer one is allowed.
 use crate::bounded_push::{
-    STOPPED_EXIT_CODE, STOP_GRACE, StopCause, command_label, connected_window, push_minimum_rate_bytes, push_patience, wait_until_done_noting,
-    run_bounded_push,
+    STOPPED_EXIT_CODE, STOP_GRACE, StopCause, command_label, connected_window, push_minimum_rate_bytes, push_patience, run_bounded_push_naming,
+    wait_until_done_noting,
 };
 /// The invocation's environment values,
-/// and whether its overlay turns prompting off for the children.
-use crate::child_environment::{environment_value, environment_with_overlay, prompting_disabled};
+/// merged with the overlay its children run under.
+use crate::child_environment::{environment_value, environment_with_overlay};
 /// The caller's own command-line configuration,
 /// as the variables the child reads.
 pub use crate::lfs_command_line_configuration::child_configuration_variables;
@@ -50,15 +50,16 @@ use crate::forwarding::{ChildOutcome, exit_code, outcome_of};
 /// The program lookup,
 /// the explanation after a failure,
 /// and the refusal a push without the program prints.
-use crate::lfs_pre_push::{failed_message, find_program, missing_program_message};
+use crate::lfs_pre_push::{find_program, missing_program_message, start_failed_message};
 /// Every word about a failed,
 /// stopped or refused upload.
 use crate::lfs_upload_explanations::{
     MAX_RELAYED_BYTES, capture_failed_message, explanation_after_failure, failed_upload, guard_failed_message, missing_program_attempt,
-    stopped_upload_words,
+    start_failed_attempt, stopped_upload_tail, stopped_upload_words,
 };
-/// Hides the credentials in a URL of relayed text.
-use crate::lfs_output_mask::mask_url_secrets;
+/// The masked head of the program's own words,
+/// and the hosts a text names.
+use crate::lfs_output_mask::{MaskedHead, hosts_in, mask_url_secrets_within};
 use crate::lfs_upload_plan::UploadPlan;
 /// The anonymous file the interactive upload's standard error goes to.
 use crate::scratch_location::scratch_file;
@@ -110,8 +111,9 @@ enum CaptureError {
     /// The file for the standard error could not be made;
     /// the text says why.
     Scratch(String),
-    /// The program could not be started.
-    Start,
+    /// The program was found and could not be started;
+    /// the text names the file and the operating system's error.
+    Start(String),
     /// The wait for the program could not be made at all:
     /// no signal handler could be installed,
     /// or the process's runtime refused.
@@ -122,17 +124,20 @@ enum CaptureError {
 /// What:
 ///  Why one bounded run of the upload produced no end.
 /// Why:
-///   A program that never started is explained by the missing-program refusal,
+///   A program the lookup found and the system refused to start is explained by the words of that refusal,
+///  which name the file and the operating system's error,
 /// while a wait that could not be made is a defect of this process and is named as one,
-/// so the two never share words.
+/// so the two never share words,
+/// and neither claims a program that is there is absent.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RunError = { kind: 'start' } | { kind: 'wait'; why: string };
+/// type RunError = { kind: 'start'; why: string } | { kind: 'wait'; why: string };
 /// ```
 enum RunError {
-    /// The program could not be started.
-    Start,
+    /// The program was found and could not be started;
+    /// the text names the file and the operating system's error.
+    Start(String),
     /// The wait failed,
     /// or no relay could be published;
     /// the text says why.
@@ -200,21 +205,48 @@ fn run_with_captured_stderr(
     };
     let ended: UploadEnd = match run_on_runtime(await_upload(command, &guard, &captured, environment)) {
         Ok(Ok(finished)) => finished,
-        Ok(Err(RunError::Start)) => return Err(CaptureError::Start),
+        Ok(Err(RunError::Start(why))) => return Err(CaptureError::Start(why)),
         Ok(Err(RunError::Wait(why))) => return Err(CaptureError::Guard(why)),
         Err(refusal) => return Err(CaptureError::Guard(refusal.to_string())),
     };
     let mut bytes: Vec<u8> = Vec::new();
     // The file is read only after the seek to its start succeeded, as `.and_then(...)` ran the read.
+    // One byte past the cap is read, so the read itself says whether more was printed than is relayed.
     let rewound: std::io::Result<u64> = captured.seek(SeekFrom::Start(0));
     let read: std::io::Result<usize> = match rewound {
-        Ok(_) => captured.by_ref().take(MAX_RELAYED_BYTES).read_to_end(&mut bytes),
+        Ok(_) => captured.by_ref().take(MAX_RELAYED_BYTES + 1).read_to_end(&mut bytes),
         Err(error) => Err(error),
     };
     if let Err(error) = read {
         return Err(CaptureError::Scratch(error.to_string()));
     }
-    return Ok((ended, mask_url_secrets(bytes.as_slice())));
+    let head: MaskedHead = mask_url_secrets_within(bytes.as_slice(), MAX_RELAYED_BYTES);
+    // A run that ends between two looks of the wait prints its output past the cap without the flood stop seeing it,
+    //  so the notice that the text is the head of what it printed belongs here too.
+    let mut relayed: Vec<u8> = head.text;
+    if head.cut {
+        relayed.extend_from_slice(shortened_relay_notice().as_bytes());
+    }
+    return Ok((ended, relayed));
+}
+
+/// What:
+///  The line a relayed standard error gains when the program printed more than the cap keeps.
+/// Why:
+///   A person reading the text must know it is the head of it,
+///  and that what is missing was dropped rather than not printed;
+///  the line is written after the masked head and ends in a line break,
+///  so the explanation after it starts on a line of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: \`git-lfs push\` wrote more than ${MAX_RELAYED_BYTES} bytes ...\n`
+/// ```
+fn shortened_relay_notice() -> String {
+    return format!(
+        "monochromatic-git-policy-cli: `git-lfs push` wrote more than {MAX_RELAYED_BYTES} bytes of standard error, so only the whole \
+         lines of it that fit in that many bytes are relayed here; the rest was dropped and the upload itself was not stopped.\n"
+    );
 }
 
 /// What:
@@ -245,8 +277,12 @@ async fn await_upload(
     environment: &[(OsString, OsString)],
 ) -> Result<UploadEnd, RunError> {
     let mut relayed: RelayedChild = match guard.start_relayed(command).await {
-        // A program that never started is the missing-program refusal, not a defect of the wait.
-        Err(_error) => return Err(RunError::Start),
+        // A program the lookup found and the system refused to start is not a missing program: the operating system's own
+        //  error says what to fix, and the file's name says which file it is.
+        Err(error) => {
+            let program: String = command.get_program().to_string_lossy().into_owned();
+            return Err(RunError::Start(start_failed_message(program.as_str(), error.to_string().as_str())));
+        }
         Ok(started) => started,
     };
     let started: std::process::Child = relayed.take_child().expect("the child was handed over once");
@@ -321,9 +357,6 @@ pub fn run_upload_interactive(
         // Terminal output error: the notice is advisory.
         let _written = diagnostics.write_all(submodule_notice().as_bytes());
     }
-    // The overlay carries the never-prompt pair only when this command has no controlling terminal, and the explanation of a
-    //  failed login says what the wrapper did about prompting.
-    let prompting_is_disabled: bool = prompting_disabled(overlay);
     // What: The caller's configuration, as Git hands it to a child: appended to the parameters the environment already holds.
     // Why:  Git reads those parameters after the numbered pairs, so a pair written there is the newest setting of its key;
     //  a caller's pair numbered before an inherited parameter lost to it, and `-c lfs.url=...` reached the upload as the
@@ -353,9 +386,9 @@ pub fn run_upload_interactive(
                     let _written = diagnostics.write_all(capture_failed_message(why.as_str()).as_bytes());
                     return Some(1);
                 }
-                Err(CaptureError::Start) => {
+                Err(CaptureError::Start(why)) => {
                     // Terminal output error: see above.
-                    let _written = diagnostics.write_all(missing_program_message().as_bytes());
+                    let _written = diagnostics.write_all(why.as_bytes());
                     return Some(1);
                 }
                 Err(CaptureError::Guard(why)) => {
@@ -366,11 +399,21 @@ pub fn run_upload_interactive(
             };
             // Terminal output error: the program's own words are advisory; the exit status carries the result.
             let _relayed = diagnostics.write_all(relayed.as_slice());
+            // The explanation is a paragraph of its own: a program that ended without a last line break must not have it
+            //  glued to its last line.
+            if !relayed.is_empty() && !relayed.ends_with(b"\n") {
+                let _written = diagnostics.write_all(b"\n");
+            }
             let (code, outcome): (i32, ChildOutcome) = match ended {
                 UploadEnd::Finished(outcome) => (exit_code(outcome), outcome),
                 UploadEnd::Stopped(cause) => {
                     // Terminal output error: the explanation carries the result.
-                    let _written = diagnostics.write_all(failed_message(stopped_upload_words(&cause).as_str()).as_bytes());
+                    //  The stop's own sentence already ends with a full stop, so the tail starts after one full stop and not
+                    //  after a second one.
+                    let server: Option<String> = upload_server_of(plan, relayed.as_slice());
+                    let _written = diagnostics.write_all(
+                        format!("{} {}\n", stopped_upload_words(&cause, server.as_deref()), stopped_upload_tail()).as_bytes(),
+                    );
                     return Some(i32::try_from(STOPPED_EXIT_CODE).unwrap_or(1));
                 }
             };
@@ -383,13 +426,45 @@ pub fn run_upload_interactive(
             };
             // Terminal output error: see above.
             let _written = diagnostics.write_all(
-                explanation_after_failure(description.as_str(), remote.as_os_str(), relayed.as_slice(), prompting_is_disabled)
-                    .as_bytes(),
+                explanation_after_failure(description.as_str(), remote.as_os_str(), relayed.as_slice()).as_bytes(),
             );
             return Some(code);
         }
     }
     return None;
+}
+
+/// What:
+///  The LFS server a stopped upload was connected to:
+///  the one the plan read from the configuration,
+///  confirmed by the program's own words when they name that same server,
+///  and the program's own words alone when the plan read none.
+/// Why:
+///   A stop that held a connection must say which server it waited for
+///  (`package/git-policy/cli/SPEC.md`,
+///  "A connected stop names the server it waited for");
+///  the plan answers with the endpoint git-lfs itself picks,
+///  and a program that printed nothing confirms nothing.
+///  The program's words are not trusted on their own when the plan named a server:
+///  a documentation link printed before the error named a host the upload never
+///  contacted (the short review's reproduction),
+///  which is the one thing this naming exists to prevent.
+///  Neither form repeats a credential:
+///  the host comes from the same authority rule the mask uses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const named = hostsIn(text)[0]; named === plan.lfsServer || plan.lfsServer === undefined ? named ?? plan.lfsServer : plan.lfsServer
+/// ```
+fn upload_server_of(plan: &UploadPlan, relayed: &[u8]) -> Option<String> {
+    // `from_utf8_lossy` reads the program's words whatever their encoding; only the host search matters here.
+    let shown: String = String::from_utf8_lossy(relayed).into_owned();
+    let from_program: Option<String> = hosts_in(shown.as_str()).into_iter().next();
+    return match (plan.lfs_server.as_deref(), from_program) {
+        (Some(planned), Some(named)) if planned == named => Some(named),
+        (Some(planned), _named) => Some(planned.to_owned()),
+        (None, named) => named,
+    };
 }
 
 /// What:
@@ -434,13 +509,15 @@ pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<Pus
         return Ok(Some(missing_program_attempt()));
     };
     for (remote, command) in commands {
+        // The lookup already found the program, so a start the system refused is not a missing program: its own error says why.
+        let program: String = command.get_program().to_string_lossy().into_owned();
         let attempt: PushAttempt =
-            match run_bounded_push(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()) {
+            match run_bounded_push_naming(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice(), plan.lfs_server.as_deref()) {
                 Ok(finished) => finished,
-                Err(SingleFlightError::Start(_)) => return Ok(Some(missing_program_attempt())),
+                Err(SingleFlightError::Start(error)) => return Ok(Some(start_failed_attempt(program.as_str(), error.to_string().as_str()))),
                 Err(other) => return Err(other),
             };
-        if let Some(failed) = failed_upload(&attempt, remote.as_os_str(), prompting_disabled(git.environment.as_slice())) {
+        if let Some(failed) = failed_upload(&attempt, remote.as_os_str()) {
             return Ok(Some(failed));
         }
     }
@@ -474,13 +551,14 @@ pub async fn run_upload_bounded_awaiting(git: &PushGit, plan: &UploadPlan) -> Re
         return Ok(Some(missing_program_attempt()));
     };
     for (remote, command) in commands {
+        let program: String = command.get_program().to_string_lossy().into_owned();
         let attempt: PushAttempt =
-            match crate::bounded_push::run_bounded_push_awaiting(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()).await {
+            match crate::bounded_push::run_bounded_push_awaiting_naming(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice(), plan.lfs_server.as_deref()).await {
                 Ok(finished) => finished,
-                Err(SingleFlightError::Start(_)) => return Ok(Some(missing_program_attempt())),
+                Err(SingleFlightError::Start(error)) => return Ok(Some(start_failed_attempt(program.as_str(), error.to_string().as_str()))),
                 Err(other) => return Err(other),
             };
-        if let Some(failed) = failed_upload(&attempt, remote.as_os_str(), prompting_disabled(git.environment.as_slice())) {
+        if let Some(failed) = failed_upload(&attempt, remote.as_os_str()) {
             return Ok(Some(failed));
         }
     }

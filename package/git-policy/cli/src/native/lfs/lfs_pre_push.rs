@@ -293,6 +293,34 @@ pub fn missing_program_message() -> String {
 }
 
 /// What:
+///  The refusal printed when `git-lfs` is found where the lookup looked and cannot be started.
+/// Why:
+///   The lookup found an executable file,
+///  so it is not missing;
+///  the operating system refused the start,
+///  and its own error says why (a missing interpreter for a script,
+///  a wrong machine type,
+///  no permission to read it).
+///  Reporting a program that is there as absent sends its reader to a `PATH` that is right.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: this push was stopped before it sent anything. ... but \`{LFS_PROGRAM}\` was found at ${program} and could not be started (${why}). ...`
+/// ```
+pub fn start_failed_message(program: &str, why: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: this push was stopped before it sent anything. The Git configuration of this repository has Git LFS \
+         keys (`filter.lfs.*` or `lfs.*`), so the wrapper runs `{LFS_PROGRAM} push` to upload the large files the pushed commits point \
+         to before it publishes the pointer files, and `{LFS_PROGRAM}` was found at {program} but could not be started ({why}). \
+         Pushing without that upload would publish pointers whose content the LFS server does not have. Ways forward: make that file \
+         runnable (the interpreter or loader the parentheses name must exist on this machine) and push again; or accept pointers \
+         without objects for this push with `git push --no-verify` and upload the objects later with `git lfs push --all <remote>` \
+         once it runs; or, if this repository does not use Git LFS, remove its configuration (`git lfs uninstall`, or delete the \
+         `filter.lfs.*` and `lfs.*` keys).\n"
+    );
+}
+
+/// What:
 ///  The refusal printed when the wrapper cannot work out which objects a push needs uploaded.
 /// Why:
 ///   Running the push without an upload could publish pointers whose objects the server lacks,
@@ -359,7 +387,7 @@ pub fn failed_message(status: &str) -> String {
 /// ```ts
 /// const LOGIN_NEEDED = ['terminal prompts disabled', 'could not read Username', 'could not read Password', 'too many authentication attempts'];
 /// ```
-const LOGIN_NEEDED: [&str; 4] = [
+const LOGIN_NEEDED: [&str; 5] = [
     // Git's own words from `prompt.c`, with terminal prompts off.
     "terminal prompts disabled",
     // Git's credential prompt when no askpass program and no terminal answer.
@@ -367,7 +395,29 @@ const LOGIN_NEEDED: [&str; 4] = [
     "could not read Password",
     // git-lfs's words when every login it was given was refused.
     "too many authentication attempts",
+    // OpenSSH's words when it would not or could not use a key: a key whose passphrase nobody could ask for at a
+    //  terminal, and a key the server does not accept, print the same line (`SSH_ASKPASS_REQUIRE=force` with a
+    //  program that answers nothing, the owner's answer of 2026-11-19: "Passphrases count too").
+    "Permission denied (",
 ];
+
+/// What:
+///  The word that names the key an SSH key's passphrase is missing for:
+///  it is the agent,
+/// and the command that fills it is `ssh-add`.
+/// Why:
+///   A passphrase counts as a credential under the owner's answer of 2026-11-19T16:58:00-05:00,
+///  so a key that no agent holds fails at once instead of asking,
+///  and OpenSSH's own `Permission denied (publickey)` says nothing about what to do;
+///  the explanation must name the command that loads the key.
+///  A key the server simply does not accept prints the same line,
+/// so the sentence says "refused or could not be unlocked" and names `ssh-add` as the way to rule the second out.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SSH_ADD = 'ssh-add'
+/// ```
+pub const SSH_ADD_COMMAND: &str = "ssh-add";
 
 /// What:
 ///  Whether text a failed upload printed says that it needed a login.
@@ -392,48 +442,71 @@ pub fn reads_as_a_login_failure(text: &str) -> bool {
 }
 
 /// What:
+///  Whether text a failed upload printed says that an SSH key could not be used,
+///  which is the one login failure whose way forward can be `ssh-add`.
+/// Why:
+///   The words are OpenSSH's own,
+/// and they arrive for either of two causes:
+///  a passphrase nobody could ask for,
+/// or a key the server refuses.
+///  Telling an HTTP server's refused password to run `ssh-add` would send its reader to a command that does nothing for it,
+///  so the sentence is added from these words and not from every login failure;
+///  the sentence itself names both causes, because these words do.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// text.includes('Permission denied (')
+/// ```
+pub fn reads_as_a_key_failure(text: &str) -> bool {
+    return text.contains("Permission denied (");
+}
+
+/// What:
 ///  The refusal that follows a failed upload which needed a login:
 ///  it names the server,
-/// says what the wrapper did about prompting,
-/// and names every way to give git-lfs a login it can use.
+/// says that no command the wrapper runs asks anyone for a credential,
+/// and names every way to give git-lfs a login it can use,
+/// including `ssh-add` for a key whose passphrase was never unlocked.
 /// Why:
 ///   The incident of 2026-11-10 ran for seven minutes because nothing said what was missing,
 /// and the push it belonged to could not be
 ///  published (`doc/troubleshooting/lfs-credential-in-url.md`).
 /// The server is named without any credential,
 /// and the setting that stores one is named without its value.
-///  `prompting_disabled` is whether the overlay the program ran under carried the never-prompt pair:
-/// a command at a terminal keeps Git's and `git-lfs`'s own prompting,
-/// and telling its person that no terminal existed
-///  names a cause that cannot be fixed because it was never there.
+///  The rule is the same for every command since the owner's answer of 2026-11-19T16:58:00-05:00:
+/// "Avoid ever asking for someone to type a username or password.",
+/// with an SSH key's passphrase counted as a credential,
+/// so there is no branch left for a command at a terminal
+///  and the words never name a terminal that did not decide anything.
+///  `key_not_unlocked` is whether the program's own words say a key could not be used,
+/// which is when `ssh-add` is the way forward;
+///  an HTTP server's refused password gets the credential-helper advice alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// promptingDisabled ? `...this command has no controlling terminal, so ...` : `...this command has a controlling terminal, so ...`
+/// `...needed a login, and this wrapper never lets a command ask for one... ${keyNotUnlocked ? '...`ssh-add`...' : ''}`
 /// ```
-pub fn login_needed_message(server: &str, prompting_disabled: bool) -> String {
-    if !prompting_disabled {
-        return format!(
-            "monochromatic-git-policy-cli: the Git LFS upload to {server} needed a login and stopped. This command has a \
-             controlling terminal, so the wrapper left prompting to `git-lfs` and the Git it asks (`GIT_ASKPASS` and \
-             `GIT_TERMINAL_PROMPT` unchanged): either a login they already had was refused, or a variable or Git setting of this \
-             command stopped them from asking. Ways forward: store a login the server accepts in a Git credential helper for that \
-             URL (`git config --global credential.helper libsecret` on a desktop, `store` for a file only you can read, or `cache` \
-             for a while), and push again, because objects the server already has are not sent twice; or check a \
-             `GIT_TERMINAL_PROMPT`, `GIT_ASKPASS`, `core.askPass` or `credential.helper` setting of this command that refuses the \
-             login. A login written into the `lfs.url` of a repository's configuration instead of a helper is the defect \
-             `doc/troubleshooting/lfs-credential-in-url.md` describes.\n"
-        );
-    }
+pub fn login_needed_message(server: &str, key_not_unlocked: bool) -> String {
+    let key_words: String = if key_not_unlocked {
+        format!(
+            " The key that server asked for was refused or could not be unlocked: with no program to ask a passphrase and \
+             no terminal read, a key that no agent holds cannot be used, and a key the server does not accept answers \
+             the same way. Load the key into the agent first (`{SSH_ADD_COMMAND}` (`{SSH_ADD_COMMAND} <key file>` \
+             for a key outside the agent's default list, and `{SSH_ADD_COMMAND} -l` lists what the agent holds) and push \
+             again; a key the server still refuses needs the server's account to accept it."
+        )
+    } else {
+        String::new()
+    };
     return format!(
-        "monochromatic-git-policy-cli: the Git LFS upload to {server} needed a login, and this command has no controlling \
-         terminal, so `git-lfs` and the Git it asks were told never to prompt (`GIT_ASKPASS` set to the empty string and \
-         `GIT_TERMINAL_PROMPT=0`). That is why no password window opened for nobody to answer, and why the program stopped \
+        "monochromatic-git-policy-cli: the Git LFS upload to {server} needed a login, and this wrapper never lets a command \
+         ask for one (`GIT_ASKPASS` set to the empty string, `GIT_TERMINAL_PROMPT=0`, `SSH_ASKPASS=false` and \
+         `SSH_ASKPASS_REQUIRE=force`), whether or not a terminal is there: the owner decided that no command it runs or \
+         forwards asks a person for a username or a password. That is why nothing prompted, and why the program stopped \
          instead. Ways forward: store the login where `git-lfs` finds it without a person, in a Git credential helper for \
          that URL (`git config --global credential.helper libsecret` on a desktop, `store` for a file only you can read, or \
-         `cache` for a while), and push again, because objects the server already has are not sent twice; or run this push \
-         from a terminal, where Git's and `git-lfs`'s own prompting is kept. A login written into the `lfs.url` of a \
-         repository's configuration instead of a helper is the defect \
+         `cache` for a while), and push again, because objects the server already has are not sent twice.{key_words} A login \
+         written into the `lfs.url` of a repository's configuration instead of a helper is the defect \
          `doc/troubleshooting/lfs-credential-in-url.md` describes.\n"
     );
 }
