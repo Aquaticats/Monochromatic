@@ -40765,7 +40765,31 @@ stated in this entry. What follows from them, as work:
   defect. The fence's second round ended `idle` (131 turns) at `9bbe62d4f8`: bytes right for all 8 classes (zeroing the
   fenced entries before `checkout-index`; `ls-tree -l`'s padded sizes fixed); clean add of this tree A 1501 ms against step
   3's 1019 and `main`'s 2057, a converting source 2567 against `main`'s 2018; rung 1 and 2 in a btrfs guest 15 of 15 with
-  the fence, 3 of 15 without; no gate at the final tip.
+  the fence, 3 of 15 without; no gate at the final tip. STEP 4'S GUEST ARMS MERGED into `main` as `5b130d4ad1`: the
+  coordinator confirmed the pass's gate summary in its `keep/gate-output.log` (9275 of 9277, the cause-H pair) and applied
+  the stated condition on the integration branch (`3b72489b25`: an append never grows a store past its read; the adoption
+  rewrite named as issue 6327, filed for `replace_the_parent_record`'s missing size check); the pass's nine lows follow
+  (the newline mutant the size control misses, the first proof reading the name, the four later comparisons pinned only by
+  host fixtures, the recipe not requiring the new arm's line, the lock-hold record's "about 250 bytes" and inverted ratio,
+  the probe crashing without its folder, `a9f23a6824`'s misattributed sample, the `prepare` mask, text nits). The author's
+  worktree `.claude/worktrees/zfs-step-4-guest-arm` was kept by the wrapper (an ignored
+  `.config/mise/conf.d/10-bin.local.toml` differs). The wrapper removing an author's worktree when its tip merges into an
+  integration branch is the designed behaviour (`SPEC.md` near line 3226: any merge that lands a branch), so a fix round
+  after an integration pass makes a new worktree from the branch. THE OWNER ANSWERED (2026-11-20) the LFS retry question
+  "Keep retrying (Recommended)": the service keeps its schedule for a push refused for an unknown host key, and the
+  message says it will push by itself once the key is known. DISCOVERY ended `idle` (256 turns) at `db56decb24`: saturated;
+  a new survivor `ebeepf` 0.1.0 (BSD arm of `LGPL-2.1-only OR BSD-2-Clause`, its tests pass, 195 of 196 consumer checks,
+  the failure a module accepted as another module's base; README calls it unreviewed AI-generated code; 87 of 104); order
+  `btf-rs` > `ebeepf` > `pahole` > `bpftool`; the check-in recorded. Issue 6326's body was corrected in a comment (the
+  paste happens only when `-h` or `--help` follows `--`; 22 root tasks). GOING: `pi-zfs-layout-checker-reader-vet-report`
+  (the `doc/audit/` report), `pi-git-policy-cli-lfs-integration-pass-findings-fixed` (M1 with the reviewer's two reds, M2,
+  M3 as answered, M4, the fish and host-name lows), `pi-zfs-step-6-gate-review-findings-fixed` (the seam with the
+  reviewer's probe as acceptance, M1 to M5, guest arms into the repository, L10 against Q2; new worktree
+  `.claude/worktrees/zfs-step-6-compatibility-gate-findings`), `pi-git-policy-cli-bounded-wait-integration-pass-findings-fixed`
+  (M1 and the wiring low; new worktree `.claude/worktrees/git-policy-cli-bounded-wait-findings`),
+  `pi-mise-usage-args-in-package-tasks` (the 16 package files and `try`), the fence's gate review on Sonnet (with the
+  known gaps declared) and the shadow fix's integration pass on Sonnet. The partial clone waits on the fence's review:
+  its gain must be weighed with the fence's cost.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
