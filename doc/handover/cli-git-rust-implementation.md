@@ -40543,7 +40543,13 @@ stated in this entry. What follows from them, as work:
   the proposal, the plan and `doc/decision/cli-git-zfs-worktree-design.md`'s Status); its "Low 1" section sets out the
   pin's field set as options with a ranking although the project vetoed nothing, so its short review
   (`pi-short-review-zfs-staging-decision-record`, Qwen plan) is told to judge that, and the other two reviews got the
-  same check through their inboxes. STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
+  same check through their inboxes. The start-probe record's review ended (50 turns; its folder's `keep/review.md`):
+  not ready, one high (the Q6 and Q7 sections claim the design's "(Recommended)" marker, where the design records its
+  own first rank as the option the project turned down; the coordinator reran the search and it holds), two mediums
+  (one of the design's two skip residues named; a `mount` with `MS_BIND` call the design never names) and six lows.
+  GOING: `pi-zfs-start-probe-decision-record-review-findings-fixed` (DeepSeek on Neuralwatt, cap 160) in the design
+  worktree; brief under `~/temp/agent/zfs-start-probe-decision-record-review-findings-fixed-2026-11-20/`. STEPS 3 AND
+  4, HOST HALVES, GOING (the plan's "What can start now" lists both;
   their VM arms wait for step 2's recipe and their merges for the gate fix), each DeepSeek on Neuralwatt, cap 510,
   from `main` `d6e78c9e8b`: `pi-zfs-step-3-reflink-rung-recognition-host-half`
   (`.claude/worktrees/zfs-step-3-reflink-rung-recognition`, `feat/git-policy-cli-zfs-recognition-in-the-reflink-rung`;
