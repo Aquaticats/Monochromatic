@@ -6086,10 +6086,11 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   because tmpfs pages count against that bound:
   the integration pass of 2026-11-19 ran a whole suite there,
   and its kernel `memory.peak` was 1123.8 MiB of the 2048 MiB bound,
-  while its 3-second samples read at most 868.3 MiB of process pages and a 195.1 MiB fixture peak,
-  which add to less than that peak because a sampler that slow can miss it.
+  while the highest charge any 3-second sample read was 953.1 MiB, 170.7 MiB below that peak,
+  which is why its figures are the samples' and not the run's.
   The bound beside the kernel's peak leaves 924.2 MiB for fixtures,
-  so the 768 MiB ceiling sits 156.2 MiB below that;
+  so the 768 MiB ceiling sits 156.2 MiB below that, and a run whose other pages hold to that peak
+  meets the ceiling before the memory bound;
   a gate review's run on the same code read 916.4 MiB of `memory.peak` and a 221.4 MiB sampled fixture peak,
   of which the ceiling is 3.47 times
   (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`,
