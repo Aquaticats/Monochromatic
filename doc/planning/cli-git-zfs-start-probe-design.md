@@ -42,12 +42,13 @@ carried.
   fold-in that cost nothing, the scope of the "never opens `/dev/zfs`" statement, the teardown arm's own unmount,
   two option sentences, the control-directory path, the unnamed handler modes and the prose the checkers do not
   count. The measurements this round added are under [Owed measurements](#owed-measurements).
-- `2026-11-19T20:58:00-05:00` (commits `daa7a93f67`, `01e51e24c1` and this entry's commit): the owner's answers of
-  2026-11-19 applied. A new "Answers of 2026-11-19" section states each question, the option the project chose with
-  the round's timestamp range, the option it did not take and why, and the threat model the answers assume. The
-  question sections and the ways this design weighed are gone, leaving a pointer to the answers and one shape. The
-  body follows the answers: the source is the dedicated dataset `zpcachyos/nosnap/git-worktree-probe` with its
-  `ready` snapshot, so the account-influenced name, the `.zfs/snapshot` read and the reuse-skip go; the move and
+- `2026-11-19T20:58:00-05:00` (commits `daa7a93f67`, `01e51e24c1`, `e850455f55` and this entry's commit): the
+  owner's answers of 2026-11-19 applied. A new "Answers of 2026-11-19" section states each question, the option
+  the project chose with the round's timestamp range, the option it did not take and why, and the threat model the
+  answers assume. The question sections and the ways this design weighed are gone, leaving a pointer to the answers
+  and one shape. The body follows the answers: the source is the dedicated dataset
+  `zpcachyos/nosnap/git-worktree-probe` with its `ready` snapshot, so the account-influenced name, the
+  `.zfs/snapshot` read and the reuse-skip go; the move and
   unmount arms stay in step 6; a failed arm refuses new attaches only; an unexercised arm blocks the route; a
   missed deadline fails closed. New design work: the account companion, with its namespace setup, its arms, its
   refusal, its skip, its printed lines, its per-add cost and the measurement that sizes it, and the `first-attach`
@@ -645,7 +646,8 @@ dataset the pool does not hold, so the attach arm is unexercised and the managed
 
 What it changes at start: nothing beyond the attach the arms describe. There is no directory read of
 `.zfs/snapshot`, no account-influenced name and no access-time question. The dataset itself outlives every run by
-design, and the plan's steps 18 to 20 create it, as [Notes for the plan](#notes-for-the-plan) records.
+design, and the plan's steps 18 to 20 build the commands and configuration that create it, which the owner runs, as
+[Notes for the plan](#notes-for-the-plan) records.
 
 ### The arms
 
