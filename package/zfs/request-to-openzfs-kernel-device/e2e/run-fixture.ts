@@ -235,7 +235,7 @@ function run(options: Options): void {
     `cd ${CRATE_DIR}`,
     'export PATH=/root/.cargo/bin:$PATH',
     `export ${fixtureEnvironment(options)}`,
-    'if cargo nextest run --release --run-ignored all --no-fail-fast --status-level all --test-threads 4 > /root/zfs-root-suite.log 2>&1; then status=0; else status=$?; fi',
+    'if cargo nextest run --release --run-ignored all --no-fail-fast --status-level all --no-capture --test-threads 4 > /root/zfs-root-suite.log 2>&1; then status=0; else status=$?; fi',
     'tail --lines=30 /root/zfs-root-suite.log',
     'test "$status" = 0',
   ].join('\n');
