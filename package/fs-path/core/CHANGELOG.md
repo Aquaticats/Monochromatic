@@ -5,6 +5,34 @@
 > paths and names below this note are historical:
 > `@monochromatic-dev/module-fs-path` is now `@monochromatic-dev/fs-path-core`.
 
+## 0.2.3
+
+### Patch Changes
+
+- `ensureFile` creates a bare file name such as `bare.txt` instead of calling `mkdir('')`.
+  A bare name has no parent segment,
+  and the empty parent string was passed to `ensureDir`,
+  whose `mkdir('')` threw `ENOENT` before the file was written.
+  The parent directory is now created only when the path names one.
+  Commit `f9b863b`.
+- `ensureFile` no longer truncates a file a second writer creates while the call runs.
+  The file was created from a `stat` result with an open that truncates,
+  so a file created in the window between the two lost its contents.
+  The create is now exclusive:
+  `EEXIST` falls back to the existing-file path,
+  which checks the entry kind and the owner bits,
+  and the file the second writer created keeps its contents.
+  Commit `e0d2159`.
+- The ensure and empty families now read one path spelling the same way.
+  `ensurePath('dist/x.js?raw')` created a file literally named `dist/x.js?raw`
+  while `emptyPath('dist/x.js?raw')` truncated the unrelated `dist/x.js`,
+  so a
+  caller that ensured then emptied one spelling destroyed a different file.
+  Every function in both families strips a `?query` suffix before it inspects or
+  touches the disk,
+  and returns the spelling it was given.
+  Commit `47ae23a`.
+
 ## 0.2.2
 
 ### Patch changes
