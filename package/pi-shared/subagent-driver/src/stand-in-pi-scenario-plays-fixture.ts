@@ -249,7 +249,7 @@ export const scenarioPlays: ReadonlyMap<string, (id: unknown,) => void> = new Ma
     },
   ],
   [
-    'crash-on-steer',
+    'crash-on-inbox-message',
     function startThenWait(id,) {
       answer({ id, },);
       emit({ type: 'agent_start', },);

@@ -256,6 +256,9 @@ export async function askAboutItsWorkOrReportAFailure({
 /**
  Tells whether Pi answered that its agent is already in a turn of its own, which refuses this message for no reason of its own.
 
+ The answer says the agent is busy, so it is read as such by every message the driver sends into a run: the wake keeps the run up
+ until that turn settles, and an inbox message goes back for a later look instead of being kept aside as one Pi refused.
+
  @param answer - how waiting for Pi's answer ended
 
  @returns whether Pi said its agent was already processing
@@ -266,7 +269,7 @@ export async function askAboutItsWorkOrReportAFailure({
  const awake = foundTheAgentAlreadyAwake({ answer: busy, },);
  ```
  */
-function foundTheAgentAlreadyAwake({ answer, }: { readonly answer: CommandAnswer },): boolean {
+export function foundTheAgentAlreadyAwake({ answer, }: { readonly answer: CommandAnswer },): boolean {
   if (answer.ending !== 'answered') {
     return false;
   }

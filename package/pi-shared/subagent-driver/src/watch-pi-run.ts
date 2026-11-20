@@ -6,7 +6,6 @@
 
 import { randomUUID, } from 'node:crypto';
 import {
-  link,
   readdir,
   rename,
   unlink,
@@ -27,74 +26,19 @@ import {
   answerModelError,
   type RetryWaiting,
 } from './answer-a-model-error.ts';
+import {
+  keepFailure,
+  returnToInbox,
+} from './an-inbox-message-pi-did-not-take.ts';
 import { preview, } from './previews-of-pi-messages.ts';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
 import {
   askAboutItsWorkOrReportAFailure,
+  foundTheAgentAlreadyAwake,
   type WorkWaitedFor,
 } from './kept-while-work-runs.ts';
 import type { WatchRequest, } from './watch-request.ts';
 import { mayEndIdle, } from './when-a-run-may-end.ts';
-
-/**
- The code the operating system gave a failure, when it gave one.
-
- @param error - what was caught
-
- @returns the code, or nothing when the failure carries none
- */
-function codeOf(error: unknown,): string {
-  if (((typeof error) !== 'object') || (error === null)
-    || (!('code' in error))) {
-    return '';
-  }
-  return ((typeof error.code) === 'string') ? error.code : '';
-}
-
-/**
- Publishes a kept failure under one name, without ever replacing a file already there: a link fails when its name is taken, so
- the caller tries the next number.
-
- @param claim - where the message now is
-
- @param target - the name this attempt would keep it under
-
- @returns what this attempt achieved, so the caller knows whether to try another name
- */
-async function publishFailure({
-  claim,
-  target,
-}: {
-  readonly claim: string;
-  readonly target: string
-},): Promise<'published' | 'name-taken' | 'kept-by-rename'> {
-  try {
-    await link(
-      claim,
-      target,
-    );
-    await unlink(claim,);
-    return 'published';
-  }
-  catch (error) {
-    /**
-     What the operating system said about this name.
-     */
-    const code = codeOf(error,);
-    if (code === 'EEXIST') {
-      return 'name-taken';
-    }
-    if ((code === 'EPERM') || (code === 'EACCES')) {
-      // A folder cannot be linked, and holding one of Pi's messages is not at stake in it.
-      await rename(
-        claim,
-        target,
-      );
-      return 'kept-by-rename';
-    }
-    throw error;
-  }
-}
 
 /**
  Claims one inbox entry by renaming it, so that a producer publishing a newer message under the same name cannot be deleted or
@@ -131,51 +75,6 @@ async function claimMessage({
   return claimed;
 }
 
-/**
- Keeps a message that did not reach Pi, so it stays readable and is never sent again. Publication never replaces an earlier
- kept failure: a link fails when its name is taken, so the next number is tried instead.
-
- @param watch - watch request
-
- @param name - message's name
-
- @param claim - where the message now is
- */
-async function keepFailure({
-  watch,
-  name,
-  claim,
-}: {
-  readonly watch: WatchRequest;
-  readonly name: string;
-  readonly claim: string
-},): Promise<void> {
-  /**
-   The most numbered names to try before giving up: there are always fewer kept failures than names in the inbox.
-   */
-  const attempts = (await readdir(watch.inbox,)).length + 2;
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    /**
-     The name this attempt would keep the failure under.
-     */
-    const target = join(
-      watch.inbox,
-      (attempt === 1) ? `.failed-${name}` : `.failed-${name}.${String(attempt,)}`,
-    );
-    /**
-     What this attempt achieved.
-     */
-    // oxlint-disable-next-line eslint/no-await-in-loop -- one name after another until one is free, and a kept failure must never replace another; see doc/lint/sequential-awaits.md
-    const outcome = await publishFailure({
-      claim,
-      target,
-    },);
-    if ((outcome === 'published') || (outcome === 'kept-by-rename')) {
-      return;
-    }
-  }
-  throw new Error(`every name for a kept failure of ${name} is taken`,);
-}
 
 /**
  Delivers one claimed inbox message. The claim goes once Pi has it; a refused or unanswered one is kept under a dot name, which
@@ -201,18 +100,24 @@ async function deliverMessage({
    */
   const text = await readOrdinaryFile(claim,);
   /**
-   How the message reaches Pi: a steer while it works, a new prompt while it rests.
+   How the driver's own read of the feed expected the message to be taken: a steer while Pi works, a new prompt while it rests.
    */
   const sentAs = watch.record
     .isRunning() ? 'steer' : 'prompt';
   /**
    Pi's answer, waited for within the run's own deadline.
+
+   The message is a prompt that names steering whichever state that read gave. Pi queues it into a turn that is running and takes it
+   as a new turn while its agent rests, so a turn Pi starts between the read and this send takes it too (`prompt()` in
+   `dist/core/agent-session.js` of `@earendil-works/pi-coding-agent` reads the field only while its agent run is active). A steer
+   command sent instead would wait in a queue that a Pi which settled meanwhile never drains.
    */
   const answer = await watch.connection
     .send({
       command: {
-        type: sentAs,
+        type: 'prompt',
         message: text,
+        streamingBehavior: 'steer',
       },
       deadline: watch.deadline,
     },);
@@ -227,6 +132,15 @@ async function deliverMessage({
           problem: `Pi took ${name}, but its file could not be removed: ${String(error,)}`,
         },);
     }
+  }
+  else if (foundTheAgentAlreadyAwake({ answer, },)) {
+    // Pi said only that its agent is busy, never that the message is unacceptable, so the message is not kept aside as one Pi
+    // refused: it goes back to the inbox and the next look sends it again.
+    await returnToInbox({
+      watch,
+      name,
+      claim,
+    },);
   }
   else {
     await keepFailure({

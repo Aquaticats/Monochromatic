@@ -1311,7 +1311,7 @@ await describe({
       name: 'a Pi that exits while the watch runs ends it as pi-exited',
       fn: async () => {
         const run = await runDriver({
-          scenario: 'crash-on-steer',
+          scenario: 'crash-on-inbox-message',
           idleSeconds: LONG_IDLE_SECONDS,
           whileRunning: async (running,) => {
             await waitForLine({ ...running, file: running.log, text: '"message":"hello"', },);
@@ -1689,7 +1689,7 @@ await describe({
       },
     },),
     it({
-      name: 'a message dropped between agent_end and agent_settled goes as a steer',
+      name: 'a message dropped between agent_end and agent_settled is sent as a prompt that names steering',
       fn: async () => {
         const run = await runDriver({
           scenario: 'settle-gap',
@@ -1701,7 +1701,10 @@ await describe({
           },
         },);
         expect(run.feed.find((entry,) => entry.kind === 'inbox')?.sentAs,).toBe('steer',);
-        expect(run.commands,).toContain('steer',);
+        // No `steer` command is sent: one that meets a Pi which settled meanwhile waits in a queue no later run drains.
+        expect(run.commands,).not.toContain('steer',);
+        expect(run.sentCommands.filter((command,) => command.message === 'more',).map((command,) => command.streamingBehavior),)
+          .toEqual(['steer',],);
         // The record still holds Pi at work (only agent_settled clears it), so the teardown asks Pi to abort. This is the
         // claim the wall-clock test cannot make: it has no way to know Pi started a turn before its clock ran out.
         expect(run.commands,).toContain('abort',);
@@ -1786,7 +1789,9 @@ await describe({
             await writeFile(join(running.runFolder, 'stop',), '',);
           },
         },);
-        expect(run.sentCommands.filter((command,) => command.type === 'steer',).map((command,) => command.message),)
+        expect(run.sentCommands.filter((command,) => (command.type === 'prompt')
+          && ((command.message === 'first sent') || (command.message === 'second arrived')),)
+          .map((command,) => command.message),)
           .toEqual(['first sent', 'second arrived',],);
         expect(run.feed.filter((entry,) => entry.kind === 'inbox',).length,).toBe(2,);
       },

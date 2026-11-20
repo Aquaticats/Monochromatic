@@ -612,10 +612,6 @@ function connectionWhosePiIsBusyOnce({
   readonly record: RecordOfPiRun;
   readonly betweenAttempts?: () => Promise<void>
 },): ConnectionToPi {
-  /**
-   How many messages Pi has been sent.
-   */
-  let attempts = 0;
   return {
     hasExited: () => false,
     exitDetails: () => ({}),
@@ -625,8 +621,11 @@ function connectionWhosePiIsBusyOnce({
     send: async function send({ command, }: CommandRequest,) {
       const { message } = command;
       sent.push((typeof message) === 'string' ? message : '',);
-      attempts += 1;
-      if (attempts === 1) {
+      /**
+       Which message this is, counted from the ones already sent.
+       */
+      const attempt = sent.length;
+      if (attempt === 1) {
         await betweenAttempts?.();
         return {
           ending: 'answered',
@@ -898,9 +897,16 @@ await describe({
          */
         const kept = await readdir(run.inbox,);
         expect(kept,).toHaveLength(1,);
+        /**
+         The name the older message was kept under.
+         */
+        const [keptName,] = kept;
+        if (keptName === undefined) {
+          throw new Error('the inbox held no entry for the message the busy answer returned',);
+        }
         // A busy answer is not a refusal, so the message is not kept under the name that marks one.
-        expect(kept[0].startsWith('.failed-',),).toBe(false,);
-        expect(await readFile(join(run.inbox, kept[0],), 'utf8',),).toBe(MESSAGE_TEXT,);
+        expect(keptName.startsWith('.failed-',),).toBe(false,);
+        expect(await readFile(join(run.inbox, keptName,), 'utf8',),).toBe(MESSAGE_TEXT,);
       },
     },),
     it({
