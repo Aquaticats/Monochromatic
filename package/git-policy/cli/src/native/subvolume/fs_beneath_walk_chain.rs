@@ -78,7 +78,7 @@ impl ChainRefusal {
     ///  Such a caller acts on a folder or reports a failure and never names the component,
     /// so the position is the whole of what it needs;
     /// the positional sentence keeps a link and a boundary apart from each other.
-    fn as_io_error(self) -> std::io::Error {
+    fn into_io_error(self) -> std::io::Error {
         return match self {
             ChainRefusal::Unreadable { error, .. } => error,
             ChainRefusal::Link { step } => std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("component {} of the walk is a symbolic link", step + 1)),
@@ -160,7 +160,7 @@ pub fn open_directory_beneath(root: &File, names: &[OsString]) -> std::io::Resul
     let device: u64 = device_of(root)?;
     let mut current: File = root.try_clone()?;
     for (step, name) in names.iter().enumerate() {
-        current = open_one_hop(&current, name.as_os_str(), device, step).map_err(|refusal| return refusal.as_io_error())?;
+        current = open_one_hop(&current, name.as_os_str(), device, step).map_err(|refusal| return refusal.into_io_error())?;
     }
     return Ok(current);
 }
