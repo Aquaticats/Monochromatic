@@ -356,8 +356,10 @@ the libraries
 `monochromatic-browserslist`,
 `monochromatic-xml-edit`,
 `monochromatic-catalog-specifier`,
-`monochromatic-file-enforcer` and
-`forbidden-regex`,
+`monochromatic-file-enforcer`,
+`forbidden-regex` and
+`monochromatic-zfs-request-to-openzfs-kernel-device`
+(an alpha so far, so it reaches no registry),
 and the tools
 `forbidden-strings`,
 `monochromatic-search-shadow`,

@@ -366,8 +366,7 @@ fn text_field(field: &[u8]) -> String {
 ///  bytes.
 /// Why:
 ///  One constant holds every assertion,
-/// so the proof is one item rather than
-///  nineteen,
+/// so the proof is one item,
 /// and the build fails with the first line that moved.
 const _: () = {
     assert!(size_of::<ZfsShare>() == 32);

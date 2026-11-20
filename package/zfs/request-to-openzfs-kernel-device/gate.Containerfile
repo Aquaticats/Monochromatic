@@ -4,7 +4,7 @@
 # Why:  the plan's "How it merges" runs every check in one container with no
 #        network and no home folder, so every download happens here, once.
 # Build: GATE_BASE_IMAGE is the gate base image the wrapper's resolver prints
-#        (`mise run //package/git-policy/cli:native:image:build` names the tag).
+#        (`mise run //package/git-policy/cli:test:git-image` names the tag).
 #        It is never typed here: a CachyOS update or a change to the wrapper's
 #        gate Containerfile moves it (rule BXD,
 #        doc/decision/container-base-distro.md).

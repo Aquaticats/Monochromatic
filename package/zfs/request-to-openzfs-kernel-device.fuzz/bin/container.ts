@@ -32,7 +32,7 @@ import { ensureTestBase } from '../../../git-policy/cli/bin/native-test-base.ts'
 const source = process.cwd();
 /** The crate under fuzz. */
 const subject = resolve(source, '..', 'request-to-openzfs-kernel-device');
-/** Repository root, four directories above this package. */
+/** Repository root, three directories above this package. */
 const repository = resolve(source, '..', '..', '..');
 /** Gitignored scratch shared by the repository's campaigns, outside both copied trees. */
 const scratch = join(repository, 'node_modules', '.monochromatic', 'zfs-binding-fuzz');
@@ -149,7 +149,7 @@ function buildImage() {
  The corpus and artifacts directories are mounted from {@link scratch},
  so a failing input outlives the container that found it.
 
- @param buildOnly - stop after the instrumented build, keeping the binaries
+ @param buildOnly - stop after the instrumented build, proving the compile; the removed container keeps no binary
  */
 function runContainer(buildOnly) {
   const containerName = `zfs-binding-fuzz-${tag}`;
