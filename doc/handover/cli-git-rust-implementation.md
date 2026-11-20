@@ -40667,7 +40667,20 @@ stated in this entry. What follows from them, as work:
   flags `guest-red-flags-1795171401.log`, decoy `guest-red-decoy-1795171697.log`, in the previous round's folder).
   `e2899f094e` and `6dde1d368f` carry a `Co-authored-by:` trailer naming no co-author; corrective comments posted.
   GOING: its integration pass on Sonnet in `.claude/worktrees/integrate-git-policy-cli-zfs-descriptor-attach-guest-arm`
-  (brief under `~/temp/agent/integration-pass-zfs-step-4-guest-arms-after-their-findings-round-2026-11-20/`).
+  (brief under `~/temp/agent/integration-pass-zfs-step-4-guest-arms-after-their-findings-round-2026-11-20/`). THE FENCE
+  DESIGN ended `idle` (257 turns) at `401e1a71dd` (its folder's `keep/report-from-summary.md`): proposal
+  `doc/planning/cli-git-clone-rung-conversion-fence.md` with options A (per-path fence before the clone), B (beside it),
+  C (refuse the whole source), D (Git writes every path), E (keep step 3, fails the bar), ranked A > B > C > D > E; the
+  fence flags the right paths, but `git checkout-index --force` keeps a stat-matching file (`entry.c`), so the bytes stay
+  wrong and the controls red; A measured at +200 ms over step 3 on a clean add of this tree (857 against 652 ms, three
+  rounds, control spread up to 18 percent); dirty, `crlf`, B, C, D, `main` and rung 1 not measured; gate not run. Not
+  ready for the owner. Its note that `mise run …:native:build:release` in its own extra worktree built `main`'s package
+  did not reproduce: `mise tasks info` there resolves to the worktree's own package and the task runs plain `cargo
+  build`. GOING: the same session resumed (`pi-clone-rung-conversion-fence-gaps-closed`, cap 450, `continuation-1.md` in
+  its folder): make the flagged paths hold Git's bytes with every control red then green in the gate image, the spread
+  first and enough rounds with `main` as an arm, clean, dirty and a writing fixture, C and D timed and B if buildable,
+  rung 1 in a btrfs guest, and its extra worktree `.claude/worktrees/clone-rung-conversion-fence-step3` removed. Then a
+  Sonnet gate review, then the owner's question.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
