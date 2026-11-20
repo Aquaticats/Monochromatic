@@ -40621,7 +40621,16 @@ stated in this entry. What follows from them, as work:
   `main` adds through Git's checkout and gets these bytes right, so step 3 as it is makes something `main` does well
   worse, and both waivers cover time only; its integration check carries these scenarios as a required arm. The remedy
   goes to the owner as its own question, with a fence's measured cost; rung 1 (the snapshot) has not been examined by
-  anyone and is checked in a btrfs guest before steps 10 and 11 are briefed.
+  anyone and is checked in a btrfs guest before steps 10 and 11 are briefed. GOING:
+  `pi-clone-rung-conversion-fence-design-and-measurement` (DeepSeek on Neuralwatt, cap 510), a proposal
+  `doc/planning/cli-git-clone-rung-conversion-fence.md` with a prototype on `docs/planning-cli-git-clone-rung-conversion-fence`
+  (`.claude/worktrees/clone-rung-conversion-fence`, from `74caa69e7a`), a red control per conversion class and every
+  attribute source, and the fence's cost measured on clean and dirty adds; brief under
+  `~/temp/agent/clone-rung-conversion-fence-design-and-measurement-2026-11-20/`. GOING:
+  `pi-snapshot-and-clone-rungs-under-conversion-in-a-btrfs-guest` (DeepSeek on Neuralwatt, cap 400), `main`'s rung 1
+  and btrfs rung 2 under the four cases in an `mvm` guest, read-only in the coordinator's detached worktree
+  `.claude/worktrees/line-ending-reproduction-main-2df9b1689b` (remove it when this run ends); brief under
+  `~/temp/agent/snapshot-and-clone-rungs-under-conversion-in-a-btrfs-guest-2026-11-20/`.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
