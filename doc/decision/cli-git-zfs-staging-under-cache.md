@@ -70,8 +70,8 @@ the bind,
 the folder,
 the record and the claim stay for the sweep,
 the removal writes a refusal receipt naming the outcome,
-and the removal starts over at the slot,
-where the accepted busy refusal may stop it again.
+and its next attempt starts at the slot,
+where the clone's mount standing in the host namespace refuses it again.
 The design also refuses when a mount stands on the clone alone,
 and that refusal is the design's own rule,
 not the answer's:
