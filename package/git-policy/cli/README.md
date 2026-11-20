@@ -5163,7 +5163,9 @@ fractional or non-numeric value is ignored.
   An SSH key whose passphrase no agent holds therefore fails at once, at a terminal or without one,
    while a key without a passphrase needs no agent at all,
    which a control against a throwaway `sshd` proves.
-  A failed LFS upload's explanation says how to start an agent (`eval "$(ssh-agent)"`) and load the key with
+  A failed LFS upload's explanation says how to start an agent (`eval "$(ssh-agent)"`,
+   or `eval (ssh-agent -c)` in fish,
+   whose own syntax the Bourne form is not) and load the key with
    `ssh-add` (`ssh-add <key file>` for a key outside the default list),
    or to use a key without a passphrase;
   a command the wrapper forwards is replaced by real Git,
@@ -5172,7 +5174,14 @@ fractional or non-numeric value is ignored.
    and the upload's explanation and the push's failure record say to connect once with plain `ssh <host>`
    or add the host key to `known_hosts`,
    then retry;
+  the explanation names the host when the destination or the program's own words give one,
+   since an LFS server may live on another host than the Git remote;
   a forwarded command shows OpenSSH's own `Host key verification failed.` alone.
+  It is not one of the three stops (the project's answer of 2026-11-20,
+   "Keep retrying"):
+  the service keeps its usual retry schedule for it,
+  and the record says that it pushes the branch by itself once this machine knows the key,
+  so a person who connects once or adds the key needs no new commit to publish it.
   The evidence is in [the askpass troubleshooting note][askpass-dialog].
   The failure record the next command shows says that the service keeps trying,
   and goes when the push lands.

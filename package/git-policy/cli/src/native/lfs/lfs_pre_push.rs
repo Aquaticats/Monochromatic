@@ -520,15 +520,27 @@ const HOST_KEY_CHANGE_UNDER_STRICT_CHECKING_PHRASE: &str = "has changed and you 
 ///  so saying only that the push failed would leave the person with no move.
 ///  The sentence is shared by the push's failure record and the upload's explanation,
 ///  so the two faces cannot say different things about one refusal.
+///  `host` is the host the wrapper can name for this refusal,
+///  and the remote is written as `ssh <host>` only when it names none:
+///  an upload's destination may be another host than the Git remote,
+///  and a person told to run `ssh` must be told which machine to name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// 'monochromatic-git-policy-cli: this machine does not know the SSH host key ...'
+/// `monochromatic-git-policy-cli: this machine does not know the SSH host key ... Connect once with plain ${host ? `ssh ${host}` : 'ssh <host>'} ...`
 /// ```
-pub const HOST_KEY_NOT_KNOWN_SENTENCE: &str = "monochromatic-git-policy-cli: this machine does not know the SSH host key of the \
- remote, and no command the wrapper runs asks whether to trust a new one (`SSH_ASKPASS_REQUIRE=force` sends that yes/no \
- question to a program that answers nothing), so the connection was refused before any login. Connect once with plain \
- `ssh <host>`, which the wrapper does not touch and which still asks, or add the host key to `known_hosts`, then push again.";
+pub fn host_key_not_known_sentence(host: Option<&str>) -> String {
+    let connect: String = match host {
+        Some(name) => format!("Connect once with plain `ssh {name}`"),
+        None => String::from("Connect once with plain `ssh <host>`"),
+    };
+    return format!(
+        "monochromatic-git-policy-cli: this machine does not know the SSH host key of the remote, and no command the wrapper \
+         runs asks whether to trust a new one (`SSH_ASKPASS_REQUIRE=force` sends that yes/no question to a program that \
+         answers nothing), so the connection was refused before any login. {connect}, which the wrapper does not touch and \
+         which still asks, or add the host key to `known_hosts`, then push again."
+    );
+}
 
 /// What:
 ///  The refusal that follows a failed upload which needed a login:
@@ -555,6 +567,11 @@ pub const HOST_KEY_NOT_KNOWN_SENTENCE: &str = "monochromatic-git-policy-cli: thi
 ///  it names `eval "$(ssh-agent)"` and `ssh-add`,
 ///  or a key without a passphrase,
 ///  which needs no agent.
+///  The first form is Bourne shell syntax, which fish rejects,
+///  so the sentence names fish's own form beside it:
+///  `ssh-agent -c` prints `setenv` commands, which `eval (ssh-agent -c)` reads
+///  (`ssh-agent`'s manual,
+///  "The agent prints the commands to set the environment variables ... `-c` Generate C-shell commands on stdout").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -565,7 +582,8 @@ pub fn login_needed_message(server: &str, key_not_unlocked: bool) -> String {
         format!(
             " The key that server asked for was refused or could not be unlocked: with no program to ask a passphrase and \
              no terminal read, a key that no agent holds cannot be used, and a key the server does not accept answers \
-             the same way. Start an SSH agent with `eval \"$(ssh-agent)\"` and load the key with `{SSH_ADD_COMMAND}` \
+             the same way. Start an SSH agent with `eval \"$(ssh-agent)\"` (`eval (ssh-agent -c)` in fish), then load the key \
+             with `{SSH_ADD_COMMAND}` \
              (`{SSH_ADD_COMMAND} <key file>` for a key outside the agent's default list; `{SSH_ADD_COMMAND} -l` lists \
              what the agent holds), or use a key without a passphrase, and push again; a key the server still refuses \
              needs the server's account to accept it."

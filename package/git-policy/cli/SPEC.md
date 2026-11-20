@@ -6581,6 +6581,8 @@ with doubling pauses from
 `CLI_GIT_PUSH_RETRY_SECONDS` to 600 seconds,
 until it lands or the person must act (`src/native/push/push_retry.rs`,
 and what a failure's own words mean in `src/native/push/push_retry_failure.rs`).
+A host key this machine does not know is tried on that same schedule,
+with the record saying how to add it and that the service pushes the branch by itself once it is known.
 One cause is tried a fixed number of times instead of until it passes:
 a refusal GitHub answers with `GH006: Protected branch update failed for <ref>`
 is the hosting service's own protected-branch rule,
@@ -6636,6 +6638,14 @@ since a decline says what the server answered then and nothing about a later try
 for a refusal that outlasted its tries the record also names how many tries the service gave it and how long they
 covered,
 and the two ways out of a rule that refuses every push.
+A host key this machine does not know is no stop:
+the service keeps its usual retry schedule for it,
+and its record says that it pushes the branch by itself once the key is known
+(owner answer of 2026-11-20,
+"Keep retrying";
+"the service keeps its usual retry schedule; the message says the host key is unknown, how to fix it, and that the
+service will push by itself once the key is known"),
+which the refusal's own words above carry.
 No command the wrapper runs or forwards asks a person for a credential
 (owner decision,
 2026-11-19T16:58:00-05:00:
@@ -6698,6 +6708,8 @@ A key whose passphrase no agent holds therefore fails at once,
 at a terminal or without one,
 and the words a person reads say how to start an agent and load the key
 (`eval "$(ssh-agent)"`,
+or `eval (ssh-agent -c)` in fish,
+whose own syntax the Bourne form is not,
 then `ssh-add`,
 or `ssh-add <key file>` for a key outside the agent's default list),
 or to use a key without a passphrase
@@ -6723,12 +6735,27 @@ a host key is not a credential the push lacked,
 and no retry adds one.
 Where the wrapper owns the child,
 the upload's explanation and the push's failure record print one sentence
-(`HOST_KEY_NOT_KNOWN_SENTENCE` in `src/native/lfs/lfs_pre_push.rs`,
-read from OpenSSH's own `Host key verification failed.` by `reads_as_unknown_host_key`):
+(`host_key_not_known_sentence` in `src/native/lfs/lfs_pre_push.rs`,
+read from OpenSSH's own `Host key verification failed.` by `reads_as_unknown_host_key`,
+which leaves a changed key to OpenSSH's own warning and reads the reading after the hook-decline loop,
+as `main` orders its readings):
 connect once with plain `ssh <host>`,
 which the wrapper does not touch and which still asks its own question,
 or add the host key to `known_hosts`,
 and then push again.
+The sentence names the host when the wrapper can answer which one it is
+(`ssh_host` in `src/native/lfs/lfs_upload_explanations.rs`,
+from the program's own words or from a destination written as a URL),
+because an LFS server may live on another host than the Git remote;
+a push's own words for this refusal name no host,
+so its record writes the placeholder.
+The refusal is not one of the stops below:
+the service keeps its usual retry schedule,
+and the record it leaves says that it pushes the branch by itself once this machine knows the key,
+so no new commit is needed to publish it
+(`retried_failure_record` in `src/native/push/push_retry_failure.rs`,
+the project's answer of 2026-11-20,
+"Keep retrying").
 A command the wrapper forwards is replaced by real Git
 (`replace_process_with_real_git` in `src/native/invocation/forwarding.rs`),
 so nothing of the wrapper's can print beside it,

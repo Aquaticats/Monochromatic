@@ -836,6 +836,10 @@ fn an_upload_whose_ssh_key_no_agent_holds_says_how_to_start_an_agent_or_use_a_ke
     assert!(diagnostics.contains("needed a login"), "the failure is read as a login the program could not get: {diagnostics}");
     assert!(diagnostics.contains("`ssh-add`"), "the command that loads the key is named: {diagnostics}");
     assert!(diagnostics.contains("`eval \"$(ssh-agent)\"`"), "the words say how to start an agent: {diagnostics}");
+    assert!(
+        diagnostics.contains("`eval (ssh-agent -c)` in fish"),
+        "the words name the form fish accepts, which the Bourne one is not: {diagnostics}"
+    );
     assert!(diagnostics.contains("a key without a passphrase"), "the words name the other way that needs no agent: {diagnostics}");
     assert!(diagnostics.contains("passphrase"), "the words say what the agent would have answered: {diagnostics}");
     assert!(!diagnostics.contains("known_hosts"), "a refused key is not a host key this machine does not know: {diagnostics}");
@@ -883,6 +887,26 @@ fn an_upload_refused_for_an_unknown_host_key_says_how_to_add_it() {
     }
     assert!(!diagnostics.contains("needed a login"), "a host key is not a credential the upload needed: {diagnostics}");
     remove(root.as_path());
+}
+
+/// What:
+///  The sentence names the host a destination written as a URL gives,
+///  so a person told to connect once with plain `ssh` knows which machine to name.
+/// Why:
+///   An LFS server may live on another host than the Git remote,
+///  and a sentence that says only `ssh <host>` leaves its reader to work out which host asked.
+///  The host is the one the login sentence beside it names,
+///  read the same way.
+#[test]
+fn an_upload_refused_for_an_unknown_host_key_names_the_host_the_destination_gives() {
+    let destination: &std::ffi::OsStr = std::ffi::OsStr::new("ssh://git@git.example.invalid/owner/repo.git");
+    let explanation: String = crate::lfs_upload_explanations::explanation_after_failure(
+        "exited with status 2",
+        destination,
+        b"Host key verification failed.\nfatal: Could not read from remote repository.",
+    );
+    assert!(explanation.contains("plain `ssh git.example.invalid`"), "the host is named: {explanation}");
+    assert!(!explanation.contains("`ssh <host>`"), "the placeholder is only for a destination that names no host: {explanation}");
 }
 
 /// A failure that says nothing about a login gets no login paragraph:

@@ -598,9 +598,12 @@ besides every credential prompt:
   which the wrapper does not touch and which still asks its own question,
   or add the host key to `known_hosts`,
   then push again
-  (`HOST_KEY_NOT_KNOWN_SENTENCE` in `package/git-policy/cli/src/native/lfs/lfs_pre_push.rs`,
-  read from OpenSSH's own words by `reads_as_unknown_host_key` and printed by the upload's explanation
-  and by the push's failure record).
+  (`host_key_not_known_sentence` in `package/git-policy/cli/src/native/lfs/lfs_pre_push.rs`,
+  read from OpenSSH's own words by `reads_as_unknown_host_key`,
+  which leaves a changed key's warning alone,
+  and printed by the upload's explanation and by the push's failure record,
+  the latter with the promise that the service keeps its usual retry schedule and pushes by itself once the key is
+  known).
   `an_unknown_host_key_is_refused_at_a_terminal_and_never_asked` shows the refusal at a real pseudo-terminal,
   beside a control whose plain `ssh` at the same terminal asks the question.
 - Signing a commit or a tag with an SSH key whose passphrase no agent holds fails the same way:
@@ -772,14 +775,21 @@ so an account that needs the window for a plain `ssh` of its own is unchanged.
 
 What a person meets is the wrapper's own sentence instead:
 a login the upload needed names the server and every way to give it a login without a person,
-and a key whose passphrase no agent holds is told to start an agent with `eval "$(ssh-agent)"`,
+and a key whose passphrase no agent holds is told to start an agent with `eval "$(ssh-agent)"`
+(or `eval (ssh-agent -c)` in fish,
+whose own syntax the Bourne form is not),
 to load the key with `ssh-add`,
 or to use a key without a passphrase
 (`login_needed_message` in `src/native/lfs/lfs_pre_push.rs`),
 because OpenSSH's own `Permission denied (publickey)` does not say what to do.
 An unknown host key is told to connect once with plain `ssh <host>` or to add the key to `known_hosts`,
-then to retry (`HOST_KEY_NOT_KNOWN_SENTENCE` in the same file),
+then to retry (`host_key_not_known_sentence` in the same file),
+and the sentence names the host when the destination or the program's own words give one,
 because OpenSSH's own `Host key verification failed.` says nothing about what to do either.
+A key that changed after OpenSSH's warning of a possible attack is no unknown key and keeps OpenSSH's own words.
+The service keeps its usual retry schedule for an unknown host key
+(`retried_failure_record` in `src/native/push/push_retry_failure.rs`),
+so a person who adds the key needs no new commit to publish the branch.
 A command the wrapper forwards is replaced by real Git,
 so its reader gets Git's and OpenSSH's own words alone.
 

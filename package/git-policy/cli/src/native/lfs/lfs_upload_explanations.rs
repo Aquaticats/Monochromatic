@@ -28,7 +28,7 @@ use crate::bounded_push::{PUSH_DEADLINE_VARIABLE, STOPPED_EXIT_CODE, StopCause, 
 /// The texts of a failed or refused upload,
 /// and the reading that says a login was needed.
 use crate::lfs_pre_push::{
-    HOST_KEY_NOT_KNOWN_SENTENCE, LFS_PROGRAM, failed_message, login_needed_message, missing_program_message, reads_as_a_key_failure,
+    LFS_PROGRAM, failed_message, host_key_not_known_sentence, login_needed_message, missing_program_message, reads_as_a_key_failure,
     reads_as_a_login_failure, reads_as_unknown_host_key, start_failed_message,
 };
 /// The masks and the hosts a destination or a failure names.
@@ -143,6 +143,28 @@ pub fn stopped_upload_tail() -> String {
 }
 
 /// What:
+///  The host this refusal can name to a person who is about to run `ssh`:
+///  the one the program's own words name,
+///  or the one the destination names,
+///  or nothing when neither does.
+/// Why:
+///   The program's words name the host that asked,
+/// which for a repository whose `lfs.url` is another host is not the push's
+///  destination at all (the incident's push went to GitHub and its login question came from the Worker);
+/// and a person told to connect once with plain `ssh` must be told which machine to name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// hostsIn(output)[0] ?? hostOf(String(destination))
+/// ```
+fn ssh_host(destination: &std::ffi::OsStr, output: &str) -> Option<String> {
+    let from_program: Option<String> = hosts_in(output).into_iter().next();
+    // `to_string_lossy` reads a destination that is not UTF-8 without failing; a remote name or URL is text in practice.
+    let text: String = destination.to_string_lossy().into_owned();
+    return from_program.or_else(|| { return host_of(text.as_str()); });
+}
+
+/// What:
 ///  How a refusal names the server whose upload needed a login:
 ///  the one the program's own words name,
 /// the one the destination names,
@@ -157,15 +179,13 @@ pub fn stopped_upload_tail() -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const host = hostsIn(output)[0] ?? hostOf(destination);
+/// const host = sshHost(destination, output);
 /// host ? `the server \`${host}\`` : `the destination \`${maskUserinfoText(destination)}\``
 /// ```
 fn login_subject(destination: &std::ffi::OsStr, output: &str) -> String {
-    let from_program: Option<String> = hosts_in(output).into_iter().next();
     // `to_string_lossy` reads a destination that is not UTF-8 without failing; a remote name or URL is text in practice.
     let text: String = destination.to_string_lossy().into_owned();
-    let from_destination: Option<String> = host_of(text.as_str());
-    return match from_program.or(from_destination) {
+    return match ssh_host(destination, output) {
         Some(host) => format!("the server `{host}`"),
         None => format!("the destination `{}`", mask_url_secrets_text(text.as_str())),
     };
@@ -187,17 +207,21 @@ fn login_subject(destination: &std::ffi::OsStr, output: &str) -> String {
 ///  A host key this machine does not know is the other refusal the wrapper's own words must explain,
 /// because the rule turns OpenSSH's yes/no question into an empty answer,
 /// and no retry adds the key (the project's answer of 2026-11-20).
+///  The sentence names the host where the wrapper can say which one it is,
+/// which is `ssh_host`'s answer and the same host the login sentence names,
+/// because an LFS server may live on another host than the Git remote.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// failedMessage(status) + (readsAsALoginFailure(output) ? loginNeededMessage(...) : '') + (readsAsUnknownHostKey(output) ? HOST_KEY_NOT_KNOWN_SENTENCE : '')
+/// failedMessage(status) + (readsAsALoginFailure(output) ? loginNeededMessage(...) : '') + (readsAsUnknownHostKey(output) ? hostKeyNotKnownSentence(sshHost(destination, output)) : '')
 /// ```
 pub fn explanation_after_failure(status: &str, destination: &std::ffi::OsStr, output: &[u8]) -> String {
     let mut text: String = failed_message(status);
     // `from_utf8_lossy` reads the program's words whatever their encoding; only the search matters here.
     let shown: String = String::from_utf8_lossy(output).into_owned();
     if reads_as_unknown_host_key(shown.as_str()) {
-        text.push_str(HOST_KEY_NOT_KNOWN_SENTENCE);
+        let host: Option<String> = ssh_host(destination, shown.as_str());
+        text.push_str(host_key_not_known_sentence(host.as_deref()).as_str());
         text.push('\n');
     }
     if reads_as_a_login_failure(shown.as_str()) {

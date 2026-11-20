@@ -48,7 +48,7 @@ use crate::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with_a
 use crate::auto_push::AutoPushOutcome;
 use crate::claim_time::ClaimTime;
 use crate::push_retry::Retrying;
-use crate::push_retry_failure::{final_failure, plain_words, unrecognised_rejection};
+use crate::push_retry_failure::{final_failure, plain_words, retried_failure_record, unrecognised_rejection};
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_review::{options_for, review_item, review_item_awaiting, review_variables};
 use crate::service_review_key::ReviewKey;
@@ -508,8 +508,10 @@ impl WorkHandlers for GitHandlers {
             Ok(_result) if branch_exists_awaiting(&git, newest.branch_ref.as_str()).await == Some(false) => {
                 Verdict::Skipped(branch_is_gone_words_awaiting(&git, newest).await)
             }
-            // A conflict, a login the service does not have and a server hook's decline need the person; every other failure can pass
-            //  (a stall, the network, an LFS server error, a held lock).
+            // A conflict, a login the service does not have and a server hook's decline need the person and stop the retry;
+            //  every other failure can pass (a stall, the network, an LFS server error, a held lock, a host key this machine
+            //  does not know), and the record of one whose words ask something of the person says what to do and that the
+            //  service keeps its schedule.
             Ok(result) => match final_failure(result.shown.as_str()) {
                 Some(cause) => Verdict::Failed(match plain_words(cause) {
                     Some(words) => format!("{words}\n{}", result.shown),
@@ -523,7 +525,7 @@ impl WorkHandlers for GitHandlers {
                             crate::service_timing::in_the_repository_at(newest.repository.as_path())
                         );
                     }
-                    Verdict::Retry(result.shown)
+                    Verdict::Retry(retried_failure_record(result.shown.as_str()))
                 }
             },
             Err(error) => Verdict::Retry(format!("{error}")),
