@@ -40591,7 +40591,17 @@ stated in this entry. What follows from them, as work:
   a whole-tree decline below about 400 MB, bracketed 260 to 780 MB, not pinned) never above `main` on the shapes
   measured, C (a per-file cutoff) loses because Git's write step costs 3 to 4 times per file, D (keep step 3); ranking
   B > A > C > D. Corrective comment on `dba1276a06`. GOING: its gate review on Sonnet before it goes to the project
-  (brief under `~/temp/agent/gate-review-of-the-partial-clone-proposal-on-sonnet-2026-11-20/`). Then each design branch
+  (brief under `~/temp/agent/gate-review-of-the-partial-clone-proposal-on-sonnet-2026-11-20/`). The owner then asked
+  "Wait, why are we cloning every file individually when we have snapshots?": the accepted design's rung 1 is the ZFS
+  snapshot clone (whole checkout, ignored state included, a verified restore for a dirty main, the proposal's "Rung 1:
+  Snapshot clone"), and per-file cloning is rung 2, the fallback; rung 1 needs the managed route (an account cannot mount
+  a clone), whose add route is step 10 (depends on steps 2, 3, 6 and 8) and dirty-main restore step 11. Asked whether to
+  park the partial clone for steps 6 to 11, the owner answered "B: finish both": the gate review continues and the
+  proposal comes to the owner, while steps 6 onward proceed. Step 6 is split by its own design: the start probe runs the
+  module gate first and skips itself when the gate refuses, so the gate and the layout checker go first
+  (`feat/git-policy-cli-zfs-start-time-compatibility-gate` in `.claude/worktrees/zfs-step-6-compatibility-gate`, brief
+  under `~/temp/agent/zfs-step-6-compatibility-gate-and-layout-checker-2026-11-20/`) and the start probe follows on top.
+  Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
   (`doc/decision/cli-git-zfs-runtime-layout-checker.md`, the ten lows fixed in its copy, notes in the proposal's "ABI
