@@ -40101,7 +40101,21 @@ What follows from them, as work:
   `fix/git-policy-cli-gate-base-image-carries-the-pinned-browserslist-data`, stacked on the githooks fix: the base
   Containerfile fetches the tarballs `browserslist-data.lock.json` pins, checks their sha512, and places them where
   `file-enforcer` reads them, with a red, a green and a tampered-hash check; brief under
-  `~/temp/agent/git-policy-cli-gate-base-image-browserslist-data-2026-11-19/`. ENDED: the start-probe
+  `~/temp/agent/git-policy-cli-gate-base-image-browserslist-data-2026-11-19/`. It ended `idle` (166 turns) at
+  `f521075f0d` (one commit, 7 files; report in that folder's `keep/report.md`): the build script passes the lock's text
+  as `BROWSERSLIST_DATA_LOCK`; the base downloads each pinned tarball, refuses a sha512 that differs, writes
+  `/home/tester/.cache/browserslist/<hex digest>.tgz` and links root's cache to it (the cache follows `HOME`, read from
+  `directories` 6.0.0 and `dirs-sys` 0.5.0); `testBaseTag` now hashes the build arguments, so a lock change builds a new
+  base; red offline on the old base (`browserslist-fetch-failed`), green on the new one as the gate's user, a tampered
+  digest and an empty argument each fail the build; 7 of 7 unit tests. It also added a note to the accepted plan's step
+  1 (`doc/planning/cli-git-zfs-worktree-implementation-plan.md:383-389`), which its review is asked to judge. GOING: its
+  short review on the Qwen plan, `pi-qwen-review-gate-base-image-browserslist-at-f521075f0d` (watched); brief under
+  `~/temp/agent/git-policy-cli-gate-base-image-browserslist-short-review-on-the-qwen-plan-2026-11-19/`. The githooks
+  fix's lows round ended `idle` (61 turns) at `8702d8a03e` (two commits; report in
+  `~/temp/agent/git-policy-cli-gate-base-image-githooks-review-lows-fixed-2026-11-19/keep/report.md`): "most of its
+  packages" with the image-wide counts; the entry is a top-level section labelled `2026-11-19T19:18:44-05:00`; the page
+  renamed `doc/troubleshooting/cachyos-image-package-and-tool-differences.md`, live references updated and the
+  handover's record kept with an in-place note; rendered with `pandoc`. ENDED: the start-probe
   design (`idle`, 124 turns, `4167f50724`, 791 lines; recommends a root probe that mounts a read-only snapshot in a
   private mount namespace, no pool write; four owner questions; ten owed VM measurements) and the staging design
   (`idle`, 108 turns, `a709cd7f58` and `2258de74d8`, 645 lines), and the runtime layout checker design (`idle`, 220
@@ -40426,7 +40440,10 @@ What follows from them, as work:
   change, so it merges `main` after the retry follow-up lands. Its report calls an advisor pass "independent vendor";
   no record shows that. It also saw two other suites fail once and pass alone: `secret-values-of-this-machine` (the
   known `.env.local.json` fixture race, owned by branch `945ff70a94`) and `start-pi-run-when-a-pool-has-room`
-  (expected `--provider=opencode-go`; possibly reads this machine's running units; a separate incident until shown).
+  (expected `--provider=opencode-go`; not from this machine's running units: the suite gives the program a `PATH` of
+  its own stand-in `systemctl`, `git`, `mise`, `systemd-run` and `pi`, and its header says it reads none of the
+  machine's units, `src/start-pi-run-when-a-pool-has-room.unit.test.ts:2-3` and `:412-417`; cause unknown, a separate
+  incident until a failing run is caught).
   GOING: its short review on the Qwen plan, `pi-qwen-review-driver-inbox-at-e2ead21556` (watched); brief under
   `~/temp/agent/pi-driver-inbox-follow-up-short-review-on-the-qwen-plan-2026-11-19/`. The second resume ended
   `idle` (40 turns)
