@@ -184,6 +184,10 @@
     "scope": "zfs/request-to-openzfs-kernel-device",
     "pinFiles": ["package/zfs/request-to-openzfs-kernel-device.fuzz/Cargo.toml", "package/git-policy/cli/Cargo.toml"],
     "checkBins": [],
-    "lockDirs": ["package/zfs/request-to-openzfs-kernel-device.fuzz", "package/git-policy/cli"]
+    "lockDirs": [
+      "package/zfs/request-to-openzfs-kernel-device.fuzz",
+      "package/git-policy/cli",
+      "package/git-policy/cli.fuzz"
+    ]
   }
 }
