@@ -5455,7 +5455,7 @@ and `47.116` to `52.750 ms` for that store's adoption,
 the arm that holds the lock longest (`37.9` times the wait)
 (the method,
 the ranges and counts,
-the one-record-wide change the append's size check makes to the probe's widest arm,
+the append's size check that moved the probe's widest arm one record below the bound,
 and the control that shows each `fsync` reaching the pool's device,
 are in `package/git-policy/cli/doc/slot-identity-store-lock-hold.md`,
 which `STORE_LOCK_WAIT` names),

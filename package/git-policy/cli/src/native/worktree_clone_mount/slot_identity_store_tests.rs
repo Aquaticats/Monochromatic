@@ -481,7 +481,7 @@ fn a_store_larger_than_the_read_accepts_is_refused() {
 ///  the same call,
 /// one record narrower,
 /// writes and lands exactly on the bound,
-///  so the refusal above is the size and not a broken fixture.
+///  so the refusal is the size and not a broken fixture.
 #[test]
 fn an_append_that_would_outgrow_the_store_is_refused() {
     let root: PathBuf = fixture("slot-store-bound-append");

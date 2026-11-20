@@ -25,6 +25,12 @@
 //!  The mounts land in the guest's boot mount namespace,
 //!  each is taken down by the guard that made it however the control ended,
 //!  and the recipe destroys the guest.
+//!  Item 2's measured arms map here as follows:
+//!  a slot that already holds the clone's mount is the `already-mounted` refusal,
+//!  a real clone mount at the slot rather than a bind,
+//!  and a path through `/proc/self/fd` is refused before any walk,
+//!  as a checkout that is not its own canonical path
+//!  (`clone_slot_walk_tests::a_checkout_named_through_a_link_is_refused`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

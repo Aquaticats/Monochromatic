@@ -112,6 +112,8 @@ fn another_mount_at_the_slot_is_misplaced() {
     let fresh: FreshSlotLookup = look_again_at_the_slot(&LookAgainAtSlotRequest { checkout: checkout.as_path(), slot: "one" }).expect("the slot is there");
     // The attach recorded a mount of its own, and the walk finds another one at the slot: the held target is on the
     // number the attach recorded, so the arm under test is the slot's mount and not the held target's.
+    // Both numbers are set to that mount because this control isolates the later comparison; a fixture folder cannot
+    // change mounts, so the reader's own answer is exercised by the guest arm, not here.
     let attached: u64 = fresh.mount_id + 1;
     let check_2: AttachPostCheck<'_> = AttachPostCheck {
         held_parent_identity: &held.parent_identity,

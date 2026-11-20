@@ -46,7 +46,7 @@ so what it times is the shipped code and not a copy of its steps.
   an append to a store of the whole bound is refused before anything is written
   (`StoreRefusal::WouldNotFit`),
   so timing it would time a refusal.
-  The two runs below predate that refusal and appended to a store of the whole bound;
+  The two runs this record keeps predate that refusal and appended to a store of the whole bound;
   their figure is the same write one record wider (about 250 bytes of 1 MiB),
   and the arms that matter for the wait are the two `fsync`s,
   not the last record.
@@ -72,12 +72,13 @@ both before the kept log's last write at `2026-11-20T03:22:46-05:00`
 a first one that could not reach its folder,
 a comment-padded one,
 and the two quoted here),
-inside a container of the package's gate image
-`localhost/git-policy-native-test:integrate-git-policy-cli-zfs-descriptor-attach-pre-merge`,
-built at `2026-11-20T02:31:04-05:00`,
-which is the image the previous branch's integration check left on this host
-(the kept log does not record the image's name,
-so the tag named is the one the run's command line used),
+inside a container of a gate image this host held,
+tagged `localhost/git-policy-native-test:integrate-git-policy-cli-zfs-descriptor-attach-pre-merge`,
+built at `2026-11-20T02:31:04-05:00` from an earlier commit of this package's branch,
+which the previous branch's integration check left here.
+The kept log records no image name,
+and that image's `slot_identity_store.rs` does not hash to the tip's,
+so the tag is the one the author recorded and not one the log proves,
 unoptimized `test` profile build,
 with the measured folder bind-mounted from this host's ZFS `home` dataset.
 The store itself lives at `SLOT_IDENTITY_STORE_PATH` on this host's `root` dataset,
