@@ -341,7 +341,7 @@ and the design's body keeps the text it was accepted with:
   [What M11 must show for each side of the boundary](#what-m11-must-show-for-each-side-of-the-boundary).
 - LOW-F,
   the `EACCES` bullet's missing boundary:
-  [The boundary of the `EACCES` bullet](#the-boundary-of-the-eaces-bullet).
+  [The boundary of the `EACCES` bullet](#the-boundary-of-the-eacces-bullet).
 - LOW-G,
   the bullet's title citing one capability check of three:
   [The capability checks the bullet covers](#the-capability-checks-the-bullet-covers).
