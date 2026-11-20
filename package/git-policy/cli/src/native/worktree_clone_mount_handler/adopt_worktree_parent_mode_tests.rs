@@ -36,54 +36,10 @@ use crate::worktree_clone_mount::parent_adoption_decision::AdoptionRefusal;
 use crate::worktree_clone_mount::parent_adoption_facts::{BindingState, SlotState};
 use crate::worktree_clone_mount::slot_identity_store::SlotIdentityStore;
 use crate::worktree_clone_mount::slot_identity_store_refusals::StoreRefusal;
-use crate::worktree_clone_mount::{HeldWorktreesParent, STORE_HEADER, StoredIdentity, hold_the_worktrees_parent};
+use crate::worktree_clone_mount::{HeldWorktreesParent, SLOT_IDENTITY_STORE_PATH, STORE_HEADER, StoredIdentity, hold_the_worktrees_parent};
 use crate::worktree_clone_mount_handler::handler_mode_arguments::AdoptRequest;
 use std::path::Path;
 use std::path::PathBuf;
-
-/// An adoption of the checkout this repository is,
-/// identified as the test reads it.
-fn request() -> AdoptRequest {
-    return AdoptRequest { checkout: PathBuf::from("/home/user/Monochromatic"), device: 66306, inode: 1_234_567 };
-}
-
-/// A caller that is not root is refused before the store is opened,
-/// and the sentence names the effective user.
-#[test]
-fn a_caller_that_is_not_root_is_refused_before_the_store_is_read() {
-    let refusal: AdoptFailure = adopt_at(&request(), Path::new("/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities"), false, 1000)
-        .expect_err("a caller that is not root records nothing");
-    assert_eq!(refusal, AdoptFailure::NotRoot { effective_user: 1000 });
-    let message: String = refusal.message();
-    assert!(message.contains("effective user is 1000"), "{message}");
-    assert!(message.contains("Nothing was read or recorded"), "{message}");
-}
-
-/// Every refusal names what an administrator fixes next,
-/// and every one says the record is unchanged.
-#[test]
-fn every_refusal_names_its_cause_and_the_way_forward() {
-    let cases: Vec<(AdoptFailure, &str)> = vec![
-        (
-            AdoptFailure::Store(StoreRefusal::Unreadable { path: PathBuf::from("/var/lib/x"), reason: String::from("the file is not there") }),
-            "could not be read",
-        ),
-        (AdoptFailure::NoParentRecord { path: PathBuf::from("/var/lib/x") }, "holds no record"),
-        (
-            AdoptFailure::Decision(AdoptionRefusal::Identity { field: crate::worktree_clone_mount::CloneFolderField::Inode, identified: String::from("1"), held: String::from("2") }),
-            "Nothing was recorded",
-        ),
-        (
-            AdoptFailure::Write(StoreRefusal::Unreadable { path: PathBuf::from("/var/lib/x"), reason: String::from("the folder is gone") }),
-            "unchanged",
-        ),
-    ];
-    for (refusal, expected) in cases {
-        let message: String = refusal.message();
-        assert!(message.contains(expected), "{refusal:?} should say {expected}: {message}");
-        assert!(message.contains("Ways forward"), "{refusal:?} should say what to do next: {message}");
-    }
-}
 
 /// One fixture checkout with a recreated `.claude/worktrees` folder,
 /// and the path of a store under the fixture root a control writes.
@@ -131,6 +87,61 @@ fn slots_and_bindings(built: &Fixture) -> (Vec<SlotState>, Vec<BindingState>) {
     let held: HeldWorktreesParent = hold_the_worktrees_parent(built.checkout.as_path()).expect("the walk holds the recreated parent");
     let store: SlotIdentityStore = SlotIdentityStore::read(built.store.as_path()).expect("the fixture store reads");
     return recorded_slots(Some(&held), &store);
+}
+
+/// An adoption of a fixture's checkout,
+/// identified by the folder's own identity,
+/// so no number here is one a control made up.
+fn request(built: &Fixture) -> AdoptRequest {
+    let identified: CloneFolderIdentity = identity_of(&built.parent);
+    return AdoptRequest { checkout: built.checkout.clone(), device: identified.device, inode: identified.inode };
+}
+
+/// A caller that is not root is refused before the store is opened,
+/// and the sentence names the effective user.
+#[test]
+fn a_caller_that_is_not_root_is_refused_before_the_store_is_read() {
+    let built: Fixture = fixture_checkout("adopt-not-root");
+    let refusal: AdoptFailure = adopt_at(&request(&built), Path::new(SLOT_IDENTITY_STORE_PATH), false, 1000)
+        .expect_err("a caller that is not root records nothing");
+    assert_eq!(refusal, AdoptFailure::NotRoot { effective_user: 1000 });
+    let message: String = refusal.message();
+    assert!(message.contains("effective user is 1000"), "{message}");
+    assert!(message.contains("Nothing was read or recorded"), "{message}");
+}
+
+/// Every refusal names what an administrator fixes next,
+/// and every one says the record is unchanged.
+#[test]
+fn every_refusal_names_its_cause_and_the_way_forward() {
+    let built: Fixture = fixture_checkout("adopt-refusal-sentences");
+    let identified: String = identity_of(&built.parent).describe();
+    let held: String = identity_of(&built.checkout).describe();
+    let store: PathBuf = PathBuf::from(SLOT_IDENTITY_STORE_PATH);
+    let cases: Vec<(AdoptFailure, &str)> = vec![
+        (
+            AdoptFailure::Store(StoreRefusal::Unreadable { path: store.clone(), reason: String::from("the file is not there") }),
+            "could not be read",
+        ),
+        (AdoptFailure::NoParentRecord { path: store.clone() }, "holds no record"),
+        (
+            AdoptFailure::Decision(AdoptionRefusal::Identity {
+                field: CloneFolderField::Inode,
+                identified,
+                held
+            }),
+            "Nothing was recorded",
+        ),
+        (
+            AdoptFailure::Write(StoreRefusal::Unreadable { path: store, reason: String::from("the folder is gone") }),
+            "unchanged",
+        ),
+    ];
+    for (refusal, expected) in cases {
+        let message: String = refusal.message();
+        assert!(message.contains(expected), "{refusal:?} should say {expected}: {message}");
+        assert!(message.contains("Ways forward"), "{refusal:?} should say what to do next: {message}");
+    }
 }
 
 /// What:
