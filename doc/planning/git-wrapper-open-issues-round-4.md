@@ -35,7 +35,7 @@ which returned 89 issues on 2026-11-10 (77 on 2026-11-11).
 
 Skipped before reading:
 `#6265`,
-the only issue `doc/handover/questions-for-the-owner.md` names,
+the issue the owner's plugin-bundle-drift answer opened,
 and the Windows and macOS work the owner paused ("Ignore Win and mac until I say so").
 No issue in the 89 carries a mutation or LFS label.
 

@@ -1,0 +1,7 @@
+# libFuzzer discoveries and crash inputs; a finding is filed with its input copied out.
+corpus/
+artifacts/
+
+# Build output and the campaign scratch the container runner creates.
+target/
+node_modules/

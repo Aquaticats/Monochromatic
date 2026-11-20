@@ -502,7 +502,7 @@ from the brief and the plan:
   and refused the backup copy of the last two.
   Nothing was changed.
   The owner then picked "I apply them at cutover (Recommended)"
-  (`doc/handover/questions-for-the-owner.md`),
+  (the questions file's section then; this file's section "W6 and W7 edits to apply" is its record now),
   so the coordinator makes the edits right before the cutover starts.
   The exact edits are in the section "W6 and W7 edits to apply" below.
 - Releases:

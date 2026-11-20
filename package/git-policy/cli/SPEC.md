@@ -381,7 +381,7 @@ with one exception,
 named by the owner on 2026-11-10 in the question tool as the answer
 "A commit adds the dependents' manifests and updates them in the worktree when that copy still matches `HEAD`",
 to the question recorded in
-`doc/handover/questions-for-the-owner.md`,
+`doc/planning/cli-git-config-and-dependent-version-route-findings-on-main.md`,
 and decided on 2026-09-15
 (`doc/decision/private-npm-registry.md:158-177`):
 a hand bump of a workspace manifest carries its dependents' patch bumps in the same commit,
@@ -11433,8 +11433,9 @@ asked "Should the wrapper switch fsmonitor off for its own internal Git commands
 "B:
 off for internal Git (Recommended)"
 (2026-11-10;
-`doc/handover/questions-for-the-owner.md`,
+`package/git-policy/cli/README.md`,
 "The wrapper's own Git and fsmonitor";
+that questions-file section left for it on 2026-11-19;
 this amends the decision of 2026-11-03,
 which stands for the person's own Git).
 So the setting is off in the person's global configuration,
@@ -13470,8 +13471,9 @@ so no round can publish a commit whose post-commit gate has not decided.
 Nothing releases a held record by judging a process:
 a push whose command died before its checks ran stays
 held,
-and the question of whether it should ever be pushed is open with the owner
-(`doc/handover/questions-for-the-owner.md`).
+and whether it should ever be pushed is open with the owner
+(`doc/handover/questions-for-the-owner.md` under "Choices the session made itself",
+"A commit whose command died before its checks ran now stays local").
 A held commit is not stranded by that:
 the queue pushes a branch,
 `git push <remote> <branch>:<target>`,
@@ -16031,8 +16033,9 @@ quoting every path value under git-config value syntax at the final interpolatio
 
 The creation of a shadow is about forty calls that create a directory entry on the volume a commit already waits on,
 and the owner chose to stop paying it on every commit
-(`doc/handover/questions-for-the-owner.md`,
-"May a commit take its private repository from a pool made ahead?",
+(this section; the questions file's section "May a commit take its private repository from a pool made ahead?"
+left for it on 2026-11-19,
+with the answer
 "Pool made ahead (Recommended),
 We don't need to build a shadow for every commit.
 Be smarter.").
@@ -20331,8 +20334,7 @@ The warning never changes the landing.
 ### The remote settings every worktree shares
 
 The owner answered "Refuse in worktrees (Recommended)" on 2026-11-10
-(`doc/handover/questions-for-the-owner.md`,
-"A push URL changed from a worktree"),
+(this section; the questions file's section "A push URL changed from a worktree" left for it on 2026-11-19),
 after a worktree of this repository ran `git remote set-url --push origin DISABLED` as if it were a clone.
 Every worktree of a repository shares one `.git/config`,
 so that change broke every push of the main checkout until someone removed the entry,
@@ -21081,12 +21083,16 @@ Before release readiness:
 
 - the package README exists and matches this interface;
 - Clippy reports no warning and the crate's tests pass in the bounded container
-  (`mise run //package/git-policy/cli:native:test:container`);
+  (`mise run //package/git-policy/cli:native:test:container`),
+  with Clippy running the Rust toolchain `toolchain.lock.json` records
+  (the gate refuses, naming the missing component, when that toolchain has no Clippy);
 - the btrfs controls pass on this host,
   which a release that is not an alpha waits for before it dispatches
   (`mise run //package/git-policy/cli:native:release:host-controls`):
-  the container gate runs on an overlay filesystem,
-  where each of those controls prints `BTRFS CONTROL NOT RUN`,
+  the container gate's fixtures live on a tmpfs the container makes
+  (`bin/native-gate-fixture-root.ts`),
+  so no fixture root there is a btrfs filesystem,
+  and each of those controls prints `BTRFS CONTROL NOT RUN`,
   passes,
   and leaves the container run no evidence they work on btrfs;
   a real release refuses to dispatch when one of them fails,

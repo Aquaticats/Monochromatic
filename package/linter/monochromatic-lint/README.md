@@ -881,11 +881,12 @@ and that a group whose marker is missing is not a group,
 so the shelf-only restriction is again a convention that nothing enforces.
 The structural form changes one earlier decision:
 a parent folder with code of its own beside child folders used to be "a folder like any other".
-No package of this repository selects the layout rules yet
-(measured on 2026-11-07:
-no `uses` folder anywhere under `package/`,
-and `monochromatic-lint.config.jsonc` does not name `rust/folder-uses-links`),
-so no existing layout is broken by the change.
+One package of this repository selects the layout rules today:
+`package/zfs/request-to-openzfs-kernel-device` and its fuzz sidecar,
+in `monochromatic-lint.config.jsonc`'s `layout-zfs-request-to-openzfs-kernel-device` block.
+Neither rule is on repo-wide,
+so no other package's layout is checked by them;
+a repo-wide rollout would surface the existing packages and stays a separate decision.
 
 #### What the rule checks
 

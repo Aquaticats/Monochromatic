@@ -1,9 +1,11 @@
 # What:  base image of the native wrapper gate (`mise run //package/git-policy/cli:native:test:container`) and of the
 #        mutation campaigns that start from the gate image: CachyOS with the Rust toolchain, the build tools, and every
-#        tool the tests start (Git, Node, pnpm, strace, cargo-nextest), all installed from pacman.
+#        tool the tests start (Git, Node, pnpm, strace, cargo-nextest), all installed from pacman, plus the pinned npm
+#        data tarballs that `file-enforcer check` resolves a `.browserslistrc` against.
 # Why:   the gate image itself builds without network, so every download happens here, once per CachyOS image: the
 #        build script (bin/native-test-base.ts) pulls the `latest` tag, and this image is rebuilt only when that pull
-#        brings a different image or this file changes (doc/decision/container-base-distro.md).
+#        brings a different image, when this file changes, or when the browserslist data lock changes
+#        (doc/decision/container-base-distro.md).
 # Pins:  none. Owner decisions of 2026-11-04: "We don't need to pin git because my current system is already using git
 #        latest.", "We don't need to pin Node too.", and, asked where the tools toolchain.lock.json locks should come
 #        from in test images, "Pacman for everything it has" (an exception to AGENTS.md rule CM7 for these images).
@@ -13,7 +15,8 @@
 # Signatures: pacman checks package signatures (`SigLevel = Required DatabaseOptional` in the CachyOS image's
 #        /etc/pacman.conf); nothing below turns that off.
 # Build context: any directory; nothing is copied from it.
-# Build arguments: CACHYOS_IMAGE (the base, resolved by package/test-harness/core-matrix).
+# Build arguments: CACHYOS_IMAGE (the base, resolved by package/test-harness/core-matrix); BROWSERSLIST_DATA_LOCK (the
+#        text of the repository's browserslist-data.lock.json, read and passed by bin/native-test-base.ts).
 ARG CACHYOS_IMAGE=docker.io/cachyos/cachyos:latest
 FROM ${CACHYOS_IMAGE}
 
@@ -22,12 +25,176 @@ FROM ${CACHYOS_IMAGE}
 # builds outside the image. `rust` carries cargo and Clippy. `base-devel` carries the compiler and linker that build the
 # crates. `strace` injects the faults of the fault-injection tests (they check nothing without it). `nodejs` and `pnpm`
 # serve the controls that run a real pnpm. `man-db` renders the packaged githooks(5) page, which the hook-event guard
-# test reads when no AsciiDoc source is installed (the Git package ships the page, not the source). The remaining
-# packages are the tools the tests start (`ps`, `ssh-keygen`, perl, python); the image already carries zlib-ng-compat,
-# which provides zlib.
+# test reads when no AsciiDoc source is installed (the Git package ships the page, not the source). The step that
+# reinstalls Git when that page is absent repairs the base image's slimmed copy of the package. The remaining packages
+# are the tools the tests start (`ps`, `ssh-keygen`, perl, python); the image already carries zlib-ng-compat, which
+# provides zlib.
 RUN --mount=type=cache,target=/var/cache/pacman/pkg,sharing=locked \
     ["pacman", "--disable-sandbox", "--sync", "--refresh", "--sysupgrade", "--noconfirm", "--needed", \
      "base-devel", "rust", "git", "cargo-nextest", "nodejs", "pnpm", "strace", "man-db", "perl", "python", "openssh", \
      "procps-ng"]
+
+# The x86-64 CachyOS image is a slimmed copy: most of its packages lost their manual pages, translations, info pages
+# and docs while the image's pacman database still lists every file. `pacman --query --check git` there names 240
+# missing of the package's 757 files, `/usr/share/man/man5/githooks.5.gz` among them, where `xz` keeps all 400 of its
+# files. `--needed` reads such a package as up to date and never re-extracts the files, so `man` has no page to render
+# and the hook-event guard test has nothing to read. The x86-64-v4 image keeps all of them, which is why a build on the
+# resolver's image finds the page without this step. Reinstall the package from the synced database when its installed
+# copy lacks the page; the `man --where githooks` check still fails without it.
+RUN --mount=type=cache,target=/var/cache/pacman/pkg,sharing=locked \
+    ["sh", "-c", "test -e /usr/share/man/man5/githooks.5.gz || pacman --disable-sandbox --sync --noconfirm git"]
+
+# What:  the pinned browserslist data, cached where the gate's browserslist rule reads it.
+# Why:   `file-enforcer check`'s `browserslist` rule resolves a `.browserslistrc` against two npm tarballs that it
+#        fetches into a per-user cache on first use, and a missing tarball is its own offline failure
+#        (package/file-enforcer/cli/src/kind_browserslist.rs, `browserslist-fetch-failed`).
+#        The tarballs therefore arrive here, where the build may use the network, and never at check time.
+#        Neither the packages, their versions nor their digests are typed below: BROWSERSLIST_DATA_LOCK carries the
+#        text of the repository's browserslist-data.lock.json, which stays the one source of them, and that text is
+#        part of the image tag, so a changed lock builds a new base instead of leaving a cache that no longer matches.
+#        Each download carries the bounds the rule's own fetch applies (a body of at most 64 MiB, from
+#        package/browserslist/core-rust/src/source.rs; no redirect, a status of exactly 200 and one 60-second bound on
+#        the whole request, from package/browserslist/core-rust/src/fetch.rs), so this cache holds nothing the rule
+#        would refuse.
+#        The rule reads `$HOME/.cache/browserslist` and names each tarball after the hex of the digest the lock pins
+#        (package/browserslist/core-rust/src/source.rs and src/integrity.rs).
+#        Two users run images built on this base: the plan's own gate image as root (`HOME=/root`), and the wrapper's
+#        gate image as user 1000 with `HOME=/home/tester`. One verified copy under the unprivileged home serves both,
+#        and the root cache is a symlink to it. Every download is refused unless its sha512 equals the lock's, so a
+#        tampered lock fails the build here.
+ARG BROWSERSLIST_DATA_LOCK
+RUN <<'PY'
+#!/usr/bin/env python
+import base64
+import binascii
+import hashlib
+import json
+import os
+import pathlib
+import string
+import threading
+import urllib.error
+import urllib.request
+
+# The lock's keys that hold no pinned package: the format version and the Firefox ESR value, which the reader validates
+# itself (package/browserslist/core-rust/src/lock.rs, DataLock::from_json). Every other key pins one npm tarball, so a
+# lock that gains or renames a package is followed here without an edit.
+NOT_PACKAGES = ("lockVersion", "firefoxEsr")
+REGISTRY = "https://registry.npmjs.org"
+# The bounds the reader puts on the same download: a body of at most MAX_TARBALL_BYTES
+# (package/browserslist/core-rust/src/source.rs), and no redirect, a status of exactly 200 and one
+# REQUEST_TIMEOUT_SECONDS bound on the whole request (package/browserslist/core-rust/src/fetch.rs, get_bytes).
+REQUEST_TIMEOUT_SECONDS = 60
+MAX_TARBALL_BYTES = 64 * 1024 * 1024
+# The bytes a version may hold so it stays safe in a URL path; the reader refuses others (lock.rs, valid_version).
+VERSION_BYTES = frozenset(string.ascii_letters + string.digits + ".-_")
+# Owner of the unprivileged home the wrapper's gate image runs from.
+TESTER = 1000
+
+
+# A registry download that refuses a redirect, because the reader refuses one too (fetch.rs, get_bytes)
+class RefuseRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(
+            req.full_url, code, f"redirected to {newurl}, and this build follows no redirect", headers, fp
+        )
+
+
+# Whether every byte of a version may appear in a URL path (lock.rs, valid_version)
+def url_safe(version):
+    for byte in version:
+        if byte not in VERSION_BYTES:
+            return False
+    return True
+
+
+# The version, the integrity text and the digest bytes of one lock entry, validated as the reader validates them
+# (lock.rs, read_package, and integrity.rs, parse_sha512)
+def pinned(name, entry):
+    if not isinstance(entry, dict) or set(entry) != {"version", "integrity"}:
+        raise SystemExit(f"{name}: a lock entry holds exactly version and integrity")
+    version = entry["version"]
+    integrity = entry["integrity"]
+    if not isinstance(version, str) or not version or not url_safe(version):
+        raise SystemExit(
+            f"{name}: version {version!r} holds characters outside letters, digits, dot, dash and underscore"
+        )
+    if not isinstance(integrity, str) or not integrity.startswith("sha512-"):
+        raise SystemExit(f"{name}: integrity {integrity!r} is not sha512-<base64>")
+    try:
+        expected = base64.b64decode(integrity.removeprefix("sha512-"), validate=True)
+    except binascii.Error as error:
+        raise SystemExit(f"{name}: integrity {integrity} is not base64: {error}") from error
+    if len(expected) != hashlib.sha512().digest_size:
+        raise SystemExit(f"{name}: integrity {integrity} decodes to {len(expected)} bytes, not a sha512 digest")
+    return version, integrity, expected
+
+
+# One download, refusing any non-200 answer, redirect, transport failure or oversized body with a named line
+def fetch_tarball(name, version):
+    url = f"{REGISTRY}/{name}/-/{name}-{version}.tgz"
+    try:
+        with urllib.request.build_opener(RefuseRedirects).open(url) as answer:
+            if answer.status != 200:
+                raise SystemExit(f"{name} {version}: {url} answered HTTP {answer.status}, not 200")
+            tarball = answer.read(MAX_TARBALL_BYTES + 1)
+    except (urllib.error.HTTPError, urllib.error.URLError) as error:
+        raise SystemExit(f"{name} {version}: {url}: {error}") from error
+    if len(tarball) > MAX_TARBALL_BYTES:
+        raise SystemExit(f"{name} {version}: the download is longer than the reader's {MAX_TARBALL_BYTES} bytes")
+    return tarball
+
+
+# The tarball bytes of one pinned package, the whole request bounded as the reader bounds it: a registry that trickles
+# bytes cannot hold this build past REQUEST_TIMEOUT_SECONDS, and one that stalls speaks the reader's own sentence.
+def download(name, version):
+    outcome = {}
+
+    def attempt():
+        try:
+            outcome["tarball"] = fetch_tarball(name, version)
+        except BaseException as error:
+            outcome["error"] = error
+
+    worker = threading.Thread(target=attempt, name=f"download {name} {version}", daemon=True)
+    worker.start()
+    worker.join(REQUEST_TIMEOUT_SECONDS)
+    if worker.is_alive():
+        raise SystemExit(f"{name} {version}: no complete answer within {REQUEST_TIMEOUT_SECONDS} seconds")
+    if "error" in outcome:
+        raise outcome["error"]
+    return outcome["tarball"]
+
+
+lock_text = os.environ.get("BROWSERSLIST_DATA_LOCK", "")
+if not lock_text.strip():
+    raise SystemExit(
+        "BROWSERSLIST_DATA_LOCK is empty: build with the text of browserslist-data.lock.json as that argument"
+    )
+lock = json.loads(lock_text)
+tester_home = pathlib.Path("/home/tester")
+cache = tester_home / ".cache" / "browserslist"
+cache.mkdir(parents=True, exist_ok=True)
+for directory in (tester_home, cache.parent, cache):
+    os.chown(directory, TESTER, TESTER)
+for name, entry in lock.items():
+    if name in NOT_PACKAGES:
+        continue
+    version, integrity, expected = pinned(name, entry)
+    tarball = download(name, version)
+    actual = hashlib.sha512(tarball).digest()
+    if actual != expected:
+        raise SystemExit(
+            f"{name} {version}: the download is sha512-{base64.b64encode(actual).decode()}, the lock pins {integrity}"
+        )
+    cached = cache / f"{actual.hex()}.tgz"
+    cached.write_bytes(tarball)
+    os.chown(cached, TESTER, TESTER)
+    print(f"{name} {version}: {cached} matches the lock")
+root_cache = pathlib.Path("/root/.cache/browserslist")
+root_cache.parent.mkdir(parents=True, exist_ok=True)
+if not root_cache.exists():
+    root_cache.symlink_to(cache, target_is_directory=True)
+PY
 
 RUN ["sh", "-c", "git --version && node --version && pnpm --version && strace -V | head --lines=1 && cargo nextest --version | head --lines=1 && man --where githooks"]

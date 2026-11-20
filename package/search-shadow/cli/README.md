@@ -305,3 +305,12 @@ mise run //package/search-shadow/cli:test
 # (a lone --version must equal the real tool's output plus the one announcement line).
 mise run //package/search-shadow/cli:test:container
 ```
+
+## Owner answers of 2026-11-10
+
+- Asked whether an unbounded `rg` over a large tree that is not a repository (issue 3474) should be limited
+  too, the owner answered at 2026-11-10T08:23:02-05:00: "Cap its output (Recommended)". So the shadow caps
+  its own output, rather than treating known scratch roots as a repository root.
+- Asked whether `SEARCH_SHADOW_ALLOW_WIDE=1` should lift the refusal of `rg` with a piped standard input and
+  a named path, the owner answered at 2026-11-10T08:23:02-05:00: "Keep no override". So the refusal stands
+  whatever that variable says.

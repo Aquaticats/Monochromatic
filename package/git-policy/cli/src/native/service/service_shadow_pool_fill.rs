@@ -3,8 +3,8 @@
 //!  from the facts of a request it already holds.
 //! Why:
 //!  The owner chose the pool ahead of the alternatives
-//! (`doc/handover/questions-for-the-owner.md`,
-//! "May a commit take its private repository from a pool made ahead?",
+//! (`package/git-policy/cli/SPEC.md`,
+//! "A shadow taken from the pool":
 //! "Pool made ahead (Recommended),
 //! We don't need to build a shadow for every commit.
 //! Be smarter."),

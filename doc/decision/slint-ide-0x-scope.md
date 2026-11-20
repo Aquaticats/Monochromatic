@@ -597,3 +597,9 @@ and the frames under `package/ide/app/design/screenshots/2026-10-06-ui-batch-3b/
   A scroll step must therefore not depend on UI-thread CPU work that can miss a frame;
   measurements under load count as evidence against the app,
   not as noise to wait out.
+
+## Owner answer on plural folder names
+
+Asked about plural folder names (issue 1676), the owner answered at 2026-11-10T08:13:03-05:00:
+"Rename all (Recommended)". So every plural folder name in this scope is renamed to its singular form, and
+this decision is amended to match.

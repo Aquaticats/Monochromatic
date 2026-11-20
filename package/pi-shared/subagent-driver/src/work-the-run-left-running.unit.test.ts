@@ -1026,6 +1026,80 @@ function aManagerAnswering({
   };
 }
 
+/**
+ Builds an error shaped like the one Node raises for a failed system call.
+
+ @param code - the name the operating system gave the failure, such as `ESRCH`
+
+ @param syscall - the call the message names
+
+ @returns the error, carrying its code as a property of its own, as Node's does
+
+ @example
+ ```ts
+ const refused = systemCallError({ code: 'ESRCH', syscall: 'read', },);
+ ```
+ */
+function systemCallError({
+  code,
+  syscall,
+}: {
+  readonly code: string;
+  readonly syscall: string;
+},): NodeJS.ErrnoException {
+  const error: NodeJS.ErrnoException = new Error(`${code}: no such process, ${syscall}`,);
+  error.code = code;
+  error.syscall = syscall;
+  return error;
+}
+
+/**
+ Reads of a process folder a test hands over, where one read answers an error instead of the record the folder holds.
+
+ The folder is this machine's own reading apart from that one path, so a case says which record the kernel answers an error for
+ and every other record is read as it really is.
+
+ @param read - which read answers the error, a record's text or the folder a `cwd` link names
+
+ @param suffix - the end of the path that read answers the error for
+
+ @param thrown - what that read throws
+
+ @returns the reads, for the folder a case wrote
+
+ @example
+ ```ts
+ const reads = readsRefusing({ read: 'text', suffix: '/101/cgroup', thrown: refused, },);
+ ```
+ */
+function readsRefusing({
+  read,
+  suffix,
+  thrown,
+}: {
+  readonly read: 'text' | 'link';
+  readonly suffix: string;
+  readonly thrown: NodeJS.ErrnoException;
+},): {
+  readonly text: (path: string) => Promise<string>;
+  readonly link: (path: string) => Promise<string>;
+} {
+  return {
+    text: async function textOf(path: string,) {
+      if ((read === 'text') && path.endsWith(suffix,)) {
+        throw thrown;
+      }
+      return await readFile(path, 'utf8',);
+    },
+    link: async function linkAt(path: string,) {
+      if ((read === 'link') && path.endsWith(suffix,)) {
+        throw thrown;
+      }
+      return await readlink(path,);
+    },
+  };
+}
+
 await describe({
   name: '',
   children: [
@@ -1192,6 +1266,62 @@ await describe({
             expect(unitNamedBy({ command: 'systemd-run --user --unit pi-build -- true', },),).toEqual({ unit: 'pi-build', },);
             expect(unitNamedBy({ command: 'systemd-run --user --scope -- true', },),).toEqual({},);
             expect(unitNamedBy({ command: 'mise run build', },),).toEqual({},);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: cgroupOf.name,
+      children: [
+        it({
+          name: 'answers no control group for a process that ended while its record was read, and hands back a read that failed for another reason',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeProcess({
+              folder: processes,
+              pid: 101,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: aWorktree(),
+              command: 'bash',
+            },);
+            // The record of a process the kernel has released: the folder is still listed while the read answers `ESRCH`, so the
+            // process is gone rather than the read being one that failed.
+            expect(await cgroupOf({
+              processFolder: processes,
+              entry: '101',
+              reads: readsRefusing({
+                read: 'text',
+                suffix: '/101/cgroup',
+                thrown: systemCallError({ code: 'ESRCH', syscall: 'read', },),
+              },),
+            },),).toBe('',);
+            /**
+             A read that failed for a reason that names no ended process.
+             */
+            const refused = systemCallError({ code: 'EIO', syscall: 'read', },);
+            /**
+             What the read threw, when it threw.
+             */
+            let thrown: unknown;
+            try {
+              await cgroupOf({
+                processFolder: processes,
+                entry: '101',
+                reads: readsRefusing({
+                  read: 'text',
+                  suffix: '/101/cgroup',
+                  thrown: refused,
+                },),
+              },);
+            }
+            catch (error) {
+              thrown = error;
+            }
+            expect(thrown,).toBe(refused,);
           },
         },),
       ],
@@ -1576,6 +1706,76 @@ await describe({
             expect(await cgroupShownByMachine({ pid: work.childPid, },),).toBe('',);
           },
         },),
+        it({
+          name: 'treats ESRCH from any record of a process as the record being gone, keeping its program unknown but naming no work for its control group or its parent',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The folder the run works in.
+             */
+            const workingFolder = join(folder.path, 'worktree',);
+            await mkdir(workingFolder, { recursive: true, },);
+            /**
+             The process folder a test writes, whose own entry is the run's unit.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeSelf({
+              folder: processes,
+              cgroup: theRunsUnit(),
+            },);
+            // The work the run started: a process in a scope of its own that works in the run's folder and descends from the run.
+            // The run's own Pi is written beside it, so the chain of parents reaches the process that plays the run's own.
+            await writeProcess({
+              folder: processes,
+              pid: 100,
+              cgroup: theRunsUnit(),
+              worksIn: aWorktree(),
+              command: 'node',
+              parentPid: process.pid,
+            },);
+            await writeProcess({
+              folder: processes,
+              pid: 101,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: workingFolder,
+              command: 'bash',
+              parentPid: 100,
+            },);
+            /**
+             What the manager answers, which no case here asks it about a unit.
+             */
+            const run = aManagerAnswering({
+              status: 3,
+              stdout: 'inactive\n',
+            },);
+            /**
+             Each record the driver reads of that process, with what the run is left waiting for when the kernel answers `ESRCH`
+             for it: the program is unknown while the entry is there, and no control group or parent means no work of the run.
+             */
+            const records: readonly (readonly [string, readonly string[]])[] = [
+              ['/101/comm', ['101 ?',],],
+              ['/101/cgroup', [],],
+              ['/101/stat', [],],
+            ];
+            for (const [record, leftRunning,] of records) {
+              // A process that ended while one of its records was read is gone exactly as one whose record is already missing is:
+              // the scan answers, rather than ending the run on a read that failed.
+              // oxlint-disable-next-line eslint/no-await-in-loop -- one record after another, each a whole scan of the same folder; see doc/lint/sequential-awaits.md
+              expect(await workOutlivingTheTurnIn({
+                runFolder: folder.path,
+                workingFolder,
+                processFolder: processes,
+                ownProcess: process.pid,
+                run,
+                reads: readsRefusing({
+                  read: 'text',
+                  suffix: record,
+                  thrown: systemCallError({ code: 'ESRCH', syscall: 'read', },),
+                },),
+              },),).toEqual(leftRunning,);
+            }
+          },
+        },),
       ],
     },),
     describe({
@@ -1830,6 +2030,57 @@ await describe({
               processFolder: processes,
               pid: 404,
             },),).toBe(NO_PARENT_RECORD,);
+          },
+        },),
+        it({
+          name: 'names no parent for a record whose read answered ESRCH, and hands back a read that failed for another reason',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeProcess({
+              folder: processes,
+              pid: 300,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: aWorktree(),
+              command: 'node',
+              parentPid: 200,
+            },);
+            // The record of a process the kernel released between the folder being listed and the record being read.
+            expect(await parentOfProcess({
+              processFolder: processes,
+              pid: 300,
+              reads: readsRefusing({
+                read: 'text',
+                suffix: '/300/stat',
+                thrown: systemCallError({ code: 'ESRCH', syscall: 'read', },),
+              },),
+            },),).toBe(NO_PARENT_RECORD,);
+            /**
+             A read that failed for a reason that names no ended process.
+             */
+            const refused = systemCallError({ code: 'EIO', syscall: 'read', },);
+            /**
+             What the read threw, when it threw.
+             */
+            let thrown: unknown;
+            try {
+              await parentOfProcess({
+                processFolder: processes,
+                pid: 300,
+                reads: readsRefusing({
+                  read: 'text',
+                  suffix: '/300/stat',
+                  thrown: refused,
+                },),
+              },);
+            }
+            catch (error) {
+              thrown = error;
+            }
+            expect(thrown,).toBe(refused,);
           },
         },),
       ],
