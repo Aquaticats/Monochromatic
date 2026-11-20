@@ -160,6 +160,21 @@ fn a_host_key_this_machine_does_not_know_is_final_and_says_how_to_add_it() {
     );
 }
 
+/// What:
+///  A server hook whose own message prints OpenSSH's words for a host key this machine does not know stays a hook's
+///  decline.
+/// Why:
+///   A hook that reaches another host over SSH can print those words about its own connection,
+///  and the push's cause is then the server's refusal and not this machine's `known_hosts`;
+///  the reading of those words must not answer before the hook's decline,
+///  as `main` orders its readings,
+///  so the person is told the cause that is theirs and not a key this machine does know or cannot add.
+#[test]
+fn a_hook_that_prints_the_unknown_host_key_words_is_still_a_decline() {
+    let output: &str = "remote: Host key verification failed.\nTo /srv/remote.git\n ! [remote rejected] main -> main (pre-receive hook declined)\nerror: failed to push some refs to '/srv/remote.git'\n";
+    assert_eq!(final_failure(output), Some(FinalFailure::Declined), "the hook's echoed words decide nothing: {output}");
+}
+
 /// A server hook's decline is final,
 /// whichever hook declined and whoever wrote its reason,
 /// as long as neither the words GitHub answers with nor a protected-branch update's refusal is there.
