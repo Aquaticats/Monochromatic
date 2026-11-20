@@ -1125,7 +1125,8 @@ can veto separately from the boundary: Q6's option text named a skip on a host t
 of its costs, so that a skip exists was before the project, while the add going ahead after it was not. The skip's
 reach matters to that choice, and the skip's boundary keeps it to the refusals the skip paragraph lists, bar the
 residue that paragraph names, with the Ubuntu guest among the hosts that skip. The choice differs from the
-direction Q4 chose for the probe's arms, where an arm that could not run keeps the route blocked. The reason: the companion touches no ZFS and its pass cannot
+direction Q4 chose for the probe's arms, where an arm that could not run keeps the route blocked. The reason: the
+companion touches no ZFS and its pass cannot
 predict the root attach, so a host that refuses user namespaces would lose the whole managed route to a check that
 cannot speak about it, while the root probe's arms and the module gate still bound that route. The alternative is
 Q4's rule applied here: a skipped companion refuses the managed add, and the managed route is then off on hosts
