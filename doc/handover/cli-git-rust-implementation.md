@@ -40399,10 +40399,39 @@ stated in this entry. What follows from them, as work:
   covering one of four refusals, stale one-executable text, a lock window the pinned `alpha.44` cannot meet. GOING:
   `pi-zfs-step-5-integration-pass-condition-and-lint-fixed` (DeepSeek on Neuralwatt, cap 300): the `lockDirs` line, the
   added-line linter errors, the stale text, the adoption refusal's control if it can be built without a guest; brief
-  under `~/temp/agent/zfs-step-5-integration-pass-condition-and-lint-fixed-2026-11-20/`. Then the merge. Coordinator
-  slips this stretch: three background waits found
+  under `~/temp/agent/zfs-step-5-integration-pass-condition-and-lint-fixed-2026-11-20/`. Then the merge. It ended
+  `idle` (253 turns) at `e1c268df2b` (that folder's `keep/report-from-summary.md`): the fuzz `lockDirs` line with a
+  control that requires every row's `lockDirs` to equal the lockfiles naming the crate as a path dependency (red with
+  the line removed); 101 linter findings on added lines down to 0; two executables in the workflow comment and the
+  service header; three guest-free adoption controls, two red without the unresolved-binding refusal. MERGED into `main`
+  as `45a189d20e` (2026-11-20); its worktrees removed. The coordinator then changed the plan's step 4 sentence to put
+  quiescence on step 5's mode (as the design says), `docs(planning)` of the same day. Coordinator slips this stretch: three background waits found
   their process by name or waited on a stand-in PID (rule `PWT`); each was stopped or ended harmlessly, and the
-  coordinator now waits only on task notifications. STEP 3 HOST HALF ENDED `idle` (201
+  coordinator now waits only on task notifications. Step 4's guest-arm round ended `idle` (434 turns) at
+  `ef83d2a73c` (that folder's `keep/report-from-summary.md`): five root-run arms in
+  `src/native/worktree_clone_mount/attach_arm_tests.rs`, ignored outside the guest (a clone mounted at the held slot with
+  `rw,nosuid,nodev,relatime`; a setuid program kept at euid 1000 under the module's flags; eleven refusals; three rename
+  trials rolled back through the descriptor; H1 gate 1's decoy), three reds in one guest and green in a fresh one; low 1
+  pinned with route-writer controls (three reds); the lock numbers re-measured over the whole bound (25 times the
+  slowest hold, about a fortieth for the pause) with the probe kept in the tree; low 6 dismissed as step 5's mode with
+  the design's lines, so the plan's step 4 line "Adoption needs administrator quiescence and the recorded parent
+  identity, both built here" is wrong on its first half (the coordinator corrects the plan after step 5 merges, since
+  step 5 edits the plan too); the recipe's `prepare` taught to wait out the image's first-boot upgrade. Whole gate 9236
+  of 9238, the cause-H pair. It ran two red drivers in one guest at once and caught the bad evidence; the linter did not
+  run (not linked). It merges cleanly with `main` and step 5, and conflicts with step 3 only in
+  `package/zfs/request-to-openzfs-kernel-device/e2e/README.md`. GOING: its integration pass (Sonnet) with a guest run;
+  brief under `~/temp/agent/integration-pass-zfs-step-4-guest-arms-and-lows-2026-11-20/`. It ended (Sonnet, about 54
+  min; that folder's `keep/review.md`, integration branch at `a1a8ba8073`): not fit, three mediums. `SPEC.md` still cites
+  55 times and 35.976 ms where the comment and record now say 25 times and 79.362 ms; 45 linter findings on added lines;
+  and a defect in step 4's module in `main`: the post-attach check's `HeldTargetElsewhere` proof does not hold with the
+  reader the module documents (after a real `move_mount` the held descriptor answers the parent's mount), the arms hid
+  it by feeding a path-read mount id, and a mutant deleting the comparison left all five arms green. Gate 9236 of 9238
+  with the same passing set; arms green in the reviewer's fresh guest; route-writer reds confirmed. A pre-existing
+  defect on `main`: an append to a store at the size bound succeeds and leaves it unreadable. GOING:
+  `pi-zfs-step-4-guest-arm-pass-findings-fixed` (DeepSeek on Neuralwatt, cap 510): merge `main`, the SPEC numbers, the
+  linter, the module's reader fixed so the check proves what it says with the mutant red and the arms rerun in a fresh
+  guest, the store-at-bound defect fixed or described; brief under
+  `~/temp/agent/zfs-step-4-guest-arm-pass-findings-fixed-2026-11-20/`. STEP 3 HOST HALF ENDED `idle` (201
   turns, 51 min) at `fd10d8d0b0` (four commits; report and checks table in
   `~/temp/agent/zfs-step-3-reflink-rung-recognition-host-half-2026-11-19/keep/`): `FilesystemKind::Zfs` from
   `ZFS_SUPER_MAGIC`; rung 2 proves one dataset by mount source and device, with no ZFS ioctl or binding; a mounted clone
@@ -40544,7 +40573,103 @@ stated in this entry. What follows from them, as work:
   `pi-zfs-runtime-layout-checker-decision-record`, `pi-zfs-start-probe-decision-record`,
   `pi-zfs-staging-under-cache-decision-record` (DeepSeek on Neuralwatt, cap 250), each merging `main`, writing
   `doc/decision/cli-git-zfs-<topic>.md` with the last check's lows fixed in its copy and the amendments the design
-  names; briefs under `~/temp/agent/zfs-<topic>-decision-record-2026-11-20/`. Then each design branch merges into `main`
+  names; briefs under `~/temp/agent/zfs-<topic>-decision-record-2026-11-20/`. STEP 3'S INTEGRATION PASS UNDER THE WAIVER
+  ended (Sonnet, about 58 min; `~/temp/agent/integration-pass-zfs-step-3-with-the-dirty-source-waiver-2026-11-20/keep/review.md`,
+  integration branch at `74caa69e7a`): not fit, one high, H1: a clean ZFS add of a tree of many small files is slower
+  than `main` (10,001 files of 2.6 KB median 1.33, 8.8 KB 1.18, 26 KB parity, this repository's tree 0.64; release
+  builds, rotating arms, same-binary control); mediums: `worktree_clone.rs` 429 code lines against 300 and 28 linter
+  errors, block cloning off makes every add pay the proof, btrfs, XFS and overlayfs unmeasured; lows include a third
+  gate failure `the_awaited_identity_answers_what_the_synchronous_one_answers` (a one-second clock race in untouched
+  code) and two gate blind spots. Asked, the project answered "C: widen the waiver"
+  (`doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md` now covers that cost too). GOING:
+  `pi-zfs-step-3-waiver-pass-findings-fixed` (DeepSeek on Neuralwatt, cap 510): merge `main`, split the sliced engine,
+  the linter on added lines, decline the rung when `zfs_bclone_enabled` reads 0, btrfs, XFS and overlayfs measured in a
+  guest, the waived costs stated in README and SPEC; brief under
+  `~/temp/agent/zfs-step-3-waiver-pass-findings-fixed-2026-11-20/`. THE PARTIAL-CLONE PROPOSAL ended `idle` (361 turns)
+  at `dba1276a06` (`doc/planning/cli-git-clone-rung-partial-clone-of-a-dirty-source.md` with a prototype marked not
+  for merging; its folder's `keep/report-from-summary.md`): options A (partial clone) 0.74 dirty on this tree, B (A plus
+  a whole-tree decline below about 400 MB, bracketed 260 to 780 MB, not pinned) never above `main` on the shapes
+  measured, C (a per-file cutoff) loses because Git's write step costs 3 to 4 times per file, D (keep step 3); ranking
+  B > A > C > D. Corrective comment on `dba1276a06`. GOING: its gate review on Sonnet before it goes to the project
+  (brief under `~/temp/agent/gate-review-of-the-partial-clone-proposal-on-sonnet-2026-11-20/`). The owner then asked
+  "Wait, why are we cloning every file individually when we have snapshots?": the accepted design's rung 1 is the ZFS
+  snapshot clone (whole checkout, ignored state included, a verified restore for a dirty main, the proposal's "Rung 1:
+  Snapshot clone"), and per-file cloning is rung 2, the fallback; rung 1 needs the managed route (an account cannot mount
+  a clone), whose add route is step 10 (depends on steps 2, 3, 6 and 8) and dirty-main restore step 11. Asked whether to
+  park the partial clone for steps 6 to 11, the owner answered "B: finish both": the gate review continues and the
+  proposal comes to the owner, while steps 6 onward proceed. Step 6 is split by its own design: the start probe runs the
+  module gate first and skips itself when the gate refuses, so the gate and the layout checker go first
+  (`feat/git-policy-cli-zfs-start-time-compatibility-gate` in `.claude/worktrees/zfs-step-6-compatibility-gate`, brief
+  under `~/temp/agent/zfs-step-6-compatibility-gate-and-layout-checker-2026-11-20/`) and the start probe follows on top.
+  THE PARTIAL-CLONE GATE REVIEW (Sonnet) ended: not ready
+  (`~/temp/agent/gate-review-of-the-partial-clone-proposal-on-sonnet-2026-11-20/keep/review.md`). H1: a clone keeps the
+  source's bytes where a checkout conversion would write others, and neither stat data nor Git's status can tell. M1:
+  the final proof cannot see a wrong cloned byte. M2: a dirty linked worktree is still refused, unsaid. M3 and M4: the
+  same-binary control followed the prototype in 8 of 8 pairs and was the slower each time; the reviewer's rerun gives
+  0.86 of `main` against the proposal's 0.74. M5: 1.54 of `main` at 6,000 modified paths (control 1.44), so "never
+  slower" and "B ends the waiver" do not stand. M6: the threshold is a guess between two points, B's rule would also
+  turn off rung 1 on btrfs (by reading), and "C over D" is contradicted. M7: the text changes are incomplete, three
+  inaccurate; five lows. So the cross-vendor re-review is not done: the fixed text gets a Sonnet re-check before it goes
+  to the owner. GOING: `pi-clone-rung-partial-clone-proposal-gate-review-findings-fixed` (DeepSeek on Neuralwatt, cap
+  510), M1 to M7 and L1 to L5 with H1 written as an open limit; brief under
+  `~/temp/agent/clone-rung-partial-clone-proposal-gate-review-findings-fixed-2026-11-20/`. H1 REPRODUCED by the
+  coordinator on step 3's integration tip `74caa69e7a` against `main` `2df9b1689b`
+  (`~/temp/agent/clone-rung-line-ending-reproduction-on-step-3-and-main-2026-11-20/keep/`, script and logs): clean
+  sources under `eol=crlf`, `core.autocrlf=true`, `ident`, and this repository's own `* text=auto eol=lf` over a CRLF
+  file that was `git add`ed all clone to bytes other than Git's checkout writes; a CRLF file not added is reported
+  modified by Git (its recorded size differs) and goes to Git's checkout. Issue 6323. STEP 3 IS HELD: on this host
+  `main` adds through Git's checkout and gets these bytes right, so step 3 as it is makes something `main` does well
+  worse, and both waivers cover time only; its integration check carries these scenarios as a required arm. The remedy
+  goes to the owner as its own question, with a fence's measured cost; rung 1 (the snapshot) has not been examined by
+  anyone and is checked in a btrfs guest before steps 10 and 11 are briefed. GOING:
+  `pi-clone-rung-conversion-fence-design-and-measurement` (DeepSeek on Neuralwatt, cap 510), a proposal
+  `doc/planning/cli-git-clone-rung-conversion-fence.md` with a prototype on `docs/planning-cli-git-clone-rung-conversion-fence`
+  (`.claude/worktrees/clone-rung-conversion-fence`, from `74caa69e7a`), a red control per conversion class and every
+  attribute source, and the fence's cost measured on clean and dirty adds; brief under
+  `~/temp/agent/clone-rung-conversion-fence-design-and-measurement-2026-11-20/`. GOING:
+  `pi-snapshot-and-clone-rungs-under-conversion-in-a-btrfs-guest` (DeepSeek on Neuralwatt, cap 400), `main`'s rung 1
+  and btrfs rung 2 under the four cases in an `mvm` guest, read-only in the coordinator's detached worktree
+  `.claude/worktrees/line-ending-reproduction-main-2df9b1689b` (remove it when this run ends); brief under
+  `~/temp/agent/snapshot-and-clone-rungs-under-conversion-in-a-btrfs-guest-2026-11-20/`. Code reading at `main`
+  `2df9b1689b` (comment on issue 6323): `serve_clones` takes no conversion environment; `serve_snapshot` passes one to
+  `take_snapshot` and `restore_dirty`, where the content judge of `worktree_clean_content.rs` hashes entries stat data
+  cannot vouch for and refuses converting attributes, so rung 1's open question is its stat-trusted entries; and
+  `conversion_is_the_identity`, which models every attribute source and converting attribute, has no caller outside its
+  tests. Both runs were told this through their inboxes; the fence is to reuse it. THE GUEST CHECK ended `idle` (141
+  turns, ten minutes; its folder's `keep/report-from-summary.md`, `findings.md`, logs and guest recipe): on `main`'s
+  release build in a btrfs guest, rung 1 (clean "a snapshot", dirty "a snapshot with a restore") and rung 2 ("clones")
+  both differ from Git's checkout in all four cases, controls equal, every reference add through Git's checkout (the
+  coordinator read the log's routes and verdicts); cause `worktree_clean_tree_walk.rs:54`, a stat-exact entry never
+  reaches the judge. So the defect is in `main` as released, on btrfs; XFS and overlayfs not run. Recorded on issue 6323,
+  in the plan's steps 10 and 11 open items, and sent to the fence run, which now designs for rung 1 too. The throwaway
+  worktree is removed. STEP 3'S FIX ROUND ended `idle` (309 turns) at `477975e732` (its folder's
+  `keep/report-from-summary.md`, `report.md`, `gate.log`): `main` merged (`dc031420c9`, one plan conflict taken as
+  `main`'s wording), the clone module split into four siblings (0 linter findings on added lines), the rung declined
+  when `zfs_bclone_enabled` reads 0, both waived costs and the decline in README and SPEC, the identity control on one
+  clock; five reds. Guest arms (15 rounds a shape, rotating order with a same-binary `main` control): the branch's clone
+  is 0.39 to 0.65 of `main` (medians) on btrfs, XFS and overlayfs at every shape. Gate 9308 of 9311: the cause-H pair and
+  `resolution::a_version_query_that_never_answers_ends_at_its_bound`, untouched by the branch and passing alone. Step 3
+  stays HELD on issue 6323. The third failure is its own incident, issue 6324: the coordinator read the gate log
+  (`code: None` at 1.2 s against a 1 s bound, no bound verdict) and the harness, where `wait_under_bound`'s
+  `Ok(Ok(()))` arm reads a death by the bounded line's own `timeout --signal=KILL` (which kills its own group) as the
+  command ending by itself; the author's "killed at a 5 s bound" was not what the log shows. GOING:
+  `pi-git-policy-cli-bounded-wait-timeout-kill-fix` (DeepSeek on Neuralwatt, cap 450) on
+  `fix/git-policy-cli-bounded-wait-reads-a-timeout-kill-as-the-bound` in
+  `.claude/worktrees/git-policy-cli-bounded-wait-timeout-kill` from `main`, a red forcing the order without load; brief
+  under `~/temp/agent/git-policy-cli-bounded-wait-timeout-kill-fix-2026-11-20/`. The `timeout` half of issue 6324 is
+  confirmed in coreutils `src/timeout.c` (`setpgid (0, 0)`, then `kill (0, sig)` on expiry, which SIGKILL cannot spare),
+  commented on the issue and sent to the run. STEP 4'S GUEST-ARM FIX ROUND ended `idle` (278 turns) at `4dcd89ac8e`
+  (its folder's `keep/report-from-summary.md`): `main` merged twice; the post-attach check reads the slot's mount at its
+  name beneath the held parent (`mount_id_at_the_held_target`), with a new arm mounting a clone beside the held slot that
+  kills the review's mutant; an append that would outgrow the store is refused (`StoreRefusal::WouldNotFit`) with a red;
+  every lock-hold citation matches the record; the arm's tarball ships the binding crate; 0 linter findings on added
+  lines; gate 9275 of 9277, the cause-H pair; low 8 left (its log mapping: ACL quote `guest-red-acls-1795171111.log`,
+  flags `guest-red-flags-1795171401.log`, decoy `guest-red-decoy-1795171697.log`, in the previous round's folder).
+  `e2899f094e` and `6dde1d368f` carry a `Co-authored-by:` trailer naming no co-author; corrective comments posted.
+  GOING: its integration pass on Sonnet in `.claude/worktrees/integrate-git-policy-cli-zfs-descriptor-attach-guest-arm`
+  (brief under `~/temp/agent/integration-pass-zfs-step-4-guest-arms-after-their-findings-round-2026-11-20/`).
+  Then each design branch
+  merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
   (`doc/decision/cli-git-zfs-runtime-layout-checker.md`, the ten lows fixed in its copy, notes in the proposal's "ABI
   gate and tests" and plan step 6, the binding README's gate list edited); the start-probe writer ended `idle` (102
@@ -41399,6 +41524,23 @@ stated in this entry. What follows from them, as work:
   `ddec538f27` was in the lockfile but not linked); the coordinator ran the frozen offline install there and
   `lint:types` passes on `main`. Corrective comment on `202f8b7c77` (wrong scope). GOING: the narrow Sonnet check of the
   M1 fix (brief under `~/temp/agent/lfs-no-prompt-at-a-terminal-narrow-check-on-sonnet-2026-11-20/`), then the merge.
+  It ended (Sonnet, about 45 min; that folder's `keep/review.md`, integration branch
+  `integrate/git-policy-cli-lfs-no-prompt-at-a-terminal` at `2132ef9481`): the M1 fix is sound (red and green probe
+  reproduced, OpenSSH 10.6p2 lines read at `V_10_6_P2`, an agent-held key still connects, an account's own `ssh`
+  untouched, a `PATH` without `false` fails closed), but not fit for two mediums: F1, a third gate failure
+  `lfs::lfs_upload::tests::a_relay_past_the_cap_keeps_no_part_of_a_cut_url_and_says_it_was_cut` (exit 124 for 1, the
+  race the round closed for its push sibling, test-only); F2, an unknown host key now refused at a terminal where it
+  used to ask, which the project's words did not cover. Lows: SSH signing with a passphrase key no agent holds now fails
+  at a terminal (F3), a bracket in the LFS login message, a README scope, the new control lacks `-F none`, loose
+  citations. THE OWNER ANSWERED (2026-11-20, question tool): to the host key, "1. We must support situations in which
+  ssh-agent isn't there. 2. refuse, say what to do."; asked which reading of the first point, "A: work agentless, never
+  ask": keys without a passphrase keep working with no agent (with a control), and a refused passphrase key's message
+  no longer assumes an agent (start one with `eval "$(ssh-agent)"` then `ssh-add`, or use a key without a passphrase);
+  no prompt ever. An unknown host key is refused, and the message and docs say to connect once with plain `ssh <host>`
+  or add the key to `known_hosts`, then retry. GOING: `pi-git-policy-cli-lfs-narrow-check-findings-fixed` (DeepSeek on
+  Neuralwatt, cap 510): merge `main`, the agentless control and messages, the host-key refusal sentence and docs, F1's
+  race closed, the lows, one whole gate; brief under
+  `~/temp/agent/git-policy-cli-lfs-narrow-check-findings-and-owner-answers-fixed-2026-11-20/`.
 - **The wrapper's container gate passes on this ZFS host** since the merge `f73900d5a0` of 2026-11-19: fixtures on a
   tmpfs root under `/work`, Clippy from the lock's toolchain, and location controls that prove where fixtures land.
   The causes, measurements, limits and rejected host changes are in
