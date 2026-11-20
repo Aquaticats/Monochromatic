@@ -61,9 +61,13 @@ carried.
 ## Answers of 2026-11-19
 
 Every question this design put to the owner was answered in the question tool between 2026-11-19T20:35 and
-2026-11-19T20:43:51-05:00. The record is `doc/handover/cli-git-rust-implementation.md` in the main checkout, in the
-paragraph beginning "THE ROUND WAS ASKED". This design now follows the answers: where its own ranking differed, the
-answer wins, and the body, the record, the unit, the measurements and the plan-step notes take the chosen shape.
+2026-11-19T20:43:51-05:00. The round was first written down in `doc/handover/cli-git-rust-implementation.md` in the
+main checkout: as of main's `92417f3758` it sits at line 40398, inside a paragraph and not at its start, and the
+words "THE ROUND WAS ASKED" are inside that paragraph. A handover is pruned once its work lands, by rule `H0P`, so
+this section, not that paragraph, is the durable record of the answers and of the threat model quoted under
+[The threat model](#the-threat-model-these-answers-assume). This design now follows the answers: where its own
+ranking differed, the answer wins, and the body, the record, the unit, the measurements and the plan-step notes
+take the chosen shape.
 Each entry gives the question, the option the project chose in the question tool's words, the round's timestamp
 range, and one sentence naming the option it did not take and why, in the project's terms.
 
@@ -567,7 +571,10 @@ Each assumption is stated so a measurement can break it, and the measurement tha
   arm is unexercised and the probe never claims a fresh superblock. Where the command exists, it tells a fresh
   attach from a held superblock even when no mount of that superblock is visible in any readable namespace,
   because `sget_fc` matches on the objset rather than on a mount; the cost is that such a source is skipped
-  rather than attached.
+  rather than attached. The managed route's effective floor is therefore Linux 6.6, not the 5.6 and 5.2 the
+  [proposal][proposal] states (lines 612 to 615): on a kernel that refuses the command, the attach arm is
+  unexercised and [Q4](#q4-whether-an-unexercised-arm-may-enable-the-route) blocks that route. That is an amendment
+  to the proposal's floor sentence, which [Notes for the plan](#notes-for-the-plan) records.
 - The companion never reaches the dataset mount path, the key path or `/dev/zfs`, so its pass cannot predict the
   probe's or the product's attach, and its failure refuses an add without evidence that the root attach would
   fail. It is skipped on a host that refuses user namespaces or has none left, its skip is printed, and the add
@@ -1135,8 +1142,9 @@ per-operation effects [Q2](#q2-what-a-failed-arm-disables) states.
 the fingerprint, when the last probe ran, each arm and its outcome, any difference between the recorded
 fingerprint and the live kernel, module or boot, the sources and mounts the probe used, and which route remains
 available. It prints the first real attach's outcome beside the probe's result, under its own label
-([The first real attach's record](#the-first-real-attachs-record)), and the two user-namespace settings with the
-companion's skip ([The account companion](#the-account-companion)). The section goes to standard error and changes
+([The first real attach's record](#the-first-real-attachs-record)), and the account companion's own outcome from
+the run `doctor` makes: a pass, a failed arm with its call and errno, or the skip with the two user-namespace
+settings it read ([The account companion](#the-account-companion)). The section goes to standard error and changes
 no exit status, as the design requires for setup findings (the [proposal][proposal], lines 1153 to 1155).
 
 The companion prints its own line on the add it refuses or skips, as [The account companion](#the-account-companion)
@@ -1208,24 +1216,71 @@ namespaces.
 
 ## Notes for the plan
 
-These are notes for the plan's own text, and this design edits no plan step.
+These are notes for the plan's own text, and this design edits no plan step. Each note names its step by heading,
+because the plan's line numbers move: every plan line number this document cites elsewhere is a line of the plan at
+commit `73eaad0846`, the branch's base, and main's copy had gained nine lines before step 4 when this round read it
+(`git show main:doc/planning/cli-git-zfs-worktree-implementation-plan.md`).
 
-- Step 4 gains the `first-attach` writer, its format and its exclusive claim, because the attach module is where a
-  failing step and its errno are known (the [plan][plan], lines 549 to 634).
-- Step 6 gains the `start-probe` mode, run as `ExecStartPre=-` of the boot unit, with its attach, move, unmount and
-  namespace arms, which the unmount answer places in this step, and the account companion's own check code beside
-  them (lines 698 to 759).
-- Step 7's readiness record references the probe's record and `first-attach` rather than owning either, and its
-  preflight treats an absent, stale, started, timed-out or blocked record as not current (lines 762 to 779).
-- Step 8's sweep calls the `first-attach` writer, and its sweep is the path that makes the first attach after boot
-  (lines 831 to 886).
-- Step 10's add preflight runs the account companion before the claim and applies the failed-arm answer's refusal
-  rule and the unexercised-arm answer's block (lines 973 to 1068).
-- Steps 18, 19 and 20 create the probe dataset, its empty `ready` snapshot, its configuration field, its user
-  property and its sanoid section, as the source answer states (lines 1490 to 1571, 1572 to 1676 and 1677 to 1727).
-  Step 18's `doctor` also prints the first attach, the two user-namespace settings and the companion's skip.
-- Step 22 sizes the probe's deadline and the companion's per-add deadline beside the waits it already sizes (lines
-  1774 to 1847).
+- Step 4, "The descriptor attach, its identity checks and its rollback", gains the `first-attach` writer, its format
+  and its exclusive claim, because the attach module is where a failing step and its errno are known. It also owns
+  the reader of the host facts the fingerprint holds (kernel release, module version, `srcversion` and the handler's
+  binary identity), which step 6's `result` reuses rather than reading a second way, and its writer creates the
+  record's directory with the same owner and mode the mode process gives it, because a sweep can reach its first
+  attach before the boot probe has written anything.
+- Step 6, "The start-time compatibility gate and the start probe", gains the `start-probe` mode, run as
+  `ExecStartPre=-` of the boot unit, with its attach, move, unmount and namespace arms, which the unmount answer
+  places in this step, and the account companion's own check code beside them. Its guest arms gain the timing run
+  that sizes the probe's deadline ([M4](#m4-what-the-probe-costs)'s arm and whole-probe timings, through the
+  transient unit [M9](#m9-the-untested-release-and-the-refused-release) names).
+- Step 7, "The intent property, the receipts and the readiness record", gains the probe's record and `first-attach`
+  as files it references rather than owns. It does not gain the preflight that reads them: that is step 10's shared
+  `doctor` preflight, which treats an absent, stale, started, timed-out or blocked record as not current.
+- Step 8, "The attaching sweep for a clone that carries a mount request", gains the call to the `first-attach`
+  writer, its sweep being the path that makes the first attach after boot, and it reads the probe's record before
+  any attach: on a failed or unexercised record it attaches nothing and keeps every intent and registration, which
+  is what [Q2](#q2-what-a-failed-arm-disables) and [Q4](#q4-whether-an-unexercised-arm-may-enable-the-route) decide.
+- Step 10, "The add route from registration to verified fill", gains the account companion in its shared preflight
+  before the claim, the refused-arm answer's refusal rule, the unexercised-arm answer's block, and the timing run
+  that sizes the companion's per-add deadline ([M11](#m11-the-account-companion-per-add)). `doctor` runs the same
+  companion under the shared preflight step 18 builds.
+- Step 14, "Removal: the lineage proof, the plan and the removal intent", and step 16, "The snapshot batch, the head
+  destroy, origin cleanup and the Git settle", carry the removal half of the failed-arm answer: removal of a mounted
+  clone is refused when the failed or timed-out arm is the move, the unmount or the scan. Step 14 builds the
+  `unmount` request with its proof and step 16 takes the fresh all-namespace verification from step 9's scan, so
+  those are the two places the refusal is read.
+- Step 18, `doctor`, prints the probe dataset's creation, its `ready` snapshot, its user property and the
+  configuration field that names it, as root-once commands it prints and never runs. It gains the reader of the
+  probe's record and of `first-attach`, the companion's outcome with the two user-namespace settings, and the checks
+  that the dataset's encryption root is the pool's and that no delegation reaches the dataset.
+- Step 19, "The one-time migration, the immutable entry and the boot and shutdown units", builds the unit that
+  carries the probe: `ExecStartPre=-` running the `start-probe` mode, before its `ExecStart` running
+  `boot-reconcile`. Its setup text stays the owner's act, printed by `doctor` and never run by the step, and the
+  configuration field step 18 prints is applied by the owner there.
+- Step 20, "Sanoid coverage, the exclusions and the guard's report", owns the `sanoid.conf` text for the probe
+  dataset, the section that names it as an exclusion beside the others; no step applies it on this host.
+- Step 22, "The measurements that size waits and retention", keeps sizing the mount-request deadline of step 7 and
+  the unmount deadline of step 9. The probe's and the companion's deadlines are not its work: steps 6 and 10 cite
+  them beside their own runs, because those steps ship before step 22.
+- The measurement homes, one place each: M1, M2, M3, M5, M7 and M9 in step 6's guest arms; M4's arm and whole-probe
+  timings in step 6 and its boot-and-login reading in step 19's boot arms; M8 in step 8's sweep on the guest; M10's
+  setup half with step 19's guest setup and its refusal readings in step 6; M11 in step 10's guest arms; and M6's
+  root-and-account half in step 6, with its skip half repeated in step 10's disabled-namespace boot. No value ships
+  before the step that runs its measurement, and step 22 sizes only the waits it names.
+
+### Amendments these notes ask for
+
+Three sentences outside this design need an amendment note beside them once the branch lands. None of them is edited
+here.
+
+- The plan's preface, "no unmount runs before the third": [Q1](#q1-whether-the-plan-bars-the-probes-unmount-arm)
+  read it as covering the product's mounts only, and step 6 builds the probe's own move and unmount arms, so the
+  sentence needs the note that says which mounts it covers.
+- The proposal's floor sentence, "The syscall floor is Linux 5.6 for `openat2`; the other mount APIs used here start
+  at 5.2" (the [proposal][proposal], lines 612 to 614): the managed route's effective floor is Linux 6.6, because a
+  kernel that refuses `FSCONFIG_CMD_CREATE_EXCL` leaves the attach arm unexercised and
+  [Q4](#q4-whether-an-unexercised-arm-may-enable-the-route) blocks that route, as [Limits](#limits) states.
+- The proposal's exclusion count, "Use the eight exclusions named in the planning decision" (the
+  [proposal][proposal], line 1083): the probe dataset's own section is a ninth exclusion, and step 20 writes it.
 
 ## Owed measurements
 
@@ -1242,8 +1297,8 @@ Attach the dedicated dataset's `ready` snapshot, which no namespace mounts, and 
 dataset beside it, and record which one runs `zfs_domount` and the key path. The oracle for a fresh superblock is
 `FSCONFIG_CMD_CREATE_EXCL`: the fresh source must attach, and the already mounted one must answer `EBUSY` from
 `fsconfig(create)` rather than succeed while reusing a superblock. A successful attach alone proves nothing about
-the key check, because the source's key is the pool root's and is loaded; the two `EBUSY` and `EACCES` controls
-carry that evidence. Control: item 5's unloaded-key procedure, which
+the key check, because the source's key is the one its encryption root holds and is loaded; the two `EBUSY` and
+`EACCES` controls carry that evidence. Control: item 5's unloaded-key procedure, which
 unmounts the checkout and home first ([measurements][measurements], lines 221 to 222), unloads the key, and
 attempts the fixture's `ready` source; require `EACCES` from `fsconfig(create)` (item 5, line 231). A second
 control: the same attach of a name that the pool does not hold, which must answer `ENOENT`, so that a harness
@@ -1260,7 +1315,7 @@ coverage only.
 
 Read the guest's initial mount namespace's `/proc/self/mountinfo`, and a representative `mountinfo` for every
 other visible namespace, before and after a complete probe. Read `/proc/spl/kstat/zfs/<pool>/txgs` before and
-after, plus the dataset list, the checkout's `atime` property and the pool history as secondary readings. The txg
+after, plus the dataset list and the pool history as secondary readings. The txg
 kstat is the one that can show a write: pool history records administrative commands only, since the mount path
 has no history call (`module/os/linux/zfs/zfs_vfsops.c:1911` to `:1964`) and the kstat is installed at
 `module/zfs/spa_stats.c:288` to `:304`. Its columns are `txg`, `birth`, `state`, `ndirty`, `nread`, `nwritten`,
@@ -1309,8 +1364,15 @@ the slot, the move-target directory, the record and its directory, whether any n
 source after the kill, and whether a second run succeeds. Control: the same probe allowed to finish, and a run
 killed before `unshare` returns.
 
+Hold one arm past the deadline, once with the move arm and once with the unmount arm, and require the timed-out
+record to name the arm in flight as that one and the last arm that finished as the one before it, and require
+removal of a mounted clone to be refused after each. Control: the same hold with the deadline raised past the
+arm's measured duration, which must record that arm as passed, so a mode that names the arm in flight always
+fails its own control.
+
 Gates: the claims that it leaves nothing in the host mount table and nothing outside the record's directory, the
-started record, the parent's deadline path, and each child's parent-death signal, `getppid()` recheck and pipes.
+started record, the parent's deadline path, the arm a timed-out record names, and each child's parent-death signal,
+`getppid()` recheck and pipes.
 
 ### M4: what the probe costs
 
@@ -1318,10 +1380,14 @@ Measure each arm and the whole probe as a ratio to a control arm of the same bin
 interleaved in the same round, and report the range between rounds. Measure at boot, with the boot unit, the
 delay it adds to the first login that `systemd-user-sessions.service` admits, and measure any other placement a
 later answer asks for. The companion is not measured here; [M11](#m11-the-account-companion-per-add) measures it.
-Control: items 4 and 15's timings are not a control, because they measure other work.
+The arm and whole-probe timings run in step 6's guest arms, through the transient unit
+[M9](#m9-the-untested-release-and-the-refused-release) names, because step 6 ships the probe; the boot-and-login
+half runs in step 19's boot arms, once the unit exists. Control: the interleaved arm of the same binary with the
+probe disabled; items 4 and 15's timings are not a control, because they measure other work.
 
 Gates: the probe's placement, its own deadline, and the time-to-login cost of a boot ordered before user sessions.
-No value is stated before this measurement.
+No value is stated before this measurement, and a value ships only beside it or beside an owner decision that sets
+it.
 
 ### M5: the refusal arm refuses for the right reason
 
@@ -1362,12 +1428,15 @@ process-visible scan is not proof of absence.
 
 Record the handler's first real attach after boot as the `first-attach` file writes it, written by the process
 that made the attach, and compare its outcome with the probe's snapshot arm on the same build. Controls, each of
-which must fail its arm when it is broken: an unloaded-key clone attach must write `outcome refused` with the
-`EACCES` that item 5 measured, on the same boot as a passing probe arm; a second attach in the same boot must write
-nothing, because its claim answers `EEXIST`; and a writer killed after the claim must leave the started line, which
-`doctor` reports as begun and not finished. Compare the file against the probe's arm both ways: a passing probe
-with a refused first attach must leave the probe's record unchanged, and a failing probe arm with an attached
-first attach must not turn that probe arm into a pass.
+which must fail its arm when it is broken: an unloaded-key clone attach must write nothing, because plan step 8's
+key check refuses it before any call, and the handler's journal and `doctor` must name the unavailable key instead;
+in a test-only build that skips that check the same fixture must write `outcome refused` with
+`step fsconfig-create` and the `EACCES` item 5 measured, on the same boot as a passing probe arm; a second attach in
+the same boot must write nothing, because its claim answers `EEXIST`; a handler check that refuses after the claim,
+such as the identity compare, must write `errno none` and pass the reader; and a writer killed after the claim must
+leave the started line, which `doctor` reports as begun and not finished. Compare the file against the probe's arm
+both ways: a passing probe with a refused first attach must leave the probe's record unchanged, and a failing probe
+arm with an attached first attach must not turn that probe arm into a pass.
 
 Gates: the first real attach's record, its one-writer claim, and the limit that a snapshot arm is not a clone arm.
 
@@ -1404,7 +1473,9 @@ property and its configuration field, and its idempotent second run. Measure the
 mounts it, that the sweep and the destroy-anyway path never see it, and that the sanoid configuration excludes it.
 Record what the probe writes when the dataset is absent, when its `ready` snapshot is absent, and when the
 configuration names a dataset the pool does not hold: the first two answer `ENOENT` from `fsconfig(create)` and
-the record names the arm, and the third is the same arm reported from an absent name. Controls: the same attach
+the record names the arm, and the third is the same arm reported from an absent name. Record, from `doctor`, the
+encryption root the dataset inherits and the effective delegation including ancestor grants, so the two premises
+[The source](#the-source-the-probe-dataset) reads at setup are measured rather than assumed. Controls: the same attach
 of a name that is absent while the configuration names the real dataset, which must record the arm as not
 exercised rather than as a pass, and the healthy dataset beside it, which must attach.
 
@@ -1427,7 +1498,12 @@ add, name the call and take the fallback route, with a second build that passes;
 `user.max_user_namespaces` set to 0, which must print the skip line naming `ENOSPC` and the setting, must not
 refuse the add, and must leave `doctor` naming the setting and the skip. A transient unit carrying
 `SystemCallFilter=` for `unshare` with `SystemCallErrorNumber=EPERM` is the other refusal a host can show, and it
-must print the same skip line with that errno.
+must print the same skip line with that errno; a filter answering `EACCES`, the errno the SELinux and AppArmor hooks
+give, must print the same line, so a skip rule that lists errnos instead of taking every one from that call fails
+its own control. A guest whose kernel has no `/proc/sys/kernel/unprivileged_userns_clone` must print `absent` for it
+rather than nothing. And because the child repeats the probe's syscall sequence in its own no-allocation island, this
+run compares that sequence against the probe's arms on the same controls, so an island that diverged from the probe
+fails its own control.
 
 Gates: the account companion's arms, its skip path, its per-add deadline, and the assumption that tmpfs accepts the
 descriptor calls it makes.
@@ -1512,17 +1588,20 @@ states.
 ## Sources read
 
 - [The decision record][decision], whole.
-- The answer record: `doc/handover/cli-git-rust-implementation.md` in the main checkout, the paragraph beginning
-  `THE ROUND WAS ASKED`, which holds the seven answers [Answers of 2026-11-19](#answers-of-2026-11-19) records and
-  the threat-model sentence quoted there.
+- The answer record: `doc/handover/cli-git-rust-implementation.md` in the main checkout at main's `92417f3758`,
+  line 40398, inside the paragraph that carries the words `THE ROUND WAS ASKED`. It holds the seven answers
+  [Answers of 2026-11-19](#answers-of-2026-11-19) records and the threat-model sentence quoted there, which that
+  section keeps because rule `H0P` prunes a handover once its work lands.
 - [The proposal][proposal], the sections this document cites, and the section lists it names: "Open items the
   decisions leave", "ABI gate and tests", "Project decisions", "Decided defaults", "Descriptor mount and
   unmount", "Boot and shutdown unit", "Waiting and refusal", "What doctor checks and prints" and "Acceptance
   tests the build still owes".
 - [The plan][plan], the sections this document cites, and the section lists it names: "Dependencies and their
-  state", "Wrapper code the design reuses" (read whole), "What the design forbids", steps 6, 7 and 9, steps 18
-  to 20, "What can start now", "Open items and the step that needs each", and "Where the design is silent: this
-  plan's suggestions".
+  state", "Wrapper code the design reuses" (read whole), "What the design forbids", steps 4, 6, 7, 8, 9, 10, 14,
+  16, 18, 19, 20 and 22, "What can start now", "Open items and the step that needs each", and "Where the design is
+  silent: this plan's suggestions". Every plan line number this document cites is a line of the plan at commit
+  `73eaad0846`, the branch's base; [Notes for the plan](#notes-for-the-plan) states that base and names each step
+  by heading, because main's copy had already moved nine lines before step 4.
 - [The measurements record][measurements], the items this document cites, each with the measured output beside
   it.
 - OpenZFS `zfs-2.4.4` at commit `71a9f9578616`, cloned on 2026-11-19:
@@ -1539,7 +1618,9 @@ states.
   fetched `fs/namespace.c`, `fs/pnode.c`, `kernel/exit.c` and `kernel/sys.c` at v7.3 itself. For the account
   companion, Linux v7.3 `kernel/user_namespace.c` and `kernel/ucount.c` (fetched, for the `ENOSPC` of an exhausted
   namespace count and the setting that bounds it) and `mm/shmem.c` (fetched, for tmpfs's `FS_USERNS_MOUNT` and
-  its fs_context operations).
+  its fs_context operations). For the errno a refused user namespace answers, Linux v7.3
+  `security/selinux/hooks.c`, `security/apparmor/task.c` and `security/apparmor/lib.c` (fetched), each read at the
+  hook `create_user_ns` calls.
 - `user_namespaces(7)` and `unshare(2)` read on this host, for the mapping rules, the `setgroups` order and the
   errnos a refused namespace creation answers.
 - systemd v262 `src/core/service.c`, `src/core/unit.c` and `src/core/exec-invoke.c` (fetched), and
@@ -1551,9 +1632,11 @@ states.
   `findmnt --target /`, `/proc/sys/user/max_user_namespaces` and `/proc/sys/kernel/unprivileged_userns_clone`.
 - The wrapper's code: `package/git-policy/cli/src/native/subvolume/fs_beneath.rs`,
   `.../subvolume/fs_mount_options.rs`, `.../subvolume/subvolume_remove_walk.rs`,
-  `.../health/doctor_filesystem.rs`, `.../service/wait_ceilings.rs`,
+  `.../health/doctor_filesystem.rs`, `.../service/wait_ceilings.rs`, `.../service/service_provision.rs`,
   `.../invocation/git_version.rs`, `.../invocation/git_version_cache.rs`,
   `.../foundation/private_storage.rs`, `.../foundation/private_storage_replacing_a_record.rs`,
+  `.../foundation/lazy_runtime.rs`, `.../source_guard/no_self_invocation_tests.rs`,
+  `.../source_guard/blocking_code_off_the_runtime_tests.rs`,
   `.../binary/binary_worktree_removal_around_a_volume_tests.rs`, and `package/git-policy/cli/SPEC.md`
   "Compatibility and degradation".
 
