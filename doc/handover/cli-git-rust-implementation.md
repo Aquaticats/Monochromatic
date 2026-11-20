@@ -40267,7 +40267,12 @@ What follows from them, as work:
   `env-local-json/core`'s fixture (`exit` before the pipe drains; owned by `945ff70a94`). Its 5.7 GB red-check copy,
   made outside its briefed folder, it deleted itself (checked gone). GOING: a short round
   `pi-driver-esrch-review-findings-fixed` (DeepSeek on Neuralwatt, cap 200) in the fix's worktree; brief under
-  `~/temp/agent/pi-driver-esrch-review-findings-fixed-2026-11-19/`; then the merge. Until it is in main any run
+  `~/temp/agent/pi-driver-esrch-review-findings-fixed-2026-11-19/`. It ended `idle` (71 turns) at `b98470781c`: the
+  page's harness prints its output block (checked by running the page's own code); both examples pass `reads`
+  (checked red then green through `lint:types` on temporary copies); the README says the driver's watch records a failed
+  read and the launcher's wake read through `finishTheRun` fails the launcher instead; `ESRCH` is in the outer skip set
+  with a test red first; 213 suites pass. IN MAIN: merged `--no-ff` as `08ad35aec8` (every path inside the driver
+  package; the merge clean); the worktree went to the commit service. Before it was in main any run
   that ends its turn while its own work runs can be cut the same way, and a container it started outlives it. The first
   resume ended `prompt-rejected` after 42 turns on a second driver fault: when the agent's background Clippy job ended,
   Pi started a turn of its own and 33 ms later the driver's wake note met "Agent is already processing. Specify
@@ -40473,8 +40478,15 @@ What follows from them, as work:
   (DeepSeek on Neuralwatt, cap 250) in the measurement's worktree: rewrap the new document whole and only the README
   paragraph this branch changed, correct the sentences, the ratio beside the value, commit the raw records beside the
   document, state the failure mode; brief under
-  `~/temp/agent/rate-limit-fallback-quota-read-deadline-review-findings-fixed-2026-11-19/`. Then the merge and the
-  installed dist's rebuild (task 396). The driver pool table (task 383)
+  `~/temp/agent/rate-limit-fallback-quota-read-deadline-review-findings-fixed-2026-11-19/`. It ended `idle` (81 turns)
+  at `35252f3cd9`: the document rewrapped (0 lint findings; rendered output byte-identical), the README's changed
+  paragraph rewrapped (README findings 325, fewer than `main`'s 330, none on the changed lines), the sentences corrected,
+  the paired ratio and why it is not the evidence beside the value, the post-warm-up spread (325.4 ms, rounds 2 to 20),
+  the run window `2026-11-19T18:45:41-05:00` to `18:47:32-05:00`, the seven raw-record files committed under
+  `doc/quota-read-latency-records/`, and the deadline's failure mode stated from `readQuotaWithinDeadline`. The
+  coordinator checked every path is inside the package, a credential-shape scan of the diff found 0, and the merge was
+  clean. IN MAIN: merged `--no-ff` as `0589d40dd2`; the installed `dist` rebuilt (`index.mjs` 62.04 kB) and `pi
+  --list-models rate-limit-fallback` lists the four models. The driver pool table (task 383)
   waits on more than a slot: it changes `pool-limits.ts`, as the unmerged `ecec388cdb` does (13 files; its review
   queued 2026-11-16 and never started), and the entry of 2026-11-16 on the second timing of the two pools puts
   follow-ups to that file on top of `ecec388cdb` once it is reviewed and in `main`; that review waits with the queue.
