@@ -555,12 +555,14 @@ The move is the one step whose destination does not keep the covered mount: `mov
 stack to its top mount (F14), so a mount the account stacks on the folder after the bind receives the clone on top
 of itself, and no descriptor call closes that window. The project's answer to what the handler then does is "Move it
 back at once (Recommended)" ("Answers of 2026-11-19"), which is the accepted rule for a clone that lands somewhere
-other than its slot ("Misplaced attach" under [proposal][proposal], "Project decisions"): the post-move check
-compares the topmost mount at the folder with the bind's row, and where they differ the handler moves the clone's own
-mount back to its slot by that mount's descriptor and the slot's, with `MOVE_MOUNT_F_EMPTY_PATH` and
-`MOVE_MOUNT_T_EMPTY_PATH`. Where the rollback fails, the clone stays staged, the receipt carries the misplaced state
-and `doctor` reports it, and the removal refuses; keeping it staged is the state the busy-unmount decision allows.
-M1 arms the rollback and its failed arm.
+other than its slot ("Misplaced attach" under [proposal][proposal], "Project decisions"): the post-move check reads
+the topmost mount at the folder and asserts it is the clone, by its dataset source and root, and that the clone's own
+parent row is the bind, which is how F21 says a bind is told apart from the mount it binds. Where the topmost mount is
+not the clone, or the clone's parent is not the bind, the handler moves the clone's own mount back to its slot by
+that mount's descriptor and the slot's, with `MOVE_MOUNT_F_EMPTY_PATH` and `MOVE_MOUNT_T_EMPTY_PATH`. Where the
+rollback fails, the clone stays staged, the receipt carries the misplaced state and `doctor` reports it, and the
+removal refuses; keeping it staged is the state the busy-unmount decision allows. M1 arms the rollback and its failed
+arm.
 
 ### The unmount call from staging
 
@@ -572,11 +574,13 @@ bind. The lookup lands on the topmost mount at that folder, so the first call un
 unmounts the bind, and both calls meet the decided sentence because the string they receive names a descriptor in
 `/proc`, not a path inside the account's tree. The descriptor keeps a pathname substitution out of the call, but it
 cannot keep a mount the account stacks on the folder out of the stack the kernel selects (F24): the call removes the
-topmost mount whatever it is. The handler therefore never calls on a topmost mount it did not record: it checks the
-topmost mount's identity before each call and refuses without calling when that mount is not the recorded clone or
-the recorded bind, then checks the transition after each call, that the recorded clone is gone and the recorded bind
-is now topmost, then that the bind is gone and no mount is left. A mount stacked after the move is a different scene
-from the one the third question answered, because no clone landed on it: the refusal leaves the clone on the bind,
+topmost mount whatever it is. The handler therefore checks the topmost mount's identity before each call and refuses
+without calling when that mount is not the recorded clone or the recorded bind, then checks the transition after each
+call, that the recorded clone is gone and the recorded bind is now topmost, then that the bind is gone and no mount
+is left. The pre-call check narrows the window and cannot close it: a mount stacked between the check and the call is
+the one the call removes, and the post-call transition check is what then catches it, because the mount it finds is
+not the one it expected. A mount stacked after the move is a different scene from the one the third question
+answered, because no clone landed on it: when the pre-call check sees it, the refusal leaves the clone on the bind,
 reports the stacked mount, and unbinds nothing ("Answers of 2026-11-19"). F7 also means the call needs no name under
 any ancestor, so a rename of an ancestor cannot take the staged mount out of reach. The reviewed draft tested only a
 descriptor opened through the clone, which F10 says holds the clone and must refuse (F9); M2 keeps that reading as
@@ -673,9 +677,10 @@ that cost openly. Costs are enumerated work, not sizes or times; none is measure
   by `move_mount` from the clone's own descriptor (F14, F5). The descriptor lifetimes stay apart (F10): the folder
   descriptor, opened before the bind and kept until the bind is gone; the bind descriptor, which exists only for the
   propagation change and is closed before the move; and every clone descriptor, closed before the clone's unmount.
-  Because the move's destination follows whatever is stacked on the folder (F14), the post-move check compares the
-  topmost mount with the bind's row; where they differ, the clone is rolled back to its slot by its own descriptor and
-  kept staged only if that rollback fails ("The private bind", M1).
+  Because the move's destination follows whatever is stacked on the folder (F14), the post-move check reads the
+  topmost mount, asserts it is the clone by its dataset source and root, and asserts the clone's parent row is the
+  bind; where either assertion fails, the clone is rolled back to its slot by its own descriptor and kept staged only
+  if that rollback fails ("The private bind", M1).
 - The unmount is two `umount2("/proc/self/fd/<n>", 0)` calls, clone then bind (F7, F8), each preceded by a check of
   the topmost mount's ID in the mount table: the clone is confirmed by its dataset source and the bind by its root,
   parent and mountpoint, which F21 says is the only way to tell a bind from the mount it binds. Both run after every
@@ -728,8 +733,9 @@ host-namespace, foreign-namespace, renamed and copied arms, M5, every arm of M6,
 - The wrapper creates no folder; it records the removal and waits for receipts.
 
 Pros: the account cannot plant content in the target, and the identity it is checked against comes from root's own
-record rather than from an account-writable claim; the account's rename of the target's name is refused by the
-descriptor identity check before the move, as in Way A.
+record rather than from the wrapper's claim, though that record is itself account-writable now ("The staged-folder
+record"); the account's rename of the target's name is refused by the descriptor identity check before the move, as in
+Way A.
 
 Cons: root writes a directory into the account's tree, which the writer's reading of the proposal's slot rule
 avoids; root owns an object under an account-owned parent, which the account can still remove or rename from a
@@ -907,15 +913,16 @@ Set up a clone at a slot, a private bind on a depth-one staging folder, and the 
   state is reported; record the errno. Control: M1's positive arm in the same run, where the undisturbed folder
   carries the bind and the clone, so the refusal in that arm is the removal's and not the fixture's.
 - Stacked before the move: the account stacks a FUSE mount on the folder with `fusermount3` after the bind and its
-  propagation change and before the move. Assert the move succeeds and its destination is the account's mount, then
-  that the post-move check finds the clone not on the bind's row and the handler rolls the clone's own mount back to
-  its slot by its descriptor (F14, F24). Assert the clone's source row is at its slot again and the account's mount
-  still covers the folder. Control: M1's positive arm in the same run, where the topmost mount at the folder is the
-  bind and the check passes. No kernel call closes this window; the arm records what it costs.
-- Stacked before the move, rollback refused: the same stacking, and the slot also covered by an account mount so the
-  rollback's destination follows the wrong mount or refuses. Assert the clone stays staged, the receipt carries the
-  misplaced state, `doctor` prints it, nothing is unbound, and the clone's source row is not at its slot. Control:
-  M1's positive arm, where the rollback succeeds.
+  propagation change and before the move. Assert the move succeeds and its destination is the account's mount, so the
+  topmost mount is the clone and the clone's parent row is the account's mount and not the bind, then that the handler
+  rolls the clone's own mount back to its slot by its descriptor (F14, F24). Assert the clone's source row is at its
+  slot again and the account's mount still covers the folder. Control: M1's positive arm in the same run, where the
+  topmost mount is the clone and its parent is the bind, and the check passes. No kernel call closes this window; the
+  arm records what it costs.
+- Stacked before the move, rollback refused: the same stacking, and the slot's directory removed from a foreign
+  namespace before the rollback, so the rollback's destination is gone and the move refuses. Assert the clone stays
+  staged, the receipt carries the misplaced state, `doctor` prints it, nothing is unbound, and the clone's source row
+  is not at its slot. Control: M1's stacking arm in the same run, where the slot stands and the rollback succeeds.
 - The bind's descriptor: after the bind and before the propagation change, open the folder by name under the
   `~/.cache` descriptor with `O_PATH | O_DIRECTORY` and with `RESOLVE_BENEATH`, `RESOLVE_NO_SYMLINKS` and
   `RESOLVE_NO_MAGICLINKS`, and no `RESOLVE_NO_XDEV`; assert `/proc/self/fdinfo/<n>` prints the mount ID of the bind's
@@ -943,12 +950,17 @@ Set up a clone at a slot, a private bind on a depth-one staging folder, and the 
   that the reviewed draft's route works at the kernel level, and that the design does not use it because it names a
   component inside the account's tree (F7, and the plan's forbidden line). Control: the covered-folder arm, which
   must reach the same outcome without that name.
-- Substituted top mount: the account stacks a FUSE mount on the staged folder with `fusermount3` between the
-  handler's identity check and its first `umount2`. Assert the handler's pre-call check refuses without calling, so
-  the FUSE mount is still there, the recorded clone is still under it, no `umount2` ran, and the handler reports and
-  unbinds nothing. Control: the covered-folder arm in the same run, where the topmost mount before the call is the
-  recorded clone and the call proceeds. The arm records what the race costs: a mount the account made would have been
-  the one the call removed, and no kernel call closes that window (F24).
+- Substituted top mount, seen by the check: the account stacks a FUSE mount on the staged folder with `fusermount3`
+  after the handler's identity check and before its first pre-call check. Assert the pre-call check refuses without
+  calling, so the FUSE mount is still there, the recorded clone is still under it, no `umount2` ran, and the handler
+  reports and unbinds nothing. Control: the covered-folder arm in the same run, where the topmost mount before the
+  call is the recorded clone and the call proceeds.
+- Substituted top mount between the check and the call: the account stacks the FUSE mount after the second call's
+  pre-call check and before its `umount2`. Assert the call removes the FUSE mount, that the post-call transition check
+  finds the bind where it expected no mount, and that the handler therefore refuses, reports and unbinds nothing, so
+  the bind stays. Control: the covered-folder arm in the same run, where the second call finds the bind gone. This
+  arm records what the race costs: a mount the account made can be the one the call removes, and no kernel call closes
+  that window (F24).
 
 ### M3. The private bind is required, and what it copies
 
@@ -1214,12 +1226,12 @@ and no journal pass lists `~/.cache` at all. The record is a file and not a fold
 empty mountpoint carrier A6 describes, and the unlink that removes the record is not a delete under any mount.
 
 The handler writes it before the first bind, through the `~/.cache` descriptor and so on the `user-cache` dataset, at
-mode `0644`, and the write is atomic: the handler creates `<component>.json.tmp` beside the record with
-`O_CREAT | O_EXCL`, writes and `fsync`s it, renames it over `<component>.json` with `renameat`, and `fsync`s the
-directory. A reader therefore sees the whole record of one write or the one before it and never half of one, and a
-temporary name a killed handler leaves is a stray file the next removal overwrites. The wrapper, `doctor` and a later
-sweep read it; the handler is the only writer, and the wrapper's settlement unlinks it after the folder's `rmdir`
-succeeds.
+mode `0644`, and the write is atomic: the handler unlinks any stale `<component>.json.tmp` left by a killed handler
+under its `~/.cache` descriptor, creates the temporary name beside the record with `O_CREAT | O_EXCL`, writes and
+`fsync`s it, renames it over `<component>.json` with `renameat`, and `fsync`s the directory. A reader therefore sees
+the whole record of one write or the one before it and never half of one, and a temporary name needs no settlement of
+its own because the next write replaces it. The wrapper, `doctor` and a later sweep read it; the handler is the only
+writer, and the wrapper's settlement unlinks it after the folder's `rmdir` succeeds.
 
 The record is written by root into a directory the account owns, so it is data the account can read, replace or
 delete. The project's answer to where it lives accepts that and states why: "We have to assume my machine isn't
@@ -1237,13 +1249,15 @@ The accepted text says two things about root's files, and the record's place kee
 ([proposal][proposal], "Requests, results and ordering") holds because the design writes nothing else into that
 directory, and nothing into `/var/lib/monochromatic-git-policy-cli/` for staging: the record is not a receipt and
 does not live beside the slot identities. "The runtime files are a cache, not authority to act; rebuild them from
-live state and durable intent" ([proposal][proposal], "Requests, results and ordering") holds for every field but
-one, and the one is the departure this paragraph records. The folder's identity is re-read from the folder, the
-namespace pair and boot id are re-read from the running handler, and the handle alone cannot be rebuilt from live
-state once the invocation that opened the folder has ended. The project's answer "Record the file handle
-(Recommended)" accepted that field ("Answers of 2026-11-19"); what it buys is a way to open a folder, not to unmount
-anything, because the record names no mount, carries no mount ID, and every act after it is checked against the
-folder's identity and the live mount table (F29, F21).
+live state and durable intent" ([proposal][proposal], "Requests, results and ordering") is the sentence this
+section departs from, and the departure is exactly the record's handle. In place and ownership the record is a cache:
+the account's file, under the account's directory, that any later run can replace. In every field but one it is
+rebuildable: the identity is re-read from the folder, the namespace pair and boot id are re-read from the running
+handler, and the nonce comes from the intent. The handle alone cannot be rebuilt from live state once the invocation
+that opened the folder has ended. So the record is a cache that holds one field of authority, the right to reopen one
+folder, and no authority to unmount: it names no mount, carries no mount ID, and every act after it is checked against
+the folder's identity and the live mount table (F29, F21). The project's answer "Record the file handle
+(Recommended)" accepted that field ("Answers of 2026-11-19").
 
 The record is one JSON object. It holds the folder's component, the clone's dataset name and GUID, the folder's
 identity, its file handle, the nonce of the intent it last served, the handler's mount-namespace device and inode,
@@ -1334,13 +1348,10 @@ now the design. The list stays because each entry names what the design decides 
   names, rather than only a descriptor a running process still holds. Accepted with the file-handle route the second
   question's answer took (F29, L12).
 - The folder's file handle. The design first put it in a durable record under
-  `/var/lib/monochromatic-git-policy-cli/`. The project asked why a durable root record was needed when it need not
-  survive a reboot, was told that a reboot drops every mount and was offered a per-boot root file in `/run`, asked
-  why not `~/.cache`, was told that any program running as the account could swap a handle there and steer a root
-  unmount, and answered "In ~/.cache", with the sentence this design now designs to: "We have to assume my machine
-  isn't compromised. sudo is passwordless here anyway." The record therefore lives beside the folder, at
-  `<home>/.cache/monochromatic-git-policy-cli-staging-<guid>.json`, and that sentence is the threat model stated
-  under "Answers of 2026-11-19" ("The staged-folder record").
+  `/var/lib/monochromatic-git-policy-cli/`, and the project's answer moved it to `~/.cache` with the threat model
+  that answer states ("Answers of 2026-11-19"). The record now lives beside the folder, at
+  `<home>/.cache/monochromatic-git-policy-cli-staging-<guid>.json`, as one cache file rather than root's state
+  ("The staged-folder record").
 
 ## Hardening the stated threat model may make unnecessary
 
@@ -1351,14 +1362,14 @@ simplify, as a suggestion for the project to decide. Taking one up is a revision
 sentence, because the design would lose a refusal that its arms currently assert.
 
 - The account-owned folder, and the root-owned alternatives of Ways B and E. The design reasons about who owns the
-  staging folder, checks its owner and mode before binding, keeps M1's replacement arms and M8, and rejected a
-  root-owned `0700` bind because the account could substitute the target. Under a trusted account that whole argument
-  loses its premise: the folder's ownership protects against a substitution the project's sentence says will not
-  happen. What it costs: a shape check on every bind, the replacement arms, and Way B's and Way E's extra root
-  objects and their lifecycles. What removing it would simplify: the folder could be made by either side, the owner
-  and mode checks would go, and the two root-owned ways would need no defence for an account that is not hostile.
-  F11 still bounds this: root ownership does not stop a rename or `rmdir` from another mount namespace, so dropping
-  the argument buys less than it first appears.
+  staging folder, checks its owner and mode before binding, keeps M1's replacement arms and M8, and the project
+  vetoed a root-owned `0700` bind at `/run`, giving up the protection that placement outside account-controlled trees
+  carried. Under a trusted account that whole argument loses its premise: the folder's ownership protects against a
+  substitution the project's sentence says will not happen. What it costs: a shape check on every bind, the
+  replacement arms, and Way B's and Way E's extra root objects and their lifecycles. What removing it would simplify:
+  the folder could be made by either side, the owner and mode checks would go, and the two root-owned ways would need
+  no defence for an account that is not hostile. F11 still bounds this: root ownership does not stop a rename or
+  `rmdir` from another mount namespace, so dropping the argument buys less than it first appears.
 - The claim's identity proof, and the orphan scan that replaces it. The wrapper removes a folder only where its own
   claim and that claim's recorded identity agree with the folder; a folder whose claim is gone is kept and reported;
   `doctor` lists every entry it cannot match to a live clone. What it costs: the staging claim kind with its own
