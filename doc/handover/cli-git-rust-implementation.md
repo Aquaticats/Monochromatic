@@ -40488,7 +40488,18 @@ stated in this entry. What follows from them, as work:
   the answer accepts. A new section lists hardening the threat model may make unnecessary, as suggestions with no
   check removed. One stale claim: it calls the answer record uncommitted, but it is in `main` since `c55ab25eb4`.
   GOING: its Sonnet gate review (brief under
-  `~/temp/agent/zfs-staging-under-cache-design-owner-answers-gate-review-2026-11-19/`). The proposal and plan amendment
+  `~/temp/agent/zfs-staging-under-cache-design-owner-answers-gate-review-2026-11-19/`). STAGING REVIEW ENDED (Sonnet,
+  about 33 min; that folder's `keep/review.md`, one unprivileged host probe of the handle calls beside it): not ready,
+  no high, six mediums, none changing a decision: no end state after a successful Q3 rollback (removal, step 9's
+  reattach, step 17's cancel); a mount stacked on the clone would ride along on the move back, against the pre-call
+  refusal; the rollback's destination descriptor and its fresh-walk proof are unstated; a Q1 leftover says the handle
+  outlives a boot; a record whose folder is gone or re-made, or from another boot, blocks staging forever. Lows: an
+  `O_PATH` descriptor fails `fsync` and `open_by_handle_at` with `EBADF` on this kernel (probe), the stale
+  "uncommitted" claim, attribution slips. GOING:
+  `pi-zfs-staging-under-cache-design-owner-answers-gate-review-findings-fixed` (DeepSeek on Neuralwatt, cap 510) in the
+  design worktree; brief under
+  `~/temp/agent/zfs-staging-under-cache-design-owner-answers-gate-review-findings-fixed-2026-11-19/`. Then a short
+  re-check, then acceptance. The proposal and plan amendment
   for the dropped release proof waits for the layout checker's review. That answer was first written into
   `doc/handover/questions-for-the-owner.md`, whose header keeps it to open questions; the owner asked "Do you know what a
   questions file is?", the answer moved here, and the owner said "Fix the bigger mess too.": that file still held about
