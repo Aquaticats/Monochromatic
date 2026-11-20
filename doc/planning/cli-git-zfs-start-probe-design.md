@@ -245,8 +245,9 @@ runs the small user-namespace companion before each managed add, and the root pr
 dataset mount path. Not taken: root only, this design's own first rank, which would leave an account-side regression of
 the walk or the mount surface seen only where something mounts as the account; the project took the companion knowing
 that it never touches ZFS and skips on a host that refuses user namespaces. This design's skip also covers a host
-that grants the namespace and denies the capabilities inside it, the Ubuntu guest whose default profile does so
-included; that reach was not in the question, and [The account companion](#the-account-companion) states which
+that grants the namespace and denies the capabilities inside it, and a host that grants the namespace and refuses
+a mount the setup makes inside it; the Ubuntu guest, whose default profile denies the capabilities, is the first
+of those; that reach was not in the question, and [The account companion](#the-account-companion) states which
 refusals the skip covers, what follows a skip, and that both are this design's choice, open to the project's veto,
 rather than the round's.
 
@@ -1091,10 +1092,13 @@ the line of the kernel or of a security module that answers it:
   capability rather than the companion's line.
 - `unshare(CLONE_NEWNS)` answering `EPERM`: `unshare_nsproxy_namespaces` requires `CAP_SYS_ADMIN` in the caller's
   user namespace (`kernel/nsproxy.c:221` to `:223`).
-- A capability check a mount call makes answering `EPERM`: `may_mount` requires `CAP_SYS_ADMIN` over the mount
-  namespace's own (`fs/namespace.c:2063` to `:2066`) and answers a bool, so a policy hook's denial there reaches the
-  caller as `EPERM`; `fsopen` asks it (`fs/fsopen.c:127` to `:128`), as do `mount` (`fs/namespace.c:4270` to
-  `:4271`), `mount_setattr` (`:5298`), `fsmount` (`:4619`) and `move_mount` (`:4754`).
+- A capability check a mount call makes during the setup answering `EPERM`: `may_mount` requires
+  `CAP_SYS_ADMIN` over the mount namespace's own (`fs/namespace.c:2063` to `:2066`) and answers a bool, so a policy
+  hook's denial there reaches the caller as `EPERM`; `mount` asks it (`fs/namespace.c:4270` to `:4271`), which is
+  the call that puts the scratch tmpfs in place, and `mount_setattr` (`:5298`), which is the propagation when the
+  companion makes it that way. The bullet ends when the scratch tmpfs is in place: the same check answering `EPERM`
+  at a later call, `fsopen` (`fs/fsopen.c:127` to `:128`), `fsmount` (`:4619`) or `move_mount` (`:4754`) included,
+  is an arm failure, as the paragraph after this list states.
 - A `mount` call answering `EACCES`: `path_mount` asks `security_sb_mount` before `may_mount`
   (`fs/namespace.c:4267`), and SELinux's `selinux_mount` answers `EACCES` (`security/selinux/hooks.c:2820` to
   `:2833`, wired to that hook at `:7694`), which is mount mediation the errno list would otherwise miss. It covers
@@ -1108,7 +1112,10 @@ not empty (`kernel/fork.c:3188` to `:3191`, an implied `CLONE_THREAD`); an `EPER
 `setgroups` write, which `proc_setgroups_write` gives only to a `deny` written after a `gid_map` (`:1264` to
 `:1278`, a defect of the companion's order) and not to this design's own write, which asks for no capability; an
 `EPERM` from the second mapping write, which the one-write rule answers (`kernel/user_namespace.c:978` to `:981`);
-`ENOMEM`; and any errno a call was not named here to give, a seccomp filter's arbitrary answer included. That
+an `EPERM` from any call after the scratch tmpfs is in place, `fsmount` and `move_mount` included, which is a mount
+the account is refused rather than a capability the host denies at the setup, and the case
+[M11](#m11-the-account-companion-per-add)'s `fsmount` fixture checks; `ENOMEM`; and any errno a call was not named
+here to give, a seccomp filter's arbitrary answer included. That
 failure refuses
 the add as unproven. `EUSERS` is not in either set on any kernel this design supports: `unshare(2)` gives it only
 from Linux 3.11 to Linux 4.8, and `kernel/user_namespace.c` at v7.3 names it nowhere.
@@ -1158,8 +1165,10 @@ add.
 That last step, and the printing of the skip, are this design's own choice, not the project's, and one the project
 can veto separately from the boundary: Q6's option text named a skip on a host that refuses user namespaces as one
 of its costs, so that a skip exists was before the project, while the add going ahead after it was not. The skip's
-reach matters to that choice, and the skip's boundary keeps it to the refusals the skip paragraph lists, bar the
-residue that paragraph names, with the Ubuntu guest among the hosts that skip. The choice differs from the
+reach matters to that choice, and the skip's boundary keeps it to the three refusals the skip paragraph opens
+with (a host that will not give the companion a user namespace, will not let it use the capabilities inside one, or
+will not let it mount inside one), bar the residue that paragraph names, with the Ubuntu guest among the hosts that
+skip. The choice differs from the
 direction Q4 chose for the probe's arms, where an arm that could not run keeps the route blocked. The reason: the
 companion touches no ZFS and its pass cannot
 predict the root attach, so a host that refuses user namespaces would lose the whole managed route to a check that
@@ -1978,7 +1987,8 @@ timestamp range and the option it did not take. No question of this design stays
 open to the project's veto, each with veto none as the default:
 
 - The companion's printed skip letting the add proceed. A veto refuses the managed add instead, which turns the
-  managed route off on every host that skips, the Ubuntu guest included.
+  managed route off on every host that skips: one that refuses the user namespace, one that denies the capabilities
+  inside it, and one that refuses a mount the setup makes inside it, the Ubuntu guest among them.
 - No probe deadline value before step 6's measurement. A veto needs the project to name a provisional ceiling, and
   step 19 then adds the unit's `ExecStartPre=` for the probe before that measurement, which is why the probe's
   deadline sentence points at step 19.
