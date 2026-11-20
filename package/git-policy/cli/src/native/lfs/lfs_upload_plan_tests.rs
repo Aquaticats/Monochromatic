@@ -400,11 +400,12 @@ fn the_query_pattern_selects_every_key_the_plan_reads() {
         "branch.main.remote",
         "branch.main.pushremote",
         "url.https://example.invalid/.pushinsteadof",
+        "url.https://example.invalid/.insteadof",
     ] {
         assert!(listed.iter().any(|found| { return found == key; }), "the pattern misses {key}: {listed:?}");
         assert!(crate::lfs_upload_settings::wanted_key(key), "the snapshot filter refuses {key}");
     }
-    for key in ["lfs.buildinfo", "remote.origin.fetch", "url.https://example.invalid/.insteadof"] {
+    for key in ["lfs.buildinfo", "remote.origin.fetch"] {
         assert!(!listed.iter().any(|found| { return found == key; }), "the pattern takes {key}: {listed:?}");
         assert!(!crate::lfs_upload_settings::wanted_key(key), "the snapshot filter takes {key}");
     }
@@ -425,6 +426,7 @@ fn only_the_keys_the_plan_reads_are_taken_from_a_snapshot() {
         "remote.o.r.url",
         "push.default",
         "url.https://example.invalid/.pushinsteadof",
+        "url.https://example.invalid/.insteadof",
         "lfs.url",
         "lfs.pushurl",
         "remote.origin.lfsurl",
@@ -432,7 +434,7 @@ fn only_the_keys_the_plan_reads_are_taken_from_a_snapshot() {
     ] {
         assert!(crate::lfs_upload_settings::wanted_key(key), "{key}");
     }
-    for key in ["url.https://example.invalid/.insteadof", "remote.origin.fetch", "branch.work.merge", "push.followtags", "core.bare", "remote.origin.tagopt"] {
+    for key in ["remote.origin.fetch", "branch.work.merge", "push.followtags", "core.bare", "remote.origin.tagopt"] {
         assert!(!crate::lfs_upload_settings::wanted_key(key), "{key}");
     }
 }
@@ -636,6 +638,54 @@ fn the_plan_names_the_lfs_server_of_its_destination() {
             vec![("remote.origin.url", "http://127.0.0.1:39491/repo.git")],
             vec!["origin", "main"],
             Some("127.0.0.1:39491"),
+        ),
+        (
+            "two pushurl values name the last one, as git-lfs reads them",
+            vec![
+                ("remote.origin.pushurl", "http://127.0.0.1:39495/repo.git"),
+                ("remote.origin.pushurl", "http://127.0.0.1:39496/repo.git"),
+                ("remote.origin.url", "http://127.0.0.1:39497/repo.git"),
+            ],
+            vec!["origin", "main"],
+            Some("127.0.0.1:39496"),
+        ),
+        (
+            "a fetch alias rewrites the endpoint before the host is named",
+            vec![
+                ("lfs.url", "https://alias.invalid/lfs"),
+                ("url.https://127.0.0.1:39498/.insteadof", "https://alias.invalid/"),
+            ],
+            vec!["origin", "main"],
+            Some("127.0.0.1:39498"),
+        ),
+        (
+            "a push alias wins over a fetch alias for an upload",
+            vec![
+                ("lfs.pushurl", "https://alias.invalid/lfs"),
+                ("url.https://127.0.0.1:39499/.pushinsteadof", "https://alias.invalid/"),
+                ("url.https://127.0.0.1:39500/.insteadof", "https://alias.invalid/"),
+            ],
+            vec!["origin", "main"],
+            Some("127.0.0.1:39499"),
+        ),
+        (
+            "the longest matching alias is used",
+            vec![
+                ("lfs.url", "https://alias.invalid/deeper/lfs"),
+                ("url.https://127.0.0.1:39501/.insteadof", "https://alias.invalid/"),
+                ("url.https://127.0.0.1:39502/.insteadof", "https://alias.invalid/deeper/"),
+            ],
+            vec!["origin", "main"],
+            Some("127.0.0.1:39502"),
+        ),
+        (
+            "a remote's pushurl is rewritten by an alias too",
+            vec![
+                ("remote.upstream.pushurl", "https://alias.invalid/repo.git"),
+                ("url.https://127.0.0.1:39503/.pushinsteadof", "https://alias.invalid/"),
+            ],
+            vec!["upstream", "main"],
+            Some("127.0.0.1:39503"),
         ),
         (
             "a destination that is a URL is not an endpoint of its own",

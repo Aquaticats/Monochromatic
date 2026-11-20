@@ -64,13 +64,16 @@ fn an_install_inside_a_repository_runs_with_skip_repo_and_its_notice() {
 /// `--system` and `--file` write the keys somewhere else than the global file,
 ///  and `--manual`'s hook instructions are not printed by a run that installs no hook.
 /// Why:
-///   The short review measured every form through the wrapper with git-lfs 3.8.1:
+///   Measured with git-lfs 3.8.1 through the wrapper, read back with `git config --file <p> --list`:
 ///  `--local` writes `<repo>/.git/config`,
-///  `--worktree` writes `<repo>/.git/config.worktree` only when `extensions.worktreeConfig` is set,
+///  `--worktree` writes `<repo>/.git/config.worktree` while `extensions.worktreeConfig` is set and
+///  `<repo>/.git/config` when it is not,
 ///  `--file=<path>` writes that file,
 ///  and the global file stays empty in all three;
 ///  the notice said "the global `filter.lfs.*` keys were written as usual" for every one of them,
 ///  which is false for three.
+///  A boolean option's `=value` is read too: `--local=true` names the repository's file,
+///  and a false value resets the scope that option had set.
 ///  `--manual` asks git-lfs for the instructions that merge its hooks into this repository by hand,
 ///  and this run installs no hook,
 /// so none are printed and the notice has to say why.
@@ -90,6 +93,13 @@ fn the_notice_names_the_scope_the_caller_asked_for() {
         ("--system names the system file", vec!["lfs", "install", "--system"], "system configuration"),
         ("--file names the file it was given", vec!["lfs", "install", "--file=/work/elsewhere.conf"], "`/work/elsewhere.conf`"),
         ("--file's value may be the next word", vec!["lfs", "install", "--file", "elsewhere.conf"], "`elsewhere.conf`"),
+        ("--local=true names the repository's own file", vec!["lfs", "install", "--local=true"], "this repository's `.git/config`"),
+        ("--worktree=false leaves the global file", vec!["lfs", "install", "--worktree=false"], "global configuration"),
+        ("--system=true names the system file", vec!["lfs", "install", "--system=true"], "system configuration"),
+        ("a later false value resets --local", vec!["lfs", "install", "--local", "--local=false"], "global configuration"),
+        ("a later false value resets --system", vec!["lfs", "install", "--system", "--system=false"], "global configuration"),
+        ("a false --worktree leaves the earlier --local", vec!["lfs", "install", "--local", "--worktree=false"], "this repository's `.git/config`"),
+        ("--file= resets the file scope", vec!["lfs", "install", "--file=/work/elsewhere.conf", "--file="], "global configuration"),
     ] {
         let (_, notice) = with_skip_repo(words(typed.as_slice()), true);
         assert!(notice.contains(wanted), "{case}: the notice names the scope: {notice}");
@@ -99,11 +109,21 @@ fn the_notice_names_the_scope_the_caller_asked_for() {
     }
     let (_, worktree_notice) = with_skip_repo(words(&["lfs", "install", "--worktree"]), true);
     assert!(worktree_notice.contains("extensions.worktreeConfig"), "the worktree notice says when Git reads that file: {worktree_notice}");
+    assert!(
+        worktree_notice.contains("this repository's `.git/config`"),
+        "the worktree notice names the extension-unset file too: {worktree_notice}"
+    );
     let (_, manual) = with_skip_repo(words(&["lfs", "install", "--manual"]), true);
     assert!(manual.contains("`--manual`"), "the notice answers what `--manual` asked for: {manual}");
     assert!(manual.contains("none are printed here"), "the notice says the hook instructions are not printed: {manual}");
     let (_, force_manual) = with_skip_repo(words(&["lfs", "install", "-m"]), true);
     assert!(force_manual.contains("`--manual`"), "the short form of `--manual` is read too: {force_manual}");
+    let (_, manual_on_value) = with_skip_repo(words(&["lfs", "install", "--manual=true"]), true);
+    assert!(manual_on_value.contains("none are printed here"), "--manual=true asks for the instructions too: {manual_on_value}");
+    for off in [vec!["lfs", "install", "--manual=false"], vec!["lfs", "install", "--manual", "--manual=false"]] {
+        let (_, silent) = with_skip_repo(words(off.as_slice()), true);
+        assert!(!silent.contains("none are printed here"), "{off:?} asks for no hook instructions: {silent}");
+    }
 }
 
 /// What:

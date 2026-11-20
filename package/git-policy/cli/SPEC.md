@@ -7298,10 +7298,13 @@ and the upload is then stopped and named,
 with `git lfs push --all <remote>` as its way forward because a typed push has no retry plan.
 What closes that shape's login case is the never-prompt pair:
 a missing login fails at once instead of leaving the connection's wait with nothing to answer it.
-The refusal that follows a login failure says what the wrapper did about prompting,
-read from the pair the child was given (`prompting_disabled` in `src/native/invocation/child_environment.rs`):
-a command at a terminal is told that the wrapper left Git's and `git-lfs`'s own prompting,
-and no refusal claims a terminal was absent when it was there.
+The refusal that follows a login failure says what the wrapper did about prompting:
+`login_needed_message` (`src/native/lfs/lfs_pre_push.rs`) reads as a key failure when OpenSSH refused a key
+(`reads_as_a_key_failure`),
+and every refusal says the wrapper never lets a command ask for a credential,
+with `GIT_ASKPASS` set to the empty string,
+`GIT_TERMINAL_PROMPT=0` and `SSH_ASKPASS_REQUIRE=never`,
+whether or not a terminal is there.
 The upload still owns its child through `SignalGuard::start_relayed`,
 which hands it over still published,
 so a signal a process sends to the wrapper reaches the program for the whole wait,
@@ -9765,8 +9768,11 @@ in-process reader can) gives every value of the multi-valued keys.
   then `lfs.url`,
   then the named remote's `remote.<name>.lfspushurl`,
   `remote.<name>.lfsurl`,
-  first `remote.<name>.pushurl` and `remote.<name>.url`,
+  the last `remote.<name>.pushurl` and `remote.<name>.url`,
   then the same four of `origin` when the named remote answered nothing.
+  Each endpoint is rewritten through `url.<base>.pushInsteadOf` and then `url.<base>.insteadOf` before its host is read,
+  as git-lfs rewrites it before parsing (`:222` and `:331-343`),
+  and a later value of one key wins, as git-lfs reads its configuration (`config/git_fetcher.go:121-128`).
   Measured against git-lfs 3.8.1 on this host:
   with `lfs.pushurl` and `lfs.url` both set the batch request went to `lfs.pushurl`,
   and with `lfs.url` and `remote.origin.lfsurl` both set it went to `lfs.url`.
@@ -11857,10 +11863,11 @@ because the keys do not always go to the global file:
 `--local` writes this repository's `.git/config`,
 `--system` the system file,
 `--file <path>` that file,
-and `--worktree` this worktree's configuration (`.git/config.worktree`),
-which Git reads only while `extensions.worktreeConfig` is set
-and which git-lfs writes nothing at when it is not
-(`commands/command_install.go:40-58` and `lfs/attribute.go:154-190`).
+and `--worktree` this worktree's configuration (`.git/config.worktree`) while `extensions.worktreeConfig` is set,
+and this repository's `.git/config` when it is not,
+where git-lfs's own help says the option is "the same as `--local`"
+(`commands/command_install.go:40-58` and `lfs/attribute.go:154-190`;
+measured with git-lfs 3.8.1 and read back through `git config --file <p> --list`).
 A run with `--manual` is told why the hook instructions it asked for are not printed:
 they are instructions for merging a hook this wrapper installs nowhere and never runs.
 Outside a repository the command is forwarded as it was typed (git-lfs writes no hook there),

@@ -358,10 +358,17 @@ fn the_service_overlay_tells_openssh_never_to_ask_and_a_typed_command_does_too()
     );
 }
 
-/// A command the person typed keeps Git's own prompting:
-/// the overlay of forwarded commands holds neither variable.
+/// What:
+///  The child overlay itself holds neither prompt variable:
+///  `invocation_overlay` adds the never-prompt rule after it,
+///  so a caller's `CLI_GIT_CHILD_SET_*` cannot reopen the prompt.
+/// Why:
+///  The three-variable rule is added once, in `no_prompt_overlay`,
+///  which `every_command_the_wrapper_forwards_never_prompts` pins;
+///  this control keeps the base list free of it,
+///  so the rule's last entry stays the one that wins.
 #[test]
-fn the_overlay_of_a_forwarded_command_leaves_prompting_alone() {
+fn the_child_overlay_of_a_forwarded_command_holds_neither_prompt_variable() {
     let overlay = child_environment_overlay(environment(&[]).as_slice(), Path::new("/usr/bin/git"));
     for (name, _value) in &overlay {
         assert_ne!(name, ASKPASS_VARIABLE);

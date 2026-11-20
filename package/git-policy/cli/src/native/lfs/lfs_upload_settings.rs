@@ -112,9 +112,11 @@ pub struct PlanError(pub String);
 /// `lfs.pushurl` and `remote.<name>.lfspushurl` among them:
 /// they are the keys that decide which server an upload is sent to
 /// (git-lfs 3.8.1,
-/// `lfsapi/endpoint_finder.go:99` and `:128`).
+/// `lfsapi/endpoint_finder.go:99` and `:128`),
+/// and `url.<base>.insteadOf` and `url.<base>.pushInsteadOf` rewrite that endpoint before it is read
+/// (`:222` and `:331-343`).
 pub const SETTINGS_REGEXP: &str =
-    "^(branch\\..*\\.(pushremote|remote)|remote\\.pushdefault|remote\\..*\\.(push|pushurl|mirror|url|lfsurl|lfspushurl)|push\\.default|url\\..*\\.pushinsteadof|lfs\\.(url|pushurl))$";
+    "^(branch\\..*\\.(pushremote|remote)|remote\\.pushdefault|remote\\..*\\.(push|pushurl|mirror|url|lfsurl|lfspushurl)|push\\.default|url\\..*\\.(pushinsteadof|insteadof)|lfs\\.(url|pushurl))$";
 
 /// What:
 ///  The last dotted word of a key after a prefix:
@@ -145,12 +147,13 @@ pub(crate) fn wanted_key(key: &str) -> bool {
         Some(variable) => variable == "pushremote" || variable == "remote",
         None => false,
     };
-    let push_rewrite: bool = match key.strip_prefix("url.") {
-        Some(rest) => rest.ends_with(".pushinsteadof"),
+    // An upload reads the push alias table first and the fetch alias table after it.
+    let url_rewrite: bool = match key.strip_prefix("url.") {
+        Some(rest) => rest.ends_with(".insteadof") || rest.ends_with(".pushinsteadof"),
         None => false,
     };
     return branch_variable
-        || push_rewrite
+        || url_rewrite
         || key == "remote.pushdefault"
         || key == "push.default"
         // The endpoints the upload is sent to, which a stop names: `lfs.url` for a fetch and, when it is set, `lfs.pushurl`

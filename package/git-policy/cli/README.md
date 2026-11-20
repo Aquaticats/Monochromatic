@@ -457,18 +457,14 @@ Read-only commands,
   The plan's own Git questions are bounded the same
    way,
   so a Git that never answers is stopped and named.
-  A push whose process has no controlling terminal uploads with `GIT_ASKPASS` set to the empty string and
-   `GIT_TERMINAL_PROMPT=0`,
+  Every push uploads with `GIT_ASKPASS` set to the empty string,
+   `GIT_TERMINAL_PROMPT=0` and `SSH_ASKPASS_REQUIRE=never`,
+  whether or not its process has a controlling terminal,
   so a login it does not have fails at once instead of opening a desktop password window for nobody
    to answer,
-  and the refusal names the server and how to store a login in a credential helper (see "Git commands that may need a
-   login").
-  A push typed at a terminal keeps Git's and `git-lfs`'s own prompting.
-  That refusal says which prompting the wrapper left:
-  a push with a terminal is told the wrapper kept Git's and `git-lfs`'s own prompting and names a variable or setting
-   that would have refused the login,
-  and only a push without one is told the never-prompt pair was added,
-  so no person is sent to fix a missing terminal that was there.
+  and the refusal names the server,
+   says the wrapper never lets a command ask for a credential,
+   and says how to store a login in a credential helper (see "Git commands that may need a login").
   `--dry-run` pushes and the wrapper's own probes never upload.
   `--no-verify`,
   `GIT_LFS_SKIP_PUSH` and `-c hook.cli-git-lfs-pre-push.enabled=false` skip it.
@@ -5144,9 +5140,9 @@ fractional or non-numeric value is ignored.
    failure above,
   and no desktop password dialog opens for nobody to answer.
   `SSH_ASKPASS` stays in the environment for OpenSSH's key passphrases,
-  and a command typed at a terminal keeps Git's own prompting
-   while one whose process has no controlling terminal gets the same pair,
-  because nobody can answer it.
+  while `SSH_ASKPASS_REQUIRE=never` tells OpenSSH not to run it,
+  and a command typed at a terminal gets the same three variables as one whose process has no controlling terminal,
+  because no command the wrapper runs or forwards asks a person for a credential.
   The evidence is in [the askpass troubleshooting note][askpass-dialog].
   The failure record the next command shows says that the service keeps trying,
   and goes when the push lands.

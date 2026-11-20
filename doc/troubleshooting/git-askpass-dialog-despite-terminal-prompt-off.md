@@ -428,9 +428,11 @@ The ten are `a_global_prefix_keeps_the_query_announced`,
 `policy_commands_outside_a_worktree_use_defaults`,
 `policy_commands_validate_configuration_then_run_policies` and
 `the_opt_out_and_short_circuit_forms_are_not_settled`.
-The expectation is `expected_overlay` now,
-which asks `control_terminal()` the way the plan does,
-so a session with a terminal and one without each check the overlay its own answer produces.
+The expectation then was `expected_overlay`,
+which asked `control_terminal()` the way the plan did,
+so a session with a terminal and one without each checked the overlay its own answer produced.
+`control_terminal()` and its module were deleted on 2026-11-19T19:08:41-05:00 (`9ec2a9980b`),
+because no command the wrapper runs or forwards prompts and no code asked the terminal any more.
 Measured on branch `fix/git-policy-cli-fsmonitor-off-for-the-wrappers-own-git`
 after it merged the jam-fix integration,
 with `mise run //package/git-policy/cli:native:test:host -- invocation::entry::`:

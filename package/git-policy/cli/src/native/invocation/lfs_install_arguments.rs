@@ -35,6 +35,36 @@ use std::ffi::OsString;
 pub const SKIP_REPO_OPTION: &str = "--skip-repo";
 
 /// What:
+///  The boolean one pflag value spells,
+///  or nothing when it is not one.
+/// Why:
+///  git-lfs's `--local`, `--worktree`, `--system` and `--manual` are pflag booleans,
+///  so `--local=true` and `--worktree=false` are read as its flag parser reads them.
+///  The spellings are `strconv.ParseBool`'s, which pflag uses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function booleanValue(text: string): boolean | undefined
+/// ```
+fn boolean_value(text: &str) -> Option<bool> {
+    const TRUE_VALUES: [&str; 6] = ["1", "t", "T", "TRUE", "true", "True"];
+    const FALSE_VALUES: [&str; 6] = ["0", "f", "F", "FALSE", "false", "False"];
+    if TRUE_VALUES.contains(&text) {
+        return Some(true);
+    }
+    if FALSE_VALUES.contains(&text) {
+        return Some(false);
+    }
+    return None;
+}
+
+/// The value of one `--name=value` boolean option, or nothing for another word.
+fn long_boolean(text: &str, option: &str) -> Option<bool> {
+    let value: &str = text.strip_prefix(option)?.strip_prefix('=')?;
+    return boolean_value(value);
+}
+
+/// What:
 ///  The command with `--skip-repo` after its `install` word,
 ///  and the notice that says what that means,
 ///  or the command as it stands and no notice when it is not `git lfs install`.
@@ -79,8 +109,8 @@ pub fn with_skip_repo(arguments: Vec<OsString>, in_a_repository: bool) -> (Vec<O
 ///  git-lfs 3.8.1 writes the keys to one of five places (`commands/command_install.go:40-58` refuses more than one):
 ///  the global file by default,
 ///  `--local` this repository's `.git/config`,
-///  `--worktree` this worktree's configuration (which Git reads only when `extensions.worktreeConfig` is set,
-///  and which git-lfs writes nowhere when it is not),
+///  `--worktree` this worktree's configuration while Git's `extensions.worktreeConfig` is set,
+///  and this repository's `.git/config` when it is not (git-lfs's own help says "the same as `--local`" then),
 ///  `--system` the system file,
 ///  and `--file <path>` that file.
 ///  The scope is read from the words so the notice can name the file that really holds the keys,
@@ -112,18 +142,24 @@ impl InstallScope {
     ///   git-lfs's own flags are the only source of this answer,
     ///  and `--` ends them,
     ///  so nothing after it is read as a flag.
-    ///  `-l`,
-    /// `-w`,
-    /// `-m`,
-    /// `-s` and `-f` are the short forms git-lfs registers,
-    ///  and a group of them (`-lw`) is read letter by letter as Git's flag parser does.
+    ///  `-l` and `-w` are the scope short forms git-lfs registers;
+    ///  `-f` is `--force`,
+    /// `-s` is `--skip-smudge` and `-m` is `--manual`,
+    ///  so none of them chooses a scope,
+    ///  and a group of short forms (`-lw`) is read letter by letter as Git's flag parser does.
+    ///  A long option's `=value` is read as pflag reads it:
+    ///  `--local=true` asks for that scope and `--worktree=false` withdraws it,
+    ///  with the last value of one option winning.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// for (const word of words.slice(install + 1)) { if (word === '--') break; /* ... */ }
     /// ```
     fn of(arguments: &[OsString], install_index: usize) -> InstallScope {
-        let mut scope: InstallScope = InstallScope::Global;
+        let mut local: bool = false;
+        let mut worktree: bool = false;
+        let mut system: bool = false;
+        let mut file: Option<String> = None;
         let mut words = arguments.iter().skip(install_index + 1);
         while let Some(word) = words.next() {
             let text: String = word.to_string_lossy().into_owned();
@@ -131,28 +167,47 @@ impl InstallScope {
                 break;
             }
             if let Some(path) = text.strip_prefix("--file=") {
-                scope = InstallScope::File(path.to_owned());
+                file = (!path.is_empty()).then(|| { return path.to_owned(); });
             } else if text == "--file" {
-                if let Some(path) = words.next() {
-                    scope = InstallScope::File(path.to_string_lossy().into_owned());
+                if let Some(next) = words.next() {
+                    let path: String = next.to_string_lossy().into_owned();
+                    file = (!path.is_empty()).then_some(path);
                 }
+            } else if let Some(value) = long_boolean(text.as_str(), "--local") {
+                local = value;
             } else if text == "--local" {
-                scope = InstallScope::Local;
+                local = true;
+            } else if let Some(value) = long_boolean(text.as_str(), "--worktree") {
+                worktree = value;
             } else if text == "--worktree" {
-                scope = InstallScope::Worktree;
+                worktree = true;
+            } else if let Some(value) = long_boolean(text.as_str(), "--system") {
+                system = value;
             } else if text == "--system" {
-                scope = InstallScope::System;
+                system = true;
             } else if let Some(letters) = text.strip_prefix('-').filter(|letters| { return !letters.starts_with('-'); }) {
                 for letter in letters.chars() {
                     match letter {
-                        'l' => scope = InstallScope::Local,
-                        'w' => scope = InstallScope::Worktree,
+                        'l' => local = true,
+                        'w' => worktree = true,
                         _other => {}
                     }
                 }
             }
         }
-        return scope;
+        if let Some(path) = file {
+            return InstallScope::File(path);
+        }
+        if worktree {
+            return InstallScope::Worktree;
+        }
+        if local {
+            return InstallScope::Local;
+        }
+        if system {
+            return InstallScope::System;
+        }
+        return InstallScope::Global;
     }
 
     /// What:
@@ -167,21 +222,23 @@ impl InstallScope {
     /// words.slice(install + 1).some((word) => word === '--manual' || /^-[a-z]*m[a-z]*$/.test(word))
     /// ```
     fn asked_for_manual(arguments: &[OsString], install_index: usize) -> bool {
+        let mut manual: bool = false;
         for word in arguments.iter().skip(install_index + 1) {
             let text: String = word.to_string_lossy().into_owned();
             if text == "--" {
-                return false;
+                break;
             }
-            if text == "--manual" {
-                return true;
-            }
-            if let Some(letters) = text.strip_prefix('-').filter(|letters| { return !letters.starts_with('-'); })
+            if let Some(value) = long_boolean(text.as_str(), "--manual") {
+                manual = value;
+            } else if text == "--manual" {
+                manual = true;
+            } else if let Some(letters) = text.strip_prefix('-').filter(|letters| { return !letters.starts_with('-'); })
                 && letters.contains('m')
             {
-                return true;
+                manual = true;
             }
         }
-        return false;
+        return manual;
     }
 
     /// What:
@@ -200,8 +257,8 @@ impl InstallScope {
             InstallScope::Global => String::from("your global configuration"),
             InstallScope::Local => String::from("this repository's `.git/config`"),
             InstallScope::Worktree => String::from(
-                "this worktree's configuration (`.git/config.worktree`), which Git reads only while \
-                 `extensions.worktreeConfig` is set; git-lfs writes nothing at that scope when it is not",
+                "this worktree's configuration (`.git/config.worktree`) while `extensions.worktreeConfig` is set, and \
+                 this repository's `.git/config` when it is not (git-lfs then writes where `--local` does)",
             ),
             InstallScope::System => String::from("the system configuration"),
             InstallScope::File(path) => format!("`{path}`"),

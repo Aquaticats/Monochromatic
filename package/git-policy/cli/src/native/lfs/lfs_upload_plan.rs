@@ -347,6 +347,12 @@ pub(crate) fn lfs_destination(remote: &OsStr, directory: &Path, configured: bool
 ///  A key holding no URL (a remote name that is no remote,
 ///  a path) answers nothing,
 ///  so the stop falls back to the words of the program that saw the server.
+///  Every endpoint is rewritten through the URL alias tables before its host is read,
+///  as git-lfs rewrites it before parsing (`NewEndpoint` calls `ReplaceUrlAlias`,
+/// `lfsapi/endpoint_finder.go:222` and `:331-343`):
+///  `url.<base>.pushInsteadOf` first for an upload,
+///  `url.<base>.insteadOf` after it,
+///  so the stop names the host the upload contacted rather than the alias it was configured with.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -354,10 +360,17 @@ pub(crate) fn lfs_destination(remote: &OsStr, directory: &Path, configured: bool
 /// ```
 pub fn lfs_server_of(remote: &OsStr, all: &[(String, String)]) -> Option<String> {
     let text: String = remote.to_string_lossy().into_owned();
+    let push_aliases: Vec<(&str, &str)> = url_aliases(all, true);
+    let fetch_aliases: Vec<(&str, &str)> = url_aliases(all, false);
+    let endpoint_host = |value: &str| -> Option<String> {
+        let rewritten: Option<String> = replace_url_alias(value, push_aliases.as_slice())
+            .or_else(|| { return replace_url_alias(value, fetch_aliases.as_slice()); });
+        return host_of(rewritten.as_deref().unwrap_or(value));
+    };
     // The two global keys answer first, whatever the remote's own keys say (git-lfs `getEndpoint`, lines 99 and 104).
     for key in ["lfs.pushurl", "lfs.url"] {
         if let Some(value) = setting(all, key)
-            && let Some(host) = host_of(value)
+            && let Some(host) = endpoint_host(value)
         {
             return Some(host);
         }
@@ -371,18 +384,76 @@ pub fn lfs_server_of(remote: &OsStr, all: &[(String, String)]) -> Option<String>
     for name in names {
         for key in [format!("remote.{name}.lfspushurl"), format!("remote.{name}.lfsurl")] {
             if let Some(value) = setting(all, key.as_str())
-                && let Some(host) = host_of(value)
+                && let Some(host) = endpoint_host(value)
             {
                 return Some(host);
             }
         }
-        for value in [values(all, &format!("remote.{name}.pushurl")).first().copied(), setting(all, &format!("remote.{name}.url"))] {
-            if let Some(host) = value.and_then(host_of) {
+        // `git-lfs` reads one value per key and the last one written wins (`config/git_fetcher.go:121-128`).
+        for value in [setting(all, &format!("remote.{name}.pushurl")), setting(all, &format!("remote.{name}.url"))] {
+            if let Some(host) = value.and_then(|endpoint| { return endpoint_host(endpoint); }) {
                 return Some(host);
             }
         }
     }
     return None;
+}
+
+/// What:
+///  The alias table git-lfs applies to an endpoint of one operation,
+///  as `(alias, replacement)` pairs.
+/// Why:
+///  `url.<base>.pushInsteadOf` and `url.<base>.insteadOf` rewrite a URL before git-lfs parses it
+///  (`lfsapi/endpoint_finder.go:222`),
+///  and an upload reads the push table first and the fetch table after it (`ReplaceUrlAlias`, `:331-343`).
+///  A key's base is the replacement and its value is the alias;
+///  a later value of one alias wins, as it does in git-lfs's own table (`storeAlias`, `:380-393`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function urlAliases(all: Settings, push: boolean): Array<[alias: string, replacement: string]>
+/// ```
+fn url_aliases<'a>(all: &'a [(String, String)], push: bool) -> Vec<(&'a str, &'a str)> {
+    let suffix: &str = if push { ".pushinsteadof" } else { ".insteadof" };
+    let mut aliases: Vec<(&'a str, &'a str)> = Vec::new();
+    // The last entry of a key wins, so the entries are read backwards and one alias is kept once.
+    for (key, value) in all.iter().rev() {
+        let Some(base) = key.strip_prefix("url.").and_then(|rest| { return rest.strip_suffix(suffix); }) else {
+            continue;
+        };
+        if base.is_empty() || value.is_empty() {
+            continue;
+        }
+        if aliases.iter().any(|(alias, _replacement)| { return *alias == value.as_str(); }) {
+            continue;
+        }
+        aliases.push((value.as_str(), base));
+    }
+    return aliases;
+}
+
+/// What:
+///  `rawurl` with the longest matching alias's replacement in place of its prefix,
+///  or nothing when no alias matches.
+/// Why:
+///  git-lfs chooses the longest alias that prefixes the URL (`replaceUrlAlias`, `:361-378`),
+///  so a narrower rule can rewrite a subpath of a broader one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function replaceUrlAlias(rawurl: string, aliases: Array<[alias: string, replacement: string]>): string | undefined
+/// ```
+fn replace_url_alias(rawurl: &str, aliases: &[(&str, &str)]) -> Option<String> {
+    let mut longest: Option<(&str, &str)> = None;
+    for (alias, replacement) in aliases {
+        if !rawurl.starts_with(alias) {
+            continue;
+        }
+        if longest.is_none_or(|(found, _replacement)| { return alias.len() > found.len(); }) {
+            longest = Some((alias, replacement));
+        }
+    }
+    return longest.map(|(alias, replacement)| { return format!("{replacement}{}", &rawurl[alias.len()..]); });
 }
 
 /// The remotes the configuration defines (a `url` or a `pushurl`).
