@@ -40,7 +40,7 @@
 //! await cloneTrackedFiles(source, destination, admin); // throws a reason
 //! ```
 
-use crate::add_timing::{begin_step, end_step, begin_work, end_work};
+use crate::add_timing::{begin_step, begin_work, end_step, note_work};
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{create_file_at, entry_metadata_at, make_directory_at, open_directory_at, open_directory_beneath, open_file_at, open_root, plain_components, read_link_at, set_times_at, symlink_at};
 use crate::fs_clone_exchange::clone_file;
@@ -61,7 +61,7 @@ use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "cloneTrackedFiles";
@@ -491,6 +491,28 @@ struct EntryResults<'a> {
     created: &'a mut Vec<Created>,
     /// The stat fields of the files made, by path.
     stats: &'a mut HashMap<Vec<u8>, StatFields>,
+    /// What the entries of this run spent in each part of an entry, summed here so the ledger is written once per run.
+    spent: &'a mut SpentByTheEntries,
+}
+
+/// What the entries of one run spent, by the part of an entry that spent it.
+#[derive(Default)]
+struct SpentByTheEntries {
+    /// Opening or reusing the source directory of an entry.
+    source_dirs: Duration,
+    /// Making and finding the destination directories of an entry.
+    parents: Duration,
+    /// Everything else of an entry: its look, its clone, its mode, its times and its index fields.
+    files: Duration,
+}
+
+impl SpentByTheEntries {
+    /// Note the run's sums in the add timing record, one entry per name.
+    fn note(&self) {
+        note_work("cloneSourceDirs", self.source_dirs);
+        note_work("cloneDestinationDirs", self.parents);
+        note_work("cloneFiles", self.files);
+    }
 }
 
 /// What:
@@ -510,14 +532,14 @@ fn clone_one_entry(work: OneEntry<'_, '_>, results: EntryResults<'_>) -> Result<
     let names: Vec<OsString> = entry_names(entry.path.as_slice())?;
     let source_entered: Instant = begin_work();
     let source_dir: &File = source_directory(held_source, source_root, &names[..names.len() - 1], entry.path.as_slice())?;
-    end_work("cloneSourceDirs", source_entered);
+    results.spent.source_dirs += source_entered.elapsed();
     let parents_entered: Instant = begin_work();
     let destination_dir: &File = ensure_parents(directories, names.as_slice(), results.created)?;
-    end_work("cloneDestinationDirs", parents_entered);
+    results.spent.parents += parents_entered.elapsed();
     let job: Work<'_> = Work { entry, names: names.as_slice(), index_seconds: source.clean.index_seconds };
     let files_entered: Instant = begin_work();
     let outcome: Result<(), String> = clone_entry(source_dir, destination_dir, &job, (results.created, results.stats), seams);
-    end_work("cloneFiles", files_entered);
+    results.spent.files += files_entered.elapsed();
     return outcome;
 }
 
@@ -569,6 +591,7 @@ fn clone_the_entries(work: EntriesToClone<'_, '_>) -> ClonedEntries {
     let mut created: Vec<Created> = Vec::new();
     let mut stats: HashMap<Vec<u8>, StatFields> = HashMap::new();
     let mut held_source: Option<(Vec<OsString>, File)> = None;
+    let mut spent: SpentByTheEntries = SpentByTheEntries::default();
     let mut directories: Directories = HashMap::new();
     let held_destination: File = match destination.try_clone() {
         Ok(held) => held,
@@ -582,13 +605,15 @@ fn clone_the_entries(work: EntriesToClone<'_, '_>) -> ClonedEntries {
         }
         let Some(entry) = entries.get(*at) else { continue };
         let run: OneEntry<'_, '_> = OneEntry { entry, source, source_root, directories: &mut directories, held_source: &mut held_source, seams: &mut *seams };
-        let outcome: Result<(), String> = clone_one_entry(run, EntryResults { created: &mut created, stats: &mut stats });
+        let outcome: Result<(), String> = clone_one_entry(run, EntryResults { created: &mut created, stats: &mut stats, spent: &mut spent });
         if let Err(reason) = outcome {
             end_step(entries_entered);
+            spent.note();
             return ClonedEntries { created, stats, failure: Some(reason) };
         }
     }
     end_step(entries_entered);
+    spent.note();
     return ClonedEntries { created, stats, failure: None };
 }
 
