@@ -773,9 +773,16 @@ and the gate's decisions are this step's own tests.
 #### VM measurements
 
 Two arms in the throwaway guest:
-an untested release,
+an untested release with the approved layout,
+asserting that raw requests stay enabled,
+because the project's answer "Any version,
+layout decides" means the gate compares no release string
+(`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
+"The release string,
+Q2";
+this sentence changed 2026-11-20 to agree with it);
 and a module whose field layout differs from the approved one,
-each asserting that raw requests are disabled.
+asserting that raw requests are disabled.
 The BTF comparison runs against the guest's `/sys/kernel/btf/zfs`.
 
 #### Open items
