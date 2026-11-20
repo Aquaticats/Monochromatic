@@ -204,11 +204,27 @@ const ensureOxlintConfig = () => {
   if (shouldBuildOxlintConfig()) { execFileSync('mise', ['run', '//package/config/oxlint:build:js:node'], { stdio: 'inherit' }) }
 }
 """
+# The comment line that ends every root task body interpolating vars.parse_usage_args.
+# A task with a usage spec normally receives its arguments only as usage_* variables, but
+# mise bypasses its own usage parser for `-h`/`--help` after `--` (jdx/mise#9118, and
+# docs/tasks/running-tasks.md "Pass arguments") and appends the forwarded words to the end
+# of the inline script instead. With `shell = "node --input-type=module-typescript -e"`
+# those words land past the TypeScript node evaluates, so the parser below needs a boundary
+# they cannot cross as code. This marker is that boundary: the words arrive as the tail of
+# this comment, the last line of the script, and parse_usage_args reads them from node's
+# own eval source (process.execArgv). A body without the marker gets no forwarded words,
+# which is only observable when mise appends some: it then fails as TypeScript, as before.
+# Remove this workaround when mise forwards arguments as a separate argv to a non-shell
+# interpreter; see doc/troubleshooting/mise-inline-task-arguments-land-in-the-script.md.
+forwarded_arguments_marker = "// mise appends forwarded arguments after this comment"
 # Shell-word parser for mise's usage_args, which arrives as a single shell-escaped
 # string (e.g. a path with a space becomes `'weird name.ts'`). Recovers the
 # original argument vector: bare tokens split on spaces, single/double-quoted
 # spans kept whole, backslash escapes honoured.
-# Interpolated into tasks that take positional file-path args.
+# Interpolated into tasks that take positional file-path args. Every such root task body
+# ends with vars.forwarded_arguments_marker, which is where mise appends the arguments it
+# forwards instead of setting usage_args; root-task-shared-shapes.unit.test.ts holds the
+# marker and every parser reader to one definition.
 parse_usage_args = """
 const parseUsageArgs = (raw) => {
   const argv = []
@@ -234,6 +250,19 @@ const parseUsageArgs = (raw) => {
   if (current !== null) { argv.push(current) }
   return argv
 }
+// The words mise appended past this script instead of setting usage_args; the tail of the
+// marker comment that ends the body, so they cannot break the TypeScript above them.
+const forwardedArgumentsMarker = '{{vars.forwarded_arguments_marker}}'
+const forwardedArgumentWords = () => {
+  const source = process.execArgv.at(-1) ?? ''
+  const markerIndex = source.lastIndexOf(forwardedArgumentsMarker)
+  if (markerIndex === -1) { return '' }
+  // A trailing newline kept by mise would put the words on the line after the marker.
+  const pastedLine = source.slice(markerIndex + forwardedArgumentsMarker.length).replace(/^\\n/, '')
+  return pastedLine.includes('\\n') ? '' : pastedLine
+}
+// mise's shell-escaped argument string, or the words it appended to the script instead.
+const usageArgWords = () => process.env.usage_args ?? forwardedArgumentWords()
 """
 # The deprecated-and-paused tree policy, declared once for every task body that walks the test tree. A second copy
 # let the exclusion of `package-deprecated/` and `package-paused/` drift from this one with nothing to notice.
@@ -382,7 +411,7 @@ const browserSuiteWorkerCount = 4
 const playwrightBound = { memory: `${browserSuiteWorkerCount + 1}g`, cpus: browserSuiteWorkerCount, pidsLimit: 2048 }
 const runPlaywright = (config, extraFlags = []) => {
   execFileSync('mise', ['run', 'prepare:playwright'], { stdio: 'inherit' })
-  const args = parseUsageArgs(process.env.usage_args ?? '')
+  const args = parseUsageArgs(usageArgWords())
   // A caller that names its own worker count keeps it; the bound stays the one above, so it takes fewer workers, never more.
   const workerArguments = args.some((argument) => argument === '--workers' || argument.startsWith('--workers=') || argument === '-j' || argument.startsWith('-j')) ? [] : [`--workers=${browserSuiteWorkerCount}`]
   execFileSync('podman', ['run', '--rm', ...containerLimitArguments(playwrightBound), '--security-opt', 'label=disable', '-v', `${process.cwd()}:/work`, ...pnpmStoreMountArguments(), '-w', '/work', 'monochromatic-playwright', 'npx', 'playwright', 'test', '--config', config, ...extraFlags, ...workerArguments, ...args], { stdio: 'inherit' })
@@ -401,7 +430,7 @@ const runPlaywright = (config, extraFlags = []) => {
 run_mpm_shadow = """
 const runMpmShadow = (verbArgs) => {
   try {
-    runWorkspaceNode('package/monorepo-task/core-exec', 'mpm-shadow', [...verbArgs, ...parseUsageArgs(process.env.usage_args ?? '')])
+    runWorkspaceNode('package/monorepo-task/core-exec', 'mpm-shadow', [...verbArgs, ...parseUsageArgs(usageArgWords())])
   } catch (error) {
     // The program printed why it failed; only a failure of the runner itself has no status to pass on.
     if (typeof error.status !== 'number') { throw error }
@@ -461,7 +490,7 @@ run = """
 const { existsSync } = await import('node:fs')
 const { glob } = await import('node:fs/promises')
 const { join } = await import('node:path')
-const args = parseUsageArgs(process.env.usage_args ?? '')
+const args = parseUsageArgs(usageArgWords())
 const all = (process.env.usage_all ?? '').trim() === 'true'
 if (all && args.length > 0) { throw new Error('--all cannot be combined with file paths') }
 {{vars.is_inactive_test}}
@@ -501,6 +530,7 @@ if (args.length === 0) {
   files = args.map((file) => existsSync(file) ? file : join(base, file))
 }
 await runTestFiles(files, [])
+{{vars.forwarded_arguments_marker}}
 """
 
 [task_templates."watch:test"]
@@ -579,6 +609,7 @@ run = """
 {{vars.parse_usage_args}}
 {{vars.run_mpm_shadow}}
 runMpmShadow(['install'])
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."toolchain:list"]
@@ -590,6 +621,7 @@ run = """
 {{vars.parse_usage_args}}
 {{vars.run_mpm_shadow}}
 runMpmShadow(['list'])
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."toolchain:update"]
@@ -601,6 +633,7 @@ run = """
 {{vars.parse_usage_args}}
 {{vars.run_mpm_shadow}}
 runMpmShadow(['update'])
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."toolchain:outdated"]
@@ -612,6 +645,7 @@ run = """
 {{vars.parse_usage_args}}
 {{vars.run_mpm_shadow}}
 runMpmShadow(['outdated'])
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."toolchain:lock:check"]
@@ -623,6 +657,7 @@ run = """
 {{vars.parse_usage_args}}
 {{vars.run_mpm_shadow}}
 runMpmShadow(['install', '--lockfile-only', '--frozen-lockfile'])
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."toolchain:install:global"]
@@ -634,6 +669,7 @@ run = """
 {{vars.parse_usage_args}}
 {{vars.run_mpm_shadow}}
 runMpmShadow(['install', '--global'])
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."toolchain:list:global"]
@@ -645,6 +681,7 @@ run = """
 {{vars.parse_usage_args}}
 {{vars.run_mpm_shadow}}
 runMpmShadow(['list', '--global'])
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."toolchain:update:global"]
@@ -656,6 +693,7 @@ run = """
 {{vars.parse_usage_args}}
 {{vars.run_mpm_shadow}}
 runMpmShadow(['update', '--global'])
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."toolchain:outdated:global"]
@@ -667,6 +705,7 @@ run = """
 {{vars.parse_usage_args}}
 {{vars.run_mpm_shadow}}
 runMpmShadow(['outdated', '--global'])
+{{vars.forwarded_arguments_marker}}
 """
 
 # The daily update runs the TypeScript source directly (node strips the types), never a built copy, so a stale build
@@ -678,7 +717,8 @@ usage = 'arg "[args]" var=#true help="Options: --repository <path>, --global-loc
 run = """
 {{vars.dispatch_workspace_node}}
 {{vars.parse_usage_args}}
-execFileSync('node', [join(monorepoRoot, 'package', 'monorepo-task', 'core-exec', 'src', 'daily-update.ts'), ...parseUsageArgs(process.env.usage_args ?? '')], { stdio: 'inherit' })
+execFileSync('node', [join(monorepoRoot, 'package', 'monorepo-task', 'core-exec', 'src', 'daily-update.ts'), ...parseUsageArgs(usageArgWords())], { stdio: 'inherit' })
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."toolchain:timer:install"]
@@ -688,7 +728,8 @@ usage = 'arg "[args]" var=#true help="Options: --no-enable, --unit-directory <pa
 run = """
 {{vars.dispatch_workspace_node}}
 {{vars.parse_usage_args}}
-execFileSync('node', [join(monorepoRoot, 'package', 'monorepo-task', 'core-exec', 'src', 'daily-update-timer-install.ts'), ...parseUsageArgs(process.env.usage_args ?? '')], { stdio: 'inherit' })
+execFileSync('node', [join(monorepoRoot, 'package', 'monorepo-task', 'core-exec', 'src', 'daily-update-timer-install.ts'), ...parseUsageArgs(usageArgWords())], { stdio: 'inherit' })
+{{vars.forwarded_arguments_marker}}
 """
 
 #endregion Utility Tasks
@@ -745,7 +786,7 @@ shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.parse_usage_args}}
 {{vars.run_test_files}}
-const args = parseUsageArgs(process.env.usage_args ?? '')
+const args = parseUsageArgs(usageArgWords())
 if (args.length === 0) {
   // Root suites run together, then the package fanout runs alone: each package
   // suite is itself a multi-threaded cargo, Gradle or container run, so the
@@ -763,6 +804,7 @@ if (args.length === 0) {
 } else {
   await runTestFiles(args, [])
 }
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."test:packages"]
@@ -790,6 +832,7 @@ run = """
 {{vars.parse_usage_args}}
 {{vars.run_playwright}}
 runPlaywright('playwright.browser.config.ts')
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."test:e2e"]
@@ -801,6 +844,7 @@ run = """
 {{vars.parse_usage_args}}
 {{vars.run_playwright}}
 runPlaywright('playwright.e2e.config.ts')
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."test:browser:chromium"]
@@ -812,6 +856,7 @@ run = """
 {{vars.parse_usage_args}}
 {{vars.run_playwright}}
 runPlaywright('playwright.browser.config.ts', ['--project=chromium'])
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."test:browser:firefox"]
@@ -823,6 +868,7 @@ run = """
 {{vars.parse_usage_args}}
 {{vars.run_playwright}}
 runPlaywright('playwright.browser.config.ts', ['--project=firefox'])
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."test:browser:webkit"]
@@ -834,6 +880,7 @@ run = """
 {{vars.parse_usage_args}}
 {{vars.run_playwright}}
 runPlaywright('playwright.browser.config.ts', ['--project=webkit'])
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."watch:test:unit"]
@@ -846,7 +893,7 @@ run = """
 const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { glob } = await import('node:fs/promises')
-const args = parseUsageArgs(process.env.usage_args ?? '')
+const args = parseUsageArgs(usageArgWords())
 {{vars.is_inactive_test}}
 let files
 if (args.length === 0) {
@@ -860,6 +907,7 @@ if (args.length === 0) {
 // node --watch runs until interrupted; spawn every watcher and stay alive until they all exit.
 const watchers = files.map((file) => spawn('node', ['--watch', file], { stdio: 'inherit' }))
 await Promise.all(watchers.map((proc) => once(proc, 'exit')))
+{{vars.forwarded_arguments_marker}}
 """
 [tasks."watch:test"]
 description = "Run all tests in watch mode"
@@ -875,7 +923,7 @@ run = """
 {{vars.parse_usage_args}}
 {{vars.run_test_files}}
 const { execFileSync } = await import('node:child_process')
-const args = parseUsageArgs(process.env.usage_args ?? '')
+const args = parseUsageArgs(usageArgWords())
 /** Retained phase errors preserve failure while allowing tests to finish. */
 const failures = []
 try {
@@ -909,6 +957,7 @@ try {
   failures.push(new Error('test phase failed', { cause: error }))
 }
 if (failures.length > 0) { throw new AggregateError(failures, 'buildAndTest failed') }
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."watch:buildAndTest"]
@@ -968,7 +1017,7 @@ run = """
 {{vars.parse_usage_args}}
 const { execFileSync, spawnSync } = await import('node:child_process')
 const { dirname } = await import('node:path')
-const requested = parseUsageArgs(process.env.usage_directories ?? '')
+const requested = parseUsageArgs(process.env.usage_directories ?? forwardedArgumentWords())
 const lockFiles = execFileSync('git', ['ls-files', '*Cargo.lock'], { encoding: 'utf8' }).split('\\n').filter((line) => line !== '')
 const directories = requested.length > 0 ? requested : lockFiles.map((lockFile) => dirname(lockFile))
 const failed: string[] = []
@@ -977,6 +1026,7 @@ for (const directory of directories) {
   if (result.status !== 0) { failed.push(directory) }
 }
 if (failed.length > 0) { throw new Error('cargo fetch --locked failed in: ' + failed.join(', ')) }
+{{vars.forwarded_arguments_marker}}
 """
 
 # `depends` runs the fetch first (owner decision of 2026-11-07, "Fetch then warn"): the closure check reads the Cargo
@@ -1022,7 +1072,7 @@ const ALLOWED_KEYS = new Set([
 ]);
 const NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/u;
 
-const passedRoots = parseUsageArgs(process.env.usage_roots ?? '');
+const passedRoots = parseUsageArgs(process.env.usage_roots ?? forwardedArgumentWords());
 const roots = passedRoots.length > 0 ? passedRoots : ['.agents/skills'];
 const problems = [];
 const warnings = [];
@@ -1084,6 +1134,7 @@ console.log(
   `lint:skills: ${checked} SKILL.md files checked, ${problems.length} problems, ${warnings.length} warnings`,
 );
 if (problems.length > 0) process.exitCode = 1;
+{{vars.forwarded_arguments_marker}}
 '''
 
 [tasks."lint:detekt"]
