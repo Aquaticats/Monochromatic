@@ -10,7 +10,8 @@ the corrections the seventh check left,
 and the limits this document keeps.
 The rest of this document is the design as accepted,
 so the sentences in it that call the design unaccepted,
-or a choice open to the project's veto,
+that call a choice open to the project's veto,
+or that put work or a question in the future,
 read as of that acceptance.
 
 **Non-final, unapproved proposal by an agent.** This document designs one open item of the accepted ZFS worktree
