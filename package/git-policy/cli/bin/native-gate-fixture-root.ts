@@ -47,8 +47,8 @@ export const gateFixtureRoot: string = `${imagePackageRoot}/${subjectCrate}/targ
  170.7 MiB below that peak, so the samples' figures are the samples' and not the run's. The bound beside the kernel's
  peak leaves 924.2 MiB for fixtures, and this ceiling sits 156.2 MiB below it, at 3.94 times the 195.1 MiB sampled
  fixture peak, so a run whose other pages hold to that peak meets the ceiling before the memory bound. A gate review's
- run on the same code read 916.4 MiB of `memory.peak` and a 221.4 MiB sampled fixture peak, of which this ceiling is
- 3.47 times.
+ run on the same code apart from the repaired location controls read 916.4 MiB of `memory.peak` and a 221.4 MiB
+ sampled fixture peak, of which this ceiling is 3.47 times.
  */
 export const gateFixtureRootSize: string = '768m';
 

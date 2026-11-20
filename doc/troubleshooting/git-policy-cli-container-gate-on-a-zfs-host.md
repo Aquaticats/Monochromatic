@@ -532,8 +532,9 @@ and the 768 MiB ceiling sits 156.2 MiB below that, so a run whose fixtures pass 
 other pages hold to the peak that bound came from meets `ENOSPC` before the memory bound; the ceiling is
 also 3.94 times the sampled fixture peak. The summary's own `headroomForFixturesMiB` and
 `ceilingBelowHeadroomByMiB` are the sampled process pages' arithmetic (1179.7 and 411.7 MiB), which the
-bound beside the kernel's peak replaces. A gate review's run on the same code, whose sampler record is not
-kept here, read a 916.4 MiB `memory.peak` and a 221.4 MiB sampled fixture peak, of which the ceiling is
+bound beside the kernel's peak replaces. A gate review's run on the same code apart from the repaired location
+controls, whose sampler record is not kept here, read a 916.4 MiB `memory.peak` and a 221.4 MiB sampled fixture
+peak, of which the ceiling is
 3.47 times. No sample of that run counted an out-of-memory kill, and its only failures are the standing
 pair of cause H, so every control that builds a fixture workspace built it.
 The earlier whole-suite run, whose sampler record this branch does not keep, peaked at 1192 MiB of the

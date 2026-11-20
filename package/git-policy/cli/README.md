@@ -6085,16 +6085,20 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   because tmpfs pages count against that bound:
   the integration pass of 2026-11-19 ran a whole suite there,
   and its kernel `memory.peak` was 1123.8 MiB of the 2048 MiB bound,
-  while the highest charge any 3-second sample read was 953.1 MiB, 170.7 MiB below that peak,
+  while the highest charge any sample read,
+  with 3 s between iterations,
+  was 953.1 MiB, 170.7 MiB below that peak,
   which is why its figures are the samples' and not the run's.
   The bound beside the kernel's peak leaves 924.2 MiB for fixtures,
   so the 768 MiB ceiling sits 156.2 MiB below that, and a run whose other pages hold to that peak
-  meets the ceiling before the memory bound;
-  a gate review's run on the same code read 916.4 MiB of `memory.peak` and a 221.4 MiB sampled fixture peak,
-  of which the ceiling is 3.47 times
+  meets the ceiling before the memory bound
   (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`,
   with the reasoning behind the 768 MiB value in
-  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
+  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`);
+  a gate review's run on the same code apart from the repaired location controls,
+  whose sampler record is not kept here,
+  read 916.4 MiB of `memory.peak` and a 221.4 MiB sampled fixture peak,
+  of which the ceiling is 3.47 times.
 - The controls that need a btrfs filesystem cannot run in the gate container,
   whose fixture root is that tmpfs and never a btrfs filesystem:
   each one prints `BTRFS CONTROL NOT RUN: <control> (<what its fixture root is on>)` and passes there.
