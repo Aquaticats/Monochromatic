@@ -1011,10 +1011,11 @@ Set up a clone at a slot, a private bind on a depth-one staging folder, and the 
   errno. Control: the same move inside one namespace (M2's covered-folder route) succeeds.
 
 Each live way needs M1, M2, M3, M5 and every arm of M6. Way A additionally needs M4's positive, host-namespace,
-copied-idle, copied-held, foreign-namespace and renamed arms, and M7's two-folder arm. Way B needs Way A's handler
-arms plus M7 and M8. Way C needs M1, M2, M3, M5, M6, M4's renamed arm and M7's Way C arm. Way D needs M1, M2, M3's
-propagation arms on `~/.cache`, M5, M6 and M7. Way E needs Way A's arms and M8's source arm. Way F needs Way A's
-arms and M4's renamed arm. No live way needs M9, which exists only to record the refused way's failure.
+copied-idle, copied-held, copied-mounted-under, foreign-namespace and renamed arms, and M7's two-folder arm. Way B
+needs Way A's handler arms plus M7 and M8. Way C needs M1, M2, M3, M5, M6, M4's renamed arm and M7's Way C arm. Way D
+needs M1, M2, M3's propagation arms and its late-mount arm on `~/.cache`, M5, M6 and M7. Way E needs Way A's arms and
+M8's source arm. Way F needs Way A's arms and M4's renamed arm. No live way needs M9, which exists only to record the
+refused way's failure.
 
 ## Questions for the owner
 
@@ -1346,9 +1347,9 @@ print a folder's age, and no request and no receipt carries any field of it (F15
 
 ## Revisions
 
-Each revision is named by the commit that carries it, with that commit's committer timestamp
-(`git log --format=%cI`). The last entry's values were filled in by the commit that follows it, because a commit's
-own hash and timestamp cannot appear in the commit that creates them.
+Each revision is named by the first commit that carries it, with that commit's committer timestamp
+(`git log --format=%cI`). Later commits of one revision amend its text in place, and the entry says what they add, so
+the name stays the revision's first commit rather than its last.
 
 - `a709cd7f58` at `2026-11-19T18:02:34-05:00`: the first complete design, with its facts, ways, questions and
   measurement arms.
@@ -1362,13 +1363,15 @@ own hash and timestamp cannot appear in the commit that creates them.
   claim's place beside `v1`, the corrected mount-source mechanism, and the questions rebuilt as one choice among the
   ways plus three follow-ups.
 - `ca9ca049fd` at `2026-11-19T20:25:12-05:00`: this revision, answering the second re-check: the folder's component
-  derived on both sides from the clone's dataset GUID, the resource and the reach of the recovery capability, the
-  retained states split by cause, the corrected descriptor facts for a move's destination and for a copy with a mount
-  under it, the durable staged-folder record that replaces the `/run` bind record, the questions rebuilt as three
-  that stand alone in a dialog, and the readings of decided sentences moved into the veto list.
-- `5d357d6913` at `2026-11-19T20:25:38-05:00`: names which axis separates each pair of options in the first question,
-  and keeps a folder whose claim is gone instead of removing it, because the claim is the only proof the wrapper made
-  it.
+  derived on both sides from the clone's dataset GUID, the capability the recovery needs and the units that must keep
+  it, the retained states split by cause, the corrected descriptor facts for a move's destination and for a copy
+  with a mount under it, the durable staged-folder record that replaces the `/run` bind record, the questions rebuilt
+  as three that stand alone in a dialog, and the readings of decided sentences moved into the veto list. Its later
+  commits in the same revision add the arms those facts earn: a mount the account stacks between the bind and the
+  move, a copy that carries a mount under it and survives the unbind, a sweep run without the recovery capability, a
+  sweep of a folder a foreign namespace removed, the late mount a private `~/.cache` stops delivering, and a folder
+  whose claim is gone; they also name which axis separates each pair of options in the first question, and keep a
+  folder whose claim is gone instead of removing it.
 
 ## Sources read
 
