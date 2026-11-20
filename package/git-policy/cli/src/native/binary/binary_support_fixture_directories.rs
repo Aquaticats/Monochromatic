@@ -46,16 +46,25 @@ pub fn fixture_root() -> PathBuf {
 ///  Every directory that is a system temporary directory:
 ///  `/tmp`,
 ///  `/var/tmp`,
-///  and `TMPDIR` when the run sets it.
+///  and `TMPDIR` when the run sets it to one.
 /// Why:
 ///   A fixture root there fills a shared tmpfs with the trees of tests that never removed them (issue 1809),
 /// so the location control compares the root it uses against this list.
 ///  Reading `TMPDIR` compares against it
 /// without calling the temporary-directory function that the lint configuration bans.
+///  An empty `TMPDIR` names no directory and is left out,
+/// and an entry is what its path resolves to,
+///  because a `TMPDIR` that is a link to the root is that root.
 pub fn system_temporary_directories() -> Vec<PathBuf> {
-    let mut directories: Vec<PathBuf> = vec![PathBuf::from("/tmp"), PathBuf::from("/var/tmp")];
-    directories.extend(std::env::var_os("TMPDIR").map(PathBuf::from));
-    return directories;
+    let listed: Vec<PathBuf> = vec![PathBuf::from("/tmp"), PathBuf::from("/var/tmp")];
+    let set: Option<PathBuf> = std::env::var_os("TMPDIR")
+        .map(PathBuf::from)
+        .filter(|directory| { return !directory.as_os_str().is_empty(); });
+    return listed
+        .into_iter()
+        .chain(set)
+        .map(|directory| { return std::fs::canonicalize(&directory).unwrap_or(directory); })
+        .collect();
 }
 
 /// What:
