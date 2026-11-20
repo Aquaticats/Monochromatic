@@ -95,6 +95,17 @@ pub struct DmuObjsetStats {
     pub dds_flags: u8,
 }
 
+/// The methods of `DmuObjsetStats`.
+impl DmuObjsetStats {
+    /// The origin snapshot's name when this object is a clone,
+    /// empty
+    /// otherwise,
+    /// which is what the kernel leaves in `dds_origin`.
+    pub fn origin(&self) -> String {
+        return text_field(&self.dds_origin);
+    }
+}
+
 /// `struct drr_begin`:
 /// the leading record of a send stream,
 /// unused here.

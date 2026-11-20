@@ -15,11 +15,13 @@
 //!  linking OpenZFS's CDDL library or starting the `zfs` program,
 //! so a program
 //!  that links this crate still starts on a machine with no OpenZFS.
-//!  Nothing here sends a request:
-//! the live calls are step 2,
-//! and the kernel
-//!  compatibility gate is step 6.
-//! This crate is what both read.
+//!  A request is built without a device,
+//! and `kernel_device` carries it to
+//!  `/dev/zfs` and reads the answer;
+//! the start-time kernel compatibility
+//!  gate is step 6,
+//! and it builds on the layout comparison the guest tests
+//!  make.
 //!
 //! The design and its evidence live in
 //! `doc/planning/cli-git-zfs-worktree-design-proposal.md`;
@@ -33,6 +35,8 @@
 //! import { snapshot, destroySnaps, nvlist } from '@monochromatic-dev/zfs-request-to-openzfs-kernel-device';
 //! ```
 
+/// The open `/dev/zfs` handle and the live calls it carries.
+pub mod kernel_device;
 /// The ABI bytes:
 /// the command struct,
 /// its field bounds and the buffer.
@@ -45,8 +49,12 @@ pub mod nvlist;
 /// their replies and their failure type.
 pub mod requests;
 
+/// The open device,
+/// why a live call failed,
+/// the identity read and one step of a listing.
+pub use kernel_device::{DEVICE_PATH, DatasetIdentity, DeviceError, ListedObject, ZfsDevice};
 /// The buffer and struct a request writes into.
-pub use layout::{CommandBuffer, ZfsCmd};
+pub use layout::{CommandBuffer, DmuObjsetStats, ZfsCmd};
 /// The checked name types and their field bounds.
 pub use names::{CheckedName, NameError, NameField};
 /// The codec list,
