@@ -40464,7 +40464,21 @@ stated in this entry. What follows from them, as work:
   `pi-zfs-runtime-layout-checker-design-owner-answers-gate-review-findings-fixed` (DeepSeek on Neuralwatt, cap 510) in
   the design worktree, steered with that answer; brief under
   `~/temp/agent/zfs-runtime-layout-checker-design-owner-answers-gate-review-findings-fixed-2026-11-19/`. Then a short
-  re-check, then acceptance. STAGING ENDED `idle` at
+  re-check, then acceptance. START PROBE REVIEW ENDED (Sonnet, about 33 min; that folder's `keep/review.md`): not
+  ready, no high, six mediums, all text: the companion sits in the add preflight but not in `doctor`, against the
+  proposal's "Share preflight with `doctor`"; "That is the project's choice" claims a printed skip on a refused user
+  namespace the project never chose (the Q6 option text named the skip only as a cost; the add going ahead is the
+  design's own choice, to be put to the owner for veto); the companion's child start and process group are unspecified
+  under a possibly multithreaded wrapper (`lazy_runtime.rs`); M8's key control expects `EACCES` where plan step 8
+  refuses before any attach; plan notes miss duties (Q2's reach into steps 8, 14 and 16; step 19's `ExecStartPre=-`; the
+  plan preface's no-early-unmount sentence; which step runs M1 to M11); Q5's deadline has no value or source before step
+  22, and a timed-out record does not name its arm. Nine lows (the skip errno set wrong both ways; the `first-attach`
+  claim file mode and wording; an effective Linux 6.6 floor from `FSCONFIG_CMD_CREATE_EXCL`; checkout-snapshot
+  leftovers). It ran a C stand-in of the companion's chain on this host with controls and confirmed every cited kernel
+  line. GOING: `pi-zfs-start-probe-design-owner-answers-gate-review-findings-fixed` (DeepSeek on Neuralwatt, cap 510)
+  in the design worktree; brief under
+  `~/temp/agent/zfs-start-probe-design-owner-answers-gate-review-findings-fixed-2026-11-19/`. Then a short re-check,
+  then acceptance with the M2 skip put to the owner. STAGING ENDED `idle` at
   `e8f7ec4fa6` (thirteen commits; report in its folder's `keep/report.md`). It records every answer and makes Way A the
   design. On Q3 it rolls the clone back by its own descriptor, staging it only if that fails. Its post-move check now
   asserts that the topmost mount is the clone with the bind as its parent; the run's own advisor found the old wording
