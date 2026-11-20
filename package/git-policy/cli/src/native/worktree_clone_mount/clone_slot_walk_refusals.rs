@@ -52,6 +52,8 @@ pub enum WalkRefusalReason {
     Unreadable,
     /// The checkout path is reached through a link.
     LinkAmongTheAncestors,
+    /// The checkout Git's path names could not be opened.
+    Checkout,
 }
 
 /// What:
@@ -106,6 +108,10 @@ impl WalkRefusal {
             ),
             WalkRefusalReason::LinkAmongTheAncestors => format!(
                 "the checkout {subject} is reached through a link: {}. Ways forward: run the command in the checkout's own path, whose ancestors are real directories; this route never resolves a path the account can change.",
+                self.detail
+            ),
+            WalkRefusalReason::Checkout => format!(
+                "{subject} could not be opened: {}. Ways forward: run the command in the checkout Git reports (`git rev-parse --show-toplevel`) and let this account search every folder above it; this route walks nothing outside that checkout.",
                 self.detail
             ),
         };

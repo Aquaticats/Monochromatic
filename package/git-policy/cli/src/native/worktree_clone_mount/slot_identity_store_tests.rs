@@ -104,20 +104,20 @@ fn a_line_this_repository_did_not_write_refuses_the_read() {
     let good: CloneFolderIdentity = identity(310);
     let path: PathBuf = store(root.as_path(), &[parent_line(&good), slot_line("one", &good)]);
     assert!(SlotIdentityStore::read(path.as_path()).is_ok(), "positive control");
-    let broken: [(&str, &str); 8] = [
-        ("", "the file is empty"),
-        ("# another tool's file\n", "the first line must be the store's own header"),
-        (&format!("{HEADER}\nparent\n"), "a record holds three space-separated fields"),
-        (&format!("{HEADER}\nparent - {} extra\n", good.encode()), "a record holds three space-separated fields"),
-        (&format!("{HEADER}\nparent - 1:2\n"), "is not a recorded folder identity"),
-        (&format!("{HEADER}\nfolder - {}\n", good.encode()), "is neither"),
-        (&format!("{HEADER}\nparent one {}\n", good.encode()), "a parent record's key"),
-        (&format!("{HEADER}\nslot one/two {}\n", good.encode()), "it holds a path separator"),
+    let broken: Vec<(String, &str)> = vec![
+        (String::new(), "the file is empty"),
+        (String::from("# another tool's file\n"), "the first line must be the store's own header"),
+        (format!("{HEADER}\nparent\n"), "a record holds three space-separated fields"),
+        (format!("{HEADER}\nparent - {} extra\n", good.encode()), "a record holds three space-separated fields"),
+        (format!("{HEADER}\nparent - 1:2\n"), "is not a recorded folder identity"),
+        (format!("{HEADER}\nfolder - {}\n", good.encode()), "is neither"),
+        (format!("{HEADER}\nparent one {}\n", good.encode()), "a parent record's key"),
+        (format!("{HEADER}\nslot one/two {}\n", good.encode()), "it holds a path separator"),
     ];
-    for (text, expected) in broken {
+    for (text, expected) in &broken {
         let bad: PathBuf = root.join("bad-store");
         std::fs::write(&bad, text).expect("bad store");
-        let refused: StoreRefusal = SlotIdentityStore::read(bad.as_path()).expect_err(text);
+        let refused: StoreRefusal = SlotIdentityStore::read(bad.as_path()).expect_err(text.as_str());
         assert!(refused.message().contains(expected), "{expected} is in {}", refused.message());
         assert!(refused.message().contains(bad.to_string_lossy().as_ref()), "the path is named: {}", refused.message());
     }
@@ -140,11 +140,11 @@ fn one_key_recorded_twice_is_refused() {
     let good: CloneFolderIdentity = identity(320);
     let path: PathBuf = store(root.as_path(), &[parent_line(&good), slot_line("one", &good), slot_line("one", &identity(321))]);
     let refused: StoreRefusal = SlotIdentityStore::read(path.as_path()).expect_err("one slot twice");
-    assert!(matches!(refused, StoreRefusal::DuplicateKey { number: 4, ref key, .. } if key == "one"), "{refused:?}");
+    assert!(matches!(refused, StoreRefusal::DuplicateKey { number: 4, ref key, .. } if key.as_str() == "one"), "{refused:?}");
     assert!(refused.message().contains('4'), "the second line is named: {}", refused.message());
     let twice_parent: PathBuf = store(root.as_path(), &[parent_line(&good), parent_line(&identity(322))]);
     let refused: StoreRefusal = SlotIdentityStore::read(twice_parent.as_path()).expect_err("one parent twice");
-    assert!(matches!(refused, StoreRefusal::DuplicateKey { ref key, .. } if key == "-"), "{refused:?}");
+    assert!(matches!(refused, StoreRefusal::DuplicateKey { ref key, .. } if key.as_str() == "-"), "{refused:?}");
     remove(root.as_path());
 }
 
@@ -165,7 +165,7 @@ fn a_slot_is_recorded_once_and_never_refreshed() {
     assert_eq!(read.parent(), Some(&parent), "an append leaves the parent record as it was");
     let before: Vec<u8> = std::fs::read(path.as_path()).expect("bytes");
     let refused: StoreRefusal = append_slot_identity(path.as_path(), "one", &identity(332)).expect_err("recorded already");
-    assert!(matches!(refused, StoreRefusal::SlotAlreadyRecorded { ref slot, .. } if slot == "one"), "{refused:?}");
+    assert!(matches!(refused, StoreRefusal::SlotAlreadyRecorded { ref slot, .. } if slot.as_str() == "one"), "{refused:?}");
     assert_eq!(std::fs::read(path.as_path()).expect("bytes"), before, "the store is unchanged");
     assert!(refused.message().contains("never refreshes a slot identity"), "{}", refused.message());
     for refused_name in ["", "one/two", ".", "..", "with space", "with\ttab"] {
@@ -190,7 +190,7 @@ fn the_adoption_replaces_only_the_parent_record() {
     let root: PathBuf = fixture("slot-store-adoption");
     let old_parent: CloneFolderIdentity = identity(340);
     let slot: CloneFolderIdentity = identity(341);
-    let path: PathBuf = store(root.as_path(), &[parent_line(&old_parent), slot_line("one", &slot), String::from("# kept")]);
+    let path: PathBuf = store(root.as_path(), &[parent_line(&old_parent), String::from("# a comment is no record and need not survive a rewrite"), slot_line("one", &slot)]);
     let adopted: CloneFolderIdentity = identity(342);
     record_parent_identity(path.as_path(), &adopted).expect("the parent record is replaced");
     let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("store reads");
@@ -198,8 +198,8 @@ fn the_adoption_replaces_only_the_parent_record() {
     assert_eq!(read.slot("one"), Some(&slot), "a surviving slot identity is not overwritten");
     let text: String = std::fs::read_to_string(path.as_path()).expect("text");
     assert!(text.starts_with(HEADER), "the file keeps its header: {text}");
-    assert!(text.contains("# kept"), "a comment stays: {text}");
     assert_eq!(text.lines().filter(|line| line.starts_with("parent ")).count(), 1, "one parent record: {text}");
+    assert_eq!(text.lines().filter(|line| line.starts_with("slot ")).count(), 1, "the slot record is kept: {text}");
     let missing: PathBuf = root.join("absent");
     assert!(matches!(record_parent_identity(missing.as_path(), &adopted), Err(StoreRefusal::Missing { .. })), "an adoption never invents the store");
     remove(root.as_path());

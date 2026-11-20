@@ -100,9 +100,13 @@ pub mod misplaced_attach_rollback;
 pub mod parent_adoption_decision;
 
 /// The identity fields and their compare.
-pub use clone_folder_identity::{CloneFolderField, CloneFolderIdentity, MAXIMUM_ACL_BYTES};
+pub use clone_folder_identity::{CloneFolderField, CloneFolderIdentity};
+/// The bound one ACL read accepts.
+pub use clone_folder_identity_acl::MAXIMUM_ACL_BYTES;
 /// The store's path and its records.
-pub use slot_identity_store::{PARENT_KEY, SLOT_IDENTITY_STORE_PATH, SlotIdentityStore, StoredIdentity, append_slot_identity, record_parent_identity};
+pub use slot_identity_store::{SLOT_IDENTITY_STORE_PATH, SlotIdentityStore, append_slot_identity, record_parent_identity};
+/// The store's record type and the key its parent record carries.
+pub use slot_identity_store_records::{PARENT_KEY, StoredIdentity};
 /// Why the store refused.
 pub use slot_identity_store_refusals::StoreRefusal;
 /// The mount facts and the enforced flags.

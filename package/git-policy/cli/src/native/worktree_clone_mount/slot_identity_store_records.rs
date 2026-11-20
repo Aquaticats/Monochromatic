@@ -87,7 +87,7 @@ impl StoredIdentity {
 
 /// The store's records from its text,
 /// or the line that stopped it.
-fn parse_records(path: &Path, text: &str) -> Result<Vec<StoredIdentity>, StoreRefusal> {
+pub(super) fn parse_records(path: &Path, text: &str) -> Result<Vec<StoredIdentity>, StoreRefusal> {
     let mut records: Vec<StoredIdentity> = Vec::new();
     let mut keys: BTreeSet<String> = BTreeSet::new();
     let mut header_seen: bool = false;
@@ -131,7 +131,7 @@ fn parse_record(path: &Path, number: usize, line: &str) -> Result<StoredIdentity
         PARENT_KIND => Err(StoreRefusal::Line { path: path.to_path_buf(), number, reason: format!("a parent record's key is `{PARENT_KEY}`, and this line holds `{}`", fields[1]) }),
         SLOT_KIND => {
             if let Some(reason) = slot_name_refusal(fields[1]) {
-                return Err(StoreRefusal::SlotName { slot: fields[1].to_string(), reason });
+                return Err(StoreRefusal::Line { path: path.to_path_buf(), number, reason: format!("`{}` is no slot name: {reason}", fields[1]) });
             }
             Ok(StoredIdentity::Slot { name: fields[1].to_string(), identity })
         }
@@ -141,7 +141,7 @@ fn parse_record(path: &Path, number: usize, line: &str) -> Result<StoredIdentity
 
 /// What makes `name` no plain slot name,
 /// or nothing when it is one.
-fn slot_name_refusal(name: &str) -> Option<String> {
+pub(super) fn slot_name_refusal(name: &str) -> Option<String> {
     if name.is_empty() {
         return Some(String::from("it is empty"));
     }

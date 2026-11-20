@@ -23,6 +23,7 @@
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{mount_id_of, observed_path};
 use crate::fs_mount_options::{MOUNTINFO_PATH, MountFacts, parse_mount_table};
+use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 
 /// Module tag for diagnostics.

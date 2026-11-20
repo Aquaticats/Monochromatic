@@ -21,7 +21,8 @@
 
 use super::clone_folder_identity::CloneFolderIdentity;
 use super::clone_slot_walk_refusals::{CloneSlotRefusal, WalkRefusal, WalkRefusalReason, chain_walk_refusal, one_component_refusal};
-use super::slot_identity_store::{SlotIdentityStore, StoreRefusal};
+use super::slot_identity_store::SlotIdentityStore;
+use super::slot_identity_store_refusals::StoreRefusal;
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{ObjectId, handle_directory_at, identity_of, mount_id_of, observed_path, open_chain_beneath, open_directory_at, open_directory_at_a_mount, open_root};
 use std::ffi::{OsStr, OsString};
@@ -168,7 +169,7 @@ thread_local! {
 fn canonical_checkout(checkout: &Path) -> Result<PathBuf, CloneSlotRefusal> {
     return match std::fs::canonicalize(checkout) {
         Ok(canonical) => Ok(canonical),
-        Err(error) => Err(CloneSlotRefusal::Walk(one_component_refusal(format!("the checkout {}", checkout.display()).as_str(), &error))),
+        Err(error) => Err(CloneSlotRefusal::Walk(WalkRefusal { component: checkout.display().to_string(), reason: WalkRefusalReason::Checkout, detail: error.to_string() })),
     };
 }
 
@@ -177,7 +178,7 @@ fn checkout_root_refusal(canonical: &Path, error: std::io::Error) -> CloneSlotRe
     if error.kind() == std::io::ErrorKind::InvalidInput {
         return CloneSlotRefusal::Walk(WalkRefusal { component: canonical.display().to_string(), reason: WalkRefusalReason::LinkAmongTheAncestors, detail: error.to_string() });
     }
-    return CloneSlotRefusal::Walk(one_component_refusal(format!("the checkout {}", canonical.display()).as_str(), &error));
+    return CloneSlotRefusal::Walk(WalkRefusal { component: canonical.display().to_string(), reason: WalkRefusalReason::Checkout, detail: error.to_string() });
 }
 
 /// The refusal of one folder the walk opens by name.

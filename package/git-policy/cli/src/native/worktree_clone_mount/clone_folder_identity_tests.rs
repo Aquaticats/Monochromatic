@@ -158,23 +158,20 @@ fn a_permission_change_and_each_acl_are_seen_apart() {
     std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o700)).expect("mode");
     let tightened: CloneFolderIdentity = CloneFolderIdentity::capture(&opened).expect("identity");
     assert_eq!(plain.differences(&tightened), vec![CloneFolderField::Mode]);
-    std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o750)).expect("mode");
-    set_access_acl(&opened, &basic_access_acl());
-    let granted: CloneFolderIdentity = CloneFolderIdentity::capture(&opened).expect("identity");
-    assert_eq!(plain.mode, granted.mode, "the fixture keeps one mode as its ACL changes");
-    assert_eq!(plain.differences(&granted), vec![CloneFolderField::AccessAcl], "the access ACL alone moved");
-    // One named user's permission changes, and the mask which the mode shows stays as it was.
+    // A folder whose access ACL is exactly its mode keeps no ACL: the kernel stores the mode alone, so the control
+    // writes one named user's entry, which no mode can express, and the mask the mode shows stays as it was.
     let first: Vec<u8> = acl_blob(&[(ACL_USER_OBJ, 0o7, ACL_UNDEFINED_ID), (ACL_USER, 0o4, 1000), (ACL_GROUP_OBJ, 0o5, ACL_UNDEFINED_ID), (ACL_MASK, 0o5, ACL_UNDEFINED_ID), (ACL_OTHER, 0o0, ACL_UNDEFINED_ID)]);
     let second: Vec<u8> = acl_blob(&[(ACL_USER_OBJ, 0o7, ACL_UNDEFINED_ID), (ACL_USER, 0o5, 1000), (ACL_GROUP_OBJ, 0o5, ACL_UNDEFINED_ID), (ACL_MASK, 0o5, ACL_UNDEFINED_ID), (ACL_OTHER, 0o0, ACL_UNDEFINED_ID)]);
     set_access_acl(&opened, &first);
     let one_user: CloneFolderIdentity = CloneFolderIdentity::capture(&opened).expect("identity");
+    assert_eq!(one_user.mode, plain.mode, "the fixture keeps one mode as its ACL appears");
+    assert_eq!(plain.differences(&one_user), vec![CloneFolderField::AccessAcl], "the access ACL alone moved");
     set_access_acl(&opened, &second);
     let another_user: CloneFolderIdentity = CloneFolderIdentity::capture(&opened).expect("identity");
     assert_eq!(one_user.mode, another_user.mode, "the mode is unchanged by the entry that changed");
     assert_eq!(one_user.differences(&another_user), vec![CloneFolderField::AccessAcl], "an ACL drift passes a mode-only check, and this compare is not mode-only");
     // A default ACL appears on the same folder, its access ACL untouched.
     let default_blob: Vec<u8> = basic_access_acl();
-    set_access_acl(&opened, &default_blob);
     let without_default: CloneFolderIdentity = CloneFolderIdentity::capture(&opened).expect("identity");
     let name: std::ffi::CString = std::ffi::CString::new("system.posix_acl_default").expect("name");
     // SAFETY: `name` is NUL-terminated and outlives the call, the blob holds what the call reads, and `opened` is live.

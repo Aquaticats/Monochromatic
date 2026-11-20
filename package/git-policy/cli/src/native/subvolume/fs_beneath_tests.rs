@@ -281,10 +281,12 @@ fn a_chain_keeps_a_handle_per_folder_and_stops_at_a_link() {
     let names: Vec<OsString> = [OsString::from("one"), OsString::from("two"), OsString::from("three")].to_vec();
     let chain: Vec<File> = open_chain_beneath(&held, &names).expect("chain");
     assert_eq!(chain.len(), names.len(), "one handle per component");
+    let mut named_path: PathBuf = root.clone();
     for (name, handle) in ["one", "two", "three"].iter().zip(chain.iter()) {
-        let named: std::fs::Metadata = std::fs::metadata(root.join(name)).expect("named");
+        named_path = named_path.join(name);
+        let named: std::fs::Metadata = std::fs::metadata(&named_path).expect("named");
         let walked: std::fs::Metadata = handle.metadata().expect("walked");
-        assert_eq!((walked.dev(), walked.ino()), (named.dev(), named.ino()), "{name}");
+        assert_eq!((walked.dev(), walked.ino()), (named.dev(), named.ino()), "{}", named_path.display());
     }
     // The first handle still names the folder it was opened on after the folder moves.
     std::fs::rename(root.join("one"), root.join("moved-one")).expect("rename");

@@ -123,7 +123,7 @@ impl StoreRefusal {
                 path.display()
             ),
             StoreRefusal::SlotAlreadyRecorded { path, slot } => format!(
-                "{} already records an identity for the clone slot `{slot}`, and no command refreshes a slot identity because a new inode or mode appeared. Ways forward: restore the folder whose identity is recorded, or settle the binding with the removal workflow; only an administrator's `adopt-worktree-parent` may replace the parent folder's record, and never a slot's.",
+                "{} already records an identity for the clone slot `{slot}`, and no command ever refreshes a slot identity because a new inode or mode appeared. Ways forward: restore the folder whose identity is recorded, or settle the binding with the removal workflow; only an administrator's `adopt-worktree-parent` may replace the parent folder's record, and never a slot's.",
                 path.display()
             ),
             StoreRefusal::SlotName { slot, reason } => format!(
@@ -135,7 +135,7 @@ impl StoreRefusal {
 }
 
 /// The refusal for a store file the read would not open.
-fn unreadable(path: &Path, refusal: ReadRefusal) -> StoreRefusal {
+pub(super) fn unreadable(path: &Path, refusal: ReadRefusal) -> StoreRefusal {
     return match refusal {
         ReadRefusal::Missing => StoreRefusal::Missing { path: path.to_path_buf() },
         ReadRefusal::NotRegular => StoreRefusal::Unreadable { path: path.to_path_buf(), reason: String::from("the name holds a link, a directory or another non-regular file") },
@@ -145,7 +145,7 @@ fn unreadable(path: &Path, refusal: ReadRefusal) -> StoreRefusal {
 }
 
 /// The refusal for a write or sync that the system answered with `error`.
-fn write_refusal(store: &Path, error: std::io::Error) -> StoreRefusal {
+pub(super) fn write_refusal(store: &Path, error: std::io::Error) -> StoreRefusal {
     return match error.kind() {
         std::io::ErrorKind::NotFound => StoreRefusal::Missing { path: store.to_path_buf() },
         _ => StoreRefusal::Unreadable { path: store.to_path_buf(), reason: error.to_string() },

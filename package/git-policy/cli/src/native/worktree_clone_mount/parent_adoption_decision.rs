@@ -250,7 +250,8 @@ impl AdoptionRefusal {
         return match self {
             AdoptionRefusal::Walk { refusal } => format!("the adoption's walk refused the parent folder: {}. Ways forward: fix the component it names and run the adoption again; nothing was recorded.", refusal.message()),
             AdoptionRefusal::Identity { field, identified, held } => format!(
-                "the held `.claude/worktrees` folder is not the one the administrator identified: the {field} is {identified}, and the held folder holds {held}. Nothing was recorded. Ways forward: identify the intended replacement again from the restored checkout or the controlled recreation, and run the adoption with its own device and inode."
+                "the held `.claude/worktrees` folder is not the one the administrator identified: the {} is {identified}, and the held folder holds {held}. Nothing was recorded. Ways forward: identify the intended replacement again from the restored checkout or the controlled recreation, and run the adoption with its own device and inode.",
+                field.name()
             ),
             AdoptionRefusal::Policy { fields } => format!(
                 "the held `.claude/worktrees` folder does not hold the shape the recorded folder set: the {} differs from the policy. Nothing was recorded, because a replacement must not come back wider than the folder it replaces. Ways forward: give the folder the recorded owner, mode and ACLs and run the adoption again.",

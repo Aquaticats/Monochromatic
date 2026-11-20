@@ -30,6 +30,44 @@ pub(super) const DEFAULT_ACL_ATTRIBUTE: &[u8] = b"system.posix_acl_default\0";
 /// (`XATTR_SIZE_MAX`, `xattr(7)`).
 pub const MAXIMUM_ACL_BYTES: usize = 65536;
 
+/// An ACL's words in a report:
+/// its length in bytes,
+/// or `none`.
+pub(super) fn acl_words(acl: Option<&[u8]>) -> String {
+    return match acl {
+        Some(bytes) => format!("{} bytes", bytes.len()),
+        None => String::from("none"),
+    };
+}
+
+/// One ACL as a store token:
+/// lowercase hexadecimal,
+/// or `-` for none.
+pub(super) fn acl_token(acl: Option<&[u8]>) -> String {
+    return match acl {
+        Some(bytes) if !bytes.is_empty() => bytes.iter().map(|byte| { return format!("{byte:02x}") }).collect::<String>(),
+        _ => String::from("-"),
+    };
+}
+
+/// An ACL from its store token,
+/// or nothing when the token is not one `acl_token` wrote.
+pub(super) fn acl_from_token(token: &str) -> Option<Option<Vec<u8>>> {
+    if token == "-" {
+        return Some(None);
+    }
+    if token.len() % 2 != 0 {
+        return None;
+    }
+    let mut bytes: Vec<u8> = Vec::with_capacity(token.len() / 2);
+    let digits: &[u8] = token.as_bytes();
+    for pair in digits.chunks_exact(2) {
+        let text: &str = std::str::from_utf8(pair).ok()?;
+        bytes.push(u8::from_str_radix(text, 16).ok()?);
+    }
+    return Some(Some(bytes));
+}
+
 /// What:
 ///  Read one ACL extended attribute of an open folder,
 ///  up to `MAXIMUM_ACL_BYTES`.

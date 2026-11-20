@@ -3,7 +3,7 @@
 //! and each way a mount can land elsewhere is refused naming its cause.
 
 use super::*;
-use crate::attached_mount_identity::{MountIdentity, mount_facts_of, mount_identity_of};
+use crate::attached_mount_identity::{ATTACH_MOUNT_FLAGS, MountIdentity, mount_facts_of, mount_identity_of};
 use crate::clone_folder_identity::CloneFolderIdentity;
 use crate::clone_slot_walk::{HeldCloneSlot, HoldCloneSlotRequest, LookAgainAtSlotRequest, hold_clone_slot, look_again_at_the_slot};
 use crate::fs_beneath::mount_id_of;
@@ -180,9 +180,7 @@ fn a_stopped_walk_a_moved_path_and_an_unreadable_table_are_reported() {
 ///  and the recorded mount is what a later unmount compares against.
 #[test]
 fn the_attach_flags_and_a_folder_mount_identity_are_recorded() {
-    assert_eq!(ATTACH_MOUNT_FLAGS, libc::MS_NOSUID | libc::MS_NODEV);
-    assert_ne!(ATTACH_MOUNT_FLAGS & libc::MS_NOSUID, 0);
-    assert_ne!(ATTACH_MOUNT_FLAGS & libc::MS_NODEV, 0);
+    assert_eq!(ATTACH_MOUNT_FLAGS, libc::MS_NOSUID | libc::MS_NODEV, "the attach enforces both flags");
     let (root, held, _checkout): (PathBuf, HeldCloneSlot, PathBuf) = held_slot("post-check-mount");
     let mount: MountIdentity = mount_identity_of(&held.slot).expect("the slot is on a mount");
     let named: std::fs::Metadata = held.slot.metadata().expect("metadata");
