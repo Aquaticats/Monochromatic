@@ -15,9 +15,9 @@ was read for the first draft, which is how a non-existent mount attribute and a 
 kernel statements under [The kernel the design names](#the-kernel-the-design-names) name the version each was read
 from. What stays open: every measurement under [Owed measurements](#owed-measurements), none of which ran. The
 questions this design put to the owner were answered on 2026-11-19, and [Answers of 2026-11-19](#answers-of-2026-11-19)
-records each one with the option the project chose; the body beside it follows those answers. The accepted ZFS
-worktree design is accepted with its open items still open, and this file changes no decision of it. Nothing here
-authorizes work on this host's pool.
+records each one with the option the project chose; the body beside it follows those answers. The subject of that
+acceptance is the ZFS worktree design, and it is accepted with its open items still open; this file changes no
+decision of it. Nothing here authorizes work on this host's pool.
 
 ## Revisions
 
@@ -118,7 +118,9 @@ Chosen: "Root plus account companion", in the round of 2026-11-19T20:35 to 2026-
 runs the small user-namespace companion before each managed add, and the root probe stays the only evidence about the
 dataset mount path. Not taken: root only, this design's own first rank, which would leave an account-side regression of
 the walk or the mount surface seen only where something mounts as the account; the project took the companion knowing
-that it never touches ZFS and skips on a host that refuses user namespaces.
+that it never touches ZFS and skips on a host that refuses user namespaces, and
+[The account companion](#the-account-companion) states that what follows a skip is this design's choice, open to the
+project's veto, rather than the round's.
 
 ### Q7: whether the first real attach records its outcome
 
@@ -837,8 +839,8 @@ first attach's outcome.
 Its deadline. The parent bounds the child with a monotonic deadline and, on expiry, kills the child's process group
 and refuses the managed attach as unproven, which is the same posture the deadline answer gives the probe. No value
 is stated, and step 10 cites the value beside [M11](#m11-the-account-companion-per-add)'s run; until that run
-exists, the companion does not run in the preflight, as [Who runs it, and where](#who-runs-it-and-where) states for
-the probe's own deadline.
+exists, the companion does not run in the preflight or in `doctor`, as
+[Who runs it, and where](#who-runs-it-and-where) states for the probe's own deadline.
 
 Its skip. Any error from the `unshare(CLONE_NEWUSER)` call itself is a refusal of the user namespace, and the
 companion treats every one of them as a skip: `EPERM`, `ENOSPC`, `EACCES`, `ENOMEM` or any other answer that call
@@ -1261,9 +1263,10 @@ commit `73eaad0846`, the branch's base, and main's copy had gained nine lines be
 - Step 22, "The measurements that size waits and retention", keeps sizing the mount-request deadline of step 7 and
   the unmount deadline of step 9. The probe's and the companion's deadlines are not its work: steps 6 and 10 cite
   them beside their own runs, because those steps ship before step 22.
-- The measurement homes, one place each: M1, M2, M3, M5, M7 and M9 in step 6's guest arms; M4's arm and whole-probe
-  timings in step 6 and its boot-and-login reading in step 19's boot arms; M8 in step 8's sweep on the guest; M10's
-  setup half with step 19's guest setup and its refusal readings in step 6; M11 in step 10's guest arms; and M6's
+- The measurement homes, one place each: M1, M2, M3, M5, M7 and M9's fault arms in step 6's guest arms, with
+  M9's untested-release arm in step 23, which qualifies the CachyOS template; M4's arm and whole-probe timings in
+  step 6 and its boot-and-login reading in step 19's boot arms; M8 in step 8's sweep on the guest; M10's setup half
+  with step 19's guest setup and its refusal readings in step 6; M11 in step 10's guest arms; and M6's
   root-and-account half in step 6, with its skip half repeated in step 10's disabled-namespace boot. No value ships
   before the step that runs its measurement, and step 22 sizes only the waits it names.
 
