@@ -6,7 +6,8 @@
 //! Why:
 //!  Unmounting from a fresh process is step 9,
 //!  so a build before it must refuse instead of detaching anything
-//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 9).
+//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+//! step 9).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

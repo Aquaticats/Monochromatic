@@ -11,7 +11,8 @@
 //!  the store's path and the process's effective user,
 //!  are arguments of the driver,
 //!  and the end-to-end arm runs in the throwaway guest
-//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 5,
+//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+//! step 5,
 //!  "Acceptance tests").
 //!
 //! In TS you'd write (pseudocode):
@@ -26,7 +27,8 @@ use crate::worktree_clone_mount_handler::handler_mode_arguments::AdoptRequest;
 use std::path::Path;
 use std::path::PathBuf;
 
-/// An adoption of the checkout this repository is, identified as the test reads it.
+/// An adoption of the checkout this repository is,
+/// identified as the test reads it.
 fn request() -> AdoptRequest {
     return AdoptRequest { checkout: PathBuf::from("/home/user/Monochromatic"), device: 66306, inode: 1_234_567 };
 }

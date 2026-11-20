@@ -12,7 +12,8 @@
 //!  executable search paths and the handler's configuration stay root-controlled,
 //!  and this module is the one place either path is written,
 //!  so a moved path is one edit and the install step of the plan
-//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 19)
+//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+//! step 19)
 //!  reads them rather than repeating them.
 //!
 //! In TS you'd write (pseudocode):

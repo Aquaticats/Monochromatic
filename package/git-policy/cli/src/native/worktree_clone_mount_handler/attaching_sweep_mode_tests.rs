@@ -6,7 +6,8 @@
 //! Why:
 //!  The default invocation is what the installed ZED event starts,
 //!  so a build that answered it with success would report a sweep nobody ran
-//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 8).
+//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+//! step 8).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

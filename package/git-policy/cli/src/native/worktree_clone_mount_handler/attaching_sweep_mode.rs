@@ -7,8 +7,10 @@
 //!  reads each clone's durable mount intent and attaches only what that intent asks for
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "ZED reconciliation and mount safety",
-//!  "Requests, results and ordering").
-//!  It is plan step 8, so this build refuses the mode instead of attaching anything:
+//!  "Requests,
+//! results and ordering").
+//!  It is plan step 8,
+//! so this build refuses the mode instead of attaching anything:
 //!  a partial sweep at root would be a mount nobody designed.
 //!
 //! In TS you'd write (pseudocode):

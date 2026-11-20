@@ -178,7 +178,8 @@ pub struct LookAgainAtSlotRequest<'a> {
 /// ```
 #[derive(Debug)]
 pub struct HeldWorktreesParent {
-    /// The `.claude/worktrees` folder, held open for reading.
+    /// The `.claude/worktrees` folder,
+    /// held open for reading.
     pub folder: std::fs::File,
     /// The device,
     /// inode,

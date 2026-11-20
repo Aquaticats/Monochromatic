@@ -2336,7 +2336,8 @@ the fourth is an accepted cost that `doctor` reports.
   `## Single executable and shipped policies` in [spec][] states that the release artifact is one executable,
   while "Binding crate and compatibility" and "Decided defaults" keep a second binary in the same package.
   Step 5 changes this.
-  It did, at `b2e231c17d` (2026-11-20T03:44:29-05:00):
+  It did,
+  at `b2e231c17d` (2026-11-20T03:44:29-05:00):
   the section is now `## The two executables and shipped policies`.
   One archive carrying both is forced rather than chosen:
   "Decided defaults" keeps the handler inside `package/git-policy/cli`

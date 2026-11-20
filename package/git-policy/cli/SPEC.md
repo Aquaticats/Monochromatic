@@ -276,7 +276,8 @@ The default invocation,
 `shutdown-unmount`
  and `adopt-worktree-parent` are the named modes,
  and each refuses until the plan step that builds it lands
- (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 5).
+ (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 5).
 Both executables start on a machine whose kernel has no ZFS device and neither links one of OpenZFS's CDDL libraries.
 Every policy is compiled into the wrapper;
  no configuration loads code,

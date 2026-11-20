@@ -11,7 +11,8 @@
 //!  worked;
 //!  the resident service is a mode of the first executable (`service_main.rs`),
 //!  and the root-run clone-mount handler is a program of its own that shares the library
-//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 5).
+//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+//! step 5).
 //!  The release job,
 //!  the release list,
 //!  the toolchain lock and this list are checked against the same manifest by

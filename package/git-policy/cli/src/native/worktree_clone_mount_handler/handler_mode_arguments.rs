@@ -14,7 +14,8 @@
 //!  which is how the installed ZED event calls it,
 //!  runs the sweep
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-//!  "Where the design is silent: this plan's suggestions").
+//!  "Where the design is silent:
+//! this plan's suggestions").
 //!  Nothing here reads a path,
 //!  a dataset name or a mount flag out of the request beyond the administrator's own
 //!  identification of the replacement:

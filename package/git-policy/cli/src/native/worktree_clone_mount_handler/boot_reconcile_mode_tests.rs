@@ -6,7 +6,8 @@
 //! Why:
 //!  The mode's first action is the start gate,
 //!  so a build before step 6 must refuse instead of reading any intent
-//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 6).
+//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+//! step 6).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

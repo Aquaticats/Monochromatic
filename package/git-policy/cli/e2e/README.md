@@ -831,15 +831,20 @@ so they detect the regression.
 ## The ZFS adoption arm
 
 `mount-git-worktree-clone-datasets-guest.ts` runs one end-to-end arm of the root-run clone-mount handler's
-`adopt-worktree-parent` mode, which is the mode plan step 5 wires
-(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 5).
+`adopt-worktree-parent` mode,
+which is the mode plan step 5 wires
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 5).
 The arm writes `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities` and opens a checkout
-as root, so it runs only in a throwaway guest:
+as root,
+so it runs only in a throwaway guest:
 the driver borrows the ZFS binding's recipe
 (`package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts`)
-for the guest's creation, its OpenZFS 2.4.4 preparation and its destruction,
+for the guest's creation,
+its OpenZFS 2.4.4 preparation and its destruction,
 builds this crate's `native_binary` test target inside it from the same repository-shaped snapshot the container gate
-builds from, and runs the one control the guest's variable enables.
+builds from,
+and runs the one control the guest's variable enables.
 
 ```sh
 # package/git-policy/cli

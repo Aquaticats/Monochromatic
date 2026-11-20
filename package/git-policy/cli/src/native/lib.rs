@@ -235,16 +235,20 @@ pub mod worktree_clone_mount;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_mount::*;
 
-/// The root-run clone-mount handler, `mount-git-worktree-clone-datasets`:
+/// The root-run clone-mount handler,
+/// `mount-git-worktree-clone-datasets`:
 ///  its mode grammar,
 ///  the two installed paths,
 ///  the modes whose plan steps have not landed,
 ///  and the administrator's parent adoption.
 /// It is the crate's second executable,
 ///  so it is named through this path rather than a glob re-export:
-///  the program's words (`PROGRAM_NAME`, `run`, the install paths) belong to the handler,
+///  the program's words (`PROGRAM_NAME`,
+/// `run`,
+/// the install paths) belong to the handler,
 ///  and no old flat path of the wrapper names them.
-/// It is Linux only, like the module it builds on.
+/// It is Linux only,
+/// like the module it builds on.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_mount_handler;
 

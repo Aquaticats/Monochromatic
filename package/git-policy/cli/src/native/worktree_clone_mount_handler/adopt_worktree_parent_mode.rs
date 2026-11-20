@@ -13,7 +13,8 @@
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Descriptor mount and unmount",
 //!  "The administrator's adoption").
-//!  The decision table itself, its order and its sentences are step 4's
+//!  The decision table itself,
+//! its order and its sentences are step 4's
 //!  (`worktree_clone_mount::parent_adoption_decision`);
 //!  this file supplies its facts from real descriptors and the store,
 //!  and records nothing until the table agrees.

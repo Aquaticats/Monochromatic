@@ -5,7 +5,8 @@
 //!  so it must name the mode,
 //!  the step and that nothing was touched,
 //!  and the three unbuilt modes must name their own steps
-//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 5).
+//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+//! step 5).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

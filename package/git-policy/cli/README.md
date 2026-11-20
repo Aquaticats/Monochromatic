@@ -1598,7 +1598,8 @@ One archive carries two executables,
  the wrapper,
  and `mount-git-worktree-clone-datasets`,
  the root-run clone-mount handler of the ZFS worktree route
- (`SPEC.md`, "The two executables and shipped policies").
+ (`SPEC.md`,
+"The two executables and shipped policies").
 The wrapper is the file a caller runs as `git`;
 the handler is never linked as `git`,
 and a machine that never mounts a ZFS worktree clone leaves it unused.

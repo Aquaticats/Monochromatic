@@ -35,15 +35,20 @@
 //! - `mode_awaiting_its_step.rs`:
 //!   the refusal of a mode whose plan step has not landed.
 //! - `attaching_sweep_mode.rs`:
-//!   the default invocation's sweep, which step 8 builds.
+//!   the default invocation's sweep,
+//!   which step 8 builds.
 //! - `boot_reconcile_mode.rs`:
-//!   the boot unit's reconciliation, which step 6 begins.
+//!   the boot unit's reconciliation,
+//!   which step 6 begins.
 //! - `shutdown_unmount_mode.rs`:
-//!   the shutdown unit's verified unmount, which step 9 builds.
+//!   the shutdown unit's verified unmount,
+//!   which step 9 builds.
 //! - `adopt_worktree_parent_mode.rs`:
-//!   the administrator's adoption, decided by step 4's table and recorded here.
+//!   the administrator's adoption,
+//!   decided by step 4's table and recorded here.
 //! - `handler_mode_dispatch.rs`:
-//!   the command line, the exit statuses and the lines each mode writes.
+//!   the command line,
+//!   the exit statuses and the lines each mode writes.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -78,7 +83,8 @@ pub mod handler_mode_dispatch;
 
 /// The installed paths and the program's name.
 pub use handler_install_paths::{CONFIGURATION_PATH, PROGRAM_NAME, SERVICE_INSTALL_PATH, ZEDLET_INSTALL_PATH};
-/// The mode grammar, its refusal and the request an adoption takes.
+/// The mode grammar,
+/// its refusal and the request an adoption takes.
 pub use handler_mode_arguments::{AdoptRequest, ArgumentRefusal, HandlerMode};
 /// The refusal of a mode whose step has not landed.
 pub use mode_awaiting_its_step::AwaitingItsStep;

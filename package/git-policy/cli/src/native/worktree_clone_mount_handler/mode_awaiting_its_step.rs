@@ -5,7 +5,8 @@
 //!  and the plan step that builds it.
 //! Why:
 //!  The plan lands one handler mode per step and refuses the rest until then
-//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 5),
+//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+//! step 5),
 //!  so a build that answered a mode with a partial sweep would be a root program
 //!  doing half of an operation nobody designed.
 //!  A refusal states that nothing was opened or changed,

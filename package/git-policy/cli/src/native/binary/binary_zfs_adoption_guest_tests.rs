@@ -1,5 +1,6 @@
 //! What:
-//!  The end-to-end arm of the administrator's parent adoption, in the throwaway guest:
+//!  The end-to-end arm of the administrator's parent adoption,
+//! in the throwaway guest:
 //!  the recorded parent folder is replaced,
 //!  the handler's `adopt-worktree-parent` mode records the replacement,
 //!  and each refusal leaves the record as it was.
@@ -9,10 +10,13 @@
 //!  this arm runs only where `CLI_GIT_ZFS_ADOPTION_GUEST` names a disposable guest
 //!  (`package/git-policy/cli/e2e/mount-git-worktree-clone-datasets-guest.ts`,
 //!  on OpenZFS 2.4.4 in an `mvm` Ubuntu guest),
-//!  and it prints `SKIPPED` everywhere else, so the gate says what it did not run
-//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 5,
+//!  and it prints `SKIPPED` everywhere else,
+//! so the gate says what it did not run
+//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+//! step 5,
 //!  "Acceptance tests").
-//!  The arm drives the built executable, not the module,
+//!  The arm drives the built executable,
+//! not the module,
 //!  because the mode and its grammar are what the install ships.
 //!
 //! In TS you'd write (pseudocode):
@@ -30,17 +34,22 @@ use std::process::{Command, Output};
 
 /// The variable the guest recipe sets.
 ///
-/// It names the guest this arm may run in, so a start anywhere else prints that it skipped instead of writing
+/// It names the guest this arm may run in,
+/// so a start anywhere else prints that it skipped instead of writing
 /// `/var/lib` on a machine somebody uses.
 const GUEST_VARIABLE: &str = "CLI_GIT_ZFS_ADOPTION_GUEST";
 
-/// The status the handler answers a refusal with, which the unit controls also hold.
+/// The status the handler answers a refusal with,
+/// which the unit controls also hold.
 const EXIT_REFUSED: i32 = 2;
 
-/// The folder this arm builds its checkout under, inside the guest.
+/// The folder this arm builds its checkout under,
+/// inside the guest.
 ///
-/// The guest recipe runs the arm as root, so root's own home is the one folder every walk below holds without a
-/// world-writable parent, and no path on the arm's own machine is ever named here.
+/// The guest recipe runs the arm as root,
+/// so root's own home is the one folder every walk below holds without a
+/// world-writable parent,
+/// and no path on the arm's own machine is ever named here.
 const GUEST_SCRATCH_ROOT: &str = "/root";
 
 /// The mode's exit status for one invocation,
@@ -49,7 +58,8 @@ const GUEST_SCRATCH_ROOT: &str = "/root";
 struct Arm {
     /// The status the program answered.
     status: Option<i32>,
-    /// Its standard output and standard error, joined.
+    /// Its standard output and standard error,
+    /// joined.
     said: String,
     /// The store's bytes after the run,
     /// which a refusal must leave as they were.
@@ -165,7 +175,8 @@ fn write_store(fixture: &Fixture) {
         .expect("the setup run's parent record is written");
 }
 
-/// The arm, in one test:
+/// The arm,
+/// in one test:
 /// the replacement is recorded,
 /// and each refusal names its cause and leaves the record as it was.
 #[test]
