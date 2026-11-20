@@ -6774,10 +6774,11 @@ Pacman checks every package signature (`SigLevel = Required DatabaseOptional` in
 `mise run //package/git-policy/cli:test:git-image` prints the release of each tool the base image got;
 the wrapper's
 `MINIMUM_GIT_VERSION` follows the Git release printed there (an older Git draws a warning and is not refused).
-The CachyOS x86-64 image is a slimmed copy whose pacman database still lists the manual pages, translations and docs it
-removed, and `--needed` never restores them, so the base image reinstalls Git whenever the installed copy lacks the
-`githooks(5)` page the hook-event guard test reads; its closing `man --where githooks` check still fails the build when
-the page is missing (`doc/troubleshooting/cachyos-image-migration-package-differences.md`).
+The CachyOS x86-64 image is a slimmed copy: most of its packages lost their manual pages, translations and docs, while
+the pacman database still lists every file and `--needed` never restores them, so the base image reinstalls Git
+whenever the installed copy lacks the `githooks(5)` page the hook-event guard test reads; its closing
+`man --where githooks` check still fails the build when the page is missing
+(`doc/troubleshooting/cachyos-image-package-and-tool-differences.md`).
 
 Each run of `native:test:container`,
 `test:git-image`,
