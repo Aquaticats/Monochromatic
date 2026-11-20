@@ -79,6 +79,27 @@ the pick is not made here.
   stops both adopting and reopening the same suffix.
 - `2026-11-19T18:59:32-05:00`, commit `a3bb5a8c21`: the library pair's test count is corrected,
   so the sensitivity reports 8 reversals and 4 exact ties across the 12 one-input tests.
+- `2026-11-19T19:37:17-05:00`, commit `16e5283e75`: this revision, answering the independent gate
+  re-check of the revision at `a3bb5a8c21`, kept at
+  `/home/user/temp/agent/zfs-runtime-layout-checker-design-revision-gate-recheck-2026-11-19/keep/review.md`.
+  That re-check is independent of this file's author (rule `IRW`) and is not an approval; it found
+  no high finding and called the file not ready for the owner. This revision applies its mediums
+  R1 to R7 and lows L1 to L16: owed measurement 16 now swaps two same-size members inside
+  `zinject_record`, which the full comparison does descend into, and the Way 2 con is softened for
+  the structs neither way descends into (R1); the patched arms record every use the patch must
+  remove or stub (R2); the comparison's walk order is stated, so each arm's first refusal follows
+  (R3); the in-house reader stands outside the eligible ranking as the owner's exception, with
+  what would make it eligible and where its score lead goes (R4); Q2 adopts its rule by analogy
+  with the alternatives shown, and no line says the design decides nothing or settles a rule by
+  record (R5); the crate placement is [Q4](#q4-which-crate-holds-the-layout-reader) (R6); and the
+  discovery record carries a frozen schedule with counts, every wider-query row named, the
+  `libbpf` query, the topic and release reads, and the project boards it could not read (R7).
+  The lows fix the memory sum, the v7.3 citations, the pros-and-cons pointer, the `btf-rs`
+  resolver gap, the Revisions timestamps and the same-author label, the count words, the
+  positional pointers, Q1's terms and scenario, item 10's failing threshold and Q3's trigger, step
+  2's own reader choice, the Way 2 contradiction, the header sum and the `hdr_len`-relative
+  offsets, the C1 and C4 effects, the `git describe` shape and the status banner.
+  No accepted decision and no plan step changed.
 
 ### Sources read
 
@@ -1247,7 +1268,7 @@ re-admit `libbpf-rs` and a `dlopen` of `libbpf`, which is a choice for the owner
 
 The skill asks for a frozen query schedule, a page rule, a count and the new candidates per query,
 and one terminal result. The schedule was fixed before the expansion queries ran, between
-2026-11-19T19:30:00-05:00 and 2026-11-19T19:45:00-05:00. The page rule is `per_page=100`, the
+2026-11-19T19:30:00-05:00 and 2026-11-19T19:37:00-05:00. The page rule is `per_page=100`, the
 provider's maximum, for every registry query. The first version read 50 of 81 rows at
 `per_page=50`, which is a provider cap, so this revision completes every registry query at the
 maximum page size and reads every row.
