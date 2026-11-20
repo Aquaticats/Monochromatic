@@ -695,15 +695,16 @@ the pick is not made here.
   23:41:14, `8511e04741` at 23:41:39 and `8d516064df` at 23:43:18, each time the commit's own
   committer date and the worktree reflog's, to the second; no `GIT_AUTHOR_DATE`,
   `GIT_COMMITTER_DATE` or `--date` was set for any of them. The commit that carries this entry is
-  `242b4454ea` at 23:44:16, `9a987abde4` at 23:44:22 names it, and the commit that carries this
-  sentence is the wrapping fix after that, which changes only this record. This
+  `242b4454ea` at 23:44:16, `9a987abde4` at 23:44:22 names it, `12f8e1aa1d` at 23:45:31 wraps the
+  heading and the dated read, and the commit that carries this sentence is the last fix after
+  them, which changes only this record. This
   is the revision that answers the diff-only gate check of the fifth revision, kept at
   `~/temp/agent/zfs-runtime-layout-checker-design-fifth-revision-diff-only-gate-check-2026-11-19/keep/review.md`.
   That check is independent of this file's author (rule `IRW`) and is not an approval; it found no
   high finding, no medium and fifteen lows, six of them to fix first, and called the file not ready
   for the project.
-  The six, F1 to F6: `13bc5036d2` was one commit behind the tip, and that commit changed three
-  documentation files, so nothing says "three commits" any more; `08c9dea25f` was step 2's tip
+  The six, F1 to F6: `13bc5036d2` was one commit behind the tip, a commit that changed three
+  documentation files, which the fourth entry and the fifth now say; `08c9dea25f` was step 2's tip
   when it was read, and the integrate branch's merge `58a1bba2f5` has it as its second parent; the
   zvol run compared `zvol_set_common`, `zvol_set_ro` and `zvol_set_volthreading` at 2.3.0 and
   2.4.4, the releases that carry those bodies, since 2.2.2 has none of them; the clone path's
@@ -1009,9 +1010,9 @@ Its ALL CAPS hits include the two quoted markers of the main checkout's handover
 "THE ROUND WAS ASKED" and "LAYOUT CHECKER REVIEW ENDED", which are a record's own words.
 This revision's counts: dashes 0, spaced hyphens 5, long lines 0 with the longest at 116, tables 0,
 heading issues 0, positional words 25, emphasis 0, ALL CAPS words 21, marker padding 0,
-bare dates 61, count words 299, digit-plus-noun hits 67 and link problems 0 over 15 reference
+bare dates 61, count words 298, digit-plus-noun hits 67 and link problems 0 over 15 reference
 definitions.
-Emphasis 0 and capitalised words 21 held, and count words went from 275 to 299 with the sentences
+Emphasis 0 and capitalised words 21 held, and count words went from 275 to 298 with the sentences
 this revision added; the rest held the counts `fe6ba8ed59` recorded, which the same checker
 reproduces on that commit's text: dashes 0, spaced hyphens 5, long lines 0 with the longest at
 116, tables 0, heading issues 0, positional words 25, emphasis 0, capitalised words 22, marker
@@ -1022,7 +1023,7 @@ Control: the same checker on a copy in this round's scratch folder with one inje
 prose rule moved every count it targets: dashes 0 to 1, spaced hyphens 5 to 6, long lines 0 to 1
 with the longest at 220, tables 0 to 2, heading issues 0 to 4, positional words 25 to 26,
 emphasis 0 to 1, ALL CAPS words 21 to 22, marker padding 0 to 1, bare dates 61 to 62, count words
-299 to 301 and digit-plus-noun hits 67 to 68.
+298 to 300 and digit-plus-noun hits 67 to 68.
 Link problems rose from 0 to 26: 22 of them are the copy's own folder breaking the relative links to
 the sibling design files, and the other four are the injected missing anchor, the injected link to
 a file that does not exist, and the injected unused definition, which counts once as unused and
