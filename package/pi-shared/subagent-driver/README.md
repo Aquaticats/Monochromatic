@@ -1121,7 +1121,9 @@ the launcher that builds the session's environment asks it, once, before it make
   so no kept message replaces another.
   Pi's answer that its agent is already processing is busy, never a refusal:
   the message goes back to the inbox and the next look sends it again,
-  and a newer message of the same name keeps the name.
+  and its claim stays as a copy that a producer's rename cannot take away.
+  A newer message that takes the name is the one delivered,
+  and the older one stays readable under that dot name, never sent again.
   While a message is being delivered it is held under a dot name of its own,
   so a newer message published under the same name is neither deleted nor kept in its place.
 - `stop`:

@@ -256,8 +256,9 @@ export async function askAboutItsWorkOrReportAFailure({
 /**
  Tells whether Pi answered that its agent is already in a turn of its own, which refuses this message for no reason of its own.
 
- The answer says the agent is busy, so it is read as such by every message the driver sends into a run: the wake keeps the run up
- until that turn settles, and an inbox message goes back for a later look instead of being kept aside as one Pi refused.
+ The answer says the agent is busy. The wake reads it as such, keeping the run up until that turn settles, and so does an inbox
+ delivery, which puts the message back for a later look instead of keeping it aside as one Pi refused. The model-error retry still
+ reads it as a refusal, which `doc/troubleshooting/pi-refuses-a-prompt-while-its-agent-is-already-processing.md` records.
 
  @param answer - how waiting for Pi's answer ended
 

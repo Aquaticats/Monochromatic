@@ -208,6 +208,12 @@ Each was read on 2026-11-19, in the code named.
   The busy answer is now read as the agent being busy, never as a refusal: the message goes back to the inbox under its
   own name, the next look sends it again, and a newer message of the same name keeps the name
   (`returnToInbox` in `an-inbox-message-pi-did-not-take.ts`).
+  Two limits of this fallback are deliberate: its claim stays as a copy that a producer's rename cannot take away, so a
+  newer message that takes the name is the one delivered, and the older one stays readable under that dot name rather
+  than being replaced or deleted; and a Pi that answers busy to every delivery would have the message sent once per look
+  until the run ends.
+  Both are fallbacks for a Pi that refused a delivery naming steering;
+  Pi 1.5.2 cannot, so neither is reached there.
   A refusal Pi makes for a reason of its own still keeps the message as `.failed-<name>`.
   Fixed on its own, after the wake.
 - The model-error retry (`answerWithAnotherAttempt` in `answer-a-model-error.ts`) sends only when its view of the

@@ -856,7 +856,20 @@ await describe({
         },);
         // Pi said only that its agent was busy, so the message went back to the inbox and was sent again, never kept aside.
         expect(sent,).toEqual([MESSAGE_TEXT, MESSAGE_TEXT,],);
-        expect(await readdir(run.inbox,),).toEqual([],);
+        /**
+         What the inbox holds now: the claim of the copy that went back, which no later look reads as a message, and nothing else.
+         */
+        const left = await readdir(run.inbox,);
+        expect(left,).toHaveLength(1,);
+        /**
+         The dot name the copy was kept under.
+         */
+        const [copyName,] = left;
+        if (copyName === undefined) {
+          throw new Error('the inbox held nothing after the message went back',);
+        }
+        expect(copyName.startsWith('.claimed-',),).toBe(true,);
+        expect(await readFile(join(run.inbox, copyName,), 'utf8',),).toBe(MESSAGE_TEXT,);
         /**
          What the feed says about the two attempts.
          */

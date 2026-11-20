@@ -130,6 +130,9 @@ export async function keepFailure({
  message. Publication never replaces a file already there: a newer message of the same name keeps the name, and this one stays under
  the dot name of its claim, readable and never sent again.
 
+ The claim is kept after a publication that worked, as the copy no producer's rename can take away: the next look reads the name,
+ and a newer message that takes that name before then leaves the older one readable here instead of deleting it.
+
  @param watch - watch request
 
  @param name - message's name
@@ -164,18 +167,6 @@ export async function returnToInbox({
       .note({
         kind: 'problem',
         problem: `Pi answered that its agent is busy, which is no refusal of ${name}: the message could not go back to its own name (${String(error,)}), so it stays under a dot name, readable and never sent again`,
-      },);
-    return;
-  }
-  try {
-    await unlink(claim,);
-  }
-  catch (error) {
-    // The message is back in the inbox, which is what the next look reads; the dot copy is never read, so it is only left over.
-    watch.record
-      .note({
-        kind: 'problem',
-        problem: `Pi answered that its agent is busy, and ${name} went back to the inbox, but its claim stayed: ${String(error,)}`,
       },);
   }
 }
