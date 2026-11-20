@@ -117,11 +117,13 @@ generic property setter.
 
 ## What a failed request tells you
 
-Every failure returns the operation,
-the dataset or pool it named,
-and the
-kernel's error number,
-spelled out as the operating system's message for that number and a hint.
+Every failure returns the operation and the dataset or pool it named.
+When the kernel answered with an error number,
+that number comes too,
+spelled out as the operating system's message for it and a hint.
+A failure the crate raises before or instead of a kernel answer,
+such as a refused reply buffer or a reply that does not decode,
+names itself and the values it judged instead.
 A write that the kernel refuses per element also returns those names,
 for example the snapshots in a `DESTROY_SNAPS` batch that failed one by one:
 
@@ -167,8 +169,16 @@ let listed = device.snapshot_list_next("pool/dataset", 0)?; // None at the end
   This is how a property list larger than
   the 256 KiB the crate starts from is read.
 - A write is never sent twice.
-  A write whose reply was too small is reported
-  with the kernel's error number and any per-name failures it supplied.
+  A write whose reply was too small is reported as a `ReplyRefusal`,
+  naming the size the kernel asked for and the size the buffer held.
+  That refusal carries no error number and no per-name failures:
+  the reply was never decoded,
+  so it has no names,
+  and the kernel's `ENOMEM` is the condition the refusal recognised rather than
+  a field of its own.
+  A refusal the kernel answered with per-name failures travels as
+  `Error::Elements`,
+  with its error number and those names.
 - A listing that reached its end is `Ok(None)`,
   not an error:
   only `ESRCH` on a
@@ -201,20 +211,34 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- run --name my-gue
 A plan check run on this host reports every live test as skipped,
 and
 `--run-ignored` on a host does not touch the device either:
-the tests read five
-`MONOCHROMATIC_ZFS_FIXTURE_*` variables and refuse to run unless the machine's
-hostname is the guest the recipe created.
-`e2e/README.md` lists the guest's
-contents (Ubuntu 24.04,
-OpenZFS 2.4.4 built from the release tarball against the
-guest's own kernel headers,
+with
+`MONOCHROMATIC_ZFS_FIXTURE_GUEST` unset a live test prints why it did not run and
+returns.
+Inside the guest the variable is set.
+A missing part of the fixture there,
+or a delegated arm running as the wrong account,
+panics instead of returning:
+a returning test is a passing test.
+The recipe goes further.
+Each suite must also print no `SKIP` line of its own,
+and a `MEASUREMENT` line only a live arm writes,
+so a guest run whose arms skipped fails.
+`e2e/README.md` lists the guest's contents (Ubuntu 24.04 on the plan's
+`6.8.0-147-generic`,
+OpenZFS 2.4.4 built from the release tarball against the guest's own kernel
+headers with a module that carries BTF,
 Git,
 `pahole`,
 `strace`,
-Rust built inside the
-guest),
+Rust built inside the guest),
 the variables,
 the pools each arm builds and the teardown evidence.
+
+The layout comparison reads the module BTF the kernel exposes at
+`/sys/kernel/btf/zfs`,
+with `pahole --btf_base /sys/kernel/btf/vmlinux -C zfs_cmd /sys/kernel/btf/zfs`.
+That is the file and the command the design's ABI gate names,
+and the recipe builds the guest's module so the file exists.
 
 Between the arms,
 the root run prepares a delegated pool whose account holds

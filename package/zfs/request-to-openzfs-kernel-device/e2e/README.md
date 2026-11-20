@@ -36,17 +36,30 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- destroy --name my
   this machine.
   The `hetzner` backend is never used:
   it rents an outside server.
-- `prepare` installs the packages,
-  builds OpenZFS 2.4.4 from the release tarball
-  against the guest's own kernel headers,
+- `prepare` checks the guest runs the plan's kernel release,
+  installs the packages,
+  copies the kernel's own BTF into the kernel build directory so the module is
+  built with BTF,
+  builds OpenZFS 2.4.4 from the release tarball against the
+  guest's own kernel headers,
   loads that module,
   and installs Rust and
   `cargo-nextest`.
+  Its two downloads are checked against the sha256 in this
+  recipe (`zfs-2.4.4.tar.gz` against OpenZFS's signed `sha256.asc`,
+  `rustup-init` against the digest of the rustup release the recipe pins).
 - `run` pushes the crate,
   builds it inside the guest,
   runs the live suites as root,
   then hands the tree to the guest's `ubuntu` account and runs the delegated arms as
   that account.
+  Each suite must pass.
+  It must print no `SKIP` line of its own,
+  and a `MEASUREMENT` line only a live arm writes,
+  so a run whose arms skipped fails instead of reporting a green suite.
+  The root suite excludes the delegated arms and the account
+  suite runs only them,
+  each as the account the arm needs.
 - `record` writes the versions and the teardown state to the log directory and pulls
   the suite logs back to it.
 - `destroy` destroys the guest and records what `mvm list` holds afterwards.
@@ -68,9 +81,11 @@ refuses to run unless the machine's hostname is the guest's.
 The guest is Ubuntu 24.04 LTS from `mvm`'s cached cloud image,
 whose kernel is the
 image's own `linux-generic` release.
-The design's measurements ran
-`6.8.0-147-generic`,
-and the recipe records the release a run got.
+The plan pins `6.8.0-147-generic`,
+which is the release the design's measurements ran.
+`prepare` refuses any other release rather than measure it;
+moving that constant is a plan change,
+not a recipe detail.
 
 - OpenZFS userspace and module:
   `2.4.4`,
@@ -84,6 +99,19 @@ and the recipe records the release a run got.
 - `pahole`:
   Ubuntu's `dwarves`,
   for the layout comparison.
+- Module BTF:
+  Ubuntu's headers ship no `vmlinux`,
+  and 6.8's
+  `scripts/Makefile.modfinal` runs `pahole -J --btf_base vmlinux $@` for an
+  out-of-tree module whenever `CONFIG_DEBUG_INFO_BTF_MODULES` is set (Ubuntu's
+  is).
+  `prepare` copies the kernel's own `/sys/kernel/btf/vmlinux` into the kernel
+  build directory before the build,
+  so the module carries `.BTF` and the kernel
+  exposes it at `/sys/kernel/btf/zfs`.
+  That file is what the layout
+  comparison reads,
+  the same file and command the design's ABI gate names.
 - `strace`:
   Ubuntu's `strace`,
   for the plan's later arms.
@@ -134,7 +162,17 @@ so a gate run on
 the host reports each one as skipped.
 Running them with `--run-ignored` on a host
 does not reach the device either:
+with `MONOCHROMATIC_ZFS_FIXTURE_GUEST` unset
 they print `SKIP <test>: ...` and return.
+Inside the guest the variable is set,
+and then a
+live arm that cannot reach its fixture,
+or a delegated arm that is not running as the
+guest's account,
+panics with the reason instead of returning:
+a returning test is a
+passing test,
+which would hide a live assertion that never ran.
 
 ## The pools and what each arm proves
 
@@ -190,6 +228,12 @@ which is the measurements' fixture.
   refuses with `EEXIST` and one per-name error;
   an own-snapshot set destroys both in
   one request and the checkout's GUIDs stay.
+- `zfsstep2-promoted-batch`:
+  the same two sets on a clone promoted before them,
+  so the
+  dataset whose own snapshots the batch destroys also holds the checkout's
+  transferred history,
+  which must survive.
 - `zfsstep2-promote`,
   `zfsstep2-promote-conflict` and `zfsstep2-promote-plain`:
   promotion moves the older history without changing GUIDs,
@@ -198,13 +242,21 @@ which is the measurements' fixture.
   and a non-clone is refused.
 - `zfsstep2-account`:
   the delegated account reads,
-  destroys its own snapshots,
-  is
-  refused the dependent set,
-  cannot snapshot the checkout,
-  sets a property on its
-  clone and not the parent,
-  and replaces a clone name with a new identity.
+  destroys its own snapshots on a
+  promoted clone and on an unpromoted one,
+  is refused the dependent set on both,
+  cannot
+  snapshot the checkout,
+  sets a property on its clone and not the parent,
+  and
+  replaces a clone name with a new identity.
+  Root prepares one clone of the checkout's
+  `@origin` and promotes it before the grants are set;
+  every other arm clones the
+  checkout's later snapshot,
+  which the promotion leaves in place,
+  so no other arm depends
+  on the moved history.
 
 ## Teardown evidence
 
