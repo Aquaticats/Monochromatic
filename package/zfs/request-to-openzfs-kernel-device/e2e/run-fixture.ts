@@ -323,7 +323,14 @@ function run(options: Options): void {
 
   // The root suite excludes the delegated arms, so no live test may skip here:
   // an arm that skipped would be a passing test whose assertions never ran, and
-  // `SKIP <test>` at column 0 is what a returning live test prints.
+  // `SKIP <test>` at column 0 is what a returning live test prints. The match is
+  // `^SKIP live_` because a returning live test names itself `live_...`; the
+  // device-free `fixture_tests` prints the host-run notice while proving that
+  // branch, and it is not a live arm.
+  //
+  // The absence check is an explicit `if`, because POSIX `set -e` ignores a
+  // command whose status is inverted by `!`, so `! grep --quiet` would never
+  // stop the script.
   const rootSuite = [
     'set -eu',
     `cd ${CRATE_DIR}`,
@@ -334,7 +341,7 @@ function run(options: Options): void {
       '> /root/zfs-root-suite.log 2>&1; then status=0; else status=$?; fi',
     'tail --lines=30 /root/zfs-root-suite.log',
     'test "$status" = 0',
-    `! grep --quiet '^SKIP ' /root/zfs-root-suite.log`,
+    `if grep --quiet '^SKIP live_' /root/zfs-root-suite.log; then echo 'a live arm returned without running'; exit 1; fi`,
     `grep --quiet '^MEASUREMENT guest kernel=' /root/zfs-root-suite.log`,
     `grep --quiet '^layout zfs_cmd bytes=' /root/zfs-root-suite.log`,
     `grep --quiet '^MEASUREMENT promoted-batch ' /root/zfs-root-suite.log`,
@@ -343,7 +350,8 @@ function run(options: Options): void {
 
   // The account episode is its own script so the delegated run keeps every
   // assertion without a second layer of shell quoting: the suite must pass, no
-  // live arm may skip, and a line only a delegated arm prints must be there.
+  // live arm may skip (the same explicit check, for the same `set -e` reason),
+  // and a line only a delegated arm prints must be there.
   const accountScript = [
     'set -eu',
     `cd ${CRATE_DIR}`,
@@ -352,7 +360,7 @@ function run(options: Options): void {
       `> /home/${ACCOUNT}/zfs-account-suite.log 2>&1; then status=0; else status=$?; fi`,
     `tail --lines=30 /home/${ACCOUNT}/zfs-account-suite.log`,
     'test "$status" = 0',
-    `! grep --quiet '^SKIP ' /home/${ACCOUNT}/zfs-account-suite.log`,
+    `if grep --quiet '^SKIP live_' /home/${ACCOUNT}/zfs-account-suite.log; then echo 'a live arm returned without running'; exit 1; fi`,
     `grep --quiet '^MEASUREMENT account ' /home/${ACCOUNT}/zfs-account-suite.log`,
   ].join('\n');
   const accountSuite = [
