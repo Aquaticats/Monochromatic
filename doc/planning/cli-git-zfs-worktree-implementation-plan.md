@@ -731,6 +731,17 @@ and leaves an unused slot to the applicable reflink or ordinary Git route.
 Also the start probe the kernel-release answer asks for,
 and the runtime layout checker.
 
+Note of 2026-11-20,
+on the acceptance of
+[the runtime layout checker design](cli-git-zfs-runtime-layout-checker-design.md)
+([decision record](../decision/cli-git-zfs-runtime-layout-checker.md)):
+the gate both binaries run before their first ioctl proves architecture,
+endianness,
+request contract and the kernel/module BTF layout,
+and it proves no module release.
+The list above stands as it was planned, with `module release,` superseded, and the module's
+release string is identity for the per-process cache and `doctor` reporting instead.
+
 #### Design sections
 
 "ABI gate and tests";
@@ -768,6 +779,17 @@ which are this step's own designs.
 The release,
 architecture,
 endianness and request-contract checks are decided and can be written beside them.
+
+Note of 2026-11-20,
+on the acceptance of
+[the runtime layout checker design](cli-git-zfs-runtime-layout-checker-design.md)
+([decision record](../decision/cli-git-zfs-runtime-layout-checker.md)):
+the architecture,
+endianness and request-contract checks are decided and can be written beside them;
+and the module's release string is reported,
+not proved,
+by the project's answer of 2026-11-19,
+"Any version, layout decides".
 
 #### Depends on
 

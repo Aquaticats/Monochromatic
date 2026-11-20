@@ -1,5 +1,16 @@
 # cli-git ZFS runtime layout checker design
 
+Note of 2026-11-20:
+the project accepted this design as written on 2026-11-20 in the question tool,
+under "Accept as written (Recommended)",
+with none of the four veto-open choices vetoed.
+The decision record is
+[`doc/decision/cli-git-zfs-runtime-layout-checker.md`](../decision/cli-git-zfs-runtime-layout-checker.md),
+which also states the corrections the last gate check's lows asked for.
+This body stands as accepted, at `22703f23df`,
+and the banner below records how the file was written before that acceptance;
+the acceptance supersedes it as this file's standing.
+
 ## A non-final, unapproved proposal by an agent
 
 This file designs one open item of the accepted ZFS worktree design,
