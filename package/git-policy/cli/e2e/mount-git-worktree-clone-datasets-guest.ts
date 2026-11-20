@@ -143,7 +143,7 @@ function guest({ chosen, script, log, timeout, }: { readonly chosen: Options; re
  @throws Error naming the recipe step and its status
  */
 function recipe({ chosen, step, }: { readonly chosen: Options; readonly step: string; }): void {
-  const script = resolve(import.meta.dirname, '..', '..', 'zfs', 'request-to-openzfs-kernel-device', 'e2e', 'run-fixture.ts');
+  const script = resolve(import.meta.dirname, '..', '..', '..', 'zfs', 'request-to-openzfs-kernel-device', 'e2e', 'run-fixture.ts');
   const result = spawnSync('node', [script, step, '--name', chosen.name, '--log-dir', chosen.logDir,], {
     stdio: 'inherit',
     timeout: HOST_COMMAND_TIMEOUT_MS * 60,
