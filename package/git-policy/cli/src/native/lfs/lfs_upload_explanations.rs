@@ -176,8 +176,7 @@ fn login_subject(destination: &std::ffi::OsStr, output: &str) -> String {
 /// the general one,
 /// and,
 /// when the program's own words say it needed a login,
-/// the one that names the server and every way to give it one,
-/// in the words of the prompting the wrapper left the program.
+/// the one that names the server and every way to give it one.
 /// Why:
 ///   The wrapper is what refused to ask a person,
 /// so that failure is the one whose way forward only the wrapper can explain
@@ -287,8 +286,7 @@ pub fn failed_upload(attempt: &PushAttempt, destination: &std::ffi::OsStr) -> Op
 
 /// The failed attempt with the explanation after the program's own output;
 /// a stop says what a stop means,
-/// and a login the program needed says how to give it one,
-/// in the words of the prompting the wrapper left the program.
+/// and a login the program needed says how to give it one.
 pub fn explained(attempt: PushAttempt, destination: &std::ffi::OsStr) -> PushAttempt {
     let explanation: String = if attempt.exit_code == STOPPED_EXIT_CODE {
         stopped_upload_tail()

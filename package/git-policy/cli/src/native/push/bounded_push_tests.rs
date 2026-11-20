@@ -423,38 +423,65 @@ fn a_tree_still_running_after_the_grace_is_swept_when_it_ends_and_its_lock_stays
 }
 
 /// What:
-///  A push that prints past the cap keeps its own status when it ends between two looks,
-/// and the attempt says that its output was cut;
-///  a run the flood look catches instead is the stopped push the wait already explains.
+///  A push that keeps printing past the cap while it still runs is stopped by the flood look,
+///  and the attempt is the stop the wait already explains.
+/// Why:
+///   Without this stop a hook that prints without end keeps the push alive for ever;
+///  the child stays alive after writing past the cap,
+///  so the look is the ending this control is about and no timing of one look against one process decides it.
+#[cfg(unix)]
+#[test]
+fn a_push_that_keeps_printing_past_the_cap_is_stopped_by_the_flood_look() {
+    let attempt: PushAttempt = run_bounded_push_once(
+        shell("head -c 4194305 /dev/zero; exec sleep 30"),
+        Patience::Progress { stall: Duration::from_secs(60) },
+        Duration::from_secs(1),
+        crate::test_support::scratch_environment().as_slice(),
+    )
+    .expect("a push attempt");
+    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the flood look stopped it: {}", attempt.output);
+    assert!(attempt.output.contains("wrote more than"), "the stopped push says why: {}", attempt.output);
+    assert!(!attempt.output.contains("only the whole lines that fit"), "a stopped push is not given an ended run's words: {}", attempt.output);
+}
+
+/// What:
+///  A push that ended while its output was past the cap keeps its own status,
+/// and the attempt says that only the head of its output is kept.
 /// Why:
 ///   The output is the log a person reads,
 /// not Git's answer,
 /// so an attempt that ended is not turned into a stopped push;
 /// but the text kept is the head of what was printed,
 /// and passing that for all of it is the silence the query caller had.
-///  Which of the two endings a write of just over the cap gets is the timing of one look against one process,
-///  so the control reads the ending it got and checks that ending;
-///  the cut line itself is controlled on its own, without a process,
-///  in `a_capped_output_keeps_whole_lines_and_says_it_was_cut`.
-#[cfg(unix)]
+///  The read and the attempt are driven from a prepared file,
+///  because which of the two endings a write of just over the cap gets is the timing of one look against one process;
+///  the stop itself is controlled by `a_push_that_keeps_printing_past_the_cap_is_stopped_by_the_flood_look`,
+///  and the whole lines the read keeps by `a_capped_output_keeps_whole_lines_and_says_it_was_cut`.
 #[test]
-fn a_push_that_floods_and_ends_keeps_its_status_and_says_its_output_was_cut() {
-    let mut command: Command = Command::new("sh");
-    command.arg("-c").arg("exec head -c 4194305 /dev/zero");
-    let attempt: PushAttempt = run_bounded_push_once(
-        command,
-        Patience::Progress { stall: Duration::from_secs(60) },
-        Duration::from_secs(1),
-        crate::test_support::scratch_environment().as_slice(),
-    )
-    .expect("a push attempt");
-    if attempt.exit_code == STOPPED_EXIT_CODE {
-        assert!(attempt.output.contains("wrote more than"), "the flood look stopped it, and says so: {}", attempt.output);
-        return;
-    }
-    assert_eq!(attempt.exit_code, 0, "the push's own status is kept: {}", attempt.output);
-    assert!(attempt.output.contains("only the whole lines that fit"), "the attempt says its output was cut: {}", attempt.output);
-    assert!(attempt.output.len() < usize::try_from(MAX_PUSH_OUTPUT).unwrap_or(usize::MAX) + 2048, "the kept output stays bounded");
+fn an_ended_push_over_the_cap_keeps_its_status_and_says_its_output_was_cut() {
+    use std::os::unix::process::ExitStatusExt;
+    let root: std::path::PathBuf = crate::test_support::fixture("bounded-push-ended-over-cap");
+    let path: std::path::PathBuf = root.join("output.txt");
+    let cap: usize = usize::try_from(MAX_PUSH_OUTPUT).expect("a cap");
+    let line: String = format!("{}\n", "x".repeat(4095));
+    let mut text: String = line.repeat(cap / 4096 + 1);
+    text.push_str("the line the cap ends inside\n");
+    std::fs::write(path.as_path(), text.as_bytes()).expect("output file");
+    let mut file: std::fs::File = std::fs::File::open(path.as_path()).expect("open");
+    let (captured, cut): (String, bool) = read_output(&mut file).expect("read");
+    assert!(cut, "the read says the output was longer than the cap");
+    // Two real endings: a program that exited by itself, and one a signal ended.
+    let exited: PushAttempt = ended_attempt(std::process::ExitStatus::from_raw(0), kept_output_text(captured.as_str(), cut, "git push"));
+    assert_eq!(exited.exit_code, 0, "the push's own status is kept: {}", exited.output);
+    assert_eq!(exited.signal, None, "nothing claims a signal ended it");
+    assert!(exited.output.ends_with("the run itself was not stopped. Hint: if a hook or the remote prints this much, read the hook's own output by running it directly."), "the attempt says its output was cut: {}", exited.output);
+    assert!(!exited.output.contains("the line the cap ends inside"), "the line the cap ends inside is dropped whole: {}", exited.output);
+    let signalled: PushAttempt = ended_attempt(std::process::ExitStatus::from_raw(9), kept_output_text(captured.as_str(), cut, "git push"));
+    assert_eq!(signalled.signal, Some(9), "a push a signal ended keeps the signal beside the code");
+    assert_eq!(signalled.exit_code, i64::from(crate::forwarding::SIGNAL_EXIT_BASE + 9), "and the code is 128 + N");
+    // A run the flood look stopped is not given the ended run's words.
+    assert!(!kept_output_text(captured.as_str(), false, "git push").contains("only the whole lines that fit"), "a stop keeps the stop's own words");
+    crate::test_support::remove(root.as_path());
 }
 
 //region The words of a stop name the window that fired

@@ -18,7 +18,7 @@
 /// Import the decision under test and shared fixtures.
 use super::{MANAGEMENT_COMMAND, plan_invocation};
 use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE};
-use crate::child_environment::{FORWARD_TARGET_VARIABLE, never_prompt_overlay, ssh_never_askpass_overlay};
+use crate::child_environment::{FORWARD_TARGET_VARIABLE, never_prompt_overlay, ssh_no_answer_overlay};
 use crate::config_file::CONFIG_FILE_NAME;
 use crate::management_arguments::MANAGEMENT_HELP;
 use crate::real_git::{Platform, ResolutionInputs};
@@ -93,7 +93,7 @@ pub(super) fn forward(arguments: Vec<OsString>) -> Action {
         ),
     ];
     overlay.extend(never_prompt_overlay());
-    overlay.extend(ssh_never_askpass_overlay());
+    overlay.extend(ssh_no_answer_overlay());
     return Action::Forward {
         real_git: PathBuf::from(REAL_GIT),
         arguments,
@@ -191,7 +191,7 @@ fn invocations_git_answers_itself_are_forwarded_unchanged() {
 ///  username or a password,
 /// terminal or not,
 ///  which supersedes the earlier rule that a typed command keeps Git's own prompting;
-///  so the three variables are planned for every command and the controlling terminal decides nothing.
+///  so all four variables are planned for every command and the controlling terminal decides nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -211,7 +211,8 @@ fn every_command_the_wrapper_forwards_never_prompts() {
     for (name, wanted) in [
         ("GIT_ASKPASS", ""),
         ("GIT_TERMINAL_PROMPT", "0"),
-        ("SSH_ASKPASS_REQUIRE", "never"),
+        ("SSH_ASKPASS", "false"),
+        ("SSH_ASKPASS_REQUIRE", "force"),
     ] {
         assert!(
             forwarded.iter().any(|(key, value)| { return key == name && value == wanted; }),

@@ -379,6 +379,62 @@ pub fn command_label(command: &Command) -> String {
 }
 
 /// What:
+///  The output an attempt keeps from a captured file:
+///  the text with the one trailing line break removed,
+///  and,
+/// when the run ended with more printed than the cap,
+///  the line that says only the head of it is kept.
+/// Why:
+///   The head of a run that ended is its own status's output,
+///  not a stopped push's,
+///  so the cut line is added from the read and from whether the run ended,
+///  never from the size the wait last looked at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const head = stripOneTrailingBreak(captured); const text = shortened ? `${head}\n${cutLine(label)}` : head
+/// ```
+fn kept_output_text(captured: &str, shortened: bool, label: &str) -> String {
+    let mut text: String = strip_one_line_break(captured).to_owned();
+    if !shortened {
+        return text;
+    }
+    if !text.is_empty() {
+        text.push('\n');
+    }
+    text.push_str(shortened_output_line(label).as_str());
+    return text;
+}
+
+/// What:
+///  The attempt a push that ended leaves:
+///  its own status,
+///  the signal beside the code when one ended it,
+/// and the output it kept.
+/// Why:
+///   A run that ended is never a stopped push,
+///  so no limit's code replaces the status the program chose;
+///  `outcome_of` maps the status the way the wrapper's exit and its notices read it,
+///  a death by a signal included,
+///  because `128 + N` alone cannot tell that from a status the program chose.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// endedAttempt(status, kept) => ({ exitCode: codeOf(status), signal: signalOf(status), output: kept })
+/// ```
+fn ended_attempt(status: ExitStatus, kept: String) -> PushAttempt {
+    let outcome: crate::forwarding::ChildOutcome = crate::forwarding::outcome_of(status);
+    return PushAttempt {
+        exit_code: i64::from(crate::forwarding::exit_code(outcome)),
+        signal: match outcome {
+            crate::forwarding::ChildOutcome::Signaled(signal) => Some(signal),
+            crate::forwarding::ChildOutcome::Exited(_) => None,
+        },
+        output: kept,
+    };
+}
+
+/// What:
 ///  The line a push's output gains when more of it was printed than is kept.
 /// Why:
 ///   The cap bounds what is held in memory,
@@ -638,13 +694,7 @@ pub async fn run_bounded_push_awaiting_naming(
     //  that for all of it would be the same silence a shortened answer is.
     let (captured, cut): (String, bool) = read_output(&mut output)?;
     let shortened: bool = ended.is_ok() && cut;
-    let mut shown_text: String = strip_one_line_break(captured.as_str()).to_owned();
-    if shortened {
-        if !shown_text.is_empty() {
-            shown_text.push('\n');
-        }
-        shown_text.push_str(shortened_output_line(label.as_str()).as_str());
-    }
+    let mut shown_text: String = kept_output_text(captured.as_str(), shortened, label.as_str());
     // A wait is said once more, in the push's own output (the journal's `pushed` entry and the person's terminal carry it).
     for report in &waits {
         let line: String = wait_line(label.as_str(), report);
@@ -655,19 +705,7 @@ pub async fn run_bounded_push_awaiting_naming(
     }
     let shown: &str = shown_text.as_str();
     return Ok(match ended {
-        Ok(status) => {
-            // `outcome_of` maps the status the way the wrapper's exit and its notices read it, a death by a signal included:
-            //  a program a signal ended keeps the signal, which its `128 + N` status alone cannot tell from a chosen one.
-            let outcome: crate::forwarding::ChildOutcome = crate::forwarding::outcome_of(status);
-            PushAttempt {
-                exit_code: i64::from(crate::forwarding::exit_code(outcome)),
-                signal: match outcome {
-                    crate::forwarding::ChildOutcome::Signaled(signal) => Some(signal),
-                    crate::forwarding::ChildOutcome::Exited(_) => None,
-                },
-                output: shown.to_owned(),
-            }
-        }
+        Ok(status) => ended_attempt(status, shown_text),
         Err(cause) => {
             let reason: String = match cause {
                 StopCause::Deadline => format!(

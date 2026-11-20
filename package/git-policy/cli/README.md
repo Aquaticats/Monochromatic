@@ -458,7 +458,8 @@ Read-only commands,
    way,
   so a Git that never answers is stopped and named.
   Every push uploads with `GIT_ASKPASS` set to the empty string,
-   `GIT_TERMINAL_PROMPT=0` and `SSH_ASKPASS_REQUIRE=never`,
+   `GIT_TERMINAL_PROMPT=0`,
+   `SSH_ASKPASS=false` and `SSH_ASKPASS_REQUIRE=force`,
   whether or not its process has a controlling terminal,
   so a login it does not have fails at once instead of opening a desktop password window for nobody
    to answer,
@@ -5138,10 +5139,14 @@ fractional or non-numeric value is ignored.
   which is the login
    failure above,
   and no desktop password dialog opens for nobody to answer.
-  `SSH_ASKPASS` stays in the environment for OpenSSH's key passphrases,
-  while `SSH_ASKPASS_REQUIRE=never` tells OpenSSH not to run it,
-  and a command typed at a terminal gets the same three variables as one whose process has no controlling terminal,
+  OpenSSH reads neither of those,
+  so its own two variables name a program that prints nothing and exits non-zero (`SSH_ASKPASS=false`)
+   and send every question to it (`SSH_ASKPASS_REQUIRE=force`),
+   which reaches the questions OpenSSH asks at a terminal as well,
+  and a command typed at a terminal gets the same four variables as one whose process has no controlling terminal,
   because no command the wrapper runs or forwards asks a person for a credential.
+  An SSH key whose passphrase no agent holds therefore fails at once, at a terminal or without one,
+   and the words say to run `ssh-add`.
   The evidence is in [the askpass troubleshooting note][askpass-dialog].
   The failure record the next command shows says that the service keeps trying,
   and goes when the push lands.
@@ -6609,14 +6614,19 @@ NDG:
  Git,
 git-lfs or ssh commands this package's tests,
 scripts or agents start that may reach a login set `GIT_ASKPASS` to the empty string,
- `GIT_TERMINAL_PROMPT=0` and `SSH_ASKPASS_REQUIRE=never`
+ `GIT_TERMINAL_PROMPT=0`,
+ `SSH_ASKPASS=false` and `SSH_ASKPASS_REQUIRE=force`
  ([why][askpass-dialog]).
 
 Set only `GIT_TERMINAL_PROMPT=0` and the desktop's password dialog still opens on a host whose `SSH_ASKPASS` names one;
-leave out `SSH_ASKPASS_REQUIRE` and an `ssh://` remote still asks for a key's passphrase,
+leave out the two OpenSSH variables and an `ssh://` remote still asks for a key's passphrase,
 which the owner counts as a credential (answer of 2026-11-19T16:58:00-05:00,
-"Passphrases count too").
-In a Rust test that is `.env("GIT_ASKPASS", "").env("GIT_TERMINAL_PROMPT", "0").env("SSH_ASKPASS_REQUIRE", "never")`.
+"Passphrases count too");
+`SSH_ASKPASS_REQUIRE=never` alone stops the askpass program and not OpenSSH's own question at a terminal
+(measured through this wrapper at a real pseudo-terminal, 2026-11-19),
+so the rule names a program that answers nothing and tells OpenSSH to use it everywhere.
+In a Rust test that is
+`.env("GIT_ASKPASS", "").env("GIT_TERMINAL_PROMPT", "0").env("SSH_ASKPASS", "false").env("SSH_ASKPASS_REQUIRE", "force")`.
 A test that has to see the prompt program start (the controls in `src/native/landing/service_push_retry_tests.rs`) points
 both `GIT_ASKPASS` and `SSH_ASKPASS` at a recorder that answers a name,
 so no window opens,
@@ -6626,7 +6636,7 @@ naming only `SSH_ASKPASS` would leave the host's own `GIT_ASKPASS` to be the pro
 runs,
 and the recorder's empty log would then prove nothing.
 
-The wrapper adds the same three variables to every command it forwards
+The wrapper adds the same four variables to every command it forwards
 (`no_prompt_overlay` and `invocation_overlay` in `src/native/invocation/child_environment.rs`),
 with or without a controlling terminal:
 the owner's answer of 2026-11-19T16:58:00-05:00 is that no command the wrapper runs or forwards asks for a credential.

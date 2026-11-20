@@ -738,10 +738,11 @@ fn an_upload_that_needed_a_login_names_the_server_and_how_to_give_one() {
     let state: String = root.join("state").to_string_lossy().into_owned();
     let variables = [("XDG_STATE_HOME", state.as_str())];
     // Every child is given the no-prompt rule, so the refusal's words must say that and never that a terminal decided it.
-    let no_prompt: [(&str, &str); 3] = [
+    let no_prompt: [(&str, &str); 4] = [
         (crate::child_environment::ASKPASS_VARIABLE, ""),
         (crate::child_environment::TERMINAL_PROMPT_VARIABLE, "0"),
-        (crate::child_environment::ASKPASS_REQUIRE_VARIABLE, crate::child_environment::ASKPASS_REQUIRE_NEVER),
+        (crate::child_environment::SSH_ASKPASS_VARIABLE, crate::child_environment::NO_ANSWER_PROGRAM),
+        (crate::child_environment::ASKPASS_REQUIRE_VARIABLE, crate::child_environment::ASKPASS_REQUIRE_FORCE),
     ];
     let (code, diagnostics) =
         run_with_overlay(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables, &no_prompt);
@@ -781,10 +782,11 @@ fn an_upload_that_needed_a_login_at_a_terminal_is_told_the_same_rule() {
     let state: String = root.join("state").to_string_lossy().into_owned();
     let variables = [("XDG_STATE_HOME", state.as_str())];
     // The overlay every command is given now, so the stand-in's terminal is the only difference from the case above.
-    let no_prompt: [(&str, &str); 3] = [
+    let no_prompt: [(&str, &str); 4] = [
         (crate::child_environment::ASKPASS_VARIABLE, ""),
         (crate::child_environment::TERMINAL_PROMPT_VARIABLE, "0"),
-        (crate::child_environment::ASKPASS_REQUIRE_VARIABLE, crate::child_environment::ASKPASS_REQUIRE_NEVER),
+        (crate::child_environment::SSH_ASKPASS_VARIABLE, crate::child_environment::NO_ANSWER_PROGRAM),
+        (crate::child_environment::ASKPASS_REQUIRE_VARIABLE, crate::child_environment::ASKPASS_REQUIRE_FORCE),
     ];
     let (code, diagnostics) =
         run_with_overlay(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables, &no_prompt);
@@ -800,7 +802,7 @@ fn an_upload_that_needed_a_login_at_a_terminal_is_told_the_same_rule() {
 ///  An upload that fails because an SSH key's passphrase was never loaded says to run `ssh-add`.
 /// Why:
 ///   The owner's answer of 2026-11-19 is that a passphrase counts as a credential:
-///  with `SSH_ASKPASS_REQUIRE=never` a key that no agent holds fails at once,
+///  a key that no agent holds fails at once, at a terminal or without one,
 ///  and OpenSSH's own words (`Permission denied (publickey).`) do not say what to do about it,
 ///  so the wrapper's explanation names the command that loads the key.
 ///
@@ -815,10 +817,11 @@ fn an_upload_whose_ssh_key_no_agent_holds_says_to_run_ssh_add() {
     failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, "ssh: connect to host 127.0.0.1 port 22: Permission denied (publickey).", 128);
     let state: String = root.join("state").to_string_lossy().into_owned();
     let variables = [("XDG_STATE_HOME", state.as_str())];
-    let no_prompt: [(&str, &str); 3] = [
+    let no_prompt: [(&str, &str); 4] = [
         (crate::child_environment::ASKPASS_VARIABLE, ""),
         (crate::child_environment::TERMINAL_PROMPT_VARIABLE, "0"),
-        (crate::child_environment::ASKPASS_REQUIRE_VARIABLE, crate::child_environment::ASKPASS_REQUIRE_NEVER),
+        (crate::child_environment::SSH_ASKPASS_VARIABLE, crate::child_environment::NO_ANSWER_PROGRAM),
+        (crate::child_environment::ASKPASS_REQUIRE_VARIABLE, crate::child_environment::ASKPASS_REQUIRE_FORCE),
     ];
     let (code, diagnostics) =
         run_with_overlay(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables, &no_prompt);

@@ -29,7 +29,6 @@ use crate::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
 use crate::child_environment::{
     FORWARD_TARGET_VARIABLE, environment_value, invocation_overlay,
 };
-/// which decides whether the overlay of a typed command carries the never-prompt pair.
 use crate::effective_target::default_allowed_worktree_dirs;
 use crate::forwarding::replace_process_with_real_git;
 use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};

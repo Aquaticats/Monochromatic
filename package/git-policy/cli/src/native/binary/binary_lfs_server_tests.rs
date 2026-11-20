@@ -1008,7 +1008,7 @@ fn a_push_with_a_controlling_terminal_never_opens_the_password_dialog() {
     let stderr: String = stderr_of(&pushed);
     assert!(!log.exists(), "the desktop password program was started at a terminal: {:?}", questions(log.as_path()));
     assert_ne!(pushed.code, Some(0), "a login the caller does not have is a failure: {stderr}");
-    assert!(stderr.contains("no password"), "the refusal says the wrapper never asks: {stderr}");
+    assert!(stderr.contains("never lets a command ask"), "the refusal says the wrapper never asks: {stderr}");
     drop(server);
     remove_settled(&fixture);
 }

@@ -539,6 +539,11 @@ mod push_scope;
 #[path = "binary_lfs_server_tests.rs"]
 mod lfs_server;
 
+/// A typed command over `ssh://` at a real terminal asks no SSH key passphrase:
+/// the terminal shows the question for a control, and the wrapper's rule ends the run instead.
+#[path = "binary_ssh_terminal_tests.rs"]
+mod ssh_terminal;
+
 /// The configuration of a push,
 /// given on its command line,
 /// reaches the real `git-lfs` upload,

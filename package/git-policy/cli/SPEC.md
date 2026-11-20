@@ -6114,7 +6114,8 @@ No command the wrapper runs or forwards asks a person for a credential
 "Avoid ever asking for someone to type a username or password.",
 with an SSH key's passphrase counted as a credential:
 "Passphrases count too (Recommended)";
-recorded in `doc/handover/questions-for-the-owner.md`).
+recorded in `doc/handover/cli-git-rust-implementation.md`,
+the entry beginning "The owner answered H1 and M4").
 The decision widens the service's "Never prompt (Recommended)" of 2026-11-07 to every command,
 and it supersedes the earlier answer that a command a person typed keeps Git's own prompting for credentials,
 so the controlling terminal decides nothing about a prompt any more.
@@ -6122,7 +6123,8 @@ Every Git and `git-lfs` child gets one list,
 `no_prompt_overlay` in `src/native/invocation/child_environment.rs`:
 `GIT_ASKPASS` set to the empty string,
 `GIT_TERMINAL_PROMPT=0`,
-and `SSH_ASKPASS_REQUIRE=never`.
+`SSH_ASKPASS=false`,
+and `SSH_ASKPASS_REQUIRE=force`.
 The service's children take it through `service_child_overlay`,
 which `service_work.rs` uses for the service's landing and upkeep context and for each push's environment,
 and a command the person typed takes it through `invocation_overlay`,
@@ -6134,24 +6136,43 @@ so the terminal setting alone left the desktop's password dialog open for nobody
 a command with no credential from a helper fails at once
 with "terminal prompts disabled",
 which is the login failure above.
-`SSH_ASKPASS` stays in the environment for OpenSSH,
-and OpenSSH is told not to run it,
-because `GIT_ASKPASS` and `GIT_TERMINAL_PROMPT` are Git's and `git-lfs`'s and OpenSSH reads neither.
-OpenSSH 8.4 and later read that variable
-(the host's OpenSSH 10.6p2 says of `never`:
-"ssh will never attempt to use one"),
-and without it an `ssh://` endpoint asked a passphrase program through `SSH_ASKPASS`
-while this decision said nothing asks anyone for a login.
+The other two variables are OpenSSH's own,
+because `GIT_ASKPASS` and `GIT_TERMINAL_PROMPT` are Git's and `git-lfs`'s and OpenSSH reads neither,
+and the account's own `SSH_ASKPASS` is replaced for these children only,
+so the account's own `ssh` still runs the program it names.
+`SSH_ASKPASS_REQUIRE=never` alone was not enough:
+OpenSSH 10.6p2 `read_passphrase` clears only `allow_askpass` for `never`
+(`readpass.c:130-138`),
+a passphrase question neither asks for the program nor may read standard input
+(`readpass.c:143-167`),
+and so it opened `/dev/tty` and asked (`readpass.c:185`);
+the integration pass measured that at a real pseudo-terminal through the wrapper,
+with only these variables set.
+`force` sets `use_askpass` and `allow_askpass` both (`readpass.c:131-133`),
+which sends the question to the program (`readpass.c:172-182`),
+a program that prints nothing and exits non-zero leaves no answer (`readpass.c:179-181`),
+and `load_identity_file` reads an empty passphrase as one nobody gave and tries the next key
+(`sshconnect2.c:1546-1558`).
+`ssh_askpass` finds the program with `execlp` (`readpass.c:77`),
+so a `PATH` without `false` fails the same way:
+the child cannot start it and exits non-zero.
+`false` is the standard program that prints nothing and reports failure;
+the wrapper ships for Linux only (`README.md`, "Requirements"),
+where coreutils or busybox puts it on `PATH`.
+A key the agent holds asks for no passphrase, so it still opens the connection.
 A key whose passphrase no agent holds therefore fails at once,
-and the words a person reads say to load it with `ssh-add`
+at a terminal or without one,
+and the words a person reads say to run `ssh-add`
 (`reads_as_a_key_failure` and `login_needed_message` in `src/native/lfs/lfs_pre_push.rs`,
-from OpenSSH's own `Permission denied (publickey)`).
-What `SSH_ASKPASS_REQUIRE=never` also turns off,
-measured on OpenSSH 10.6p2 against a throwaway `sshd` in a throwaway home:
+from OpenSSH's own `Permission denied (publickey)`,
+which a server that simply does not accept the key prints as well,
+so the sentence says the key was refused or could not be unlocked).
+What the two variables also turn off:
 the yes/no question for a host key that is not known,
-which is then refused (`Host key verification failed.`,
-where the same run with the variable unset asked the question through `SSH_ASKPASS`
-and accepted the answer);
+which is answered "no" from the program that fails and refused (`Host key verification failed.`,
+`confirm` reads it with `read_passphrase` at `sshconnect.c:603-627`
+and an empty answer is not "yes"),
+where the same run with the program answering asked the question;
 and the permission questions of a shared connection (`ControlMaster`),
 of a key an agent is asked to confirm,
 and of `AddKeysToAgent=ask`,
@@ -6159,13 +6180,20 @@ whose `ask_permission` treats a missing answer as "no"
 (`readpass.c:194-215`,
 `mux.c:437`,
 `sshconnect.c:1794`).
-What it does not turn off:
+Both variables also cover OpenSSH's own password and keyboard-interactive questions and a PKCS#11 token's PIN,
+which read the same function (`sshconnect2.c:1057`,
+`sshconnect2.c:1275`,
+`sshconnect2.c:2130`):
+with the program failing they are empty answers and the login fails at once.
+What they do not cover:
 OpenSSH's notification that a security key must be touched,
-which is not a question and is started by its own path,
-so a FIDO key whose presence must be confirmed can still open that window when the environment names an askpass program,
-a display and a standard error that is not a terminal
-(`notify_start` in `readpass.c:232-270` reads `SSH_ASKPASS_REQUIRE` only to accept `force`,
-and marks that program with `SSH_ASKPASS_PROMPT=none`).
+which is not a question.
+It is written to standard error when standard error is a terminal
+(`notify_start` in `readpass.c:252-255`);
+otherwise `force` starts the named program anyway (`readpass.c:262-267`),
+which is `false` here and prints nothing,
+so a session with no terminal on standard error shows no touch notice,
+and the key still waits for the touch.
 Evidence,
 the source trace and the measurements:
 `doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`.
@@ -7303,7 +7331,8 @@ The refusal that follows a login failure says what the wrapper did about prompti
 (`reads_as_a_key_failure`),
 and every refusal says the wrapper never lets a command ask for a credential,
 with `GIT_ASKPASS` set to the empty string,
-`GIT_TERMINAL_PROMPT=0` and `SSH_ASKPASS_REQUIRE=never`,
+`GIT_TERMINAL_PROMPT=0`,
+`SSH_ASKPASS=false` and `SSH_ASKPASS_REQUIRE=force`,
 whether or not a terminal is there.
 The upload still owns its child through `SignalGuard::start_relayed`,
 which hands it over still published,
@@ -9979,6 +10008,10 @@ in-process reader can) gives every value of the multi-valued keys.
 - A failed push is reported with its complete output and the note
   ``monochromatic-git-policy-cli: commit saved locally, but auto-push to origin failed; run `git push` when ready.``
   unless the reconcile already said why the commit is unpublished.
+  A push a signal ended is recorded with `128 + N` for signal `N`,
+  and the attempt keeps that signal beside the code,
+  as a failed upload's does,
+  so the record says which of the two endings it was.
   A successful push shows only the `remote:` lines,
   the lines of the reconcile and that refusal,
   and the record a later command shows carries them.
@@ -12141,7 +12174,8 @@ The step:
   A token of fewer than 20 lowercase letters alone still reads as a label and is not hidden,
   which the owner accepted when choosing this rule on 2026-11-19T16:58:00-05:00
   ("Hide long words only",
-  `doc/handover/questions-for-the-owner.md`):
+  `doc/handover/cli-git-rust-implementation.md`,
+  the entry beginning "The owner answered H1 and M4"):
   the whole path after the host is not hidden,
   because `objects`,
   `info` and a repository's own name must stay readable,

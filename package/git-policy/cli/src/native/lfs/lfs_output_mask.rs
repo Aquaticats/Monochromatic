@@ -72,7 +72,8 @@ pub const CREDENTIALS_MASK: &str = "<credentials>";
 /// `info`,
 ///  a repository's own name).
 ///  The owner's answer of 2026-11-19T16:58:00-05:00 ("Hide long words only",
-///  `doc/handover/questions-for-the-owner.md`) chose the length as the rule:
+///  `doc/handover/cli-git-rust-implementation.md`,
+///  the entry beginning "The owner answered H1 and M4") chose the length as the rule:
 ///  twenty or more unbroken lowercase letters read as a token,
 ///  and the cost the owner accepted is that a shorter lowercase token still prints.
 pub const LONGEST_PLAIN_WORD: usize = 20;

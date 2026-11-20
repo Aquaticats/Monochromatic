@@ -456,9 +456,8 @@ pub const TERMINAL_PROMPT_VARIABLE: &str = "GIT_TERMINAL_PROMPT";
 /// A set but empty `GIT_ASKPASS` stops both programs before `core.askPass` and `SSH_ASKPASS`,
 /// and they fail
 ///  with "terminal prompts disabled".
-/// `SSH_ASKPASS` stays in the environment:
-/// OpenSSH reads it for key passphrases,
-/// and [`ssh_never_askpass_overlay`] is what stops OpenSSH from running it.
+/// OpenSSH reads neither variable,
+/// so it needs the two of [`ssh_no_answer_overlay`] as well.
 ///  The owner's pick of 2026-11-07 is "Never prompt" for background Git and git-lfs,
 ///  and the answer of 2026-11-19T16:58:00-05:00 widened it to every command the wrapper runs or forwards
 ///  (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`,
@@ -477,64 +476,84 @@ pub fn never_prompt_overlay() -> Vec<(OsString, OsString)> {
     ];
 }
 
-/// The variable by which OpenSSH is told whether it may run a password program at all.
+/// The variable that names the program OpenSSH runs instead of asking a person.
+pub const SSH_ASKPASS_VARIABLE: &str = "SSH_ASKPASS";
+
+/// The variable by which OpenSSH is told whether it may ask a person,
+/// and which program it runs instead.
 pub const ASKPASS_REQUIRE_VARIABLE: &str = "SSH_ASKPASS_REQUIRE";
 
-/// The value of [`ASKPASS_REQUIRE_VARIABLE`] that means "never run one".
-///  `ssh(1)` reads it for every passphrase it would ask for (OpenSSH 10.6p2:
-///  `never` makes `ssh` never attempt to use one,
-///  `prefer` and `force` are the other two values),
-/// and this is the one an unattended child gets.
-pub const ASKPASS_REQUIRE_NEVER: &str = "never";
+/// The value of [`ASKPASS_REQUIRE_VARIABLE`] that sends every question to the program,
+/// whether or not a terminal and a display are there.
+pub const ASKPASS_REQUIRE_FORCE: &str = "force";
+
+/// The program OpenSSH is given in place of the account's own:
+/// the standard one that prints nothing and reports failure.
+///  A child's `PATH` is the caller's, and `ssh_askpass` finds the program with `execlp`
+///  (`readpass.c:77`),
+/// so its failure to find one is a start that exits non-zero, which is the answer below.
+pub const NO_ANSWER_PROGRAM: &str = "false";
 
 /// What:
-///  The variable that makes OpenSSH itself never ask a password program,
-///  which the two Git variables cannot do:
-///  `GIT_ASKPASS` and `GIT_TERMINAL_PROMPT` are Git's and `git-lfs`'s,
-/// and OpenSSH reads only `SSH_ASKPASS` and `SSH_ASKPASS_REQUIRE` for a key's passphrase.
+///  The two variables that send every question OpenSSH would ask a person to a program that answers nothing:
+///  [`SSH_ASKPASS_VARIABLE`] naming [`NO_ANSWER_PROGRAM`],
+///  and [`ASKPASS_REQUIRE_VARIABLE`] set to [`ASKPASS_REQUIRE_FORCE`].
 /// Why:
-///   The owner's decision of 2026-11-07 ("Never prompt (Recommended)") is that the service never asks anyone for a login,
-///  and the answer of 2026-11-19T16:58:00-05:00 extended it to every command the wrapper runs or forwards,
-///  counting an SSH key's passphrase as a credential ("Passphrases count too").
-///  A `ssh://` endpoint of an upload or a push starts OpenSSH,
-///  which opened a passphrase question through `SSH_ASKPASS` while the wrapper believed nothing could ask
-///  (the audit's reproduction of an `ssh://` LFS endpoint asked twice).
-///  What it does not turn off:
-///  OpenSSH's notification of a security key's touch,
-///  which is not a question and is started by `notify_start` in `readpass.c`,
-///  and whose own condition is the askpass program,
-///  a display and a standard error that is not a terminal;
-///  and a host key that is not known still fails without asking.
+///  `GIT_ASKPASS` and `GIT_TERMINAL_PROMPT` are Git's and `git-lfs`'s;
+/// OpenSSH reads only these two for a key's passphrase,
+/// a password and a host key's yes/no question.
+///  The owner's answer of 2026-11-19T16:58:00-05:00 is that no command the wrapper runs or forwards asks a person
+///  for a credential,
+/// counting an SSH key's passphrase ("Passphrases count too"),
+/// and `SSH_ASKPASS_REQUIRE=never` alone did not keep that at a terminal:
+///  `read_passphrase` (`readpass.c:120-190`) clears only `allow_askpass` for `never` (136-137),
+///  a passphrase question is neither an askpass question nor one that may read standard input (150-167),
+///  and so it opened `/dev/tty` and asked (185).
+///  `force` sets `use_askpass` and `allow_askpass` both (131-133),
+///  so the question goes to the program (172-182),
+/// a program that fails leaves no answer (179-181),
+/// and `load_identity_file` reads an empty passphrase as one nobody gave and tries the next key
+///  (`sshconnect2.c:1546-1558`).
+///  A key the agent holds needs no passphrase, so it still opens the connection.
+///  The program's absence fails the same way:
+/// a child that cannot `execlp` it exits non-zero, which `ssh_askpass` reads as no answer.
+///  The wrapper ships for Linux only (`README.md`, "Requirements"),
+/// where coreutils or busybox puts `false` on `PATH`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const sshNeverAsk: [string, string][] = [['SSH_ASKPASS_REQUIRE', 'never']];
+/// const sshNoAnswer: [string, string][] = [['SSH_ASKPASS', 'false'], ['SSH_ASKPASS_REQUIRE', 'force']];
 /// ```
-pub fn ssh_never_askpass_overlay() -> Vec<(OsString, OsString)> {
-    return vec![(OsString::from(ASKPASS_REQUIRE_VARIABLE), OsString::from(ASKPASS_REQUIRE_NEVER))];
+pub fn ssh_no_answer_overlay() -> Vec<(OsString, OsString)> {
+    return vec![
+        (OsString::from(SSH_ASKPASS_VARIABLE), OsString::from(NO_ANSWER_PROGRAM)),
+        (OsString::from(ASKPASS_REQUIRE_VARIABLE), OsString::from(ASKPASS_REQUIRE_FORCE)),
+    ];
 }
 
 /// What:
 ///  The whole rule that stops a Git,
 /// git-lfs or OpenSSH run from asking a person for a credential:
-///  [`never_prompt_overlay`] and then [`ssh_never_askpass_overlay`].
+///  [`never_prompt_overlay`] and then [`ssh_no_answer_overlay`].
 /// Why:
 ///   Every command the wrapper starts gets one list,
 ///  so no start added later can carry one half of the rule and not the other;
 ///  the owner's answer of 2026-11-19T16:58:00-05:00 asks for exactly this for every command,
 ///  with a terminal or without one,
 ///  and supersedes the earlier answer that a command a person typed keeps Git's own prompting for credentials.
-///  Three variables are needed because two programs read them:
+///  Four variables are needed because two programs read them:
 ///  Git and `git-lfs` read the pair,
-/// and OpenSSH reads only its own.
+/// and OpenSSH reads only the other two.
+///  The value the caller gave `SSH_ASKPASS` is replaced for these children and for nothing else,
+/// so the account's own `ssh` still runs the program it names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// [...neverPrompt, ...sshNeverAsk]
+/// [...neverPrompt, ...sshNoAnswer]
 /// ```
 pub fn no_prompt_overlay() -> Vec<(OsString, OsString)> {
     let mut overlay: Vec<(OsString, OsString)> = never_prompt_overlay();
-    overlay.extend(ssh_never_askpass_overlay());
+    overlay.extend(ssh_no_answer_overlay());
     return overlay;
 }
 

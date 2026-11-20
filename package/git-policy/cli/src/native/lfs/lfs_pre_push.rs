@@ -395,8 +395,9 @@ const LOGIN_NEEDED: [&str; 5] = [
     "could not read Password",
     // git-lfs's words when every login it was given was refused.
     "too many authentication attempts",
-    // OpenSSH's words when a key was refused, which is what a key whose passphrase nobody could ask for answers
-    //  (`SSH_ASKPASS_REQUIRE=never`, the owner's answer of 2026-11-19: "Passphrases count too").
+    // OpenSSH's words when it would not or could not use a key: a key whose passphrase nobody could ask for at a
+    //  terminal, and a key the server does not accept, print the same line (`SSH_ASKPASS_REQUIRE=force` with a
+    //  program that answers nothing, the owner's answer of 2026-11-19: "Passphrases count too").
     "Permission denied (",
 ];
 
@@ -409,6 +410,8 @@ const LOGIN_NEEDED: [&str; 5] = [
 ///  so a key that no agent holds fails at once instead of asking,
 ///  and OpenSSH's own `Permission denied (publickey)` says nothing about what to do;
 ///  the explanation must name the command that loads the key.
+///  A key the server simply does not accept prints the same line,
+/// so the sentence says "refused or could not be unlocked" and names `ssh-add` as the way to rule the second out.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -439,15 +442,16 @@ pub fn reads_as_a_login_failure(text: &str) -> bool {
 }
 
 /// What:
-///  Whether text a failed upload printed says that an SSH key's passphrase was never unlocked,
-///  which is the one login failure whose way forward is `ssh-add`.
+///  Whether text a failed upload printed says that an SSH key could not be used,
+///  which is the one login failure whose way forward can be `ssh-add`.
 /// Why:
 ///   The words are OpenSSH's own,
-/// and they arrive only when a key could not be used:
+/// and they arrive for either of two causes:
 ///  a passphrase nobody could ask for,
 /// or a key the server refuses.
 ///  Telling an HTTP server's refused password to run `ssh-add` would send its reader to a command that does nothing for it,
-///  so the sentence is added from these words and not from every login failure.
+///  so the sentence is added from these words and not from every login failure;
+///  the sentence itself names both causes, because these words do.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -485,23 +489,24 @@ pub fn reads_as_a_key_failure(text: &str) -> bool {
 pub fn login_needed_message(server: &str, key_not_unlocked: bool) -> String {
     let key_words: String = if key_not_unlocked {
         format!(
-            " The key that server asked for was not unlocked: a key whose passphrase no agent holds cannot be used once \
-             nothing may ask for that passphrase, so load it first with `{SSH_ADD_COMMAND}` (`{SSH_ADD_COMMAND} <key file>` \
+            " The key that server asked for was refused or could not be unlocked: with no program to ask a passphrase and \
+             no terminal read, a key that no agent holds cannot be used, and a key the server does not accept answers \
+             the same way. Load the key into the agent first (`{SSH_ADD_COMMAND}` (`{SSH_ADD_COMMAND} <key file>` \
              for a key outside the agent's default list, and `{SSH_ADD_COMMAND} -l` lists what the agent holds) and push \
-             again."
+             again; a key the server still refuses needs the server's account to accept it."
         )
     } else {
         String::new()
     };
     return format!(
         "monochromatic-git-policy-cli: the Git LFS upload to {server} needed a login, and this wrapper never lets a command \
-         ask for one (`GIT_ASKPASS` set to the empty string, `GIT_TERMINAL_PROMPT=0` and `SSH_ASKPASS_REQUIRE=never`), \
-         whether or not a terminal is there: the owner decided that no command it runs or forwards asks a person for a \
-         username or a password. That is why nothing prompted, and why the program stopped instead. Ways forward: store the \
-         login where `git-lfs` finds it without a person, in a Git credential helper for that URL (`git config --global \
-         credential.helper libsecret` on a desktop, `store` for a file only you can read, or `cache` for a while), and \
-         push again, because objects the server already has are not sent twice.{key_words} A login written into the \
-         `lfs.url` of a repository's configuration instead of a helper is the defect \
+         ask for one (`GIT_ASKPASS` set to the empty string, `GIT_TERMINAL_PROMPT=0`, `SSH_ASKPASS=false` and \
+         `SSH_ASKPASS_REQUIRE=force`), whether or not a terminal is there: the owner decided that no command it runs or \
+         forwards asks a person for a username or a password. That is why nothing prompted, and why the program stopped \
+         instead. Ways forward: store the login where `git-lfs` finds it without a person, in a Git credential helper for \
+         that URL (`git config --global credential.helper libsecret` on a desktop, `store` for a file only you can read, or \
+         `cache` for a while), and push again, because objects the server already has are not sent twice.{key_words} A login \
+         written into the `lfs.url` of a repository's configuration instead of a helper is the defect \
          `doc/troubleshooting/lfs-credential-in-url.md` describes.\n"
     );
 }
