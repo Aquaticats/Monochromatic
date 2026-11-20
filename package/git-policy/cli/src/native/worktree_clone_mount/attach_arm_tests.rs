@@ -6,13 +6,16 @@
 //!  the setuid control on that mount's enforced flags,
 //!  item 2's refusals with an account-owned parent and slot,
 //!  the attach that lands beside its slot after a rename and is rolled back,
+//!  a mount made beside the held slot that the design's first proof refuses,
 //!  and the decoy control of H1 gate 1.
 //! Why:
-//!  The real `fsmount`, the `move_mount` onto a held descriptor and the mount table an attach's flag is read back from
+//!  The real `fsmount`,
+//! the `move_mount` onto a held descriptor and the mount table an attach's flag is read back from
 //!  need a kernel that lets this process mount,
 //!  which the host's tests do not have
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-//!  step 4, "VM measurements";
+//!  step 4,
+//! "VM measurements";
 //!  `doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`,
 //!  items 2 and 7).
 //!  Until step 5's `mount-git-worktree-clone-datasets` binary exists,
@@ -30,10 +33,12 @@
 //! const outcome = postAttachCheck({ ...held, attachedMountId: attached }, lookAgainAtTheSlot({ checkout, slot }));
 //! ```
 
-use super::attach_post_check::{AttachOutcome, AttachPostCheck, post_attach_check};
+use super::attach_post_check::{AttachOutcome, AttachPostCheck, MisplacedReason, post_attach_check};
 use super::attached_mount_identity::{ATTACH_MOUNT_FLAGS, MountIdentity, mount_facts_of, mount_identity_of};
 use super::clone_folder_identity::CloneFolderIdentity;
-use super::clone_slot_walk::{FreshSlotLookup, HeldCloneSlot, HoldCloneSlotRequest, LookAgainAtSlotRequest, hold_clone_slot_under_root_control, look_again_at_the_slot};
+use super::clone_slot_walk::{
+    FreshSlotLookup, HeldCloneSlot, HoldCloneSlotRequest, LookAgainAtSlotRequest, hold_clone_slot_under_root_control, look_again_at_the_slot, mount_id_at_the_held_target,
+};
 use super::clone_slot_walk_refusals::{CloneSlotRefusal, WalkRefusalReason};
 use super::misplaced_attach_rollback::{RollbackPlan, plan_rollback};
 use super::slot_identity_store::{append_slot_identity_under_root_control, record_parent_identity_under_root_control};
@@ -57,7 +62,8 @@ const GUEST_VARIABLE: &str = "MONOCHROMATIC_ZFS_ATTACH_ARM_GUEST";
 const FIXTURE_ROOT_VARIABLE: &str = "MONOCHROMATIC_ZFS_ATTACH_ARM_ROOT";
 
 /// The variable that names the guest's account,
-/// which owns the checkout, the worktrees parent and every slot the arms judge.
+/// which owns the checkout,
+/// the worktrees parent and every slot the arms judge.
 const ACCOUNT_VARIABLE: &str = "MONOCHROMATIC_ZFS_ATTACH_ARM_ACCOUNT";
 
 /// The variable that names the ZFS dataset the arms mount at a slot.
@@ -77,7 +83,7 @@ const THE_BESIDE_SLOT: &str = "beside";
 /// The slots item 2's refusals are planted on,
 /// one per refusal,
 /// so one plant never sees what another plant left.
-const REFUSAL_SLOTS: [&str; 8] = ["link-slot", "planted-link", "new-inode", "wrong-owner", "widened-mode", "access-acl", "default-acl", "boundary"];
+const REFUSAL_SLOTS: [&str; 9] = ["link-slot", "planted-link", "new-inode", "wrong-owner", "widened-mode", "access-acl", "default-acl", "boundary", "already-mounted"];
 
 /// How many refusals the arm asserts:
 /// one per refusal slot,
@@ -86,7 +92,8 @@ const REFUSAL_SLOTS: [&str; 8] = ["link-slot", "planted-link", "new-inode", "wro
 const REFUSAL_ARMS: usize = REFUSAL_SLOTS.len() + 3;
 
 /// What:
-///  Whether this run is inside the guest the recipe made, as the guest's root,
+///  Whether this run is inside the guest the recipe made,
+/// as the guest's root,
 ///  and the variables every arm reads.
 /// Why:
 ///   These arms mount file systems,
@@ -127,9 +134,11 @@ fn in_the_guest(test: &str) -> Option<Guest> {
 struct Guest {
     /// The folder the pool's `checkout` dataset is mounted at.
     fixture_root: PathBuf,
-    /// The guest's account, which owns the checkout the walk starts at.
+    /// The guest's account,
+    /// which owns the checkout the walk starts at.
     account: String,
-    /// The account's user number, which its folders are owned by.
+    /// The account's user number,
+    /// which its folders are owned by.
     uid: u32,
     /// The dataset an arm mounts at a slot.
     clone: String,
@@ -176,13 +185,15 @@ struct AttachArm {
 
 impl AttachArm {
     /// What:
-    ///  Build the fixture: root makes the arm's folder and the checkout,
+    ///  Build the fixture:
+    /// root makes the arm's folder and the checkout,
     ///  the account makes the worktrees folder and the slots below it,
     ///  and root writes the store and records both identities.
     /// Why:
     ///   Item 2 judges folders the account created and still owns,
     ///  and the store is a file only root may write,
-    ///  so the fixture is built by both accounts, as the route's is.
+    ///  so the fixture is built by both accounts,
+    /// as the route's is.
     fn build(guest: &Guest, name: &str, slots: &[&str]) -> AttachArm {
         let root: PathBuf = guest.fixture_root.join("arms").join(name);
         // A run of this step in the same guest builds the same arms again, so a folder an earlier run left is cleared
@@ -289,8 +300,8 @@ const BIND_MOUNT: libc::c_ulong = libc::MS_BIND;
 ///  the guard takes down only the mount whose number is the one it recorded,
 ///  so a cleanup can never take down another arm's attach.
 ///  The number is read through the path,
-///  because a descriptor opened before the attach keeps naming the mount it was opened on,
-///  and that is also why the arm's post-check reads the landed mount through the path.
+///  because the guard and the rollback arm name where the mount landed after a rename,
+///  while the post-attach check reads the mount at the held target's name beneath the held parent.
 struct MountedClone {
     /// Where the mount landed.
     path: PathBuf,
@@ -327,7 +338,7 @@ fn guard_the_mount(path: &Path) -> MountedClone {
 ///  The file-system context of `clone`,
 ///  created and made into a mount with `flags`.
 /// Why:
-///   The two arms below differ only in where the mount is moved to,
+///   `attach_the_clone` and `attach_the_clone_by_path` differ only in where the mount is moved to,
 ///  and the design's attach and the control's path mount must start from the same context
 ///  for the decoy to prove what the difference is.
 fn a_mount_of(clone: &str, flags: libc::c_ulong) -> Result<libc::c_int, String> {
@@ -418,7 +429,8 @@ fn attach_the_clone_by_path(clone: &str, target: &Path, flags: libc::c_ulong) ->
 /// Why:
 ///   The design's rollback acts on the descriptor the attach verified,
 ///  so a path resolved again could name another folder by then;
-///  the kernel resolves the descriptor's own entry, which follows the folder even after a rename.
+///  the kernel resolves the descriptor's own entry,
+/// which follows the folder even after a rename.
 fn unmount_through(target: &std::fs::File) -> Result<(), std::io::Error> {
     let path: CString = CString::new(format!("/proc/self/fd/{}", target.as_raw_fd())).expect("no NUL in a descriptor path");
     // SAFETY: `path` is a NUL-terminated string that outlives the call, and no flag is passed.
@@ -504,10 +516,19 @@ fn attach_arm_the_clone_lands_at_the_held_slot_with_the_enforced_flags() {
     assert!(facts.mount_options.iter().any(|option| return option == "nosuid"), "the mount carries nosuid: {:?}", facts.mount_options);
     assert!(facts.mount_options.iter().any(|option| return option == "nodev"), "the mount carries nodev: {:?}", facts.mount_options);
     let attached: MountIdentity = mount_identity_of(&landed).expect("the landed folder's identity");
+    assert_eq!(attached.mount_id, mounted.mount_id, "a descriptor opened after the attach is on the mount the attach made");
+    let parent_mount: u64 = mount_id_of(&held.parent).expect("the parent's mount");
+    // The design's first proof reads the mount at the held target's name beneath the held parent.
+    // The held target's own descriptor is not that reader: it keeps naming the mount it was opened on, and the guest
+    // measured the parent's mount from it after this very attach.
+    let through_the_held_target: u64 = mount_id_of(&held.target).expect("the held target's own mount");
+    assert_eq!(through_the_held_target, parent_mount, "a descriptor opened before the attach keeps naming the parent's mount");
+    let at_the_held_target: u64 = mount_id_at_the_held_target(&held.parent, THE_SLOT).expect("the mount at the held target's name");
+    assert_eq!(at_the_held_target, mounted.mount_id, "a fresh openat2 of the slot beneath the held parent answers the mount the attach made");
     let check: AttachPostCheck<'_> = AttachPostCheck {
         held_parent_identity: &held.parent_identity,
-        held_parent_mount_id: mount_id_of(&held.parent).expect("the parent's mount"),
-        held_target_mount_id: attached.mount_id,
+        held_parent_mount_id: parent_mount,
+        held_target_mount_id: at_the_held_target,
         attached_mount_id: mounted.mount_id,
         canonical_slot: held.canonical_slot.as_path(),
     };
@@ -582,8 +603,11 @@ fn attach_arm_the_setuid_probe_keeps_the_account_under_the_enforced_flags() {
 ///  every refusal names the component or the field it found,
 ///  and a clone mounted at another slot stays exactly where it was through all of them.
 /// Why:
-///  The account creates links, replaces a slot, changes its mode and its ACLs,
-///  and renames a link into the slot rather than creating it there, which is the arm the plan records as unrun;
+///  The account creates links,
+/// replaces a slot,
+/// changes its mode and its ACLs,
+///  and renames a link into the slot rather than creating it there,
+/// which is the arm the plan records as unrun;
 ///  "leaves existing mounts alone" needs a real mount of its own to be seen against,
 ///  so a second clone is attached before the refusals and its number is read after each one.
 #[test]
@@ -646,6 +670,18 @@ fn attach_arm_each_refusal_names_its_component_and_leaves_the_beside_mount_alone
     assert_the_beside_mount_is_alone(arm.slot(THE_BESIDE_SLOT).as_path(), &beside_mount, &boundary_refusal);
     refused += 1;
     unmount_at(boundary.as_path()).expect("the control takes its own bind mount down");
+
+    // Item 2's other arm: the slot already holds the clone's own mount, which is a boundary the walk never crosses.
+    let already_target: HeldCloneSlot = arm.hold("already-mounted").expect("the slot is recorded before it is mounted");
+    attach_the_clone(guest.beside.as_str(), &already_target.target, ATTACH_MOUNT_FLAGS).expect("the clone mounts at the slot");
+    let already_mount: MountedClone = guard_the_mount(arm.slot("already-mounted").as_path());
+    drop(already_target);
+    let already_refusal: CloneSlotRefusal = arm.hold("already-mounted").expect_err("a mount at the slot is not crossed");
+    assert!(matches!(already_refusal, CloneSlotRefusal::Walk(ref walk) if walk.reason == WalkRefusalReason::BoundaryCrossed), "{already_refusal:?}");
+    assert!(already_refusal.message().contains("already-mounted"), "the slot is named: {}", already_refusal.message());
+    assert_the_beside_mount_is_alone(arm.slot(THE_BESIDE_SLOT).as_path(), &beside_mount, &already_refusal);
+    refused += 1;
+    drop(already_mount);
 
     // A replacement slot with the same owner and mode: the inode field is what moved.
     let new_inode: PathBuf = arm.slot("new-inode");
@@ -736,12 +772,13 @@ fn attach_arm_a_rename_after_the_walk_is_reported_misplaced_and_rolled_back() {
         let landed: PathBuf = elsewhere.join("worktrees").join(THE_SLOT);
         attach_the_clone(guest.clone.as_str(), &held.target, ATTACH_MOUNT_FLAGS).expect("the clone mounts at the folder the walk held");
         let mounted: MountedClone = guard_the_mount(landed.as_path());
-        let attached: MountIdentity = mount_identity_of(&std::fs::File::open(landed.as_path()).expect("the landed folder opens")).expect("the landed folder's identity");
         let parent_mount: u64 = mount_id_of(&held.parent).expect("the parent's mount");
+        let at_the_held_target: u64 = mount_id_at_the_held_target(&held.parent, THE_SLOT).expect("the mount at the held target's name");
+        assert_eq!(at_the_held_target, mounted.mount_id, "the rename moved the held folder and not the mount the attach made there");
         let check: AttachPostCheck<'_> = AttachPostCheck {
             held_parent_identity: &held.parent_identity,
             held_parent_mount_id: parent_mount,
-            held_target_mount_id: attached.mount_id,
+            held_target_mount_id: at_the_held_target,
             attached_mount_id: mounted.mount_id,
             canonical_slot: held.canonical_slot.as_path(),
         };
@@ -759,6 +796,50 @@ fn attach_arm_a_rename_after_the_walk_is_reported_misplaced_and_rolled_back() {
         assert!(restored.status.success(), "the account puts `.claude` back: {}", String::from_utf8_lossy(restored.stderr.as_slice()));
         println!("MEASUREMENT attach-arm rename-trial={trial} misplaced=yes rolled-back=mount-{}", plan.attached_mount_id);
     }
+    arm.remove();
+}
+
+/// What:
+///  A mount the attach made somewhere other than the held target's name is refused by the design's first proof,
+///  naming the mount at the held target's name and the mount the attach recorded.
+/// Why:
+///  This is the branch that proof exists for:
+///  the number is read at the held target's name beneath the held parent,
+///  so a mount that landed beside the slot cannot pass for the attach the walk judged.
+///  The arm is also the comparison's control:
+///  deleting the comparison in `post_attach_check` leaves this arm answering the fresh walk's cause instead,
+///  which is what the integration pass showed the other arms could not see.
+#[test]
+#[ignore = "mounts a real ZFS clone: the throwaway `mvm` guest of package/zfs/request-to-openzfs-kernel-device/e2e runs it, and any other machine answers SKIP"]
+fn attach_arm_a_mount_beside_the_held_slot_is_refused_by_the_held_target_proof() {
+    let Some(guest) = in_the_guest("worktree_clone_mount::attach_arm_tests::attach_arm_a_mount_beside_the_held_slot_is_refused_by_the_held_target_proof") else { return };
+    let arm: AttachArm = AttachArm::build(&guest, "beside-proof", &[THE_SLOT, THE_BESIDE_SLOT]);
+    let held: HeldCloneSlot = arm.hold(THE_SLOT).expect("the slot is the recorded folder");
+    let beside: HeldCloneSlot = arm.hold(THE_BESIDE_SLOT).expect("the beside slot is recorded");
+    attach_the_clone(guest.beside.as_str(), &beside.target, ATTACH_MOUNT_FLAGS).expect("the clone mounts at the beside slot");
+    let mounted: MountedClone = guard_the_mount(arm.slot(THE_BESIDE_SLOT).as_path());
+    let parent_mount: u64 = mount_id_of(&held.parent).expect("the parent's mount");
+    let at_the_held_target: u64 = mount_id_at_the_held_target(&held.parent, THE_SLOT).expect("the mount at the held target's name");
+    assert_eq!(at_the_held_target, parent_mount, "the attach did not act through the held target's name");
+    let check: AttachPostCheck<'_> = AttachPostCheck {
+        held_parent_identity: &held.parent_identity,
+        held_parent_mount_id: parent_mount,
+        held_target_mount_id: at_the_held_target,
+        attached_mount_id: mounted.mount_id,
+        canonical_slot: held.canonical_slot.as_path(),
+    };
+    let fresh = look_again_at_the_slot(&LookAgainAtSlotRequest { checkout: arm.checkout.as_path(), slot: THE_SLOT });
+    let outcome: AttachOutcome = post_attach_check(&check, fresh).expect("the mount table reads");
+    let AttachOutcome::Misplaced(misplaced) = outcome else { panic!("a mount beside the held slot is reported at its slot: {outcome:?}") };
+    assert!(
+        matches!(misplaced.reason, MisplacedReason::HeldTargetElsewhere { held: found, attached } if found == parent_mount && attached == mounted.mount_id),
+        "the held target's proof refuses a mount made beside it: {misplaced:?}"
+    );
+    println!(
+        "MEASUREMENT attach-arm beside-proof held-target-mount={at_the_held_target} attached-mount={} reason=HeldTargetElsewhere",
+        mounted.mount_id
+    );
+    drop(mounted);
     arm.remove();
 }
 

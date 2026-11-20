@@ -5,7 +5,7 @@
 use super::*;
 use crate::attached_mount_identity::{ATTACH_MOUNT_FLAGS, MountIdentity, mount_facts_of, mount_identity_of};
 use crate::clone_folder_identity::CloneFolderIdentity;
-use crate::clone_slot_walk::{HeldCloneSlot, HoldCloneSlotRequest, LookAgainAtSlotRequest, hold_clone_slot, look_again_at_the_slot};
+use crate::clone_slot_walk::{HeldCloneSlot, HoldCloneSlotRequest, LookAgainAtSlotRequest, hold_clone_slot, look_again_at_the_slot, mount_id_at_the_held_target};
 use crate::fs_beneath_mount_facts::mount_id_of;
 use crate::test_support::{fixture, remove};
 use std::os::unix::fs::MetadataExt;
@@ -44,7 +44,7 @@ fn the_mount_the_attach_made_is_the_one_the_slot_shows() {
     let check: AttachPostCheck<'_> = AttachPostCheck {
         held_parent_identity: &held.parent_identity,
         held_parent_mount_id: fresh.parent_mount_id,
-        held_target_mount_id: mount_id_of(&held.target).expect("the held target's mount"),
+        held_target_mount_id: mount_id_at_the_held_target(&held.parent, "one").expect("the mount at the held target's name"),
         attached_mount_id: fresh.mount_id,
         canonical_slot: held.canonical_slot.as_path(),
     };
@@ -79,7 +79,7 @@ fn the_mount_the_attach_made_is_the_one_the_slot_shows() {
 fn a_held_target_on_another_mount_is_misplaced() {
     let (root, held, checkout): (PathBuf, HeldCloneSlot, PathBuf) = held_slot("post-check-held-target");
     let fresh: FreshSlotLookup = look_again_at_the_slot(&LookAgainAtSlotRequest { checkout: checkout.as_path(), slot: "one" }).expect("the slot is there");
-    let held_target: u64 = mount_id_of(&held.target).expect("the held target's mount");
+    let held_target: u64 = mount_id_at_the_held_target(&held.parent, "one").expect("the mount at the held target's name");
     let check_2: AttachPostCheck<'_> = AttachPostCheck {
         held_parent_identity: &held.parent_identity,
         held_parent_mount_id: fresh.parent_mount_id,
@@ -146,7 +146,7 @@ fn another_parent_mount_and_a_replaced_parent_are_misplaced() {
     let check_3: AttachPostCheck<'_> = AttachPostCheck {
         held_parent_identity: &held.parent_identity,
         held_parent_mount_id: fresh.parent_mount_id + 1,
-        held_target_mount_id: mount_id_of(&held.target).expect("the held target's mount"),
+        held_target_mount_id: mount_id_at_the_held_target(&held.parent, "one").expect("the mount at the held target's name"),
         attached_mount_id: fresh.mount_id,
         canonical_slot: held.canonical_slot.as_path(),
     };
@@ -160,7 +160,7 @@ fn another_parent_mount_and_a_replaced_parent_are_misplaced() {
     let check_4: AttachPostCheck<'_> = AttachPostCheck {
         held_parent_identity: &held.parent_identity,
         held_parent_mount_id: fresh.parent_mount_id,
-        held_target_mount_id: mount_id_of(&held.target).expect("the held target's mount"),
+        held_target_mount_id: mount_id_at_the_held_target(&held.parent, "one").expect("the mount at the held target's name"),
         attached_mount_id: fresh.mount_id,
         canonical_slot: held.canonical_slot.as_path(),
     };
@@ -188,7 +188,7 @@ fn a_stopped_walk_a_moved_path_and_an_unreadable_table_are_reported() {
     let check_5: AttachPostCheck<'_> = AttachPostCheck {
         held_parent_identity: &held.parent_identity,
         held_parent_mount_id: fresh.parent_mount_id,
-        held_target_mount_id: mount_id_of(&held.target).expect("the held target's mount"),
+        held_target_mount_id: mount_id_at_the_held_target(&held.parent, "one").expect("the mount at the held target's name"),
         attached_mount_id: fresh.mount_id,
         canonical_slot: held.canonical_slot.as_path(),
     };
