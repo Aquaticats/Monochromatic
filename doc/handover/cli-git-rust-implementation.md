@@ -40313,7 +40313,18 @@ stated in this entry. What follows from them, as work:
   merge before its guest arms. GOING: `pi-zfs-step-4-integration-pass-findings-fixed` (DeepSeek on Neuralwatt, cap
   510): the negation with a package-list control, a lock-free store or a root-only sidecar lock, the 30 line breaks,
   the lows; brief under `~/temp/agent/zfs-step-4-integration-pass-findings-fixed-2026-11-20/`. Then a second integration
-  pass. STEP 3 HOST HALF ENDED `idle` (201
+  pass. It ended `idle` (285 turns) at `48832e1d84` (main merged as `2e649ead45`, compiling; dates match the reflog;
+  that folder's `keep/report-from-summary.md` and logs): the negation and a `cargo package --list` control (2476 files,
+  195 under `uses`, to 2281 with none); the lock moved to a root-only sidecar file taken with `LOCK_NB` under a 2 s
+  deadline, the single-file store kept, the per-slot `O_EXCL` and rename-rebuild routes argued against; the 30 line
+  breaks (none left on branch lines); the `uses` skip narrowed to links resolving to a folder below the root; a checkout
+  named through a link now refused, as `SPEC.md` says; namespace-less controls fail unless acknowledged; the module
+  gated to Linux; the device-number limit and its measurement in `SPEC.md`. Its own gate run found the gate snapshot
+  copied each `uses` link as an absolute path that dangled in the image; `bin/native-wrapper-snapshot.ts` now passes
+  `verbatimSymlinks`. Whole gate 9232 of 9234, the cause-H pair only; `source_guard` 79 of 79. It also added an entry to
+  `main`'s handover on its branch (merges clean). GOING: the second integration pass (Sonnet), told to judge the lock
+  against `NLK` and `LQM` (the 2 s wait), the gate snapshot change, the canonical-path refusal and the branch's handover
+  entry; brief under `~/temp/agent/integration-pass-zfs-step-4-after-its-findings-round-2026-11-20/`. STEP 3 HOST HALF ENDED `idle` (201
   turns, 51 min) at `fd10d8d0b0` (four commits; report and checks table in
   `~/temp/agent/zfs-step-3-reflink-rung-recognition-host-half-2026-11-19/keep/`): `FilesystemKind::Zfs` from
   `ZFS_SUPER_MAGIC`; rung 2 proves one dataset by mount source and device, with no ZFS ioctl or binding; a mounted clone
