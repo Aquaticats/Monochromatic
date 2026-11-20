@@ -483,6 +483,8 @@ const STEP_SENTENCES: &[(&str, &str)] = &[
     ("markCompleteFile", "it is recording that the worktree is complete"),
     ("markCompleteDirectory", "it is recording that the worktree is complete"),
     ("releaseClaim", "it is recording that the worktree is complete"),
+    ("cloneEntries", "it is cloning the tracked files of the source into the new worktree"),
+    ("cloneIndex", "it is writing the index the clones' worktree is read through"),
     ("copyIgnored", "it is copying the ignored files into the new worktree"),
     ("handOverTrash", "it is handing the files the snapshot set aside to the commit service"),
 ];
