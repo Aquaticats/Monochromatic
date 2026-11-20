@@ -18,15 +18,6 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
-## Answered in the question tool, recorded 2026-11-19T19:49:44-05:00
-
-- Whether to ask the three ZFS designs' questions (start probe, staging under `~/.cache`, runtime layout checker) now,
-  while each design's second Sonnet re-check runs, or wait for those re-checks: "Wait for re-checks (Recommended)". The
-  questions go to the owner in one question-tool round once all three re-checks pass, or after one more quick fix
-  round if a re-check finds something. The owner had asked "Why aren't you ask the questions now?"; the reason given was
-  that each first re-check found the questions themselves wrong (a false premise under staging's Q2, lines deciding the
-  owner's choices in the start probe, an ineligible option ranked first in the layout checker).
-
 ## Answered in the question tool, recorded 2026-11-19T17:45:53-05:00
 
 - The ZFS worktree implementation plan (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, at

@@ -40248,7 +40248,12 @@ What follows from them, as work:
   boards unreadable with this token, so discovery stays blocked); item 10 given thresholds of 100 ms and 256 MiB.
   Checkers clean with a broken-copy control. GOING: a second Sonnet gate re-check (brief under
   `~/temp/agent/zfs-runtime-layout-checker-design-second-revision-gate-recheck-2026-11-19/`), asked whether item 10's
-  thresholds rest on any measurement and whether Q1 should reach the owner before finalist validation. By the owner's answers of
+  thresholds rest on any measurement and whether Q1 should reach the owner before finalist validation. The owner, asked
+  in the question tool at 2026-11-19T19:49:44-05:00 whether to put the three designs' questions now or after these second
+  re-checks, answered "Wait for re-checks (Recommended)": they go in one question-tool round once all three re-checks
+  pass, or after one more quick round if a re-check finds something (each first re-check had found the questions
+  themselves wrong: a false premise under staging's Q2, lines deciding the owner's choices in the start probe, an
+  ineligible option ranked first in the layout checker). By the owner's answers of
   2026-11-19T17:10:00-05:00 (questions file) the LFS review and the provider rebuild finish and nothing else off the
   ZFS path starts, and owner questions off the ZFS path wait in the questions file (new rule `QWP`).
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
