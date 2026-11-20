@@ -229,19 +229,32 @@ reads again at its first refusal. A 429's own hold is never permanent: it
 carries the time the provider named, and once that time passes the member is
 asked again.
 
-The quota read has its own deadline of two seconds, capped at half a positive
-caller-supplied model timeout (rounded down). The read stops holding up dispatch
-at that deadline even if the transport is slow to acknowledge cancellation. A
-request joining a shared lookup bounds its own wait without canceling that
-lookup. The model request retains its own timeout. That bound comes from a live
-endpoint measurement on 2026-11-19: twenty alternating rounds against
-Synthetic's `/v2/quotas` and NeuralWatt's `/v1/rate_limits` and `/v1/quota`,
-with NeuralWatt's flex lane measured over six rounds. Every quota read was
-paired with a same-host listing request that reads no quota. The highest read
-took 464 ms and the nearest-rank 95th percentile 403 ms, so two seconds covers
-the highest reading four times over, and still covers the widest control-arm
-spread on the same host added on top of it. `doc/quota-read-latency.md` records
-the method and the per-arm figures.
+The quota read has its own deadline of two seconds,
+capped at half a positive caller-supplied model timeout (rounded down).
+The read stops holding up dispatch at that deadline even if the transport is slow
+to acknowledge cancellation.
+At that deadline the read is abandoned and routing continues without its evidence
+(`readQuotaWithinDeadline` in `src/member-capacity.ts`),
+so a slow endpoint costs only the reading,
+never the request.
+A request joining a shared lookup bounds its own wait without canceling that lookup.
+The model request retains its own timeout.
+That bound comes from a live endpoint measurement on 2026-11-19:
+twenty alternating rounds against Synthetic's `/v2/quotas` and NeuralWatt's
+`/v1/rate_limits` and `/v1/quota`,
+with NeuralWatt's flex lane measured over six rounds.
+Every quota read was paired with a same-host listing request that reads no quota:
+the read's median ratio to that listing was 1.32 on Synthetic (1.01 to 1.80),
+and 1.45 on NeuralWatt (0.35 to 5.12).
+The ratio is not what the value rests on,
+because the listings return bodies tens of times larger than the quota documents,
+and NeuralWatt's own spread spans that whole range.
+The absolute readings are what it rests on:
+the highest read took 464 ms and the nearest-rank 95th percentile 403 ms,
+so two seconds covers the highest reading four times over,
+and still covers it once the host's control spread after the warm-up round
+(325 ms) is added on top (790 ms).
+`doc/quota-read-latency.md` records the method and the per-arm figures.
 
 ### Provider sources
 

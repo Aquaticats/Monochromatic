@@ -1,0 +1,168 @@
+[
+  {
+    "host": "synthetic",
+    "lane": "standard",
+    "quota": {
+      "count": 20,
+      "min": 45,
+      "median": 50.8,
+      "p95": 56.6,
+      "max": 69.6,
+      "spread": 24.599999999999994
+    },
+    "control": {
+      "count": 20,
+      "min": 36.9,
+      "median": 38.1,
+      "p95": 42.8,
+      "max": 44.5,
+      "spread": 7.600000000000001
+    },
+    "quotaFirstRound": 55.3,
+    "controlFirstRound": 39.3,
+    "quotaLaterRounds": {
+      "count": 19,
+      "min": 45,
+      "median": 50.8,
+      "p95": 69.6,
+      "max": 69.6,
+      "spread": 24.599999999999994
+    },
+    "outcomes": [
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence"
+    ],
+    "ratios": {
+      "medianRatio": 1.3333333333333333,
+      "p95Ratio": 1.3224299065420562,
+      "pairedMedian": 1.3225806451612903,
+      "pairedMin": 1.0112359550561798,
+      "pairedMax": 1.8031088082901552
+    },
+    "deadlineMs": 2000
+  },
+  {
+    "host": "neuralwatt",
+    "lane": "standard",
+    "quota": {
+      "count": 20,
+      "min": 84.3,
+      "median": 183.9,
+      "p95": 402.7,
+      "max": 464.4,
+      "spread": 380.09999999999997
+    },
+    "control": {
+      "count": 20,
+      "min": 82.4,
+      "median": 103.6,
+      "p95": 407.8,
+      "max": 514.2,
+      "spread": 431.80000000000007
+    },
+    "quotaFirstRound": 192.5,
+    "controlFirstRound": 514.2,
+    "quotaLaterRounds": {
+      "count": 19,
+      "min": 84.3,
+      "median": 183.9,
+      "p95": 464.4,
+      "max": 464.4,
+      "spread": 380.09999999999997
+    },
+    "outcomes": [
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence"
+    ],
+    "ratios": {
+      "medianRatio": 1.7750965250965252,
+      "p95Ratio": 0.9874938695438941,
+      "pairedMedian": 1.451737451737452,
+      "pairedMin": 0.34600294261893083,
+      "pairedMax": 5.1201764057331856
+    },
+    "deadlineMs": 2000
+  },
+  {
+    "host": "neuralwatt",
+    "lane": "flex",
+    "quota": {
+      "count": 6,
+      "min": 83.9,
+      "median": 104,
+      "p95": 140.7,
+      "max": 140.7,
+      "spread": 56.79999999999998
+    },
+    "control": {
+      "count": 6,
+      "min": 80.7,
+      "median": 87.8,
+      "p95": 364.1,
+      "max": 364.1,
+      "spread": 283.40000000000003
+    },
+    "quotaFirstRound": 104,
+    "controlFirstRound": 80.8,
+    "quotaLaterRounds": {
+      "count": 5,
+      "min": 83.9,
+      "median": 116.3,
+      "p95": 140.7,
+      "max": 140.7,
+      "spread": 56.79999999999998
+    },
+    "outcomes": [
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence",
+      "evidence"
+    ],
+    "ratios": {
+      "medianRatio": 1.1845102505694762,
+      "p95Ratio": 0.3864322988190057,
+      "pairedMedian": 0.8457661290322581,
+      "pairedMin": 0.35869266684976653,
+      "pairedMax": 1.7434944237918213
+    },
+    "deadlineMs": 2000
+  }
+]

@@ -1,0 +1,1 @@
+{"kind":"positive-control","delayMs":250,"samples":[255.4,251.1,252.5],"note":"local in-process server, three requests; proves the harness distinguishes a known delay from zero"}
