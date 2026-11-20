@@ -1,10 +1,14 @@
 // Recipe: the throwaway mvm guest the ZFS binding's live tests run in.
 //
-// What:  creates an Ubuntu 24.04 guest, installs the tools the plan names, builds
-//        OpenZFS 2.4.4 from the release tarball against the guest's own kernel
-//        headers, builds this crate inside the guest, runs the live suites as root
-//        and as the delegated account, records versions and teardown evidence, and
-//        destroys the guest on request.
+// What:  creates an Ubuntu 24.04 guest, installs the tools the plan names, gives
+//        the kernel build directory the kernel's own BTF so the module is built
+//        with BTF, builds OpenZFS 2.4.4 from the release tarball against the
+//        guest's own kernel headers, builds this crate inside the guest, runs the
+//        live suites as root and as the delegated account (each failing when a live
+//        arm skipped), records versions and teardown evidence, and destroys the
+//        guest on request.
+// Why the digests: the tarball and the rustup installer are checked against the
+//        sha256 this file pins, so the guest is rebuilt from the same bytes.
 // Why:   a live request opens /dev/zfs, so it must never run on the host; this guest
 //        is the only place the crate's live tests run, and its pools are 1 GiB
 //        file-backed images it destroys with each test.

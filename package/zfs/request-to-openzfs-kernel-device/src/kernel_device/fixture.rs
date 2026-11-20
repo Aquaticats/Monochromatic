@@ -251,8 +251,8 @@ pub(crate) fn hostname() -> String {
 /// The fixture `guest` names,
 /// or `None` when no guest is named at all.
 ///
-/// `this_machine` and `variable` are parameters rather than reads so the
-/// three refusals can be
+/// `this_machine` and `variable` are parameters rather than reads so each
+/// refusal can be
 /// proven without a guest (see `fixture_tests.rs`).
 pub(super) fn resolve(
     test: &str,
