@@ -40336,7 +40336,41 @@ What follows from them, as work:
   re-checks, answered "Wait for re-checks (Recommended)": they go in one question-tool round once all three re-checks
   pass, or after one more quick round if a re-check finds something (each first re-check had found the questions
   themselves wrong: a false premise under staging's Q2, lines deciding the owner's choices in the start probe, an
-  ineligible option ranked first in the layout checker). That answer was first written into
+  ineligible option ranked first in the layout checker). THE ROUND WAS ASKED after all three second rounds ended,
+  between 2026-11-19T20:35 and 2026-11-19T20:43:51-05:00, in the question tool, and every answer came back:
+  start probe (design at `056064ffa1`): Q1 "Product mounts only (Recommended)" (the plan's no-unmount sentence covers the
+  product's mounts, so the probe's own unmount arm is built in step 6); Q2 "Refuse new attaches only (Recommended)";
+  Q3 "Dedicated dataset (Recommended)" (`zpcachyos/nosnap/git-worktree-probe` with snapshot `ready`, setup in plan steps
+  18 to 20); Q4 "Block until it has run (Recommended)"; Q5 "Fail closed (Recommended)"; Q6 "Root plus account
+  companion", against the recommendation (the account also runs the small user-namespace companion before each add);
+  Q7 "Write first-attach", against the recommendation (the handler that made the first real attach after boot writes
+  its outcome to `first-attach` beside the probe's record, a duty of plan steps 4 and 8). Layout checker (design at
+  `7fd0df9cf8`): the narrower form of Q1, "is it a hard requirement that the parser is our own code and the product
+  starts no second program", answered "No, not required (Recommended)", so the in-house reader stays ineligible and the
+  reader pick waits for finalist validation; Q2 (which module release strings pass) was first answered with the
+  question "Why not allow any?", then, told that the layout cannot show behaviour changes, with "Does "change request
+  behavior w/o changing layout" really happen in practice?"; the coordinator then compared OpenZFS `zfs-2.2.2`,
+  `zfs-2.3.0` and `zfs-2.4.4` for the twelve requests the binding uses (`module/zfs/zfs_ioctl.c` handlers and key
+  tables, fetched under `~/temp/agent/openzfs-ioctl-behaviour-across-releases-2026-11-19/` with the script
+  `diff-handlers.ts`): no key table changed; two handlers changed by two lines each (a signal-check refactor in
+  `snapshot_list_next`; `clone` calling the relocated `dsl_dataset_clone` in place of `dmu_objset_clone`, same sync-task
+  shape); the one interface change was a layout change (`zinject_record` gained `zi_match_count` and `zi_inject_count`
+  in 2.4); asked again with that evidence, the owner answered "Any version, layout decides (Recommended)": no release
+  check, the layout comparison and the request numbers decide, and `doctor` prints the release and says when it is not
+  the tested 2.4.4. That answer reverses the "module release" proof the proposal's "ABI gate and tests" lists and plan
+  step 6 calls decided (plan lines 751 to 754); the plan and the proposal need an amendment note once the design is
+  revised. Q4 "Binding package (Recommended)"; Q3 stays held for owed measurement item 10. Staging (design at
+  `16e46d6f49`): Q1 "Private bind per removal (Recommended)"; Q2 "Record the file handle (Recommended)"; Q3, first
+  answered "What?" and asked again in plain words, "Move it back at once (Recommended)"; vetoes: "Veto none
+  (Recommended)" for the `~/.cache` lookup and pin and the two `/proc`-path readings; where the handle lives: the
+  coordinator agreed it need not be durable (a reboot drops every mount) and recommended a per-boot root file in `/run`;
+  the owner asked "Why not ~/.cache ?", was told any program running as the account could swap a handle there and steer
+  a root unmount, and answered "In ~/.cache . We have to assume my machine isn't compromised. sudo is passwordless here
+  anyway." So the handle record lives in `~/.cache`, and the threat model for this machine is the owner's: the account
+  is trusted, and root and the account are not a security boundary here. NEXT: one round per design to apply these
+  answers (each records them with the owner's words and the timestamp; the staging round also lists, as suggestions
+  only, any other hardening against the account that the owner's threat model makes unnecessary). That answer was
+  first written into
   `doc/handover/questions-for-the-owner.md`, whose header keeps it to open questions; the owner asked "Do you know what a
   questions file is?", the answer moved here, and the owner said "Fix the bigger mess too.": that file still held about
   thirty answered sections. GOING: `pi-handover-questions-file-holds-open-questions-only` (DeepSeek on Neuralwatt, cap
