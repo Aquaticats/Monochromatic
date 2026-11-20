@@ -92,6 +92,18 @@ fn relative_name(root: &Path, path: &Path) -> Result<String, String> {
     return Ok(parts.join("/"));
 }
 
+/// The name of the folder whose entries are the repository's links to the source folders its code uses:
+/// every source folder inside a crate holds one,
+/// and the layout lint compares it with the folder's `use` lines
+/// (`AGENTS.md`,
+/// rules `LYD` and `LYL`).
+const FOLDER_USES_LINKS: &str = "uses";
+
+/// Whether `directory` is the folder whose entries are the repository's links between source folders.
+fn is_uses_folder(directory: &Path) -> bool {
+    return directory.file_name().is_some_and(|name| return name == FOLDER_USES_LINKS);
+}
+
 /// What:
 ///  `pub(crate) fn discover(root: &Path) -> Result<Vec<String>, String>` lists every `.rs` file under `root`,
 ///  sorted,
@@ -110,6 +122,12 @@ fn relative_name(root: &Path, path: &Path) -> Result<String, String> {
 /// or
 ///  absent),
 /// or no source file is found at all.
+/// The one link it reads nothing through is the one a `uses` folder holds:
+/// that folder is the repository's own record of which source folders a folder's code uses
+/// (`AGENTS.md`,
+/// rule `LYD`),
+/// the lint that checks those links owns them,
+/// and the folder holds no `.rs` file that a link could hide.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -150,6 +168,13 @@ pub(crate) fn discover(root: &Path) -> Result<Vec<String>, String> {
             let kind: std::fs::FileType =
                 entry.file_type().map_err(|error| return format!("cannot inspect {}: {error}", path.display()))?;
             if kind.is_symlink() {
+                // A `uses` folder is the repository's own record of which source folders a folder's code uses, written
+                // as one link per folder (`AGENTS.md`, rule LYD). Those links name folders beside this one, so reading
+                // them would reach sources the walk of this tree does not own; the lint that compares them with the
+                // code owns them instead, and the scan of `.rs` files reads nothing through them.
+                if is_uses_folder(&directory) {
+                    continue;
+                }
                 return Err(format!("{} is a symbolic link; the scan cannot prove what it reads", path.display()));
             }
             if kind.is_dir() {

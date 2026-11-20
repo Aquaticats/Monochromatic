@@ -5,7 +5,8 @@
 //! and what a standing trash needs to stay out of the index.
 
 use super::{Reach, hand_over_with};
-use crate::fs_beneath::{ObjectId, identity_at, identity_of, open_directory_at, open_directory_beneath, open_root, plain_components};
+use crate::fs_beneath::{ObjectId, identity_at, identity_of, open_directory_at, open_root, plain_components};
+use crate::fs_beneath_walk_chain::open_directory_beneath;
 use crate::service_protocol::{ClientMessage, PROTOCOL_VERSION, RELEASE, ServiceMessage, encode_client, encode_service};
 use crate::service_route::Route;
 use crate::service_server::Bind;
