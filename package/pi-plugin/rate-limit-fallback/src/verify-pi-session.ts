@@ -162,6 +162,10 @@ assert.equal(
   await session.bindExtensions({
     onError() { throw new Error('Pi reported an extension error',); },
   },);
+  // Pi marks a keyless provider configured in a background availability pass; the command line
+  // resolves availability before its first request, so this arm waits for the same state
+  // (`@earendil-works/pi-coding-agent` dist/core/model-runtime.js, `registerNativeProvider`).
+  await modelRuntime.refresh({ allowNetwork: false, },);
   /**
    Newly registered pool selected before the stand-in prompt.
    */

@@ -1,5 +1,5 @@
 /**
- Quota evidence and failures control when a member is checked again.
+ Quota evidence is read when a member refuses, and it controls when that member is checked again.
  @module
  */
 
@@ -16,7 +16,7 @@ import {
   TRANSCRIPT,
 } from './stand-in-pi-fixture.ts';
 
-/** Catalog subset that demonstrates a hold without exhausting the pool. */
+/** Catalog subset that demonstrates a refusal and its handoff without exhausting the pool. */
 const SYNTHETIC_AND_BACKUP = PHYSICAL_MODELS.filter(model => (model.provider === 'synthetic') || (model.provider === 'opencode-go'),);
 
 /**
@@ -36,14 +36,10 @@ const SYNTHETIC_WINDOW_MS = 3_600_000;
 const SUBSCRIPTION_REQUEST_LIMIT = 1;
 
 /**
- Attempts a pool makes when one member has answered or refuses: the first one it dispatches.
+ Backing member of the filtered pool, which answers while Synthetic is refused or held.
  */
-const FIRST_ATTEMPT = 1;
+const BACKUP = 'opencode-go';
 
-/**
- Attempts a pool makes when a second member is asked as well.
- */
-const SECOND_ATTEMPT = 2;
 await describe({
   name: 'quota reentry',
   // These cases stub the shared clock, so one at a time keeps them from reading each other's time.
@@ -62,7 +58,7 @@ await describe({
               : immediate({ model, },);
           },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
         const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         clock.now += QWEN_WAIT_MS - 1;
         const beforeReset = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
@@ -74,37 +70,48 @@ await describe({
       },
     },),
     it({
-      name: 'retries an unavailable first quota read and honors the next depleted window',
-      fn: async function firstReadUnavailable(ctx,) {
+      name: 'reads a refused member and holds it on the depleted window that reading reports',
+      fn: async function depletedAtRefusal(ctx,) {
         const clock = { now: Date.now(), };
         ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
+        const end = clock.now + SYNTHETIC_WINDOW_MS;
         const observations = { reads: 0, };
-        const { provider, options, } = await fixture({
+        const { provider, calls, options, } = await fixture({
           extension,
           models: SYNTHETIC_AND_BACKUP,
-          play({ model, }) { return immediate({ model, },); },
+          play({ model, }) {
+            return (model.provider === 'synthetic') && (clock.now < end)
+              ? immediate({ model, errorMessage: rateLimitRefusal({ model, },), },)
+              : immediate({ model, },);
+          },
           async fetchQuota() {
             observations.reads += 1;
-            if (observations.reads === 1)
-              return new Response(null, { status: 503, },);
             return syntheticWeeklyWindow({
               percentRemaining: 0,
-              nextRegenAt: new Date(Date.now() + SYNTHETIC_WINDOW_MS,).toISOString(),
+              nextRegenAt: new Date(end,).toISOString(),
             },);
           },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
-        const first = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        // The endpoint may be read again only after its documented interval.
-        clock.now += QUOTA_READ_INTERVAL_MS;
-        const second = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(first.result.provider,).toBe('synthetic',);
-        expect(second.result.provider,).toBe('opencode-go',);
-        expect(observations.reads,).toBe(2,);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
+        const refused = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        const held = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        clock.now = end;
+        const renewed = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        // One read, made because the member refused, serves every later admission.
+        expect(observations.reads,).toBe(1,);
+        expect(calls.map(call => call.model.provider,),).toEqual([
+          'synthetic',
+          BACKUP,
+          BACKUP,
+          'synthetic',
+        ],);
+        expect(refused.result.provider,).toBe(BACKUP,);
+        expect(held.result.provider,).toBe(BACKUP,);
+        expect(renewed.result.provider,).toBe('synthetic',);
       },
     },),
     it({
-      name: 'reads one member quota at most once per second',
+      name: 'reads one member quota at most once per second across refusals',
       fn: async function readInterval(ctx,) {
         const clock = { now: Date.now(), };
         ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
@@ -112,13 +119,17 @@ await describe({
         const { provider, options, } = await fixture({
           extension,
           models: SYNTHETIC_AND_BACKUP,
-          play({ model, }) { return immediate({ model, },); },
+          play({ model, }) {
+            return model.provider === 'synthetic'
+              ? immediate({ model, errorMessage: rateLimitRefusal({ model, },), },)
+              : immediate({ model, },);
+          },
           async fetchQuota() {
             reads.count += 1;
-            return new Response(null, { status: 503, },);
+            return Response.json({},);
           },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
         await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(reads.count,).toBe(1,);
         await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
@@ -131,10 +142,14 @@ await describe({
     it({
       name: 'holds a member on the previous Synthetic weekly field name',
       fn: async function legacyWeeklyField() {
-        const { provider, options, } = await fixture({
+        const { provider, calls, options, } = await fixture({
           extension,
           models: SYNTHETIC_AND_BACKUP,
-          play({ model, }) { return immediate({ model, },); },
+          play({ model, }) {
+            return model.provider === 'synthetic'
+              ? immediate({ model, errorMessage: rateLimitRefusal({ model, },), },)
+              : immediate({ model, },);
+          },
           async fetchQuota() {
             return syntheticLegacyWeeklyWindow({
               percentRemaining: 0,
@@ -142,9 +157,15 @@ await describe({
             },);
           },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
+        await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(result.provider,).toBe('opencode-go',);
+        expect(calls.map(call => call.model.provider,),).toEqual([
+          'synthetic',
+          BACKUP,
+          BACKUP,
+        ],);
+        expect(result.provider,).toBe(BACKUP,);
         expect(result.stopReason,).toBe('stop',);
       },
     },),
@@ -155,10 +176,14 @@ await describe({
         ctx.sinon.stub(Date, 'now',).callsFake(() => clock.now,);
         const end = clock.now + SYNTHETIC_WINDOW_MS;
         const limit = SUBSCRIPTION_REQUEST_LIMIT;
-        const { provider, options, } = await fixture({
+        const { provider, calls, options, } = await fixture({
           extension,
           models: SYNTHETIC_AND_BACKUP,
-          play({ model, }) { return immediate({ model, },); },
+          play({ model, }) {
+            return (model.provider === 'synthetic') && (clock.now < end)
+              ? immediate({ model, errorMessage: rateLimitRefusal({ model, },), },)
+              : immediate({ model, },);
+          },
           async fetchQuota() {
             return syntheticSubscription({
               requests: clock.now < end ? limit : 0,
@@ -167,11 +192,16 @@ await describe({
             },);
           },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
-        const held = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
+        const refused = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         clock.now = end;
         const renewed = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        expect(held.result.provider,).toBe('opencode-go',);
+        expect(refused.result.provider,).toBe(BACKUP,);
+        expect(calls.map(call => call.model.provider,),).toEqual([
+          'synthetic',
+          BACKUP,
+          'synthetic',
+        ],);
         expect(renewed.result.provider,).toBe('synthetic',);
       },
     },),
