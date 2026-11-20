@@ -40487,7 +40487,18 @@ stated in this entry. What follows from them, as work:
   reworded (no clone rung on ZFS until the dirty-source checks cost no more than `main`'s). GOING: the short review's
   fix round, `pi-zfs-step-3-short-review-findings-after-guest-arm` (DeepSeek on Neuralwatt, cap 400): the portable
   empty-file control, the README attribution, the lows, and the branch's handover change removed; brief under
-  `~/temp/agent/zfs-step-3-short-review-findings-after-guest-arm-2026-11-20/`. STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
+  `~/temp/agent/zfs-step-3-short-review-findings-after-guest-arm-2026-11-20/`. It ended `idle` (180 turns) at
+  `f57848ba9c` (main merged as `f4d61eb11d`; dates real; that folder's `keep/report-from-summary.md`, reds and logs): a
+  portable empty-file control runs the whole sliced engine off btrfs (red with the slice answers reversed); the README's
+  one-thread figure credited to this host's own rounds; `cloneEntries` entered on the waiting thread and a `cloneSlices`
+  ledger note; `SPEC.md` says a failure can leave up to a slice past the failing entry; the measured medians corrected
+  (clean 0.51 to 1.57, median 0.69 over 23 rounds; dirty 0.80 to 1.59); the borrowed break-even documented and an
+  interleaved arm recorded as owed; the branch's handover change gone. Gate 9201 of 9203, the cause-H pair. A trial merge
+  with `main` (now carrying step 4) conflicts in `package/git-policy/cli/README.md` and
+  `src/native/worktree/worktree_clone.rs`. GOING: `pi-zfs-step-3-merge-main-after-step-4` (DeepSeek on Neuralwatt, cap
+  250), resolving both and rerunning the touched modules and `source_guard`; brief under
+  `~/temp/agent/zfs-step-3-merge-main-after-step-4-2026-11-20/`. Then an integration pass; the merge waits for the
+  owner's dirty-path answer. STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
   their VM arms wait for step 2's recipe and their merges for the gate fix), each DeepSeek on Neuralwatt, cap 510,
   from `main` `d6e78c9e8b`: `pi-zfs-step-3-reflink-rung-recognition-host-half`
   (`.claude/worktrees/zfs-step-3-reflink-rung-recognition`, `feat/git-policy-cli-zfs-recognition-in-the-reflink-rung`;
