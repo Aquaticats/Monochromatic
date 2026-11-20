@@ -819,8 +819,15 @@ Read-only commands,
   2. Clones (`FICLONE`) of every tracked file of a clean worktree,
      with its index,
      on btrfs,
-     XFS with reflink and
-     overlayfs.
+     XFS with reflink,
+     overlayfs and ZFS.
+     A clone crosses subvolumes of one btrfs filesystem and nothing else,
+     and on ZFS it stays inside one dataset,
+     which the wrapper proves from the dataset name the mount table reports and the device of that name's mount,
+     reading no ZFS ioctl:
+     a slot a mounted clone already occupies,
+     a mounted clone used as the source of a slot in the checkout's dataset,
+     and any slot on another dataset than the source get Git's own checkout instead.
      It shares disk but takes about as long as Git's checkout.
   3. Git's own checkout,
      then the ignored-state copy.

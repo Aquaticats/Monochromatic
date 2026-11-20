@@ -1212,7 +1212,8 @@ fn the_service_git(item: &WorkItem) -> Result<GitContext, String> {
 /// because the record promised the person who removed the worktree that one subvolume goes and nothing else
 ///  (`SPEC.md`,
 /// "Cheap worktree creation and removal on btrfs,
-/// XFS and overlayfs").
+/// XFS,
+/// overlayfs and ZFS").
 /// The destroy names the subvolume by the id the record holds when the kernel
 ///  allows it,
 /// so a replaced ancestor cannot redirect it,
