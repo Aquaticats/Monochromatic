@@ -1746,12 +1746,17 @@ The answers of 2026-11-19 settled the ways, the questions and the four proposals
 2026-11-19", "Proposals the owner settled"). The behaviour this section lists is what this revision had to decide to
 carry those answers through, and the project never chose it: each entry says what the design does, which other
 options it had, and why it ranks where it does. A veto returns the entry to the writer; taking none of them leaves
-the design as it stands, and "veto none" is the default of every ranking here. Two entries stand apart from a
-choice of behaviour. The reading of how the accepted no-implicit-remount default covers the rollback is the
+the design as it stands, and "veto none" is the default of every veto-open ranking here. Two entries stand apart
+from a choice of behaviour. The reading of how the accepted no-implicit-remount default covers the rollback is the
 design's, and a veto of it takes the second-exception reading, which amends the sentences that record one
 exception. The scene boundary of the stacking refusal is a question for the project rather than a veto of a
 behaviour: the design refuses in either scene, and the question is which scenes the accepted answer's own limit
-reaches.
+reaches. That question has no default, unlike every veto here: silence would make the project's answer cover a
+refusal the project never weighed, so until it is answered the design's attribution of the combined-scene refusal
+stays the writer's reading, and the question stands open to be answered with the acceptance. One option inside an
+entry is the project's decision rather than the writer's: the rollback entry's option (c) relaxes the accepted
+"prove both" in one scene, so taking it amends an accepted sentence, which no writer can offer as a veto of its
+own addition.
 
 - The rollback's destination and its proof. The design opens the slot after the move with the no-crossing walk plus
   `RESOLVE_NO_XDEV`, checks the descriptor and the mount row against the recorded slot identity, moves once, and
@@ -1762,14 +1767,20 @@ reaches.
   call and one check fewer but lets a mount stacked at the slot receive the clone, repeating the misplacement the
   rollback undoes; (c) the same destination open and identity checks, asserting the first half as (a) does and
   proving the placement by the accepted fresh walk alone, without the parent-row clause, which is one comparison
-  fewer but cannot tell a clone standing on the slot's parent from one standing on a mount stacked at the slot. (c)
-  keeps both halves of "prove both"; what it drops is the parent-row comparison, which is the writer's addition and
-  not one of the accepted halves, so it stays open to a veto. Refusing to roll back at all is not offered: the third
-  question's answer is to move it back at once, so that would reverse an answer of 2026-11-19 rather than complete
-  it, and a rule that refused whenever the slot were not provably free would reduce to (a)'s pre-open `EXDEV`
-  refusal, because the slot cannot be proven free at the move. Ranking a > c > b: a > c because a keeps the parent
-  clause, the only one that tells a clone on the slot's parent from one on a mount stacked at the slot, while c
-  leaves that scene to the fresh walk; c > b because b also lets a mount stacked at the slot receive the clone,
+  fewer but cannot tell a clone standing on the slot's parent from one standing on a mount stacked at the slot. In
+  the one scene where the accepted halves part, (c) keeps neither: where the account stacks a mount at the slot
+  between the open and the move, the clone lands on that stacked mount, and both of (c)'s clauses pass it, because
+  its source-and-root clause reads the topmost row, which is the clone there, and the fresh walk lands on that same
+  topmost mount (M1's "Stacked at the slot after the open" arm, where the proof fails on the parent clause and the
+  fresh-walk clause passes). Choosing (c) therefore relaxes the accepted "prove both" in that scene, which amends
+  an accepted sentence: that makes it the project's decision and not a writer's addition, so (c) is put here for
+  the project to take or refuse, and not for a veto to return to the writer. Refusing to roll back at all is not
+  offered: the third question's answer is to move it back at once, so that would reverse an answer of 2026-11-19
+  rather than complete it, and a rule that refused whenever the slot were not provably free would reduce to (a)'s
+  pre-open `EXDEV` refusal, because the slot cannot be proven free at the move. Ranking a > c > b: a > c because a
+  keeps the parent clause, the only comparison that tells a clone on the slot's parent from one on a mount stacked
+  at the slot, and keeps the accepted proof whole there, while c leaves that scene to the fresh walk and needs an
+  accepted sentence relaxed to stand; c > b because b also lets a mount stacked at the slot receive the clone,
   repeating the misplacement the rollback undoes.
 - The scene where a mount is stacked on the clone after the move, and where that scene ends. The design refuses,
   leaves the clone staged with the account's mount over it, reports both, and unbinds nothing. Two scenes share the
@@ -1787,13 +1798,20 @@ reaches.
   c removes a mount the handler cannot verify; c > b because b moves the account's mount over the worktree.
 - Where the accepted answer's own limit reaches. The design refuses in both scenes the stacking entry names, and
   this entry asks which of those refusals the project's answer covers as its own limit, and which are the writer's.
-  Options: (a) this
-  revision's reading, under which the combined scene is the answer's own limit, read through "retaining and
-  reporting it only if rollback fails" because the rollback's proof cannot pass there, and the refusal for a mount
-  on the clone alone is the writer's, open to a veto on its own; (b) the same limit read to reach both scenes,
-  because the proof fails the same way in each, a rollback carrying a mount the handler did not make; (c) neither
-  refusal the answer's, so the answer's literal "Move it back at once" stands wherever a rollback could be
-  attempted and both refusals are the writer's. Ranking a > b > c: a > b because a keeps the answer to the scene
+  This entry has no default: silence cannot stand for an answer here, because the answer decides whether a refusal
+  is recorded in the project's name, so until the project answers, the design's reading is its own and the question
+  stands open. Each option gives the behaviour it leaves or changes and the option of the stacking entry it
+  coincides with. Options: (a) this revision's reading, under which the combined scene is the accepted sentence's
+  own limit, read through "retaining and reporting it only if rollback fails" because the rollback's proof cannot
+  pass there, though it departs from that answer's label "Move it back at once", and the refusal for a mount on the
+  clone alone is the writer's, open to a veto on its own. Behaviour: both refusals stand as the design writes them,
+  which is the stacking entry's option (a). (b) the same limit read to reach both scenes, because the proof fails
+  the same way in each, a rollback carrying a mount the handler did not make. Behaviour: both refusals still stand
+  as the design writes them, again the stacking entry's (a); what changes is that neither refusal is the writer's
+  any more, so no veto of either is open. (c) neither refusal the answer's, so the answer's literal "Move it back at
+  once" stands wherever a rollback could be attempted and both refusals are the writer's. Behaviour: the handler
+  attempts the rollback in both scenes, which is the stacking entry's option (b), the one ranked last there, so an
+  answer of (c) here and (a) there cannot both stand. Ranking a > b > c: a > b because a keeps the answer to the scene
   whose precondition it names, a clone that landed on a mount the account stacked, while b extends it to a scene the
   answer never described; b > c because b keeps the proof's reason visible in both scenes, while c leaves "move it
   back at once" standing where the move would carry a mount the handler did not make.
@@ -1829,7 +1847,12 @@ reaches.
 - How the accepted no-implicit-remount default covers the rollback. The design reads the rollback as the accepted
   "Misplaced attach" rule applied within the invocation that made the move, so it is no exception, and "the
   exception" the default records stays the checked reattach the project answered for. Options: (a) this reading,
-  which leaves "Keep, one exception (Recommended)" and the sentences that quote it true as recorded; (b) the
+  which leaves "Keep, one exception (Recommended)" and the sentences that quote it true as recorded, at the cost it
+  takes: the rollback is itself a remount of a mount the removal already moved, and the default's recorded reason,
+  that "an implicit remount would race the standing `unmount` intent and any staged mount" ([proposal][proposal],
+  "Decided defaults"), reaches that rollback too, so the reading accepts that reason's application to it and
+  answers it where "The private bind" shows the rollback creates no new managed attach, the mount returning to the
+  slot being the clone's own mount that the intent and the scan already counted; (b) the
   second-exception reading, under which the rollback stands beside "the checked reattach of a removal that cancels
   itself without `--force`" and the sentences that record one exception are amended on acceptance: the proposal's
   "Decided defaults" bullet, its "the one remount the no-implicit-remount decision allows", and the plan's entries on
@@ -2043,8 +2066,10 @@ the entry says what they add, so the name stays the revision's first commit rath
   found no high finding, one medium and eight lows, and no change to a decision the project made. Every finding was
   accepted and fixed, and none was dismissed. The veto section now says what the project is asked: option (c) of
   the rollback entry states that it keeps both halves of the accepted "prove both" proof and drops only the
-  writer's parent-row comparison, so a veto can still take it; the stacking entry states the combined-scene refusal
-  as the design's reading of the accepted "retaining and reporting it only if rollback fails", which departs from
+  writer's parent-row comparison, so a veto can still take it (the next revision's entry corrects that claim: (c)
+  loses the accepted first half in the one scene where the halves part, which makes it the project's decision); the
+  stacking entry states the combined-scene refusal as the design's reading of the accepted "retaining and
+  reporting it only if rollback fails", which departs from
   the answer's label "Move it back at once", and names rolling back anyway as that label's literal reading; and the
   scene boundary becomes its own question, with options and a reason per adjacent pair, named by the lead and by
   "Questions the owner answered". The rollback's classification is now the accepted "Misplaced attach" rule applied
