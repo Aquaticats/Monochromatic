@@ -18,8 +18,9 @@
 
 /// The failure type a live call returns.
 use super::device_error::DeviceError;
-/// The per-name failures a write reply carries.
-use crate::requests::{ElementError, element_errors};
+/// The per-name failures a write reply carries,
+/// and the request that reply arrived for.
+use crate::requests::{ElementError, Request, element_errors};
 /// The request failure type and its reply refusal.
 use crate::requests::{Error, Operation, ReplyRefusal, ReplyRefusalReason};
 
@@ -168,4 +169,37 @@ pub(crate) fn write_failure_elements(
         Ok(Some(list)) => element_errors(&list),
         Ok(None) | Err(_) => Vec::new(),
     };
+}
+
+/// What one failed write means,
+/// read from the reply its request holds.
+///
+/// This is the whole failed-write path of a live call,
+/// so the device-free tests can
+/// pin it with a request whose reply bytes do not decode,
+/// and the call site has no
+/// second copy of the rule to drift from it.
+/// The reply is read only when the size the kernel left is one the
+/// buffer holds:
+/// a bigger size names bytes that are not there,
+/// and those are not read.
+pub(crate) fn write_failure(
+    request: &Request,
+    errno: i32,
+    reported_reply_size: u64,
+    held: usize,
+) -> DeviceError {
+    let elements: Vec<ElementError> = if reported_reply_size <= held as u64 {
+        write_failure_elements(request.take_reply())
+    } else {
+        Vec::new()
+    };
+    let facts: AnswerFacts<'_> = AnswerFacts {
+        operation: request.operation(),
+        target: request.target(),
+        errno,
+        reported_reply_size,
+        held,
+    };
+    return interpret_write_failure(facts, elements);
 }

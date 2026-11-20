@@ -38,7 +38,13 @@ const SNAPSHOT_NAME: &str = "from-binding";
 const SNAPSHOT_PROPERTY: (&str, &str) = ("monochromatic:request", "snapshot");
 /// `ZAP_MAXVALUELEN` (`include/sys/fs/zfs.h` at `zfs-2.4.4`),
 /// the value length
-/// `zfs_check_userprops` refuses with `E2BIG` at or past.
+/// the clone path's property value check refuses with `E2BIG` at or past
+/// (`dsl_props_set_check`,
+/// `module/zfs/dsl_prop.c`,
+/// which `zfs_ioc_clone`'s `zfs_set_prop_nvlist` reaches);
+/// the snapshot request's own check is `zfs_check_userprops`
+/// (`module/zfs/zfs_ioctl.c`),
+/// which no arm here exercises.
 const PROPERTY_VALUE_LIMIT: usize = 1024 * 8;
 
 #[test]
