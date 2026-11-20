@@ -738,3 +738,65 @@ putting those tools on the checkout's `PATH` for every session.
 
 Ranking: link now > wait, because the record's reason for waiting was an install that converges the whole toolchain,
 and the measurement shows nothing left to install.
+
+## Open: accept the ZFS runtime layout checker design? (ready 2026-11-20T00:06:01-05:00)
+
+This goes to the question tool when you are back, with the other two ZFS designs if they are ready by then.
+
+What it is:
+the design for how the wrapper decides, at run time, whether the loaded ZFS kernel module speaks the request layout
+the wrapper was built for,
+by comparing the module's own type data (BTF) with what the binding expects,
+answering your round of 2026-11-19 (Q1 "No, not required", Q2 "Any version, layout decides" and its re-confirmation
+"Keep: layout decides", Q4 "Binding package"; Q3 held until owed measurement item 10 runs).
+It is `doc/planning/cli-git-zfs-runtime-layout-checker-design.md` on branch
+`docs/planning-cli-git-zfs-runtime-layout-checker-design` at `22703f23df`, in the worktree
+`.claude/worktrees/zfs-runtime-layout-checker-design`.
+
+What checked it:
+six revisions by DeepSeek writers,
+answering a gate review, a re-check, a narrow check and three diff-only checks, all on Claude Sonnet;
+the last check (`~/temp/agent/zfs-runtime-layout-checker-design-sixth-revision-diff-only-gate-check-2026-11-19/keep/review.md`)
+found no high and no medium finding and called it ready.
+Two of the revisions had hand-set commit dates;
+the design now states the real times, and corrective commit comments are posted.
+
+What accepting it does:
+it becomes the accepted design for step 6's layout check,
+moves into `doc/decision/` with your answer,
+and unlocks the amendments it names to the proposal's "ABI gate and tests" sentence,
+plan step 6's "What it builds", "Open items" and "VM measurements" lines,
+and the binding package's `README.md`, all dropping the module-release proof your Q2 answer removed.
+
+Four choices the design makes itself, each open to your veto, default "veto none":
+
+- The folder name `compatibility_check`, because the folder compares two files while the plan's word "gate" also
+  covers the device and identity steps; the alternative is `compatibility_gate`.
+- `doctor` flags a module whose version text differs from the tested `2.4.4-1` by an exact string comparison, because
+  a prefix test on `2.4.4-` would pass a checkout build such as `2.4.4-1_g1a2b3c4`, the build the line exists to flag;
+  the alternative is a prefix or version-only test.
+- When the module's identity files are absent, the reload check degrades instead of refusing, because your Q2 answer
+  left only the layout and request numbers to decide; the alternatives are refusing (which refuses a module the layout
+  can still judge) or re-parsing on every use.
+- The verdict is cached once per process with an identity recheck; the alternative is a parse on every use.
+  Whether a cache ever goes to disk is not this choice: it stays with your held Q3.
+
+Ten lows the last check found, carried here instead of another round
+(full text in that review): a header sentence that lost its verb; the fifth revision's entry describing the sixth's
+cache scope; a pronoun with no antecedent; "changes only this record" not true of the last commit; two clock readings
+not marked as unkept; one capitalised-word count misstated; the clone count's source credited away from the claim; the
+per-process cache's reason and costs unstated; Q3's return stated two ways; and the evidence correction naming the
+wrong revision and speaking for your answer.
+
+At acceptance the coordinator re-pins step 2's standing (its branch has moved to `9e5efac21d` and further; the facts
+cited still hold) and the plan locators to `main` as it then is.
+
+Options:
+
+- Accept, with the four choices as written (recommended): the layout checker is settled and step 6 can be planned on
+  it; the ten lows are fixed in the decision record's copy.
+- Accept, vetoing one or more of the four choices: name which.
+- Send it back for the ten lows first: one more writer round and a diff-only check before acceptance.
+
+Ranking: accept > accept with vetoes > send back, because no remaining finding changes behaviour or a decision, while
+each further round has so far found new wording slips of the same size.

@@ -40719,7 +40719,12 @@ stated in this entry. What follows from them, as work:
   commits around them. GOING: the last diff-only Sonnet check (brief under
   `~/temp/agent/zfs-runtime-layout-checker-design-sixth-revision-diff-only-gate-check-2026-11-19/`), told that only a
   high or medium blocks and that lows travel with the design into the acceptance round, so the rounds of lows end.
-  Then acceptance; at acceptance the plan locators and step 2's standing are re-pinned. START PROBE REVIEW ENDED (Sonnet, about 33 min; that folder's `keep/review.md`): not
+  It ended (Sonnet, about 17 min; that folder's `keep/review.md`): READY to put to the project, no high, no medium,
+  ten lows carried; all fifteen previous findings re-tested against Git and the folders; every date equal to the
+  reflog with a positive control; none of the four veto-open choices is a project decision. The acceptance item, with
+  the ten lows and the options ranked, waits in `doc/handover/questions-for-the-owner.md` ("accept the ZFS runtime
+  layout checker design?") for the question tool when the owner is back, batched with the other two designs if they
+  are ready. At acceptance the plan locators and step 2's standing are re-pinned. START PROBE REVIEW ENDED (Sonnet, about 33 min; that folder's `keep/review.md`): not
   ready, no high, six mediums, all text: the companion sits in the add preflight but not in `doctor`, against the
   proposal's "Share preflight with `doctor`"; "That is the project's choice" claims a printed skip on a refused user
   namespace the project never chose (the Q6 option text named the skip only as a cost; the add going ahead is the
