@@ -1538,9 +1538,9 @@ These are notes for the plan's own text, and this design edits no plan step. Eac
 because the plan's line numbers move: every plan line number this document cites elsewhere is a line of the plan at
 commit `73eaad0846`, the branch's base, and the two places this design reads a line of main's copy name their step
 and its text rather than a number (`git show main:doc/planning/cli-git-zfs-worktree-implementation-plan.md`, read at
-main's `8b1cec7883`, whose plan is 2451 lines). Main's copy has moved twice since the base: a nine-line gain before
-step 4, and then the four lines the merge `30431ecc14` added to step 1, which is why one offset does not serve
-both ends of the file.
+main's `8b1cec7883`, whose plan is 2451 lines). Main's copy is thirteen lines longer before step 4 than the base,
+four of those lines from the merge `30431ecc14` inside step 1 and six of them before the earliest passage this
+document cites, so one offset does not serve the whole file.
 
 - Step 3, "ZFS recognition in the reflink rung and the ladder's refusals", owns H1 gate 7, which exercises a
   confined consumer's clone attach. That gate meets Ubuntu 24.04's capability denial when the setting is at 1, so
