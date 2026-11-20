@@ -40606,7 +40606,21 @@ stated in this entry. What follows from them, as work:
   - a grammar slip at `SPEC.md:11874`.
   GOING: the fifth round, `pi-git-policy-cli-lfs-fourth-round-review-findings-fixed` (DeepSeek on Neuralwatt, cap 510),
   in the same worktree; brief under `~/temp/agent/git-policy-cli-lfs-fourth-round-review-findings-fixed-2026-11-19/`.
-  Then a short re-check, then the integration pass after the gate fix is in main.
+  It ended `idle` (113 turns, 17 min 40 s) at `0dea92e201` (one commit, six files; report in that folder's
+  `keep/report.md`, reds, greens and probes beside it): all five lows fixed, each red first. The empty base now rewrites
+  as git-lfs does (`lfs_upload_plan.rs:436`). The install arguments are read in one walk (`InstallRequest` in
+  `lfs_install_arguments.rs`), replacing `InstallScope::of` and `asked_for_manual`, so the destination and the
+  refusal cannot disagree. A refused command now gets a notice naming the refusal and claiming no `filter.lfs.*` key:
+  two scopes, a value pflag refuses, and also `--file` with no path and refused values on `--force`, `--skip-smudge`,
+  `--manual`. It disagreed with the review in places, by its measurement: git-lfs writes
+  `lfs.repositoryformatversion = 0` before refusing two scopes, so the notice says no `filter.lfs.*` key rather than
+  nothing. It kept an option git-lfs lacks (`--bogus`, `-z`) on its destination sentence on purpose, limit written in
+  `SPEC.md:11903-11906`. 26 targeted tests in the gate image, Clippy and `lint:types` pass; whole gate and
+  `monochromatic-lint` not run. GOING: its short re-check on the Qwen plan,
+  `pi-git-policy-cli-lfs-fifth-round-short-review-on-the-qwen-plan` (watched, cap 190) in
+  `.claude/worktrees/pi-qwen-review-lfs-fifth-round-at-0dea92e201`; brief under
+  `~/temp/agent/git-policy-cli-lfs-fifth-round-short-review-on-the-qwen-plan-2026-11-19/`. Then the integration pass
+  after the gate fix is in main.
 - **The wrapper's container gate cannot pass on this ZFS host.** The LFS writer ran the gate's body
   (`node bin/test-native-container.ts`; the mise task's first step needs `cargo-shadow`, not installed here) twice:
   `9189 tests run: 9002 passed, 187 failed`, against 6 of 9,173 on the old Btrfs host. By its reading about 109 fail on
