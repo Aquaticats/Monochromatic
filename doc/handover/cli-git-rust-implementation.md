@@ -40975,7 +40975,12 @@ stated in this entry. What follows from them, as work:
   never compared) and marked for the project's veto, with an M5 mismatched-inode arm. A second read by another vendor's
   advisor found four defects in its first pass, fixed. GOING: the last diff-only check (brief under
   `~/temp/agent/zfs-staging-under-cache-design-sixth-revision-diff-only-gate-check-2026-11-20/`), on which only a high or
-  medium blocks. Then the acceptance item beside the other two. The proposal
+  medium blocks. It ended (Sonnet, about 22 min; that folder's `keep/review.md`): READY, no high, no medium, nine lows
+  carried; option (c) correctly put to the project; dates equal the reflog; nothing contradicts the record. It found
+  every ZFS mount root here reads inode 34, so the pin's inode separates no dataset and only catches a subdirectory bound
+  at `~/.cache`. The acceptance item, with the no-default boundary question, option (c), the seven veto-open choices
+  and the nine lows, waits in `doc/handover/questions-for-the-owner.md` ("accept the ZFS staging-under-cache design?").
+  The proposal
   and plan amendment
   for the dropped release proof waits for the layout checker's review. That answer was first written into
   `doc/handover/questions-for-the-owner.md`, whose header keeps it to open questions; the owner asked "Do you know what a
