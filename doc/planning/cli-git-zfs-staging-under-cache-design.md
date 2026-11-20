@@ -3,8 +3,9 @@
 Non-final, unapproved design proposal by an agent. It is not approved by the project owner and nothing in it is
 final. It designs the open item "Staging under `~/.cache` and the wrapper's cleanup" of the accepted ZFS worktree
 design, and it makes no decision that design or the project's answers of 2026-11-19 did not make, beyond the
-writer's choices, and the one question about how an accepted default is read, that "Choices this revision marks for
-the project's veto" lists for the project to settle. It ran no ZFS command that changes anything, started no VM and
+writer's choices, its reading of how the accepted no-implicit-remount default covers the rollback, and the question
+about where the scene boundary of the stacking refusal runs, all of which "Choices this revision marks for the
+project's veto" lists for the project to settle. It ran no ZFS command that changes anything, started no VM and
 no container, touched no pool, and edited no other file.
 
 Every kernel fact here is read at upstream Linux `v6.8`, and at `v7.3` where a fact the host's newer kernel decides
@@ -12,27 +13,33 @@ between the two tags, in the files listed under "Sources read"; every OpenZFS fa
 Nothing in this design was measured, on any host or any guest: every measurement it owes stays owed, and no sentence
 here reports a run.
 
-This revision answers five independent reviews, all outside this repository, and then applies the project's answers
+This revision answers the independent reviews, all outside this repository, and then applies the project's answers
 of 2026-11-19. The reviews are the gate review of tip `2258de74d8`, its first re-check of tip `3972d4bf90`, the
-second re-check of tip `a879cd9be8`, the gate review of tip `e8f7ec4fa6`, and the gate re-check of tip
-`9f1e0c9087`, under
+second re-check of tip `a879cd9be8`, the gate review of tip `e8f7ec4fa6`, the gate re-check of tip `9f1e0c9087`, and
+the narrow check of tip `f2e2f551fe`, under
 `~/temp/agent/zfs-staging-under-cache-design-gate-review-2026-11-19/keep/`,
 `~/temp/agent/zfs-staging-under-cache-design-revision-gate-recheck-2026-11-19/keep/`,
 `~/temp/agent/zfs-staging-under-cache-design-second-revision-gate-recheck-2026-11-19/keep/`,
-`~/temp/agent/zfs-staging-under-cache-design-owner-answers-gate-review-2026-11-19/keep/` and
-`~/temp/agent/zfs-staging-under-cache-design-third-revision-gate-recheck-2026-11-19/keep/`. No review's finding
+`~/temp/agent/zfs-staging-under-cache-design-owner-answers-gate-review-2026-11-19/keep/`,
+`~/temp/agent/zfs-staging-under-cache-design-third-revision-gate-recheck-2026-11-19/keep/` and
+`~/temp/agent/zfs-staging-under-cache-design-fourth-revision-narrow-gate-check-2026-11-19/keep/`. No review's finding
 numbers are used here: every reference is to a fact, an assumption, a limit or a measurement arm of this design.
 The reviews' points stay where they apply: the folder's name derived on both sides from the clone's dataset GUID in
 "The staging target and who creates it", the staged-folder record in A1 and "The staged-folder record", the recovery
 capability in "The unmount call from staging" and M6, the retained states split by cause in F11 and L11, and the
-corrected descriptor facts in F14 and F30. The last two reviews' points stay where they apply too: the rollback's
+corrected descriptor facts in F14 and F30. The later reviews' points stay where they apply too: the rollback's
 end state and destination in "The private bind" and M1, the record's two void cases in "The staged-folder record"
 and M6, the descriptor kinds in that section, the other-boot settlement in A1, A5 and that section, the void test's
 order and the guard that carries its safety, the classification of the rollback and the scene boundary of the
 stacking refusal, both in the veto section, and the choices those reviews asked be marked as the writer's in
-"Choices this revision marks for the project's veto". The project's answers of 2026-11-19, and the threat model they
-state, are listed under "Answers of 2026-11-19" and followed throughout. The revision history, with each commit's
-committer timestamp from `git log --format=%cI`, is under "Revisions".
+"Choices this revision marks for the project's veto". The narrow check's points stay where they apply as well: what
+the veto section asks the project, in that section; the `ESTALE` justification in "The unmount call from staging";
+the receipt-path rule in A1, A5 and the Way A list; the list of who voids a record in "What a writer can settle
+without asking"; the no-capability arm in M6; the device number the folder identity carries in L14 and M6; the
+propagated copies a stacked mount leaves in "The private bind" and M1; the scope of L13; the `v7.3` citations in L2,
+F29 and "Sources read"; and where the checker's output is kept, in "Revisions". The project's answers of 2026-11-19,
+and the threat model they state, are listed under "Answers of 2026-11-19" and followed throughout. The revision
+history, with each commit's committer timestamp from `git log --format=%cI`, is under "Revisions".
 
 The design is [the decision record][decision], the whole design is [the proposal][proposal], the evidence is
 [the measurement record][measurements], and the build order is [the implementation plan][plan]. The plan lists the
@@ -58,8 +65,11 @@ commit and so does not carry it. The answers, in the project's words:
   ("The staged-folder record", "The unmount call from staging", M6).
 - What the handler does when the move lands on a mount the account stacked: "Move it back at once (Recommended)",
   answered after "What?" to the same question and a second asking in plain words. The handler rolls the exact mount
-  back to its slot by its own descriptor, and keeps it staged only if the rollback fails, which is the option text's
-  "keep it staged only if that fails" (`16e46d6f49`; "The private bind", M1).
+  back to its slot by its own descriptor, and keeps it staged only if the rollback fails, which is the accepted
+  sentence's "retaining and reporting it only if rollback fails" ([proposal][proposal], "Project decisions",
+  "Misplaced attach") and, in the first asking's words at `16e46d6f49`, "keep it staged only if that fails". The
+  design reads a rollback whose proof cannot pass as a failed rollback, which is its own reading and not the
+  answer's text; "The private bind" and "Choices this revision marks for the project's veto" say so.
 - The proposals left open to veto: "Veto none (Recommended)", for the `~/.cache` lookup from the pinned UID's passwd
   home, for the `user-cache` pin, and for the two readings of a `/proc`-path argument, that a `umount2` on it acts on
   the held descriptor and that a `mount(2)` on it is not path-based. Each is now the design ("Proposals the owner
@@ -80,13 +90,14 @@ Those entries are suggestions for the project to decide: none is dropped on the 
 The design follows every answer, and each place says so: the record's place and name in "The staged-folder
 record", the binding route in "The private bind" and "The unmount call from staging", the rollback in "The private
 bind", the arms in "Owed measurements in a throwaway VM", and the settled proposals in "Proposals the owner
-settled". Three answers depart from a sentence of the accepted design, and each departure quotes the sentence beside
+settled". Two answers depart from a sentence of the accepted design, and each departure quotes the sentence beside
 it: the record's one field that a cache cannot rebuild, and the privileged write of the record into the account's
-tree, both in "The staged-folder record"; and the rollback, which "The private bind" reads either as a second
-exception to "No implicit remount after a failure or restart" or as the accepted "Misplaced attach" rule applied
-within one invocation, a reading under which it is no exception at all. Which of the two readings the project takes,
-and so whether those sentences are amended, is put to the project in "Choices this revision marks for the project's
-veto".
+tree, both in "The staged-folder record". The rollback's remount is not counted among them: the design reads it as
+the accepted "Misplaced attach" rule applied within the invocation that made the move, so "the exception" that
+default records stays the checked reattach the project answered for with "Keep, one exception (Recommended)", and
+those sentences stand as recorded. That reading is the design's and is open to the project's veto, where a veto
+takes the second-exception reading and amends the sentences that say one exception ("The private bind", "Choices
+this revision marks for the project's veto").
 
 ## The open item and the answer it carries
 
@@ -609,11 +620,15 @@ answers the same scene. This test comes first, because a mount on the clone and 
 can stand in the same folder, and then a rollback would carry the account's mount to the slot. The scene where a
 mount stands on the clone alone, the clone itself having landed on the bind, is one the third question did not
 cover, so that refusal is the writer's, marked for the project's veto ("Choices this revision marks for the
-project's veto"). The combined scene, a mount on the folder the clone landed on and a second mount on the clone, is
-the question's own scene, because its precondition, a clone that landed on a mount the account stacked, holds there
-too: the refusal in it is the third question's option text, "keep it staged only if that fails", applied, since a
-rollback would carry the second mount to the slot and so cannot be proved. Where the project draws that scene
-boundary is put to it in the veto section.
+project's veto"). The combined scene, a mount on the folder the clone landed on and a second mount on the clone,
+meets the third question's precondition, because the clone landed on a mount the account stacked: the clone is kept
+staged there without the move being attempted, because a rollback takes the clone's whole subtree and would carry
+the second mount to the slot, so the accepted proof that the held identity received the exact mount cannot pass. The
+design reads that as the accepted answer's "retaining and reporting it only if rollback fails"
+([proposal][proposal], "Project decisions", "Misplaced attach"), and so departs from the answer's label, "Move it
+back at once", in that scene: rolling back anyway is that label's literal reading, and the veto section ranks it as
+the alternative rather than as the answered text. Whether the boundary reaches the clone-alone scene too is the
+project's to draw, and it is put there.
 
 Where the clone is the topmost mount and its parent is not the bind, the move landed on a mount the account stacked
 over the folder, which is the scene the third question answered, and nothing is mounted on the clone. The handler
@@ -661,29 +676,30 @@ The move back is the project's answer, and the accepted rules are applied to it;
 destination's `RESOLVE_NO_XDEV`, its slot-identity and mount-row checks, and the one-attempt proof, all the writer's
 and marked for the project's veto ("Choices this revision marks for the project's veto").
 
-The rollback is a remount of a mount this removal already moved, and the design states both readings of it. Read as
-a second exception, it stands beside the only stated exception of "No implicit remount after a failure or restart",
-"the checked reattach of a removal that cancels itself without `--force`" ([proposal][proposal], "Decided
-defaults"), which the proposal and the plan both count as one. Read as the accepted "Misplaced attach" rule
-([proposal][proposal], "Project decisions") applied within one invocation, it is no exception at all: the default's
-words reach a remount that follows a failed or restarted invocation, and this move repairs a placement inside the
-invocation that made it, on the check that failed there, before that invocation ends. The design's behaviour does not
-depend on the reading, and it does not settle the classification on the project's behalf. Acceptance therefore needs
-one of two things: amendment of the sentences that say one exception, or a statement that the rollback is outside
-that default. Both are put to the project in "Choices this revision marks for the project's veto". It composes with
+The rollback is a remount of a mount this removal already moved, and the design reads it as no exception to "No
+implicit remount after a failure or restart". The accepted default records "one exception", "the checked reattach
+of a removal that cancels itself without `--force`", and the project answered for that text with "Keep, one
+exception (Recommended)" ([proposal][proposal], "Decided defaults"; "Answers of 2026-11-19"). Read as the accepted
+"Misplaced attach" rule ([proposal][proposal], "Project decisions") applied within one invocation, the rollback is
+that rule and not a second exception: the default's words reach a remount that follows a failed or restarted
+invocation, and this move repairs a placement inside the invocation that made it, on the check that failed there,
+before that invocation ends. The design therefore keeps the accepted text unchanged, and the reading is its own:
+"Choices this revision marks for the project's veto" puts it there, where a veto takes the second reading, under
+which the rollback is a second exception and the sentences that record one are amended on acceptance. It composes with
 the standing `unmount` intent because it creates no new managed attach: the mount that returns to the slot is the
 clone's own mount, which the intent and the all-namespace scan already counted before the move, so the scan's
 exclusion of new managed attaches is unchanged and the removal refuses because that mount is present, not because a
 new attach appeared.
 
-What a successful rollback leaves is the state the project's option text described, quoted from the revision the
-third question was asked at, `16e46d6f49`: "the worktree is back at its slot, so the removal that was blocked is
-blocked again". The clone's mount is at its recorded slot, proven by the rollback's fresh walk; the handler's bind
-is still in the host namespace, with whatever the account stacked over the folder still covering it; the folder, the
-staged-folder record with the folder's handle and identity, the claim and
-the standing intent are unchanged; and the only mounts at the folder are the handler's bind and whatever the account
-stacked over it. The receipt is the refusal kind A5 describes, naming the step that refused ("staging move" or
-"post-move check"), the outcome "misplaced, rolled back", the errno where a call failed, the clone's mount ID and
+What a successful rollback leaves is the state the first asking's option text described, quoted from the revision
+that question was asked at, `16e46d6f49`, which the project answered past with "What?" before the plain-words
+asking: "the worktree is back at its slot, so the removal that was blocked is blocked again". The clone's mount is
+at its recorded slot, proven by the rollback's fresh walk; the handler's bind is still in the host namespace, with
+whatever the account stacked over the folder still covering it; the folder, the staged-folder record with the
+folder's handle and identity, the claim and the standing intent are unchanged; and the only mounts at the folder are
+the handler's bind and whatever the account stacked over it. The receipt is the refusal kind A5 describes, naming the
+step that refused ("staging move" or "post-move check"), the outcome "misplaced, rolled back", the errno where a call
+failed, the clone's mount ID and
 its slot, and the ID of the mount that received the move. The removal refuses and removes nothing, because a mount of
 the clone stands in the host namespace, so the accepted "Unmounted" definition fails (A5). The folder, record and
 claim then wait for the staging sweep M6's first arm defines for an empty bind: the bind is empty once the clone is
@@ -1350,9 +1366,10 @@ No question put to the owner in that round stands open. The plan calls the item 
 points where a writer would
 otherwise have had to add a decision the accepted design did not make, or reverse one; the three questions and the
 veto list were answered on 2026-11-19, and "Answers of 2026-11-19" lists them with the answers in the project's
-words. Two things this revision leaves to the project instead are put in "Choices this revision marks for the
-project's veto": how the rollback is classified against the no-implicit-remount default, and where the scene
-boundary of the stacking refusal runs. What each answer left untaken, in the project's terms:
+words. What this revision leaves to the project instead is put in "Choices this revision marks for the project's
+veto": its reading of how the no-implicit-remount default covers the rollback, which a veto returns to the
+second-exception reading, and the question about where the scene boundary of the stacking refusal runs. What each
+answer left untaken, in the project's terms:
 
 - The first question's other two ways. Making `~/.cache` private once at boot would change an existing mount, which
   the accepted proposal puts outside this work, and letting root create the folder writes into the account's tree,
@@ -1680,37 +1697,57 @@ The answers of 2026-11-19 settled the ways, the questions and the four proposals
 2026-11-19", "Proposals the owner settled"). The behaviour this section lists is what this revision had to decide to
 carry those answers through, and the project never chose it: each entry says what the design does, which other
 options it had, and why it ranks where it does. A veto returns the entry to the writer; taking none of them leaves
-the design as it stands. One entry is a question rather than a veto, for the rollback's classification against "No
-implicit remount after a failure or restart": its answer either amends those sentences on acceptance or says the
-rollback is outside that default.
+the design as it stands, and "veto none" is the default of every ranking here. Two entries stand apart from a
+choice of behaviour. The reading of how the accepted no-implicit-remount default covers the rollback is the
+design's, and a veto of it takes the second-exception reading, which amends the sentences that record one
+exception. The scene boundary of the stacking refusal is a question for the project rather than a veto of a
+behaviour: the design refuses in either scene, and the question is which scenes the accepted answer's own limit
+reaches.
 
 - The rollback's destination and its proof. The design opens the slot after the move with the no-crossing walk plus
   `RESOLVE_NO_XDEV`, checks the descriptor and the mount row against the recorded slot identity, moves once, and
-  proves the result with the accepted fresh walk; where the proof fails it stops and reports. Options: (a) this
-  route; (b) a move to a descriptor opened with the accepted slot hop's flags and no identity or mount-row check,
-  which is one call and one check fewer but lets a mount stacked at the slot receive the clone, repeating the
-  misplacement the rollback undoes; (c) the same destination open and identity checks, proving the result by the
-  accepted fresh walk alone and dropping the parent-row clause, which is one comparison fewer but cannot tell a clone
-  standing on the slot's parent from one standing on a mount stacked at the slot. Refusing to roll back at all is not
-  offered: the third question's answer is to move it back at once, so that would reverse an answer of 2026-11-19
-  rather than complete it, and a rule that refused whenever the slot were not provably free would reduce to (a)'s
-  pre-open `EXDEV` refusal, because the slot cannot be proven free at the move. Ranking a > c > b: a > c because a
-  keeps the parent clause, the only one that tells a clone on the slot's parent from one on a mount stacked at the
-  slot, while c leaves that scene to the fresh walk; c > b because b also lets a mount stacked at the slot receive the
-  clone, repeating the misplacement the rollback undoes.
+  proves the result with both halves of the accepted proof; where the proof fails it stops and reports. The halves
+  are the held identity receiving the expected mount, which the check of the clone's source and root at the slot's
+  topmost row supplies, and the fresh walk finding that mount at the canonical slot. Options: (a) this route; (b) a
+  move to a descriptor opened with the accepted slot hop's flags and no identity or mount-row check, which is one
+  call and one check fewer but lets a mount stacked at the slot receive the clone, repeating the misplacement the
+  rollback undoes; (c) the same destination open and identity checks, asserting the first half as (a) does and
+  proving the placement by the accepted fresh walk alone, without the parent-row clause, which is one comparison
+  fewer but cannot tell a clone standing on the slot's parent from one standing on a mount stacked at the slot. (c)
+  keeps both halves of "prove both"; what it drops is the parent-row comparison, which is the writer's addition and
+  not one of the accepted halves, so it stays open to a veto. Refusing to roll back at all is not offered: the third
+  question's answer is to move it back at once, so that would reverse an answer of 2026-11-19 rather than complete
+  it, and a rule that refused whenever the slot were not provably free would reduce to (a)'s pre-open `EXDEV`
+  refusal, because the slot cannot be proven free at the move. Ranking a > c > b: a > c because a keeps the parent
+  clause, the only one that tells a clone on the slot's parent from one on a mount stacked at the slot, while c
+  leaves that scene to the fresh walk; c > b because b also lets a mount stacked at the slot receive the clone,
+  repeating the misplacement the rollback undoes.
 - The scene where a mount is stacked on the clone after the move, and where that scene ends. The design refuses,
   leaves the clone staged with the account's mount over it, reports both, and unbinds nothing. Two scenes share the
-  refusal, and they stand differently: the combined scene, a mount on the folder the clone landed on and a second
-  mount on the clone, is the third question's own scene, and the refusal there is the third question's option text,
-  "keep it staged only if that fails", applied, because a rollback would carry the second mount to the slot; the
-  scene where the clone landed on the bind and a mount stands on the clone alone is one the question never covered,
-  so the refusal there is the writer's. Options: (a) this refusal in both scenes; (b) rolling back anyway, which
-  carries the account's mount onto the slot because a move takes the clone's whole subtree; (c) unmounting the
-  account's mount first and then rolling back, which removes a mount the handler did not make and cannot verify.
-  Ranking a > c > b: a > c because a removes nothing it did not make and leaves the clone where the handler can still
-  reach it, while c removes a mount the handler cannot verify; c > b because b moves the account's mount over the
-  worktree. The boundary is the project's to draw: whether the refusal for a mount on the clone alone is, like the
-  combined case, that option text applied, or a separate writer's refusal to veto.
+  refusal, and they stand differently. The combined scene, a mount on the folder the clone landed on and a second
+  mount on the clone, meets the third question's precondition, and there the design keeps the clone staged without
+  attempting the move: a rollback takes the clone's whole subtree and would carry the second mount to the slot, so
+  the accepted proof of the exact mount cannot pass. That is the design's reading of the accepted "retaining and
+  reporting it only if rollback fails" ([proposal][proposal], "Project decisions", "Misplaced attach"), and it
+  departs from the answer's label, "Move it back at once"; the scene where the clone landed on the bind and a
+  mount stands on the clone alone is one the question never covered, so the refusal there is the writer's. Options:
+  (a) this refusal in both scenes; (b) rolling back anyway, which is the answer's literal reading and carries the
+  account's mount onto the slot because a move takes the clone's whole subtree; (c) unmounting the account's mount
+  first and then rolling back, which removes a mount the handler did not make and cannot verify. Ranking a > c > b:
+  a > c because a removes nothing it did not make and leaves the clone where the handler can still reach it, while
+  c removes a mount the handler cannot verify; c > b because b moves the account's mount over the worktree.
+- Where the accepted answer's own limit reaches. The design refuses in both scenes the stacking entry names, and
+  this entry asks which of those refusals the project's answer covers as its own limit, and which are the writer's.
+  Options: (a) this
+  revision's reading, under which the combined scene is the answer's own limit, read through "retaining and
+  reporting it only if rollback fails" because the rollback's proof cannot pass there, and the refusal for a mount
+  on the clone alone is the writer's, open to a veto on its own; (b) the same limit read to reach both scenes,
+  because the proof fails the same way in each, a rollback carrying a mount the handler did not make; (c) neither
+  refusal the answer's, so the answer's literal "Move it back at once" stands wherever a rollback could be
+  attempted and both refusals are the writer's. Ranking a > b > c: a > b because a keeps the answer to the scene
+  whose precondition it names, a clone that landed on a mount the account stacked, while b extends it to a scene the
+  answer never described; b > c because b keeps the proof's reason visible in both scenes, while c leaves "move it
+  back at once" standing where the move would carry a mount the handler did not make.
 - The end state and the receipts after a successful rollback, after a reattach and after a cancel. The design keeps
   the bind, folder, record and claim for the sweep, writes a refusal receipt for a removal and a cancelled-removal
   receipt for a reattach or a cancel, and lets the wrapper remove the folder on the second. Options: (a) this
@@ -1738,18 +1775,17 @@ rollback is outside that default.
   an other-boot record refusing to bind, leaving the record to the wrapper's settlement instead of rewriting it.
   Ranking a > d > c > b: a > d because a needs no wait and d makes a removal wait for one settlement; d > c because d
   still settles itself once, where c needs a person; c > b because b promises a settlement that may never come.
-- The rollback's classification against "No implicit remount after a failure or restart" is a question for the
-  project rather than a veto of a behaviour, and the design behaves the same whichever answer it gets. "The private
-  bind" states both readings: a second exception to the default, beside "the checked reattach of a removal that
-  cancels itself without `--force`"; or the accepted "Misplaced attach" rule applied inside one invocation, which is
-  no exception, because the default's words reach a remount that follows a failed or restarted invocation and this
-  move repairs a placement inside the invocation that made it. Options: (a) the second reading, under which the
-  accepted text stands unchanged; (b) the first reading, which needs four accepted sentences amended on acceptance:
-  the proposal's "Decided defaults" bullet, its "the one remount the no-implicit-remount decision allows", and the
-  plan's two entries on what a cancelled removal restores; (c) settling neither and letting those sentences be read
-  as they stand, which leaves an implementer to guess which default the rollback tests. Ranking a > b > c: a > b
-  because a keeps the accepted text true and needs no amendment while b is the more cautious claim but amends four
-  accepted sentences; b > c because c hides the tension the readings name.
+- How the accepted no-implicit-remount default covers the rollback. The design reads the rollback as the accepted
+  "Misplaced attach" rule applied within the invocation that made the move, so it is no exception, and "the
+  exception" the default records stays the checked reattach the project answered for. Options: (a) this reading,
+  which leaves "Keep, one exception (Recommended)" and the sentences that quote it true as recorded; (b) the
+  second-exception reading, under which the rollback stands beside "the checked reattach of a removal that cancels
+  itself without `--force`" and the sentences that record one exception are amended on acceptance: the proposal's
+  "Decided defaults" bullet, its "the one remount the no-implicit-remount decision allows", and the plan's entries on
+  what a cancelled removal restores; (c) settling neither, which leaves an implementer to guess which default the
+  rollback tests. Ranking a > b > c: a > b because a keeps the project's recorded answer and the accepted sentences
+  true, while b revises that answer's "one exception" and amends the sentences that quote it; b > c because b states
+  which exception the rollback would be where c states nothing.
 
 ## Hardening the stated threat model may make unnecessary
 
