@@ -23,8 +23,10 @@ The live arms' measured values are in
 this file records the checks around them.
 
 The logs live outside the repository,
-in the run's own `keep/` folder beside the
+in this round's `keep/round-evidence/` folder beside the
 brief that asked for the run,
+which is
+`/home/user/temp/agent/zfs-step-2-integration-pass-findings-fixed-2026-11-19/keep/round-evidence/`,
 and this file cites them by name.
 
 ## The gate image and its checks
@@ -47,42 +49,43 @@ The driver recorded each real exit status in
 `container-checks-summary.log`,
 and each check's whole output is `container-<check>.log`:
 
-1. `cargo nextest run --release --locked --offline --status-level all`:
-   exit 0,
-   `177 tests run: 177 passed, 30 skipped`
-   (the 30 are the `#[ignore]`d live tests).
-2. `cargo clippy --release --locked --offline --all-targets -- -D warnings`:
-   exit 0.
-3. `cargo fmt --check` (crate):
-   exit 0,
-   no output.
-4. `cargo fmt --check` (sidecar):
-   exit 0,
-   no output.
-5. `RUSTDOCFLAGS=-Dwarnings cargo doc --no-deps --locked --offline`:
-   exit 0.
-6. Sidecar `cargo check --locked --offline`:
-   exit 0.
-7. Sidecar `cargo clippy --locked --offline -- -D warnings`:
-   exit 0.
-8. `file-enforcer check` on the read-only worktree mount:
-   exit 0,
-   `check-clean`,
-   `drifted: 0`.
-   This is the first round in which it was clean:
-   the earlier pass saw one drift in a gitignored local file,
-   and that file now matches
-   its rule here.
-9. `file-enforcer check` on the main checkout,
-   read-only,
-   same image:
-   exit 1,
-   one drift,
-   `.config/mise/conf.d/10-bin.local.toml`
-   with rule `mise-bin-list`.
-   That file is gitignored (`.gitignore`'s `*.local.*`) and is not this branch's;
-   the worktree's copy is clean,
-   so the main checkout's copy is another session's state.
+1.  `cargo nextest run --release --locked --offline --status-level all`:
+    exit 0,
+    `177 tests run: 177 passed, 30 skipped`
+    (the 30 are the `#[ignore]`d live tests).
+2.  `cargo clippy --release --locked --offline --all-targets -- -D warnings`:
+    exit 0.
+3.  `cargo fmt --check` (crate):
+    exit 0,
+    no output.
+4.  `cargo fmt --check` (sidecar):
+    exit 0,
+    no output.
+5.  `RUSTDOCFLAGS=-Dwarnings cargo doc --no-deps --locked --offline`:
+    exit 0.
+6.  Sidecar `cargo check --locked --offline`:
+    exit 0.
+7.  Sidecar `cargo clippy --locked --offline -- -D warnings`:
+    exit 0.
+8.  `file-enforcer check` on the read-only worktree mount:
+    exit 0 in this round's own worktree,
+    `check-clean`,
+    `drifted: 0`.
+    That result is not reproducible from a fresh worktree:
+    the check reads `.config/mise/conf.d/10-bin.local.toml`,
+    a gitignored local file the wrapper copies into a new worktree,
+    and a copy that does not match `mise-bin-list` drifts there.
+    The lows round measured exit 1 on that one file in a fresh worktree,
+    and the same drift in the main checkout (check 9),
+    so the branch's own result is check 10.
+9.  `file-enforcer check` on the main checkout,
+    read-only,
+    same image:
+    exit 1,
+    the same single drift,
+    `.config/mise/conf.d/10-bin.local.toml`
+    with rule `mise-bin-list`,
+    so it is not the branch's.
 10. `file-enforcer write` on a tracked-only copy of `HEAD`:
     exit 0,
     29 files written,
@@ -90,6 +93,7 @@ and each check's whole output is `container-<check>.log`:
     `git diff --stat` and `git ls-files --others --exclude-standard` are empty,
     and `file-enforcer check` on the copy afterwards is
     exit 0 with `drifted: 0`.
+    This copy is the branch's result.
 11. `monochromatic-lint package/zfs/request-to-openzfs-kernel-device
     package/zfs/request-to-openzfs-kernel-device.fuzz`:
     exit 0,
@@ -207,7 +211,8 @@ Each new live arm was shown red first,
 in a guest,
 by a one-hunk patch on the committed code.
 Two trees of the package came from `git archive HEAD`;
-each patch file is in `keep/` beside the suite log it produced.
+each patch file is in the same `round-evidence/` folder beside the suite log
+it produced.
 
 `red-a-guest-logs/` (guest `zfs-step-2-findings-red-roots`,
 kept with `--keep-guest`,
@@ -241,8 +246,8 @@ ran two patches:
   `live_account_tests::the_account_snapshots_the_checkout_and_the_reply_carries_no_failure`
   failed with
   `Request { source: Call { operation: Snapshot, target: "zfsstep2-account", errno: 1 } }`.
-- `red-2-clone-props-ignored.patch`:
-  the same clone hunk as above.
+- the clone hunk of `red-2-clone-props-ignored.patch`:
+  `ZfsDevice::clone` passes `None`.
   `live_account_tests::the_account_clones_with_a_creation_time_user_property`
   failed with `the reply carries no 'monochromatic:desired-state'`.
 - The root suite also hits the grants test and both creation-time property
@@ -259,10 +264,16 @@ Two attempts before these are kept as well,
 because each failed for a reason outside the arms:
 
 - `red-a-aborted-attempt-logs/` holds the destroy logs of a red-A guest stopped
-  after 10 minutes of an OpenZFS build:
-  the unit's `CPUQuota=100%` and `MemoryMax=2G` did include the qemu process,
-  so the guest had one CPU and swapped,
-  and the caps were raised for every later run.
+  after 10 minutes of an OpenZFS build.
+  The cause was not established:
+  the kept folder holds only the destroy output,
+  nothing records where that attempt's qemu process ran,
+  and a later run under the same caps
+  (`MemoryMax=2G`,
+  `CPUQuota=100%`)
+  kept qemu outside its unit and finished the whole recipe,
+  so the caps as such do not explain it.
+  The caps were raised for every later run regardless.
 - `red-b-aborted-attempt-logs/` holds a run that started the recipe from the
   worktree while passing the red tree only as `--crate`.
   The recipe is the worktree's,
