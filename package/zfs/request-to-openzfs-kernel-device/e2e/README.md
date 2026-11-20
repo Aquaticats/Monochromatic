@@ -54,7 +54,7 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- destroy --name my
   then hands the tree to the guest's `ubuntu` account and runs the delegated arms as
   that account.
   Each suite must pass.
-  It must print no `SKIP` line of its own,
+  It must print no skip line from a live arm,
   and a `MEASUREMENT` line only a live arm writes,
   so a run whose arms skipped fails instead of reporting a green suite.
   The root suite excludes the delegated arms and the account

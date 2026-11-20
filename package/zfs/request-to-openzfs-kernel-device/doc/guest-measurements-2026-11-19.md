@@ -255,7 +255,7 @@ and `@worktree-own` was made on the clone.
 Before promoting:
 
 ```text
-MEASUREMENT before-promote checkout snapshots=[("@earliest", 2400177439762010623, 187), ("@origin", 11440608734556653149, 188), ("@checkout-later", 17816584427283206447, 189)] bookmark=(2400177439762010623, 187)
+MEASUREMENT before-promote checkout snapshots=[("@earliest", 13963875300632313367, 187), ("@origin", 13754703787189190893, 188), ("@checkout-later", 15075639309643733013, 189)] bookmark=(13963875300632313367, 187)
 ```
 
 (names shortened here;
@@ -264,7 +264,7 @@ the log has them whole).
 and the reply to the next `OBJSET_STATS` reads reported:
 
 ```text
-MEASUREMENT after-promote checkout origin=.../worktree-clone-datasets/promotion@origin promoted origin='' moved=[("...promotion@earliest", 2400177439762010623, 187), ("...promotion@origin", 11440608734556653149, 188), ("...promotion@worktree-own", 17743501436479443848, 192)]
+MEASUREMENT after-promote checkout origin=.../worktree-clone-datasets/promotion@origin promoted origin='' moved=[("...promotion@earliest", 13963875300632313367, 187), ("...promotion@origin", 13754703787189190893, 188), ("...promotion@worktree-own", 2370971146889672287, 192)]
 ```
 
 So the origin and the older checkout snapshot moved into the promoted clone
@@ -275,7 +275,7 @@ and the checkout became a clone of
 `promotion@origin`.
 The bookmark moved to the promoted clone with the same
 `(guid, createtxg)` tuple,
-`(2400177439762010623, 187)`.
+`(13963875300632313367, 187)`.
 
 The assertion is per moved snapshot:
 `live_promote_tests::promotion_moves_the_older_history_without_changing_identity`
@@ -301,7 +301,7 @@ again,
 and the identity read each time:
 
 ```text
-MEASUREMENT replacement guids before=2418104187328297464 after=7144921161776676990
+MEASUREMENT replacement guids before=9799189540936918528 after=16898917760837061338
 ```
 
 A reused name is a different object.

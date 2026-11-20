@@ -220,7 +220,7 @@ or a delegated arm running as the wrong account,
 panics instead of returning:
 a returning test is a passing test.
 The recipe goes further.
-Each suite must also print no `SKIP` line of its own,
+Each suite must also print no skip line from a live arm,
 and a `MEASUREMENT` line only a live arm writes,
 so a guest run whose arms skipped fails.
 `e2e/README.md` lists the guest's contents (Ubuntu 24.04 on the plan's
