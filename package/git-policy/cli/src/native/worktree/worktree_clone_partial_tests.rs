@@ -187,11 +187,17 @@ fn target_of(dirty: &Dirty) -> Target {
 /// ```ts
 /// const part = await cloneAndProve(dirty); // throws the reason the worktree is not Git's
 /// ```
+/// The size rules that clone every settled path and decline nothing,
+/// which is the rule this prototype applies unless a measurement sets one.
+fn no_rule() -> SizeRules {
+    return SizeRules { clone_min_bytes: 0, decline_below_total_bytes: 0 };
+}
+
 fn clone_and_prove(dirty: &Dirty) -> PartCloned {
     let target: Target = target_of(dirty);
     let held: std::fs::File = open_root(dirty.destination.as_path()).expect("the destination");
     let admin: std::fs::File = open_root(dirty.admin.as_path()).expect("the administrative directory");
-    let part: PartCloned = clone_the_unchanged(&git_context(), &dirty.source, &target, dirty.destination.as_path(), &held, &admin).expect("the partial clone");
+    let part: PartCloned = clone_the_unchanged(&git_context(), &dirty.source, &target, dirty.destination.as_path(), &held, &admin, &no_rule()).expect("the partial clone");
     prove_the_worktree(&git_context(), &target, dirty.destination.as_path()).expect("the worktree Git's checkout makes");
     return part;
 }
@@ -255,6 +261,40 @@ fn a_path_written_after_its_entry_was_recorded_is_written() {
     let part: PartCloned = clone_and_prove(&dirty);
     assert_eq!(part.written, 4, "the written path joins the three the fixture's changes reach");
     assert_eq!(std::fs::read(dirty.destination.join("kept.txt")).expect("the commit's bytes"), KEPT);
+    crate::test_support::remove(root.as_path());
+}
+
+/// An unchanged file below the size rule's cutoff is written by Git and not cloned,
+/// and the worktree it leaves is still Git's own result.
+#[test]
+fn an_unchanged_file_below_the_cutoff_is_written() {
+    let Some(root) = clone_capable_fixture("clone-partial-cutoff") else { return };
+    let dirty: Dirty = dirty_repository(root.as_path());
+    let target: Target = target_of(&dirty);
+    let held: std::fs::File = open_root(dirty.destination.as_path()).expect("the destination");
+    let admin: std::fs::File = open_root(dirty.admin.as_path()).expect("the administrative directory");
+    // Every unchanged path of this fixture is shorter than a kilobyte, so the rule moves all four to Git.
+    let rules: SizeRules = SizeRules { clone_min_bytes: 1024, decline_below_total_bytes: 0 };
+    let part: PartCloned = clone_the_unchanged(&git_context(), &dirty.source, &target, dirty.destination.as_path(), &held, &admin, &rules).expect("the partial clone");
+    assert_eq!((part.cloned, part.written), (0, 6), "every path is Git's when the rule takes no clone");
+    prove_the_worktree(&git_context(), &target, dirty.destination.as_path()).expect("the worktree Git's checkout makes");
+    assert_eq!(std::fs::read(dirty.destination.join("kept.txt")).expect("the commit's bytes"), KEPT);
+    crate::test_support::remove(root.as_path());
+}
+
+/// A source whose tracked bytes are below the whole-tree rule's threshold is declined,
+/// so the ladder falls back to Git's own checkout.
+#[test]
+fn a_tree_below_the_whole_tree_threshold_declines_the_rung() {
+    let Some(root) = clone_capable_fixture("clone-partial-declined") else { return };
+    let dirty: Dirty = dirty_repository(root.as_path());
+    let target: Target = target_of(&dirty);
+    let held: std::fs::File = open_root(dirty.destination.as_path()).expect("the destination");
+    let admin: std::fs::File = open_root(dirty.admin.as_path()).expect("the administrative directory");
+    let rules: SizeRules = SizeRules { clone_min_bytes: 0, decline_below_total_bytes: 1 << 40 };
+    let reason: String = clone_the_unchanged(&git_context(), &dirty.source, &target, dirty.destination.as_path(), &held, &admin, &rules).expect_err("a declined rung");
+    assert!(reason.contains("declines the rung"), "{reason}");
+    assert!(!dirty.destination.join("kept.txt").exists(), "nothing was made before the rule was applied");
     crate::test_support::remove(root.as_path());
 }
 

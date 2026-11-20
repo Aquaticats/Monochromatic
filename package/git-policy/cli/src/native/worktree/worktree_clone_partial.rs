@@ -57,6 +57,64 @@ use std::path::Path;
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeClonePartial";
 
+/// The variable that sets the smallest unchanged file this prototype clones;
+/// it exists only to measure where cloning wins on this host and is not the shipped rule.
+pub const PROTOTYPE_CLONE_MIN_BYTES_VARIABLE: &str = "CLI_GIT_PROTOTYPE_CLONE_MIN_BYTES";
+
+/// The variable that sets the total tracked bytes below which this prototype declines the rung and lets Git's checkout
+/// make the worktree;
+/// it exists only to measure the whole-tree rule and is not the shipped rule.
+pub const PROTOTYPE_DECLINE_BELOW_TOTAL_BYTES_VARIABLE: &str = "CLI_GIT_PROTOTYPE_DECLINE_BELOW_TOTAL_BYTES";
+
+/// What:
+///  The two size rules a partial clone can apply to the paths its proof settled.
+/// Why:
+///   A clone of a small file on ZFS costs more than Git's write of it,
+/// so a per-file rule clones only the files at or above a
+///  size where cloning wins,
+/// and a whole-tree rule declines the rung where the tree holds too little data for cloning to win.
+/// Both are measured before either is chosen;
+/// the variables above exist for that measurement and for nothing else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type SizeRules = { cloneMinBytes: number; declineBelowTotalBytes: number };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SizeRules {
+    /// The smallest unchanged file a clone takes;
+    /// zero clones every one of them.
+    pub clone_min_bytes: u64,
+    /// The tracked bytes below which the rung is declined;
+    /// zero never declines.
+    pub decline_below_total_bytes: u64,
+}
+
+impl SizeRules {
+    /// The rules the prototype's variables name,
+    /// and no rule at all when neither is set.
+    pub fn from_the_environment() -> SizeRules {
+        return SizeRules { clone_min_bytes: number_variable(PROTOTYPE_CLONE_MIN_BYTES_VARIABLE), decline_below_total_bytes: number_variable(PROTOTYPE_DECLINE_BELOW_TOTAL_BYTES_VARIABLE) };
+    }
+}
+
+/// What:
+///  The number a variable names,
+/// or zero when it is unset or names no number.
+/// Why:
+///   A measurement sets these variables itself,
+/// and a value that does not parse must leave the rung as it was
+///  rather than stop an add.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const value = Number(process.env[name] ?? '0'); return Number.isSafeInteger(value) && value > 0 ? value : 0;
+/// ```
+fn number_variable(name: &str) -> u64 {
+    let Some(value) = std::env::var_os(name) else { return 0 };
+    return value.to_string_lossy().trim().parse::<u64>().unwrap_or(0);
+}
+
 /// What:
 ///  What one partial clone made.
 /// Why:
@@ -290,6 +348,72 @@ pub fn prove_the_worktree(context: &GitContext, target: &Target, work_tree: &Pat
 }
 
 /// What:
+///  Move the unchanged paths a size rule keeps from the clones to the paths Git writes,
+/// or refuse the rung when the whole tree is
+///  below the threshold,
+/// and answer the split that then holds.
+/// Why:
+///   The two rules are measured against Git's own checkout before either is chosen,
+/// and a rule that only moves a path between
+///  the clones and the write step needs nothing else in the rung;
+/// the write step already writes any path whose entry it is given.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const split = applyTheSizeRules({ split, entries, rules }); // throws when the tree is too small for the rung
+/// ```
+fn apply_the_size_rules(split: Split, entries: &[crate::worktree_clean::StatEntry], rules: &SizeRules) -> Result<Split, String> {
+    if rules.decline_below_total_bytes > 0 {
+        let total: u64 = entries.iter().map(|entry| { return u64::from(entry.stored.size); }).sum();
+        if total < rules.decline_below_total_bytes {
+            return Err(format!("the prototype's whole-tree rule declines the rung: {total} tracked bytes are below {}", rules.decline_below_total_bytes));
+        }
+    }
+    if rules.clone_min_bytes == 0 {
+        return Ok(split);
+    }
+    let mut clones: Vec<usize> = Vec::with_capacity(split.clones.len());
+    let mut writes: Vec<Vec<u8>> = split.writes;
+    for at in split.clones {
+        let Some(entry) = entries.get(at) else { continue };
+        if u64::from(entry.stored.size) < rules.clone_min_bytes {
+            writes.push(entry.path.clone());
+            continue;
+        }
+        clones.push(at);
+    }
+    // The write step and the proof ask nothing of the order,
+    // but a record of what the rung did reads better in path order.
+    writes.sort();
+    return Ok(Split { clones, writes });
+}
+
+/// What:
+///  The stat fields of the paths the clones made,
+/// with a link's entry keeping the fields its source recorded.
+/// Why:
+///   A link is cloned by making another link with the same target,
+/// and the object made is a different inode with a new change time,
+/// so fields taken from it would certify a name another process may have replaced since;
+/// the source's fields name the target's length,
+/// which is what Git compares a link by.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stats = statsOfTheClones({ made, split, entries });
+/// ```
+fn stats_of_the_clones(made: std::collections::HashMap<Vec<u8>, StatFields>, split: &Split, entries: &[crate::worktree_clean::StatEntry]) -> std::collections::HashMap<Vec<u8>, StatFields> {
+    let mut stats: std::collections::HashMap<Vec<u8>, StatFields> = made;
+    for at in &split.clones {
+        let Some(entry) = entries.get(*at) else { continue };
+        if entry.mode & 0o170_000 == 0o120_000 {
+            stats.insert(entry.path.clone(), fields_the_source_recorded(entry.stored));
+        }
+    }
+    return stats;
+}
+
+/// What:
 ///  Clone the unchanged tracked paths of a source with changes into the destination,
 /// install the index built from
 ///  the tree of `HEAD`,
@@ -305,7 +429,7 @@ pub fn prove_the_worktree(context: &GitContext, target: &Target, work_tree: &Pat
 /// ```ts
 /// const part = cloneTheUnchanged({ context, source, target, destination, admin }); // throws the reason
 /// ```
-pub fn clone_the_unchanged(context: &GitContext, source: &SnapshotSource, target: &Target, destination: &Path, held: &File, admin: &File) -> Result<PartCloned, String> {
+pub fn clone_the_unchanged(context: &GitContext, source: &SnapshotSource, target: &Target, destination: &Path, held: &File, admin: &File, rules: &SizeRules) -> Result<PartCloned, String> {
     let read_entered: bool = begin_step("partRead");
     let read_outcome = read_tracked(source);
     end_step(read_entered);
@@ -313,20 +437,14 @@ pub fn clone_the_unchanged(context: &GitContext, source: &SnapshotSource, target
     let classify_entered: bool = begin_step("partClassify");
     let classify_outcome = split_the_tree(tracked.entries.as_slice(), tracked.indexed.as_slice(), tracked.tree.as_slice(), source.root.as_path(), source.clean.index_seconds);
     end_step(classify_entered);
-    let split: Split = classify_outcome.map_err(|refusal| { return refusal.reason; })?;
+    let settled: Split = classify_outcome.map_err(|refusal| { return refusal.reason; })?;
+    let split: Split = apply_the_size_rules(settled, tracked.entries.as_slice(), rules)?;
     let cloned: usize = split.clones.len();
     let written: usize = split.writes.len();
     let mut created: Vec<Created> = Vec::new();
     let taken = split.cloned_entries(tracked.entries.as_slice());
-    let mut stats: std::collections::HashMap<Vec<u8>, StatFields> = clone_the_entries_of(source, taken, held, &mut created)?;
-    // A link is compared by its target and the length the entry recorded, never by the object the clone made, so its
-    //  entry keeps the source's own fields: see `fields_the_source_recorded`.
-    for at in &split.clones {
-        let Some(entry) = tracked.entries.get(*at) else { continue };
-        if entry.mode & 0o170_000 == 0o120_000 {
-            stats.insert(entry.path.clone(), fields_the_source_recorded(entry.stored));
-        }
-    }
+    let made: std::collections::HashMap<Vec<u8>, StatFields> = clone_the_entries_of(source, taken, held, &mut created)?;
+    let stats: std::collections::HashMap<Vec<u8>, StatFields> = stats_of_the_clones(made, &split, tracked.entries.as_slice());
     let index_entered: bool = begin_step("partIndex");
     let index_outcome = index_of_the_tree(tracked.tree.as_slice(), &stats, source.clean.hash_length).and_then(|bytes| { return install_index_in(admin, bytes.as_slice(), &mut NoStats, source.clean.hash_length); });
     end_step(index_entered);

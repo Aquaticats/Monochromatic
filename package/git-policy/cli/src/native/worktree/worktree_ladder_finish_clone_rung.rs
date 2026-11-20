@@ -35,7 +35,7 @@ use crate::transaction_git::GitContext;
 use crate::worktree_add_binding::{Bound, verify_association};
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clone::{Cloned, Created, clone_tracked_files, leftover_report};
-use crate::worktree_clone_partial::{PartCloned, clone_the_unchanged, prove_the_worktree};
+use crate::worktree_clone_partial::{PartCloned, SizeRules, clone_the_unchanged, prove_the_worktree};
 use crate::worktree_copy::GitRunner;
 use crate::worktree_ladder_target::{Target, apply_difference, prepare_target};
 use crate::worktree_snapshot_source::SnapshotSource;
@@ -93,7 +93,7 @@ pub(crate) fn serve_clones(source: &SnapshotSource, plan: &AddPlan, bound: &Boun
     verify_association(bound)?;
     let target: Target = prepare_target(source, plan, context, bound)?;
     let part: Option<PartCloned> = match source.dirty.as_ref() {
-        Some(_changes) => Some(clone_the_unchanged(context, source, &target, plan.destination.as_path(), &bound.destination, &bound.admin)?),
+        Some(_changes) => Some(clone_the_unchanged(context, source, &target, plan.destination.as_path(), &bound.destination, &bound.admin, &SizeRules::from_the_environment())?),
         None => None,
     };
     let full: Option<Cloned> = if part.is_some() { None } else { Some(clone_tracked_files(source, &bound.destination, &bound.admin)?) };

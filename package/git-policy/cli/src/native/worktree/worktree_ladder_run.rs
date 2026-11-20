@@ -174,6 +174,42 @@ fn identity_of_stage_name(stage: &Path) -> Option<crate::fs_beneath::ObjectId> {
 }
 
 /// What:
+///  The reason the prototype's whole-tree size rule declines the clone rung for this source,
+/// or nothing when the rule is
+///  not set or the tree is big enough.
+/// Why:
+///   A clone of a tree of small files costs more than Git's own checkout of it,
+/// and a rule that declines the rung must
+///  decline it before the source's proof is paid or the proof's own cost is the loss.
+/// The index already records every entry's size,
+/// so the sum costs one read of a file the rung would read anyway,
+/// and nothing here is a configuration value:
+/// the variable exists only to measure where the rule should sit and is not shipped.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reason = prototypeTreeTooSmall(identity); // undefined when the tree may be cloned
+/// ```
+fn prototype_tree_too_small(identity: &WorktreeIdentity) -> Option<String> {
+    let threshold: u64 = std::env::var_os("CLI_GIT_PROTOTYPE_DECLINE_BELOW_TOTAL_BYTES").map_or(0, |value| { return value.to_string_lossy().trim().parse::<u64>().unwrap_or(0); });
+    if threshold == 0 {
+        return None;
+    }
+    let (root, git_dir, common_dir): (&PathBuf, &PathBuf, &PathBuf) = match identity {
+        WorktreeIdentity::MainWorktree { worktree_root, git_dir, common_dir } | WorktreeIdentity::LinkedWorktree { worktree_root, git_dir, common_dir } => (worktree_root, git_dir, common_dir),
+        WorktreeIdentity::BareRepository { .. } | WorktreeIdentity::OutsideWorktree => return None,
+    };
+    let bytes: Vec<u8> = std::fs::read(git_dir.join("index")).ok()?;
+    let hash_length: usize = crate::subvolume_index_files::repository_hash_length(common_dir.as_path())?;
+    let entries = crate::worktree_clean::stored_stats(bytes.as_slice(), hash_length)?;
+    let total: u64 = entries.iter().map(|entry| { return u64::from(entry.stored.size); }).sum();
+    if total >= threshold {
+        return None;
+    }
+    return Some(format!("the prototype's whole-tree rule declines the rung before its proof: {} tracked bytes in {} are below {}", total, root.display(), threshold));
+}
+
+/// What:
 ///  Choose the rung for one invocation and prepare it:
 /// a snapshot source and the claim on its stage,
 /// a clone source,
@@ -207,6 +243,12 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
     };
     if snapshot_refusal.is_some() && clone_refusal.is_some() {
         log_git_checkout(plan, "neither a snapshot nor clones apply", &snapshot_refusal, &clone_refusal);
+        return (Rung::Git(prepare_subvolume_destination(plan)), cheap);
+    }
+    // The prototype's whole-tree rule, asked before any proof is paid: a tree whose tracked bytes are too few for the
+    //  clones to win leaves the checkout to Git, with nothing of the rung spent.
+    if let Some(reason) = prototype_tree_too_small(identity) {
+        log_git_checkout(plan, reason.as_str(), &snapshot_refusal, &clone_refusal);
         return (Rung::Git(prepare_subvolume_destination(plan)), cheap);
     }
     let check_source_entered: bool = begin_step("checkSource");
