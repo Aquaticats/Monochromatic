@@ -26,7 +26,8 @@
 
 use super::{TRASH_PARENT, TrashManifest};
 use crate::diagnostic_log::debug;
-use crate::fs_beneath::{ObjectId, identity_at, identity_of, make_directory_at, open_directory_at, open_directory_beneath, plain_components, rename_at};
+use crate::fs_beneath::{ObjectId, identity_at, identity_of, make_directory_at, open_directory_at, plain_components, rename_at};
+use crate::fs_beneath_walk_chain::open_directory_beneath;
 use crate::random_id::random_uuid;
 use crate::worktree_path_failure_message::{path_failure, subject_failure};
 use std::ffi::{OsStr, OsString};

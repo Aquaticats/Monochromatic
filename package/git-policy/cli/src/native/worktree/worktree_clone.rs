@@ -450,7 +450,7 @@ fn clone_with(source: &SnapshotSource, directories: &mut Directories, admin: &Fi
     let mut stats: HashMap<Vec<u8>, StatFields> = HashMap::new();
     for entry in &entries {
         let names: Vec<OsString> = entry_names(entry.path.as_slice())?;
-        let source_dir: File = match crate::fs_beneath::open_directory_beneath(&root, &names[..names.len() - 1]) {
+        let source_dir: File = match crate::fs_beneath_walk_chain::open_directory_beneath(&root, &names[..names.len() - 1]) {
             Ok(opened) => opened,
             Err(error) => return Err(format!("the source directory of {} cannot be opened ({error})", String::from_utf8_lossy(entry.path.as_slice()))),
         };

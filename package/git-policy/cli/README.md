@@ -6119,6 +6119,16 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   Selected by name,
   the same controls are the `btrfs_*` tests of the library and the binary-level controls that call
   `on_btrfs_or_acknowledged` (`src/native/binary/binary_support_btrfs_controls.rs`).
+- The controls that need a kernel namespace fail the same way rather than passing unrun,
+  and the acknowledgement variable each refusal names is the only thing that lets one skip:
+  `CLI_GIT_TEST_NO_USER_NAMESPACES=1` for the controls that judge root-owned files inside an unprivileged user namespace,
+  and `CLI_GIT_TEST_NO_MOUNT_NAMESPACES=1` for the control that needs a mount in a mount namespace of its own.
+  A control that does not run prints `NAMESPACE CONTROL NOT RUN: <control> (<what the host refused>)` and passes,
+  and a run that states no variable fails naming the one to set.
+  The gate image sets neither,
+  because this host allows both
+  (`src/native/worktree_clone_mount/root_namespace_test_support.rs`,
+  `src/native/subvolume/fs_beneath_walk_chain_tests.rs`).
 - A wrapper release waits for that run,
   unless the version is an alpha:
   `native:release` dispatches nothing until `native:release:host-controls`

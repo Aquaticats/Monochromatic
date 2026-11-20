@@ -31,7 +31,8 @@
 //! const directory = chain.directory(['package', 'cli', 'src']); // the handle those names lead to
 //! ```
 
-use super::fs_beneath::{device_of, open_directory_at, open_directory_beneath};
+use super::fs_beneath::{device_of, open_directory_at};
+use super::fs_beneath_walk_chain::open_directory_beneath;
 use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::fs::File;

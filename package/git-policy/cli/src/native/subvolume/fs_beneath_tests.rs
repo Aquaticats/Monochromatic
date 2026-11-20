@@ -8,6 +8,8 @@
 
 use super::*;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
+use crate::fs_beneath_mount_facts::{mount_id_of, observed_path};
+use crate::fs_beneath_walk_chain::open_directory_beneath;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{fixture, remove};
 use std::os::unix::ffi::OsStrExt;
@@ -262,5 +264,28 @@ fn names_are_exchanged_and_renamed_without_replacing() {
     assert_eq!(std::fs::read(root.join("b")).expect("kept"), b"a");
     rename_at(&held, OsStr::new("a"), &held, OsStr::new("c"), false).expect("rename to a free name");
     assert!(root.join("c").exists() && !root.join("a").exists());
+    remove(root.as_path());
+}
+
+/// What:
+///  A held handle reports the path its folder has now,
+///  and the mount ID the kernel gave the mount it is on.
+/// Why:
+///  A rename after the open is how an attach that landed beside its slot is seen,
+///  and two folders on one mount share the ID the post-attach check compares.
+#[test]
+fn a_handle_reports_its_path_now_and_its_mount() {
+    let root: PathBuf = fixture("beneath-observed");
+    std::fs::create_dir(root.join("folder")).expect("folder");
+    let parent: File = open_directory(root.as_path()).expect("root");
+    let folder: File = open_directory_at(&parent, OsStr::new("folder")).expect("folder");
+    let observed: PathBuf = observed_path(&folder).expect("observed");
+    assert_eq!(std::fs::canonicalize(&observed).expect("canonical"), std::fs::canonicalize(root.join("folder")).expect("canonical"));
+    let mount: u64 = mount_id_of(&folder).expect("mount id");
+    assert_eq!(mount, mount_id_of(&parent).expect("one mount for both folders"));
+    std::fs::rename(root.join("folder"), root.join("moved-folder")).expect("rename");
+    let after: PathBuf = observed_path(&folder).expect("observed");
+    assert_eq!(after.file_name(), Some(OsStr::new("moved-folder")), "the handle follows the name the folder has now");
+    assert_eq!(mount_id_of(&folder).expect("the same mount"), mount);
     remove(root.as_path());
 }
