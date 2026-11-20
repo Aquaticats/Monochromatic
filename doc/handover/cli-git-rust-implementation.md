@@ -40700,7 +40700,21 @@ stated in this entry. What follows from them, as work:
   commit comments carry the real times (210970300 on `4258b3c3c9`, 210970301 on `71829d109c`). Both designs' revision
   labels name the false times and are relabelled in their next round. Briefs from now on ask for the time the entry is
   written (`date --iso-8601=seconds`) and forbid setting commit dates; an `AGENTS.md` rule is proposed in
-  `doc/handover/questions-for-the-owner.md`. STAGING ENDED `idle` at
+  `doc/handover/questions-for-the-owner.md`. The narrow check ended (Sonnet, about 32 min; that folder's
+  `keep/review.md`, evidence in `keep/evidence/`): not ready, one short pass away, no high. MED-1: the claim now covers
+  the descriptor walk and the first-observation record, neither with a writable step name. MED-2: endings still open
+  (a refused blocking-pool thread, a failed pipe, a child ending with no status line; two stale sentences; the fork
+  retry cites the `Command`-only `spawn_retrying`). MED-3: the skip is wider than Q6's "exactly on hosts where user
+  namespaces are refused", since a defect in the companion's own setup code skips too. Lows: under the Ubuntu
+  restriction the first map write probably fails (`map_write` needs `CAP_SYS_ADMIN`), not `unshare(CLONE_NEWNS)`; "the
+  test-only switch does not ship" contradicts the recorded rule that `CLI_GIT_TEST_ONLY_*` variables ship inert; the
+  previous LOW-6 not fixed though reported fixed; the sweep tests the wrapper's pid, not the child's; the hand-set
+  label. Its run: the parent-death signal survives the namespace setup, follows the forking thread and ends the child
+  when the wrapper is killed outright. GOING: the fifth revision,
+  `pi-zfs-start-probe-design-fourth-revision-narrow-check-findings-fixed` (DeepSeek on Neuralwatt, cap 510), told the
+  reflog times, to label with the time written and never set commit dates; brief under
+  `~/temp/agent/zfs-start-probe-design-fourth-revision-narrow-check-findings-fixed-2026-11-19/`. Then a diff-only Sonnet
+  check and acceptance, the companion skip asked as a ranked question. STAGING ENDED `idle` at
   `e8f7ec4fa6` (thirteen commits; report in its folder's `keep/report.md`). It records every answer and makes Way A the
   design. On Q3 it rolls the clone back by its own descriptor, staging it only if that fails. Its post-move check now
   asserts that the topmost mount is the clone with the bind as its parent; the run's own advisor found the old wording
