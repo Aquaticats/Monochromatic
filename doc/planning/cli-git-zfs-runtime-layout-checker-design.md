@@ -20,9 +20,10 @@ and the measurements that would make the choices safe are
 under [Owed measurements](#owed-measurements), unrun.
 It decides nothing that belongs to the owner: the choices that are the owner's are
 under [Questions for the owner](#questions-for-the-owner),
-the rules a writer adopts with a veto open are stated there too,
-and the parts a writer can settle are
-under [What a writer can settle without asking](#what-a-writer-can-settle-without-asking).
+the parts a writer can settle are
+under [What a writer can settle without asking](#what-a-writer-can-settle-without-asking),
+and each of the three rules a writer adopts there stands open to veto,
+with "veto none" as its default.
 Nothing here is implemented, released or approved.
 
 The owner answered three of this file's questions on 2026-11-19 and left the fourth held.
@@ -35,9 +36,11 @@ gives the proposal, the plan and the binding `README.md` the exact text each one
 The project put this file's questions in the question tool between 2026-11-19T20:35
 and 2026-11-19T20:43:51-05:00, and answered a follow-up on Q2's evidence at
 2026-11-19T21:31:47-05:00.
-The answers are recorded in the main checkout's `doc/handover/cli-git-rust-implementation.md`,
-at lines 40398 onward of the file at `e4003a8563`, inside one long paragraph that contains the
-sentence "THE ROUND WAS ASKED" rather than beginning with it.
+The three first-round answers are recorded in the main checkout's
+`doc/handover/cli-git-rust-implementation.md`, at lines 40398 onward of the file at `e4003a8563`,
+inside one long paragraph that contains the sentence "THE ROUND WAS ASKED" rather than beginning
+with it; the follow-up answer to Q2 landed after that commit, at line 40463 of the file at
+`cb84b5769f`, in the paragraph that begins "LAYOUT CHECKER REVIEW ENDED".
 That handover is a working file (rule `H0P`), so this section is the durable copy of the answers
 this design rests on.
 Each answer is quoted in the project's words under its own heading, and every other section of
@@ -80,12 +83,13 @@ The comparison's artifacts are the script `diff-handlers.ts`, the three `zfs_ioc
 `diff-clone-handler-zfs-2.3.0-to-zfs-2.4.4.diff`.
 
 What that comparison read, and what it did not. It read the twelve handler bodies of
-`module/zfs/zfs_ioctl.c`, their key tables, and the request numbers. Five of the twelve requests
+`module/zfs/zfs_ioctl.c` and their key tables. Five of the twelve requests
 carry a key table and seven carry none in all three tags, so the run covers twelve handlers and
-five key tables, not twelve of each. It read no registration line, no permission policy and no
-function a handler or a policy calls, and those set a request's answer as much as its own body
-does. This revision re-read the three copies and widened the read to all three, which is what
-[What was run, and what was not](#what-was-run-and-what-was-not) records.
+five key tables, not twelve of each. It read no request number, no registration line, no permission
+policy and no function a handler or a policy calls, and those set a request's answer as much as its
+own body does. This revision re-read the three copies, read the request numbers from the three
+`zfs.h` copies and widened the handler read to registrations, policies and same-file callees, which
+is what [What was run, and what was not](#what-was-run-and-what-was-not) records.
 
 The request numbers. All twelve the binding sends hold the same value in the three tags, as do
 `ZFS_IOC_FIRST` (23,040), `ZFS_IOC_PLATFORM` (23,168) and `ZFS_IOC_LAST` (23,177).
@@ -105,33 +109,54 @@ The clone's callee differs beyond its name: `dsl_dataset_clone_check` passes one
 
 The registrations, policies and callees. Of the 51 functions of `zfs_ioctl.c` reachable by name
 from the twelve handlers and from the nine policy functions their registrations name, 10 have
-different bodies in the three tags: the two handlers, and eight behind `zfs_ioc_set_prop`, whose
-own text is identical in all three. Six of the eight are inert for the binding's call shapes: a
-`VERIFY` spelling in `props_skip`, `zfs_prop_set_userquota` and `zfs_check_settable`, an empty
+different bodies in the three tags: the two handlers, and eight of the 28 functions `SET_PROP`
+and its policy reach, whose `zfs_ioc_set_prop` text is identical in all three. That path has two
+entry points. `SET_PROP` reaches the eight through `zfs_set_prop_nvlist`, and `zfs_ioc_clone`
+applies a clone's `props` through the same function (`module/zfs/zfs_ioctl.c:3634-3639`, 2.3.0),
+so a clone created with properties runs the same eight: with `SET_PROP`'s own roots cut, 7 of the
+46 functions the other eleven handlers reach still differ, five of the seven the property-set
+functions.
+Of the eight, six are inert for the wrapper's call shapes: a `VERIFY` spelling in `props_skip`,
+`zfs_prop_set_userquota` and `zfs_check_settable`, an empty
 `switch` case `zfs_check_settable` loses, a permission path `zfs_secpolicy_recv` takes only when
 `zc_cookie` is set, and the pool-config locking that moves inside `zfsvfs_hold` and `zfsvfs_rele`
 at 2.4.4. The other two are the changes worth naming: `zfs_prop_set_special` for the interval that
 kept the layout, and the new `zfs_secpolicy_setprops` for the interval that changed it alongside the
 registration's move.
+That count covers callees in `zfs_ioctl.c`; the callees that live in other files, the `dsl_*`,
+`dmu_*`, `zvol_*` and `spa_*` functions, were read only for `zvol_set_ro`,
+`zvol_set_volthreading` and the clone pair `dmu_objset_clone` and `dsl_dataset_clone`.
 
 A behaviour change that kept the layout, 2.2.2 to 2.3.0. That interval keeps the layout: the
 declarations of `zfs_cmd_t`, `zinject_record_t` and `dmu_objset_stats_t` are identical across it,
 and the header diff carries comments, defines and two new `zinject_type_t` values and changes no
 struct member. Across it `zfs_prop_set_special` changed: it gains `ZFS_PROP_VOLTHREADING`,
 `ZFS_PROP_READONLY` through `zvol_set_ro` and `ZFS_PROP_LONGNAME`, and it sends `SNAPDEV` and
-`VOLMODE` through `zvol_set_common` (`module/zfs/zfs_ioctl.c:2556-2610`, 2.3.0).
-So `SET_PROP` on a volume answers differently at 2.3.0 with the layout kept, and no comparison of
+`VOLMODE` through `zvol_set_common` (`module/zfs/zfs_ioctl.c:2556-2634`, 2.3.0, the `LONGNAME`
+case ending at 2634).
+So a volume's property set answers differently at 2.3.0 with the layout kept, and no comparison of
 layout can see it.
-For the binding's own call shapes it is no change, and that is a source reading, not a measurement.
-The wrapper's `SET_PROP` changes only its own user properties on a named clone, the mount
-desired-state property `org.monochromatic:git-worktree-clone-mount-desired-state`
-([Requests and input ownership](cli-git-zfs-worktree-design-proposal.md#requests-and-input-ownership),
-line 175, and line 537) and a sweep nonce, and `zfs_prop_set_special` switches on the system
-property, so a user property reaches its default in both releases. On a filesystem dataset name
-`zvol_set_ro` returns -1, because no volume carries that name (`module/zfs/zvol.c:386-401`, 2.3.0),
-which takes 2.2.2's default path. The `LONGNAME` case is the one a filesystem dataset would meet:
-it holds the dataset and answers `ENOTSUP` when the pool lacks `SPA_FEATURE_LONGNAME`, where 2.2.2
-set the property; no run measured whether any caller names `longname`.
+For the wrapper's call shapes it is no change, and that is a source reading, not a measurement.
+The wrapper sends one user property and a sweep nonce: the mount desired-state property
+`org.monochromatic:git-worktree-clone-mount-desired-state`, named as `SET_PROP`'s own change under
+[Requests and input ownership](cli-git-zfs-worktree-design-proposal.md#requests-and-input-ownership),
+line 175, and quoted under
+[Requests, results and ordering](cli-git-zfs-worktree-design-proposal.md#requests-results-and-ordering),
+line 537. The proposal sends it in the clone's `props` first and falls back to `SET_PROP`
+(lines 371 to 377), so both property paths carry it, and `zfs_ioc_clone` reaches the same
+`zfs_set_prop_nvlist` call for it.
+In all three releases a user property returns at `zfs_prop_set_special`'s user-property check,
+before its `switch`, at the same four lines (`module/zfs/zfs_ioctl.c:2456-2460` at 2.2.2,
+`:2486-2490` at 2.3.0, `:2636-2640` at 2.4.4), and the value is set afterwards through the generic
+property path; it reaches no release-specific case. On a filesystem dataset name `zvol_set_ro`
+returns -1, because no volume carries that name (`module/zfs/zvol.c:386-401`, 2.3.0).
+`LONGNAME` is the one case a filesystem dataset would meet, and no caller names it: 2.2.2 has no
+`ZFS_PROP_LONGNAME`, so `zprop_name_to_prop` returns `ZPROP_INVAL`, which is `ZPROP_USERPROP`,
+`zfs_prop_user` needs a colon, and `zfs_set_prop_nvlist` refuses the name as an invalid property
+with `EINVAL` (`module/zfs/zfs_ioctl.c:2627-2637`, 2.2.2); 2.3.0 holds the dataset and answers
+`ENOTSUP` when the pool lacks `SPA_FEATURE_LONGNAME`, or sets the value when it has it.
+That is a refusal becoming a success or an `ENOTSUP`, and no run measured whether any caller names
+`longname`.
 
 A behaviour change a handler-only read missed, 2.3.0 to 2.4.4. That interval changes layout, so it
 is no counterexample; it shows what the narrower read could not see. `SET_PROP`'s registration
@@ -155,7 +180,7 @@ What the evidence answers, in the project's terms. Two facts, neither of them a 
 releases. The release string carries no fact the gate needs, which is why no step compares it.
 And a release can change a request's answer while keeping the layout, which the 2.2.2 to 2.3.0
 interval shows for volume property handling, so no layout comparison proves behaviour.
-No run shows a changed behaviour altering a result for the binding's call shapes, and that is
+No run shows a changed behaviour altering a result for the wrapper's call shapes, and that is
 unmeasured rather than proved. Three releases settle neither the general case nor this one, and
 [a release that keeps the layout and changes behaviour](#a-release-that-keeps-the-layout-and-changes-behaviour)
 states what the gate would then do.
@@ -169,20 +194,31 @@ exact BTF profiles ([ABI verification][design-project-decisions]).
 
 At 2026-11-19T21:31:47-05:00 the coordinator put the correction under
 [the release string](#the-release-string-q2) to the project in the question tool: the comparison
-had read handler bodies only; across 2.2.2 to 2.3.0, with identical layouts, the property-set
-handler gained the volume cases and the new longname property; and for a filesystem dataset the
-2.3.0 read-only path is 2.2.2's.
-Three options were offered:
+had read handler bodies and key tables only; across 2.2.2 to 2.3.0, with identical layouts, the
+property-set handler gained the volume cases and the new longname property; and for a filesystem
+dataset the 2.3.0 read-only path is 2.2.2's.
+The answer, in its words, is "Keep: layout decides", recorded at line 40463 of the main checkout's
+`doc/handover/cli-git-rust-implementation.md` at `cb84b5769f`
+([Answers of 2026-11-19](#answers-of-2026-11-19)).
+The same paragraph records the three options it offered, in its own words: keep; layout plus
+refusing a property set aimed at anything but a filesystem dataset; and back to a release list.
+As the handover describes them:
 
-1.  Keep "Any version, layout decides", which is the answer Q2 already records.
-2.  Layout decides, plus the binding refusing a property set aimed at anything but a filesystem
-    dataset.
+1.  Keep "Any version, layout decides", the answer Q2 already records.
+2.  Layout decides, plus refusing a property set aimed at anything but a filesystem dataset.
 3.  Back to a release list of tested releases.
 
-The answer, in its words: "Keep: layout decides".
-The two not taken were declined for these reasons: the volume refusal guards a call the wrapper
-never makes, and a release list would turn the ZFS route off on every OpenZFS update until a new
-release is tested.
+Each option carried a stated cost, and the record neither ranks them nor gives a reason for the
+answer:
+
+- Option 2 guards a request shape the wrapper does not send, which is
+  [the release string](#the-release-string-q2)'s reading of the wrapper's own call shapes.
+- Option 3 restores the cost the proposal's "Kernel-release readiness" records: a release
+  allowlist disables the managed route after every kernel package update until a new run passes
+  (lines 1297 to 1300).
+- Option 1 keeps a gate a release that changes behaviour without moving a field passes, which
+  [a release that keeps the layout and changes behaviour](#a-release-that-keeps-the-layout-and-changes-behaviour)
+  states and [owed measurement](#owed-measurements) item 17 records.
 
 ### The cross-process cache, Q3
 
@@ -208,7 +244,9 @@ one.
 The Q2 answer supersedes a proof three accepted or merged files state, and none is edited here.
 The plan asks that a citation name its heading, never its line
 (`cli-git-zfs-worktree-implementation-plan.md:52-54`), so each heading named in this section
-carries the lines that hold it in `main` at `e4003a8563`, as a locator beside the heading.
+carries the lines that hold it in `main` at `970dfeaeec`, as a locator beside the heading.
+Line numbers move between commits, so each locator is a convenience and the heading is the
+citation.
 The design proposal lists the module release among the gate's proofs
 (`doc/planning/cli-git-zfs-worktree-design-proposal.md`, "ABI gate and tests", lines 235 to 236,
 where the sentence begins on 235 and `module release` stands on 236):
@@ -244,9 +282,15 @@ lines 149 to 152:
 All three were right when they were accepted or merged; the project's answer of 2026-11-19
 supersedes one proof the gate makes, so it makes no release check, and the release string it reads
 is identity and `doctor` reporting.
-The third file also carries a false sentence once step 6 lands in the crate, since the crate then
-holds the gate it says the crate does not check; step 6 must change that file's
-"What this crate does not do" list with the replacement bullet quoted in this section.
+The third file's text is quoted from `main` at `970dfeaeec`, by heading and bullet, because the
+lines move: step 2's branch, unmerged, rewrites that same bullet to open "It checks no kernel
+compatibility at start" and keeps its own "release" wording, so whichever of step 2 and this
+amendment merges first, the other re-quotes the bullet.
+Two edits belong to that file, and they happen at different times.
+Now, with the crate still checking nothing, the interim edit drops `release` from the bullet and
+leaves the rest of it standing, which is what the quoted replacement text does.
+At step 6 the bullet goes altogether, since the crate then holds the gate it says the crate does
+not check; that deletion is a step 6 duty and is not part of the quoted replacement text.
 The coordinator owes each file the amendment in this section, and this design edits none of them.
 
 Proposal, replacing the sentence quoted from "ABI gate and tests", lines 235 to 236:
@@ -288,15 +332,31 @@ Binding `README.md`, replacing the second bullet of "What this crate does not do
 # package/zfs/request-to-openzfs-kernel-device/README.md, "What this crate does not do"
 - It checks no kernel compatibility.
   The start-time gate that compares the loaded module's architecture,
-  endianness and BTF layout against this crate's own types,
-  and its request numbers against the loaded module's,
-  is step 6.
+  endianness and BTF layout is step 6.
   The module's release string is not part of the gate:
   by the project's answer of 2026-11-19,
   "Any version, layout decides",
   the layout comparison and the request numbers decide,
   and `doctor` prints the release string and says when it is not the tested 2.4.4.
 ```
+
+One more line of the plan belongs to this amendment and is no replacement.
+Step 6's "VM measurements", lines 748 to 754 on `main` at `970dfeaeec`, holds "Two arms in the
+throwaway guest: an untested release, and a module whose field layout differs from the approved
+one, each asserting that raw requests are disabled."
+The "untested release" arm is the start probe's, a kernel release and not a module release: the
+proposal's "Decided behaviours with no test yet" pairs "an untested release" with the probe
+(line 1841), and the probe "admits untested releases" (lines 628 to 629 and 1303 to 1305), so the
+arm's assertion that raw requests are disabled is not this design's to make and stays a matter for
+the probe design and the plan.
+Q2's "Any version, layout decides" leaves a module-release arm nothing to assert, since an
+untested module release whose layout matches passes the gate: the module-release proof has no arm
+of its own now, and
+[a release that keeps the layout and changes behaviour](#a-release-that-keeps-the-layout-and-changes-behaviour)
+states what such a release does.
+The same line's "The BTF comparison runs against the guest's `/sys/kernel/btf/zfs`" waits on
+[owed measurement](#owed-measurements) item 11, the run that first makes that file exist in the
+guest.
 
 ### A release that keeps the layout and changes behaviour
 
@@ -314,16 +374,18 @@ What catches it, if anything, is outside the gate:
 [owed measurement](#owed-measurements) item 17 records a changed-behaviour module passing it, and
 the source review of a build's provenance is the only other route, which no product check
 performs.
-The start probe is not one of those routes: its design at `056064ffa1` makes no ZFS ioctl call and
-opens no `/dev/zfs` in any arm, so it catches no request behaviour.
+The start probe is not one of those routes: its design at `056064ffa1`, and its newer tip at
+`3dff37b556`, makes no ZFS ioctl call and opens no `/dev/zfs` in any arm, so it catches no request
+behaviour.
 The gate's own proof stops at the layout, as [Limits](#limits) states: it cannot prove handler
 behaviour, nvlist key names or property names.
 That is the trade the answer makes: a release rule narrow enough to catch a behaviour change would
 have to pin the source of every build, which is the exact-profile cost the record rejected, and a
 rule wide enough to admit a rebuild admits a behaviour change too.
-The project accepted the same stance before this file existed: the proposal's "Kernel-release
-readiness" says a functional probe "admits untested releases and leaves unmeasured behaviour to
-appear on the host" (lines 1303 to 1305, the same words at lines 628 to 630).
+The project accepted an analogous stance before this file existed, for kernel releases rather than
+module ones: the proposal's "Kernel-release readiness" says a functional probe "admits untested
+releases and leaves unmeasured behaviour to appear on the host" (lines 1303 to 1305, the same
+words at lines 628 to 629).
 
 ## Status and sources
 
@@ -473,11 +535,11 @@ the pick is not made here.
   high finding, four mediums and thirteen lows, and called the file not ready for the project.
   This revision applies the high finding (H1):
   [the release string](#the-release-string-q2) states what the comparison read and did not read,
-  the layout-keeping 2.2.2 to 2.3.0 interval's change to a volume's property set, why the binding's
+  the layout-keeping 2.2.2 to 2.3.0 interval's change to a volume's property set, why the wrapper's
   own call shapes see no change, and the `SET_PROP` registration and policy move at 2.4.4; the
   claim that no release changes behaviour while keeping its layout is deleted, and
   [the evidence correction](#the-evidence-correction-q2-asked-again) records the project's answer of
-  2026-11-19T21:31:47-05:00, "Keep: layout decides", with its three options.
+  2026-11-19T21:31:47-05:00, "Keep: layout decides", with the three options the handover describes.
   It applies the mediums: owed measurement 16 says the full comparison alone refuses the patched
   modules (M1); the checker's files sit in a sibling folder of `layout` and `requests`, named with
   its `uses/` links and the rule it serves, and the design says the crate is merged at
@@ -498,6 +560,40 @@ the pick is not made here.
   L12 needs no change here, since it is about the round's report.
   The gate review's four scripts were re-run against the same three tagged copies and reproduce its
   counts, and the control run is recorded under [The prose checks](#the-prose-checks).
+  No product file, no plan step and no proposal step is edited here.
+- `2026-11-19T22:31:12-05:00`, the commit that carries this entry: the revision that answers the
+  third gate re-check, kept at
+  `/home/user/temp/agent/zfs-runtime-layout-checker-design-third-revision-gate-recheck-2026-11-19/keep/review.md`.
+  That re-check is independent of this file's author (rule `IRW`) and is not an approval; it found no
+  high finding, two mediums and nine lows, and called the file not ready for the project.
+  Medium 1: [When the module carries no BTF](#when-the-module-carries-no-btf) states the Makefile's
+  own guard rather than `KBUILD_BUILTIN`, records the step 2 short review's guest probe and its
+  throwaway guest, and marks the 24-byte header that route produces; owed measurement item 11 states
+  what this design requires of step 2, where step 2 stands at `4c7a347ea2` and at its fix round's
+  tip `13bc5036d2`, and that step 2's question to the owner is answered by the accepted gate; item 5
+  gains the device-free pass on copies of this host's pair with its two negative controls, the only
+  arm before step 23 that reaches the 32-byte header; item 6 names the 24-byte route; and the writer
+  list and the assumption about step 2's test are restated.
+  Medium 2: [the release string](#the-release-string-q2) adds `zfs_ioc_clone`'s `props` path into the
+  same functions, writes "the wrapper's call shapes", states that callees outside `zfs_ioctl.c`
+  were read only for the four named, says a user property returns at the user-property check in all
+  three releases, and replaces the `longname` sentence with 2.2.2's `EINVAL` refusal.
+  The lows: Q1's quotation loses its extra "that" (L1); the re-confirmed answer cites `cb84b5769f`
+  and the three options as the handover describes them, with each option's cost and not the project's
+  reasons (L2); all three writer choices are open to veto with "veto none" as the default, and the
+  header says where they are (L3); the `README.md` amendment is the interim edit only, with step 6
+  deleting the bullet, and the clauses the answers did not decide are gone (L4); the placement names
+  `src/uses/compatibility_check` and lists the refusal before the loader (L5); the `doctor` sentence
+  quotes both strings and the absent-identity rule says the recheck has no usable term then (L6); the
+  assumption marks the volume case as a request the wrapper does not send and unmeasured (L7); the
+  citations become 2556 to 2634, the proposal's "Requests, results and ordering", the plan's "Where
+  the tests run" and an analogy with the kernel-release stance, and the start probe's newer tip
+  `3dff37b556` is named (L8); and the amendment says what plan step 6's "untested release" arm is
+  and that the guest's BTF file waits on item 11 (L9).
+  Every amendment line was re-measured against `main` at `970dfeaeec`, the commit this revision read,
+  and the `README.md` bullet is located by heading and bullet because step 2's branch rewrites it.
+  The prose checker ran clean and its control moved every count it targets, under
+  [The prose checks](#the-prose-checks).
   No product file, no plan step and no proposal step is edited here.
 
 ### Sources read
@@ -637,7 +733,8 @@ Run in the revision that answered this gate review, read only:
 - The gate review's four scripts, re-run from a copy of its compare script in this revision's
   scratch folder against the same three `zfs_ioctl-*.c` and `zfs_h-*.h` copies: the handler,
   key-table, registration and policy comparison, the reachable-function comparison, the same with
-  its roots cut to `SET_PROP`, and the enum evaluation. They report the same counts the review's
+  its roots cut to `SET_PROP`, which is also the run that shows the clone path reaches the
+  property-set functions, and the enum evaluation. They report the same counts the review's
   outputs record.
 - `diff` and `awk` over the `zfs_prop_set_special`, `zfs_check_settable`, `zvol_set_common`,
   `zvol_set_ro` and `zvol_set_volthreading` bodies at the three tags, and over the
@@ -665,6 +762,23 @@ Run in the revision that answered the second gate re-check, read only:
   [The prose checks](#the-prose-checks), on this file and on a
   deliberately broken copy of it.
 
+Run in the revision that answered this gate re-check, read only:
+
+- `stat` of `/sys/kernel/btf/zfs`, `/sys/kernel/btf/vmlinux`, `/sys/module/zfs/version` and
+  `/sys/module/zfs/srcversion`, `cat` of the version file and `uptime --since`, which are what
+  [The cache](#the-cache) and [The read order and the reload race](#the-read-order-and-the-reload-race)
+  rest on, and which record the BTF file's time moving while the two identity files' times and
+  values stayed.
+- `git show main:<path>` for the proposal's "ABI gate and tests" and "Kernel-release readiness",
+  the plan's step 6 and "Where the tests run", and the binding `README.md`'s "What this crate does
+  not do", to re-measure every amendment line against `main` at `970dfeaeec`.
+- The gate re-check's kept review, its scripts' outputs and its source excerpts, and the step 2 short
+  review's first finding, all read for what each one reproduced.
+- Its excerpt of step 2's measurement record and `README.md` at `4c7a347ea2`, and `git show` of
+  that record at `13bc5036d2`, for where step 2 stands on the module's BTF file.
+- The prose checker described under [The prose checks](#the-prose-checks), on this file and on a
+  deliberately broken copy of it.
+
 Not run:
 
 - No VM, no container, no ZFS command that changes anything,
@@ -677,7 +791,7 @@ Not run:
 
 A checker written for the revision gate re-check, kept at
 `/home/user/temp/agent/zfs-runtime-layout-checker-design-revision-gate-recheck-2026-11-19/notes/check-prose.ts`,
-read this file after the revision that answered the gate review of the answers round.
+read this file after the revision that answered the third gate re-check.
 The checker is not part of the repository, so its path is a scratch path like the logs this file
 cites.
 It reports no em or en dash, no line of 120 characters or more (the longest is 116), no table,
@@ -692,18 +806,26 @@ leaves alone (the release-string fact's `tr` substitution, the base file's secti
 subtraction, the request table's index size and owed measurement 2's pad expression), and the fifth
 is the list marker of the `README.md` bullet quoted in
 [the amendment these answers owe](#the-amendment-these-answers-owe-the-proposal-the-plan-and-the-binding-readme).
+Its ALL CAPS hits include the two quoted markers of the main checkout's handover paragraphs,
+"THE ROUND WAS ASKED" and "LAYOUT CHECKER REVIEW ENDED", which are a record's own words.
+The checks that this revision's edits could move kept their counts from the revision before it:
+dashes 0, spaced hyphens 5, long lines 0 with the longest at 116, tables 0, heading issues 0,
+positional words 25, emphasis 0, marker padding 0, digit-plus-noun hits 67 and link problems 0,
+and ALL CAPS words went from 15 to 19 for the extra mentions of the quoted markers.
+Bare dates went from 60 to 61 for one more `([Answers of 2026-11-19](#answers-of-2026-11-19))`
+link, and count words from 216 to 249 as the file grew.
 
 Control: the same checker on a copy in this revision's scratch folder with one injected defect per
 prose rule moved every count it targets: dashes 0 to 1, spaced hyphens 5 to 6, long lines 0 to 1
-with the longest at 170, tables 0 to 2, heading issues 0 to 3, positional words 25 to 26,
-emphasis 0 to 1, ALL CAPS words 15 to 16, marker padding 0 to 1, bare dates 60 to 61, count words
-216 to 221 and digit-plus-noun hits 67 to 68.
-Link problems rose from 0 to 24: 21 of them are the copy's own folder breaking the relative links to
-the sibling design files, and the other three are the injected missing anchor and the injected
-unused definition, which counts once as unused and once as a file that does not exist, so the
-checker does detect each kind it reports.
-The copy and the two logs are in
-`~/temp/agent/zfs-runtime-layout-checker-design-owner-answers-gate-review-findings-fixed-2026-11-19/scratch/`.
+with the longest at 220, tables 0 to 2, heading issues 0 to 4, positional words 25 to 26,
+emphasis 0 to 1, ALL CAPS words 19 to 20, marker padding 0 to 1, bare dates 61 to 62, count words
+249 to 251 and digit-plus-noun hits 67 to 68.
+Link problems rose from 0 to 26: 22 of them are the copy's own folder breaking the relative links to
+the sibling design files, and the other four are the injected missing anchor, the injected link to
+a file that does not exist, and the injected unused definition, which counts once as unused and
+once as a file that does not exist, so the checker detects each kind it reports.
+The copy, its generator and the two logs are in
+`~/temp/agent/zfs-runtime-layout-checker-design-third-revision-recheck-findings-fixed-2026-11-19/scratch/`.
 
 ## The open item and the decisions that bound it
 
@@ -1002,9 +1124,11 @@ a probe is a command this session ran, listed under
 
 - The kernel's module build generates module BTF with
   `pahole -J ... --btf_base vmlinux $@` and skips it, with a printed reason,
-  when `vmlinux` is not in the build directory
-  (`scripts/Makefile.modfinal:37-43`); the rule's prerequisites are guarded by
-  `CONFIG_DEBUG_INFO_BTF_MODULES`, `KBUILD_BUILTIN` and `vmlinux` (`:54-57`).
+  when no `vmlinux` file is in the build directory
+  (`scripts/Makefile.modfinal:37-44`, Linux `v6.8`).
+  The command runs under `ifdef CONFIG_DEBUG_INFO_BTF_MODULES` and its own guard is
+  `[ ! -f vmlinux ]`; `KBUILD_BUILTIN` enters only the prerequisite list of the `%.ko` rule
+  (`:54-58`), so it decides when the command re-runs, not whether it runs.
 - The design's own guest built OpenZFS 2.4.4 from the release tarball against
   `linux-headers-6.8.0-147-generic`, and its log records
   `BTF [M] .../module/zfs.ko` followed by
@@ -1013,6 +1137,18 @@ a probe is a command this session ran, listed under
   That guest's module reported `2.4.4-1` (`item-1-exact.log:8-11`), and the module that log
   built carries no BTF; whether the guest still exposed a file from another module was not
   recorded.
+- So the missing file, not `KBUILD_BUILTIN`, is what leaves that module without BTF, and giving the
+  build a `vmlinux` is the route nobody had tried.
+  Step 2's record gives `KBUILD_BUILTIN` as the cause, which the `Makefile.modfinal` lines this
+  section quotes do not support.
+  The step 2 short review (a same-vendor second pass, not an independent review under rule `IRW`)
+  tried the route in a throwaway guest: it copied `/sys/kernel/btf/vmlinux` into
+  `/lib/modules/6.8.0-147-generic/build/vmlinux`, built a trivial out-of-tree module, and got a
+  `BTF [M]` line, a `.BTF` section and `/sys/kernel/btf/probe` with its struct printed.
+  That was a trivial module, not OpenZFS, so it shows the route exists in a 6.8 guest and not that
+  the design's guest fixture has taken it.
+  A 6.8 guest's tools are expected to write the 24-byte header, so the file that route produces is
+  [item 6](#owed-measurements)'s older case, not the 32-byte shape this host's reader meets.
 - Whether the same guest's packaged `2.2.2-0ubuntu9.5` module carried BTF was not recorded.
   A distribution package may carry it, and an out-of-tree build without a `vmlinux`
   in its build directory does not.
@@ -1070,10 +1206,13 @@ a probe is a command this session ran, listed under
 ## Assumptions
 
 - The layout compiled into the binding is the layout in the pinned `zfs-2.4.4` headers.
-  Step 2's test is what proves it, and that test does not exist yet.
+  Step 2's layout test is what proves it; nothing on `main` carries that test yet, and step 2's
+  branch holds it unmerged at `4c7a347ea2`, reading the module's DWARF until its fix round moved it
+  to the module's BTF file.
 - A module whose layout matches the compiled expectations behaves as the approved release for
   the requests the binding sends. The checker proves layout and request numbers, not code, and the
-  2.2.2 to 2.3.0 interval is a case where this assumption fails for a volume's property set
+  2.2.2 to 2.3.0 interval is a case where this assumption fails for a volume's property set, which is
+  a request shape the wrapper does not send and unmeasured
   ([the release string](#the-release-string-q2)).
 - The account and the root handler can read `/sys/module/zfs/version` and `/sys/kernel/btf/*`
   in the deployments the design describes. A masked `/sys` is a refusal, not a pass.
@@ -1124,7 +1263,7 @@ The gate proves no module release, and that is deliberate: the owner's answer of
 ([Answers of 2026-11-19](#answers-of-2026-11-19)).
 The module's version string, `srcversion` and build ID are still read, as identity for the
 per-process cache and for the second read that notices a reload, and `doctor` prints the version
-string and says when it is not the tested `2.4.4`.
+string and says when it is not the text the tested module reported, `2.4.4-1`.
 That is a different use from a release check: an identity read catches a module that changed under
 the check, and a release rule would have decided which builds qualify.
 What the gate cannot show is
@@ -1421,9 +1560,13 @@ which rule `LYL` forbids and the repository linter fails
 nothing in that folder knows what a request means.
 So the files live in a sibling source folder of `layout` and `requests`,
 `src/compatibility_check/`, which carries `uses/layout` and `uses/requests` links of its own and
-lists its files in dependency order in its top doc, as rule `LYF` asks: the bounded loader and the
-pre-scan, the expectations, the comparison and the refusal.
-`src/lib.rs` declares it and re-exports its entry point beside `layout`'s.
+lists its files in dependency order in its top doc, as rule `LYF` asks: the refusal value first,
+since the loader builds its `Header`, `BaseBtf` and `ModuleBtf` steps, then the bounded loader and
+the pre-scan, the expectations and the comparison.
+`src/lib.rs` declares it and re-exports its entry point beside `layout`'s, and the crate root gains
+a `src/uses/compatibility_check` link, as `src/uses/` already links each folder `src/lib.rs`
+declares.
+The folder's name is open to veto, with "veto none" as the default.
 Its expectations read `Operation::ALL` and `Operation::code()` from `src/requests/operation.rs`,
 which are public, and `ZfsCmd`, `DmuObjsetStats`, `ZinjectRecord`, `ZcInjectOverlay` and
 `ZcDestroyControl` from `src/layout/zfs_cmd_t.rs`.
@@ -1452,8 +1595,15 @@ An absent identity attribute is not a refusal. A module built without a build-id
 layout and the request numbers to decide and a missing identity file is not a ground it kept. The
 identity reads then compare whichever of the three values the module carries, plus each file's
 device, inode, size and modification time, and `doctor` says which attribute is absent so a reader
-can tell a weaker reload check from a refused one. A missing `/dev/zfs` or a missing BTF file is a
+can tell a weaker reload check from a refused one.
+When all three values are absent the reload check has no usable term: the file times do not stand
+in, because this host's `/sys/kernel/btf/zfs` modification time moved from 16:47:51 to 21:39:40
+while its `srcversion` and `version` stayed at 19:51:21 and 19:03:56, which is a time moving without
+a reload.
+So the check then re-runs the parse at most and never refuses, and `doctor` says so.
+A missing `/dev/zfs` or a missing BTF file is a
 refusal, as [What the checker must prove](#what-the-checker-must-prove) states.
+The rule is open to veto, with "veto none" as the default.
 
 The second identity read closes the window in which the module unloads or is replaced between the
 first identity read and the BTF reads. It does not close the window during a single read;
@@ -1620,16 +1770,22 @@ The caller prints the loaded module's version string, the target architecture, t
 and the failing step, and takes the design's fallback for an unused slot.
 It never offers a bypass. `doctor` prints the same facts, with the healthy case as an explicit
 "compatible" line naming the module, the release string it read, the sentence that says when that
-string is not the tested `2.4.4`, and the file sizes, and does not change its exit status.
+string is not the text the tested module reported, `2.4.4-1`, and the file sizes, and does not
+change its exit status.
 Its refused case carries the same release string and sentence beside the failing step, so a reader
 can tell a module the design never tested from one whose layout differs.
 The release sentence is reporting, not a rule, and it costs the reader a sentence, never a refusal.
 `doctor` compares the string it read with the exact text the tested module reports, `2.4.4-1`
 ([The module release string](#the-module-release-string)), and prints the sentence whenever the two
 differ, so a distribution's `2.2.2-0ubuntu9.5` and a checkout build's `2.4.4-1_g1a2b3c4` both get it.
-That comparison is the writer's, open to veto: the answer says only "says when it is not the tested
-`2.4.4`" and records no matching rule, and a prefix test on `2.4.4-` would silently pass the
-checkout build `2.4.4-1_g1a2b3c4`, which is the build the sentence exists to flag.
+The sentence quotes both strings, the one the module reports and the one the tested module reported,
+`2.4.4-1`, so a reader can tell a module reporting `2.4.4-2` or a Debian-style
+`2.4.4-1~bpo12+1` from the build the design tested:
+the same version with a different text is reported as a different text, not as a different version.
+That comparison is the writer's, open to veto, with "veto none" as the default: the answer says
+only "says when it is not the tested `2.4.4`" and records no matching rule, and a prefix test on
+`2.4.4-` would silently pass the checkout build `2.4.4-1_g1a2b3c4`, which is the build the sentence
+exists to flag.
 
 ### The cache
 
@@ -1638,9 +1794,17 @@ The result is cached per process in a `OnceLock`, following
 Before each use, the cache's identity is rechecked against those three identity values and the two
 files' identity (device, inode, size and modification time); a change re-runs the check.
 A sysfs modification time does not track a module load on this host (boot 11:12:11,
-`/sys/kernel/btf/zfs` 16:47:51, `/sys/module/zfs/version` 19:03:56, `srcversion` 19:51:21), so
+`/sys/module/zfs/version` 19:03:56, `srcversion` 19:51:21), so
 the recheck can re-run a check that would have passed. The cost is a needless parse, never a
-stale pass. Whether a reload changes the inode number is unverified, and
+stale pass.
+The BTF file is the clearest case: `/sys/kernel/btf/zfs` read 16:47:51 when the first version of this
+file recorded it and 21:39:40 when this revision read it, while `version` and `srcversion` read the
+same times and values as before, which is consistent with the time moving without a reload.
+That is an inference from two readings and not a measurement of a reload.
+Where the file times come from is unverified, so they are no substitute for an identity value:
+when all three values are absent the reload check has no usable term, as
+[the read order and the reload race](#the-read-order-and-the-reload-race) states.
+Whether a reload changes the inode number is unverified, and
 [item 9's second arm](#owed-measurements) is the one that tests a cache spanning a reload.
 Per-process caching with no disk cache is writer-settled: it needs no owner choice while the
 start cost is unmeasured.
@@ -2381,15 +2545,26 @@ Every measurement stays owed, and no item here touches this host's pool or modul
 4.  A missing or unreadable file refuses, in the guest. Hide `/sys/kernel/btf` from a mount
     namespace or make a copy unreadable, and assert the refusal names the file and the step.
     Control: the same binary in the same guest with the file readable passes.
-5.  A short read refuses, device-free. A test harness fed a truncated module and base pair must
-    refuse with the section or header step, not stall; the unit test and the fuzz target carry
-    this, and the guest arm repeats it through the product's loader only if a seam exists.
+5.  A short read refuses, and this host's pair passes, device-free. A test harness fed a truncated
+    module and base pair must refuse with the section or header step, not stall; the unit test and
+    the fuzz target carry this, and the guest arm repeats it through the product's loader only if a
+    seam exists.
+    The same device-free harness runs the comparison on copies of this host's two BTF files, the
+    module reporting `2.4.4-1` with `srcversion` `A3553C308C29FD4B6595A72`, and asserts it reports
+    compatible with both `hdr_len` 32.
+    That is the only arm before step 23 that reaches the 32-byte-header shape, because a 6.8 guest's
+    tools write the 24-byte one.
+    Its negative controls are the same two files with one byte of the magic changed, which must
+    refuse at `Header`, and with the member swap of item 16 applied, which must refuse at `Member`
+    with both offsets.
     Control: the untruncated pair passes.
 6.  The header variants both pass, in the guest. A module whose BTF an older tool emitted with the
     24-byte header, and a module whose BTF reports `hdr_len` 32 (the host's kernel is
     `7.3.5-1-cachyos`, unqualified for the product until step 23), must both parse and compare.
-    The design's `6.8.0-147-generic` guest emitted no module BTF for its tarball build, so this arm
-    needs a build route that emits one, with the 24-byte header as its own case.
+    The 24-byte case's route is item 11's: copy `/sys/kernel/btf/vmlinux` into the guest's kernel
+    build directory before the module build, which is what step 2's fix round does.
+    A 6.8 guest's tools emit no 32-byte file, so that shape is asserted by item 5's device-free arm
+    rather than here.
     Control: a file with `hdr_len` 16, and a file whose sections overlap, must refuse.
 7.  The request contract is checked, in the guest. Renumber one `zfs_ioc` value in a patched module
     and assert the refusal names the request and both values. Control: the unpatched module passes,
@@ -2442,9 +2617,23 @@ Every measurement stays owed, and no item here touches this host's pool or modul
     and record whether the guest exposes `/sys/kernel/btf/vmlinux`, which nothing records today.
     Control: the same guest's module built without BTF, which must refuse with the missing-BTF step
     and offer the fallback.
-    Handoff to step 2's writer: step 2's layout comparison test needs module BTF
-    (step 2 of [the implementation plan][plan-file]), so the guest recipe must produce a 2.4.4
-    module with BTF, and this item is the run that proves the recipe does.
+    What this design requires of step 2 is one thing: its layout test reads the loaded module's BTF
+    file through the design's command and the vmlinux base, so the test compares the file the gate
+    reads and not the module's DWARF. It does not require step 2 to use this design's reader;
+    that choice is step 2's.
+    Where step 2 stands. At `4c7a347ea2` its test read the module's DWARF, and its record gave
+    `KBUILD_BUILTIN` as the reason the guest could produce no module BTF, which the Makefile reading
+    under [When the module carries no BTF](#when-the-module-carries-no-btf) contradicts. The step 2
+    short review's guest probe then produced module BTF by copying `/sys/kernel/btf/vmlinux` into the
+    kernel build directory, and step 2's fix round, unmerged at `13bc5036d2`, makes the recipe copy
+    that file before the build, makes the test read `/sys/kernel/btf/zfs`, and describes a recorded
+    run that asserts the file exists. `main` records the guest's lack of the file and that probe in
+    its handover, and records no guest that has produced it, so this item stays open until a
+    recorded run of the route on an OpenZFS module lands on `main`.
+    Step 2's own question to the owner, whether step 6's gate needs the BTF file, is already
+    answered: the accepted gate disables raw requests on missing required BTF, and "kernel/module
+    BTF layout" is one of its proofs (see [What the checker must prove](#what-the-checker-must-prove)).
+    This item is the run that proves the recipe.
 12. The refused state in `doctor`, in the guest. With a mismatched module loaded, assert `doctor`
     names the loaded module, the target and the file, keeps its exit status, and does not print a
     bypass; then with a compatible module assert it prints the compatible line.
@@ -2502,7 +2691,7 @@ owner's.
 ### Q1: which reader parses the module BTF
 
 Answered in its narrower form, and the pick is still conditional.
-The owner was asked "is it a hard requirement that the parser is our own code and that the product
+The owner was asked "is it a hard requirement that the parser is our own code and the product
 starts no second program" and answered "No, not required (Recommended)" on 2026-11-19
 ([Answers of 2026-11-19](#answers-of-2026-11-19)).
 So no named hard constraint admits the in-house reader, the skill's existing-tools rule keeps it
@@ -2652,6 +2841,11 @@ version made this choice; the cost is what may reopen it.
 
 ## What a writer can settle without asking
 
+Three of this section's rules are the writer's and open to veto, each with "veto none" as its
+default: the folder's name, the `doctor` sentence's exact-string trigger and the absent-identity
+rule.
+Each says so where it stands, and the sections that use them say so too.
+
 - The seam's shape, in the crate the owner named: the binding package holds the loader, the
   pre-scan, the expectations, the comparison and the reader, and the wrapper supplies the paths,
   the target allowlist and the wording
@@ -2659,10 +2853,14 @@ version made this choice; the cost is what may reopen it.
 - The files' folder inside the binding, `src/compatibility_check/` with `uses/layout` and
   `uses/requests`, because a file in `layout` that read the request list would make two folders use
   each other ([The seam and the placement](#the-seam-and-the-placement)).
+  The crate root links it from `src/uses/compatibility_check`, as it links each folder `src/lib.rs`
+  declares, and the folder lists the refusal value before the loader, because the loader builds the
+  refusal's `Header`, `BaseBtf` and `ModuleBtf` steps.
+  The name is open to veto, with "veto none" as the default.
 - That step 6 now touches two packages, so it owes both gates: the binding package's own tasks, its
   `cargo nextest` run and the type gate `package/jsonc-edit/core-rust` defines, and the wrapper's
   container gate for every change under `package/git-policy/cli`
-  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, "What each step runs where",
+  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, "Where the tests run",
   lines 1984 to 1988).
 - That the loader's fuzz target lands in the existing sidecar
   `package/zfs/request-to-openzfs-kernel-device.fuzz`, beside the crate, per rule `SBS`.
@@ -2679,9 +2877,11 @@ version made this choice; the cost is what may reopen it.
   the tested `2.4.4` ([Answers of 2026-11-19](#answers-of-2026-11-19)).
 - The sentence's trigger: `doctor` compares the string with the tested module's exact text, so a
   checkout build's longer string gets it, and a prefix test does not; the answer records no matching
-  rule, so this is open to veto ([The refusal](#the-refusal)).
+  rule, so this is open to veto, with "veto none" as the default ([The refusal](#the-refusal)).
 - An absent identity attribute degrades the reload check instead of refusing, while a missing device
   or BTF file refuses ([The read order and the reload race](#the-read-order-and-the-reload-race)).
+  When all three values are absent the reload check has no usable term and the check re-runs the
+  parse at most, which is open to veto with "veto none" as the default.
 - The pre-scan rules, including the sorted-by-offset section check, the widest-encoding walk and the
   refusal of a value the chosen reader cannot represent.
 - The file bounds, as proposals pending [Owed measurements](#owed-measurements) item 10:
@@ -2709,18 +2909,21 @@ version made this choice; the cost is what may reopen it.
 - The test placement and fixtures: device-free unit tests with small generated BTF blobs, the
   exhaustiveness tests, the diagnostic tests, the `doctor` rendering test, and the fuzz target for
   the loader and pre-scan.
+  The device-free arm under [Owed measurements](#owed-measurements) item 5 runs the comparison on
+  copies of this host's two BTF files, and it is the only passing assertion the 32-byte header gets
+  before step 23.
 - Step 2 picks its own reader for the layout test: the plan leaves that choice to step 2
   ([Dependencies and their state][plan-deps], lines 126 to 132), where the design's command is
   `pahole --btf_base`. If Q1's reader serves both, that is step 2's choice to make; this design
   does not assign it.
-- The step 2 handoff: step 2's guest recipe must produce a 2.4.4 module that carries BTF.
-  Its tarball build skipped module BTF for want of a `vmlinux` in the build directory
-  (`guest-openzfs-build.log:834-838`), and step 2's layout comparison test needs the module BTF to
-  exist (step 2 of [the implementation plan][plan-file]).
-  The recipe either builds with a `vmlinux` present or installs a packaged module that carries BTF,
-  and it records which route produced it and whether the guest exposes
-  `/sys/kernel/btf/vmlinux`, which is unrecorded today.
-  [Owed measurements](#owed-measurements) item 11 is the run that proves it.
+- Step 2's layout test reads the loaded module's BTF file with the vmlinux base, and that is this
+  design's requirement of step 2 rather than a choice, because the test then compares the file the
+  gate reads and not the module's DWARF.
+  Step 2 stands at an unmerged branch whose test read DWARF at `4c7a347ea2` and whose fix round at
+  `13bc5036d2` copies `/sys/kernel/btf/vmlinux` into the build directory and reads the module's BTF
+  file.
+  [Owed measurements](#owed-measurements) item 11 is the run that records which route produces the
+  file in the guest and whether the guest exposes `/sys/kernel/btf/vmlinux`.
 - The refusal's interaction with the design's fallback for an unused slot and the failure path for
   a bound clone; the design decides the behaviour, the writer writes the words.
 - The check's placement in step 6, beside the start probe, and the step-2 test remaining the
