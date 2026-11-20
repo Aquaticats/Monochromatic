@@ -40834,7 +40834,20 @@ stated in this entry. What follows from them, as work:
   removed the author's worktree; re-created from the branch. GOING: the third round
   `pi-git-policy-cli-container-gate-on-a-zfs-host-repair-review-findings-fixed` (DeepSeek on Neuralwatt, cap 250), with
   the review's narrow re-check and no whole gate; brief under
-  `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-repair-review-findings-fixed-2026-11-19/`. Then the merge.
+  `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-repair-review-findings-fixed-2026-11-19/`. It ended `idle`
+  (160 turns) at `ba2a19714d` (eight commits; that folder's `keep/report.md`), fixing M1 and all five lows. On M1, a
+  shared root passed in the gate before the fix and fails after, at `test_support_tests.rs:67`. The empty `TMPDIR` is
+  dropped on both faces. Each temporary directory is compared as what it resolves to. The round departed from the
+  review on L2 with a reason: resolving the root for every assertion falsely failed a default root behind a link, so
+  only the location comparison resolves. The documents no longer claim timings, and they label the sampled figures,
+  with the bound 2048 − 1123.8 = 924.2 MiB beside the kernel's peak. The run posted a corrective commit comment on
+  `007f2d4fb2`. Its narrow re-check covered the module whole on both roots (19 of 19), `source_guard::` (74) and
+  `fixture_guard::` (15 on both roots), plus Clippy and `lint:types`, with no whole gate. `main` changed nine wrapper
+  files since the integration branch's last merge (the open-questions cleanup's citations, `2a388f7a77`, `03c9cab486`,
+  `f6767b56dc`). GOING: a narrow Sonnet gate check in the integration worktree (merges `ba2a19714d` and `main`, checks
+  `main`'s three commits are comment-only, shows M1 red itself, and decides whether the whole gate must run again);
+  brief under `~/temp/agent/container-gate-on-a-zfs-host-third-round-narrow-gate-check-2026-11-19/`. On "fit", the
+  merge, then the LFS integration pass bundling the gate image branch.
 - **GOING**: the hybrid provider prototype (the owner's "Hybrid, prototype first"), unit
   `pi-rate-limit-fallback-hybrid-prototype` (DeepSeek on Neuralwatt, turn cap 380, a quarter above the longest
   finished run on this package, 301; wall 300 minutes, the longest took 260), in
