@@ -39849,9 +39849,8 @@ not a copy.
 
 ### The morning question round of 2026-11-19 (2026-11-19T12:30:00-05:00)
 
-Every question prepared overnight was asked through the question tool; each answer, verbatim where it was typed, is in
-`doc/handover/questions-for-the-owner.md`, section "Answered in the question tool, started 2026-11-19T11:30:00-05:00".
-What follows from them, as work:
+Every question prepared overnight was asked through the question tool; each answer, verbatim where it was typed, is
+stated in this entry. What follows from them, as work:
 
 - **ZFS route** (task 379): 22 answers to fold into the proposal on branch
   `docs/planning-cli-git-zfs-worktree-design-proposal` (last tip `b5294a7325`). Against the ranking: the kernel gate
@@ -39945,8 +39944,8 @@ What follows from them, as work:
   "stops at any mount", is the same words across a line break at 1661 to 1662). NEXT: the owner's acceptance through
   the question tool, with the review's two owner questions (F4 whether an explicit cancel command stays; F8 whether the
   deferred-mark check also runs before the first snapshot delete) and the never-end set. **The owner accepted the
-  design at 2026-11-19T16:22:16-05:00** and picked the recommended answer to all three (record: the questions file,
-  section "Answered in the question tool, recorded 2026-11-19T16:22:16-05:00", `cff64adfa0`): keep a guarded
+  design at 2026-11-19T16:22:16-05:00** and picked the recommended answer to all three (record:
+  `doc/decision/cli-git-zfs-worktree-design.md`, at `38ed22c5ea`, `cff64adfa0`): keep a guarded
   `cancel-worktree-removal <slot>` as the manual way back; run the deferred-mark check before the first snapshot delete
   too; a `--force` removal never ends its caller's session and refuses when that session holds the clone. GOING: the
   narrow fold-in `pi-zfs-proposal-acceptance-and-last-three-answers-fold-in` (DeepSeek on Neuralwatt, cap 635) in the
@@ -39996,7 +39995,7 @@ What follows from them, as work:
   lists; nothing says applying anything to this host needs the owner's authorisation; step 1 is writable now but
   mergeable only once `cargo-nextest`, `cargo-fuzz`, `file-enforcer` and the repository linter exist here (all four
   absent; the toolchain install waits for the mpm-shadow change by the answer of 2026-11-17). All 32 accepted. The
-  owner then answered two through the question tool (questions file, section recorded 2026-11-19T17:36:44-05:00):
+  owner then answered two through the question tool (this entry):
   "Ship step 10 first (Recommended)" and "Container, narrow install (Recommended)"; no one-tool host install exists,
   so step 1's checks run wholly in a container (adopted, open to veto), with `cargo-fuzz` through `cargo-binstall`
   as its lock row names (the owner's correction). ENDED: the fix round
@@ -40254,7 +40253,7 @@ What follows from them, as work:
   pass, or after one more quick round if a re-check finds something (each first re-check had found the questions
   themselves wrong: a false premise under staging's Q2, lines deciding the owner's choices in the start probe, an
   ineligible option ranked first in the layout checker). By the owner's answers of
-  2026-11-19T17:10:00-05:00 (questions file) the LFS review and the provider rebuild finish and nothing else off the
+  2026-11-19T17:10:00-05:00 (this entry) the LFS review and the provider rebuild finish and nothing else off the
   ZFS path starts, and owner questions off the ZFS path wait in the questions file (new rule `QWP`).
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
   `pi-zfs-proposal-fold-in-short-review-on-the-qwen-plan` (turn cap 540, a quarter above the longest of 672 finished
@@ -40296,9 +40295,8 @@ What follows from them, as work:
   (no `cargo-nextest`), so failing-first rests on the audit's reproductions before and after. GOING: its short review
   on the Qwen plan, `pi-git-policy-cli-lfs-audit-fixes-short-review-on-the-qwen-plan`, in the same worktree detached
   at the tip; folder `~/temp/agent/git-policy-cli-lfs-audit-fixes-short-review-on-the-qwen-plan-2026-11-19/`. **The
-  owner answered H1 and M4** (questions file, section "Answered in the question tool, recorded
-  2026-11-19T16:58:00-05:00"): H1 "Hide long words only" (path words of 20 or more unbroken lowercase letters print as
-  `<credentials>`); M4, in the owner's words, "Avoid ever asking for someone to type a username or password.", so no
+  owner answered H1 and M4** (this entry): H1 "Hide long words only" (path words of 20 or more unbroken lowercase
+  letters print as `<credentials>`); M4, in the owner's words, "Avoid ever asking for someone to type a username or password.", so no
   command the wrapper runs or forwards prompts for a credential, terminal or not, superseding `SPEC.md`'s "A command the
   person typed is forwarded with the prompting Git has" for credentials; asked separately, an SSH key's passphrase
   counts too ("Passphrases count too (Recommended)": a key not in ssh-agent fails at once, saying to run `ssh-add`).
