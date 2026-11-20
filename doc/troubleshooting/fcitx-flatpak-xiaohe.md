@@ -80,18 +80,30 @@ Backed up the Flatpak configuration and `kwinrc` under
 `~/temp/agent/fcitx-xiaohe-backup-zSdf2u`.
 An initial unsuccessful restart attempt also created
 `~/temp/agent/fcitx-xiaohe-backup-cGn2Ka`.
+(Note added 2026-11-19T19:12:45-05:00:
+neither backup folder exists any more.)
 
 With Fcitx stopped through Plasma's input-method setting,
 copied the native `profile` and `conf/pinyin.conf` into the Flatpak's `config/fcitx5` directory.
 Copied `user.dict` and `user.history` from `~/.local/share/fcitx5/pinyin`
 into `~/.var/app/org.fcitx.Fcitx5/data/fcitx5/pinyin`.
 The old source files were retained.
+(Note added 2026-11-19T19:12:45-05:00:
+`~/.local/share/fcitx5` and `~/.var/app/org.fcitx.Fcitx5` no longer exist,
+so neither copy of the Pinyin user dictionary survives;
+see "Native-only state and duplicate login launch".)
 The recovery script is `~/temp/agent/restore-fcitx-xiaohe-2026-11-02.ts`.
+(Note added 2026-11-19T19:12:45-05:00:
+the script no longer exists.)
 It restores Plasma's configured Fcitx desktop entry in a `finally` block.
 
 Plasma restarted the Flatpak with the extension mounted.
 The successful configuration notification used `kwriteconfig6 --notify`.
 The configured trigger remains `Super+space`.
+(Note added 2026-11-19T19:12:45-05:00:
+that Flatpak configuration no longer exists.
+The native Fcitx's live trigger keys are `Zenkaku_Hankaku`, `Hangul` and `Super+Super_L`,
+and no live Fcitx hotkey is `Super+space`.)
 
 Tradeoffs:
 the old native profile replaces the newly created Chinese keyboard entry,
@@ -167,6 +179,10 @@ The initiating action remains unknown.
 
 `~/.config/kwinrc:310` still selected the existing Flatpak desktop entry:
 `/var/lib/flatpak/exports/share/applications/org.fcitx.Fcitx5.desktop`.
+(Note added 2026-11-19T19:12:45-05:00:
+`kwinrc` now selects the native entry,
+`/usr/share/applications/org.fcitx.Fcitx5.desktop`,
+and the Flatpak export path no longer exists.)
 `systemctl --user status` reported its current Flatpak scope active since `09:30:38 EST`.
 Read-only D-Bus calls with `--auto-start=no` returned:
 
@@ -205,4 +221,174 @@ Contribution policy and maintainer intent were not reassessed because no upstrea
 There is nothing to file from this evidence;
 no issue or comment was drafted or sent.
 
+## Native-only state and duplicate login launch, 2026-11-19T19:12:45-05:00
+
+The user asked to remove every non-native Fcitx copy
+and to make sure the remaining copy launches correctly.
+No Flatpak copy was left to remove.
+The native copy was launched correctly by KWin,
+and a second launch at every login came from the system autostart entry.
+
+### Observed state
+
+- `flatpak list --all` listed no installed refs at all.
+  `flatpak --version` (`1.18.4`) and `flatpak remotes` (`flathub`, system) answered,
+  so the empty list was not a broken command.
+  `/var/lib/flatpak/app` and `~/.var/app/org.fcitx.Fcitx5` did not exist.
+- When and by whom the Flatpak copy was removed is not established:
+  `flatpak history` returned no rows.
+- `which -a fcitx5` found only `/usr/bin/fcitx5`.
+  The installed native packages were
+  `fcitx5 5.1.23-1.1`,
+  `fcitx5-chinese-addons 5.1.15-2.1`,
+  `fcitx5-configtool 5.1.16-3.1`,
+  `fcitx5-lua 5.0.18-1.1`
+  and `fcitx5-qt 5.1.16-2.1`.
+- `~/.config/kwinrc` `[Wayland]` selected the native entry:
+  `InputMethod[$e]=/usr/share/applications/org.fcitx.Fcitx5.desktop`.
+- The running Fcitx was PID `3645`,
+  `/usr/bin/fcitx5`,
+  started at `2026-11-19T11:12:49-05:00` with `kwin_wayland` (PID `3490`) as its parent,
+  in the cgroup `session.slice/plasma-kwin_wayland.service`.
+  It owned `org.fcitx.Fcitx5` on the session bus.
+  `InputMethodGroupInfo` returned `keyboard-us` and `shuangpin`,
+  and the Pinyin `GetConfig` reply contained `ShuangpinProfile=Xiaohe`.
+- `~/.local/share/fcitx5` did not exist.
+  A bounded `find` for `user.dict` and `user.history`
+  under `~/.local/share`, `~/.config`, `~/.var` and `~/temp/agent`
+  found neither,
+  so the Pinyin engine has no learned user dictionary.
+- Plasma Wayland is the only installed session:
+  `/usr/share/wayland-sessions/plasma.desktop` exists
+  and `/usr/share/xsessions` does not.
+
+### Duplicate launch at login
+
+KWin starts Fcitx from the `InputMethod` entry,
+which is the launch path Fcitx documents for Plasma on Wayland ([Fcitx Wayland guide][wayland-kcm]).
+A second launch came from `/etc/xdg/autostart/org.fcitx.Fcitx5.desktop`.
+`systemd-xdg-autostart-generator` turns that entry into `app-org.fcitx.Fcitx5@autostart.service`
+with an unconditional `ExecStart=:/usr/bin/fcitx5`.
+The unit ran at `2026-11-19T11:12:54-05:00`,
+after KWin's copy,
+logged this line,
+unloaded its addons,
+and exited with status 0:
+
+```text
+# Journal of app-org.fcitx.Fcitx5@autostart.service.
+E2026-11-19 11:12:54.839664 sharedlibraryloader.cpp:132] Failed to create addon: dbus Unable to request dbus name. Is there another fcitx already running?
+```
+
+The entry carries `X-KDE-Wayland-VirtualKeyboard=true`,
+but that key does not stop autostart.
+KWin's Virtual Keyboard settings page reads it to list candidate input methods
+([`src/kcms/virtualkeyboard/kcmvirtualkeyboard.cpp:61-63`][kwin-vk-key] at commit `e99068b40ad042441b830b72d7968d98f505e26b`):
+
+```cpp
+// KDE/kwin src/kcms/virtualkeyboard/kcmvirtualkeyboard.cpp:61-63
+    m_services = KApplicationTrader::query([](const KService::Ptr &service) {
+        return service->property<bool>("X-KDE-Wayland-VirtualKeyboard");
+    });
+```
+
+`rg 'X-KDE-Wayland-VirtualKeyboard'` over shallow clones of `KDE/kwin` (`src/`),
+`KDE/plasma-workspace` and `KDE/plasma-desktop`,
+taken on 2026-11-19,
+found no other use,
+and the generated unit has no condition.
+The second process does no harm while it loses the bus name,
+but it starts at every login.
+
+### Applied fix
+
+A same-named entry in the user's autostart folder with `Hidden=true`
+disables a system autostart entry for that user ([autostart specification][autostart-hidden]):
+
+```ini
+# ~/.config/autostart/org.fcitx.Fcitx5.desktop
+[Desktop Entry]
+Hidden=true
+```
+
+Before writing,
+the file was checked to be absent
+and the `kwinrc` `InputMethod` line to be the native entry;
+after writing,
+the `InputMethod` line was re-read unchanged.
+
+Verification,
+using the real `/usr/lib/systemd/user-generators/systemd-xdg-autostart-generator`
+with throwaway output folders,
+so the live session was not reloaded:
+
+- Fixture run with a throwaway `XDG_CONFIG_HOME`:
+  without the override the generator produced `app-org.fcitx.Fcitx5@autostart.service` (the control),
+  with it the unit was absent,
+  and every other unit was kept.
+- Run with the live environment after the write:
+  the Fcitx unit was absent from the units it would create at next login.
+
+A real login was not tested.
+Fcitx and KWin were not restarted,
+because the [Fcitx Wayland guide][wayland-kcm] warns that the socket KWin passes cannot be reused by a restarted Fcitx.
+
+Tradeoffs:
+
+- If the Virtual Keyboard setting is cleared,
+  or a session whose compositor does not launch input methods is installed later
+  (a Plasma X11 session,
+  for example),
+  nothing starts Fcitx at login until the override is deleted.
+- Changes the Fcitx package makes to its autostart entry no longer apply for this user.
+
+### Open gap: `XMODIFIERS`
+
+No inspected session process carried `XMODIFIERS`,
+`GTK_IM_MODULE`,
+`QT_IM_MODULE` or `SDL_IM_MODULE`
+(read from `/proc/<pid>/environ` of `Xwayland`, `plasmashell`, `fcitx5`, `dolphin`, `odytty`, `helium` and `firefox`).
+Fcitx's Plasma setup asks for `XMODIFIERS=@im=fcitx` for XWayland applications ([Fcitx Wayland guide][wayland-xmodifiers]),
+and `rg XMODIFIERS` over KWin's `src/` found no code that sets it.
+Typing in an XWayland application was not tested.
+The variable was not set in this session;
+whether to set it is the user's decision.
+
+### What does not work
+
+- Searching `pgrep --list-full fcitx` or `flatpak list` for a second copy:
+  both showed only the native process and no Flatpak refs,
+  so there was nothing to uninstall.
+- Relying on `X-KDE-Wayland-VirtualKeyboard=true` to keep the autostart copy from running:
+  the generated unit ignores it,
+  as the journal line shows.
+
+### Upstream filing decision
+
+There is nothing to file.
+
+- Upstream fault:
+  not established.
+  The second process exits cleanly by design when another process owns the bus name.
+- Fixability:
+  not assessed,
+  because no defect is established.
+- Supported use case:
+  Fcitx documents the Virtual Keyboard launch for Plasma on Wayland.
+- Contribution policy:
+  not reviewed because no filing is proposed.
+- Maintainer intent:
+  not assessed because no upstream change is proposed.
+- Prototype:
+  none needed;
+  the per-user override is enough.
+
+`.out-of-scope/` has no Fcitx,
+Flatpak or autostart entry (listed 2026-11-19).
+No issue or comment was drafted or sent.
+
 [install]: https://fcitx-im.org/wiki/Install_Fcitx_5#:~:text=flatpak%20install%20org.fcitx.Fcitx5.Addon.ChineseAddons
+[wayland-kcm]: https://fcitx-im.org/wiki/Using_Fcitx_5_on_Wayland#:~:text=Use%20%22Virtual%20keyboard%22%20KCM%20to%20launch%20fcitx5.
+[wayland-xmodifiers]: https://fcitx-im.org/wiki/Using_Fcitx_5_on_Wayland#:~:text=XMODIFIERS%3D%40im%3Dfcitx%20for%20XWayland%20application
+[kwin-vk-key]: https://github.com/KDE/kwin/blob/e99068b40ad042441b830b72d7968d98f505e26b/src/kcms/virtualkeyboard/kcmvirtualkeyboard.cpp#L61-L63
+[autostart-hidden]: https://specifications.freedesktop.org/autostart-spec/latest/#:~:text=which%20contains%20the%20key%20Hidden%3Dtrue
