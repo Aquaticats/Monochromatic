@@ -442,8 +442,8 @@ read-only reads named.
   removes any folder. That comparison belongs to the receipt path, where the record is this boot's and the pair means
   what it says. A record from another boot takes the other route: the wrapper voids it and settles the folder,
   record, temporary name and claim on its own mount-table read, as "The staged-folder record" says. The record also
-  carries the folder's file handle and identity,
-  which is what a later sweep opens the folder from (F29, L12). It lives at
+  carries the folder's file handle and identity, which is what a later sweep opens the folder from (F29, L12). It
+  lives at
   `<home>/.cache/monochromatic-git-policy-cli-staging-<guid>.json`, beside the folder of the same component, by the
   project's answer "In ~/.cache" and under the threat model that answer states ("Answers of 2026-11-19"). It is
   therefore data the account can read and replace, which the project's sentence accepts, and it is a cache of the
@@ -463,9 +463,9 @@ read-only reads named.
   bind gone from the host namespace, before the wrapper removes anything, and that is the receipt path; a removal
   whose receipt never arrives, or arrives unclear, keeps its staged state reported and removes no folder. The one
   removal the receipt requirement does not gate is the settlement of a record from another boot, which runs on the
-  wrapper's own mount-table read and on `rmdir`'s `EBUSY` ("The staged-folder record").
-  A refused step is a clear receipt of the other kind: it names the failed step, the errno and, where a mount
-  refused it, the copy that refused it, and the wrapper then removes nothing.
+  wrapper's own mount-table read and on `rmdir`'s `EBUSY` ("The staged-folder record"). A refused step is a clear
+  receipt of the other kind: it names the failed step, the errno and, where a mount refused it, the copy that
+  refused it, and the wrapper then removes nothing.
   A cancelled removal has a third receipt kind, naming the clone at its canonical slot and the bind gone from the host
   namespace, and it is the only one on which the wrapper removes a staging folder while the clone still stands at its
   slot ("The private bind"); where that receipt says the bind survives, the folder stays for the sweep.
