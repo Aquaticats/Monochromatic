@@ -9,7 +9,9 @@ use super::*;
 use crate::clone_folder_identity::CloneFolderIdentity;
 use crate::clone_slot_walk_refusals::{WalkRefusal, WalkRefusalReason};
 use crate::test_support::{fixture, remove};
-use std::path::PathBuf;
+use crate::worktree_clone_mount::StoredIdentity;
+use crate::worktree_clone_mount::slot_identity_store::SlotIdentityStore;
+use std::path::{Path, PathBuf};
 
 /// The identity of one real fixture folder,
 /// so the policy is the folder's own shape and the ACL fields are real.
@@ -20,8 +22,24 @@ fn planted_identity(name: &str) -> (PathBuf, CloneFolderIdentity) {
     return (root, identity);
 }
 
-/// Facts that adopt `held` as it is.
-fn adopting(held: &CloneFolderIdentity) -> AdoptionFacts {
+/// A store recording the slots `names`,
+/// which is where the decision takes every recorded slot from.
+fn recording_slots(root: &Path, names: &[&str]) -> SlotIdentityStore {
+    let path: PathBuf = root.join("slot-identities");
+    let mut text: String = String::from("# monochromatic-git-policy-cli worktree clone slot identities, version 1");
+    text.push('\n');
+    for (index, name) in names.iter().enumerate() {
+        let record: StoredIdentity = StoredIdentity::Slot { name: String::from(*name), identity: CloneFolderIdentity { device: 66304, inode: 900 + index as u64, owner: 1000, mode: 0o755, access_acl: None, default_acl: None } };
+        text.push_str(record.encode().as_str());
+        text.push('\n');
+    }
+    std::fs::write(&path, text).expect("the store the decision reads its slots from");
+    return SlotIdentityStore::read(path.as_path()).expect("the store reads");
+}
+
+/// Facts that adopt `held` as it is,
+/// against a store that records the slots `one` and `two`.
+fn adopting(root: &Path, held: &CloneFolderIdentity) -> AdoptionFacts {
     return AdoptionFacts {
         walk: Ok(held.clone()),
         identified_device: held.device,
@@ -32,7 +50,7 @@ fn adopting(held: &CloneFolderIdentity) -> AdoptionFacts {
             BindingState::Staged { what: String::from("slot two"), place: PathBuf::from("/home/user/.cache/cli-git/staging/two") },
         ],
         slots: vec![SlotState::Agrees { slot: String::from("one") }, SlotState::Agrees { slot: String::from("two") }],
-        recorded_slots: vec![String::from("one"), String::from("two")],
+        store: recording_slots(root, &["one", "two"]),
         fresh: Ok(held.clone()),
     };
 }
@@ -52,12 +70,12 @@ fn walk_refusal(component: &str, reason: WalkRefusalReason) -> WalkRefusal {
 #[test]
 fn an_identified_replacement_with_the_recorded_shape_is_adopted() {
     let (root, held): (PathBuf, CloneFolderIdentity) = planted_identity("adoption-positive");
-    let decision: Adoption = decide_adoption(&adopting(&held)).expect("the replacement is the identified one");
+    let decision: Adoption = decide_adoption(&adopting(root.as_path(), &held)).expect("the replacement is the identified one");
     assert_eq!(decision.identity, held);
-    let mut with_nothing: AdoptionFacts = adopting(&held);
+    let mut with_nothing: AdoptionFacts = adopting(root.as_path(), &held);
     with_nothing.bindings = Vec::new();
     with_nothing.slots = Vec::new();
-    with_nothing.recorded_slots = Vec::new();
+    with_nothing.store = recording_slots(root.as_path(), &[]);
     assert_eq!(decide_adoption(&with_nothing).expect("a store that records no slot has nothing to reconcile").identity, held);
     remove(root.as_path());
 }
@@ -65,25 +83,25 @@ fn an_identified_replacement_with_the_recorded_shape_is_adopted() {
 /// What:
 ///  A slot the store records with no state in the caller's list refuses the adoption,
 ///  naming the slot,
-///  while a list that covers every recorded slot and an empty record both adopt.
+///  while a store whose every slot is listed and a store that records none both adopt.
 /// Why:
 ///  An empty list adopted a replacement while the store still recorded surviving slots,
 ///  so an adoption could leave a slot's identity unexamined;
-///  the caller's list is judged against the store's own record,
-///  never trusted for being a list.
+///  the decision now reads the names from the store itself,
+///  and a caller cannot hand it a list of its own.
 #[test]
 fn a_recorded_slot_with_no_state_refuses_the_adoption() {
     let (root, held): (PathBuf, CloneFolderIdentity) = planted_identity("adoption-recorded-slots");
-    assert_eq!(decide_adoption(&adopting(&held)).expect("positive control: every recorded slot is listed").identity, held);
-    let mut unlisted: AdoptionFacts = adopting(&held);
-    unlisted.recorded_slots = vec![String::from("one"), String::from("two"), String::from("three")];
+    assert_eq!(decide_adoption(&adopting(root.as_path(), &held)).expect("positive control: every recorded slot is listed").identity, held);
+    let mut unlisted: AdoptionFacts = adopting(root.as_path(), &held);
+    unlisted.store = recording_slots(root.as_path(), &["one", "two", "three"]);
     let refused: AdoptionRefusal = decide_adoption(&unlisted).expect_err("a recorded slot with no state");
     assert!(matches!(refused, AdoptionRefusal::SlotNotListed { ref slot } if slot == "three"), "{refused:?}");
     assert!(refused.message().contains("`three`"), "the slot is named: {}", refused.message());
     assert!(refused.message().contains("slot_names"), "the way forward names the store's own list: {}", refused.message());
-    let mut nothing_recorded: AdoptionFacts = adopting(&held);
+    let mut nothing_recorded: AdoptionFacts = adopting(root.as_path(), &held);
     nothing_recorded.slots = Vec::new();
-    nothing_recorded.recorded_slots = Vec::new();
+    nothing_recorded.store = recording_slots(root.as_path(), &[]);
     nothing_recorded.bindings = Vec::new();
     assert_eq!(decide_adoption(&nothing_recorded).expect("a store that records no slot needs no state").identity, held);
     remove(root.as_path());
@@ -98,12 +116,12 @@ fn a_recorded_slot_with_no_state_refuses_the_adoption() {
 #[test]
 fn a_folder_the_administrator_did_not_identify_is_refused() {
     let (root, held): (PathBuf, CloneFolderIdentity) = planted_identity("adoption-identity");
-    let mut wrong_device: AdoptionFacts = adopting(&held);
+    let mut wrong_device: AdoptionFacts = adopting(root.as_path(), &held);
     wrong_device.identified_device = held.device + 1;
     let refused: AdoptionRefusal = decide_adoption(&wrong_device).expect_err("another device");
     assert!(matches!(refused, AdoptionRefusal::Identity { field: CloneFolderField::Device, .. }), "{refused:?}");
     assert!(refused.message().contains("device"), "{}", refused.message());
-    let mut wrong_inode: AdoptionFacts = adopting(&held);
+    let mut wrong_inode: AdoptionFacts = adopting(root.as_path(), &held);
     wrong_inode.identified_inode = held.inode + 1;
     let refused_2: AdoptionRefusal = decide_adoption(&wrong_inode).expect_err("another inode");
     assert!(matches!(refused_2, AdoptionRefusal::Identity { field: CloneFolderField::Inode, .. }), "{refused_2:?}");
@@ -128,7 +146,7 @@ fn each_policy_field_is_a_refusal() {
         ("default ACL", CloneFolderIdentity { default_acl: Some(vec![2, 0, 0, 0]), ..held.clone() }),
     ];
     for (field, replacement) in &changed {
-        let mut facts: AdoptionFacts = adopting(&held);
+        let mut facts: AdoptionFacts = adopting(root.as_path(), &held);
         facts.walk = Ok(replacement.clone());
         facts.identified_device = replacement.device;
         facts.identified_inode = replacement.inode;
@@ -153,7 +171,7 @@ fn each_policy_field_is_a_refusal() {
 fn a_link_or_a_boundary_in_the_walk_is_refused() {
     let (root, held): (PathBuf, CloneFolderIdentity) = planted_identity("adoption-walk");
     for (reason, expected) in [(WalkRefusalReason::LinkInTheWay, "never follows a link"), (WalkRefusalReason::BoundaryCrossed, "never crosses such a boundary")] {
-        let mut facts: AdoptionFacts = adopting(&held);
+        let mut facts: AdoptionFacts = adopting(root.as_path(), &held);
         facts.walk = Err(walk_refusal(".claude/worktrees", reason));
         let refused_4: AdoptionRefusal = decide_adoption(&facts).expect_err("the walk refused_4");
         assert!(matches!(refused_4, AdoptionRefusal::Walk { .. }), "{refused_4:?}");
@@ -174,24 +192,24 @@ fn a_link_or_a_boundary_in_the_walk_is_refused() {
 #[test]
 fn an_unresolved_binding_a_differing_slot_and_a_fresh_lookup_mismatch_are_refused() {
     let (root, held): (PathBuf, CloneFolderIdentity) = planted_identity("adoption-bindings");
-    let mut unresolved: AdoptionFacts = adopting(&held);
+    let mut unresolved: AdoptionFacts = adopting(root.as_path(), &held);
     unresolved.bindings.push(BindingState::Unresolved { what: String::from("slot three"), reason: String::from("its mount row is unreadable") });
     let refused_5: AdoptionRefusal = decide_adoption(&unresolved).expect_err("an unresolved binding");
     assert!(matches!(refused_5, AdoptionRefusal::BindingUnresolved { .. }), "{refused_5:?}");
     assert!(refused_5.message().contains("slot three") && refused_5.message().contains("its mount row is unreadable"), "{}", refused_5.message());
     assert!(refused_5.message().contains("recovery"), "{}", refused_5.message());
-    let mut differing_slot: AdoptionFacts = adopting(&held);
+    let mut differing_slot: AdoptionFacts = adopting(root.as_path(), &held);
     differing_slot.slots.push(SlotState::Differs { slot: String::from("four"), field: CloneFolderField::Mode });
     let refused_6: AdoptionRefusal = decide_adoption(&differing_slot).expect_err("a slot that differs");
     assert!(matches!(refused_6, AdoptionRefusal::SlotDiffers { .. }), "{refused_6:?}");
     assert!(refused_6.message().contains("`four`") && refused_6.message().contains("mode"), "{}", refused_6.message());
     assert!(refused_6.message().contains("never overwrites"), "{}", refused_6.message());
-    let mut fresh_stopped: AdoptionFacts = adopting(&held);
+    let mut fresh_stopped: AdoptionFacts = adopting(root.as_path(), &held);
     fresh_stopped.fresh = Err(walk_refusal(".claude/worktrees", WalkRefusalReason::Missing));
     let refused_7: AdoptionRefusal = decide_adoption(&fresh_stopped).expect_err("the fresh lookup stopped");
     assert!(matches!(refused_7, AdoptionRefusal::FreshLookup { .. }), "{refused_7:?}");
     assert!(refused_7.message().contains("not there"), "{}", refused_7.message());
-    let mut fresh_other: AdoptionFacts = adopting(&held);
+    let mut fresh_other: AdoptionFacts = adopting(root.as_path(), &held);
     fresh_other.fresh = Ok(CloneFolderIdentity { inode: held.inode + 1, ..held.clone() });
     let refused_8: AdoptionRefusal = decide_adoption(&fresh_other).expect_err("the fresh lookup reached another folder");
     assert!(matches!(refused_8, AdoptionRefusal::FreshLookupDiffers { ref fields } if fields.contains(&CloneFolderField::Inode)), "{refused_8:?}");

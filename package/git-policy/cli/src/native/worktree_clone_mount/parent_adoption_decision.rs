@@ -25,6 +25,7 @@
 use super::clone_folder_identity::{CloneFolderField, CloneFolderIdentity, field_names};
 use super::clone_slot_walk_refusals::WalkRefusal;
 use super::parent_adoption_facts::{BindingState, ParentPolicy, SlotState};
+use super::slot_identity_store::SlotIdentityStore;
 
 /// What:
 ///  Every fact the adoption decision reads.
@@ -39,7 +40,7 @@ use super::parent_adoption_facts::{BindingState, ParentPolicy, SlotState};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Facts = { walk; identified: [device, inode]; policy; bindings; slots; fresh };
+/// type Facts = { walk; identified: [device, inode]; policy; bindings; slots; store; fresh };
 /// ```
 #[derive(Clone, Debug)]
 pub struct AdoptionFacts {
@@ -57,9 +58,11 @@ pub struct AdoptionFacts {
     pub bindings: Vec<BindingState>,
     /// Every surviving slot's reconciliation.
     pub slots: Vec<SlotState>,
-    /// The slot names the store records,
-    /// which every one of them needs a state for.
-    pub recorded_slots: Vec<String>,
+    /// The store the adoption replaces the parent record in,
+    /// whose own slot names every state above must cover.
+    /// A caller cannot hand in a list of its own:
+    /// the names come from the store, never from the caller's account of it.
+    pub store: SlotIdentityStore,
     /// A fresh canonical lookup of the parent folder,
     /// or its refusal.
     pub fresh: Result<CloneFolderIdentity, WalkRefusal>,
@@ -229,15 +232,15 @@ pub fn decide_adoption(facts: &AdoptionFacts) -> Result<Adoption, AdoptionRefusa
             return Err(AdoptionRefusal::BindingUnresolved { what: what.clone(), reason: reason.clone() });
         }
     }
-    for recorded in &facts.recorded_slots {
+    for recorded in facts.store.slot_names() {
         let listed: bool = facts.slots.iter().any(|state| {
             let named: &str = match state {
                 SlotState::Agrees { slot } | SlotState::Differs { slot, .. } => slot,
             };
-            return named == recorded;
+            return named == recorded.as_str();
         });
         if !listed {
-            return Err(AdoptionRefusal::SlotNotListed { slot: recorded.clone() });
+            return Err(AdoptionRefusal::SlotNotListed { slot: recorded });
         }
     }
     for slot in &facts.slots {
