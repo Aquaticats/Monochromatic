@@ -13,7 +13,9 @@
  The forwarded-arguments marker is a third shared shape. mise appends the words a task forwards to its inline script
  (the `-h`/`--help` case after `--`) past the TypeScript, so every body that reads `vars.parse_usage_args` ends with the
  marker comment those words land in. One check holds each body to that ending and one runs the parser against a
- synthetic paste, so the words are shown to arrive as arguments rather than as source.
+ synthetic paste, so the words are shown to arrive as arguments rather than as source. Package task files interpolate
+ the same root variables, so the marker checks cover every package task file's parser bodies as well as the root
+ file's, and the marker itself must stay declared in the root file alone.
  */
 
 import {
@@ -22,7 +24,8 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import { execFileSync, } from 'node:child_process';
-import { readFile, } from 'node:fs/promises';
+import { glob, readFile, } from 'node:fs/promises';
+import { fileURLToPath, } from 'node:url';
 
 //region The file and its shapes
 
@@ -90,6 +93,33 @@ const namedArgumentRecovery = '?? forwardedArgumentWords()';
  Text that a parser call ends with when it recovers `usage_args` or the appended words.
  */
 const unnamedArgumentRecovery = 'parseUsageArgs(usageArgWords())';
+
+/**
+ The repository root, which holds the root task file and the package task files.
+ */
+const repositoryRoot = fileURLToPath(new URL('../../../../', import.meta.url,),);
+
+/**
+ One package task file: its repository-relative path and its contents.
+ */
+type PackageTaskFile = {
+  readonly path: string;
+  readonly text: string;
+};
+
+/**
+ Every package task file, in path order, so each is read once.
+ */
+const packageTaskFiles: PackageTaskFile[] = [];
+for await (const path of glob('package/*/*/mise.toml', { cwd: repositoryRoot, },)) {
+  packageTaskFiles.push({ path, text: await readFile(`${repositoryRoot}${path}`, 'utf8',), },);
+}
+packageTaskFiles.sort((left, right) => (left.path < right.path ? (-1) : 1),);
+
+/**
+ The package task files that interpolate the shared parser, which are the ones whose bodies receive forwarded words.
+ */
+const parserPackageFiles = packageTaskFiles.filter((file) => file.text.includes(parserSnippet,),);
 
 //endregion
 
@@ -334,6 +364,42 @@ await describe({
         },);
         expect(parserCalls(taskFile,).length,).toBeGreaterThan(0,);
         expect(unrecovered,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'ends every package parser body with the marker comment too',
+      fn: async function everyPackageParserBodyIsMarked() {
+        expect(parserPackageFiles.length,).toBeGreaterThan(0,);
+        const endingsByFile = parserPackageFiles.map((file) => ({
+          file,
+          endings: parserBodyEndings(file.text,),
+        }),);
+        for (const { file, endings } of endingsByFile) {
+          expect(endings.length,).toBe(countOf(file.text, `\n${parserSnippet}\n`,),);
+        }
+        const bodies = endingsByFile.flatMap(({ endings }) => endings);
+        expect(bodies.length,).toBeGreaterThan(0,);
+        const unmarked = endingsByFile.flatMap(({ file, endings }) => endings.filter((ending) => ending !== forwardedMarkerSnippet).map((ending) => `${file.path}: ${ending}`,),);
+        expect(unmarked,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'recovers the appended words at every package parser call',
+      fn: async function everyPackageParserCallRecovers() {
+        const calls = parserPackageFiles.flatMap((file) => parserCalls(file.text,),);
+        expect(calls.length,).toBeGreaterThan(0,);
+        const unrecovered = calls.filter((line) => {
+          if (line.includes(unnamedArgumentRecovery,)) return false;
+          return !line.includes(namedArgumentRecovery,);
+        },);
+        expect(unrecovered,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'declares the forwarded-arguments marker in the root file only',
+      fn: async function markerHasOneHome() {
+        const declarations = packageTaskFiles.filter((file) => file.text.includes(forwardedMarkerDeclaration,),).map((file) => file.path);
+        expect(declarations,).toEqual([],);
       },
     },),
     it({
