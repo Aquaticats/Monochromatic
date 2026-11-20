@@ -128,7 +128,13 @@ fn rust_files_below(root: &Path) -> Vec<String> {
     while let Some(directory) = pending.pop() {
         for entry in std::fs::read_dir(&directory).expect("a readable source directory").flatten() {
             let path: PathBuf = entry.path();
-            if path.is_dir() {
+            // The entry's own type, so a link is seen as a link: a `uses` folder holds one link per source folder its
+            // code uses (`AGENTS.md`, rule LYD), and following one would scan those sources under a second name.
+            let kind: std::fs::FileType = entry.file_type().expect("an entry's own type");
+            if kind.is_symlink() {
+                continue;
+            }
+            if kind.is_dir() {
                 pending.push(path);
             } else if path.extension().is_some_and(|extension| { return extension == "rs"; }) {
                 let relative: &Path = path.strip_prefix(root).expect("a path below the root");
