@@ -140,7 +140,7 @@ records what each answer left untaken.
   unmount on the account's tree", attributed there to "Descriptor mount and unmount".
 - No unmount exists yet ([proposal][proposal], "Descriptor mount and unmount"): "The interface that unmount from
   staging needs, after the move and from that descriptor, has no design yet, and no unmount runs from staging until
-  it exists."
+  it exists".
 - Staging reuse across sweeps ([proposal][proposal], "Descriptor mount and unmount"): "Reuse only a verified staging
   mount on subsequent sweeps; validate its identity and private propagation before each move."
 - Staged state is not absence ([proposal][proposal], "Descriptor mount and unmount"): "Track and report staged
@@ -405,7 +405,8 @@ read-only reads named.
   (`:182` to `:186`), keeps the directory descriptor's own mount (`get_vfsmount_from_fd`, `:118` to `:135`) and the
   decoded dentry (`:142` to `:165`), and opens the empty path under it (`file_open_root`, `:235`), so no mount is
   crossed. Every error the decode reports other than `ENOMEM` reaches the caller as `ESTALE`
-  (`fs/exportfs/expfs.c:577` to `:591`). ZFS implements both directions (`zpl_export_operations`,
+  (`fs/exportfs/expfs.c:577` to `:591`; at `v7.3` the same normalization is in `do_handle_to_path`,
+  `fs/fhandle.c:278` to `:281`). ZFS implements both directions (`zpl_export_operations`,
   `module/os/linux/zfs/zpl_export.c:251` to `:257`; `zpl_encode_fh` at `:36`, `zpl_fh_to_dentry` at `:100`), and it
   resolves a handle by object number and generation: an object that is unlinked, or whose generation differs, gives
   `ENOENT` (`module/os/linux/zfs/zfs_vfsops.c:1584` to `:1695`), which `zpl_fh_to_dentry` turns into `ESTALE`
@@ -493,7 +494,8 @@ read-only reads named.
   binding have not been built.
 - L2. Kernel citations are to upstream Linux `v6.8`, fetched by URL at that tag, and to `v7.3` at that tag where a
   fact differs between the two and the host's kernel decides it (the capability and descriptor test order, the
-  shared-parent refusal, and `do_lock_mount`'s overmount rule). The guest kernel is Ubuntu's `6.8.0-147-generic`,
+  shared-parent refusal, and where the `ESTALE` normalization sits, which at `v7.3` is `do_handle_to_path` in
+  `fs/fhandle.c` rather than `fs/exportfs/expfs.c`). The guest kernel is Ubuntu's `6.8.0-147-generic`,
   whose patch set is not upstream `v6.8`, and the host kernel is `7.3.5-1-cachyos`, whose patch set no citation here
   covers: the `v7.3` lines say what that tag does, and no arm has run on the host.
 - L3. No measurement exists for an unmount or an unbind through a descriptor on the covered folder, for the mount
@@ -2033,8 +2035,9 @@ the entry says what they add, so the name stays the revision's first commit rath
   proposal citation was re-checked against `main` at `59152e567b` and none changed. Its label is the committer
   timestamp of `367ac87e1a` at `2026-11-19T22:49:35-05:00`, the last commit that changed this revision's text before
   this label was written, because a commit cannot name its own hash; the prose checker kept in
-  `~/temp/agent/zfs-staging-under-cache-design-third-revision-recheck-findings-fixed-2026-11-19/scratch/keep/` passes
-  on this revision and fails on a control copy with planted faults.
+  `~/temp/agent/zfs-staging-under-cache-design-fourth-revision-narrow-check-findings-fixed-2026-11-19/keep/`, with
+  copies of its output for this revision and the planted-fault control, moved there from the scratch folder that run
+  used, passes on this revision and fails on a control copy with planted faults.
 
 ## Sources read
 
@@ -2042,9 +2045,11 @@ the entry says what they add, so the name stays the revision's first commit rath
   `fs/open.c`, `fs/dcache.c`, `fs/proc/fd.c`, `fs/proc/base.c`, `fs/proc_namespace.c`, `fs/exportfs/expfs.c`,
   `include/linux/exportfs.h`, `include/linux/namei.h`, `include/uapi/linux/mount.h`, `fs/file.c`, `fs/sync.c` and
   `fs/fhandle.c`. The `fs/fhandle.c` lines this design cites are `:15` to `:75`, `:97` to `:113`, `:118` to `:135`,
-  `:142` to `:165`, `:170` to `:186`, `:235` and `:258` to `:266`. Its `v7.3` lines, read at that tag, are `:170` to
-  `:197`, `:265` to `:282`, `:317` to `:362` and `:384` to `:392`, and they are what the host kernel's order of the
-  capability and descriptor tests rests on (M6).
+  `:142` to `:165`, `:170` to `:186`, `:235` and `:258` to `:266`. At `v7.3`, also read at that tag, they are `:170`
+  to `:197`, `:265` to `:282`, which carries the `ESTALE` normalization in `do_handle_to_path`, `:317` to `:362` and
+  `:384` to `:392`, and they are what the host kernel's order of the capability and descriptor tests rests on (M6,
+  F29). The `v7.3` `fs/namespace.c` line this design cites is `:3789` to `:3790`, the shared-parent refusal the
+  rollback meets ("The private bind").
 - OpenZFS, tag `zfs-2.4.4`, commit `71a9f9578616a90c3c14bb59629fb4d31bfd68d1`:
   `module/os/linux/zfs/zpl_super.c`, `module/os/linux/zfs/zfs_vfsops.c`, `module/os/linux/zfs/zpl_export.c`,
   `module/zfs/dsl_dataset.c`, `module/zfs/dsl_destroy.c`, `cmd/zfs/zfs_main.c`.
