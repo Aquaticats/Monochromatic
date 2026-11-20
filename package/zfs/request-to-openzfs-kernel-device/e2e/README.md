@@ -31,6 +31,9 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- record --name my-
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- destroy --name my-guest
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-attach-pool --name my-guest
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-attach-arm --name my-guest
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-gate-arm --name my-guest
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-gate-version-arm --name my-guest
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-gate-change-arm --name my-guest
 ```
 
 - `create` makes the guest with `mvm`,
@@ -342,6 +345,48 @@ destroys the pool,
 removes the fixture root,
 and records what is left,
 and the guest itself is destroyed by the run that made it.
+
+## The step 6 gate arms
+
+The recipe carries step 6's guest arms of the start-time layout comparison
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 6,
+"VM measurements")
+beside the recipe itself:
+
+- `run` sets `MONOCHROMATIC_ZFS_FIXTURE_GATE_EXPECT=compatible`,
+  so its root suite runs the control against the guest's approved module,
+  fails on a `SKIP gate_arm` line,
+  and requires the `MEASUREMENT gate` line.
+- `zfs-gate-arm` runs that same control again on a prepared guest.
+- `zfs-gate-version-arm` patches the built module's release text from
+  `2.4.4-1` to `2.4.4-2` and reloads it,
+  then expects a compatible verdict.
+  The layout and every request number are the approved module's by
+  construction,
+  so this arm shows that no step reads the release string;
+  it is not a second release.
+- `zfs-gate-change-arm` first runs a red arm the approved layout must refuse
+  (it is told to expect `member:dds_flags`),
+  then swaps `zi_iotype` and `zi_duration` in the guest's own
+  `include/sys/zfs_ioctl.h`,
+  rebuilds and installs the module,
+  reboots,
+  reloads it,
+  and expects the exact member refusal naming `zi_iotype` at 2592 bits where
+  2560 was expected.
+  The swap moves no total size and no other offset,
+  which is the design's owed item 16.
+
+Every arm fails on a `SKIP gate_arm` line or a missing `MEASUREMENT gate`
+line,
+so an arm that never ran is never counted as passed.
+These arms drive the binding's `check_module_layout` against the guest's two
+type-information files.
+They do not run the product's gate (`zfs_compatibility_gate::check`) or the
+handler binary,
+and they send no request:
+the product half belongs to the step that makes the handler's first request.
 
 ## Teardown evidence
 
