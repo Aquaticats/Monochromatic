@@ -40193,7 +40193,16 @@ What follows from them, as work:
   the recovery pass, and the claim is per repository; R5 to R8 on the nonce as a folder name, the questions' framing,
   Way D's false `zfs mount -a` con, and ZFS's `show_devname`; lows R9 to R11. GOING: its second round
   `pi-zfs-staging-under-cache-design-recheck-findings-fixed` (DeepSeek on Neuralwatt, cap 300); brief under
-  `~/temp/agent/zfs-staging-under-cache-design-recheck-findings-fixed-2026-11-19/`. LAYOUT CHECKER REVIEW BACK (that folder's
+  `~/temp/agent/zfs-staging-under-cache-design-recheck-findings-fixed-2026-11-19/`. It ended `idle` (178 turns) at
+  `a879cd9be8` (two commits, 1,283 lines; report in that folder's `keep/report.md`): R1 answered with a file handle
+  recorded before the bind, reopened by `open_by_handle_at` on the `~/.cache` descriptor and unmounted through its
+  `/proc/self/fd` link (unmeasured, with new M6 arms), and Q2 widened to every retained mount; R2 names a by-name
+  `openat2` under the `~/.cache` descriptor checked by `fdinfo` mount ID; the unbind's propagation to copies stated with
+  idle and held arms; claims moved beside `v1` where no pass lists them; the folder name drawn by the wrapper, the nonce
+  kept as data; Q1 one choice among Ways A to F, then Q2 retained mount, Q3 unfindable mount, Q4 the bound, each with a
+  scene and a `doctor` line. Checkers clean with a broken-copy control. GOING: a second Sonnet gate re-check (brief
+  under `~/temp/agent/zfs-staging-under-cache-design-second-revision-gate-recheck-2026-11-19/`), asked first whether an
+  unmount through the `/proc/self/fd` link is the path-based unmount the plan forbids. LAYOUT CHECKER REVIEW BACK (that folder's
   `keep/review.md`): no high; mediums F1 (the pre-scan's "string section ends the file" refuses this host's own vmlinux,
   whose layout section sits between types and strings at v7.3), F2 and F3 (2.2.2 differs from 2.4.4 also by the
   anonymous union and `dds_flags`, and its version string stops the gate before the layout compare, so owed measurement
@@ -40221,7 +40230,16 @@ What follows from them, as work:
   placement is the owner's question; R7, the discovery record's GitHub explanation is false and its queries thin; lows
   L1 to L16. After them Q2, Q3 and placement can go to the owner, Q1 only as a conditional question. GOING: its second
   round `pi-zfs-runtime-layout-checker-design-recheck-findings-fixed` (DeepSeek on Neuralwatt, cap 250); brief under
-  `~/temp/agent/zfs-runtime-layout-checker-design-recheck-findings-fixed-2026-11-19/`. By the owner's answers of
+  `~/temp/agent/zfs-runtime-layout-checker-design-recheck-findings-fixed-2026-11-19/`. It ended `idle` (162 turns) at
+  `3c547a825d` (six commits, 2,127 lines; report in that folder's `keep/report.md`): measurement 16 swaps two 32-bit
+  members inside `zinject_record` (offsets read with `pahole` on this host's module BTF); the patched arms remove or stub
+  every use; the comparison's walk order stated so each arm's first refusal follows; the in-house reader outside the
+  eligible ranking as the owner's exception, its lead shown to vanish at equal weights; Q2 an adoption by analogy with a
+  veto; crate placement is Q4; the discovery record rebuilt as a frozen schedule of twelve queries with counts (project
+  boards unreadable with this token, so discovery stays blocked); item 10 given thresholds of 100 ms and 256 MiB.
+  Checkers clean with a broken-copy control. GOING: a second Sonnet gate re-check (brief under
+  `~/temp/agent/zfs-runtime-layout-checker-design-second-revision-gate-recheck-2026-11-19/`), asked whether item 10's
+  thresholds rest on any measurement and whether Q1 should reach the owner before finalist validation. By the owner's answers of
   2026-11-19T17:10:00-05:00 (questions file) the LFS review and the provider rebuild finish and nothing else off the
   ZFS path starts, and owner questions off the ZFS path wait in the questions file (new rule `QWP`).
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
