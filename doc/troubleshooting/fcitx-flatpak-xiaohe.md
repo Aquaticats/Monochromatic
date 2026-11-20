@@ -90,7 +90,7 @@ into `~/.var/app/org.fcitx.Fcitx5/data/fcitx5/pinyin`.
 The old source files were retained.
 (Note added 2026-11-19T19:12:45-05:00:
 `~/.local/share/fcitx5` and `~/.var/app/org.fcitx.Fcitx5` no longer exist,
-so neither copy of the Pinyin user dictionary survives;
+so neither copy of the Pinyin user dictionary survives at these paths;
 see "Native-only state and duplicate login launch".)
 The recovery script is `~/temp/agent/restore-fcitx-xiaohe-2026-11-02.ts`.
 (Note added 2026-11-19T19:12:45-05:00:
@@ -235,8 +235,14 @@ and a second launch at every login came from the system autostart entry.
   `flatpak --version` (`1.18.4`) and `flatpak remotes` (`flathub`, system) answered,
   so the empty list was not a broken command.
   `/var/lib/flatpak/app` and `~/.var/app/org.fcitx.Fcitx5` did not exist.
-- When and by whom the Flatpak copy was removed is not established:
-  `flatpak history` returned no rows.
+- The operating system was reinstalled after the 2026-11-04 record.
+  `/var/log/pacman.log` begins at `2026-11-16T20:30:16-05:00` with a Calamares installer transaction,
+  and `stat` reports the root filesystem born at `2026-11-16 20:29:37 -0500`
+  and the home folder at `2026-11-16 20:32:08 -0500`.
+  That reinstall is consistent with every vanished path in this doc,
+  but no record names the step that dropped the Flatpak copy:
+  `flatpak history` returned no rows,
+  and `pacman.log` has no line naming Fcitx.
 - `which -a fcitx5` found only `/usr/bin/fcitx5`.
   The installed native packages were
   `fcitx5 5.1.23-1.1`,
@@ -257,7 +263,7 @@ and a second launch at every login came from the system autostart entry.
   A bounded `find` for `user.dict` and `user.history`
   under `~/.local/share`, `~/.config`, `~/.var` and `~/temp/agent`
   found neither,
-  so the Pinyin engine has no learned user dictionary.
+  so no earlier Pinyin user dictionary was found at those paths.
 - Plasma Wayland is the only installed session:
   `/usr/share/wayland-sessions/plasma.desktop` exists
   and `/usr/share/xsessions` does not.
@@ -299,6 +305,14 @@ found no other use,
 and the generated unit has no condition.
 The second process does no harm while it loses the bus name,
 but it starts at every login.
+
+A third start path exists and was left unchanged:
+`/usr/share/dbus-1/services/org.fcitx.Fcitx5.service` names `Exec=/usr/bin/fcitx5`
+for the bus name `org.fcitx.Fcitx5`,
+so a D-Bus call to that name while Fcitx is not running would start a copy
+without the socket KWin passes.
+While KWin's copy runs it owns the name and no activation happens.
+`systemctl --user list-unit-files '*fcitx*'` listed only the generated autostart unit.
 
 ### Applied fix
 
@@ -342,7 +356,7 @@ Tradeoffs:
   nothing starts Fcitx at login until the override is deleted.
 - Changes the Fcitx package makes to its autostart entry no longer apply for this user.
 
-### Open gap: `XMODIFIERS`
+### `XMODIFIERS` for XWayland applications
 
 No inspected session process carried `XMODIFIERS`,
 `GTK_IM_MODULE`,
@@ -351,8 +365,26 @@ No inspected session process carried `XMODIFIERS`,
 Fcitx's Plasma setup asks for `XMODIFIERS=@im=fcitx` for XWayland applications ([Fcitx Wayland guide][wayland-xmodifiers]),
 and `rg XMODIFIERS` over KWin's `src/` found no code that sets it.
 Typing in an XWayland application was not tested.
-The variable was not set in this session;
-whether to set it is the user's decision.
+
+The user chose to set it for the whole session,
+over per-application launchers or leaving it unset:
+
+```ini
+# ~/.config/environment.d/60-fcitx-xmodifiers.conf
+XMODIFIERS=@im=fcitx
+```
+
+Running `/usr/lib/systemd/user-environment-generators/30-systemd-environment-d-generator`
+after the write emitted `XMODIFIERS=@im=fcitx`.
+The value reaches applications only from the next login,
+which was not tested.
+Plasma's replacement of `PATH` at login ([plasma-overwrites-environment-d-path.md](plasma-overwrites-environment-d-path.md))
+concerns a variable the login environment already carries;
+whether `XMODIFIERS` reaches applications launched from Plasma is unverified until a login.
+
+Tradeoff:
+every application started in the session sees `XMODIFIERS`,
+including X11 applications that would otherwise ignore Fcitx.
 
 ### What does not work
 
@@ -391,4 +423,4 @@ No issue or comment was drafted or sent.
 [wayland-kcm]: https://fcitx-im.org/wiki/Using_Fcitx_5_on_Wayland#:~:text=Use%20%22Virtual%20keyboard%22%20KCM%20to%20launch%20fcitx5.
 [wayland-xmodifiers]: https://fcitx-im.org/wiki/Using_Fcitx_5_on_Wayland#:~:text=XMODIFIERS%3D%40im%3Dfcitx%20for%20XWayland%20application
 [kwin-vk-key]: https://github.com/KDE/kwin/blob/e99068b40ad042441b830b72d7968d98f505e26b/src/kcms/virtualkeyboard/kcmvirtualkeyboard.cpp#L61-L63
-[autostart-hidden]: https://specifications.freedesktop.org/autostart-spec/latest/#:~:text=which%20contains%20the%20key%20Hidden%3Dtrue
+[autostart-hidden]: https://specifications.freedesktop.org/autostart/latest/#startup:~:text=which%20contains%20the%20key

@@ -11,6 +11,7 @@ import {
   stdout,
 } from 'node:process';
 import { setTimeout as wait, } from 'node:timers/promises';
+import type { PiRecord, } from '../dist/final/node/index.mjs';
 import { compactionPlays, } from './stand-in-pi-compaction-plays-fixture.ts';
 import {
   PRINTS_A_VALUE_SCENARIO,
@@ -21,6 +22,7 @@ import {
   seen,
 } from './stand-in-pi-log-fixture.ts';
 import { modelErrorPlays, } from './stand-in-pi-model-error-plays-fixture.ts';
+import { ownTurnPlays, } from './stand-in-pi-own-turn-plays-fixture.ts';
 import { rateLimitPlays, } from './stand-in-pi-rate-limit-plays-fixture.ts';
 import {
   answer,
@@ -132,14 +134,18 @@ const waitingPromptPlays: ReadonlyMap<string, (id: unknown,) => Promise<void>> =
 /**
  Plays out a prompt or a steer according to the scenario.
 
- @param id - command's identifier
+ @param command - the prompt or steer Pi was sent
 
  @example
  ```ts
- await playPrompt('c1',);
+ await playPrompt({ id: 'c1' },);
  ```
  */
-export async function playPrompt(id: unknown,): Promise<void> {
+export async function playPrompt(command: PiRecord,): Promise<void> {
+  /**
+   The command's identifier, which most plays are played by.
+   */
+  const { id, } = command;
   /**
    The scenario's play if it compacts the session first.
    */
@@ -163,6 +169,14 @@ export async function playPrompt(id: unknown,): Promise<void> {
   const workPlay = workPlays.get(scenario,);
   if (workPlay !== undefined) {
     workPlay(id,);
+    return;
+  }
+  /**
+   The scenario's play if its agent starts a turn of its own when the work it left running ends, which the driver's wake meets.
+   */
+  const ownTurnPlay = ownTurnPlays.get(scenario,);
+  if (ownTurnPlay !== undefined) {
+    await ownTurnPlay(command,);
     return;
   }
   if (scenario === PRINTS_A_VALUE_SCENARIO) {
