@@ -61,6 +61,9 @@
 //!   the request numbers this crate can send and the range's two endpoints.
 //! - `mismatch.rs`:
 //!   the step and the detail of one difference.
+//! - `resolved_type.rs`:
+//!   the entry one type id finally names,
+//!   and the two questions the walk asks of it.
 //! - `comparison.rs`:
 //!   the fixed-order walk that compares the module's declaration and stops at
 //!   the first difference.
@@ -96,6 +99,8 @@ mod expectations;
 mod expected_requests;
 /// The one difference value both walks return.
 mod mismatch;
+/// The two lookups that follow a type through its aliases.
+mod resolved_type;
 /// The walk that compares the module's declaration with the expectation.
 mod comparison;
 /// The request numbers compared with the module's `enum zfs_ioc`.

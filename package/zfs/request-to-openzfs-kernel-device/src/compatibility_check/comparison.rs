@@ -42,6 +42,8 @@ use super::btf_entry::{
 use super::btf_types::TypeInformation;
 /// The one difference value this walk returns.
 use super::mismatch::Mismatch;
+/// The two lookups that follow a type through its aliases.
+use super::resolved_type::{is_base_integer, is_kind, resolve};
 /// The step one difference is reported as.
 use super::refusal::Step;
 
@@ -214,35 +216,6 @@ fn covers(module: &TypeInformation<'_>, wanted: &ExpectedMember, member: &Member
         }
         (None, None) => false,
     };
-}
-
-/// Whether one type id is a base integer or an array of them,
-/// through however many names it is written under.
-fn is_base_integer(module: &TypeInformation<'_>, id: u32) -> bool {
-    return resolve(module, id).is_some_and(|(_id, entry)| {
-        return matches!(entry, Entry::Integer { .. } | Entry::Array { .. });
-    });
-}
-
-/// One type id and its entry,
-/// through however many names and qualifiers it is written under.
-fn resolve<'a>(module: &TypeInformation<'a>, id: u32) -> Option<(u32, Entry<'a>)> {
-    let mut current: u32 = id;
-    for _hop in 0..super::btf_entry::ALIAS_HOPS {
-        let entry: Entry<'a> = module.entry(current)?;
-        match entry {
-            Entry::Alias { target, .. } => current = target,
-            _ => return Some((current, entry)),
-        }
-    }
-    return None;
-}
-
-/// Whether one type id is of the given kind.
-fn is_kind(module: &TypeInformation<'_>, id: u32, kind: u8) -> bool {
-    return resolve(module, id).is_some_and(|(_id, entry)| {
-        return entry.kind() == kind;
-    });
 }
 
 /// Why an expectation found no member,
