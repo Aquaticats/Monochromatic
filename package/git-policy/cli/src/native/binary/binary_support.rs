@@ -21,6 +21,8 @@ use std::process::{Child, Command, Output, Stdio};
 /// The helpers that moved to files of their own,
 /// named here so every `support::name` path stays the same.
 pub use crate::support_btrfs_controls::*;
+pub use crate::support_first_physical_extent::*;
+pub use crate::support_zfs_controls::*;
 pub use crate::support_fixture_directories::*;
 pub use crate::support_fixture_service::*;
 pub use crate::support_fixture_service_log::*;
