@@ -519,20 +519,23 @@ bound: a fixture tree that outgrows the ceiling fails with `ENOSPC` on the path 
 fixture root, where a tree that instead exhausted the memory bound would end the run with an
 out-of-memory kill. The integration pass of 2026-11-19 ran a whole suite on this root in the image
 `localhost/git-policy-native-test:integrate-git-policy-cli-container-gate-on-a-zfs-host`, 211 samples
-taken every 3 s across 780 s, and that record is kept in this package beside the other raw
-measurements (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`, with the figures its reader
-printed, `perf/gate-resource-peaks-2026-11-19-integration-pass-summary.json`, beside it): the kernel's
-`memory.peak` was 1123.8 MiB of the 2048 MiB bound, the highest `memory.current` sampled was 953.1 MiB,
-the fixture tmpfs sampled at 195.1 MiB, and the process pages, a sample's charge minus the fixture bytes
-in the same sample, sampled at 868.3 MiB. Those three samples add to 1063.4 MiB, which is 60.4 MiB
-below the peak, so a sampler that slow missed the true high point and the figures taken from it are the
-samples' and not the run's. The conservative bound is the one beside the kernel's peak: the 2048 MiB
-bound leaves 924.2 MiB for fixtures, and the 768 MiB ceiling is 156.2 MiB below that, so it is the
-bound a runaway fixture tree meets first; it is also 3.94 times the sampled fixture peak. A gate review's
-run on the same code, whose sampler record is not kept here, read a 916.4 MiB `memory.peak` and a
-221.4 MiB sampled fixture peak, of which the ceiling is 3.47 times. No sample of that run counted an
-out-of-memory kill, and its only failures are the standing pair of cause H, so every control that
-builds a fixture workspace built it.
+taken with a 3-second delay between iterations across 780 s, and that record is kept in this package
+beside the other raw measurements (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`, with the
+figures its reader printed, `perf/gate-resource-peaks-2026-11-19-integration-pass-summary.json`, beside
+it): the kernel's `memory.peak` was 1123.8 MiB of the 2048 MiB bound, while the highest charge any sample
+read was 953.1 MiB, 170.7 MiB below that peak, so a sampler that slow missed the true high point and the
+figures taken from it are the samples' and not the run's. The samples' highest fixture bytes were
+195.1 MiB, and their highest process pages, a sample's charge minus the fixture bytes in the same sample,
+868.3 MiB; those are the maxima of two components and need not have been read in one sample. The
+conservative bound is the one beside the kernel's peak: the 2048 MiB bound leaves 924.2 MiB for fixtures,
+which the 768 MiB ceiling sits 156.2 MiB below, so a run whose fixtures pass the ceiling while its other
+pages hold to the peak that bound came from meets `ENOSPC` before the memory bound; the ceiling is also
+3.94 times the sampled fixture peak. The summary's own `headroomForFixturesMiB` and
+`ceilingBelowHeadroomByMiB` are the sampled process pages' arithmetic (1179.7 and 411.7 MiB), which the
+bound beside the kernel's peak replaces. A gate review's run on the same code, whose sampler record is not
+kept here, read a 916.4 MiB `memory.peak` and a 221.4 MiB sampled fixture peak, of which the ceiling is
+3.47 times. No sample of that run counted an out-of-memory kill, and its only failures are the standing
+pair of cause H, so every control that builds a fixture workspace built it.
 The earlier whole-suite run, whose sampler record this branch does not keep, peaked at 1192 MiB of the
 bound and 222 MiB of fixture bytes, with 994 MiB of process pages over 235 samples across 740 s; its
 fixture peak came from a run whose two `package_repair_prewarm_job` controls failed before their
@@ -582,21 +585,24 @@ function.
 and `fixtures_are_created_outside_the_system_temporary_directory`
 (`src/native/binary/binary_fixture_tests.rs`) each returned early when `CLI_GIT_TEST_ROOT` was set. The
 gate always sets it, so the two controls that keep a fixture tree out of the system temporary directory
-(issue 1809) passed there in single-digit milliseconds, and they passed in single-digit milliseconds with
-the root under `/tmp` as well: a control that returns early cannot tell the two roots apart.
+(issue 1809) passed there, and they passed with the root under `/tmp` as well: a control that returns
+early cannot tell the two roots apart, and the times they took say nothing either way.
 
 Both now always compare the root they use with `/tmp`, `/var/tmp` and the run's `TMPDIR`
 (`system_temporary_directories`, in `src/native/testing/test_support.rs` and in
 `src/native/binary/binary_support_fixture_directories.rs`): an empty `TMPDIR` names no directory and is
-left out, so `TMPDIR=` no longer matches every path, and each entry and the unit face's root are compared
-as what they resolve to, so a root linked into `/tmp` and a `TMPDIR` linked to the root are both reported
-(the binary face's fixture root is canonical already, because `fixture_in` canonicalizes it). Each still
-checks the shape of the root it uses: the unit face's root always ends in `process-<pid>`, and with
-nothing moved it is also `test-fixtures/process-<pid>` beside the build output, while the binary face's
-fixtures are under Cargo's per-target scratch directory (`CARGO_TARGET_TMPDIR`). In the gate the unit
-face's root is `/work/package/git-policy/cli/target/gate-fixtures/process-<pid>` and the binary face's
-is `/work/package/git-policy/cli/target/gate-fixtures`, so both controls now assert that the fixture
-tmpfs is not a system temporary directory.
+left out, so `TMPDIR=` no longer matches every path; each entry is the path it resolves to where it
+resolves, an entry that does not resolve keeping its own path; and the unit face's root is resolved
+before the comparison, so a root linked into `/tmp` and a `TMPDIR` linked to the root are both reported
+(the binary face's fixture root is canonical already, because `fixture_in` canonicalizes it, and a root
+it cannot resolve cannot exist). The two shape assertions stay on the path `fixture_root` returned, so a
+build output that is itself a link keeps its own answer. Each still checks the shape of the root it uses:
+the unit face's root always ends in `process-<pid>`, and with nothing moved it is also
+`test-fixtures/process-<pid>` beside the build output, while the binary face's fixtures are under Cargo's
+per-target scratch directory (`CARGO_TARGET_TMPDIR`). In the gate the unit face's root is
+`/work/package/git-policy/cli/target/gate-fixtures/process-<pid>` and the binary face's is
+`/work/package/git-policy/cli/target/gate-fixtures`, so both controls now assert that the fixture tmpfs
+is not a system temporary directory.
 
 Each was shown red on a moved root under `/tmp` and green on the gate's root. In the integration pass's
 image, its source tree replaced by the branch's and nextest filtered to the two names, with
