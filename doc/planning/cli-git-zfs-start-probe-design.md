@@ -1,5 +1,18 @@
 # The start probe for the ZFS worktree route
 
+Accepted 2026-11-20 in the question tool,
+under "Accept:
+skip goes ahead,
+claim early (Recommended)":
+[`doc/decision/cli-git-zfs-start-probe.md`](../decision/cli-git-zfs-start-probe.md) is the decision record,
+and it states the answers,
+the corrections the seventh check left,
+and the limits this document keeps.
+The rest of this document is the design as accepted,
+so the sentences in it that call the design unaccepted,
+or a choice open to the project's veto,
+read as of that acceptance.
+
 **Non-final, unapproved proposal by an agent.** This document designs one open item of the accepted ZFS worktree
 design, "The start probe a kernel-release answer asks for", so that step 6 of the implementation plan can be
 written. A Pi session wrote it on 2026-11-19 and revised it in the rounds listed under [Revisions](#revisions); it
