@@ -114,22 +114,33 @@ impl<'a> ServerNaming<'a> {
     }
 
     /// What:
-    ///  Record the first server the run's own words name, when they name one.
+    ///  Record the server the run's own words name,
+    /// when they name the one the caller already knows.
     /// Why:
     ///   The program's own words name the server it really reached,
-    ///  which is better than anything the configuration says it would reach;
-    ///  a run that printed nothing leaves whatever the caller or the query answered.
+    ///  so they confirm an endpoint the configuration read,
+    ///  and they are the only witness when nothing else answered;
+    ///  but a run prints whatever it likes before its error
+    ///  (a documentation link,
+    /// a URL of another remote),
+    ///  and the first URL anywhere in that text is not the connection
+    ///  (the short review's reproduction named `docs.example.invalid`).
+    ///  So a host the program names stands only when it equals the one already known.
     ///  `hosts_in` reads the authority of each URL in the words,
     ///  so a token in front of the host is never part of the name.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// { known = hostsIn(output)[0] ?? known }
+    /// { const host = hostsIn(output)[0]; if (host && (known === undefined || known === host)) known = host }
     /// ```
     pub fn consider_output(&mut self, output: &str) {
-        if let Some(host) = hosts_in(output).into_iter().next() {
-            self.known = Some(host);
+        let Some(host) = hosts_in(output).into_iter().next() else {
+            return;
+        };
+        if self.known.as_ref().is_some_and(|known| { return known != &host; }) {
+            return;
         }
+        self.known = Some(host);
     }
 
     /// What:

@@ -54,7 +54,8 @@ fn a_url_destination_names_its_host_without_asking_git() {
 }
 
 /// The words the audit's held upload printed,
-/// which name no server at all: git-lfs says nothing while it waits.
+/// which name no server at all:
+/// git-lfs says nothing while it waits.
 const SILENT_UPLOAD: &str = "Uploading LFS objects:   0% (0/1), 0 B | 0 B/s, done.\n";
 
 /// What:
@@ -76,13 +77,18 @@ fn naming_failure() -> String {
 /// What:
 ///  An upload's naming takes the server the caller already knows,
 ///  which the upload plan read from the configuration,
-///  and no query runs for it.
+///  and the program's own words only confirm it or stand where nothing else did.
 /// Why:
 ///   The upload's program is `git-lfs`,
 ///  which has no `remote get-url` command at all,
 ///  so the query the push's naming asks failed with `unknown command "remote"`
 ///  and the stop named no server;
 ///  and even an answer would name the Git remote's host rather than the LFS endpoint that held the connection.
+///  A later review found the first fix took the first URL anywhere in the program's output,
+///  so a documentation link printed before the error named `docs.example.invalid`,
+///  a host the upload never contacted;
+///  a host the program names is the server only when it is the one the plan already named,
+///  and it is the only witness when the plan read nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -91,15 +97,17 @@ fn naming_failure() -> String {
 #[test]
 fn an_upload_names_the_server_its_caller_knows_without_a_query() {
     let failed: String = naming_failure();
-    for (case, output, wanted) in [
-        ("a silent upload keeps what the caller knows", SILENT_UPLOAD, "127.0.0.1:39489"),
-        ("the program's own words win over what the caller knew", failed.as_str(), "127.0.0.1:41827"),
+    for (case, known, output, wanted) in [
+        ("a silent upload keeps what the caller knows", Some("127.0.0.1:39489"), SILENT_UPLOAD, "127.0.0.1:39489"),
+        ("the program's words confirm the server the caller knows", Some("127.0.0.1:41827"), failed.as_str(), "127.0.0.1:41827"),
+        ("a program that names another host leaves the caller's answer", Some("127.0.0.1:39489"), "See https://docs.example.invalid/git-lfs for the causes.\n", "127.0.0.1:39489"),
+        ("a program whose caller knew no server is the only witness", None, failed.as_str(), "127.0.0.1:41827"),
     ] {
         let environment: Vec<(OsString, OsString)> = Vec::new();
         let mut command: Command = Command::new("git-lfs");
         command.args(["push", "--object-id", "origin", "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0"]);
         let mut naming: ServerNaming<'_> = ServerNaming::of(&command, environment.as_slice());
-        naming.named_by_the_caller(Some("127.0.0.1:39489"));
+        naming.named_by_the_caller(known);
         naming.consider_output(output);
         assert!(crate::lazy_runtime::run_on_runtime(naming.ask()).is_ok(), "{case}: the question is asked");
         assert_eq!(naming.server(), Some(wanted), "{case}");

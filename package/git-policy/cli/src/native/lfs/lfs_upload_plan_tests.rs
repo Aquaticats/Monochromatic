@@ -2,7 +2,7 @@
 //! including every way the plan must fail closed.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{REAL_GIT, fixture, remove};
 use std::path::PathBuf;
 
 /// An argument list from words.
@@ -346,6 +346,71 @@ fn submodule_pushes_are_marked_and_bypasses_plan_nothing() {
     assert_eq!(plan_in(Path::new("/work"), &[], &["--no-such-option"], &[], &config(&[]), &stub).0, Ok(None), "Git refuses it");
 }
 
+/// What:
+///  The pattern the plan asks Git for selects every key the plan reads,
+///  and none it does not.
+/// Why:
+///   The snapshot filter and the query's pattern are two spellings of one rule,
+///  and a key only one of them accepts is a setting the plan half reads:
+///  `lfs.pushurl` and `remote.<name>.lfspushurl` decide which server an upload is sent to,
+///  so a pattern that missed them would leave a connected stop naming the fetch endpoint.
+///  The answer comes from Git's own matcher,
+/// so neither spelling is guessed at here.
+///  The keys are written to a file and read back with `git config --get-regexp`.
+#[test]
+fn the_query_pattern_selects_every_key_the_plan_reads() {
+    let root: PathBuf = crate::test_support::fixture("lfs-upload-settings-pattern");
+    let file: PathBuf = root.join("settings.gitconfig");
+    std::fs::write(
+        file.as_path(),
+        "[lfs]\n\turl = http://127.0.0.1:1/lfs\n\tpushurl = http://127.0.0.1:2/lfs\n\tbuildinfo = not-read-here\n\
+         [remote \"origin\"]\n\turl = http://127.0.0.1:3/repository.git\n\tpushurl = http://127.0.0.1:4/repository.git\n\
+         \tlfsurl = http://127.0.0.1:5/lfs\n\tlfspushurl = http://127.0.0.1:6/lfs\n\tpush = refs/heads/main\n\
+         \tfetch = +refs/heads/*:refs/remotes/origin/*\n\t[push]\n\tdefault = simple\n\t[branch \"main\"]\n\tremote = origin\n\
+         \tpushremote = upstream\n\t[remote]\n\tpushdefault = origin\n\t[url \"https://example.invalid/\"]\n\tpushinsteadof = git@example.invalid:\n\
+         \tinsteadof = x:\n",
+    )
+    .expect("the settings file");
+    // The fixture lives inside this worktree, whose `.git` is a file naming a directory the test image does not mount, so
+    //  the query runs from the fixture with discovery stopped above it: `config --file` needs no repository of its own.
+    let answer = std::process::Command::new(REAL_GIT)
+        .current_dir(root.as_path())
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CEILING_DIRECTORIES", root.parent().expect("the fixture has a parent"))
+        .args(["config", "--file", file.to_str().expect("a UTF-8 path"), "--get-regexp", crate::lfs_upload_settings::SETTINGS_REGEXP])
+        .output()
+        .expect("real Git answers");
+    assert_eq!(answer.status.code(), Some(0), "Git refused the pattern: {}", String::from_utf8_lossy(answer.stderr.as_slice()));
+    let listed: Vec<String> = String::from_utf8_lossy(answer.stdout.as_slice())
+        .lines()
+        .filter_map(|line| { return line.split_once(' ').map(|(key, _value)| { return key.to_owned(); }); })
+        .collect();
+    for key in [
+        "lfs.url",
+        "lfs.pushurl",
+        "remote.origin.push",
+        "remote.origin.pushurl",
+        "remote.origin.url",
+        "remote.origin.lfsurl",
+        "remote.origin.lfspushurl",
+        "remote.pushdefault",
+        "push.default",
+        "branch.main.remote",
+        "branch.main.pushremote",
+        "url.https://example.invalid/.pushinsteadof",
+    ] {
+        assert!(listed.iter().any(|found| { return found == key; }), "the pattern misses {key}: {listed:?}");
+        assert!(crate::lfs_upload_settings::wanted_key(key), "the snapshot filter refuses {key}");
+    }
+    for key in ["lfs.buildinfo", "remote.origin.fetch", "url.https://example.invalid/.insteadof"] {
+        assert!(!listed.iter().any(|found| { return found == key; }), "the pattern takes {key}: {listed:?}");
+        assert!(!crate::lfs_upload_settings::wanted_key(key), "the snapshot filter takes {key}");
+    }
+    crate::test_support::remove(root.as_path());
+}
+
 /// The snapshot's keys are filtered to the ones the plan reads,
 /// with the same rule the query's pattern states.
 #[test]
@@ -361,7 +426,9 @@ fn only_the_keys_the_plan_reads_are_taken_from_a_snapshot() {
         "push.default",
         "url.https://example.invalid/.pushinsteadof",
         "lfs.url",
+        "lfs.pushurl",
         "remote.origin.lfsurl",
+        "remote.origin.lfspushurl",
     ] {
         assert!(crate::lfs_upload_settings::wanted_key(key), "{key}");
     }
@@ -483,17 +550,32 @@ fn the_awaited_face_of_the_plan_asks_and_answers_as_the_synchronous_face_does() 
 }
 
 /// What:
-///  The plan names the server the upload is connected to:
-///  the destination's own host when it is a URL,
-///  else the remote's `lfsurl`,
-///  else `lfs.url`,
-///  else the remote's own push URL,
+///  The plan names the server the upload is connected to,
+///  in the order git-lfs itself picks that server for an upload:
+///  `lfs.pushurl`,
+///  then `lfs.url`,
+///  then the named remote's `lfspushurl`,
+/// `lfsurl`,
+/// `pushurl` and `url`,
+///  then the same four of `origin`,
 ///  and never a credential of any of them.
 /// Why:
 ///   A connected stop of an upload must name the server it waited for,
 ///  and the server of an upload is its LFS endpoint and not the push's destination:
 ///  the audit's reproduction pointed the Git remote at one host and `lfs.url` at another,
-///  and the held connection was to the second.
+///  and the held connection was to the second;
+///  a later review found the first fix named the remote's `lfsurl` where git-lfs used `lfs.url`,
+///  and named the fetch endpoint where `lfs.pushurl` sent the objects.
+///  The order is git-lfs 3.8.1's own,
+///  read at `lfsapi/endpoint_finder.go:93-140` (`getEndpoint`,
+/// `RemoteEndpoint`) and `:190-201`
+///  (`GitRemoteURL`):
+///  the global keys come first,
+///  a named remote other than `origin` answers with its own keys,
+///  and `origin` answers when that remote has none.
+///  A destination that is a URL is no LFS endpoint:
+///  `git lfs push` takes a remote name and not a URL (`commands/command_push.go`),
+///  so the configuration answers and nothing about the URL does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -507,20 +589,47 @@ fn the_plan_names_the_lfs_server_of_its_destination() {
     let push_url: &str = "http://git-remote-host.invalid:9/some/repository.git";
     for (case, pairs, region, wanted) in [
         (
-            "lfs url wins over the remote's own host",
-            vec![("remote.origin.url", push_url), ("lfs.url", "http://user:plantedpass@127.0.0.1:39489/lfs")],
-            vec!["origin", "main"],
-            Some("127.0.0.1:39489"),
-        ),
-        (
-            "the remote's lfsurl wins over lfs.url",
+            "the global push url wins over every other key",
             vec![
-                ("lfs.url", "http://127.0.0.1:1/lfs"),
+                ("lfs.pushurl", "http://127.0.0.1:39488/lfs"),
+                ("lfs.url", "http://127.0.0.1:39489/lfs"),
                 ("remote.origin.lfsurl", "http://127.0.0.1:39490/lfs"),
                 ("remote.origin.url", push_url),
             ],
             vec!["origin", "main"],
-            Some("127.0.0.1:39490"),
+            Some("127.0.0.1:39488"),
+        ),
+        (
+            "lfs url wins over the remote's own lfsurl",
+            vec![
+                ("lfs.url", "http://127.0.0.1:39489/lfs"),
+                ("remote.origin.lfsurl", "http://127.0.0.1:39490/lfs"),
+                ("remote.origin.url", push_url),
+            ],
+            vec!["origin", "main"],
+            Some("127.0.0.1:39489"),
+        ),
+        (
+            "a named remote's lfspushurl wins over its lfsurl",
+            vec![
+                ("remote.upstream.lfspushurl", "http://user:plantedpass@127.0.0.1:39493/lfs"),
+                ("remote.upstream.lfsurl", "http://127.0.0.1:39494/lfs"),
+                ("remote.upstream.url", push_url),
+            ],
+            vec!["upstream", "main"],
+            Some("127.0.0.1:39493"),
+        ),
+        (
+            "a named remote's lfsurl answers when no global key is set",
+            vec![("remote.upstream.lfsurl", "http://127.0.0.1:39494/lfs"), ("remote.upstream.url", push_url)],
+            vec!["upstream", "main"],
+            Some("127.0.0.1:39494"),
+        ),
+        (
+            "a named remote with no endpoint of its own leaves origin's",
+            vec![("remote.origin.url", "http://127.0.0.1:39491/repo.git")],
+            vec!["upstream", "main"],
+            Some("127.0.0.1:39491"),
         ),
         (
             "the remote's own push url is the last answer",
@@ -529,10 +638,10 @@ fn the_plan_names_the_lfs_server_of_its_destination() {
             Some("127.0.0.1:39491"),
         ),
         (
-            "a destination that is a URL answers its own host",
+            "a destination that is a URL is not an endpoint of its own",
             vec![("lfs.url", "http://127.0.0.1:1/lfs")],
             vec!["http://user:plantedpass@127.0.0.1:39492/objects", "main"],
-            Some("127.0.0.1:39492"),
+            Some("127.0.0.1:1"),
         ),
         ("a local path names no server", vec![], vec!["/srv/origin.git", "main"], None),
     ] {

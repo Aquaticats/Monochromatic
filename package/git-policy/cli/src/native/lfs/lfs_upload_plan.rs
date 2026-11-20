@@ -321,17 +321,29 @@ pub(crate) fn lfs_destination(remote: &OsStr, directory: &Path, configured: bool
 
 /// What:
 ///  The server one upload is connected to,
-///  as its host and port with any userinfo left out.
+///  as its host and port with any userinfo left out,
+///  in the order git-lfs 3.8.1 itself picks that server for an upload.
 /// Why:
 ///   A stop of an upload says which server held the connection,
 ///  and the server of an upload is not the push's destination:
-///  `git-lfs` sends the objects to `lfs.url`,
-///  or to the remote's own `remote.<name>.lfsurl`,
-///  or,
-///  when neither is configured,
-///  to the remote's push URL itself.
-///  The destination answers first when it is already a URL,
-///  because `git-lfs` sends to it as it stands.
+///  git-lfs's own order,
+/// read at `lfsapi/endpoint_finder.go:93-140` (`getEndpoint`,
+/// `RemoteEndpoint`)
+///  and `:190-201` (`GitRemoteURL`),
+/// is
+///  `lfs.pushurl`,
+///  then `lfs.url`,
+///  then the named remote's `lfspushurl`,
+/// `lfsurl`,
+/// `pushurl` and `url`,
+///  then the same four of `origin` when the named remote answered nothing.
+///  Measured against git-lfs 3.8.1:
+/// with `lfs.pushurl` and `lfs.url` both set the batch request went to `lfs.pushurl`,
+///  with `lfs.url` and `remote.origin.lfsurl` both set it went to `lfs.url`,
+///  and with only `remote.origin.lfsurl` set git-lfs sent nothing there.
+///  A destination that is a URL is not an endpoint of its own:
+///  `git lfs push` takes a remote name and not a URL (`commands/command_push.go`),
+///  so the configuration answers for the upload and the URL only names where Git pushes.
 ///  A key holding no URL (a remote name that is no remote,
 ///  a path) answers nothing,
 ///  so the stop falls back to the words of the program that saw the server.
@@ -342,19 +354,32 @@ pub(crate) fn lfs_destination(remote: &OsStr, directory: &Path, configured: bool
 /// ```
 pub fn lfs_server_of(remote: &OsStr, all: &[(String, String)]) -> Option<String> {
     let text: String = remote.to_string_lossy().into_owned();
-    if let Some(host) = host_of(text.as_str()) {
-        return Some(host);
-    }
-    for key in [format!("remote.{text}.lfsurl"), String::from("lfs.url")] {
-        if let Some(value) = setting(all, key.as_str())
+    // The two global keys answer first, whatever the remote's own keys say (git-lfs `getEndpoint`, lines 99 and 104).
+    for key in ["lfs.pushurl", "lfs.url"] {
+        if let Some(value) = setting(all, key)
             && let Some(host) = host_of(value)
         {
             return Some(host);
         }
     }
-    for value in [values(all, &format!("remote.{text}.pushurl")).first().copied(), setting(all, &format!("remote.{text}.url"))] {
-        if let Some(host) = value.and_then(host_of) {
-            return Some(host);
+    // A named remote other than `origin` answers with its own keys, and `origin` answers behind it when they are silent.
+    let mut names: Vec<&str> = Vec::new();
+    if !text.is_empty() && text != "origin" {
+        names.push(text.as_str());
+    }
+    names.push("origin");
+    for name in names {
+        for key in [format!("remote.{name}.lfspushurl"), format!("remote.{name}.lfsurl")] {
+            if let Some(value) = setting(all, key.as_str())
+                && let Some(host) = host_of(value)
+            {
+                return Some(host);
+            }
+        }
+        for value in [values(all, &format!("remote.{name}.pushurl")).first().copied(), setting(all, &format!("remote.{name}.url"))] {
+            if let Some(host) = value.and_then(host_of) {
+                return Some(host);
+            }
         }
     }
     return None;
