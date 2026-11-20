@@ -61,7 +61,7 @@ consequence:
 - the fuse mount's type is in neither of the product's two "local file systems" tables;
 - Git reads a FUSE mount as a remote working tree.
 
-## Cause A: a name that is not UTF-8 is refused (109 tests)
+## Cause A: a name that is not UTF-8 is refused (108 tests)
 
 Reproduction, on the host with no container: `mkdir` of a name whose last byte is `0xFF` under the
 investigation scratch folder (on `zpcachyos/ROOT/cos/home`) fails
