@@ -125,6 +125,22 @@ pub(crate) fn fixture_root() -> PathBuf {
 }
 
 /// What:
+///  Every directory that is a system temporary directory:
+///  `/tmp`,
+///  `/var/tmp`,
+///  and `TMPDIR` when the run sets it.
+/// Why:
+///   A fixture root there fills a shared tmpfs with the trees of tests that never removed them (issue 1809),
+/// so the two location controls compare the root they use against this list.
+///  Reading `TMPDIR` compares against it
+/// without calling the temporary-directory function that the lint configuration bans.
+pub(crate) fn system_temporary_directories() -> Vec<PathBuf> {
+    let mut directories: Vec<PathBuf> = vec![PathBuf::from("/tmp"), PathBuf::from("/var/tmp")];
+    directories.extend(std::env::var_os("TMPDIR").map(PathBuf::from));
+    return directories;
+}
+
+/// What:
 ///  Give this user back the read,
 /// write and search permission on every directory of a tree that has lost it,
 ///  without following a symbolic link.
