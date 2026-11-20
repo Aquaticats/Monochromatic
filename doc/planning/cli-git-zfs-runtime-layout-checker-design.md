@@ -299,11 +299,11 @@ the pick is not made here.
   `srcversion` and the module's build ID, with a cache arm owed (N13); and items 5 and 10 name
   their device-free route (N15). N14 needed no change. No fact was changed without re-running the
   command behind it. No accepted decision and no plan step changed.
-- `2026-11-19T20:52:14-05:00`, commit `f46cf1a4c8`, and the commit that carries this entry, which
-  adds this record and the checker's counts: the revision that applies the owner's answers of
-  2026-11-19, asked in the question tool between 2026-11-19T20:35 and 2026-11-19T20:43:51-05:00
-  and recorded in the main checkout's `doc/handover/cli-git-rust-implementation.md`, in the
-  paragraph beginning "THE ROUND WAS ASKED".
+- `2026-11-19T20:52:14-05:00`, commit `f46cf1a4c8`, with `2c364a7927` at 20:53:45 and
+  `f8eeedc9a9` at 20:54:18, and the commit that carries this entry, which changes only this record:
+  the revision that applies the owner's answers of 2026-11-19, asked in the question tool between
+  2026-11-19T20:35 and 2026-11-19T20:43:51-05:00 and recorded in the main checkout's
+  `doc/handover/cli-git-rust-implementation.md`, in the paragraph beginning "THE ROUND WAS ASKED".
   [Answers of 2026-11-19](#answers-of-2026-11-19) records each answer in its words, with the
   evidence the release-string exchange rested on, and the body follows them: the gate compares no
   release string, so the version text, `srcversion` and the build ID are identity for the cache and
