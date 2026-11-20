@@ -50,22 +50,61 @@ pub(super) fn acl_token(acl: Option<&[u8]>) -> String {
     };
 }
 
-/// An ACL from its store token,
-/// or nothing when the token is not one `acl_token` wrote.
+/// What:
+///  An ACL from its store token,
+///  or nothing when the token is not one `acl_token` wrote.
+/// Why:
+///   A line this repository did not write must refuse rather than decode,
+///  and `acl_token` writes `-` for no ACL and lowercase hexadecimal for an ACL of at least one byte,
+///  so an empty field and an uppercase digit are not tokens this module wrote:
+///  `u8::from_str_radix` alone accepts both, which made a line nobody wrote read as an empty ACL.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const acl = aclFromToken('-') ?? throwError('no token'); // undefined when the text is not lowercase hex
+/// ```
 pub(super) fn acl_from_token(token: &str) -> Option<Option<Vec<u8>>> {
     if token == "-" {
         return Some(None);
     }
-    if token.len() % 2 != 0 {
+    let digits: &[u8] = token.as_bytes();
+    if tokens_is_lowercase_hex(digits).is_err() {
         return None;
     }
     let mut bytes: Vec<u8> = Vec::with_capacity(token.len() / 2);
-    let digits: &[u8] = token.as_bytes();
     for pair in digits.as_chunks::<2>().0 {
         let text: &str = std::str::from_utf8(pair).ok()?;
         bytes.push(u8::from_str_radix(text, 16).ok()?);
     }
     return Some(Some(bytes));
+}
+
+/// What:
+///  Nothing when `digits` is lowercase hexadecimal of at least one byte,
+///  and the reason it is not otherwise.
+/// Why:
+///   The writer's form is the reader's grammar:
+///  `acl_token` writes only `0`-`9` and `a`-`f`,
+///  an even number of them,
+///  and never none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function tokensIsLowercaseHex(digits: Uint8Array): void  // throws on an empty or odd-length field, or an uppercase digit
+/// ```
+fn tokens_is_lowercase_hex(digits: &[u8]) -> Result<(), ()> {
+    if digits.is_empty() {
+        return Err(());
+    }
+    if digits.len() % 2 != 0 {
+        return Err(());
+    }
+    for byte in digits {
+        if !(byte.is_ascii_digit() || (b'a'..=b'f').contains(byte)) {
+            return Err(());
+        }
+    }
+    return Ok(());
 }
 
 /// What:

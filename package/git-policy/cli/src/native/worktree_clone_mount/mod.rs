@@ -56,6 +56,9 @@
 //!   the policy a replacement must hold and the state of each binding and slot.
 //! - `parent_adoption_decision.rs`:
 //!   the table that decides whether a recreated parent folder may be recorded.
+//! - `root_namespace_test_support.rs`:
+//!   the user namespace a control needs when the files it judges must be root's,
+//!   never in the release build.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -104,6 +107,12 @@ pub mod parent_adoption_facts;
 /// The administrator's decision to record a recreated parent folder.
 pub mod parent_adoption_decision;
 
+/// The user namespace a control needs when the files it judges must be root's,
+/// never in the release build.
+#[cfg(all(test, target_os = "linux"))]
+#[path = "root_namespace_test_support.rs"]
+pub(crate) mod root_namespace_test_support;
+
 /// The identity fields and their compare.
 pub use clone_folder_identity::{CloneFolderField, CloneFolderIdentity};
 /// The bound one ACL read accepts.
@@ -119,7 +128,7 @@ pub use attached_mount_identity::{ATTACH_MOUNT_FLAGS, MountIdentity, MountIdenti
 /// Why a walk or an identity compare refused.
 pub use clone_slot_walk_refusals::{CloneSlotRefusal, WalkRefusal, WalkRefusalReason};
 /// The walks and what they hold.
-pub use clone_slot_walk::{FreshSlotLookup, HeldCloneSlot, HoldCloneSlotRequest, LookAgainAtSlotRequest, WORKTREES_PARENT_NAMES, hold_clone_slot, look_again_at_the_slot};
+pub use clone_slot_walk::{FreshSlotLookup, HeldCloneSlot, HoldCloneSlotRequest, LookAgainAtSlotRequest, WORKTREES_PARENT_NAMES, hold_clone_slot, hold_clone_slot_under_root_control, look_again_at_the_slot};
 /// The post-attach check.
 pub use attach_post_check::{AttachOutcome, AttachPostCheck, MisplacedAttach, MisplacedReason, post_attach_check};
 /// The rollback plan and its report.

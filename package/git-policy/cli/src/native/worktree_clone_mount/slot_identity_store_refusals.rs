@@ -29,7 +29,7 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type StoreRefusal = { cause: 'missing' | 'unreadable' | 'line' | 'duplicate' | 'no-parent' | 'no-slot' | 'already-recorded' | 'slot-name'; ... };
+/// type StoreRefusal = { cause: 'missing' | 'unreadable' | 'line' | 'duplicate' | 'no-parent' | 'no-slot' | 'already-recorded' | 'slot-name' | 'not-under-root-control' | 'write'; ... };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StoreRefusal {
@@ -90,6 +90,25 @@ pub enum StoreRefusal {
         /// What makes it no plain name.
         reason: String,
     },
+    /// The file or the folder that holds it is not under root control,
+    /// so this account could rewrite the identities it reads.
+    NotUnderRootControl {
+        /// The path that is not under root control.
+        path: PathBuf,
+        /// What that path is,
+        /// such as `the store file`.
+        what: String,
+        /// What lets this account write it.
+        reason: String,
+    },
+    /// The store could not be written,
+    /// added to or flushed.
+    Write {
+        /// The path that was written.
+        path: PathBuf,
+        /// What the write answered.
+        reason: String,
+    },
 }
 
 impl StoreRefusal {
@@ -127,27 +146,41 @@ impl StoreRefusal {
                 path.display()
             ),
             StoreRefusal::SlotName { slot, reason } => format!(
-                "`{}` is no slot name: {reason}. A slot name is one plain folder name below `.claude/worktrees`, with no slash and no space. Ways forward: name the slot exactly as `git worktree list` shows it below that folder.",
+                "`{}` is no slot name: {reason}. A slot name is one plain folder name below `.claude/worktrees`, with no slash, no space and no leading dot. Ways forward: name the slot exactly as `git worktree list` shows it below that folder.",
                 slot.escape_debug()
+            ),
+            StoreRefusal::NotUnderRootControl { path, what, reason } => format!(
+                "{what} at {} is not under root control: {reason}. Nothing is attached or adopted on an identity this account could rewrite. Ways forward: run the repository's setup as root, which writes the file and its folder with root as their owner and no group or other write bit; or restore the administrator's copy of the file and of its folder's permissions.",
+                path.display()
+            ),
+            StoreRefusal::Write { path, reason } => format!(
+                "{} could not be written: {reason}. Nothing is attached on a record the store did not keep. Ways forward: when the line was written short, restore that file from the administrator's copy, because it may hold a torn record; then check the folder's free space and permissions and run the command again; nobody edits this file by hand.",
+                path.display()
             ),
         };
     }
 }
 
-/// The refusal for a store file the read would not open.
-pub(super) fn unreadable(path: &Path, refusal: ReadRefusal) -> StoreRefusal {
+/// The refusal for a store file the read would not open,
+/// naming the largest store one read accepts.
+pub(super) fn unreadable(path: &Path, refusal: ReadRefusal, limit: u64) -> StoreRefusal {
     return match refusal {
         ReadRefusal::Missing => StoreRefusal::Missing { path: path.to_path_buf() },
         ReadRefusal::NotRegular => StoreRefusal::Unreadable { path: path.to_path_buf(), reason: String::from("the name holds a link, a directory or another non-regular file") },
-        ReadRefusal::TooLarge => StoreRefusal::Unreadable { path: path.to_path_buf(), reason: String::from("the file is larger than the read allows") },
+        ReadRefusal::TooLarge => StoreRefusal::Unreadable { path: path.to_path_buf(), reason: format!("the file is larger than the {limit} bytes one store read accepts") },
         ReadRefusal::Io(error) => StoreRefusal::Unreadable { path: path.to_path_buf(), reason: error.to_string() },
     };
 }
 
 /// The refusal for a write or sync that the system answered with `error`.
+///
+/// Why:
+///  A refused append is not a read problem:
+///  a person who is told the file could not be read looks in the wrong place,
+///  so every failure to write, add to or flush the store has its own cause and its own repair.
 pub(super) fn write_refusal(store: &Path, error: std::io::Error) -> StoreRefusal {
     return match error.kind() {
         std::io::ErrorKind::NotFound => StoreRefusal::Missing { path: store.to_path_buf() },
-        _ => StoreRefusal::Unreadable { path: store.to_path_buf(), reason: error.to_string() },
+        _ => StoreRefusal::Write { path: store.to_path_buf(), reason: error.to_string() },
     };
 }

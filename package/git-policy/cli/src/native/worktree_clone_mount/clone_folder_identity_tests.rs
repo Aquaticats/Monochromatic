@@ -193,7 +193,20 @@ fn an_identity_round_trips_through_its_store_token() {
     assert_eq!(CloneFolderIdentity::decode(recorded.encode().as_str()), Some(recorded.clone()));
     assert!(recorded.encode().ends_with(":-"), "no default ACL is the `-` token: {}", recorded.encode());
     assert_eq!(CloneFolderIdentity::decode(&format!("66304:306:1000:0750:{}:-", acl_token(Some(&basic_access_acl())))), Some(recorded.clone()));
-    let broken: [&str; 8] = ["", "66304:306:1000:0750", "66304:306:1000:0750:-:-:-", "a:306:1000:0750:-:-", "66304:b:1000:0750:-:-", "66304:306:c:0750:-:-", "66304:306:1000:zzz:-:-", "66304:306:1000:0750:abc:-"];
+    // An empty ACL field and an uppercase digit are not tokens `acl_token` writes, so a line holding one is a
+    // line this repository did not write and the identity is refused rather than read.
+    let broken: [&str; 10] = [
+        "",
+        "66304:306:1000:0750",
+        "66304:306:1000:0750:-:-:-",
+        "a:306:1000:0750:-:-",
+        "66304:b:1000:0750:-:-",
+        "66304:306:c:0750:-:-",
+        "66304:306:1000:zzz:-:-",
+        "66304:306:1000:0750:abc:-",
+        "66304:306:1000:0750::-",
+        "66304:306:1000:0750:2F010000:-",
+    ];
     for token in broken {
         assert_eq!(CloneFolderIdentity::decode(token), None, "{token}");
     }

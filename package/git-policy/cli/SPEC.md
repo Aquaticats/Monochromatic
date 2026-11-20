@@ -5238,6 +5238,15 @@ A symbolic link,
 a mount point,
 a folder on another device and a name that is not one plain component are each refused,
 and the refusal names the component as a person reads it below the checkout.
+`RESOLVE_NO_XDEV` refuses a mount point but not a btrfs subvolume,
+which is another device without being one,
+so the slot's own device is compared with the checkout's as well:
+a slot that is a nested subvolume is refused like a mount.
+A slot's name is checked by the same rule the store keys its record by,
+so a name with a slash,
+a space,
+a control character,
+a leading dot or `.`/`..` is refused before any folder is opened.
 `openat2` needs Linux 5.6.
 
 A checkout reached through a link is refused before the walk starts:
@@ -5261,6 +5270,11 @@ compared by device,
 inode and birth time;
 two descriptors that name different folders refuse the walk,
 because the name moved between the two opens.
+A folder that was opened and whose own facts cannot be read,
+such as its identity or a mount number,
+is its own refusal:
+the folder was opened,
+and what could not be read is said in those words.
 
 #### The recorded identity
 
@@ -5284,6 +5298,10 @@ and the refusal reports every field that differs and both recorded and found val
 A changed identity is never permission to adopt the replacement:
 nothing in this route refreshes a slot identity because a new inode,
 a new mode or a new ACL appeared.
+Nothing re-reads the mode or the ACLs between that compare and `move_mount`,
+so a change made inside that window is not seen:
+the compare catches a substitution made before it,
+not one made after.
 
 #### The recorded identities store
 
@@ -5291,12 +5309,15 @@ The store is one file under root control:
 `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities`.
 Its grammar is one record per line,
 the first line being the file's own header,
-with `#` starting a line that says nothing about an identity:
+with `#` starting a line that says nothing about an identity.
+No comment stands above the header:
+the first line that is not empty must be the header itself,
+and a comment may only follow it.
 
 ```text
-# /var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities
 # monochromatic-git-policy-cli worktree clone slot identities, version 1
-parent - 66304:306:1000:0755:2f01000004000000ffffffff0a000400ffffffff14000400ffffffff:-
+# one record per slot, written once by the sweep that first verified the clone
+parent - 66304:306:1000:0755:0200000001000700ffffffff02000500e803000004000500ffffffff10000500ffffffff20000500ffffffff:-
 slot example 66304:901:1000:0755:-:-
 ```
 
@@ -5307,29 +5328,59 @@ and its identity token `device:inode:owner:mode:access:default`.
 The mode is four octal digits of permission bits,
 and each ACL is its bytes in lowercase hexadecimal,
 with `-` for a folder that has none.
+Those bytes are the kernel's own value of `system.posix_acl_access` or `system.posix_acl_default`:
+a version word of `02000000` followed by one eight-byte entry per
+`(tag, permission, id)`,
+so an ACL read from a folder copies into the store as it is.
+An empty field and an uppercase digit are not tokens this grammar writes,
+so a line holding either is refused rather than read.
 A slot's key is one plain folder name:
 no slash,
 no space,
 no control character,
+no leading dot,
 and neither `.` nor `..`.
 
 Reading refuses the whole file when any line is not one this repository wrote,
 naming the line,
 and when one key is recorded twice,
 because a skipped or doubled line would let a slot be compared against nothing or against two identities.
+The read is bounded at one mebibyte,
+which a header and thousands of slot lines fit inside,
+and a larger file is refused by that bound rather than read into memory.
 A missing file refuses and names the setup run that writes it.
 
+The route reads the store through `SlotIdentityStore::read_under_root_control`,
+which refuses a file whose owner is not root or whose group or other write bit is set,
+and refuses the folder that holds it on the same two terms:
+a record the attach's account could rewrite would decide nothing.
+The grammar's own reader (`read`) is what a caller uses once it holds such a file,
+and what the controls drive on fixture files.
+
 A slot's record is written once,
-by the first sweep that verifies that clone (the plan's step 8),
-and the append is one write of one line followed by a sync,
-with no lock,
-so two appends never interleave inside a line.
+by the first sweep that verifies that clone (the plan's step 8).
+The read that finds no record for the slot and the append that records it are one step,
+under one exclusive `flock` on the store's own descriptor,
+so two sweeps that meet on one slot record it once:
+without that lock both would read no record,
+both would append,
+and the duplicate would refuse every later read until an administrator edited a root-owned file.
 A second record for the same slot is refused.
 The parent folder's record is written by the setup run (the plan's step 19),
 and only the administrator's adoption replaces it;
-that write publishes a whole new file by rename and keeps every slot record as it was.
+that write publishes a whole new file by rename,
+keeping every slot record it read,
+so an append another process made between its read and its rename is dropped by the rename,
+which is why that mode runs with managed operations quiesced.
 The store's path is given to the module by its caller,
 so a control injects a fixture path and nothing writes under `/var/lib` in a test.
+
+One store describes one checkout:
+its parent record is keyed `-` and a slot's record by the slot's name alone,
+so a second checkout's `.claude/worktrees` never matches the parent record,
+and its slot named like an existing one can never be recorded.
+That is the design's single managed checkout and the file is machine-global;
+the parent-identity refusal names the checkout it compared.
 This grammar is this implementation's own:
 the design and the plan name the file and the fields, not their encoding.
 
@@ -5347,11 +5398,17 @@ that read-back is owed ("What the guest still owes").
 #### The post-attach check
 
 After `move_mount` puts the mount on the opened target,
-the check repeats the walk from the checkout and compares four facts:
+the check repeats the walk from the checkout and compares five facts:
 
 - The walk reaches a parent folder whose identity is the one the attach held.
   A parent folder replaced after the attach is a refusal,
   and so is a walk that no longer reaches the slot.
+- The held target's own descriptor is on the mount the attach recorded,
+  read from it after `move_mount` returned.
+  The design's first proof is this one taken literally:
+  the folder the attach acted through is the folder that had to receive the mount,
+  whatever a later lookup of the slot finds,
+  and a held target on another mount is a refusal.
 - The mount the slot is on is the mount the attach recorded,
   read from the descriptor `fsmount` returned.
   Another mount at the slot is a refusal.
@@ -5365,13 +5422,16 @@ its mount ID and parent mount ID,
 its mount point and source and filesystem type from `/proc/self/mountinfo`,
 and the slot's device,
 inode and observed path.
-When all four hold it answers that the mount is the attach's own;
+When all five hold it answers that the mount is the attach's own;
 one that does not is rolled back.
 
-The real `move_mount` onto a clone's mount and the four comparisons against a real mount are owed to the guest.
+The real `move_mount` onto a clone's mount and the five comparisons against a real mount are owed to the guest.
 The host controls prove the comparisons on fixture folders:
-a renamed `.claude`, a replaced parent folder and a different mount number are each refused,
+a renamed `.claude`, a replaced parent folder, a held target on another mount and a different mount number are
+each refused,
 and an untouched slot passes.
+The held target's comparison is shown with the numbers a real mount would report,
+because a fixture folder cannot change mounts.
 
 #### The rollback of a misplaced attach
 
@@ -5381,9 +5441,12 @@ The project decided "Roll back at once (Recommended)"
 A misplaced attach is planned as one unmount of the exact mount the attach recorded,
 acting on the descriptor the attach acted through,
 with neither force nor lazy detach.
+The plan carries that descriptor, the held target the attach mounted onto,
+and gets the path it reports from the descriptor rather than from a caller,
+so an unmount has no path to resolve again and a plan cannot be copied to a second holder.
 The plan refuses when the recorded mount number is the mount the folders were already on,
 because that number proves no attach,
-and when no path was recorded for where the mount landed,
+and when the held target's descriptor names no path a report can carry,
 because a report and an administrator would both be sent nowhere.
 
 A completed rollback reports the mount and both paths:
@@ -5398,7 +5461,7 @@ That is the stranded state the acceptance asks a report to show,
 and a second move against an unverified mount is never issued.
 
 The rollback's own unmount, and a rollback that really fails, are owed to the guest.
-The host controls prove the plan,
+The host controls prove the plan and the descriptor it carries,
 the refusal of an identity that proves no attach,
 and both reports.
 
@@ -5416,10 +5479,21 @@ Every refusal names the failing component or field and every way forward:
   every field that differs,
   the recorded and the found values,
   and that a record is never refreshed by a change.
+- A folder that was opened and whose own facts could not be read:
+  its identity or a mount number,
+  named as a read of the folder's own facts rather than as an open that failed.
 - The store:
   its path,
   the line number for a line it cannot read,
   and the run that writes it or the administrator's copy to restore.
+- A store that is not under root control:
+  the file or the folder that is not,
+  the owner or the permission bits that say so,
+  and the setup run as root or the administrator's copy as the way forward.
+- An append the store did not keep:
+  its path and the failure,
+  said as a write rather than a read,
+  with the torn-record repair and the folder's free space and permissions to check.
 - A slot that changed between its two descriptors:
   both identities and that nothing is mounted onto a folder that moved between two looks.
 - A rollback that cannot be planned:
@@ -5468,7 +5542,8 @@ which is why none of them runs on this host:
 - `fsmount` with `nosuid,nodev`,
   `move_mount` onto the held target,
   and the read-back of both flags in `mountinfo` after the attach.
-- The four post-attach comparisons against a real mount,
+- The five post-attach comparisons against a real mount,
+  the held target's own mount among them,
   and the decoy control of H1 gate 1:
 a path mount that reaches a disposable decoy,
   proved to be observed before any no-mount assertion is trusted.

@@ -5,6 +5,8 @@
 //! and the second walk reads what the canonical slot holds now.
 
 use super::*;
+use crate::fs_btrfs_ioctl::subvolume_create_at;
+use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{fixture, remove};
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
@@ -226,6 +228,11 @@ fn a_missing_component_and_a_name_that_is_no_component_are_refused() {
     let refused_7: CloneSlotRefusal = hold_clone_slot(&request(&built, "../escape")).expect_err("no plain name");
     assert!(matches!(refused_7, CloneSlotRefusal::Walk(WalkRefusal { reason: WalkRefusalReason::NotAPlainName, .. })), "{refused_7:?}");
     assert!(refused_7.message().contains("../escape"), "the input is named: {}", refused_7.message());
+    // A name no worktree Git adds begins with a dot, so the walk refuses it as the store does.
+    let hidden: CloneSlotRefusal = hold_clone_slot(&request(&built, ".hidden")).expect_err("a leading dot is no slot name");
+    assert!(matches!(hidden, CloneSlotRefusal::Walk(WalkRefusal { reason: WalkRefusalReason::NotAPlainName, .. })), "{hidden:?}");
+    assert!(hidden.message().contains(".hidden"), "the input is named: {}", hidden.message());
+    assert!(hidden.message().contains("starts with a dot"), "the reason is given: {}", hidden.message());
     let file: PathBuf = built.parent.join("file-slot");
     std::fs::write(&file, b"x").expect("file");
     let refused_8: CloneSlotRefusal = hold_clone_slot(&request(&built, "file-slot")).expect_err("a file is no slot folder");
@@ -280,7 +287,7 @@ fn the_second_walk_reads_the_canonical_slot() {
     assert_eq!(again.slot_identity, held.slot_identity);
     assert_eq!(again.observed_path, held.canonical_slot, "the fresh walk reached the canonical slot");
     assert_eq!(again.parent_mount_id, again.mount_id, "both folders are on one mount here");
-    assert_eq!(again.mount_id, crate::fs_beneath::mount_id_of(&held.target).expect("the held target's mount"), "the slot is on the mount the held target is on");
+    assert_eq!(again.mount_id, crate::fs_beneath_mount_facts::mount_id_of(&held.target).expect("the held target's mount"), "the slot is on the mount the held target is on");
     let elsewhere: PathBuf = built.checkout.parent().expect("root").join("elsewhere");
     std::fs::create_dir_all(elsewhere.join("one")).expect("elsewhere");
     std::fs::rename(&built.parent, elsewhere.join("worktrees")).expect("parent away");
@@ -306,5 +313,77 @@ fn a_checkout_that_is_not_there_is_refused() {
     let refused_13: CloneSlotRefusal = hold_clone_slot(&request).expect_err("no checkout");
     assert!(matches!(refused_13, CloneSlotRefusal::Walk(_)), "{refused_13:?}");
     assert!(refused_13.message().contains("checkout"), "{}", refused_13.message());
+    remove(root.as_path());
+}
+
+/// Environment variable that makes the control below run its inner half,
+/// inside a user namespace of its own,
+/// where this run's own files are root's.
+#[cfg(target_os = "linux")]
+const ROOT_SIDE_VARIABLE: &str = "CLONE_SLOT_WALK_ROOT_SIDE";
+
+/// What:
+///  The route's walk answers the store's root control first:
+///  a store this account owns refuses before anything is compared,
+///  while the walk's own entry holds the same fixture and records the same identities.
+/// Why:
+///  The store decides which folder a clone may be attached to,
+///  so a store the account could rewrite must refuse the route rather than decide it,
+///  and the walk's own entry is what a control on fixture files drives.
+#[test]
+fn the_route_refuses_a_store_this_account_could_rewrite_before_it_walks() {
+    let built: Fixture = fixture_slot("clone-walk-root-control");
+    hold_clone_slot(&request(&built, "one")).expect("positive control: the walk itself holds the slot");
+    let refused: CloneSlotRefusal = hold_clone_slot_under_root_control(&request(&built, "one")).expect_err("this account owns the store");
+    assert!(matches!(refused, CloneSlotRefusal::Store(StoreRefusal::NotUnderRootControl { .. })), "{refused:?}");
+    assert!(refused.message().contains("not under root control"), "{}", refused.message());
+    remove(built.checkout.parent().expect("root"));
+}
+
+/// What:
+///  With a store root wrote, the route's walk holds the slot and records both identities.
+/// Why:
+///  The refusal above proves the control; this is the arm the route runs as root,
+///  and it needs a user namespace because this account cannot write a root-owned store otherwise.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_route_holds_a_slot_whose_store_root_wrote() {
+    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+        ROOT_SIDE_VARIABLE,
+        "worktree_clone_mount::clone_slot_walk::tests::the_route_holds_a_slot_whose_store_root_wrote",
+    ) {
+        return;
+    }
+    let built: Fixture = fixture_slot("clone-walk-root-owned");
+    let held: HeldCloneSlot = hold_clone_slot_under_root_control(&request(&built, "one")).expect("a store root wrote is the route's own");
+    assert_eq!(held.parent_identity, built.parent_identity());
+    assert_eq!(held.slot_identity, built.slot_identity());
+    remove(built.checkout.parent().expect("root"));
+}
+
+/// What:
+///  A slot that is a btrfs subvolume is refused as a folder on another device,
+///  naming the slot,
+///  while the same tree with a plain folder passes.
+/// Why:
+///  `RESOLVE_NO_XDEV` refuses a mount point but not a subvolume,
+///  and a nested subvolume at the slot is a folder on another device that no other check of the walk sees:
+///  without the device compare it was accepted, and the post-attach check would then report every correct
+///  attach on it misplaced.
+///  A subvolume needs a btrfs fixture root,
+///  so the gate's tmpfs root acknowledges the control did not run and the host's btrfs task covers it.
+#[test]
+fn a_slot_on_another_device_is_refused() {
+    let Some(root) = btrfs_fixture("clone-walk-slot-device") else { return };
+    let checkout: PathBuf = root.join("checkout");
+    let parent: PathBuf = checkout.join(".claude/worktrees");
+    std::fs::create_dir_all(parent.as_path()).expect("the worktrees folder");
+    let slot: PathBuf = parent.join("one");
+    subvolume_create_at(slot.as_path()).expect("a nested subvolume at the slot");
+    let built: Fixture = Fixture { checkout, store: root.join("slot-identities"), parent, slot };
+    built.record_now("one");
+    let refused: CloneSlotRefusal = hold_clone_slot(&request(&built, "one")).expect_err("a slot on another device is not crossed");
+    assert!(matches!(refused, CloneSlotRefusal::Walk(WalkRefusal { reason: WalkRefusalReason::BoundaryCrossed, .. })), "{refused:?}");
+    assert!(refused.message().contains("one"), "the slot is named: {}", refused.message());
     remove(root.as_path());
 }
