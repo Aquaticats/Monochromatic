@@ -1882,6 +1882,9 @@ The owner's rule:
 "Regularly,
 check in on subagents that should have finished their jobs (based on time estimations 90%+ percentile) but haven't returned."
 
+Asked where that check lives, in the question tool on 2026-11-08T23:24:03-05:00,
+the owner answered "Move into the driver (Recommended)", so it lives in this package.
+
 `watch-overdue-pi-runs` is that check.
 It is one command in the shape rule `MWK` asks for:
 it ends at a terminal state and prints only lines to act on,
