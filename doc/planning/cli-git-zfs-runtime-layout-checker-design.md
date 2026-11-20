@@ -2278,12 +2278,12 @@ re-admit `libbpf-rs` and a `dlopen` of `libbpf`, which is a choice for the owner
   `Btf::parse_split` and the private `parse_with_base` clone the base's type and string tables,
   number the module's types from the base's count,
   and refuse a byte order that differs from the base's
-  (`src/btf.rs:403-475`).
+  (`src/btf.rs:403-480`).
   Members carry a bit offset and a bit-field width,
   and enumerators carry a value
   (`src/btf.rs:94-121`).
   `size_of` walks typedef and qualifier chains and multiplies array elements
-  (`src/btf.rs:576-720`),
+  (`src/btf.rs:576-706`),
   so the binding needs no array-size shim.
   The header reader accepts any `hdr_len` of 24 or more and places both sections from it
   (`src/btf.rs:438-450`),
@@ -2291,7 +2291,8 @@ re-admit `libbpf-rs` and a `dlopen` of `libbpf`, which is a choice for the owner
   Type and string sections are bounds-checked,
   every offset goes through `checked_add`,
   and `validate_references` runs before a table is returned
-  (`src/btf.rs:441-475`).
+  (`src/btf.rs:441-477` for the checks and the call,
+  `:708-751` for the function).
   Two residuals remain.
   The kind and member-count masks are the 5-bit and 16-bit fields the `btf-rs` release also uses
   (`src/btf.rs:1430-1431`).
