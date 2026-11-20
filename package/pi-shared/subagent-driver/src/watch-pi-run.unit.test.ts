@@ -602,10 +602,6 @@ function connectionWhoseRetryMeetsAnOwnTurnThatFailsAgain({
   readonly sent: string[];
   readonly record: RecordOfPiRun
 },): ConnectionToPi {
-  /**
-   How many prompts this connection has taken, so the first is told from the attempts after it.
-   */
-  let taken = 0;
   return {
     hasExited: () => false,
     exitDetails: () => ({}),
@@ -615,7 +611,11 @@ function connectionWhoseRetryMeetsAnOwnTurnThatFailsAgain({
     send: async function send({ command, }: CommandRequest,) {
       const { message } = command;
       sent.push((typeof message) === 'string' ? message : '',);
-      taken += 1;
+      /**
+       How many prompts this connection has taken, which the messages it recorded tell, so the first is told from the attempts
+       after it.
+       */
+      const taken = sent.length;
       if (taken === 1) {
         // The turn that met the retry prompt was already running, and it ends on the error the retry answers.
         record.observe({
