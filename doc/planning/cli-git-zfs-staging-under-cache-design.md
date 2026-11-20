@@ -1236,10 +1236,10 @@ own hash and timestamp cannot appear in the commit that creates them.
 - `ff0a4019d9` at `2026-11-19T18:53:06-05:00`: the first revision, answering the gate review with a
   descriptor-anchored unmount and the questions split by creator and lifetime.
 - `3972d4bf90` at `2026-11-19T18:53:29-05:00`: records the host's user-namespace knobs the design read.
-- `HASH` at `WHEN`: this revision, answering the re-check: the recorded handle a later sweep recovers the folder
-  with,
-  the bind's own descriptor, the unbind's rule over the copies, the claim's place beside `v1`, the corrected
-  mount-source mechanism, and the questions rebuilt as one choice among the ways plus three follow-ups.
+- `0f0f61c15b` at `2026-11-19T19:38:48-05:00`: this revision, answering the re-check: the recorded handle a later
+  sweep recovers the folder with, the bind's own descriptor, the unbind's rule over the copies, the claim's place
+  beside `v1`, the corrected mount-source mechanism, and the questions rebuilt as one choice among the ways plus
+  three follow-ups.
 
 ## Sources read
 
