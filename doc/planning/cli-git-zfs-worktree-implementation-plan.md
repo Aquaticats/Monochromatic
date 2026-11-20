@@ -86,12 +86,20 @@ The steps are in build order.
 A step whose entry says it is blocked waits for the named design,
 and a step marked as proceeding may ship with that gap named in its own output.
 
-Three designs block the route early,
-and none of them is code:
-the start probe and the runtime layout checker under "Open items the decisions leave",
-and the staging design in the entry beginning "Staging under `~/.cache` and the wrapper's cleanup".
-No production kernel request runs before the first two,
-and no unmount runs before the third.
+Two designs block the route early,
+and neither is code:
+the start probe and the runtime layout checker under "Open items the decisions leave".
+No production kernel request runs before them.
+The staging work in the entry beginning "Staging under `~/.cache` and the wrapper's cleanup"
+is designed and accepted as of 2026-11-20
+([record](../decision/cli-git-zfs-staging-under-cache.md)),
+and no unmount runs before step 9 builds it.
+
+(Amended 2026-11-20,
+once [the start probe design](cli-git-zfs-start-probe-design.md) was accepted ([decision record](../decision/cli-git-zfs-start-probe.md)):
+"no unmount runs before the third" covers the product's mounts only,
+and the probe's own move and unmount arms are built in step 6,
+inside the private namespace and tmpfs the probe makes for itself.)
 
 ## Dependencies and their state
 
@@ -231,6 +239,13 @@ or says which step must pick it.
   as [cli-cargo][] and `src/native/source_guard/release_bins_tests.rs` both state.
   Step 5 picks the handling;
   the plan's suggestion is in "Where the design is silent".
+  (Amended 2026-11-20T06:45:32-05:00:
+  step 5 built it,
+  so one release archive now holds both executables,
+  and the sentences above describe the plan as it stood.
+  `package/git-policy/cli/doc/step-5-second-executable-2026-11-20.md` is the record,
+  and "How the release carries two executables" under "Gaps the design's open-item list does not name"
+  states the resolution.)
 
 ### Wrapper code the design reuses
 
@@ -884,7 +899,6 @@ Steps 1 and 4.
 #### What it builds
 
 The gate both binaries run before their first ioctl:
-module release,
 architecture,
 endianness,
 request contract and the kernel/module BTF layout,
@@ -932,9 +946,13 @@ The BTF comparison runs against the guest's `/sys/kernel/btf/zfs`.
 
 Blocked by "The start probe a kernel-release answer asks for" and "The runtime layout checker",
 which are this step's own designs.
-The release,
-architecture,
-endianness and request-contract checks are decided and can be written beside them.
+The architecture,
+endianness and request-contract checks are decided and can be written beside them;
+the module's release string is reported,
+not proved,
+by the project's answer of 2026-11-19,
+"Any version,
+layout decides".
 
 #### Depends on
 
@@ -1144,11 +1162,13 @@ in its boot namespace where a unit must see the mount.
 
 #### Open items
 
-Blocked by "Staging under `~/.cache` and the wrapper's cleanup",
+Waits on "Staging under `~/.cache` and the wrapper's cleanup",
+which is designed and accepted
+([record](../decision/cli-git-zfs-staging-under-cache.md)),
+and on the build that ships it,
 which also owes the interface that unmounts a staged mount from the held descriptor.
 Steps 14,
-16 and 17 wait on it as well,
-so also on that design.
+16 and 17 wait on that build as well.
 Open item 3's receiving path,
 how root's finding reaches the unprivileged wrapper,
 lands in step 17;
@@ -1874,7 +1894,7 @@ which names "the protected `home-user-Monochromatic.mount` if using a generated 
 or `zfs-mount.service` where it mounts the checkout",
 and "Checkout boot mount protection" says
 to prove the failure control and production ordering before enabling the gate.
-The staging design blocks its boot arm through step 9's open item.
+Its boot arm waits on step 9's staging build through that step's open item.
 The migration itself is a runbook that needs no design beyond the design's own protection decision;
 that reading is the plan's suggestion.
 
@@ -2000,6 +2020,13 @@ stage by stage;
 what expiration,
 removal and the current guard can free;
 and every shipped limit cited beside its measurement.
+
+(Amended 2026-11-20,
+once [the start probe design](cli-git-zfs-start-probe-design.md) was accepted ([decision record](../decision/cli-git-zfs-start-probe.md)):
+"every shipped limit cited beside its measurement",
+and the acceptance text "to size any shipped deadline or optional scan interval",
+cover step 7's mount-request deadline and step 9's unmount deadline;
+the probe's deadline and the account companion's are sized by steps 6 and 10 beside their own runs.)
 
 #### Design sections
 
@@ -2180,13 +2207,14 @@ as the introduction of "Acceptance tests the build still owes" asks.
   22, 23.
 - Steps that cannot run their VM arm before another design exists:
   6 (the probe and the layout checker),
-  9 and the removal steps 14,
-  16 and 17 that unmount (the staging design),
   11 (the dirty restore),
   13 (the lock's distinction and release),
   15 (the deferred checks),
   17 (cancellation and the forced arm),
   and 19's propagation item.
+- Steps that cannot run their VM arm before step 9's staging interface is built:
+  9 and the removal steps 14,
+  16 and 17 that unmount.
 - Every step that changes `package/git-policy/cli` also runs the wrapper's container gate,
   which is the gate "Integration" discusses.
 - The binding package's steps run that package's own tasks,
@@ -2315,11 +2343,11 @@ These can run beside it without touching a file it touches:
   in a new folder under `package/git-policy/cli/src/native/`,
   with the module-level tests its root-run harness runs.
   Its VM arms wait for step 2's recipe.
-- The three blocking designs,
+- The two blocking designs,
   as documents:
-  the start probe,
-  the runtime layout checker and staging under `~/.cache`.
-  They are the critical path for steps 6 and 9,
+  the start probe
+  and the runtime layout checker.
+  They are the critical path for step 6,
   and nothing else in the plan unblocks them.
 
 Step 2's recipe is not on this list:
@@ -2335,13 +2363,12 @@ and steps 3,
 4 and 5 change the wrapper,
 so each merge waits for the container gate.
 
-While all three designs are unwritten,
+While the two designs are unwritten,
 the steps whose lists name no design are 1 to 5.
 Behind step 6,
  the start probe and the layout checker,
 sit steps 6 to 23;
-behind step 9,
- staging,
+behind step 9's staging interface,
 sit step 9 and steps 14 to 23.
 
 Parallel writers here need a worktree each.
@@ -2480,8 +2507,10 @@ and whether the answer is the owner's or a writer's design work.
   writer design work.
 - "Staging under `~/.cache` and the wrapper's cleanup":
   step 9,
-  blocking for every unmount,
-  writer design work.
+  blocking for every unmount until that step lands,
+  designed and accepted on 2026-11-20
+  ([record](../decision/cli-git-zfs-staging-under-cache.md)),
+  so it blocks on the build alone.
 - "What re-applies private propagation after a replacement mount":
   step 19,
   blocking for its acceptance item,
@@ -2514,6 +2543,9 @@ the fourth is an accepted cost that `doctor` reports.
   `## Single executable and shipped policies` in [spec][] states that the release artifact is one executable,
   while "Binding crate and compatibility" and "Decided defaults" keep a second binary in the same package.
   Step 5 changes this.
+  It did,
+  at `b2e231c17d` (2026-11-20T03:44:29-05:00):
+  the section is now `## The two executables and shipped policies`.
   One archive carrying both is forced rather than chosen:
   "Decided defaults" keeps the handler inside `package/git-policy/cli`
   ("Keep inside cli (Recommended)"),
@@ -2535,12 +2567,12 @@ the fourth is an accepted cost that `doctor` reports.
 Each entry says what the design states and what this plan suggests instead,
 and no entry changes a decision.
 
-- The order of the three blocking designs.
+- The order of the two blocking designs.
   The design states no order.
-  The plan suggests writing the start probe,
-  the layout checker and the staging design first,
+  The plan suggests writing the start probe
+  and the layout checker first,
   beside steps 1 to 5,
-  because steps 6 and 9 wait on them.
+  because step 6 waits on them.
 - Where the ZFS interface sits in [spec][].
   The design names no heading.
   The plan suggests one new section per area under `## Lifecycle`,
