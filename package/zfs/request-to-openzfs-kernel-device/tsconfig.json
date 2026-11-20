@@ -1,0 +1,16 @@
+{
+  // The package has no `src/` tree of its own: its TypeScript is the two
+  // commands beside this file, the gate image builder and the guest recipe, so
+  // this project names them instead of inheriting the `src/**` include.
+  // `lint:types:tooling` runs it; `composite` is off because nothing references
+  // this project and a project must not disable emit while being buildable.
+  "extends": "@monochromatic-dev/config-typescript/dom",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+  },
+  "include": [
+    "*.ts",
+    "e2e/**/*.ts",
+  ],
+}

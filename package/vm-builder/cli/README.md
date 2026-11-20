@@ -158,3 +158,11 @@ See the TODO comments in that file for ZFS encryption status.
    and its streaming variant that leaves the child on the terminal
 - `output/`:
    build artifacts (gitignored)
+
+## Owner answers of 2026-11-10
+
+- Asked whether the root `vm-builder` run may replace the existing VM, the owner answered at
+  2026-11-10T08:19:14-05:00: "Run without a copy". So the full run may overwrite
+  `/var/lib/libvirt/images/monochromatic-dev.qcow2` and force-stop and remove any VM of that name.
+- Asked whether the README or the code was right where they disagree, the owner answered at
+  2026-11-10T08:08:51-05:00: "The code is right (Recommended)". So the README is corrected to the code.

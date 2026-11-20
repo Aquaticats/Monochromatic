@@ -543,3 +543,9 @@ configuration file reading,
 repository facts read from Git,
 transaction recovery on disk,
 or the management grammar.
+
+## Owner answers of 2026-11-10
+
+- Asked whether the wrapper's checked-in fuzz seeds should be replayed in normal tests, the owner answered
+  at 2026-11-10T08:24:33-05:00: "Leave them to campaigns". So the seeds stay a fuzz-campaign input and no
+  normal test replays them.

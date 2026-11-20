@@ -1,7 +1,7 @@
 # monochromatic-lint: closure skips as warnings and the fence marker, record of 2026-11-07T23:10:20-05:00
 
-This records three owner answers of 2026-11-07 (first section of `doc/handover/questions-for-the-owner.md`)
-and what was built for them.
+This records three owner answers of 2026-11-07 (the questions file's first section then; that section left the
+file for this record on 2026-11-19) and what was built for them.
 Release:
 `monochromatic-lint` 0.5.2-alpha.7,
 published to the GitHub release and not to crates.io (alpha label).

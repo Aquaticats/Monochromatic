@@ -466,7 +466,9 @@ Found on this machine, not run: the user units `kopia-snapshot-all.service` and 
 `/home/user/.local/share/monochromatic-dev/toolchain-global/exposure/kopia` does not exist here, and the service is
 inactive, so the job cannot run on this machine as configured. The repository is excluded from kopia by a policy
 recorded for another host: `kopia policy set user@bazzite:/home/user/Monochromatic --manual '--add-ignore=*'`
-(`doc/handover/questions-for-the-owner.md:934` to `:936`), and this machine's host name is `cachyos-pc1`, so whether
+(`doc/handover/questions-for-the-owner.md:934` to `:936`; that section left for
+`doc/handover/cli-git-rust-implementation.md`, entry "Answers about this machine and the owner's accounts",
+on 2026-11-19), and this machine's host name is `cachyos-pc1`, so whether
 this host carries the same policy is not shown by anything I read. The repository's `.kopiaignore` lists
 `node_modules`, `dist` and file suffixes, not `.claude`.
 

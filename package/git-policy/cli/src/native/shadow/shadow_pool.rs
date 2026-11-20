@@ -10,8 +10,8 @@
 //! (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
 //! "The ranking").
 //!  The owner chose this way off it
-//! (`doc/handover/questions-for-the-owner.md`,
-//! "May a commit take its private repository from a pool made ahead?":
+//! (`package/git-policy/cli/SPEC.md`,
+//! "A shadow taken from the pool":
 //! "Pool made ahead (Recommended),
 //! We don't need to build a shadow for every commit.
 //! Be smarter.").
@@ -119,8 +119,8 @@ const CLAIM_ATTEMPTS: usize = 4;
 /// the service of a worktree is the one that fills them.
 ///  It sits in the Git common directory beside the repository scratch directory and never inside it:
 /// a member is standing state the owner asked for
-/// (`doc/handover/questions-for-the-owner.md`,
-/// "The private repository every commit builds"),
+/// (`package/git-policy/cli/SPEC.md`,
+/// "A shadow taken from the pool"),
 /// not scratch,
 /// so the check that a commit leaves no scratch behind keeps meaning what it says,
 /// and no sweep,

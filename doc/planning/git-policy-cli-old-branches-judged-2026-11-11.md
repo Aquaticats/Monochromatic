@@ -169,8 +169,8 @@ Evidence:
   `fix/git-policy-cli-commits-never-fail@6d053403db` (revision 19) as one of the three
   inputs its read-only check was run against.
 - The owner answered the pause of 2026-11-04 with "Resume after tokio's step (Recommended)"
-  (`doc/handover/questions-for-the-owner.md`,
-  "The commit protocol paused on 2026-11-04"),
+  ("The commit protocol paused on 2026-11-04", a questions-file section that left the file on 2026-11-19;
+  this file keeps its answer),
   and named this branch and
   `feat/git-policy-cli-commit-protocol-models` as the two to compare with main
   "before anything is built".
@@ -405,8 +405,8 @@ Evidence:
 - The owner's answer is the same one that blocks the design record:
   "Resume after tokio's step (Recommended)",
   with both branches named
-  (`doc/handover/questions-for-the-owner.md`,
-  "The commit protocol paused on 2026-11-04").
+  ("The commit protocol paused on 2026-11-04", a questions-file section that left the file on 2026-11-19;
+  this file keeps its answer).
   The tokio commit path is not on the runtime yet:
   `doc/planning/git-policy-cli-full-tokio.md` ends at T13,
   and its own order puts the commit path after the landing's steps.

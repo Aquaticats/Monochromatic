@@ -151,8 +151,10 @@ pub fn ceiling_reached_text(program: &str, ceiling: Duration, left_running: bool
 /// a child that is still there then is left to be reaped by the thread that watches it,
 ///  and the sentence says which program was left
 /// (the third review's finding 3).
-/// The owner's question about what a *commit* should do
-///  there is unanswered in `doc/handover/questions-for-the-owner.md`,
+/// The owner answered what a *commit* should do
+///  there, "Keep waiting and say so"
+/// (`package/git-policy/cli/SPEC.md`,
+/// "Git steps, tools and checks end only on no progress"),
 /// and this is a read-only query,
 /// which says what it left and
 ///  changes nothing.

@@ -157,6 +157,28 @@ pub fn is_xfs(path: &Path) -> Result<bool, PrimitiveError> {
 }
 
 /// What:
+///  Whether the filesystem of `path` may share data blocks between files:
+///  btrfs,
+///  XFS (reflink is a per-filesystem feature that the first clone reveals) and overlayfs (a clone inside the overlay
+///  reaches the layers' filesystem).
+/// Why:
+///   Other filesystems never clone,
+///  so the cheap-worktree ladder's clone rung is not tried there,
+///  and a run on such a filesystem makes no `ioctl` for the copies that rung would fill
+///  with `FICLONE`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function mayClone(path: string): boolean;
+/// ```
+pub fn may_clone(path: &Path) -> bool {
+    if matches!(filesystem_kind(path), Ok(FilesystemKind::Btrfs | FilesystemKind::Overlayfs)) {
+        return true;
+    }
+    return is_xfs(path).unwrap_or(false);
+}
+
+/// What:
 ///  Whether `path` is the root directory of a btrfs subvolume.
 /// Why:
 ///   Only a subvolume root can be the source of a snapshot.

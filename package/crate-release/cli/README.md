@@ -356,8 +356,10 @@ the libraries
 `monochromatic-browserslist`,
 `monochromatic-xml-edit`,
 `monochromatic-catalog-specifier`,
-`monochromatic-file-enforcer` and
-`forbidden-regex`,
+`monochromatic-file-enforcer`,
+`forbidden-regex` and
+`monochromatic-zfs-request-to-openzfs-kernel-device`
+(an alpha so far, so it reaches no registry),
 and the tools
 `forbidden-strings`,
 `monochromatic-search-shadow`,
@@ -909,5 +911,15 @@ Run one with `mise run //package/crate-release/cli:<task>`:
 `release:wait` follows a release,
 `release:run` and `release:push` run the release and push commands,
 and `release:wait:commit` waits for the publish run of a commit.
+
+## Owner answers of 2026-11-10
+
+- Asked whether the publish job's build guard on unit tests that read built output (issue 1658) should land
+  now, the owner answered at 2026-11-10T09:48:06-05:00: "Hold until Pants (Recommended)". So branch
+  `fix/pnpr-open-issues` stays unmerged and issue 1658 stays open.
+- Asked how the publish job should tell that a package has a build (issue 1267), the owner answered at
+  2026-11-10T08:13:03-05:00: "Parse mise.toml properly". So the job reads `mise.toml` with the repository's
+  TOML parser rather than matching text.
+
 
 [token-trigger-rule]: https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#:~:text=events%20triggered%20by%20the%20GITHUB_TOKEN%20will%20not%20create%20a%20new%20workflow%20run

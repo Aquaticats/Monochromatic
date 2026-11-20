@@ -218,3 +218,9 @@ rename to `BYTES_PER_KIB`.
   `index.ts` is pure re-exports.
   New categories arrive as new sibling files,
    not as additions to one growing file.
+
+## Owner answers of 2026-11-10
+
+- Asked where the translation-repair family's character predicates should live (issue 1673), the owner
+  answered at 2026-11-10T08:16:10-05:00 that `isAsciiLetter` "should be in the `const` pkg". So that
+  predicate lives here rather than in the family's own module.

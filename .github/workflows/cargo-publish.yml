@@ -23,6 +23,7 @@ on:
         - monochromatic-catalog-specifier
         - monochromatic-pnpm-shadow
         - monochromatic-cargo-shadow
+        - monochromatic-zfs-request-to-openzfs-kernel-device
         default: forbidden-strings
       dry-run:
         description: 'Dry run (package + verify, no crates.io upload, no GH release, no attestation)'
@@ -47,6 +48,7 @@ on:
     - 'package/catalog-specifier/core-rust/Cargo.toml'
     - 'package/pnpm-shadow/cli/Cargo.toml'
     - 'package/cargo-shadow/cli/Cargo.toml'
+    - 'package/zfs/request-to-openzfs-kernel-device/Cargo.toml'
 
 permissions:
   contents: read
@@ -4107,3 +4109,134 @@ jobs:
           --title "cargo-shadow v${VERSION}" \
           --notes "monochromatic-cargo-shadow v${VERSION}. ${crates_io_note}. Linux only (x86_64 and aarch64 gnu). Verify an archive with sha256sum --check against the checksums file or with gh attestation verify." \
           --target "$SHA"
+
+  # monochromatic-zfs-request-to-openzfs-kernel-device: the typed /dev/zfs requests
+  # and the native nvlist codec of the Git wrapper's ZFS worktree route
+  # (doc/planning/cli-git-zfs-worktree-implementation-plan.md). A library with no
+  # binary and no GitHub release, so only its .crate is built and published, and an
+  # alpha or beta version, which skips crates.io, publishes nothing at all.
+  zr-detect:
+    runs-on: ubuntu-latest
+    outputs:
+      should_publish: ${{ steps.detect.outputs.should_publish }}
+      version: ${{ steps.detect.outputs.version }}
+      goes_to_crates_io: ${{ steps.label.outputs.goes_to_crates_io }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        fetch-depth: 2
+
+    # The label rule of the owner (doc/planning/crates-io-footprint.md): only a plain number and -rc.N go to crates.io.
+    # Every step below that touches crates.io reads this decision of its own crate.
+    - name: Decide whether the version goes to crates.io
+      id: label
+      uses: ./.github/actions/decide-whether-a-version-goes-to-crates-io
+      with:
+        manifest-path: 'package/zfs/request-to-openzfs-kernel-device/Cargo.toml'
+
+    - name: Detect version bump
+      id: detect
+      env:
+        BEFORE_SHA: ${{ github.event.before }}
+        EVENT_NAME: ${{ github.event_name }}
+        INPUT_CRATE: ${{ github.event.inputs.crate }}
+      run: |
+        set -euo pipefail
+        cargo_toml='package/zfs/request-to-openzfs-kernel-device/Cargo.toml'
+        after=$(awk -F'"' '/^version = / { print $2; exit }' "$cargo_toml")
+        before=''
+        if [ -n "${BEFORE_SHA:-}" ] \
+          && [ "$BEFORE_SHA" != '0000000000000000000000000000000000000000' ]; then
+          # A push can carry several generations, such as a merge whose second parent
+          # holds commits that were not on origin yet, so the pre-push head can lie
+          # outside the depth-2 checkout. Fetch it instead of reading its absence as
+          # a version bump; a failed fetch fails this job, so nothing publishes.
+          if ! git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "$BEFORE_SHA"
+          fi
+          if git cat-file -e "${BEFORE_SHA}:${cargo_toml}" 2>/dev/null; then
+            before=$(git show "${BEFORE_SHA}:${cargo_toml}" | awk -F'"' '/^version = / { print $2; exit }')
+          fi
+        fi
+        printf 'before=%s\nafter=%s\n' "$before" "$after"
+        if [ -z "$after" ]; then
+          echo 'No version found in Cargo.toml; refusing to publish.' >&2
+          exit 1
+        fi
+        publish=false
+        if [ "$EVENT_NAME" = 'workflow_dispatch' ] && [ "$INPUT_CRATE" = 'monochromatic-zfs-request-to-openzfs-kernel-device' ]; then
+          publish=true
+        elif [ "$EVENT_NAME" = 'push' ] && [ "$before" != "$after" ]; then
+          publish=true
+        fi
+        if [ "$publish" = 'true' ]; then
+          {
+            echo "should_publish=true"
+            echo "version=$after"
+          } >> "$GITHUB_OUTPUT"
+        else
+          echo "should_publish=false" >> "$GITHUB_OUTPUT"
+        fi
+
+  zr-publish-crate:
+    needs: zr-detect
+    if: ${{ needs.zr-detect.outputs.should_publish == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        fetch-depth: 1
+
+    - name: Install Rust toolchain
+      shell: bash
+      run: |
+        set -euo pipefail
+        rustup toolchain install nightly --profile minimal --no-self-update
+        rustup default nightly
+
+    # Not cached: this crate has one dependency, so a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
+    - name: Build .crate package (verifies by compile)
+      if: ${{ needs.zr-detect.outputs.goes_to_crates_io == 'true' }}
+      working-directory: package/zfs/request-to-openzfs-kernel-device
+      run: cargo package
+
+    - name: Attest .crate provenance
+      if: ${{ !inputs.dry-run && needs.zr-detect.outputs.goes_to_crates_io == 'true' }}
+      uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
+      with:
+        subject-path: 'package/zfs/request-to-openzfs-kernel-device/target/package/monochromatic-zfs-request-to-openzfs-kernel-device-${{ needs.zr-detect.outputs.version }}.crate'
+
+    - name: Authenticate with crates.io (Trusted Publishing)
+      if: ${{ !inputs.dry-run && needs.zr-detect.outputs.goes_to_crates_io == 'true' }}
+      id: auth
+      uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
+
+    - name: Publish (dry run)
+      if: ${{ inputs.dry-run && needs.zr-detect.outputs.goes_to_crates_io == 'true' }}
+      working-directory: package/zfs/request-to-openzfs-kernel-device
+      run: cargo publish --dry-run --no-verify
+
+    - name: Publish (skips if this version is already on crates.io)
+      # A plain number or a release candidate is the first version of this crate crates.io
+      # would hold, so Trusted Publishing has to be bootstrapped by hand first, with
+      # doc/runbook/publish-crate-first-time.md. Idempotent: skips when the version is
+      # already present, so re-runs never fail on a duplicate upload.
+      if: ${{ !inputs.dry-run && needs.zr-detect.outputs.goes_to_crates_io == 'true' }}
+      working-directory: package/zfs/request-to-openzfs-kernel-device
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        VERSION: ${{ needs.zr-detect.outputs.version }}
+      run: |
+        set -euo pipefail
+        if curl -sSf -H 'User-Agent: monochromatic-ci' \
+          "https://crates.io/api/v1/crates/monochromatic-zfs-request-to-openzfs-kernel-device/${VERSION}" >/dev/null 2>&1; then
+          echo "::notice::monochromatic-zfs-request-to-openzfs-kernel-device ${VERSION} already on crates.io; skipping publish."
+        else
+          cargo publish --no-verify
+        fi

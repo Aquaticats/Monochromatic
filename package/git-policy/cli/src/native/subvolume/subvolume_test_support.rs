@@ -15,7 +15,7 @@
 //!  clones are refused so the byte-copy path runs,
 //! and the exchange is the real `renameat2`.
 //! These controls therefore
-//!  run on the container gate's overlay too.
+//!  run on the container gate's tmpfs fixture root too.
 //! The controls that need the real ioctls use `btrfs_fixture`.
 //!
 //! In TS you'd write (pseudocode):

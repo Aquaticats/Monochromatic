@@ -5,7 +5,8 @@
 //! and a directory on another filesystem is refused there too.
 
 use super::{DirectoryChain, MOST_DIRECTORIES_HELD};
-use crate::fs_beneath::{device_of, identity_of, open_directory_beneath, open_root};
+use crate::fs_beneath::{device_of, identity_of, open_root};
+use crate::fs_beneath_walk_chain::open_directory_beneath;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{fixture, open_descriptors, remove, restore_limit, set_soft_limit};

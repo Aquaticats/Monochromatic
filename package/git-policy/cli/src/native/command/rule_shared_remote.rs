@@ -8,9 +8,10 @@
 //!       worktree changes the push address of every other checkout;
 //!  once it made every push of the main checkout
 //!       fail and nothing recorded which command did it
-//!       (`doc/handover/questions-for-the-owner.md`,
-//!  "A push URL changed from a
-//!       worktree").
+//!       (`package/git-policy/cli/SPEC.md`,
+//!  "The remote settings every worktree shares";
+//!  the questions file's section "A push URL changed from a
+//!       worktree" left for it on 2026-11-19).
 //!  This file decides from the arguments alone which spelling of `git remote` and
 //!  `git config` writes that file;
 //!  it starts no process and reads no file.

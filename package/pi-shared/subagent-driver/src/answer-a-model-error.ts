@@ -5,6 +5,7 @@
  @module
  */
 
+import { foundTheAgentAlreadyAwake, } from './a-busy-answer-of-pi.ts';
 import { MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS, } from './driver-constants.ts';
 import type {
   CommandAnswer,
@@ -107,6 +108,24 @@ async function answerWithAnotherAttempt(
       },
       deadline: watch.deadline,
     },);
+  // A turn Pi started of its own between the look that found it resting and this prompt answers the prompt as its agent being
+  // already processing. Nothing was refused and no attempt was made, so nothing is counted: the turn that met the prompt may
+  // recover the error this attempt answers, which is exactly what the attempt was waiting for. The attempt stays owed, and the
+  // look after that turn settles reads what stands then. Counting it here would spend an attempt on a prompt Pi did not take.
+  if (foundTheAgentAlreadyAwake({ answer, },)) {
+    noteRetryAnswer({
+      answer,
+      record: watch.record,
+    },);
+    watch.record
+      .note({
+        kind: 'problem',
+        problem: 'Pi was already in a turn of its own when the retry prompt went, so the prompt was not taken and no attempt was '
+          + 'counted for it: the run stays up until that turn settles, and the error is answered again then if it still stands',
+      },);
+    // The run stays up for that turn on the read above: Pi is at work until its settle, so no look sends another prompt into it.
+    return 'still-running';
+  }
   // The attempt is counted here rather than when it was scheduled: a wait the wall clock, the stop file or Pi's exit cuts short
   // leaves a model error standing with no attempt behind it, and the summary must not name an attempt nobody made.
   watch.record
@@ -245,8 +264,10 @@ function noteRetryAnswer({
  run's own wall clock, and an attempt that falls due once that clock has passed is not sent at all. The attempt also waits for
  Pi to rest: a prompt handed to a Pi that is at work is queued behind that run
  or refused, and the error it answers may yet be recovered by that run's own reply. For the same reason nothing is decided on the
- failure while Pi is at work. Once the retries a run allows have gone, and Pi is at rest, the run ends on the error, as it ended
- before any of this existed.
+ failure while Pi is at work. A turn Pi starts between that look and the prompt answers it with Pi's busy error, which refuses
+ nothing: no attempt is counted for it, the run waits for that turn to settle, and the look after it reads what stands then, so a
+ turn that recovered the error needs no attempt and one that ended on it gets the attempt the run owed. Once the retries a run
+ allows have gone, and Pi is at rest, the run ends on the error, as it ended before any of this existed.
 
  @param watch - watch request
 

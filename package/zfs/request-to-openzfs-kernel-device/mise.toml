@@ -1,0 +1,75 @@
+[tasks.build]
+description = "Build the crate in release mode"
+run = "cargo build --release"
+
+[tasks."build:debug"]
+description = "Build the crate in debug mode"
+run = "cargo build"
+
+[tasks.lint]
+description = "cargo check (no codegen)"
+run = "cargo check"
+
+[tasks."lint:types"]
+description = "Type-level gate for this crate and its two commands: cargo check, clippy with warnings denied, and tsc"
+run = ["mise run lint:types:crate", "mise run lint:types:tooling"]
+
+[tasks."lint:types:crate"]
+description = "cargo check plus clippy with warnings denied"
+run = ["cargo check", "cargo clippy --release --all-targets -- -D warnings"]
+
+[tasks."lint:types:tooling"]
+description = "Type-check the gate image builder and the guest recipe from this package's tsconfig"
+run = "tsc --noEmit --project tsconfig.json"
+
+[tasks."lint:clippy"]
+description = "Run clippy with warnings denied"
+run = "cargo clippy --release --all-targets -- -D warnings"
+
+[tasks."format:clippy"]
+description = "Apply clippy's machine-applicable suggestions in place"
+run = "cargo clippy --fix --allow-dirty --allow-staged"
+
+[tasks.lock]
+description = "Regenerate this crate's Cargo lockfile without network"
+run = "cargo generate-lockfile --offline"
+
+[tasks."lock:members"]
+description = "Record a changed dependency list in the lockfile without moving any other locked version"
+run = "cargo update --offline --workspace"
+
+[tasks.package]
+description = "Build the crates.io package tarball"
+run = "cargo package"
+
+[tasks.test]
+description = "cargo nextest run in release mode"
+run = "cargo nextest run --release"
+
+[tasks."test:debug"]
+description = "cargo nextest run in debug mode for fast iteration"
+run = "cargo nextest run"
+
+[tasks.release]
+description = "Start the binding's release on GitHub and print the run URL: `-- <from> <to> <note>` (quote the note; `--dry-run` first runs everything except the push and the publish). The crate-release workflow bumps the crate and its fuzz sidecar's exact pin, checks, dry-runs the publish, pushes the bump to main and starts cargo-publish; nothing compiles here"
+run = "node ../../crate-release/cli/bin/dispatch-release.ts --crate monochromatic-zfs-request-to-openzfs-kernel-device"
+
+[tasks."release:wait"]
+description = "Follow the release run that `release` printed, then the cargo-publish run it started, then check crates.io (a library has no GitHub release, so the check ends with PUBLISH CHECK FAILED naming only the missing release assets; the crates.io line is its result): `-- <run URL or id> <version>`"
+run = "node ../../crate-release/cli/bin/await-release.ts --crate monochromatic-zfs-request-to-openzfs-kernel-device"
+
+# Assembles gate.Containerfile's build context (the two lock-row binaries and the two
+# crates under deps/) and builds the image this package's gate runs in; the tag is
+# never the plain `development`, and the base image's tag is the one the wrapper's
+# resolver prints (`mise run //package/git-policy/cli:test:git-image`).
+[tasks."build:gate-image"]
+description = "Build this package's gate image from the repository alone: `-- [--tag <tag>] [--base <image>] [--keep-context]`; prints the tag last"
+run = "node build-gate-image.ts"
+
+# The throwaway mvm guest the live tests run in: creates an Ubuntu 24.04 guest,
+# builds OpenZFS 2.4.4 against its kernel, builds this crate inside it, runs the live
+# suites as root and as the delegated account, records versions and teardown
+# evidence, and destroys the guest. See e2e/README.md.
+[tasks.e2e]
+description = "Run one step of the guest recipe the live tests need: `-- <create|prepare|run|record|destroy|all> [--name <guest>] [--log-dir <dir>]`"
+run = "node e2e/run-fixture.ts"

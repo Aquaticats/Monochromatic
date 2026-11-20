@@ -88,6 +88,12 @@ The Proxy is callable,
  and `get` are all wired,
  so `lockfile.lockSync(path, opts)` and `lockfile.lock(path, opts)` both return the stub itself.
 
+The stub no longer hangs: `package/pnpm-override/stub-silent/index.cjs` answers `then`, `catch` and
+`finally` with `undefined`, so awaiting the stub, a property chain of it or a call result of it settles at
+once. The owner answered at 2026-11-10T08:08:51-05:00: "Amend the record (Recommended)". The synchronous and
+asynchronous consequences under "Silent-stub semantics" describe the state before that change and stand as its
+history.
+
 Consequence for the pi-coding-agent chain:
 
 - Sync path (`SettingsManager` startup load):

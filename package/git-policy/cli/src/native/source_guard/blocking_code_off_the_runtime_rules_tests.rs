@@ -405,6 +405,11 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the pause between asks for the removal's own exclusive `flock` of the lock file, which keeps two commands from removing one stale lock, bounded by `REMOVAL_CLAIM_WAIT` (2 s) and ended at once when the claim is the caller's. No `async fn` encloses it: the removal runs on the service's landing thread and on a command's own thread, so it pauses a thread no runtime owns, and the kernel's `flock` has no timeout on Linux, so a retried ask is what bounds it. The entry goes when the removal is a task, where `tokio::time::sleep` ends the pause",
     },
     Allowed {
+        file: "worktree_clone_mount/slot_identity_store.rs",
+        rule: "blocking-sleep",
+        why: "the pause between two asks for the lock file that keeps two writes to the store apart, bounded by `STORE_LOCK_WAIT` (2 s) and ended at once when the lock is this run's. The lock file is root's own with mode 0600, so only root's own process can hold it at all. No `async fn` encloses it: the append and the adoption's rewrite run on their own threads, and the kernel's `flock` has no timeout on Linux, so a retried ask is what bounds it. The entry goes when either write is a task, where `tokio::time::sleep` ends the pause",
+    },
+    Allowed {
         file: "process/child_awaited_through_a_pidfd.rs",
         rule: "blocking-sleep",
         why: "the pause of the pidfd look loop, for the caller that has no runtime",

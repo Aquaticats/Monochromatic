@@ -1100,6 +1100,20 @@ the launcher that builds the session's environment asks it, once, before it make
   then rename it to one without the dot,
   because any other name is read at once.
   Pi gets it as a steer while it works and as a new prompt while it rests.
+  Every message is sent as a prompt that names `streamingBehavior: 'steer'`,
+  whichever state the driver's own read of the feed gave:
+  a turn Pi is in queues it there,
+  and a turn Pi starts between that read and the delivery takes it too,
+  because Pi reads the field only while its agent run is active
+  (`prompt()` in `dist/core/agent-session.js` of Pi 1.5.2).
+  A resting agent ignores the field and starts a turn as before,
+  and a `steer` command is never sent:
+  a steer command starts nothing,
+  so a resting Pi reads it only when another run comes.
+  The feed's `sentAs` says which of the two the driver's own read expected.
+  Because every message is a prompt, a message that starts with `/` is run as an extension or skill command
+  whether Pi works or rests (`prompt()` in `dist/core/agent-session.js`);
+  before this, a `steer` sent while Pi worked refused such a message and kept it aside.
   A message is read only while the driver is up:
   with the default idle window of `0` a settled run ends within one look of the folder,
   so a run that must be steered after it settles needs a positive `--idle-seconds`.
@@ -1108,8 +1122,19 @@ the launcher that builds the session's environment asks it, once, before it make
   A message Pi refused stays as `.failed-<name>`,
   and a later message of the same name that is also refused gets `.failed-<name>.<n>`,
   so no kept message replaces another.
+  Pi's answer that its agent is already processing is busy, never a refusal,
+  and so is its answer that a manual compaction or a branch summary is running,
+  which it gives before it even prepares a prompt:
+  the message goes back to the inbox and the next look sends it again.
+  The claim that look makes replaces the one the look before it left,
+  so a busy answer on every look adds no entry to the folder per look.
+  A newer message that takes the name is the one delivered,
+  and an older one whose name a newer message took stays readable under its dot name, never sent again.
   While a message is being delivered it is held under a dot name of its own,
   so a newer message published under the same name is neither deleted nor kept in its place.
+  A message Pi reports it took is Pi's from then on:
+  one queued into a running turn is lost if Pi is aborted or exits before that turn drains its queue,
+  which a `steer` command risked too.
 - `stop`:
   create this file to end the run early.
 
@@ -1355,12 +1380,39 @@ which names every process it waits for;
 when the work is gone the driver sends the agent a message naming what ended and asking it to read the result with the `process` tool,
 notes a `wake` line with Pi's answer,
 and goes on.
+
+The message is sent with `streamingBehavior: 'steer'`,
+because Pi's agent may already be in a turn of its own when the work ends:
+Pi starts a turn by itself when a tool it ran in the background reports,
+which is the same moment the driver stops waiting.
+Pi refuses a prompt that meets a running agent when the prompt names no streaming behaviour,
+and queues it into that turn when one is named
+(`prompt()` in `dist/core/agent-session.js` of Pi 1.5.2):
+that answer is about the agent being busy, not about the message,
+and a driver that read it as a refusal ended the run of 2026-11-19 `prompt-rejected`
+while the agent was in a turn of its own,
+cutting that turn off.
+With the behaviour named,
+the wake is delivered after the running turn and before the next request,
+so it is read inside the same agent run;
+the agent may answer in a further turn of that run,
+and the run ends when that turn settles.
+Pi ignores the behaviour while its agent rests,
+so a wake sent to a resting Pi starts a turn as it always did.
+Pi's answer that its agent is already processing is not read as a refusal of the message either:
+it says only that the agent is in a turn,
+so the run stays up until that turn settles;
+the message is then not delivered,
+and the feed gains a `problem` line saying both.
+`doc/troubleshooting/pi-refuses-a-prompt-while-its-agent-is-already-processing.md` walks Pi's own source for that answer
+and lists the driver's other prompts that can meet it.
+
 A run the driver woke does not end as `idle` until the reply to that message settles:
 the silence spent waiting for the work is not the silence of an agent with nothing left,
 so a driver that ended the run one look after sending the message cut off the agent it had just woken.
 A message Pi handled without starting a turn is never answered by one,
 so nothing is owed and the run ends as it did before;
-one Pi refuses ends the run `prompt-rejected`,
+one Pi refuses for a reason of its own ends the run `prompt-rejected`,
 and the `wake` line carries the refusal,
 because the agent was never told its work ended and that run must not read as one that came back.
 The run's own wall clock bounds that wait:
@@ -1383,6 +1435,29 @@ a command the run's own `process` tool starts is a child of the run's Pi,
 and a `systemd-run --scope` the agent runs in the foreground keeps the parent that started it,
 while a process another session, another run or the person started descends from that and never from this run.
 A process whose folder or parent chain cannot be read counts for nothing.
+A process that ended while one of its records was being read counts as one whose record is already gone:
+Linux answers a read inside `/proc/<pid>` with `ESRCH` once the task is released,
+so the folder is still listed while the record is no longer there.
+That is the answer of the `comm` of a listed process,
+of the `cgroup` that tells the run's own unit from a scope the agent made,
+and of the `stat` a chain of parents is read from.
+Each answers what a missing record already answers:
+the program of a process whose `comm` is gone is unknown,
+while a process whose `cgroup` or `stat` is gone is not counted as the run's work.
+The `cwd` link a process works through is no such read:
+the kernel answers `ENOENT` for a task it released, which the scan already counts as gone.
+The scan also leaves out an entry whose link read answers `ESRCH`,
+so a kernel answering the link that way would end no run.
+On 2026-11-19 the driver read `comm` for a run's process, got `ESRCH`,
+and ended the run `idle` instead of waiting for the work that process still ran;
+the unit then stopped and killed the run's own watcher with it.
+Every other failure is unchanged on the driver's own watch:
+`src/kept-while-work-runs.ts` puts a read that truly fails in `workProblem`,
+beside the end reason the run earned.
+The launcher's wake read through `finishTheRun` has no such guard:
+`src/finish-a-run.ts` reads the process folder for it with no `try`,
+so a read that truly fails there ends the launcher as an uncaught error
+and no `workProblem` is written.
 
 Each answer keeps the run for what it can see, and nothing more:
 a process the run's own process tree holds, in one of the run's folders and outside the run's own unit;
@@ -1744,6 +1819,24 @@ counted from the last reply that succeeded.
 An attempt waits for Pi to rest as well as for its own delay:
 a prompt handed to a Pi that is at work is queued behind that run or refused,
 and the error the attempt would answer may still be recovered by that run's own reply.
+A turn Pi starts of its own between that look and the prompt answers it with its busy error,
+which refuses nothing:
+the text names the streaming behaviour a prompt needs to join a running turn,
+and says only that the agent is already processing.
+The read matches the session's text alone, continuation included:
+`@earendil-works/pi-agent-core` throws errors that open with the same three words
+and name no streaming behaviour (`agent.js` in that package),
+so a prompt answered with one of those ends the run `prompt-rejected` as any refusal does.
+The driver reads that answer as the agent being busy, never as a refusal of the message,
+so no attempt is counted for the prompt Pi did not take:
+the failure stays where it stood,
+the run waits for that turn to settle,
+and the look after it reads what stands then.
+A turn that recovered the error needs no attempt,
+and one that ended on the same error gets the attempt the run already owed,
+counted once when it goes.
+The feed holds Pi's answer as a `retry_prompt` line with `success:false` and no `retry` line above it,
+which is what tells a prompt the driver sent from an attempt the run made.
 A failure stays in the summary until a reply succeeds:
 a prompt Pi consumes without starting a run and without replying recovers nothing,
 so the run ends on the failure it began with rather than as a run that came back.
@@ -1772,6 +1865,8 @@ which is zero for a run that never needed one.
 The `retry` line is written when the attempt goes,
 immediately before its `retry_prompt` line,
 so an attempt is counted only once it was sent.
+A prompt Pi answered as its agent already processing never became an attempt,
+so its `retry_prompt` line stands with no `retry` line above it.
 A wait the stop file,
 the wall clock or Pi's own exit cuts short leaves the failure standing with no attempt behind it:
 the run ends for that reason,
@@ -1811,6 +1906,9 @@ so agents cannot start agents without end.
 The owner's rule:
 "Regularly,
 check in on subagents that should have finished their jobs (based on time estimations 90%+ percentile) but haven't returned."
+
+Asked where that check lives, in the question tool on 2026-11-08T23:24:03-05:00,
+the owner answered "Move into the driver (Recommended)", so it lives in this package.
 
 `watch-overdue-pi-runs` is that check.
 It is one command in the shape rule `MWK` asks for:
@@ -2001,3 +2099,12 @@ Its `RuntimeMaxSec` is what bounds the driver itself;
 
 A failure to keep Pi's standard error is reported as a `problem` line and does not by itself change how the run ends,
 because it is the diagnostic record and not the record the caller reads.
+
+## Owner answers of 2026-11-10
+
+- Asked whether interactive Pi sessions should get the driver's rule against credential-named variables, the
+  owner answered at 2026-11-10T08:23:02-05:00: "Leave them as they are (Recommended)". So the rule stays on
+  the runs this driver starts and interactive sessions keep their environment.
+- Asked how to run Pi for real coding work, the owner answered at 2026-11-08T12:43:36-05:00:
+  "Forget about --print on a real coding task." So a real coding task runs through this driver, never a
+  one-shot `--print` call.

@@ -3138,8 +3138,7 @@ Commands without a table of their own (`rm`,
 ### The remote settings every worktree shares
 
 The owner chose "Refuse in worktrees (Recommended)" on 2026-11-10
- (`doc/handover/questions-for-the-owner.md`,
-"A push URL changed from a worktree").
+ (this section; the questions file's section "A push URL changed from a worktree" left for it on 2026-11-19).
 Every worktree of a repository shares one `.git/config`,
  so a remote setting changed from a linked worktree changes the main checkout and every other worktree too.
 An agent had made a worktree outside the repository folder,
@@ -5761,8 +5760,13 @@ and why:
   `strace --inject` stands in for the errors and delays,
   and `binary_subvolume_tests.rs` and
   `fs_kind_tests.rs` cover btrfs and the filesystem classification where the host offers them.
-  The gate runs on an
-  overlay filesystem.
+  The gate's fixtures live on a tmpfs,
+  which is a local file system with birth times,
+  so none of the FUSE,
+  NFS and loop-mount arms is reachable there.
+  Its size ceiling is one real full-filesystem failure:
+  a fixture tree that outgrows it is refused with `ENOSPC`,
+  though no control fills it on purpose.
 - High CPU load:
   a synthetic load is banned.
   The container gate's `--cpus` cap and the single-processor control stand in.
@@ -6049,6 +6053,12 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
 - `native:check` type-checks every target.
   `native:clippy` lints every target with warnings denied.
   `native:build` writes the debug executable to `package/git-policy/cli/target/debug/monochromatic-git-policy-cli`.
+- This package has no `rustfmt` check, unlike the Rust packages that carry a `lint:rustfmt` task,
+  and its sources are not laid out as `cargo fmt` would write them:
+  `cargo fmt --check` in the gate image reported 1975 files on 2026-11-19,
+  on `main` as much as on any branch.
+  A review that runs it learns nothing about a change;
+  the checks this package keeps are the tasks listed here and the repository linter.
 - Every process a unit test starts dies with the test thread,
   however the test ends:
   start helpers with `spawn_owned` in `src/native/testing/test_support.rs`,
@@ -6058,8 +6068,45 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   A shell loop that a failing push-progress test never ended ran for 87 minutes on 2026-11-03 before this.
 - `native:test:host` runs the unit tests and `native:test:binary:host` runs the tests that start the built executable,
   both against the host's Git while iterating.
+- The gate's tests keep their fixtures on a tmpfs the test container makes:
+  `--tmpfs /work/package/git-policy/cli/target/gate-fixtures:rw,size=768m,mode=1777` and
+  `--env CLI_GIT_TEST_ROOT=/work/package/git-policy/cli/target/gate-fixtures`
+  (`bin/native-gate-fixture-root.ts`),
+  `CLI_GIT_TEST_ROOT` being the variable both faces of the suite already read to move their fixture root.
+  The root stays below the image's `/work` tree, where the root it replaces was,
+  because a fixture crate that runs Cargo reads the vendored-source mapping in `/work/.cargo/config.toml`
+  from its ancestors;
+  two `package_repair_prewarm_job` controls build a fixture workspace offline and need that mapping.
+  Without it the fixtures inherit the container root's file system,
+  which on a rootless podman whose storage sits on a ZFS dataset is a user-space
+  `fuse.fuse-overlayfs` mount over that dataset:
+  the mount records no birth time,
+  is on neither of the product's local-file-system lists,
+  and makes Git refuse `core.fsmonitor`,
+  and the dataset under it refuses a name that is not UTF-8 under `utf8only=on`.
+  The investigation measured those facts, and the causes that follow from them, behind 185 failures
+  of the suite on this host (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
+  A tmpfs answers all four the way the kernel overlay of the earlier btrfs host did.
+  The size is a ceiling under the container's memory bound,
+  because tmpfs pages count against that bound:
+  the integration pass of 2026-11-19 ran a whole suite there,
+  and its kernel `memory.peak` was 1123.8 MiB of the 2048 MiB bound,
+  while the highest charge any sample read,
+  with 3 s between iterations,
+  was 953.1 MiB, 170.7 MiB below that peak,
+  which is why its figures are the samples' and not the run's.
+  The bound beside the kernel's peak leaves 924.2 MiB for fixtures,
+  so the 768 MiB ceiling sits 156.2 MiB below that, and a run whose other pages hold to that peak
+  meets the ceiling before the memory bound
+  (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`,
+  with the reasoning behind the 768 MiB value in
+  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`);
+  a gate review's run on the same code apart from the repaired location controls,
+  whose sampler record is not kept here,
+  read 916.4 MiB of `memory.peak` and a 221.4 MiB sampled fixture peak,
+  of which the ceiling is 3.47 times.
 - The controls that need a btrfs filesystem cannot run in the gate container,
-  which is an overlay:
+  whose fixture root is that tmpfs and never a btrfs filesystem:
   each one prints `BTRFS CONTROL NOT RUN: <control> (<what its fixture root is on>)` and passes there.
   `native:test:host:btrfs` is the other half of that bargain.
   It points `CLI_GIT_TEST_ROOT` at `${HOME}/temp/agent/cli-git-btrfs-fixtures`
@@ -6072,6 +6119,16 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   Selected by name,
   the same controls are the `btrfs_*` tests of the library and the binary-level controls that call
   `on_btrfs_or_acknowledged` (`src/native/binary/binary_support_btrfs_controls.rs`).
+- The controls that need a kernel namespace fail the same way rather than passing unrun,
+  and the acknowledgement variable each refusal names is the only thing that lets one skip:
+  `CLI_GIT_TEST_NO_USER_NAMESPACES=1` for the controls that judge root-owned files inside an unprivileged user namespace,
+  and `CLI_GIT_TEST_NO_MOUNT_NAMESPACES=1` for the control that needs a mount in a mount namespace of its own.
+  A control that does not run prints `NAMESPACE CONTROL NOT RUN: <control> (<what the host refused>)` and passes,
+  and a run that states no variable fails naming the one to set.
+  The gate image sets neither,
+  because this host allows both
+  (`src/native/worktree_clone_mount/root_namespace_test_support.rs`,
+  `src/native/subvolume/fs_beneath_walk_chain_tests.rs`).
 - A wrapper release waits for that run,
   unless the version is an alpha:
   `native:release` dispatches nothing until `native:release:host-controls`
@@ -6149,6 +6206,15 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   so a sidecar lock this package's dependencies moved past stops the gate in milliseconds
   instead of surfacing later in the sidecar's own build.
   Set `GIT_POLICY_NATIVE_IMAGE_TAG=<name>` to keep the images of parallel runs apart.
+  The Clippy step mounts the Rust toolchain `toolchain.lock.json` records, not the one the caller's environment
+  resolves (`bin/native-gate-clippy-toolchain.ts`):
+  `rustup which` names that toolchain's own sysroot,
+  and the gate refuses, naming the missing component and the command that installs it,
+  when the sysroot holds no Clippy.
+  A sysroot taken from the environment was rustup's default `nightly`,
+  which has no Clippy component,
+  so the image's older `clippy-driver` compiled this crate against metadata a newer rustc wrote
+  and the step failed with E0514.
   The test run uses `cargo nextest run --no-fail-fast`,
   so every test runs even after a failure and one flaky test
   never hides the rest;
@@ -6673,8 +6739,7 @@ the owner chose "B:
 off for internal Git (Recommended)".
 So `-c core.fsmonitor=false` reaches every Git the wrapper starts for its own work,
 and never a command the person typed
-(`doc/handover/questions-for-the-owner.md`,
-"The wrapper's own Git and fsmonitor").
+(this section; the questions file's section on fsmonitor left for it on 2026-11-19).
 
 The owner's earlier words,
 kept as history;
@@ -6753,7 +6818,8 @@ Two derived base images carry what the network-free image builds need:
   where the tests expect the real Git),
   Node,
   pnpm,
-  `strace` and cargo-nextest.
+  `strace` and cargo-nextest,
+  plus the pinned npm data tarballs that `file-enforcer check` resolves a `.browserslistrc` against.
   The gate image and the mutation images build on it.
 - `e2e/concurrent-commits.Containerfile` builds `localhost/cli-git-concurrent-e2e`:
   CachyOS with the distribution's Git
@@ -6774,6 +6840,39 @@ Pacman checks every package signature (`SigLevel = Required DatabaseOptional` in
 `mise run //package/git-policy/cli:test:git-image` prints the release of each tool the base image got;
 the wrapper's
 `MINIMUM_GIT_VERSION` follows the Git release printed there (an older Git draws a warning and is not refused).
+The CachyOS x86-64 image is a slimmed copy: most of its packages lost their manual pages, translations and docs, while
+the pacman database still lists every file and `--needed` never restores them, so the base image reinstalls Git
+whenever the installed copy lacks the `githooks(5)` page the hook-event guard test reads; its closing
+`man --where githooks` check still fails the build when the page is missing
+(`doc/troubleshooting/cachyos-image-package-and-tool-differences.md`).
+
+The base image also caches the two npm tarballs the `browserslist` rule of `file-enforcer`
+(`package/file-enforcer/cli/src/kind_browserslist.rs`) resolves a `.browserslistrc` against.
+That rule fetches a missing tarball into `$HOME/.cache/browserslist`
+(`DataSource::user_default` in `package/browserslist/core-rust/src/source.rs`),
+so offline it fails with `browserslist-fetch-failed`,
+which a step run in a container with `--network none` cannot repair.
+The base therefore downloads every package the lock lists,
+at exactly the version it pins for each,
+within the bounds that rule's own fetch applies:
+a body of at most 64 MiB (`MAX_TARBALL_BYTES` in `package/browserslist/core-rust/src/source.rs`),
+no redirect,
+a status of exactly 200 and one 60-second bound on the whole request
+(`package/browserslist/core-rust/src/fetch.rs`),
+refuses any whose sha512 differs from the lock's,
+and writes each under the hex digest name the rule reads.
+The lock's text arrives as the `BROWSERSLIST_DATA_LOCK` build argument,
+because the Containerfile copies nothing from its build context,
+and it is part of the image tag as well;
+the file stays the one source of the versions and digests.
+One verified copy under `/home/tester/.cache/browserslist` serves both users this repository's runners give an image
+built on this base:
+the wrapper's gate image as user 1000 with `HOME=/home/tester`,
+and an image built on the base without that switch as root,
+whose `/root/.cache/browserslist` is a symlink to it.
+Those tarballs are data, not tools,
+so the owner decisions of 2026-11-04 that every tool is pacman's current package
+still hold for the tools of both images.
 
 Each run of `native:test:container`,
 `test:git-image`,
@@ -6781,8 +6880,9 @@ Each run of `native:test:container`,
 `test:e2e:concurrent:native:image` first pulls the `latest` tag with `podman pull --policy=newer`
 (one small request when nothing changed;
 a registry that cannot be reached is reported and the copy the host holds is used).
-The derived base is tagged `<first digits of the pulled image ID>-<first digits of the Containerfile hash>`,
-so a new CachyOS image or an edited Containerfile builds a new base (with network,
+The derived base is tagged `<first digits of the pulled image ID>-<first digits of a hash of the Containerfile text and
+the build arguments>`,
+so a new CachyOS image, an edited Containerfile or a changed browserslist data lock builds a new base (with network,
 once) and every run after that finds it.
 The gate image then builds from the base's ID with no network,
 exactly as before,
@@ -6816,6 +6916,10 @@ because a release waits on that gate and its suite is what the CPUs shorten
   The same four tests at 1024 processes passed all 7,192.
 - The 2 GiB memory bound is the repository default,
   because four tests at once peaked at 978 MiB of it.
+  With the suite's fixture root on a tmpfs, whose pages count against the same bound, a whole suite on a ZFS
+  host peaked at 1123.8 MiB of it
+  (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`,
+  read in `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
 
 A bound a person passes after the `--` still wins,
 with one exception:
@@ -7390,6 +7494,13 @@ each with its sidecar test file.
 - The source scans (`source_guard/`) follow `mod` declarations from the `Cargo.toml` targets,
   so a file that no
   declaration reaches fails them.
+- A change that adds, moves or links anything under `src/` runs the whole `source_guard` set
+  (`cargo nextest run --lib -E 'test(source_guard)'` in the gate container),
+  not only the tests of the modules it touched:
+  the scans read the whole tree and refuse what they cannot prove they read,
+  a symbolic link among them.
+  A run filtered to the touched modules once passed while a new folder's links failed 13 of these scans,
+  which the whole gate would have shown.
 - Paths in tooling name the folder,
   for example `src/native/command/command_add.rs`.
   A mutation scope may name subfolders (`--file src/native/command/command_add.rs`);
@@ -8270,3 +8381,13 @@ and which phase of the landing.
 
 The design,
 the measurements and the migration plan are in `doc/planning/cli-git-resident-service.md`.
+
+## Owner answers of 2026-11-10
+
+- Asked whether a forced `git checkout -f`, a forced `git switch -f` or a `git reset --hard` should refuse when
+  it would replace an ignored file, the owner answered at 2026-11-10T07:24:16-05:00: "Yes forced checkouts and
+  resets should refuse when they'd replace an ignored file." So those forms are rejected in a linked worktree
+  while it holds an ignored file at a path the written tree tracks.
+- Asked whether `add-explicit` should judge a pathspec by its spelling or by what it selects, the owner answered
+  at 2026-11-10T08:04:14-05:00: "However spelled (Recommended)": "Any spelling that selects everything is
+  refused, and the message says how many files it selected." Ordinary named paths skip the check.

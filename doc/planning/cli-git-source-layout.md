@@ -169,7 +169,8 @@ move to the `archive` route (install from the GitHub release)
 and stop publishing to crates.io after their one release each,
 so the split crates need no crates.io names and are `publish = false`;
 the one release of the wrapper must happen before it depends on an unpublished crate.
-Where libraries go is the owner's open question in `doc/handover/questions-for-the-owner.md`.
+Where libraries go the owner answered on 2026-11-07T11:05:21-05:00: "Four libraries (Recommended)", recorded in
+`doc/planning/cli-git-source-layout-target-tree.md`.
 
 ## What the code looks like now
 
