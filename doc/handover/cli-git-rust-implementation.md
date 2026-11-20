@@ -40538,8 +40538,12 @@ stated in this entry. What follows from them, as work:
   the proposal). Both merged `main` cleanly; each report is in its folder's `keep/`. GOING: a short review of each on the
   Qwen plan (`pi-short-review-zfs-layout-decision-record`, `pi-short-review-zfs-start-probe-decision-record`, watched to
   the end), each in its own detached worktree `.claude/worktrees/review-zfs-<topic>-decision-record`; briefs under
-  `~/temp/agent/short-review-of-the-zfs-<topic>-decision-record-on-the-qwen-plan-2026-11-20/`. STEPS 3 AND 4, HOST
-  HALVES, GOING (the plan's "What can start now" lists both;
+  `~/temp/agent/short-review-of-the-zfs-<topic>-decision-record-on-the-qwen-plan-2026-11-20/`. The staging writer ended
+  `idle` (102 turns) at `5b0e7fd0b4` (`doc/decision/cli-git-zfs-staging-under-cache.md`, nine lows, in-place notes in
+  the proposal, the plan and `doc/decision/cli-git-zfs-worktree-design.md`'s Status); its "Low 1" section sets out the
+  pin's field set as options with a ranking although the project vetoed nothing, so its short review
+  (`pi-short-review-zfs-staging-decision-record`, Qwen plan) is told to judge that, and the other two reviews got the
+  same check through their inboxes. STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
   their VM arms wait for step 2's recipe and their merges for the gate fix), each DeepSeek on Neuralwatt, cap 510,
   from `main` `d6e78c9e8b`: `pi-zfs-step-3-reflink-rung-recognition-host-half`
   (`.claude/worktrees/zfs-step-3-reflink-rung-recognition`, `feat/git-policy-cli-zfs-recognition-in-the-reflink-rung`;
