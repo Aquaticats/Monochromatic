@@ -69,19 +69,18 @@ carried.
   and the scratch directory placed outside the managed tree. `first-attach` gains its step names, `errno none` for a
   check, the rule that a refusal at the key check takes no claim, `0644` writes both ways, a path open, and the
   ordering a later sweep really has. The deadline's value is sourced from step 6's own M4 run and step 10's own M11
-  run, with
-  what both steps do until those exist, and a timed-out record names the arm in flight. The plan notes were rechecked
-  against the plan as main has it, now cite steps by heading, and carry the duties of steps 8, 14, 16, 18, 19 and 20
-  and each measurement's step. The lows: the skip errno set checked against the kernel source (`ENOSPC` since Linux
-  4.9, `EACCES` from SELinux and AppArmor, no `EUSERS`, with each hook's lines read in the v7.3 file), the effective
-  Linux 6.6 floor with its amendment note, the dead `.zfs/snapshot` and `atime` facts removed, the ninth exclusion's
-  amendment note, the header's subject, the answer record cited with a commit line, and the two host premises of the
-  source section and of its assumptions checked at setup rather than asserted. The three checkers ran on the design
-  and on a broken copy, each failing there and passing here.
+  run, with what both steps do until those exist, and a timed-out record names the arm in flight. The plan notes were
+  rechecked against the plan as main has it, now cite steps by heading, and carry the duties of steps 8, 14, 16, 18,
+  19 and 20 and each measurement's step. The lows: the skip errno set checked against the kernel source (`ENOSPC`
+  since Linux 4.9, `EACCES` from SELinux and AppArmor, no `EUSERS`, with each hook's lines read in the v7.3 file),
+  the effective Linux 6.6 floor with its amendment note, the dead `.zfs/snapshot` and `atime` facts removed, the
+  ninth exclusion's amendment note, the header's subject, the answer record cited with a commit line, and the two
+  host premises of the source section and of its assumptions checked at setup rather than asserted. The three
+  checkers ran on the design and on a broken copy, each failing there and passing here.
 
 - `2026-11-19T23:20:00-05:00` (commits `ac8a46addb` and `8bfdcd546e`, the entry, naming and label commits after
-  them, and this one): the answer to a
-  re-check of the applied answers. Its findings were weighed one by one and every one earned a fix, with none refused.
+  them, and this one): the answer to a re-check of the applied answers. Its findings were weighed one by one and
+  every one earned a fix, with none refused.
   `first-attach` now takes its claim at the first attempt that passes the key check, and that one rule is stated in
   the claim sentence, the step order, the M8 control and the operation-outcome sentence, with the reason for that
   boundary and the key check the only step outside it. The companion's endings are a closed set, each with its class
@@ -1702,8 +1701,8 @@ setup fails its own control. A guest booted with `kernel.apparmor_restrict_unpri
 distribution whose default profile denies capabilities inside the namespace, is the arm the skip boundary exists
 for: it must print the skip line naming `unshare(CLONE_NEWNS)` and `EPERM`, must not refuse the add, and must leave
 `doctor` naming the setting and the skip. A guest whose kernel has no
-`/proc/sys/kernel/unprivileged_userns_clone` must print `absent` for it
-rather than nothing. And because the child repeats the probe's syscall sequence in its own no-allocation island, this
+`/proc/sys/kernel/unprivileged_userns_clone` must print `absent` for it rather than nothing. And because the child
+repeats the probe's syscall sequence in its own no-allocation island, this
 run compares that sequence against the probe's arms on the same controls, so an island that diverged from the probe
 fails its own control.
 
@@ -1819,14 +1818,13 @@ states.
   host's `/usr/include/linux/mount.h` (linux-api-headers 1:7.1-1), the 7.3.5 tree's
   `/usr/src/linux-cachyos/include/uapi/linux/mount.h`, Linux v6.8 and v7.3 `fs/super.c`, Linux v7.3
   `fs/fsopen.c`, `fs/namespace.c`, `fs/pnode.c`, `kernel/exit.c`, `kernel/sys.c` and `kernel/nsproxy.c`, with
-  `fs/fsopen.c` fetched at
-  v5.2, v5.11, v5.12, v5.15 and v6.0 to v6.7 as well. The round that added the parent-death and unmount citations
-  fetched `fs/namespace.c`, `fs/pnode.c`, `kernel/exit.c` and `kernel/sys.c` at v7.3 itself. For the account
-  companion, Linux v7.3 `kernel/user_namespace.c` and `kernel/ucount.c` (fetched, for the `ENOSPC` of an exhausted
-  namespace count and the setting that bounds it), `kernel/nsproxy.c` and `fs/namespace.c` (for the capability the
-  mount namespace's own setup needs), `fs/namei.c` (for `rmdir` of a mount point and `detach_mounts`) and
-  `mm/shmem.c` (fetched, for tmpfs's `FS_USERNS_MOUNT` and
-  its fs_context operations). For the errno a refused user namespace answers, Linux v7.3
+  `fs/fsopen.c` fetched at v5.2, v5.11, v5.12, v5.15 and v6.0 to v6.7 as well. The round that added the
+  parent-death and unmount citations fetched `fs/namespace.c`, `fs/pnode.c`, `kernel/exit.c` and `kernel/sys.c` at
+  v7.3 itself. For the account companion, Linux v7.3 `kernel/user_namespace.c` and `kernel/ucount.c` (fetched, for
+  the `ENOSPC` of an exhausted namespace count and the setting that bounds it), `kernel/nsproxy.c` and
+  `fs/namespace.c` (for the capability the mount namespace's own setup needs), `fs/namei.c` (for `rmdir` of a mount
+  point and `detach_mounts`) and `mm/shmem.c` (fetched, for tmpfs's `FS_USERNS_MOUNT` and its fs_context
+  operations). For the errno a refused user namespace answers, Linux v7.3
   `security/selinux/hooks.c`, `security/selinux/avc.c`, `security/apparmor/lsm.c`, `security/apparmor/task.c` and
   `security/apparmor/lib.c` (fetched), each read at the hook `create_user_ns` calls and the one that hook reaches.
 - Ubuntu's 24.04 release notes, "Unprivileged user namespace restrictions", for the default AppArmor profile that
