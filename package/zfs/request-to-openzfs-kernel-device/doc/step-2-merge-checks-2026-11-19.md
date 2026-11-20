@@ -49,7 +49,7 @@ and each check's whole output is `container-<check>.log`:
 
 1. `cargo nextest run --release --locked --offline --status-level all`:
    exit 0,
-   `Summary [   0.175s] 177 tests run: 177 passed, 30 skipped`
+   `Summary [   0.179s] 177 tests run: 177 passed, 30 skipped`
    (the 30 are the `#[ignore]`d live tests).
 2. `cargo clippy --release --locked --offline --all-targets -- -D warnings`:
    exit 0.
