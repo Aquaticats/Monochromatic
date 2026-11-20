@@ -9781,6 +9781,12 @@ in-process reader can) gives every value of the multi-valued keys.
   `git lfs env` printed `Endpoint=https://alias.invalid/repo.git/info/lfs` for an empty alias under
   `https://127.0.0.1:13/`,
   and `git remote get-url --push` printed `https://127.0.0.1:13/https://alias.invalid/repo.git`.
+  A base that is empty is a replacement of nothing, and git-lfs applies it:
+  the endpoint is the URL with the alias taken off its front,
+  and the host read from it is the one inside whatever follows the alias.
+  Measured with git-lfs 3.8.1: `lfs.url=https://alias.invalid/https://127.0.0.1:39506/lfs` under an empty base
+  `https://alias.invalid/` gave `Endpoint=https://127.0.0.1:39506/lfs`, so the alias's own host is one git-lfs does
+  not contact.
   The plan keeps git-lfs's answer because git-lfs is the program that makes the request.
   Measured against git-lfs 3.8.1 on this host:
   with `lfs.pushurl` and `lfs.url` both set the batch request went to `lfs.pushurl`,
@@ -11861,7 +11867,7 @@ and advises `git lfs update --manual` or `--force`,
 neither of which can work while that directory cannot exist.
 The `filter.lfs.*` keys are what the wrapper's own upload needs,
 and one notice before git-lfs runs says where this command asks for them:
-the keys go to the scope it names,
+the keys go to the scope it names when git-lfs runs the command,
 the wrapper runs the upload itself before each push,
 no `pre-push` hook is installed in this repository and none is needed,
 and the `post-checkout`,
@@ -11873,17 +11879,34 @@ because the keys do not always go to the global file:
 `--file <path>` that file,
 and `--worktree` writes `config.worktree` in this worktree's Git directory while `extensions.worktreeConfig` is set
 (`<repo>/.git/config.worktree` in the main worktree and `<repo>/.git/worktrees/<name>/config.worktree` in a linked one),
-this repository's `.git/config` when it is not and the repository holds one worktree,
-and no file at all when it is not and the repository holds several,
-where Git refuses the write and git-lfs ends with status 2
+or this repository's `.git/config` when it is not and the repository holds one worktree;
+when it is not and the repository holds several, no file is written at all,
+because Git refuses the write and git-lfs ends with status 2
 (`commands/command_install.go:40-58`,
 `lfs/attribute.go:154-190` and `git/config.go:137-140`;
 measured with git-lfs 3.8.1 and plain `git` 2.56.1,
 every file read back through `git config --file <p> --list`,
 and `src/native/binary/binary_lfs_install_tests.rs` pins all four layouts against Git's own
 `git config --worktree`).
-A run with `--manual` is told why the hook instructions it asked for are not printed:
-they are instructions for merging a hook this wrapper installs nowhere and never runs.
+A command git-lfs refuses before it writes a `filter.lfs.*` key is told the refusal, never a destination,
+because the words alone show that nothing reaches one:
+more than one of `--local`, `--system`, `--worktree` and `--file`,
+a boolean option whose `=value` is no `strconv.ParseBool` spelling (`-l=yes`, `-l=`, `--local=yes`),
+and `--file` with no word after it are refused by git-lfs 3.8.1 itself,
+with statuses 2, 127 and 127 measured through the wrapper,
+every configuration file read before and after each run;
+the notice then names the word or the count git-lfs refuses and says that no `filter.lfs.*` key is written to any
+configuration file,
+and the multi-destination refusal still records `lfs.repositoryformatversion` in this repository's `.git/config`
+before it stops.
+An option this reading does not name is passed through as typed,
+so a command git-lfs refuses for another reason (`--bogus`, an unknown short letter) still prints the destination its
+words select;
+the flag parser's own message is the answer there, and a list of every option git-lfs registers would go stale as
+git-lfs adds one.
+A run with `--manual` that git-lfs runs is told why the hook instructions it asked for are not printed:
+they are instructions for merging a hook this wrapper installs nowhere and never runs,
+and a refused command prints none of them for the refusal's own reason, so its notice adds no such sentence.
 Outside a repository the command is forwarded as it was typed (git-lfs writes no hook there),
 a help query is answered as it was typed,
 and a caller who wrote `--skip-repo` already keeps one copy and gets the same notice.

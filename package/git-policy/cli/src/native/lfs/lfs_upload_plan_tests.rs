@@ -586,6 +586,12 @@ fn the_awaited_face_of_the_plan_asks_and_answers_as_the_synchronous_face_does() 
 ///  Measured with git-lfs 3.8.1: `git lfs env` printed `Endpoint=https://alias.invalid/repo.git/info/lfs` for an
 ///  empty alias under `https://127.0.0.1:13/`, while `git remote get-url --push` printed
 ///  `https://127.0.0.1:13/https://alias.invalid/repo.git`.
+///  An empty *base* is the other half of that test, and git-lfs applies it:
+///  the replacement is nothing, so the endpoint is the URL with the alias taken off its front,
+///  and when that URL carries another URL behind the alias the host git-lfs contacts is the one inside it.
+///  Measured with git-lfs 3.8.1: `lfs.url=https://alias.invalid/https://127.0.0.1:39506/lfs` under an empty base
+///  `https://alias.invalid/` printed `Endpoint=https://127.0.0.1:39506/lfs`, while the alias is dropped by an
+///  emptiness test on the base and the plan would then name `alias.invalid`, a host git-lfs never contacts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -703,6 +709,15 @@ fn the_plan_names_the_lfs_server_of_its_destination() {
             ],
             vec!["origin", "main"],
             Some("alias.invalid"),
+        ),
+        (
+            "an empty base strips the alias, as git-lfs reads its own table, and the host it leaves is named",
+            vec![
+                ("lfs.url", "https://alias.invalid/https://127.0.0.1:39506/lfs"),
+                ("url..insteadof", "https://alias.invalid/"),
+            ],
+            vec!["origin", "main"],
+            Some("127.0.0.1:39506"),
         ),
         (
             "the positive control: the same base with the alias it names rewrites the endpoint",

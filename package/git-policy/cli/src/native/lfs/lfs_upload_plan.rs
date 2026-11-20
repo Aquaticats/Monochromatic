@@ -414,6 +414,12 @@ pub fn lfs_server_of(remote: &OsStr, all: &[(String, String)]) -> Option<String>
 ///  so the endpoint it contacts is the unrewritten URL;
 ///  Git does rewrite it (`git remote get-url --push` shows the replacement), and this table follows git-lfs because
 ///  git-lfs is the program that makes the request.
+///  An empty base is kept, because it is a replacement of nothing and git-lfs applies it:
+///  the endpoint is the URL with the alias taken off its front,
+///  and the host read from it is the one inside whatever follows the alias
+///  (measured with git-lfs 3.8.1: `lfs.url=https://alias.invalid/https://127.0.0.1:39506/lfs` under an empty base
+///  `https://alias.invalid/` gave `Endpoint=https://127.0.0.1:39506/lfs`),
+///  so leaving it out would name the alias's host, which git-lfs never contacts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -427,7 +433,7 @@ fn url_aliases<'a>(all: &'a [(String, String)], push: bool) -> Vec<(&'a str, &'a
         let Some(base) = key.strip_prefix("url.").and_then(|rest| { return rest.strip_suffix(suffix); }) else {
             continue;
         };
-        if base.is_empty() || value.is_empty() {
+        if value.is_empty() {
             continue;
         }
         if aliases.iter().any(|(alias, _replacement)| { return *alias == value.as_str(); }) {

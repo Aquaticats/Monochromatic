@@ -144,6 +144,85 @@ fn the_notice_names_the_scope_the_caller_asked_for() {
 }
 
 /// What:
+///  A command git-lfs refuses before it writes a `filter.lfs.*` key is told what it refuses and why,
+///  and the notice names no destination and no write for it,
+///  because the words alone show that nothing reaches one.
+/// Why:
+///   Measured with git-lfs 3.8.1 through the wrapper, the global file and the repository's `.git/config` read before and
+///  after each run:
+///  two destination flags (`-l --worktree`, `-lw`, `--local --system`, `-lw --system`) end with status 2 and
+///  "Only one of the --local, --system, --worktree, and --file options can be specified.",
+///  a word pflag cannot read as a boolean (`-l=yes`, `-l=`, `-w=`, `--local=yes`, `--worktree=maybe`, `--manual=yes`,
+///  `--force=yes`) ends with status 127 and the parser's own error,
+///  and `--file` with no word after it ends with status 127 and "flag needs an argument: --file";
+///  none of them wrote a `filter.lfs.*` key anywhere,
+///  and the repository's `.git/config` gained only the `lfs.repositoryformatversion = 0` git-lfs records while setting
+///  up a `--local` or `--worktree` scope, before it refuses,
+///  while the notice named a destination in every one of those states.
+///  A false value still chooses no second destination, so `--local --worktree=false` and `-l=false -w` are run,
+///  as measured.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(refusedNotice).toContain('git-lfs refuses this command'); expect(refusedNotice).not.toContain('keys go, as this command asked, to')
+/// ```
+#[test]
+fn the_notice_names_the_refusal_instead_of_a_destination() {
+    for (case, typed, wanted) in [
+        (
+            "two flags -l --worktree",
+            vec!["lfs", "install", "-l", "--worktree"],
+            "only one of `--local`, `--system`, `--worktree` and `--file` can be specified, and this command asks for more than one",
+        ),
+        ("a short group -lw", vec!["lfs", "install", "-lw"], "more than one"),
+        ("--local --system", vec!["lfs", "install", "--local", "--system"], "more than one"),
+        ("three flags -lw --system", vec!["lfs", "install", "-lw", "--system"], "more than one"),
+        ("a rejected short value", vec!["lfs", "install", "-l=yes"], "`-l=yes`"),
+        ("a short group that ends in =", vec!["lfs", "install", "-l="], "`-l=`"),
+        ("a short group ending in = on --worktree", vec!["lfs", "install", "-w="], "`-w=`"),
+        ("a rejected long value", vec!["lfs", "install", "--local=yes"], "`--local=yes`"),
+        ("a rejected value on a boolean that chooses no scope", vec!["lfs", "install", "--force=yes"], "`--force=yes`"),
+        ("a rejected value on a short boolean that chooses no scope", vec!["lfs", "install", "-f=yes"], "`-f=yes`"),
+        ("--file with no path, beside a destination flag", vec!["lfs", "install", "--local", "--file"], "`--file` needs a path and none followed it"),
+    ] {
+        let (_, notice) = with_skip_repo(words(typed.as_slice()), true);
+        assert!(notice.contains("git-lfs refuses this command"), "{case}: the notice says git-lfs refuses it: {notice}");
+        assert!(notice.contains(wanted), "{case}: the notice names the refusal: {notice}");
+        assert!(!notice.contains("keys go, as this command asked, to"), "{case}: the notice names no destination: {notice}");
+        assert!(
+            notice.contains("so no `filter.lfs.*` key is written to any configuration file"),
+            "{case}: the notice claims no write: {notice}"
+        );
+    }
+    for (case, typed) in [
+        ("a false second destination is no second destination", vec!["lfs", "install", "--local", "--worktree=false"]),
+        ("a withdrawn flag before another leaves one destination", vec!["lfs", "install", "-l=false", "-w"]),
+        ("a withdrawn flag alone leaves the global file", vec!["lfs", "install", "--local", "--local=false"]),
+        ("a group whose value withdraws one flag leaves one destination", vec!["lfs", "install", "-lw=false"]),
+        ("short booleans of their own change no destination", vec!["lfs", "install", "-fs"]),
+        ("a word after -- is no option", vec!["lfs", "install", "--", "-lw"]),
+    ] {
+        let (_, notice) = with_skip_repo(words(typed.as_slice()), true);
+        assert!(!notice.contains("git-lfs refuses this command"), "{case}: git-lfs runs it: {notice}");
+    }
+    let (_, refused_manual) = with_skip_repo(words(&["lfs", "install", "-lw", "--manual"]), true);
+    assert!(refused_manual.contains("git-lfs refuses this command"), "a refused command is told so: {refused_manual}");
+    assert!(
+        !refused_manual.contains("none are printed here"),
+        "a refused command prints no hook instructions because it is refused, not because `--skip-repo` skipped them: {refused_manual}"
+    );
+    // An option this file does not read is left to git-lfs rather than modelled, so the destination sentence stands for it:
+    //  measured, `git lfs install --bogus` ends with status 127 and "Error: unknown flag: --bogus" and writes nothing.
+    //  A list of every option git-lfs registers would go stale the day git-lfs adds one, and that would claim a refusal
+    //  git-lfs does not make; git-lfs's own message answers an option it does not know.
+    let (_, unread_option) = with_skip_repo(words(&["lfs", "install", "--bogus"]), true);
+    assert!(
+        unread_option.contains("keys go, as this command asked, to"),
+        "an option this reading does not name keeps the destination its words select: {unread_option}"
+    );
+}
+
+/// What:
 ///  The `--worktree` notice states each outcome Git chooses,
 ///  because the wrapper asks Git nothing and cannot know which one happens:
 ///  the worktree's own `config.worktree` while the extension is set,
