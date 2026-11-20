@@ -204,7 +204,8 @@ const ensureOxlintConfig = () => {
   if (shouldBuildOxlintConfig()) { execFileSync('mise', ['run', '//package/config/oxlint:build:js:node'], { stdio: 'inherit' }) }
 }
 """
-# The comment line that ends every root task body interpolating vars.parse_usage_args.
+# The comment line that ends every task body interpolating vars.parse_usage_args, in this file and in
+# every package/*/*/mise.toml, which inherits this variable from the root config.
 # A task with a usage spec normally receives its arguments only as usage_* variables, but
 # mise bypasses its own usage parser for `-h`/`--help` after `--` (jdx/mise#9118, and
 # docs/tasks/running-tasks.md "Pass arguments") and appends the forwarded words to the end
@@ -221,10 +222,10 @@ forwarded_arguments_marker = "// mise appends forwarded arguments after this com
 # string (e.g. a path with a space becomes `'weird name.ts'`). Recovers the
 # original argument vector: bare tokens split on spaces, single/double-quoted
 # spans kept whole, backslash escapes honoured.
-# Interpolated into tasks that take positional file-path args. Every such root task body
-# ends with vars.forwarded_arguments_marker, which is where mise appends the arguments it
-# forwards instead of setting usage_args; root-task-shared-shapes.unit.test.ts holds the
-# marker and every parser reader to one definition.
+# Interpolated into tasks that take positional file-path args. Every such task body, in this file and
+# in every package/*/*/mise.toml, ends with vars.forwarded_arguments_marker, which is where mise appends
+# the arguments it forwards instead of setting usage_args; root-task-shared-shapes.unit.test.ts holds
+# every root and package parser body, and every parser reader, to that one definition.
 parse_usage_args = """
 const parseUsageArgs = (raw) => {
   const argv = []
@@ -583,10 +584,13 @@ description = "Run a task, tolerating failures"
 usage = 'arg "task" help="Task name to run with failure tolerance"'
 shell = "node --input-type=module-typescript -e"
 run = """
+{{vars.parse_usage_args}}
 const { execFileSync } = await import('node:child_process')
 // Deliberately tolerant: the child's stderr is inherited (so its failure is
 // visible), and try only stops the non-zero exit from propagating.
-try { execFileSync('mise', ['run', process.env.usage_task], { stdio: 'inherit' }) } catch { /* tolerated */ }
+const task = process.env.usage_task ?? parseUsageArgs(usageArgWords()).at(0) ?? ''
+try { execFileSync('mise', ['run', task], { stdio: 'inherit' }) } catch { /* tolerated */ }
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."slopo:index"]

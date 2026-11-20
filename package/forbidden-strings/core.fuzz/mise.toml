@@ -78,8 +78,9 @@ run = """
 {{vars.parse_usage_args}}
 const { execFileSync } = await import('node:child_process')
 const { mkdirSync } = await import('node:fs')
-const target = process.env.usage_target
-const extras = parseUsageArgs(process.env.usage_args ?? '')
+const forwardedWords = parseUsageArgs(usageArgWords())
+const target = process.env.usage_target ?? forwardedWords.at(0) ?? ''
+const extras = process.env.usage_target === undefined ? forwardedWords.slice(1) : forwardedWords
 const flags = extras.filter((part) => part.startsWith('-'))
 const replays = extras.filter((part) => !part.startsWith('-'))
 const corpusDirs = [`corpus/${target}`, `seeds/${target}`]
@@ -90,4 +91,5 @@ if (replays.length === 0) {
 }
 const inputs = replays.length === 0 ? corpusDirs : replays
 execFileSync('cargo', ['fuzz', 'run', '--fuzz-dir', '.', target, '--sanitizer', 'address', '--target', 'x86_64-unknown-linux-gnu', ...inputs, '--', ...flags], { stdio: 'inherit' })
+{{vars.forwarded_arguments_marker}}
 """
