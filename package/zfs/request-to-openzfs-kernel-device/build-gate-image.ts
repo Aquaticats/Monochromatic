@@ -145,15 +145,23 @@ function copyCrates(context: string): void {
 
 //region Build
 
-/** The base image the wrapper's resolver prints, built first when absent. */
+/**
+ The base image the wrapper's resolver prints, built first when absent.
+ A `--base` that names another tag is refused instead of used: the resolver owns
+ the tag, so building on anything else would build an image the next run of
+ this script could not rebuild.
+ */
 function baseImage(given: string | undefined): string {
-  if (given !== undefined && given !== '')
-    return given;
   const printed = capture('mise', ['run', '//package/git-policy/cli:test:git-image'], repoRoot());
   const match = /(?:Built|Found) the gate base (\S+)/.exec(printed);
   const tag = match?.[1];
   if (tag === undefined || tag === '')
     throw new Error(`the base image resolver printed no tag:\n${printed}`);
+  if (given !== undefined && given !== '' && given !== tag)
+    throw new Error(
+      `--base names ${given}, and the wrapper's resolver prints ${tag} ` +
+        `(mise run //package/git-policy/cli:test:git-image); drop --base or pass the tag it prints`,
+    );
   return tag;
 }
 
@@ -165,24 +173,29 @@ const chosen = options();
 const context = join(packageDir(), 'target', 'gate-image-context');
 rmSync(context, { recursive: true, force: true, });
 mkdirSync(context, { recursive: true, mode: 0o700, });
-for (const row of LOCKED_TOOLS)
-  fetchBinary(context, row);
-copyCrates(context);
-run('cp', [join(packageDir(), 'gate.Containerfile'), join(context, 'gate.Containerfile')]);
-const base = baseImage(chosen.base);
-console.log(`base image: ${base}`);
-run('podman', [
-  'build',
-  '--file',
-  join(context, 'gate.Containerfile'),
-  '--build-arg',
-  `GATE_BASE_IMAGE=${base}`,
-  '--tag',
-  chosen.tag,
-  context,
-]);
-if (!chosen.keep)
-  rmSync(context, { recursive: true, force: true, });
+try {
+  for (const row of LOCKED_TOOLS)
+    fetchBinary(context, row);
+  copyCrates(context);
+  run('cp', [join(packageDir(), 'gate.Containerfile'), join(context, 'gate.Containerfile')]);
+  const base = baseImage(chosen.base);
+  console.log(`base image: ${base}`);
+  run('podman', [
+    'build',
+    '--file',
+    join(context, 'gate.Containerfile'),
+    '--build-arg',
+    `GATE_BASE_IMAGE=${base}`,
+    '--tag',
+    chosen.tag,
+    context,
+  ]);
+} finally {
+  // A failed build leaves the context as garbage in `target/` unless it goes
+  // here too; `--keep-context` is the one reason to keep it.
+  if (!chosen.keep)
+    rmSync(context, { recursive: true, force: true, });
+}
 console.log(chosen.tag);
 
 //endregion Entry point
