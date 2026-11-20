@@ -12,9 +12,10 @@
 //!  number sends a destroy as a read;
 //! neither can be seen from userspace without
 //!  the module.
-//! The test reads the type information with `pahole`,
-//! the command the
-//!  design's ABI gate names,
+//! The test reads the type information of the module the kernel loaded from
+//!  `/sys/kernel/btf/<module>` with `pahole`,
+//! the file and the command the design's ABI gate
+//!  names and the start-time checker will read,
 //! and the numbers from the release header,
 //! so a
 //!  release that moved either is refused here before step 6's gate exists.
@@ -29,16 +30,21 @@ use super::live_btf_nested_fields::{
     zfs_share_fields, zfs_stat_fields, zinject_record_fields,
 };
 use crate::requests::Operation;
-/// The program that prints a type's layout,
-/// and the one that reports a module's metadata.
+// The program that prints a type's layout.
+use std::path::PathBuf;
 use std::process::Command;
 
+/// Where the running kernel exposes each loaded module's own type information.
+const MODULE_BTF_DIRECTORY: &str = "/sys/kernel/btf";
+/// The module whose types this crate mirrors.
+const MODULE_NAME: &str = "zfs";
+/// The kernel's own type information,
+/// which supplies the base types `pahole` needs to read
+/// a module's file (`--btf_base`).
+const VMLINUX_BTF: &str = "/sys/kernel/btf/vmlinux";
 /// Where the guest keeps `pahole`,
 /// from the `dwarves` package.
 const PAHOLE: &str = "/usr/bin/pahole";
-/// Where the guest keeps `modinfo`,
-/// from `kmod`.
-const MODINFO: &str = "/sbin/modinfo";
 
 /// One named member of a structure,
 /// as the type information reports it.
@@ -62,8 +68,14 @@ fn the_running_modules_type_information_matches_the_rust_mirror() {
     };
     let pool: FixturePool<'_> = FixturePool::create(&fixture, "zfsstep2-layout");
     pool.assert_the_module_release();
-    let module: String = module_file();
-    assert_loaded_module_is(&module);
+    let module: PathBuf = module_btf();
+    assert!(
+        module.exists(),
+        "the running module reports no type information at {}; the recipe makes the guest's \
+         module carry it, so a module built without BTF leaves this gate unable to judge the \
+         layout",
+        module.display()
+    );
     let command: String = pahole(&module, "zfs_cmd");
     let (command_size, command_members) = parse_layout(&command);
     assert_eq!(command_size, COMMAND_STRUCT_BYTES);
@@ -91,7 +103,8 @@ fn the_running_modules_type_information_matches_the_rust_mirror() {
     assert_fields(&begin_members, &drr_begin_fields());
     println!(
         "layout zfs_cmd bytes={command_size} dmu_objset_stats={stats_size} \
-         zinject_record={inject_size} drr_begin={begin_size} module={module}"
+         zinject_record={inject_size} drr_begin={begin_size} source={}",
+        module.display()
     );
     std::mem::drop(pool);
 }
@@ -104,11 +117,9 @@ fn the_release_header_assigns_every_request_the_number_this_crate_sends() {
     ) else {
         return;
     };
-    let Some(source) = fixture.source_tree(
+    let source: PathBuf = fixture.source_tree(
         "live_btf_tests::the_release_header_assigns_every_request_the_number_this_crate_sends",
-    ) else {
-        return;
-    };
+    );
     let meta: String =
         std::fs::read_to_string(source.join("META")).expect("the release META is read");
     let version: &str = meta
@@ -178,38 +189,24 @@ fn the_layout_parser_reads_a_union_member_at_its_offset() {
     }));
 }
 
-/// The path of the module the running kernel loaded,
-/// under the release it booted.
-fn module_file() -> String {
-    let release: String =
-        std::fs::read_to_string("/proc/sys/kernel/osrelease").expect("the release is read");
-    return format!("/lib/modules/{}/extra/zfs.ko", release.trim());
+/// Where the running kernel exposes the loaded `zfs` module's type information.
+fn module_btf() -> PathBuf {
+    return PathBuf::from(MODULE_BTF_DIRECTORY).join(MODULE_NAME);
 }
 
-/// Assert the file read is the module the kernel loaded,
-/// by the source version
-/// the kernel keeps for it.
-fn assert_loaded_module_is(module: &str) {
-    let loaded: String =
-        std::fs::read_to_string("/sys/module/zfs/srcversion").expect("the module is loaded");
-    let output = Command::new(MODINFO)
-        .args(["-F", "srcversion", module])
-        .output()
-        .expect("modinfo runs");
-    assert!(output.status.success(), "modinfo failed on {module}");
-    let on_disk: String = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    assert_eq!(on_disk, loaded.trim());
-}
-
-/// The type information `pahole` prints for `structure` in `module`.
-fn pahole(module: &str, structure: &str) -> String {
+/// The type information `pahole` prints for `structure` in `module`,
+/// read with the
+/// kernel's own types as the base.
+fn pahole(module: &std::path::Path, structure: &str) -> String {
     let output = Command::new(PAHOLE)
-        .args(["-C", structure, module])
+        .args(["--btf_base", VMLINUX_BTF, "--class_name", structure])
+        .arg(module)
         .output()
         .expect("pahole runs in the guest");
     assert!(
         output.status.success(),
-        "pahole failed for {structure}: {}",
+        "pahole failed for {structure} in {}: {}",
+        module.display(),
         String::from_utf8_lossy(&output.stderr)
     );
     return String::from_utf8_lossy(&output.stdout).into_owned();

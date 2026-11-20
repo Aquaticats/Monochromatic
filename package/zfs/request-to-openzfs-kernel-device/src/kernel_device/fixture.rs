@@ -20,14 +20,15 @@
 //!  ends,
 //! so the guest's own disks are the only thing a run touches.
 
-/// The codec list the creation-time properties travel in.
+// The codec list the creation-time properties travel in.
 use crate::nvlist::NvList;
-/// The environment the fixture reads,
-/// and the process it starts.
+// The environment the fixture reads, and the process it starts.
 use std::env;
-/// The path types the fixture root and the program paths are.
+// The one-argument type the environment lookup returns.
+use std::ffi::OsString;
+// The path types the fixture root and the program paths are.
 use std::path::{Path, PathBuf};
-/// The process the fixture runs its userspace through.
+// The process the fixture runs its userspace through.
 use std::process::{Command, Output};
 
 /// The variable naming the guest a live test may run in.
@@ -63,58 +64,34 @@ pub(crate) struct Fixture {
 /// The methods of `Fixture`.
 impl Fixture {
     /// The fixture the environment names,
-    /// or `None` after saying why a live test
-    /// skipped.
+    /// or `None` on a host run,
+    /// where no live request may be made.
     ///
-    /// A host run never reaches `/dev/zfs`:
-    /// the gate is the guest's own hostname,
-    /// which only the recipe's guest answers.
+    /// # Panics
+    ///
+    /// When the environment names a guest that is not this machine,
+    /// or names it
+    /// without the rest of the fixture's variables:
+    /// a run that was meant to be live
+    /// must not look like a passing test that skipped its assertions.
     pub(crate) fn from_environment(test: &str) -> Option<Fixture> {
-        let Some(guest) = env::var_os(GUEST_VARIABLE) else {
-            println!(
-                "SKIP {test}: {GUEST_VARIABLE} is unset, so this is not the mvm guest fixture; \
-                 live requests run only in the guest the package's e2e recipe creates."
-            );
-            return None;
-        };
-        let hostname: String = hostname();
-        if hostname != guest.to_string_lossy() {
-            println!(
-                "SKIP {test}: this host is '{hostname}' and {GUEST_VARIABLE} names \
-                 '{}'; live requests run only in that guest.",
-                guest.to_string_lossy()
-            );
-            return None;
-        }
-        let (Some(sbin), Some(root), Some(account), Some(account_pool)) = (
-            env::var_os(SBIN_VARIABLE),
-            env::var_os(ROOT_VARIABLE),
-            env::var_os(ACCOUNT_VARIABLE),
-            env::var_os(ACCOUNT_POOL_VARIABLE),
-        ) else {
-            println!(
-                "SKIP {test}: the guest is named but {SBIN_VARIABLE}, {ROOT_VARIABLE}, \
-                 {ACCOUNT_VARIABLE} or {ACCOUNT_POOL_VARIABLE} is unset."
-            );
-            return None;
-        };
-        return Some(Fixture {
-            sbin: PathBuf::from(sbin),
-            root: PathBuf::from(root),
-            account: account.to_string_lossy().into_owned(),
-            account_pool: account_pool.to_string_lossy().into_owned(),
+        return resolve(test, env::var_os(GUEST_VARIABLE), hostname(), |name| {
+            return env::var_os(name);
         });
     }
 
-    /// The unpacked OpenZFS release tree the request numbers come from,
-    /// or
-    /// `None` after saying why.
-    pub(crate) fn source_tree(&self, test: &str) -> Option<PathBuf> {
-        let Some(source) = env::var_os(SOURCE_VARIABLE) else {
-            println!("SKIP {test}: {SOURCE_VARIABLE} is unset, so the release headers are absent.");
-            return None;
-        };
-        return Some(PathBuf::from(source));
+    /// The unpacked OpenZFS release tree the request numbers come from.
+    ///
+    /// # Panics
+    ///
+    /// When the variable is unset inside the named guest,
+    /// because the request-number
+    /// assertions would then be silently absent.
+    pub(crate) fn source_tree(&self, test: &str) -> PathBuf {
+        return env::var_os(SOURCE_VARIABLE).map_or_else(
+            || panic!("{test}: {SOURCE_VARIABLE} is unset, so the release headers are absent."),
+            PathBuf::from,
+        );
     }
 
     /// Run the fixture's `zfs` program and return its standard output.
@@ -255,11 +232,81 @@ impl Fixture {
     }
 }
 
-/// The host's own name,
+/// The kernel's own name for this machine,
 /// which is the guest name mvm gives the VM.
+///
+/// The kernel keeps the authoritative copy in `/proc/sys/kernel/hostname`,
+/// the same value
+/// the `hostname` program prints and the recipe's guard compares;
+/// `/etc/hostname` is only the
+/// file a boot reads,
+/// so a changed name would leave the two disagreeing.
 pub(crate) fn hostname() -> String {
-    let printed: String = std::fs::read_to_string("/etc/hostname").expect("/etc/hostname is read");
+    let printed: String = std::fs::read_to_string("/proc/sys/kernel/hostname")
+        .expect("/proc/sys/kernel/hostname is read");
     return printed.trim().to_string();
+}
+
+/// The fixture `guest` names,
+/// or `None` when no guest is named at all.
+///
+/// `this_machine` and `variable` are parameters rather than reads so the
+/// three refusals can be
+/// proven without a guest (see `fixture_tests.rs`).
+pub(super) fn resolve(
+    test: &str,
+    named_guest: Option<OsString>,
+    this_machine: String,
+    variable: impl Fn(&str) -> Option<OsString>,
+) -> Option<Fixture> {
+    let Some(named) = named_guest else {
+        println!(
+            "SKIP {test}: {GUEST_VARIABLE} is unset, so this is not the mvm guest fixture; \
+             live requests run only in the guest the package's e2e recipe creates."
+        );
+        return None;
+    };
+    let guest_name: String = named.to_string_lossy().into_owned();
+    assert_eq!(
+        this_machine, guest_name,
+        "{test}: this machine is '{this_machine}' and {GUEST_VARIABLE} names '{guest_name}'. \
+         A live request would change the pool of whichever machine runs it, so a run that names \
+         a guest must be that guest; recreate it with the package's e2e recipe, or unset \
+         {GUEST_VARIABLE} for a run that is not meant to be live."
+    );
+    let found_sbin: Option<OsString> = variable(SBIN_VARIABLE);
+    let found_root: Option<OsString> = variable(ROOT_VARIABLE);
+    let found_account: Option<OsString> = variable(ACCOUNT_VARIABLE);
+    let found_account_pool: Option<OsString> = variable(ACCOUNT_POOL_VARIABLE);
+    let missing: Vec<&str> = [
+        (SBIN_VARIABLE, found_sbin.is_none()),
+        (ROOT_VARIABLE, found_root.is_none()),
+        (ACCOUNT_VARIABLE, found_account.is_none()),
+        (ACCOUNT_POOL_VARIABLE, found_account_pool.is_none()),
+    ]
+    .into_iter()
+    .filter_map(|(name, absent)| {
+        return if absent { Some(name) } else { None };
+    })
+    .collect();
+    assert!(
+        missing.is_empty(),
+        "{test}: this machine is the guest '{guest_name}' that {GUEST_VARIABLE} names, but {} is \
+         unset, so the fixture would be incomplete and its assertions would not run. Set the \
+         recipe's whole environment or unset {GUEST_VARIABLE}.",
+        missing.join(", ")
+    );
+    let (Some(sbin_value), Some(root_value), Some(account_value), Some(account_pool_value)) =
+        (found_sbin, found_root, found_account, found_account_pool)
+    else {
+        unreachable!("the unset variables were refused just above")
+    };
+    return Some(Fixture {
+        sbin: PathBuf::from(sbin_value),
+        root: PathBuf::from(root_value),
+        account: account_value.to_string_lossy().into_owned(),
+        account_pool: account_pool_value.to_string_lossy().into_owned(),
+    });
 }
 
 /// Build a property list from pairs,

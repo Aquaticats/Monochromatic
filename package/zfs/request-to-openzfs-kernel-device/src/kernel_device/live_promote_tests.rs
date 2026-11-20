@@ -76,18 +76,18 @@ fn promotion_moves_the_older_history_without_changing_identity() {
                     .next()
                     .expect("a snapshot name has a tail")
             );
+            let found: &(String, u64, u64) = promotion_after
+                .iter()
+                .find(|candidate| {
+                    return candidate.0 == moved;
+                })
+                .unwrap_or_else(|| {
+                    panic!("the promoted clone lists no {moved}: {promotion_after:?}");
+                });
             assert_eq!(
-                promotion_after
-                    .iter()
-                    .find(|candidate| {
-                        return candidate.0 == moved;
-                    })
-                    .unwrap_or_else(|| {
-                        panic!("the promoted clone lists no {moved}: {promotion_after:?}");
-                    })
-                    .1,
-                row.1,
-                "the GUID of {moved} is unchanged"
+                found,
+                &(moved.clone(), row.1, row.2),
+                "the moved snapshot keeps its GUID and creation transaction group"
             );
         }
     }

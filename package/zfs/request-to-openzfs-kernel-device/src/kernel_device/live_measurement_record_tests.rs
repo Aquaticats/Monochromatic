@@ -120,7 +120,11 @@ fn the_plan_items_report_what_the_crate_received() {
         promoted.stats.origin()
     );
 
-    // Item 14 and 18: the own set and the mixed set, through the binding.
+    // Item 14 and 18: the own set and the mixed set, through the binding,
+    // on the clone the promotion above made the holder of the checkout's
+    // older history. The assertions are here, not only in the batch tests, so
+    // the arm that records the plan's values cannot record a result it did not
+    // check.
     pool.snapshot(
         &promotion,
         &["own-one", "own-two", "with-dependent", "without-dependent"],
@@ -128,19 +132,55 @@ fn the_plan_items_report_what_the_crate_received() {
     let dependent: String = pool.clone_of(&format!("{promotion}@with-dependent"), "dependent");
     let own_first: String = format!("{promotion}@own-one");
     let own_second: String = format!("{promotion}@own-two");
-    let destroyed = device.destroy_snaps(&pool.name, &[own_first.as_str(), own_second.as_str()]);
-    println!("MEASUREMENT own-batch result={destroyed:?}");
+    let names_before_destroy: Vec<String> = listing_names(|cursor| {
+        return device.snapshot_list_next(&promotion, cursor);
+    });
+    let destroyed: Option<NvList> = device
+        .destroy_snaps(&pool.name, &[own_first.as_str(), own_second.as_str()])
+        .expect("both own snapshots are destroyed in one request");
+    let carried = destroyed
+        .as_ref()
+        .map_or_else(Vec::new, crate::requests::element_errors);
+    assert!(
+        carried.is_empty(),
+        "the own batch carries no per-name failure: {carried:?}"
+    );
     let pinned: String = format!("{promotion}@with-dependent");
     let free: String = format!("{promotion}@without-dependent");
-    let refused = device.destroy_snaps(&pool.name, &[pinned.as_str(), free.as_str()]);
-    if let Err(error) = refused {
-        println!("MEASUREMENT mixed-batch refused: {error}");
-    }
+    let error = device
+        .destroy_snaps(&pool.name, &[pinned.as_str(), free.as_str()])
+        .expect_err("the dependent clone refuses the whole set");
+    let Some(failure) = error.request() else {
+        panic!("the refusal is a request failure: {error}");
+    };
+    assert_eq!(failure.errno(), Some(libc::EEXIST));
+    assert_eq!(failure.elements().len(), 1);
+    assert_eq!(failure.elements()[0].name, pinned);
     let kept: Vec<String> = listing_names(|cursor| {
         return device.snapshot_list_next(&promotion, cursor);
     });
+    let mut remaining: Vec<String> = names_before_destroy
+        .into_iter()
+        .filter(|name| {
+            return name != &own_first && name != &own_second;
+        })
+        .collect();
+    let mut listed: Vec<String> = kept.clone();
+    remaining.sort();
+    listed.sort();
+    assert_eq!(
+        listed, remaining,
+        "the own names are gone and every other name survived the refusal"
+    );
     println!(
-        "MEASUREMENT dependent clone origin={} kept={kept:?}",
+        "MEASUREMENT promoted-batch own={own_first},{own_second} carried={} \
+         refused={:?} elements={} kept={kept:?}",
+        carried.len(),
+        failure.errno(),
+        failure.elements().len()
+    );
+    println!(
+        "MEASUREMENT dependent clone origin={}",
         device
             .objset_stats(&dependent)
             .expect("the dependent clone is read")
