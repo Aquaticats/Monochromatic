@@ -27,8 +27,9 @@ pub const FIXTURE_ROOT_VARIABLE: &str = "CLI_GIT_TEST_ROOT";
 /// a shared tmpfs with a per-user quota fills up
 ///  when failing tests leave fixtures behind (issue 1809),
 /// and then every command of every session fails.
-///  A run that sets `CLI_GIT_TEST_ROOT` keeps its fixtures in the directory that variable names (`bin/native-gate-fixture-root.ts`
-///  names the gate's), and without it a container keeps them inside the wrapper crate's own folder (`target/tmp`),
+///  A run that sets `CLI_GIT_TEST_ROOT` keeps its fixtures in the directory that variable names
+///  (`bin/native-gate-fixture-root.ts` names the gate's),
+/// and without it a container keeps them inside the wrapper crate's own folder (`target/tmp`),
 /// so a fixture crate written below the fixture root must declare a `[workspace]` of its own
 ///  (`binary_package_repair_tests.rs`,
 ///  `shared_target_manifest`),

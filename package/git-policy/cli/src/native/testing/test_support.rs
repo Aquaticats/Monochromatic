@@ -131,7 +131,7 @@ pub(crate) fn fixture_root() -> PathBuf {
 ///  and `TMPDIR` when the run sets it.
 /// Why:
 ///   A fixture root there fills a shared tmpfs with the trees of tests that never removed them (issue 1809),
-/// so the two location controls compare the root they use against this list.
+/// so the location control compares the root it uses against this list.
 ///  Reading `TMPDIR` compares against it
 /// without calling the temporary-directory function that the lint configuration bans.
 pub(crate) fn system_temporary_directories() -> Vec<PathBuf> {
