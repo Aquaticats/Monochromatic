@@ -11,8 +11,8 @@ and Pi answers with a failed response:
 ```
 
 A run this package drove on 2026-11-19 hit it with its wake message,
-33 ms after Pi started a turn by itself to show the agent a background job's result
-(`pi-runs/...-1/feed.jsonl`, lines quoted in `kept-while-work-runs.ts`):
+33 ms after Pi started a turn by itself to show the agent a background job's result.
+These are that run's own `feed.jsonl` lines, cut to the parts that matter:
 
 ```text
 {"t":398896,"kind":"turn_start","n":42}
@@ -125,8 +125,12 @@ The runnable harness is the package's own stand-in Pi, in its scenario
 `wakes-itself-when-the-work-ends` (`src/stand-in-pi-own-turn-plays-fixture.ts`):
 
 ```sh
+mise run //package/pi-shared/subagent-driver:build
 mise run //package/pi-shared/subagent-driver:test:unit src/drive-pi-subagent.unit.test.ts
 ```
+
+The build comes first because the suite imports the library's built chunk, not its source:
+`mise run //package/pi-shared/subagent-driver:buildAndTest` builds and then runs the whole suite.
 
 It plays a first prompt that leaves a real `sleep` reported through the `process` tool,
 then starts a turn of its own as the work ends, before it takes the driver's wake,
@@ -165,11 +169,13 @@ The control beside it,
 shows a refusal still ends the run `prompt-rejected`.
 
 Not run: a `followUp` wake against the stand-in. Its delivery point is read from
-`agent-loop.js` above, not measured here.
+the steering and follow-up drains quoted under `## Root cause` (`agent-loop.js:191` and `:196`), not measured here.
 
 ## Verified workarounds
 
-Both are the package's own, in `kept-while-work-runs.ts`.
+Both are the package's own:
+the steering wake in `kept-while-work-runs.ts`,
+and the read of Pi's answer in `a-busy-answer-of-pi.ts`.
 
 - Send the wake with `streamingBehavior: "steer"`.
   Pi queues it into the running agent run and `preflightResult("queued")` answers `success:true`,
@@ -177,13 +183,29 @@ Both are the package's own, in `kept-while-work-runs.ts`.
   Tradeoff: the message is delivered after the running turn rather than during it,
   and the loop may take further turns inside that run, so the wake can cost another turn;
   a turn that ends in an error or an abort returns before the drain, so that run does not deliver it.
-- Read Pi's "Agent is already processing" answer as the agent being awake, not as a refusal:
+- Read the answer that names `streamingBehavior` as the agent being awake, not as a refusal:
   keep the run up for the turn that is running and let its settle be the run's end.
   Tradeoff: the message is then not delivered at all.
   The answer establishes only that the agent is streaming:
   it says nothing of what that turn is doing or which ended work the agent knows about,
   so this branch is a fallback for a Pi that refused despite the steering field,
   and it keeps the agent's own turn rather than telling it anything.
+
+The two answers differ after their first words.
+Pi's session says `Agent is already processing. Specify streamingBehavior ('steer' or 'followUp') to queue the message.`
+only when it has already started a turn of its own, and queues the message into that turn.
+`@earendil-works/pi-agent-core` 1.5.2 throws
+`Agent is already processing a prompt. Use steer() or followUp() to queue messages, or wait for completion.`
+(`agent.js` in that package), which names no turn of the session's own and starts none,
+so a prompt answered with it is read as refused rather than as busy.
+The read is one function, `foundTheAgentAlreadyAwake` in `a-busy-answer-of-pi.ts`,
+and it matches the session's full opening, continuation included,
+so the library's wording stays a refusal on the wake and on the model-error retry alike.
+Next to it, `foundPiRefusedTheMoment` reads the compaction refusal as one more answer that refuses the moment,
+which only the inbox delivery reads.
+The unit tests "ends a run as one Pi refused when the busy wording is pi-agent-core's"
+and "ends a run as one Pi refused when its retry prompt meets the agent library's busy wording"
+(`src/watch-pi-run.unit.test.ts`) pin that wording apart from the session's.
 
 ## What does not work
 
@@ -208,23 +230,36 @@ Each was read on 2026-11-19, in the code named.
   The busy answer is now read as the agent being busy, never as a refusal: the message goes back to the inbox under its
   own name, the next look sends it again, and a newer message of the same name keeps the name
   (`returnToInbox` in `an-inbox-message-pi-did-not-take.ts`).
-  Two limits of this fallback are deliberate: its claim stays as a copy that a producer's rename cannot take away, so a
-  newer message that takes the name is the one delivered, and the older one stays readable under that dot name rather
-  than being replaced or deleted; and a Pi that answers busy to every delivery would have the message sent once per look
-  until the run ends.
+  The claim each look makes replaces the one the look before it left
+  (`dropEarlierClaimsOf` in that file), so a busy answer on every look adds one entry per message rather than one per
+  look; a claim is kept only where a newer message took the name, so the older one stays readable rather than being
+  replaced or deleted.
+  A Pi that answers busy to every delivery has the message sent once per look until the run ends.
   Both are fallbacks for a Pi that refused a delivery naming steering;
   Pi 1.5.2 cannot, so neither is reached there.
   A refusal Pi makes for a reason of its own still keeps the message as `.failed-<name>`.
+  A manual compaction or a branch summary refuses a prompt with
+  `Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.`
+  (`dist/core/agent-session.js:1712-1714`, read before `_preparePrompt`, so a named streaming behaviour does not queue
+  it either). That names the moment, not the message, so the inbox reads it as one more answer to send again later
+  (`foundPiRefusedTheMoment` in `a-busy-answer-of-pi.ts`); the wake and the retry read only the busy answer, because a
+  compaction starts no turn of Pi's own for them to wait for.
   Fixed on its own, after the wake.
 - The model-error retry (`answerWithAnotherAttempt` in `answer-a-model-error.ts`) sends only when its view of the
   feed says Pi rests (`answerModelError` returns `still-running` while `record.isRunning()`).
-  A turn Pi starts after that read makes the retry prompt meet the busy answer,
-  which that code reads as a refusal and ends the run `prompt-rejected`.
-  Queueing the retry behind the running turn would be wrong:
-  the retry waits precisely because that turn may recover the error itself.
-  A correct fix reads the busy answer as Pi having been at work, drops the attempt it was about to count,
-  and looks again after the turn settles.
-  Left unchanged here, because it needs its own attempt bookkeeping and test.
+  A turn Pi starts after that read makes the retry prompt meet the busy answer.
+  Queueing the retry behind the running turn would be wrong,
+  because the retry waits precisely because that turn may recover the error itself.
+  Since the fix of 2026-11-19 the busy answer is read as Pi having been at work:
+  no attempt is counted for the prompt Pi did not take,
+  the run waits for that turn to settle,
+  and the look after it reads what stands then,
+  so a turn that recovered the error needs no attempt
+  and one that ended on the same error gets the attempt the run already owed, counted once.
+  A refusal Pi makes for its own reason still ends the run `prompt-rejected`.
+  The read is `foundTheAgentAlreadyAwake` in `a-busy-answer-of-pi.ts`;
+  the tests are in `src/watch-pi-run.unit.test.ts` and `src/drive-pi-subagent.unit.test.ts`,
+  over the stand-in scenarios `retry-meets-its-own-turn` and `retry-meets-a-turn-that-failed-again`.
 - The first prompt (`sendFirstPrompt` in `take-the-first-prompt.ts`) is what starts the run's first turn,
   so no turn exists for it to meet; a Pi with no active run answers it as it always did.
   This package's own extension starts no turn.
@@ -233,16 +268,17 @@ Each was read on 2026-11-19, in the code named.
 
 Nothing is filed, and nothing is worth filing.
 
-1. Is it really upstream's fault?
-   No. Pi documents the requirement and its answer names the fix.
-   The defect was this package's reading of the answer.
-2. Can upstream fix it? There is nothing to fix: the answer is the intended one for a prompt that named no
-   behaviour, and the field that avoids it is documented.
-3. Are they supporting this use case? Yes: `docs/rpc-commands.md` covers streaming prompts,
-   `steer`, `follow_up` and their dispositions.
-4. Would the repo welcome our contribution? Not assessed: no filing is planned.
-5. Will they likely fix it? Not assessed: the behaviour is intended, so there is no bug to act on.
-6. Have we prototyped a fix? Not needed for upstream; the consumer-side fix is in `kept-while-work-runs.ts`.
+1.  Is it really upstream's fault?
+    No. Pi documents the requirement and its answer names the fix.
+    The defect was this package's reading of the answer.
+2.  Can upstream fix it? There is nothing to fix: the answer is the intended one for a prompt that named no
+    behaviour, and the field that avoids it is documented.
+3.  Are they supporting this use case? Yes: `docs/rpc-commands.md` covers streaming prompts,
+    `steer`, `follow_up` and their dispositions.
+4.  Would the repo welcome our contribution? Not assessed: no filing is planned.
+5.  Will they likely fix it? Not assessed: the behaviour is intended, so there is no bug to act on.
+6.  Have we prototyped a fix? Not needed for upstream; the consumer-side fix is in `kept-while-work-runs.ts`,
+    `a-busy-answer-of-pi.ts`, `watch-pi-run.ts` and `an-inbox-message-pi-did-not-take.ts`.
 
 The `.out-of-scope/` check found `pi-gpt55-long-context.md` as the only Pi entry,
 which covers model context metadata and not RPC prompt behaviour,

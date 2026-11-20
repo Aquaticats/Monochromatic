@@ -27,14 +27,16 @@ import {
   type RetryWaiting,
 } from './answer-a-model-error.ts';
 import {
+  CLAIM_NAME_START,
+  dropEarlierClaimsOf,
   keepFailure,
   returnToInbox,
 } from './an-inbox-message-pi-did-not-take.ts';
+import { foundPiRefusedTheMoment, } from './a-busy-answer-of-pi.ts';
 import { preview, } from './previews-of-pi-messages.ts';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
 import {
   askAboutItsWorkOrReportAFailure,
-  foundTheAgentAlreadyAwake,
   type WorkWaitedFor,
 } from './kept-while-work-runs.ts';
 import type { WatchRequest, } from './watch-request.ts';
@@ -63,7 +65,7 @@ async function claimMessage({
    */
   const claimed = join(
     watch.inbox,
-    `.claimed-${randomUUID()}`,
+    `${CLAIM_NAME_START}${randomUUID()}`,
   );
   await rename(
     join(
@@ -72,12 +74,19 @@ async function claimMessage({
     ),
     claimed,
   );
+  // An earlier busy round of this same message left a claim of its own behind, which this one replaces: a Pi that answers busy on
+  // every look adds no entry to the folder per look.
+  await dropEarlierClaimsOf({
+    inbox: watch.inbox,
+    claim: claimed,
+  },);
   return claimed;
 }
 
 /**
- Delivers one claimed inbox message. The claim goes once Pi has it; a refused or unanswered one is kept under a dot name, which
- the watch skips, so it is neither lost nor sent again.
+ Delivers one claimed inbox message. The claim goes once Pi has it; an answer that refuses the moment sends the message back to the
+ inbox for a later look, and a refusal or an unanswered wait keeps it under a dot name, which the watch skips, so it is neither
+ lost nor sent again.
 
  @param watch - watch request
 
@@ -132,9 +141,9 @@ async function deliverMessage({
         },);
     }
   }
-  else if (foundTheAgentAlreadyAwake({ answer, },)) {
-    // Pi said only that its agent is busy, never that the message is unacceptable, so the message is not kept aside as one Pi
-    // refused: it goes back to the inbox and the next look sends it again.
+  else if (foundPiRefusedTheMoment({ answer, },)) {
+    // Pi said it could not take the prompt yet, never that the message was unacceptable, so the message is not kept aside as one
+    // Pi refused: it goes back to the inbox and the next look sends it again.
     await returnToInbox({
       watch,
       name,

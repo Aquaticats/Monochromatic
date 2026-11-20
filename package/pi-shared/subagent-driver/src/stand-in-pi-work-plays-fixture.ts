@@ -103,32 +103,6 @@ async function startWork({ milliseconds, }: { readonly milliseconds: number },):
 }
 
 /**
- Plays one prompt as a turn that leaves work running, and the message that follows it as the agent reading that work.
-
- @param id - command's identifier
-
- @param milliseconds - how long the work lives
- */
-async function leaveWorkRunning({
-  id,
-  milliseconds,
-}: {
-  readonly id: unknown;
-  readonly milliseconds: number
-},): Promise<void> {
-  // The message the driver sends once the work ended is the agent going on: it reads what the build said and finishes its task.
-  if (seen.prompts > 1) {
-    answer({ id, },);
-    await wait(WAKE_ANSWER_MILLISECONDS,);
-    finishRun('the build finished and the task goes on',);
-    return;
-  }
-  answer({ id, },);
-  await startWorkTheToolReports({ milliseconds, },);
-  finishRun('started the build and ended my turn',);
-}
-
-/**
  Starts the work a play leaves running and reports it the way the `process` tool reports one, so the driver has something real to
  find in the tool's own records.
 
@@ -174,6 +148,32 @@ export async function startWorkTheToolReports({ milliseconds, }: { readonly mill
     },
   },);
   return pid;
+}
+
+/**
+ Plays one prompt as a turn that leaves work running, and the message that follows it as the agent reading that work.
+
+ @param id - command's identifier
+
+ @param milliseconds - how long the work lives
+ */
+async function leaveWorkRunning({
+  id,
+  milliseconds,
+}: {
+  readonly id: unknown;
+  readonly milliseconds: number
+},): Promise<void> {
+  // The message the driver sends once the work ended is the agent going on: it reads what the build said and finishes its task.
+  if (seen.prompts > 1) {
+    answer({ id, },);
+    await wait(WAKE_ANSWER_MILLISECONDS,);
+    finishRun('the build finished and the task goes on',);
+    return;
+  }
+  answer({ id, },);
+  await startWorkTheToolReports({ milliseconds, },);
+  finishRun('started the build and ended my turn',);
 }
 
 /**

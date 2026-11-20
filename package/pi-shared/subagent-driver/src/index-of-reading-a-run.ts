@@ -22,3 +22,13 @@ export {
  The lines of a feed a writer has finished, for a reader that opens a file another process is still appending to.
  */
 export { wholeLinesOf, } from './whole-lines-of-a-feed.ts';
+
+/**
+ The reads the driver makes inside one process's folder, which a test replaces so that a process ending between the folder being
+ listed and a record being read can be told from a read that truly failed.
+ */
+export {
+  READS_OF_A_PROCESS_FOLDER,
+  type ReadsAProcessRecord,
+  type ReadsOfAProcessFolder,
+} from './reads-of-a-process-folder.ts';

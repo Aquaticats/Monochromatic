@@ -20,11 +20,11 @@ import {
 } from './stand-in-pi-log-fixture.ts';
 import {
   answer,
+  COMPACTION_REFUSAL_TEXT,
   emit,
   finishRun,
   LONG_REPLY,
 } from './stand-in-pi-records-fixture.ts';
-
 /**
  How many looks at the inbox a delayed answer spans, so a driver that sends the next message without waiting for this answer has
  sent it before the answer comes.
@@ -114,6 +114,31 @@ export const scenarioPlays: ReadonlyMap<string, (id: unknown,) => void> = new Ma
         return;
       }
       answer({ id, },);
+      finishRun('done',);
+    },
+  ],
+  [
+    'compaction-refuses-the-inbox-message',
+    function refuseWhileTheSessionCompacts(id,) {
+      if (seen.prompts === 1) {
+        answer({ id, },);
+        finishRun('done',);
+        return;
+      }
+      if (seen.prompts === 2) {
+        // A manual compaction or a branch summary holds the session, so Pi refuses before it prepares the prompt at all.
+        emit({
+          type: 'response',
+          id,
+          success: false,
+          error: COMPACTION_REFUSAL_TEXT,
+        },);
+        void writeLogLine('marker prompt-refused-while-compacting',);
+        return;
+      }
+      // The compaction ended, so the same message goes through on the look after it.
+      answer({ id, },);
+      void writeLogLine('marker message-taken-after-compacting',);
       finishRun('done',);
     },
   ],
