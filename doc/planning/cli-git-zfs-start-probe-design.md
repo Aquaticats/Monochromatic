@@ -184,6 +184,20 @@ first written.
   design's three link-bearing blockquotes miss only because the checker keeps link markup inside a quotation, and
   every one of them is verbatim in the proposal with links reduced.
 
+- `2026-11-20T00:37:03-05:00` (commit `4845e5b831`): the answer to the one medium finding of a diff-only gate check
+  of the sixth revision, read on Claude Sonnet from the diff `3b833948e3..b0b386ede5`. This label is the time this
+  text was first written, not a commit time, and it names no commit of its own: the commit that carries it comes
+  later, so it cannot be named here. The finding: the skip list sent `EPERM` from `fsopen`, `mount`,
+  `mount_setattr`, `fsmount` and `move_mount` to the skip wherever the call was made, which contradicted
+  [M11](#m11-the-account-companion-per-add)'s requirement that an `EPERM` from `fsmount` refuse the add, turned
+  Q6's own case, a mount made as the account refusing with `EPERM`, into a skip, and added no capability-denying
+  host, because the first mapping write and `unshare(CLONE_NEWNS)` already skip one. The capability bullet now
+  covers the setup calls, `mount` and `mount_setattr`, and ends when the scratch tmpfs is in place; any call after
+  it, `fsmount` included, is an arm failure, which is the case M11's fixture checks. The Answers record's Q6
+  sentence, the companion's veto sentence and the acceptance question now state the same three reaches: the
+  namespace refused, the capabilities inside it denied, and a mount the setup makes inside it refused. The nine
+  lows the check left are not touched and travel beside the design to the acceptance round.
+
 ## Answers of 2026-11-19
 
 Every question this design put to the owner was answered in the question tool between 2026-11-19T20:35 and
