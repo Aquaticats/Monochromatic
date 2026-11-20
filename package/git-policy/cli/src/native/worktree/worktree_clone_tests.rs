@@ -101,6 +101,93 @@ fn btrfs_a_missing_source_file_ends_the_rung() {
     remove(root.as_path());
 }
 
+/// How many files the sliced-run controls track:
+/// more entries than one thread's break-even,
+/// across several directories.
+const MANY_FILES: usize = 40;
+
+/// The slices the controls force,
+/// so the split happens on a host of any size.
+const SLICES_OF_A_CONTROL: usize = 3;
+
+/// How many directories the fixture's files are spread over.
+const MANY_DIRECTORIES: usize = 7;
+
+/// The recorded path of the fixture's file at `index`.
+fn many_path(index: usize) -> String {
+    return format!("many/dir{}/file{index}.txt", index % MANY_DIRECTORIES);
+}
+
+/// An ordinary-directory repository with `MANY_FILES` tracked files under `many/`,
+/// committed,
+/// and a `--no-checkout`
+///  worktree beside it.
+fn many_file_fixture(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
+    let repo: PathBuf = std::fs::canonicalize(repository(root, "repo")).expect("canonical");
+    tracked(repo.as_path(), ".gitignore", b"ignored/\n");
+    for index in 0..MANY_FILES {
+        tracked(repo.as_path(), many_path(index).as_str(), format!("bytes of {index}\n").as_bytes());
+    }
+    commit_all(repo.as_path(), "many");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
+    let admin: PathBuf = repo.join(".git/worktrees/topic");
+    return (repo, destination, admin);
+}
+
+/// Every entry of a run the slices own is cloned into its directory,
+/// and the installed index makes the whole
+///  destination clean at once.
+#[test]
+fn btrfs_the_slices_clone_every_entry_of_a_large_run() {
+    let Some(root) = btrfs_fixture("clone-slices") else { return };
+    let (repo, destination, admin) = many_file_fixture(root.as_path());
+    let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
+    let entries: Arc<[StatEntry]> = Arc::from(stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length).expect("entries"));
+    let held: File = open_root(destination.as_path()).expect("destination");
+    let administrative: File = open_root(admin.as_path()).expect("administrative directory");
+    let mut created: Vec<Created> = Vec::new();
+    clone_in_slices(&source, entries, &held, &administrative, &mut created, SLICES_OF_A_CONTROL).expect("clones");
+    assert_eq!(created.iter().filter(|entry: &&Created| { return !entry.directory; }).count(), MANY_FILES, "every file of every slice was made");
+    for index in 0..MANY_FILES {
+        let name: String = many_path(index);
+        assert_eq!(std::fs::read(destination.join(name.as_str())).expect("clone"), std::fs::read(repo.join(name.as_str())).expect("source"), "{name}");
+    }
+    assert_eq!(git_text(destination.as_path(), &["status", "--porcelain=v1"]), "", "the first status of the clone is clean");
+    remove(root.as_path());
+}
+
+/// A source entry that changed after the check ends its slice and stops the others,
+/// nothing is
+///  removed,
+/// and no index is installed.
+#[test]
+fn btrfs_a_changed_entry_ends_a_sliced_run_and_keeps_what_the_slices_made() {
+    let Some(root) = btrfs_fixture("clone-slices-changed") else { return };
+    let (repo, destination, admin) = many_file_fixture(root.as_path());
+    let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
+    let entries: Arc<[StatEntry]> = Arc::from(stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length).expect("entries"));
+    let held: File = open_root(destination.as_path()).expect("destination");
+    let administrative: File = open_root(admin.as_path()).expect("administrative directory");
+    let changed: String = many_path(MANY_FILES / 2);
+    std::fs::write(repo.join(changed.as_str()), b"CHANGED\n").expect("edit after the check");
+    crate::test_support::age(repo.join(changed.as_str()).as_path());
+    let mut created: Vec<Created> = Vec::new();
+    let reason: String = clone_in_slices(&source, entries, &held, &administrative, &mut created, SLICES_OF_A_CONTROL).expect_err("refused");
+    assert!(reason.contains("the source changed while it was cloned") && reason.contains(changed.as_str()), "{reason}");
+    assert!(!created.is_empty(), "what the slices made before the failure is kept, not removed");
+    assert!(!admin.join("index").exists(), "no index for a refused run");
+    remove(root.as_path());
+}
+
+/// Below the break-even the copy stage was measured at,
+/// the clones take one thread.
+#[test]
+fn the_clones_use_one_thread_below_the_break_even() {
+    assert_eq!(clone_worker_count(PARALLEL_BREAK_EVEN_ENTRIES - 1), 1);
+    assert_eq!(clone_worker_count(0), 1);
+}
+
 /// Clone with the destination and the administrative directory opened as the ladder holds them.
 fn clone_into(source: &SnapshotSource, destination: &Path, admin: &Path) -> Result<Cloned, String> {
     let held: File = open_root(destination).expect("destination");
