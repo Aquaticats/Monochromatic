@@ -40352,8 +40352,23 @@ stated in this entry. What follows from them, as work:
   (control from `main` built the same way, alternating arms, run-to-run spread, the stage split, fresh against synced
   sources), fix the order or cost of what the branch does, and stop with options if the only fix departs from the
   accepted design; the `/proc` control and the README; brief under
-  `~/temp/agent/zfs-step-3-integration-pass-findings-fixed-2026-11-19/`. Then a second integration pass. STEPS 3 AND
-  4, HOST HALVES, GOING (the plan's "What can start now" lists both;
+  `~/temp/agent/zfs-step-3-integration-pass-findings-fixed-2026-11-19/`. Then a second integration pass. It ended `idle`
+  (363 turns) at `6c72f75b3e` (six commits; that folder's `keep/report-from-summary.md`). Measured against `main`
+  built the same way, alternating: the clean-source add was 1.76 to 2.23 times `main` (about 90 per cent of it the
+  one-thread per-file clone, not the checks and not a wait); after cloning the tracked files in parallel slices under
+  the measured eight-worker ceiling, 0.51 to 1.57, median 0.66. `zfs_bclone_wait_dirty` measured: a source rewritten
+  within the transaction group costs at most about 0.7 s once (median +288 ms over a synced one). The dirty-source add
+  stays 0.98 to 1.59 times `main` (about +0.2 s: the checks `main` skipped on ZFS); two attempts reverted or priced out.
+  The `/proc` control now fails with the rule reverted (shown red here); README, plan step 3's guest-arm needs, `SPEC.md`
+  and the `doctor` line corrected; `cargo fmt` and oxlint lows dismissed as `main`'s. The 27 GB of timing repositories
+  were deleted; a stale build overlay left mounted in podman's own namespace under its run folder was unmounted there
+  and the folder deleted. The dirty path needs the owner: options C (no clone rung on ZFS until the guest arm measures
+  the disk saved), A (a recorded waiver), B, D, ranked C > A > B > D, in `doc/handover/questions-for-the-owner.md`
+  ("ZFS step 3 makes a worktree add from a dirty checkout slower"). GOING meanwhile: a short review of the round on the
+  Qwen plan (watched), `pi-qwen-review-zfs-step-3-sliced-clone-round`, in a detached worktree at `6c72f75b3e`, because
+  the sliced clone runs on every reflink filesystem the rung serves; brief under
+  `~/temp/agent/zfs-step-3-sliced-clone-round-short-review-on-the-qwen-plan-2026-11-20/`. STEPS 3 AND 4, HOST HALVES,
+  GOING (the plan's "What can start now" lists both;
   their VM arms wait for step 2's recipe and their merges for the gate fix), each DeepSeek on Neuralwatt, cap 510,
   from `main` `d6e78c9e8b`: `pi-zfs-step-3-reflink-rung-recognition-host-half`
   (`.claude/worktrees/zfs-step-3-reflink-rung-recognition`, `feat/git-policy-cli-zfs-recognition-in-the-reflink-rung`;

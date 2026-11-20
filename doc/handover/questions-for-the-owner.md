@@ -800,3 +800,41 @@ Options:
 
 Ranking: accept > accept with vetoes > send back, because no remaining finding changes behaviour or a decision, while
 each further round has so far found new wording slips of the same size.
+
+## Open: ZFS step 3 makes a worktree add from a dirty checkout slower; what then? (recorded 2026-11-20, about 00:30 -05:00)
+
+What it is:
+step 3 teaches the wrapper to see a ZFS dataset as able to share data blocks,
+so `git worktree add` from a clean source clones the files instead of checking them out.
+Your merge bar says a branch may not make anything `main` does well worse.
+
+What was measured on this machine (24,313 tracked files, the branch against `main` built the same way, alternating):
+
+- Clean source: the add now takes 0.51 to 1.57 times `main`'s time, median 0.66,
+  since the round cloned the files in parallel slices
+  (before that round it was about 1.9 times, which the integration pass rightly refused).
+  A source written in the last few seconds can add at most about 0.7 s once,
+  because OpenZFS waits for its write-out before cloning freshly written blocks.
+- Dirty source (uncommitted changes, so no clone happens): about 1.2 times `main`'s time, about +0.2 s.
+  `main` skipped the clone rung's checks on ZFS at once; the branch now runs them before it falls back to Git's
+  checkout. The round tried two ways to make those checks cheaper and neither reached parity.
+
+The main checkout here usually carries uncommitted files (it holds four now), so adds from it take the dirty path.
+
+Options:
+
+- C. Do not take the clone rung on ZFS yet; turn it on when step 3's guest arm has measured the disk it saves
+  (recommended). Both paths behave exactly as `main` does today; the recognition and its tests stay. It postpones a
+  part of the accepted design (the clone rung on ZFS), which is why it is yours to choose.
+- A. Keep the clone rung on ZFS and waive the merge bar for this +0.2 s on a dirty-source add, recorded in
+  `doc/decision/`. Clean adds get faster now; most adds here, from a dirty checkout, get slower by about 1 per cent of a
+  real add (which also copies the ignored files).
+- B. Run the tracked-file check first and the untracked scan only if it passes: the dirty path about 50 ms cheaper,
+  the clean path about 34 ms dearer on every host whose snapshot rung is refused; still short of parity, so the bar is
+  still missed.
+- D. Choose the clone rung by a measured size threshold: departs from the ladder's design and rests on a guess.
+
+Ranking: C > A > B > D. C over A because the dirty path is the common one here, so A's cost lands on most adds and
+its gain on few, and C needs no waiver; A over B because B still misses the bar and moves cost onto other hosts; B over
+D because D leaves the design for a guessed threshold. The round's report, with every measurement:
+`~/temp/agent/zfs-step-3-integration-pass-findings-fixed-2026-11-19/keep/report-from-summary.md`.
