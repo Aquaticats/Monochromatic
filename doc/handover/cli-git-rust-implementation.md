@@ -40443,9 +40443,18 @@ stated in this entry. What follows from them, as work:
   with no verdict field and nothing gated on it. Plan notes cover steps 4, 6, 7, 8, 10, 18 to 20 and 22, plan not
   edited. Nothing in either round was measured. GOING: a Sonnet gate review of each before acceptance (briefs under
   `~/temp/agent/zfs-start-probe-design-owner-answers-gate-review-2026-11-19/` and
-  `~/temp/agent/zfs-runtime-layout-checker-design-owner-answers-gate-review-2026-11-19/`); the staging round still
-  runs. The proposal and plan amendment for the dropped release proof waits for the layout checker's review. That
-  answer was first written into
+  `~/temp/agent/zfs-runtime-layout-checker-design-owner-answers-gate-review-2026-11-19/`). STAGING ENDED `idle` at
+  `e8f7ec4fa6` (thirteen commits; report in its folder's `keep/report.md`). It records every answer and makes Way A the
+  design. On Q3 it rolls the clone back by its own descriptor, staging it only if that fails. Its post-move check now
+  asserts that the topmost mount is the clone with the bind as its parent; the run's own advisor found the old wording
+  wrong. The handle record is `~/.cache/monochromatic-git-policy-cli-staging-<guid>.json`, written only by the handler
+  (exclusive create, `fsync`, rename, directory `fsync`), void on another boot id. The design quotes its one departure:
+  "The runtime files are a cache, not authority to act", the handle being the one field that cannot be rebuilt, which
+  the answer accepts. A new section lists hardening the threat model may make unnecessary, as suggestions with no
+  check removed. One stale claim: it calls the answer record uncommitted, but it is in `main` since `c55ab25eb4`.
+  GOING: its Sonnet gate review (brief under
+  `~/temp/agent/zfs-staging-under-cache-design-owner-answers-gate-review-2026-11-19/`). The proposal and plan amendment
+  for the dropped release proof waits for the layout checker's review. That answer was first written into
   `doc/handover/questions-for-the-owner.md`, whose header keeps it to open questions; the owner asked "Do you know what a
   questions file is?", the answer moved here, and the owner said "Fix the bigger mess too.": that file still held about
   thirty answered sections. GOING: `pi-handover-questions-file-holds-open-questions-only` (DeepSeek on Neuralwatt, cap
