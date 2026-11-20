@@ -40149,7 +40149,16 @@ What follows from them, as work:
   (N8); the questions lean on internal labels and give no scenario (N9); Q1's second option guards a module reload
   that cannot happen on this host (N10); the txg comparison cannot tell an idle pool from a write (N11). GOING: the
   second round `pi-zfs-start-probe-design-recheck-findings-fixed` (DeepSeek on Neuralwatt, cap 400) in the design's
-  worktree; brief under `~/temp/agent/zfs-start-probe-design-recheck-findings-fixed-2026-11-19/`. STAGING FIX ROUND ENDED (`idle`, 130 turns,
+  worktree; brief under `~/temp/agent/zfs-start-probe-design-recheck-findings-fixed-2026-11-19/`. It ended `idle` (210
+  turns) at `370c6cb9e2` (two commits, 1,368 lines; report in that folder's `keep/report.md` and `keep/full-report.md`):
+  no `TimeoutStartSec=`, the reconcile sized by step 22; the record under `/run/git-worktree-clone-mount-probe/`, made by
+  the mode, step 19's unit gains `ExecStartPre=`; `FSCONFIG_CMD_CREATE_EXCL` as the freshness oracle, its boundary
+  placed at Linux v6.6 from `fsopen.c`; the holder forked with inherited descriptors closed, `PR_SET_PDEATHSIG` and a
+  control pipe, the worker's process group killed at the deadline; the plan-line reading put to the owner as Q1; one
+  recommendation; Way 5 placed and named; each question with a scenario; the txg window by rows at or above `T0`. Its
+  report credits "an independent (other-vendor) review" with two catches; no record shows who that was. Checkers clean
+  with a broken-copy control. GOING: a second Sonnet gate re-check (brief under
+  `~/temp/agent/zfs-start-probe-design-second-revision-gate-recheck-2026-11-19/`). STAGING FIX ROUND ENDED (`idle`, 130 turns,
   `ff0a4019d9` and `3972d4bf90`, 1,042 lines; report in its folder's `keep/report.md`): G1 to G21 answered; the unmount
   is anchored on a descriptor (`umount2` on `/proc/self/fd/<n>` reaches the topmost mount through `LOOKUP_MOUNTPOINT`),
   which meets the decided wording and the plan's forbidden line, so the old Q1 is a writer's settlement; `EBUSY` is
@@ -40272,8 +40281,18 @@ What follows from them, as work:
   notice), `control_terminal.rs` deleted, a refused SSH key names `ssh-add`; red first for each; 1,204 library and 19
   binary tests pass in its image. GOING: its short review on the Qwen plan,
   `pi-qwen-review-lfs-second-round-at-df77fd22b0` (watched); brief under
-  `~/temp/agent/git-policy-cli-lfs-second-round-short-review-on-the-qwen-plan-2026-11-19/`. Then its integration pass,
-  after the gate fix is in main.
+  `~/temp/agent/git-policy-cli-lfs-second-round-short-review-on-the-qwen-plan-2026-11-19/`. It ended `idle` (93 turns;
+  that folder's `keep/review.md`): the endpoint order matches git-lfs 3.8.1's source and a measurement per variant; long
+  path words hidden as decided; the no-prompt overlay reaches every route, and an empty `GIT_ASKPASS` does not fall
+  through to `core.askPass` (Git 2.56.1 `prompt.c`); three reds shown. Mediums: with `extensions.worktreeConfig` unset,
+  `git lfs install --worktree` writes `.git/config`, not nothing, and the author's probe searched for `filter.lfs` in
+  files that hold `[filter "lfs"]`, a null with no positive control; two README passages still say a typed command
+  keeps Git's prompting. Lows: the first of two `pushurl` values is named where git-lfs uses the last; `insteadOf`
+  aliases not applied before naming the host; the SPEC and a troubleshooting page name deleted symbols; `-f` listed as a
+  scope short form; `--local=true` and the like not read. GOING: the third round
+  `pi-git-policy-cli-lfs-second-round-review-findings-fixed` (DeepSeek on Neuralwatt, cap 400) in the branch's
+  worktree; brief under `~/temp/agent/git-policy-cli-lfs-second-round-review-findings-fixed-2026-11-19/`. Then its
+  integration pass, after the gate fix is in main.
 - **The wrapper's container gate cannot pass on this ZFS host.** The LFS writer ran the gate's body
   (`node bin/test-native-container.ts`; the mise task's first step needs `cargo-shadow`, not installed here) twice:
   `9189 tests run: 9002 passed, 187 failed`, against 6 of 9,173 on the old Btrfs host. By its reading about 109 fail on
@@ -40397,7 +40416,19 @@ What follows from them, as work:
   F2 to F4 page pointers and markers; F1 the page's harness command now builds first; 213 passes, lint clean. IN MAIN as
   `9082c49835` (merge-tree clean, every path in the package). With it and the `ESRCH` fix in main, briefs no longer
   carry the line asking an agent to wait for its own jobs inside its turn. Merge order left: the two follow-ups, each
-  after merging `main`. The second resume ended
+  after merging `main`. The inbox follow-up ended `idle` (188 turns) at `e2ead21556` (five commits; report in
+  `~/temp/agent/pi-driver-inbox-message-meets-a-started-turn-2026-11-19/keep/report.md`): every inbox message now goes
+  as a prompt naming `streamingBehavior: 'steer'` (a resting Pi ignores the field, read from Pi 1.5.2's
+  `agent-session.js:1736` and `:1748-1761`), so a turn Pi starts after the read takes it; a busy answer returns the
+  message to the inbox instead of keeping it aside; a returned message's claim stays as its copy; the keeping helpers
+  moved to `src/an-inbox-message-pi-did-not-take.ts`; four tests red then green; 212 suites. It exports
+  `foundTheAgentAlreadyAwake` from `src/kept-while-work-runs.ts`, the file the wake round and the retry follow-up both
+  change, so it merges `main` after the retry follow-up lands. Its report calls an advisor pass "independent vendor";
+  no record shows that. It also saw two other suites fail once and pass alone: `secret-values-of-this-machine` (the
+  known `.env.local.json` fixture race, owned by branch `945ff70a94`) and `start-pi-run-when-a-pool-has-room`
+  (expected `--provider=opencode-go`; possibly reads this machine's running units; a separate incident until shown).
+  GOING: its short review on the Qwen plan, `pi-qwen-review-driver-inbox-at-e2ead21556` (watched); brief under
+  `~/temp/agent/pi-driver-inbox-follow-up-short-review-on-the-qwen-plan-2026-11-19/`. The second resume ended
   `idle` (40 turns)
   with its final report (that folder's `keep/report.md`): branch at `deed732fc1`, five commits (`ddec538f27`,
   `967085d3d3`, `8d1122a6ae` naming a rebound binding apart for `clippy::shadow_unrelated`, `a6eb8ec24c`,
