@@ -451,8 +451,10 @@ The file is the kernel's and the guest is thrown away with its pool.
  `step3-teardown.log` and `step3-versions.log`
 land in the log directory.
 The suite log is the whole nextest run rather than the tail the step prints,
-and `step3-teardown.log` shows the pool gone,
-the datasets gone and no `pool.img` left under the fixture root.
+and `step3-teardown.log` shows the pool gone and the datasets gone,
+and names the pool's `pool.img` file,
+which `zpool destroy` leaves behind in the guest's fixture root and which goes
+with the guest.
 
 ## Teardown evidence
 
