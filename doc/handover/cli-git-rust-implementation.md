@@ -40878,8 +40878,13 @@ stated in this entry. What follows from them, as work:
   from `fsmount` refuses), turns Q6's own case into a skip, and adds no host. It confirmed the SELinux first-write
   dismissal. GOING: a narrow fix of MED-1 only,
   `pi-zfs-start-probe-design-sixth-revision-check-medium-fixed` (DeepSeek on Neuralwatt, cap 250); brief under
-  `~/temp/agent/zfs-start-probe-design-sixth-revision-check-medium-fixed-2026-11-20/`. Then a diff-only check of those
-  lines and the acceptance item. STAGING ENDED `idle` at
+  `~/temp/agent/zfs-start-probe-design-sixth-revision-check-medium-fixed-2026-11-20/`. It ended `idle` (47 turns) at
+  `05d1102848` (five commits 00:36:55 to 00:38:33, dates real): the skip's capability bullet covers only the setup's
+  `mount` and `mount_setattr` and ends when the scratch tmpfs is in place; an `EPERM` from `fsopen`, `fsmount` or
+  `move_mount` after that is an arm failure again, so M11's `fsmount` control agrees; the Answers record, the veto
+  sentence and the project question state the same three-case reach. GOING: a Sonnet check of just that diff (brief
+  under `~/temp/agent/zfs-start-probe-design-seventh-revision-medium-check-2026-11-20/`). Then the acceptance item.
+  STAGING ENDED `idle` at
   `e8f7ec4fa6` (thirteen commits; report in its folder's `keep/report.md`). It records every answer and makes Way A the
   design. On Q3 it rolls the clone back by its own descriptor, staging it only if that fails. Its post-move check now
   asserts that the topmost mount is the clone with the bind as its parent; the run's own advisor found the old wording
