@@ -89,22 +89,32 @@ and its image and
 key folder with it.
 
 Logs:
-`guest-run-8-values/root-suite.log` (196 tests,
+`recorded-run-final-2026-11-19/` is one end-to-end run of the recipe
+(`all`):
+it created the guest,
+prepared it,
+ran both suites,
+recorded the
+versions and the teardown,
+and destroyed the guest.
+It holds
+`root-suite.log` (196 tests,
 all passing,
-with the
-`MEASUREMENT` block quoted here),
-`guest-run-8-values/account-suite.log`
-(7 tests),
-`guest-run-8-values/versions.log`,
-`guest-run-8-values/teardown.log`,
-and `recorded-run-2026-11-19/` for the recipe's own end-to-end run,
-whose
-`guest-root-suite.log`,
-`root-suite.log`,
-`account-suite.log`,
+with the `MEASUREMENT` block quoted
+here),
+`account-suite.log` (7 tests),
 `versions.log`,
 `teardown.log`,
-`mvm-destroy.log` and `mvm-list-after-destroy.log` are kept.
+`mvm-create.log`,
+`mvm-destroy.log` and `mvm-list-after-destroy.log`.
+`guest-run-1-red/`,
+`guest-run-2-green/`,
+`guest-run-3-green/` and
+`guest-run-7-values/` are the failing runs that led here,
+and
+`guest-run-8-values/` is the last run on the guest kept for iteration,
+with the
+same versions.
 
 ## The layout comparison, and where it differs from the design's command
 
@@ -150,7 +160,7 @@ bytes,
 `zc_defer_destroy`,
 `zc_flags` and `zc_action_handle` at 13648,
 13652 and
-13656 (`guest-run-8-values/root-suite.log`,
+13656 (`recorded-run-final-2026-11-19/root-suite.log`,
 the layout line).
 This is the same
 layout the vet read from the host's module BTF on 2026-11-18,
@@ -208,7 +218,7 @@ and `@worktree-own` was made on the clone.
 Before promoting:
 
 ```text
-MEASUREMENT before-promote checkout snapshots=[("@earliest", 8754962213508488583, 187), ("@origin", 13634827167330816172, 188), ("@checkout-later", 1181642945089432058, 189)] bookmark=(8754962213508488583, 187)
+MEASUREMENT before-promote checkout snapshots=[("@earliest", 722454792545308728, 187), ("@origin", 5925684245824955526, 188), ("@checkout-later", 10858864819157758307, 189)] bookmark=(722454792545308728, 187)
 ```
 
 (names shortened here;
@@ -217,7 +227,7 @@ the log has them whole).
 and the reply to the next `OBJSET_STATS` reads reported:
 
 ```text
-MEASUREMENT after-promote checkout origin=.../worktree-clone-datasets/promotion@origin promoted origin='' moved=[("...promotion@earliest", 8754962213508488583, 187), ("...promotion@origin", 13634827167330816172, 188), ("...promotion@worktree-own", 9263865322777744630, 192)]
+MEASUREMENT after-promote checkout origin=.../worktree-clone-datasets/promotion@origin promoted origin='' moved=[("...promotion@earliest", 722454792545308728, 187), ("...promotion@origin", 5925684245824955526, 188), ("...promotion@worktree-own", 7907649038118831957, 192)]
 ```
 
 So the origin and the older checkout snapshot moved into the promoted clone
@@ -228,7 +238,7 @@ and the checkout became a clone of
 `promotion@origin`.
 The bookmark moved to the promoted clone with the same
 `(guid, createtxg)` tuple,
-`(8754962213508488583, 187)`.
+`(722454792545308728, 187)`.
 
 Controls:
 the reverse promotion restored the snapshot map and the bookmark on
@@ -249,7 +259,7 @@ again,
 and the identity read each time:
 
 ```text
-MEASUREMENT replacement guids before=9098463235742121279 after=5875356479553972135
+MEASUREMENT replacement guids before=14245730535037168358 after=11368344099117093483
 ```
 
 A reused name is a different object.
@@ -317,7 +327,7 @@ clone parent):
   its two own snapshots and the prepared children.
 
 Log:
-`guest-run-8-values/account-suite.log` (7 tests,
+`recorded-run-final-2026-11-19/account-suite.log` (7 tests,
 all passing).
 
 ## The reads: cursor, property sources, reply growth
