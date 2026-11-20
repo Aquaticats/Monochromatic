@@ -75,7 +75,6 @@ async function claimMessage({
   return claimed;
 }
 
-
 /**
  Delivers one claimed inbox message. The claim goes once Pi has it; a refused or unanswered one is kept under a dot name, which
  the watch skips, so it is neither lost nor sent again.
