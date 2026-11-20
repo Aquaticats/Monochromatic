@@ -1288,9 +1288,10 @@ Nothing else ages it out, and no timer touches it.
   topmost-mount check before each call and the transition check after it, the by-name open that reaches the bind for
   the propagation change (F28), and the recorded handle a later sweep opens the folder with (F29).
 - The order inside a removal: write the staged-folder record with the handle, the identity, the namespace pair and
-  the boot id, bind, take the bind descriptor and make it private, move, verify by mount ID with its source and
-  parent, roll the clone back to its slot where the topmost mount is not the bind, unmount the clone, unbind, scan
-  every namespace, write the receipt, then the wrapper's `rmdir` and the record's `unlinkat` after the clear receipt.
+  the boot id, bind, take the bind descriptor and make it private, move, verify that the topmost mount is the clone
+  and that its parent is the bind, roll the clone back to its slot where either fails, unmount the clone, unbind,
+  scan every namespace, write the receipt, then the wrapper's `rmdir` and the record's `unlinkat` after the clear
+  receipt.
 - The wrapper's mount-namespace identity check before any folder removal, comparing `/proc/self/ns/mnt`'s device and
   inode and the boot id with the handler's recorded ones in the staged-folder record, and refusing on a mismatch
   (F11, A1).
