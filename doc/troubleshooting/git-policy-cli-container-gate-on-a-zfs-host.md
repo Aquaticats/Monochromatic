@@ -332,10 +332,11 @@ standing failures, cause E or cause A2, so the gate would still be red at 5.
 
 The knob already exists for this and is documented as such (`FIXTURE_ROOT_VARIABLE` in
 `src/native/testing/test_support.rs`: "Environment variable that moves the fixture root, for example
-onto a tmpfs for speed"). Neither way can be passed through `bin/test-native-container.ts` as it
-stands: the gate accepts only `--memory`, `--cpus` and `--pids-limit` and passes no `--env` and no
-`--tmpfs` to `podman run` (`bin/native-gate-container.ts`, the two `runGateContainer` calls in
-`bin/test-native-container.ts`). So each is a change to the gate, not to the host.
+onto a tmpfs for speed"). Neither way could be passed through `bin/test-native-container.ts` as the
+investigation found it: the gate accepted only `--memory`, `--cpus` and `--pids-limit` and passed no
+`--env` and no `--tmpfs` to `podman run` (`bin/native-gate-container.ts`, the two `runGateContainer`
+calls in `bin/test-native-container.ts`). So each is a change to the gate, not to the host, which is
+what the fix below does.
 
 ### A tmpfs the container makes for itself
 
