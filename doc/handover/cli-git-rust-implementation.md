@@ -40381,7 +40381,12 @@ stated in this entry. What follows from them, as work:
   ("ZFS step 3 makes a worktree add from a dirty checkout slower"). GOING meanwhile: a short review of the round on the
   Qwen plan (watched), `pi-qwen-review-zfs-step-3-sliced-clone-round`, in a detached worktree at `6c72f75b3e`, because
   the sliced clone runs on every reflink filesystem the rung serves; brief under
-  `~/temp/agent/zfs-step-3-sliced-clone-round-short-review-on-the-qwen-plan-2026-11-20/`. STEPS 3 AND 4, HOST HALVES,
+  `~/temp/agent/zfs-step-3-sliced-clone-round-short-review-on-the-qwen-plan-2026-11-20/`. ALSO GOING, since step 2's
+  recipe is in `main`: step 3's guest arm, `pi-zfs-step-3-guest-arm-reflink-and-cross-dataset-controls` (DeepSeek on
+  Neuralwatt, cap 510, wall 330 min) in the step 3 worktree, merging `main` first: the four binary-level controls, the
+  two data-key arms, block cloning on and off, the ZFS gate helper, H1 gate 7, and the disk a clean add saves (which
+  option C waits for); brief under
+  `~/temp/agent/zfs-step-3-guest-arm-reflink-and-cross-dataset-controls-2026-11-20/`. STEPS 3 AND 4, HOST HALVES,
   GOING (the plan's "What can start now" lists both;
   their VM arms wait for step 2's recipe and their merges for the gate fix), each DeepSeek on Neuralwatt, cap 510,
   from `main` `d6e78c9e8b`: `pi-zfs-step-3-reflink-rung-recognition-host-half`
