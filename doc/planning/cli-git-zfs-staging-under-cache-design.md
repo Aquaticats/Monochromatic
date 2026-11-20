@@ -2075,7 +2075,8 @@ the entry says what they add, so the name stays the revision's first commit rath
   `~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/keep/`, read for the staging bind's creation and
   the unmount calls.
 - This host, read-only, 2026-11-19: `findmnt --output TARGET,SOURCE,FSTYPE,PROPAGATION --target /home/user/.cache`,
-  `stat --format '%n %i %U %a' /home/user/.cache`, `stat --format '%n %A %U' /usr/bin/fusermount3 /usr/bin/fusermount`,
+  `findmnt --list --noheadings --output MAJ:MIN,FSTYPE,TARGET`, `stat --format '%n %i %U %a' /home/user/.cache`,
+  `stat --format '%n %A %U' /usr/bin/fusermount3 /usr/bin/fusermount`,
   `rm --help`,
   `zfs list -H -o name,mounted,mountpoint,canmount,com.sun:auto-snapshot zpcachyos/nosnap/user-cache`,
   `zfs get -H -o property,value,source mountpoint,canmount,mounted zpcachyos/nosnap`, and `cat` and `stat` of
