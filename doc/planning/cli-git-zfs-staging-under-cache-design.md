@@ -2,8 +2,8 @@
 
 Non-final, unapproved design proposal by an agent. It is not approved by the project owner and nothing in it is
 final. It designs the open item "Staging under `~/.cache` and the wrapper's cleanup" of the accepted ZFS worktree
-design, and it makes no decision that design did not make. It ran no ZFS command that changes anything, started no
-VM and no container, touched no pool, and edited no other file.
+design, and it makes no decision that design or the project's answers of 2026-11-19 did not make. It ran no ZFS
+command that changes anything, started no VM and no container, touched no pool, and edited no other file.
 
 Every kernel fact here is read at upstream Linux `v6.8`, in the files listed under "Sources read", and every
 OpenZFS fact is read at tag `zfs-2.4.4`. Nothing in this design was measured, on any host or any guest: every
@@ -15,11 +15,12 @@ its first re-check of tip `3972d4bf90`, and the second re-check of tip `a879cd9b
 `~/temp/agent/zfs-staging-under-cache-design-revision-gate-recheck-2026-11-19/keep/` and
 `~/temp/agent/zfs-staging-under-cache-design-second-revision-gate-recheck-2026-11-19/keep/`. No review's finding
 numbers are used here: every reference is to a fact, an assumption, a limit or a measurement arm of this design.
-This round's answers sit where they apply: the folder's name derived on both sides from the clone's dataset GUID in
-"The staging target and who creates it", the durable staged-folder record in A1 and "Proposals the owner may veto",
-the recovery capability in "The unmount call from staging" and M6, the retained states split by cause in F11, L11
-and Q2, the corrected descriptor facts in F14 and F30, and the questions in "Questions for the owner". The
-revision history, with each commit's committer timestamp from `git log --format=%cI`, is under "Revisions".
+The reviews' points stay where they apply: the folder's name derived on both sides from the clone's dataset GUID in
+"The staging target and who creates it", the staged-folder record in A1 and "The staged-folder record", the recovery
+capability in "The unmount call from staging" and M6, the retained states split by cause in F11 and L11, and the
+corrected descriptor facts in F14 and F30. The project's answers of 2026-11-19, and the threat model they state, are
+listed under "Answers of 2026-11-19" and followed throughout. The revision history, with each commit's committer
+timestamp from `git log --format=%cI`, is under "Revisions".
 
 The design is [the decision record][decision], the whole design is [the proposal][proposal], the evidence is
 [the measurement record][measurements], and the build order is [the implementation plan][plan]. The plan lists the
@@ -28,6 +29,46 @@ item as step 9's blocker, "blocking for every unmount", and as writer design wor
 unmounts a staged mount from the held descriptor". Steps 14, 16 and 17 wait on it as well
 ([plan][plan], step 9, "Open items"), and the plan's "What can start now" puts "step 9 and steps 14 to 23" behind
 step 9's design.
+
+## Answers of 2026-11-19
+
+The design put three questions and a list of veto-open proposals to the project, in the question tool between
+`2026-11-19T20:35` and `2026-11-19T20:43:51-05:00`. The record is `doc/handover/cli-git-rust-implementation.md` in
+the main checkout, the paragraph beginning `THE ROUND WAS ASKED`; that paragraph is uncommitted there, so this
+branch's copy of the file does not carry it. The answers, in the project's words:
+
+- Where a clone's mount waits, and who creates the folder: "Private bind per removal (Recommended)". Way A is
+  therefore the design: the wrapper creates one folder per removal, the handler binds it, makes the bind private and
+  moves the clone onto it, and the unbind ends the bind ("The staging target and who creates it", "The private bind",
+  "Ways to meet it").
+- How a later sweep finishes an unmount the handler left behind: "Record the file handle (Recommended)". The handler
+  writes the folder's file handle before the first mount, and a sweep opens the folder from that record and unmounts
+  ("The staged-folder record", "The unmount call from staging", M6).
+- What the handler does when the move lands on a mount the account stacked: "Move it back at once (Recommended)",
+  answered after "What?" to the same question and a second asking in plain words. The handler rolls the exact mount
+  back to its slot by its own descriptor, and keeps it staged only if the rollback fails ("The private bind", M1).
+- The proposals left open to veto: "Veto none (Recommended)", for the `~/.cache` lookup from the pinned UID's passwd
+  home, for the `user-cache` pin, and for the two readings of a `/proc`-path argument, that a `umount2` on it acts on
+  the held descriptor and that a `mount(2)` on it is not path-based. Each is now the design ("Proposals the owner
+  settled").
+- Where the handle record lives: "In ~/.cache". The design had placed it in
+  `/var/lib/monochromatic-git-policy-cli/`; the project asked why a durable root record was needed when it need not
+  survive a reboot, was told that a reboot drops every mount and was offered a per-boot root file in `/run`, asked
+  why not `~/.cache`, was told that any program running as the account could swap a handle there and steer a root
+  unmount, and answered with the sentence that follows.
+
+The threat model that answer states, and that this design now designs to, is the project's own sentence for this
+machine: "We have to assume my machine isn't compromised. sudo is passwordless here anyway." The account is
+trusted, and root and the account are not a security boundary here. Where the design argues about what the account
+could do, it says whether the argument survives that sentence, and "Hardening the stated threat model may make
+unnecessary" lists every check that exists only because a draft of this design assumed otherwise. Those entries are
+suggestions for the project to decide: none is dropped on the strength of the sentence alone.
+
+The design follows every answer, and each place says so: the record's place and name in "The staged-folder
+record", the binding route in "The private bind" and "The unmount call from staging", the rollback in "The private
+bind", the arms in "Owed measurements in a throwaway VM", and the settled proposals in "Proposals the owner
+settled". Where an answer departs from a sentence of the accepted design, that sentence is quoted beside the
+departure: the record as a cache that a sweep could rebuild is the one departure, in "The staged-folder record".
 
 ## The open item and the answer it carries
 
@@ -1017,152 +1058,37 @@ needs M1, M2, M3's propagation arms and its late-mount arm on `~/.cache`, M5, M6
 M8's source arm. Way F needs Way A's arms and M4's renamed arm. No live way needs M9, which exists only to record the
 refused way's failure.
 
-## Questions for the owner
+## Questions the owner answered
 
-The plan calls the item writer design work, so these are the points where a writer would otherwise have to add a
-decision the accepted design did not make, or would have to reverse one. Each question stands alone: it defines the
-words it uses, gives one concrete scene, lists exclusive options with their pros and cons, and ends with one ranking
-statement that gives the reason for every adjacent pair. Each offers at most three options, and no option that the
-design shows to be worse than another in every respect. No answer to one question is needed to answer another.
+No question stands open. The plan calls the item writer design work, so these were the points where a writer would
+otherwise have had to add a decision the accepted design did not make, or reverse one; the three questions and the
+veto list were answered on 2026-11-19, and "Answers of 2026-11-19" lists them with the answers in the project's
+words. What each answer left untaken, in the project's terms:
 
-Three of the ways in "Ways to meet it" are described and ranked there without being offered here. The one boot-made
+- Q1's other two ways. Making `~/.cache` private once at boot would change an existing mount, which the accepted
+  proposal puts outside this work, and letting root create the folder writes into the account's tree, against the
+  proposal's rule on slots. Both stay described under "Ways to meet it" as ways not taken.
+- Q2's other two routes. A boot-long supervisor holding every staged folder open adds a privileged process whose
+  crash returns the removal to the administrator, and waiting for the administrator makes every handler crash leave a
+  worktree unremovable until a person acts.
+- Q3's other two answers. Leaving the clone on the mount the account stacked keeps the dataset busy on a mount the
+  handler did not make, and moving it onto the folder's bind again repeats the step that was interfered with.
+- The one proposal the project did not take as written: the record under
+  `/var/lib/monochromatic-git-policy-cli/`, which now lives in `~/.cache` ("The staged-folder record").
+
+Three ways are described and ranked under "Ways to meet it" without having been offered as a question: the boot-made
 bind around a folder per removal leaves the bind's removal to the boot unit and to an anchor no long-lived process
-keeps, and your sentence names the wrapper as the cleaner. The root-owned empty source protects a folder that holds
-no content and repeats the root-owned shape the project vetoed at `/run/git-worktree-clone-mount-staging`. The
-staging root two levels deep buys one printed path with a renamable ancestor and an adoption rule. A fourth way, the
-namespace teardown, cannot be built at all, because the kernel refuses to move a mount out of another namespace.
-
-### Q1. Where should a clone's mount wait while a process still works inside it?
-
-The scene. You run the removal of the worktree `example-repo/example-clone`. A shell is still open inside it, so the
-clone's mount cannot be unmounted where Git records it. The root handler moves that mount to a folder under
-`~/.cache` named `monochromatic-git-policy-cli-staging-18432541087790441209` after the clone's own dataset
-identifier, and waits for the shell to end. While it waits, `doctor` prints one line:
-
-```text
-staged: example-repo/example-clone at monochromatic-git-policy-cli-staging-..., held by pid 4211
-```
-
-The words this question uses. A mount is a file system made visible at a folder. A bind is a second mount of a
-folder onto itself, which gives the handler a mount of its own to adjust. A private mount is one the kernel copies
-into no other mount namespace, which the mount table shows by printing no `shared:`, `master:` or `unbindable` tag. A
-mount namespace is a process's own view of the mounts, which a process can copy and change without touching
-another's, and the host namespace is the one the machine's services run in. A copy is the same mount as another mount
-namespace holds it, made when the kernel propagates a mount into that namespace. A receipt is the root-owned file the
-handler writes for one removal attempt, naming the outcome. `~/.cache` here is the ZFS dataset the account's cache
-directory is mounted from. The wrapper is the unprivileged command you run. The handler is the root program that does
-the mounting. `doctor` is the read-only health report the wrapper prints.
-
-Each option is a complete design, so this question covers who creates the folder and how long the mount lives at the
-same time: who creates it is what separates the first option from the third, and how long a mount lives is what
-separates the first from the second.
-
-1.  "Bind one folder per removal, and make that bind private (Recommended)": the wrapper creates the folder, the
-    handler binds it, makes the bind private and moves the clone onto it, and the unbind ends the bind.
-    Pros: nothing existing changes; the folder has no renamable ancestor in the host namespace; one removal's
-    failure cannot touch another's folder; a later pass reaches the folder by its recorded file handle, so a rename
-    does not lose it.
-    Cons: a mount transition at each removal; the bind is copied into other mount namespaces when it is made, and a
-    process working inside such a copy makes the unbind refuse; reaching the bind takes one lookup of the folder's
-    name after the bind has covered it; an interrupted removal is finished from the recorded handle, which needs a
-    privilege a hardened unit can remove; every one of these is unmeasured.
-2.  "Make `~/.cache` private once at boot, and put the mount in a plain folder with no bind": the boot unit marks
-    the `~/.cache` mount private, and each removal's folder is plain and carries no bind of its own.
-    Pros: no second mount, so no copy of it in other mount namespaces, no unbind a copy can refuse, and one unmount
-    call on the folder's descriptor; fewer calls and fewer places for the account to interfere.
-    Cons: it changes an existing mount, which the accepted proposal puts outside this work, so only you can accept
-    it; mounts made under `~/.cache` after boot stop reaching sandboxes that already hold a copy (no consumer is
-    named, and nothing was measured); a later unmount and fresh mount of `~/.cache` leaves it shared again, and
-    nothing re-applies the setting yet.
-3.  "Let root create the folder, then bind it": root makes the folder mode `0700` owned by root, records its
-    identity itself, binds it, makes the bind private and moves the clone onto it, and the wrapper removes the
-    folder after the clear receipt; the wrapper creates nothing.
-    Pros: the account cannot plant files in it, and its identity comes from root's own record rather than from a
-    record the account can write.
-    Cons: root writes into the account's tree, which the accepted rule on slots reads against; the account can still
-    remove or rename the folder from its own mount namespace; the wrapper must remove an object it did not create.
-
-Ranking: option one > option two > option three. Option one beats option two because option one changes no existing
-mount and keeps late mounts under `~/.cache` reaching sandboxes, while option two's one saving is the bind, and it
-pays for that with a change the accepted proposal puts outside itself. Option two beats option three because option
-two has no privileged write into the account's tree and no root-owned object under an account-owned parent, and
-option three protects a folder that holds nothing but mounts.
-
-### Q2. How may a later sweep finish an unmount the handler left behind?
-
-The scene. The handler moved the clone's mount to the staging folder and was killed before it unmounted it. The next
-removal of that clone runs a sweep, which needs a way to hold that same folder again, and the first handler's hold
-died with it. `doctor` prints:
-
-```text
-staged, retained: example-repo/example-clone, next safe step: wait for the process to end
-```
-
-The words this question uses. A file handle is a short number pair the file system gives a folder, which survives a
-rename and lets root open the folder again without a name. The privilege to do that is `CAP_DAC_READ_SEARCH`, which
-root holds unless a unit removes it. A descriptor is the open hold a program keeps on a folder. A sweep is a later
-attempt, run for a removal, to finish what an earlier run left. An administrator is the person with root on the
-machine.
-
-1.  "Record the folder's file handle before the first mount, and reopen it later (Recommended)": the handler writes
-    the handle before it binds, and a later sweep opens the folder from it and unmounts.
-    Pros: no new long-lived process; the sweep still acts on a descriptor, never on a name inside the account's tree.
-    Cons: it reads "the held descriptor" in your decision as held again from a recorded handle; it needs that
-    privilege in every unit that runs a handler; unmeasured. If the folder was removed from another mount namespace,
-    the kernel has already detached the mounts at it, and there is nothing to unmount, only holders to end.
-2.  "Keep a root process alive holding every staged folder open": a boot-long supervisor keeps one descriptor per
-    staged folder.
-    Pros: the literal "held descriptor"; no handle and no extra privilege.
-    Cons: a new long-lived privileged process with per-folder state; if it crashes you are in option three.
-3.  "Never finish it by program; wait for the administrator": `doctor` reports, and the removal refuses.
-    Pros: no new reading of your decision and no new privilege.
-    Cons: every handler crash leaves that worktree unremovable until the administrator acts or the machine restarts.
-
-Ranking: option one > option two > option three. Option one beats option two because option one needs no new
-boot-long privileged process to reach the same unmount, and its one cost is a reading of your sentence; option two
-keeps the letter but adds a process whose crash returns you to option three. Option two beats option three because
-option two finishes the unmount without the administrator, while option three makes every crash a blocked removal.
-
-### Q3. If the move lands on something the account stacked, what should the handler do?
-
-The scene. While the handler was preparing the staging folder, the account used its setuid `fusermount3` to mount
-its own file system on that folder in the host namespace. The handler's move then put the clone's mount on top of
-the account's mount. `doctor` prints:
-
-```text
-staged, misplaced: example-repo/example-clone is mounted on a mount the handler did not make
-```
-
-The words this question uses. Stacking is mounting a file system on a folder that already has a mount, so the newer
-mount hides the older one and the older one stays underneath. FUSE is a way for an unprivileged program to provide a
-file system, and `fusermount3` is the setuid helper that attaches one. A descriptor is the open hold a program keeps
-on a folder. The accepted rule for a clone that lands somewhere other than its slot is "Roll back at once", which
-moves the exact mount back by its own descriptor and keeps it only if that fails.
-
-1.  "Roll the clone back to its slot at once, and keep it staged only if that fails (Recommended)": the accepted
-    rule, applied to staging.
-    Pros: it is already your decision for a misplaced attach; it uses only the exact mount by its own descriptor.
-    Cons: the worktree is back at its slot, so the removal that was blocked is blocked again; a second privileged
-    move, unmeasured for a failed rollback.
-2.  "Leave it where it landed and report it": the handler records it and changes nothing.
-    Pros: no second move.
-    Cons: the clone stays mounted on a mount the account controls, and the dataset stays busy until the
-    administrator acts.
-3.  "Move it onto the folder's own bind again": the handler tries the move a second time.
-    Pros: the removal can continue.
-    Cons: it repeats the step the account just interfered with, beside a mount the account is still holding.
-
-Ranking: option one > option two > option three. Option one beats option two because option one follows your own rule
-and ends with the clone where it was safe, while option two leaves it mounted on the account's mount. Option two
-beats option three because option three adds a second privileged move next to a mount the account controls, and
-option two adds none.
+keeps, and the project's sentence names the wrapper as the cleaner; the root-owned empty source protects a folder
+that holds no content and repeats the root-owned shape the project vetoed at `/run/git-worktree-clone-mount-staging`;
+the staging root two levels deep buys one printed path with a renamable ancestor and an adoption rule. A fourth way,
+the namespace teardown, cannot be built at all, because the kernel refuses to move a mount out of another namespace.
 
 ### Not asked, and why
 
 - How long a retained staged mount may stand. The accepted acceptance item already says a retained staged mount is
   tracked and reported, and `doctor` prints the folder's recorded age, so a refusal or a time limit is an addition
-  nobody asked for. It becomes a question only if you want one, with the number it would use.
-- Whether a lazy detach or a path unmount may clear a retained mount. Your decided sentences exclude both, so
+  nobody asked for. It becomes a question only if the project wants one, with the number it would use.
+- Whether a lazy detach or a path unmount may clear a retained mount. The decided sentences exclude both, so
   reversing them is a separate request, not an option inside this design.
 - Whether the namespace teardown may stage a clone. The kernel refuses to move a mount out of the namespace that
   holds it, so this is recorded as a refused design rather than asked.
