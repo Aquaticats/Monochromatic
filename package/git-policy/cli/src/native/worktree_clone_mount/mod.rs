@@ -52,6 +52,7 @@
 //! - `clone_slot_walk.rs`:
 //!   the walk that holds the checkout,
 //!   the `.claude/worktrees` folder and one slot,
+//!   the walk that holds the parent folder for an adoption,
 //!   and the second walk that reads the canonical slot.
 //! - `attach_post_check.rs`:
 //!   whether the mount the attach made is the mount the canonical slot shows.
@@ -135,7 +136,7 @@ pub use attached_mount_identity::{ATTACH_MOUNT_FLAGS, MountIdentity, MountIdenti
 /// Why a walk or an identity compare refused.
 pub use clone_slot_walk_refusals::{CloneSlotRefusal, WalkRefusal, WalkRefusalReason};
 /// The walks and what they hold.
-pub use clone_slot_walk::{FreshSlotLookup, HeldCloneSlot, HoldCloneSlotRequest, LookAgainAtSlotRequest, WORKTREES_PARENT_NAMES, hold_clone_slot, hold_clone_slot_under_root_control, look_again_at_the_slot};
+pub use clone_slot_walk::{FreshSlotLookup, HeldCloneSlot, HeldWorktreesParent, HoldCloneSlotRequest, LookAgainAtSlotRequest, WORKTREES_PARENT_NAMES, hold_clone_slot, hold_clone_slot_under_root_control, hold_the_worktrees_parent, look_again_at_the_slot};
 /// The post-attach check.
 pub use attach_post_check::{AttachOutcome, AttachPostCheck, MisplacedAttach, MisplacedReason, post_attach_check};
 /// The rollback plan and its report.
