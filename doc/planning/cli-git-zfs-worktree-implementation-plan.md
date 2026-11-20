@@ -92,6 +92,12 @@ and the staging design in the entry beginning "Staging under `~/.cache` and the 
 No production kernel request runs before the first two,
 and no unmount runs before the third.
 
+(Amended 2026-11-20,
+once [the start probe design](cli-git-zfs-start-probe-design.md) was accepted ([decision record](../decision/cli-git-zfs-start-probe.md)):
+"no unmount runs before the third" covers the product's mounts only,
+and the probe's own move and unmount arms are built in step 6,
+inside the private namespace and tmpfs the probe makes for itself.)
+
 ## Dependencies and their state
 
 Each entry names whether the design picked the dependency,
@@ -1803,6 +1809,13 @@ stage by stage;
 what expiration,
 removal and the current guard can free;
 and every shipped limit cited beside its measurement.
+
+(Amended 2026-11-20,
+once [the start probe design](cli-git-zfs-start-probe-design.md) was accepted ([decision record](../decision/cli-git-zfs-start-probe.md)):
+"every shipped limit cited beside its measurement",
+and the acceptance text "to size any shipped deadline or optional scan interval",
+cover step 7's mount-request deadline and step 9's unmount deadline;
+the probe's deadline and the account companion's are sized by steps 6 and 10 beside their own runs.)
 
 #### Design sections
 

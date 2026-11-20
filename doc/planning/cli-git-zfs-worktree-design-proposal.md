@@ -614,6 +614,12 @@ The syscall floor is Linux 5.6 for `openat2`; the other mount APIs used here sta
 OpenZFS 2.4.4 ([nested-clone research][nested], "What was checked and how" and item 3). That validates the
 exercised calls on that build, not the mechanism on all kernels at or beyond the syscall floor.
 
+(Amended 2026-11-20,
+once [the start probe design](cli-git-zfs-start-probe-design.md) was accepted ([decision record](../decision/cli-git-zfs-start-probe.md)):
+the managed route's effective floor is Linux 6.6,
+because a kernel that refuses `FSCONFIG_CMD_CREATE_EXCL` leaves the probe's attach arm unexercised,
+and an unexercised arm keeps the managed route blocked.)
+
 The project decided a functional probe at start, answering "Probe at start", against the ranking the question round
 carried, which put an exact allowlist first. The probe's steps, its side effects at start and the way it refuses have
 no design yet ([Open items the decisions leave](#open-items-the-decisions-leave)); the project's answer, "test plus
@@ -1082,6 +1088,11 @@ checkout or built clone route ([pnpm study][pnpm], "Where pnpm writes" and "Offl
 both sibling datasets and each clone by dataset ancestry, not by mount path. Keep the pnpm store in home and
 snapshotted. Use the eight exclusions named in the [planning decision][answers]; the option's label miscounted,
 not its list. A directory can be excluded only once it is its own dataset.
+
+(Amended 2026-11-20,
+once [the start probe design](cli-git-zfs-start-probe-design.md) was accepted ([decision record](../decision/cli-git-zfs-start-probe.md)):
+the probe dataset's own section is a ninth exclusion,
+and plan step 20 writes it.)
 
 ```ini
 # /etc/sanoid/sanoid.conf (affected sections only)
