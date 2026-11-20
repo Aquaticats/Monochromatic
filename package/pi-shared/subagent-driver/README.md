@@ -1111,6 +1111,9 @@ the launcher that builds the session's environment asks it, once, before it make
   a steer command starts nothing,
   so a resting Pi reads it only when another run comes.
   The feed's `sentAs` says which of the two the driver's own read expected.
+  Because every message is a prompt, a message that starts with `/` is run as an extension or skill command
+  whether Pi works or rests (`prompt()` in `dist/core/agent-session.js`);
+  before this, a `steer` sent while Pi worked refused such a message and kept it aside.
   A message is read only while the driver is up:
   with the default idle window of `0` a settled run ends within one look of the folder,
   so a run that must be steered after it settles needs a positive `--idle-seconds`.

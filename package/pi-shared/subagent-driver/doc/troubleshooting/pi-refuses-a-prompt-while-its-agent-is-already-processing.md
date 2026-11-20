@@ -232,11 +232,12 @@ Each was read on 2026-11-19, in the code named.
   (`returnToInbox` in `an-inbox-message-pi-did-not-take.ts`).
   The claim each look makes replaces the one the look before it left
   (`dropEarlierClaimsOf` in that file), so a busy answer on every look adds one entry per message rather than one per
-  look; a claim is kept only where a newer message took the name, so the older one stays readable rather than being
-  replaced or deleted.
+  look; a claim outlives the next look only where a newer message took the name, so the older one stays readable
+  rather than being replaced or deleted.
   A Pi that answers busy to every delivery has the message sent once per look until the run ends.
-  Both are fallbacks for a Pi that refused a delivery naming steering;
-  Pi 1.5.2 cannot, so neither is reached there.
+  The busy answer, and a claim kept because a newer message took the name after it, are fallbacks for a Pi that
+  refused a delivery naming steering; Pi 1.5.2 does not answer busy to such a delivery, so neither is reached there.
+  The compaction refusal named next is reachable on Pi 1.5.2.
   A refusal Pi makes for a reason of its own still keeps the message as `.failed-<name>`.
   A manual compaction or a branch summary refuses a prompt with
   `Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.`
