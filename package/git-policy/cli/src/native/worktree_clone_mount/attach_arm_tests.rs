@@ -281,27 +281,41 @@ const BIND_MOUNT: libc::c_ulong = libc::MS_BIND;
 /// Why:
 ///   Every arm that mounts must leave the folder as it found it even when an assertion panics,
 ///  or the next arm's mount of the same dataset is refused as busy;
-///  the guard also refuses to unmount a mount that is no longer the one it made,
+///  the guard takes down only the mount whose number is the one it recorded,
 ///  so a cleanup can never take down another arm's attach.
+///  The number is read through the path,
+///  because a descriptor opened before the attach keeps naming the mount it was opened on,
+///  and that is also why the arm's post-check reads the landed mount through the path.
 struct MountedClone {
-    /// The mount target,
-    /// held open so the unmount acts on the descriptor rather than on a path.
-    target: std::fs::File,
+    /// Where the mount landed.
+    path: PathBuf,
     /// The kernel's number for the mount this guard made.
     mount_id: u64,
 }
 
 impl Drop for MountedClone {
     fn drop(&mut self) {
-        let Ok(current) = mount_id_of(&self.target) else { return };
-        if current != self.mount_id {
-            eprintln!("the mount this guard made is gone and mount {current} stands at the target now, so it is left alone");
+        if mount_id_at(self.path.as_path()) != Some(self.mount_id) {
+            eprintln!("the mount this guard made is gone and another mount stands at {}, so it is left alone", self.path.display());
             return;
         }
-        if let Err(error) = unmount_through(&self.target) {
+        if let Err(error) = unmount_at(self.path.as_path()) {
             eprintln!("the mount this guard made could not be taken down: {error}");
         }
     }
+}
+
+/// The mount number a path resolves to now,
+/// or nothing when the path cannot be opened.
+fn mount_id_at(path: &Path) -> Option<u64> {
+    let opened: std::fs::File = std::fs::File::open(path).ok()?;
+    return mount_id_of(&opened).ok();
+}
+
+/// Take the mount at `path` under a guard that removes it however the control ends.
+fn guard_the_mount(path: &Path) -> MountedClone {
+    let mount_id: u64 = mount_id_at(path).expect("the mount the control made is there");
+    return MountedClone { path: path.to_path_buf(), mount_id };
 }
 
 /// What:
@@ -322,25 +336,29 @@ fn a_mount_of(clone: &str, flags: libc::c_ulong) -> Result<libc::c_int, String> 
         return Err(format!("fsopen {ZFS_FILE_SYSTEM_TYPE}: {}", std::io::Error::last_os_error()));
     }
     // SAFETY: the descriptor and both strings outlive each call, which reads them and returns a number.
-    let configured: libc::c_int = unsafe {
-        let set: libc::c_int = libc::syscall(libc::SYS_fsconfig, context, FSCONFIG_SET_STRING, source_name.as_ptr(), source_value.as_ptr(), 0) as libc::c_int;
-        if set < 0 {
-            libc::close(context);
-            return Err(format!("fsconfig {SOURCE_OPTION}={clone}: {}", std::io::Error::last_os_error()));
-        }
-        libc::syscall(libc::SYS_fsconfig, context, FSCONFIG_CMD_CREATE, std::ptr::null::<libc::c_char>(), std::ptr::null::<libc::c_char>(), 0) as libc::c_int
-    };
-    // SAFETY: the context descriptor is this function's own and is closed exactly once.
-    unsafe { libc::close(context) };
-    if configured < 0 {
-        return Err(format!("fsconfig FSCONFIG_CMD_CREATE {clone}: {}", std::io::Error::last_os_error()));
+    let set: libc::c_int = unsafe { libc::syscall(libc::SYS_fsconfig, context, FSCONFIG_SET_STRING, source_name.as_ptr(), source_value.as_ptr(), 0) as libc::c_int };
+    if set < 0 {
+        let said: std::io::Error = std::io::Error::last_os_error();
+        // SAFETY: the context descriptor is this function's own and is closed exactly once.
+        unsafe { libc::close(context) };
+        return Err(format!("fsconfig {SOURCE_OPTION}={clone}: {said}"));
     }
-    // SAFETY: the context descriptor is this function's own; `fsmount` reads it and returns a new descriptor.
-    let mount: libc::c_int = unsafe { libc::syscall(libc::SYS_fsmount, configured, FSMOUNT_CLOEXEC, u32::try_from(flags).expect("the flags fit a word")) as libc::c_int };
+    // SAFETY: the context descriptor is this function's own and `fsconfig` reads it and no other pointer.
+    let created: libc::c_int = unsafe { libc::syscall(libc::SYS_fsconfig, context, FSCONFIG_CMD_CREATE, std::ptr::null::<libc::c_char>(), std::ptr::null::<libc::c_char>(), 0) as libc::c_int };
+    if created < 0 {
+        let said: std::io::Error = std::io::Error::last_os_error();
+        // SAFETY: the context descriptor is this function's own and is closed exactly once.
+        unsafe { libc::close(context) };
+        return Err(format!("fsconfig FSCONFIG_CMD_CREATE {clone}: {said}"));
+    }
+    // SAFETY: the context descriptor is this function's own, which is the descriptor `fsmount` makes the mount from;
+    // the error is read before the descriptor is closed so the number is the call's own.
+    let mount: libc::c_int = unsafe { libc::syscall(libc::SYS_fsmount, context, FSMOUNT_CLOEXEC, u32::try_from(flags).expect("the flags fit a word")) as libc::c_int };
+    let mount_error: std::io::Error = std::io::Error::last_os_error();
     // SAFETY: the context descriptor is closed exactly once, after the mount call read it.
-    unsafe { libc::close(configured) };
+    unsafe { libc::close(context) };
     if mount < 0 {
-        return Err(format!("fsmount {clone}: {}", std::io::Error::last_os_error()));
+        return Err(format!("fsmount {clone}: {mount_error}"));
     }
     return Ok(mount);
 }
@@ -352,7 +370,7 @@ fn a_mount_of(clone: &str, flags: libc::c_ulong) -> Result<libc::c_int, String> 
 ///   The host's tests cannot mount,
 ///  so these arms run the primitive itself and then judge it with the module's own reads;
 ///  the production copy of these calls is step 5's binary.
-fn attach_the_clone(clone: &str, target: &std::fs::File, flags: libc::c_ulong) -> Result<MountedClone, String> {
+fn attach_the_clone(clone: &str, target: &std::fs::File, flags: libc::c_ulong) -> Result<(), String> {
     let mount: libc::c_int = a_mount_of(clone, flags)?;
     let empty: CString = CString::new("").expect("no NUL in an empty path");
     // SAFETY: the mount descriptor and the target descriptor are open, and the two empty paths are the
@@ -365,8 +383,7 @@ fn attach_the_clone(clone: &str, target: &std::fs::File, flags: libc::c_ulong) -
     if moved < 0 {
         return Err(format!("move_mount {clone} onto a descriptor: {}", std::io::Error::last_os_error()));
     }
-    let mount_id: u64 = mount_id_of(target).map_err(|error| return format!("the mount's own number: {error}"))?;
-    return Ok(MountedClone { target: target.try_clone().expect("the target is duplicated"), mount_id });
+    return Ok(());
 }
 
 /// What:
@@ -376,7 +393,7 @@ fn attach_the_clone(clone: &str, target: &std::fs::File, flags: libc::c_ulong) -
 ///   A mount moved onto a path can land wherever that path names,
 ///  while the walk that passed judged another folder;
 ///  the control needs exactly that difference from `attach_the_clone`.
-fn attach_the_clone_by_path(clone: &str, target: &Path, flags: libc::c_ulong) -> Result<u64, String> {
+fn attach_the_clone_by_path(clone: &str, target: &Path, flags: libc::c_ulong) -> Result<(), String> {
     let mount: libc::c_int = a_mount_of(clone, flags)?;
     let empty: CString = CString::new("").expect("no NUL in an empty path");
     let named: CString = CString::new(target.as_os_str().as_bytes()).expect("no NUL in a fixture path");
@@ -388,8 +405,7 @@ fn attach_the_clone_by_path(clone: &str, target: &Path, flags: libc::c_ulong) ->
     if moved < 0 {
         return Err(format!("move_mount {clone} onto a path: {}", std::io::Error::last_os_error()));
     }
-    let opened: std::fs::File = std::fs::File::open(target).map_err(|error| return error.to_string())?;
-    return mount_id_of(&opened).map_err(|error| return error.to_string());
+    return Ok(());
 }
 
 /// What:
@@ -447,9 +463,10 @@ fn unmount_at(target: &Path) -> Result<(), String> {
 /// Why:
 ///   "Leaves existing mounts alone" is a claim about other mounts,
 ///  so it is read after every refusal rather than once at the end.
-fn assert_the_beside_mount_is_alone(beside: &HeldCloneSlot, mount: &MountedClone, refusal: &CloneSlotRefusal) {
-    assert_eq!(mount_id_of(&beside.target).expect("the beside mount"), mount.mount_id, "the beside mount is untouched by: {}", refusal.message());
-    let facts: MountFacts = facts_at(&beside.target);
+fn assert_the_beside_mount_is_alone(slot: &Path, mount: &MountedClone, refusal: &CloneSlotRefusal) {
+    assert_eq!(mount_id_at(slot), Some(mount.mount_id), "the beside mount is untouched by: {}", refusal.message());
+    let opened: std::fs::File = std::fs::File::open(slot).expect("the beside slot opens");
+    let facts: MountFacts = facts_at(&opened);
     assert_eq!(facts.mount_id, mount.mount_id, "the mount table still lists the beside mount after: {}", refusal.message());
 }
 
@@ -472,13 +489,15 @@ fn attach_arm_the_clone_lands_at_the_held_slot_with_the_enforced_flags() {
     let Some(guest) = in_the_guest("worktree_clone_mount::attach_arm_tests::attach_arm_the_clone_lands_at_the_held_slot_with_the_enforced_flags") else { return };
     let arm: AttachArm = AttachArm::build(&guest, "lands", &[THE_SLOT]);
     let held: HeldCloneSlot = arm.hold(THE_SLOT).expect("the slot is the recorded folder");
-    let mounted: MountedClone = attach_the_clone(guest.clone.as_str(), &held.target, ATTACH_MOUNT_FLAGS).expect("the clone mounts at the held slot");
-    let facts: MountFacts = facts_at(&held.target);
+    attach_the_clone(guest.clone.as_str(), &held.target, ATTACH_MOUNT_FLAGS).expect("the clone mounts at the held slot");
+    let mounted: MountedClone = guard_the_mount(held.canonical_slot.as_path());
+    let landed: std::fs::File = std::fs::File::open(held.canonical_slot.as_path()).expect("the slot opens after the attach");
+    let facts: MountFacts = facts_at(&landed);
     assert_eq!(facts.mount_point, held.canonical_slot, "the kernel lists the mount at the canonical slot");
     assert_eq!(facts.source, guest.clone, "the mount's source is the clone's dataset");
     assert!(facts.mount_options.iter().any(|option| return option == "nosuid"), "the mount carries nosuid: {:?}", facts.mount_options);
     assert!(facts.mount_options.iter().any(|option| return option == "nodev"), "the mount carries nodev: {:?}", facts.mount_options);
-    let attached: MountIdentity = mount_identity_of(&held.target).expect("the mounted folder's identity");
+    let attached: MountIdentity = mount_identity_of(&landed).expect("the landed folder's identity");
     let check: AttachPostCheck<'_> = AttachPostCheck {
         held_parent_identity: &held.parent_identity,
         held_parent_mount_id: mount_id_of(&held.parent).expect("the parent's mount"),
@@ -497,8 +516,12 @@ fn attach_arm_the_clone_lands_at_the_held_slot_with_the_enforced_flags() {
         held.canonical_slot.display(),
         facts.mount_options.join(",")
     );
+    // An open descriptor inside the mount keeps it busy, so it is closed before the guard takes the mount down.
+    drop(landed);
     drop(mounted);
-    assert_eq!(facts_at(&held.target).filesystem_type, ZFS_FILE_SYSTEM_TYPE, "the slot is on its checkout dataset again");
+    let bare: MountFacts = facts_at(&std::fs::File::open(held.canonical_slot.as_path()).expect("the slot opens after the unmount"));
+    assert_eq!(bare.filesystem_type, ZFS_FILE_SYSTEM_TYPE, "the slot is on its checkout dataset again");
+    assert_ne!(bare.source, guest.clone, "the clone's dataset is no longer what the slot holds: {}", bare.source);
     arm.remove();
 }
 
@@ -517,7 +540,8 @@ fn attach_arm_the_setuid_probe_keeps_the_account_under_the_enforced_flags() {
     let arm: AttachArm = AttachArm::build(&guest, "setuid", &[THE_SLOT]);
     let held: HeldCloneSlot = arm.hold(THE_SLOT).expect("the slot is the recorded folder");
     let probe: String = held.canonical_slot.join("setuid-probe").display().to_string();
-    let unrestricted: MountedClone = attach_the_clone(guest.clone.as_str(), &held.target, 0).expect("the clone mounts at the held slot without a flag");
+    attach_the_clone(guest.clone.as_str(), &held.target, 0).expect("the clone mounts at the held slot without a flag");
+    let unrestricted: MountedClone = guard_the_mount(held.canonical_slot.as_path());
     std::fs::copy("/usr/bin/id", &probe).expect("the probe is copied onto the clone");
     std::os::unix::fs::chown(Path::new(&probe), Some(0), Some(0)).expect("the probe is root's");
     std::fs::set_permissions(Path::new(&probe), std::fs::Permissions::from_mode(0o4755)).expect("the probe is setuid and executable");
@@ -527,8 +551,9 @@ fn attach_arm_the_setuid_probe_keeps_the_account_under_the_enforced_flags() {
     let real: Output = as_the_account(guest.account.as_str(), &[probe.as_str(), "--real", "--user"]);
     assert_eq!(said(&real), guest.uid.to_string(), "the probe's real user is the account");
     drop(unrestricted);
-    let restricted: MountedClone = attach_the_clone(guest.clone.as_str(), &held.target, ATTACH_MOUNT_FLAGS).expect("the clone mounts at the held slot again");
-    let facts: MountFacts = facts_at(&held.target);
+    attach_the_clone(guest.clone.as_str(), &held.target, ATTACH_MOUNT_FLAGS).expect("the clone mounts at the held slot again");
+    let restricted: MountedClone = guard_the_mount(held.canonical_slot.as_path());
+    let facts: MountFacts = facts_at(&std::fs::File::open(held.canonical_slot.as_path()).expect("the slot opens after the attach"));
     assert!(facts.mount_options.iter().any(|option| return option == "nosuid"), "the restricted mount carries nosuid: {:?}", facts.mount_options);
     assert!(facts.mount_options.iter().any(|option| return option == "nodev"), "the restricted mount carries nodev: {:?}", facts.mount_options);
     let kept: Output = as_the_account(guest.account.as_str(), &[probe.as_str(), "--user"]);
@@ -561,7 +586,8 @@ fn attach_arm_each_refusal_names_its_component_and_leaves_the_beside_mount_alone
     names.extend(REFUSAL_SLOTS);
     let arm: AttachArm = AttachArm::build(&guest, "refusals", names.as_slice());
     let beside: HeldCloneSlot = arm.hold(THE_BESIDE_SLOT).expect("the beside slot is recorded");
-    let beside_mount: MountedClone = attach_the_clone(guest.beside.as_str(), &beside.target, ATTACH_MOUNT_FLAGS).expect("the second clone mounts at its slot");
+    attach_the_clone(guest.beside.as_str(), &beside.target, ATTACH_MOUNT_FLAGS).expect("the second clone mounts at its slot");
+    let beside_mount: MountedClone = guard_the_mount(arm.slot(THE_BESIDE_SLOT).as_path());
     let mut refused: usize = 0;
 
     // A link at `.claude`, at `.claude/worktrees` and at a slot, each made by the account.
@@ -577,7 +603,7 @@ fn attach_arm_each_refusal_names_its_component_and_leaves_the_beside_mount_alone
         assert!(matches!(refusal, CloneSlotRefusal::Walk(ref walk) if walk.reason == WalkRefusalReason::LinkInTheWay), "{refusal:?}");
         assert!(refusal.message().contains(relative), "the component is named: {}", refusal.message());
         assert!(refusal.message().contains("never follows a link"), "the cause is named: {}", refusal.message());
-        assert_the_beside_mount_is_alone(&beside, &beside_mount, &refusal);
+        assert_the_beside_mount_is_alone(arm.slot(THE_BESIDE_SLOT).as_path(), &beside_mount, &refusal);
         refused += 1;
         let removed: Output = as_the_account(guest.account.as_str(), &["rm", "--force", held_path.display().to_string().as_str()]);
         assert!(removed.status.success(), "the link is removed: {}", String::from_utf8_lossy(removed.stderr.as_slice()));
@@ -591,12 +617,13 @@ fn attach_arm_each_refusal_names_its_component_and_leaves_the_beside_mount_alone
     let planted_path: PathBuf = arm.checkout.join("planted-elsewhere");
     let planted: Output = as_the_account(guest.account.as_str(), &["ln", "--symbolic", decoy_folder.display().to_string().as_str(), planted_path.display().to_string().as_str()]);
     assert!(planted.status.success(), "the account makes the link elsewhere: {}", String::from_utf8_lossy(planted.stderr.as_slice()));
+    std::fs::remove_dir(arm.slot("planted-link")).expect("the recorded slot folder makes way for the link");
     let renamed: Output = as_the_account(guest.account.as_str(), &["mv", planted_path.display().to_string().as_str(), arm.slot("planted-link").display().to_string().as_str()]);
     assert!(renamed.status.success(), "the account renames the link into the slot: {}", String::from_utf8_lossy(renamed.stderr.as_slice()));
     let planted_refusal: CloneSlotRefusal = arm.hold("planted-link").expect_err("a link renamed into the slot is refused");
     assert!(matches!(planted_refusal, CloneSlotRefusal::Walk(ref walk) if walk.reason == WalkRefusalReason::LinkInTheWay), "{planted_refusal:?}");
     assert!(planted_refusal.message().contains(".claude/worktrees/planted-link"), "the slot is named: {}", planted_refusal.message());
-    assert_the_beside_mount_is_alone(&beside, &beside_mount, &planted_refusal);
+    assert_the_beside_mount_is_alone(arm.slot(THE_BESIDE_SLOT).as_path(), &beside_mount, &planted_refusal);
     refused += 1;
     std::fs::remove_file(arm.slot("planted-link")).expect("the planted link is removed");
     let empty: Output = as_the_account(guest.account.as_str(), &["mkdir", "--parents", arm.slot("planted-link").display().to_string().as_str()]);
@@ -608,19 +635,24 @@ fn attach_arm_each_refusal_names_its_component_and_leaves_the_beside_mount_alone
     let boundary_refusal: CloneSlotRefusal = arm.hold("boundary").expect_err("a mount at the slot is not crossed");
     assert!(matches!(boundary_refusal, CloneSlotRefusal::Walk(ref walk) if walk.reason == WalkRefusalReason::BoundaryCrossed), "{boundary_refusal:?}");
     assert!(boundary_refusal.message().contains("boundary"), "the slot is named: {}", boundary_refusal.message());
-    assert_the_beside_mount_is_alone(&beside, &beside_mount, &boundary_refusal);
+    assert_the_beside_mount_is_alone(arm.slot(THE_BESIDE_SLOT).as_path(), &beside_mount, &boundary_refusal);
     refused += 1;
     unmount_at(boundary.as_path()).expect("the control takes its own bind mount down");
 
     // A replacement slot with the same owner and mode: the inode field is what moved.
     let new_inode: PathBuf = arm.slot("new-inode");
+    // The replacement is made while the recorded folder still exists, so its inode is one the record cannot hold:
+    // a folder made after the removal may be handed the number the removal freed.
+    let replacement: PathBuf = arm.checkout.join("new-inode-replacement");
+    let prepared: Output = as_the_account(guest.account.as_str(), &["mkdir", replacement.display().to_string().as_str()]);
+    assert!(prepared.status.success(), "the account makes the replacement folder: {}", String::from_utf8_lossy(prepared.stderr.as_slice()));
     std::fs::remove_dir(&new_inode).expect("the recorded slot is removed");
-    let replaced: Output = as_the_account(guest.account.as_str(), &["mkdir", new_inode.display().to_string().as_str()]);
+    let replaced: Output = as_the_account(guest.account.as_str(), &["mv", replacement.display().to_string().as_str(), new_inode.display().to_string().as_str()]);
     assert!(replaced.status.success(), "the account makes a replacement folder at the slot: {}", String::from_utf8_lossy(replaced.stderr.as_slice()));
     let inode_refusal: CloneSlotRefusal = arm.hold("new-inode").expect_err("a replacement folder is not the recorded one");
     assert!(matches!(inode_refusal, CloneSlotRefusal::SlotIdentity { .. }), "{inode_refusal:?}");
     assert!(inode_refusal.message().contains("inode"), "the field is named: {}", inode_refusal.message());
-    assert_the_beside_mount_is_alone(&beside, &beside_mount, &inode_refusal);
+    assert_the_beside_mount_is_alone(arm.slot(THE_BESIDE_SLOT).as_path(), &beside_mount, &inode_refusal);
     refused += 1;
 
     // The owner, the mode, the access ACL and the default ACL, each changed on its own.
@@ -628,23 +660,30 @@ fn attach_arm_each_refusal_names_its_component_and_leaves_the_beside_mount_alone
     std::os::unix::fs::chown(&wrong_owner, Some(guest.uid + 1), None).expect("another owner stands on the slot");
     let owner_refusal: CloneSlotRefusal = arm.hold("wrong-owner").expect_err("another owner is not the recorded one");
     assert!(owner_refusal.message().contains("owner"), "the field is named: {}", owner_refusal.message());
-    assert_the_beside_mount_is_alone(&beside, &beside_mount, &owner_refusal);
+    assert_the_beside_mount_is_alone(arm.slot(THE_BESIDE_SLOT).as_path(), &beside_mount, &owner_refusal);
     refused += 1;
     let widened: PathBuf = arm.slot("widened-mode");
     std::fs::set_permissions(&widened, std::fs::Permissions::from_mode(0o775)).expect("a wider mode stands on the slot");
     let mode_refusal: CloneSlotRefusal = arm.hold("widened-mode").expect_err("a wider mode is not the recorded one");
     assert!(mode_refusal.message().contains("mode"), "the field is named: {}", mode_refusal.message());
-    assert_the_beside_mount_is_alone(&beside, &beside_mount, &mode_refusal);
+    assert_the_beside_mount_is_alone(arm.slot(THE_BESIDE_SLOT).as_path(), &beside_mount, &mode_refusal);
     refused += 1;
-    let acls: [(&str, &str, &str); 2] = [("access-acl", "access ACL", "--modify"), ("default-acl", "default ACL", "--default")];
-    for (slot, field, option) in acls {
+    // The access arm changes the access ACL; the default arm changes the default one, which setfacl wants both words for.
+    let acls: [(&str, &str, &[&str]); 2] = [("access-acl", "access ACL", &["--modify"]), ("default-acl", "default ACL", &["--default", "--modify"])];
+    let acl_text: &str = "u:nobody:r-x";
+    for (slot, field, acl_options) in acls {
         let path: PathBuf = arm.slot(slot);
-        let set: Output = as_the_account(guest.account.as_str(), &["setfacl", option, "--modify", "u:nobody:r-x", path.display().to_string().as_str()]);
+        let slot_path: String = path.display().to_string();
+        let mut arguments: Vec<&str> = vec!["setfacl"];
+        arguments.extend_from_slice(acl_options);
+        arguments.push(acl_text);
+        arguments.push(slot_path.as_str());
+        let set: Output = as_the_account(guest.account.as_str(), arguments.as_slice());
         assert!(set.status.success(), "the account sets the {field} on the slot: {}", String::from_utf8_lossy(set.stderr.as_slice()));
         let acl_refusal: CloneSlotRefusal = arm.hold(slot).expect_err("a changed ACL is not the recorded one");
         assert!(matches!(acl_refusal, CloneSlotRefusal::SlotIdentity { .. }), "{acl_refusal:?}");
         assert!(acl_refusal.message().contains(field), "the field is named: {}", acl_refusal.message());
-        assert_the_beside_mount_is_alone(&beside, &beside_mount, &acl_refusal);
+        assert_the_beside_mount_is_alone(arm.slot(THE_BESIDE_SLOT).as_path(), &beside_mount, &acl_refusal);
         refused += 1;
     }
 
@@ -652,7 +691,7 @@ fn attach_arm_each_refusal_names_its_component_and_leaves_the_beside_mount_alone
     let name_refusal: CloneSlotRefusal = arm.hold("..").expect_err("a parent escape is no slot name");
     assert!(matches!(name_refusal, CloneSlotRefusal::Walk(ref walk) if walk.reason == WalkRefusalReason::NotAPlainName), "{name_refusal:?}");
     assert!(name_refusal.message().contains(".."), "the input is named: {}", name_refusal.message());
-    assert_the_beside_mount_is_alone(&beside, &beside_mount, &name_refusal);
+    assert_the_beside_mount_is_alone(arm.slot(THE_BESIDE_SLOT).as_path(), &beside_mount, &name_refusal);
     refused += 1;
 
     assert_eq!(refused, REFUSAL_ARMS, "every refusal arm ran");
@@ -685,8 +724,10 @@ fn attach_arm_a_rename_after_the_walk_is_reported_misplaced_and_rolled_back() {
         let elsewhere: PathBuf = arm.checkout.join(format!(".claude-{trial}"));
         let renamed: Output = as_the_account(guest.account.as_str(), &["mv", claude.display().to_string().as_str(), elsewhere.display().to_string().as_str()]);
         assert!(renamed.status.success(), "the account renames `.claude` after the walk: {}", String::from_utf8_lossy(renamed.stderr.as_slice()));
-        let mounted: MountedClone = attach_the_clone(guest.clone.as_str(), &held.target, ATTACH_MOUNT_FLAGS).expect("the clone mounts at the folder the walk held");
-        let attached: MountIdentity = mount_identity_of(&held.target).expect("the mounted folder's identity");
+        let landed: PathBuf = elsewhere.join("worktrees").join(THE_SLOT);
+        attach_the_clone(guest.clone.as_str(), &held.target, ATTACH_MOUNT_FLAGS).expect("the clone mounts at the folder the walk held");
+        let mounted: MountedClone = guard_the_mount(landed.as_path());
+        let attached: MountIdentity = mount_identity_of(&std::fs::File::open(landed.as_path()).expect("the landed folder opens")).expect("the landed folder's identity");
         let parent_mount: u64 = mount_id_of(&held.parent).expect("the parent's mount");
         let check: AttachPostCheck<'_> = AttachPostCheck {
             held_parent_identity: &held.parent_identity,
@@ -698,12 +739,12 @@ fn attach_arm_a_rename_after_the_walk_is_reported_misplaced_and_rolled_back() {
         let fresh = look_again_at_the_slot(&LookAgainAtSlotRequest { checkout: arm.checkout.as_path(), slot: THE_SLOT });
         let outcome: AttachOutcome = post_attach_check(&check, fresh).expect("the mount table reads");
         let AttachOutcome::Misplaced(misplaced) = outcome else { panic!("the {trial} rename trial is reported at its slot: {outcome:?}") };
-        assert!(misplaced.reason.message().contains(".claude/worktrees"), "the reason names the slot's folder: {}", misplaced.reason.message());
+        assert!(misplaced.reason.message().contains(".claude"), "the reason names the folder the walk stopped at: {}", misplaced.reason.message());
         let plan: RollbackPlan = plan_rollback(&misplaced, held.target.try_clone().expect("the target is duplicated"), parent_mount).expect("the mount is one the attach made");
         assert_eq!(plan.attached_mount_id, mounted.mount_id, "the plan carries the mount the attach recorded");
         assert!(plan.mounted_at.ends_with(format!(".claude-{trial}/worktrees/{THE_SLOT}")), "the plan names where the mount landed: {}", plan.mounted_at.display());
         unmount_through(&plan.target).expect("the rollback takes the mount down through the descriptor");
-        assert_eq!(mount_id_of(&held.target).expect("the folder's mount"), parent_mount, "the folder the mount landed on is on its own mount again");
+        assert_eq!(mount_id_at(plan.mounted_at.as_path()), Some(parent_mount), "the folder the mount landed on is on its own mount again");
         drop(mounted);
         let restored: Output = as_the_account(guest.account.as_str(), &["mv", elsewhere.display().to_string().as_str(), claude.display().to_string().as_str()]);
         assert!(restored.status.success(), "the account puts `.claude` back: {}", String::from_utf8_lossy(restored.stderr.as_slice()));
@@ -730,7 +771,9 @@ fn attach_arm_a_path_mount_onto_a_decoy_is_seen_away_from_the_checked_slot() {
     let checked: HeldCloneSlot = arm.hold(THE_SLOT).expect("the checked slot is the recorded folder");
     let checked_mount: u64 = mount_id_of(&checked.target).expect("the checked slot's mount");
     let decoy: PathBuf = arm.slot("decoy");
-    let decoy_mount: u64 = attach_the_clone_by_path(guest.beside.as_str(), decoy.as_path(), ATTACH_MOUNT_FLAGS).expect("the clone mounts at the decoy's path");
+    attach_the_clone_by_path(guest.beside.as_str(), decoy.as_path(), ATTACH_MOUNT_FLAGS).expect("the clone mounts at the decoy's path");
+    let decoy_mount: u64 = mount_id_at(decoy.as_path()).expect("the decoy's mount");
+    let decoy_guard: MountedClone = guard_the_mount(decoy.as_path());
     let decoy_file: std::fs::File = std::fs::File::open(&decoy).expect("the decoy opens");
     let seen: MountFacts = facts_at(&decoy_file);
     assert_ne!(decoy_mount, checked_mount, "the harness reads another mount at the decoy than at the checked slot");
@@ -743,7 +786,9 @@ fn attach_arm_a_path_mount_onto_a_decoy_is_seen_away_from_the_checked_slot() {
         "MEASUREMENT attach-arm decoy mount={decoy_mount} at={} checked-slot-mount={checked_mount}",
         seen.mount_point.display()
     );
+    drop(decoy_file);
     unmount_at(decoy.as_path()).expect("the control takes its own path mount down");
+    drop(decoy_guard);
     arm.remove();
 }
 

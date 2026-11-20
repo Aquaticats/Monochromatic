@@ -556,12 +556,14 @@ const STEP4_OPENZFS = `LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib PATH=/root/.cargo/b
 
 /**
  The environment the attach arms read inside the guest.
+ The fixture root is the `checkout` dataset's mountpoint, so every arm's checkout and slot stands on the pool the way
+ the measurements' fixture did.
  The guest variable is what lets an arm mount at all: on any other machine each arm prints its `SKIP` line and returns,
  and the suite step refuses to count such a line as a pass.
  */
 function step4Environment(options: Options): string {
   return `MONOCHROMATIC_ZFS_ATTACH_ARM_GUEST=${options.name} ` +
-    `MONOCHROMATIC_ZFS_ATTACH_ARM_ROOT=${STEP4_FIXTURE_ROOT} ` +
+    `MONOCHROMATIC_ZFS_ATTACH_ARM_ROOT=${STEP4_FIXTURE_ROOT}/checkout ` +
     `MONOCHROMATIC_ZFS_ATTACH_ARM_ACCOUNT=${ACCOUNT} ` +
     `MONOCHROMATIC_ZFS_ATTACH_ARM_CLONE=${STEP4_CLONE} ` +
     `MONOCHROMATIC_ZFS_ATTACH_ARM_CLONE_BESIDE=${STEP4_BESIDE_CLONE}`;
@@ -573,6 +575,8 @@ function step4Environment(options: Options): string {
  the checkout dataset the arms' checkouts stand on,
  an empty snapshot of it,
  and two unmounted clones the arms mount at a slot.
+ `acltime=posixacl` is set because the identities the arms record include the access and default ACLs,
+ and a dataset that stores no POSIX ACL refuses the change the item 2 arm plants.
  The clones are legacy mountpoints, so ZFS never mounts them by itself, and no `canmount=off` is set, because that
  property is userspace's own refusal and would leave the kernel's mount the arms exercise untested.
  */
@@ -587,7 +591,7 @@ function step4Pool(options: Options): void {
     `rm --force ${STEP4_FIXTURE_ROOT}/pool.img ${STEP4_FIXTURE_ROOT}/raw-key`,
     `truncate --size 1G ${STEP4_FIXTURE_ROOT}/pool.img`,
     `head --bytes 32 /dev/urandom > ${STEP4_FIXTURE_ROOT}/raw-key`,
-    `zpool create -o cachefile=none -O mountpoint=none -O encryption=aes-256-gcm -O keyformat=raw -O keylocation=file://${STEP4_FIXTURE_ROOT}/raw-key -O recordsize=32K -O compression=zstd-3 ${STEP4_POOL} ${STEP4_FIXTURE_ROOT}/pool.img`,
+    `zpool create -o cachefile=none -O mountpoint=none -O encryption=aes-256-gcm -O keyformat=raw -O keylocation=file://${STEP4_FIXTURE_ROOT}/raw-key -O recordsize=32K -O compression=zstd-3 -O acltype=posixacl ${STEP4_POOL} ${STEP4_FIXTURE_ROOT}/pool.img`,
     `zfs create -o mountpoint=${STEP4_FIXTURE_ROOT}/checkout ${STEP4_POOL}/checkout`,
     `zfs snapshot ${STEP4_CLONE_SNAPSHOT}`,
     `zfs clone -o mountpoint=legacy ${STEP4_CLONE_SNAPSHOT} ${STEP4_CLONE}`,
