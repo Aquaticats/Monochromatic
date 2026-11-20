@@ -1021,11 +1021,13 @@ namespace setup answers:
   (`security/selinux/hooks.c:4734` to `:4739`, `security/selinux/avc.c:1188`) and AppArmor's `apparmor_userns_create`
   (`security/apparmor/lsm.c:1050`) reaching `aa_check_perms` (`security/apparmor/task.c:374` to `:394`, its denial at
   `security/apparmor/lib.c:440`).
-- The first mapping write answering `EPERM`: `map_write` checks `file_ns_capable(file, map_ns, CAP_SYS_ADMIN)`
+- The first mapping write answering `EPERM`, where the line is the one this design builds: `map_write` checks
+  `file_ns_capable(file, map_ns, CAP_SYS_ADMIN)`
   (`kernel/user_namespace.c:986`) through `security_capable` (`kernel/capability.c:450` to `:458`), which
   AppArmor's `apparmor_capable` (`security/apparmor/lsm.c:198` to `:210`) answers under Ubuntu 24.04's default
-  profile. That check runs before the line is parsed, so this errno is the host denying the capability, not a
-  malformed line.
+  profile. That check runs before the line is parsed and before the permission check `new_idmap_permitted` makes
+  (`:1054`), so with a line of the one extent this design builds, mapping the account's own effective id, this
+  errno is the host denying the capability rather than the companion's line.
 - `unshare(CLONE_NEWNS)` answering `EPERM`: `unshare_nsproxy_namespaces` requires `CAP_SYS_ADMIN` in the caller's
   user namespace (`kernel/nsproxy.c:221` to `:223`).
 - The private propagation, through `mount_setattr` or `mount`, answering `EPERM`: `may_mount` requires
@@ -1033,16 +1035,23 @@ namespace setup answers:
 
 Everything else the setup can answer is an arm failure, so a defect in the companion's own code lands on the
 refused side rather than the skip: `EINVAL` from any of those calls, which is the malformed line at
-`kernel/user_namespace.c:990`, an id the parent does not map, and a `unshare(CLONE_NEWUSER)` from a caller whose
-thread group is not empty (`kernel/fork.c:3188` to `:3191`, an implied `CLONE_THREAD`); an `EPERM` from the second
-mapping write or from any call after the first write succeeded; `ENOMEM`; and any errno a call was not named here to
-give, a seccomp filter's arbitrary answer included. That failure refuses the add as unproven. `EUSERS` is not in
+`kernel/user_namespace.c:990`, a `unshare(CLONE_NEWUSER)` from a caller whose
+thread group is not empty (`kernel/fork.c:3188` to `:3191`, an implied `CLONE_THREAD`); an `EPERM` from the
+`setgroups` write, which `proc_setgroups_write` gives only to a `deny` written after a `gid_map` (`:1264` to
+`:1278`, a defect of the companion's order) and not to this design's own write, which asks for no capability; an
+`EPERM` from the second mapping write or from any call after the first write succeeded; `ENOMEM`; and any errno a
+call was not named here to give, a seccomp filter's arbitrary answer included. That failure refuses the add as
+unproven. `EUSERS` is not in
 either set on any kernel this design supports: `unshare(2)` gives it only from Linux 3.11 to Linux 4.8, and
 `kernel/user_namespace.c` at v7.3 names it nowhere.
 
 The line can be drawn because those refusal paths are enumerable and each of those errnos has a line that answers
-it, and because the capability check inside `map_write` runs before the parse, so the one errno the Ubuntu
-restriction and a malformed line could share is told apart. What it costs is the other direction: a sandbox that
+it, and because the capability check inside `map_write` runs before both the parse and the permission check, so the
+one errno the Ubuntu restriction and a malformed line could share is told apart. One case is left where the reading
+cannot separate a host refusal from a defect: a mapping write whose own line maps some other id than the account's
+own also answers `EPERM`, so a companion that built the wrong line would skip. The design accepts that residue rather
+than hide it, and the skip line names the call and the errno, which is what a person needs to see it. What the rule
+costs in the other direction is that a sandbox that
 answers an arbitrary errno at a setup call is now a refused add rather than a skip, which is the fail-closed side,
 and this machine's threat model trusts it against that case.
 
@@ -1060,7 +1069,8 @@ of user namespaces for unprivileged and unconfined applications but will deny th
 within the user namespace". That guest is the one every measurement in this design runs on. Reading mainline v7.3, the
 call that answers there is the first mapping write, not `unshare(CLONE_NEWNS)`: `map_write` asks for
 `CAP_SYS_ADMIN` over the new namespace before it parses anything (`kernel/user_namespace.c:986`), and the profile
-is what answers that check, so `unshare(CLONE_NEWUSER)` succeeds, `setgroups` may succeed, and the first map write
+is what answers that check, so `unshare(CLONE_NEWUSER)` succeeds, the `setgroups` write succeeds because
+`proc_setgroups_write` asks for no capability to write `deny`, and the first map write
 answers `EPERM`. That is a reading of mainline source, not a run on that guest's patched 6.8 kernel, and
 [M6](#m6-user-namespace-limits) and [M11](#m11-the-account-companion-per-add) record which call it named rather
 than assuming this one. A boundary at the first call would make it a failed arm, so every managed add on such a
