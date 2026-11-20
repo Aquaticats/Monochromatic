@@ -1877,7 +1877,7 @@ descriptor calls it makes.
 
 The question round closed on 2026-11-19, and every answer is under
 [Answers of 2026-11-19](#answers-of-2026-11-19), which states each question, the option the project chose, the
-timestamp range and the option it did not take. No question of this design stays open. Two of its own choices stay
+timestamp range and the option it did not take. No question of this design stays open. Three of its own choices stay
 open to the project's veto, each with veto none as the default: the companion's printed skip letting the add
 proceed, no probe deadline value before step 6's measurement, and no companion deadline before step 10's, which is
 why step 19 adds `ExecStartPre=` only when one is cited. What stays open beside them is measurement: every item under
