@@ -260,6 +260,10 @@ fn check_control(path: &Path, what: &str, held: &std::fs::File) -> Result<(), St
 ///  which a control drives on a fixture store;
 ///  the route writes through `append_slot_identity_under_root_control`,
 ///  which makes the root-control check inside the same step.
+///  The store is opened twice:
+///  once before the lock, so a store the setup run never wrote refuses without a lock file made beside its name,
+///  and once after the lock,
+///  so a rewrite that replaced the file between the two cannot receive a line written into the replaced one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -273,8 +277,8 @@ fn check_control(path: &Path, what: &str, held: &std::fs::File) -> Result<(), St
 /// the refusal of a lock another run holds past the wait,
 /// or the write's own failure.
 pub fn append_slot_identity(store: &Path, name: &str, identity: &CloneFolderIdentity) -> Result<(), StoreRefusal> {
+    let _lock: std::fs::File = lock_a_store_that_is_there(store)?;
     let mut file: std::fs::File = open_the_store(store)?;
-    let _lock: std::fs::File = hold_the_store_lock(store)?;
     return append_under_the_lock(&mut file, store, name, identity);
 }
 
@@ -299,11 +303,11 @@ pub fn append_slot_identity(store: &Path, name: &str, identity: &CloneFolderIden
 /// and a store file,
 /// a folder or a lock file whose owner is not root or which another account may write or open.
 pub fn append_slot_identity_under_root_control(store: &Path, name: &str, identity: &CloneFolderIdentity) -> Result<(), StoreRefusal> {
+    let lock: std::fs::File = lock_a_store_that_is_there(store)?;
+    check_lock_control(store_lock_path(store).as_path(), &lock)?;
     let mut file: std::fs::File = open_the_store(store)?;
     check_control(store, "the store file", &file)?;
     check_the_folder_control(store)?;
-    let lock: std::fs::File = hold_the_store_lock(store)?;
-    check_lock_control(store_lock_path(store).as_path(), &lock)?;
     return append_under_the_lock(&mut file, store, name, identity);
 }
 
@@ -337,10 +341,10 @@ fn append_under_the_lock(file: &mut std::fs::File, store: &Path, name: &str, ide
 ///  and it must never overwrite a surviving slot identity
 ///  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 ///  "Descriptor mount and unmount").
-///  Its own read and the rename that publishes the new file are not one step,
-///  so an append another process made between them is dropped by the rename:
-///  the mode runs with managed operations quiesced,
-///  which is what keeps a surviving slot record from being lost.
+///  Its own read and the rename that publishes the new file are one step under the same lock an append holds,
+///  so no append can land between them and be dropped by the rename;
+///  the mode runs with managed operations quiesced because the design requires that of the adoption,
+///  and the lock, not the quiescence, is what keeps a surviving slot record from being lost.
 ///  This is the grammar's own writer,
 ///  which a control drives on a fixture store;
 ///  the route writes through `record_parent_identity_under_root_control`.
@@ -355,6 +359,7 @@ fn append_under_the_lock(file: &mut std::fs::File, store: &Path, name: &str, ide
 /// or the write's own failure,
 /// which leaves the file as it was.
 pub fn record_parent_identity(store: &Path, identity: &CloneFolderIdentity) -> Result<(), StoreRefusal> {
+    let _lock: std::fs::File = lock_a_store_that_is_there(store)?;
     let read: SlotIdentityStore = SlotIdentityStore::read(store)?;
     return replace_the_parent_record(store, &read, identity);
 }
@@ -376,6 +381,8 @@ pub fn record_parent_identity(store: &Path, identity: &CloneFolderIdentity) -> R
 /// Everything `record_parent_identity` refuses,
 /// and a store file or folder whose owner is not root or which another account may write.
 pub fn record_parent_identity_under_root_control(store: &Path, identity: &CloneFolderIdentity) -> Result<(), StoreRefusal> {
+    let lock: std::fs::File = lock_a_store_that_is_there(store)?;
+    check_lock_control(store_lock_path(store).as_path(), &lock)?;
     let read: SlotIdentityStore = SlotIdentityStore::read_under_root_control(store)?;
     return replace_the_parent_record(store, &read, identity);
 }
@@ -499,8 +506,8 @@ fn hold_the_store_lock(store: &Path) -> Result<std::fs::File, StoreRefusal> {
     }
     let began: std::time::Instant = std::time::Instant::now();
     loop {
-        // Lock kept: one append of one slot record, held while the store is read and added to; the lock file is
-        // root's own (mode 0600), so an account that may read the store cannot take it, and the ask is bounded by
+        // Lock kept: one append's read, check and line, or the adoption's read and whole-file rename; the lock file
+        // is root's own (mode 0600), so an account that may read the store cannot take it, and the ask is bounded by
         // `STORE_LOCK_WAIT` (`AGENTS.md`, rule NLK).
         // SAFETY: `flock` reads the descriptor and the flag only, and touches no memory of ours.
         let taken: libc::c_int = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
@@ -517,6 +524,21 @@ fn hold_the_store_lock(store: &Path) -> Result<std::fs::File, StoreRefusal> {
         }
         std::thread::sleep(STORE_LOCK_PAUSE);
     }
+}
+
+/// What:
+///  Refuse a store that is not there,
+///  then hold the lock beside it that every write takes.
+/// Why:
+///   A store the setup run never wrote refuses before this run makes a lock file beside its name,
+///  and the store is opened again only inside the lock,
+///  because a descriptor opened before another run's rewrite would receive a line written into the replaced file.
+fn lock_a_store_that_is_there(store: &Path) -> Result<std::fs::File, StoreRefusal> {
+    open_the_store(store)?;
+    let lock: std::fs::File = hold_the_store_lock(store)?;
+    #[cfg(test)]
+    BEFORE_THE_STORE_OPENS.with(|hook| { if let Some(before) = hook.borrow().as_ref() { before(); } });
+    return Ok(lock);
 }
 
 /// Whether the lock file at `path` is one only root may open,
@@ -581,6 +603,9 @@ thread_local! {
     /// which is where two sweeps recording one slot meet,
     /// and may shorten the wait for a lock another run holds.
     pub(crate) static BETWEEN_THE_READ_AND_THE_APPEND: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
+    /// A control may replace the store between the moment the lock is taken and the moment the store is opened,
+    /// which is where a rewrite's rename lands when the append has not opened the file yet.
+    pub(crate) static BEFORE_THE_STORE_OPENS: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
     /// The wait for the lock this run allows,
     /// which a control shortens so a refusal is reached without holding the suite for the shipped bound.
     pub(crate) static THE_LOCK_WAIT_ALLOWED: std::cell::RefCell<Option<std::time::Duration>> = const { std::cell::RefCell::new(None) };

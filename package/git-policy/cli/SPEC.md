@@ -5378,9 +5378,13 @@ a record the attach's account could rewrite would decide nothing.
 The grammar's own reader (`read`) is what a caller uses once it holds such a file,
 and what the controls drive on fixture files.
 The route's two writes make the same refusal inside the step that writes:
-`append_slot_identity_under_root_control` checks the file,
-the folder and the lock before it holds the lock and appends,
-and `record_parent_identity_under_root_control` reads through the route's reader before it replaces the parent record.
+`append_slot_identity_under_root_control` takes the lock,
+checks the lock file,
+the store file and the folder that holds it,
+and then appends,
+and `record_parent_identity_under_root_control` takes the lock,
+checks the lock file and reads the store through the route's reader,
+and then replaces the parent record.
 A caller that read the store first covers nothing,
 because the file it judged is not the file the write opens.
 
@@ -5410,15 +5414,22 @@ That lock is the one place this route is not lock-free:
 the grammar's one file cannot be made safe by atomic rename,
 because two first-recording sweeps that both rebuild the file would let the later rename record an identity
 taken from a folder that changed in between,
-which is the refresh the design forbids,
-and a plain append without a lock can interleave two lines.
-It covers one append of one line and nothing else.
+which is the refresh the design forbids.
+A folder with one file per slot, each made with `O_EXCL`,
+would record each slot without a lock and lose the one state a single read sees;
+this implementation keeps the single file,
+and the owner has not approved that format
+(the question is in `doc/handover/questions-for-the-owner.md`).
+The lock covers one read, check and append of one record,
+and the adoption's read and rename of the whole file,
+and nothing else.
 The parent folder's record is written by the setup run (the plan's step 19),
 and only the administrator's adoption replaces it;
-that write publishes a whole new file by rename,
+that write reads the store and publishes a whole new file by rename while it holds the same lock an append holds,
 keeping every slot record it read,
-so an append another process made between its read and its rename is dropped by the rename,
-which is why that mode runs with managed operations quiesced.
+so no append can land between its read and its rename and be dropped;
+the mode runs with managed operations quiesced because the design requires that of the adoption,
+not because this write needs it.
 The store's path is given to the module by its caller,
 so a control injects a fixture path and nothing writes under `/var/lib` in a test.
 

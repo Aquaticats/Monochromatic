@@ -283,6 +283,71 @@ fn the_append_holds_one_lock_on_the_lock_file_from_the_read_to_the_write() {
 }
 
 /// What:
+///  The adoption's rewrite takes the same lock an append holds:
+///  run while an append holds it, the adoption refuses rather than replacing the file under that append,
+///  and the append's record is in the store afterwards.
+/// Why:
+///  The adoption publishes a whole new file by rename,
+///  so a rewrite that ran between an append's read and its write dropped that append's line;
+///  the `Locked` refusal names the adoption as a holder,
+///  and this control is what makes that sentence true.
+#[test]
+fn the_adoption_waits_for_the_append_s_lock_and_never_drops_its_record() {
+    let root: PathBuf = fixture("slot-store-adoption-under-the-lock");
+    let path: PathBuf = store(root.as_path(), &[parent_line(&identity(500))]);
+    let during: Arc<Mutex<Vec<Result<(), StoreRefusal>>>> = Arc::default();
+    let seen: Arc<Mutex<Vec<Result<(), StoreRefusal>>>> = Arc::clone(&during);
+    let probed: PathBuf = path.clone();
+    BETWEEN_THE_READ_AND_THE_APPEND.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            THE_LOCK_WAIT_ALLOWED.with(|allowed| { *allowed.borrow_mut() = Some(std::time::Duration::from_millis(20)); });
+            let outcome: Result<(), StoreRefusal> = record_parent_identity(probed.as_path(), &identity(501));
+            THE_LOCK_WAIT_ALLOWED.with(|allowed| { *allowed.borrow_mut() = None; });
+            seen.lock().expect("the control's own list").push(outcome);
+        }));
+    });
+    let appended: Result<(), StoreRefusal> = append_slot_identity(path.as_path(), "one", &identity(502));
+    BETWEEN_THE_READ_AND_THE_APPEND.with(|hook| { *hook.borrow_mut() = None });
+    appended.expect("a slot with no record is recorded");
+    let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("store reads");
+    assert_eq!(read.slot("one"), Some(&identity(502)), "the append's record survives the adoption");
+    assert_eq!(read.parent(), Some(&identity(500)), "the adoption recorded nothing");
+    let outcomes: Vec<Result<(), StoreRefusal>> = during.lock().expect("the control's own list").clone();
+    assert_eq!(outcomes.len(), 1, "the adoption ran once, while the append held the lock");
+    assert!(matches!(outcomes[0], Err(StoreRefusal::Locked { .. })), "the adoption refuses while the append holds the lock: {:?}", outcomes[0]);
+    remove(root.as_path());
+}
+
+/// What:
+///  The append opens the store only after it holds the lock,
+///  so a rewrite that replaces the file in the window between them still receives the record.
+/// Why:
+///  An append that opened the file first wrote into the replaced one when the rename landed before its lock,
+///  answered `Ok`,
+///  and the store at its path no longer held the record.
+#[test]
+fn the_append_opens_the_store_after_it_holds_the_lock() {
+    let root: PathBuf = fixture("slot-store-open-after-the-lock");
+    let path: PathBuf = store(root.as_path(), &[parent_line(&identity(510))]);
+    let replacement: PathBuf = root.join("replacement-store");
+    std::fs::write(&replacement, format!("{HEADER}\n{}\n", parent_line(&identity(511)))).expect("the replacement store");
+    let swapped: PathBuf = path.clone();
+    let staged: PathBuf = replacement.clone();
+    BEFORE_THE_STORE_OPENS.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            std::fs::rename(&staged, &swapped).expect("the rewrite replaces the store");
+        }));
+    });
+    let appended: Result<(), StoreRefusal> = append_slot_identity(path.as_path(), "one", &identity(512));
+    BEFORE_THE_STORE_OPENS.with(|hook| { *hook.borrow_mut() = None });
+    appended.expect("a slot with no record is recorded");
+    let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("store reads");
+    assert_eq!(read.parent(), Some(&identity(511)), "the append read the file the path names, after the lock");
+    assert_eq!(read.slot("one"), Some(&identity(512)), "the record lands in the file the path names");
+    remove(root.as_path());
+}
+
+/// What:
 ///  An append that cannot take the lock inside the wait it allows refuses,
 ///  names the lock,
 ///  and writes nothing.
