@@ -252,6 +252,18 @@ pub use worktree_clone_mount::*;
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_mount_handler;
 
+/// The start-time ZFS compatibility gate both executables run before their
+///  first ioctl:
+/// the qualified target,
+/// the device,
+/// the module's identity,
+/// the binding's layout comparison,
+/// the per-process verdict and the words a person reads.
+/// It is Linux only,
+/// like the binding it calls.
+#[cfg(target_os = "linux")]
+pub mod zfs_compatibility_gate;
+
 /// Btrfs subvolume worktrees and the filesystem primitives under them.
 pub mod subvolume;
 
