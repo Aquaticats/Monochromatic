@@ -40656,7 +40656,18 @@ stated in this entry. What follows from them, as work:
   `pi-git-policy-cli-bounded-wait-timeout-kill-fix` (DeepSeek on Neuralwatt, cap 450) on
   `fix/git-policy-cli-bounded-wait-reads-a-timeout-kill-as-the-bound` in
   `.claude/worktrees/git-policy-cli-bounded-wait-timeout-kill` from `main`, a red forcing the order without load; brief
-  under `~/temp/agent/git-policy-cli-bounded-wait-timeout-kill-fix-2026-11-20/`.
+  under `~/temp/agent/git-policy-cli-bounded-wait-timeout-kill-fix-2026-11-20/`. The `timeout` half of issue 6324 is
+  confirmed in coreutils `src/timeout.c` (`setpgid (0, 0)`, then `kill (0, sig)` on expiry, which SIGKILL cannot spare),
+  commented on the issue and sent to the run. STEP 4'S GUEST-ARM FIX ROUND ended `idle` (278 turns) at `4dcd89ac8e`
+  (its folder's `keep/report-from-summary.md`): `main` merged twice; the post-attach check reads the slot's mount at its
+  name beneath the held parent (`mount_id_at_the_held_target`), with a new arm mounting a clone beside the held slot that
+  kills the review's mutant; an append that would outgrow the store is refused (`StoreRefusal::WouldNotFit`) with a red;
+  every lock-hold citation matches the record; the arm's tarball ships the binding crate; 0 linter findings on added
+  lines; gate 9275 of 9277, the cause-H pair; low 8 left (its log mapping: ACL quote `guest-red-acls-1795171111.log`,
+  flags `guest-red-flags-1795171401.log`, decoy `guest-red-decoy-1795171697.log`, in the previous round's folder).
+  `e2899f094e` and `6dde1d368f` carry a `Co-authored-by:` trailer naming no co-author; corrective comments posted.
+  GOING: its integration pass on Sonnet in `.claude/worktrees/integrate-git-policy-cli-zfs-descriptor-attach-guest-arm`
+  (brief under `~/temp/agent/integration-pass-zfs-step-4-guest-arms-after-their-findings-round-2026-11-20/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
