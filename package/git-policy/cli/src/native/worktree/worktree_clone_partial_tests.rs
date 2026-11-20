@@ -10,9 +10,11 @@ use crate::fs_beneath::open_root;
 use crate::fs_clone_exchange::clone_file;
 use crate::test_support::{git, git_context, git_output, git_text, repository};
 use crate::worktree_clean::head_commit;
-use crate::worktree_ladder_target::Target;
+use crate::worktree_copy::{GitStatus, GitStep};
+use crate::worktree_ladder_target::{Target, apply_difference};
 use crate::worktree_snapshot_source::{SnapshotSource, source_or_dirty};
 use crate::worktree_ladder_test_support::{commit_all, main_identity, tracked};
+use std::ffi::OsString;
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -318,6 +320,87 @@ fn the_flow_runs_where_no_file_can_be_cloned() {
     let dirty: Dirty = Dirty { repo: repository, destination, admin, source };
     let part: PartCloned = clone_and_prove(&dirty);
     assert_eq!((part.cloned, part.written), (2, 1), "the empty file and the link are clones and the changed file is Git's");
+    assert_eq!(git_text(dirty.destination.as_path(), &["status", "--porcelain=v1"]), "");
+    crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A commit above the source's that adds `later.txt`,
+/// made from the source's own `HEAD` tree through a private index,
+///  so the new worktree's `HEAD` differs from the tree the rung builds its index from.
+/// Why:
+///   The routing and the differing-`HEAD` path were only exercised by the timing harness,
+/// and a control that builds the
+///  index from the source's tree must show that the ladder's `read-tree -m -u` brings the new commit in.
+fn later_commit(repo: &Path, index: &Path) -> String {
+    let program: PathBuf = crate::test_support::git_context().real_git;
+    let environment: Vec<(OsString, OsString)> = vec![
+        (OsString::from("PATH"), OsString::from("/usr/bin:/bin")),
+        (OsString::from("GIT_CONFIG_NOSYSTEM"), OsString::from("1")),
+        (OsString::from("GIT_AUTHOR_NAME"), OsString::from("Fixture")),
+        (OsString::from("GIT_AUTHOR_EMAIL"), OsString::from("fixture@example.invalid")),
+        (OsString::from("GIT_COMMITTER_NAME"), OsString::from("Fixture")),
+        (OsString::from("GIT_COMMITTER_EMAIL"), OsString::from("fixture@example.invalid")),
+        (OsString::from("GIT_INDEX_FILE"), index.as_os_str().to_os_string()),
+    ];
+    let run = |words: &[&str], input: Option<&[u8]>| -> String {
+        let arguments: Vec<OsString> = words.iter().map(|word: &&str| { return OsString::from(*word); }).collect();
+        let answer = crate::test_support::real_git_within(program.as_path(), Some(repo), environment.as_slice(), arguments.as_slice(), input, crate::test_support::FIXTURE_GIT_BOUND);
+        assert!(answer.output.status.success(), "git {words:?} failed: {}", String::from_utf8_lossy(answer.output.stderr.as_slice()));
+        return String::from_utf8(answer.output.stdout).expect("UTF-8 Git output").trim().to_string();
+    };
+    let blob: String = run(&["hash-object", "-w", "--stdin"], Some(b"the later commit's bytes\n"));
+    run(&["read-tree", "HEAD"], None);
+    run(&["update-index", "--add", "--cacheinfo", format!("100644,{blob},later.txt").as_str()], None);
+    let tree: String = run(&["write-tree"], None);
+    return run(&["commit-tree", tree.as_str(), "-p", "HEAD", "-m", "later"], None);
+}
+
+/// A staged path among the clones is named and refused,
+/// a staged path the clones do not take is not,
+/// and a listing that names nothing refuses nothing.
+#[test]
+fn a_staged_path_among_the_clones_is_refused() {
+    let entries: Vec<crate::worktree_clean::StatEntry> = ["kept.txt", "staged.txt"]
+        .iter()
+        .map(|path: &&str| {
+            return crate::worktree_clean::StatEntry { path: path.as_bytes().to_vec(), flags: 0, mode: 0o100_644, stored: crate::subvolume_index::StoredStat { ctime_seconds: 0, ctime_nanos: 0, mtime_seconds: 0, mtime_nanos: 0, ino: 0, uid: 0, gid: 0, size: 0 } };
+        })
+        .collect();
+    let staged: Vec<Vec<u8>> = vec![b"staged.txt".to_vec()];
+    let refusal: String = a_staged_path_among_the_clones(staged.as_slice(), entries.as_slice(), &[0, 1]).expect("the staged path among the clones");
+    assert!(refusal.contains("staged.txt"), "{refusal}");
+    assert!(a_staged_path_among_the_clones(staged.as_slice(), entries.as_slice(), &[0]).is_none(), "a staged path the clones do not take is no refusal");
+    assert!(a_staged_path_among_the_clones(&[b"other.txt".to_vec()], entries.as_slice(), &[0, 1]).is_none(), "a staged path the tree does not name is no refusal");
+    assert!(a_staged_path_among_the_clones(&[], entries.as_slice(), &[0, 1]).is_none(), "a listing with nothing in it refuses nothing");
+}
+
+/// A source with changes whose new `HEAD` holds a later commit is cloned from the source's own tree,
+/// brought to the new commit by the ladder's `read-tree -m -u`,
+/// and proven against the new `HEAD`.
+#[test]
+fn a_new_head_that_differs_is_brought_in_after_the_clones() {
+    let Some(root) = clone_capable_fixture("clone-partial-differs") else { return };
+    let dirty: Dirty = dirty_repository(root.as_path());
+    let commit: String = later_commit(dirty.repo.as_path(), root.join("later-index").as_path());
+    git(dirty.repo.as_path(), &["update-ref", "refs/heads/topic", commit.as_str()]);
+    let mut target: Target = target_of(&dirty);
+    target.commit = commit;
+    target.differs = true;
+    let held: std::fs::File = open_root(dirty.destination.as_path()).expect("the destination");
+    let admin: std::fs::File = open_root(dirty.admin.as_path()).expect("the administrative directory");
+    let part: PartCloned = clone_the_unchanged(&git_context(), &dirty.source, &target, dirty.destination.as_path(), &held, &admin, &no_rule()).expect("the partial clone");
+    assert_eq!(part.cloned, 3, "the paths the source's changes did not touch are clones");
+    let program: PathBuf = crate::test_support::git_context().real_git;
+    let mut runner = |step: &GitStep<'_>| -> Result<GitStatus, crate::worktree_copy_error::WorktreeCopyError> {
+        let GitStep::Other { arguments, environment } = step else { return Err(crate::worktree_copy_error::WorktreeCopyError(String::from("the tree difference runs its own step"))); };
+        let answer = crate::test_support::real_git_within(program.as_path(), None, environment, arguments, None, crate::test_support::FIXTURE_GIT_BOUND);
+        return Ok(GitStatus { code: answer.output.status.code() });
+    };
+    apply_difference(&dirty.source, &target, dirty.destination.as_path(), &mut runner).expect("the tree difference applied");
+    prove_the_worktree(&git_context(), &target, dirty.destination.as_path()).expect("the worktree Git's checkout of the new commit makes");
+    assert_eq!(std::fs::read(dirty.destination.join("later.txt")).expect("the new commit's file"), b"the later commit's bytes\n");
+    assert_eq!(std::fs::read(dirty.destination.join("kept.txt")).expect("the commit's bytes"), KEPT, "a cloned path the new commit does not change keeps its bytes");
     assert_eq!(git_text(dirty.destination.as_path(), &["status", "--porcelain=v1"]), "");
     crate::test_support::remove(root.as_path());
 }

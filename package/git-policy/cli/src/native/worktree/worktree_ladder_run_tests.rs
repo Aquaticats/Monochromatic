@@ -8,9 +8,9 @@
 use super::*;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::fs_kind::is_subvolume_root;
-use crate::test_support::{git_context, remove, repository};
+use crate::test_support::{fixture, git_context, remove, repository};
 use crate::worktree_copy_stage_claim::stage_claims_exist;
-use crate::worktree_ladder_test_support::{main_identity, plan_to, subvolume_repository};
+use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, subvolume_repository, tracked};
 
 /// A failed Git run,
 /// as the lifecycle reports it.
@@ -158,5 +158,52 @@ fn btrfs_a_stage_is_discarded_only_while_it_is_the_one_that_was_made() {
     assert!(base.join("stage-three/theirs").exists(), "a directory that is not the one made stays");
     discard_stage(other.as_path(), None);
     assert!(other.join("file").exists(), "an unidentified stage stays");
+    remove(root.as_path());
+}
+
+/// Whether a file on this fixture root can be reflinked,
+/// said once as a control that did not run when it cannot.
+fn can_clone_a_file(root: &Path) -> bool {
+    let from: PathBuf = root.join("probe-from");
+    let to: PathBuf = root.join("probe-to");
+    std::fs::write(from.as_path(), b"probe\n").expect("the probe's file");
+    std::fs::write(to.as_path(), b"").expect("the probe's clone");
+    let opened = (std::fs::File::open(from.as_path()), std::fs::OpenOptions::new().write(true).open(to.as_path()));
+    let cloned: bool = match opened {
+        (Ok(source), Ok(destination)) => crate::fs_clone_exchange::clone_file(&source, &destination, to.as_path()).is_ok(),
+        _unreadable => false,
+    };
+    let _removed = (std::fs::remove_file(from.as_path()), std::fs::remove_file(to.as_path()));
+    if !cloned {
+        eprintln!("CLONE CONTROL NOT RUN: a dirty source's routing (the fixture root cannot reflink a file)");
+    }
+    return cloned;
+}
+
+/// A source with uncommitted changes takes the clone rung and runs Git without a checkout,
+/// where the filesystem clones its files:
+/// the change is no longer the refusal that sent the add to Git's whole checkout.
+#[test]
+fn a_dirty_source_gets_the_clone_rung_where_files_can_be_cloned() {
+    let root: PathBuf = fixture("run-dirty-clone");
+    if !can_clone_a_file(root.as_path()) {
+        return;
+    }
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "ordinary")).expect("canonical");
+    tracked(repo.as_path(), "kept.txt", b"the commit's bytes\n");
+    commit_all(repo.as_path(), "the commit the person edits");
+    std::fs::write(repo.join("kept.txt"), b"a change nobody committed\n").expect("the person's change");
+    let plan = plan_to(root.join("topic"));
+    let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo.as_path()));
+    assert_eq!(ladder.first_step(), GitStep::WithoutCheckout(plan.insert_at), "a dirty source clones rather than taking Git's checkout");
+    let slow: String = format!("{:?}", ladder.slow);
+    assert!(slow.contains("subvolume"), "the reason the snapshot is not taken is the filesystem's, not the source's change: {slow}");
+    assert!(!slow.contains("uncommitted"), "the source's change is nothing to explain any more: {slow}");
+    assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the clone rung records the add durably");
+    let mut runner = no_runner();
+    let result: LadderResult = ladder.finish(FAILED, &mut runner, &git_context(), &mut std::io::sink(), &mut std::io::sink());
+    assert_eq!(result.git, FAILED);
+    assert!(result.claim.is_some(), "the record of the add is handed to the lifecycle rather than dropped");
+    result.claim.expect("the record").settle().expect("settled");
     remove(root.as_path());
 }

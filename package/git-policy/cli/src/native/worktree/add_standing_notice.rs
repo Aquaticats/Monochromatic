@@ -485,6 +485,7 @@ const STEP_SENTENCES: &[(&str, &str)] = &[
     ("releaseClaim", "it is recording that the worktree is complete"),
     ("partRead", "it is reading the source's index and the commit the worktree is at"),
     ("partClassify", "it is proving which tracked files the source's changes did not touch"),
+    ("partStaged", "it is checking that no path the source staged is among the files it clones"),
     ("partWrite", "it is writing the files the source's changes reach"),
     ("partProve", "it is proving the worktree is the one Git's checkout makes"),
     ("cloneEntries", "it is cloning the tracked files of the source into the new worktree"),
