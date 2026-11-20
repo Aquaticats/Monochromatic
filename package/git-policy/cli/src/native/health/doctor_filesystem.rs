@@ -252,7 +252,7 @@ pub fn gather_facts(root: &Path, layout: CheckoutLayout) -> Option<FilesystemFac
 /// The wording for a filesystem that is neither btrfs nor overlayfs.
 fn other_lines(facts: &FilesystemFacts) -> Vec<String> {
     return vec![format!(
-        "{} {} is on a filesystem other than btrfs or overlayfs. `git worktree add` uses Git's own checkout there, and no faster method applies (XFS made with reflink support clones the tracked files of a clean worktree instead).",
+        "{} {} is on a filesystem other than btrfs, overlayfs or ZFS. `git worktree add` uses Git's own checkout there, and no faster method applies (XFS made with reflink support clones the tracked files of a clean worktree instead).",
         SECTION_MARKER,
         facts.root.display()
     )];
@@ -264,6 +264,28 @@ fn overlay_lines(facts: &FilesystemFacts) -> Vec<String> {
         format!("{} {} is on overlayfs.", SECTION_MARKER, facts.root.display()),
         String::from("  Cloning a file's data into another file inside the same overlay works, so the wrapper's copy of ignored files uses clones there, and `git worktree add` clones the tracked files of a clean worktree instead of letting Git check them out; a snapshot does not apply, because snapshots need a btrfs subvolume and the btrfs under an overlay cannot be addressed from inside it."),
         String::from("  Git's own checkout, which the wrapper falls back to when the worktree it is run from is not clean, was several times slower on an overlay than on btrfs in one measurement (doc/planning/cli-git-btrfs-worktree.md, section Overlayfs)."),
+    ];
+}
+
+/// What:
+///  The wording for ZFS.
+/// Why:
+///   One dataset shares blocks and another does not,
+/// so "no faster method applies" is false here and the
+///  person is told which slots get the reflink;
+/// the full ZFS report,
+/// with the clone route's mounts and removal,
+///  is the ZFS plan's doctor step.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const zfsLines = (facts) => [`${SECTION_MARKER} ${facts.root} is on a ZFS dataset.`, '  ...'];
+/// ```
+fn zfs_lines(facts: &FilesystemFacts) -> Vec<String> {
+    return vec![
+        format!("{} {} is on a ZFS dataset.", SECTION_MARKER, facts.root.display()),
+        String::from("  Cloning a file's data into another file inside one ZFS dataset works, so the wrapper's copy of ignored files uses clones there, and `git worktree add` clones the tracked files of a clean worktree when the worktree it is run from and the slot of the new one are in the same dataset: a slot under `.claude/worktrees` in the checkout's own dataset is."),
+        String::from("  A slot on another dataset gets Git's own checkout instead, and so does a slot a mounted ZFS clone already occupies, because a mounted clone is a dataset of its own; a snapshot does not apply on ZFS at all."),
     ];
 }
 
@@ -367,6 +389,7 @@ pub fn render_section(facts: &FilesystemFacts) -> String {
     let lines: Vec<String> = match facts.kind {
         FilesystemKind::Btrfs => btrfs_lines(facts),
         FilesystemKind::Overlayfs => overlay_lines(facts),
+        FilesystemKind::Zfs => zfs_lines(facts),
         FilesystemKind::Other => other_lines(facts),
     };
     let mut text: String = lines.join("\n");

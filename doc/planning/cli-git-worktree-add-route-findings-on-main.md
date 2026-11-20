@@ -141,7 +141,8 @@ Verbatim:
   and the races the notice covers are named as such.
 - `package/git-policy/cli/SPEC.md`,
   "Cheap worktree creation and removal on btrfs,
-  XFS and overlayfs",
+  XFS,
+  overlayfs and ZFS",
   and "Linked-worktree ignored-state synchronization",
   are the specification this page checks the code against.
 - `AGENTS.md` rule `NHP` makes a process killed at any instruction,

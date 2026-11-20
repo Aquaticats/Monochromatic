@@ -819,8 +819,15 @@ Read-only commands,
   2. Clones (`FICLONE`) of every tracked file of a clean worktree,
      with its index,
      on btrfs,
-     XFS with reflink and
-     overlayfs.
+     XFS with reflink,
+     overlayfs and ZFS.
+     A clone crosses subvolumes of one btrfs filesystem and nothing else,
+     and on ZFS it stays inside one dataset,
+     which the wrapper proves from the dataset name the mount table reports and the device of that name's mount,
+     reading no ZFS ioctl:
+     a slot a mounted clone already occupies,
+     a mounted clone used as the source of a slot in the checkout's dataset,
+     and any slot on another dataset than the source get Git's own checkout instead.
      It shares disk but takes about as long as Git's checkout.
   3. Git's own checkout,
      then the ignored-state copy.
@@ -6113,6 +6120,13 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   Selected by name,
   the same controls are the `btrfs_*` tests of the library and the binary-level controls that call
   `on_btrfs_or_acknowledged` (`src/native/binary/binary_support_btrfs_controls.rs`).
+- The control that needs a real ZFS mount follows the same rule,
+  under `CLI_GIT_ZFS_ABSENT_ACKNOWLEDGED`:
+  the gate image sets it because its fixture root is that tmpfs and never a ZFS dataset,
+  `native:test:host:btrfs` sets it because its root is btrfs by definition,
+  and `native:test:host` leaves it unset,
+  so on this ZFS host `fs_kind_tests::zfs_a_real_mount_answers_with_its_kind` reads a real dataset
+  and elsewhere an unacknowledged run fails it rather than passing a control that never ran.
 - A wrapper release waits for that run,
   unless the version is an alpha:
   `native:release` dispatches nothing until `native:release:host-controls`

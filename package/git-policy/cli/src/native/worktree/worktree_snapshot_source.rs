@@ -29,16 +29,16 @@ use crate::add_timing::{begin_work, end_work};
 use crate::diagnostic_log::debug;
 pub use crate::worktree_snapshot_source_changed_paths::{ChangedPaths, changed_paths, plain};
 use crate::config_snapshot::{ConfigEntry, ConfigSnapshot, read_config_snapshot, read_config_snapshot_awaiting};
-use crate::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root, may_clone};
+use crate::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
 use crate::fs_mount_options::read_mount_facts;
 use crate::lazy_runtime::run_on_runtime;
 use crate::transaction_git::GitContext;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clean::{CleanRefusal, CleanRefusalKind, CleanSource, check_clean, check_clean_awaiting, dirty_source};
+use crate::worktree_clone_domain::{clone_domain_refusal_of, clone_write_target, unclonable_filesystem};
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_trash_ignore_rule::{trash_location_is_ignored, trash_location_is_ignored_awaiting};
 use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
@@ -247,31 +247,20 @@ pub fn snapshot_refusal(identity: &WorktreeIdentity, plan: &AddPlan) -> Option<S
 }
 
 /// What:
-///  The device number of what a path leads to,
-/// or nothing when it cannot be examined.
-/// Why:
-///   Two paths share data blocks only on one device.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// statSync(path).dev
-/// ```
-fn device_of_path(path: &Path) -> Option<u64> {
-    return match std::fs::metadata(path) {
-        Ok(found) => Some(found.dev()),
-        Err(_unreadable) => None,
-    };
-}
-
-/// What:
 ///  The cheap reasons the clone rung cannot serve a planned add:
 /// either side is on a filesystem that never clones,
 /// or the
 ///  two are not in one clone domain (one btrfs filesystem,
+/// one ZFS dataset,
 /// or one device elsewhere).
 /// Why:
-///   A clone crosses subvolumes of one btrfs filesystem and nothing else;
-/// an overlay or XFS is one device.
+///   A clone crosses subvolumes of one btrfs filesystem,
+/// shares blocks inside one ZFS dataset and nowhere else,
+/// and
+///  an overlay or XFS is one device;
+/// the question is asked of the filesystem that would receive the clones,
+/// which is
+///  the destination when something already occupies it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -283,15 +272,11 @@ pub fn clone_refusal(identity: &WorktreeIdentity, plan: &AddPlan) -> Option<Stri
         Err(reason) => return Some(reason),
     };
     let Some(parent) = plan.destination.parent() else { return Some(String::from("the destination has no parent directory")) };
-    if !may_clone(root.as_path()) || !may_clone(parent) {
-        return Some(String::from("the filesystem does not share data blocks between files"));
+    let target: PathBuf = clone_write_target((plan.destination.as_path(), parent));
+    if let Some(reason) = unclonable_filesystem((root.as_path(), target.as_path())) {
+        return Some(reason);
     }
-    let one_domain: bool = if filesystem_kind(root.as_path()) == Ok(FilesystemKind::Btrfs) {
-        on_one_btrfs(root.as_path(), parent)
-    } else {
-        device_of_path(root.as_path()) == device_of_path(parent)
-    };
-    return if one_domain { None } else { Some(format!("{} and {} are on different filesystems", root.display(), parent.display())) };
+    return clone_domain_refusal_of((root.as_path(), target.as_path()));
 }
 
 /// Which kind of check refused a source,
