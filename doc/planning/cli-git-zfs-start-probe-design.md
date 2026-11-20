@@ -138,8 +138,8 @@ and fifth say where their times come from.
   M6 and a new step 3 note require the user-namespace setting at 0 so neither arm passes for the wrong reason; and
   the questions section names all three veto-open choices. The plan notes and the four amendments were rechecked
   against main at `8b1cec7883`, read fresh, and every heading they quote is verbatim there. The one dismissal:
-  `fs/namei.c` `detach_mounts` is at `:5521` in v7.3, so the citation `:5502` to `:5521` stands, and a slot behind a
-  nested mount is a refusal the walk names. The three checkers ran on the design and on a broken copy, each failing
+  `fs/namei.c` `detach_mounts` is at `:5521` in v7.3, so the citation `:5502` to `:5521` stands and needed no
+  edit. The three checkers ran on the design and on a broken copy, each failing
   there and passing here.
 
 ## Answers of 2026-11-19
@@ -976,8 +976,8 @@ another process here, so the sweep judges such a name the wrapper's own way, by 
 rather than by `kill(pid, 0)`, and past that age it refuses to remove the directory and names it
 (`.../process/pid_namespace.rs:1` to `:40`). That care is load-bearing: the tmpfs mount inside a live child's
 directory lives in that child's namespace, `rmdir` of the directory from the host namespace is not refused for such
-a mount, because
-`is_local_mountpoint` looks at the caller's namespace, and the call then detaches that mount in every namespace
+a mount, because `is_local_mountpoint` looks at the caller's namespace, and the call then detaches that mount in
+every namespace
 (`fs/namei.c:5502` to `:5521`, `detach_mounts`), so a sweep that guessed would end a live run's mount. The
 parent-death signal makes a wrapper's own death leave an empty directory rather than a live one, because the child
 goes with the thread that forked it. Nothing survives a logout, which removes `/run/user/<uid>`.
@@ -1006,7 +1006,9 @@ deadline, and the guest run of M11 is the one exception, through a `CLI_GIT_TEST
 that are compiled into the release executable and inert unless set (the decision in
 `doc/planning/cli-git-rust-open-decisions.md:3646` to `:3649`, which keeps the test-only crash switch in the release
 executable because container tests exercise the installed one, and
-`doc/planning/cli-git-shipped-limits-audit.md:117` to `:119`).
+`doc/planning/cli-git-shipped-limits-audit.md:117` to `:119`). The hold is the missing value rather than the
+switch: a shipped run names nothing, so the switch stays inert, and the guest run sets it and a test deadline of its
+own, which is a control value and never a shipped one.
 
 Its skip. The skip is drawn on the refusals that mean this host will not give the companion a user namespace, or
 will not let it use the capabilities inside one. Each is a call and an errno that a named line of the kernel's own
@@ -1035,15 +1037,14 @@ namespace setup answers:
 
 Everything else the setup can answer is an arm failure, so a defect in the companion's own code lands on the
 refused side rather than the skip: `EINVAL` from any of those calls, which is the malformed line at
-`kernel/user_namespace.c:990`, a `unshare(CLONE_NEWUSER)` from a caller whose
-thread group is not empty (`kernel/fork.c:3188` to `:3191`, an implied `CLONE_THREAD`); an `EPERM` from the
+`kernel/user_namespace.c:990`, a `unshare(CLONE_NEWUSER)` from a caller whose thread group is not empty
+(`kernel/fork.c:3188` to `:3191`, an implied `CLONE_THREAD`); an `EPERM` from the
 `setgroups` write, which `proc_setgroups_write` gives only to a `deny` written after a `gid_map` (`:1264` to
 `:1278`, a defect of the companion's order) and not to this design's own write, which asks for no capability; an
 `EPERM` from the second mapping write or from any call after the first write succeeded; `ENOMEM`; and any errno a
 call was not named here to give, a seccomp filter's arbitrary answer included. That failure refuses the add as
-unproven. `EUSERS` is not in
-either set on any kernel this design supports: `unshare(2)` gives it only from Linux 3.11 to Linux 4.8, and
-`kernel/user_namespace.c` at v7.3 names it nowhere.
+unproven. `EUSERS` is not in either set on any kernel this design supports: `unshare(2)` gives it only from Linux
+3.11 to Linux 4.8, and `kernel/user_namespace.c` at v7.3 names it nowhere.
 
 The line can be drawn because those refusal paths are enumerable and each of those errnos has a line that answers
 it, and because the capability check inside `map_write` runs before both the parse and the permission check, so the
@@ -1051,9 +1052,8 @@ one errno the Ubuntu restriction and a malformed line could share is told apart.
 cannot separate a host refusal from a defect: a mapping write whose own line maps some other id than the account's
 own also answers `EPERM`, so a companion that built the wrong line would skip. The design accepts that residue rather
 than hide it, and the skip line names the call and the errno, which is what a person needs to see it. What the rule
-costs in the other direction is that a sandbox that
-answers an arbitrary errno at a setup call is now a refused add rather than a skip, which is the fail-closed side,
-and this machine's threat model trusts it against that case.
+costs in the other direction is that a sandbox that answers an arbitrary errno at a setup call is now a refused add
+rather than a skip, which is the fail-closed side, and this machine's threat model trusts it against that case.
 
 The wrapper's own control draws a related line: it runs
 `unshare --user --map-root-user --mount --propagation private /bin/true` and fails the run unless the run states the
@@ -1070,8 +1070,8 @@ within the user namespace". That guest is the one every measurement in this desi
 call that answers there is the first mapping write, not `unshare(CLONE_NEWNS)`: `map_write` asks for
 `CAP_SYS_ADMIN` over the new namespace before it parses anything (`kernel/user_namespace.c:986`), and the profile
 is what answers that check, so `unshare(CLONE_NEWUSER)` succeeds, the `setgroups` write succeeds because
-`proc_setgroups_write` asks for no capability to write `deny`, and the first map write
-answers `EPERM`. That is a reading of mainline source, not a run on that guest's patched 6.8 kernel, and
+`proc_setgroups_write` asks for no capability to write `deny`, and the first map write answers `EPERM`. That is a
+reading of mainline source, not a run on that guest's patched 6.8 kernel, and
 [M6](#m6-user-namespace-limits) and [M11](#m11-the-account-companion-per-add) record which call it named rather
 than assuming this one. A boundary at the first call would make it a failed arm, so every managed add on such a
 host would be refused and the probe's pass controls could not pass there either.
@@ -1736,8 +1736,8 @@ Gates: the probe's walk, its refusal controls and the wrapper's `openat2` flags.
 As the account, attempt the probe's attach of a ZFS source that no namespace mounts, inside a user namespace, and
 require `EPERM` from `zfs_domount`, with `kernel.apparmor_restrict_unprivileged_userns` at 0 on a guest that has
 the setting, so a capability denial cannot answer in place of `zfs_domount`. Then repeat with the source mounted in
-the guest's initial namespace and
-require `EBUSY` from the matched extant superblock instead, because `sget_fc` refuses a superblock from another
+the guest's initial namespace and require `EBUSY` from the matched extant superblock instead, because `sget_fc`
+refuses a superblock from another
 user namespace before `zfs_domount` runs (Linux v6.8 `fs/super.c:779` to `:786`). Control: a tmpfs mount in the
 same user namespace succeeds, and root's attach in the init namespace succeeds. Then disable unprivileged
 namespaces in the guest (`user.max_user_namespaces` set to 0) and record that the account arm is skipped with a
@@ -1834,12 +1834,12 @@ Gates: the probe's source and the setup steps.
 
 Run the built companion in the add preflight on the guest. The guest run enables it through a
 `CLI_GIT_TEST_ONLY_*` switch that carries a test deadline of its own, both compiled into the release executable and
-inert unless set: in a shipped build, until this item's value exists, the
-companion does not run in the preflight (as [The account companion](#the-account-companion) states). Record every arm
-the run exercises, and require that no pass arm prints a skip line, so a companion that skipped while the run calls
-it a pass fails its own control. Record each arm:
-the user namespace and its mapping writes, the mount namespace and its private propagation, the tmpfs scratch
-mount, the walk and its `ObjectId` compare, the descriptor attach of the second tmpfs, the flags read back, the four
+inert unless set: in a shipped build, until this item's value exists, the companion does not run in the preflight
+(as [The account companion](#the-account-companion) states). Record every arm the run exercises, and require that no
+pass arm prints a skip line, so a companion that skipped while the run calls it a pass fails its own control. The
+arms are the user namespace and its mapping writes, the mount namespace and its private propagation, the tmpfs
+scratch mount, the walk and its `ObjectId` compare, the descriptor attach of the second tmpfs, the flags read back,
+the four
 refusal controls, and the move and the unmount from the second child. Every refusal control needs its success control
 beside it, the shape [M5](#m5-the-refusal-arm-refuses-for-the-right-reason) gives the probe's own, so a companion
 that refuses everything fails its own control, and every arm here runs with
