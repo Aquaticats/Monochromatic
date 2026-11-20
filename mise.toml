@@ -255,11 +255,9 @@ const parseUsageArgs = (raw) => {
 const forwardedArgumentsMarker = '{{vars.forwarded_arguments_marker}}'
 const forwardedArgumentWords = () => {
   const source = process.execArgv.at(-1) ?? ''
-  const markerIndex = source.lastIndexOf(forwardedArgumentsMarker)
-  if (markerIndex === -1) { return '' }
-  // A trailing newline kept by mise would put the words on the line after the marker.
-  const pastedLine = source.slice(markerIndex + forwardedArgumentsMarker.length).replace(/^\\n/, '')
-  return pastedLine.includes('\\n') ? '' : pastedLine
+  const markerLine = source.slice(source.lastIndexOf('\\n') + 1)
+  if (!markerLine.startsWith(forwardedArgumentsMarker)) { return '' }
+  return markerLine.slice(forwardedArgumentsMarker.length)
 }
 // mise's shell-escaped argument string, or the words it appended to the script instead.
 const usageArgWords = () => process.env.usage_args ?? forwardedArgumentWords()
