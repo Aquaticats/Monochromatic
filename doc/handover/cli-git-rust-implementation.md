@@ -152,6 +152,34 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### ZFS step 3's guest arm ran green in a fresh guest (2026-11-20T02:30:00-05:00)
+
+Not final and not approved.
+The merge of `main` (`97ac41042f`) compiled,
+and the arm is the recipe's `wrapper` step of
+`package/zfs/request-to-openzfs-kernel-device` on the throwaway `mvm` guest of its `prepare`:
+seven ZFS controls and the disk measurement passed in the guest
+(`8 tests run: 8 passed`), and `zfs_a_real_mount_answers_with_its_kind` really ran there
+(`1 passed`, no `ZFS CONTROL NOT RUN` line).
+A clean same-dataset add of this crate's `src` (2,456 files, 34,719,432 bytes) saved 22,979,072 pool bytes against
+Git's checkout over two alternating rounds, the pool reporting `bcloneused` 11,663,872, `bclonesaved` 23,327,744 and
+`bcloneratio` 3.00x,
+so the owner's option C now has the number it waited for.
+H1 gate 7 ran with `kernel.apparmor_restrict_unprivileged_userns` taken from 1 to 0 in the guest and the log saying so:
+the host mount is the control, every confined mount attempt was refused,
+four late-mount arms measured shared `VISIBLE`, private `HIDDEN`, shared under the read-only parent bind `VISIBLE` and
+private under it `HIDDEN` (so that bind hides a later mount only under private propagation),
+and rung 2 served an add inside the confined consumer with 512 cloned bytes counted.
+Each control was shown red first on committed code with a one-hunk patch (four patches, kept with their logs under
+`~/temp/agent/zfs-step-3-guest-arm-reflink-and-cross-dataset-controls-2026-11-20/scratch/kept/`).
+The guest's ZFS answers `FIEMAP` with no physical extent and its cross-dataset `copy_file_range` shared no block,
+so the controls read the pool's counters and assert the refusals, as
+`doc/troubleshooting/zfs-readings-a-clone-arm-cannot-take.md` records.
+The container gate's two runs each ended `9200 tests run: 9197 passed (6 slow), 3 failed, 28 skipped`;
+one failure is fixed in `b746ac6bc6`, the two left are the open item above.
+The touched modules and the whole `source_guard` set pass in the gate image
+(`74`, `20` and `8` tests), and the host `native:clippy` and `lint:types` are clean.
+
 ### Crate vet down to one survivor, bench reviews all back (2026-11-18T18:25:00-05:00)
 
 Not final and not approved: this session's own account.
@@ -33262,6 +33290,25 @@ Alpha and beta labels go to GitHub releases only (`doc/planning/crates-io-footpr
 
 Each item names what remains,
 where it lives and its evidence.
+
+### A lock-holder record folder is left where a commit did not own the repository (2026-11-20T02:30:00-05:00)
+
+Two tests fail,
+on this host and in the container gate,
+with `cli-git-lock-holders` left in the repository's `.git`:
+`repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone`
+(`src/native/binary/binary_repository_naming_commit_tests.rs:342`, "the repository the command ran in gained nothing")
+and
+`service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing`
+(`src/native/binary/binary_service_no_manager_tests.rs:71`, "no scratch directory or record is left").
+Both commit paths run where the wrapper's lock-holder record folder
+(`src/native/lock/lock_holder_records.rs:49`) is written and not settled.
+They fail in both full gate runs of 2026-11-20 (`9200 tests run: 9197 passed, 3 failed`),
+the third being `every_step_an_add_enters_has_its_own_sentence`,
+which this round fixed by naming `cloneEntries` and `cloneIndex` (`b746ac6bc6`).
+Not the step 3 guest arm's: no file this round touched is in the lock or service paths.
+An agent's to close,
+starting from where `cli-git-lock-holders` is created for a commit whose repository is named by an option.
 
 ### A landing that withdraws leaves its lock marker sync unmade (2026-11-11T03:50:00Z)
 
