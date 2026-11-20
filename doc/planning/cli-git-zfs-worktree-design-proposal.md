@@ -243,6 +243,23 @@ the field layout at runtime against the approved release and request contract, a
 update makes existing clones temporarily unavailable. A failed gate does not authorize
 an unrelated mount or cleanup; keep registrations and durable recovery state intact.
 
+Note of 2026-11-20,
+on the acceptance of
+[the runtime layout checker design](cli-git-zfs-runtime-layout-checker-design.md)
+([decision record](../decision/cli-git-zfs-runtime-layout-checker.md)):
+the gate proves no module release.
+By the project's answer of 2026-11-19,
+"Any version,
+layout decides",
+the layout comparison and the request numbers decide,
+and `doctor` prints the module's release string and says when it is not the tested text,
+`2.4.4-1`.
+The proof list in "ABI gate and tests" stands as it was accepted,
+so `module release` in it is superseded,
+and the gate it describes proves architecture,
+endianness,
+request contract and the kernel and module BTF layout.
+
 Test the codec, request packing, bounded decoding, and the fail-closed gate without a device. Fuzz the adapted codec.
 Run every live ioctl, migration, handler and fault test against a file-backed pool inside a disposable VM, never
 `zpcachyos` and never with the host's `/dev/zfs` passed through. Test as root for installation and as an account with
@@ -614,6 +631,12 @@ The syscall floor is Linux 5.6 for `openat2`; the other mount APIs used here sta
 OpenZFS 2.4.4 ([nested-clone research][nested], "What was checked and how" and item 3). That validates the
 exercised calls on that build, not the mechanism on all kernels at or beyond the syscall floor.
 
+(Amended 2026-11-20,
+once [the start probe design](cli-git-zfs-start-probe-design.md) was accepted ([decision record](../decision/cli-git-zfs-start-probe.md)):
+the managed route's effective floor is Linux 6.6,
+because a kernel that refuses `FSCONFIG_CMD_CREATE_EXCL` leaves the probe's attach arm unexercised,
+and an unexercised arm keeps the managed route blocked.)
+
 The project decided a functional probe at start, answering "Probe at start", against the ranking the question round
 carried, which put an exact allowlist first. The probe's steps, its side effects at start and the way it refuses have
 no design yet ([Open items the decisions leave](#open-items-the-decisions-leave)); the project's answer, "test plus
@@ -672,6 +695,17 @@ on subsequent sweeps; validate its identity and private propagation before each 
 used a private bind of a directory on the guest root filesystem, not this location or a wrapper-created folder. The
 location, its lifecycle and the cleanup are untested product requirements, and the placement was one of the
 defaults the project answered ([Decided defaults](#decided-defaults)).
+
+Amended 2026-11-20 by the project's acceptance of that design:
+the folder's creation,
+its private bind and the wrapper's cleanup now have a design,
+and so does the interface that unmounts a staged mount from the held descriptor,
+in "The unmount call from staging" of
+[`cli-git-zfs-staging-under-cache-design.md`](cli-git-zfs-staging-under-cache-design.md),
+whose decision record is
+[`cli-git-zfs-staging-under-cache.md`](../decision/cli-git-zfs-staging-under-cache.md).
+Both keep their point that nothing is built yet:
+no unmount runs from staging until step 9 ships that interface.
 
 Recheck the canonical lookup before moving. The synchronized substitution in [VM item 4][vm-unmount] was
 caught by that check; the move uses the verified descriptor, not a new slot path lookup. Move to the decided
@@ -1083,6 +1117,11 @@ both sibling datasets and each clone by dataset ancestry, not by mount path. Kee
 snapshotted. Use the eight exclusions named in the [planning decision][answers]; the option's label miscounted,
 not its list. A directory can be excluded only once it is its own dataset.
 
+(Amended 2026-11-20,
+once [the start probe design](cli-git-zfs-start-probe-design.md) was accepted ([decision record](../decision/cli-git-zfs-start-probe.md)):
+the probe dataset's own section is a ninth exclusion,
+and plan step 20 writes it.)
+
 ```ini
 # /etc/sanoid/sanoid.conf (affected sections only)
 # Use yes, not zfs. Put exclusions after every recursive ancestor's section.
@@ -1181,6 +1220,16 @@ status. `doctor` does not start a service, create a test dataset, repair registr
   commands and the journal queries for `zfs-zed.service` and `reconcile-git-worktree-clone-mounts.service`.
   Show other enabled zedlets before recommending ZED enablement, including applicable syslog, notification,
   enclosure or scrub effects.
+
+  Amended 2026-11-20 by the project's acceptance of the staging design:
+  the folder's creation,
+  its private bind and the wrapper's cleanup now have a design,
+  in "The staging target and who creates it",
+  "The private bind" and "What the wrapper removes and when" of
+  [`cli-git-zfs-staging-under-cache-design.md`](cli-git-zfs-staging-under-cache-design.md),
+  whose decision record is
+  [`cli-git-zfs-staging-under-cache.md`](../decision/cli-git-zfs-staging-under-cache.md),
+  and none of that is built yet.
 - Compare the measured dataset tree and store location against recursive coverage. Verify the named exclusion
   sections, ancestor order, mount paths and `com.sun:auto-snapshot=false`; print the concrete INI correction or
   `zfs set com.sun:auto-snapshot=false <verified-dataset>` for confirmed drift. This keeps the planning record's
@@ -1713,6 +1762,16 @@ parts works.
   dataset mounts lands on the home underlay, and the dataset's later mount hides it. The cleanup also has to stop at
   any mount, because during an interrupted removal a clone is mounted inside the staging folder and a recursive
   delete there would delete the worktree's files.
+
+  Amended 2026-11-20 by the project's acceptance of the staging design:
+  the folder's creation,
+  the private bind and what the wrapper removes now have a design,
+  and so does the interface that unmounts a staged mount from the held descriptor,
+  in [`cli-git-zfs-staging-under-cache-design.md`](cli-git-zfs-staging-under-cache-design.md),
+  whose decision record is
+  [`cli-git-zfs-staging-under-cache.md`](../decision/cli-git-zfs-staging-under-cache.md);
+  nothing is built yet,
+  and no unmount runs from staging until step 9 ships that interface.
 - What re-applies private propagation after a replacement mount. The answer's words: "Boot unit sets it
   (Recommended)", whose option text has the unit repeat the setting after a replacement mount. The installed unit is
   `Type=oneshot` with `RemainAfterExit=yes`, so nothing fires on a later checkout mount, and what re-runs the setting,
@@ -1856,6 +1915,14 @@ test cannot be written until that part exists. None of them is a test for an opt
   mounted tree and that any retained staged mount is tracked and reported, since retaining it is the state the
   busy-unmount decision allows. The cleanup has no design yet
   ([Open items the decisions leave](#open-items-the-decisions-leave)).
+
+  Amended 2026-11-20 by the project's acceptance of the staging design:
+  the cleanup now has a design,
+  in "What the wrapper removes and when" of
+  [`cli-git-zfs-staging-under-cache-design.md`](cli-git-zfs-staging-under-cache-design.md),
+  whose decision record is
+  [`cli-git-zfs-staging-under-cache.md`](../decision/cli-git-zfs-staging-under-cache.md),
+  and it is not built yet.
 - Re-applying checkout propagation. Replace the checkout mount without a reboot and assert the checkout is private
   again. Nothing re-applies the setting yet ([Open items the decisions leave](#open-items-the-decisions-leave)),
   so this test waits on that design.

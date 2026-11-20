@@ -42,6 +42,8 @@ import {
   type InstallStep,
   commitTimingFileName,
   gitCommonDirectory,
+  handlerProgram,
+  handlerVersionLine,
   installSteps,
   journalIdentifiers,
   journalSince,
@@ -384,6 +386,7 @@ async function main(): Promise<number> {
     for (const step of plan)
       printLine(`  ${stepNameOf({ step, })}`);
     printLine(`  then refuse unless what ${gitProgram} --version prints holds ${wrapperVersionLine({ version, })}`);
+    printLine(`  and unless what ${handlerProgram} --version prints holds ${handlerVersionLine({ version, })}`);
     printLine(`  commit ${lockFileName} when it moved, and print the newest line of ${commitTimingFileName} beside the common Git directory`);
     printLine('  and the service journal of the sample commit');
     return 0;
@@ -433,6 +436,27 @@ async function main(): Promise<number> {
   printLine(reported.trimEnd());
   if (!reported.includes(wrapperVersionLine({ version, }))) {
     throw new NativeGateError(`${gitProgram} --version does not name ${version}, so the installed wrapper is not the release that was asked for. What it printed: ${reported.trim() || '(nothing)'}. Check that ${wrapperToolName} resolves to ${version} (mise run toolchain:install, or mise which ${wrapperToolName.slice('cargo:'.length)}) and that the wrapper's directory comes before any other ${gitProgram} on PATH.`);
+  }
+  /**
+   What the installed handler says it is.
+
+   One archive carries both executables, so a release that arrived whole answers here as well; an install that found
+   only the wrapper did not install the release, and the root-run handler whose modes later steps add would be missing
+   at the path the boot unit and the ZED event start.
+   */
+  const handlerReported = (await runGateCommandOrThrow({
+    program: handlerProgram,
+    args: ['--version',],
+    deadlineMilliseconds: gitDeadlineMilliseconds,
+    environment: {
+      ...process.env,
+      ...promptlessGitSettings,
+    },
+    workingDirectory: repository,
+  })).stdout;
+  printLine(handlerReported.trimEnd());
+  if (!handlerReported.includes(handlerVersionLine({ version, }))) {
+    throw new NativeGateError(`${handlerProgram} --version does not name ${version}, so the release's second executable is not the release that was asked for. What it printed: ${handlerReported.trim() || '(nothing)'}. Check that the archive the lock names carries ${handlerProgram} and that mise installed it beside ${gitProgram} (mise run toolchain:install, or mise which ${handlerProgram}).`);
   }
   /**
    The lockfile's text once the tools were installed.

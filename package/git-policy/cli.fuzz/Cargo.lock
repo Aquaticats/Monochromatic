@@ -1391,6 +1391,7 @@ dependencies = [
  "monochromatic-catalog-specifier",
  "monochromatic-jsonc-edit",
  "monochromatic-lint",
+ "monochromatic-zfs-request-to-openzfs-kernel-device",
  "rustix",
  "rustls",
  "serde_json",
@@ -1425,6 +1426,13 @@ dependencies = [
  "serde_json",
  "unicode-ident",
  "unicode-properties",
+]
+
+[[package]]
+name = "monochromatic-zfs-request-to-openzfs-kernel-device"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "libc",
 ]
 
 [[package]]

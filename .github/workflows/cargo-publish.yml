@@ -2428,13 +2428,17 @@ jobs:
   # `Publishing the native crate`). It follows the monochromatic-lint jobs above, with these differences:
   # - Linux GNU targets only (x86_64 and aarch64). The Windows and macOS branches of the code never compiled in a
   #   release gate, and the repository's immutable releases mean one failing target produces no release.
-  # - The executable is named after the crate (the owner renamed it from `cli-git-native` on 2026-11-04, so the archive of
-  #   a release before that holds `cli-git-native`), so the archive holds
-  #   monochromatic-git-policy-cli-<version>-<target>/monochromatic-git-policy-cli, the layout the crate's
-  #   [package.metadata.binstall] table points at. It is the crate's only `[[bin]]`: the commit service is its mode
-  #   `monochromatic-git-policy-cli monochromatic-git-policy-cli service run`, because cargo-binstall refuses an archive that
-  #   lacks any `[[bin]]` of the crate (the second `cli-git-service` bin added on 2026-11-01 turned the catalog-specifiers
-  #   workflow red).
+  # - The crate declares two `[[bin]]`s, so the archive holds both executables, each at the path the crate's
+  #   [package.metadata.binstall] table points at:
+  #   monochromatic-git-policy-cli-<version>-<target>/monochromatic-git-policy-cli and
+  #   monochromatic-git-policy-cli-<version>-<target>/mount-git-worktree-clone-datasets.
+  #   The wrapper is named after the crate (the owner renamed it from `cli-git-native` on 2026-11-04, so the archive of
+  #   a release before that holds `cli-git-native`). The commit service stays a mode of the wrapper,
+  #   `monochromatic-git-policy-cli monochromatic-git-policy-cli service run`, and not a program of its own:
+  #   cargo-binstall refuses an archive that lacks any `[[bin]]` of the crate (the second `cli-git-service` bin
+  #   added on 2026-11-01 turned the catalog-specifiers workflow red).
+  #   `mount-git-worktree-clone-datasets` is the root-run clone-mount handler of plan step 5, a program of its own
+  #   because ZED and the boot and shutdown units start it directly.
   #   `package/git-policy/cli/bin/native-release-bins.unit.test.ts` fails when this job, Cargo.toml,
   #   releasable-crates.json and toolchain.lock.json list different executables.
   # - The crate links forbidden-strings by path in the repository and by version on crates.io once packaged, so the
@@ -2654,13 +2658,17 @@ jobs:
 
     # --locked builds the dependency versions the published crate's Cargo.lock
     # records; the release profile in Cargo.toml keeps panic = "unwind", which the linked scanner requires.
-    - name: Build binary
+    # One archive carries both executables (`Cargo.toml`), so both are built on each target: the wrapper and the
+    # root-run clone-mount handler the ZFS worktree route installs at two root-owned paths.
+    - name: Build binaries
       shell: bash
       working-directory: package/git-policy/cli
-      run: cargo build --release --locked --target ${{ matrix.target }} --bin monochromatic-git-policy-cli
+      run: cargo build --release --locked --target ${{ matrix.target }} --bin monochromatic-git-policy-cli --bin mount-git-worktree-clone-datasets
 
-    # The wrapper answers `monochromatic-git-policy-cli --help` without a repository, so a target that links but cannot start fails here.
-    - name: Smoke-run the binary
+    # The wrapper answers `monochromatic-git-policy-cli --help` without a repository, and the handler answers
+    # `--version` without OpenZFS, so a target that links but cannot start fails here. The handler's other modes
+    # refuse until the plan steps that build them land, which the second check also proves runs on this target.
+    - name: Smoke-run the binaries
       shell: bash
       env:
         TARGET: ${{ matrix.target }}
@@ -2668,6 +2676,8 @@ jobs:
         set -euo pipefail
         help=$("package/git-policy/cli/target/${TARGET}/release/monochromatic-git-policy-cli" monochromatic-git-policy-cli --help)
         printf '%s\n' "$help" | grep -q '^Usage: git monochromatic-git-policy-cli'
+        handler="package/git-policy/cli/target/${TARGET}/release/mount-git-worktree-clone-datasets"
+        "$handler" --version | grep -q '^mount-git-worktree-clone-datasets '
 
     - name: Package binary archive
       id: pkg
@@ -2678,9 +2688,13 @@ jobs:
       run: |
         set -euo pipefail
         crate='monochromatic-git-policy-cli'
-        bin='monochromatic-git-policy-cli'
         stage_dir="${crate}-${VERSION}-${TARGET}"
         mkdir -p "dist/${stage_dir}"
+        # Both declared executables, one line each: cargo-binstall refuses an archive that lacks any `[[bin]]` of
+        # the crate, and `bin/native-release-bins.unit.test.ts` reads the `bin=` lines as the packaged set.
+        bin='monochromatic-git-policy-cli'
+        cp "package/git-policy/cli/target/${TARGET}/release/${bin}" "dist/${stage_dir}/"
+        bin='mount-git-worktree-clone-datasets'
         cp "package/git-policy/cli/target/${TARGET}/release/${bin}" "dist/${stage_dir}/"
         cp package/git-policy/cli/README.md "dist/${stage_dir}/"
         archive="${stage_dir}.tar.gz"
