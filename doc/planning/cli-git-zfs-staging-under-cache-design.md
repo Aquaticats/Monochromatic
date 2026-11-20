@@ -789,10 +789,11 @@ What a sweep then finds is not one state but three, and they need different answ
 capability gets `EPERM` from its first `open_by_handle_at` and unmounts nothing. A sweep whose handle gives
 `ESTALE` while no row in its mount table names the folder path treats the folder as gone, which is the pair of tests
 "The staged-folder record" states and not proof that the inode died, so there is nothing at that path for it to
-unmount: what may remain is a detached mount that its holders keep alive, or a live mount under another name, and
-only those holders ending frees the dataset (F11, L11). A copy of the bind in another namespace that a process works
-inside refuses the unbind with `EBUSY` (F30), and the host's bind stays. In each of the three the sweep unmounts
-nothing, removes nothing and reports the retained state. What then clears it is the writer's reading, not the second
+unmount: what may remain is a detached mount that its holders keep alive, or a live mount under another name. In the
+detached case only those holders ending frees the dataset, and the live mount keeps it busy until something unmounts
+it (F11, L11). A copy of the bind in another namespace that a process works inside refuses the unbind with `EBUSY`
+(F30), and the host's bind stays. In each of the three the sweep unmounts nothing, removes nothing and reports the
+retained state. What then clears it is the writer's reading, not the second
 question's answer, which settled the sweep's route and not who clears a refusal: the administrator, or a later
 removal that binds the folder again. None of this is measured (L12, M6).
 
@@ -1266,7 +1267,14 @@ Set up a clone at a slot, a private bind on a depth-one staging folder, and the 
 - Positive: with `<fixture pool>/home/cache` mounted, assert the folder's row has the cache dataset's
   `sb_dev_major:minor` and the same source as the dataset's own row, and that its root field and mountpoint make it
   the bind rather than the dataset's own mount, which F21 says a source comparison alone cannot do. Assert the pin's
-  recorded source matches. Control: the negative arm, whose refusal must not be reachable here.
+  recorded source matches, and that the inode of the guest's `.cache` mount root equals the pin's recorded one, which
+  is the second field every check compares ("Proposals the owner settled"). Control: the negative arm, whose refusal
+  must not be reachable here.
+- Mismatched pin inode: with the dataset mounted as the positive arm has it, rewrite the pin's recorded inode to a
+  different value and leave its source as it was, then run the wrapper's creation step and the handler's staging
+  step. Assert both refuse, no row for the bind appears, no entry is created on the home underlay, and `doctor`
+  names the pin's dataset. Control: the positive arm in the same run, whose source is the same and whose inode
+  matches, so a check that reads the source alone passes both runs and fails this arm.
 - Boot order: assert the ordinary boot order reaches the positive arm on the first attempt. Control: the negative
   arm's delayed mount, which must be the only way to the refusal.
 
@@ -1733,7 +1741,10 @@ text.
   assumed. The proposal owes the boot-time shape of the same check ("Test staging setup at boot and refuse shared or
   replaced staging and checkout mounts until a private setup is verified"), and this design meets it by verifying the
   pin at boot reconcile and by verifying each removal's bind and the checkout's propagation before each move.
-  Accepted, veto none, and the fields the checks compare are the writer's, stated in this entry alone.
+  Accepted, veto none. Which fields those checks compare was ambiguous before this revision, because this entry
+  described a source check while the ordering paragraph called the mount root's identity part of the pin; this
+  revision states the pair that entry's sentence needs, the source and the root's inode, leaves the device recorded
+  and uncompared for L14's reason, and marks that field set as the writer's, open to the project's veto.
 - Reading the staging location from the Pinned UID's passwd home (A2), rather than from an environment variable a
   root handler does not have. Accepted, veto none.
 - Reading `umount2` on a descriptor's `/proc` path as an act on the held descriptor rather than on a path. The
@@ -1775,20 +1786,21 @@ own addition.
   `RESOLVE_NO_XDEV`, checks the descriptor and the mount row against the recorded slot identity, moves once, and
   proves the result with both halves of the accepted proof; where the proof fails it stops and reports. The halves
   are the held identity receiving the expected mount, which the check of the clone's source and root at the slot's
-  topmost row supplies, and the fresh walk finding that mount at the canonical slot. Options: (a) this route; (b) a
-  move to a descriptor opened with the accepted slot hop's flags and no identity or mount-row check, which is one
-  call and one check fewer but lets a mount stacked at the slot receive the clone, repeating the misplacement the
-  rollback undoes; (c) the same destination open and identity checks, asserting the first half as (a) does and
-  proving the placement by the accepted fresh walk alone, without the parent-row clause, which is one comparison
-  fewer but cannot tell a clone standing on the slot's parent from one standing on a mount stacked at the slot. In
-  the one scene where the accepted halves part, (c) keeps neither: where the account stacks a mount at the slot
-  between the open and the move, the clone lands on that stacked mount, and both of (c)'s clauses pass it, because
-  its source-and-root clause reads the topmost row, which is the clone there, and the fresh walk lands on that same
-  topmost mount (M1's "Stacked at the slot after the open" arm, where the proof fails on the parent clause and the
-  fresh-walk clause passes). Choosing (c) therefore relaxes the accepted "prove both" in that scene, which amends
-  an accepted sentence: that makes it the project's decision and not a writer's addition, so (c) is put here for
-  the project to take or refuse, and not for a veto to return to the writer. Refusing to roll back at all is not
-  offered: the third question's answer is to move it back at once, so that would reverse an answer of 2026-11-19
+  topmost row supplies only together with that row's parent being the slot parent's mount, and the fresh walk finding
+  that mount at the canonical slot. Options: (a) this route; (b) a move to a descriptor opened with the accepted slot
+  hop's flags and no identity or mount-row check, which is one call and one check fewer but lets a mount stacked at
+  the slot receive the clone, repeating the misplacement the rollback undoes; (c) the same destination open and
+  identity checks and the same check of the clone's source and root at the slot's topmost row, with the placement
+  proved by the accepted fresh walk alone and the parent-row clause dropped, which is one comparison fewer but cannot
+  tell a clone standing on the slot's parent from one standing on a mount stacked at the slot. In the scene where the
+  halves part, (c) loses the first half: where the account stacks a mount at the slot between the open and the move,
+  the clone lands on that stacked mount, so the accepted first half is false there, and both of (c)'s clauses pass
+  anyway, because its source-and-root clause reads the topmost row, which is the clone, and the fresh walk lands on
+  that same topmost mount (M1's "Stacked at the slot after the open" arm, where the proof fails on the parent clause
+  and the fresh-walk clause passes). Choosing (c) therefore relaxes the accepted "prove both" in that scene, which
+  amends an accepted sentence: that makes it the project's decision and not a writer's addition, so (c) is put here
+  for the project to take or refuse, and not for a veto to return to the writer. Refusing to roll back at all is
+  not offered: the third question's answer is to move it back at once, so that would reverse an answer of 2026-11-19
   rather than complete it, and a rule that refused whenever the slot were not provably free would reduce to (a)'s
   pre-open `EXDEV` refusal, because the slot cannot be proven free at the move. Ranking a > c > b: a > c because a
   keeps the parent clause, the only comparison that tells a clone on the slot's parent from one on a mount stacked
