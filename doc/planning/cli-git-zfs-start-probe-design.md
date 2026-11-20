@@ -114,11 +114,11 @@ and fifth say where their times come from.
   (`59152e567b`), and a fourth amendment, for plan step 22, joins the three. The three checkers ran on the design and
   on a broken copy, each failing there and passing here.
 
-- `2026-11-19T23:20:02-05:00` (commits `467efadbaa`, `98e9d232cf`, `bac8e1227c`, `1f4e5d2d29` and `7b9f0fe62c`, the
-  commits this entry's own text needs after it, and this one): the answer to a narrow gate check of the fourth
+- `2026-11-19T23:20:02-05:00` (commits `467efadbaa`, `98e9d232cf`, `bac8e1227c`, `1f4e5d2d29` and `7b9f0fe62c`, and
+  every commit this round made after it): the answer to a narrow gate check of the fourth
   revision, read on Claude Sonnet from the diff `c134086edd..4258b3c3c9`. This label is the time the entry's text
   was written, not a commit time, and it names no commit of its own: the commit that carries it, the wrap and label
-  commits after that one, and this entry's own hash all come after it, and none of them can be named here. The
+  commits after that one, and this entry's own hash all come after it, so none of them can be named here. The
   check's findings were weighed one by one: every one earned a fix, and one part of a low was dismissed after
   reading the source. The three mediums: `first-attach`'s claim now covers the descriptor walk and the slot's
   first-observation record, each with a step name, so no refusal inside the claim reaches the reader unnamed, and
@@ -202,8 +202,9 @@ Chosen: "Root plus account companion", in the round of 2026-11-19T20:35 to 2026-
 runs the small user-namespace companion before each managed add, and the root probe stays the only evidence about the
 dataset mount path. Not taken: root only, this design's own first rank, which would leave an account-side regression of
 the walk or the mount surface seen only where something mounts as the account; the project took the companion knowing
-that it never touches ZFS and skips on a host that refuses user namespaces, and
-[The account companion](#the-account-companion) states that what follows a skip is this design's choice, open to the
+that it never touches ZFS and skips on a host that refuses user namespaces, the Ubuntu guest whose default profile
+denies the capabilities inside a user namespace included, and [The account companion](#the-account-companion) states
+which refusals that skip covers and that what follows a skip is this design's choice, open to the
 project's veto, rather than the round's.
 
 ### Q7: whether the first real attach records its outcome
@@ -558,7 +559,9 @@ These lines are from the tag's commit `71a9f9578616`, cloned on 2026-11-19 from 
   (`package/git-policy/cli/SPEC.md:18651` to `:18680`).
 - The wrapper's tests already run an unprivileged private mount namespace and skip with a stated reason where
   user namespaces are refused: `a_private_mount_namespace_is_available` and `inside_a_private_mount_namespace` in
-  `package/git-policy/cli/src/native/binary/binary_worktree_removal_around_a_volume_tests.rs:159` to `:200`.
+  `package/git-policy/cli/src/native/binary/binary_worktree_removal_around_a_volume_tests.rs:159` to `:200`, where
+  a refused setup fails the run unless it states that the host has none
+  (`CLI_GIT_NO_USER_NAMESPACE_ACKNOWLEDGED`).
 
 ## Assumptions
 
@@ -679,8 +682,9 @@ Each assumption is stated so a measurement can break it, and the measurement tha
 - The companion never reaches the dataset mount path, the key path or `/dev/zfs`, so its pass cannot predict the
   probe's or the product's attach, and its failure refuses an add without evidence that the root attach would
   fail. It is skipped on a host that refuses user namespaces, has none left, or grants the namespace and denies the
-  capabilities inside it, its skip is printed, and the add goes ahead after it. Those last two are this design's
-  choices, open to the project's veto, and
+  capabilities inside it, its skip is printed, and the add goes ahead after it. The skip covers those host refusals
+  and no other failure, so a defect in the companion's own setup code is an arm failure; the skip's printing and the
+  add going ahead after it are this design's choices, open to the project's veto, and
   [The account companion](#the-account-companion) states the reason and the alternative.
 - The companion's cost on every managed add, and the deadline that bounds it, are unmeasured until
   [M11](#m11-the-account-companion-per-add); no value is stated here.
