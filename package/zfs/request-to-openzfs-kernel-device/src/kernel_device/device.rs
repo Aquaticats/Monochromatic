@@ -112,7 +112,7 @@ impl ZfsDevice {
     /// grows it,
     /// and asks once more,
     /// where a caller uses
-    /// [`ZfsDevice::read`] and never sees the growth.
+    /// `ZfsDevice::read` and never sees the growth.
     ///
     /// # Throws
     ///
@@ -150,7 +150,7 @@ impl ZfsDevice {
     ///
     /// # Throws
     ///
-    /// What [`ZfsDevice::attempt_read`] and [`retry_read`] throw.
+    /// What `ZfsDevice::attempt_read` and `retry_read` throw.
     pub(crate) fn read(&self, request: &mut Request) -> Result<Option<NvList>, DeviceError> {
         return retry_read(request, |asking| {
             return self.attempt_read(asking);

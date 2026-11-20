@@ -211,10 +211,13 @@ which is the measurements' fixture.
 `record` writes `teardown.log`:
 `zpool list -H -o name` and
 `zfs list -H -o name -r`,
-which a clean run leaves empty,
-and a `find` for
-`pool.img` under the fixture root,
-which is empty too because each pool's test
-destroyed it.
-`destroy` writes `mvm-destroy.log` and `mvm-list-after-destroy.log`.
-Keep those with `versions.log` and the two suite logs when recording a run.
+and a `find` for `pool.img` under the fixture root.
+A clean root run leaves the delegated pool `zfsstep2-account` in place,
+because
+the account suite reads it afterwards,
+and every other pool is gone with its
+image and key folder.
+`destroy` removes what is left with the guest and writes
+`mvm-destroy.log` and `mvm-list-after-destroy.log`.
+Keep those with
+`versions.log` and the two suite logs when recording a run.

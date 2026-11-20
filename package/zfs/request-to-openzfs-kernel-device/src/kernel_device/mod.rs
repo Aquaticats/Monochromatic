@@ -104,10 +104,6 @@ mod live_account_fixture_tests;
 #[cfg(test)]
 #[path = "live_account_tests.rs"]
 mod live_account_tests;
-/// The arm that prints what the plan's items returned.
-#[cfg(test)]
-#[path = "live_measurement_record_tests.rs"]
-mod live_measurement_record_tests;
 /// The live batch tests:
 /// per-name errors and GUID preservation.
 #[cfg(test)]
@@ -125,6 +121,10 @@ mod live_btf_nested_fields;
 #[cfg(test)]
 #[path = "live_btf_tests.rs"]
 mod live_btf_tests;
+/// The arm that prints what the plan's items returned.
+#[cfg(test)]
+#[path = "live_measurement_record_tests.rs"]
+mod live_measurement_record_tests;
 /// The live promote controls.
 #[cfg(test)]
 #[path = "live_promote_tests.rs"]

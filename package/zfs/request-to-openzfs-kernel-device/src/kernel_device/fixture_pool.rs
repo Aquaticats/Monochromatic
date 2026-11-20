@@ -255,7 +255,8 @@ impl<'a> FixturePool<'a> {
         let _ = std::process::Command::new(self.fixture.sbin.join("zpool"))
             .args(["destroy", "-f", &self.name])
             .output();
-        let folder: std::path::PathBuf = super::fixture::pool_folder(&self.fixture.root, &self.name);
+        let folder: std::path::PathBuf =
+            super::fixture::pool_folder(&self.fixture.root, &self.name);
         let _ = std::fs::remove_dir_all(folder);
     }
 }

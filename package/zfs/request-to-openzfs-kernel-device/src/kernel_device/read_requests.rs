@@ -39,7 +39,7 @@ impl ZfsDevice {
     ///
     /// # Throws
     ///
-    /// What [`ZfsDevice::read`] throws,
+    /// What `ZfsDevice::read` throws,
     /// and [`DeviceError::MissingReply`] when the
     /// kernel finished without a property list.
     pub fn objset_stats(&self, target: &str) -> Result<DatasetIdentity, DeviceError> {
@@ -59,7 +59,7 @@ impl ZfsDevice {
     ///
     /// # Throws
     ///
-    /// What [`ZfsDevice::read`] throws,
+    /// What `ZfsDevice::read` throws,
     /// and [`DeviceError::MissingReply`] when a
     /// step arrived without its property list.
     pub fn dataset_list_next(
@@ -77,7 +77,7 @@ impl ZfsDevice {
     ///
     /// # Throws
     ///
-    /// What [`ZfsDevice::read`] throws,
+    /// What `ZfsDevice::read` throws,
     /// and [`DeviceError::MissingReply`] when a
     /// step arrived without its property list.
     pub fn snapshot_list_next(
@@ -95,7 +95,7 @@ impl ZfsDevice {
     ///
     /// # Throws
     ///
-    /// What [`ZfsDevice::read`] throws,
+    /// What `ZfsDevice::read` throws,
     /// and [`DeviceError::MissingReply`] when the
     /// kernel finished without a delegation list.
     pub fn get_fsacl(&self, target: &str) -> Result<NvList, DeviceError> {
@@ -110,7 +110,7 @@ impl ZfsDevice {
     ///
     /// # Throws
     ///
-    /// What [`ZfsDevice::read`] throws,
+    /// What `ZfsDevice::read` throws,
     /// and [`DeviceError::MissingReply`] when the
     /// kernel finished without a bookmark list.
     pub fn get_bookmarks(&self, target: &str, properties: &[&str]) -> Result<NvList, DeviceError> {
@@ -126,7 +126,7 @@ impl ZfsDevice {
     ///
     /// # Throws
     ///
-    /// What [`ZfsDevice::read`] throws,
+    /// What `ZfsDevice::read` throws,
     /// and [`DeviceError::MissingReply`] when a
     /// step arrived without its property list.
     fn read_listing_step(

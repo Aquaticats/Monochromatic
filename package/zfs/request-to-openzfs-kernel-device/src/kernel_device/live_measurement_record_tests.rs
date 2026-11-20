@@ -1,5 +1,6 @@
 //! What:
-//!  One arm that prints what the plan's VM items 5, 11 to 18 returned when
+//!  One arm that prints what the plan's VM items 5,
+//! 11 to 18 returned when
 //!  the same requests were re-run through this crate:
 //! versions,
 //! layout sizes,
@@ -56,7 +57,11 @@ fn the_plan_items_report_what_the_crate_received() {
     println!("MEASUREMENT guest kernel={release} module={module} srcversion={srcversion}");
     println!(
         "MEASUREMENT userspace={}",
-        fixture.zfs(&["version"]).lines().collect::<Vec<&str>>().join(" ")
+        fixture
+            .zfs(&["version"])
+            .lines()
+            .collect::<Vec<&str>>()
+            .join(" ")
     );
     let pool: FixturePool<'_> = FixturePool::create(&fixture, "zfsstep2-record");
     pool.assert_the_module_release();
@@ -67,15 +72,21 @@ fn the_plan_items_report_what_the_crate_received() {
     let padded: usize = INITIAL_REPLY_SIZE / PAD_VALUE_BYTES * 2;
     pool.pad_user_properties(&checkout, padded, PAD_VALUE_BYTES);
     let mut request: Request = objset_stats(&checkout).expect("the name fits");
-    let first: ReadAttempt = device.attempt_read(&mut request).expect("the read is answered");
+    let first: ReadAttempt = device
+        .attempt_read(&mut request)
+        .expect("the read is answered");
     if let ReadAttempt::NeedsBiggerReply { requested } = first {
         println!(
             "MEASUREMENT reply initial={INITIAL_REPLY_SIZE} requested={requested} \
              properties={padded} value_bytes={PAD_VALUE_BYTES}"
         );
-        request.grow_reply(requested).expect("the size is under the cap");
+        request
+            .grow_reply(requested)
+            .expect("the size is under the cap");
     }
-    let through = device.objset_stats(&checkout).expect("the grown read is answered");
+    let through = device
+        .objset_stats(&checkout)
+        .expect("the grown read is answered");
     println!(
         "MEASUREMENT recordsize={} source={}",
         property_u64(&through.properties, "recordsize"),
@@ -110,7 +121,10 @@ fn the_plan_items_report_what_the_crate_received() {
     );
 
     // Item 14 and 18: the own set and the mixed set, through the binding.
-    pool.snapshot(&promotion, &["own-one", "own-two", "with-dependent", "without-dependent"]);
+    pool.snapshot(
+        &promotion,
+        &["own-one", "own-two", "with-dependent", "without-dependent"],
+    );
     let dependent: String = pool.clone_of(&format!("{promotion}@with-dependent"), "dependent");
     let own_first: String = format!("{promotion}@own-one");
     let own_second: String = format!("{promotion}@own-two");

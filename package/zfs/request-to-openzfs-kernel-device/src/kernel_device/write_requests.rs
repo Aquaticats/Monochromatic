@@ -38,7 +38,7 @@ impl ZfsDevice {
     ///
     /// # Throws
     ///
-    /// What [`ZfsDevice::write`] throws.
+    /// What `ZfsDevice::write` throws.
     pub fn set_prop(
         &self,
         target: &str,
@@ -57,7 +57,7 @@ impl ZfsDevice {
     ///
     /// # Throws
     ///
-    /// What [`ZfsDevice::write`] throws.
+    /// What `ZfsDevice::write` throws.
     pub fn destroy(&self, name: &str, defer: bool) -> Result<Option<NvList>, DeviceError> {
         let mut request: Request = destroy(name, defer)?;
         return self.write(&mut request);
@@ -69,7 +69,7 @@ impl ZfsDevice {
     ///
     /// # Throws
     ///
-    /// What [`ZfsDevice::write`] throws.
+    /// What `ZfsDevice::write` throws.
     pub fn snapshot(
         &self,
         pool: &str,
@@ -87,7 +87,7 @@ impl ZfsDevice {
     ///
     /// # Throws
     ///
-    /// What [`ZfsDevice::write`] throws,
+    /// What `ZfsDevice::write` throws,
     /// including the per-name failures a
     /// refused set returns.
     pub fn destroy_snaps(
@@ -105,7 +105,7 @@ impl ZfsDevice {
     ///
     /// # Throws
     ///
-    /// What [`ZfsDevice::write`] throws.
+    /// What `ZfsDevice::write` throws.
     pub fn clone(
         &self,
         target: &str,
