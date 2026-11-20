@@ -375,3 +375,39 @@ fn a_store_written_by_root_is_read_under_root_control() {
     assert!(refused.message().contains("0666"), "the mode is named: {}", refused.message());
     remove(root.as_path());
 }
+
+/// What:
+///  The store example in `SPEC.md` is a store this reader reads,
+///  and its ACL field is the kernel's own blob rather than any bytes.
+/// Why:
+///  A person copies those lines into the file the setup run writes,
+///  so an example the reader refuses teaches two wrong things at once:
+///  that a comment may stand above the header,
+///  and that any bytes are a kernel ACL.
+#[test]
+fn the_specification_s_store_example_is_a_store_this_reader_reads() {
+    let spec: String = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/SPEC.md")).expect("the specification");
+    let example: String = the_store_example(spec.as_str());
+    let root: PathBuf = fixture("slot-store-example");
+    let path: PathBuf = root.join("slot-identities");
+    std::fs::write(&path, example.as_bytes()).expect("the specification's example");
+    let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("the specification's example is a store this reader reads");
+    let parent: &CloneFolderIdentity = read.parent().expect("the example records the parent folder");
+    assert!(read.slot("example").is_some(), "the example records one slot");
+    let access: &[u8] = parent.access_acl.as_deref().expect("the example shows an access ACL");
+    assert_eq!(access.get(..4), Some([0x02, 0x00, 0x00, 0x00].as_slice()), "the kernel's version word comes first");
+    assert_eq!(access.len() % 8, 4, "a version word and then eight bytes per ACL entry, and no other length is a blob");
+    let tags: Vec<u16> = access[4..].as_chunks::<8>().0.iter().map(|entry| return u16::from_le_bytes([entry[0], entry[1]])).collect();
+    assert!(tags.contains(&0x10), "a stored ACL with a named entry carries a mask: {tags:?}");
+    remove(root.as_path());
+}
+
+/// The record lines of the specification's store example,
+/// which is the first `text` block of the store section,
+/// as the file would hold them.
+fn the_store_example(spec: &str) -> String {
+    let heading: usize = spec.find("#### The recorded identities store").expect("the store section");
+    let opening: usize = heading + spec[heading..].find("```text\n").expect("the store example") + "```text\n".len();
+    let closing: usize = opening + spec[opening..].find("```").expect("the example's closing fence");
+    return String::from(&spec[opening..closing]);
+}
