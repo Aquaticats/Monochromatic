@@ -45473,7 +45473,7 @@ record.
 - The third-party wizard skill is removed and blocklisted, and the rest of its pack stays: "Remove and
   Blocklist the wizard skill." and "But do keep matt's other skills.", 2026-11-07T13:52:06-05:00. The owner's
   claude.ai account still holds it (manifest entry `skill_013SXR5gmg1zWJZpmYLYuP1m`), so account sync may
-  bring a local copy back, where both settings keep it off.
+  bring a local copy back, where both settings keep it off; only the owner can delete it from the account itself.
 
 ## Working rules for this effort
 
