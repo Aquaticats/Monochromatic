@@ -90,7 +90,7 @@ function repoRoot(): string {
   return join(import.meta.dirname, '..', '..', '..');
 }
 
-/** The repository-relative path of this package. */
+/** This package's own directory, the absolute path the build context reads. */
 function packageDir(): string {
   return import.meta.dirname;
 }

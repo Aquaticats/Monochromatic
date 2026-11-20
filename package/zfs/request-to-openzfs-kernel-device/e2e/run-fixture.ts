@@ -17,7 +17,7 @@
 //        test binary matched to the guest's own libc and needs no cross toolchain.
 //
 // Usage: node e2e/run-fixture.ts <create|prepare|run|record|destroy|all>
-//          [--name <guest>] [--log-dir <dir>] [--crate <dir>]
+//          [--name <guest>] [--log-dir <dir>] [--crate <dir>] [--keep-guest]
 // Every step writes one log per command under the log directory and prints it.
 
 import { spawnSync, } from 'node:child_process';
@@ -50,7 +50,8 @@ const OPENZFS_PATH = `${OPENZFS_PREFIX}/sbin:${OPENZFS_PREFIX}/bin:/usr/local/sb
 /**
  The guest kernel release the plan pins until step 23 supplies the host kernel.
  The `mvm` Ubuntu 24.04 image boots it,
- and the module BTF below exists only for the
+ and the module BTF the kernel exposes at
+ {@link MODULE_BTF} exists only for the
  kernel whose headers the module is built against,
  so a moved image is refused here rather than
  measured under an unrecorded release.
@@ -68,7 +69,7 @@ const MODULE_BTF = '/sys/kernel/btf/zfs';
 const OPENZFS_TARBALL_SHA256 = '2a3c70d55a37cc71618a95a60e81ad66530201eb118d37741dc92efcf848c8b1';
 /**
  The rustup release the installer comes from.
- Pinned: the digest below is that release's `rustup-init`,
+ Pinned: {@link RUSTUP_INIT_SHA256} is that release's `rustup-init` digest,
  so an unpinned download would
  need a new digest with every rustup release.
  */
@@ -77,6 +78,21 @@ const RUSTUP_VERSION = '1.29.3';
 const RUSTUP_INIT_URL = `https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/x86_64-unknown-linux-gnu/rustup-init`;
 /** sha256 of that installer (`rustup-init.sha256` beside it in the same release). */
 const RUSTUP_INIT_SHA256 = 'b1c8cb14e30889e7e2999e6b69e62d9e9b9ffc0f4df8180564d306d9680e6c55';
+/**
+ The stable Rust release the guest installs.
+ Pinned: it is the release the 2026-11-19 review-fix guest run built this crate
+ with, as its `versions.log` records,
+ so a newer stable is a deliberate move of this
+ constant rather than an unrecorded change between runs.
+ */
+const RUST_TOOLCHAIN = '1.100.0';
+/**
+ The `cargo-nextest` release the guest installs.
+ Pinned: it is the release the same guest run recorded,
+ and `versions.log` proves what a
+ run used.
+ */
+const NEXTEST_VERSION = '0.9.152';
 /**
  Milliseconds one host command may take:
  a create,
@@ -100,18 +116,6 @@ const CRATE_BUILD_TIMEOUT_MS = 1_500_000;
 const SUITE_TIMEOUT_MS = 1_200_000;
 /** Milliseconds the version and teardown records may take. */
 const RECORD_TIMEOUT_MS = 180_000;
-/**
- Test threads the root suite uses:
- its arms are I/O and CPU bound on their own pools,
- and four kept the run under the suite timeout.
- */
-const ROOT_SUITE_TEST_THREADS = 4;
-/**
- Test threads the account suite uses:
- its arms share one prepared pool,
- so they run one at a time.
- */
-const ACCOUNT_SUITE_TEST_THREADS = 1;
 /**
  Seconds the guest's own `timeout` fires before mvm's kill,
  so an overrun is written to
@@ -156,9 +160,10 @@ interface Options {
   readonly name: string;
   readonly logDir: string;
   readonly crate: string;
+  readonly keepGuest: boolean;
 }
 
-/** The step, the guest name, the log directory and the crate source directory. */
+/** The step, the guest name, the log directory, the crate source directory and whether `all` keeps the guest. */
 function options(): Options {
   const [step = '', ...rest] = process.argv.slice(2);
   const value = (flag: string): string | undefined => {
@@ -171,6 +176,7 @@ function options(): Options {
     name: value('--name') ?? 'zfs-step-2-fixture',
     logDir: value('--log-dir') ?? join(packageDir, 'target', 'e2e-logs'),
     crate: value('--crate') ?? packageDir,
+    keepGuest: rest.includes('--keep-guest'),
   };
 }
 
@@ -183,8 +189,16 @@ function shellQuote(script: string): string {
   return `'${script.replaceAll("'", `'\\''`)}'`;
 }
 
+/** One host command whose whole output goes to its own log. */
+interface HostCommand {
+  readonly options: Options;
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly log: string;
+}
+
 /** Run one host command whose whole output goes to its own log. */
-function host(options: Options, command: string, args: readonly string[], log: string): void {
+function host({ options, command, args, log }: HostCommand): void {
   const output = openSync(join(options.logDir, log), 'w', 0o600);
   try {
     const result = spawnSync(command, args, {
@@ -198,8 +212,16 @@ function host(options: Options, command: string, args: readonly string[], log: s
   }
 }
 
+/** One guest script, its log and the time it may take. */
+interface GuestScript {
+  readonly options: Options;
+  readonly script: string;
+  readonly log: string;
+  readonly timeout: number;
+}
+
 /** Run one guest script through the guest agent, its output in its own log. */
-function guest(options: Options, script: string, log: string, timeout: number): void {
+function guest({ options, script, log, timeout }: GuestScript): void {
   const output = openSync(join(options.logDir, log), 'w', 0o600);
   const command =
     `test "$(hostname)" = ${options.name} && timeout ${Math.floor(timeout / 1000) - GUEST_TIMEOUT_MARGIN_SECONDS} sh -ec ${shellQuote(script)}`;
@@ -232,7 +254,7 @@ function fixtureEnvironment(options: Options): string {
 
 /** Create the guest. */
 function create(options: Options): void {
-  host(options, 'mvm', ['--backend', 'libvirt', 'create', options.name], 'mvm-create.log');
+  host({ options, command: 'mvm', args: ['--backend', 'libvirt', 'create', options.name], log: 'mvm-create.log' });
 }
 
 /** Install the tools, build OpenZFS 2.4.4, and install Rust and nextest. */
@@ -250,7 +272,7 @@ function prepare(options: Options): void {
     `chmod 0755 ${FIXTURE_ROOT}`,
     'tail --lines=5 /root/zfs-prepare.log',
   ].join('\n');
-  guest(options, install, 'guest-prepare.log', PREPARE_PACKAGES_TIMEOUT_MS);
+  guest({ options, script: install, log: 'guest-prepare.log', timeout: PREPARE_PACKAGES_TIMEOUT_MS });
 
   const build = [
     'set -eu',
@@ -277,7 +299,7 @@ function prepare(options: Options): void {
     `test "$(cat /sys/module/zfs/version)" = ${OPENZFS_RELEASE}`,
     'tail --lines=5 /root/zfs-build.log',
   ].join('\n');
-  guest(options, build, 'guest-build.log', PREPARE_BUILD_TIMEOUT_MS);
+  guest({ options, script: build, log: 'guest-build.log', timeout: PREPARE_BUILD_TIMEOUT_MS });
 
   const toolchain = [
     'set -eu',
@@ -285,27 +307,32 @@ function prepare(options: Options): void {
     `  curl --fail --location --retry ${DOWNLOAD_RETRIES} --max-time ${DOWNLOAD_TIMEOUT_SECONDS} --output /root/rustup-init ${RUSTUP_INIT_URL}`,
     `  printf '%s  %s\\n' ${RUSTUP_INIT_SHA256} /root/rustup-init | sha256sum --check --strict -`,
     '  chmod +x /root/rustup-init',
-    '  /root/rustup-init --yes --profile minimal > /root/zfs-toolchain.log 2>&1',
+    `  /root/rustup-init --yes --profile minimal --default-toolchain ${RUST_TOOLCHAIN} > /root/zfs-toolchain.log 2>&1`,
     'fi',
     'if test ! -x /root/.cargo/bin/cargo-nextest; then',
-    '  /root/.cargo/bin/cargo install cargo-nextest --locked >> /root/zfs-toolchain.log 2>&1',
+    `  /root/.cargo/bin/cargo install cargo-nextest --locked --version ${NEXTEST_VERSION} >> /root/zfs-toolchain.log 2>&1`,
     'fi',
     '/root/.cargo/bin/cargo --version',
     '/root/.cargo/bin/cargo nextest --version',
   ].join('\n');
-  guest(options, toolchain, 'guest-toolchain.log', PREPARE_TOOLCHAIN_TIMEOUT_MS);
+  guest({ options, script: toolchain, log: 'guest-toolchain.log', timeout: PREPARE_TOOLCHAIN_TIMEOUT_MS });
 }
 
 /** Push the crate, build it inside the guest, and run the root and account suites. */
 function run(options: Options): void {
   const tarball = join(options.logDir, 'subject.tar.gz');
-  host(
+  host({
     options,
-    'tar',
-    ['--create', '--gzip', '--file', tarball, '--exclude=target', '--directory', options.crate, '.'],
-    'host-package.log',
-  );
-  host(options, 'mvm', ['--backend', 'libvirt', 'push', options.name, tarball, '/root/subject.tar.gz'], 'guest-push.log');
+    command: 'tar',
+    args: ['--create', '--gzip', '--file', tarball, '--exclude=target', '--directory', options.crate, '.'],
+    log: 'host-package.log',
+  });
+  host({
+    options,
+    command: 'mvm',
+    args: ['--backend', 'libvirt', 'push', options.name, tarball, '/root/subject.tar.gz'],
+    log: 'guest-push.log',
+  });
   const build = [
     'set -eu',
     // A virtiofs push lands under /mnt/shared and keeps only the file name; a
@@ -319,7 +346,7 @@ function run(options: Options): void {
     'cargo build --release --tests --locked > /root/zfs-crate-build.log 2>&1',
     'tail --lines=3 /root/zfs-crate-build.log',
   ].join('\n');
-  guest(options, build, 'guest-crate-build.log', CRATE_BUILD_TIMEOUT_MS);
+  guest({ options, script: build, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS });
 
   // The root suite excludes the delegated arms, so no live test may skip here:
   // an arm that skipped would be a passing test whose assertions never ran, and
@@ -331,13 +358,16 @@ function run(options: Options): void {
   // The absence check is an explicit `if`, because POSIX `set -e` ignores a
   // command whose status is inverted by `!`, so `! grep --quiet` would never
   // stop the script.
+  // `--no-capture` runs the tests serially and prints their output, so the
+  // suite's `MEASUREMENT` lines are in the log. `--filterset` (not `-E`) and the
+  // long flags below keep every option spelled out.
   const rootSuite = [
     'set -eu',
     `cd ${CRATE_DIR}`,
     'export PATH=/root/.cargo/bin:$PATH',
     `export ${fixtureEnvironment(options)}`,
     'if cargo nextest run --release --locked --run-ignored all --no-fail-fast --status-level all ' +
-      `--no-capture --test-threads ${ROOT_SUITE_TEST_THREADS} -E "not test(live_account_tests)" ` +
+      '--no-capture --filterset "not test(live_account_tests)" ' +
       '> /root/zfs-root-suite.log 2>&1; then status=0; else status=$?; fi',
     'tail --lines=30 /root/zfs-root-suite.log',
     'test "$status" = 0',
@@ -345,8 +375,9 @@ function run(options: Options): void {
     `grep --quiet '^MEASUREMENT guest kernel=' /root/zfs-root-suite.log`,
     `grep --quiet '^layout zfs_cmd bytes=' /root/zfs-root-suite.log`,
     `grep --quiet '^MEASUREMENT promoted-batch ' /root/zfs-root-suite.log`,
+    `grep --quiet '^MEASUREMENT snapshot-ioctl ' /root/zfs-root-suite.log`,
   ].join('\n');
-  guest(options, rootSuite, 'guest-root-suite.log', SUITE_TIMEOUT_MS);
+  guest({ options, script: rootSuite, log: 'guest-root-suite.log', timeout: SUITE_TIMEOUT_MS });
 
   // The account episode is its own script so the delegated run keeps every
   // assertion without a second layer of shell quoting: the suite must pass, no
@@ -356,7 +387,7 @@ function run(options: Options): void {
     'set -eu',
     `cd ${CRATE_DIR}`,
     'if cargo nextest run --release --locked --run-ignored all --no-fail-fast --status-level all ' +
-      `--no-capture --test-threads ${ACCOUNT_SUITE_TEST_THREADS} -E "test(live_account_tests)" ` +
+      '--no-capture --filterset "test(live_account_tests)" ' +
       `> /home/${ACCOUNT}/zfs-account-suite.log 2>&1; then status=0; else status=$?; fi`,
     `tail --lines=30 /home/${ACCOUNT}/zfs-account-suite.log`,
     'test "$status" = 0',
@@ -369,13 +400,13 @@ function run(options: Options): void {
     `cp --archive /root/.cargo /home/${ACCOUNT}/.cargo`,
     `cp --archive /root/.rustup /home/${ACCOUNT}/.rustup`,
     `chown --recursive ${ACCOUNT}:${ACCOUNT} /home/${ACCOUNT}/.cargo /home/${ACCOUNT}/.rustup`,
-    `runuser --preserve-environment -u ${ACCOUNT} -- env HOME=/home/${ACCOUNT} ` +
+    `runuser --preserve-environment --user ${ACCOUNT} -- env HOME=/home/${ACCOUNT} ` +
       `CARGO_HOME=/home/${ACCOUNT}/.cargo RUSTUP_HOME=/home/${ACCOUNT}/.rustup ` +
       `PATH=/home/${ACCOUNT}/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ` +
       `${fixtureEnvironment(options)} ` +
       `sh -ec ${shellQuote(accountScript)}`,
   ].join('\n');
-  guest(options, accountSuite, 'guest-account-suite.log', SUITE_TIMEOUT_MS);
+  guest({ options, script: accountSuite, log: 'guest-account-suite.log', timeout: SUITE_TIMEOUT_MS });
 }
 
 /** Record versions, the assertions' environment and the teardown evidence. */
@@ -393,7 +424,7 @@ function record(options: Options): void {
     '/root/.cargo/bin/cargo nextest --version',
     '} | tee /root/zfs-versions.log',
   ].join('\n');
-  guest(options, versions, 'guest-versions.log', RECORD_TIMEOUT_MS);
+  guest({ options, script: versions, log: 'guest-versions.log', timeout: RECORD_TIMEOUT_MS });
   const teardown = [
     'set -eu',
     '{ echo "pools after the suites:"',
@@ -404,13 +435,13 @@ function record(options: Options): void {
     `find ${FIXTURE_ROOT} -name 'pool.img' -print`,
     '} | tee /root/zfs-teardown.log',
   ].join('\n');
-  guest(options, teardown, 'guest-teardown.log', RECORD_TIMEOUT_MS);
+  guest({ options, script: teardown, log: 'guest-teardown.log', timeout: RECORD_TIMEOUT_MS });
   const share = [
     'set -eu',
     'test -d /mnt/shared',
     `cp /root/zfs-root-suite.log /home/${ACCOUNT}/zfs-account-suite.log /root/zfs-versions.log /root/zfs-teardown.log /mnt/shared/`,
   ].join('\n');
-  guest(options, share, 'guest-share-logs.log', RECORD_TIMEOUT_MS);
+  guest({ options, script: share, log: 'guest-share-logs.log', timeout: RECORD_TIMEOUT_MS });
   for (
     const [from, to] of [
       ['/mnt/shared/zfs-root-suite.log', 'root-suite.log'],
@@ -419,19 +450,19 @@ function record(options: Options): void {
       ['/mnt/shared/zfs-teardown.log', 'teardown.log'],
     ] as const
   ) {
-    host(
+    host({
       options,
-      'mvm',
-      ['--backend', 'libvirt', 'pull', options.name, from, join(options.logDir, to)],
-      `host-pull-${to}`,
-    );
+      command: 'mvm',
+      args: ['--backend', 'libvirt', 'pull', options.name, from, join(options.logDir, to)],
+      log: `host-pull-${to}`,
+    });
   }
 }
 
 /** Destroy the guest and keep the list of what is left. */
 function destroy(options: Options): void {
-  host(options, 'mvm', ['--backend', 'libvirt', 'destroy', options.name], 'mvm-destroy.log');
-  host(options, 'mvm', ['--backend', 'libvirt', 'list'], 'mvm-list-after-destroy.log');
+  host({ options, command: 'mvm', args: ['--backend', 'libvirt', 'destroy', options.name], log: 'mvm-destroy.log' });
+  host({ options, command: 'mvm', args: ['--backend', 'libvirt', 'list'], log: 'mvm-list-after-destroy.log' });
 }
 
 //endregion Steps
@@ -446,11 +477,40 @@ const steps: Record<string, (checked: Options) => void> = {
   record,
   destroy,
   all: (checked: Options): void => {
-    create(checked);
-    prepare(checked);
-    run(checked);
-    record(checked);
-    destroy(checked);
+    let failure: unknown = null;
+    try {
+      create(checked);
+      prepare(checked);
+      run(checked);
+      record(checked);
+    } catch (thrown) {
+      failure = thrown;
+    }
+    if (failure !== null) {
+      // A failed step still leaves the suite logs in the guest: pull them so the
+      // failure can be read, and never let a second failure replace the first.
+      try {
+        record(checked);
+      } catch {
+        // The step's own failure is the report; a failed pull must not hide it.
+      }
+    }
+    if (checked.keepGuest) {
+      console.log(`zfs step 2 fixture: --keep-guest kept '${checked.name}' to inspect and destroy`);
+    } else if (failure === null) {
+      destroy(checked);
+    } else {
+      // The guest is destroyed even when a step failed, which is what makes a
+      // failed run leave nothing behind; a failed destruction is reported beside
+      // the step's failure rather than in place of it.
+      try {
+        destroy(checked);
+      } catch (destruction) {
+        console.error(`zfs step 2 fixture: destroying '${checked.name}' also failed: ${destruction}`);
+      }
+    }
+    if (failure !== null)
+      throw failure;
   },
 };
 
