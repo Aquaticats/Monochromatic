@@ -58,8 +58,8 @@ carried.
   access-time and account-influenced-name work they gated is deleted. The three checkers ran on the design and on
   a broken copy, each failing there and passing here.
 
-- `2026-11-19T21:44:00-05:00` (commits `92503d3f71`, `5af5c0fbc9`, `b5a635e448`, `d457df96b0`, `a11d124b64`,
-  `586177747c` and this entry's commit): the answer to a gate review of the applied answers. Its findings were
+- `2026-11-19T21:44:02-05:00` (commits `92503d3f71`, `5af5c0fbc9`, `b5a635e448`, `d457df96b0`, `a11d124b64`,
+  `586177747c`, `1a9c0b27b2` and this entry's commit): the answer to a gate review of the applied answers. Its findings were
   weighed one by one, and every one earned a fix, with none refused. `doctor` now runs the account companion under
   the shared preflight, so a reason an add refuses is a reason `doctor` prints. The companion's skip is this
   design's own choice, with its reason and the alternative, and marked open to the project's veto. Its child's start is
