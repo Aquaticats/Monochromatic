@@ -11,8 +11,8 @@ What this record is not:
 a change.
 No production code follows it.
 The claim is the owner's decision
-(`doc/handover/questions-for-the-owner.md`,
-"May a commit take its private repository from a pool made ahead?"),
+(`package/git-policy/cli/SPEC.md`,
+"A shadow taken from the pool"),
 and every option here either changes the mechanism the owner named
 or narrows the check the pool's guarantee states,
 so each needs the owner's call.
