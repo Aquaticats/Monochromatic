@@ -897,18 +897,18 @@ attempt the handler's own checks refuse before that call: plan step 8 checks the
 any attach, and that refusal is a finding about the key, which `doctor` and the handler's journal already report.
 It is that process, not the mode that supervises a probe and not the wrapper. It writes after the attach's outcome
 is known, either the verified mount at the slot or the failing step, and before it publishes this boot's receipt.
-When the writing process is `boot-reconcile`, it also writes before readiness, so a reader that sees the readiness
-`boot-reconcile`
-publishes sees the file too; a sweep that attaches later writes after readiness was published, and the file's own
-time is what orders the two. A crash between the write and the receipt leaves an outcome without a receipt rather
-than a receipt without an outcome.
+When the writing process is `boot-reconcile`, it also writes before readiness, so a reader that sees the
+readiness published by `boot-reconcile` sees the file too; a sweep that attaches later writes after readiness was
+published, and the file's own time is what orders the two. A crash between the write and the receipt leaves an
+outcome without a receipt rather than a receipt without an outcome.
 
 How one writer keeps it. The writer claims the name with an exclusive creation, the shape `write_exclusive_synced`
 has (`package/git-policy/cli/src/native/foundation/private_storage.rs:500`), writing the started line; a process that
 finds the claim answers `EEXIST` and writes nothing. Both writes set `0644` explicitly, because the helpers it takes
-their shape from publish at `0600`: the claim goes through `write_then_publish`'s mode argument, which
-`write_private_file` already uses (`:424` and `:392` to `:397`), and the staged outcome, which `replace_private_file`
-creates at `0600`, is `fchmod`ed before its rename
+their shape from publish at `0600`: the claim is published by `write_then_publish` with its mode argument at
+`0644`, which `protect_path` applies through `set_permissions` (`:175`), the argument `write_private_file` already
+passes `0600` through (`:424` and `:392` to `:397`), and the staged outcome, which `replace_private_file` creates at
+`0600`, is `fchmod`ed before its rename
 (`.../foundation/private_storage_replacing_a_record.rs:54`). The winner then stages the outcome in a sibling in the
 same directory and renames it over the claimed name in one step, in that `replace_private_file` shape, with the
 record's own owner and mode rather than the private `0600` the wrapper's helpers give the account's own files. A
@@ -1008,11 +1008,11 @@ Where the deadline's value comes from. No workload measurement exists, and rule 
 owner decision beside every shipped limit, so no number ships uncited. Step 6 runs [M4](#m4-what-the-probe-costs)'s
 arm and whole-probe timings in its guest arms, through the transient unit
 [M9](#m9-the-untested-release-and-the-refused-release) describes, and the value ships beside that run; step 19's
-boot arms re-measure the login delay at boot, and the
-value is re-cited there if the boot reading differs. Until step 6's run exists, step 19 does not add the unit's
-`ExecStartPre=` for the probe, so no wedge can hold up `systemd-user-sessions.service` in the meantime, and the
-probe runs only from the transient unit. Step 10 does the same for the companion, citing the per-add deadline
-beside [M11](#m11-the-account-companion-per-add)'s run, and the companion does not run in the preflight until that
+boot arms re-measure the login delay at boot, and the value is re-cited there if the boot reading differs. Until
+step 6's run exists, step 19 does not add the unit's `ExecStartPre=` for the probe, so no wedge can hold up
+`systemd-user-sessions.service` in the meantime, and the probe runs only from the transient unit. Step 10 does the
+same for the companion, citing the per-add deadline beside [M11](#m11-the-account-companion-per-add)'s run, and the
+companion does not run in the preflight until that
 value exists. A provisional ceiling set now by the project's own decision would also satisfy `LQM` and let step 19
 add the `ExecStartPre=` earlier; this design does not propose a number, and that choice is the project's.
 
@@ -1053,8 +1053,8 @@ The record is `/run/git-worktree-clone-mount-probe/result`: a root-owned file, m
 directory of mode `0755` that the mode process creates itself if it is absent, the same shape as the receipts
 directory `/run/git-worktree-clone-mount-results` (the [proposal][proposal], lines 550 to 553). The writer of
 `first-attach` creates the same directory with the same owner and mode when it is absent, because a sweep can
-reach its first attach before the boot probe has written anything. The mode creates
-that directory rather than relying on the unit's `RuntimeDirectory=`, because systemd removes a runtime directory
+reach its first attach before the boot probe has written anything. The mode creates that directory rather than
+relying on the unit's `RuntimeDirectory=`, because systemd removes a runtime directory
 when the unit reaches its dead state, failed included (systemd v262 `service.c:2591` to `:2599`, `unit.c:6452` to
 `:6459`; `systemd.exec(5)`, `RuntimeDirectory=`), and that would delete the record exactly when a failed arm's
 verdict is what `doctor` and the add preflight must read. Because the directory is on `/run`, the record is
