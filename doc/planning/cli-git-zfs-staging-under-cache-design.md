@@ -1943,7 +1943,7 @@ the entry says what they add, so the name stays the revision's first commit rath
   names `fs/file.c`, `fs/sync.c` and the `fs/fhandle.c` lines, and the option text is quoted from `16e46d6f49`. The
   revision-history lead and the "Questions the owner answered" lead say what their entries are. Every plan and
   proposal citation was re-checked against `main` at `59152e567b` and none changed. Its label is the committer
-  timestamp of `82561e2f33` at `2026-11-19T22:47:36-05:00`, the last commit that changed this revision's text before
+  timestamp of `382b4c14dd` at `2026-11-19T22:48:33-05:00`, the last commit that changed this revision's text before
   this label was written, because a commit cannot name its own hash; the prose checker kept in
   `~/temp/agent/zfs-staging-under-cache-design-third-revision-recheck-findings-fixed-2026-11-19/scratch/keep/` passes
   on this revision and fails on a control copy with planted faults.
