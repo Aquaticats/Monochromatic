@@ -25,6 +25,173 @@ and the parts a writer can settle are
 under [What a writer can settle without asking](#what-a-writer-can-settle-without-asking).
 Nothing here is implemented, released or approved.
 
+The owner answered three of this file's questions on 2026-11-19 and left the fourth held.
+[Answers of 2026-11-19](#answers-of-2026-11-19) records each answer in its words,
+and [the amendment these answers owe](#the-amendment-these-answers-owe-the-proposal-and-the-plan)
+gives the proposal and the plan the exact text each one needs.
+
+## Answers of 2026-11-19
+
+The project put this file's questions in the question tool between 2026-11-19T20:35
+and 2026-11-19T20:43:51-05:00.
+The answers are recorded in the main checkout's `doc/handover/cli-git-rust-implementation.md`,
+in the paragraph that begins "THE ROUND WAS ASKED".
+Each is quoted below in its words, and every later section follows it:
+none asks a question answered here, and none of the answers leaves an option open except
+Q1's own pick.
+
+### The reader, Q1 in its narrower form
+
+The first version asked Q1 more widely.
+The owner was asked the narrower form, "is it a hard requirement that the parser is our own code
+and that the product starts no second program", and answered "No, not required (Recommended)".
+So no hard constraint admits the in-house reader, the choosing-technology skill's existing-tools
+rule keeps it ineligible, and the eligible order is the three candidates that pass every gate.
+The pick is still open: it waits for finalist validation and the `doc/audit/` vet report, which
+[Q1](#q1-which-reader-parses-the-module-btf) lists as the items that condition its answer.
+That section now records this answer and keeps its pick conditional on them.
+
+### The release string, Q2
+
+The answer: "Any version, layout decides (Recommended)".
+So the gate compares no release string at all.
+The layout comparison and the request numbers decide, and `doctor` prints the loaded module's
+release string and says when it is not the tested `2.4.4`.
+
+The question took two exchanges before it settled, and the record keeps both:
+
+- the first answer asked back "Why not allow any?";
+- told that no layout comparison can show a behaviour change, the owner asked
+  "Does 'change request behavior w/o changing layout' really happen in practice?";
+- the coordinator then compared OpenZFS `zfs-2.2.2`, `zfs-2.3.0` and `zfs-2.4.4` for the twelve
+  requests the binding uses, the handlers and key tables of `module/zfs/zfs_ioctl.c`, fetching
+  them under `/home/user/temp/agent/openzfs-ioctl-behaviour-across-releases-2026-11-19/`
+  with the script `diff-handlers.ts` and keeping the `diff-*.diff` files there;
+- with that evidence the owner answered "Any version, layout decides (Recommended)".
+
+The comparison's artifacts are the script `diff-handlers.ts`, the three `zfs_ioctl-*.c`,
+`zfs_h-*.h` and `zfs_ioctl_h-*.h` copies, and two diff files:
+`diff-snapshot_list_next-handler-zfs-2.2.2-to-zfs-2.3.0.diff` and
+`diff-clone-handler-zfs-2.3.0-to-zfs-2.4.4.diff`.
+This revision re-read them with a read-only script of its own, which compares every handler and
+key table in memory and writes nothing.
+Across the 24 handler and key-table pairs, no key table changed.
+Two handlers changed by one line each:
+`zfs_ioc_snapshot_list_next`, where 2.3.0 turns
+`issig(JUSTLOOKING) && issig(FORREAL)` into `issig()` between 2.2.2 and 2.3.0,
+and `zfs_ioc_clone`, where 2.4.4 calls the relocated `dsl_dataset_clone` in place of
+`dmu_objset_clone`, in the same synchronous task shape, between 2.3.0 and 2.4.4.
+The one interface change among the three releases is a layout change:
+`zinject_record_t` carries `zi_match_count` and `zi_inject_count` in 2.4.4
+(`/home/user/temp/agent/openzfs-ioctl-behaviour-across-releases-2026-11-19/zfs_ioctl_h-zfs-2.4.4.h:425-426`),
+and neither the 2.2.2 copy nor the 2.3.0 copy carries them.
+The layout comparison catches that change, as
+[the comparison's walk](#the-comparison) shows.
+
+In the project's terms this is what the evidence answers: neither changed handler changed its
+behaviour, so across those three releases no release changes request behaviour while keeping its
+layout, and the release string carries no fact the gate needs.
+Three releases do not settle the general case, and
+[a release that keeps the layout and changes behaviour](#a-release-that-keeps-the-layout-and-changes-behaviour)
+states what the gate would then do.
+
+What was not taken, and why: the rule this file had adopted, "the version `2.4.4` with any
+suffix", and its three narrower alternatives are not in the gate, because a string check refuses
+builds whose compared layout is identical, which is the cost the record rejected when it refused
+exact BTF profiles ([ABI verification][design-project-decisions]).
+
+### The cross-process cache, Q3
+
+Held, and unchanged: Q3 waits for [owed measurement](#owed-measurements) item 10, and nothing
+needs its answer before that run.
+
+### The crate placement, Q4
+
+The answer: "Binding package (Recommended)".
+So the owner settled the placement the first versions of this file put as a question:
+the binding package holds the bounded loader, the pre-scan, the expectations and the comparison,
+and the wrapper and the handler hold the paths, the read order, the per-process cache, the target
+allowlist and the words the caller and `doctor` print.
+[The seam and the placement](#the-seam-and-the-placement) now states it as settled.
+
+What was not taken, and why: the wrapper package holding the loader, the pre-scan and the
+comparison, because that splits the expectations from the `zfs_cmd` type they mirror, so one field
+change spans two crates and a stale table becomes a cross-package test failure instead of a local
+one.
+
+### The amendment these answers owe the proposal and the plan
+
+The Q2 answer reverses a proof two accepted files state, and neither is edited here.
+The design proposal lists the module release among the gate's proofs
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md`, "ABI gate and tests", line 236):
+
+> At start, before the first ioctl, both binaries must prove compatibility with the loaded module
+> and target ABI, including module release, architecture, endianness, request contract and
+> kernel/module BTF layout.
+
+The plan's step 6 calls the release check decided
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, lines 751 to 754):
+
+> The release,
+> architecture,
+> endianness and request-contract checks are decided and can be written beside them.
+
+Step 6's "What it builds" lists the same proof in its first lines
+(`cli-git-zfs-worktree-implementation-plan.md:703-705`).
+Both files are therefore wrong about one proof the gate makes: it makes no release check, and the
+release string it reads is identity and `doctor` reporting.
+The coordinator owes each file the amendment below, and this design edits neither.
+
+Proposal, replacing the sentence quoted from line 236:
+
+```text
+# doc/planning/cli-git-zfs-worktree-design-proposal.md, "ABI gate and tests"
+At start, before the first ioctl, both binaries must prove compatibility with the loaded module
+and target ABI, including architecture, endianness, request contract and kernel/module BTF
+layout. The module's release string is not a proof: by the owner's answer of 2026-11-19, "Any
+version, layout decides", the layout comparison and the request numbers decide, and `doctor`
+prints the release string and says when it is not the tested 2.4.4.
+```
+
+Plan, deleting the `module release,` line from step 6's "What it builds"
+(`cli-git-zfs-worktree-implementation-plan.md:703`):
+
+```text
+# doc/planning/cli-git-zfs-worktree-implementation-plan.md, step 6, "What it builds"
+The gate both binaries run before their first ioctl:
+architecture,
+endianness,
+request contract and the kernel/module BTF layout,
+```
+
+Plan, replacing lines 751 to 754 of step 6's "Open items":
+
+```text
+# doc/planning/cli-git-zfs-worktree-implementation-plan.md, step 6, "Open items"
+The architecture, endianness and request-contract checks are decided and can be written beside
+them; the module's release string is reported, not proved, by the owner's answer of 2026-11-19,
+"Any version, layout decides".
+```
+
+### A release that keeps the layout and changes behaviour
+
+A release whose handler behaviour changes and whose `zfs_cmd` layout, base type sizes and request
+numbers do not now passes the whole gate.
+With the release string read as identity, no step reads a string that could refuse it either, and
+a build whose version text still reads `2.4.4-1` was never refused on that text by any rule this
+file could write.
+So a raw request from such a module reaches a handler that answers differently from the approved
+release's, and neither the wrapper nor the handler can tell.
+What catches it, if anything, is outside the gate:
+[owed measurement](#owed-measurements) item 17 records a changed-behaviour module passing it, and
+the source review of a build's provenance is the only other route, which no product check
+performs.
+The gate's own proof stops at the layout, as [Limits](#limits) states: it cannot prove handler
+behaviour, nvlist key names or property names.
+That is the trade the answer makes: a release rule narrow enough to catch a behaviour change would
+have to pin the source of every build, which is the exact-profile cost the record rejected, and a
+rule wide enough to admit a rebuild admits a behaviour change too.
+
 ## Status and sources
 
 ### What this file is
@@ -39,8 +206,14 @@ This file proposes how that check is built:
 what it reads, what it compares, how it refuses,
 which dependency parses the kernel's BTF,
 and what must be measured before either the check or its dependency is trusted.
-It adds no decision that belongs to the owner,
-and it does not reopen the accepted answers.
+It adds no decision that belongs to the owner.
+The answers of 2026-11-19 settle the reader question's narrower form, the release string and the
+crate placement, so those sections state them rather than ask them;
+[Answers of 2026-11-19](#answers-of-2026-11-19) records each answer and
+[the amendment they owe](#the-amendment-these-answers-owe-the-proposal-and-the-plan) names the two
+accepted files that need one.
+The Q2 answer reverses one proof the accepted proposal lists, which is not a reopening of an
+accepted decision: the owner decided it.
 
 The plan says the design "picks the profile dependency,
 which goes to the owner with that design"
@@ -93,7 +266,7 @@ the pick is not made here.
   (R3); the in-house reader stands outside the eligible ranking as the owner's exception, with
   what would make it eligible and where its score lead goes (R4); Q2 adopts its rule by analogy
   with the alternatives shown, and no line says the design decides nothing or settles a rule by
-  record (R5); the crate placement is [Q4](#q4-which-crate-holds-the-layout-reader) (R6); and the
+  record (R5); the crate placement is Q4 (R6); and the
   discovery record carries a frozen schedule with counts, every wider-query row named, the
   `libbpf` query, the topic and release reads, and the project boards (R7).
   The lows fix the memory sum, the v7.3 citations, the pros-and-cons pointer, the `btf-rs`
@@ -152,6 +325,15 @@ The design records, read at `73eaad0846`:
   "Where the design is silent", and "What this plan did not do".
 - [The measurements record](cli-git-zfs-measurements-owed-before-acceptance.md), in its fixture,
   items 1 and 2, its item summaries, its limits, and the guest logs named beside each fact.
+
+The owner's answer record: `doc/handover/cli-git-rust-implementation.md` in the main checkout,
+read for the paragraph that begins "THE ROUND WAS ASKED", which carries the answers of
+2026-11-19 and the evidence the Q2 exchange rested on.
+
+The three-release behaviour comparison that answer rests on, at tags `zfs-2.2.2`, `zfs-2.3.0` and
+`zfs-2.4.4`: the copies of `module/zfs/zfs_ioctl.c`, `include/sys/fs/zfs.h` and
+`include/sys/zfs_ioctl.h`, the script `diff-handlers.ts` and the two `diff-*.diff` files under
+`/home/user/temp/agent/openzfs-ioctl-behaviour-across-releases-2026-11-19/`.
 
 OpenZFS, at tag `zfs-2.4.4`, commit `71a9f9578616`:
 `META`, `config/zfs-meta.m4`, `include/sys/fs/zfs.h`,
@@ -234,6 +416,20 @@ Run on this host, read only:
 - A small Node script that reads the two BTF headers and checks
   that the section lengths sum to each file's size.
 
+Run in the revision that applied the owner's answers of 2026-11-19, read only:
+
+- A script of this revision's own, in that revision's scratch folder
+  `~/temp/agent/zfs-runtime-layout-checker-design-owner-answers-applied-2026-11-19/scratch/`,
+  named `compare-handlers-and-key-tables-across-three-openzfs-releases.ts`.
+  It reads the comparison's three `zfs_ioctl-*.c` copies and compares every handler and key table
+  in memory for the twelve requests the binding uses, and writes nothing.
+  It reports no key table changed, and two handlers changed by one line each.
+- `rg` over the three `zfs_h-*.h` and `zfs_ioctl_h-*.h` copies for `zi_match_count`,
+  `zi_inject_count`, `zc_pad1` and `zc_defer_destroy`, which place the one interface change in
+  2.4.4 and the anonymous union's arrival there.
+- The prose checker described under
+  [The prose checks](#the-prose-checks), on this file and on a deliberately broken copy.
+
 Run in the revision that answered the second gate re-check, read only:
 
 - `cat` and `stat` on `/sys/module/zfs/srcversion` and
@@ -266,16 +462,26 @@ Not run:
 
 A checker written for the revision gate re-check, kept at
 `/home/user/temp/agent/zfs-runtime-layout-checker-design-revision-gate-recheck-2026-11-19/notes/check-prose.ts`,
-read this file after its revisions. The checker is not part of the repository, so its path is a
-scratch path like the logs this file cites. It reports no em or en dash, a longest line under the
-120-character limit, no table, no heading problem, no italics or bold and no broken link. Its
-positional-word, count-word and bare-date hits are the ones the rules leave: a quoted section
+read this file after the revision that applied the owner's answers.
+The checker is not part of the repository, so its path is a scratch path like the logs this file
+cites.
+It reports no em or en dash, no line of 120 characters or more (the longest is 116), no table,
+no heading problem, no italics or bold, no numbered-marker problem and no broken link.
+Its positional-word, count-word and bare-date hits are the ones the rules leave: a quoted section
 name, a licence name, a measured result being compared, or a date inside a measurement.
-Control: the same checker on a copy with one injected defect per prose rule moved every count it
-targets, so a clean report on this file is not vacuous: dashes 0 to 2, spaced hyphens 5 to 7, long
-lines 0 to 1, tables 0 to 3, heading issues 0 to 1, positional words 26 to 27, emphasis 0 to 1,
-marker padding 0 to 2, bare dates 8 to 9, count words 152 to 156 and link problems 0 to 3. The
-ALL-CAPS and digit-plus-noun reports stayed put, because the injected set targets neither.
+Its four spaced-hyphen hits are arithmetic inside code spans, `tr - _`, `__stop_BTF - __start_BTF`,
+`ZFS_IOC_LAST - ZFS_IOC_FIRST` and `sizeof (zinject_record_t) - 16`, which the rule leaves alone.
+
+Control: the same checker on a copy in this revision's scratch folder with one injected defect per
+prose rule moved every count it targets: dashes 0 to 1, spaced hyphens 4 to 5, long lines 0 to 1
+with the longest at 170, tables 0 to 2, heading issues 0 to 3, positional words 29 to 30,
+emphasis 0 to 1, ALL CAPS words 14 to 15, marker padding 0 to 1, bare dates 52 to 53, count words
+169 to 174 and digit-plus-noun hits 66 to 67.
+Link problems rose from 0 to 22, and 20 of those 22 are the copy's own folder breaking the relative
+links to the sibling design files; the other two are the injected missing anchor and the injected
+unused definition, so the checker does detect each kind it reports.
+The copy and the two logs are in
+`~/temp/agent/zfs-runtime-layout-checker-design-owner-answers-applied-2026-11-19/scratch/`.
 
 ## The open item and the decisions that bound it
 
@@ -318,6 +524,11 @@ These decisions bound what the checker may do:
   On refusal "the wrapper uses the applicable same-dataset reflink or ordinary Git route for an unused slot",
   reports what failed, and keeps registrations and recovery state
   ([ABI gate and tests][design-abi-gate]).
+  The quoted list names module release among the proofs, and the owner's answer of 2026-11-19 removes it:
+  the gate reads the string as identity and reports it, and compares no release rule.
+  [Answers of 2026-11-19](#answers-of-2026-11-19) records the answer, and
+  [the amendment these answers owe](#the-amendment-these-answers-owe-the-proposal-and-the-plan) writes out
+  the words the proposal and the plan need.
 - The checker verifies the field layout at runtime against the approved release and request contract.
   It is not an allowlist of kernel releases: the project chose "Probe at start" for that, and
   "The runtime module gate of "A: Test plus runtime gate" stays"
@@ -343,24 +554,31 @@ These decisions bound what the checker may do:
   and assert raw requests are disabled with no force flag"
   ([Decided behaviours with no test yet][design-decided]).
 
-The decisions do not decide which crate holds the reader: both binaries are one cargo package,
-`package/git-policy/cli`, so a reader in the binding and a reader in the wrapper package both
-satisfy the record. Rule `OWK` makes placement across components the named owner's, so
-[Q4](#q4-which-crate-holds-the-layout-reader) asks it, and the binding's ownership of the request
-format is the reason this file proposes the binding.
+The record does not say which crate holds the reader, and rule `OWK` made a cross-component
+placement the named owner's. The owner answered on 2026-11-19: "Binding package
+(Recommended)". Both binaries live in one cargo package, `package/git-policy/cli`, so either
+placement satisfied the record, and the answer settles which one is built:
+the binding package, `package/zfs/request-to-openzfs-kernel-device`, holds the loader, the
+pre-scan, the expectations and the comparison, since it owns the request format and the `zfs_cmd`
+type. [The seam and the placement](#the-seam-and-the-placement) states the split it settles.
 
 ### What the decisions leave this design to settle
 
 The decisions do not name:
 
-- the reader and its dependency;
-- how the module release string is matched to the approved release;
+- the reader and its dependency, which [Q1](#q1-which-reader-parses-the-module-btf) offers and the
+  owner has still to pick;
 - which parts of the layout are compared, and how a missing or unreadable file is distinguished;
 - the accepted set of values (the compiled expectations) and how they stay in step with the binding;
 - what a refusal says, and how `doctor` shows it without becoming a second bypass;
 - where the checker reads, in which order, and what it does if the module reloads between reads;
 - how the check is cached in a process, and whether any cache is written to disk;
 - the tests, fixtures and fuzz target, and the measurements that qualify them.
+
+The owner's answers of 2026-11-19 settled the release string and the crate placement, so neither
+is on this list any more:
+[What a writer can settle without asking](#what-a-writer-can-settle-without-asking) holds what the
+answers leave to a writer.
 
 ## Facts
 
@@ -388,6 +606,13 @@ a probe is a command this session ran, listed under
   mode `0444`.
 - Probe: `/sys/module/zfs/version` on this host reads `2.4.4-1`,
   the host kernel is `7.3.5-1-cachyos`, and the account can read the file.
+- The gate reads this string as identity and `doctor` prints it; nothing compares it with a rule.
+  The owner's answer of 2026-11-19, "Any version, layout decides", removed the release check,
+  so the facts above decide what `doctor` can say and what the second identity read can notice,
+  not what the gate accepts or refuses ([Answers of 2026-11-19](#answers-of-2026-11-19)).
+  So a module reporting `2.2.2-0ubuntu9.5`, a checkout build's `2.4.4-1_g1a2b3c4` or a module
+  reporting the approved string are treated alike: each reaches the layout comparison, and that
+  comparison is what decides.
 
 ### The BTF files the kernel exposes
 
@@ -656,8 +881,6 @@ a probe is a command this session ran, listed under
 
 The gate's proofs, and what each one means here:
 
-- Module release. The loaded module identifies the approved release.
-  Which strings qualify is [Q2](#q2-which-module-release-strings-qualify).
 - Architecture. The binary runs on a target the project has qualified for the managed route.
   Today that is `x86_64`; `linux-arm64` is refused.
 - Endianness. The module's BTF byte order matches the target's.
@@ -666,6 +889,17 @@ The gate's proofs, and what each one means here:
 - Kernel and module BTF layout. The loaded module's `zfs_cmd` has the size, member offsets,
   member sizes and nested shapes the binding compiled, and the base types its members use have
   the sizes the binding assumes.
+
+The gate proves no module release, and that is deliberate: the owner's answer of 2026-11-19,
+"Any version, layout decides", removed the release check
+([Answers of 2026-11-19](#answers-of-2026-11-19)).
+The module's version string, `srcversion` and build ID are still read, as identity for the
+per-process cache and for the second read that notices a reload, and `doctor` prints the version
+string and says when it is not the tested `2.4.4`.
+That is a different use from a release check: an identity read catches a module that changed under
+the check, and a release rule would have decided which builds qualify.
+What the gate cannot show is
+[a release that keeps the layout and changes behaviour](#a-release-that-keeps-the-layout-and-changes-behaviour).
 
 The gate runs before the first ioctl in both binaries. A missing device, a missing file,
 an unreadable file, a short read, a parse failure or any mismatch disables raw requests,
@@ -677,6 +911,8 @@ Request contract is the one proof the 2.2.2 module would also pass: its enumerat
 every request the binding sends hold the same values, since 2.4.4 only appended two requests into
 the core block's reserved numbers. The request comparison therefore cannot tell the two releases
 apart, and the layout comparison is what does.
+Since no step reads the version string as a rule, nothing refuses a 2.2.2 module before its BTF is
+read, so that comparison is reached whenever the module carries BTF.
 
 ## Ways to meet it
 
@@ -861,16 +1097,19 @@ Pros:
 
 Cons:
 
-- It is what the design had before the answer, and the answer added the layout check.
+- It is what the design had before the layout answer, and that answer added the layout check.
+- The owner's answer of 2026-11-19 removed even this check, so a release rule is not part of the
+  gate at all ([Answers of 2026-11-19](#answers-of-2026-11-19)).
 - A distro or patched build that keeps `2.4.4` and changes a field passes, and the kernel copies
   the wrong shape.
 
 Cost to build and test:
 
 - The version read and the release rule, about 20 lines of source, plus a test of the rule.
-  It is the gate the design had before the answer.
+  It is the gate the design had before the layout answer.
 
-This way is bounded out by the accepted answer.
+This way is bounded out twice: by the layout answer, which added the check it omits, and by the
+owner's answer of 2026-11-19, which removed the release rule it is built on.
 What it needs measured: item 16, where a patched module that keeps the version and moves a field
 must be shown passing it. No reason to build it otherwise.
 
@@ -892,7 +1131,8 @@ The further ways are not ranked, each for a stated reason:
 - Way 4 is bounded out by the accepted answer: it would refuse every rebuild.
 - Way 5 is bounded out by the gate's order, since it obtains its proof by sending the ioctl the
   gate must precede, and it proves only that the caller's buffer covers the copy.
-- Way 6 is the gate the answer replaced: it omits the layout check the answer added.
+- Way 6 is the gate the answers replaced: the layout answer added the check it omits, and the
+  owner's answer of 2026-11-19 removed the release rule it rests on.
 
 The reader inside Way 1 is the owner's pick;
 the ranked reader options are
@@ -900,35 +1140,40 @@ under [The profile-checking dependency](#the-profile-checking-dependency).
 
 ## The shape this proposal designs
 
-This section proposes the shape of Way 1. It is a proposal, not a decision.
-The reader is a seam: either a dependency or an in-house reader can fill it,
-and the rest of the shape stays the same.
+This section proposes the shape of Way 1, with the placement the owner answered on 2026-11-19.
+The reader is a seam that [Q1](#q1-which-reader-parses-the-module-btf)'s pick fills, and the rest
+of the shape stays the same whichever option it picks.
 
 ### The seam and the placement
 
 The binding package owns the request format, the `zfs_cmd` representation and the codec
-([Binding crate and compatibility][design-binding]),
-so the design proposes that the binding owns:
+([Binding crate and compatibility][design-binding]).
+The owner answered on 2026-11-19 that the same package holds the layout reader,
+"Binding package (Recommended)", so the binding owns:
 
 - the bounded file loader and the pre-scan;
 - the expectations derived from its `#[repr(C)]` type and its request list;
-- the comparison and its refusal value.
+- the comparison and its refusal value;
+- the reader itself, once [Q1](#q1-which-reader-parses-the-module-btf) is settled, or the call
+  into the dependency that reader names.
 
-and that the wrapper and the handler own:
+and the wrapper and the handler own:
 
 - the file paths, the read order and the per-process cache;
-- the target allowlist (architecture) and the module release rule the owner picks;
-- the words the caller and `doctor` print.
+- the target allowlist (architecture);
+- the identity reads the cache compares;
+- the words the caller and `doctor` print, including the version string and the sentence printed
+  beside it.
 
 Both binaries call the same entry point, as the design requires for reads as well as writes.
-This placement is a proposal, not a decision: the record decides that the binding owns the request
-format and that both binaries share the binding and the gate, and both binaries live in one cargo
-package, so it does not decide which crate holds the reader
-([Binding crate and compatibility][design-binding]). Rule `OWK` makes a cross-component placement
-the named owner's, so [Q4](#q4-which-crate-holds-the-layout-reader) puts it there and this section
-gives the shape either answer takes.
-If the owner moves the reader into `package/git-policy/cli`, the binding keeps the expectations and
-the wrapper package holds the loader and the parser, and nothing else in this file changes.
+The record decides that the binding owns the request format and that both binaries share the
+binding and the gate, and both binaries live in one cargo package
+([Binding crate and compatibility][design-binding]); rule `OWK` made the remaining placement the
+named owner's, and the answer settles it.
+The seam stays one function wide: it reads the two files, compares them with the binding's
+expectations and returns the refusal value, and the wrapper supplies the paths, the target
+allowlist and the wording.
+[Answers of 2026-11-19](#answers-of-2026-11-19) records the answer and what it did not take.
 
 ### The read order and the reload race
 
@@ -939,6 +1184,9 @@ The gate, for a caller that needs the device:
 2.  Read the module's identity once: `/sys/module/zfs/version` and `srcversion`, each bound to one
     page and stripped of one trailing newline, and `notes/.note.gnu.build-id`, bound to one page
     and compared as bytes.
+    That read is identity, never a rule: no step compares the version text with an approved string,
+    and the text is kept for the cache, for the second read and for `doctor` to print
+    ([Answers of 2026-11-19](#answers-of-2026-11-19)).
 3.  Read the two BTF files, each opened with `O_RDONLY | O_CLOEXEC | O_NOFOLLOW`,
     each read to a bounded size, each checked against its own header and file size.
 4.  Read the same identity again. If any of it differs, retry the whole check once; refuse with
@@ -959,6 +1207,9 @@ moves when one is recompiled even from identical source. A replacement that keep
 The retry is what keeps a reload that has already settled from reading as a refusal: only a
 second attempt that also sees two different identity reads refuses, and a second attempt that sees
 one module passes.
+`doctor` runs the same identity reads without the device step and prints the version string beside
+its verdict, saying when it is not the tested `2.4.4`; that sentence is the only place the release
+string reaches a reader ([The refusal](#the-refusal)).
 
 ### The bounded pre-scan
 
@@ -1089,16 +1340,26 @@ One value carries the outcome, with the step that failed, the file it read, and 
 ```text
 # package/zfs/request-to-openzfs-kernel-device/src/layout/refusal.rs
 Refused {
-  step: Device | Version | BaseBtf | ModuleBtf | Header | Type | Member | Enum | BaseType,
+  step: Device | Identity | BaseBtf | ModuleBtf | Header | Type | Member | Enum | BaseType,
   file: Option<PathBuf>,
   detail: String,            # the field path, the expected and actual values, or the read error
 }
 ```
 
+`Identity` is the step that says "module changed while checking", and it is the only step the
+version text takes part in, as one of the three values the two identity reads compare.
+No step is named for a release rule, because the gate has none
+([Answers of 2026-11-19](#answers-of-2026-11-19)).
+
 The caller prints the loaded module's version string, the target architecture, the files it read
 and the failing step, and takes the design's fallback for an unused slot.
 It never offers a bypass. `doctor` prints the same facts, with the healthy case as an explicit
-"compatible" line naming the module and the file sizes, and does not change its exit status.
+"compatible" line naming the module, the release string it read, the sentence that says when that
+string is not the tested `2.4.4`, and the file sizes, and does not change its exit status.
+Its refused case carries the same release string and sentence beside the failing step, so a reader
+can tell a module the design never tested from one whose layout differs.
+The release sentence is reporting, not a rule: a string other than `2.4.4` or one beginning
+`2.4.4-` costs the reader a sentence, never a refusal.
 
 ### The cache
 
@@ -1608,21 +1869,25 @@ Only `btf-rs`, `pahole` and `bpftool` are finalists: each passes every hard cons
 The in-house reader passes H1 to H6 by construction, but it is not eligible as a candidate while
 an existing tool passes them, which is the skill's existing-tools rule and the reason
 [Candidate ledger](#candidate-ledger) calls it conditional. It therefore stands outside the
-eligible ranking, as the owner's exception to that rule and not as a finalist: the skill's
-"Weighted scoring" section says to score only validated finalists, and this reader does not exist
-yet.
+eligible ranking, as an exception to that rule that the owner declined to grant on 2026-11-19 and
+not as a finalist: the skill's "Weighted scoring" section says to score only validated finalists,
+and this reader does not exist yet.
 
-To make the reader eligible, the owner must name one hard constraint that every existing candidate
-fails at once, such as "the parser is our own code and the product starts no second program".
+To make the reader eligible, the owner would have to name one hard constraint that every existing
+candidate fails at once, such as "the parser is our own code and the product starts no second
+program".
 `btf-rs` fails the first half, because its parser is third-party code, and `pahole` and `bpftool`
-fail the second, because each is a program; that single constraint admits the reader and removes
-each of them. Refusing a copyleft dependency alone eliminates only `btf-rs`, since the two tools
+fail the second, because each is a program; that single constraint would admit the reader and remove
+each of them.
+Refusing a copyleft dependency alone eliminates only `btf-rs`, since the two tools
 are separate GPL-2.0 programs that are never linked, so that ground does not make the reader
 eligible.
+The owner was asked that question in this form on 2026-11-19 and answered "No, not required
+(Recommended)", so no such constraint exists and the reader stays ineligible
+([Answers of 2026-11-19](#answers-of-2026-11-19)).
 
-The reader is still scored, so the owner can price the exception
-[Q1](#q1-which-reader-parses-the-module-btf) offers, and the arithmetic marks that score as
-priced, not ranked.
+The reader is still scored, so its price is on record beside the order it stands outside of, and
+the arithmetic marks that score as priced, not ranked.
 
 Ratings, 0 to 4, with confidence:
 
@@ -1749,8 +2014,8 @@ Until then this section gives a conditional ranking and recommends none.
 ### Ranking and pros and cons
 
 Ranking of the eligible candidates: `btf-rs` 2.0.1 > `pahole` 1.32 > `bpftool` 7.8.0.
-The in-house reader stands outside it as the owner's exception, priced at 92 of 104 while
-ineligible.
+The in-house reader stands outside it as an exception the owner declined to grant on 2026-11-19,
+priced at 92 of 104 while ineligible.
 
 - `btf-rs` beats `pahole` because its proof runs in the wrapper's address space, with no runtime
   program and no root-spawned binary, which neither tool can offer; the arithmetic agrees, 90
@@ -1758,9 +2023,11 @@ ineligible.
 - `pahole` beats `bpftool` because its `-C` output carries the compared members directly, while
   `bpftool`'s raw dump needs a type-id resolver in the wrapper before it can compare anything.
   The arithmetic agrees, 60 against 56; a C4 step ties the pair and a C1 step reverses it.
-- The in-house reader, were the owner to make it eligible, would beat both tools for the reason
+- The in-house reader, were it eligible, would beat both tools for the reason
   the library pair already rests on: a root-spawned program, a text format and a runtime package
   cost more than the reader they replace. The arithmetic agrees, 92 against 60.
+  The owner's answer of 2026-11-19 is what keeps it out of the order, and the answer changes
+  nothing else here ([Answers of 2026-11-19](#answers-of-2026-11-19)).
 
 The pros and cons of each candidate stand under
 [Q1](#q1-which-reader-parses-the-module-btf). No candidate is chosen here.
@@ -1802,10 +2069,11 @@ Every measurement stays owed, and no item here touches this host's pool or modul
     guest, run the built gate, and assert it reports compatible and that a real read request then
     runs. Control: the same binary on a module without BTF must refuse, so a pass is not vacuous.
 2.  A changed layout refuses, in the guest. The patched arms start from the 2.4.4 source with
-    `META` untouched, so the module still reports `2.4.4-1`, the release rule passes and the
-    comparison runs. Both arms drop members the source uses, so each patch also removes or stubs
-    every use of them: in `zfs-2.4.4` the two counters are read and written throughout
-    `module/zfs/zio_inject.c`, from line 165 to line 789, and printed at
+    `META` untouched, so the module still reports `2.4.4-1`; no step compares that string, so only
+    the comparison can refuse these arms
+    ([Answers of 2026-11-19](#answers-of-2026-11-19)). Both arms drop members the source uses, so
+    each patch also removes or stubs every use of them: in `zfs-2.4.4` the two counters are read
+    and written throughout `module/zfs/zio_inject.c`, from line 165 to line 789, and printed at
     `cmd/zinject/zinject.c:474, 511, 548`; `dds_flags` is written at
     `module/zfs/dsl_dataset.c:2891, 2893` and read at `lib/libzfs/libzfs_crypto.c:1827`.
     A kernel-module-only build avoids `cmd/zinject/zinject.c` and `lib/libzfs/libzfs_crypto.c`,
@@ -1825,13 +2093,13 @@ Every measurement stays owed, and no item here touches this host's pool or modul
     `dds_flags` missing at 2,296 bits.
     Control for both arms: the unpatched module from the same build passes the same binary.
     Third arm, only if the guest's packaged 2.2.2 module carries BTF: it reports
-    `2.2.2-0ubuntu9.5`, which the release rule refuses at `Version` before any BTF file is read, so
-    a layout refusal from that module is unreachable without a seam, and the first version's
-    assertion could never hold. With a test seam that skips only the release rule, assert the
-    refusal is the container step at `Type`, naming the member found where the anonymous union was
-    expected (`zc_inject_record`), which is the first refusal under
-    [The comparison](#the-comparison)'s walk order. Without the seam, record that the arm proves
-    the release rule only.
+    `2.2.2-0ubuntu9.5`, and no step compares that string, so the layout comparison runs on it
+    without a seam. Assert the refusal is the container step at `Type`, naming the member found
+    where the anonymous union was expected (`zc_inject_record`), which is the first refusal under
+    [The comparison](#the-comparison)'s walk order. The first version needed a test seam that
+    skipped the release rule to reach this arm; the 2026-11-19 answer removed that rule, so the
+    seam goes with it and the arm now proves the comparison, not the rule.
+    Control: the unpatched 2.4.4 module that carries BTF passes the same binary in the same guest.
     Every arm's refusal names the field and both values.
 3.  A missing module BTF refuses and falls back, in the guest. Use the tarball build path that
     skipped BTF (`guest-openzfs-build.log:834-838`) or hide the base file from the checker's
@@ -1929,23 +2197,48 @@ Every measurement stays owed, and no item here touches this host's pool or modul
     13,620 bytes from the struct's start rather than 13,616. The full comparison compares
     `zinject_record` member by member, so it refuses there at `Member`, expected `zi_iotype` at
     108,928 bits and actual 108,960. The narrow comparison, the request probe and the
-    release-string-only check accept both.
+    release-string-only check accept both, and so does the gate as now designed, which has no
+    release step to catch them either
+    ([Answers of 2026-11-19](#answers-of-2026-11-19)).
     Control: the full comparison on the unmodified 2.4.4 module passes.
+17. A release that keeps the layout and changes behaviour, in the guest. Take the 2.4.4 source and
+    change one compared request's handler behaviour while leaving its request number, its key
+    table and every struct alone: for example, make `zfs_ioc_destroy_snaps` treat a flag it
+    ignores today as a refusal, or make `zfs_ioc_get_bookmarks` skip a bookmark it returns today.
+    The module still reports 2.4.4-1, its BTF still matches the expectations, and its request
+    numbers still match, so the gate must report compatible and let a raw request through.
+    Assert exactly that, and record what the request then returns, because that answer is the
+    blind spot's own evidence and not a defect in the gate.
+    Control: the unpatched 2.4.4 module from the same build passes and answers as before, so the
+    arm shows a difference the gate cannot see rather than a difference it missed.
+    [A release that keeps the layout and changes behaviour](#a-release-that-keeps-the-layout-and-changes-behaviour)
+    says what the gate would do and what, if anything, catches it.
 
 ## Questions for the owner
 
-The readiness differs by question. Q2 and Q4 are ready for the question tool. Q1 is conditional:
-it goes only after the items its own text lists close. Q3 is held until
-[Owed measurements](#owed-measurements) item 10 runs, and nothing needs its answer before then.
+One question is answered in part and one is held.
+Q1 was answered in its narrower form on 2026-11-19 and its pick is still conditional: it goes only
+after the items its own text lists close
+([Answers of 2026-11-19](#answers-of-2026-11-19)).
+Q3 is held until [Owed measurements](#owed-measurements) item 10 runs, and nothing needs its
+answer before then.
+The Q2 and Q4 questions of the first versions are answered, and their answers are recorded under
+[Answers of 2026-11-19](#answers-of-2026-11-19) rather than here.
 Options are ranked, best first, each option says why it sits where it does, and the pick is the
 owner's.
 
 ### Q1: which reader parses the module BTF
 
-Conditional, and no option is recommended. `btf-rs` 2.0.1 ranks first among the eligible options
+Answered in its narrower form, and the pick is still conditional.
+The owner was asked "is it a hard requirement that the parser is our own code and that the product
+starts no second program" and answered "No, not required (Recommended)" on 2026-11-19
+([Answers of 2026-11-19](#answers-of-2026-11-19)).
+So no named hard constraint admits the in-house reader, the skill's existing-tools rule keeps it
+ineligible, and the eligible order is options 1 to 3 below.
+No option is recommended, and `btf-rs` 2.0.1 ranks first among the eligible options
 on eligibility and not on validation: no hard gate fails on the source evidence read, and the
 crate holds the split model, the type kinds and the tests the check needs, while this proposal's
-pre-scan closes the residuals it names. The answer is revisable until these close:
+pre-scan closes the residuals it names. The pick waits until these close:
 
 - nobody ran `btf-rs`'s own test suite, and `pahole` and `bpftool` were exercised by hand rather
   than through a repeatable harness;
@@ -1955,7 +2248,7 @@ pre-scan closes the residuals it names. The answer is revisable until these clos
 - the pre-discovery check-in is not written
   ([The vet artifacts this brief could not write](#the-vet-artifacts-this-brief-could-not-write)).
 
-The pair of library options also flips or ties on one criterion at a time
+The library pair also flips or ties on one criterion at a time
 ([Sensitivity](#sensitivity)), which does not cover simultaneous multi-input changes.
 
 BTF (BPF Type Format) is the kernel's own description of its struct and enum layouts, published
@@ -1963,12 +2256,16 @@ as files under `/sys/kernel/btf`. The gate reads the kernel's base file and the 
 and compares their field offsets and sizes with the ones the binding was built for. A dependency
 here is a library the binding links, or a program the gate starts.
 
-In plain words, the choice between options 1 and 2 is this: take an `LGPL-2.1-or-later` dependency,
-a library under the GNU Lesser General Public License version 2.1 or later, which our
+In plain words, the choice is between option 1 and options 2 and 3: take an `LGPL-2.1-or-later`
+dependency, a library under the GNU Lesser General Public License version 2.1 or later, which our
 `LGPL-3.0-or-later` product may link and redistribute, and whose 2.0.1 release lags its own main
-branch on the widened BTF masks; or write about 350 to 450 source lines and 100 to 150 test lines
-of our own reader, plus a fuzz target (a test that feeds random and mutated bytes to the parser and
-fails on a panic or a stall) and a review of it, and add no new dependency.
+branch on the widened BTF masks; or start `pahole` or `bpftool` at each gate run, two separate
+programs the product must find and version, one of them in the root handler.
+A fourth route, about 350 to 450 source lines and 100 to 150 test lines of our own reader plus a
+fuzz target (a test that feeds random and mutated bytes to the parser and fails on a panic or a
+stall) and a review of it, stays priced under [Scored comparison](#scored-comparison) and is not
+offered: the owner answered on 2026-11-19 that our own parser and no second program is not a hard
+requirement.
 
 Terms used here. "C6" is the integration and test cost criterion of
 [Scored comparison](#scored-comparison), where a higher rating is cheaper. The "widened BTF
@@ -1986,9 +2283,8 @@ does not give.
 Scenario: a future kernel writes a BTF file whose member count needs the 24-bit field. With
 option 1, the released masks misread it or this design's pre-scan (the header and section checks
 made before any parser runs) refuses the file, so raw requests stay disabled and the command takes
-the Git fallback until `btf-rs` publishes a release with the wider mask. With option 2, the reader
-is ours and the mask is ours to widen with the reader. With options 3 and 4 the outcome depends on
-the installed tool's version, which this file has not checked.
+the Git fallback until `btf-rs` publishes a release with the wider mask. With options 2 and 3 the
+outcome depends on the installed tool's version, which this file has not checked.
 
 Options:
 
@@ -2001,131 +2297,39 @@ Options:
     Cost: the shared shape, about 350 to 550 lines of source and 300 to 450 of tests, plus the
     array-size shim and one fuzz target.
     Why here: it is the only eligible library, since the skill admits a custom implementation only
-    when every existing tool fails a hard constraint; its 90 of 104 trails the in-house reader's 92
-    by two points, inside a band one step on C6 reverses.
-2.  An in-house reader in the binding, available only if you name one hard constraint that
-    `btf-rs`, `pahole` and `bpftool` all fail, for example "the parser is our own code and the
-    product starts no second program". That is the constraint this file can find that admits the
-    reader and removes every existing candidate at once; a rule against copyleft dependencies
-    alone removes only `btf-rs`, since `pahole` and `bpftool` are separate programs that are never
-    linked. Without such a constraint this option is not eligible and has no place in the order.
-    Pros: exact bounds and refusal semantics in one place; no new dependency or license; can read
-    lazily; no array-size shim, since the reader owns array sizes.
-    Cons: a parser of kernel bytes is ours to review, fuzz and maintain; it means overriding the
-    skill's existing-tools rule for this package, which the design would record as an adopted
-    exception.
-    Cost: the same shared shape plus about 350 to 450 lines of reader source and 100 to 150 of
-    tests, and its own fuzz target.
-    Why here: its 92 of 104 leads `btf-rs`'s 90 at this writer's weights, yet a score does not
-    override eligibility, and the lead does not survive its own inputs: at equal weights the pair
-    ties and at medium confidence the reader falls below 90.
-3.  `pahole` 1.32 as a start-time program, ranked after option 1.
+    when every existing tool fails a hard constraint, and the owner named no such constraint on
+    2026-11-19; its 90 of 104 trails the priced in-house reader's 92 by two points, inside a band
+    one step on C6 reverses.
+2.  `pahole` 1.32 as a start-time program, ranked after option 1.
     Pros: the command the design already names for the test-time comparison; `-C` prints the
     compared members; no new Rust dependency.
     Cons: a runtime package; a root-spawned program in the handler; a text format; an invocation
     each for the struct, the nested type and the enum.
     Why here: 60 of 104, and a runtime program costs the deployment and privilege points that
     option 1 does not.
-4.  `bpftool` 7.8.0 as a start-time program, ranked after `pahole`.
+3.  `bpftool` 7.8.0 as a start-time program, ranked after `pahole`.
     Pros: libbpf's reader; a documented base option and a raw type listing.
     Cons: the same runtime-program and root-path costs; the raw listing needs a type-id resolver
     in the wrapper before it can compare a member; the tool's version tracks the kernel's tools,
     not the distribution's.
-    Why here: 56 of 104, the lowest of the four options, for the resolver its output needs and its
-    medium diagnostic rating.
+    Why here: 56 of 104, the lowest of the three options, for the resolver its output needs and
+    its medium diagnostic rating.
 
-Not offered: `btfparse` (no split base), `aya-obj` (no base, ELF-oriented), `btf` 0.5.1
+Not offered: an in-house reader, because the owner answered on 2026-11-19 that our own parser and
+no second program is not a hard requirement, which leaves it ineligible under the skill's
+existing-tools rule while it stays priced under [Scored comparison](#scored-comparison);
+`btfparse` (no split base), `aya-obj` (no base, ELF-oriented), `btf` 0.5.1
 (unmaintained, no base), `btfdump` (no base, tool first), `padlock-dwarf` (no base, wrong fit),
 `libbpf-rs` and `libbpf` (C build), and a BTF digest (the answer the project did not select).
 
-Ranking: option 1 > option 3 > option 4, with option 2 inserted between options 1 and 3 only if
-you name the constraint option 2 states. Option 1 leads option 3 because a library in the wrapper's
-address space needs no program the product must find and version and no binary the root handler
-starts;
-the arithmetic agrees, 90 against 60. Option 3 leads option 4 because `pahole`'s `-C` output
-carries the compared members while `bpftool`'s raw dump needs a type-id resolver before anything
-can be compared; the arithmetic agrees, 60 against 56. Were option 2 eligible it would rank
-between options 1 and 3, because in-process proof costs no runtime program, no root-spawned
-binary and no text format.
-
-### Q2: which module release strings qualify
-
-This file adopts a rule by analogy and invites a veto. No record states which strings qualify: the
-record says only that a rebuild must not disable clones
-([ABI verification][design-project-decisions]). The proposal lists "module release" among the
-proofs the gate must make (proposal, "ABI gate and tests", line 236), and the plan's step 6 lists it
-among the gate's proofs and says "The release, architecture, endianness and request-contract
-checks are decided" (plan, step 6, "What it builds" and "Open items", lines 698-715 and 751-754).
-What those checks compare is decided; which strings qualify is not. From that reason this file
-adopts: match the version `2.4.4` and accept any release suffix, printing the whole string in
-`doctor`.
-Adopted rule: the string qualifies when it is exactly `2.4.4` or begins `2.4.4-`. That rule cannot
-match `2.4.40-1`, because the character after `2.4.4` there is `0`, not `-` or the end of the
-string. The writer implements it, and the owner may veto it here.
-
-In plain words, the gate reads the module's version string and decides whether it names the
-approved release; the layout comparison then reads the module's BTF and decides whether its field
-layout matches the approved release. A refused release string stops the command before any request
-and sends it to the Git fallback.
-
-The analogy, in plain words: a rebuild of the same source keeps `2.4.4-1` (`META:4-5`,
-`zfs_ioctl_os.c:386`), so only a repackaged or git-built module changes the suffix, and the
-record's reason is about exactly those builds. The options in this question are the rules this
-file weighed; option 1 is the one it adopts.
-
-Scenario: an owner installs a distribution's `2.4.4-2` build whose field layout matches the
-approved release and runs a ZFS command. Under option 1 the release step passes and the layout
-comparison decides; under option 4 the command refuses and takes the Git fallback.
-
-The adopted rule also accepts every build from a git checkout, because `config/zfs-meta.m4:73-88`
-replaces the release with `git describe`'s suffix through `tr - _` when a matching tag exists. A
-checkout one commit past `zfs-2.4.4` builds the release string `1_g1a2b3c4` from `git describe`'s
-`zfs-2.4.4-1-g1a2b3c4`: the count of commits past the tag, `_g`, then the abbreviated commit. With
-that release the module reports `2.4.4-1_g1a2b3c4`.
-
-The open part is whether to narrow the adopted rule for exactly that shape. The layout check runs
-either way, so the narrowing changes only what the string is allowed to say about where the source
-came from, which the layout comparison cannot show.
-
-Options:
-
-1.  The version `2.4.4` with any suffix after it, or the bare string: the rule this file adopts,
-    ranked first.
-    Pros: one rule for every build; a checkout build with the approved layout keeps the managed
-    route, which is the record's reason for the runtime check; it accepts a distribution's
-    `2.4.4-2` whose layout matches. Cons: the loaded module may come from source ahead of the tag,
-    and a patch that keeps the layout passes anyway; `doctor` has to say plainly that the build is
-    not the release.
-    Why here: it is the rule the record's reason already implies, so it adds no second case to
-    explain, test or print, and the layout comparison remains the proof.
-2.  Any suffix except a git-snapshot one of the form `<digits>_g<hex>`, ranked after option 1.
-    Pros: the managed route then means a release build, since a checkout at the tag reports
-    `2.4.4-1` through the `META` fallback and only a build past the tag grows that suffix.
-    Cons: a checkout build even one commit past the tag disables raw requests until it is rebuilt
-    at the tag, which is the exact-profile cost the record rejected in a narrower form, and it
-    refuses a build whose compared layout is identical.
-    Why here: it buys a string fact, that the source is a release checkout, at the cost the record
-    rejected, and that fact is not one the checks the gate must make need.
-3.  An allowlist of known release strings, ranked after option 2.
-    Pros: nothing passes that nobody has seen and listed, so a distribution's build is admitted
-    only after review. Cons: it refuses every repackaged build not yet listed, whose layout may be
-    identical, which is the cost the record rejected; it adds a release step and a list to keep
-    current, and a stale list keeps working clones off the managed route.
-    Why here: it refuses more builds than option 2 for the same kind of string fact, and it adds
-    maintenance option 2 does not need.
-4.  Exactly the string `2.4.4-1`, ranked last.
-    Pros: the rule is one literal string, with no pattern and no list. Cons: it refuses every
-    repackaged or git-built module, including one whose layout is identical, which is the cost the
-    record rejected in its plainest form.
-    Why here: it refuses every build options 1 to 3 admit, for the least information about where
-    the source came from.
-
-Ranking: option 1 > option 2 > option 3 > option 4. Option 1 leads option 2 because option 2 buys a
-string fact about where the source came from at a refusal cost the record rejected, while the
-layout comparison already carries the proof that the gate needs. Option 2 leads option 3 because
-an allowlist refuses every build not yet listed while option 2 refuses only snapshot builds.
-Option 3 leads option 4 because an allowlist can include the repackaged builds already seen, so it
-disables fewer clones than the exact string, at the price of a list to maintain.
+Ranking: option 1 > option 2 > option 3. Option 1 leads option 2 because a library in the
+wrapper's address space needs no program the product must find and version and no binary the root
+handler starts; the arithmetic agrees, 90 against 60. Option 2 leads option 3 because `pahole`'s
+`-C` output carries the compared members while `bpftool`'s raw dump needs a type-id resolver
+before anything can be compared; the arithmetic agrees, 60 against 56.
+The priced in-house reader, were it eligible, would rank between options 1 and 2, because
+in-process proof costs no runtime program, no root-spawned binary and no text format; the owner's
+answer is what keeps it out of the order.
 
 ### Q3: may a verification be cached across processes
 
@@ -2173,63 +2377,20 @@ descriptive string, and a wrong entry changes a warning, while a verdict here ga
 ([The cache](#the-cache)). That difference in trust class, not the parse cost, is why the first
 version made this choice; the cost is what may reopen it.
 
-### Q4: which crate holds the layout reader
-
-Rule `OWK` makes a cross-component placement the owner's, and the record decides only that the
-binding owns the request format and that both binaries share the binding and the gate. Two packages
-are in play: the binding package, `package/zfs/request-to-openzfs-kernel-device`, which owns the
-`/dev/zfs` request format and the `zfs_cmd` type, and the wrapper package, `package/git-policy/cli`,
-which holds the command, `doctor`, the paths and the target allowlist. "The loader" reads both
-files to a bound, "the pre-scan" is the header and section checks made before any parser runs,
-"the comparison" walks the parsed types against the expectations, and "the expectations" are the
-field offsets, sizes and request numbers derived from the binding's own type and request list. The
-binding's "unsafe layout boundary" is the code that turns its Rust types into the bytes the device
-judges, so a mistake there is a memory-safety risk rather than a visible value; to "link the
-crate" is to name it as a dependency, which neither binary does today: no binding package exists
-in the tree yet.
-
-Scenario: a developer changes `zfs_cmd`'s field order in the binding. Under option 1 the same
-change edits the expectations and the comparison beside it, and one test run proves the type and the
-compared table together. Under option 2 the expectations stay in the binding but the comparison
-lives in the wrapper, so the same change spans two crates and a table left stale by a field edit is
-a cross-package test failure.
-
-Options:
-
-1.  The binding package holds the loader, the pre-scan, the comparison and the expectations,
-    ranked first.
-    Pros: the request format, the `zfs_cmd` type and the expectations sit together, so one change
-    moves both sides; the binding will own the unsafe layout boundary, and both binaries will link
-    the crate, since the design makes both use it for the request format.
-    Cons: the binding gains a bounded file reader and a comparison, so its compile time grows for
-    every consumer; the wrapper still owns the paths and the wording.
-    Why here: it keeps the compared expectations beside the type they are derived from, so one
-    edit moves both and a stale table is a local test failure.
-2.  The wrapper package holds the loader, the pre-scan and the comparison, and the binding keeps
-    the expectations, ranked second.
-    Pros: the paths, the read order, the target allowlist and the wording sit together, and the
-    binding stays a thin request codec.
-    Cons: the comparison reads a table that lives in another crate, so the binding's own tests can
-    no longer prove that its type and the compared table agree; a field change touches two crates.
-    Why here: it splits the one fact the design keeps together, and buys nothing the record asks
-    for.
-
-Ranking: option 1 > option 2, because the expectations must move with the type they mirror and option
-2 puts that pair in two crates for no recorded gain. Both answers keep the seam
-[The seam and the placement](#the-seam-and-the-placement) describes: it is one function wide, and
-only which crate holds it changes.
-
 ## What a writer can settle without asking
 
-- The seam is a writer's shape, not a placement: whatever crate holds the reader, it reads the two
-  files, compares them with the binding's expectations and returns the refusal value, and the
-  wrapper supplies the paths, the target allowlist, the release rule and the wording.
-  [Q4](#q4-which-crate-holds-the-layout-reader) asks where it lives.
+- The seam's shape, in the crate the owner named: the binding package holds the loader, the
+  pre-scan, the expectations, the comparison and the reader, and the wrapper supplies the paths,
+  the target allowlist and the wording
+  ([Answers of 2026-11-19](#answers-of-2026-11-19)).
 - The gate runs after the device check and before the first ioctl; `doctor` runs the facts without
   the device check.
 - The read order and the second identity read, with one retry, as
   [The read order and the reload race](#the-read-order-and-the-reload-race) states. Those identity
   reads are the module's version, `srcversion` and build ID, taken before and after the BTF reads.
+- No release rule: nothing compares the module's version text with an approved string, the text is
+  identity and reporting only, and `doctor` prints it with the sentence that says when it is not
+  the tested `2.4.4` ([Answers of 2026-11-19](#answers-of-2026-11-19)).
 - The pre-scan rules, including the sorted-by-offset section check, the widest-encoding walk and the
   refusal of a value the chosen reader cannot represent.
 - The file bounds, as proposals pending [Owed measurements](#owed-measurements) item 10:
@@ -2249,8 +2410,8 @@ only which crate holds it changes.
 - The expectations come from the Rust `#[repr(C)]` type where `offset_of!` reaches, with literals
   for the anonymous containers and union members, guarded by an exhaustiveness test.
 - The refusal value, its steps, the order the comparison walks and the words the caller and
-  `doctor` print, including the loaded module, the target, the file and the first mismatch, and no
-  bypass.
+  `doctor` print, including the loaded module, its release string, the target, the file and the
+  first mismatch, and no bypass.
 - The per-process `OnceLock` and the identity recheck, and no disk cache; Q3 waits on item 10.
 - The architecture allowlist: `x86_64` only until an `aarch64` guest qualifies the managed route.
 - Endianness from the BTF magic against the target.
@@ -2283,10 +2444,14 @@ only which crate holds it changes.
 - It ran no guest, no built product and no measurement in
   [Owed measurements](#owed-measurements); every one is unrun.
 - It changed no file except this one.
-- It made no choice that belongs to the owner. It adopted two writer-level rules with a veto open,
-  the release-string rule and the per-process cache, both under
-  [Questions for the owner](#questions-for-the-owner), and it put the reader's placement to the
-  owner as [Q4](#q4-which-crate-holds-the-layout-reader).
+- It made no choice that belongs to the owner. The owner's answers of 2026-11-19 settled the
+  reader question's narrower form, the release string and the crate placement, and this revision
+  applies them ([Answers of 2026-11-19](#answers-of-2026-11-19)). The per-process cache with no
+  disk cache stays writer-settled with a veto open, and
+  [Q3](#q3-may-a-verification-be-cached-across-processes) is held behind a measurement.
+- It edited neither the design proposal nor the implementation plan, and
+  [the amendment these answers owe](#the-amendment-these-answers-owe-the-proposal-and-the-plan)
+  writes out the text they need.
 - It does not design the start probe or the staging folder, the other two blocking designs.
 - It contains no timing claim and no forecast.
 
