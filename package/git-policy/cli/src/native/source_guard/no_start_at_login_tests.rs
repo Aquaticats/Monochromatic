@@ -112,14 +112,35 @@ pub(crate) fn lines_that_start_at_login(text: &str) -> Vec<String> {
 
 /// Every file below `root` as a path relative to it,
 /// found with a work stack,
-/// keeping those whose extension is in `extensions`.
+/// keeping those whose extension is in `extensions`,
+/// and never reading through a link:
+/// a `uses` folder holds one link per source folder its code uses
+/// (`AGENTS.md`,
+/// rule `LYD`),
+/// so a link that names a folder below `root` is skipped there,
+/// and any other link refuses the walk instead of being skipped silently,
+/// because a link this walk passed over would put its target outside the guard.
 fn files_below(root: &Path, extensions: &[&str]) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
+    let canonical_root: PathBuf = std::fs::canonicalize(root).expect("the walk's own root resolves");
     let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
     while let Some(directory) = pending.pop() {
         for entry in std::fs::read_dir(&directory).expect("a readable source directory").flatten() {
             let path: PathBuf = entry.path();
-            if path.is_dir() {
+            // The entry's own type, so a link is seen as a link.
+            let kind: std::fs::FileType = entry.file_type().expect("an entry's own type");
+            if kind.is_symlink() {
+                let target: PathBuf = std::fs::canonicalize(&path).unwrap_or_default();
+                let uses_record: bool = directory.file_name().is_some_and(|name| return name == "uses") && target.starts_with(canonical_root.as_path()) && target.is_dir();
+                assert!(
+                    uses_record,
+                    "{} is a symbolic link that is not a `uses` link to a folder below {}; this guard cannot prove what it reads, so it refuses rather than skipping it",
+                    path.display(),
+                    root.display()
+                );
+                continue;
+            }
+            if kind.is_dir() {
                 pending.push(path);
                 continue;
             }
@@ -182,6 +203,34 @@ fn the_detector_finds_every_install_line_and_skips_comments() {
         assert_eq!(lines_that_start_at_login(text.as_str()).len(), 1, "{bad}");
     }
     assert!(lines_that_start_at_login("[Unit]\n# WantedBy=default.target is not written\n; [Install]\n[Socket]\nListenStream=%t/x.sock\n").is_empty());
+}
+
+/// What:
+///  The walk skips a `uses` link that names a folder below its root,
+///  and refuses every other link,
+///  naming the link it refused.
+/// Why:
+///  The walk skipped every link,
+///  so a symlinked unit template or source was silently outside this guard.
+#[test]
+fn a_link_that_is_not_a_uses_folder_link_is_refused() {
+    let root: PathBuf = crate::test_support::fixture("no-start-at-login-links");
+    let sources: PathBuf = root.join("sources");
+    let elsewhere: PathBuf = root.join("elsewhere");
+    std::fs::create_dir(&sources).expect("a source folder");
+    std::fs::create_dir(&elsewhere).expect("the folder the uses link names");
+    std::fs::write(sources.join("inside.service"), "[Unit]\n").expect("a template");
+    std::fs::create_dir(sources.join("uses")).expect("the uses folder");
+    std::os::unix::fs::symlink(&elsewhere, sources.join("uses").join("elsewhere")).expect("a uses link to a folder below the root");
+    assert_eq!(files_below(root.as_path(), &["service"]), vec![String::from("sources/inside.service")], "a uses link to a folder below the root is skipped");
+    std::os::unix::fs::symlink(sources.join("inside.service"), sources.join("linked.service")).expect("a link to a file");
+    let refused: Result<Vec<String>, Box<dyn std::any::Any + Send>> = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { return files_below(root.as_path(), &["service"]); }));
+    let message: &str = match &refused {
+        Err(payload) => payload.downcast_ref::<String>().map_or("", |text| { return text.as_str(); }),
+        Ok(files) => panic!("a link to a file is refused rather than skipped silently: {files:?}"),
+    };
+    assert!(message.contains("linked.service") && message.contains("symbolic link"), "the link is named: {message}");
+    crate::test_support::remove(root.as_path());
 }
 
 /// No release code line enables,
