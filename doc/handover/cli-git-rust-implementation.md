@@ -40573,8 +40573,20 @@ stated in this entry. What follows from them, as work:
   "uncommitted" claim, attribution slips. GOING:
   `pi-zfs-staging-under-cache-design-owner-answers-gate-review-findings-fixed` (DeepSeek on Neuralwatt, cap 510) in the
   design worktree; brief under
-  `~/temp/agent/zfs-staging-under-cache-design-owner-answers-gate-review-findings-fixed-2026-11-19/`. Then a short
-  re-check, then acceptance. The proposal and plan amendment
+  `~/temp/agent/zfs-staging-under-cache-design-owner-answers-gate-review-findings-fixed-2026-11-19/`. It ended `idle`
+  (243 turns, 20 min) at `9f1e0c9087` (twelve commits, 1818 lines; that folder's `keep/report.md`), all six mediums and
+  seven lows fixed: a successful rollback leaves the clone at its slot, the bind and the record for the sweep, a
+  refusal receipt and the removal refused, with the same exit for step 9's reattach and step 17's cancel; a mount on
+  the clone is refused before any rollback, because a move carries the clone's subtree; the rollback destination is
+  opened with `RESOLVE_NO_XDEV` and proved by the fresh walk, and Q3 is named a second exception to "No implicit
+  remount"; the handler voids a record only on a handle `ESTALE` with no mount row naming the folder, after its own
+  second pass showed a wrapper scan cannot prove absence; an other-boot record is settled on the wrapper's mount-table
+  read and `rmdir`'s `EBUSY`; the `~/.cache` descriptor is `O_RDONLY | O_DIRECTORY`, never `O_PATH`. Five choices marked
+  for the owner's veto, each with options and a ranking (the rollback destination proof; a mount stacked on the clone
+  after the move; the end state after rollback, reattach and cancel; a record whose folder is gone; a record from
+  another boot). GOING: a Sonnet gate re-check (brief under
+  `~/temp/agent/zfs-staging-under-cache-design-third-revision-gate-recheck-2026-11-19/`). Then acceptance with the
+  five vetoes asked. The proposal and plan amendment
   for the dropped release proof waits for the layout checker's review. That answer was first written into
   `doc/handover/questions-for-the-owner.md`, whose header keeps it to open questions; the owner asked "Do you know what a
   questions file is?", the answer moved here, and the owner said "Fix the bigger mess too.": that file still held about
