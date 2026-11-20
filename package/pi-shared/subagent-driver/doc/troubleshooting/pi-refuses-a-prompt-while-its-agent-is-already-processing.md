@@ -168,7 +168,9 @@ the steering and follow-up drains quoted under `## Root cause` (`agent-loop.js:1
 
 ## Verified workarounds
 
-Both are the package's own, in `kept-while-work-runs.ts`.
+Both are the package's own:
+the steering wake in `kept-while-work-runs.ts`,
+and the read of Pi's answer in `a-busy-answer-of-pi.ts`.
 
 - Send the wake with `streamingBehavior: "steer"`.
   Pi queues it into the running agent run and `preflightResult("queued")` answers `success:true`,
@@ -191,8 +193,12 @@ only when it has already started a turn of its own, and queues the message into 
 `Agent is already processing a prompt. Use steer() or followUp() to queue messages, or wait for completion.`
 (`agent.js` in that package), which names no turn of the session's own and starts none,
 so a prompt answered with it is read as refused rather than as busy.
-The unit test "ends a run as one Pi refused when the busy wording is pi-agent-core's"
-(`src/watch-pi-run.unit.test.ts`) pins that wording apart from the session's.
+The read is one function, `foundTheAgentAlreadyAwake` in `a-busy-answer-of-pi.ts`,
+and it matches the session's full opening, continuation included,
+so the library's wording stays a refusal on the wake and on the model-error retry alike.
+The unit tests "ends a run as one Pi refused when the busy wording is pi-agent-core's"
+and "ends a run as one Pi refused when its retry prompt meets the agent library's busy wording"
+(`src/watch-pi-run.unit.test.ts`) pin that wording apart from the session's.
 
 ## What does not work
 
@@ -217,13 +223,19 @@ Each was read on 2026-11-19, in the code named.
   Left unchanged by the fix for the wake.
 - The model-error retry (`answerWithAnotherAttempt` in `answer-a-model-error.ts`) sends only when its view of the
   feed says Pi rests (`answerModelError` returns `still-running` while `record.isRunning()`).
-  A turn Pi starts after that read makes the retry prompt meet the busy answer,
-  which that code reads as a refusal and ends the run `prompt-rejected`.
-  Queueing the retry behind the running turn would be wrong:
-  the retry waits precisely because that turn may recover the error itself.
-  A correct fix reads the busy answer as Pi having been at work, drops the attempt it was about to count,
-  and looks again after the turn settles.
-  Left unchanged here, because it needs its own attempt bookkeeping and test.
+  A turn Pi starts after that read makes the retry prompt meet the busy answer.
+  Queueing the retry behind the running turn would be wrong,
+  because the retry waits precisely because that turn may recover the error itself.
+  Since the fix of 2026-11-19 the busy answer is read as Pi having been at work:
+  no attempt is counted for the prompt Pi did not take,
+  the run waits for that turn to settle,
+  and the look after it reads what stands then,
+  so a turn that recovered the error needs no attempt
+  and one that ended on the same error gets the attempt the run already owed, counted once.
+  A refusal Pi makes for its own reason still ends the run `prompt-rejected`.
+  The read is `foundTheAgentAlreadyAwake` in `a-busy-answer-of-pi.ts`;
+  the tests are in `src/watch-pi-run.unit.test.ts` and `src/drive-pi-subagent.unit.test.ts`,
+  over the stand-in scenarios `retry-meets-its-own-turn` and `retry-meets-a-turn-that-failed-again`.
 - The first prompt (`sendFirstPrompt` in `take-the-first-prompt.ts`) is what starts the run's first turn,
   so no turn exists for it to meet; a Pi with no active run answers it as it always did.
   This package's own extension starts no turn.
@@ -241,7 +253,8 @@ Nothing is filed, and nothing is worth filing.
     `steer`, `follow_up` and their dispositions.
 4.  Would the repo welcome our contribution? Not assessed: no filing is planned.
 5.  Will they likely fix it? Not assessed: the behaviour is intended, so there is no bug to act on.
-6.  Have we prototyped a fix? Not needed for upstream; the consumer-side fix is in `kept-while-work-runs.ts`.
+6.  Have we prototyped a fix? Not needed for upstream; the consumer-side fix is in `kept-while-work-runs.ts` and
+    `a-busy-answer-of-pi.ts`.
 
 The `.out-of-scope/` check found `pi-gpt55-long-context.md` as the only Pi entry,
 which covers model context metadata and not RPC prompt behaviour,
