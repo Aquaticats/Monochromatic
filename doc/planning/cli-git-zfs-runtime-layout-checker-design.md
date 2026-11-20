@@ -79,7 +79,8 @@ the pick is not made here.
   stops both adopting and reopening the same suffix.
 - `2026-11-19T18:59:32-05:00`, commit `a3bb5a8c21`: the library pair's test count is corrected,
   so the sensitivity reports 8 reversals and 4 exact ties across the 12 one-input tests.
-- `2026-11-19T19:37:17-05:00`, commit `16e5283e75`: this revision, answering the independent gate
+- `2026-11-19T19:37:17-05:00`, commit `16e5283e75`, with the record correction and the wording
+  commits that follow it on this branch: this revision, answering the independent gate
   re-check of the revision at `a3bb5a8c21`, kept at
   `/home/user/temp/agent/zfs-runtime-layout-checker-design-revision-gate-recheck-2026-11-19/keep/review.md`.
   That re-check is independent of this file's author (rule `IRW`) and is not an approval; it found
