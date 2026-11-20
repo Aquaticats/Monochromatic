@@ -1176,8 +1176,10 @@ outcome this file keeps. This design chose that boundary over taking the claim a
 order the handler runs: the slot's identity compare is a check of the real slot before the attach, and a slot whose
 identity has drifted is exactly the operation failure this file exists to record, so the claim is taken before that
 check and not after it. The plan puts both checks before the attach (step 8's key check, and step 4's recorded slot
-identity that the compare reads), so the key check is the only step outside the claim, every refusal point the
-attach can reach has a step name, and a refusal inside the claim writes `outcome refused` with the failing call's
+identity that the compare reads) and does not order the slot's first-observation record against the key check, so
+this design takes the claim before that record: a slot whose identity cannot be read or written is an outcome the
+file keeps. The key check is the only step outside the claim, every refusal point the attach can reach has a step
+name, and a refusal inside the claim writes `outcome refused` with the failing call's
 errno name, or with `errno none` where the refusal was a comparison or a policy check.
 It is that process, not the mode that supervises a probe and not the wrapper. It writes after the attach's outcome
 is known, either the verified mount at the slot or the failing step, and before it publishes this boot's receipt.
