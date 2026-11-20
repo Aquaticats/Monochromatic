@@ -1366,6 +1366,9 @@ own hash and timestamp cannot appear in the commit that creates them.
   retained states split by cause, the corrected descriptor facts for a move's destination and for a copy with a mount
   under it, the durable staged-folder record that replaces the `/run` bind record, the questions rebuilt as three
   that stand alone in a dialog, and the readings of decided sentences moved into the veto list.
+- `5d357d6913` at `2026-11-19T20:25:38-05:00`: names which axis separates each pair of options in the first question,
+  and keeps a folder whose claim is gone instead of removing it, because the claim is the only proof the wrapper made
+  it.
 
 ## Sources read
 
