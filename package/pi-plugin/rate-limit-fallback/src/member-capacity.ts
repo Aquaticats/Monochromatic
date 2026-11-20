@@ -126,8 +126,18 @@ function isReadTooSoon(capacity: Readonly<{ lastReadAt: number }>,): boolean {
 }
 
 /**
- Provisional pre-install bound for optional quota reads on the inference path. Set it from the live endpoint
- check before install; there is no endpoint latency measurement from this offline work.
+ Deadline for optional quota reads on the inference path, from the live endpoint measurement of
+ 2026-11-19 (`doc/quota-read-latency.md`): twenty alternating rounds against Synthetic's `/v2/quotas`,
+ NeuralWatt's `/v1/rate_limits` and `/v1/quota`, and six for NeuralWatt's flex lane, every quota read
+ bounded by this same two seconds. The highest read took 464.4 ms and the nearest-rank 95th percentile
+ 402.7 ms, and no read failed or timed out. Two seconds covers that highest reading 4.3 times over, and
+ still covers it once NeuralWatt's control spread after the warm-up round (325.4 ms) is added
+ (789.8 ms), while staying at or below half of any caller timeout above four seconds. At the deadline
+ `readQuotaWithinDeadline` stops waiting on `probeQuota` and resolves `QUOTA_UNAVAILABLE`, so the read
+ publishes no evidence and routing continues: a slow endpoint costs that reading, never the request.
+ Paired with a same-host listing each round, the read's median ratio was 1.32 on Synthetic (range 1.01
+ to 1.80) and 1.45 on NeuralWatt (range 0.35 to 5.12); the ratio is not what the value rests on, because
+ the listings return bodies tens of times larger and NeuralWatt's host noise spans that whole range.
  */
 const QUOTA_READ_TIMEOUT_MS = 2_000;
 
