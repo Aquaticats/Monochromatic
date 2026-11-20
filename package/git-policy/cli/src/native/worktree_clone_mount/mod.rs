@@ -123,8 +123,8 @@ pub(crate) mod root_namespace_test_support;
 pub use clone_folder_identity::{CloneFolderField, CloneFolderIdentity};
 /// The bound one ACL read accepts.
 pub use clone_folder_identity_acl::MAXIMUM_ACL_BYTES;
-/// The store's path and its records.
-pub use slot_identity_store::{SLOT_IDENTITY_STORE_PATH, SlotIdentityStore, append_slot_identity, record_parent_identity};
+/// The store's path, its reader and the two writes the route makes.
+pub use slot_identity_store::{SLOT_IDENTITY_STORE_PATH, SlotIdentityStore, append_slot_identity_under_root_control, record_parent_identity_under_root_control};
 /// The store's record type and the key its parent record carries.
 pub use slot_identity_store_records::{PARENT_KEY, StoredIdentity};
 /// Why the store refused.
