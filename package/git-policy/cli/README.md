@@ -3138,8 +3138,7 @@ Commands without a table of their own (`rm`,
 ### The remote settings every worktree shares
 
 The owner chose "Refuse in worktrees (Recommended)" on 2026-11-10
- (`doc/handover/questions-for-the-owner.md`,
-"A push URL changed from a worktree").
+ (this section; the questions file's section "A push URL changed from a worktree" left for it on 2026-11-19).
 Every worktree of a repository shares one `.git/config`,
  so a remote setting changed from a linked worktree changes the main checkout and every other worktree too.
 An agent had made a worktree outside the repository folder,
@@ -6673,8 +6672,7 @@ the owner chose "B:
 off for internal Git (Recommended)".
 So `-c core.fsmonitor=false` reaches every Git the wrapper starts for its own work,
 and never a command the person typed
-(`doc/handover/questions-for-the-owner.md`,
-"The wrapper's own Git and fsmonitor").
+(this section; the questions file's section on fsmonitor left for it on 2026-11-19).
 
 The owner's earlier words,
 kept as history;
@@ -8270,3 +8268,13 @@ and which phase of the landing.
 
 The design,
 the measurements and the migration plan are in `doc/planning/cli-git-resident-service.md`.
+
+## Owner answers of 2026-11-10
+
+- Asked whether a forced `git checkout -f`, a forced `git switch -f` or a `git reset --hard` should refuse when
+  it would replace an ignored file, the owner answered at 2026-11-10T07:24:16-05:00: "Yes forced checkouts and
+  resets should refuse when they'd replace an ignored file." So those forms are rejected in a linked worktree
+  while it holds an ignored file at a path the written tree tracks.
+- Asked whether `add-explicit` should judge a pathspec by its spelling or by what it selects, the owner answered
+  at 2026-11-10T08:04:14-05:00: "However spelled (Recommended)": "Any spelling that selects everything is
+  refused, and the message says how many files it selected." Ordinary named paths skip the check.

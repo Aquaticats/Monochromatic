@@ -57,3 +57,9 @@ Run package validation from the repository root:
 mise run //package/agent-harness-shared/text-scan:test:unit
 mise run //package/agent-harness-shared/text-scan:lint
 ```
+
+## Owner answers of 2026-11-10
+
+- Asked whether the translation-repair family keeps its own character predicates (issue 1673), the owner
+  answered at 2026-11-10T08:16:10-05:00: "Migrate it, and isAsciiLetter should be in the `const` pkg." So
+  the family moves to this shared owner, and `isAsciiLetter` belongs to `@monochromatic-dev/const`.

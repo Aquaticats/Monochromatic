@@ -289,7 +289,8 @@
   // the file, 5b9e9be057 restored it, 2f369455ca reflowed it again and failed the release's notices job.
   // Every other Markdown rule still judges these files; only the rewrap is off, and the file stays checkable by its
   // pinned SHA-256. The repository owner chose this exception over renaming the vendored text out of Markdown
-  // (doc/handover/questions-for-the-owner.md, "Rule exception for notices/").
+  // (doc/handover/questions-for-the-owner.md, "Rule exception for notices/"; that section left the questions file for
+  // this comment on 2026-11-19).
   {
     "name": "verbatim-license-texts",
     "files": [

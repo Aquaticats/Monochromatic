@@ -171,3 +171,14 @@ The decision followed a mutation-test image rebuild whose `dnf install` step ran
  this machine's public IP geolocates to Paris,
  so Fedora's metalink handed out French mirrors that served 52 KB/s,
  while a US Fedora mirror served 1.4 MB/s and Cloudflare 24 MB/s from the same host.
+
+## Owner answer on the base image
+
+Asked on 2026-11-10T09:15:14-05:00 whether CachyOS images, being much heavier than Arch ones, should give way
+to Arch,
+the owner wrote "If cachyos containers are much heavier than arch proper containers, switch to arch proper."
+and, after the compressed sizes from `skopeo inspect` (`cachyos-v4:latest` 406 MiB,
+`cachyos-v3:latest` 404 MiB, `cachyos:latest` 312 MiB, `archlinux:base` 128 MiB,
+`archlinux:base-devel` 295 MiB), "Okay, cachyOS is fine then. It's not as bad as I thought."
+So this decision stands unchanged, and a comparison of what each image installs was stopped when the owner
+decided, leaving installed sizes and start times unmeasured.

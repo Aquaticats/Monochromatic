@@ -93,6 +93,11 @@ Risks and what would falsify the design:
    The base class has none,
    so nothing conflicts.
 
+The owner answered where the base class lives, asked in the question tool on 2026-11-10T08:04:14-05:00
+(issues 1668 and 666): "Its own tiny package (Recommended)".
+So the base class becomes a new package under `AP1` and `SGD`, not a place in `throws/core`,
+and no package in this repository exports it yet.
+
 ## 2. A Rust macro family for message-forwarding error types
 
 Pattern:

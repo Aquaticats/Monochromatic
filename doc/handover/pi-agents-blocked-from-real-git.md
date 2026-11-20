@@ -55,7 +55,8 @@ so the rule itself works.
 and the repository's own `.claude/settings.json` is empty,
 which fits that session not running the bundle.
 Other ways a Claude Code session could load it were not examined.
-Whether to register it is an owner question in `doc/handover/questions-for-the-owner.md`.
+Whether to register it the owner answered on 2026-11-10T05:40:16-05:00: "Focus on the wrapper itself. Open a gh
+issue about this instead." That is issue 6276.
 
 ## Open
 

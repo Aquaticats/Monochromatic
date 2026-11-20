@@ -1729,3 +1729,11 @@ directly,
 `directories` crate resolves the Music known-folder (`%USERPROFILE%\Music`) directly,
  and the `xdg-user-dir`
 fallback is compiled out entirely (it is gated `#[cfg(unix)]`).
+
+## Owner answers of 2026-11-10
+
+- Asked how the music player's design pages should carry React (issue 1441), the owner answered at
+  2026-11-10T08:16:10-05:00: "Bundle everything". So React, ReactDOM and Babel come along, and the fonts
+  switch to the shipped ones.
+- Asked which of the two FLAC profilers to keep (issue 1464), the owner answered at
+  2026-11-10T08:16:10-05:00: "Keep only the Rust one (Recommended)".

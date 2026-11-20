@@ -11,9 +11,10 @@
 //!  so a `remote set-url` run
 //!       there once broke every push of the main checkout with no record of which command did it;
 //!  the owner chose
-//!       "Refuse in worktrees" on 2026-11-10 (`doc/handover/questions-for-the-owner.md`,
-//!  "A push URL changed
-//!       from a worktree").
+//!       "Refuse in worktrees" on 2026-11-10 (`package/git-policy/cli/SPEC.md`,
+//!  "The remote settings every worktree shares";
+//!  the questions file's section "A push URL changed
+//!       from a worktree" left for it on 2026-11-19).
 //!  A linked worktree is made both inside and outside the repository folder,
 //!  because the
 //!       refusal depends on which worktree the Git directory belongs to,

@@ -1907,6 +1907,9 @@ The owner's rule:
 "Regularly,
 check in on subagents that should have finished their jobs (based on time estimations 90%+ percentile) but haven't returned."
 
+Asked where that check lives, in the question tool on 2026-11-08T23:24:03-05:00,
+the owner answered "Move into the driver (Recommended)", so it lives in this package.
+
 `watch-overdue-pi-runs` is that check.
 It is one command in the shape rule `MWK` asks for:
 it ends at a terminal state and prints only lines to act on,
@@ -2096,3 +2099,12 @@ Its `RuntimeMaxSec` is what bounds the driver itself;
 
 A failure to keep Pi's standard error is reported as a `problem` line and does not by itself change how the run ends,
 because it is the diagnostic record and not the record the caller reads.
+
+## Owner answers of 2026-11-10
+
+- Asked whether interactive Pi sessions should get the driver's rule against credential-named variables, the
+  owner answered at 2026-11-10T08:23:02-05:00: "Leave them as they are (Recommended)". So the rule stays on
+  the runs this driver starts and interactive sessions keep their environment.
+- Asked how to run Pi for real coding work, the owner answered at 2026-11-08T12:43:36-05:00:
+  "Forget about --print on a real coding task." So a real coding task runs through this driver, never a
+  one-shot `--print` call.

@@ -1226,3 +1226,10 @@ Still open after this work:
   Windows and macOS,
   unchanged:
   every run above used the test binary built from these revisions.
+
+## Owner answer on finding 1
+
+Asked whether a late permission, owner or extended-attribute change during a conversion is a defect worth
+a wider comparison or an accepted risk, the owner answered at 2026-11-10T07:24:16-05:00: "accepted risk."
+The wider comparison had already landed on `main` before that answer, and it stays there unless the owner
+asks for it to go.

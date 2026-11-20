@@ -142,3 +142,12 @@ Hyper-V checkpoint-based differencing (`.avhdx`) for incremental sync is a futur
   },
 }
 ```
+
+## Owner answers of 2026-11-10
+
+- Asked what `vmsync` should do with a name that starts badly (issue 1243), the owner answered at
+  2026-11-10T08:10:46-05:00: "Keep refusing, explain (Recommended)". So the refusal stays and its message
+  says what a valid name looks like.
+- Asked whether `vmsync` should adopt the shared JSONC parser (issue 1242), the owner answered at
+  2026-11-10T08:10:46-05:00: "Adopt the shared parser (Recommended)". So `vmsync` reads its configuration
+  through the shared parser.

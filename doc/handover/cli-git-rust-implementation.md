@@ -29767,7 +29767,8 @@ Two were reproduced here and two are read from the code.
   "Service removes it",
   whose stated limit is that a complete scan sees every readable process
   (`doc/handover/questions-for-the-owner.md`,
-  lines 1254 to 1258 at `ee545033ad`).
+  lines 1254 to 1258 at `ee545033ad`; that section left the file for
+  `package/git-policy/cli/SPEC.md` on 2026-11-19).
   Measured again here:
   681 of 1281 processes have a descriptor directory this user cannot read,
   so counting one as a possible holder would keep every aside forever.
@@ -29982,8 +29983,8 @@ and the control `a_repository_renamed_back_before_the_change_lands_keeps_its_pla
 A repository still away when the change lands keeps the owner's rule:
 the plan ends and the journal names the path.
 
-The owner's earlier question in `doc/handover/questions-for-the-owner.md`
-("The automatic push and a commit a policy blocked") is untouched by this branch:
+The owner's answer to the automatic push and a commit a policy blocked
+("Hold the push at A (Recommended)", recorded in `package/git-policy/cli/SPEC.md`) is untouched by this branch:
 a person's own push is still unchanged,
 and only the automatic push stops.
 
@@ -31764,7 +31765,7 @@ Issue 6005 stays open for its surviving instance,
 The cut-over finished at 2026-11-09T05:27:00+00:00:
 `package/repository-move/cli/src/run-repository-move.ts status` records every stage through `c28-ide-through-link`.
 Kopia no longer backs this repository up,
-by the owner's word recorded in `questions-for-the-owner.md`,
+by the owner's word, now in this file's entry "Answers about this machine and the owner's accounts",
 so a folder vanishing during a read can no longer fail that stage.
 
 The last checks were made through the link spelling.
@@ -31852,7 +31853,7 @@ each tested on main first:
 - `72031f5156`:
   a branch write refused by a reference lock names every standing lock (415 unit and 10 end-to-end tests).
   The commit still does not land past a dead lock;
-  `doc/handover/questions-for-the-owner.md` asks the owner which of its options to take.
+  the owner answered "Make it, hold until lock goes (Recommended)", recorded in `package/git-policy/cli/SPEC.md`.
 - `355bacb1cd`:
   the lock scan reads an overlay descriptor in a bounded child.
   Its full container run ended 18 failed of 6,832,
@@ -31943,7 +31944,8 @@ under rule `WGH`:
   a delivered held commit is reported as held for ever,
   and a reconcile's report never reaches the person.
   The Pi agent `push-delivery-audit-findings-fixed` owns them.
-  Its blocked-commit finding is the open owner question in `doc/handover/questions-for-the-owner.md`.
+  Its blocked-commit finding is answered by "Hold the push at A (Recommended)", recorded in
+  `package/git-policy/cli/SPEC.md`.
 - `service-restart-and-version-skew`:
   no commit was lost or doubled in any combination.
   A landed commit can be reported as not made,
@@ -31965,7 +31967,7 @@ under rule `WGH`:
   credentials and a copy of `.git` included,
   and small records of killed adds pile up in `<git-dir>/monochromatic-git-policy-cli-worktree-copy/v1`.
   `package/git-policy/cli/SPEC.md` says the person removes the stage,
-  so removing it automatically is an owner question in `doc/handover/questions-for-the-owner.md`.
+  so the owner answered "Next command deletes it (Recommended)", recorded in `package/git-policy/cli/SPEC.md`.
   Killing `migrate-to-subvolume` eight times during its copy phase lost nothing and every run resumed;
   the swap and index-rewrite phases were not reached.
   Two `worktree_copy` controls,
@@ -32390,8 +32392,22 @@ highest priority first:
   4863,
   4871 and 4872 are closed with evidence.
   Issues 4408 and 3258 hold,
-  and their files are under `doc/decision/`,
-  so they wait for the open question on moved-path notes in `doc/handover/questions-for-the-owner.md`.
+  and their files are under `doc/decision/`.
+  The owner answered the moved-path-note question on 2026-11-10T08:08:51-05:00,
+  "Yes, notes only (Recommended)",
+  for the twelve issues that question named (4365,
+  5929,
+  6201,
+  3279,
+  5926,
+  5788,
+  3191,
+  3275,
+  5765,
+  5766,
+  6101 and 4357):
+  the note adds a line beside a stale path and changes no decision.
+  Issues 4408 and 3258 were not among them.
   The docs agent's report that 4519,
   4526,
   4587 and 2650 do not hold looked only at the filed paths.
@@ -32527,7 +32543,7 @@ highest priority first:
   It was not restarted or reworded.
   What it wrote is `dbb8087dfe` on `docs/planning-cli-git-invocation-and-argument-audit`,
   and its worktree keeps one uncommitted test file of the audit's.
-  `doc/handover/questions-for-the-owner.md` asks how it should continue.
+  The owner answered "New Claude Sonnet audit (Recommended)", and it ran as `invocation-and-arguments`.
   Fixing the findings it already wrote is ordinary work and waits for a slot.
 - `fix/git-policy-cli-child-processes-end-and-signals-reach-them` cannot land yet.
   Merging main into it stopped with conflicts in `repo_read/git_metadata.rs` and its tests,
@@ -32687,12 +32703,14 @@ highest priority first:
   the repair does nothing unless the worktree has an owed record,
   and an unreadable file is no longer taken for an absent one.
   That reverses the session's earlier pick,
-  recorded in `questions-for-the-owner.md` as open to veto.
+  recorded in `doc/handover/questions-for-the-owner.md` under "Choices the session made itself"
+  ("A commit whose command died before its checks ran now stays local").
   Run 8 also reproduced that a later commit's push carries a held commit,
   because a queued push sends the whole branch (`push/auto_push.rs:230-245`),
   and its report says a commit a policy blocked goes the same way.
-  `What should the next push do with a commit its checks blocked?` is now in `questions-for-the-owner.md`,
-  because `README.md:2194` promises such a commit stays local.
+  `What should the next push do with a commit its checks blocked?` was answered "Hold the push at A
+  (Recommended)", recorded in `package/git-policy/cli/SPEC.md`, because `README.md:2194` promises such a commit
+  stays local.
   On top of main 1264 of 1269 selected tests pass,
   and the five failures all pass when run alone,
   so they went to the agent measuring failures that appear only in a suite.
@@ -32722,8 +32740,8 @@ highest priority first:
   behind the merge round:
   resume the run `scratch-commit-ceiling-and-three-slow-commits` as run 4,
   with `scratch-commit-ceiling-round-4-prompt.md` and the session file named in run 3's `summary.json`.
-  One wait stays open for the owner in `questions-for-the-owner.md`:
-  a step the kernel holds in uninterruptible sleep.
+  The owner answered the wait on a step the kernel holds in uninterruptible sleep: "Keep waiting and say so",
+  recorded in `package/git-policy/cli/README.md`.
   Two improvements are proposed and not built:
   reading the branch once before the message that says it is not known whether the commit was made,
   and making the queue position visible.
@@ -32735,7 +32753,8 @@ highest priority first:
   fixed in 0.6.1-alpha.4.
   The cause of 36,651 ms is not established.
 - `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness` landed as `b0216835d5`,
-  with three findings of its sixth review left open and asked in `questions-for-the-owner.md`.
+  with three findings of its sixth review left open, which the owner answered "yes, when we finish the kimi
+  trial" (record: `doc/planning/cli-git-commit-latency-under-many-agents.md`).
 - `fix/git-policy-cli-worktree-removal-keeps-what-it-left-out`:
   the cross-vendor review of its second round (`${HOME}/temp/agent/reviews/worktree-removal-round-2-sol.txt`) names three plain defects,
   among them a FIFO that makes a commit wait forever,
@@ -32852,10 +32871,9 @@ highest priority first:
   makes such a clean run and leaves one audit line
   (`package/git-policy/cli/SPEC.md`,
   "Discarding commands";
-  the answer is recorded under "Answered in the question tool,
-  recorded 2026-11-10T08:04:14-05:00" in `doc/handover/questions-for-the-owner.md`,
-  as "`git clean -fdx` in a linked worktree").
-  The owner question on forced checkouts is still in `questions-for-the-owner.md`.
+  the answer is recorded in `package/git-policy/cli/SPEC.md` under "Discarding commands").
+  The owner answered the forced-checkout question on 2026-11-10T07:24:16-05:00: "Yes forced checkouts and
+  resets should refuse when they'd replace an ignored file."
   Its report names 83 `service run` processes alive from other worktrees,
   and `fault_trace::slow_flushes_delay_a_commit_and_change_nothing_else` failing before its changes because its `strace` injection never matched.
   Both went to the inbox of `wrapper-tests-that-fail-only-in-a-suite`.
@@ -32946,7 +32964,8 @@ highest priority first:
 - `fix/git-policy-cli-dependent-version-reads-the-real-publish-list` landed as `2daa6fe593`,
   with 119 of 119 selected tests passing on top of main.
   Its reader accepts only the line forms the generator writes,
-  a pick recorded in `questions-for-the-owner.md` as open to veto.
+  a pick recorded in `doc/handover/questions-for-the-owner.md` under "Choices the session made itself"
+  (2026-11-09T05:12:19-05:00) as open to veto.
   The third review (`${HOME}/temp/agent/reviews/dependent-version-publish-list-round-3-sol.txt`) names one case,
   a colon inside a hand-written trailing comment on a list item,
   and `package/config/pnpr/config.yaml` holds no such comment.
@@ -33429,15 +33448,14 @@ and,
 on going higher:
 "no,
 that's definitely going to blow up."
-The trial's result goes in [`questions-for-the-owner.md`](questions-for-the-owner.md).
+The trial's result goes in the Pi-as-subagent skill (`.agents/skills/pi-as-subagent/SKILL.md`).
 Each running agent has a prompt and a run folder under `${HOME}/temp/agent/pi-runs/`.
 A read-only audit listed the open work that can start
 (`queue-audit-report.md` in that folder).
 The two items this section listed are gone:
 the wizard-skill TypeScript conversion became void once the owner asked for the skill itself to go
 ("Remove and Blocklist the wizard skill.",
-recorded under "Answered 2026-11-07T13:52:06-05:00 to 13:57:11-05:00" in
-[`questions-for-the-owner.md`](questions-for-the-owner.md)),
+recorded in this file's entry "Answers about this machine and the owner's accounts"),
 and the `zbus` and `turso_sync_engine` compile question closed,
 as `### Known flakes and failures not yet fixed` records for the pinned `nightly-2026-11-08`.
 Only these wait on the repository move's last stages:
@@ -36763,8 +36781,8 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   Neither recorded pause names fuzzing:
   one covers Windows and macOS ("Ignore Win and mac until I say so."),
   the other covers wrapper mutation campaigns
-  (`doc/handover/questions-for-the-owner.md`,
-  the entry of 2026-11-07 about the campaign that ran against that pause).
+  (the questions file's entry "Told, not a question: a wrapper mutation campaign ran against a recorded pause"
+  of 2026-11-07, which left that file on 2026-11-19; this paragraph is its record now).
   Every lane defers them to this list
   (`doc/handover/cli-git-native-interop.md`,
   `doc/handover/cli-git-native-capture.md`,
@@ -36788,9 +36806,12 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   the owner asked "We're not close to doing mutation runs though,
   right?
   Don't we still have a lot of things to fix before doing them?",
-  and `doc/handover/questions-for-the-owner.md` adds "No further wrapper campaign starts until you lift the
-  pause."
-  in its entry of 2026-11-07 about the campaign that ran against that pause.
+  and the questions file's entry of 2026-11-07 about the campaign that ran against that pause added "No
+  further wrapper campaign starts until you lift the pause."; that entry left the file on 2026-11-19 and this
+  paragraph is its record.
+  The campaign ran over the 21 source files the tokio merges changed (label `tokio-062`,
+  `main` at `40ec469247`); it was let finish rather than discarded,
+  its results are recorded but not acted on, and nothing waits on it, alpha.2 included.
   Hook plumbing is done anyway:
   the post-landing campaign over `landed_disposal.rs`,
   `post_commit_hook.rs` and `post_landing.rs` recorded 19 mutants,
@@ -37383,7 +37404,7 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `package/git-policy/cli` 35,006 (its own branch,
   ready,
   merges after the alpha);
-  `doc/decision` 1,785 (owner question in `doc/handover/questions-for-the-owner.md`);
+  `doc/decision` 1,785 (answered on 2026-11-10: form-only prose fixes, and moved-path notes only);
   about 1,675 in scope
   (`music-player/desktop-app` rustdoc 664,
   closures 610 across `cargo-shadow`,
@@ -39023,8 +39044,10 @@ The target tree is drafted and cross-vendor reviewed in
 every folder and file old to new with its `uses/` list,
 the crate split,
 the move order and every change the moves need.
-Nothing moves until the owner has read it,
-and the questions it raises for him are in `doc/handover/questions-for-the-owner.md`.
+Nothing moves until the owner has read the redone tree;
+the owner answered on 2026-11-07T02:03:01-05:00 ("Not good enough, assume every crate must stand on its own and
+no one else is going to use our crates to build a git wrapper."), recorded in
+`doc/planning/cli-git-source-layout-target-tree.md`.
 Issue 6261 is still open,
 its last update 2026-11-04T21:35:36Z.
 
@@ -39050,8 +39073,7 @@ the commit protocol design,
 whose newest revision asks the owner for the measured span values of its decision 17
 (the cleanup window's `ATTACH_WATCH_SPAN`) before that part ships.
 The 2026-11-04 pause was never lifted for it;
-`### Open: decisions a read-only audit of all recorded work found`
-in `doc/handover/questions-for-the-owner.md` asks whether it still covers it.
+`### The branches and worktrees this effort still holds` in this file asks whether it still covers it.
 - `feat/git-policy-cli-commit-protocol-models` `11829f62e5`,
 the commit protocol's implementation (lane service, spool, flusher, drain and the model files),
 none of it in the integration;
@@ -39122,7 +39144,7 @@ their files and mutation evidence kept deliberately;
 - Stale agent worktrees under `.claude/worktrees/` were removed on 2026-11-08 under the owner's
   "Cleanup whenever it makes sense on your own."
   and "It covers deleting stale detached worktrees."
-  (`questions-for-the-owner.md`).
+  (this file, entry "Answers about this machine and the owner's accounts").
   Every branch was kept.
   Commits that were on no branch are pinned under `refs/kept-detached-worktree-heads/`
   (`integrate-064`,
@@ -39849,9 +39871,8 @@ not a copy.
 
 ### The morning question round of 2026-11-19 (2026-11-19T12:30:00-05:00)
 
-Every question prepared overnight was asked through the question tool; each answer, verbatim where it was typed, is in
-`doc/handover/questions-for-the-owner.md`, section "Answered in the question tool, started 2026-11-19T11:30:00-05:00".
-What follows from them, as work:
+Every question prepared overnight was asked through the question tool; each answer, verbatim where it was typed, is
+stated in this entry. What follows from them, as work:
 
 - **ZFS route** (task 379): 22 answers to fold into the proposal on branch
   `docs/planning-cli-git-zfs-worktree-design-proposal` (last tip `b5294a7325`). Against the ranking: the kernel gate
@@ -39945,8 +39966,8 @@ What follows from them, as work:
   "stops at any mount", is the same words across a line break at 1661 to 1662). NEXT: the owner's acceptance through
   the question tool, with the review's two owner questions (F4 whether an explicit cancel command stays; F8 whether the
   deferred-mark check also runs before the first snapshot delete) and the never-end set. **The owner accepted the
-  design at 2026-11-19T16:22:16-05:00** and picked the recommended answer to all three (record: the questions file,
-  section "Answered in the question tool, recorded 2026-11-19T16:22:16-05:00", `cff64adfa0`): keep a guarded
+  design at 2026-11-19T16:22:16-05:00** and picked the recommended answer to all three (record:
+  `doc/decision/cli-git-zfs-worktree-design.md`, at `38ed22c5ea`, `cff64adfa0`): keep a guarded
   `cancel-worktree-removal <slot>` as the manual way back; run the deferred-mark check before the first snapshot delete
   too; a `--force` removal never ends its caller's session and refuses when that session holds the clone. GOING: the
   narrow fold-in `pi-zfs-proposal-acceptance-and-last-three-answers-fold-in` (DeepSeek on Neuralwatt, cap 635) in the
@@ -39996,7 +40017,7 @@ What follows from them, as work:
   lists; nothing says applying anything to this host needs the owner's authorisation; step 1 is writable now but
   mergeable only once `cargo-nextest`, `cargo-fuzz`, `file-enforcer` and the repository linter exist here (all four
   absent; the toolchain install waits for the mpm-shadow change by the answer of 2026-11-17). All 32 accepted. The
-  owner then answered two through the question tool (questions file, section recorded 2026-11-19T17:36:44-05:00):
+  owner then answered two through the question tool (this entry):
   "Ship step 10 first (Recommended)" and "Container, narrow install (Recommended)"; no one-tool host install exists,
   so step 1's checks run wholly in a container (adopted, open to veto), with `cargo-fuzz` through `cargo-binstall`
   as its lock row names (the owner's correction). ENDED: the fix round
@@ -40394,6 +40415,8 @@ What follows from them, as work:
   code; brief under `~/temp/agent/open-questions-cleanup-review-findings-fixed-2026-11-19/`. Then merge. By the owner's
   answers of
   2026-11-19T17:10:00-05:00 (questions file) the LFS review and the provider rebuild finish and nothing else off the
+  ineligible option ranked first in the layout checker). By the owner's answers of
+  2026-11-19T17:10:00-05:00 (this entry) the LFS review and the provider rebuild finish and nothing else off the
   ZFS path starts, and owner questions off the ZFS path wait in the questions file (new rule `QWP`).
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
   `pi-zfs-proposal-fold-in-short-review-on-the-qwen-plan` (turn cap 540, a quarter above the longest of 672 finished
@@ -40435,9 +40458,9 @@ What follows from them, as work:
   (no `cargo-nextest`), so failing-first rests on the audit's reproductions before and after. GOING: its short review
   on the Qwen plan, `pi-git-policy-cli-lfs-audit-fixes-short-review-on-the-qwen-plan`, in the same worktree detached
   at the tip; folder `~/temp/agent/git-policy-cli-lfs-audit-fixes-short-review-on-the-qwen-plan-2026-11-19/`. **The
-  owner answered H1 and M4** (questions file, section "Answered in the question tool, recorded
-  2026-11-19T16:58:00-05:00"): H1 "Hide long words only" (path words of 20 or more unbroken lowercase letters print as
-  `<credentials>`); M4, in the owner's words, "Avoid ever asking for someone to type a username or password.", so no
+  owner answered H1 and M4** (this entry): H1 "Hide long words only" (path words of 20 or more unbroken lowercase
+  letters print as `<credentials>`); M4, in the owner's words, "Avoid ever asking for someone to type a
+  username or password.", so no
   command the wrapper runs or forwards prompts for a credential, terminal or not, superseding `SPEC.md`'s "A command the
   person typed is forwarded with the prompting Git has" for credentials; asked separately, an SSH key's passphrase
   counts too ("Passphrases count too (Recommended)": a key not in ssh-agent fails at once, saying to run `ssh-add`).
@@ -41354,8 +41377,8 @@ desktop apps, two commit services, a podman pause scope, and `run-p935017-i92426
 (not this night's work; a hang worth a look when someone next uses `agent-browser`).
 `~/temp/agent` measured 3.3 GiB by the last writer run (largest: `prewarm-acts-only-on-the-entry-it-checked-2026-11-16-scratch`
 743 MiB, `watch-for-a-killed-gits-lock-costs-nothing-per-folder-2026-11-16-scratch` 439 MiB, `change-reviews` 390 MiB).
-**NEXT SESSION, FIRST:** the questions in `doc/handover/questions-for-the-owner.md`, section "Prepared overnight for the
-question tool, 2026-11-19T03:30:00-05:00", then its "To tell the owner in the morning, no answer needed" items.
+**NEXT SESSION, FIRST:** each question this entry prepared overnight was asked and answered; the answers are in
+this file's entry "The morning question round of 2026-11-19".
 
 **Owner to bed, 2026-11-19 about 01:05: "Shut down when done (Recommended)"** (asked: does last night's "shut the whole
 machine down once I ran out of work" hold again). Before any power-off: every run ended and recorded, work committed
@@ -41436,10 +41459,9 @@ arm" at P:503 and P:1115; the one remaining "no route passes" sentence (P:1595) 
 plan", "citations above" and "this check proposed" gone; no line over 120 outside fences; no dashes; `git diff --check`
 clean. **The proposal is ready for the owner's questions at `b5294a7325`** (eighteen open choices, four veto-open
 defaults; plain-words input in `keep/fifth-delta-check.md`, corrected by `keep/sixth-delta-check.md` item 1).
-**NEXT SESSION, FIRST:** ask the questions in `doc/handover/questions-for-the-owner.md`, section "Prepared overnight
-for the question tool, 2026-11-19T03:30:00-05:00" (the eighteen ZFS choices, the four defaults, the Qwen plan terms,
-`infinite:small:vision`'s place, the provider's four open points and its install), ranked as written, through the
-question tool four at a time, and record each answer where that section says.
+**NEXT SESSION, FIRST:** each question this entry prepared overnight was asked and answered (the eighteen ZFS
+choices, the four defaults, the Qwen plan terms, `infinite:small:vision`'s place, the provider's four open points
+and its install); the answers are in this file's entry "The morning question round of 2026-11-19".
 
 **Provider writer run-7** hit its 200-turn cap after 16 min with nine commits (`cb7d6a66ab` to `dbc6f57268`: OpenAI out
 of the writer pool, the move gated on OpenAI's opening, a set-aside policy stop yielded instead of a later 429, the
@@ -44186,7 +44208,8 @@ reading the limit and `/proc/self/statm` without a heap allocation.
 ### Scratch commit ceiling and the unheld index lock (2026-11-07)
 
 Built on branch `feat/git-policy-cli-signed-ceiling-and-unheld-lock`,
-from two owner answers recorded 2026-11-07T22:19:43-05:00 in `doc/handover/questions-for-the-owner.md`.
+from two owner answers recorded 2026-11-07T22:19:43-05:00 (the questions file's section then, which left for this
+entry on 2026-11-19; this entry is its record now).
 
 - Ceiling of the scratch repository's `git commit`
   (owner:
@@ -44603,8 +44626,8 @@ each as a failing control first:
 
 The reviewer's macOS compile finding is left alone (owner:
 "Ignore Win and mac until I say so"),
-and the uninterruptible-child wait stays a question for the owner
-(`doc/handover/questions-for-the-owner.md`).
+and the owner answered the uninterruptible-child wait "Keep waiting and say so"
+(`doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md`).
 
 Built on top of that:
 the silence message reads the branch once before it prints
@@ -45248,7 +45271,7 @@ pause everything else - but let work already in flight run to their natural conc
 Layout + linting fixes are the biggest priority."
 Its later reading,
 including whether it still covers the commit protocol,
-is in `doc/handover/questions-for-the-owner.md`.
+is in this file under "The branches and worktrees this effort still holds".
 
 The semantic line breaks:
 "Put the semantic line break findings on hold."
@@ -45550,6 +45573,79 @@ the owner picked the first option of each.
   and neither silently kept nor silently dropped;
   each is checked against the archive in history by digest.
   The three `.jar` files stay tracked by the owner's earlier override in `.gitignore`.
+
+### The last answers the open-questions file held (2026-11-08 to 2026-11-10)
+
+Each of these was asked in the question tool and answered; the questions file kept them until their subjects
+had a record. The record is named beside each answer.
+
+- An index the commit repair cannot read or write stops with a named reason: "Stop with a named reason
+  (Recommended)", 2026-11-10T05:40:16-05:00. The code already did this, so nothing changed, and this is the
+  owner's explicit exception to "Commits should never fail." for such an index. Record:
+  `package/git-policy/cli/SPEC.md`.
+- `file-enforcer` writes one MIT text per package: "One text per package (Recommended)",
+  2026-11-10T05:40:16-05:00. Agent `file-enforcer-mit-text-per-package` builds it, and
+  `fix/file-enforcer-issue-1645` stays off main. Record: `package/file-enforcer`.
+- A paused package gets no work: "Pause means no work (Recommended)", 2026-11-10T08:04:14-05:00. The issue
+  sweep skips anything whose code lives under `package-paused`, and those issues wait for an unpause. Record:
+  `doc/agent/issue-tracker.md`.
+- A package with no unit tests fails the check, with exemptions: "Fail, with exemptions (Recommended)",
+  2026-11-10T08:13:03-05:00.
+- Where copied helpers live (issues 1671, 1670 and 1669): "New small package (Recommended)",
+  2026-11-10T08:04:14-05:00, with the owner's note "adopt remedajs.com" and then "I changed my mind.
+  Instead of adopting remeda, adopt sindresorhus/is instead." What `@sindresorhus/is` does not hold, such
+  as `isErrnoException` and the absence marker, is what the new package is for; that reading is the
+  session's and is open to correction. No such package exists yet.
+- Task definitions wait for Pants, and the session focuses on the Git wrapper: "Wait for Pants. And you focus
+  on the git wrapper.", 2026-11-10T08:04:14-05:00.
+- Trust does not follow a model's price: "Expensive models are also not necessarily more trustworthy than
+  cheap models.", 2026-11-08T12:43:36-05:00. Record: the Pi-as-subagent skill carries the same words.
+- One-shot `--print` is not how a real coding task runs: "Forget about --print on a real coding task.",
+  2026-11-08T12:43:36-05:00. Record: `package/pi-shared/subagent-driver/README.md`.
+- Two answers were "open a gh issue": the built-output imports in the translation-repair family ("You focus on
+  the git wrapper. Open a gh issue about this one. I'm leaning on veto.") is issue 6275, and the real-Git
+  guard in Claude Code ("Focus on the wrapper itself. Open a gh issue about this instead.") is issue 6276,
+  both answered 2026-11-10T05:40:16-05:00.
+- The rename note in old records ran as described: "Run the fix as described", 2026-11-07T02:03:01-05:00,
+  done in `31f3223d25` (the note left the six decision records and was reworded in the other 111).
+- QFL was not added to `AGENTS.md`: "Do not add it", 2026-11-07T02:03:01-05:00.
+- During the 860 cut-over the owner's other processes were stopped: "Stop agents and adb for me",
+  2026-11-08T06:45:53-05:00. The seven processes were sent TERM by PID after each command line was re-read,
+  and all exited; the owner closed Zed and the terminals.
+- Prose fixes inside `doc/decision/` run with form only: "Yes, form only (Recommended)",
+  2026-11-10T08:08:51-05:00. Punctuation, emphasis, list markers and headings change; the owner's quoted words
+  and every other word stay, and each file's words are compared before and after. The work is on branch
+  `docs/decision-form-only-prose-and-moved-path-notes`.
+
+### Answers about this machine and the owner's accounts (2026-11-07 to 2026-11-10)
+
+These name the machine or the owner's accounts rather than the repository's code, so this entry is their
+record.
+
+- Kopia excludes the whole checkout: "Make kopia exclude the entire Monochromatic dir.",
+  2026-11-09T00:07:24-05:00, applied as
+  `kopia policy set user@bazzite:/home/user/Monochromatic --manual '--add-ignore=*'`. The hourly
+  `kopia snapshot create --all` skips a source set to manual, and an explicit snapshot of it stores nothing;
+  existing snapshots stay. Undo:
+  `kopia policy set user@bazzite:/home/user/Monochromatic --no-manual '--remove-ignore=*'`.
+- The kopia job is made more resilient: "Kopia: Make the kopia job more resilient.",
+  2026-11-10T07:24:16-05:00.
+- Claude Code's claude.ai sync is off: "Turn off syncClaudeAiPlugins too.", 2026-11-10T07:24:16-05:00, after
+  "Claude.ai: Don't mind it. And the fact you can read Claude.ai skills is bad. Try changing Claude Code
+  settings so you won't be able to." `syncClaudeAiSkills` and `syncClaudeAiPlugins` are `false` in the
+  user's Claude Code settings.
+- The 860 move's old trees are deleted: "860 move: You delete it.", 2026-11-10T07:24:16-05:00.
+- Cleanup is the session's own judgement: "Cleanup whenever it makes sense on your own." and "It covers
+  deleting stale detached worktrees.", 2026-11-08T23:47:13-05:00. A worktree goes only when its commits are
+  on a branch and it has no uncommitted work; branches stay.
+- `sudo` is authorized: "Please run sudo -n true to test, and run sudo whenever needed for the move, and run
+  sudo for anything. I authorize you to do and use all of it without my prior approval.",
+  2026-11-07T13:52:06-05:00. Subagents still run no privileged command; they send the coordinator the exact
+  command, so every privileged command has one record in the main session.
+- The third-party wizard skill is removed and blocklisted, and the rest of its pack stays: "Remove and
+  Blocklist the wizard skill." and "But do keep matt's other skills.", 2026-11-07T13:52:06-05:00. The owner's
+  claude.ai account still holds it (manifest entry `skill_013SXR5gmg1zWJZpmYLYuP1m`), so account sync may
+  bring a local copy back, where both settings keep it off; only the owner can delete it from the account itself.
 
 ## Working rules for this effort
 

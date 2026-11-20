@@ -38,6 +38,8 @@
       "manifests": ["package/*/*/Cargo.toml", "package/*/*/*/Cargo.toml"],
       "edits": [
         { "guard": ["package"], "path": ["package", "edition"], "value": "2024" },
+        // The owner answered the packages-with-no-license question (issue 2994) at 2026-11-10T08:19:14-05:00:
+        // "LGPL-3.0-or-later (Recommended)", for the 27 packages that declared none.
         { "guard": ["package", "license"], "path": ["package", "license"], "value": "LGPL-3.0-or-later" },
         { "guard": ["package", "publish"], "path": ["package", "publish"], "value": false },
         { "guard": ["lints", "clippy"], "path": ["lints", "clippy", "disallowed_methods"], "value": "deny" },
@@ -46,6 +48,8 @@
         { "guard": ["lints", "clippy"], "path": ["lints", "clippy", "shadow_reuse"], "value": "deny" },
         { "guard": ["lints", "clippy"], "path": ["lints", "clippy", "shadow_same"], "value": "deny" },
         { "guard": ["lints", "clippy"], "path": ["lints", "clippy", "shadow_unrelated"], "value": "deny" },
+        // The owner answered the repository-links question (issue 1124) at 2026-11-10T08:19:14-05:00:
+        // "A file-enforcer rule (Recommended)", for `repository` and `homepage`.
         {
           "guard": ["package", "repository"],
           "path": ["package", "repository"],

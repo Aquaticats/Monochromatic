@@ -414,8 +414,8 @@ The section "The build-dir layout is internal" ends with "Do not write repositor
 That sentence stays in force for every tool except one reader.
 
 The owner answered,
-in the question tool on 2026-11-07 (recorded at 2026-11-07T22:19:43-05:00 in
-`doc/handover/questions-for-the-owner.md`),
+in the question tool on 2026-11-07 (recorded at 2026-11-07T22:19:43-05:00; that questions-file section left for
+`doc/planning/lean-build-dirs.md` on 2026-11-19),
 the question of how every build folder stays lean
 (`doc/planning/lean-build-dirs.md`):
 "A to F,
