@@ -805,7 +805,8 @@ fn an_upload_that_needed_a_login_at_a_terminal_is_told_the_same_rule() {
 /// Why:
 ///   The owner's answers of 2026-11-19 and 2026-11-20:
 ///  a passphrase counts as a credential,
-///  a key that no agent holds fails at once, at a terminal or without one,
+///  a key that no agent holds fails at once,
+/// at a terminal or without one,
 ///  and OpenSSH's own words (`Permission denied (publickey).`) do not say what to do about it.
 ///  The project's answer of 2026-11-20 also says a person must be able to work with no agent at all
 ///  ("We must support situations in which ssh-agent isn't there"),
@@ -836,6 +837,10 @@ fn an_upload_whose_ssh_key_no_agent_holds_says_how_to_start_an_agent_or_use_a_ke
     assert!(diagnostics.contains("needed a login"), "the failure is read as a login the program could not get: {diagnostics}");
     assert!(diagnostics.contains("`ssh-add`"), "the command that loads the key is named: {diagnostics}");
     assert!(diagnostics.contains("`eval \"$(ssh-agent)\"`"), "the words say how to start an agent: {diagnostics}");
+    assert!(
+        diagnostics.contains("`eval (ssh-agent -c)` in fish"),
+        "the words name the form fish accepts, which the Bourne one is not: {diagnostics}"
+    );
     assert!(diagnostics.contains("a key without a passphrase"), "the words name the other way that needs no agent: {diagnostics}");
     assert!(diagnostics.contains("passphrase"), "the words say what the agent would have answered: {diagnostics}");
     assert!(!diagnostics.contains("known_hosts"), "a refused key is not a host key this machine does not know: {diagnostics}");
@@ -885,6 +890,26 @@ fn an_upload_refused_for_an_unknown_host_key_says_how_to_add_it() {
     remove(root.as_path());
 }
 
+/// What:
+///  The sentence names the host a destination written as a URL gives,
+///  so a person told to connect once with plain `ssh` knows which machine to name.
+/// Why:
+///   An LFS server may live on another host than the Git remote,
+///  and a sentence that says only `ssh <host>` leaves its reader to work out which host asked.
+///  The host is the one the login sentence beside it names,
+///  read the same way.
+#[test]
+fn an_upload_refused_for_an_unknown_host_key_names_the_host_the_destination_gives() {
+    let destination: &std::ffi::OsStr = std::ffi::OsStr::new("ssh://git@git.example.invalid/owner/repo.git");
+    let explanation: String = crate::lfs_upload_explanations::explanation_after_failure(
+        "exited with status 2",
+        destination,
+        b"Host key verification failed.\nfatal: Could not read from remote repository.",
+    );
+    assert!(explanation.contains("plain `ssh git.example.invalid`"), "the host is named: {explanation}");
+    assert!(!explanation.contains("`ssh <host>`"), "the placeholder is only for a destination that names no host: {explanation}");
+}
+
 /// A failure that says nothing about a login gets no login paragraph:
 /// a missing object keeps the words it had.
 #[test]
@@ -914,7 +939,11 @@ fn a_failure_that_names_no_login_keeps_the_words_it_had() {
 ///  the mask ran after the cut,
 ///  a URL cut before its `@` shows no userinfo,
 ///  and the front of the password reached the terminal with no word that anything was missing.
-///  The read is driven from prepared bytes,
+///  The read is driven from a prepared file through the shipped `relayed_head`,
+///  so a change to the shipped read,
+/// its one byte past the cap or its notice fails this control;
+///  a test that repeated those steps in its own body would pass with the shipped steps removed.
+///  A file rather than a process,
 ///  because which ending a write of just over the cap gets is the timing of one look against one process:
 ///  a whole gate of 2026-11-20 saw this control fail once with `Some(124)` against `Some(1)`,
 ///  the flood look winning over the stand-in's own exit.
@@ -923,7 +952,7 @@ fn a_failure_that_names_no_login_keeps_the_words_it_had() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const head = maskUrlSecretsWithin(bytes, MAX_RELAYED_BYTES); expect(head.cut).toBe(true); expect(text).not.toContain('planted')
+/// const text = relayedHead(file.open(bytes)); expect(text).toContain(notice()); expect(text).not.toContain('planted')
 /// ```
 #[test]
 fn a_relay_past_the_cap_keeps_no_part_of_a_cut_url_and_says_it_was_cut() {
@@ -940,17 +969,17 @@ fn a_relay_past_the_cap_keeps_no_part_of_a_cut_url_and_says_it_was_cut() {
     bytes.extend(std::iter::repeat_n(b'x', filler));
     bytes.extend_from_slice(url.as_bytes());
     bytes.push(b'\n');
-    // The parent reads one byte past the cap, so the read itself says more was printed than is relayed.
-    let read: usize = limit + 1;
-    let head: MaskedHead = mask_url_secrets_within(bytes.get(..read).unwrap_or_default(), MAX_RELAYED_BYTES);
-    let kept: String = String::from_utf8_lossy(head.text.as_slice()).into_owned();
-    assert!(head.cut, "the read says the output was longer than the cap");
+    let root: PathBuf = fixture("lfs-upload-relay-over-cap");
+    let path: PathBuf = root.join("stderr.txt");
+    std::fs::write(path.as_path(), bytes.as_slice()).expect("the prepared output");
+    let mut captured: std::fs::File = std::fs::File::open(path.as_path()).expect("open");
+    let relayed: Vec<u8> = relayed_head(&mut captured).expect("the shipped read answers");
+    let diagnostics: String = String::from_utf8_lossy(relayed.as_slice()).into_owned();
+    let kept: String = diagnostics.trim_end_matches(shortened_relay_notice().as_str()).to_string();
+    assert!(diagnostics.len() > kept.len(), "the read says the output was longer than the cap: {}", &diagnostics[diagnostics.len().saturating_sub(400)..]);
     assert_eq!(kept, first_line, "only the whole lines the cap holds are kept");
     assert!(!kept.contains("planted"), "no part of the password survives the cut");
     assert!(!kept.contains(secret), "the planted secret is not relayed");
-    let mut relayed: Vec<u8> = head.text;
-    relayed.extend_from_slice(shortened_relay_notice().as_bytes());
-    let diagnostics: String = String::from_utf8_lossy(relayed.as_slice()).into_owned();
     let notice: String = shortened_relay_notice();
     assert!(
         notice.contains(&format!("more than {MAX_RELAYED_BYTES} bytes of standard error")),
@@ -958,6 +987,7 @@ fn a_relay_past_the_cap_keeps_no_part_of_a_cut_url_and_says_it_was_cut() {
     );
     assert!(notice.ends_with('\n'), "the explanation after the notice starts on a line of its own: {notice:?}");
     assert!(diagnostics.ends_with(notice.as_str()), "the notice is what the relayed text ends with: {}", &diagnostics[diagnostics.len().saturating_sub(400)..]);
+    remove(root.as_path());
 }
 
 /// What:

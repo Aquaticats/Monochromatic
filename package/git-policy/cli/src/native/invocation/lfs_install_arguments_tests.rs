@@ -68,21 +68,25 @@ fn an_install_inside_a_repository_runs_with_skip_repo_and_its_notice() {
 /// `--system` and `--file` write the keys somewhere else than the global file,
 ///  and `--manual`'s hook instructions are not printed by a run that installs no hook.
 /// Why:
-///   Measured with git-lfs 3.8.1 through the wrapper, read back with `git config --file <p> --list`:
+///   Measured with git-lfs 3.8.1 through the wrapper,
+/// read back with `git config --file <p> --list`:
 ///  `--local` writes `<repo>/.git/config`,
 ///  `--worktree` writes `config.worktree` in the worktree's Git directory while `extensions.worktreeConfig` is set
 ///  (`<repo>/.git/config.worktree` in the main worktree and `<repo>/.git/worktrees/<name>/config.worktree` in a
 ///  linked one),
 ///  `<repo>/.git/config` when it is not and the repository holds one worktree,
-///  and nothing at all when it is not and the repository holds several, where Git refuses the write and git-lfs ends
+///  and nothing at all when it is not and the repository holds several,
+/// where Git refuses the write and git-lfs ends
 ///  with status 2,
 ///  `--file=<path>` writes that file,
 ///  and the global file stays empty in all three;
 ///  the notice said "the global `filter.lfs.*` keys were written as usual" for every one of them,
 ///  which is false for three.
-///  A boolean option's `=value` is read too: `--local=true` names the repository's file,
+///  A boolean option's `=value` is read too:
+/// `--local=true` names the repository's file,
 ///  and a false value resets the scope that option had set;
-///  the short form reads it as pflag does, so `-l=false` withdraws `--local` and `-lw=false` sets `--local` while
+///  the short form reads it as pflag does,
+/// so `-l=false` withdraws `--local` and `-lw=false` sets `--local` while
 ///  withdrawing `--worktree`.
 ///  `--manual` asks git-lfs for the instructions that merge its hooks into this repository by hand,
 ///  and this run installs no hook,
@@ -156,18 +160,33 @@ fn the_notice_names_the_scope_the_caller_asked_for() {
 ///  and the notice names no destination and no write for it,
 ///  because the words alone show that nothing reaches one.
 /// Why:
-///   Measured with git-lfs 3.8.1 through the wrapper, the global file and the repository's `.git/config` read before and
+///   Measured with git-lfs 3.8.1 through the wrapper,
+/// the global file and the repository's `.git/config` read before and
 ///  after each run:
-///  two destination flags (`-l --worktree`, `-lw`, `--local --system`, `-lw --system`) end with status 2 and
-///  "Only one of the --local, --system, --worktree, and --file options can be specified.",
-///  a word pflag cannot read as a boolean (`-l=yes`, `-l=`, `-w=`, `--local=yes`, `--worktree=maybe`, `--manual=yes`,
+///  two destination flags (`-l --worktree`,
+/// `-lw`,
+/// `--local --system`,
+/// `-lw --system`) end with status 2 and
+///  "Only one of the --local,
+/// --system,
+/// --worktree,
+/// and --file options can be specified.",
+///  a word pflag cannot read as a boolean (`-l=yes`,
+/// `-l=`,
+/// `-w=`,
+/// `--local=yes`,
+/// `--worktree=maybe`,
+/// `--manual=yes`,
 ///  `--force=yes`) ends with status 127 and the parser's own error,
-///  and `--file` with no word after it ends with status 127 and "flag needs an argument: --file";
+///  and `--file` with no word after it ends with status 127 and "flag needs an argument:
+/// --file";
 ///  none of them wrote a `filter.lfs.*` key anywhere,
 ///  and the repository's `.git/config` gained only the `lfs.repositoryformatversion = 0` git-lfs records while setting
-///  up a `--local` or `--worktree` scope, before it refuses,
+///  up a `--local` or `--worktree` scope,
+/// before it refuses,
 ///  while the notice named a destination in every one of those states.
-///  A false value still chooses no second destination, so `--local --worktree=false` and `-l=false -w` are run,
+///  A false value still chooses no second destination,
+/// so `--local --worktree=false` and `-l=false -w` are run,
 ///  as measured.
 ///
 /// In TS you'd write (pseudocode):
@@ -241,16 +260,21 @@ fn the_notice_names_the_refusal_instead_of_a_destination() {
 ///  because the wrapper asks Git nothing and cannot know which one happens:
 ///  the worktree's own `config.worktree` while the extension is set,
 ///  this repository's `.git/config` when it is not and there is one worktree,
-///  and no file at all when it is not and there are several, where Git refuses and git-lfs ends with status 2.
+///  and no file at all when it is not and there are several,
+/// where Git refuses and git-lfs ends with status 2.
 /// Why:
 ///   Measured with git-lfs 3.8.1 through the wrapper and plain `git` 2.56.1,
 ///  every file read with `git config --file <p> --list`:
-///  with the extension set, a linked worktree's keys landed in
-///  `<repo>/.git/worktrees/<name>/config.worktree`, not in the `.git/config.worktree` beside this repository's
+///  with the extension set,
+/// a linked worktree's keys landed in
+///  `<repo>/.git/worktrees/<name>/config.worktree`,
+/// not in the `.git/config.worktree` beside this repository's
 ///  `.git/config` the notice printed;
-///  with two worktrees and the extension unset, `git-lfs install --worktree --skip-repo` exited 2 and wrote nothing,
+///  with two worktrees and the extension unset,
+/// `git-lfs install --worktree --skip-repo` exited 2 and wrote nothing,
 ///  while the notice promised the keys were written to a file.
-///  The worktree name in a linked checkout is in that Git directory and not in `.git` of the checkout, where `.git` is
+///  The worktree name in a linked checkout is in that Git directory and not in `.git` of the checkout,
+/// where `.git` is
 ///  a file;
 ///  `binary_lfs_install_tests.rs` pins all four layouts against Git's own `git config --worktree`.
 ///
@@ -312,9 +336,11 @@ fn a_caller_who_wrote_the_option_already_keeps_one_copy_and_gets_the_notice() {
 ///  so `--help=true` and a group such as `-lh` print help with status 0 and write no key,
 ///  measured through the wrapper with git-lfs 3.8.1,
 ///  and a second `--skip-repo` or a destination sentence there would answer a command that writes nothing.
-///  `--help=false` and `-lh=false` run the command, a parse error beats help,
+///  `--help=false` and `-lh=false` run the command,
+/// a parse error beats help,
 ///  and a word after `--` is no help query at all:
-///  `git lfs install -- -h` ran into the hook write the wrapper's own option prevents, with status 2.
+///  `git lfs install -- -h` ran into the hook write the wrapper's own option prevents,
+/// with status 2.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -364,7 +390,8 @@ fn a_help_query_is_answered_as_it_was_typed() {
 /// Why:
 ///   pflag stops reading options at `--` (`flag.go:1141-1145` of pflag v1.0.9),
 ///  so git-lfs never saw that word as the option either:
-///  measured through the wrapper, `git lfs install -- --skip-repo` ran into the hook write with status 2 and
+///  measured through the wrapper,
+/// `git lfs install -- --skip-repo` ran into the hook write with status 2 and
 ///  `mkdir /dev/null: not a directory`.
 ///
 /// In TS you'd write (pseudocode):
@@ -386,9 +413,11 @@ fn a_word_after_the_double_dash_is_no_option() {
 ///  A caller's own `--skip-repo=false` is answered by the wrapper's copy right after it,
 ///  and the notice says the caller's word did not win.
 /// Why:
-///   pflag sets a flag again for each word that names it (`flag.go:484-517` of pflag v1.0.9), and the last value wins,
+///   pflag sets a flag again for each word that names it (`flag.go:484-517` of pflag v1.0.9),
+/// and the last value wins,
 ///  so the copy the wrapper used to put right after `install` was undone by that later word:
-///  measured through the wrapper, `git lfs install --skip-repo=false` wrote the global keys and then ended with status 2 and
+///  measured through the wrapper,
+/// `git lfs install --skip-repo=false` wrote the global keys and then ended with status 2 and
 ///  `mkdir /dev/null: not a directory`,
 ///  the failure the option exists to prevent.
 ///  The hooks cannot be installed under the wrapper at all,
@@ -434,10 +463,12 @@ fn a_caller_who_turned_skip_repo_off_gets_the_wrappers_copy_after_it() {
 ///   pflag stops at the first word it cannot read (`flag.go:1153-1155` of pflag v1.0.9),
 ///  and that word may be one this reading passes through,
 ///  so the word this reading refuses is not the word git-lfs refuses:
-///  measured through the wrapper, `git lfs install -z -l=yes` answered `unknown shorthand flag: 'z' in -z`
+///  measured through the wrapper,
+/// `git lfs install -z -l=yes` answered `unknown shorthand flag: 'z' in -z`
 ///  while the notice named `-l=yes`,
 ///  and the same happened for `--bogus --file` and `-lw --bogus`.
-///  A word git-lfs reaches is still named, and no `filter.lfs.*` key is written in either case.
+///  A word git-lfs reaches is still named,
+/// and no `filter.lfs.*` key is written in either case.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

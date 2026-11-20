@@ -209,25 +209,45 @@ fn run_with_captured_stderr(
         Ok(Err(RunError::Wait(why))) => return Err(CaptureError::Guard(why)),
         Err(refusal) => return Err(CaptureError::Guard(refusal.to_string())),
     };
+    let relayed: Vec<u8> = match relayed_head(&mut captured) {
+        Ok(text) => text,
+        Err(error) => return Err(CaptureError::Scratch(error.to_string())),
+    };
+    return Ok((ended, relayed));
+}
+
+/// What:
+///  The head of the captured standard error:
+/// the whole lines the cap holds,
+/// with the credentials of every URL in them
+///  masked,
+///  and the notice that more was printed than is relayed when there was.
+/// Why:
+///   This is the read the audit's credential leak went through:
+///  the mask has to run before the cut and on one byte past the cap,
+///  because a URL cut before its `@` shows no userinfo and a read of the cap alone cannot say that more was printed.
+///  It takes the file rather than a process,
+///  so a control drives these shipped steps from prepared bytes and cannot race a child's ending;
+///  the upload's own run above and this read stay one path.
+///  A run that ends between two looks of the wait prints its output past the cap without the flood stop seeing it,
+///  so the notice belongs here too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// file.seek(0); const bytes = file.take(MAX_RELAYED_BYTES + 1); const head = maskUrlSecretsWithin(bytes, MAX_RELAYED_BYTES); return head.cut ? head.text + notice() : head.text
+/// ```
+fn relayed_head(captured: &mut std::fs::File) -> std::io::Result<Vec<u8>> {
     let mut bytes: Vec<u8> = Vec::new();
     // The file is read only after the seek to its start succeeded, as `.and_then(...)` ran the read.
     // One byte past the cap is read, so the read itself says whether more was printed than is relayed.
-    let rewound: std::io::Result<u64> = captured.seek(SeekFrom::Start(0));
-    let read: std::io::Result<usize> = match rewound {
-        Ok(_) => captured.by_ref().take(MAX_RELAYED_BYTES + 1).read_to_end(&mut bytes),
-        Err(error) => Err(error),
-    };
-    if let Err(error) = read {
-        return Err(CaptureError::Scratch(error.to_string()));
-    }
+    captured.seek(SeekFrom::Start(0))?;
+    captured.by_ref().take(MAX_RELAYED_BYTES + 1).read_to_end(&mut bytes)?;
     let head: MaskedHead = mask_url_secrets_within(bytes.as_slice(), MAX_RELAYED_BYTES);
-    // A run that ends between two looks of the wait prints its output past the cap without the flood stop seeing it,
-    //  so the notice that the text is the head of what it printed belongs here too.
     let mut relayed: Vec<u8> = head.text;
     if head.cut {
         relayed.extend_from_slice(shortened_relay_notice().as_bytes());
     }
-    return Ok((ended, relayed));
+    return Ok(relayed);
 }
 
 /// What:

@@ -23,7 +23,7 @@
 use crate::push_retry::pause_before;
 /// The sentence a refusal prints for a host key this machine does not know,
 /// and the reading that says OpenSSH's words are that refusal.
-use crate::lfs_pre_push::{HOST_KEY_NOT_KNOWN_SENTENCE, reads_as_unknown_host_key};
+use crate::lfs_pre_push::{host_key_not_known_sentence, reads_as_unknown_host_key};
 use std::time::Duration;
 
 /// The words of the reconcile's report of a conflict,
@@ -39,9 +39,6 @@ pub enum FinalFailure {
     Login,
     /// A hook on the server declined the push.
     Declined,
-    /// This machine does not know the SSH host key of the remote,
-    /// so OpenSSH refused the connection before any login.
-    HostKeyNotKnown,
 }
 
 /// The mark of a line in which the server rejected one reference;
@@ -173,16 +170,14 @@ pub fn protected_branch_refusal(output: &str) -> Option<&str> {
 /// and it is
 ///  retried within `PROTECTED_BRANCH_TRIES`,
 /// so it is not read as final here.
-///  A host key this machine does not know is final as well:
-/// no retry adds it,
-/// and the words of `plain_words` say to connect once with plain `ssh <host>` or add the key to `known_hosts`,
-/// then retry (the project's answer of 2026-11-20).
+///  A host key this machine does not know is not final either:
+/// the service keeps its usual retry schedule,
+/// so a person who adds the key later gets the push with no new commit
+/// (the project's answer of 2026-11-20),
+/// and `retried_failure_record` puts that promise and the way to add the key in the record.
 pub fn final_failure(output: &str) -> Option<FinalFailure> {
     if output.contains(CONFLICT_PHRASE) {
         return Some(FinalFailure::Conflict);
-    }
-    if reads_as_unknown_host_key(output) {
-        return Some(FinalFailure::HostKeyNotKnown);
     }
     let protected: bool = protected_branch_refusal(output).is_some();
     for line in rejection_lines(output) {
@@ -197,6 +192,43 @@ pub fn final_failure(output: &str) -> Option<FinalFailure> {
     }
     return None;
 }
+
+/// What:
+///  The record the person reads for a push the service keeps retrying:
+///  the program's own words,
+///  and,
+///  when this machine does not know the remote's SSH host key,
+///  the way to add it above those words with the promise the retry plan keeps.
+/// Why:
+///   No retry adds a host key,
+///  so the failure is one the service cannot mend by itself,
+///  and the project's answer of 2026-11-20 is that the service keeps its usual retry schedule rather than stopping:
+///  a person who adds the key later gets the push with no new commit.
+///  Saying only that the push failed would send the person to a push by hand the service is about to make;
+///  saying that the service stopped would be false.
+///  `hosts_in` names the host a person's `ssh` should connect to when the words name one;
+///  the remote is written as `ssh <host>` only when they name none.
+///  A push's own words for this refusal name no host
+///  (`Host key verification failed.`,
+/// `fatal: Could not read from remote repository.`),
+///  so the push's record writes the placeholder;
+///  the upload's explanation names the host its destination or the program's words give.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// readsAsUnknownHostKey(output) ? `${hostKeyNotKnownSentence(undefined)}${SERVICE_KEEPS_RETRYING}\n${output}` : output
+/// ```
+pub fn retried_failure_record(output: &str) -> String {
+    if !reads_as_unknown_host_key(output) {
+        return output.to_string();
+    }
+    return format!("{}{SERVICE_KEEPS_RETRYING_SENTENCE}\n{output}", host_key_not_known_sentence(None));
+}
+
+/// The promise the service's record adds for a host key this machine does not know,
+/// which is what the plan does with the failure the program's words describe.
+const SERVICE_KEEPS_RETRYING_SENTENCE: &str = " The commit service keeps its usual retry schedule, so it pushes this branch \
+ by itself once this machine knows the key: no new commit is needed, and adding the key is enough.";
 
 /// What:
 ///  Whether the push that failed with these words has used up every try the service gives it,
@@ -247,9 +279,9 @@ pub fn unrecognised_rejection(output: &str) -> Option<String> {
 /// the person is told which one it was,
 ///  in words,
 /// above Git's own.
-///  A host key this machine does not know is the third:
-/// retrying asks the same machine again,
-/// so the words say how to add the key and then to retry.
+///  A host key this machine does not know is not worded here:
+/// the service keeps retrying it,
+/// and `retried_failure_record` is where its words and that promise are written.
 ///  A decline is the server's answer at that moment and nothing about a later try,
 /// so its words promise no outcome and say that a push by hand may succeed
 ///  (GitHub refused a push of `main` with `GH006` at `2026-11-09T23:30:11-05:00` and a plain `git push` of the same commit then succeeded:
@@ -271,7 +303,6 @@ pub fn plain_words(cause: FinalFailure) -> Option<&'static str> {
              helper, or an SSH key without a passphrase that its environment reaches; an agent in the service's environment with \
              the key loaded by `ssh-add` does as well) and make sure that login may push, then push by hand or commit again.",
         ),
-        FinalFailure::HostKeyNotKnown => Some(HOST_KEY_NOT_KNOWN_SENTENCE),
         FinalFailure::Declined => Some(
             "monochromatic-git-policy-cli: the server refused this push: a hook on the server (a check the server runs before it accepts a push) declined it, with the message shown below. The commit service stops pushing this branch \
              until your next commit. A push by hand may succeed if the cause has cleared: fix what the message names, or wait, then push by hand or commit again.",

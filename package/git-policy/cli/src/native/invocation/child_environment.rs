@@ -489,9 +489,11 @@ pub const ASKPASS_REQUIRE_FORCE: &str = "force";
 
 /// The program OpenSSH is given in place of the account's own:
 /// the standard one that prints nothing and reports failure.
-///  A child's `PATH` is the caller's, and `ssh_askpass` finds the program with `execlp`
+///  A child's `PATH` is the caller's,
+/// and `ssh_askpass` finds the program with `execlp`
 ///  (`readpass.c:77`),
-/// so its failure to find one is a start that exits non-zero, which is the answer below.
+/// so its failure to find one is a start that exits non-zero,
+/// which is the answer below.
 pub const NO_ANSWER_PROGRAM: &str = "false";
 
 /// What:
@@ -514,10 +516,13 @@ pub const NO_ANSWER_PROGRAM: &str = "false";
 /// a program that fails leaves no answer (179-181),
 /// and `load_identity_file` reads an empty passphrase as one nobody gave and tries the next key
 ///  (`sshconnect2.c:1549-1558`).
-///  A key the agent holds needs no passphrase, so it still opens the connection.
+///  A key the agent holds needs no passphrase,
+/// so it still opens the connection.
 ///  The program's absence fails the same way:
-/// a child that cannot `execlp` it exits non-zero, which `ssh_askpass` reads as no answer.
-///  The wrapper ships for Linux only (`README.md`, "Requirements"),
+/// a child that cannot `execlp` it exits non-zero,
+/// which `ssh_askpass` reads as no answer.
+///  The wrapper ships for Linux only (`README.md`,
+/// "Requirements"),
 /// where coreutils or busybox puts `false` on `PATH`.
 ///
 /// In TS you'd write (pseudocode):

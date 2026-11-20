@@ -1,5 +1,6 @@
 //! What:
-//!  A command a person types at a real terminal, run through the wrapper over `ssh://`,
+//!  A command a person types at a real terminal,
+//! run through the wrapper over `ssh://`,
 //!  asks no one for the SSH key's passphrase:
 //!  the key is protected by one,
 //!  no agent holds it,
@@ -29,11 +30,13 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
 /// How long a command at the terminal may run before the bound ends it;
-///  a question that is asked waits for ever, so the bound is what makes a red run fail instead of hanging.
+///  a question that is asked waits for ever,
+/// so the bound is what makes a red run fail instead of hanging.
 const TERMINAL_BOUND_SECONDS: &str = "30";
 
 /// The passphrase the client key is protected by.
-///  Nothing answers it, so a run that asks waits until the bound.
+///  Nothing answers it,
+/// so a run that asks waits until the bound.
 const KEY_PASSPHRASE: &str = "correct horse battery staple";
 
 /// A pseudo-terminal the control keeps open:
@@ -42,7 +45,8 @@ const KEY_PASSPHRASE: &str = "correct horse battery staple";
 /// and the slave end,
 /// which is a child's standard input and its controlling terminal.
 struct Terminal {
-    /// Read for everything the terminal carried; kept open for the child's whole run.
+    /// Read for everything the terminal carried;
+    /// kept open for the child's whole run.
     master: std::fs::File,
     /// The end the child's standard input is made from.
     slave: std::fs::File,
@@ -212,7 +216,8 @@ fn free_port() -> u16 {
     return port;
 }
 
-/// A throwaway `sshd` on `127.0.0.1`, stopped with the fixture.
+/// A throwaway `sshd` on `127.0.0.1`,
+/// stopped with the fixture.
 struct Sshd {
     child: Child,
 }
@@ -222,7 +227,8 @@ struct Sshd {
 ///  and answer with it and the port it listens on as soon as it accepts a connection.
 /// Why:
 ///   The question is asked over a real SSH connection,
-/// and the account's own keys, agents and `known_hosts` stay out of it.
+/// and the account's own keys,
+/// agents and `known_hosts` stay out of it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

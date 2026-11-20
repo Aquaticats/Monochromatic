@@ -451,7 +451,8 @@ pub fn reads_as_a_login_failure(text: &str) -> bool {
 /// or a key the server refuses.
 ///  Telling an HTTP server's refused password to run `ssh-add` would send its reader to a command that does nothing for it,
 ///  so the sentence is added from these words and not from every login failure;
-///  the sentence itself names both causes, because these words do.
+///  the sentence itself names both causes,
+/// because these words do.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -471,17 +472,38 @@ pub fn reads_as_a_key_failure(text: &str) -> bool {
 ///  `sshconnect.c` at `V_10_6_P2` lines 603 to 627).
 ///  That refusal is neither a credential the push lacked nor a fault it can retry away,
 ///  so it gets its own sentence.
+///  OpenSSH prints that same last line for a key that changed,
+///  after its warning that someone may be attacking the connection,
+///  and for a host it does not know while the account asks for strict checking;
+///  the changed key is a different cause with its own warning and is left to OpenSSH's words,
+///  as `main` leaves it,
+///  and the strict-checking refusal is the unknown key this reading is for.
+///  Each arm's transcript was measured against a throwaway `sshd` on `127.0.0.1` with OpenSSH 10.6p2
+///  and the wrapper's own two variables (`SSH_ASKPASS=false`,
+///  `SSH_ASKPASS_REQUIRE=force`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// text.includes('Host key verification failed')
+/// text.includes('Host key verification failed') && !text.includes('REMOTE HOST IDENTIFICATION HAS CHANGED') && !text.includes('has changed and you have requested strict checking')
 /// ```
 pub fn reads_as_unknown_host_key(text: &str) -> bool {
-    return text.contains(HOST_KEY_NOT_KNOWN_PHRASE);
+    return text.contains(HOST_KEY_NOT_KNOWN_PHRASE)
+        && !text.contains(HOST_KEY_CHANGED_PHRASE)
+        && !text.contains(HOST_KEY_CHANGE_UNDER_STRICT_CHECKING_PHRASE);
 }
 
 /// The words OpenSSH prints when it will not connect to a host whose key this machine does not know.
 const HOST_KEY_NOT_KNOWN_PHRASE: &str = "Host key verification failed";
+
+/// The banner of OpenSSH's warning that the key a host offered is not the one this machine holds,
+/// which says that someone may be attacking the connection
+/// (`sshconnect.c` at `V_10_6_P2`,
+/// `hostkeys_foreach` and `verify_host_key`).
+const HOST_KEY_CHANGED_PHRASE: &str = "REMOTE HOST IDENTIFICATION HAS CHANGED";
+
+/// The line that ends OpenSSH's warning about a changed key,
+/// which a transcript may carry without the banner.
+const HOST_KEY_CHANGE_UNDER_STRICT_CHECKING_PHRASE: &str = "has changed and you have requested strict checking";
 
 /// What:
 ///  The one sentence a refusal prints when the cause is a host key this machine does not know:
@@ -499,15 +521,27 @@ const HOST_KEY_NOT_KNOWN_PHRASE: &str = "Host key verification failed";
 ///  so saying only that the push failed would leave the person with no move.
 ///  The sentence is shared by the push's failure record and the upload's explanation,
 ///  so the two faces cannot say different things about one refusal.
+///  `host` is the host the wrapper can name for this refusal,
+///  and the remote is written as `ssh <host>` only when it names none:
+///  an upload's destination may be another host than the Git remote,
+///  and a person told to run `ssh` must be told which machine to name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// 'monochromatic-git-policy-cli: this machine does not know the SSH host key ...'
+/// `monochromatic-git-policy-cli: this machine does not know the SSH host key ... Connect once with plain ${host ? `ssh ${host}` : 'ssh <host>'} ...`
 /// ```
-pub const HOST_KEY_NOT_KNOWN_SENTENCE: &str = "monochromatic-git-policy-cli: this machine does not know the SSH host key of the \
- remote, and no command the wrapper runs asks whether to trust a new one (`SSH_ASKPASS_REQUIRE=force` sends that yes/no \
- question to a program that answers nothing), so the connection was refused before any login. Connect once with plain \
- `ssh <host>`, which the wrapper does not touch and which still asks, or add the host key to `known_hosts`, then push again.";
+pub fn host_key_not_known_sentence(host: Option<&str>) -> String {
+    let connect: String = match host {
+        Some(name) => format!("Connect once with plain `ssh {name}`"),
+        None => String::from("Connect once with plain `ssh <host>`"),
+    };
+    return format!(
+        "monochromatic-git-policy-cli: this machine does not know the SSH host key of the remote, and no command the wrapper \
+         runs asks whether to trust a new one (`SSH_ASKPASS_REQUIRE=force` sends that yes/no question to a program that \
+         answers nothing), so the connection was refused before any login. {connect}, which the wrapper does not touch and \
+         which still asks, or add the host key to `known_hosts`, then push again."
+    );
+}
 
 /// What:
 ///  The refusal that follows a failed upload which needed a login:
@@ -534,6 +568,13 @@ pub const HOST_KEY_NOT_KNOWN_SENTENCE: &str = "monochromatic-git-policy-cli: thi
 ///  it names `eval "$(ssh-agent)"` and `ssh-add`,
 ///  or a key without a passphrase,
 ///  which needs no agent.
+///  The first form is Bourne shell syntax,
+/// which fish rejects,
+///  so the sentence names fish's own form beside it:
+///  `ssh-agent -c` prints `setenv` commands,
+/// which `eval (ssh-agent -c)` reads
+///  (`ssh-agent`'s manual,
+///  "The agent prints the commands to set the environment variables ... `-c` Generate C-shell commands on stdout").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -544,7 +585,8 @@ pub fn login_needed_message(server: &str, key_not_unlocked: bool) -> String {
         format!(
             " The key that server asked for was refused or could not be unlocked: with no program to ask a passphrase and \
              no terminal read, a key that no agent holds cannot be used, and a key the server does not accept answers \
-             the same way. Start an SSH agent with `eval \"$(ssh-agent)\"` and load the key with `{SSH_ADD_COMMAND}` \
+             the same way. Start an SSH agent with `eval \"$(ssh-agent)\"` (`eval (ssh-agent -c)` in fish), then load the key \
+             with `{SSH_ADD_COMMAND}` \
              (`{SSH_ADD_COMMAND} <key file>` for a key outside the agent's default list; `{SSH_ADD_COMMAND} -l` lists \
              what the agent holds), or use a key without a passphrase, and push again; a key the server still refuses \
              needs the server's account to accept it."

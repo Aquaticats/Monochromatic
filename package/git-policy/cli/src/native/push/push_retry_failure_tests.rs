@@ -136,28 +136,67 @@ fn a_github_protected_branch_refusal_is_tried_again() {
 }
 
 /// What:
-///  A host key this machine does not know is final and worded,
-///  and the words say to connect once with plain `ssh <host>`,
-///  or to add the key to `known_hosts`,
-///  then to retry.
+///  A host key this machine does not know leaves the retry scheduled,
+///  and the record says which refusal it was,
+///  how to add the key,
+///  and that the service pushes the branch by itself once it knows the key.
 /// Why:
-///   The project's answer of 2026-11-20 keeps the refusal the no-prompt rule causes and puts the way out in the
-///  words a person reads:
-///  no retry can add a host key,
-///  and plain `ssh` still asks its own question (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`).
+///   The project's answer of 2026-11-20 is "Keep retrying":
+///  no retry adds a host key,
+///  but a person who adds it later gets the push with no new commit,
+///  which a stop until the next commit would have cost them.
+///  The refusal must not be a `FinalFailure`,
+///  which is the reading the service stops on,
+///  and the record must still say what to do:
+///  the way out is the person's,
+/// the waiting is the service's.
+///  Plain `ssh` still asks its own question (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`).
 #[test]
-fn a_host_key_this_machine_does_not_know_is_final_and_says_how_to_add_it() {
-    assert_eq!(final_failure(HOST_KEY_NOT_KNOWN), Some(FinalFailure::HostKeyNotKnown), "{HOST_KEY_NOT_KNOWN}");
-    assert!(needs_the_person(HOST_KEY_NOT_KNOWN), "{HOST_KEY_NOT_KNOWN}");
-    let words: &str = plain_words(FinalFailure::HostKeyNotKnown).expect("an unknown host key is worded");
-    for said in ["plain `ssh <host>`", "`known_hosts`", "push again"] {
-        assert!(words.contains(said), "{said} in {words}");
+fn a_host_key_this_machine_does_not_know_is_retried_and_the_record_says_the_service_pushes_by_itself() {
+    assert_eq!(final_failure(HOST_KEY_NOT_KNOWN), None, "the retry stays scheduled: {HOST_KEY_NOT_KNOWN}");
+    assert!(!needs_the_person(HOST_KEY_NOT_KNOWN), "nothing stops the retry for it: {HOST_KEY_NOT_KNOWN}");
+    let record: String = retried_failure_record(HOST_KEY_NOT_KNOWN);
+    for said in [
+        "plain `ssh <host>`",
+        "`known_hosts`",
+        "push again",
+        "keeps its usual retry schedule",
+        "pushes this branch by itself once this machine knows the key",
+        "no new commit is needed",
+    ] {
+        assert!(record.contains(said), "{said} in {record}");
     }
+    assert!(record.ends_with(HOST_KEY_NOT_KNOWN), "the program's own words stay below ours: {record}");
     assert_eq!(
         unrecognised_rejection(HOST_KEY_NOT_KNOWN),
         None,
         "a refusal this release knows is not named as a reason it does not: {HOST_KEY_NOT_KNOWN}"
     );
+}
+
+/// What:
+///  A failure whose words ask nothing of the person is recorded exactly as the program printed it.
+/// Why:
+///   The record is what the person reads beside the journal's warning about an unknown rejection,
+///  and adding our words to a failure we know nothing about would label it as another cause.
+#[test]
+fn a_retried_failure_with_no_words_of_ours_keeps_the_programs_own() {
+    assert_eq!(retried_failure_record(UNRESOLVED), UNRESOLVED);
+}
+
+/// What:
+///  A server hook whose own message prints OpenSSH's words for a host key this machine does not know stays a hook's
+///  decline.
+/// Why:
+///   A hook that reaches another host over SSH can print those words about its own connection,
+///  and the push's cause is then the server's refusal and not this machine's `known_hosts`;
+///  the reading of those words must not answer before the hook's decline,
+///  as `main` orders its readings,
+///  so the person is told the cause that is theirs and not a key this machine does know or cannot add.
+#[test]
+fn a_hook_that_prints_the_unknown_host_key_words_is_still_a_decline() {
+    let output: &str = "remote: Host key verification failed.\nTo /srv/remote.git\n ! [remote rejected] main -> main (pre-receive hook declined)\nerror: failed to push some refs to '/srv/remote.git'\n";
+    assert_eq!(final_failure(output), Some(FinalFailure::Declined), "the hook's echoed words decide nothing: {output}");
 }
 
 /// A server hook's decline is final,

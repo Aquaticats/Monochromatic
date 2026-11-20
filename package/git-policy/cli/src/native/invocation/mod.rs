@@ -173,6 +173,10 @@ pub mod hooks_off;
 /// and the notice that says why no hook is needed.
 pub mod lfs_install_arguments;
 
+/// One `git lfs install` read from the words after its `install` word,
+/// which the rewrite and its notice read once.
+mod lfs_install_request;
+
 /// The startup step of a command:
 /// isolated merges whose process died,
 /// and what an earlier release left behind.

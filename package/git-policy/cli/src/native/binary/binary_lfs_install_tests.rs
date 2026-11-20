@@ -67,8 +67,10 @@ fn an_install_in_a_repository_runs_with_skip_repo_and_explains_why() {
 /// Why:
 ///   git-lfs keeps the last value of a repeated flag,
 ///  so the copy the wrapper puts right after `install` is undone by a later `--skip-repo=false`:
-///  measured with git-lfs 3.8.1 through the wrapper, that command wrote the global keys and then ended with status 2 and
-///  `mkdir /dev/null: not a directory`, the failure the option exists to prevent.
+///  measured with git-lfs 3.8.1 through the wrapper,
+/// that command wrote the global keys and then ended with status 2 and
+///  `mkdir /dev/null: not a directory`,
+/// the failure the option exists to prevent.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -97,7 +99,8 @@ fn a_caller_who_turned_skip_repo_off_gets_the_wrappers_copy_after_it() {
 /// The write git-lfs makes when `--worktree` is asked for.
 ///
 /// git-lfs runs `git config --includes --worktree --replace-all` for each of its four keys
-/// (`commands/command_install.go:40-58`, `git/config.go:137-140` in v3.8.1),
+/// (`commands/command_install.go:40-58`,
+/// `git/config.go:137-140` in v3.8.1),
 /// so this is where the keys land when the real program runs.
 ///
 /// In TS you'd write (pseudocode):
@@ -112,14 +115,18 @@ fn worktree_write(fixture: &Fixture, directory: &Path, key: &str, value: &str) -
 ///  The notice names the file git-lfs's `--worktree` write reached in each layout:
 ///  `config.worktree` in this worktree's Git directory with the extension set,
 ///  this repository's `.git/config` for one worktree without it,
-///  and no file at all for several without it, where Git refuses the write.
+///  and no file at all for several without it,
+/// where Git refuses the write.
 /// Why:
 ///   Measured with git-lfs 3.8.1 and plain `git` 2.56.1:
 ///  a linked worktree's keys landed in `<repo>/.git/worktrees/<name>/config.worktree`,
 ///  not in the `.git/config.worktree` a notice naming that path would have printed,
 ///  and two worktrees without the extension made git-lfs exit 2 after Git refused with status 128 and a fatal
-///  message, writing nothing while an earlier notice promised the keys were written.
-///  The write here is Git's own call, the one git-lfs makes, so the test needs no real git-lfs binary.
+///  message,
+/// writing nothing while an earlier notice promised the keys were written.
+///  The write here is Git's own call,
+/// the one git-lfs makes,
+/// so the test needs no real git-lfs binary.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

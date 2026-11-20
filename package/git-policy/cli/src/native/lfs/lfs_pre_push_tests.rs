@@ -236,6 +236,72 @@ fn the_skip_variable_is_read_as_a_boolean() {
     assert!(!skip_requested(&[]));
 }
 
+//region OpenSSH's words for a host key this machine does not know, and for one that changed
+
+/// OpenSSH's own words for a host key this machine does not know,
+/// under the account's default `StrictHostKeyChecking=ask`,
+/// measured against a throwaway `sshd` on `127.0.0.1` with OpenSSH 10.6p2 and the wrapper's two variables
+/// (`SSH_ASKPASS=false`,
+/// `SSH_ASKPASS_REQUIRE=force`):
+/// the yes/no question goes to a program that answers nothing,
+/// and an empty answer is not "yes".
+const AN_UNKNOWN_HOST_KEY: &str = "Host key verification failed.\n";
+
+/// The words for a host whose key this machine's `known_hosts` holds as a different one:
+/// OpenSSH warns that someone may be attacking the connection,
+/// and then prints the same last line an unknown key gets.
+const A_CHANGED_HOST_KEY: &str = "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n\
+@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\n\
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n\
+IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!\n\
+Someone could be eavesdropping on you right now (man-in-the-middle attack)!\n\
+It is also possible that a host key has just been changed.\n\
+The fingerprint for the ED25519 key sent by the remote host is\n\
+SHA256:ZaVZ8S9YV0dQ4EG1Jc1iNoB8wqvbUpvB0GbUlZrKz3E.\n\
+Please contact your system administrator.\n\
+Add correct host key in a known_hosts file to get rid of this message.\n\
+Offending ED25519 key in a known_hosts file:1\n\
+Host key for [127.0.0.1]:41783 has changed and you have requested strict checking.\n\
+Host key verification failed.\n";
+
+/// The words for a host this machine does not know while the account asks for strict checking:
+/// the refusal is still an unknown key,
+/// and every way out the wrapper prints still applies.
+const AN_UNKNOWN_HOST_KEY_UNDER_STRICT_CHECKING: &str =
+    "No ED25519 host key is known for [127.0.0.1]:41783 and you have requested strict checking.\nHost key verification failed.\n";
+
+/// What:
+///  A host key this machine does not know is read,
+///  whether the account leaves the question open or asks for strict checking.
+/// Why:
+///   Both are openSSH's refusal to connect to a host whose key this machine has none of,
+///  which is the refusal the no-prompt rule turns into an empty answer,
+///  so both get the sentence that names the two ways to add the key.
+#[test]
+fn a_host_key_this_machine_does_not_know_is_read() {
+    for text in [AN_UNKNOWN_HOST_KEY, AN_UNKNOWN_HOST_KEY_UNDER_STRICT_CHECKING] {
+        assert!(reads_as_unknown_host_key(text), "{text}");
+    }
+}
+
+/// What:
+///  A host key that changed is not read as an unknown one.
+/// Why:
+///   OpenSSH has just said that this machine knows a key for the host and that the key it was given differs,
+///  and that someone may be attacking the connection;
+///  telling the person the key is unknown and to add the new one would answer that warning with the opposite advice.
+///  OpenSSH's own words stay,
+/// as they do on `main`.
+#[test]
+fn a_changed_host_key_keeps_opensshs_own_warning_and_is_no_unknown_key() {
+    assert!(
+        !reads_as_unknown_host_key(A_CHANGED_HOST_KEY),
+        "a changed key is not an unknown one, and its transcript is OpenSSH's warning of a possible attack"
+    );
+}
+
+//endregion
+
 /// A relative `PATH` entry is resolved where the lookup happens,
 /// so the file found is the file that runs even when the
 ///  child starts in another directory (`-C`).
