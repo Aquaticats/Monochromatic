@@ -18,8 +18,9 @@ run = """
 {{vars.parse_usage_args}}
 {{vars.dispatch_workspace_node}}
 ensureOxlintConfig()
-const targets = parseUsageArgs(process.env.usage_args ?? '')
+const targets = parseUsageArgs(usageArgWords())
 runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--fix', ...(targets.length === 0 ? ['src'] : targets)])
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."lint:types"]
