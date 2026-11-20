@@ -5249,8 +5249,10 @@ a control character,
 a leading dot or `.`/`..` is refused before any folder is opened.
 `openat2` needs Linux 5.6.
 
-A checkout reached through a link is refused before the walk starts:
-the path is resolved by the kernel and may name another folder.
+A checkout path that is not already its own canonical path is refused before the walk starts:
+resolving it would mean walking from whichever folder the account's link names,
+so the walk never resolves the path it is given,
+and the refusal names the canonical path that does stand.
 
 After an attach the slot is a mount point,
 so the second walk,
@@ -5343,6 +5345,23 @@ no control character,
 no leading dot,
 and neither `.` nor `..`.
 
+The device field is the device number the kernel assigned the filesystem the folder is on,
+not the dataset's own identity,
+and on ZFS that number is anonymous and per mount:
+`stat --format=%d /home` answered `57` while `/proc/self/mountinfo` listed that dataset as `0:57 ... - zfs zpcachyos/ROOT/cos/home`
+(measured on this host at 2026-11-20T00:08:07-05:00).
+Whether the same number comes back after a reboot or after an export and import of the dataset is unmeasured:
+this host may not reboot for a change like this one.
+When it does not,
+every recorded identity differs after a boot and a slot record is never refreshed,
+so every attach against it refuses until an administrator adopts the replacement.
+The measurement that settles it is the guest's own boot arm:
+record a parent identity and a slot identity,
+reboot the guest,
+read the store and the folders' `stat --format=%d` again,
+and repeat the arm with an export and import of the dataset in between.
+The plan's step 8 is the first step that depends on the answer.
+
 Reading refuses the whole file when any line is not one this repository wrote,
 naming the line,
 and when one key is recorded twice,
@@ -5358,16 +5377,42 @@ and refuses the folder that holds it on the same two terms:
 a record the attach's account could rewrite would decide nothing.
 The grammar's own reader (`read`) is what a caller uses once it holds such a file,
 and what the controls drive on fixture files.
+The route's two writes make the same refusal inside the step that writes:
+`append_slot_identity_under_root_control` checks the file,
+the folder and the lock before it holds the lock and appends,
+and `record_parent_identity_under_root_control` reads through the route's reader before it replaces the parent record.
+A caller that read the store first covers nothing,
+because the file it judged is not the file the write opens.
 
 A slot's record is written once,
 by the first sweep that verifies that clone (the plan's step 8).
 The read that finds no record for the slot and the append that records it are one step,
-under one exclusive `flock` on the store's own descriptor,
+under one exclusive `flock` of a lock file beside the store,
 so two sweeps that meet on one slot record it once:
 without that lock both would read no record,
 both would append,
 and the duplicate would refuse every later read until an administrator edited a root-owned file.
 A second record for the same slot is refused.
+
+The lock stands on `git-worktree-clone-slot-identities.lock` beside the store,
+which the append makes root's own with mode `0600`,
+and never on the store itself:
+an exclusive `flock` needs no write bit of the file it locks,
+so a lock on the store is one every account that may read the store could hold,
+and that account would stall root's own sweep.
+The lock is asked for without waiting (`LOCK_NB`) and given up after two seconds,
+the same bound the removal's claim wait ships with,
+so a holder that never finishes refuses the append and says which lock file stood in the way
+instead of holding the command open.
+The kernel releases the lock when the descriptor closes however the run ends,
+so a killed run leaves no lock behind.
+That lock is the one place this route is not lock-free:
+the grammar's one file cannot be made safe by atomic rename,
+because two first-recording sweeps that both rebuild the file would let the later rename record an identity
+taken from a folder that changed in between,
+which is the refresh the design forbids,
+and a plain append without a lock can interleave two lines.
+It covers one append of one line and nothing else.
 The parent folder's record is written by the setup run (the plan's step 19),
 and only the administrator's adoption replaces it;
 that write publishes a whole new file by rename,
@@ -5389,8 +5434,12 @@ not their encoding.
 
 #### The flags
 
-The attach makes the mount with `fsmount` and passes `MS_NOSUID | MS_NODEV`.
-Both are enforced by the mount itself rather than trusted from a dataset property,
+The attach is to call `fsmount` and to pass `MS_NOSUID | MS_NODEV`.
+No command reaches this folder yet:
+no code here calls `fsmount`,
+`move_mount` or an unmount,
+and the module is driven by controls and by the guest's root-run integration test until the plan's step 5 adds the mode that calls it.
+Both flags are enforced by the mount itself rather than trusted from a dataset property,
 because item 7 measured a root-owned setuid executable gaining effective UID 0 on an unrestricted clone mount
 and keeping the account's UID with the restriction.
 `fsmount` needs Linux 5.2,
@@ -5516,7 +5565,10 @@ its inputs are the no-crossing walk's answer,
 the device and inode the administrator identified independently from the restored checkout,
 the policy,
 every affected binding,
-every surviving slot and a fresh canonical lookup.
+every surviving slot the store records and a fresh canonical lookup.
+The surviving slots are the store's own `slot_names`,
+and a recorded slot the caller lists no state for is a refusal:
+an empty list must not pass for a checkout with nothing to reconcile.
 The policy is the recorded folder's own owner,
 mode and ACLs,
 so a replacement cannot come back wider than the folder it replaces.
@@ -5533,6 +5585,7 @@ in this order:
   access ACL or default ACL differs from the policy;
 - a binding that could not be resolved to a live or a staged mount,
   reported with the recovery it needs;
+- a slot the store records that the caller listed no state for;
 - a surviving slot that differs from its record,
   because an adoption never overwrites a surviving slot identity;
 - a fresh canonical lookup that refused or reached another folder.

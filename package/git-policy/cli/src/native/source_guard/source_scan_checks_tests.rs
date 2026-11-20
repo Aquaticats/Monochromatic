@@ -213,6 +213,49 @@ fn the_walk_reads_nothing_through_a_uses_folder_and_still_refuses_any_other_link
     remove(tree.as_path());
 }
 
+/// What:
+///  A link in a `uses` folder whose target is not a folder below the walk's root is refused,
+///  whether it names a file,
+///  a folder outside the tree or nothing,
+///  while the layout's own link to a folder in the tree is read past.
+/// Why:
+///  The skip serves a `uses` folder's links to this tree's own source folders
+///  (`AGENTS.md`,
+///  rule `LYD`);
+///  a link to a file or to a folder outside it is not that record,
+///  and skipping it would let it hide a source the scan must read.
+#[cfg(unix)]
+#[test]
+fn a_uses_link_to_anything_but_a_folder_below_the_root_is_refused() {
+    let tree = fixture("scan-walk-uses-file-link");
+    write_tree(&tree, &[("folder/mod.rs", "// a source file\n"), ("folder/other/inner.rs", "// a source folder beside it\n")]);
+    std::fs::create_dir_all(tree.join("folder/uses")).expect("the uses folder");
+    std::os::unix::fs::symlink("../other", tree.join("folder/uses/other")).expect("the layout's own link");
+    assert_eq!(
+        discover(&tree).expect("a link to a source folder of this tree is the layout's own record"),
+        vec!["folder/mod.rs".to_owned(), "folder/other/inner.rs".to_owned()],
+        "the linked folder is listed under its own name"
+    );
+    std::os::unix::fs::symlink(tree.join("folder/mod.rs"), tree.join("folder/uses/a-file")).expect("a link to a file");
+    let refused: String = discover(&tree).expect_err("a uses link to a file is not the layout's record");
+    assert!(refused.contains("folder/uses/a-file"), "the link is named: {refused}");
+    assert!(refused.contains("not a folder below"), "the reason is given: {refused}");
+    std::fs::remove_file(tree.join("folder/uses/a-file")).expect("link away");
+    let elsewhere = fixture("scan-walk-uses-outside");
+    write_tree(&elsewhere, &[("folder/mod.rs", "// a source file\n")]);
+    std::fs::create_dir_all(elsewhere.join("folder/uses")).expect("the uses folder");
+    std::fs::create_dir_all(tree.join("outside/other")).expect("a folder outside the walk");
+    std::os::unix::fs::symlink(tree.join("outside/other"), elsewhere.join("folder/uses/outside")).expect("a link outside the tree");
+    let refused_2: String = discover(&elsewhere).expect_err("a uses link to a folder outside the tree");
+    assert!(refused_2.contains("folder/uses/outside"), "the link is named: {refused_2}");
+    std::fs::remove_file(elsewhere.join("folder/uses/outside")).expect("link away");
+    std::os::unix::fs::symlink(elsewhere.join("folder/uses/nowhere"), elsewhere.join("folder/uses/dangling")).expect("a dangling link");
+    let refused_3: String = discover(&elsewhere).expect_err("a uses link that names nothing");
+    assert!(refused_3.contains("folder/uses/dangling"), "the link is named: {refused_3}");
+    remove(tree.as_path());
+    remove(elsewhere.as_path());
+}
+
 /// The manifest's library and binaries are release roots,
 /// its test targets are test-only roots,
 /// and a target

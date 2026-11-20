@@ -9,6 +9,7 @@ use super::*;
 use crate::clone_folder_identity::CloneFolderIdentity;
 use crate::test_support::{fixture, remove};
 use std::os::fd::AsRawFd;
+use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -90,6 +91,7 @@ fn an_absent_store_asks_for_the_setup_run() {
     let appended: StoreRefusal = append_slot_identity(path.as_path(), "one", &identity(1)).expect_err("nothing to add to");
     assert!(matches!(appended, StoreRefusal::Missing { .. }), "{appended:?}");
     assert!(!path.exists(), "an append never invents the store");
+    assert!(!store_lock_path(path.as_path()).exists(), "an append never invents the lock beside a store that is not there");
     remove(root.as_path());
 }
 
@@ -230,10 +232,10 @@ fn a_link_at_the_store_name_is_never_read_through() {
     remove(root.as_path());
 }
 
-/// Whether a second exclusive lock on the store can be taken now,
+/// Whether a second exclusive lock on `path` can be taken now,
 /// which says whether the append under test holds it.
 fn can_lock_exclusively(path: &Path) -> bool {
-    let file: std::fs::File = std::fs::OpenOptions::new().read(true).write(true).open(path).expect("the store opens");
+    let file: std::fs::File = std::fs::OpenOptions::new().read(true).write(true).open(path).expect("the file opens");
     // SAFETY: `flock` reads the descriptor and the flag only, and touches no memory of ours.
     let taken: libc::c_int = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
     return taken == 0;
@@ -241,35 +243,89 @@ fn can_lock_exclusively(path: &Path) -> bool {
 
 /// What:
 ///  The read,
-///  the check and the append are one step under one exclusive lock on the store's own descriptor:
-///  a second exclusive lock cannot be taken while they run,
-///  and the same probe takes one once the append returns.
+///  the checks and the append are one step under one exclusive lock of the lock file beside the store:
+///  a second exclusive lock cannot be taken on that file while they run,
+///  the store itself is not locked,
+///  and the same probe takes the lock file once the append returns.
 /// Why:
 ///  Two sweeps that meet on one slot both read "no record" and both appended before this lock existed,
 ///  and the duplicate then refused every later read until an administrator edited a root-owned file.
-///  The probe is a second open description of the same file,
-///  which the kernel excludes from the first.
+///  The lock stands on a file of its own because an exclusive `flock` needs no write bit of the file it locks:
+///  on the store,
+///  every account that may read the store could hold it and stall root's own sweep.
 #[test]
-fn the_append_holds_one_lock_from_the_read_to_the_write() {
+fn the_append_holds_one_lock_on_the_lock_file_from_the_read_to_the_write() {
     let root: PathBuf = fixture("slot-store-lock");
     let path: PathBuf = store(root.as_path(), &[parent_line(&identity(360))]);
-    assert!(can_lock_exclusively(path.as_path()), "positive control: nothing holds the store before the append");
-    let seen: Arc<Mutex<Vec<bool>>> = Arc::default();
-    let during: Arc<Mutex<Vec<bool>>> = Arc::clone(&seen);
-    let probed: PathBuf = path.clone();
+    let lock: PathBuf = store_lock_path(path.as_path());
+    assert!(!lock.exists(), "positive control: no lock file stands before the append");
+    let seen: Arc<Mutex<Vec<(bool, bool)>>> = Arc::default();
+    let during: Arc<Mutex<Vec<(bool, bool)>>> = Arc::clone(&seen);
+    let probed_store: PathBuf = path.clone();
+    let probed_lock: PathBuf = lock.clone();
     BETWEEN_THE_READ_AND_THE_APPEND.with(|hook| {
         *hook.borrow_mut() = Some(Box::new(move || {
-            let second: bool = can_lock_exclusively(&probed);
-            during.lock().expect("the control's own list").push(second);
+            let store_free: bool = can_lock_exclusively(&probed_store);
+            let lock_free: bool = can_lock_exclusively(&probed_lock);
+            during.lock().expect("the control's own list").push((store_free, lock_free));
         }));
     });
     let recorded: Result<(), StoreRefusal> = append_slot_identity(path.as_path(), "one", &identity(361));
     BETWEEN_THE_READ_AND_THE_APPEND.with(|hook| { *hook.borrow_mut() = None });
     recorded.expect("a slot with no record is recorded");
-    assert_eq!(*seen.lock().expect("the control's own list"), vec![false], "the append holds the store while it reads and writes it");
-    assert!(can_lock_exclusively(path.as_path()), "the same probe takes the lock once the append returns");
+    assert_eq!(*seen.lock().expect("the control's own list"), vec![(true, false)], "the append holds the lock file and never the store");
+    assert!(can_lock_exclusively(lock.as_path()), "the same probe takes the lock file once the append returns");
+    let made: std::fs::Permissions = std::fs::metadata(lock.as_path()).expect("the lock's metadata").permissions();
+    assert_eq!(made.mode() & 0o777, STORE_LOCK_MODE, "the append makes the lock root's own, so no other account may open it");
     let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("one record, so the store reads");
     assert_eq!(read.slot("one"), Some(&identity(361)));
+    remove(root.as_path());
+}
+
+/// What:
+///  An append that cannot take the lock inside the wait it allows refuses,
+///  names the lock,
+///  and writes nothing.
+/// Why:
+///  A holder that never finishes must refuse rather than hold the command open,
+///  and a refusal that does not name the lock sends a person to the wrong file.
+#[test]
+fn an_append_that_cannot_take_the_lock_refuses_and_writes_nothing() {
+    let root: PathBuf = fixture("slot-store-locked");
+    let path: PathBuf = store(root.as_path(), &[parent_line(&identity(362))]);
+    let lock: PathBuf = store_lock_path(path.as_path());
+    let mut options: std::fs::OpenOptions = std::fs::OpenOptions::new();
+    let holder: std::fs::File = options.read(true).write(true).create(true).mode(STORE_LOCK_MODE).open(lock.as_path()).expect("the lock file");
+    // SAFETY: `flock` reads the descriptor and the flag only, and touches no memory of ours.
+    assert_eq!(unsafe { libc::flock(holder.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) }, 0, "the control holds the lock");
+    let before: Vec<u8> = std::fs::read(path.as_path()).expect("bytes");
+    THE_LOCK_WAIT_ALLOWED.with(|allowed| { *allowed.borrow_mut() = Some(std::time::Duration::from_millis(20)); });
+    let refused: StoreRefusal = append_slot_identity(path.as_path(), "one", &identity(363)).expect_err("another run holds the lock");
+    THE_LOCK_WAIT_ALLOWED.with(|allowed| { *allowed.borrow_mut() = None });
+    assert!(matches!(refused, StoreRefusal::Locked { .. }), "{refused:?}");
+    assert!(refused.message().contains(lock.to_string_lossy().as_ref()), "the lock is named: {}", refused.message());
+    assert!(refused.message().contains("held by another run"), "the holder is named: {}", refused.message());
+    assert_eq!(std::fs::read(path.as_path()).expect("bytes"), before, "nothing was written");
+    assert!(SlotIdentityStore::read(path.as_path()).expect("the unmoved store reads").slot("one").is_none());
+    remove(root.as_path());
+}
+
+/// What:
+///  A link planted at the lock's name is refused,
+///  never followed.
+/// Why:
+///  The lock decides which append writes the store;
+///  a link there would let the account point the lock at a file it can lock itself.
+#[test]
+fn a_link_at_the_lock_name_is_refused() {
+    let root: PathBuf = fixture("slot-store-lock-link");
+    let path: PathBuf = store(root.as_path(), &[parent_line(&identity(364))]);
+    let elsewhere: PathBuf = root.join("elsewhere-lock");
+    std::fs::write(&elsewhere, b"not a lock").expect("elsewhere");
+    std::os::unix::fs::symlink(&elsewhere, store_lock_path(path.as_path())).expect("link");
+    let refused: StoreRefusal = append_slot_identity(path.as_path(), "one", &identity(365)).expect_err("a link is not written through");
+    assert!(matches!(refused, StoreRefusal::Write { .. }), "{refused:?}");
+    assert!(refused.message().contains("symbolic link"), "{}", refused.message());
     remove(root.as_path());
 }
 
@@ -373,6 +429,61 @@ fn a_store_written_by_root_is_read_under_root_control() {
     let refused: StoreRefusal = SlotIdentityStore::read_under_root_control(path.as_path()).expect_err("a store another account can write is not root's");
     assert!(matches!(refused, StoreRefusal::NotUnderRootControl { .. }), "{refused:?}");
     assert!(refused.message().contains("0666"), "the mode is named: {}", refused.message());
+    remove(root.as_path());
+}
+
+/// Environment variable that makes the control below run its inner half,
+/// inside a user namespace of its own,
+/// where this run's own files are root's.
+#[cfg(target_os = "linux")]
+const ROOT_SIDE_WRITES_VARIABLE: &str = "SLOT_IDENTITY_STORE_ROOT_SIDE_WRITES";
+
+/// What:
+///  The route's two writes refuse a store or a lock file this account could rewrite or open,
+///  and record a slot and a parent in a store root wrote.
+/// Why:
+///  A record decides which folder a clone may be attached to,
+///  so a store the account could rewrite decides nothing;
+///  the check stands inside the step that holds the lock,
+///  and the lock file is refused when another account may open it,
+///  because an exclusive `flock` needs no write bit of the file it locks.
+///  Inside a user namespace this run is root and its own files are root's,
+///  so the accept and both refusals are exercised on real files.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_route_s_writes_refuse_a_store_or_lock_this_account_could_rewrite() {
+    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+        ROOT_SIDE_WRITES_VARIABLE,
+        "worktree_clone_mount::slot_identity_store::tests::the_route_s_writes_refuse_a_store_or_lock_this_account_could_rewrite",
+    ) {
+        return;
+    }
+    let root: PathBuf = fixture("slot-store-root-writes");
+    let path: PathBuf = store(root.as_path(), &[parent_line(&identity(400))]);
+    append_slot_identity_under_root_control(path.as_path(), "one", &identity(401)).expect("a store written by root records a slot");
+    assert_eq!(SlotIdentityStore::read(path.as_path()).expect("store reads").slot("one"), Some(&identity(401)));
+    let lock: PathBuf = store_lock_path(path.as_path());
+    let made: std::fs::Permissions = std::fs::metadata(lock.as_path()).expect("the lock's metadata").permissions();
+    assert_eq!(made.mode() & 0o777, STORE_LOCK_MODE, "the append makes the lock root's own");
+    std::fs::set_permissions(lock.as_path(), std::fs::Permissions::from_mode(0o644)).expect("a lock another account may open");
+    let refused_lock: StoreRefusal = append_slot_identity_under_root_control(path.as_path(), "two", &identity(402)).expect_err("an account that may open the lock could hold it");
+    assert!(matches!(refused_lock, StoreRefusal::NotUnderRootControl { .. }), "{refused_lock:?}");
+    assert!(refused_lock.message().contains("0644"), "the mode is named: {}", refused_lock.message());
+    assert!(refused_lock.message().contains("the lock that keeps two appends apart"), "the lock is named: {}", refused_lock.message());
+    std::fs::set_permissions(lock.as_path(), std::fs::Permissions::from_mode(STORE_LOCK_MODE)).expect("the lock back to root's own");
+    append_slot_identity_under_root_control(path.as_path(), "two", &identity(402)).expect("a root-owned store records a second slot");
+    std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o666)).expect("a store another account can write");
+    let refused_store: StoreRefusal = append_slot_identity_under_root_control(path.as_path(), "three", &identity(403)).expect_err("a store this account could rewrite decides nothing");
+    assert!(matches!(refused_store, StoreRefusal::NotUnderRootControl { .. }), "{refused_store:?}");
+    assert!(refused_store.message().contains("0666"), "the mode is named: {}", refused_store.message());
+    let refused_parent: StoreRefusal = record_parent_identity_under_root_control(path.as_path(), &identity(404)).expect_err("the adoption refuses it too");
+    assert!(matches!(refused_parent, StoreRefusal::NotUnderRootControl { .. }), "{refused_parent:?}");
+    let recorded_parent: CloneFolderIdentity = identity(405);
+    std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o600)).expect("the store back to root's own");
+    record_parent_identity_under_root_control(path.as_path(), &recorded_parent).expect("a root-owned store records the adopted parent");
+    let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("store reads");
+    assert_eq!(read.parent(), Some(&recorded_parent));
+    assert_eq!(read.slot("two"), Some(&identity(402)), "the adoption keeps every slot record");
     remove(root.as_path());
 }
 

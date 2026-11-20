@@ -55,8 +55,9 @@ pub enum WalkRefusalReason {
     /// its identity,
     /// its mount or the path its descriptor names.
     UnreadableFields,
-    /// The checkout path is reached through a link.
-    LinkAmongTheAncestors,
+    /// The checkout path is not the canonical path it names:
+    /// a link or another name stands between.
+    NotTheCanonicalPath,
     /// The checkout Git's path names could not be opened.
     Checkout,
 }
@@ -116,8 +117,8 @@ impl WalkRefusal {
                 "{subject} was opened, and its own facts could not be read: {}. Ways forward: run the command again; when the read keeps failing, check that this process can read the kernel's `/proc` entries for the folder and that its access and default ACLs fit the bound a read accepts, and report the answer the system gave.",
                 self.detail
             ),
-            WalkRefusalReason::LinkAmongTheAncestors => format!(
-                "the checkout {subject} is reached through a link: {}. Ways forward: run the command in the checkout's own path, whose ancestors are real directories; this route never resolves a path the account can change.",
+            WalkRefusalReason::NotTheCanonicalPath => format!(
+                "the checkout {subject} is not the canonical path it names, so this walk would have to resolve a path the account can change: {}. Ways forward: run the command with the checkout's own canonical path, whose ancestors are real directories and which is what `git rev-parse --show-toplevel` prints; nothing here is attached through a resolved path.",
                 self.detail
             ),
             WalkRefusalReason::Checkout => format!(
@@ -216,7 +217,7 @@ impl CloneSlotRefusal {
 ///  a person reads the folder's name and a sentence that fits the cause.
 pub fn chain_walk_refusal(names: &[&str], refusal: &ChainRefusal) -> WalkRefusal {
     let step: usize = match refusal {
-        ChainRefusal::Link { step } | ChainRefusal::Boundary { step } | ChainRefusal::Unreadable { step, .. } => *step,
+        ChainRefusal::Link { step, .. } | ChainRefusal::Boundary { step, .. } | ChainRefusal::Unreadable { step, .. } => *step,
     };
     let reason: WalkRefusalReason = match refusal {
         ChainRefusal::Link { .. } => WalkRefusalReason::LinkInTheWay,

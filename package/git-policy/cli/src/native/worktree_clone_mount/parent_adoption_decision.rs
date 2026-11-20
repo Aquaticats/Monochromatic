@@ -57,6 +57,9 @@ pub struct AdoptionFacts {
     pub bindings: Vec<BindingState>,
     /// Every surviving slot's reconciliation.
     pub slots: Vec<SlotState>,
+    /// The slot names the store records,
+    /// which every one of them needs a state for.
+    pub recorded_slots: Vec<String>,
     /// A fresh canonical lookup of the parent folder,
     /// or its refusal.
     pub fresh: Result<CloneFolderIdentity, WalkRefusal>,
@@ -112,6 +115,11 @@ pub enum AdoptionRefusal {
         /// The field that differs.
         field: CloneFolderField,
     },
+    /// A slot the store records has no state in the caller's list.
+    SlotNotListed {
+        /// The slot's name.
+        slot: String,
+    },
     /// The fresh canonical lookup refused.
     FreshLookup {
         /// What it refused.
@@ -144,6 +152,9 @@ impl AdoptionRefusal {
             AdoptionRefusal::SlotDiffers { slot, field } => format!(
                 "the surviving clone slot `{slot}` differs from its record in the {field}, and an adoption never overwrites a surviving slot identity. Nothing was recorded. Ways forward: restore the folder whose identity is recorded, or settle that binding with the removal workflow, then run the adoption again.",
                 field = field.name()
+            ),
+            AdoptionRefusal::SlotNotListed { slot } => format!(
+                "the store records a clone slot `{slot}` and the adoption was given no state for it, so nothing proves that slot survives the replacement. Nothing was recorded. Ways forward: enumerate every slot the store records (its `slot_names`) against its live folder and run the adoption again."
             ),
             AdoptionRefusal::FreshLookup { refusal } => format!("the fresh canonical lookup after the walk refused: {}. Nothing was recorded. Ways forward: fix what it names and run the adoption again.", refusal.message()),
             AdoptionRefusal::FreshLookupDiffers { fields } => format!(
@@ -194,6 +205,7 @@ pub struct Adoption {
 /// an identity the administrator did not identify,
 /// a policy field that differs,
 /// an unresolved binding,
+/// a recorded slot with no state,
 /// a slot that differs,
 /// the fresh lookup's refusal,
 /// or a fresh lookup that reached another folder.
@@ -215,6 +227,17 @@ pub fn decide_adoption(facts: &AdoptionFacts) -> Result<Adoption, AdoptionRefusa
     for binding in &facts.bindings {
         if let BindingState::Unresolved { what, reason } = binding {
             return Err(AdoptionRefusal::BindingUnresolved { what: what.clone(), reason: reason.clone() });
+        }
+    }
+    for recorded in &facts.recorded_slots {
+        let listed: bool = facts.slots.iter().any(|state| {
+            let named: &str = match state {
+                SlotState::Agrees { slot } | SlotState::Differs { slot, .. } => slot,
+            };
+            return named == recorded;
+        });
+        if !listed {
+            return Err(AdoptionRefusal::SlotNotListed { slot: recorded.clone() });
         }
     }
     for slot in &facts.slots {

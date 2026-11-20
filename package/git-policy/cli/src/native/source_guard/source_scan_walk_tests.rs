@@ -122,12 +122,16 @@ fn is_uses_folder(directory: &Path) -> bool {
 /// or
 ///  absent),
 /// or no source file is found at all.
-/// The one link it reads nothing through is the one a `uses` folder holds:
+/// The one link it reads nothing through is the one a `uses` folder holds
+/// when that link names a folder below `root`:
 /// that folder is the repository's own record of which source folders a folder's code uses
 /// (`AGENTS.md`,
 /// rule `LYD`),
 /// the lint that checks those links owns them,
-/// and the folder holds no `.rs` file that a link could hide.
+/// and such a link is a folder of sources this walk already reaches under its own name.
+/// Any other link in a `uses` folder is refused like every other link,
+/// because a link to a file,
+/// to a folder outside the tree or to nothing is not that record and could hide a source.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -135,6 +139,8 @@ fn is_uses_folder(directory: &Path) -> bool {
 /// ```
 pub(crate) fn discover(root: &Path) -> Result<Vec<String>, String> {
     let mut found: Vec<String> = Vec::new();
+    // The walk's own root, resolved once, so a `uses` link is judged against the tree this listing covers.
+    let canonical_root: PathBuf = std::fs::canonicalize(root).map_err(|error| return format!("cannot resolve {}: {error}", root.display()))?;
     // What:
     //  `vec![root.to_path_buf()]` makes a list holding one owned copy of the root path (`vec![...]` is a macro,
     //  Rust's compile-time code expansion, here only a list literal; `PathBuf` is the owned sibling of `&Path`).
@@ -169,11 +175,20 @@ pub(crate) fn discover(root: &Path) -> Result<Vec<String>, String> {
                 entry.file_type().map_err(|error| return format!("cannot inspect {}: {error}", path.display()))?;
             if kind.is_symlink() {
                 // A `uses` folder is the repository's own record of which source folders a folder's code uses, written
-                // as one link per folder (`AGENTS.md`, rule LYD). Those links name folders beside this one, so reading
-                // them would reach sources the walk of this tree does not own; the lint that compares them with the
-                // code owns them instead, and the scan of `.rs` files reads nothing through them.
+                // as one link per folder (`AGENTS.md`, rule LYD). Only a link to a folder below this walk's root is that
+                // record: reading it reaches sources the walk already lists under their own names. A link to a file, to
+                // a folder outside the tree or to nothing is refused, because it is not the layout's record and it could
+                // hide a source. The lint that compares those links with the code owns them.
                 if is_uses_folder(&directory) {
-                    continue;
+                    let target: PathBuf = std::fs::canonicalize(&path).map_err(|error| return format!("cannot resolve the link {}: {error}", path.display()))?;
+                    if target.starts_with(canonical_root.as_path()) && target.is_dir() {
+                        continue;
+                    }
+                    return Err(format!(
+                        "{} is a symbolic link in a `uses` folder whose target is not a folder below {}; a `uses` link names one source folder of this tree, and the scan cannot prove what this one reads",
+                        path.display(),
+                        root.display()
+                    ));
                 }
                 return Err(format!("{} is a symbolic link; the scan cannot prove what it reads", path.display()));
             }

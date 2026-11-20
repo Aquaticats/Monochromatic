@@ -22,6 +22,16 @@ use std::process::Command;
 /// with the user map that makes this run root inside it.
 const UNSHARE: &str = "unshare";
 
+/// The variable a run sets to state that this host lets no unprivileged user namespace,
+/// which is the one acknowledgement that lets these controls skip instead of failing.
+///
+/// Why:
+///  A control that needs a namespace and quietly returns passes a run in which it never ran,
+///  and the gate's verdict then says nothing about it;
+///  the repository's btrfs controls fail unless the run acknowledges the missing capability,
+///  and this is the same rule for the kernel's namespaces.
+pub(crate) const NO_USER_NAMESPACES_ACKNOWLEDGED_VARIABLE: &str = "CLI_GIT_TEST_NO_USER_NAMESPACES";
+
 /// What:
 ///  Whether the running control is the inner half,
 ///  inside a user namespace of its own;
@@ -48,10 +58,13 @@ pub(crate) fn in_a_root_namespace(variable: &str, test: &str) -> bool {
     }
     let probe: std::process::Output = Command::new(UNSHARE).args(["--user", "--map-root-user", "/bin/true"]).output().expect("unshare runs");
     if !probe.status.success() {
-        eprintln!(
-            "skipped: this host lets no unprivileged user namespace, so no file here is root's: {}",
-            String::from_utf8_lossy(probe.stderr.as_slice()).trim()
+        let said: String = String::from_utf8_lossy(probe.stderr.as_slice()).trim().to_string();
+        let acknowledged: bool = std::env::var_os(NO_USER_NAMESPACES_ACKNOWLEDGED_VARIABLE).is_some_and(|value| { return !value.is_empty(); });
+        assert!(
+            acknowledged,
+            "the control {test} needs an unprivileged user namespace, and this host refused one: {said}; set {NO_USER_NAMESPACES_ACKNOWLEDGED_VARIABLE}=1 to state that this host has none"
         );
+        eprintln!("NAMESPACE CONTROL NOT RUN: {test} (this host lets no unprivileged user namespace: {said})");
         return false;
     }
     let done: std::process::Output = Command::new(UNSHARE)

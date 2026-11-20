@@ -46,7 +46,7 @@ fn a_chain_keeps_a_handle_per_folder_and_stops_at_a_link() {
     // A link at the second component is refused, and the refusal names its position.
     std::os::unix::fs::symlink(root.join("elsewhere/two"), root.join("moved-one/two-linked")).expect("link");
     let refused: ChainRefusal = open_chain_beneath(&held, &[OsString::from("moved-one"), OsString::from("two-linked")]).expect_err("link in the way");
-    assert!(matches!(refused, ChainRefusal::Link { step: 1 }), "{refused:?}");
+    assert!(matches!(refused, ChainRefusal::Link { step: 1, .. }), "{refused:?}");
     let empty: Vec<OsString> = Vec::new();
     assert!(open_chain_beneath(&held, &empty).expect("nothing to walk").is_empty());
     remove(root.as_path());
@@ -100,6 +100,17 @@ fn the_last_hop_crosses_a_mount_that_the_walk_refuses() {
 #[cfg(target_os = "linux")]
 const MOUNT_SIDE_VARIABLE: &str = "FS_BENEATH_WALK_CHAIN_MOUNT_SIDE";
 
+/// The variable a run sets to state that this host lets no unprivileged process mount in a namespace,
+/// which is the one acknowledgement that lets this control skip instead of failing.
+///
+/// Why:
+///  A control that quietly returns passes a run in which it never ran,
+///  and this one is the only proof that the last hop really crosses a mount;
+///  the repository's btrfs controls fail unless the run acknowledges the missing capability,
+///  and this is the same rule.
+#[cfg(target_os = "linux")]
+const NO_MOUNT_NAMESPACES_ACKNOWLEDGED_VARIABLE: &str = "CLI_GIT_TEST_NO_MOUNT_NAMESPACES";
+
 /// What:
 ///  With a filesystem mounted on one folder below the held one,
 ///  the walk's own open refuses that hop with `EXDEV` while the mount-crossing open reaches the mounted root,
@@ -111,7 +122,7 @@ const MOUNT_SIDE_VARIABLE: &str = "FS_BENEATH_WALK_CHAIN_MOUNT_SIDE";
 ///  which would have refused every clone the attach had just mounted.
 ///  A mount needs a mount namespace,
 ///  so the inner half runs under `unshare` in a private namespace,
-///  and the control skips where the host lets no unprivileged process mount.
+///  and the control fails unless the run states that the host lets no unprivileged process mount.
 #[cfg(target_os = "linux")]
 #[test]
 #[allow(clippy::disallowed_methods, reason = "starts this test binary, not the wrapper, under `unshare`; the ban on `current_exe` guards the wrapper's own start")]
@@ -122,7 +133,13 @@ fn the_last_hop_crosses_a_real_mount_in_a_namespace_of_its_own() {
             .output()
             .expect("unshare runs");
         if !probe.status.success() {
-            eprintln!("skipped: this host lets no unprivileged process mount in a namespace of its own, so no folder here is a mount point");
+            let said: String = String::from_utf8_lossy(probe.stderr.as_slice()).trim().to_string();
+            let acknowledged: bool = std::env::var_os(NO_MOUNT_NAMESPACES_ACKNOWLEDGED_VARIABLE).is_some_and(|value| { return !value.is_empty(); });
+            assert!(
+                acknowledged,
+                "this control needs a mount namespace of its own, and this host lets no unprivileged process make one: {said}; set {NO_MOUNT_NAMESPACES_ACKNOWLEDGED_VARIABLE}=1 to state that this host has none"
+            );
+            eprintln!("MOUNT NAMESPACE CONTROL NOT RUN: the_last_hop_crosses_a_real_mount_in_a_namespace_of_its_own ({said})");
             return;
         }
         let done: std::process::Output = std::process::Command::new("unshare")

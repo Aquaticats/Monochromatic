@@ -109,6 +109,14 @@ pub enum StoreRefusal {
         /// What the write answered.
         reason: String,
     },
+    /// Another run held the lock that keeps two appends apart
+    /// for longer than this run allows.
+    Locked {
+        /// The lock file that was asked for.
+        path: PathBuf,
+        /// How long this run waited.
+        waited: std::time::Duration,
+    },
 }
 
 impl StoreRefusal {
@@ -156,6 +164,11 @@ impl StoreRefusal {
             StoreRefusal::Write { path, reason } => format!(
                 "{} could not be written: {reason}. Nothing is attached on a record the store did not keep. Ways forward: when the line was written short, restore that file from the administrator's copy, because it may hold a torn record; then check the folder's free space and permissions and run the command again; nobody edits this file by hand.",
                 path.display()
+            ),
+            StoreRefusal::Locked { path, waited } => format!(
+                "the lock that keeps two appends apart at {} is held by another run, and this append waited {} ms for it. Nothing was written. Ways forward: the holder is another append or the adoption's rewrite of this store; run the command again once it ends, and report this store and its lock file when it never ends.",
+                path.display(),
+                waited.as_millis()
             ),
         };
     }

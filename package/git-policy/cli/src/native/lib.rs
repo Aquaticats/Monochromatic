@@ -224,9 +224,15 @@ pub use worktree_copying::*;
 ///  the recorded identities,
 ///  the post-attach check,
 ///  the rollback and the parent-adoption decision.
+/// It is Linux only,
+/// like every module it builds on:
+/// `openat2`,
+/// `flock` and `/proc/self/fdinfo` are the kernel's own.
+#[cfg(target_os = "linux")]
 pub mod worktree_clone_mount;
 
 /// The same re-export for `worktree_clone_mount`.
+#[cfg(target_os = "linux")]
 pub use worktree_clone_mount::*;
 
 /// Btrfs subvolume worktrees and the filesystem primitives under them.

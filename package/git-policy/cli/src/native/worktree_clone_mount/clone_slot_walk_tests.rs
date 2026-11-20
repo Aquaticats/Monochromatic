@@ -183,6 +183,29 @@ fn an_unrecorded_slot_or_parent_asks_for_the_run_that_writes_it() {
 }
 
 /// What:
+///  A checkout named through a link is refused before the walk starts,
+///  and the sentence names the canonical path that stands,
+///  while the same checkout named by that path passes.
+/// Why:
+///  Resolving the path would mean walking from whichever folder the account's link names,
+///  and the design's first rule is that the mount never resolves a path the account can change.
+#[test]
+fn a_checkout_named_through_a_link_is_refused() {
+    let built: Fixture = fixture_slot("clone-walk-checkout-link");
+    hold_clone_slot(&request(&built, "one")).expect("positive control: the canonical checkout passes");
+    let root: PathBuf = built.checkout.parent().expect("root").to_path_buf();
+    let linked: PathBuf = root.join("checkout-link");
+    std::os::unix::fs::symlink(&built.checkout, &linked).expect("link");
+    let refused: CloneSlotRefusal = hold_clone_slot(&HoldCloneSlotRequest { checkout: linked.as_path(), slot: "one", store: built.store.as_path() }).expect_err("a checkout reached through a link");
+    assert!(matches!(refused, CloneSlotRefusal::Walk(WalkRefusal { reason: WalkRefusalReason::NotTheCanonicalPath, .. })), "{refused:?}");
+    assert!(refused.message().contains("not the canonical path"), "{}", refused.message());
+    assert!(refused.message().contains(built.checkout.to_string_lossy().as_ref()), "the canonical path that stands is named: {}", refused.message());
+    assert!(refused.message().contains("Ways forward"), "{}", refused.message());
+    std::fs::remove_file(&linked).expect("link away");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A link planted at `.claude`,
 ///  at `.claude/worktrees` or at the slot is refused,
 ///  and the sentence names the component,

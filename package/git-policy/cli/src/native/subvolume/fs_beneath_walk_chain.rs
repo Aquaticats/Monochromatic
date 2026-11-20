@@ -36,7 +36,7 @@ use std::fs::File;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ChainRefusal = { kind: 'link' | 'boundary' | 'unreadable'; step: number; error?: Error };
+/// type ChainRefusal = { kind: 'link' | 'boundary' | 'unreadable'; step: number; component?: string; error?: Error };
 /// ```
 #[derive(Debug)]
 pub enum ChainRefusal {
@@ -45,11 +45,15 @@ pub enum ChainRefusal {
     Link {
         /// Position of the component in the chain.
         step: usize,
+        /// The component as the walk named it.
+        component: OsString,
     },
     /// The component at `step` is a mount point or a folder on another device.
     Boundary {
         /// Position of the component in the chain.
         step: usize,
+        /// The component as the walk named it.
+        component: OsString,
     },
     /// The component at `step` could not be opened,
     /// for this reason.
@@ -62,12 +66,12 @@ pub enum ChainRefusal {
 }
 
 impl ChainRefusal {
-    /// The refusal for the open failure at `step`,
+    /// The refusal for the open failure of `name` at `step`,
     /// by the error number it carries.
-    fn of(step: usize, error: std::io::Error) -> ChainRefusal {
+    fn of(step: usize, name: &OsStr, error: std::io::Error) -> ChainRefusal {
         return match error.raw_os_error() {
-            Some(libc::ELOOP) => ChainRefusal::Link { step },
-            Some(libc::EXDEV) => ChainRefusal::Boundary { step },
+            Some(libc::ELOOP) => ChainRefusal::Link { step, component: name.to_os_string() },
+            Some(libc::EXDEV) => ChainRefusal::Boundary { step, component: name.to_os_string() },
             _ => ChainRefusal::Unreadable { step, error },
         };
     }
@@ -76,13 +80,14 @@ impl ChainRefusal {
     ///
     /// Why:
     ///  Such a caller acts on a folder or reports a failure and never names the component,
-    /// so the position is the whole of what it needs;
-    /// the positional sentence keeps a link and a boundary apart from each other.
+    /// so the sentence names the folder as well as its position:
+    ///  a person acts on a name,
+    /// and the positional words alone sent them looking for the number.
     fn into_io_error(self) -> std::io::Error {
         return match self {
             ChainRefusal::Unreadable { error, .. } => error,
-            ChainRefusal::Link { step } => std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("component {} of the walk is a symbolic link", step + 1)),
-            ChainRefusal::Boundary { step } => std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("component {} of the walk is a mount point or on another device", step + 1)),
+            ChainRefusal::Link { step, component } => std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("`{}` (component {} of the walk) is a symbolic link", component.to_string_lossy(), step + 1)),
+            ChainRefusal::Boundary { step, component } => std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("`{}` (component {} of the walk) is a mount point or on another device", component.to_string_lossy(), step + 1)),
         };
     }
 }
@@ -103,9 +108,9 @@ impl ChainRefusal {
 /// const next = openOneHop(parent, 'worktrees', checkoutDevice, 1); // throws ChainRefusal
 /// ```
 fn open_one_hop(parent: &File, name: &OsStr, device: u64, step: usize) -> Result<File, ChainRefusal> {
-    let next: File = open_directory_at(parent, name).map_err(|error| return ChainRefusal::of(step, error))?;
+    let next: File = open_directory_at(parent, name).map_err(|error| return ChainRefusal::of(step, name, error))?;
     if device_of(&next).map_err(|error| return ChainRefusal::Unreadable { step, error })? != device {
-        return Err(ChainRefusal::Boundary { step });
+        return Err(ChainRefusal::Boundary { step, component: name.to_os_string() });
     }
     return Ok(next);
 }

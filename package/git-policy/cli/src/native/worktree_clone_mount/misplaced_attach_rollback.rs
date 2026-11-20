@@ -145,7 +145,7 @@ impl RollbackOutcome {
                 mount.describe(),
             ),
             RollbackOutcome::Retained { plan, mount, reason } => format!(
-                "the mount {} is still attached at {} and not at the slot {}; the rollback failed: {reason}. Nothing else was tried, because a second move against an unverified mount is not issued. The mount is {} left as it is. Ways forward: an administrator takes this exact mount down through the descriptor unmount route (a fresh process reopens the recorded parent, verifies mount {} and the clone's source, and unmounts without force or lazy detach), then checks the slot with the design's mount facts and runs the command again.",
+                "the mount {} is still attached at {} and not at the slot {}; the rollback failed: {reason}. Nothing else was tried, because a second move against an unverified mount is not issued. It stays exactly as the attach left it: {}. Ways forward: an administrator takes this exact mount down through the descriptor unmount route (a fresh process reopens the recorded parent, verifies mount {} and the clone's source, and unmounts without force or lazy detach), then checks the slot with the design's mount facts and runs the command again.",
                 plan.attached_mount_id,
                 plan.mounted_at.display(),
                 plan.canonical_slot.display(),

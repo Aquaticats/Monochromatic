@@ -32,6 +32,7 @@ fn adopting(held: &CloneFolderIdentity) -> AdoptionFacts {
             BindingState::Staged { what: String::from("slot two"), place: PathBuf::from("/home/user/.cache/cli-git/staging/two") },
         ],
         slots: vec![SlotState::Agrees { slot: String::from("one") }, SlotState::Agrees { slot: String::from("two") }],
+        recorded_slots: vec![String::from("one"), String::from("two")],
         fresh: Ok(held.clone()),
     };
 }
@@ -56,7 +57,35 @@ fn an_identified_replacement_with_the_recorded_shape_is_adopted() {
     let mut with_nothing: AdoptionFacts = adopting(&held);
     with_nothing.bindings = Vec::new();
     with_nothing.slots = Vec::new();
-    assert_eq!(decide_adoption(&with_nothing).expect("no binding and no slot is nothing to reconcile").identity, held);
+    with_nothing.recorded_slots = Vec::new();
+    assert_eq!(decide_adoption(&with_nothing).expect("a store that records no slot has nothing to reconcile").identity, held);
+    remove(root.as_path());
+}
+
+/// What:
+///  A slot the store records with no state in the caller's list refuses the adoption,
+///  naming the slot,
+///  while a list that covers every recorded slot and an empty record both adopt.
+/// Why:
+///  An empty list adopted a replacement while the store still recorded surviving slots,
+///  so an adoption could leave a slot's identity unexamined;
+///  the caller's list is judged against the store's own record,
+///  never trusted for being a list.
+#[test]
+fn a_recorded_slot_with_no_state_refuses_the_adoption() {
+    let (root, held): (PathBuf, CloneFolderIdentity) = planted_identity("adoption-recorded-slots");
+    assert_eq!(decide_adoption(&adopting(&held)).expect("positive control: every recorded slot is listed").identity, held);
+    let mut unlisted: AdoptionFacts = adopting(&held);
+    unlisted.recorded_slots = vec![String::from("one"), String::from("two"), String::from("three")];
+    let refused: AdoptionRefusal = decide_adoption(&unlisted).expect_err("a recorded slot with no state");
+    assert!(matches!(refused, AdoptionRefusal::SlotNotListed { ref slot } if slot == "three"), "{refused:?}");
+    assert!(refused.message().contains("`three`"), "the slot is named: {}", refused.message());
+    assert!(refused.message().contains("slot_names"), "the way forward names the store's own list: {}", refused.message());
+    let mut nothing_recorded: AdoptionFacts = adopting(&held);
+    nothing_recorded.slots = Vec::new();
+    nothing_recorded.recorded_slots = Vec::new();
+    nothing_recorded.bindings = Vec::new();
+    assert_eq!(decide_adoption(&nothing_recorded).expect("a store that records no slot needs no state").identity, held);
     remove(root.as_path());
 }
 

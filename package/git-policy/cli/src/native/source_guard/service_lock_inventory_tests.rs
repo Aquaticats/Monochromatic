@@ -51,6 +51,7 @@ const COVERED_PREFIXES: &[&str] = &[
     "standards_review_",
     "commit_",
     "diagnostic_",
+    "slot_identity_",
 ];
 
 /// The source files that ship nothing:
@@ -116,6 +117,10 @@ const INVENTORY: &[&str] = &[
     "commit/commit_index_builds.rs",
     "commit/commit_prepare_part_durations.rs",
     "landing/service_index_prestage.rs",
+    // The lock file that keeps two appends of one slot record apart:
+    //  the read of the recorded identity store and the append that adds one slot are one step,
+    //  and the lock stands on a file only root may open, so no account that may read the store can hold it.
+    "worktree_clone_mount/slot_identity_store.rs",
 ];
 
 /// Every `.rs` file below `root`,

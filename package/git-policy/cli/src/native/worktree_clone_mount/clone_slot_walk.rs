@@ -170,17 +170,27 @@ thread_local! {
 
 /// The checkout's canonical path,
 /// or the refusal of the path given.
+/// A path that is not already its own canonical form is refused rather than resolved,
+/// because the kernel's resolution of it may name another folder the account chose.
 fn canonical_checkout(checkout: &Path) -> Result<PathBuf, CloneSlotRefusal> {
-    return match std::fs::canonicalize(checkout) {
-        Ok(canonical) => Ok(canonical),
-        Err(error) => Err(CloneSlotRefusal::Walk(WalkRefusal { component: checkout.display().to_string(), reason: WalkRefusalReason::Checkout, detail: error.to_string() })),
+    let canonical: PathBuf = match std::fs::canonicalize(checkout) {
+        Ok(canonical) => canonical,
+        Err(error) => return Err(CloneSlotRefusal::Walk(WalkRefusal { component: checkout.display().to_string(), reason: WalkRefusalReason::Checkout, detail: error.to_string() })),
     };
+    if canonical != checkout {
+        return Err(CloneSlotRefusal::Walk(WalkRefusal {
+            component: checkout.display().to_string(),
+            reason: WalkRefusalReason::NotTheCanonicalPath,
+            detail: format!("its canonical path is {}", canonical.display()),
+        }));
+    }
+    return Ok(canonical);
 }
 
 /// The refusal of the checkout's own root handle.
 fn checkout_root_refusal(canonical: &Path, error: std::io::Error) -> CloneSlotRefusal {
     if error.kind() == std::io::ErrorKind::InvalidInput {
-        return CloneSlotRefusal::Walk(WalkRefusal { component: canonical.display().to_string(), reason: WalkRefusalReason::LinkAmongTheAncestors, detail: error.to_string() });
+        return CloneSlotRefusal::Walk(WalkRefusal { component: canonical.display().to_string(), reason: WalkRefusalReason::NotTheCanonicalPath, detail: error.to_string() });
     }
     return CloneSlotRefusal::Walk(WalkRefusal { component: canonical.display().to_string(), reason: WalkRefusalReason::Checkout, detail: error.to_string() });
 }
