@@ -41373,7 +41373,18 @@ stated in this entry. What follows from them, as work:
   `binary_tests.rs`, `child_environment.rs` and its tests, `entry.rs` and its tests, `lfs_output_mask.rs`,
   `lfs_pre_push.rs`): it never committed as it went. GOING (2026-11-20): `pi-git-policy-cli-lfs-round-seven-resumed`,
   the same session resumed with `--session` (run-2 in that folder, DeepSeek on Neuralwatt, cap 400), told to commit
-  what is there first, broken or not, then finish the brief.
+  what is there first, broken or not, then finish the brief. It ended `idle` (107 turns) at `cd279cb300` (report in
+  that folder's `keep/report-from-summary-round-seven.md`): the no-prompt rule is now `SSH_ASKPASS=false` with
+  `SSH_ASKPASS_REQUIRE=force` beside `GIT_ASKPASS=""` and `GIT_TERMINAL_PROMPT=0`, from OpenSSH 10.6p2 `readpass.c`
+  (`never` clears only `allow_askpass`, so a key's passphrase still went to `/dev/tty`); a real pseudo-terminal probe
+  asked "Enter passphrase" on the merge commit's build and nothing on the tip's, and an `ssh://` LFS endpoint now ends
+  with the wrapper's `ssh-add` sentence; a new control `binary_ssh_terminal_tests.rs` shown red with the guard removed;
+  an unknown host key now fails at once; the security-key touch notice is read from source, not measured; L1 to L5
+  fixed; an assertion that passed only because the gate image has no `git-lfs` corrected. Whole gate 9199 of 9201, the
+  cause-H pair. Its `lint:types` failure was the main checkout's stale `node_modules` (the matrix package added at
+  `ddec538f27` was in the lockfile but not linked); the coordinator ran the frozen offline install there and
+  `lint:types` passes on `main`. Corrective comment on `202f8b7c77` (wrong scope). GOING: the narrow Sonnet check of the
+  M1 fix (brief under `~/temp/agent/lfs-no-prompt-at-a-terminal-narrow-check-on-sonnet-2026-11-20/`), then the merge.
 - **The wrapper's container gate passes on this ZFS host** since the merge `f73900d5a0` of 2026-11-19: fixtures on a
   tmpfs root under `/work`, Clippy from the lock's toolchain, and location controls that prove where fixtures land.
   The causes, measurements, limits and rejected host changes are in
