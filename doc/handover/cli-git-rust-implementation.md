@@ -40699,7 +40699,21 @@ stated in this entry. What follows from them, as work:
   restated with controls (this round 0.63 with control 0.54, against a `main` arm it calls IO-starved); M5 measured at
   300 (0.80, control 0.94) and 3,000 changed paths (0.92, control 0.76), the gain gone above a few hundred; ranking now
   B > A > D > C, B needing a byte threshold and a changed-path bound. GOING: its Sonnet re-check (brief under
-  `~/temp/agent/gate-recheck-of-the-partial-clone-proposal-on-sonnet-2026-11-20/`), then the owner's question.
+  `~/temp/agent/gate-recheck-of-the-partial-clone-proposal-on-sonnet-2026-11-20/`), then the owner's question. THE
+  ISSUE 6324 FIX ended `idle` (202 turns) at `d10f8229a2` (its folder's `keep/report-from-summary.md`): cause confirmed
+  (coreutils `timeout.c` lines 230, 280, 286, 648; `recv_timeout` returns a queued message past its deadline, measured);
+  `wait_under_bound` takes the line's stated bound and `ending_of_an_exit_read_first` names an exit read first as the
+  bound's when the line is the bounded form, the death is SIGKILL and that bound is reached; red at `8d07db9940`, green in
+  the gate, an opposite control keeping a command's own early SIGKILL its own; 0 linter findings on added lines; gate 9273
+  of 9277, the cause-H pair plus `package_repair::quiet_runs_the_repair_and_says_nothing_about_success` and
+  `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other` (recorded
+  flakes, each passing alone); `338bf97cf6`'s "Itzelf" typo carries the author's corrective comment. GOING: its
+  integration pass on Sonnet (brief under `~/temp/agent/integration-pass-git-policy-cli-bounded-wait-timeout-kill-2026-11-20/`).
+  It also reported `mise run toolchain:install -- <args>` failing to parse; the coordinator reproduced it in that worktree
+  with `-- --help` (`SyntaxError [ERR_INVALID_TYPESCRIPT_SYNTAX]`, mise 2026.11.9; 24 root tasks share
+  `vars.parse_usage_args`): issue 6326. GOING: `pi-mise-usage-args-reach-the-node-scripts` (cap 350) on
+  `fix/mise-usage-args-reach-the-node-scripts` in `.claude/worktrees/mise-usage-args-reach-the-node-scripts`, told to
+  prove each task with effect-free arguments only; brief under `~/temp/agent/mise-usage-args-reach-the-node-scripts-2026-11-20/`.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
