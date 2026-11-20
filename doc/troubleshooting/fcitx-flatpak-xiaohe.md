@@ -90,7 +90,7 @@ into `~/.var/app/org.fcitx.Fcitx5/data/fcitx5/pinyin`.
 The old source files were retained.
 (Note added 2026-11-19T19:12:45-05:00:
 `~/.local/share/fcitx5` and `~/.var/app/org.fcitx.Fcitx5` no longer exist,
-so neither copy of the Pinyin user dictionary survives;
+so neither copy of the Pinyin user dictionary survives at these paths;
 see "Native-only state and duplicate login launch".)
 The recovery script is `~/temp/agent/restore-fcitx-xiaohe-2026-11-02.ts`.
 (Note added 2026-11-19T19:12:45-05:00:
@@ -235,8 +235,14 @@ and a second launch at every login came from the system autostart entry.
   `flatpak --version` (`1.18.4`) and `flatpak remotes` (`flathub`, system) answered,
   so the empty list was not a broken command.
   `/var/lib/flatpak/app` and `~/.var/app/org.fcitx.Fcitx5` did not exist.
-- When and by whom the Flatpak copy was removed is not established:
-  `flatpak history` returned no rows.
+- The operating system was reinstalled after the 2026-11-04 record.
+  `/var/log/pacman.log` begins at `2026-11-16T20:30:16-05:00` with a Calamares installer transaction,
+  and `stat` reports the root filesystem born at `2026-11-16 20:29:37 -0500`
+  and the home folder at `2026-11-16 20:32:08 -0500`.
+  That reinstall is consistent with every vanished path in this doc,
+  but no record names the step that dropped the Flatpak copy:
+  `flatpak history` returned no rows,
+  and `pacman.log` has no line naming Fcitx.
 - `which -a fcitx5` found only `/usr/bin/fcitx5`.
   The installed native packages were
   `fcitx5 5.1.23-1.1`,
@@ -257,7 +263,7 @@ and a second launch at every login came from the system autostart entry.
   A bounded `find` for `user.dict` and `user.history`
   under `~/.local/share`, `~/.config`, `~/.var` and `~/temp/agent`
   found neither,
-  so the Pinyin engine has no learned user dictionary.
+  so no earlier Pinyin user dictionary was found at those paths.
 - Plasma Wayland is the only installed session:
   `/usr/share/wayland-sessions/plasma.desktop` exists
   and `/usr/share/xsessions` does not.
@@ -299,6 +305,14 @@ found no other use,
 and the generated unit has no condition.
 The second process does no harm while it loses the bus name,
 but it starts at every login.
+
+A third start path exists and was left unchanged:
+`/usr/share/dbus-1/services/org.fcitx.Fcitx5.service` names `Exec=/usr/bin/fcitx5`
+for the bus name `org.fcitx.Fcitx5`,
+so a D-Bus call to that name while Fcitx is not running would start a copy
+without the socket KWin passes.
+While KWin's copy runs it owns the name and no activation happens.
+`systemctl --user list-unit-files '*fcitx*'` listed only the generated autostart unit.
 
 ### Applied fix
 
