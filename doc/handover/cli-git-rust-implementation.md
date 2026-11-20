@@ -40253,7 +40253,13 @@ What follows from them, as work:
   re-checks, answered "Wait for re-checks (Recommended)": they go in one question-tool round once all three re-checks
   pass, or after one more quick round if a re-check finds something (each first re-check had found the questions
   themselves wrong: a false premise under staging's Q2, lines deciding the owner's choices in the start probe, an
-  ineligible option ranked first in the layout checker). By the owner's answers of
+  ineligible option ranked first in the layout checker). That answer was first written into
+  `doc/handover/questions-for-the-owner.md`, whose header keeps it to open questions; the owner asked "Do you know what a
+  questions file is?", the answer moved here, and the owner said "Fix the bigger mess too.": that file still held about
+  thirty answered sections. GOING: `pi-handover-questions-file-holds-open-questions-only` (DeepSeek on Neuralwatt, cap
+  450) in `.claude/worktrees/handover-questions-file-holds-open-questions-only`: each answer to its canonical doc, every
+  citation of that file repointed, sections deleted only once recorded elsewhere, open questions kept; brief under
+  `~/temp/agent/handover-questions-file-holds-open-questions-only-2026-11-19/`. By the owner's answers of
   2026-11-19T17:10:00-05:00 (questions file) the LFS review and the provider rebuild finish and nothing else off the
   ZFS path starts, and owner questions off the ZFS path wait in the questions file (new rule `QWP`).
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
