@@ -40448,7 +40448,23 @@ stated in this entry. What follows from them, as work:
   with no verdict field and nothing gated on it. Plan notes cover steps 4, 6, 7, 8, 10, 18 to 20 and 22, plan not
   edited. Nothing in either round was measured. GOING: a Sonnet gate review of each before acceptance (briefs under
   `~/temp/agent/zfs-start-probe-design-owner-answers-gate-review-2026-11-19/` and
-  `~/temp/agent/zfs-runtime-layout-checker-design-owner-answers-gate-review-2026-11-19/`). STAGING ENDED `idle` at
+  `~/temp/agent/zfs-runtime-layout-checker-design-owner-answers-gate-review-2026-11-19/`). LAYOUT CHECKER REVIEW
+  ENDED (Sonnet, about 28 min; that folder's `keep/review.md`, scripts and OpenZFS excerpts in `keep/evidence/`): not
+  ready. H1: the comparison under the Q2 answer read handler bodies and key tables only, not registrations, permission
+  policies or callees, and across `zfs-2.2.2` to `zfs-2.3.0`, with identical struct layouts, `zfs_prop_set_special`
+  gained `VOLTHREADING`, `READONLY` (through `zvol_set_ro`) and `LONGNAME` handling, so `SET_PROP` on a volume changed
+  with the layout kept; for a filesystem dataset `zvol_set_ro` returns -1 and the path matches 2.2.2. The coordinator
+  confirmed the cases in the 2.3.0 source (`zfs_ioctl.c:2556-2610`, none in 2.2.2). The coordinator's earlier "the one
+  interface change was a layout change" was therefore wrong. Mediums: owed measurement 16 contradicts itself; the planned
+  `src/layout/expectations.rs` and `src/layout/refusal.rs` would loop with `src/requests/uses/layout`; residue of the
+  declined in-house reader; the binding README lines 149 to 152 still state the release proof. Thirteen lows (line
+  citations among them: plan step 6 now 711 to 715, open items 760 to 762). The corrected evidence went to the owner in
+  the question tool at 2026-11-19T21:31:47-05:00 with three options (keep; layout plus refusing a property set aimed at
+  anything but a filesystem dataset; back to a release list); answer: "Keep: layout decides". GOING:
+  `pi-zfs-runtime-layout-checker-design-owner-answers-gate-review-findings-fixed` (DeepSeek on Neuralwatt, cap 510) in
+  the design worktree, steered with that answer; brief under
+  `~/temp/agent/zfs-runtime-layout-checker-design-owner-answers-gate-review-findings-fixed-2026-11-19/`. Then a short
+  re-check, then acceptance. STAGING ENDED `idle` at
   `e8f7ec4fa6` (thirteen commits; report in its folder's `keep/report.md`). It records every answer and makes Way A the
   design. On Q3 it rolls the clone back by its own descriptor, staging it only if that fails. Its post-move check now
   asserts that the topmost mount is the clone with the bind as its parent; the run's own advisor found the old wording
