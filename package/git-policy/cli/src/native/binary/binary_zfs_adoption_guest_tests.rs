@@ -22,7 +22,7 @@
 //! ```
 
 use git_policy_cli::worktree_clone_mount::{
-    CloneFolderIdentity, SLOT_IDENTITY_STORE_PATH, SlotIdentityStore, append_slot_identity_under_root_control, record_parent_identity_under_root_control,
+    CloneFolderIdentity, SLOT_IDENTITY_STORE_PATH, STORE_HEADER, SlotIdentityStore, append_slot_identity_under_root_control, record_parent_identity_under_root_control,
 };
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
@@ -153,6 +153,10 @@ fn write_store(fixture: &Fixture) {
     std::fs::create_dir_all(folder).expect("the store's folder is made");
     std::fs::set_permissions(folder, std::fs::Permissions::from_mode(0o700)).expect("the store's folder is root's");
     let _removed: std::io::Result<()> = std::fs::remove_file(SLOT_IDENTITY_STORE_PATH);
+    // The setup run creates the store with its header and then records the parent; a writer replaces a store that is
+    // there, so the header is written first and the record is the writer's own.
+    std::fs::write(SLOT_IDENTITY_STORE_PATH, format!("{STORE_HEADER}\n")).expect("the store starts with its header");
+    std::fs::set_permissions(SLOT_IDENTITY_STORE_PATH, std::fs::Permissions::from_mode(0o644)).expect("the store is root's and readable");
     record_parent_identity_under_root_control(Path::new(SLOT_IDENTITY_STORE_PATH), &identity_of(fixture.parent().as_path()))
         .expect("the setup run's parent record is written");
 }

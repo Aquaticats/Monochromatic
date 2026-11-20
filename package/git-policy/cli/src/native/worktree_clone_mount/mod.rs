@@ -127,8 +127,8 @@ pub use clone_folder_identity_acl::MAXIMUM_ACL_BYTES;
 /// The store's path,
 /// its reader and the two writes the route makes.
 pub use slot_identity_store::{SLOT_IDENTITY_STORE_PATH, SlotIdentityStore, append_slot_identity_under_root_control, record_parent_identity_under_root_control};
-/// The store's record type and the key its parent record carries.
-pub use slot_identity_store_records::{PARENT_KEY, StoredIdentity};
+/// The store's header line, its record type and the key its parent record carries.
+pub use slot_identity_store_records::{PARENT_KEY, STORE_HEADER, StoredIdentity};
 /// Why the store refused.
 pub use slot_identity_store_refusals::StoreRefusal;
 /// The mount facts and the enforced flags.
