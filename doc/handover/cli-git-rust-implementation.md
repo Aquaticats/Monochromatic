@@ -40230,7 +40230,17 @@ stated in this entry. What follows from them, as work:
   `pi-zfs-step-2-integration-pass-findings-fixed` (DeepSeek on Neuralwatt, cap 510) in the step 2 worktree (the grants
   "Scoped delegation" lists, a live snapshot that succeeds, the account's clone with `props`, the fuzz smoke, one more
   guest run); brief under `~/temp/agent/zfs-step-2-integration-pass-findings-fixed-2026-11-19/`. Then a narrow Sonnet
-  check and the merge. Step 2's commit dates match its reflog.
+  check and the merge. Step 2's commit dates match its reflog. It ended `idle` (276 turns) at `1df468f9e6` (ten commits
+  23:04:45 to 23:54:12, dates matching the reflog; that folder's `keep/report-from-summary.md`, fuzz logs, red patches
+  and guest logs in `keep/`), nothing dismissed: the fuzz smoke ran twice, exit 0 (`Done 1673755 runs in 31
+  second(s)` on the shipped tree, `cargo-fuzz 0.13.2`); the fixture follows the proposal's "Scoped delegation" list
+  where item 12 omitted the checkout's grants; a snapshot set with a user property now succeeds live as root, and the
+  account snapshots the checkout; the refused arm sends a real `monochromatic:` property at `ZAP_MAXVALUELEN` and
+  expects `E2BIG`; the account clones with `props`; reds for each new arm in guests; final guest 5 min 30 s: root 198
+  passed, account 9 passed, no `^SKIP live_`; container checks green (nextest 177 passed, 30 live skipped). Record in
+  the package's `doc/step-2-merge-checks-2026-11-19.md`. GOING: a Sonnet integration re-check (brief under
+  `~/temp/agent/integration-recheck-zfs-step-2-after-its-findings-round-2026-11-19/`), with its own guest run and fuzz
+  smoke. Then the merge.
   STEP 4 HOST HALF ENDED `idle` (259 turns, 49 min) at `185902f904` (three commits, 26 files, 4,336 lines added; report
   and logs in `~/temp/agent/zfs-step-4-descriptor-attach-host-half-2026-11-19/keep/`): `src/native/worktree_clone_mount/`
   (the no-crossing walk holding a descriptor per folder, six recorded identity fields with ACLs as raw xattr bytes, the
