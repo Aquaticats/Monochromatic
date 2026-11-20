@@ -36,9 +36,9 @@ export const POLL_MILLISECONDS = 300;
  working on its own session then, so this bound stops counting until the compaction ends; the deadline a run gives the wait is
  the outer bound.
 
- This is the bound of an answer Pi owes while it is already at work, such as a steer from the inbox or an attempt after a model
- error. The three answers of a run's start-up wait under {@link START_UP_ANSWER_MILLISECONDS} instead, because Pi is loading
- its session and its extensions then.
+ This is the bound of an answer Pi owes while it is already at work, such as a message queued into the turn it is in or an
+ attempt after a model error. The three answers of a run's start-up wait under {@link START_UP_ANSWER_MILLISECONDS} instead,
+ because Pi is loading its session and its extensions then.
 
  Pi answered the first prompt 5.2 to 5.4 seconds after starting in four real runs on 2026-11-08
  (`doc/agent/drive-pi-as-a-coding-subagent.md`); this leaves room for a loaded host.

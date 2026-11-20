@@ -207,3 +207,9 @@ have catalogs (Bun,
  vlt) is tracked as separate issues;
  see
 `doc/handover/catalog-tighten-portability.md`.
+
+## Owner answers of 2026-11-10
+
+- Asked what to do with catalog entries only paused packages use (issue 1667), the owner answered at
+  2026-11-10T08:13:03-05:00: "Keep, with a comment (Recommended)". So the entries stay and a comment says
+  which paused package uses each one.

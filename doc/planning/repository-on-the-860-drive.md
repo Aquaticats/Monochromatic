@@ -3280,3 +3280,21 @@ so its length depends on what changed since the first pass.
   were deleted without root (emptied,
   then `rmdir`),
   so none remain.
+
+## The space rule's first refusal, and the scratch it found (2026-11-07)
+
+The space rule refused on 2026-11-07, as designed, copying nothing: the estimate was 389 GiB (nested checkout
+303 GiB with sharing counted once, external worktrees 74 GiB, a clone-limit allowance of 12 GiB), 487 GiB
+with the plan's 25 percent margin, against 493 GiB free on the 860, which would leave 6 GiB where the rule
+requires 150 GiB. The 860 had 662 G free when the plan was measured.
+
+Agents' scratch folder `~/temp/agent` is a link to `/var/mnt/encrypted/temp/agent`, which is on the 860,
+and held 22,242 entries; the 25 largest alone measured about 1,113 GiB with `du` (which counts reflinked data
+once per file, so the space freed may be less), for example `agent-notify` 252 GiB (2026-10-11),
+`pi-mimo-preparation-failure-20261018` 102 GiB, `tr-fan` 89 GiB, and about twenty `ide-*` and review build
+folders of 19 to 50 GiB from October and July.
+
+Asked what to do, the owner chose option A at 2026-11-07T21:28:26-05:00, "Delete old scratch (Recommended)":
+delete scratch entries last changed before 2026-10-31 that no tracked file in the repository names, listing
+every entry and its size first (the list kept as a file), then deleting exactly those, and rerun the space
+rule. Options B (a review of the list first) and C (shrink the move instead) were not taken.

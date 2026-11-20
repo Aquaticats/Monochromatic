@@ -1,6 +1,6 @@
 /**
- Pi's answer to a prompt that met an agent already in a turn: the text it answers with, and the read that tells that answer from a
- refusal of the message itself.
+ Pi's answers to a prompt it will not take yet: the texts it answers with, and the reads that tell an answer about the moment from
+ a refusal of the message itself.
 
  Pi 1.5.2 answers a prompt with this error while its agent streams and the prompt named no streaming behaviour, and queues the
  prompt into that turn when one is named (`prompt()` in `dist/core/agent-session.js` of `@earendil-works/pi-coding-agent`). The
@@ -12,7 +12,12 @@
  prompt. Use steer() or followUp() to queue messages, or wait for completion."). None of them names a streaming behaviour, and
  none of them says a turn of the agent's own took this message, so they stay refusals.
 
- The wake (`kept-while-work-runs.ts`) and the model-error retry (`answer-a-model-error.ts`) both read their answer here.
+ A session that is compacting or summarising refuses a prompt before it prepares it, which refuses the moment and never the
+ message.
+
+ The wake (`kept-while-work-runs.ts`), the model-error retry (`answer-a-model-error.ts`) and each inbox delivery
+ (`watch-pi-run.ts`) read Pi's answer here. The first two read only the busy answer, because a session that compacts starts no
+ turn for them to wait for.
 
  @module
  */
@@ -31,6 +36,39 @@ import type { CommandAnswer, } from './driver-types.ts';
  agent's own took the message, so only that one is read as the agent being awake.
  */
 const AGENT_ALREADY_PROCESSING = 'Agent is already processing. Specify streamingBehavior';
+
+/**
+ The start of the error Pi 1.5.2 throws for a prompt that arrives while a manual compaction or a branch summary runs (`prompt()` in
+ `dist/core/agent-session.js` of `@earendil-works/pi-coding-agent`): "Cannot submit a prompt while compaction is in progress.
+ Wait for compaction to finish and retry." The guard is read before the prompt is prepared, so a named streaming behaviour does
+ not queue the message either; Pi's automatic compaction uses another controller and passes it.
+ */
+const A_COMPACTION_IN_PROGRESS = 'Cannot submit a prompt while compaction is in progress';
+
+/**
+ The text Pi refused the prompt with, which is empty text when it refused nothing.
+
+ @param answer - how waiting for Pi's answer ended
+
+ @returns Pi's own text, or empty text when the answer is not a refusal
+ */
+function refusalTextOf({ answer, }: { readonly answer: CommandAnswer },): string {
+  if (answer.ending !== 'answered') {
+    return '';
+  }
+  /**
+   Pi's own record, which is what an answered wait carries.
+   */
+  const { record } = answer;
+  if (record.success !== false) {
+    return '';
+  }
+  /**
+   What Pi said of the message.
+   */
+  const { error, } = record;
+  return ((typeof error) === 'string') ? error : '';
+}
 
 /**
  Tells whether Pi answered that its agent is already in a turn of its own, which refuses this message for no reason of its own.
@@ -53,19 +91,44 @@ const AGENT_ALREADY_PROCESSING = 'Agent is already processing. Specify streaming
  ```
  */
 export function foundTheAgentAlreadyAwake({ answer, }: { readonly answer: CommandAnswer },): boolean {
-  if (answer.ending !== 'answered') {
-    return false;
+  /**
+   The text Pi refused the prompt with.
+   */
+  const refused = refusalTextOf({ answer, },);
+  return refused.startsWith(AGENT_ALREADY_PROCESSING,);
+}
+
+/**
+ Tells whether Pi answered that it cannot take a prompt yet, though nothing is wrong with the message: its agent is in a turn of
+ its own, or its session is being compacted or summarised.
+
+ Each inbox delivery reads this, because an answer here leaves the message for a later look rather than keeping it aside as one Pi
+ refused. The wake and the retry read {@link foundTheAgentAlreadyAwake} alone, because a compaction starts no turn of Pi's own
+ for them to wait for.
+
+ @param answer - how waiting for Pi's answer ended
+
+ @returns whether Pi said it could not take the prompt now
+
+ @example
+ ```ts
+ const compacting = {
+   ending: 'answered',
+   record: {
+     success: false,
+     error: 'Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.',
+   },
+ } as const;
+ const later = foundPiRefusedTheMoment({ answer: compacting, },);
+ ```
+ */
+export function foundPiRefusedTheMoment({ answer, }: { readonly answer: CommandAnswer },): boolean {
+  if (foundTheAgentAlreadyAwake({ answer, },)) {
+    return true;
   }
   /**
-   Pi's own record, which is what an answered wait carries.
+   The text Pi refused the prompt with.
    */
-  const { record } = answer;
-  if (record.success !== false) {
-    return false;
-  }
-  /**
-   What Pi said of the message.
-   */
-  const { error, } = record;
-  return ((typeof error) === 'string') && error.startsWith(AGENT_ALREADY_PROCESSING,);
+  const refused = refusalTextOf({ answer, },);
+  return refused.startsWith(A_COMPACTION_IN_PROGRESS,);
 }

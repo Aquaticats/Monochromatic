@@ -1702,3 +1702,9 @@ mise run //package/wg/cli-quicker:lint:types
 
 State-mutating integration tests use disposable network namespaces.
 Do not use the real `mx-que-mx1` interface for verification.
+
+## Owner answers of 2026-11-10
+
+- Asked about the extra step a running tunnel needed when new exemption rules arrived, the owner answered at
+  2026-11-10T07:24:16-05:00: "As for tunnel: I think that's a UX issue you need to fix. The user shouldn't
+  have to do that." So new exemptions apply themselves while a tunnel runs.

@@ -207,3 +207,9 @@ contract.
 Every document takes the same structured parse path,
  so clean and commented input cannot
 diverge.
+
+## Owner answers of 2026-11-10
+
+- Asked what deleting a JSONC array index past the end should do (issue 1409), the owner answered at
+  2026-11-10T08:10:46-05:00: "TypeScript reports an error". So `delete(doc, ['list', 5])` throws
+  `JsoncPathNotFoundError` in TypeScript and returns `PathNotFound` in the Rust port.

@@ -538,6 +538,119 @@ function connectionWhosePiIsAlreadyProcessing({
 }
 
 /**
+ A connection whose Pi starts a turn of its own as the watch's message arrives, which is the race the driver's own read cannot
+ see: the record said Pi rested when the driver chose the delivery, and Pi opened a turn before it read the message.
+
+ Pi queues a prompt that names a streaming behaviour into that turn and refuses one that names none, which is what Pi 1.5.2 does
+ (`prompt()` in `dist/core/agent-session.js` of `@earendil-works/pi-coding-agent`).
+
+ @param record - the run's record, where the turn and the reply that ends it are observed
+
+ @returns the connection a watch reads
+ */
+function connectionWhosePiStartedItsOwnTurn({
+  record,
+}: {
+  readonly record: RecordOfPiRun
+},): ConnectionToPi {
+  return {
+    hasExited: () => false,
+    exitDetails: () => ({}),
+    write: function write() {
+      throw new Error('the watch was not expected to write without waiting for an answer',);
+    },
+    send: async function send({ command, }: CommandRequest,) {
+      // Pi started this turn between the driver's read and its message, so the record the read saw said nothing of it.
+      record.observe({
+        event: { type: 'agent_start', },
+        declineDialog: refuseDialog,
+      },);
+      record.observe({
+        event: { type: 'turn_start', },
+        declineDialog: refuseDialog,
+      },);
+      if (command.streamingBehavior === undefined) {
+        return {
+          ending: 'answered',
+          record: {
+            success: false,
+            error: ALREADY_PROCESSING_TEXT,
+          },
+        };
+      }
+      // The message is queued into the turn, whose reply and settle follow.
+      observeSuccessfulReply(record,);
+      return {
+        ending: 'answered',
+        record: {
+          success: true,
+          data: { disposition: 'queued', },
+        },
+      };
+    },
+    shutDown: async () => ({ stopped: true, }),
+  };
+}
+
+/**
+ A connection whose Pi answers the first attempts as busy and takes the one after them, which is what a Pi that read a delivery
+ naming steering as busy anyway would do: the message is neither refused nor delivered until Pi takes it.
+
+ @param sent - where the messages the watch sends are recorded
+
+ @param record - the run's record, where the reply to the taking send is observed
+
+ @param betweenAttempts - what happens while the driver holds the message under its claim, before its answer is read
+
+ @param busyAttempts - how many attempts Pi answers as busy before it takes one
+
+ @returns the connection a watch reads
+ */
+function connectionWhosePiIsBusyFor({
+  sent,
+  record,
+  betweenAttempts,
+  busyAttempts = 1,
+}: {
+  readonly sent: string[];
+  readonly record: RecordOfPiRun;
+  readonly betweenAttempts?: () => Promise<void>;
+  readonly busyAttempts?: number
+},): ConnectionToPi {
+  return {
+    hasExited: () => false,
+    exitDetails: () => ({}),
+    write: function write() {
+      throw new Error('the watch was not expected to write without waiting for an answer',);
+    },
+    send: async function send({ command, }: CommandRequest,) {
+      const { message } = command;
+      sent.push((typeof message) === 'string' ? message : '',);
+      /**
+       Which message this is, counted from the ones already sent.
+       */
+      const attempt = sent.length;
+      if (attempt <= busyAttempts) {
+        await betweenAttempts?.();
+        return {
+          ending: 'answered',
+          record: {
+            success: false,
+            error: ALREADY_PROCESSING_TEXT,
+          },
+        };
+      }
+      observeSuccessfulReply(record,);
+      return {
+        ending: 'answered',
+        record: { success: true, },
+      };
+    },
+    shutDown: async () => ({ stopped: true, }),
+  };
+}
+
+/**
  A connection whose retry prompt meets a turn the agent started by itself, and whose turn replies and settles a few looks after the
  busy answer, recovering the error the retry answers.
 
@@ -811,6 +924,136 @@ await describe({
         const delivered = (await feedOf(run.runFolder,)).find((entry,) => entry.kind === 'inbox',);
         expect(delivered?.success,).toBe(true,);
         expect(await readdir(run.inbox,),).toEqual([],);
+      },
+    },),
+    it({
+      name: 'delivers an inbox message a turn Pi started after the read can take, instead of keeping it aside',
+      fn: async () => {
+        await using run = await startRunThatSettled();
+        await writeFile(join(run.inbox, MESSAGE_NAME,), MESSAGE_TEXT,);
+        /**
+         Why the watch ended, with enough looks for the delivery and the idle end after it.
+         */
+        const endReason = await watchUntilEnded({
+          connection: connectionWhosePiStartedItsOwnTurn({ record: run.record, },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + HOLD_MILLISECONDS,
+        },);
+        // The turn Pi opened after the read took the message, so nothing of it was kept aside as one Pi refused.
+        expect(await readdir(run.inbox,),).toEqual([],);
+        /**
+         What the feed says about the delivery.
+         */
+        const delivered = (await feedOf(run.runFolder,)).find((entry,) => entry.kind === 'inbox',);
+        expect(delivered?.success,).toBe(true,);
+        // The driver's own read said Pi rested, which is the state in which the plain prompt met the turn.
+        expect(delivered?.sentAs,).toBe('prompt',);
+        expect(endReason,).toBe('idle',);
+      },
+    },),
+    it({
+      name: 'a busy answer leaves an inbox message for the next look rather than keeping it aside as refused',
+      fn: async () => {
+        await using run = await startRunWithAMessage();
+        /**
+         The messages the watch sent, of which a busy answer owes another.
+         */
+        const sent: string[] = [];
+        /**
+         Why the watch ended, with enough looks for both attempts and the idle end after them.
+         */
+        const endReason = await watchUntilEnded({
+          connection: connectionWhosePiIsBusyFor({ sent, record: run.record, },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + (2 * HOLD_MILLISECONDS),
+        },);
+        // Pi said only that its agent was busy, so the message went back to the inbox and was sent again, never kept aside.
+        expect(sent,).toEqual([MESSAGE_TEXT, MESSAGE_TEXT,],);
+        // The look that sent it again replaced the copy the busy answer left, and Pi took the message, so the inbox is empty.
+        expect(await readdir(run.inbox,),).toEqual([],);
+        /**
+         What the feed says about the two attempts.
+         */
+        const attempts = (await feedOf(run.runFolder,)).filter((entry,) => entry.kind === 'inbox',);
+        expect(attempts.map((entry,) => entry.success,),).toEqual([false, true,],);
+        expect(endReason,).toBe('idle',);
+      },
+    },),
+    it({
+      name: 'never puts a message a busy answer returned back over a newer one of its name',
+      fn: async () => {
+        await using run = await startRunWithAMessage();
+        /**
+         The messages the watch sent.
+         */
+        const sent: string[] = [];
+        /**
+         The newer message a producer publishes under the name while the older one is held as the driver's claim.
+         */
+        const newer = 'a newer message of the same name';
+        await watchUntilEnded({
+          connection: connectionWhosePiIsBusyFor({
+            sent,
+            record: run.record,
+            betweenAttempts: async function publishANewerMessage() {
+              await writeFile(join(run.inbox, MESSAGE_NAME,), newer,);
+            },
+          },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + (2 * HOLD_MILLISECONDS),
+        },);
+        // The newer message kept the name and went to Pi; the older one stays readable under its claim rather than replacing it.
+        expect(sent,).toEqual([MESSAGE_TEXT, newer,],);
+        /**
+         What the inbox holds once the run is over.
+         */
+        const kept = await readdir(run.inbox,);
+        expect(kept,).toHaveLength(1,);
+        /**
+         The name the older message was kept under.
+         */
+        const [keptName,] = kept;
+        if (keptName === undefined) {
+          throw new Error('the inbox held no entry for the message the busy answer returned',);
+        }
+        // A busy answer is not a refusal, so the message is not kept under the name that marks one.
+        expect(keptName.startsWith('.failed-',),).toBe(false,);
+        expect(await readFile(join(run.inbox, keptName,), 'utf8',),).toBe(MESSAGE_TEXT,);
+      },
+    },),
+    it({
+      name: 'a busy answer on every look leaves the message under one claim at a time, never one per look',
+      fn: async () => {
+        await using run = await startRunWithAMessage();
+        /**
+         The messages the watch sent.
+         */
+        const sent: string[] = [];
+        /**
+         How many attempts Pi answers as busy before it takes the message: enough rounds that a claim kept per look would show.
+         */
+        const busyAttempts = 2;
+        /**
+         Why the watch ended, with enough looks for every attempt and the idle end after the last.
+         */
+        const endReason = await watchUntilEnded({
+          connection: connectionWhosePiIsBusyFor({ sent, record: run.record, busyAttempts, },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + (HOLD_MILLISECONDS * (busyAttempts + 1)),
+        },);
+        // Each busy answer sent the message again, and Pi took the last attempt.
+        expect(sent,).toEqual(Array.from({ length: busyAttempts + 1, }, () => MESSAGE_TEXT,),);
+        // Every look's claim replaced the one before it, so no dot entry of an earlier round is left behind.
+        expect(await readdir(run.inbox,),).toEqual([],);
+        expect(endReason,).toBe('idle',);
       },
     },),
     it({

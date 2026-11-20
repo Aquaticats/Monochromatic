@@ -51,6 +51,7 @@ on:
         - monochromatic-lint
         - monochromatic-pnpm-shadow
         - monochromatic-file-enforcer-cli
+        - monochromatic-zfs-request-to-openzfs-kernel-device
       from:
         description: 'Version the crate holds now (the run fails when its Cargo.toml holds another)'
         type: string

@@ -8,8 +8,8 @@
 //!  That risk has one answer a test can hold:
 //! a member is either the tree a creation makes of what a commit reads,
 //! or it is refused
-//! (`doc/handover/questions-for-the-owner.md`,
-//! "May a commit take its private repository from a pool made ahead?").
+//! (`package/git-policy/cli/SPEC.md`,
+//! "A shadow taken from the pool").
 //!  What a commit reads is the named set of shared entries
 //! (`shadow_links.rs`,
 //! `SHARED_ENTRY_NAMES`),

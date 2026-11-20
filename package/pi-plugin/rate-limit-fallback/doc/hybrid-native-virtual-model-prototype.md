@@ -8,9 +8,9 @@ The answers to the short review, and the new captures they cite, were written th
 branch. Nothing here is adopted: the owner decides whether a rebuild follows.
 
 This page answers one question from the owner's decision of 2026-11-19
-(`doc/handover/questions-for-the-owner.md`, "Virtual provider point 4", third answer, "Hybrid,
-prototype first"): does a native Pi virtual model whose router sends every request to this package's
-pool provider keep the package's in-request member fallback and regain Pi's context-overflow
+(`doc/handover/cli-git-rust-implementation.md`, entry "The morning question round of 2026-11-19", third answer
+to point 4, "Hybrid, prototype first"): does a native Pi virtual model whose router sends every request to this
+package's pool provider keep the package's in-request member fallback and regain Pi's context-overflow
 compact-and-retry?
 
 Each item below names the session that showed it, the command that started it, the result, and the
