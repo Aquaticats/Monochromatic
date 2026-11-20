@@ -58,11 +58,11 @@ carried.
   access-time and account-influenced-name work they gated is deleted. The three checkers ran on the design and on
   a broken copy, each failing there and passing here.
 
-- `2026-11-19T21:44:00-05:00` (commits `92503d3f71`, `5af5c0fbc9`, `b5a635e448`, `d457df96b0`, `a11d124b64` and
-  this entry's commit): the answer to a gate review of the applied answers. Its findings were weighed one by one,
-  and every one earned a fix, with none refused. `doctor` now runs the account companion under the shared
-  preflight, so a reason an add refuses is a reason `doctor` prints. The companion's skip is named as this design's
-  own choice, with its reason and the alternative, and marked open to the project's veto. Its child's start is
+- `2026-11-19T21:44:00-05:00` (commits `92503d3f71`, `5af5c0fbc9`, `b5a635e448`, `d457df96b0`, `a11d124b64`,
+  `586177747c` and this entry's commit): the answer to a gate review of the applied answers. Its findings were
+  weighed one by one, and every one earned a fix, with none refused. `doctor` now runs the account companion under
+  the shared preflight, so a reason an add refuses is a reason `doctor` prints. The companion's skip is this
+  design's own choice, with its reason and the alternative, and marked open to the project's veto. Its child's start is
   specified: a fork on the blocking pool whose child runs a raw-syscall island, because the source guard forbids
   the re-exec the review offered, with `setpgid` called at once and the scratch directory placed outside the
   managed tree. `first-attach` gains its step names, `errno none` for a check, the rule that a pre-attach refusal
@@ -71,7 +71,8 @@ carried.
   and a timed-out record names the arm in flight. The plan notes were rechecked against the plan as main has it,
   now cite steps by heading, and carry the duties of steps 8, 14, 16, 18, 19 and 20 and each measurement's step.
   The lows: the skip errno set checked against the kernel source (`ENOSPC` since Linux 4.9, `EACCES` from SELinux
-  and AppArmor, no `EUSERS`), the effective Linux 6.6 floor with its amendment note, the dead `.zfs/snapshot` and
+  and AppArmor, no `EUSERS`, with each hook's lines read in the v7.3 file), the effective Linux 6.6 floor with its
+  amendment note, the dead `.zfs/snapshot` and
   `atime` facts removed, the ninth exclusion's amendment note, the header's subject, and the answer record cited
   with a commit line. The three checkers ran on the design and on a broken copy, each failing there and passing
   here.
@@ -867,9 +868,9 @@ count that passes `user.max_user_namespaces` (`kernel/ucount.c:77` installs the 
 same file sets for a chrooted caller or one without a mapping. `EUSERS` is not among them on any kernel this design
 supports: `unshare(2)` gives it only from Linux 3.11 to Linux 4.8, and `kernel/user_namespace.c` at v7.3 names it
 nowhere. `EACCES` is the third: `create_user_ns` calls `security_create_user_ns` (`:118`), SELinux's hook answers
-`avc_has_perm`, which denies with `EACCES` (`security/selinux/hooks.c:4732` to `:4736`), and AppArmor's
+`avc_has_perm`, which denies with `EACCES` (`security/selinux/hooks.c:4734` to `:4739`), and AppArmor's
 `aa_profile_ns_perm` returns `aa_check_perms`, whose denial is `EACCES` (`security/apparmor/task.c:374` to `:394`,
-`security/apparmor/lib.c:438` to `:441`). A seccomp filter in an agent sandbox can answer any errno at all, which
+`security/apparmor/lib.c:440`). A seccomp filter in an agent sandbox can answer any errno at all, which
 is why the skip is every error from that call and the arms after it are the only ones that can fail. The companion
 then prints one line naming the call, the errno and the two settings it read
 (`/proc/sys/user/max_user_namespaces` and `/proc/sys/kernel/unprivileged_userns_clone`), records its arms as not
