@@ -385,7 +385,9 @@ pub fn write_through_git(destination: &Path, admin: &Path, context: &GitContext,
     let mut prefix: OsString = OsString::from("--prefix=");
     prefix.push(destination.as_os_str());
     prefix.push("/");
+    crate::diagnostic_log::debug(TAG, format!("writing {} paths through Git in {}", paths.len(), destination.display()).as_str());
     let output: GitOutput = run_in(context, destination, words(&["checkout-index", "--force", "-z", "--stdin"]).into_iter().chain([prefix]).collect::<Vec<OsString>>().as_slice(), Some(input), checkout_environment(admin, destination))?;
+    crate::diagnostic_log::debug(TAG, format!("checkout-index code {:?} stderr {}", output.code, String::from_utf8_lossy(output.stderr.as_slice()).trim()).as_str());
     return if output.code == Some(0) { Ok(()) } else { Err(run_reason("`git checkout-index`", &output)) };
 }
 
