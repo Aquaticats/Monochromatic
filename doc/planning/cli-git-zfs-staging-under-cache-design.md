@@ -1423,11 +1423,12 @@ Before it creates a folder for a clone, the wrapper reads the record and scans `
 carrying the record's recorded identity (device, inode, birth time), by identity rather than by name so a folder
 renamed from a foreign namespace is found. Where no entry carries that identity, the dentry the record names is
 unlinked, no mount can be at it in any namespace (F11), a handle on it gives `ESTALE` (F29), and the wrapper unlinks
-the record and any `.json.tmp` beside it before it creates the folder. Where an entry does carry that identity, under
-the component's name or another, the record is kept and reported, because it may still be the only route to a staged
-mount. Where the account has put a new entry of that component in place, the wrapper's creation refuses `EEXIST` and
-it reports the entry as one it did not make instead of removing it; a later removal proceeds once the account removes
-it, which a trusted account can do.
+the record and any `.json.tmp` beside it before it creates the folder. Where an entry carries that identity under
+another name, the folder was renamed, so the record and the entry are kept and reported, because the record may still
+be the only route to a staged mount. Where it carries that identity under the component's name, the record describes
+the live folder and is kept without a report. Where the account has put a new entry of that component in place, the
+wrapper's creation refuses `EEXIST` and it reports the entry as one it did not make instead of removing it; a later
+removal proceeds once the account removes it, which a trusted account can do.
 
 A record carrying another boot id is void too, and the wrapper settles the folder, the record, any temporary name
 beside it and the claim. Every handler invocation writes the record before its first bind and replaces it on every
