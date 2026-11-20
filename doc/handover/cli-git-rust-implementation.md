@@ -40642,7 +40642,21 @@ stated in this entry. What follows from them, as work:
   coordinator read the log's routes and verdicts); cause `worktree_clean_tree_walk.rs:54`, a stat-exact entry never
   reaches the judge. So the defect is in `main` as released, on btrfs; XFS and overlayfs not run. Recorded on issue 6323,
   in the plan's steps 10 and 11 open items, and sent to the fence run, which now designs for rung 1 too. The throwaway
-  worktree is removed.
+  worktree is removed. STEP 3'S FIX ROUND ended `idle` (309 turns) at `477975e732` (its folder's
+  `keep/report-from-summary.md`, `report.md`, `gate.log`): `main` merged (`dc031420c9`, one plan conflict taken as
+  `main`'s wording), the clone module split into four siblings (0 linter findings on added lines), the rung declined
+  when `zfs_bclone_enabled` reads 0, both waived costs and the decline in README and SPEC, the identity control on one
+  clock; five reds. Guest arms (15 rounds a shape, rotating order with a same-binary `main` control): the branch's clone
+  is 0.39 to 0.65 of `main` (medians) on btrfs, XFS and overlayfs at every shape. Gate 9308 of 9311: the cause-H pair and
+  `resolution::a_version_query_that_never_answers_ends_at_its_bound`, untouched by the branch and passing alone. Step 3
+  stays HELD on issue 6323. The third failure is its own incident, issue 6324: the coordinator read the gate log
+  (`code: None` at 1.2 s against a 1 s bound, no bound verdict) and the harness, where `wait_under_bound`'s
+  `Ok(Ok(()))` arm reads a death by the bounded line's own `timeout --signal=KILL` (which kills its own group) as the
+  command ending by itself; the author's "killed at a 5 s bound" was not what the log shows. GOING:
+  `pi-git-policy-cli-bounded-wait-timeout-kill-fix` (DeepSeek on Neuralwatt, cap 450) on
+  `fix/git-policy-cli-bounded-wait-reads-a-timeout-kill-as-the-bound` in
+  `.claude/worktrees/git-policy-cli-bounded-wait-timeout-kill` from `main`, a red forcing the order without load; brief
+  under `~/temp/agent/git-policy-cli-bounded-wait-timeout-kill-fix-2026-11-20/`.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
