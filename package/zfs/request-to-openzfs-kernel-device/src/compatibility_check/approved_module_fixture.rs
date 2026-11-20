@@ -29,13 +29,13 @@ use super::blob_fixture::{Blob, WrittenMember};
 
 /// `unsigned char`,
 /// one byte.
-const BYTE_BITS: u32 = 8;
+const BYTE_BYTES: u32 = 1;
 /// `unsigned int`,
 /// four bytes.
-const WORD_BITS: u32 = 32;
+const WORD_BYTES: u32 = 4;
 /// `unsigned long`,
 /// eight bytes.
-const WIDE_BITS: u32 = 64;
+const WIDE_BYTES: u32 = 8;
 /// The bits one byte holds.
 const BITS_PER_BYTE: u32 = 8;
 /// `struct zfs_cmd`'s declared size,
@@ -176,9 +176,9 @@ const fn at(name: &'static str, type_id: u32, bytes: u32) -> WrittenMember {
 
 /// The member types one declaration is built from.
 fn member_types(blob: &mut Blob, change: Change) -> MemberTypes {
-    let byte: u32 = blob.int("unsigned char", BYTE_BITS);
-    let word: u32 = blob.int("unsigned int", WORD_BITS);
-    let wide: u32 = blob.int("unsigned long", WIDE_BITS);
+    let byte: u32 = blob.int("unsigned char", BYTE_BYTES);
+    let word: u32 = blob.int("unsigned int", WORD_BYTES);
+    let wide: u32 = blob.int("unsigned long", WIDE_BYTES);
     let pointer: u32 = blob.pointer("pointer");
     let name: u32 = blob.array(byte, NAME_BYTES);
     let value: u32 = blob.array(byte, VALUE_BYTES);
@@ -375,6 +375,6 @@ fn request_values(change: Change) -> Vec<(&'static str, i32)> {
     if change != Change::MissingChannelProgram {
         values.push(("ZFS_IOC_CHANNEL_PROGRAM", 0x5a48));
     }
-    values.push(("ZFS_IOC_LAST", 0x5a59));
+    values.push(("ZFS_IOC_LAST", 0x5a89));
     return values;
 }

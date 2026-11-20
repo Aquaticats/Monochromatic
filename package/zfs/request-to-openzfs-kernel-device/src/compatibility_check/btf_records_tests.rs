@@ -44,7 +44,7 @@ fn members<'a>(types: &TypeInformation<'a>, id: u32) -> Members<'a> {
 #[test]
 fn a_structure_reads_each_member_name_and_offset() {
     let mut blob: Blob = Blob::new();
-    let word: u32 = blob.int("unsigned int", 32);
+    let word: u32 = blob.int("unsigned int", 4);
     let structure: u32 = blob.structure(
         "record",
         16,
@@ -104,7 +104,7 @@ fn an_enumeration_reads_each_name_and_signed_value() {
 #[test]
 fn a_structure_is_no_enumeration_and_an_enumeration_is_no_member_list() {
     let mut blob: Blob = Blob::new();
-    let word: u32 = blob.int("unsigned int", 32);
+    let word: u32 = blob.int("unsigned int", 4);
     let structure: u32 = blob.structure(
         "record",
         4,

@@ -93,9 +93,9 @@ impl Blob {
     }
 
     /// One base integer type,
-    /// whose size is stated in bits.
-    pub fn int(&mut self, name: &str, bits: u32) -> u32 {
-        let entry: Vec<u8> = self.entry(name, 1, 0, bits, &[0, 0, 0, 0]);
+    /// whose size is stated in bytes.
+    pub fn int(&mut self, name: &str, bytes: u32) -> u32 {
+        let entry: Vec<u8> = self.entry(name, 1, 0, bytes, &[0, 0, 0, 0]);
         return self.push(entry);
     }
 

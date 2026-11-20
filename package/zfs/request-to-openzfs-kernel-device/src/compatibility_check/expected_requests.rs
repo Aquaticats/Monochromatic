@@ -24,7 +24,7 @@ use crate::requests::Operation;
 pub const FIRST_REQUEST: i64 = 0x5a00;
 /// `ZFS_IOC_LAST`,
 /// where the request range ends.
-pub const LAST_REQUEST: i64 = 0x5a59;
+pub const LAST_REQUEST: i64 = 0x5a89;
 /// The `ZFS_IOC_` prefix every enumerator of `enum zfs_ioc` carries.
 pub const REQUEST_PREFIX: &str = "ZFS_IOC_";
 /// The name of the enumeration the request numbers live in.

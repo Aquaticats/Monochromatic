@@ -81,3 +81,30 @@ fn a_module_without_the_command_structure_refuses_at_the_type() {
     assert_eq!(refusal.step, Step::Type);
     assert!(refusal.to_string().contains("zfs_cmd"), "{}", refusal.to_string());
 }
+
+/// The host's own two files pass,
+/// when it has them:
+/// this is the design's device-free arm that reads copies of the kernel's files
+/// and asserts the 32-byte header shape passes.
+///
+/// A machine without the two files prints one line and returns,
+/// so the container gate runs this control as a notice rather than a skip.
+#[test]
+fn the_hosts_two_files_pass_when_it_has_them() {
+    let base: std::path::PathBuf = std::path::PathBuf::from("/sys/kernel/btf/vmlinux");
+    let module: std::path::PathBuf = std::path::PathBuf::from("/sys/kernel/btf/zfs");
+    if !base.exists() || !module.exists() {
+        println!("NOTICE: this machine exposes no /sys/kernel/btf pair, so the host arm did not run");
+        return;
+    }
+    let answer: Result<Compatible, Refusal> = check_module_layout(&LayoutRequest {
+        base_btf: base.as_path(),
+        module_btf: module.as_path(),
+    });
+    let Ok(compatible): Result<Compatible, Refusal> = answer else {
+        panic!("the host's own files refused: {}", answer.err().unwrap());
+    };
+    assert_eq!(compatible.base_header_bytes, 32);
+    assert_eq!(compatible.module_header_bytes, 32);
+    assert!(compatible.module_bytes > compatible.base_header_bytes);
+}

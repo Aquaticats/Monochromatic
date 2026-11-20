@@ -50,7 +50,7 @@ fn refused(bytes: &[u8]) -> Refusal {
 #[test]
 fn a_kind_this_reader_cannot_walk_refuses() {
     let mut blob: Blob = Blob::new();
-    blob.int("unsigned char", 8);
+    blob.int("unsigned char", 1);
     let mut bytes: Vec<u8> = blob.bytes();
     bytes[32 + 7] = 30;
     let refusal: Refusal = refused(&bytes);
@@ -98,7 +98,7 @@ fn a_member_count_wider_than_sixteen_bits_is_walked() {
 #[test]
 fn a_size_resolves_through_an_array_and_a_typedef() {
     let mut blob: Blob = Blob::new();
-    let byte: u32 = blob.int("unsigned char", 8);
+    let byte: u32 = blob.int("unsigned char", 1);
     let array: u32 = blob.array(byte, 256);
     let alias: u32 = blob.alias("char_array_t", array);
     let bytes: Vec<u8> = blob.bytes();
@@ -110,7 +110,7 @@ fn a_size_resolves_through_an_array_and_a_typedef() {
 #[test]
 fn a_module_reads_its_bases_type_by_id_and_its_name_by_offset() {
     let mut base_blob: Blob = Blob::new();
-    let base_int: u32 = base_blob.int("unsigned long", 64);
+    let base_int: u32 = base_blob.int("unsigned long", 8);
     let mut module_blob: Blob = Blob::over(base_blob.string_bytes());
     let stats: u32 = module_blob.structure(
         "dmu_objset_stats",

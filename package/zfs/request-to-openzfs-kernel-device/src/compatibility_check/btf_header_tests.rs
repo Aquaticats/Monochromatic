@@ -29,7 +29,7 @@ const FIXTURE: &str = "fixture";
 /// One valid file with one structure.
 fn valid() -> Vec<u8> {
     let mut blob: Blob = Blob::new();
-    blob.int("unsigned char", 8);
+    blob.int("unsigned char", 1);
     return blob.bytes();
 }
 
@@ -55,7 +55,7 @@ fn the_current_header_with_its_layout_fields_passes() {
 #[test]
 fn the_oldest_header_passes_when_the_strings_end_the_file() {
     let mut blob: Blob = Blob::new();
-    blob.int("unsigned char", 8);
+    blob.int("unsigned char", 1);
     let bytes: Vec<u8> = blob.bytes_with_header(24);
     let sections: Sections<'_> = read_sections(&bytes, Path::new(FIXTURE)).expect("the header is read");
     assert_eq!(sections.header_bytes, 24);

@@ -63,7 +63,7 @@ pub(super) fn decode<'a>(
     return match kind {
         KIND_INT => Entry::Integer {
             name,
-            bits: size_or_type,
+            bytes: size_or_type,
         },
         KIND_PTR => Entry::Pointer { name },
         KIND_ARRAY => Entry::Array {

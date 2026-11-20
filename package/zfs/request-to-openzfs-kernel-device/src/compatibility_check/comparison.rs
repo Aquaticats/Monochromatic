@@ -80,7 +80,7 @@ fn compare_container(
     id: u32,
     path: &str,
 ) -> Result<(), Mismatch> {
-    let Some(entry): Option<Entry<'_>> = module.entry(id) else {
+    let Some((_resolved_id, entry)): Option<(u32, Entry<'_>)> = resolve(module, id) else {
         return Err(Mismatch {
             step: Step::Type,
             detail: format!("{path} is named and its type entry could not be read"),
@@ -216,9 +216,31 @@ fn covers(module: &TypeInformation<'_>, wanted: &ExpectedMember, member: &Member
     };
 }
 
+/// Whether one type id is a base integer or an array of them,
+/// through however many names it is written under.
+fn is_base_integer(module: &TypeInformation<'_>, id: u32) -> bool {
+    return resolve(module, id).is_some_and(|(_id, entry)| {
+        return matches!(entry, Entry::Integer { .. } | Entry::Array { .. });
+    });
+}
+
+/// One type id and its entry,
+/// through however many names and qualifiers it is written under.
+fn resolve<'a>(module: &TypeInformation<'a>, id: u32) -> Option<(u32, Entry<'a>)> {
+    let mut current: u32 = id;
+    for _hop in 0..super::btf_entry::ALIAS_HOPS {
+        let entry: Entry<'a> = module.entry(current)?;
+        match entry {
+            Entry::Alias { target, .. } => current = target,
+            _ => return Some((current, entry)),
+        }
+    }
+    return None;
+}
+
 /// Whether one type id is of the given kind.
 fn is_kind(module: &TypeInformation<'_>, id: u32, kind: u8) -> bool {
-    return module.entry(id).is_some_and(|entry| {
+    return resolve(module, id).is_some_and(|(_id, entry)| {
         return entry.kind() == kind;
     });
 }
@@ -270,13 +292,13 @@ fn check_array(
     element_bytes: u32,
     field: &str,
 ) -> Result<(), Mismatch> {
-    let Some(Entry::Array { element, .. }): Option<Entry<'_>> = module.entry(member.type_id) else {
+    let Some((_array_id, Entry::Array { element, .. })): Option<(u32, Entry<'_>)> = resolve(module, member.type_id) else {
         return Err(Mismatch {
             step: Step::Type,
             detail: format!("{field} is not an array of whole elements"),
         });
     };
-    let base: bool = is_kind(module, element, KIND_INT) || is_kind(module, element, KIND_ARRAY);
+    let base: bool = is_base_integer(module, element);
     if !base {
         return Err(Mismatch {
             step: Step::Type,

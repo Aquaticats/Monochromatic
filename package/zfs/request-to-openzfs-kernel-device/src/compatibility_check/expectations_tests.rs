@@ -108,7 +108,7 @@ fn every_request_this_crate_sends_has_one_expectation_and_two_endpoints() {
     }
     let first: &ExpectedEnumerator = wanted.last().expect("the endpoints are last");
     assert_eq!(first.name, "ZFS_IOC_LAST");
-    assert_eq!(first.value, 0x5a59);
+    assert_eq!(first.value, 0x5a89);
     let second_last: &ExpectedEnumerator = wanted.get(wanted.len() - 2).expect("two endpoints");
     assert_eq!(second_last.name, "ZFS_IOC_FIRST");
     assert_eq!(second_last.value, 0x5a00);

@@ -224,7 +224,7 @@ impl<'a> TypeInformation<'a> {
         let mut current: u32 = id;
         for _hop in 0..ALIAS_HOPS {
             match self.entry(current)? {
-                Entry::Integer { bits, .. } => return Some(u64::from(bits) / 8),
+                Entry::Integer { bytes, .. } => return Some(u64::from(bytes)),
                 Entry::Pointer { .. } => return Some(POINTER_BYTES),
                 Entry::Array { element, count, .. } => {
                     return Some(self.byte_size(element)?.saturating_mul(u64::from(count)));

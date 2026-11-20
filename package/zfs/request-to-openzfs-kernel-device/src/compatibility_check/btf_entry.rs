@@ -120,12 +120,12 @@ pub const POINTER_BYTES: u64 = 8;
 /// ```
 pub enum Entry<'a> {
     /// A base integer type,
-    /// whose size this format states in bits.
+    /// whose size this format states in bytes.
     Integer {
         /// The type's name.
         name: Option<&'a str>,
-        /// Its width in bits.
-        bits: u32,
+        /// Its width in bytes.
+        bytes: u32,
     },
     /// A pointer,
     /// whose width is the target's and whose target adds no size.
