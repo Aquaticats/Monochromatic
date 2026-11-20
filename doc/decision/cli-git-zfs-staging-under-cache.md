@@ -46,7 +46,7 @@ The wrapper creates the folder,
 which is the answer to the first question of 2026-11-19.
 The root handler binds the folder,
 makes the bind private before the clone is moved onto it,
-so the staged mount propagates nowhere,
+so the clone's move onto that verified private bind propagates nowhere,
 and writes the staged-folder record beside the folder,
 at `<home>/.cache/monochromatic-git-policy-cli-staging-<guid>.json`,
 before its first bind.
@@ -120,7 +120,7 @@ The limit therefore covers the scene where the clone landed on a mount the accou
 Refusing when a mount sits on the clone alone is the design's own rule,
 not the owner's,
 and the design states it that way.
-The seven veto-open choices keep the answers the design records,
+The seven veto-open choices the design lists stand as it wrote them,
 and none was vetoed:
 see "The proposals left open to veto".
 
@@ -130,7 +130,9 @@ The answer is "Private bind per removal (Recommended)".
 The wrapper creates one folder per removal,
 the handler binds it and makes the bind private for that removal,
 and the clone is moved onto the bind,
-so two removals of one clone never share a folder and the staged mount propagates nowhere.
+so two removals of one clone never share a folder and the move onto the verified bind propagates nowhere.
+A mount the account stacks on the folder between the bind and the move still receives the clone,
+which is the scene the rollback answers.
 The alternatives stay described under "Ways to meet it" in the design,
 and the answer rejects them:
 a private `~/.cache` made once at boot,
@@ -166,10 +168,16 @@ and it stops and reports there.
 
 ## The proposals left open to veto
 
-The answer is "Veto none (Recommended)",
-and none of the seven veto-open choices was vetoed.
-The design's "Choices this revision marks for the project's veto" holds six of them,
-and its pin entry holds the seventh:
+The answer of 2026-11-19 is "Veto none (Recommended)",
+and it was given to the four proposals that round left open:
+the `~/.cache` lookup from the pinned UID's passwd home,
+the `user-cache` pin,
+and the two `/proc`-path readings.
+The design's "Choices this revision marks for the project's veto" holds six more choices the project had not seen,
+and its pin entry holds a seventh,
+the pin's field set.
+The acceptance of 2026-11-20 vetoed none of the seven,
+so all seven stand as the design has them:
 
 - The rollback's destination and its proof.
 - The scene where a mount is stacked on the clone,
@@ -244,7 +252,23 @@ outside the veto section and without the options a veto entry gives.
 This record counts it as the seventh of the seven veto-open choices,
 under "The proposals left open to veto",
 and no veto was taken.
-The fields are the dataset's source and the mount root's inode,
+Its options were the field sets a check could compare:
+(a) the dataset's source alone,
+which is the accepted refusal sentence's literal text;
+(b) the source and the mount root's inode,
+which is the design;
+and (c) the source,
+the inode and the device,
+which refuses after any reboot that changes the anonymous minor (L14) until the pin is rewritten.
+Ranking b > a > c:
+b > a because a leaves a mount at `~/.cache` whose root is not the dataset's root,
+such as a bind of a subdirectory,
+undetected,
+while b catches it;
+a > c because c banks the pin on the anonymous per-mount minor,
+which a reboot may change and which nothing here measured,
+so c refuses at a boot where the pin still holds and needs the pin rewritten.
+The fields the design takes are the source and the mount root's inode,
 which every check compares,
 and the device,
 which is recorded for `doctor` and never compared.
@@ -397,8 +421,8 @@ and each names this record.
 
 - The proposal,
   [`cli-git-zfs-worktree-design-proposal.md`](../planning/cli-git-zfs-worktree-design-proposal.md),
-  in the staging open item of "Open items the decisions leave",
-  with one note after its first paragraph.
+  in the staging requirements of "Descriptor mount and unmount",
+  with one note after the paragraph that ends "the placement was one of the defaults the project answered".
   The note covers that paragraph's "have no design yet" sentence for the folder's creation,
   its private bind and the wrapper's cleanup,
   and the next paragraph's "has no design yet" sentence for the interface that unmounts from staging.
