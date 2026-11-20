@@ -2,7 +2,8 @@
 
 Non-final, unapproved design proposal by an agent. It is not approved by the project owner and nothing in it is
 final. It designs the open item "Staging under `~/.cache` and the wrapper's cleanup" of the accepted ZFS worktree
-design, and it makes no decision that design or the project's answers of 2026-11-19 did not make. It ran no ZFS
+design, and it makes no decision that design or the project's answers of 2026-11-19 did not make, beyond the
+writer's choices "Choices this revision marks for the project's veto" lists for the project to veto. It ran no ZFS
 command that changes anything, started no VM and no container, touched no pool, and edited no other file.
 
 Every kernel fact here is read at upstream Linux `v6.8`, in the files listed under "Sources read", and every
@@ -570,12 +571,23 @@ of itself, and no descriptor call closes that window. The project's answer to wh
 back at once (Recommended)" ("Answers of 2026-11-19"), which is the accepted rule for a clone that lands somewhere
 other than its slot ("Misplaced attach" under [proposal][proposal], "Project decisions"). The post-move check reads
 the topmost mount at the folder and asserts it is the clone, by its dataset source and root, and that the clone's own
-parent row is the bind, which is how F21 says a bind is told apart from the mount it binds. The check can fail in two
-ways, and they are different scenes with different answers.
+parent row is the bind, which is how F21 says a bind is told apart from the mount it binds. The check names two
+failing scenes, and the handler answers them in this order.
 
-Where the clone's parent is not the bind, the move landed on a mount the account stacked over the folder, which is
-the scene the third question answered. The handler rolls the exact mount back once, never in a loop, by its own
-descriptor and a slot descriptor it opens for the purpose:
+Where something is mounted on the clone, the topmost mount at the folder is not the clone. A move takes the clone's
+whole subtree, so any mount on the clone is a child of the clone and would travel with it (`attach_recursive_mnt`,
+the `moving` branch, Linux `v6.8`, `fs/namespace.c:2350` to `:2355`, under the function comment at `:2235` that
+calls the source a mount tree). The handler refuses, rolls nothing back, leaves the clone staged with that mount over
+it, reports both mounts, and unbinds nothing, exactly as the pre-call check of "The unmount call from staging"
+answers the same scene. This test comes first, because a mount on the clone and a clone whose parent is not the bind
+can stand in the same folder, and then a rollback would carry the account's mount to the slot. The third question did
+not cover this scene, so the refusal is the writer's, marked for the project's veto ("Choices this revision marks for
+the project's veto").
+
+Where the clone is the topmost mount and its parent is not the bind, the move landed on a mount the account stacked
+over the folder, which is the scene the third question answered, and nothing is mounted on the clone. The handler
+rolls the exact mount back once, never in a loop, by its own descriptor and a slot descriptor it opens for the
+purpose, under these rules:
 
 - The destination is the clone's recorded slot, opened after the move, by name, from the slot's parent descriptor,
   which the accepted no-crossing walk gives ([proposal][proposal], "Descriptor mount and unmount": "Reopen the
@@ -594,23 +606,19 @@ descriptor and a slot descriptor it opens for the purpose:
   ([proposal][proposal], "Descriptor mount and unmount"). The handler asserts the clone's source and root at the
   topmost row of the slot, that row's parent equal to the slot parent's mount ID, and a fresh walk from the checkout
   finding that mount at the canonical slot (F21, F28).
-- Where any of it fails, the handler stops, reports the clone's mount ID, the other mount's ID and the outcome in the
-  refusal receipt, unbinds nothing and removes nothing, and the removal refuses. Keeping the clone staged is the
-  state the busy-unmount decision allows.
+- Where the destination open or the move fails, the clone stays at the folder, staged, and the receipt names the
+  failed step, the errno and the mount IDs it read; keeping the clone staged is the state the busy-unmount decision
+  allows.
+- Where the move succeeds and the proof fails, the clone is no longer staged: it stands at the slot the descriptor
+  named, under whatever the destination lock found there, and, where an ancestor was renamed in between, at that
+  dentry under its new name rather than at the canonical slot. The handler reports the observed topmost row with its
+  mount ID, parent and root instead of claiming a placement, unbinds nothing and removes nothing. The bind is empty,
+  so the folder, record and claim wait for the sweep as for an empty bind, and the removal refuses because a mount of
+  the clone stands where the receipt says.
 
 The move back is the project's answer, and the accepted rules are applied to it; what this design adds is the
 destination's `RESOLVE_NO_XDEV`, its slot-identity and mount-row checks, and the one-attempt proof, all the writer's
 and marked for the project's veto ("Choices this revision marks for the project's veto").
-
-Where the topmost mount at the folder is not the clone while the clone's parent row is still the bind, something was
-stacked on the clone after the move. A move takes the clone's whole subtree, so that mount is a child of the clone
-and would travel with it (`attach_recursive_mnt`, the `moving` branch, Linux `v6.8`, `fs/namespace.c:2350` to
-`:2355`, under the function comment at `:2235` that calls the source a mount tree). A rollback here would put the
-account's mount over the worktree at its slot, which is the misplacement the rollback undoes. The handler therefore
-does what the pre-call check of "The unmount call from staging" does with the same scene: it refuses, leaves the
-clone staged with the account's mount over it, reports both mounts, and unbinds nothing. The third question did not
-cover this scene, so this refusal is the writer's, marked for the project's veto ("Choices this revision marks for
-the project's veto").
 
 The rollback is a remount of a mount this removal already moved, so it is a second exception to "No implicit remount
 after a failure or restart", whose only stated exception is "the checked reattach of a removal that cancels itself
@@ -1019,6 +1027,19 @@ Set up a clone at a slot, a private bind on a depth-one staging folder, and the 
   the receipt names the stacked mount and the clone, nothing is unbound, and the removal refuses. Control: M1's
   stacked-before-the-move arm in the same run, where the clone's parent is the account's mount and the rollback runs,
   so a handler that treats the two scenes alike fails one of the two arms.
+- Stacked over the folder and on the clone: the account stacks a FUSE mount on the folder before the move, so the
+  clone lands on it, and a second FUSE mount on the clone before the post-move check. Assert the topmost mount at the
+  folder is the second mount, the clone's parent row is the account's folder mount and not the bind, the handler
+  refuses and rolls nothing back, the clone's source row is still under the folder, both account mounts are still
+  present, and nothing is unbound. Control: the stacked-before-the-move arm in the same run, where the clone's parent
+  is not the bind and nothing is mounted on the clone, so the rollback runs: a handler that rolls back on the parent
+  test alone carries the second mount to the slot and fails this arm.
+- Stacked at the slot after the open: the same stacking before the move, and a FUSE mount stacked on the clone's slot
+  after the handler opened the slot descriptor and before the move. Assert the move succeeds, the destination lock
+  lands the clone on the account's mount, the proof fails, the receipt reports the observed row and its IDs instead of
+  a placement, the topmost row at the slot is the account's mount rather than the clone, the bind's row is still at
+  the folder, and the removal refuses. Control: the stacked-before-the-move arm, whose slot stands uncovered when the
+  descriptor is opened and whose proof passes.
 - Stacked at the slot before the rollback: the same stacking on the folder, and a FUSE mount stacked on the clone's
   slot before the rollback opens it. Assert the slot open with `RESOLVE_NO_XDEV` refuses `EXDEV` (F28, F17), so the
   handler rolls nothing back, the clone stays staged on the account's mount, the receipt names the refused open, and
@@ -1190,15 +1211,16 @@ Set up a clone at a slot, a private bind on a depth-one staging folder, and the 
 - A record from another boot, settled: the same record, a reboot having dropped every mount, and the standing
   `unmount` intent resumed for a clone that is not mounted, so no handler invocation rewrites the record. Assert the
   wrapper removes the folder, unlinks the record and any temporary name and releases the claim on its own scan rather
-  than on a handler receipt, with no mount row naming the folder path; assert `doctor` no longer prints the entry.
-  Control: the same folder with a mount standing at it in the host namespace, whose `rmdir` refuses `EBUSY`, which the
-  wrapper keeps and reports.
+  than on a handler receipt, with no mount row naming the folder path in its namespace; assert `doctor` no longer
+  prints the entry. Control: the same folder with a mount standing at it in the host namespace, whose `rmdir` refuses
+  `EBUSY`, which the wrapper keeps and reports.
 - A record whose folder is gone: remove the folder from a foreign namespace, or let an account cleanup delete it,
-  and leave the record, then run a removal for that clone. Assert the wrapper's identity scan finds no entry carrying
-  the record's identity, it unlinks the record before it creates the folder, the handler writes a fresh record and
-  binds, and the removal is not refused on the old record; assert a sweep that opens the old handle before that
-  settlement gets `ESTALE` (F29). Control: the same removal with the record's folder standing, whose record the
-  wrapper keeps.
+  and leave the record, then run a removal for that clone. Assert the wrapper creates the folder, the handler reads
+  the record, its handle gives `ESTALE` (F29), no row in the handler's mount table names the folder path, the handler
+  replaces the record with one describing the new folder and binds, its receipt says which record it replaced and
+  why, and the removal is not refused on the old record. Control: the same removal with the old folder renamed
+  rather than deleted, from a foreign namespace, whose handle still resolves, so the handler refuses and reports the
+  record instead of replacing it and the removal refuses.
 - Namespace created while staged: a reader namespace enters while the clone is staged, then the wrapper's cleanup
   runs. Assert first that the scan names the reader's copy and the wrapper removes nothing (the reader's rows are the
   assertion), then that after the reader exits and a clear receipt arrives the wrapper removes the folder and the
@@ -1242,7 +1264,8 @@ Set up a clone at a slot, a private bind on a depth-one staging folder, and the 
 
 Each live way needs M1, M2, M3, M5 and every arm of M6. Way A, the design, additionally needs M4's positive,
 host-namespace, copied-idle, copied-held, copied-mounted-under, foreign-namespace and renamed arms, M7's two-folder
-arm, M1's failed-rollback arm, and M6's record-place, atomic-write and other-boot arms. Way B needs Way A's handler
+arm, M1's stacking, stacked-on-the-clone, combined, slot-at-the-open, refused-rollback and failed-proof arms, and
+M6's record-place, atomic-write, folder-gone and both other-boot arms. Way B needs Way A's handler
 arms plus M7 and M8. Way C needs M1, M2, M3, M5, M6, M4's renamed arm and M7's Way C arm. Way D
 needs M1, M2, M3's propagation arms and its late-mount arm on `~/.cache`, M5, M6 and M7. Way E needs Way A's arms and
 M8's source arm. Way F needs Way A's arms and M4's renamed arm. No live way needs M9, which exists only to record the
@@ -1362,8 +1385,11 @@ That descriptor, the one the record's directory `fsync` syncs and a sweep hands 
 which masks `FMODE_PATH` and refuses an `O_PATH` one with `EBADF` (`fs/fhandle.c:118` to `:135`, `fs/file.c:1131` and
 `:1157`; `fs/sync.c:206` to `:214`). The folder descriptor stays `O_PATH | O_DIRECTORY`, which `name_to_handle_at`
 takes the handle from (F29). The wrapper's `open_directory_at` already opens `O_RDONLY | O_DIRECTORY` and its handle
-helper `O_PATH | O_DIRECTORY`, both through a walk that always sets `RESOLVE_NO_XDEV` (F17), so the cache descriptor
-is a helper call; the by-name hop into the bind is new code, because that helper would refuse it.
+helper `O_PATH | O_DIRECTORY`, both through a walk that always sets `RESOLVE_NO_XDEV` (F17). The folder open beneath
+the cache descriptor is therefore a helper call, while the one crossing from the pinned home into `~/.cache` cannot
+be: it is the deliberate hop of "The staging target and who creates it", new code with the `O_RDONLY | O_DIRECTORY`
+kind this section needs, followed by the pin check. The by-name hop into the bind is new code too, because the helper
+would refuse a crossing.
 
 The record is written by root into a directory the account owns, so it is data the account can read, replace or
 delete. The project's answer to where it lives accepts that and states why: "We have to assume my machine isn't
@@ -1418,29 +1444,33 @@ Its lifetime is the folder's. It is written before the first bind, replaced atom
 that GUID, and unlinked after the folder's `rmdir`. Two kinds of record describe no folder the design can act on,
 and the design says who voids each instead of leaving it to refuse every later staging of that clone.
 
-A record whose folder is gone is void, and the wrapper settles it, because it holds the claim and creates the folder.
-Before it creates a folder for a clone, the wrapper reads the record and scans `~/.cache` by descriptor for any entry
-carrying the record's recorded identity (device, inode, birth time), by identity rather than by name so a folder
-renamed from a foreign namespace is found. Where no entry carries that identity, the dentry the record names is
-unlinked, no mount can be at it in any namespace (F11), a handle on it gives `ESTALE` (F29), and the wrapper unlinks
-the record and any `.json.tmp` beside it before it creates the folder. Where an entry carries that identity under
-another name, the folder was renamed, so the record and the entry are kept and reported, because the record may still
-be the only route to a staged mount. Where it carries that identity under the component's name, the record describes
-the live folder and is kept without a report. Where the account has put a new entry of that component in place, the
-wrapper's creation refuses `EEXIST` and it reports the entry as one it did not make instead of removing it; a later
-removal proceeds once the account removes it, which a trusted account can do.
+A record whose folder is gone is void, and the handler voids it, because only the handler can prove it. The handle
+the record carries names the folder's inode and generation and resolves only while that inode lives (F29), so
+`ESTALE` is the kernel's own statement that the dentry is dead and, with it, that every mount at it was detached in
+every namespace (F11). Before it binds, the handler reads the record; where the handle gives `ESTALE` and no row in
+the host mount table names the folder path, it replaces the record with one describing the folder it is about to
+bind, under the write rule of this section, and its receipt says it replaced a void record and why. A record whose
+handle resolves is never void, whatever the folder's identity now is: a resolving handle means the recorded inode
+lives, and a folder renamed from a foreign namespace keeps its handle (F29), so such a record is kept and reported,
+and a removal refuses while it stands, because the mount it may name is still somebody's. The wrapper unlinks no record
+of its own for this case, and it removes one only with the folder, after a receipt. Where the account has put a new
+entry of the component in place, the wrapper's creation refuses `EEXIST` and it reports the entry as one it did not
+make instead of removing it; once the account removes it, a later removal creates the folder, the handler voids the
+stale record on `ESTALE`, and the removal proceeds, which is the case this rule exists for.
 
 A record carrying another boot id is void too, and the wrapper settles the folder, the record, any temporary name
 beside it and the claim. Every handler invocation writes the record before its first bind and replaces it on every
 later one, so a record whose boot id is not this boot proves that no invocation in this boot bound, or could have
-bound, that folder, and a reboot drops every mount anyway (F32, L10). The wrapper may therefore remove the folder and
-unlink the record on its own scan rather than on a handler receipt, when that scan finds no mount row naming the
-folder path in any namespace it reads, with the recorded namespace pair void by the same boot id. The kernel's
-`EBUSY` on `rmdir` stays the guard against a mount standing at the folder in the host namespace (F11), and a mount in
-another namespace that outlived the reboot cannot exist, because the reboot dropped it. A sweep that runs before
-that settlement voids the handle and the namespace pair on the boot id alone, unmounts nothing and reports the
-state; it does not rewrite the record, because only a handler invocation writes one, and the wrapper's settlement is
-where a leftover record from another boot stops being read.
+bound, that folder, and a reboot ended every mount of the previous boot (F32, L10). It does not follow that nothing
+is mounted at the folder now: a mount the account made there in this boot is not a bind of this design, and no record
+describes it. The wrapper therefore settles only where its own read of the mount table finds no row naming the folder
+path in its namespace, and leaves the folder and reports it otherwise, which is also the case where `rmdir` in the
+host namespace refuses `EBUSY` (F11). A wrapper that has been unshared sees neither the host's row nor that refusal,
+and would detach the account's mount with the folder's name; that is the exposure A4 bounds, the account being
+trusted and no bind of this design being at stake. A sweep that runs before that settlement voids the handle and the
+namespace pair on the boot id alone, unmounts nothing and reports the state; it does not rewrite the record, because
+only a handler invocation writes one, and the wrapper's settlement is where a leftover record from another boot stops
+being read.
 
 The two void rules and their settlements are the writer's, marked for the project's veto ("Choices this revision
 marks for the project's veto").
@@ -1476,9 +1506,9 @@ Nothing else ages a record out, and no timer touches it.
   under `~/.cache`, mode `0644`, written by the handler before the first bind through a temporary name renamed over
   the final one, read under the bound and no-follow rule of "The staged-folder record", holding what that section
   names, and unlinked after the folder's `rmdir` (A1, L10).
-- Who voids a record: the wrapper, before it creates a folder, for a record whose recorded identity matches no live
-  entry under `~/.cache`; and the wrapper's own settlement for a record from another boot, with `rmdir`'s `EBUSY` as
-  the guard ("The staged-folder record").
+- Who voids a record: the handler, before it binds, for a record whose handle gives `ESTALE` while no row in its
+  mount table names the folder path; and the wrapper's own settlement for a record from another boot, with its
+  mount-table read and `rmdir`'s `EBUSY` as the guards ("The staged-folder record").
 - The receipt and notice wording for a retained staged mount, a mounted folder that cannot be unmounted, a handle
   that no longer resolves, a copy that refused the unbind, a detached mount that still holds the dataset, an orphan
   folder, a folder the wrapper cannot prove it made, a rollback refused and a rollback that landed on a stacked
@@ -1566,19 +1596,19 @@ the design as it stands.
   every one of the three to the administrator, which settles nothing automatically. Ranking a > b > c, because a
   settles what can be proved and reports the rest, b promises a teardown the covered bind forbids, and c leaves a
   state every later `doctor` prints with no automatic way out.
-- A record whose folder is gone. The wrapper unlinks a record whose recorded identity matches no live entry under
-  `~/.cache` before it creates a folder for that clone. Options: (a) this route; (b) letting the handler replace a
-  record whose handle gives `ESTALE` when no host mount row names the folder path, which has the kernel's own proof
-  but runs only inside a handler invocation and needs the recovery capability; (c) leaving the record and reporting
-  it, which fails closed until a person deletes the file. Ranking a > b > c, because a clears the block before it
-  bites and needs no capability, b clears it with a stronger proof but only when a handler runs, and c blocks every
-  later staging of that clone.
-- A record from another boot. The wrapper settles the folder, the record, any temporary name and the claim on its
-  own scan once the boot id differs, with `rmdir`'s `EBUSY` as the guard. Options: (a) this route; (b) waiting for a
-  later removal of that clone to rewrite the record, which the standing `unmount` intent may never produce; (c)
-  leaving the folder to the administrator after `doctor` prints it. Ranking a > c > b, because a settles a state
-  nothing this boot can hold a mount in, c at least reports it once, and b promises a settlement that may never
-  come.
+- A record whose folder is gone. The handler replaces a record whose handle gives `ESTALE`, and no row in its mount
+  table names the folder path, before it binds. Options: (a) this route; (b) a wrapper scan that unlinks a record
+  whose recorded identity matches no live entry under `~/.cache` before it creates the folder, which needs no
+  capability but cannot tell a dead dentry from a live one hidden under a covering mount, so it would discard the
+  only handle to a live staged mount; (c) leaving the record and reporting it, which fails closed until a person
+  deletes the file. Ranking a > c > b, because a clears the block on the kernel's own proof, c blocks every later
+  staging of that clone but loses nothing, and b can lose a live recovery handle.
+- A record from another boot. The wrapper settles the folder, the record, any temporary name and the claim once the
+  boot id differs, with its own mount-table read and `rmdir`'s `EBUSY` as the guards. Options: (a) this route; (b)
+  waiting for a later removal of that clone to rewrite the record, which the standing `unmount` intent may never
+  produce; (c) leaving the folder to the administrator after `doctor` prints it. Ranking a > c > b, because a settles
+  a folder no bind of this design can hold from the previous boot, c at least reports it once, and b promises a
+  settlement that may never come.
 
 ## Hardening the stated threat model may make unnecessary
 
