@@ -184,19 +184,19 @@ first written.
   design's three link-bearing blockquotes miss only because the checker keeps link markup inside a quotation, and
   every one of them is verbatim in the proposal with links reduced.
 
-- `2026-11-20T00:37:03-05:00` (commit `4845e5b831`): the answer to the one medium finding of a diff-only gate check
-  of the sixth revision, read on Claude Sonnet from the diff `3b833948e3..b0b386ede5`. This label is the time this
-  text was first written, not a commit time, and it names no commit of its own: the commit that carries it comes
-  later, so it cannot be named here. The finding: the skip list sent `EPERM` from `fsopen`, `mount`,
-  `mount_setattr`, `fsmount` and `move_mount` to the skip wherever the call was made, which contradicted
-  [M11](#m11-the-account-companion-per-add)'s requirement that an `EPERM` from `fsmount` refuse the add, turned
-  Q6's own case, a mount made as the account refusing with `EPERM`, into a skip, and added no capability-denying
-  host, because the first mapping write and `unshare(CLONE_NEWNS)` already skip one. The capability bullet now
-  covers the setup calls, `mount` and `mount_setattr`, and ends when the scratch tmpfs is in place; any call after
-  it, `fsmount` included, is an arm failure, which is the case M11's fixture checks. The Answers record's Q6
-  sentence, the companion's veto sentence and the acceptance question now state the same three reaches: the
-  namespace refused, the capabilities inside it denied, and a mount the setup makes inside it refused. The nine
-  lows the check left are not touched and travel beside the design to the acceptance round.
+- `2026-11-20T00:37:03-05:00` (commit `4845e5b831`, and every commit this round made after it): the answer to the
+  one medium finding of a diff-only gate check of the sixth revision, read on Claude Sonnet from the diff
+  `3b833948e3..b0b386ede5`. This label is the time this text was first written, not a commit time, and it names no
+  commit of its own: the commit that carries it comes later, so it cannot be named here. The finding: the skip
+  list sent `EPERM` from `fsopen`, `mount`, `mount_setattr`, `fsmount` and `move_mount` to the skip wherever the
+  call was made, which contradicted [M11](#m11-the-account-companion-per-add)'s requirement that an `EPERM` from
+  `fsmount` refuse the add, turned Q6's own case, a mount made as the account refusing with `EPERM`, into a skip,
+  and added no capability-denying host, because the first mapping write and `unshare(CLONE_NEWNS)` already skip
+  one. The capability bullet now covers the setup calls, `mount` and `mount_setattr`, and ends when the scratch
+  tmpfs is in place; any call after it, `fsmount` included, is an arm failure, which is the case M11's fixture
+  checks. The Answers record's Q6 sentence, the companion's veto sentence and the acceptance question now state the
+  same three reaches: the namespace refused, the capabilities inside it denied, and a mount the setup makes inside
+  it refused. The nine lows the check left are not touched and travel beside the design to the acceptance round.
 
 ## Answers of 2026-11-19
 
@@ -260,8 +260,8 @@ dataset mount path. Not taken: root only, this design's own first rank, which wo
 the walk or the mount surface seen only where something mounts as the account; the project took the companion knowing
 that it never touches ZFS and skips on a host that refuses user namespaces. This design's skip also covers a host
 that grants the namespace and denies the capabilities inside it, and a host that grants the namespace and refuses
-a mount the setup makes inside it; the Ubuntu guest, whose default profile denies the capabilities, is the first
-of those; that reach was not in the question, and [The account companion](#the-account-companion) states which
+a mount the setup makes inside it; and the Ubuntu guest, whose default profile denies the capabilities, is one of
+those hosts; that reach was not in the question, and [The account companion](#the-account-companion) states which
 refusals the skip covers, what follows a skip, and that both are this design's choice, open to the project's veto,
 rather than the round's.
 
@@ -1182,9 +1182,8 @@ of its costs, so that a skip exists was before the project, while the add going 
 reach matters to that choice, and the skip's boundary keeps it to the three refusals the skip paragraph opens
 with (a host that will not give the companion a user namespace, will not let it use the capabilities inside one, or
 will not let it mount inside one), bar the residue that paragraph names, with the Ubuntu guest among the hosts that
-skip. The choice differs from the
-direction Q4 chose for the probe's arms, where an arm that could not run keeps the route blocked. The reason: the
-companion touches no ZFS and its pass cannot
+skip. The choice differs from the direction Q4 chose for the probe's arms, where an arm that could not run keeps
+the route blocked. The reason: the companion touches no ZFS and its pass cannot
 predict the root attach, so a host that refuses user namespaces would lose the whole managed route to a check that
 cannot speak about it, while the root probe's arms and the module gate still bound that route. The alternative is
 Q4's rule applied here: a skipped companion refuses the managed add, and the managed route is then off on hosts
