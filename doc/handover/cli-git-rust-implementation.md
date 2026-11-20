@@ -40259,7 +40259,19 @@ stated in this entry. What follows from them, as work:
   file over the code-line budget, two docs citing the renamed heading, literal device numbers, one doc sentence. The
   plan's step 3 contradicts itself on what the host runs. GOING: `pi-zfs-step-3-host-half-short-review-findings-fixed`
   (DeepSeek on Neuralwatt, cap 510) in the step 3 worktree, merging `main` first; brief under
-  `~/temp/agent/zfs-step-3-host-half-short-review-findings-fixed-2026-11-19/`. STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
+  `~/temp/agent/zfs-step-3-host-half-short-review-findings-fixed-2026-11-19/`. It ended `idle` (224 turns) at
+  `8c9e74b1dd` (four commits; that folder's `keep/report.md`, logs and the red patch in `keep/`), all findings accepted:
+  main merged (one conflict, main's `may_clone` kept in `fs_kind.rs`, which calls the branch's `kind_may_clone` and then
+  asks XFS); the clone-domain decision split into `worktree_clone_domain.rs`; the read-facts control asks `/proc`; the
+  refusal asks the filesystem that would receive the clones and names it; the ZFS mount control fails unless the run
+  sets `CLI_GIT_ZFS_ABSENT_ACKNOWLEDGED` (the gate image and `native:test:host:btrfs` set it, `native:test:host` does
+  not); reds shown for all three. The merge commit `67391ff8f3` dropped the clone-domain block and does not compile;
+  `8ddec9c5f7` restores it; a corrective commit comment is posted (commit comment 210969224). It followed "What each step
+  runs where" over the step's "The host runs only the unit tests of `fs_kind`"; the plan still says both. Not run: the
+  whole gate, `rustfmt`, the linter. The short review's worktree is removed. GOING: a Sonnet integration pass (brief
+  under `~/temp/agent/integration-pass-zfs-step-3-host-half-reflink-rung-2026-11-19/`), running the whole gate and the
+  host tests on this ZFS host, and asked whether the plan lets the host half merge before its guest arm (which needs
+  step 2's recipe and is not written yet). STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
   their VM arms wait for step 2's recipe and their merges for the gate fix), each DeepSeek on Neuralwatt, cap 510,
   from `main` `d6e78c9e8b`: `pi-zfs-step-3-reflink-rung-recognition-host-half`
   (`.claude/worktrees/zfs-step-3-reflink-rung-recognition`, `feat/git-policy-cli-zfs-recognition-in-the-reflink-rung`;
