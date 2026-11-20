@@ -561,10 +561,11 @@ the pick is not made here.
   The gate review's four scripts were re-run against the same three tagged copies and reproduce its
   counts, and the control run is recorded under [The prose checks](#the-prose-checks).
   No product file, no plan step and no proposal step is edited here.
-- `2026-11-19T22:36:00-05:00`, commit `b940ad1489` at 22:31:12, which applies the findings,
+- `2026-11-19T22:40:00-05:00`, commit `b940ad1489` at 22:31:12, which applies the findings,
   `9075aab4bf` at 22:33:00, which names the `main` commit the locators were re-measured at and
-  narrows two quote spans, and the commit that carries this entry, which changes only this record:
-  the revision that answers the third gate re-check, kept at
+  narrows two quote spans, `9f1194e79a` at 22:36:00, which records these commits and the checker's
+  counts, and the commit that carries this entry, which corrects the revision that first recorded
+  the BTF file's time: the revision that answers the third gate re-check, kept at
   `/home/user/temp/agent/zfs-runtime-layout-checker-design-third-revision-gate-recheck-2026-11-19/keep/review.md`.
   That re-check is independent of this file's author (rule `IRW`) and is not an approval; it found no
   high finding, two mediums and nine lows, and called the file not ready for the project.
@@ -1799,9 +1800,10 @@ A sysfs modification time does not track a module load on this host (boot 11:12:
 `/sys/module/zfs/version` 19:03:56, `srcversion` 19:51:21), so
 the recheck can re-run a check that would have passed. The cost is a needless parse, never a
 stale pass.
-The BTF file is the clearest case: `/sys/kernel/btf/zfs` read 16:47:51 when the first version of this
-file recorded it and 21:39:40 when this revision read it, while `version` and `srcversion` read the
-same times and values as before, which is consistent with the time moving without a reload.
+The BTF file is the clearest case: `/sys/kernel/btf/zfs` read 16:47:51 in the revision at
+`fa66afaed0`, which first recorded it, and 21:39:40 when this revision read it, while `version` and
+`srcversion` read the same times and values as before, which is consistent with the time moving
+without a reload.
 That is an inference from two readings and not a measurement of a reload.
 Where the file times come from is unverified, so they are no substitute for an identity value:
 when all three values are absent the reload check has no usable term, as
