@@ -72,10 +72,19 @@ fn warnings_about(entries: &[Captured], note: &Path) -> Vec<String> {
         .collect();
 }
 
-/// A scratch directory under the package's own build directory,
+/// A scratch directory under the fixture root,
 /// removed by the caller.
+///
+/// Why:
+///  The fixture root is the directory this suite's other test files keep their own under,
+///  and it is the one a run moves with `CLI_GIT_TEST_ROOT`
+///  (`crate::test_support::FIXTURE_ROOT_VARIABLE`).
+///  A directory under the package's own `target/` stayed on the build filesystem,
+///  which a ZFS dataset with `utf8only=on` makes refuse a name that is not UTF-8,
+///  so the control that keeps such a name never reached the product
+///  (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`, cause A2).
 fn scratch(name: &str) -> PathBuf {
-    let directory: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target").join("claim-watch-tests").join(format!("{name}-{}", std::process::id()));
+    let directory: PathBuf = crate::test_support::fixture_root().join("claim-watch-tests").join(name);
     let _cleared = std::fs::remove_dir_all(&directory);
     std::fs::create_dir_all(&directory).expect("the scratch directory");
     return directory;

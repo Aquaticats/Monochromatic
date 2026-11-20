@@ -498,8 +498,9 @@ await describe({
         })).find(function isCommand(line) {
           return instructionOf(line) === 'CMD';
         });
-        // A btrfs control on the gate's overlay prints "BTRFS CONTROL NOT RUN: <name> (<reason>)" and passes, so its
-        // line is output of a successful test; nextest hides that output for a green run unless it is asked for.
+        // A btrfs control on the gate's fixture root, which is never btrfs, prints
+        // "BTRFS CONTROL NOT RUN: <name> (<reason>)" and passes, so its line is output of a successful test; nextest
+        // hides that output for a green run unless it is asked for.
         expect(command).toContain('--success-output=final');
       },
     }),

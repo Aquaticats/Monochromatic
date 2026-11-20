@@ -20838,12 +20838,16 @@ Before release readiness:
 
 - the package README exists and matches this interface;
 - Clippy reports no warning and the crate's tests pass in the bounded container
-  (`mise run //package/git-policy/cli:native:test:container`);
+  (`mise run //package/git-policy/cli:native:test:container`),
+  with Clippy running the Rust toolchain `toolchain.lock.json` records
+  (the gate refuses, naming the missing component, when that toolchain has no Clippy);
 - the btrfs controls pass on this host,
   which a release that is not an alpha waits for before it dispatches
   (`mise run //package/git-policy/cli:native:release:host-controls`):
-  the container gate runs on an overlay filesystem,
-  where each of those controls prints `BTRFS CONTROL NOT RUN`,
+  the container gate's fixtures live on a tmpfs the container makes
+  (`bin/native-gate-fixture-root.ts`),
+  so no fixture root there is a btrfs filesystem,
+  and each of those controls prints `BTRFS CONTROL NOT RUN`,
   passes,
   and leaves the container run no evidence they work on btrfs;
   a real release refuses to dispatch when one of them fails,
