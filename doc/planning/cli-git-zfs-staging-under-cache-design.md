@@ -1357,11 +1357,11 @@ own hash and timestamp cannot appear in the commit that creates them.
   handle a later sweep recovers the folder with, the bind's own descriptor, the unbind's rule over the copies, the
   claim's place beside `v1`, the corrected mount-source mechanism, and the questions rebuilt as one choice among the
   ways plus three follow-ups.
-- `HASH` at `WHEN`: this revision, answering the second re-check: the folder's component derived on both sides from
-  the clone's dataset GUID, the resource and the reach of the recovery capability, the retained states split by
-  cause, the corrected descriptor facts for a move's destination and for a copy with a mount under it, the durable
-  staged-folder record that replaces the `/run` bind record, the questions rebuilt as three that stand alone in a
-  dialog, and the readings of decided sentences moved into the veto list.
+- `ca9ca049fd` at `2026-11-19T20:25:12-05:00`: this revision, answering the second re-check: the folder's component
+  derived on both sides from the clone's dataset GUID, the resource and the reach of the recovery capability, the
+  retained states split by cause, the corrected descriptor facts for a move's destination and for a copy with a mount
+  under it, the durable staged-folder record that replaces the `/run` bind record, the questions rebuilt as three
+  that stand alone in a dialog, and the readings of decided sentences moved into the veto list.
 
 ## Sources read
 
