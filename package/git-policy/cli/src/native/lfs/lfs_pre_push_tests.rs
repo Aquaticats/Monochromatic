@@ -290,7 +290,8 @@ fn a_host_key_this_machine_does_not_know_is_read() {
 ///   OpenSSH has just said that this machine knows a key for the host and that the key it was given differs,
 ///  and that someone may be attacking the connection;
 ///  telling the person the key is unknown and to add the new one would answer that warning with the opposite advice.
-///  OpenSSH's own words stay, as they do on `main`.
+///  OpenSSH's own words stay,
+/// as they do on `main`.
 #[test]
 fn a_changed_host_key_keeps_opensshs_own_warning_and_is_no_unknown_key() {
     assert!(

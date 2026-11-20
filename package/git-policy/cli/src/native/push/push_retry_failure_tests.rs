@@ -148,7 +148,8 @@ fn a_github_protected_branch_refusal_is_tried_again() {
 ///  The refusal must not be a `FinalFailure`,
 ///  which is the reading the service stops on,
 ///  and the record must still say what to do:
-///  the way out is the person's, the waiting is the service's.
+///  the way out is the person's,
+/// the waiting is the service's.
 ///  Plain `ssh` still asks its own question (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`).
 #[test]
 fn a_host_key_this_machine_does_not_know_is_retried_and_the_record_says_the_service_pushes_by_itself() {

@@ -370,7 +370,8 @@ fn the_service_overlay_gives_openssh_a_program_that_answers_nothing_and_a_typed_
 ///  `invocation_overlay` adds the rule after it,
 ///  so a caller's `CLI_GIT_CHILD_SET_*` cannot reopen the prompt.
 /// Why:
-///  The whole rule is added once, in `no_prompt_overlay`,
+///  The whole rule is added once,
+/// in `no_prompt_overlay`,
 ///  which `every_command_the_wrapper_forwards_never_prompts` pins;
 ///  this control keeps the base list free of it,
 ///  so the rule's last entry stays the one that wins.
@@ -387,7 +388,9 @@ fn the_child_overlay_of_a_forwarded_command_holds_no_part_of_the_no_prompt_rule(
 
 /// What:
 ///  The host's askpass settings do not survive the service overlay:
-///  an inherited `GIT_ASKPASS`, `GIT_TERMINAL_PROMPT`, `SSH_ASKPASS` and `SSH_ASKPASS_REQUIRE` are all replaced.
+///  an inherited `GIT_ASKPASS`,
+/// `GIT_TERMINAL_PROMPT`,
+/// `SSH_ASKPASS` and `SSH_ASKPASS_REQUIRE` are all replaced.
 /// Why:
 ///   The account's own program must not be the one a child of the wrapper asks with,
 ///  because the owner decided no command it runs or forwards asks a person,

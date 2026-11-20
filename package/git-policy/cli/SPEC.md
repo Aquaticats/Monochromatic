@@ -6643,7 +6643,10 @@ the service keeps its usual retry schedule for it,
 and its record says that it pushes the branch by itself once the key is known
 (owner answer of 2026-11-20,
 "Keep retrying";
-"the service keeps its usual retry schedule; the message says the host key is unknown, how to fix it, and that the
+"the service keeps its usual retry schedule;
+the message says the host key is unknown,
+how to fix it,
+and that the
 service will push by itself once the key is known"),
 which the refusal's own words above carry.
 No command the wrapper runs or forwards asks a person for a credential
@@ -6695,9 +6698,11 @@ and `load_identity_file` reads an empty passphrase as one nobody gave and tries 
 so a `PATH` without `false` fails the same way:
 the child cannot start it and exits non-zero.
 `false` is the standard program that prints nothing and reports failure;
-the wrapper ships for Linux only (`README.md`, "Requirements"),
+the wrapper ships for Linux only (`README.md`,
+"Requirements"),
 where coreutils or busybox puts it on `PATH`.
-A key the agent holds asks for no passphrase, so it still opens the connection.
+A key the agent holds asks for no passphrase,
+so it still opens the connection.
 A key without a passphrase needs no agent at all:
 it opens the connection with none,
 at a terminal and without one,
@@ -10392,20 +10397,25 @@ in-process reader can) gives every value of the multi-valued keys.
   then the same four of `origin` when the named remote answered nothing.
   Each endpoint is rewritten through `url.<base>.pushInsteadOf` and then `url.<base>.insteadOf` before its host is read,
   as git-lfs rewrites it before parsing (`:234-235` and `:345-357`),
-  and a later value of one key wins, as git-lfs reads its configuration (`config/git_fetcher.go:121-128`).
+  and a later value of one key wins,
+  as git-lfs reads its configuration (`config/git_fetcher.go:121-128`).
   An empty `url.<base>.insteadOf` value rewrites nothing here,
   because git-lfs itself applies only a matched alias longer than nothing
-  (`replaceUrlAlias`, `:361-378`),
+  (`replaceUrlAlias`,
+  `:361-378`),
   while Git rewrites with it:
   measured with git-lfs 3.8.1,
   `git lfs env` printed `Endpoint=https://alias.invalid/repo.git/info/lfs` for an empty alias under
   `https://127.0.0.1:13/`,
   and `git remote get-url --push` printed `https://127.0.0.1:13/https://alias.invalid/repo.git`.
-  A base that is empty is a replacement of nothing, and git-lfs applies it:
+  A base that is empty is a replacement of nothing,
+  and git-lfs applies it:
   the endpoint is the URL with the alias taken off its front,
   and the host read from it is the one inside whatever follows the alias.
-  Measured with git-lfs 3.8.1: `lfs.url=https://alias.invalid/https://127.0.0.1:39506/lfs` under an empty base
-  `https://alias.invalid/` gave `Endpoint=https://127.0.0.1:39506/lfs`, so the alias's own host is one git-lfs does
+  Measured with git-lfs 3.8.1:
+  `lfs.url=https://alias.invalid/https://127.0.0.1:39506/lfs` under an empty base
+  `https://alias.invalid/` gave `Endpoint=https://127.0.0.1:39506/lfs`,
+  so the alias's own host is one git-lfs does
   not contact.
   The plan keeps git-lfs's answer because git-lfs is the program that makes the request.
   Measured against git-lfs 3.8.1 on this host:
@@ -12510,7 +12520,8 @@ because git-lfs does not always put the keys in the global file:
 and `--worktree` writes `config.worktree` in this worktree's Git directory while `extensions.worktreeConfig` is set
 (`<repo>/.git/config.worktree` in the main worktree and `<repo>/.git/worktrees/<name>/config.worktree` in a linked one),
 or this repository's `.git/config` when it is not and the repository holds one worktree;
-when it is not and the repository holds several, no file is written at all,
+when it is not and the repository holds several,
+no file is written at all,
 because Git refuses the write and git-lfs ends with status 2
 (`commands/command_install.go:37-59`,
 `lfs/attribute.go:154-190` and `git/config.go:137-140`;
@@ -12518,45 +12529,61 @@ measured with git-lfs 3.8.1 and plain `git` 2.56.1,
 every file read back through `git config --file <p> --list`,
 and `src/native/binary/binary_lfs_install_tests.rs` pins all four layouts against Git's own
 `git config --worktree`).
-A command git-lfs refuses before it writes a `filter.lfs.*` key is told the refusal, never a destination,
+A command git-lfs refuses before it writes a `filter.lfs.*` key is told the refusal,
+never a destination,
 because the words alone show that nothing reaches one:
-more than one of `--local`, `--system`, `--worktree` and `--file`,
-a boolean option whose `=value` is no `strconv.ParseBool` spelling (`-l=yes`, `-l=`, `--local=yes`),
+more than one of `--local`,
+`--system`,
+`--worktree` and `--file`,
+a boolean option whose `=value` is no `strconv.ParseBool` spelling (`-l=yes`,
+`-l=`,
+`--local=yes`),
 and `--file` with no word after it are refused by git-lfs 3.8.1 itself,
-with statuses 2, 127 and 127 measured through the wrapper,
+with statuses 2,
+127 and 127 measured through the wrapper,
 every configuration file read before and after each run;
-the notice then names the word or the count git-lfs refuses, except where a word this reading does not name came
+the notice then names the word or the count git-lfs refuses,
+except where a word this reading does not name came
 first,
 and says that no `filter.lfs.*` key is written to any configuration file,
 and the multi-destination refusal still records `lfs.repositoryformatversion` in this repository's `.git/config`
 before it stops.
 An option this reading does not name is passed through as typed,
-so a command git-lfs refuses for another reason (`--bogus`, an unknown short letter) still prints the destination its
+so a command git-lfs refuses for another reason (`--bogus`,
+an unknown short letter) still prints the destination its
 words select;
-the flag parser's own message is the answer there, and a list of every option git-lfs registers would go stale as
+the flag parser's own message is the answer there,
+and a list of every option git-lfs registers would go stale as
 git-lfs adds one.
 When such an option comes before a word this reading refuses,
 the notice states the refusal and names no reason,
 because pflag stops at the earlier word,
 which the parser's own message names (`git lfs install -z -l=yes` answers
-`unknown shorthand flag: 'z' in -z` while the reading refuses `-l=yes`, measured),
+`unknown shorthand flag: 'z' in -z` while the reading refuses `-l=yes`,
+measured),
 and a count of destinations is decided only after every word is read,
 so a word this reading does not name anywhere drops that reason too.
 A run with `--manual` that git-lfs runs is told why the hook instructions it asked for are not printed:
 they are instructions for merging a hook this wrapper installs nowhere and never runs,
-and a refused command prints none of them for the refusal's own reason, so its notice adds no such sentence.
+and a refused command prints none of them for the refusal's own reason,
+so its notice adds no such sentence.
 Outside a repository the command is forwarded as it was typed (git-lfs writes no hook there).
-A help query is answered as it was typed, however it is spelled:
-`--help`, `-h`, `--help=true` and a group that carries `h` (`-lh`) all print help with status 0 and write no key,
+A help query is answered as it was typed,
+however it is spelled:
+`--help`,
+`-h`,
+`--help=true` and a group that carries `h` (`-lh`) all print help with status 0 and write no key,
 so none of them gets the option or the notice,
 while `--help=false` and `-lh=false` run the command,
 a word the parser refuses beats help (`-lh --local=yes` is refused),
 and a word after `--` is no help query
 (`git lfs install -- -h` ran into the hook write with status 2 until this was read).
-A `--skip-repo` after `--` is no option either, so the wrapper adds its own copy there too.
+A `--skip-repo` after `--` is no option either,
+so the wrapper adds its own copy there too.
 A caller who wrote `--skip-repo` with a true value keeps one copy and gets the same notice.
 A caller who wrote it false gets the wrapper's copy right after that word,
-because git-lfs keeps the last value of a repeated flag, so a copy before it would be undone:
+because git-lfs keeps the last value of a repeated flag,
+so a copy before it would be undone:
 `git lfs install --skip-repo=false` wrote the global keys and then ended with status 2 and
 `mkdir /dev/null: not a directory` until this was read,
 and the notice says that the caller's word did not win.

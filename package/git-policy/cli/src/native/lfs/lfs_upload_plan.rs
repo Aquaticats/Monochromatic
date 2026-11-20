@@ -348,8 +348,10 @@ pub(crate) fn lfs_destination(remote: &OsStr, directory: &Path, configured: bool
 ///  a path) answers nothing,
 ///  so the stop falls back to the words of the program that saw the server.
 ///  Every endpoint is rewritten through the URL alias tables before its host is read,
-///  as git-lfs rewrites it before parsing (`NewEndpoint` calls it, `lfsapi/endpoint_finder.go:234-235`;
-///  `ReplaceUrlAlias`, `:345-357`):
+///  as git-lfs rewrites it before parsing (`NewEndpoint` calls it,
+/// `lfsapi/endpoint_finder.go:234-235`;
+///  `ReplaceUrlAlias`,
+/// `:345-357`):
 ///  `url.<base>.pushInsteadOf` first for an upload,
 ///  `url.<base>.insteadOf` after it,
 ///  so the stop names the host the upload contacted rather than the alias it was configured with.
@@ -405,21 +407,29 @@ pub fn lfs_server_of(remote: &OsStr, all: &[(String, String)]) -> Option<String>
 /// Why:
 ///  `url.<base>.pushInsteadOf` and `url.<base>.insteadOf` rewrite a URL before git-lfs parses it
 ///  (`lfsapi/endpoint_finder.go:234-235`),
-///  and an upload reads the push table first and the fetch table after it (`ReplaceUrlAlias`, `:345-357`).
+///  and an upload reads the push table first and the fetch table after it (`ReplaceUrlAlias`,
+/// `:345-357`).
 ///  A key's base is the replacement and its value is the alias;
-///  a later value of one alias wins, as it does in git-lfs's own table (`storeAlias`, `:399-407`).
+///  a later value of one alias wins,
+/// as it does in git-lfs's own table (`storeAlias`,
+/// `:399-407`).
 ///  An empty alias is left out because git-lfs never applies one:
 ///  it keeps the empty value and rewrites only when the longest matching alias is longer than nothing
-///  (`replaceUrlAlias`, `:361-378`),
+///  (`replaceUrlAlias`,
+/// `:361-378`),
 ///  so the endpoint it contacts is the unrewritten URL;
-///  Git does rewrite it (`git remote get-url --push` shows the replacement), and this table follows git-lfs because
+///  Git does rewrite it (`git remote get-url --push` shows the replacement),
+/// and this table follows git-lfs because
 ///  git-lfs is the program that makes the request.
-///  An empty base is kept, because it is a replacement of nothing and git-lfs applies it:
+///  An empty base is kept,
+/// because it is a replacement of nothing and git-lfs applies it:
 ///  the endpoint is the URL with the alias taken off its front,
 ///  and the host read from it is the one inside whatever follows the alias
-///  (measured with git-lfs 3.8.1: `lfs.url=https://alias.invalid/https://127.0.0.1:39506/lfs` under an empty base
+///  (measured with git-lfs 3.8.1:
+/// `lfs.url=https://alias.invalid/https://127.0.0.1:39506/lfs` under an empty base
 ///  `https://alias.invalid/` gave `Endpoint=https://127.0.0.1:39506/lfs`),
-///  so leaving it out would name the alias's host, which git-lfs never contacts.
+///  so leaving it out would name the alias's host,
+/// which git-lfs never contacts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -448,7 +458,8 @@ fn url_aliases<'a>(all: &'a [(String, String)], push: bool) -> Vec<(&'a str, &'a
 ///  `rawurl` with the longest matching alias's replacement in place of its prefix,
 ///  or nothing when no alias matches.
 /// Why:
-///  git-lfs chooses the longest alias that prefixes the URL (`replaceUrlAlias`, `:361-378`),
+///  git-lfs chooses the longest alias that prefixes the URL (`replaceUrlAlias`,
+/// `:361-378`),
 ///  so a narrower rule can rewrite a subpath of a broader one.
 ///
 /// In TS you'd write (pseudocode):

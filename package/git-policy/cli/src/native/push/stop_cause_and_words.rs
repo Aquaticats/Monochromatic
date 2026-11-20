@@ -149,7 +149,8 @@ pub(crate) fn traffic_clause(report: &StopReport) -> String {
 ///  and offering the setting would remove the only bound there is
 ///  (`package/git-policy/cli/SPEC.md`,
 ///  "A connection that carried nothing keeps the older wording,
-///  which is the true one there: nothing moved").
+///  which is the true one there:
+/// nothing moved").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

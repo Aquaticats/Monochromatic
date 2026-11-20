@@ -451,7 +451,8 @@ pub fn reads_as_a_login_failure(text: &str) -> bool {
 /// or a key the server refuses.
 ///  Telling an HTTP server's refused password to run `ssh-add` would send its reader to a command that does nothing for it,
 ///  so the sentence is added from these words and not from every login failure;
-///  the sentence itself names both causes, because these words do.
+///  the sentence itself names both causes,
+/// because these words do.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -477,7 +478,8 @@ pub fn reads_as_a_key_failure(text: &str) -> bool {
 ///  the changed key is a different cause with its own warning and is left to OpenSSH's words,
 ///  as `main` leaves it,
 ///  and the strict-checking refusal is the unknown key this reading is for.
-///  The census is the transcript of each arm, measured against a throwaway `sshd` on `127.0.0.1` with OpenSSH 10.6p2
+///  The census is the transcript of each arm,
+/// measured against a throwaway `sshd` on `127.0.0.1` with OpenSSH 10.6p2
 ///  and the wrapper's own two variables (`SSH_ASKPASS=false`,
 ///  `SSH_ASKPASS_REQUIRE=force`).
 ///
@@ -567,9 +569,11 @@ pub fn host_key_not_known_sentence(host: Option<&str>) -> String {
 ///  it names `eval "$(ssh-agent)"` and `ssh-add`,
 ///  or a key without a passphrase,
 ///  which needs no agent.
-///  The first form is Bourne shell syntax, which fish rejects,
+///  The first form is Bourne shell syntax,
+/// which fish rejects,
 ///  so the sentence names fish's own form beside it:
-///  `ssh-agent -c` prints `setenv` commands, which `eval (ssh-agent -c)` reads
+///  `ssh-agent -c` prints `setenv` commands,
+/// which `eval (ssh-agent -c)` reads
 ///  (`ssh-agent`'s manual,
 ///  "The agent prints the commands to set the environment variables ... `-c` Generate C-shell commands on stdout").
 ///

@@ -805,7 +805,8 @@ fn an_upload_that_needed_a_login_at_a_terminal_is_told_the_same_rule() {
 /// Why:
 ///   The owner's answers of 2026-11-19 and 2026-11-20:
 ///  a passphrase counts as a credential,
-///  a key that no agent holds fails at once, at a terminal or without one,
+///  a key that no agent holds fails at once,
+/// at a terminal or without one,
 ///  and OpenSSH's own words (`Permission denied (publickey).`) do not say what to do about it.
 ///  The project's answer of 2026-11-20 also says a person must be able to work with no agent at all
 ///  ("We must support situations in which ssh-agent isn't there"),
@@ -939,7 +940,8 @@ fn a_failure_that_names_no_login_keeps_the_words_it_had() {
 ///  a URL cut before its `@` shows no userinfo,
 ///  and the front of the password reached the terminal with no word that anything was missing.
 ///  The read is driven from a prepared file through the shipped `relayed_head`,
-///  so a change to the shipped read, its one byte past the cap or its notice fails this control;
+///  so a change to the shipped read,
+/// its one byte past the cap or its notice fails this control;
 ///  a test that repeated those steps in its own body would pass with the shipped steps removed.
 ///  A file rather than a process,
 ///  because which ending a write of just over the cap gets is the timing of one look against one process:

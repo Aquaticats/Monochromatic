@@ -76,7 +76,8 @@ fn in_directory(directory: &Path, rest: &[&str]) -> Vec<OsString> {
 ///   Every routing control here,
 ///  in `entry_announced_tests.rs` and in `entry_stop_tests.rs`,
 ///  compares planning's answer against this.
-///   Planning appends the no-prompt rule to every command's overlay, with or without a terminal,
+///   Planning appends the no-prompt rule to every command's overlay,
+/// with or without a terminal,
 ///  so this answer carries it too;
 ///  its variables and order are proven in `child_environment_tests.rs`.
 pub(super) fn forward(arguments: Vec<OsString>) -> Action {

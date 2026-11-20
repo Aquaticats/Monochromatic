@@ -217,7 +217,9 @@ fn run_with_captured_stderr(
 }
 
 /// What:
-///  The head of the captured standard error: the whole lines the cap holds, with the credentials of every URL in them
+///  The head of the captured standard error:
+/// the whole lines the cap holds,
+/// with the credentials of every URL in them
 ///  masked,
 ///  and the notice that more was printed than is relayed when there was.
 /// Why:

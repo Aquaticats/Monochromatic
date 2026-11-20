@@ -580,18 +580,26 @@ fn the_awaited_face_of_the_plan_asks_and_answers_as_the_synchronous_face_does() 
 ///  so the configuration answers and nothing about the URL does.
 ///  An empty `url.<base>.insteadOf` value is left out on purpose:
 ///  Git rewrites with it (`git remote get-url --push` shows the replacement prepended to the whole URL),
-///  and git-lfs does not, because its rewrite applies only a matched alias longer than nothing
+///  and git-lfs does not,
+/// because its rewrite applies only a matched alias longer than nothing
 ///  (`lfsapi/endpoint_finder.go:361-378`),
 ///  so the host git-lfs contacts with such a configuration is the unrewritten one.
-///  Measured with git-lfs 3.8.1: `git lfs env` printed `Endpoint=https://alias.invalid/repo.git/info/lfs` for an
-///  empty alias under `https://127.0.0.1:13/`, while `git remote get-url --push` printed
+///  Measured with git-lfs 3.8.1:
+/// `git lfs env` printed `Endpoint=https://alias.invalid/repo.git/info/lfs` for an
+///  empty alias under `https://127.0.0.1:13/`,
+/// while `git remote get-url --push` printed
 ///  `https://127.0.0.1:13/https://alias.invalid/repo.git`.
-///  An empty *base* is the other half of that test, and git-lfs applies it:
-///  the replacement is nothing, so the endpoint is the URL with the alias taken off its front,
+///  An empty *base* is the other half of that test,
+/// and git-lfs applies it:
+///  the replacement is nothing,
+/// so the endpoint is the URL with the alias taken off its front,
 ///  and when that URL carries another URL behind the alias the host git-lfs contacts is the one inside it.
-///  Measured with git-lfs 3.8.1: `lfs.url=https://alias.invalid/https://127.0.0.1:39506/lfs` under an empty base
-///  `https://alias.invalid/` printed `Endpoint=https://127.0.0.1:39506/lfs`, while the alias is dropped by an
-///  emptiness test on the base and the plan would then name `alias.invalid`, a host git-lfs never contacts.
+///  Measured with git-lfs 3.8.1:
+/// `lfs.url=https://alias.invalid/https://127.0.0.1:39506/lfs` under an empty base
+///  `https://alias.invalid/` printed `Endpoint=https://127.0.0.1:39506/lfs`,
+/// while the alias is dropped by an
+///  emptiness test on the base and the plan would then name `alias.invalid`,
+/// a host git-lfs never contacts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
