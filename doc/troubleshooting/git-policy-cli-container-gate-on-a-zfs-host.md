@@ -38,7 +38,8 @@ not installed on this host (`mise ls` prints nothing). Every run below is the ta
   `utf8only=on`, `normalization=formD`, `casesensitivity=sensitive`, `acltype=posix`, `longname=off`
   (`zfs get -H -o property,value ...`). ZFS 2.4.4.
 - `podman info --format '{{.Store.GraphDriverName}} {{.Store.GraphRoot}}'` answers
-  `overlay /home/user/.local/share/containers/storage`, both on that dataset.
+  `overlay /home/user/.local/share/containers/storage`, both on that dataset. That store's own
+  configuration also sets `overlay.mountopt=nodev`.
 - Inside a container the repository tree is a **user-space** overlay: `stat -f --format=%T` prints
   `fuse`, `/proc/self/mountinfo` names the type `fuse.fuse-overlayfs`, and `statfs` gives
   `f_type = 0x65735546` (`FUSE_SUPER_MAGIC`). On the Btrfs host the same tree was a kernel `overlay`.
@@ -514,6 +515,10 @@ The tmpfs answers the four mount facts the way the kernel overlay of the btrfs h
 name that is not UTF-8, records birth times, is `tmpfs` on both of the product's lists, and Git reads it
 as a local working tree. It also gives the copy flow no clone, which is cause E below.
 
+Those four are the facts the btrfs host's kernel overlay gave, so the birth-time, mount-type and monitor
+controls passed in the gate's run on that host: a tmpfs root gives that coverage back rather than
+trading it away, which is why this workaround needed no owner's decision.
+
 The size is a ceiling under the container's 2 GiB memory bound, because tmpfs pages count against that
 bound: a fixture tree that outgrows the ceiling fails with `ENOSPC` on the path being written below the
 fixture root, where a tree that instead exhausted the memory bound would end the run with an
@@ -726,6 +731,11 @@ Two whole suites ran on this host against the branch's tree, each in the gate's 
 ### What these changes do not cover
 
 - The two standing failures (cause H) still fail, and no mount change touches them.
+- The memory bound the gate gives each check also bounds its image build: `buildLimitArguments` with the
+  gate's own limits (`bin/container-limits.ts`, whose implementation lives in the mutation-test package,
+  called at `bin/test-native-container.ts:234`) turns that bound into the build's `--memory`. The image
+  build met that 2 GiB bound during these runs; it predates this fix, which changes neither the bound nor
+  the build, and the run that met it reported it.
 - The cloning arm of cause E was not exercised here: this host has no btrfs and no overlay mount, so
   the runs above printed that the `ioctl` sweep did not run. The list control still requires every
   listed call on a cloning root, and `may_clone` is the product's own answer to which file systems
