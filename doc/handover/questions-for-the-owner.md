@@ -959,20 +959,24 @@ What was measured on this machine (24,313 tracked files, the branch against `mai
 
 The main checkout here usually carries uncommitted files (it holds four now), so adds from it take the dirty path.
 
+What the clone saves on disk, measured by step 3's guest arm on 2026-11-20 (an encrypted test pool, the crate's own
+`src` as the tree, 2,456 files, 34.7 MB, Git's add and the wrapper's add alternated over two rounds, the pool's
+allocation read after a sync): a clean add saved 22,979,072 bytes, about two thirds of the tree.
+
 Options:
 
-- C. Do not take the clone rung on ZFS yet; turn it on when step 3's guest arm has measured the disk it saves
-  (recommended). Both paths behave exactly as `main` does today; the recognition and its tests stay. It postpones a
-  part of the accepted design (the clone rung on ZFS), which is why it is yours to choose.
+- C. Do not take the clone rung on ZFS until the dirty-source checks cost no more than `main`'s, then turn it on
+  (recommended). Both paths behave exactly as `main` does today; the recognition, its tests and the guest arm stay. It
+  postpones a part of the accepted design (the clone rung on ZFS), which is why it is yours to choose.
 - A. Keep the clone rung on ZFS and waive the merge bar for this +0.2 s on a dirty-source add, recorded in
-  `doc/decision/`. Clean adds get faster now; most adds here, from a dirty checkout, get slower by about 1 per cent of a
-  real add (which also copies the ignored files).
+  `doc/decision/`. Clean adds get faster now and save about two thirds of the tree's disk; most adds here, from a dirty
+  checkout, get slower by about 1 per cent of a real add (which also copies the ignored files) and save nothing.
 - B. Run the tracked-file check first and the untracked scan only if it passes: the dirty path about 50 ms cheaper,
   the clean path about 34 ms dearer on every host whose snapshot rung is refused; still short of parity, so the bar is
   still missed.
 - D. Choose the clone rung by a measured size threshold: departs from the ladder's design and rests on a guess.
 
 Ranking: C > A > B > D. C over A because the dirty path is the common one here, so A's cost lands on most adds and
-its gain on few, and C needs no waiver; A over B because B still misses the bar and moves cost onto other hosts; B over
+its saving on few, and C needs no waiver; A over B because B still misses the bar and moves cost onto other hosts; B over
 D because D leaves the design for a guessed threshold. The round's report, with every measurement:
 `~/temp/agent/zfs-step-3-integration-pass-findings-fixed-2026-11-19/keep/report-from-summary.md`.

@@ -40450,8 +40450,24 @@ stated in this entry. What follows from them, as work:
   Neuralwatt, cap 510, wall 330 min) in the step 3 worktree, merging `main` first: the four binary-level controls, the
   two data-key arms, block cloning on and off, the ZFS gate helper, H1 gate 7, and the disk a clean add saves (which
   option C waits for); brief under
-  `~/temp/agent/zfs-step-3-guest-arm-reflink-and-cross-dataset-controls-2026-11-20/`. STEPS 3 AND 4, HOST HALVES,
-  GOING (the plan's "What can start now" lists both;
+  `~/temp/agent/zfs-step-3-guest-arm-reflink-and-cross-dataset-controls-2026-11-20/`. It ended `idle` (314 turns) at
+  `27e2c399b0` (main merged as `97ac41042f`; dates real; that folder's `keep/report-from-summary.md`, patches and logs
+  in its `scratch/kept/`): seven guest controls beside the btrfs ones, each red on a one-hunk patch and green in a fresh
+  guest (8 of 8; `zfs_a_real_mount_answers_with_its_kind` ran with no acknowledgement); the recipe gained `wrapper`,
+  `pool` and `arm`. DISK SAVED: a clean same-dataset add of the crate's `src` (2,456 files, 34,719,432 bytes) saved
+  22,979,072 bytes against Git's checkout (pool `bcloneratio` 3.00x). H1 gate 7: the permitted host mount works; a
+  confined user namespace cannot mount the clone with any flags though the module declares `FS_USERNS_MOUNT`; a late
+  mount is hidden only under private propagation; rung 2 serves the add inside the confined consumer
+  (`kernel.apparmor_restrict_unprivileged_userns` was 1 in the fresh guest, set to 0 for the arms). The plan's premise
+  that a same-key cross-dataset `copy_file_range` shares blocks did not reproduce; ZFS answers `FIEMAP` with no physical
+  extent; both recorded in `doc/troubleshooting/zfs-readings-a-clone-arm-cannot-take.md` on the branch. Gate 9197 of
+  9200 twice: the cause-H pair and `add_standing_notice::every_step_an_add_enters_has_its_own_sentence`, fixed since
+  (`b746ac6bc6`). `de629fb914` does not compile (`65c0392e3d` fixes it); a corrective commit comment is posted. The branch
+  edits `main`'s handover again. The owner question on the dirty path now carries the disk number, and option C is
+  reworded (no clone rung on ZFS until the dirty-source checks cost no more than `main`'s). GOING: the short review's
+  fix round, `pi-zfs-step-3-short-review-findings-after-guest-arm` (DeepSeek on Neuralwatt, cap 400): the portable
+  empty-file control, the README attribution, the lows, and the branch's handover change removed; brief under
+  `~/temp/agent/zfs-step-3-short-review-findings-after-guest-arm-2026-11-20/`. STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
   their VM arms wait for step 2's recipe and their merges for the gate fix), each DeepSeek on Neuralwatt, cap 510,
   from `main` `d6e78c9e8b`: `pi-zfs-step-3-reflink-rung-recognition-host-half`
   (`.claude/worktrees/zfs-step-3-reflink-rung-recognition`, `feat/git-policy-cli-zfs-recognition-in-the-reflink-rung`;
