@@ -43,8 +43,8 @@ which are the design's own counts.
   2026-11-20T18:07:38-05:00,
   the clock reading taken as this session's work began.
   Last updated:
-  2026-11-20T18:16:40-05:00,
-  the report's last content change.
+  2026-11-20T18:17:40-05:00,
+  the write time of this revision.
 - Governing skill:
   [`.agents/skills/choosing-technology/SKILL.md`][skill] at commit
   `45d42d9b23d2f2752f9c512683b45905e13afe99`,
