@@ -40143,7 +40143,31 @@ stated in this entry. What follows from them, as work:
   pass on `9ad03c6335` in the same integration worktree (merges `main` and the tip, runs the crate-release suite on the
   merged tree and on `main` as a control, traces every crate's publish job for the merge push, reruns the merge
   condition's checks, shows two reds); brief under `~/temp/agent/zfs-step-1-integration-pass-after-findings-fixed-2026-11-19/`.
-  On "fit", merge, step 2; the plan's stale status paragraph is the coordinator's to edit after the merge. THE OFFLINE
+  It came back FIT TO MERGE (`keep/review.md` in that folder): the integration tip `dd2dac9005` passes the
+  crate-release suite (127 PASS, `main` control 126, the difference the new crate's own tests), and the merge push
+  publishes nothing: the new crate's detect job says alpha and `goes_to_crates_io=false`, so build, attest,
+  authenticate and publish all skip, and a stand-in `0.1.0` turns them on as the control. All merge checks were rerun
+  in the gate image: 144 of 144, Clippy, `fmt`, `doc`, `cargo package --list`, `file-enforcer write` then `check`
+  clean, the linter with only the Dylint skip, and a 30-second fuzz smoke. Three reds were shown on pre-round copies.
+  Its two medium findings were comment-only: `gate.Containerfile` named the absent task `native:image:build` where
+  `test:git-image` prints the tag, and the fuzz `container.ts` said the build-only run keeps its binaries. Its lows: a
+  stale assertion count, the plan's status paragraph, the crate-release README's crate list, and "four directories"
+  where it is three. The coordinator fixed all of these on the integration branch in `9f42c477a3`, after a check that
+  the Rust change is comment-only. That commit also updated the plan's status paragraph to say step 1 alone is built
+  and that the linter skipped the Dylint rule. The coordinator left the plan's merge line as accepted. MERGED into
+  `main` as `e260ae257b` (2026-11-19, `--no-ff`; `merge-tree` clean; none of the main checkout's uncommitted files
+  touched). Lows left open: no repository file assembles `gate.Containerfile`'s build context (the step 2 brief
+  suggests a committed script); `container.ts` imports the wrapper's `bin/` internals by relative path, and `build` and
+  `smoke` need the network for `ensureTestBase`; the Dylint closure rule has never run here. The author worktree was
+  left by the merge for an ignored generated mise path list (one extra `node_modules/.bin` line) and removed after; the
+  integration worktree went with the merge. STEP 2 GOING: `pi-zfs-step-2-live-requests-and-guest-fixture` (DeepSeek
+  on Neuralwatt, cap 510, wall 14000 s), in `.claude/worktrees/zfs-step-2-live-requests-and-guest-fixture` on
+  `feat/zfs-request-to-openzfs-kernel-device-live-requests-and-guest-fixture` from `e260ae257b`. It builds the live
+  calls, the Ubuntu 24.04 `mvm` libvirt guest recipe (never the `hetzner` backend), the BTF layout comparison test,
+  and the plan's VM items 5, 11 to 14, 17 and 18 through the crate, all in a throwaway guest, with live tests skipped
+  by name on the host. Brief under `~/temp/agent/zfs-step-2-live-requests-and-guest-fixture-2026-11-19/`. The first
+  launch passed the task folder as `--run-folder` and the driver refused it, rightly (the folder held `keep/` and
+  `scratch/`); the relaunch names `run-1`. THE OFFLINE
   `file-enforcer` ROUTE: GOING `pi-git-policy-cli-gate-base-image-browserslist-data` (DeepSeek on Neuralwatt, cap 350)
   in `.claude/worktrees/git-policy-cli-gate-base-image-browserslist-data` on
   `fix/git-policy-cli-gate-base-image-carries-the-pinned-browserslist-data`, stacked on the githooks fix: the base
@@ -40393,8 +40417,26 @@ stated in this entry. What follows from them, as work:
   only, any other hardening against the account that the owner's threat model makes unnecessary):
   `pi-zfs-start-probe-design-owner-answers-applied`, `pi-zfs-runtime-layout-checker-design-owner-answers-applied` and
   `pi-zfs-staging-under-cache-design-owner-answers-applied` (DeepSeek on Neuralwatt, cap 300 each); briefs under
-  `~/temp/agent/zfs-*-design-owner-answers-applied-2026-11-19/`. That answer was
-  first written into
+  `~/temp/agent/zfs-*-design-owner-answers-applied-2026-11-19/`. LAYOUT CHECKER ENDED `idle` (165 turns) at
+  `487a5e3b8f` (five commits; that folder's `keep/report.md`). It records each answer with its option text and drops
+  the "Module release" proof: the version text, `srcversion` and build ID are now identity for the cache and `doctor`,
+  never a rule. It moves the in-house reader to "Not offered" and settles the binding-package placement. It states that
+  a release keeping the layout while changing behaviour now passes the whole gate (owed measurement 17 and source
+  review catch it, no product check). It writes amendment text for proposal line 236 and plan step 6 (the
+  `module release,` line and the open item at 751 to 754, now six lines lower on `main`), not applied. One defective
+  commit message (`b836e58938`) got a corrective commit comment from the run (commitcomment-210957549). START PROBE ENDED
+  `idle` (171 turns) at `3dff37b556` (four commits; report in its folder's `keep/report.md`). Its new section "Answers
+  of 2026-11-19" records all seven answers and deletes the unchosen shapes, which stay in history at `056064ffa1`. The
+  account companion runs as the account in the add preflight before the claim: one child making a user and mount
+  namespace and a tmpfs attach with the four refusal controls. It refuses only that add's managed attach, and skips
+  with a printed line on `EPERM`, `ENOSPC` or `EUSERS`; new measurement `M11` sizes it. `first-attach` is written by
+  the handler that makes the first real attach after boot: an exclusive create, then a rename over it, root `0644`,
+  with no verdict field and nothing gated on it. Plan notes cover steps 4, 6, 7, 8, 10, 18 to 20 and 22, plan not
+  edited. Nothing in either round was measured. GOING: a Sonnet gate review of each before acceptance (briefs under
+  `~/temp/agent/zfs-start-probe-design-owner-answers-gate-review-2026-11-19/` and
+  `~/temp/agent/zfs-runtime-layout-checker-design-owner-answers-gate-review-2026-11-19/`); the staging round still
+  runs. The proposal and plan amendment for the dropped release proof waits for the layout checker's review. That
+  answer was first written into
   `doc/handover/questions-for-the-owner.md`, whose header keeps it to open questions; the owner asked "Do you know what a
   questions file is?", the answer moved here, and the owner said "Fix the bigger mess too.": that file still held about
   thirty answered sections. GOING: `pi-handover-questions-file-holds-open-questions-only` (DeepSeek on Neuralwatt, cap
