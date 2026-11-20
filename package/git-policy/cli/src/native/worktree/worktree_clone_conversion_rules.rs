@@ -27,7 +27,7 @@
 use crate::config_snapshot::ConfigEntry;
 use crate::repo_read_config_text::parse_bool;
 
-///region attribute values and the line-ending action Git makes of them
+//region attribute values and the line-ending action Git makes of them
 
 /// How Git reads the `text` attribute (`git_path_check_crlf`).
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -160,7 +160,7 @@ impl ConversionRules {
             (CrlfAction::Auto, EolAttribute::Crlf) => CrlfAction::AutoCrlf,
             (_, EolAttribute::Lf) => CrlfAction::TextInput,
             (_, EolAttribute::Crlf) => CrlfAction::TextCrlf,
-            (named, EolAttribute::Unspecified) => named,
+            (action, EolAttribute::Unspecified) => action,
         };
         return match text {
             TextAttribute::Unspecified => match self.auto_crlf {
@@ -199,9 +199,9 @@ impl ConversionRules {
     }
 }
 
-///endregion
+//endregion
 
-///region the rules of one path
+//region the rules of one path
 
 /// What Git's attributes say about one path,
 /// reduced to the ones that can change its bytes.
@@ -292,9 +292,9 @@ pub fn needs_blob_size(attributes: &PathAttributes, rules: &ConversionRules) -> 
     return rules.output_ending(rules.action_of(attributes.text, attributes.eol)) == OutputEnding::Lf;
 }
 
-///endregion
+//endregion
 
-///region reading the configuration and Git's answers
+//region reading the configuration and Git's answers
 
 /// What:
 ///  The last value the listing gives `key`,
@@ -402,7 +402,7 @@ pub fn apply_attribute(attributes: &mut PathAttributes, name: &[u8], value: &[u8
     }
 }
 
-///endregion
+//endregion
 
 #[cfg(test)]
 #[path = "worktree_clone_conversion_rules_tests.rs"]

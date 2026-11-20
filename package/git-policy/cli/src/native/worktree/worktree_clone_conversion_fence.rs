@@ -144,10 +144,8 @@ fn first_untracked_attributes(entries: &[StatEntry], root: &Path) -> Option<Stri
         let mut directory: Vec<u8> = Vec::new();
         let mut boundary: usize = 0;
         loop {
-            if looked.insert(directory.clone()) {
-                if let Some(reason) = attributes_file_at(root, directory.as_slice(), &tracked) {
-                    return Some(reason);
-                }
+            if looked.insert(directory.clone()) && let Some(reason) = attributes_file_at(root, directory.as_slice(), &tracked) {
+                return Some(reason);
             }
             let Some(next) = entry.path[boundary..].iter().position(|byte| return *byte == b'/') else { break };
             boundary += next + 1;
