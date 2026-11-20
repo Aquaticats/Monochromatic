@@ -723,7 +723,6 @@ Steps 1 and 4.
 #### What it builds
 
 The gate both binaries run before their first ioctl:
-module release,
 architecture,
 endianness,
 request contract and the kernel/module BTF layout,
@@ -771,9 +770,13 @@ The BTF comparison runs against the guest's `/sys/kernel/btf/zfs`.
 
 Blocked by "The start probe a kernel-release answer asks for" and "The runtime layout checker",
 which are this step's own designs.
-The release,
-architecture,
-endianness and request-contract checks are decided and can be written beside them.
+The architecture,
+endianness and request-contract checks are decided and can be written beside them;
+the module's release string is reported,
+not proved,
+by the project's answer of 2026-11-19,
+"Any version,
+layout decides".
 
 #### Depends on
 
