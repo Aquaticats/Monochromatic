@@ -435,7 +435,7 @@ Each change is listed here with where it sits.
   step 6 "Open items":
   a note of 2026-11-20 follows the section.
   It states that the architecture,
-  endianness and request-contract checks are decided and can be written beside the two designs.
+  endianness and request-contract checks are decided and can be written beside them.
   It states that the module's release string is reported and not proved,
   by the answer of 2026-11-19.
 - `package/zfs/request-to-openzfs-kernel-device/README.md`,
