@@ -654,8 +654,11 @@ that driver is the plan's suggestion.
 #### Open items
 
 None of the design's.
-Adoption needs administrator quiescence and the recorded parent identity,
-both built here;
+Adoption needs the recorded parent identity,
+built here,
+and administrator quiescence,
+which the design makes an operating rule of the `adopt-worktree-parent` mode step 5 wires,
+not a check this step's module makes;
 its end-to-end arm waits for step 5's mode.
 
 #### Depends on
