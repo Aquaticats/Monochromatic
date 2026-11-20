@@ -26,8 +26,10 @@ primitive,
 and item 5's clone under an unloaded key.
 The raw logs live outside
 the repository,
-in the run's own `keep/` folder beside the
-brief that asked for the run;
+in this round's `keep/round-evidence/` folder beside the
+brief that asked for the run,
+which is
+`/home/user/temp/agent/zfs-step-2-integration-pass-findings-fixed-2026-11-19/keep/round-evidence/`;
 this file cites them by name.
 
 This record is the third one this file has held.
@@ -214,8 +216,9 @@ layout zfs_cmd bytes=13744 dmu_objset_stats=288 zinject_record=368 drr_begin=304
 
 This is the same layout the vet read from the host's module BTF on 2026-11-18,
 and the test refuses a release that moved a field.
-The breaking control is in
-`red-half-2026-11-19-review-fixes/`:
+The breaking control is the previous round's,
+in a folder this round's records do not carry
+(`red-half-2026-11-19-review-fixes/`):
 a copy whose expected
 `zc_defer_destroy` offset is eight bytes too high fails this test on the live
 assertion.
@@ -411,8 +414,11 @@ which this fixture carries (`create,mount` local on the clone parent,
 `clone` and `mount,destroy` descendent on the checkout,
 `mount,destroy,userprop` descendent on the clone parent).
 The measurements' item 12 fixture omitted the checkout's two grants;
-the plan's step 2 names the design's set,
-so the fixture follows "Scoped delegation" and not item 12's subset.
+the plan's step 2 names the whole "Scoped delegation" list,
+and its note at the merge records both omissions,
+so the fixture carries the whole list and not item 12's subset:
+the account's snapshot of the checkout is the add route's first write,
+and item 12's subset could not perform it.
 The promoted arms report:
 
 ```text
@@ -454,9 +460,10 @@ MEASUREMENT account clone with-props origin=zfsstep2-account/home/checkout@check
   its two own snapshots and the prepared children.
 
 Logs:
-`recorded-run-2026-11-19-review-fixes/account-suite.log` (8 tests,
+`final-guest-logs/account-suite.log` (9 tests,
 all passing)
-and its `root-suite.log` (194 tests).
+and its `root-suite.log` (198 tests),
+both from this round's single end-to-end run.
 
 ## The reads: cursor, property sources, reply growth
 
@@ -526,7 +533,7 @@ and each new or changed live arm failed while its patch was in place.
 `red-a-guest-logs/`,
 `red-a-root-suite.log` and
 `red-b-guest-logs/` hold the suite logs;
-each patch file sits beside them in the run's `keep/` folder.
+each patch file sits beside them in the same `round-evidence/` folder.
 
 `red-a` root arms (`zfs-step-2-findings-red-roots`,
 kept with `--keep-guest` so its full root log could be pulled):

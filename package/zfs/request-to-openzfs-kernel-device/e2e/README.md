@@ -33,7 +33,9 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- destroy --name my
 
 - `create` makes the guest with `mvm`,
   whose default `libvirt` backend runs it on
-  this machine.
+  this machine,
+  and refuses a name `mvm --backend libvirt list` already reports,
+  so a run never takes over a guest another run holds.
   The `hetzner` backend is never used:
   it rents an outside server.
 - `prepare` checks the guest runs the plan's kernel release,
@@ -64,10 +66,13 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- destroy --name my
   the suite logs back to it.
 - `destroy` destroys the guest and records what `mvm list` holds afterwards.
 - `all` runs those five in order,
-  destroys the guest even when a step fails,
+  destroys the guest its own `create` returned even when a later step fails,
   so a failed run leaves nothing running,
-  and attempts `record` first,
+  and attempts `record` first when its own `create` returned,
   which pulls both suite logs when a run reached both suites;
+  a `create` that threw is never followed by `destroy`,
+  because the guest is then either absent or not this run's to remove,
+  and the run says so instead.
   `--keep-guest` skips the destruction,
   so a failed run's guest can be inspected and its logs pulled by hand.
   `--log-dir <dir>` moves the logs (default

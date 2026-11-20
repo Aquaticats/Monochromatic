@@ -182,9 +182,11 @@ impl<'a> FixturePool<'a> {
     /// (`doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`),
     /// and it never set the
     /// checkout-origin `mount,destroy` the design later decided on.
-    /// The plan's step 2 names
-    /// the design's grants,
-    /// so the fixture carries those and not item 12's subset.
+    /// The plan's step 2 names the whole "Scoped delegation" list,
+    /// and its note at the merge records both omissions,
+    /// so the fixture carries the whole list and not item 12's subset:
+    /// the account's snapshot of the checkout is the add route's first write,
+    /// and a subset without the `snapshot` grant could not perform it.
     pub(crate) fn grant_the_proposed_scope(&self) {
         let account: &str = self.fixture.account.as_str();
         self.fixture.zpool(&["set", "delegation=on", &self.name]);
