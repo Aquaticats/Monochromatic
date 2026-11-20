@@ -2641,8 +2641,8 @@ and every build and test ran in a later step with `--network none`
 and `CARGO_NET_OFFLINE=true`.
 The toolchain is stable 1.100.0,
 installed by `rustup` 1.29.3 in the fetch step.
-The host carries only nightly 1.102.0,
-and neither `rustfmt` nor `clippy` there,
+The host's active rustup toolchain is nightly 1.102.0,
+with neither the `rustfmt` nor the `clippy` component,
 while the crate's CI runs stable,
 so the fetch step brings the toolchain and components the CI path needs.
 
