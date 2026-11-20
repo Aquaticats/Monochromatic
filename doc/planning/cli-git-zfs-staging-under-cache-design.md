@@ -683,10 +683,10 @@ purpose, under these rules:
   `v6.8`, `fs/pnode.c:304` to `:305`), and the commit loop slides whatever already stands at that dentry under the
   copy (`fs/namespace.c:2375` to `:2378`). The clone therefore has copies in the host namespace beside the one at the
   folder, and the receipt and the all-namespace scan see more than one row for it. A rollback from a shared parent
-  refuses `EINVAL` at the
-  source check before any attach, so the move does not happen and the proof never runs; the clone stays staged on the
-  account's mount, the state the rule for a failed destination open or move names. The receipt names the refused
-  step, the errno and the mount IDs it read, and M1's stacked-before-the-propagation-change arm records the scene.
+  refuses `EINVAL` at the source check before any attach, so the move does not happen and the proof never runs; the
+  clone stays staged on the account's mount, the staged state that the rule for a failed destination open or move
+  names, with those copies beside it. The receipt names the refused step, the errno and the mount IDs it read, and
+  M1's stacked-before-the-propagation-change arm records the scene.
 - Where the destination open or the move fails, the clone stays at the folder, staged, and the receipt names the
   failed step, the errno and the mount IDs it read; keeping the clone staged is the state the busy-unmount decision
   allows.
@@ -724,15 +724,16 @@ whatever the account stacked over the folder still covering it; the folder, the 
 folder's handle and identity, the claim and the standing intent are unchanged; and the only mounts at the folder are
 the handler's bind and whatever the account stacked over it. The receipt is the refusal kind A5 describes, naming the
 step that refused ("staging move" or "post-move check"), the outcome "misplaced, rolled back", the errno where a call
-failed, the clone's mount ID and
-its slot, and the ID of the mount that received the move. The removal refuses and removes nothing, because a mount of
-the clone stands in the host namespace, so the accepted "Unmounted" definition fails (A5). The folder, record and
+failed, the clone's mount ID and its slot, and the ID of the mount that received the move. The removal refuses and
+removes nothing, because a mount of the clone stands in the host namespace, so the accepted "Unmounted" definition
+fails (A5). The folder, record and
 claim then wait for the staging sweep M6's first arm defines for an empty bind: the bind is empty once the clone is
 back at its slot, so a later sweep opens the folder from the record's handle, verifies the folder's identity and the
 bind's row, and unbinds the bind when the topmost mount at the folder is the recorded bind. While the account's mount
 covers it, the sweep's pre-call check refuses as it does for any mount it did not make, and reports both. The
-removal's next attempt starts at the slot, where the project's option text put the block. The receipt's wording and
-the settlement that follows are the writer's, marked for the project's veto; the outcome is the option text's.
+removal's next attempt starts at the slot, where the first asking's option text put the block. The receipt's wording
+and the settlement that follows are the writer's, marked for the project's veto; the outcome is that text's, which
+the plain-words asking did not restate.
 
 The checked reattach of "Busy unmount after a staging move" and the guarded `cancel-worktree-removal` end with the
 same staging state and a different receipt. Plan step 9 builds the reattach and plan step 17 the cancel, and each
@@ -786,10 +787,10 @@ What a sweep then finds is not one state but three, and they need different answ
 capability gets `EPERM` from its first `open_by_handle_at` and unmounts nothing. A sweep whose handle gives
 `ESTALE` while no row in its mount table names the folder path treats the folder as gone, which is the pair of tests
 "The staged-folder record" states and not proof that the inode died, so there is nothing at that path for it to
-unmount: what remains is a detached mount that its holders keep alive, and only those
-holders ending frees the dataset (F11, L11). A copy of the bind in another namespace that a process works inside
-refuses the unbind with `EBUSY` (F30), and the host's bind stays. In each of the three the sweep unmounts nothing,
-removes nothing and reports the retained state. What then clears it is the writer's reading, not the second
+unmount: what may remain is a detached mount that its holders keep alive, or a live mount under another name, and
+only those holders ending frees the dataset (F11, L11). A copy of the bind in another namespace that a process works
+inside refuses the unbind with `EBUSY` (F30), and the host's bind stays. In each of the three the sweep unmounts
+nothing, removes nothing and reports the retained state. What then clears it is the writer's reading, not the second
 question's answer, which settled the sweep's route and not who clears a refusal: the administrator, or a later
 removal that binds the folder again. None of this is measured (L12, M6).
 
@@ -1121,9 +1122,10 @@ Set up a clone at a slot, a private bind on a depth-one staging folder, and the 
   parent row, and the rollback's `move_mount` refuses `EINVAL` at the source check, because
   the clone's parent is shared (`fs/namespace.c:3163` to `:3166`); assert the clone stays staged on the account's
   mount, the receipt names the refused step and the errno, and the host's rows by source name the clone more than
-  once, because the attach propagated into the bind's peer group (`fs/pnode.c:304` to `:305`). Record the bind's
-  parent row as it reads after the move, since an attach that propagates slides the mount already at that dentry
-  under the copy (`fs/namespace.c:2375` to `:2378`), and assert the bind's row is still present by its mountpoint and
+  once, because the attach propagated into the peer group of the account's mount (`fs/pnode.c:304` to `:305`).
+  Record the bind's parent row as it reads after the move, since an attach that propagates slides the mount already
+  at that dentry under the copy (`fs/namespace.c:2375` to `:2378`), and assert the bind's row is still present by its
+  mountpoint and
   root. Then assert a reader namespace holding a peer or a slave copy of `user-cache` shows both the account's mount
   and the clone (F22, F31), and nothing is unbound. Control: M1's
   stacked-before-the-move arm in the same run, whose account's mount is private and whose rollback proceeds.
@@ -1398,8 +1400,7 @@ arm, M1's stacking arms, named as M1 names them, "Stacked before the move", "Sta
 propagation change", "Stacked on the clone before the read", "Stacked over the folder and on the clone", "Stacked at
 the slot after the open", "Stacked at the slot before the rollback" and "Stacked before the move, rollback
 refused", and M6's record-place, atomic-write, folder-gone, other-boot and device-across-a-reboot arms. Way B needs
-Way A's handler
-arms plus M7 and M8. Way C needs M1, M2, M3, M5, M6, M4's renamed arm and M7's Way C arm. Way D
+Way A's handler arms plus M7 and M8. Way C needs M1, M2, M3, M5, M6, M4's renamed arm and M7's Way C arm. Way D
 needs M1, M2, M3's propagation arms and its late-mount arm on `~/.cache`, M5, M6 and M7. Way E needs Way A's arms and
 M8's source arm. Way F needs Way A's arms and M4's renamed arm. No live way needs M9, which exists only to record the
 refused way's failure.
@@ -1568,9 +1569,9 @@ to a live mount; `EPERM` from the capability test and `EBADF` from the descripto
 malformed case the record's read rule names: it is read as unrecorded, the handler writes a fresh one before it
 binds, and a sweep that meets one unmounts nothing and reports the folder as unrecorded, because the handler never
 writes a record for a folder it binds without its handle. Only a record that passes both void tests reaches the
-identity comparison,
-where a mismatch refuses. A binding invocation that finds another boot's record standing voids it on the boot id and
-writes its own before it binds, which is what keeps the boot-id proof true for every folder bound in this boot. The
+identity comparison, where a mismatch refuses. A binding invocation that finds another boot's record standing voids
+it on the boot id and writes its own before it binds, which is what keeps the boot-id proof true for every folder
+bound in this boot. The
 cost is stated: a handler unit that drops `CAP_DAC_READ_SEARCH` refuses every staging whose folder already has a
 current-boot record, not only a recovery, and M6's no-capability arm records it. The wrapper reads the record before
 it removes a folder, which is where its mount-namespace check comes from (A1), and `doctor` reads it to print a
@@ -2061,7 +2062,6 @@ the entry says what they add, so the name stays the revision's first commit rath
   `~/temp/agent/zfs-staging-under-cache-design-fourth-revision-narrow-check-findings-fixed-2026-11-19/keep/`, with
   copies of its output for this revision and the planted-fault control, moved there from the scratch folder that run
   used, passes on this revision and fails on a control copy with planted faults.
-
 - `146bc62e42` at `2026-11-19T23:25:49-05:00`: this revision, answering the narrow check of `f2e2f551fe`, which
   found no high finding, one medium and eight lows, and no change to a decision the project made. Every finding was
   accepted and fixed, and none was dismissed. The veto section now says what the project is asked: option (c) of
