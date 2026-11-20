@@ -40240,7 +40240,21 @@ stated in this entry. What follows from them, as work:
   passed, account 9 passed, no `^SKIP live_`; container checks green (nextest 177 passed, 30 live skipped). Record in
   the package's `doc/step-2-merge-checks-2026-11-19.md`. GOING: a Sonnet integration re-check (brief under
   `~/temp/agent/integration-recheck-zfs-step-2-after-its-findings-round-2026-11-19/`), with its own guest run and fuzz
-  smoke. Then the merge.
+  smoke. It ended (Sonnet, about 23 min; that folder's `keep/review.md`): fit to merge now, nothing above low.
+  Container checks green (nextest 177 passed, 30 live skipped); fuzz smoke `Done 3003462 runs in 31 second(s)`; one
+  guest run, 5 min 49 s, root 198 passed, account 9 passed, all 30 live tests `PASS`; two reds of its own (a snapshot
+  that sends only its first name; the checkout's `destroy` grant withdrawn), each failing only its target arm; the
+  grants reading sound. MERGED into `main` as `1ead5ca9fa` (2026-11-20). Nine lows follow it: the plan's step 2
+  sentence still named item 12's fixture (an in-place note added at the merge); `all` destroys a guest after any failed
+  step, even a `create` refused because the name was taken; the undecodable-reply errno fix guarded at the helper, not
+  its call site in `device.rs`; a test constant names `zfs_check_userprops` where the clone path uses
+  `dsl_props_set_check`; stale counts and a stale log folder in `doc/guest-measurements-2026-11-19.md`; the merge-check
+  record's "file-enforcer check clean" not reproducible in a fresh worktree; an unreproduced reason for an aborted red;
+  two style slips. The round's nested evidence moved to that round's `keep/round-evidence/`. The fuzz image the re-check
+  built stays (`localhost/zfs-request-to-openzfs-kernel-device-fuzz:integration-recheck-zfs-step-2-after-its-findings-round-2026-11-19`,
+  5.39 GB) for later smoke runs. The two step 2 integration worktrees are removed; the wrapper left the author worktree
+  `.claude/worktrees/zfs-step-2-live-requests-and-guest-fixture`, because a process of this account hid its working
+  folder, to remove once nothing runs there. Steps 3 and 4's guest arms can now be written on step 2's recipe.
   STEP 4 HOST HALF ENDED `idle` (259 turns, 49 min) at `185902f904` (three commits, 26 files, 4,336 lines added; report
   and logs in `~/temp/agent/zfs-step-4-descriptor-attach-host-half-2026-11-19/keep/`): `src/native/worktree_clone_mount/`
   (the no-crossing walk holding a descriptor per folder, six recorded identity fields with ACLs as raw xattr bytes, the
