@@ -6172,7 +6172,7 @@ the yes/no question for a host key that is not known,
 which is answered "no" from the program that fails and refused (`Host key verification failed.`,
 `confirm` reads it with `read_passphrase` at `sshconnect.c:603-627`
 and an empty answer is not "yes"),
-where the same run with the program answering asked the question;
+where the same command with no such program asked the question at a terminal;
 and the permission questions of a shared connection (`ControlMaster`),
 of a key an agent is asked to confirm,
 and of `AddKeysToAgent=ask`,
