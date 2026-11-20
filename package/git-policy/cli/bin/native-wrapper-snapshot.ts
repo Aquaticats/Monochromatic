@@ -182,7 +182,13 @@ export async function copySnapshotEntries({
     return cp(
       entry.from,
       entry.to,
-      { recursive: true },
+      {
+        recursive: true,
+        // A link copied verbatim keeps its own relative target, so it resolves inside the snapshot it lands in. Node's
+        // default rewrites a link to the absolute path it resolved to on this host, and a `uses/` link then names a
+        // folder the image does not hold (`AGENTS.md`, rule LYD: every source folder carries one).
+        verbatimSymlinks: true,
+      },
     );
   }));
   /**

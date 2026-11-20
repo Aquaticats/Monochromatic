@@ -42,7 +42,8 @@
 
 use crate::add_timing::{begin_step, begin_work, end_step, note, note_work};
 use crate::diagnostic_log::debug;
-use crate::fs_beneath::{create_file_at, entry_metadata_at, make_directory_at, open_directory_at, open_directory_beneath, open_file_at, open_root, plain_components, read_link_at, set_times_at, symlink_at};
+use crate::fs_beneath::{create_file_at, entry_metadata_at, make_directory_at, open_directory_at, open_file_at, open_root, plain_components, read_link_at, set_times_at, symlink_at};
+use crate::fs_beneath_walk_chain::open_directory_beneath;
 use crate::fs_clone_exchange::clone_file;
 use crate::parallel_budget::{HostResources, PARALLEL_BREAK_EVEN_ENTRIES, sliced_workers};
 use crate::side_by_side_on_the_runtime::run_all_side_by_side_on_the_runtime;
