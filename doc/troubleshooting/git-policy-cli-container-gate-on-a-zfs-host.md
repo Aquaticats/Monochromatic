@@ -348,11 +348,12 @@ CLI_GIT_TEST_ROOT=/gate-fixtures`.
   controls exercise the "birth time present, mount on the local list, Git may run a monitor" arms and
   no longer exercise the absent-birth-time and FUSE arms; `lock::lock_birth_times::tests::
   the_hidden_and_coarse_arms_report_what_other_file_systems_do` remains the synthetic control for
-  those arms. One control skips itself by design: `binary_fixture_tests::
-  fixtures_are_created_outside_the_system_temporary_directory` returns early when the variable is set
-  (`src/native/binary/binary_fixture_tests.rs:132`). The worktree-copy ladder then reads `tmpfs`
-  instead of `fuse.fuse-overlayfs`, which is a different "other file system" branch, and the
-  `fault_trace` kill list still names a call the flow does not make (cause E).
+  those arms. In the measured arm two location controls examined nothing about the moved root, because
+  each returned early when the variable was set (`src/native/binary/binary_fixture_tests.rs` and
+  `src/native/testing/test_support_tests.rs`); the branch makes both examine it, and the section "Two
+  location controls checked nothing in the gate" says what each now asserts. The worktree-copy ladder
+  then reads `tmpfs` instead of `fuse.fuse-overlayfs`, which is a different "other file system" branch,
+  and the `fault_trace` kill list still names a call the flow does not make (cause E).
 - The `size=1500m` is a ceiling under the container's 2 GiB memory cap; a run that outgrows it fails
   with `ENOSPC` rather than with a mount cause. No run here came near it (peak growth 250 MB). That
   arm's container peaked at 680 MB with about 250 MB of fixtures in it, which leaves roughly 1618 MB of
@@ -516,18 +517,30 @@ as a local working tree. It also gives the copy flow no clone, which is cause E 
 The size is a ceiling under the container's 2 GiB memory bound, because tmpfs pages count against that
 bound: a fixture tree that outgrows the ceiling fails with `ENOSPC` on the path being written below the
 fixture root, where a tree that instead exhausted the memory bound would end the run with an
-out-of-memory kill. The whole suite's measured run held 994 MiB of process pages at its worst, so the
-bound leaves about 1054 MiB for fixtures; the 768 MiB ceiling is 3.5 times the measured 222 MiB
-fixture peak and 286 MiB below that headroom, so it is the bound a runaway fixture tree meets first.
-That 222 MiB peak comes from a run whose two `package_repair_prewarm_job` controls failed before
-their fixture workspaces built, so their bytes were not in it; those controls hold under 64 MiB of
-fixtures, since all 23 of that module's controls pass in the gate image on a 64 MiB tmpfs.
+out-of-memory kill. The integration pass of 2026-11-19 measured a whole suite on this root in the image
+`localhost/git-policy-native-test:integrate-git-policy-cli-container-gate-on-a-zfs-host`, 211 samples
+taken every few seconds across 780 s, and that record is kept in this package beside the other raw
+measurements
+(`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`, with the figures its reader printed,
+`perf/gate-resource-peaks-2026-11-19-integration-pass-summary.json`, beside it): `memory.peak`
+1123.8 MiB of the 2048 MiB bound, the highest `memory.current` sampled 953.1 MiB, the fixture tmpfs at
+195.1 MiB, and the process pages, a sample's charge minus the fixture bytes in the same sample, at
+868.3 MiB. The bound therefore leaves about 1179.7 MiB for fixtures, and the 768 MiB ceiling is
+411.7 MiB below that headroom and 3.94 times the fixture peak, so it is the bound a runaway fixture
+tree meets first. No sample of that run counted an out-of-memory kill, and its only failures are the
+standing pair of cause H, so every control that builds a fixture workspace built it.
+The earlier whole-suite run, whose sampler record this branch does not keep, peaked at 1192 MiB of the
+bound and 222 MiB of fixture bytes, with 994 MiB of process pages over 235 samples across 740 s; its
+fixture peak came from a run whose two `package_repair_prewarm_job` controls failed before their
+fixture workspaces built, so their bytes were not in it, and those controls hold under 64 MiB of
+fixtures, since all 23 of that module's controls pass in the gate image on a 64 MiB tmpfs. The 768 MiB
+ceiling is 3.5 times that peak and 286 MiB below that headroom too.
 The earlier 1500 MiB ceiling, cited from the fixture peak alone, sat above that headroom: the memory
 bound would have ended a run there before the tmpfs answered `ENOSPC`. The mechanism was checked in
 the gate image: a 64 MiB tmpfs under a 512 MiB bound took the first 64 MiB of a 96 MiB write and
 answered `No space left on device`, its cgroup reporting `oom_kill 0`, while a 128 MiB tmpfs beside it
 took all 96 MiB. A caller's smaller `--memory` bound moves the memory bound back below the ceiling,
-which is the caller's own choice of bound. Both measurements' logs are in
+which is the caller's own choice of bound. The two probes' logs are in
 `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-review-findings-fixed-2026-11-19/scratch/`:
 `prewarm-module-on-a-64m-tmpfs.log` and `tmpfs-size-returns-enospc-probe.log`.
 The gate's manifest now records the root and the mount options beside the image and the limits, so a
@@ -558,6 +571,30 @@ entry; nothing else in the lock changed.
 `crate::test_support::fixture_root()`, which is the root the suite's knob moves, instead of under the
 crate's `target/`. Every other control in that file already used the fixture root through the same
 function.
+
+### Two location controls checked nothing in the gate
+
+`the_fixture_root_is_not_the_system_temporary_directory` (`src/native/testing/test_support_tests.rs`)
+and `fixtures_are_created_outside_the_system_temporary_directory`
+(`src/native/binary/binary_fixture_tests.rs`) each returned early when `CLI_GIT_TEST_ROOT` was set. The
+gate always sets it, so the two controls that keep a fixture tree out of the system temporary directory
+(issue 1809) passed there in single-digit milliseconds, 8 ms and 6 ms with the gate's tmpfs root in the
+gate image, and they passed in the same milliseconds with the root under `/tmp`.
+
+Both now always compare the root they use with `/tmp`, `/var/tmp` and the run's `TMPDIR`
+(`system_temporary_directories`, in `src/native/testing/test_support.rs` and in
+`src/native/binary/binary_support_fixture_directories.rs`), and each still checks the shape of the
+default root when nothing moved: the unit face's root is `test-fixtures/process-<pid>` beside the build
+output, and the binary face's fixtures are under Cargo's per-target scratch directory
+(`CARGO_TARGET_TMPDIR`). In the gate the unit face's root is
+`/work/package/git-policy/cli/target/gate-fixtures/process-<pid>` and the binary face's is
+`/work/package/git-policy/cli/target/gate-fixtures`, so both controls now assert that the fixture tmpfs
+is not a system temporary directory.
+
+Each was shown red on a moved root under `/tmp` and green on the gate's root: in the gate image, with
+`CLI_GIT_TEST_ROOT=/tmp/moved-root`, both failed naming the root below `/tmp/moved-root` and `/tmp` as
+its system temporary directory, and with the gate's own tmpfs root, and with no variable set, both
+passed. That `/tmp` arm passed before the change, which is exactly the gap the two early returns left.
 
 ### Cause E: the `ioctl` entry follows the fixture root's file system
 
@@ -634,10 +671,13 @@ Two whole suites ran on this host against the branch's tree, each in the gate's 
   passing controls' lines among them).
 - The suite container's cgroup peaked at 1192 MiB of its 2 GiB bound and the fixture tmpfs at 222 MiB,
   with no OOM kill, over 235 samples across the first run's 740 s; its process pages, the container's
-  charge minus the fixture bytes in the same sample, peaked at 994 MiB. That is the whole-suite
-  measurement the tmpfs size cites, and the one that showed the 1500 MiB ceiling then shipped to be
-  above the 1054 MiB the bound leaves for fixtures. The second run's sampler ended with its harness and
-  still read the first root's path, so its recorded peak of 992 MiB covers only its first 570 s.
+  charge minus the fixture bytes in the same sample, peaked at 994 MiB. That sampler's record is no
+  longer kept, so those three figures stay here as history; the tmpfs size now cites the integration
+  pass's record (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`), which is 1123.8 MiB of
+  the bound, 195.1 MiB of fixture bytes and 868.3 MiB of process pages over 211 samples. The 1192 MiB
+  measurement is what showed the 1500 MiB ceiling then shipped to sit above the 1054 MiB the bound
+  leaves for fixtures. The second run's sampler ended with its harness and still read the first root's
+  path, so its recorded peak of 992 MiB covers only its first 570 s.
 - The first run's gate took 1136 s including a fresh base image (a `pacman` transaction with network)
   and the layered test image; the second reused that base. The investigation's arm of the 185 tests
   took 41 s against 104 s on the container's own tree; this whole-suite run's 743 s and 775 s are not
