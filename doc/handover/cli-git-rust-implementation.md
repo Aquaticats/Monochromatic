@@ -40317,8 +40317,12 @@ stated in this entry. What follows from them, as work:
   arm (the gate is its only merge condition). Also: `cargo fmt --check` in the gate image fails on 1975 files across
   the whole tree, so no branch can pass it there (an open defect of the gate image or the toolchain, not this branch);
   `native:test:host` cannot run here without `cargo-nextest` on the checkout's `PATH`. The coordinator read on the host:
-  `zfs_bclone_enabled` 1, `feature@block_cloning` active, `zfs_bclone_wait_dirty` 1, under which a clone of data not
-  yet written out waits for the transaction group; the review's sources were freshly written. The wrapper removed the
+  `zfs_bclone_enabled` 1, `feature@block_cloning` active, `zfs_bclone_wait_dirty` 1. OpenZFS `zfs-2.4.4`
+  `module/zfs/zfs_vnops.c:1839` to `:1857` (read; excerpt in
+  `~/temp/agent/openzfs-bclone-wait-dirty-source-check-2026-11-19/keep/`): a block created in the current transaction
+  group makes `dmu_read_l0_bps` answer `EAGAIN`, and with that setting the clone waits for the next group to sync and
+  retries, so a freshly written source waits and a synced one does not. The review's sources were freshly written; how
+  much of its 1.2 s this explains is unmeasured, and the run was steered with these lines. The wrapper removed the
   step 3 worktree when the pass merged the branch (its landed-worktree removal), so it was made again at the same path.
   GOING: `pi-zfs-step-3-integration-pass-findings-fixed` (DeepSeek on Neuralwatt, cap 510): find the cause first
   (control from `main` built the same way, alternating arms, run-to-run spread, the stage split, fresh against synced
