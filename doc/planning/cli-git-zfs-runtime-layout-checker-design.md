@@ -561,11 +561,12 @@ the pick is not made here.
   The gate review's four scripts were re-run against the same three tagged copies and reproduce its
   counts, and the control run is recorded under [The prose checks](#the-prose-checks).
   No product file, no plan step and no proposal step is edited here.
-- `2026-11-19T22:40:00-05:00`, commit `b940ad1489` at 22:31:12, which applies the findings,
+- `2026-11-19T22:43:00-05:00`, commit `b940ad1489` at 22:31:12, which applies the findings,
   `9075aab4bf` at 22:33:00, which names the `main` commit the locators were re-measured at and
   narrows two quote spans, `9f1194e79a` at 22:36:00, which records these commits and the checker's
-  counts, and the commit that carries this entry, which corrects the revision that first recorded
-  the BTF file's time: the revision that answers the third gate re-check, kept at
+  counts, `0fe23040da` at 22:40:00, which names the revision that first recorded the BTF file's
+  time, and the commit that carries this entry, which makes the read order quote the tested module's
+  text as `2.4.4-1`: the revision that answers the third gate re-check, kept at
   `/home/user/temp/agent/zfs-runtime-layout-checker-design-third-revision-gate-recheck-2026-11-19/keep/review.md`.
   That re-check is independent of this file's author (rule `IRW`) and is not an approval; it found no
   high finding, two mediums and nine lows, and called the file not ready for the project.
@@ -1622,8 +1623,8 @@ The retry is what keeps a reload that has already settled from reading as a refu
 second attempt that also sees two different identity reads refuses, and a second attempt that sees
 one module passes.
 `doctor` runs the same identity reads without the device step and prints the version string beside
-its verdict, saying when it is not the tested `2.4.4`; that sentence is the only place the release
-string reaches a reader ([The refusal](#the-refusal)).
+its verdict, saying when it is not the text the tested module reported, `2.4.4-1`; that sentence is
+the only place the release string reaches a reader ([The refusal](#the-refusal)).
 
 ### The bounded pre-scan
 
