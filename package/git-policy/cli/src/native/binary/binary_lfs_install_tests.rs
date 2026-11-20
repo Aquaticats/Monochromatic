@@ -33,7 +33,7 @@ fn recording_stand_in(fixture: &Fixture, record: &Path) {
 ///  and it keeps a caller's own options.
 /// Why:
 ///   A person who runs the first command of every Git LFS setup inside a repository under the wrapper
-///  must be told the truth (where the filters go,
+///  must be told the truth (where this command asks for the filters,
 ///  and that no hook is needed because the wrapper uploads the objects itself)
 ///  and must not be sent to advice that cannot work.
 ///
