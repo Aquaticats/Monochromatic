@@ -519,14 +519,17 @@ fixture root, where a tree that instead exhausted the memory bound would end the
 out-of-memory kill. The whole suite's measured run held 994 MiB of process pages at its worst, so the
 bound leaves about 1054 MiB for fixtures; the 768 MiB ceiling is 3.5 times the measured 222 MiB
 fixture peak and 286 MiB below that headroom, so it is the bound a runaway fixture tree meets first.
+That 222 MiB peak comes from a run whose two `package_repair_prewarm_job` controls failed before
+their fixture workspaces built, so their bytes were not in it; those controls hold under 64 MiB of
+fixtures, since all 23 of that module's controls pass in the gate image on a 64 MiB tmpfs.
 The earlier 1500 MiB ceiling, cited from the fixture peak alone, sat above that headroom: the memory
 bound would have ended a run there before the tmpfs answered `ENOSPC`. The mechanism was checked in
 the gate image: a 64 MiB tmpfs under a 512 MiB bound took the first 64 MiB of a 96 MiB write and
 answered `No space left on device`, its cgroup reporting `oom_kill 0`, while a 128 MiB tmpfs beside it
-took all 96 MiB (`scratch/tmpfs-size-returns-enospc-probe.log` of
-`~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-review-findings-fixed-2026-11-19/`). A
-caller's smaller `--memory` bound moves the memory bound back below the ceiling, which is the caller's
-own choice of bound.
+took all 96 MiB. A caller's smaller `--memory` bound moves the memory bound back below the ceiling,
+which is the caller's own choice of bound. Both measurements' logs are in
+`~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-review-findings-fixed-2026-11-19/scratch/`:
+`prewarm-module-on-a-64m-tmpfs.log` and `tmpfs-size-returns-enospc-probe.log`.
 The gate's manifest now records the root and the mount options beside the image and the limits, so a
 future failure can read where the tests ran.
 
