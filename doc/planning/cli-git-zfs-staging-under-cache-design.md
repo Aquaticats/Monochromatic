@@ -2107,7 +2107,39 @@ the entry says what they add, so the name stays the revision's first commit rath
   `2026-11-19T23:29:39-05:00`. The prose checker kept in
   `~/temp/agent/zfs-staging-under-cache-design-fourth-revision-narrow-check-findings-fixed-2026-11-19/keep/`, with
   its output for this revision and the planted-fault control, passes on this revision and fails on the control, and
-  the citation checker kept beside it finds every one of its checks in `main`'s plan and proposal.
+  the citation checker finds every one of its checks in `main`'s plan and proposal; its output and quote list are
+  kept beside the prose checker, and its script, which lived only in that round's scratch, is kept in the next
+  revision's `keep/`.
+- `19bb36fe11` at `2026-11-20T00:03:37-05:00`: this revision, answering the diff-only gate check of `94bcd5c53e`,
+  which found no high finding, one medium and ten lows, and no change to a decision the project made. Every finding
+  was accepted and fixed, and none was dismissed. The rollback entry's option (c) no longer claims it keeps both
+  accepted halves: where the account stacks a mount at the slot between the open and the move, both of (c)'s clauses
+  pass a clone that landed on that stacked mount, so choosing (c) relaxes the accepted "prove both" there, which
+  amends an accepted sentence. It is therefore marked the project's decision rather than a veto of a writer's
+  addition, and the veto lead names it beside the two entries that already stand apart. The scene-boundary question
+  has no default any more: silence would record a project answer the project never gave, so the question stands open
+  to be answered with the acceptance, and each option gives the behaviour it leaves and the stacking entry's option
+  it coincides with, its (c) being that entry's (b). The no-implicit-remount entry gives option (a) its cost, the
+  default's recorded race reason, and points at the answer in "The private bind". The rollback's end-state paragraph
+  credits the first asking's option text to that asking and its outcome to that text, which the plain-words asking
+  did not restate. The `ESTALE` consequence is what may remain: a detached mount, or a live mount under another name.
+  The propagation rule and its M1 arm name the peer group of the account's mount, and the refused rollback leaves the
+  staged state with its copies beside it. The pin entry is the one place that names the fields every check compares,
+  the dataset's source and the mount root's inode, and says the device is recorded and never compared, being the
+  anonymous minor L14 names, so no mount ID and no device gates a durable key; the ordering paragraph, the `EXDEV`
+  paragraph, the Way A bullets and the hardening entry follow it or point there. L14 says the device-across-a-reboot
+  arm settles the record's field and runs a staging step as well, and the other-boot entry points at L14 beside L13.
+  M6's no-capability binding invocation starts from the state a handler killed between the record's write and its
+  first bind leaves. "Sources read" gains `fs/super.c` and `zfs_vnops_os.c`. Four paragraphs are rewrapped at their
+  phrase boundaries and a stray blank line leaves the revision list. The fifth revision's entry marks the claim this
+  corrects, and its checker sentence says where the citation scripts are kept. The round's commits before this entry
+  are `19bb36fe11` at `2026-11-20T00:03:37-05:00`, `7eaca7debd` at `2026-11-20T00:04:20-05:00` and `78d5da9cfb` at
+  `2026-11-20T00:06:44-05:00`. Its label is the committer timestamp of `78d5da9cfb` at `2026-11-20T00:06:44-05:00`,
+  the last commit that changed this revision's text before this label was written, because a commit cannot name its
+  own hash; this entry was written at `2026-11-20T00:07:35-05:00`. The prose checker and the citation checker are
+  both kept in `~/temp/agent/zfs-staging-under-cache-design-fifth-revision-diff-check-findings-fixed-2026-11-20/keep/`,
+  with their outputs, the citation quote list and the planted-fault control: the prose checker passes on this
+  revision and fails on the control, and the citation checker finds all of its checks in `main`'s plan and proposal.
 
 ## Sources read
 
