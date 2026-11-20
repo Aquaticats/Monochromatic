@@ -40630,7 +40630,12 @@ stated in this entry. What follows from them, as work:
   `pi-snapshot-and-clone-rungs-under-conversion-in-a-btrfs-guest` (DeepSeek on Neuralwatt, cap 400), `main`'s rung 1
   and btrfs rung 2 under the four cases in an `mvm` guest, read-only in the coordinator's detached worktree
   `.claude/worktrees/line-ending-reproduction-main-2df9b1689b` (remove it when this run ends); brief under
-  `~/temp/agent/snapshot-and-clone-rungs-under-conversion-in-a-btrfs-guest-2026-11-20/`.
+  `~/temp/agent/snapshot-and-clone-rungs-under-conversion-in-a-btrfs-guest-2026-11-20/`. Code reading at `main`
+  `2df9b1689b` (comment on issue 6323): `serve_clones` takes no conversion environment; `serve_snapshot` passes one to
+  `take_snapshot` and `restore_dirty`, where the content judge of `worktree_clean_content.rs` hashes entries stat data
+  cannot vouch for and refuses converting attributes, so rung 1's open question is its stat-trusted entries; and
+  `conversion_is_the_identity`, which models every attribute source and converting attribute, has no caller outside its
+  tests. Both runs were told this through their inboxes; the fence is to reuse it.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
