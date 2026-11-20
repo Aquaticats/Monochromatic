@@ -266,15 +266,13 @@ fn device_of_path(path: &Path) -> Option<u64> {
 /// What:
 ///  Whether a kind of filesystem may share data blocks between files at all:
 /// btrfs,
-/// overlayfs and ZFS
-///  do,
-/// and the one filesystem whose clone support is not in the kind at all is XFS,
-/// whose first clone
-///  reveals it.
+/// overlayfs and ZFS may.
 /// Why:
-///   The kind answers for the three filesystems whose domain the ladder reads,
-/// so the answer is a question of
-///  its own and the device test is separate.
+///   Those three are the kinds whose clone domain the ladder proves from the mount table;
+/// XFS is the one
+///  filesystem whose clone support the kind does not hold,
+/// so its first clone answers for it and `may_clone` asks that
+///  separately.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
