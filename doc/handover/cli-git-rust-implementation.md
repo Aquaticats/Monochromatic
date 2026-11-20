@@ -44036,8 +44036,8 @@ reading the limit and `/proc/self/statm` without a heap allocation.
 ### Scratch commit ceiling and the unheld index lock (2026-11-07)
 
 Built on branch `feat/git-policy-cli-signed-ceiling-and-unheld-lock`,
-from two owner answers recorded 2026-11-07T22:19:43-05:00 (the questions file's section then; this entry is its
-record now).
+from two owner answers recorded 2026-11-07T22:19:43-05:00 (the questions file's section then, which left for this
+entry on 2026-11-19; this entry is its record now).
 
 - Ceiling of the scratch repository's `git commit`
   (owner:
