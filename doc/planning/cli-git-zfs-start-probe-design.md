@@ -73,8 +73,9 @@ carried.
   step. The lows: the skip errno set checked against the kernel source (`ENOSPC` since Linux 4.9, `EACCES` from SELinux
   and AppArmor, no `EUSERS`, with each hook's lines read in the v7.3 file), the effective Linux 6.6 floor with its
   amendment note, the dead `.zfs/snapshot` and `atime` facts removed, the ninth exclusion's amendment note, the
-  header's subject, and the answer record cited with a commit line. The three checkers ran on the design and on a
-  broken copy, each failing there and passing here.
+  header's subject, the answer record cited with a commit line, and the two host premises of the source section and
+  of its assumptions checked at setup rather than asserted. The three checkers ran on the design and on a broken
+  copy, each failing there and passing here.
 
 ## Answers of 2026-11-19
 
@@ -499,8 +500,8 @@ Each assumption is stated so a measurement can break it, and the measurement tha
   superblock skips both. The oracle is `FSCONFIG_CMD_CREATE_EXCL`, which answers `EBUSY` instead of attaching when
   any extant superblock matches ([The kernel headers and source](#the-kernel-headers-and-source)), and
   [M1](#m1-which-source-exercises-the-dataset-mount-path) measures it. The probe's source is the dedicated
-  dataset's `ready` snapshot, whose key is the pool root's and which the boot unit already waits for before
-  `ExecStart`, so the refusal itself is a regression arm only, as
+  dataset's `ready` snapshot, whose key comes from the encryption root setup checks and which the boot unit
+  already waits for before `ExecStart`, so the refusal itself is a regression arm only, as
   [M1](#m1-which-source-exercises-the-dataset-mount-path) states.
 - A snapshot attach records no pool history entry and changes no dataset property. This is an inference from the
   kernel's mount path having no history call (`module/os/linux/zfs/zfs_vfsops.c:1911` to `:1964`), and
@@ -552,8 +553,8 @@ Each assumption is stated so a measurement can break it, and the measurement tha
 - The probe reports the flags it asked for and reads them back from `mountinfo`. It does not prove that a later
   account mount is refused the same flags.
 - The key check is regression coverage only in the product: the probe attaches the dedicated dataset's `ready`
-  snapshot, whose key is the pool root's and which the boot unit waits for, so no arm produces the `EACCES`
-  refusal on a healthy boot. Item 5's unloaded-key procedure runs in the VM fixture, not at start
+  snapshot, whose key comes from the encryption root setup checks and which the boot unit waits for, so no arm
+  produces the `EACCES` refusal on a healthy boot. Item 5's unloaded-key procedure runs in the VM fixture, not at start
   ([M1](#m1-which-source-exercises-the-dataset-mount-path)).
 - The probe's verdict is a property of the running kernel and module build. A livepatch, or a container runtime
   with a different namespace setup, can change the answer after the record was written. The ZFS module cannot be
