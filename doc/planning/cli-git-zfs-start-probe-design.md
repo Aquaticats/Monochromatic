@@ -913,9 +913,15 @@ Which process writes it, and when. The handler process that makes the first real
 writes it: `boot-reconcile` or the sweep, whichever attaches first, the sweep being the zedlet's default
 invocation with no argument (the [plan][plan], step 5) rather than a second path. "First" means first to claim the
 file, not first to attach: two handler processes can finish out of order, and the one that claims the name first
-is the one whose outcome is kept. The claim is taken by the first attempt that reaches `fsopen`, and not by an
-attempt the handler's own checks refuse before that call: plan step 8 checks the encryption root and the key before
-any attach, and that refusal is a finding about the key, which `doctor` and the handler's journal already report.
+is the one whose outcome is kept. The claim is taken by the first attempt that passes the key check, and not by an
+attempt that check refuses: plan step 8 checks the encryption root and key state before the attach, and it "reports
+an unavailable key separately from identity or permission failures", so a key refusal is a finding about the key,
+which `doctor` and the handler's journal already report, and not an attach outcome this file keeps. This design chose
+that boundary over taking the claim at `fsopen`, and the reason is the order the handler runs: the slot's identity
+compare is a check of the real slot before the attach, and a slot whose identity has drifted is exactly the
+operation failure this file exists to record, so the claim has to sit behind that check. The plan puts both checks
+before the attach (step 8's key check, and step 4's recorded slot identity that the compare reads), so the key check
+is the only step outside the claim, and every check the claim covers writes `outcome refused` with `errno none`.
 It is that process, not the mode that supervises a probe and not the wrapper. It writes after the attach's outcome
 is known, either the verified mount at the slot or the failing step, and before it publishes this boot's receipt.
 When the writing process is `boot-reconcile`, it also writes before readiness, so a reader that sees the
@@ -945,9 +951,9 @@ Its format. One `key value` line per field, fixed keys and no free text, in the 
 `slot <the slot name>`, `clone <the clone's dataset name>` and `guid <the clone's GUID>`, or
 `outcome refused` with `slot <the slot name>`, `clone <the clone's dataset name>`, `guid <the clone's GUID>`,
 `step <the step>` and `errno <a name or none>`. The steps are the handler's own, in the order it runs them:
-`key-check`, `identity-compare`, `fsopen`, `fsconfig-create`, `fsmount`, `move-mount` and `verify`. A step that is
-one of the handler's checks writes `errno none`, because no call answered, and a step that is a call writes the
-errno name the call gave. A reader refuses a set of lines with an unknown key, a repeated key, a missing required
+`identity-compare`, `fsopen`, `fsconfig-create`, `fsmount`, `move-mount` and `verify`. The key check is not one of
+them, because a refusal there takes no claim and writes nothing. A step that is one of the handler's checks writes
+`errno none`, because no call answered, and a step that is a call writes the errno name the call gave. A reader refuses a set of lines with an unknown key, a repeated key, a missing required
 key or a value it cannot parse, and reports the file as unreadable rather than guessing.
 
 How `doctor` reads it. In the same section as the probe's result, opened by path with `open_regular_file` and
@@ -961,9 +967,10 @@ How it stays an operation outcome. Its own `kind` line says `operation-outcome` 
 consumer gates on it: the add preflight reads the probe's record and the module gate, never this file, and a
 first-attach refusal neither enables nor disables any route. `doctor` prints it under its own label and keeps the
 two questions apart: the probe says whether this kernel and module can attach at all, and this file says what one
-attach did on this boot, so a clone whose key was unloaded, a slot whose identity had drifted or a device that
-failed reads as an operation failure and the probe's arms are unchanged. Where the two differ, `doctor` prints the
-difference as a difference and names both, without calling either a verdict on the other.
+attach did on this boot, so a slot whose identity had drifted or a device that failed reads as an operation failure
+and the probe's arms are unchanged, while a clone whose key was unloaded writes nothing here, because the key check
+refuses before the claim, and `doctor` prints that refusal from the handler's own report instead. Where the two
+differ, `doctor` prints the difference as a difference and names both, without calling either a verdict on the other.
 
 Which plan steps carry the duty. Step 4, "The descriptor attach, its identity checks and its rollback", builds the
 outcome line, the writer and the reader of the host facts the fingerprint holds (kernel release, module version,
@@ -1454,7 +1461,7 @@ which must fail its arm when it is broken: an unloaded-key clone attach must wri
 key check refuses it before any call, and the handler's journal and `doctor` must name the unavailable key instead;
 in a test-only build that skips that check the same fixture must write `outcome refused` with
 `step fsconfig-create` and the `EACCES` item 5 measured, on the same boot as a passing probe arm; a second attach in
-the same boot must write nothing, because its claim answers `EEXIST`; a handler check that refuses after the claim,
+the same boot must write nothing, because its claim answers `EEXIST`; a handler check that refuses inside the claim,
 such as the identity compare, must write `errno none` and pass the reader; and a writer killed after the claim must
 leave the started line, which `doctor` reports as begun and not finished. Compare the file against the probe's arm
 both ways: a passing probe with a refused first attach must leave the probe's record unchanged, and a failing probe
