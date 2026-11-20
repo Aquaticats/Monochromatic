@@ -40801,7 +40801,24 @@ stated in this entry. What follows from them, as work:
   removed). Left, measured and documented: 60 package tasks with a usage spec, an inline body and no shared parser still
   break on `-- --help`, and a task with no usage spec gets every argument pasted; they need their own recovery design.
   GOING: its integration pass on Sonnet (brief under
-  `~/temp/agent/integration-pass-mise-usage-args-reach-the-node-scripts-2026-11-20/`).
+  `~/temp/agent/integration-pass-mise-usage-args-reach-the-node-scripts-2026-11-20/`). THE FENCE'S GATE REVIEW (Sonnet)
+  came back not ready (`~/temp/agent/gate-review-of-the-clone-conversion-fence-on-sonnet-2026-11-20/keep/review.md`): H1
+  the decision is not Git's `convert_attrs` (bare `eol=crlf`/`eol=lf` without `text` and the legacy `crlf` attribute are
+  carried, wrong bytes in four reproductions); H2 "no rule means carry" is false (`core.autocrlf=input` unset after the add,
+  a tracked `.gitattributes` deleted later), catching them needs a size read of every path (about 200 ms); H3 the fixture
+  stripped this repository's `filter=lfs` lines (1,578 LFS files here, which the prototype writes through Git); H4 slower
+  than `main` where files convert (median 1.28) with no decline rule; M1 the spread and step numbers came from the
+  defective r3 run (r4: median 1481 ms, the two Git runs 236 ms); M2 to M6 ranking, unpriced in-process reads, rung 1 at
+  90 files only, no gate at the tip, the L3 control's pattern never matching (`c06b` fixes it), the switch
+  `MONOCHROMATIC_CLONE_FENCE` in production code. On the partial clone: a fenced dirty partial clone would land at about
+  0.97 to 1.08 of `main`, so the waiver's end is not met; the partial clone stays held until the fence's H1 to H4 close.
+  GOING: `pi-clone-rung-conversion-fence-gate-review-findings-fixed` (fresh writer, cap 510; brief under
+  `~/temp/agent/clone-rung-conversion-fence-gate-review-findings-fixed-2026-11-20/`). THE ISSUE 6324 FINDINGS ROUND ended
+  at `5e1c7b7733`: M1 fixed with `AMPLE_SECONDS`, and the wiring low taken further (the two bounds one `LineBound` value
+  read once and passed as one argument, which changes the wait's signature for every caller), mutations B and C red, the
+  reviewer's stall green; no whole gate. GOING: a narrow integration re-check on Sonnet with one whole gate (brief under
+  `~/temp/agent/integration-recheck-git-policy-cli-bounded-wait-after-findings-2026-11-20/`). A buildah folder a run left
+  with mode `d--x------` blocked `rm`; restoring owner permissions removed it.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
