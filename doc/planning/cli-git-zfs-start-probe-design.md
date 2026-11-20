@@ -22,8 +22,10 @@ decision of it. Nothing here authorizes work on this host's pool.
 
 ## Revisions
 
-Each revision is labelled with the commit's own timestamp, read with `git log --format=%cI`, and names the work it
-carried.
+Each revision is labelled with a time that was real when the entry was written, and names the commits the round made
+before it. A label written into a commit cannot name that commit's own time or hash, so the commit carrying an
+entry always comes after its label. The first three entries carry the `%cI` of a commit their round made; the fourth
+and fifth say where their times come from.
 
 - `2026-11-19T18:02:41-05:00` (commit `4167f50724`): the first draft.
 - `2026-11-19T18:40:12-05:00` (`eee32e31fd`): the answer to a gate review of that draft, by the commit that says
@@ -78,18 +80,27 @@ carried.
   host premises of the source section and of its assumptions checked at setup rather than asserted. The three
   checkers ran on the design and on a broken copy, each failing there and passing here.
 
-- `2026-11-19T23:20:00-05:00` (commits `ac8a46addb` and `8bfdcd546e`, the small text, wrap, naming and label
-  commits after them, and this one): the answer to a re-check of the applied answers. Its findings were weighed one
+- `2026-11-19T22:37:46-05:00` (commits `ac8a46addb` at 22:28:26, `8bfdcd546e` at 22:32:59, `0536918c5a` at
+  22:33:58, `85cadbb152` at 22:34:15, `e7326f2bc2` at 22:34:24, `fe5271211e` at 22:34:37, `a7c8686afa` at 22:34:50,
+  `8d9d1cb280` at 22:35:06, `32583a3331` at 22:36:15, `5ea3a66008` at 22:36:52 and `4258b3c3c9` at 22:37:46, all on
+  2026-11-19 and all `-05:00`, and the small text, wrap, naming and label commits after them): the answer to a
+  re-check of the applied answers. Those ten commits carry author and committer dates that were set by hand to
+  `2026-11-19T23:20:00-05:00`, which is not when they were made, so `git log --format=%cI` shows a value that was
+  never the time of the commit; the times this entry states are the worktree's own reflog times for those commits,
+  and a corrective commit comment on GitHub names the same ten. Its findings were weighed one
   by one and every one earned a fix, with none refused.
-  `first-attach` now takes its claim at the first attempt that passes the key check, and that one rule is stated in
+  `first-attach` then took its claim at the first attempt that passes the key check, and that one rule was stated in
   the claim sentence, the step order, the M8 control and the operation-outcome sentence, with the reason for that
-  boundary and the key check the only step outside it. The companion's endings are a closed set, each with its class
-  and print line: a pass, an arm failure, a skip, a deadline expiry, a refused `fork` under the wrapper's retried
+  boundary and the key check the only step outside it. The companion's endings gained a class and print line each: a
+  pass, an arm failure, a skip, a deadline expiry, a refused `fork` under the wrapper's retried
   start, an unusable scratch directory, a refused mountinfo read past the wrapper's own bound, and a death by
-  signal, with `doctor` printing what it cannot prove as `unknown` and saying its run is a fresh one. The skip's
+  signal, with `doctor` printing what it cannot prove as `unknown` and saying its run is a fresh one; that set was
+  not closed, and the fifth revision closes it. The skip's
   boundary moved to the end of the namespace setup, because Ubuntu 24.04's default AppArmor profile, on the guest
-  every measurement runs on, grants the user namespace and denies the capabilities inside it, where the next call
-  answers `EPERM` (`kernel/nsproxy.c:221` to `:223`, `fs/namespace.c:2062` to `:2066`), and the wrapper's own test
+  every measurement runs on, grants the user namespace and denies the capabilities inside it, where its first
+  mapping write answers `EPERM` (a reading of mainline `kernel/user_namespace.c:986` through
+  `kernel/capability.c:450` to `:458` and AppArmor's `apparmor_capable` at `security/apparmor/lsm.c:198` to `:210`;
+  the fifth revision corrects this sentence, which then named `unshare(CLONE_NEWNS)`), and the wrapper's own test
   control already treats a failure anywhere in that setup as unavailable. M11 gained that restricted guest, a
   test-only switch and a test deadline, and M6 says it is a separate arm from plan step 3's H1 gate 7. The lows: the
   companion child's `_exit` on every path, its `close_range` sweep and the reaper for a child `SIGKILL` cannot end,
@@ -102,6 +113,34 @@ carried.
   the questions section; and the deadline's margin sentence. The plan notes were rechecked against main as it stands
   (`59152e567b`), and a fourth amendment, for plan step 22, joins the three. The three checkers ran on the design and
   on a broken copy, each failing there and passing here.
+
+- `2026-11-19T23:20:02-05:00` (commits `467efadbaa`, `98e9d232cf`, `bac8e1227c`, `1f4e5d2d29` and `7b9f0fe62c`, the
+  commits this entry's own text needs after it, and this one): the answer to a narrow gate check of the fourth
+  revision, read on Claude Sonnet from the diff `c134086edd..4258b3c3c9`. This label is the time the entry's text
+  was written, not a commit time, and it names no commit of its own: the commit that carries it, the wrap and label
+  commits after that one, and this entry's own hash all come after it, and none of them can be named here. The
+  check's findings were weighed one by one: every one earned a fix, and one part of a low was dismissed after
+  reading the source. The three mediums: `first-attach`'s claim now covers the descriptor walk and the slot's
+  first-observation record, each with a step name, so no refusal inside the claim reaches the reader unnamed, and
+  M8 gained the nested-mount control that must write `step walk` with `EXDEV`; the companion's endings gained the
+  refused blocking-pool thread, a failed pipe and a child that ends with no status line, the fork now rides the
+  wrapper's budgeted runner and its one-shot claim, and the two sentences that still described the old set now say
+  what `doctor` prints; and the skip is drawn on the refusals that mean this host refuses the user namespace or the
+  capabilities inside it, each errno named with the kernel line that answers it, so a defect in the companion's own
+  setup code is an arm failure, and the veto sentence states which hosts skip. The lows: the Ubuntu `EPERM` is the
+  first mapping write, read from mainline `kernel/user_namespace.c:986`, and M11 records which call it named; the
+  M11 switch is a `CLI_GIT_TEST_ONLY_*` variable compiled into the release executable and inert unless set, per the
+  project's own decision, and M8 and M9 name the same shape; `doctor`'s read-only limits state the one directory the
+  companion makes under `$XDG_RUNTIME_DIR`; the scratch sweep is stated as the wrapper's own test with the
+  parent-death signal bounding the child, the second child carries a signal of its own, a child `SIGKILL` cannot end
+  keeps its directory until the wait returns, and a name from another PID namespace is judged by its record's age;
+  the two plan locators that were main's now name their step and text, and the notes state main's plan as it is now;
+  M6 and a new step 3 note require the user-namespace setting at 0 so neither arm passes for the wrong reason; and
+  the questions section names all three veto-open choices. The plan notes and the four amendments were rechecked
+  against main at `8b1cec7883`, read fresh, and every heading they quote is verbatim there. The one dismissal:
+  `fs/namei.c` `detach_mounts` is at `:5521` in v7.3, so the citation `:5502` to `:5521` stands, and a slot behind a
+  nested mount is a refusal the walk names. The three checkers ran on the design and on a broken copy, each failing
+  there and passing here.
 
 ## Answers of 2026-11-19
 
@@ -1931,7 +1970,10 @@ states.
   `fs/fsopen.c` fetched at v5.2, v5.11, v5.12, v5.15 and v6.0 to v6.7 as well. The round that added the
   parent-death and unmount citations fetched `fs/namespace.c`, `fs/pnode.c`, `kernel/exit.c` and `kernel/sys.c` at
   v7.3 itself. For the account companion, Linux v7.3 `kernel/user_namespace.c` and `kernel/ucount.c` (fetched, for
-  the `ENOSPC` of an exhausted namespace count and the setting that bounds it), `kernel/nsproxy.c` and
+  the `ENOSPC` of an exhausted namespace count, the capability check `map_write` makes before its parse, and the
+  setting that bounds the count), `kernel/capability.c` (fetched, for what `file_ns_capable` asks),
+  `kernel/fork.c` (fetched, for the `EINVAL` a `CLONE_NEWUSER` unshare from a multithreaded caller answers),
+  `kernel/nsproxy.c` and
   `fs/namespace.c` (for the capability the mount namespace's own setup needs), `fs/namei.c` (for `rmdir` of a mount
   point and `detach_mounts`) and `mm/shmem.c` (fetched, for tmpfs's `FS_USERNS_MOUNT` and its fs_context
   operations). For the errno a refused user namespace answers, Linux v7.3
