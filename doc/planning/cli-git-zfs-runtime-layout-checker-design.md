@@ -22,7 +22,7 @@ It decides nothing that belongs to the owner: the choices that are the owner's a
 under [Questions for the owner](#questions-for-the-owner),
 the parts a writer can settle are
 under [What a writer can settle without asking](#what-a-writer-can-settle-without-asking),
-and each rule a writer adopts there stands open to veto,
+and each rule marked there as open to veto,
 with "veto none" as its default.
 Nothing here is implemented, released or approved.
 
@@ -217,13 +217,19 @@ dataset the 2.3.0 read-only path is 2.2.2's.
 The answer, in its words, is "Keep: layout decides", recorded at line 40463 of the main checkout's
 `doc/handover/cli-git-rust-implementation.md` at `cb84b5769f`
 ([Answers of 2026-11-19](#answers-of-2026-11-19)).
-The same paragraph records the three options it offered, in its own words: keep; layout plus
+The answer came before a fact this revision read: `snapdev` and `volmode` are filesystem
+properties whose routing changed at 2.3.0, recorded under
+[the release string](#the-release-string-q2). It does not change the answer, because a user
+property returns at `zfs_prop_set_special`'s user-property check before the `switch` in all three
+releases, and user properties are all the wrapper sends.
+The same list item records the three options it offered, in its own words: keep; layout plus
 refusing a property set aimed at anything but a filesystem dataset; and back to a release list.
 As the handover describes them:
 
 1.  Keep "Any version, layout decides", the answer Q2 already records; the handover's word is
     "keep".
-2.  Layout decides, plus refusing a property set aimed at anything but a filesystem dataset.
+2.  Layout plus refusing a property set aimed at anything but a filesystem dataset, which is the
+    handover's wording; "decides" is this design's word for the keep option.
 3.  Back to a release list, which the handover words "back to a release list"; "of tested
     releases" is the design's reading of it.
 
@@ -374,7 +380,7 @@ untested module release whose layout matches passes the gate: the module-release
 of its own now, and
 [a release that keeps the layout and changes behaviour](#a-release-that-keeps-the-layout-and-changes-behaviour)
 states what such a release does.
-The next line's "The BTF comparison runs against the guest's `/sys/kernel/btf/zfs`" (line 758)
+The sentence at line 758, "The BTF comparison runs against the guest's `/sys/kernel/btf/zfs`",
 waits on a guest whose module carries that file: step 2's recipe makes it exist at `08c9dea25f`,
 unmerged, and [owed measurement](#owed-measurements) item 11 is the design's own fixture's run.
 
@@ -666,8 +672,9 @@ the pick is not made here.
   options quote the handover's words and name where the design expands them; the costs are the
   design's; option 3's cost is the kernel-release analogy; the folder name has its reason and the
   alternative `compatibility_gate`; both absent-identity rules stand open to veto in the read order
-  and in the writer list; the header and the writer list no longer count three rules, and list the
-  cache among those open to veto; the BTF file's time is consistent with a move without a reload;
+  and in the writer list; the header and the writer list no longer count three rules, and the
+  writer list names the cache among those open to veto for the per-process rule alone, with the
+  disk cache left to Q3; the BTF file's time is consistent with a move without a reload;
   and the all-absent case says the cache keeps its verdict while each file's identity holds, so a
   stale pass is possible there and the sentence about needless parses says so.
   Every amendment line was re-measured against `main` at `6c838ba11f`, the commit this revision
@@ -882,6 +889,8 @@ Run in the revision that answered the narrow gate check of the fourth revision, 
   there and not re-run.
 - `gh api` of the corrective commit comment 210970301 on `71829d109c`, which records the same five
   reflog times this file's revision entry gives.
+- `gh api` of `module/zcommon/zfs_prop.c` at `zfs-2.3.0`, for the two `zprop_register_index`
+  lines that make `snapdev` and `volmode` filesystem properties as well as volume properties.
 - `gh api` of `module/zfs/zvol.c` at `zfs-2.2.2` and `zfs-2.3.0`, for `zvol_set_common`'s arrival
   at 2.3.0 in place of the two functions 2.2.2 called.
 - The prose checker described under [The prose checks](#the-prose-checks), on this file and on a
@@ -2686,7 +2695,8 @@ Every measurement stays owed, and no item here touches this host's pool or modul
     refuse at `Header`, and with the byte edit that moves the two members' offsets as item 16's
     patch would, which must refuse at `Member` with both offsets.
     Control: the untruncated pair passes.
-6.  The header variants both pass, in the guest. A module whose BTF an older tool emitted with the
+6.  The 24-byte header passes in the guest, and the 32-byte one device-free. A module whose BTF an
+    older tool emitted with the
     24-byte header, and a module whose BTF reports `hdr_len` 32 (the host's kernel is
     `7.3.5-1-cachyos`, unqualified for the product until step 23), must both parse and compare.
     The 24-byte case's route is item 11's: copy `/sys/kernel/btf/vmlinux` into the guest's kernel
