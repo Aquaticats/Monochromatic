@@ -103,7 +103,8 @@ fn scratch_directory(repo: &Path) -> Option<PathBuf> {
 ///  ("Pool made ahead (Recommended),
 ///  We don't need to build a shadow for every commit.
 ///  Be smarter.",
-///  `doc/handover/questions-for-the-owner.md`),
+///  `package/git-policy/cli/SPEC.md`,
+///  "A shadow taken from the pool"),
 ///  so the release of a commit's scratch tree,
 ///  the sweep the next command runs and the emptiness check above must all leave one alone.
 ///  This is that check at the user boundary:
