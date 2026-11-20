@@ -375,7 +375,7 @@ fn plant_trash(worktree: &Path, name: &str, count: usize) -> crate::worktree_tra
     }
     let root: std::fs::File = crate::fs_beneath::open_root(worktree).expect("the worktree");
     let names: Vec<std::ffi::OsString> = crate::fs_beneath::plain_components(Path::new(crate::worktree_trash::TRASH_PARENT)).expect("plain parent");
-    let parent: std::fs::File = crate::fs_beneath::open_directory_beneath(&root, names.as_slice()).expect("the trash parent");
+    let parent: std::fs::File = crate::fs_beneath_walk_chain::open_directory_beneath(&root, names.as_slice()).expect("the trash parent");
     let trash: std::fs::File = crate::fs_beneath::open_directory_at(&parent, std::ffi::OsStr::new(name)).expect("the trash");
     let mut entries: Vec<crate::fs_beneath::ObjectId> = Vec::with_capacity(count);
     for index in 0..count {
@@ -634,7 +634,7 @@ fn plant_a_big_trash_item(staged: &Stage, worktree: &Path, name: &str, files: us
     }
     let root: std::fs::File = crate::fs_beneath::open_root(worktree).expect("the worktree");
     let names: Vec<std::ffi::OsString> = crate::fs_beneath::plain_components(Path::new(crate::worktree_trash::TRASH_PARENT)).expect("plain parent");
-    let parent: std::fs::File = crate::fs_beneath::open_directory_beneath(&root, names.as_slice()).expect("the trash parent");
+    let parent: std::fs::File = crate::fs_beneath_walk_chain::open_directory_beneath(&root, names.as_slice()).expect("the trash parent");
     let trash: std::fs::File = crate::fs_beneath::open_directory_at(&parent, std::ffi::OsStr::new(name)).expect("the trash");
     let manifest: crate::worktree_trash_manifest::TrashManifest = crate::worktree_trash_manifest::TrashManifest {
         name: String::from(name),

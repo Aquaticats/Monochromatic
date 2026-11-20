@@ -112,14 +112,24 @@ pub(crate) fn lines_that_start_at_login(text: &str) -> Vec<String> {
 
 /// Every file below `root` as a path relative to it,
 /// found with a work stack,
-/// keeping those whose extension is in `extensions`.
+/// keeping those whose extension is in `extensions`,
+/// and never following a link:
+/// a `uses` folder holds one link per source folder its code uses
+/// (`AGENTS.md`,
+/// rule `LYD`),
+/// and following one would read those sources a second time under the link's path.
 fn files_below(root: &Path, extensions: &[&str]) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
     while let Some(directory) = pending.pop() {
         for entry in std::fs::read_dir(&directory).expect("a readable source directory").flatten() {
             let path: PathBuf = entry.path();
-            if path.is_dir() {
+            // The entry's own type, so a link is seen as a link.
+            let kind: std::fs::FileType = entry.file_type().expect("an entry's own type");
+            if kind.is_symlink() {
+                continue;
+            }
+            if kind.is_dir() {
                 pending.push(path);
                 continue;
             }

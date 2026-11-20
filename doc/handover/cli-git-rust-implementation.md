@@ -152,6 +152,66 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### ZFS step 4 host half: the integration pass's findings fixed (2026-11-20T00:58:54-05:00)
+
+Not final and not approved:
+the round that answered the integration pass on
+`feat/git-policy-cli-zfs-descriptor-attach-and-rollback`.
+That pass reviewed `6b2253bfbf`:
+`~/temp/agent/integration-pass-zfs-step-4-host-half-descriptor-attach-2026-11-19/keep/review.md`.
+`main` was merged in at `a5d8346aee`.
+The merge commit compiles:
+`mise run //package/git-policy/cli:native:check` exited 0.
+Commits:
+`e3f4e1802c`,
+`3fbcd1e081`,
+`78ca141075`,
+the merge `2e649ead45`,
+and `14c0a9adf3`.
+
+- The high is fixed in `package/git-policy/cli/Cargo.toml`:
+  the wrapper's `include` list negates `src/**/uses/**` as step 1's crate does.
+  `cargo package --list` no longer packs the tree under the two `uses` links:
+  195 files,
+  2056871 bytes.
+  `source_guard/packaged_uses_links_tests.rs` reads cargo's own list.
+  Removing the negation fails it.
+- The store's lock moved off the store:
+  `slot_identity_store.rs` locks `git-worktree-clone-slot-identities.lock` beside it.
+  The append makes that file root's own with mode 0600.
+  It asks with `LOCK_NB` under `STORE_LOCK_WAIT` (2 s).
+  The section "The recorded identities store" in `SPEC.md` carries the reason a lock stays at all.
+  It also says why per-slot `O_EXCL` record files and atomic rename were not taken:
+  the design's single-file grammar and its one read.
+  A whole-file rename lets two first-recording sweeps meet with last-writer-wins.
+  That can record an identity taken from a folder that changed in between.
+  A plain `O_APPEND` without a lock can interleave two lines.
+  `append_slot_identity_under_root_control` and `record_parent_identity_under_root_control` make the
+  root-control check inside the locked step.
+- The gate image copied each `uses` link as the absolute path Node resolved it to.
+  The links then dangled inside the image and the narrowed `uses` skip refused them:
+  13 source_guard and worktree controls failed on the first gate run of this round.
+  `bin/native-wrapper-snapshot.ts` now passes `verbatimSymlinks`.
+  A unit control copies a link and reads its text back.
+  The second gate run is 9234 tests:
+  9232 passed,
+  2 failed (the two cause-H failures),
+  28 skipped.
+- Lows taken:
+  the adoption refuses a stored slot the caller left without a state;
+  a checkout path that is not canonical is refused rather than resolved;
+  the walk's link and boundary errors name the folder;
+  `no_start_at_login_tests` skips a link as the lock inventory does;
+  a `uses` link whose target is not a folder below the walk's root is refused;
+  the three namespace controls fail unless the run acknowledges the host has none;
+  the retained rollback report reads "It stays exactly as the attach left it";
+  and `SPEC.md` says no command reaches the folder yet.
+- Open:
+  whether a ZFS device number survives a reboot or an export and import is unmeasured here.
+  The guest's boot arm settles it before step 8 depends on it.
+  Step 4's guest arms and the next integration pass are still owed.
+  Nothing of this is merged into `main`.
+
 ### Crate vet down to one survivor, bench reviews all back (2026-11-18T18:25:00-05:00)
 
 Not final and not approved: this session's own account.

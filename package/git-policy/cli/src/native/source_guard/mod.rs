@@ -72,3 +72,10 @@ pub(crate) mod source_scan_tests;
 #[cfg(test)]
 #[path = "no_start_at_login_tests.rs"]
 pub(crate) mod no_start_at_login_tests;
+
+/// The published package holds no copy of the tree under a `uses/` link:
+/// cargo follows each link,
+/// so `Cargo.toml`'s `include` list must negate the links' targets.
+#[cfg(test)]
+#[path = "packaged_uses_links_tests.rs"]
+mod packaged_uses_links_tests;

@@ -24,6 +24,11 @@
 //! holding the handle of each
 //!  directory and naming one component at a time keeps every call on the object that was looked at.
 //!
+//!  The walk down a chain of names and the hop that may end on a mount are in `fs_beneath_walk_chain`,
+//!  the mount ID and the path a held descriptor names now are in `fs_beneath_mount_facts`,
+//!  and both use the open this file owns,
+//!  so one place keeps the resolution bits.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const root = await openRoot('/canonical/path'); // throws when an ancestor is a link
@@ -41,17 +46,17 @@ use std::path::{Component, Path, PathBuf};
 /// no mount point,
 /// bind mounts included,
 /// is crossed.
-const RESOLVE_NO_XDEV: u64 = 0x01;
+pub(super) const RESOLVE_NO_XDEV: u64 = 0x01;
 /// `RESOLVE_NO_MAGICLINKS`:
 /// no `/proc` style link is followed.
-const RESOLVE_NO_MAGICLINKS: u64 = 0x02;
+pub(super) const RESOLVE_NO_MAGICLINKS: u64 = 0x02;
 /// `RESOLVE_NO_SYMLINKS`:
 /// no symbolic link is followed,
 /// the last component included.
-const RESOLVE_NO_SYMLINKS: u64 = 0x04;
+pub(super) const RESOLVE_NO_SYMLINKS: u64 = 0x04;
 /// `RESOLVE_BENEATH`:
 /// the lookup stays below the directory it starts from.
-const RESOLVE_BENEATH: u64 = 0x08;
+pub(super) const RESOLVE_BENEATH: u64 = 0x08;
 
 /// The arguments of `openat2`,
 /// laid out as the kernel's `struct open_how`.
@@ -154,13 +159,19 @@ fn checked(result: libc::c_int) -> std::io::Result<libc::c_int> {
 }
 
 /// `openat2` of one plain name below `dir`,
-/// resolving nothing but the name itself.
+/// resolving nothing but the name itself and refusing a mount point at it.
 fn open_beneath(dir: &File, name: &OsStr, flags: libc::c_int, mode: u32) -> std::io::Result<File> {
+    return open_beneath_by(dir, name, flags, mode, RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_XDEV | RESOLVE_NO_MAGICLINKS);
+}
+
+/// `openat2` of one plain name below `dir`,
+/// with the `resolve` bits passed as they are.
+pub(super) fn open_beneath_by(dir: &File, name: &OsStr, flags: libc::c_int, mode: u32, resolve: u64) -> std::io::Result<File> {
     let c_name = name_of(name)?;
     let how: OpenHow = OpenHow {
         flags: (flags | libc::O_CLOEXEC) as u64,
         mode: u64::from(mode),
-        resolve: RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_XDEV | RESOLVE_NO_MAGICLINKS,
+        resolve,
     };
     // SAFETY: `c_name` is a NUL-terminated string and `how` a live `open_how` of the size passed, both outliving the call;
     // `dir` is an open descriptor.
@@ -220,24 +231,6 @@ pub fn open_directory_at(parent: &File, name: &OsStr) -> std::io::Result<File> {
 /// ```
 pub fn handle_directory_at(parent: &File, name: &OsStr) -> std::io::Result<File> {
     return open_beneath(parent, name, libc::O_PATH | libc::O_DIRECTORY, 0);
-}
-
-/// Open the directory at `names` below `root`,
-/// one component at a time,
-/// refusing a link,
-/// a mount point or a directory on
-///  another device (a subvolume of a btrfs filesystem has its own).
-pub fn open_directory_beneath(root: &File, names: &[OsString]) -> std::io::Result<File> {
-    let device: u64 = device_of(root)?;
-    let mut current: File = root.try_clone()?;
-    for name in names {
-        let next: File = open_directory_at(&current, name.as_os_str())?;
-        if device_of(&next)? != device {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("{} is on another device", name.to_string_lossy())));
-        }
-        current = next;
-    }
-    return Ok(current);
 }
 
 /// The device number of an open file.
