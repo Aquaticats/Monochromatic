@@ -40548,8 +40548,19 @@ stated in this entry. What follows from them, as work:
   own first rank as the option the project turned down; the coordinator reran the search and it holds), two mediums
   (one of the design's two skip residues named; a `mount` with `MS_BIND` call the design never names) and six lows.
   GOING: `pi-zfs-start-probe-decision-record-review-findings-fixed` (DeepSeek on Neuralwatt, cap 160) in the design
-  worktree; brief under `~/temp/agent/zfs-start-probe-decision-record-review-findings-fixed-2026-11-20/`. STEPS 3 AND
-  4, HOST HALVES, GOING (the plan's "What can start now" lists both;
+  worktree; brief under `~/temp/agent/zfs-start-probe-decision-record-review-findings-fixed-2026-11-20/`. It ended
+  `idle` (36 turns) at `ef5ef6b271`, all eight fixed (the coordinator reread the two corrected sections); MERGED into
+  `main` as `3d5c3f28e8` (2026-11-20), its answered section moved out of the questions file and its worktree removed.
+  That removal kept the service journal because it holds `rules-repository`, the commit service's own remembered
+  repository file, which the removal does not know: issue 6322. The layout record's review: not ready, one high (the
+  record discusses a veto of the per-process cache rule as still possible though the project vetoed nothing) and six
+  mediums (two lows restated wrongly, an order to change the accepted body, a plan note where the plan is live work, the
+  Q2 facts misstated, nine linter errors on added lines). The staging record's review: not ready, three mediums (notes
+  missing where the staging work is still called undesigned, two lows unfixed, a corrected statement that reverses what
+  the pin compares) and six lows. GOING: `pi-zfs-runtime-layout-checker-decision-record-review-findings-fixed` and
+  `pi-zfs-staging-under-cache-decision-record-review-findings-fixed` (DeepSeek on Neuralwatt, cap 160), each told that
+  vetoed-nothing means settled and that the plan, as live work, is changed rather than noted; briefs under
+  `~/temp/agent/zfs-<topic>-decision-record-review-findings-fixed-2026-11-20/`. STEPS 3 AND 4, HOST HALVES, GOING (the plan's "What can start now" lists both;
   their VM arms wait for step 2's recipe and their merges for the gate fix), each DeepSeek on Neuralwatt, cap 510,
   from `main` `d6e78c9e8b`: `pi-zfs-step-3-reflink-rung-recognition-host-half`
   (`.claude/worktrees/zfs-step-3-reflink-rung-recognition`, `feat/git-policy-cli-zfs-recognition-in-the-reflink-rung`;
