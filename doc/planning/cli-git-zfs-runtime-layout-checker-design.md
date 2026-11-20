@@ -71,7 +71,7 @@ The pick is still open.
 Finalist validation now lands under [Finalist validation](#finalist-validation),
 and the pick waits for the `doc/audit/` vet report,
 a discovery result that is no longer blocked,
-and the pre-discovery check-in,
+and the check-in of 2026-11-20,
 which [Q1](#q1-which-reader-parses-the-module-btf) lists as the items that condition its answer.
 That section now records this answer and keeps its pick conditional on them.
 
@@ -790,7 +790,7 @@ the pick is not made here.
   and `127e01078c` at 2026-11-20T17:48:18-05:00.
   The commit that carries this sentence names them.
   This is the revision that finishes discovery.
-  It writes the pre-discovery check-in of 2026-11-20,
+  It writes the check-in of 2026-11-20,
   records the three class 3 queries and the class 2 repository and project lists,
   and ends with the skill's saturated terminal result.
   It adds `ebeepf` 0.1.0 as a fourth finalist,
@@ -2205,7 +2205,8 @@ a scored comparison of the finalists, and a sensitivity pass.
 The pick is the owner's, so this section ends with ranked options and no choice.
 
 The skill's report artifact (`doc/audit/tech-...-vet-YYYY-MM-DD.md`) and its
-pre-discovery check-in are not done, because this brief permits edits to this file only and
+check-in before broad discovery are not done,
+because this brief permits edits to this file only and
 allows no questions. Both are owed before adoption; see
 [The vet artifacts this brief could not write](#the-vet-artifacts-this-brief-could-not-write).
 
@@ -2817,7 +2818,7 @@ audit exists in [Candidate ledger](#candidate-ledger).
 
 #### The round of 2026-11-20
 
-This round ran the pre-discovery check-in this record owed,
+This round ran the check-in this record owed,
 the class 3 queries,
 and the class 2 repository and project lists.
 It ran in the worktree `zfs-layout-checker-reader-validation` on 2026-11-20,
@@ -2828,18 +2829,22 @@ page and result count is below.
 Every new name's screening is in
 [Candidate ledger](#candidate-ledger).
 
-#### The pre-discovery check-in of 2026-11-20
+#### The check-in of 2026-11-20
 
-The skill's "Check in before broad discovery" asks one question per vetting process.
+The skill's "Check in before broad discovery" asks one question per vetting process,
+before the first discovery query.
 It states the subject,
 the context forks settled so far,
 the source classes,
 and the draft query schedule.
 It also offers who runs the enumeration:
-this session,
+the earlier sessions' writer,
 a model the user names,
 or the user.
-The question was put to the project on 2026-11-20.
+The question was put to the project on 2026-11-20,
+after the initial and expansion rounds had already run their twelve numbered queries
+([Discovery record](#discovery-record)),
+so its answer covers the queries still to run and not the enumeration as a whole.
 Its subject was the BTF reader Q1 picks.
 Its settled forks were the design's three:
 a library the binding links or a program the gate starts;
@@ -3540,7 +3545,7 @@ The pros and cons of each candidate stand under
 The skill asks for a vet report under `doc/audit/` when an evaluation crosses its threshold.
 That report carries a fingerprint,
 a lock,
-the full evidence records and the pre-discovery check-in.
+the full evidence records and the check-in.
 This brief allowed edits to this file only and allowed no questions,
 so this record stood in place of that report until 2026-11-20,
 and both of the artifacts it owed are now written:
@@ -3561,9 +3566,14 @@ and both of the artifacts it owed are now written:
   an execution manifest for each validated run,
   an evidence record for every gate and score,
   the pros and cons of every finalist,
-  and the recommendation with its limits beside it;
-- the pre-discovery check-in is written under
-  [The pre-discovery check-in of 2026-11-20](#the-pre-discovery-check-in-of-2026-11-20),
+  the maintenance audit and the auditability measurements,
+  and the terminal result with its limits beside it;
+  its second revision refroze the rubric at the skill's weights and added a criterion for
+  auditability,
+  so its scores are 32 points and 27.5 for `btf-rs`,
+  against the 104 and 90 this file records at its own weights;
+- the check-in is written under
+  [The check-in of 2026-11-20](#the-check-in-of-2026-11-20),
   with its subject,
   its settled forks,
   its source classes,
@@ -3575,7 +3585,7 @@ and both of the artifacts it owed are now written:
   since its archive ships none;
   `ebeepf`'s suite ran from its published archive and from its repository;
   and `pahole` and `bpftool` ran through a repeatable harness.
-  The `aarch64` target stays unrun for both libraries;
+  The `aarch64` target builds for both libraries and runs for neither;
 - discovery's terminal result is saturated with at least two survivors
   ([Discovery record](#discovery-record)),
   so the earlier reason a later round could add a candidate is closed:
@@ -3814,8 +3824,7 @@ starts no second program" and answered "No, not required (Recommended)" on 2026-
 So no named hard constraint admits the in-house reader.
 The skill's existing-tools rule keeps it ineligible.
 The eligible order is options 1 to 4.
-`btf-rs` 2.0.1 ranks first among them,
-and the vet report recommends it on the validation the rounds ran as well as on eligibility:
+`btf-rs` 2.0.1 ranks first among them at every weight set this design and its vet report try:
 no hard gate fails on the source evidence read,
 the crate holds the split model and the type kinds the check needs,
 and this proposal's pre-scan closes the residuals it names.
@@ -3823,22 +3832,34 @@ Finalist validation,
 the first item that list held,
 is closed under
 [Finalist validation](#finalist-validation),
-with the `aarch64` target unrun as H3's own limit.
+with the `aarch64` target built and unrun as H3's own limit.
 The vet report the same list named is written:
 [`doc/audit/tech-btf-reader-for-the-zfs-layout-checker-vet-2026-11-20.md`][vet-report],
 with fingerprint `55c2be0183adaa6fbad912f852fb045a915c1593b344aa10095aa71bdec4677f`.
-It recommends `btf-rs` 2.0.1,
-and it states two limits beside that recommendation:
+It recommends none.
+Its refrozen baseline,
+every criterion at weight 1 because this project has stated no priority,
+orders the four finalists
+`btf-rs` 27.5,
+`ebeepf` 24.5,
+`pahole` 18.5 and `bpftool` 17.5 of 32,
+and that order does not survive every single-input test:
+a maintenance weight of 4 ties `ebeepf` with `pahole`,
+and a weight of 5 puts both programs above `ebeepf`.
+So the report's terminal result is the skill's "sensitivity unresolved",
+and what it hands the project is a conditional ranking plus two questions,
+the library-or-program choice and the priority between maintenance and deployment fit.
+The two limits stay beside that result:
 
-- the `aarch64` target has no build or run for either library finalist,
+- the `aarch64` target builds and does not run for either library finalist,
   which is H3's own limit;
 - the start cost of the two libraries is unmeasured,
   so C7 rests on a low-confidence range ([Owed measurements](#owed-measurements)).
 
-Those two are the last of the items that list held,
-and the report keeps them beside its recommendation rather than beneath a conclusion.
+Those two are the last of the items that list held.
 The pick stays the project's:
 nothing here and nothing in that report adopts a reader,
+the report names no reader as its recommendation,
 and the record's own Q1 section is where the project's answer will land.
 
 The scoring's baseline pair also flips or ties on one criterion at a time
@@ -3846,10 +3867,10 @@ The scoring's baseline pair also flips or ties on one criterion at a time
 That section does not cover simultaneous multi-input changes.
 That pair is `btf-rs` against the declined in-house reader.
 The pair the live choice turns on is `btf-rs` against `ebeepf`,
-and it reverses or ties on the same method too,
-which is why the order rests on the maintenance and provenance evidence rather than on the
-arithmetic.
-The choice that remains is a library against a spawned program.
+and at the report's refrozen weights no single input moves it,
+while the pair between `ebeepf` and `pahole` moves on the maintenance weight alone.
+That is what makes the choice between a library and a spawned program a question for the owner
+rather than an arithmetic result.
 
 BTF (BPF Type Format) is the kernel's own description of its struct and enum layouts, published
 as files under `/sys/kernel/btf`. The gate reads the kernel's base file and the ZFS module's file
@@ -3887,8 +3908,11 @@ does not give.
 Scenario: a future kernel writes a BTF file whose member count needs the 24-bit field. With
 option 1, the released masks misread it or this design's pre-scan (the header and section checks
 made before any parser runs) refuses the file, so raw requests stay disabled and the command takes
-the Git fallback until `btf-rs` publishes a release with the wider mask. With options 2 and 3 the
-outcome depends on the installed tool's version, which this file has not checked.
+the Git fallback until `btf-rs` publishes a release with the wider mask.
+With options 3 and 4 the outcome depends on the installed tool's version,
+which this file has not checked,
+and with option 2 it depends on `ebeepf`'s own 16-bit and 5-bit masks,
+which are the same as option 1's.
 
 Options:
 
@@ -3905,9 +3929,13 @@ Options:
     so its suite runs from the repository at tag `v2.0.1`.
     Cost: the shared shape, about 350 to 550 lines of source and 300 to 450 of tests, plus the
     array-size shim and one fuzz target.
-    Why here: it is the only eligible library, since the skill admits a custom implementation only
-    when every existing tool fails a hard constraint, and the owner named no such constraint on
-    2026-11-19; 90 of 104, and a library needs no program the product must find and version.
+    Why here:
+    it leads both libraries and both programs at the report's refrozen weights,
+    27.5 of 32,
+    and a library needs no program the product must find and version.
+    It is one of two eligible libraries;
+    the skill admits a custom implementation only when every existing tool fails a hard constraint,
+    and the owner named no such constraint on 2026-11-19.
 2.  `ebeepf` 0.1.0,
     a second library,
     ranked after option 1.
