@@ -395,73 +395,154 @@ with `sync` and 300 ms between arms,
 and one reference add per round outside the timed window made by
 forcing Git's own checkout:
 
-<<MEASUREMENTS>>
-
-What was run,
-and what it shows:
-a throwaway repository of this repository's 24,313 tracked files on this host's ZFS
-home dataset,
-three arms per round in a rotating order (the prototype,
-the same prototype binary under another name as
-the control,
-step 3 at `74caa69e7a`),
+Measured in this round,
+on this host,
+with rule `QNB`'s spread taken first:
+a throwaway repository of this
+repository's 24,389 tracked files on the ZFS home dataset,
+six arms per round in a rotating order (the prototype's
+per-path fence,
+the same binary with the option C switch,
+the same binary with the option D switch,
+the same binary
+again as the control,
+step 3 at `74caa69e7a`,
+and `main` at `4997e2a4cb`),
 `sync --file-system` and 300 ms between arms,
-one round of warm-up,
-and one
-reference add per round outside the timed window (the same source plus one untracked file,
-so the clean check refuses
-and Git's own checkout writes the worktree).
-The binaries:
-prototype `fe20d722c3` (sha256
-`5598d080d22a4d3e48d4aef7fa700f2359d6e5f67641550b812af02fe48cd95a` before the two debug lines below were added),
-step 3 `74caa69e7a` (sha256 `8077e6f9bc1209d76c6a0b67ef3b8a51a1e5011f48677052079863e1b6e69aaf`),
-both built with
-`cargo build --release --locked --offline --bins` because `mise run //package/git-policy/cli:native:build:release`
-inside the step 3 worktree built the main checkout's package instead (its binary carried main's refusal text;
-see
-"What went wrong in this run").
+one warm-up round,
+and every arm's worktree compared with `main`'s outside the timed window.
+Binaries,
+each tied to its
+commit and kept under `~/temp/agent/clone-rung-conversion-fence-design-and-measurement-2026-11-20/keep/`:
+prototype
+`11fac3f625`,
+step 3 `74caa69e7a`,
+main `4997e2a4cb`.
+Every round's JSON and step split is kept beside this record as
+`measure-r4-*.json` and `measure-r4-*.summary.txt`.
 
 Clean source,
-three counted rounds (the run was cut short at round 4,
-and its JSON was never written):
+six counted rounds (spread first:
+six rounds of one arm on unchanged input,
+median 4939 ms,
+range
+4549 to 15129 ms,
+so the host's own noise reached three times the median before any difference was claimed):
 
-- prototype:
-  1020,
-  844,
-  857 ms,
-  median 857
-- prototype-control (identical binary):
-  839,
-  819,
-  850 ms,
-  median 839
 - step 3:
-  511,
-  652,
-  677 ms,
-  median 652
-- every arm's route was `clones`;
-  every worktree was clean on its first status
-- the fence's own steps in the prototype's records:
-  `git check-attr` and `git ls-tree` present in each round,
-  and
-  `git checkout-index` absent,
-  because this repository's own `* text=auto eol=lf` leaves every path's checkout the
-  blob itself and every recorded size equals its blob's size.
+  1019 ms (982 to 1085)
+- the per-path fence,
+  option A:
+  1501 ms (1324 to 1581);
+  its identical-binary control 1399 ms (1288 to 1603),
+  a
+  control-to-prototype ratio of 0.95 in the median (0.85 to 1.16 per round),
+  so the fence's 1.42 times step 3 is
+  outside the noise
+- `main`'s Git checkout:
+  2057 ms (1971 to 2753)
+- option C,
+  the whole-source refusal:
+  2185 ms (2120 to 2289),
+  which is `main`'s checkout,
+  because that is what a
+  declined add does
+- option D,
+  Git writes every path:
+  4274 ms (4111 to 4737)
 
-So the fence costs about 200 ms on a clean source of this repository's size (857 against 652 ms,
-+31%),
-and the
-control arm differs from the prototype by up to 18% in one round,
-which is the noise floor of three rounds on this host.
-The step split,
-the dirty arm,
-the `crlf` arm and the reference add's own time were not recorded,
-because the run was
-stopped before it wrote its JSON and before it printed its summary.
-Nothing here is a median over enough rounds to
-separate a 20% difference from the host's noise (`AGENTS.md`,
-`NQB`).
+The fence's own steps in the clean arm's record:
+`git check-attr` 41 ms,
+`git ls-tree` 230 ms,
+and no
+`git update-index` or `git checkout-index` at all,
+because this repository's `* text=auto eol=lf` leaves every path's
+checkout the blob itself and every recorded size equals its blob's size.
+The clone itself is 851 ms of the arm.
+
+A source whose attributes convert,
+four counted rounds with `*.md` and `*.ts` under `eol=crlf` added to the fixture's
+own file:
+
+- step 3:
+  1012 ms,
+  and its worktree differs from `main`'s by 7,106,268 lines of `diff`:
+  the defect at this scale
+- option A:
+  2567 ms (2406 to 2622),
+  equal to `main` on every path;
+  control 2553 ms (2415 to 2602),
+  a control-to-
+  prototype ratio of 0.99,
+  so 1.28 times `main` is measured and not noise
+- option D:
+  4170 ms (1.28 to 2.15 per round against `main`)
+
+Dirty source,
+four counted rounds (three modified tracked files,
+two untracked ones):
+every arm took `Git's checkout`,
+the route of the clean check's refusal,
+and every arm's worktree equalled `main`'s on every path.
+The wall times
+(prototype 2501 ms,
+control 2349,
+step 3 4261,
+main 3327) are inside that mode's noise:
+the control-to-prototype ratio
+was 0.90 in the median and one round held a 19.9 s outlier,
+so no difference between builds is claimed there.
+The reason
+is structural:
+a dirty source never reaches either rung,
+so the fence costs nothing on that path.
+
+In the btrfs guest,
+through the recipe of
+`~/temp/agent/snapshot-and-clone-rungs-under-conversion-in-a-btrfs-guest-2026-11-20/keep/` (one `mvm` guest over
+libvirt,
+created and destroyed by this run's own calls,
+two loop-backed btrfs filesystems,
+the image's Git 2.43,
+90
+tracked files per repository):
+
+- the same build with the fence:
+  15 of 15 scenarios equal to Git's own checkout (both rungs,
+  clean and dirty sources,
+  the four conversion classes and the positive controls)
+- the same build without it (`MONOCHROMATIC_CLONE_FENCE=off`):
+  3 of 15 equal,
+  the twelve others different:
+  the four
+  classes on rung 1 with a clean source,
+  on rung 1 with a dirty source,
+  and on rung 2 with a clean source
+- cost,
+  one add per arm per scenario:
+  rung 1's median 61 ms without the fence and 78 ms with it (per-scenario deltas
+  +2,
+  +4,
+  +13,
+  +17,
+  +16,
+  +25,
+  +3,
+  -14,
+  +32 and -8 ms),
+  and rung 2's 41 ms and 58 ms. Single adds on a 90-file
+  repository put these deltas at the size of the run-to-run spread,
+  so they say the fence is cheap there and not how
+  cheap.
+
+What this says about the cost:
+the fence is a third of `main`'s checkout on a clean source of this repository's size,
+and it is the only arm that is right on a source whose attributes convert,
+where step 3 is wrong on 24,389 files.
+Its
+price is the two Git runs over every tracked path (`git check-attr` and `git ls-tree`),
+which is 271 ms of the 482 ms
+it adds over step 3 on the clean arm.
 
 ## How the fence applies to rung 1, the snapshot
 
@@ -498,27 +579,24 @@ from rung 2:
   it:
   the stage is destroyed and Git's own checkout completes the worktree.
 
-This is a design application,
-not a measured one:
-this host has no btrfs and no ZFS snapshot rung (plan steps 10 and
-11),
-so rung 1's fence is written nowhere in the prototype and tested nowhere.
-What the guest's report establishes is
-that rung 1 needs it:
+This is written and measured in the guest:
+with the fence,
+rung 1 equalled Git's own checkout in the four conversion classes with a clean source and with a dirty
+one,
+and the same build without it was different in all eight.
+The first guest run of this round established why it needs one:
 its clean path runs no content judge at all,
-and its dirty path's `restore_dirty` believes every
-stat-exact entry.
+and its dirty path's `restore_dirty` believes every stat-exact entry.
 
 ## The options, with their measured cost
 
-<<OPTIONS>>
-
-Every option below is a way to keep the clone rung (or give it up) while never writing bytes Git would not;
-each is
-judged by the fence's measured cost above and by what it does to a dirty source,
-which this host's main checkout usually
-is (`AGENTS.md`,
-`NQH`).
+Every option below is a way to keep the clone rung (or give it up) while never writing bytes Git would not.
+Each cost
+is measured on this round's fixture,
+24,389 tracked files,
+as the median of the counted rounds named above;
+`main` is
+2057 ms on the clean source and 2018 ms on the converting one.
 
 **A.
 The per-path fence before the clone,
@@ -527,151 +605,126 @@ One `git check-attr` over every tracked path,
 one
 `git ls-tree` when a size can decide,
 the decision in process,
-and one `git checkout-index` for the paths left to Git.
-Measured cost:
-about 200 ms on a clean source of 24,313 files (+31% over step 3),
-and every class it flags is written by
-Git.
+then one `git update-index` and one `git checkout-index`
+for the paths left to Git.
+Costs:
+1501 ms on the clean source (1.42 times step 3,
+0.70 of `main`) and 2567 ms on the
+converting one (1.28 times `main`),
+and it is the only arm that was right on both.
 Pros:
 nothing is refused,
-so a clean source keeps its clone's disk saving and its time;
-the proof is Git's own
-rules,
-and an unknown state is a path for Git,
-never a guess.
+so a clean
+source keeps its clone's disk saving;
+the decision is Git's own rules,
+and an unknown state is a path for Git rather
+than a guess;
+measured to be the cheapest arm that is right (`decline` is 2185 ms on the clean source,
+`all` 4274 ms).
 Cons:
-it costs a Git run on every clean add even where no
-attribute exists,
-it reads the whole index and every path,
-and its write step is not yet proven (below).
+two Git runs over every tracked path cost 271 ms of its 482 ms over step 3,
+which grows with the path count;
+and
+its write step can only be as good as the entries it zeroes,
+which is why the guest had to be run.
 
 **B.
 The same fence beside the clone.**
-The two Git reads and the decision start before the tree difference and run
-concurrently with the clone,
-since the clone is a blocking-pool job and the reads are child processes;
-the add would pay
-the larger of the two instead of their sum.
-Its cost is not measured:
-from the measurement above the fence is about
-200 ms and the clone of this repository's files is most of step 3's 652 ms,
-so the saving would be up to about 200 ms,
-computed from measured steps and not measured as a whole.
-Pros:
-the cheapest of the per-path options.
-Cons:
-one more
-concurrent job inside an add,
-and the fence must finish before the index is installed,
-which keeps a wait on the add's
-path anyway;
-where the clone is short (a small repository) the fence is the whole cost.
+Not built in this round,
+and the reason is measured:
+the fence's own cost is
+271 ms of Git runs plus 55 ms of decision work,
+against a clone of 851 ms on this fixture,
+so overlapping the two would
+save at most the smaller of them and needs the clone,
+the fence and the index install to be reordered around a
+concurrency the add does not have today.
+Its saving is therefore bounded by about 250 ms here,
+less than the 482 ms A
+adds over step 3,
+and it would not change the ranking.
+The option stays open for a repository whose clone is much longer
+than its fence.
 
 **C.
 A whole-source refusal,
 no per-path fence.**
-Decline the clone rung whenever any conversion source could apply:
-a
-tracked `.gitattributes` anywhere in the tree,
-`info/attributes`,
-`core.attributesFile`,
-a global or system file,
-`core.autocrlf` that is not false,
-or a `filter.` setting.
-Cost:
-no Git run at all,
-one in-process read of the
-configuration and a few small files.
-But this repository has `* text=auto eol=lf` as its first attribute line,
-so every
-clean add here would fall to Git's checkout:
-the cost is the difference between step 3's 652 ms and Git's own checkout of
-the same tree,
-which this run did not time (the reference add is outside the window and unrecorded).
+Measured at 2185 ms on the clean source,
+which is `main`'s checkout,
+because a declined add is Git's checkout:
+it gives up the clone rung for every source with a conversion setting or an
+attributes file,
+and this repository's first attribute line is one.
 Pros:
-trivial to
-prove,
-no new Git run,
-no per-path work.
+no Git run,
+0.3 ms of configuration reading,
+nothing to model.
 Cons:
-gives up the clone rung for the repository it is written in,
-which is the
-disk and time saving the ladder exists for.
+1.07 times `main` and 1.46 times A on the clean source,
+where step 3 is 0.49 of `main`:
+the
+cheapest correct answer only for a repository without conversion rules.
 
 **D.
 Git writes every tracked path after the clone.**
-No attribute read at all:
-clone (or not) and then let Git write
-every path,
-as the `crlf` arm of the fence would.
-Cost:
-one `git checkout-index` over every path with the conversion,
-which is Git's checkout plus the clone that was wasted;
-on this host that is at least Git's own checkout,
-so the rung
-would be slower than rung 3 and save disk only.
+Measured at 4274 ms on the clean source (2.07 times `main`) and
+4170 ms on the converting one:
+the clone is wasted work and the checkout is not.
 Pros:
 no attribute model,
-no untracked-attribute rule,
-nothing to get
-wrong.
+no untracked
+-attribute rule.
 Cons:
-it is the clone rung without its time benefit,
-and a source with no conversions pays it too.
+twice `main`,
+so the rung keeps only its disk saving;
+A is 2.8 times faster.
 
 **E.
 Keep step 3 as it is and accept the wrong bytes.**
+Measured wrong:
+7,106,268 lines of `diff` against `main` on the
+converting source.
 Rejected:
 `main` on ZFS gets these bytes right,
-so this fails
-the merge bar with no waiver that covers it,
-and `SPEC.md:1223` promises the snapshot's worktree is what Git's checkout
-makes.
+so this fails the merge bar with no waiver that
+covers it,
+and `SPEC.md:1223` promises the snapshot's worktree is what Git's checkout makes.
 
 Ranking:
 **A best,
-B next,
 C next,
+B next,
 D next,
 E last.**
 
-- A over B:
-  A is measured end to end,
-  its steps are separate entries in the add's record,
-  and it needs no concurrency
-  inside an add;
-  B's saving is computed,
-  not measured,
-  and its shape puts a second job on the add's path.
-  The ranking
-  flips only if a later measurement shows the fence's ~200 ms is the difference between the clone rung and Git's
-  checkout on the smallest trees the ladder serves.
-- B over C:
-  B keeps the clone rung for this repository and pays ~200 ms;
-  C gives the rung up on every clean add here,
-  which costs the whole difference between the clone and Git's checkout,
-  measured for the rung but not for the
-  reference.
-- C over D:
-  both give up the rung on conversion-bearing sources,
-  but C gives it up only where a conversion could apply,
-  so a repository with no attributes keeps its clones;
-  D never keeps the time benefit.
+- A over C:
+  A is 1501 ms against C's 2185 ms on the clean source and the only one of the two that keeps the clone rung
+  where a conversion rule exists;
+  both are right.
+  The 482 ms A adds over step 3 is the price of keeping the rung here.
+- C over B:
+  C is measured and needs no new concurrency;
+  B's saving is bounded by about 250 ms,
+  which would put it near
+  C's cost on this fixture while adding a reordering of the add's steps,
+  so it is worth building only for a repository
+  whose clone is much longer than 851 ms.
+- B over D:
+  B keeps the clone's disk saving on a conversion-bearing source and D throws it away,
+  at 4170 ms against at
+  most 2325 ms for B on the converting source.
 - D over E:
   D is at least right,
   and E is wrong on `main`'s own behaviour.
 
-The prototype's write step is the one thing that must be fixed before A can be recommended:
-measured by hand,
-`git checkout-index --prefix=<destination>/ --force -z --stdin` writes the converted bytes over a file whose stat data
-matches its index entry,
-and inside the add the same run exits 0 and writes nothing,
-so the fence flags the right paths
-and the worktree keeps the clone's bytes.
-The control that compares the two worktrees catches this (the four conversion
-controls stay red under the prototype),
-which is the controls doing their job.
-
+Two things must happen before A can be recommended to the project:
+the fence's two Git runs have to be replaced by the
+in-process reads the clean check already has (`worktree_attributes.rs` and the object database),
+which removes the 271 ms
+that grows with the path count,
+and the guest's evidence has to be repeated with counted rounds rather than one add per
+scenario.
+Neither is done here.
 ## Where the design and `SPEC.md` change
 
 ### `package/git-policy/cli/SPEC.md`, rung 2
@@ -777,63 +830,88 @@ the wrong bytes are a merge bar failure it does
 not cover,
 which is why this proposal exists.
 
-## What went wrong in this run, and what that means for the numbers
+## What this round closed, and what went wrong in it
 
-Three things are stated so the records can be read without trusting them further than they go.
+Closed:
+the write step,
+twice.
+`git checkout-index --force` in place writes a path only when its entry's stat data no
+longer matches the file (`entry.c`,
+`checkout_entry_ca`,
+`if (!changed) return 0;`),
+and neither rung can promise that:
+the clone rung installs the source's index over a copy,
+and a btrfs snapshot keeps the source's inode and times,
+so the
+copied file *is* the file the source's index recorded (measured in the guest:
+the write ran and the stage kept the
+source's bytes).
+`write_through_git` now zeroes exactly the fenced entries with one `git update-index -z --index-info`
+and then lets Git write them,
+which is the state `read-tree` leaves an entry in.
+The guest's fifteen scenarios then came
+out equal,
+and the host's eight class controls with them.
 
-- The step 3 binary built by `mise run //package/git-policy/cli:native:build:release` inside
-  `.claude/worktrees/clone-rung-conversion-fence-step3` was the main checkout's package:
-  it refused the clone rung on
-  ZFS with main's words ("the filesystem does not share data blocks between files"),
-  which step 3 does not say.
-  The
-  measurement's step 3 arm is therefore the binary this run built with `cargo build --release --locked --offline
-  --bins` in that worktree,
-  tied to `74caa69e7a`;
-  the first attempt's numbers were thrown away,
-  not reported.
-- The prototype's `git checkout-index` write does not take effect inside the add (the section above).
-  The four
-  conversion controls stay red with the fence running,
-  so the prototype today proves the decision and the reads,
-  not the
-  bytes.
-- The timing run was stopped after four rounds by the coordinator's own timeout,
-  so its JSON and its summary were never
-  written;
-  the three counted rounds above are read from its console lines.
+Also closed:
+the size proof.
+`git ls-tree -r -l` right-aligns its size column,
+so splitting it on single spaces found no
+size at all and gave every path of the line-ending class to Git:
+a clean add of this repository spent 3012 ms of its
+4668 ms in `git checkout-index` rewriting a tree whose bytes were already right,
+and the first clean measurement of this
+round measured that.
+The split is on runs of spaces now,
+and the clean arm's fence steps are `git check-attr` 41 ms and
+`git ls-tree` 230 ms with no write at all.
 
-Nothing in this run was measured for rung 1,
-for a dirty source,
-for the `crlf` arm,
-or in the container gate,
-and
-`cargo nextest` is not installed on this host,
-so the unit controls of the two new modules have not been run either.
+What went wrong and is recorded so the numbers are not read for more than they say:
+
+- The first clean measurement of this round (`measure-r3-*`) was taken with that defect,
+  and its prototype arm (4668 ms)
+  is reported here only as the defect's cost,
+  never as option A's.
+- The gate image's full run at `39e12fdbc3`-era code failed three tests:
+  the standing notice's
+  `every_step_an_add_enters_has_its_own_sentence`,
+  which the two new steps caused and which `6a87d8bafe` fixes,
+  and two
+  commit and service tests (`repository_naming_commit::...`,
+  `service_no_manager::...`) whose failures name the host,
+  not this change.
+  All eighteen unit controls of the two new modules passed there.
+  The full gate was **not** re-run at
+  the final commit:
+  its vendored dependency snapshot lives in the gate image,
+  and running nextest in the image against
+  the worktree mounted as it is cannot resolve crates offline.
+- The guest's cost numbers are one add per arm per scenario,
+  so they are a size,
+  not a median.
 
 ## What this proposal does not do
 
-- It does not run rung 1's fence,
-  and it does not measure rung 1's cost on btrfs or ZFS.
-  The guest recipe
-  (`~/temp/agent/snapshot-and-clone-rungs-under-conversion-in-a-btrfs-guest-2026-11-20/keep/run-guest.ts`) is the way,
-  and a fence built with this module needs no change to it beyond the hook.
-- It does not measure the fence beside the clone (option B below):
-  the saving is computed from measured steps,
-  not
-  measured as a whole.
-- It does not measure a repository whose `.gitattributes` sends most paths to Git through `ident`,
-  an encoding or a
-  filter;
-  the `crlf` mode measures the case where *every* text path is written by Git,
-  which is the worst case.
-- It does not make the content judge read stat-exact entries.
-  That is a different fix (a per-entry conversion refusal
-  in the clean check),
-  and it would cost a file read per path,
-  which the fence avoids.
+- It does not measure option B:
+  it is not built,
+  and the reason and the bound are in the options.
+- It does not run the class controls in the gate image.
+  The controls are gated on a clone-capable filesystem (`ZFS` or
+  `btrfs`) and the gate image's fixture root is a tmpfs,
+  so there they print "CONTROL NOT RUN";
+  the host has ZFS but no
+  `cargo nextest`.
+  They ran on the host through this round's own harness,
+  against the built binaries,
+  and in the guest.
+- It does not repeat the guest's adds:
+  one per arm per scenario.
+- It does not make the fence cheaper.
+  Replacing the two Git runs with the in-process attribute and object reads the
+  clean check already has is the next step,
+  and the 271 ms they cost here is why.
 - It does not measure XFS or overlayfs,
   the other two filesystems `main` serves with rung 2.
-  The fence's decision does
-  not read the filesystem.
+  The decision does not read
+  the filesystem.
 - It does not touch `doc/handover/`.
