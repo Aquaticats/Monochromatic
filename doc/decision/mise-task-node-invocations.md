@@ -185,8 +185,21 @@ Reopen if any of these change:
 
 This decision's empirical finding that "A `usage` spec instead consumes the args into
 `usage_*` env vars and they do not append" holds only while mise runs its usage parser,
-which it skips for `-h`/`--help` after `--`. That case appends the words to the end of the
-inline script, inside the TypeScript, which is the failure of issue 6326 and is explained
+which it skips for `-h`/`--help` after `--`.
+ That case appends the words to the end of the
+inline script,
+ inside the TypeScript,
+ which is the failure of issue 6326 and is explained
 in `doc/troubleshooting/mise-inline-task-arguments-land-in-the-script.md`.
-`vars.parse_usage_args` now recovers those words from the marker comment that ends each
-root task body, and `root-task-shared-shapes.unit.test.ts` holds every body to it.
+`vars.parse_usage_args` now recovers those words from the marker comment that ends each task body,
+in the root file and in the 16 package task files that interpolate it,
+ and
+`root-task-shared-shapes.unit.test.ts` holds every root and package parser body to it.
+ Package task
+files reach the root `[vars]` entries they already interpolate (`vars.dispatch_workspace_node`),
+ so
+the marker and parser stay declared once.
+ The package tasks that declare a `usage` spec with an
+inline `node -e` body and read no shared parser are still affected;
+ the troubleshooting doc counts
+them.
