@@ -28,6 +28,18 @@ carried.
 - `2026-11-19T19:27:20-05:00` (`45aca9ab4a`): the answer to a first gate re-check.
 - `2026-11-19T19:33:27-05:00` (`370c6cb9e2`): the start-probe arms, the txg window and the owner questions
   tightened.
+- `2026-11-19T20:26:05-05:00` (`10f2435d34` and this entry's commit): the answer to a second gate re-check. Its
+  findings were weighed one by one, and every one earned a fix, with none refused: the duplication in the source
+  question,
+  which listed one option twice; the start question, which was a confirmation with one option and moved to the
+  writer's list; the move and unmount arm, which could not unmount while the worker held references on the mount;
+  the holder protocol, now stating every pipe and its endpoints, the parent-death race and the process-group call;
+  the txg window, which now carries a start fence, an end fence and an idle control; and `ExecStartPre=-`, which
+  keeps a probe crash from skipping the reconcile. Also fixed: the marked options and the costs charged to one
+  way, the sanoid facts the source question left out, the fold-in that cost nothing, the scope of the "never opens
+  `/dev/zfs`" statement, the Way 5 layout facts, the teardown arm's own unmount, two option sentences, the
+  control-directory path, the unnamed handler modes and the prose the checkers do not count. The measurements this
+  round added are under [Owed measurements](#owed-measurements).
 
 ## The open item, the answer, and what bounds them
 
