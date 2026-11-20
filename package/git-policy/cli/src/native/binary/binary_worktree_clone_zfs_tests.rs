@@ -321,7 +321,7 @@ fn big_file_bytes(fixture: &Fixture) -> u64 {
 ///  says nothing about the copy;
 /// the clone is made by the same `FICLONE` the ladder uses.
 /// The count is physical:
- `bcloneused` is the space the cloned blocks take after compression,
+/// `bcloneused` is the space the cloned blocks take after compression,
 /// so a compressed file is
 ///  counted as fewer bytes than it holds and only a count above none is asserted.
 ///

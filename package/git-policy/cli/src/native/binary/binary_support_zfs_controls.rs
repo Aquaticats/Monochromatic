@@ -18,7 +18,7 @@
 //!  run.
 //! The guest recipe of `package/zfs/request-to-openzfs-kernel-device`
 //! (`e2e/README.md`,
- the step 3 arm) is the one place that sets the variables
+//!  the step 3 arm) is the one place that sets the variables
 //!  below,
 //! and it runs the arms one at a time,
 //! because the pool's block-clone counters count the whole pool.
@@ -51,7 +51,7 @@ pub const ZFS_ABSENT_ACKNOWLEDGED_VARIABLE: &str = "CLI_GIT_ZFS_ABSENT_ACKNOWLED
 
 /// The directory of the OpenZFS 2.4.4 userspace the guest builds:
 /// `zfs` and `zpool`,
- which make the datasets,
+///  which make the datasets,
 /// the mounted clone and the counter readings.
 pub const TOOL_DIRECTORY_VARIABLE: &str = "CLI_GIT_ZFS_TOOL_DIRECTORY";
 
