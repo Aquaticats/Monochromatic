@@ -14,11 +14,13 @@ the ways it refused,
 its limits,
 and the measurements it still owes.
 Those stay there.
-This record copies none of them.
+This record restates only what the corrections need;
+the evidence itself stays in the design.
 The acceptance changed no line of the design's body.
 One note at its top gives the acceptance date and names this record.
 The answers of 2026-11-19 live in the design's own "Answers of 2026-11-19" section.
-Each is quoted again below with the choice it settled.
+Each is quoted again in its own section of this record,
+with the choice it settled.
 
 This record is an agent's writing of the project's decision.
 It is unapproved and non-final (rule `SGO`).
@@ -75,7 +77,7 @@ the project accepted this:
   for the reasons under [the reader question](#the-reader-question-q1-no-not-required).
 
 The four choices the design marked open to veto stand unvetoed.
-Each is restated in its own section below.
+Each is restated in its own section of this record.
 The disk-cache question stays held.
 
 ## The answer of 2026-11-20: accept as written
@@ -88,8 +90,7 @@ the folder name `compatibility_check`;
 `doctor` flagging any module version text other than the tested `2.4.4-1` exactly;
 carrying on with a weaker reload check when the module's identity files are missing;
 and remembering the verdict per process.
-So the design's writer-settled rules become the project's as the design states them,
-each with "veto none" as its default.
+So the design's writer-settled rules become the project's as the design states them.
 Nothing in the four is left for a writer to decide again.
 The next four sections state each choice with its reason,
 its alternative and its cost.
@@ -160,16 +161,16 @@ It compares the module's version,
 and both BTF files' device,
 inode,
 size and modification time.
-The default parses the two files once per process.
+The rule parses the two files once per process.
 It pays the stale-pass corner the design states:
 where the module carries no identity value,
 the cache compares only the two files' four facts,
 so a replacement that keeps them is reused.
-The alternative is to parse the two files on every use.
-It pays a parse per use,
+The alternative the design did not take was to parse the two files on every use.
+It would pay a parse per use,
 which owed measurement item 10 measures,
-and it has no stale pass.
-Nothing else separates the two arms,
+and it would have no stale pass.
+Nothing else separates the two,
 since the check is the same code either way.
 
 ## The reader question, Q1: "No, not required"
@@ -205,15 +206,18 @@ The layout comparison and the request numbers decide.
 `doctor` prints the loaded module's release string,
 and it says when that string is not the tested text.
 Two facts the exchange rested on stay in the design.
-A release can change a request's answer while keeping the layout.
-The 2.2.2 to 2.3.0 interval shows that for a volume's property set.
-And the three-release comparison found no change that reaches the wrapper's own call shapes.
+The release string carries no fact the gate needs.
+A release can change a request's answer while keeping the layout,
+as the 2.2.2 to 2.3.0 interval shows for volume property handling,
+so no layout comparison proves behaviour.
+No run shows a change reaching the wrapper's own call shapes,
+and that is unmeasured rather than proved.
 The wrapper sends two properties,
 both of them user properties,
 and both return at the user-property check before the handler's `switch` in all three releases.
 The third option in that exchange,
 a release list,
-stays refused.
+was not taken.
 The second option was layout plus refusing a property set aimed at anything but a filesystem dataset.
 It guards a request shape the wrapper does not send.
 
@@ -246,10 +250,10 @@ The wrapper and the handler hold the paths,
 the read order,
 the per-process cache,
 the target allowlist and the wording.
-The record decided that the binding owns the request format,
+The accepted ZFS worktree design record decided that the binding owns the request format
 and that both binaries share it.
 Both binaries live in one cargo package,
-so either placement satisfied the record.
+so either placement satisfied that record.
 The answer settles which one is built.
 The alternative was the wrapper package holding the loader,
 the pre-scan and the comparison.
@@ -262,11 +266,11 @@ Q3 waits for owed measurement item 10.
 Nothing needs its answer before that run.
 The reason is that the gate works with option 1's behaviour either way.
 The per-process cache is what ships,
-so a veto of that rule means a parse per use and no disk file.
+so the two files are parsed once per process and no disk file is written.
 No answer of Q3 is needed for the gate to work.
 Option 1 is no disk cache.
 It ranks first while the cost is unmeasured,
-and this design writes no verdict to disk meanwhile.
+and the design writes no verdict to disk meanwhile.
 The question returns to the project when item 10's measurement crosses the thresholds Q3 states.
 Those thresholds are the added wall time's median above 100 ms and the resident peak above 256 MiB.
 The design calls them its own proposal,
@@ -313,40 +317,47 @@ It found no high and no medium finding.
 It called the design ready to put to the project,
 and it carried ten lows beside it.
 The design's body is accepted and stays as it is.
+The acceptance settled the four rules the body marked open to veto,
+so each stands as the project's rule,
+and the alternative each names is the one the project did not take.
 Each low is therefore stated corrected here,
-and the sections above carry the corrections where they restate the same matter.
+in this record's voice,
+and where the accepted wording differs the record says what it says.
+This record's sections carry the corrections where they restate the same matter.
 
 ### L1: the header sentence's verb
 
-The design's opening section must read that the parts a writer can settle are under its writer list.
-The corrected clause is "and each rule marked there as open to veto carries "veto none" as its
-default".
-So the last clause has its own verb,
-and the sentence does not claim that every writer-settled part is marked.
+The design's opening section names the writer list as where the parts a writer can settle sit.
+Its last clause reads
+`and each rule marked there as open to veto, with "veto none" as its default`,
+which leaves that part without a verb.
+The corrected clause gives it one:
+`and each rule marked there as open to veto carries "veto none" as its default`.
+So the sentence does not claim that every writer-settled part is marked.
 
 ### L2: the fifth revision's entry and the writer list
 
-The fifth revision's entry keeps the statement that the writer list names the cache among those
-open to veto.
-The scoping of that veto to the per-process rule alone,
-with the disk cache left to Q3,
-is the sixth revision's change.
-It stays in the sixth entry.
-A reader who diffs `b8de4a383d` must not find the opposite of what the fifth entry says.
+The fifth revision's list named the cache among those open to veto with no scoping.
+The scoping now in the fifth entry,
+to the per-process rule alone with the disk cache left to Q3,
+is the sixth revision's change written into it.
+A reader who diffs `b8de4a383d` will not find the scoping there.
 
 ### L3: the fifth entry's "They"
 
-The sentence after the inserted clock-reading sentence reads "The commits are the revision that
-answers the narrow gate check of the fourth revision".
+The accepted body's sentence still begins "They are the revision that answers the narrow gate check
+of the fourth revision",
+and then names the fourth revision's check path.
 So the pronoun names the commits.
-It does not name the label and the read that now sit nearest it.
+The corrected reading does not name the label and the read that now sit nearest it.
 
 ### L4: what the sixth entry's last commit changes
 
 The sixth entry says the commit carrying its closing sentence is the last fix after the round's
 other commits.
-It must say that the commit changes this record and the prose checks' count words.
-`22703f23df` also changes the count words in "The prose checks".
+The corrected statement is that the commit changes the design,
+including the count words in "The prose checks";
+`22703f23df` also changes those count words.
 
 ### L5: the sixth revision's two times
 
@@ -358,49 +369,54 @@ It is not an independent bound.
 
 ### L6: the capitalised words count
 
-"The prose checks" must say that emphasis held at 0.
-It must say that capitalised words went from 22 to 21 as a sentence was removed.
-It must say that count words went from 275 to 298.
-The count fell by one,
+"The prose checks" says that emphasis held at 0,
+and it gives 21 capitalised words where `fe6ba8ed59` recorded 22.
+The corrected statement is that capitalised words went from 22 to 21 as a sentence was removed.
+That count fell by one,
 so it did not hold.
+Count words went from 275 to 298,
+as the body says.
 
 ### L7: the clone count's source
 
-The design's Q2 paragraph must cite the fourth revision's narrow check for the clone path's five of
-the seven.
-It must name the third gate re-check's folder once for the two outputs it cites.
+The design's Q2 paragraph cites the fourth revision's narrow check for the clone path's five of
+the seven,
+and it names the third gate re-check's folder once for the two outputs it cites.
 The correction is stated under
 [the release string](#the-release-string-q2-any-version-layout-decides).
 
 ### L8: the per-process cache's reason, alternative and cost
 
-The cache rule must state the reason for its default,
-the alternative and what each arm costs.
+The cache rule states its reason,
+the alternative and what each costs.
 [Remembering the verdict per process](#remembering-the-verdict-per-process) does:
 one parse per process with the stated stale-pass corner,
 against a parse per use with none,
 which item 10 measures.
-It must also say that a veto here overlaps the absent-identity paragraph's second alternative.
+The rejected alternative overlaps the absent-identity paragraph's second alternative.
 Both are a parse on every use,
 so a module that carries no identity value meets the same trade twice.
 
 ### L9: when Q3 returns to the project
 
-The design must say that the question returns to the project when item 10's measurement crosses the
-thresholds Q3 states.
-It must say that the design writes no verdict to disk meanwhile.
-It must not say that the project decides once item 10 has run in every case.
+The accepted body says the project decides the disk-cache question once item 10 has run,
+at design lines 2043 and 2044,
+and that the design writes no verdict to disk meanwhile.
+The corrected statement is that the question returns to the project when item 10's measurement
+crosses the thresholds Q3 states.
 The reason nothing needs the answer is that the gate works with option 1's behaviour either way.
-The per-process rule being open to veto is not that reason.
-[The disk cache](#the-disk-cache-q3-held) states both.
+The settled per-process rule is not that reason.
+[The disk cache](#the-disk-cache-q3-held) states both the return condition and the disk rule.
 
 ### L10: the evidence correction's revision and its voice
 
-The design's evidence correction must say that the `snapdev` and `volmode` fact was one the fifth
-revision read.
-It must say that on this reading the fact does not change the basis of the answer,
-while the project may ask it again.
-It must not have the design reaffirm the project's answer.
+The design's evidence correction says the `snapdev` and `volmode` fact was one "this revision"
+read,
+and that it does not change the answer.
+The corrected statement names the fifth revision as the one that read it,
+and says that on this reading the fact does not change the basis of the answer,
+while the project may ask it again,
+and it does not have the design reaffirm the project's answer.
 [The release string](#the-release-string-q2-any-version-layout-decides) states both.
 
 ## Amendments on acceptance
@@ -408,11 +424,12 @@ It must not have the design reaffirm the project's answer.
 The design names three documents whose text the project's release-string answer supersedes.
 Each was right when it was accepted or merged,
 and each needs the amended statement.
-Two of them are historical records.
-Each of those gets an in-place note giving the new statement and the date,
+The proposal is a record of the design as the project accepted it,
+so an in-place note of 2026-11-20 gives the new statement there,
 rather than a rewritten line.
-The binding crate's `README.md` is a live document,
-so its bullet is corrected in place.
+The plan's step 6 is unbuilt work and the binding crate's `README.md` is a live document,
+so the sentence or bullet each carries is corrected in place,
+with the date in the commit's message.
 Each change is listed here with where it sits.
 
 - [`doc/planning/cli-git-zfs-worktree-design-proposal.md`][proposal],
@@ -426,14 +443,13 @@ Each change is listed here with where it sits.
   and that the sentence says when the string is not the tested text.
 - [`doc/planning/cli-git-zfs-worktree-implementation-plan.md`][plan],
   step 6 "What it builds":
-  a note of 2026-11-20 follows the paragraph.
-  It gives the gate's list without `module release,`.
+  the `module release,` line is deleted from the gate's list on 2026-11-20.
   The list then reads architecture,
   endianness,
   request contract and the kernel and module BTF layout.
 - [The same plan][plan],
   step 6 "Open items":
-  a note of 2026-11-20 follows the section.
+  the sentence that called the release check decided is replaced on 2026-11-20.
   It states that the architecture,
   endianness and request-contract checks are decided and can be written beside them.
   It states that the module's release string is reported and not proved,
@@ -444,7 +460,7 @@ Each change is listed here with where it sits.
   It gains the sentence that the release string is not part of the gate.
   That sentence states that the layout comparison and the request numbers decide,
   and that `doctor` prints the string and says when it is not the tested text.
-  The design quoted that bullet as step 2's branch then wrote it.
+  The design quoted the bullet as step 2's branch wrote it.
   Step 2 merged before this amendment,
   so the bullet is re-quoted as `main` now has it.
   Step 6 deletes the bullet when the crate itself holds the gate.
@@ -466,8 +482,8 @@ Each change is listed here with where it sits.
 
 ## What this record does not do
 
-- It does not carry the design's evidence,
-  its candidate scoring,
+- It does not carry the design's evidence beyond what a correction restates,
+  nor its candidate scoring,
   its refused ways or its owed measurements.
   The design's own text is where each stands,
   at `22703f23df`.
