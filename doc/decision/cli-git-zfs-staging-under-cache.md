@@ -443,35 +443,59 @@ its boot-arm list already asks for
 "the replacement of the staging and checkout mounts until a private setup is verified",
 which the design meets by verifying the pin at boot reconcile
 and each removal's bind and propagation,
-and its other uses of the word name a copy's staging name and a lock's staging file.
+and its other uses of the word name a copy's staging name,
+a lock's staging file,
+or the act of staging a copy.
 
-### The notes this acceptance puts on the documents that waited on it
+### The notes and sentence changes this acceptance puts on the documents that waited on it
 
-Three documents said in words that this design did not exist yet,
-and each carries an in-place note dated 2026-11-20.
-The notes change no decision,
+Three documents said in words that this design did not exist yet.
+Each of their waiting places now carries a dated statement:
+the proposal and the accepted ZFS worktree design's record keep their text and gain an in-place note dated 2026-11-20,
+while the plan is live work and has its sentences changed instead.
+None of the statements changes a decision,
 and each names this record.
 
 - The proposal,
   [`cli-git-zfs-worktree-design-proposal.md`](../planning/cli-git-zfs-worktree-design-proposal.md),
-  in the staging requirements of "Descriptor mount and unmount",
-  with one note after the paragraph that ends "the placement was one of the defaults the project answered".
-  The note covers that paragraph's "have no design yet" sentence for the folder's creation,
+  in four places.
+  The staging requirements of "Descriptor mount and unmount" carry one note
+  after the paragraph that ends "the placement was one of the defaults the project answered";
+  it covers that paragraph's "have no design yet" sentence for the folder's creation,
   its private bind and the wrapper's cleanup,
   and the next paragraph's "has no design yet" sentence for the interface that unmounts from staging.
-  It names the accepted design and this record,
-  and it keeps the second sentence's point that no unmount runs from staging until step 9 ships that interface.
+  The staging-folder check of "What doctor checks and prints" carries a note
+  inside its "have no design yet" sentence for the folder's creation,
+  its private bind and the wrapper's cleanup.
+  The open item "Staging under `~/.cache` and the wrapper's cleanup" carries a note
+  that covers both its "are undesigned" sentence and its "is not designed either" sentence.
+  The acceptance test "The wrapper's staging cleanup" under "Decided behaviours with no test yet"
+  carries a note inside its "has no design yet" sentence.
+  The notes name the accepted design and this record,
+  and they keep the point that nothing is built yet:
+  no unmount runs from staging until step 9 ships that interface.
 - The plan,
   [`cli-git-zfs-worktree-implementation-plan.md`](../planning/cli-git-zfs-worktree-implementation-plan.md),
-  in three places:
-  the "Three designs block the route early" paragraph,
-  where the third no longer blocks on a design;
+  in eight places,
+  each changed in place rather than noted:
+  the paragraph on the designs that block the route early,
+  which now names two designs and says the staging work is accepted;
+  step 19's "The staging design blocks its boot arm" sentence,
+  which now names step 9's staging build;
   step 9's "Open items",
-  where steps 9,
+  where the blockage and the wait of steps 9,
   14,
-  16 and 17 wait on the build and not on a design;
-  and the staging item of "Open items and the step that needs each",
-  which no longer blocks on a design.
+  16 and 17 stand for the build alone;
+  the list of steps that cannot run their VM arm,
+  where the staging steps move to a list of their own that waits on the build;
+  the "What can start now" bullet,
+  which now names two blocking designs;
+  the paragraph beginning "While all three designs are unwritten",
+  which now counts two and names step 9's staging interface;
+  the staging item of "Open items and the step that needs each",
+  which says the design is accepted and the step blocks on the build;
+  and the "Where the design is silent" entry,
+  whose title and text now order two blocking designs.
 - The accepted ZFS worktree design's record,
   [`cli-git-zfs-worktree-design.md`](cli-git-zfs-worktree-design.md),
   in "Status",
