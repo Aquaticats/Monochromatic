@@ -543,7 +543,33 @@ verify "late-mount visibility in confined consumers under shared and private che
 #### VM measurements
 
 A guest arm for the reflink and cross-dataset controls on the fixture's datasets.
-The host runs only the unit tests of `fs_kind`.
+The host half runs the `fs_kind` recognition,
+the clone-domain decision,
+the ladder's choice and one real read of this host's mounts;
+only the reflink and cross-dataset controls need the guest.
+The guest arm owes this list,
+recorded here because nothing else in the repository carried it:
+
+- Four binary-level controls beside the existing btrfs clone controls: a same-dataset add serves rung 2, asserting
+  `clones served` and FIEMAP-shared extents as `binary_worktree_clone_tests.rs` does; a destination on the second
+  dataset is refused and Git fills the worktree; a slot a mounted clone occupies is refused; a mounted clone used as
+  the source of a checkout-dataset slot is refused.
+- Two arms on data keys: a same-key cross-dataset `copy_file_range` that shares blocks must not qualify, and a
+  different-key pair likewise, since the domain decision never reads the keys.
+- A pool with block cloning enabled, and a second arm with it off, to prove the rung ends in Git's checkout rather
+  than a copy of the bytes.
+- A `ZFS` gate helper beside `on_btrfs_or_acknowledged` for `CLI_GIT_ZFS_ABSENT_ACKNOWLEDGED`, or a guest run with
+  no acknowledgement, so `zfs_a_real_mount_answers_with_its_kind` is a real control there.
+
+The host half is measured against a release build of `main` on this ZFS host, in throwaway repositories of this
+repository's 24,313 tracked files, the arms interleaved and alternating:
+a clean source with its data written out took 0.51 to 1.01 times as long as Git's own checkout, median 0.66, once
+the clones ran in slices,
+where one thread took 1.76 to 2.23 times as long.
+A source with uncommitted changes still pays the source checks and then ends in Git's own checkout:
+0.88 to 1.59 times the same build of `main`, median 1.17 in one run and 1.25 in another, about 0.2 seconds.
+That cost is the check that rung 2 requires and no snapshot can carry out here; the measurements, the options and
+their costs are with the integration pass that found it.
 
 #### Open items
 

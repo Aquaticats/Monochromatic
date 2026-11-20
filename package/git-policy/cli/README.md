@@ -828,7 +828,14 @@ Read-only commands,
      a slot a mounted clone already occupies,
      a mounted clone used as the source of a slot in the checkout's dataset,
      and any slot on another dataset than the source get Git's own checkout instead.
-     It shares disk but takes about as long as Git's checkout.
+     It shares disk,
+     and it is measured: on this host (2026-11-19) an add of 24,313 tracked files through this rung took 0.51 to
+     1.01 times as long as Git's own checkout through the same wrapper, median 0.66 over fifteen interleaved rounds
+     in three runs, once the source's data had been written out;
+     with one thread it took 1.76 to 2.23 times as long, which is the result
+     `doc/planning/cli-git-btrfs-worktree.md` reported for btrfs.
+     A source whose data was written moments before the add can wait once for the pool to write it out
+     (`zfs_bclone_wait_dirty`), by up to the pool's transaction timeout.
   3. Git's own checkout,
      then the ignored-state copy.
   The `git read-tree` of a rung and the fallback `git reset --hard` are Git steps the wrapper starts itself,
@@ -6127,6 +6134,11 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   and `native:test:host` leaves it unset,
   so on this ZFS host `fs_kind_tests::zfs_a_real_mount_answers_with_its_kind` reads a real dataset
   and elsewhere an unacknowledged run fails it rather than passing a control that never ran.
+  Two facts a person running it here meets:
+  `native:test:host` needs `cargo-nextest`, which this host does not install
+  (`error: no such command: nextest`; `cargo test --lib -- fs_kind worktree_clone_domain ...`
+  runs the same controls), and the same filters select the btrfs controls,
+  which need `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1` on a host with no btrfs, which the task does not set.
 - A wrapper release waits for that run,
   unless the version is an alpha:
   `native:release` dispatches nothing until `native:release:host-controls`

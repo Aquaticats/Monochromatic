@@ -2640,7 +2640,7 @@ because the clones would land in that clone's dataset and not in the source's;
 so is a mounted clone used as the source of a slot in the checkout's dataset,
 and so is any destination on another dataset than the source,
 which a destination on a dataset mounted inside the source's own is,
-such as `~/.cache`, which the design's dataset layout gives a dataset of its own.
+such as `~/.cache`, which this host's layout gives a dataset of its own (`zpcachyos/nosnap/user-cache`, which `findmnt -t zfs` lists).
 What a reflink needs is why:
 a clone shares data blocks only inside one dataset,
 `FICLONE` answers `EXDEV` across filesystems,

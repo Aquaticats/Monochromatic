@@ -284,7 +284,7 @@ fn overlay_lines(facts: &FilesystemFacts) -> Vec<String> {
 fn zfs_lines(facts: &FilesystemFacts) -> Vec<String> {
     return vec![
         format!("{} {} is on a ZFS dataset.", SECTION_MARKER, facts.root.display()),
-        String::from("  Cloning a file's data into another file inside one ZFS dataset works, so the wrapper's copy of ignored files uses clones there, and `git worktree add` clones the tracked files of a clean worktree when the worktree it is run from and the slot of the new one are in the same dataset: a slot under `.claude/worktrees` in the checkout's own dataset is."),
+        String::from("  Cloning a file's data into another file inside one ZFS dataset works where the pool's block cloning is enabled, which the first clone proves: a refused `FICLONE` ends the clone rung in Git's own checkout and never becomes a copy of the bytes. The wrapper's copy of ignored files uses clones there, and `git worktree add` clones the tracked files of a clean worktree when the worktree it is run from and the slot of the new one are in the same dataset: a slot under `.claude/worktrees` in the checkout's own dataset is."),
         String::from("  A slot on another dataset gets Git's own checkout instead, and so does a slot a mounted ZFS clone already occupies, because a mounted clone is a dataset of its own; a snapshot does not apply on ZFS at all."),
     ];
 }
