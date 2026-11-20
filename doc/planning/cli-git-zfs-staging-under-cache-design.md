@@ -406,7 +406,7 @@ read-only reads named.
   which kind of reader it uses.
 - F32. A boot id names one boot: the kernel's `/proc/sys/kernel/random/boot_id` holds one random identifier, mode
   `0444` owned by root, and a new boot gives a new value. Read on this host 2026-11-19 with `cat` and `stat`; the
-  value is not recorded here. It is what tells a reader of a durable record whether a recorded mount ID or mount
+  value is not recorded here. It is what tells a reader of a record whether a recorded mount ID or mount
   namespace inode still means anything (L10).
 - F33. Both sides of a staging removal hold the clone's canonical numeric dataset GUID, and an accepted sentence
   names it in a filename. The handler verifies the clone's GUID when it enumerates the pinned parent's children and
@@ -481,7 +481,8 @@ read-only reads named.
   namespace's inode number is boot-scoped in the same way. A record may therefore carry a mount ID or a namespace
   pair only beside the boot id that gives it meaning (F32), and a reader voids both when the boot id
   differs. This design's staged-folder record carries the namespace pair and no mount ID at all; the folder's file
-  handle is the one field that outlives a boot, which is what the recovery route and M6 rest on. The record sits in
+  handle is the one field a later sweep cannot rebuild within a boot, which is what the recovery route and M6 rest
+  on. The record sits in
   `~/.cache`, so the account can replace it; the project's threat model accepts that, and the sweep's folder identity
   check is what refuses a record that describes some other folder (F29, "The staged-folder record").
 - L11. A folder removed or renamed over from a namespace that does not hold its mounts detaches every mount at it in
@@ -1161,10 +1162,22 @@ Set up a clone at a slot, a private bind on a depth-one staging folder, and the 
   rename, then assert the recorded name is absent or holds the previous whole record, the temporary name is the only
   stray, the sweep reports the folder as unrecorded and unmounts nothing, and the next removal rewrites the record.
   Control: the undisturbed handler writes it once, which the sweep reads.
-- A record from another boot: write a record carrying a boot id the machine does not hold now, and run the sweep.
-  Assert it voids the handle and the namespace pair on the boot id alone, unmounts nothing, leaves the folder and the
-  record standing, and reports the state. Control: the record of the current boot in the same run, whose handle the
-  sweep opens.
+- A record from another boot, swept first: write a record carrying a boot id the machine does not hold now, and run
+  the sweep. Assert it voids the handle and the namespace pair on the boot id alone, unmounts nothing, leaves the
+  folder and the record standing for the wrapper's settlement, and reports the state. Control: the record of the
+  current boot in the same run, whose handle the sweep opens.
+- A record from another boot, settled: the same record, a reboot having dropped every mount, and the standing
+  `unmount` intent resumed for a clone that is not mounted, so no handler invocation rewrites the record. Assert the
+  wrapper removes the folder, unlinks the record and any temporary name and releases the claim on its own scan rather
+  than on a handler receipt, with no mount row naming the folder path; assert `doctor` no longer prints the entry.
+  Control: the same folder with a mount standing at it in the host namespace, whose `rmdir` refuses `EBUSY`, which the
+  wrapper keeps and reports.
+- A record whose folder is gone: remove the folder from a foreign namespace, or let an account cleanup delete it,
+  and leave the record, then run a removal for that clone. Assert the wrapper's identity scan finds no entry carrying
+  the record's identity, it unlinks the record before it creates the folder, the handler writes a fresh record and
+  binds, and the removal is not refused on the old record; assert a sweep that opens the old handle before that
+  settlement gets `ESTALE` (F29). Control: the same removal with the record's folder standing, whose record the
+  wrapper keeps.
 - Namespace created while staged: a reader namespace enters while the clone is staged, then the wrapper's cleanup
   runs. Assert first that the scan names the reader's copy and the wrapper removes nothing (the reader's rows are the
   assertion), then that after the reader exits and a clear receipt arrives the wrapper removes the folder and the
@@ -1351,20 +1364,53 @@ The record is one JSON object. It holds the folder's component, the clone's data
 identity, its file handle, the nonce of the intent it last served, the handler's mount-namespace device and inode,
 and the boot id those belong to. It carries no bind mount ID: the bind's row is read live, from its root field, its
 parent and its mountpoint (F21), which is what lets the whole record be written before the bind (F29). The namespace
-pair and the boot id are the boot-scoped fields, and a reader voids them when the boot id is not the one it reads now
-(L10). A later invocation for the same GUID reads the record before it binds: a record whose identity does not match
-the folder refuses, and a record with no handle refuses too, because the handler that wrote it did not bind. The
+pair, the boot id and the handle are the boot-scoped fields, and a reader voids all three when the boot id is not the
+one it reads now (L10, F29). A later invocation for the same GUID reads the record before it binds: a record whose
+identity does not match the folder refuses, and a record with no handle refuses too, because the handler that wrote it
+did not bind. A record this section calls void never reaches that check, because the wrapper unlinks it first. The
 wrapper reads the record before it removes a folder, which is where its mount-namespace check comes from (A1), and
 `doctor` reads it to print a folder's age and to keep a record apart from a folder when it lists `~/.cache`. No
 request and no receipt carries any field of it (F15).
 
-Its lifetime is the folder's, with one exception. It is written before the first bind, replaced atomically by every
-later invocation for that GUID, and unlinked after the folder's `rmdir`. A record whose folder is gone is an orphan
-`doctor` prints and no pass removes, because only a removal's settlement unlinks a record. A reboot drops every
-mount, so a record carrying another boot id is void: a sweep reads it, voids the handle and the namespace pair
-because the boot id differs, unmounts nothing on that record and reports it, and the next removal for that clone
-rewrites it (F32, L10).
-Nothing else ages it out, and no timer touches it.
+It is read the way the accepted slot-pointer rule reads the other account file root reads: "check only a bounded,
+regular, no-follow pointer file and never resolve a path from its contents as root" ([proposal][proposal],
+"Descriptor mount and unmount"). A reader opens it through the `~/.cache` descriptor with `O_RDONLY` and
+`O_NOFOLLOW`, refuses one larger than the record's bound, and treats a malformed, oversized or wrong-GUID record as
+unrecorded: the wrapper reads it as a record it cannot use, and the handler writes a fresh one before it binds. The
+handle is two fields of the object, the handle type and the byte array `name_to_handle_at` reports, sized from what
+that call says, so no fixed length is assumed (F29). One clone has one record and one live removal at a time ("The
+staging claim"), and the handler is the only writer, so the temporary name has a single writer and needs no lock of
+its own; a stray temporary name from a killed write is unlinked by the next write, and a clone destroyed before any
+next write leaves it to `doctor` to print, which is why the record's component is in its name.
+
+Its lifetime is the folder's. It is written before the first bind, replaced atomically by every later invocation for
+that GUID, and unlinked after the folder's `rmdir`. Two kinds of record describe no folder the design can act on,
+and the design says who voids each instead of leaving it to refuse every later staging of that clone.
+
+A record whose folder is gone is void, and the wrapper settles it, because it holds the claim and creates the folder.
+Before it creates a folder for a clone, the wrapper reads the record and scans `~/.cache` by descriptor for any entry
+carrying the record's recorded identity (device, inode, birth time), by identity rather than by name so a folder
+renamed from a foreign namespace is found. Where no entry carries that identity, the dentry the record names is
+unlinked, no mount can be at it in any namespace (F11), a handle on it gives `ESTALE` (F29), and the wrapper unlinks
+the record and any `.json.tmp` beside it before it creates the folder. Where an entry does carry that identity, under
+the component's name or another, the record is kept and reported, because it may still be the only route to a staged
+mount. Where the account has put a new entry of that component in place, the wrapper's creation refuses `EEXIST` and
+it reports the entry as one it did not make instead of removing it; a later removal proceeds once the account removes
+it, which a trusted account can do.
+
+A record carrying another boot id is void too, and the wrapper settles the folder, the record, any temporary name
+beside it and the claim. Every handler invocation writes the record before its first bind and replaces it on every
+later one, so a record whose boot id is not this boot proves that no invocation in this boot bound, or could have
+bound, that folder, and a reboot drops every mount anyway (F32, L10). The wrapper may therefore remove the folder and
+unlink the record on its own scan rather than on a handler receipt, when that scan finds no mount row naming the
+folder path in any namespace it reads, with the recorded namespace pair void by the same boot id. The kernel's
+`EBUSY` on `rmdir` stays the guard against a mount standing at the folder in the host namespace (F11), and a mount in
+another namespace that outlived the reboot cannot exist, because the reboot dropped it. A sweep that runs before
+that settlement voids the handle and the namespace pair on the boot id alone, unmounts nothing and reports the
+state; it does not rewrite the record, because only a handler invocation writes one, and the wrapper's settlement is
+where a leftover record from another boot stops being read.
+
+Nothing else ages a record out, and no timer touches it.
 
 ## What a writer can settle without asking
 
@@ -1393,7 +1439,11 @@ Nothing else ages it out, and no timer touches it.
   access and default ACLs from the held descriptor, plus the mount's source and parent (F17, F18, F21).
 - The record's place, shape and atomic write: one record per clone GUID beside the folder of the same component
   under `~/.cache`, mode `0644`, written by the handler before the first bind through a temporary name renamed over
-  the final one, holding what "The staged-folder record" names, and unlinked after the folder's `rmdir` (A1, L10).
+  the final one, read under the bound and no-follow rule of "The staged-folder record", holding what that section
+  names, and unlinked after the folder's `rmdir` (A1, L10).
+- Who voids a record: the wrapper, before it creates a folder, for a record whose recorded identity matches no live
+  entry under `~/.cache`; and the wrapper's own settlement for a record from another boot, with `rmdir`'s `EBUSY` as
+  the guard ("The staged-folder record").
 - The receipt and notice wording for a retained staged mount, a mounted folder that cannot be unmounted, a handle
   that no longer resolves, a copy that refused the unbind, a detached mount that still holds the dataset, an orphan
   folder, a folder the wrapper cannot prove it made, a rollback refused and a rollback that landed on a stacked
