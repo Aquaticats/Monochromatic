@@ -21,7 +21,7 @@ FROM ${CACHYOS_IMAGE}
 The resolver lives in `package/test-harness/core-matrix`
  (it already owns the mapping from distro name to container image);
  image builds pass its `--build-arg CACHYOS_IMAGE=<image>`.
-Without the argument the plain image builds,
+Without the `CACHYOS_IMAGE` argument the plain image builds,
  which runs on every x86-64 CPU.
 
 ## Owner directives (2026-10-29)

@@ -181,6 +181,12 @@ No manual entry for githooks
 Error: building at STEP "RUN sh -c git --version && ... && man --where githooks": while running runtime: exit status 16
 ```
 
+Since 2026-11-19 that command also needs
+`--build-arg BROWSERSLIST_DATA_LOCK="$(cat browserslist-data.lock.json)"`:
+without it the same build stops before that closing check, at the step that caches the pinned browserslist data, with
+`BROWSERSLIST_DATA_LOCK is empty: build with the text of browserslist-data.lock.json as that argument`.
+The recorded run predates that step.
+
 The same file built from `docker.io/cachyos/cachyos-v4:latest`, the image `package/test-harness/core-matrix` resolves
 on this host, and the existing gate base image
 `localhost/git-policy-native-test-base:6fa67475da3a-97221c29742b` answers `/usr/share/man/man5/githooks.5.gz`.
@@ -205,7 +211,8 @@ Fix:
 `native-test-base.Containerfile` reinstalls `git` when its installed copy lacks
 `/usr/share/man/man5/githooks.5.gz`, and its closing `man --where githooks` check still stops the build when the page is
 absent (a layer that removes the page and runs that check exits 16).
-A build from either CachyOS image now succeeds and prints `/usr/share/man/man5/githooks.5.gz` at its closing check.
+A build from either CachyOS image, given that lock argument, now succeeds and prints `/usr/share/man/man5/githooks.5.gz`
+at its closing check.
 Residual:
 the image repairs `git` only, so a slimmed package whose other files a test needs gets the same reinstall when that test
 fails; `--needed` can never restore a slimmed package's files on its own.
