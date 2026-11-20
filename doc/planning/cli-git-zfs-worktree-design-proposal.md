@@ -1192,6 +1192,15 @@ status. `doctor` does not start a service, create a test dataset, repair registr
   commands and the journal queries for `zfs-zed.service` and `reconcile-git-worktree-clone-mounts.service`.
   Show other enabled zedlets before recommending ZED enablement, including applicable syslog, notification,
   enclosure or scrub effects.
+  Amended 2026-11-20 by the project's acceptance of the staging design:
+  the folder's creation,
+  its private bind and the wrapper's cleanup now have a design,
+  in "The staging target and who creates it",
+  "The private bind" and "What the wrapper removes and when" of
+  [`cli-git-zfs-staging-under-cache-design.md`](cli-git-zfs-staging-under-cache-design.md),
+  whose decision record is
+  [`cli-git-zfs-staging-under-cache.md`](../decision/cli-git-zfs-staging-under-cache.md),
+  and none of that is built yet.
 - Compare the measured dataset tree and store location against recursive coverage. Verify the named exclusion
   sections, ancestor order, mount paths and `com.sun:auto-snapshot=false`; print the concrete INI correction or
   `zfs set com.sun:auto-snapshot=false <verified-dataset>` for confirmed drift. This keeps the planning record's
@@ -1724,6 +1733,15 @@ parts works.
   dataset mounts lands on the home underlay, and the dataset's later mount hides it. The cleanup also has to stop at
   any mount, because during an interrupted removal a clone is mounted inside the staging folder and a recursive
   delete there would delete the worktree's files.
+  Amended 2026-11-20 by the project's acceptance of the staging design:
+  the folder's creation,
+  the private bind and what the wrapper removes now have a design,
+  and so does the interface that unmounts a staged mount from the held descriptor,
+  in [`cli-git-zfs-staging-under-cache-design.md`](cli-git-zfs-staging-under-cache-design.md),
+  whose decision record is
+  [`cli-git-zfs-staging-under-cache.md`](../decision/cli-git-zfs-staging-under-cache.md);
+  nothing is built yet,
+  and no unmount runs from staging until step 9 ships that interface.
 - What re-applies private propagation after a replacement mount. The answer's words: "Boot unit sets it
   (Recommended)", whose option text has the unit repeat the setting after a replacement mount. The installed unit is
   `Type=oneshot` with `RemainAfterExit=yes`, so nothing fires on a later checkout mount, and what re-runs the setting,
@@ -1867,6 +1885,13 @@ test cannot be written until that part exists. None of them is a test for an opt
   mounted tree and that any retained staged mount is tracked and reported, since retaining it is the state the
   busy-unmount decision allows. The cleanup has no design yet
   ([Open items the decisions leave](#open-items-the-decisions-leave)).
+  Amended 2026-11-20 by the project's acceptance of the staging design:
+  the cleanup now has a design,
+  in "What the wrapper removes and when" of
+  [`cli-git-zfs-staging-under-cache-design.md`](cli-git-zfs-staging-under-cache-design.md),
+  whose decision record is
+  [`cli-git-zfs-staging-under-cache.md`](../decision/cli-git-zfs-staging-under-cache.md),
+  and it is not built yet.
 - Re-applying checkout propagation. Replace the checkout mount without a reboot and assert the checkout is private
   again. Nothing re-applies the setting yet ([Open items the decisions leave](#open-items-the-decisions-leave)),
   so this test waits on that design.
