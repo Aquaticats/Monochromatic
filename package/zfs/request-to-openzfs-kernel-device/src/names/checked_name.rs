@@ -1,3 +1,6 @@
+// Adapted from `set_name` and `set_value` in `src/ioctl.rs` of
+// `Ukko-Ylijumala/zfsdev-rs` at commit 4559ffc711; see PROVENANCE.md.
+// Copyright (c) 2026 Mikko Tanner, MIT OR Apache-2.0.
 //! What:
 //!  A name checked against the fixed field it will be copied into,
 //! and the

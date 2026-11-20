@@ -30,8 +30,3 @@ mod name_field;
 pub use checked_name::{CheckedName, NameError, NameProblem};
 /// The field a name is bound for.
 pub use name_field::NameField;
-
-/// The device-free proof of each field bound.
-#[cfg(test)]
-#[path = "name_field_tests.rs"]
-mod name_field_tests;

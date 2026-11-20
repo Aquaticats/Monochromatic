@@ -1,3 +1,6 @@
+// Adapted from the field bounds in `set_name` and `set_value` of
+// `src/ioctl.rs` of `Ukko-Ylijumala/zfsdev-rs` at commit 4559ffc711;
+// see PROVENANCE.md. Copyright (c) 2026 Mikko Tanner, MIT OR Apache-2.0.
 //! What:
 //!  The fixed `zfs_cmd_t` text field a checked name will occupy,
 //! and how many
@@ -50,3 +53,8 @@ impl NameField {
         };
     }
 }
+
+/// The device-free proof of each field bound.
+#[cfg(test)]
+#[path = "name_field_tests.rs"]
+mod tests;

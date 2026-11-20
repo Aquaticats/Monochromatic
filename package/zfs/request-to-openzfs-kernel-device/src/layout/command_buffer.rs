@@ -1,3 +1,6 @@
+// Adapted from `CmdBuf` in `src/ioctl.rs` of `Ukko-Ylijumala/zfsdev-rs` at
+// commit 4559ffc711; see PROVENANCE.md. Copyright (c) 2026 Mikko Tanner,
+// MIT OR Apache-2.0.
 //! What:
 //!  A zeroed,
 //! 8-byte aligned buffer that holds one `zfs_cmd_t` and spare room
@@ -30,13 +33,23 @@ use std::fmt;
 /// The deref traits that expose the struct over the words.
 use std::ops::{Deref, DerefMut};
 
-/// Bytes a command buffer holds unless a caller asks for another size.
-pub const DEFAULT_COMMAND_BUFFER_SIZE: usize = 16 * 1024;
+/// Bytes a command buffer holds when a caller asks for no size:
+/// the mirrored struct rounded up to the next power of two,
+/// one 16 KiB slab with room past the struct for a module whose
+/// `zfs_cmd_t` grew a little.
+/// It is also the largest size this crate accepts.
+pub const DEFAULT_COMMAND_BUFFER_SIZE: usize = COMMAND_STRUCT_SIZE.next_power_of_two();
 
-/// Most bytes a command buffer may hold,
-/// so a runaway size cannot cost a huge
-/// allocation for every request.
-pub const MAXIMUM_COMMAND_BUFFER_SIZE: usize = 1024 * 1024;
+/// Most bytes a command buffer may hold:
+/// the slab [`DEFAULT_COMMAND_BUFFER_SIZE`] names,
+/// because the kernel copies only its own `zfs_cmd_t` in and out and the spare
+/// room only hedges a struct that grew a little.
+/// A struct that outgrew the slab is what the start-time BTF check refuses:
+/// it does not run against a module whose struct is bigger
+/// (`doc/decision/cli-git-zfs-worktree-design.md`,
+/// "ABI gate and tests"),
+/// and a larger buffer is not meant to absorb that growth.
+pub const MAXIMUM_COMMAND_BUFFER_SIZE: usize = DEFAULT_COMMAND_BUFFER_SIZE;
 
 /// A command buffer size this crate refuses to allocate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
