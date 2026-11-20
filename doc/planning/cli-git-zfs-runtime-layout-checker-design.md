@@ -3144,7 +3144,12 @@ Criteria and weights, frozen before the ratings:
 - C6. Integration and test cost, weight 3 (higher is cheaper).
 - C7. Start cost, weight 2, low confidence because it is unmeasured.
 
-Only `btf-rs`, `pahole` and `bpftool` are finalists: each passes every hard constraint.
+Four candidates are finalists,
+and each passes every hard constraint:
+`btf-rs` 2.0.1,
+`ebeepf` 0.1.0,
+`pahole` 1.32 and
+`bpftool` 7.8.0.
 The in-house reader passes H1 to H6 by construction, but it is not eligible as a candidate while
 an existing tool passes them, which is the skill's existing-tools rule and the reason
 [Candidate ledger](#candidate-ledger) calls it conditional. It therefore stands outside the
@@ -3172,6 +3177,15 @@ Ratings, 0 to 4, with confidence:
 
 - `btf-rs` 2.0.1: C1 3 high, C2 4 high, C3 4 high, C4 4 high, C5 3 medium, C6 3 medium,
   C7 2.5 low (range 2 to 3).
+- `ebeepf` 0.1.0:
+  C1 3 medium,
+  C2 4 high,
+  C3 4 high,
+  C4 4 high,
+  C5 2 medium,
+  C6 3 medium,
+  and C7 2.5 low,
+  ranging 2 to 3.
 - In-house reader: C1 4 high, C2 4 high, C3 4 high, C4 4 high, C5 3 medium, C6 2 medium,
   C7 2.5 low (range 2 to 3).
 - `bpftool` 7.8.0: C1 3 medium, C2 1 high, C3 1 high, C4 2 medium, C5 4 high, C6 3 medium,
@@ -3212,10 +3226,42 @@ Evidence for the ratings:
   matrix (3).
 - C7: unmeasured; `btf-rs` parses the base's type offsets and the module's types;
   in-house can read lazily; the tools pay a process start and a full dump.
+- The `ebeepf` ratings hold criterion by criterion:
+  C1 3 medium,
+  because it bounds both sections,
+  validates every type reference,
+  and refuses truncation and a wrong magic,
+  but its own README declares the tree AI-generated and unreviewed,
+  and it accepts a split table as a base,
+  so a 4 would claim a trust the evidence does not hold;
+  C2 4 high,
+  pure Rust with the default features off;
+  C3 4 high,
+  in-process code with no second program;
+  C4 4 high,
+  since members carry bit offsets and widths and enumerators carry values,
+  and `size_of` already multiplies array elements,
+  which `btf-rs` leaves to the binding;
+  C5 2 medium,
+  because it has one release,
+  one maintainer,
+  no CI,
+  no commit after that release,
+  and a self-declared unreviewed tree;
+  C6 3 medium,
+  the same shared work as `btf-rs` minus the array-size shim,
+  but with no CI to lean on;
+  C7 2.5 low,
+  ranging 2 to 3,
+  unmeasured,
+  and `parse_split` copies the base's 151,181 types into the module's table,
+  which is a memory cost `btf-rs` does not pay.
 
 Arithmetic:
 
 - `btf-rs`: `5*3 + 5*4 + 4*4 + 4*4 + 3*3 + 3*3 + 2*2.5` = 90 of 104, 86.5.
+- `ebeepf` scores `5*3 + 5*4 + 4*4 + 4*4 + 3*2 + 3*3 + 2*2.5` = 87 of 104,
+  which is 83.7.
 - In-house: `5*4 + 5*4 + 4*4 + 4*4 + 3*3 + 3*2 + 2*2.5` = 92 of 104, 88.5.
 - `pahole`: `5*3 + 5*1 + 4*1 + 4*3 + 3*4 + 3*3 + 2*1.5` = 60 of 104, 57.7.
 - `bpftool`: `5*3 + 5*1 + 4*1 + 4*2 + 3*4 + 3*3 + 2*1.5` = 56 of 104, 53.8.
@@ -3223,6 +3269,8 @@ Arithmetic:
 Low-signal endpoint totals, over every combination of the ranges' endpoints:
 
 - `btf-rs`: 89 to 91 (85.6 to 87.5).
+- The `ebeepf` endpoints are 86 to 88,
+  which is 82.7 to 84.6.
 - In-house: 91 to 93 (87.5 to 89.4).
 - `pahole`: 59 to 61 (56.7 to 58.7).
 - `bpftool`: 55 to 57 (52.9 to 54.8).
@@ -3231,7 +3279,8 @@ The weights, the ratings, the confidence levels and the ranges stated in this se
 input the arithmetic uses, and the arithmetic and the matrix under [Sensitivity](#sensitivity)
 follow from them.
 Every score here is provisional:
-`btf-rs`'s suite and the two tools' output boundary have run
+`btf-rs`'s suite,
+`ebeepf`'s suite and the two tools' output boundary have run
 ([Finalist validation](#finalist-validation)),
 the start cost is unmeasured,
 and the in-house reader does not exist,
@@ -3244,6 +3293,14 @@ both rated high for code that does not exist: at medium confidence C1 alone puts
 87 and C4 alone at 88, both below 90, and both at medium give 83. Code that has not been written
 cannot hold a rating better than the release that was probed, so 92 is a ceiling, not a
 measurement.
+
+`ebeepf`'s 87 sits between `btf-rs`'s 90 and the tools' 60.
+C5 is where it loses first place:
+a step to 3 there ties the pair at 90,
+and its own C6 at 4 ties it again,
+so the pair's separation rests on the maintenance and trust evidence,
+not on the arithmetic alone.
+Both ties are recorded under [Sensitivity](#sensitivity).
 
 ### Sensitivity
 
@@ -3276,6 +3333,43 @@ Tools pair, `pahole` against `bpftool`, 60 against 56 at the baseline:
 
 No test moves a tool past a library, and more than twenty points of 104 separate them.
 
+A new library pair is `btf-rs` against `ebeepf`,
+90 against 87 at the baseline.
+Its one-input matrix runs 42 tests over the same method.
+One reverses the pair,
+four tie it,
+and thirty-seven leave the order.
+The tests that move it:
+
+- `ebeepf` C1 from 3 to 4 reverses the pair to 92 against 90;
+- `ebeepf` C5 from 2 to 3 ties the pair at 90 each;
+- `ebeepf` C6 from 3 to 4 ties the pair at 90 each;
+- `btf-rs` C5 from 3 to 2 ties the pair at 87 each;
+- `btf-rs` C6 from 3 to 2 ties the pair at 87 each.
+
+The rest leave it:
+C1 weight 1 puts them at 78 against 75,
+C1 weight 2 at 81 against 78,
+C5 weight 5 at 96 against 91,
+C6 weight 5 at 96 against 93,
+and C7 weight 5 at 97.5 against 94.5.
+Both C7 endpoints leave it too,
+`btf-rs`'s low end at 89 against 87 and `ebeepf`'s low end at 90 against 86.
+
+The one reversal is `ebeepf`'s C1 at 4,
+and the evidence does not support that step.
+The crate's own README declares its tree AI-generated and unreviewed,
+and it accepts a split table as its own base,
+so 3 is the rating its bounds and its provenance support.
+The four ties are C5 and C6 steps on either side,
+and the maintenance evidence decides those:
+`btf-rs` carries two releases,
+a merged out-of-bounds fix and a CI workflow on every push,
+against one release,
+one maintainer and no CI.
+The pair's order therefore stands on that evidence,
+not on the baseline arithmetic alone.
+
 A tie is not an order the arithmetic decides, and the skill's rule for both a tie and a change is
 to gather decisive evidence or ask only the controlling preference.
 For the tools, the C4 evidence decides: `pahole`'s `-C` output carries the compared members, while
@@ -3300,13 +3394,25 @@ Until then this section gives a conditional ranking and recommends none.
 
 ### Ranking and pros and cons
 
-Ranking of the eligible candidates: `btf-rs` 2.0.1 > `pahole` 1.32 > `bpftool` 7.8.0.
+Ranking of the eligible candidates:
+`btf-rs` 2.0.1 > `ebeepf` 0.1.0 > `pahole` 1.32 > `bpftool` 7.8.0.
 The in-house reader stands outside it as an exception the owner declined to grant on 2026-11-19,
 priced at 92 of 104 while ineligible.
 
 - `btf-rs` beats `pahole` because its proof runs in the wrapper's address space, with no runtime
   program and no root-spawned binary, which neither tool can offer; the arithmetic agrees, 90
   against 60.
+- `btf-rs` beats `ebeepf` because the pair's 90 and 87 separate on maintenance and trust:
+  two releases,
+  a merged out-of-bounds fix and a CI workflow on every push,
+  against one release,
+  one maintainer and a tree its own README calls unreviewed AI-generated code.
+  The arithmetic agrees,
+  and the pair's one reversal and four ties are the C1 and C5 steps that evidence settles.
+- `ebeepf` beats `pahole` because it is a library in the wrapper's address space,
+  with a split parser and no runtime program,
+  while `pahole` costs the deployment and privilege points C2 and C3 price.
+  The arithmetic agrees at 87 against 60.
 - `pahole` beats `bpftool` because its `-C` output carries the compared members directly, while
   `bpftool`'s raw dump needs a type-id resolver in the wrapper before it can compare anything.
   The arithmetic agrees, 60 against 56; a C4 step ties the pair and a C1 step reverses it.
