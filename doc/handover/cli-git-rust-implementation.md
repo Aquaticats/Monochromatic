@@ -40267,7 +40267,12 @@ stated in this entry. What follows from them, as work:
   that drops the errno now fails it); the clone-path check named `dsl_props_set_check`; the records' counts, pointers,
   `file-enforcer` result and withdrawn cause corrected. Guest 5 min 21 s, root 199 and account 9 passed; container checks
   green (nextest 178). It caught a stale `CARGO_TARGET_DIR` serving a mutated build and reran clean. GOING: a Sonnet
-  integration pass with a guest run (brief under `~/temp/agent/integration-pass-zfs-step-2-merge-lows-2026-11-20/`).
+  integration pass with a guest run (brief under `~/temp/agent/integration-pass-zfs-step-2-merge-lows-2026-11-20/`). It
+  ended (Sonnet, about 21 min; that folder's `keep/review.md`): fit, three lows (a `create` that fails after making the
+  guest leaves it running, against `e2e/README.md:38` and `:70`; `write_failure` pinned device-free only for the decode
+  rule; the round's record cites logs that do not show two of its claims). Guest 5 min 27 s, root 199 and account 9
+  passed; the other session's guest untouched. MERGED into `main` as `dc13ae9243` (2026-11-20). Its integration worktree
+  is removed; the wrapper removed the author worktree on the pass's merge.
   STEP 4 HOST HALF ENDED `idle` (259 turns, 49 min) at `185902f904` (three commits, 26 files, 4,336 lines added; report
   and logs in `~/temp/agent/zfs-step-4-descriptor-attach-host-half-2026-11-19/keep/`): `src/native/worktree_clone_mount/`
   (the no-crossing walk holding a descriptor per folder, six recorded identity fields with ACLs as raw xattr bytes, the
@@ -40331,7 +40336,19 @@ stated in this entry. What follows from them, as work:
   `verbatimSymlinks`. Whole gate 9232 of 9234, the cause-H pair only; `source_guard` 79 of 79. It also added an entry to
   `main`'s handover on its branch (merges clean). GOING: the second integration pass (Sonnet), told to judge the lock
   against `NLK` and `LQM` (the 2 s wait), the gate snapshot change, the canonical-path refusal and the branch's handover
-  entry; brief under `~/temp/agent/integration-pass-zfs-step-4-after-its-findings-round-2026-11-20/`. STEP 3 HOST HALF ENDED `idle` (201
+  entry; brief under `~/temp/agent/integration-pass-zfs-step-4-after-its-findings-round-2026-11-20/`. It ended (Sonnet,
+  about 40 min; that folder's `keep/review.md`): fit to merge, one medium first. Gate 9232 of 9234, the cause-H pair;
+  the shadow pool test passed this time. `source_guard` 79 of 79; package list without `uses`; the `verbatimSymlinks`
+  change does nothing on `main` (no other symlinks in the copied set); the canonical-path refusal matches the project's
+  "canonical path only"; the narrowed `uses` skip closes the `include!` hole through a link. Medium: `STORE_LOCK_WAIT`
+  and `STORE_LOCK_PAUSE` cite no measurement (rule `LQM`). Lows: the adoption's rewrite never takes the lock and a probe
+  lost an append; the checked writers are not the re-exported ones; `recorded_slots` caller-supplied; `SPEC.md`'s
+  "a plain append can interleave two lines" not observed; four statements of the branch's own handover entry false once
+  on `main`. An owner question: the single-file store's format is not approved and step 8 builds on it (now in
+  `doc/handover/questions-for-the-owner.md`). GOING: `pi-zfs-step-4-second-pass-findings-fixed` (DeepSeek on
+  Neuralwatt, cap 400): measure the locked append on this host and cite it, the adoption under the same lock with the
+  probe as a test, the lows, and the branch's handover change removed; brief under
+  `~/temp/agent/zfs-step-4-second-pass-findings-fixed-2026-11-20/`. Then a diff-only check and the merge. STEP 3 HOST HALF ENDED `idle` (201
   turns, 51 min) at `fd10d8d0b0` (four commits; report and checks table in
   `~/temp/agent/zfs-step-3-reflink-rung-recognition-host-half-2026-11-19/keep/`): `FilesystemKind::Zfs` from
   `ZFS_SUPER_MAGIC`; rung 2 proves one dataset by mount source and device, with no ZFS ioctl or binding; a mounted clone

@@ -801,6 +801,24 @@ Options:
 Ranking: accept > accept with vetoes > send back, because no remaining finding changes behaviour or a decision, while
 each further round has so far found new wording slips of the same size.
 
+## Open: approve ZFS step 4's slot identity store format? (recorded 2026-11-20, about 02:00 -05:00)
+
+What it is:
+step 4 records, for each worktree slot, the identities the attach checks (device, inode, owner, permissions, access
+lists of the folders), in one root-controlled file the wrapper appends to, `git-worktree-clone-slot-identities`, as
+`package/git-policy/cli/SPEC.md` describes under "The recorded identities store".
+Step 8 will build on this format, and no decision record approves it yet; step 4's second integration pass asked that
+you do.
+
+- (a) One file, one line per slot, appended under a lock only root can open, waited for with a bounded deadline
+  (as built; recommended). One read sees the parent and every slot in one state, which step 8's checks rely on.
+- (b) A folder with one file per slot, each made with `O_EXCL`, no lock. Lock-free, which the repository's concurrency
+  rule prefers; it loses the single-read state and rewrites the format, every refusal that names a line and about a
+  thousand lines of controls.
+
+Ranking a > b: a keeps the one-read consistency step 8 needs and its lock covers one appended line, held only by root;
+b buys lock-freedom at the cost of that consistency and a rewrite.
+
 ## Open: accept the ZFS start-probe design? (ready 2026-11-20, about 01:20 -05:00)
 
 This goes to the question tool when you are back, with the other two ZFS designs.
