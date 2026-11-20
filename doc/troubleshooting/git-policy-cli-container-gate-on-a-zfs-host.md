@@ -749,3 +749,41 @@ Two whole suites ran on this host against the branch's tree, each in the gate's 
   root shares no data blocks between files either, which is the arm the `ioctl` control now skips; the
   gate and a campaign therefore agree about the fixture file system, which a gate pass reused as a
   campaign baseline now relies on.
+
+## A gate that ends with status 137 and no memory kill
+
+On 2026-11-19 an integration pass's gate ended with
+`NativeVerificationError: the test run failed: podman run failed (status 137, signal none).`
+after 8446 of 9199 tests had passed and none had failed.
+It was not a memory kill:
+the container scope's journal line read `912M memory peak` against its 2 GiB bound,
+and `journalctl -u systemd-oomd` had no entry in that window.
+
+The user journal showed the cause.
+In the same second as the podman that ran the suite logged `container died`,
+a different podman process (`podman[3180925]`) logged `container remove` for that container
+and for another session's container:
+
+```text
+# journalctl --user --since '2026-11-19 22:34:15' --until '2026-11-19 22:34:30'
+podman[3180925]: container remove 7a5c4dce9245... (image=.../git-policy-native-test:..., name=pedantic_bardeen)
+podman[3180925]: container remove 5982b11d2ac9... (image=.../git-policy-native-test-base:..., name=strange_mayer)
+```
+
+That process was another session's agent cleaning up:
+it listed the running containers,
+took two that were running `cargo nextest` for its own,
+and ran `podman rm --force --time 0 7a5c4dce9245 5982b11d2ac9`.
+Many sessions run gates and guests on this machine at once,
+so a container's image or command says nothing about who started it.
+Briefs now tell every agent to stop or remove only what it started,
+known by a name it gave it or the ID its own command printed.
+
+To tell this case apart from a memory kill,
+read the user journal around the time the gate stopped for a `container remove` line
+from a podman process other than the one that logged the container's start.
+The integration pass then reran only the tests that had not passed,
+in the same image with the gate's limits and fixture root,
+rather than the whole suite a second time:
+751 of 753 passed,
+and the two failures were the standing cause-H pair.

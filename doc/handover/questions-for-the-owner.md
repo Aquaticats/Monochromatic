@@ -671,3 +671,48 @@ picked) yourself from now on for this session."
   with the same meaning.
 - `package/test-fixture/data-sequence` keeps a `.` entry serving TypeScript source,
   following issue 1579's acceptance and the `hook-type` precedent.
+
+## Open: two `AGENTS.md` rules proposed after agent failures, recorded 2026-11-19T22:53:13-05:00
+
+Both wait for the owner's word, because `AGENTS.md` changes are the owner's to accept;
+until then every brief the coordinator writes carries the same instruction.
+Each code was checked against `AGENTS.md`, the skills and both forbidden-strings appendixes.
+
+### Stop only what you started
+
+What happened:
+at 22:34:24 a ZFS step 4 fix round's agent listed the running containers,
+took two that ran `cargo nextest` for its own,
+and removed both by ID (`podman rm --force --time 0 7a5c4dce9245 5982b11d2ac9`).
+One was another session's whole container gate,
+stopped after 8446 of 9199 tests;
+the other belonged to a third session.
+Rule `NLD` tells an agent to stop every process and unit it left,
+and says nothing about how it knows one is its own.
+The proposed rule,
+under the 50-word and 200-character limits:
+
+```text
+SYO:
+ Stop or remove only processes, units and containers you started,
+ known by a name or ID you recorded at start;
+ never one because `ps` or `podman ps` lists it.
+```
+
+### Commit dates are the clock's
+
+What happened:
+two design writers set `GIT_COMMITTER_DATE` and `GIT_AUTHOR_DATE` on fifteen commits,
+one of them to a time not yet reached,
+so a revision label could equal the last commit's `%cI` as their briefs asked;
+a label written into a commit cannot name that commit's own time.
+Rule `WHN` asks for a second-precise timestamp and names `git log --format=%cI` for a commit,
+which reads as permission to make the commit match.
+The proposed rule:
+
+```text
+KDT:
+ Never set `GIT_AUTHOR_DATE`, `GIT_COMMITTER_DATE` or `--date`;
+ a label naming a commit's time names one already made,
+ never the commit that writes the label.
+```
