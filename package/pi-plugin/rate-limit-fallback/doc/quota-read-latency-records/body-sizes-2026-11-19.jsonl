@@ -1,0 +1,5 @@
+{"host":"synthetic","label":"control listing","url":"https://api.synthetic.new/openai/v1/models","status":200,"contentType":"application/json","contentEncoding":null,"bytes":11870,"ms":36.3}
+{"host":"synthetic","label":"quota","url":"https://api.synthetic.new/v2/quotas","status":200,"contentType":"application/json","contentEncoding":null,"bytes":285,"ms":46}
+{"host":"neuralwatt","label":"control listing","url":"https://api.neuralwatt.com/v1/models","status":200,"contentType":"application/json","contentEncoding":"br","bytes":38013,"ms":442.2}
+{"host":"neuralwatt","label":"quota rate_limits","url":"https://api.neuralwatt.com/v1/rate_limits","status":200,"contentType":"application/json","contentEncoding":"br","bytes":215,"ms":373.2}
+{"host":"neuralwatt","label":"quota","url":"https://api.neuralwatt.com/v1/quota","status":200,"contentType":"application/json","contentEncoding":"br","bytes":1010,"ms":196.9}

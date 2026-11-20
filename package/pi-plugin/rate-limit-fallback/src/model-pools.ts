@@ -71,13 +71,60 @@ export type Member = Readonly<{
 }>;
 
 /**
- Physical routes by public model id.
- */
-export const POOLS: Readonly<Record<'writer' | 'reviewer', readonly Member[]>> = {
-  writer: WRITER,
-  reviewer: REVIEWER,
-};
+ One pool: the public name Pi's selections carry, the physical model the router dispatches through,
+ and the members it asks in order.
 
+ The public name is the virtual model's id, so `rate-limit-fallback/writer` stays the selection a
+ session makes; the physical model id carries `-pool` because Pi refuses a virtual model whose id a
+ physical model of the same provider already holds
+ (`@earendil-works/pi-coding-agent` dist/core/model-runtime.js, `registerVirtualModel`).
+ */
+export type PoolDefinition = Readonly<{
+  name: 'writer' | 'reviewer';
+  displayName: string;
+  modelId: string;
+  members: readonly Member[];
+}>;
+
+/**
+ The two pools the package offers, in the order Pi lists them.
+ */
+export const POOL_DEFINITIONS: readonly PoolDefinition[] = [
+  {
+    name: 'writer',
+    displayName: 'Writer',
+    modelId: 'writer-pool',
+    members: WRITER,
+  },
+  {
+    name: 'reviewer',
+    displayName: 'Reviewer',
+    modelId: 'reviewer-pool',
+    members: REVIEWER,
+  },
+];
+
+/**
+ Members one physical pool model dispatches to.
+
+ Every pool has at least one member, so an empty list means no pool carries that id.
+
+ @param id - physical model id the request selected
+
+ @returns ordered members, or an empty list when no pool carries that id
+
+ @example
+ ```ts
+ poolMembers('writer-pool');
+ ```
+ */
+export function poolMembers(id: string,): readonly Member[] {
+  return POOL_DEFINITIONS.find(function samePool(pool,) {
+    return pool.modelId === id;
+  },)
+    ?.members
+    ?? [];
+}
 
 /**
  Pool-wide limits advertised to Pi before any session registry binds.
@@ -151,18 +198,26 @@ function smallerPositive({
 
  @param readMemberLimits - registry reader, or undefined before a session binds
 
- @returns limits Pi may use for that pool
+ @returns limits Pi may use for that pool, with Pi's own fallback when no member reports any
+
+ @example
+ ```ts
+ advertisedLimits({ members: POOL_DEFINITIONS[0].members });
+ ```
  */
-function smallestMemberLimits({
+export function advertisedLimits({
   members,
   readMemberLimits,
 }: {
   readonly members: readonly Member[];
   readonly readMemberLimits?: MemberLimitsReader;
 },): PoolLimits {
-  return members.reduce(
+  /**
+   Smallest limits accepted so far, zero meaning none reported yet.
+   */
+  const smallest = members.reduce(
     function foldLimits(
-      smallest: PoolLimits,
+      accepted: PoolLimits,
       member: Member,
     ): PoolLimits {
       /**
@@ -176,53 +231,54 @@ function smallestMemberLimits({
         );
       return {
         contextWindow: smallerPositive({
-          current: smallest.contextWindow,
+          current: accepted.contextWindow,
           reported: reported.contextWindow,
         },),
         maxTokens: smallerPositive({
-          current: smallest.maxTokens,
+          current: accepted.maxTokens,
           reported: reported.maxTokens,
         },),
       };
     },
     NO_LIMITS,
   );
+  return {
+    contextWindow: smallest.contextWindow === 0 ? PROVISIONAL_LIMITS.contextWindow : smallest.contextWindow,
+    maxTokens: smallest.maxTokens === 0 ? PROVISIONAL_LIMITS.maxTokens : smallest.maxTokens,
+  };
 }
 
 /**
- One pool's catalog entry with the limits its members allow.
+ One pool's physical catalog entry, the model a virtual model routes through.
 
- @param id - public pool id
-
- @param name - display name
-
- @param members - ordered members of the pool
+ @param pool - pool the entry belongs to
 
  @param readMemberLimits - registry reader, or undefined before a session binds
 
- @returns catalog entry Pi selects
+ @returns catalog entry Pi dispatches through
+
+ @example
+ ```ts
+ poolEntryFor({ pool: POOL_DEFINITIONS[0] });
+ ```
  */
-function poolEntry({
-  id,
-  name,
-  members,
+export function poolEntryFor({
+  pool,
   readMemberLimits,
 }: {
-  readonly id: 'writer' | 'reviewer';
-  readonly name: string;
-  readonly members: readonly Member[];
+  readonly pool: PoolDefinition;
   readonly readMemberLimits?: MemberLimitsReader;
 },): Model<typeof ROUTING_API> {
   /**
    Limits every member of this pool can honour.
    */
-  const reported = smallestMemberLimits({
-    members,
+  const limits = advertisedLimits({
+    members: pool.members,
     ...(readMemberLimits === undefined ? {} : { readMemberLimits, }),
   },);
   return {
-    id,
-    name,
+    id: pool.modelId,
+    name: `${pool.displayName} pool`,
     api: ROUTING_API,
     provider: PROVIDER_ID,
     baseUrl: '',
@@ -234,8 +290,8 @@ function poolEntry({
       cacheRead: 0,
       cacheWrite: 0,
     },
-    contextWindow: reported.contextWindow === 0 ? PROVISIONAL_LIMITS.contextWindow : reported.contextWindow,
-    maxTokens: reported.maxTokens === 0 ? PROVISIONAL_LIMITS.maxTokens : reported.maxTokens,
+    contextWindow: limits.contextWindow,
+    maxTokens: limits.maxTokens,
   };
 }
 
@@ -248,7 +304,7 @@ function poolEntry({
 
  @param readMemberLimits - registry reader, or undefined before a session binds
 
- @returns writer and reviewer entries with usable limits
+ @returns writer and reviewer pool entries with usable limits
 
  @example
  ```ts
@@ -260,20 +316,12 @@ export function poolModels({
 }: {
   readonly readMemberLimits?: MemberLimitsReader;
 } = {},): readonly Model<typeof ROUTING_API>[] {
-  return [
-    poolEntry({
-      id: 'writer',
-      name: 'Writer',
-      members: POOLS.writer,
+  return POOL_DEFINITIONS.map(function entry(pool,) {
+    return poolEntryFor({
+      pool,
       ...(readMemberLimits === undefined ? {} : { readMemberLimits, }),
-    },),
-    poolEntry({
-      id: 'reviewer',
-      name: 'Reviewer',
-      members: POOLS.reviewer,
-      ...(readMemberLimits === undefined ? {} : { readMemberLimits, }),
-    },),
-  ];
+    },);
+  },);
 }
 
 //endregion Public catalog and ordered targets

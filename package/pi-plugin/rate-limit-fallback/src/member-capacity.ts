@@ -24,11 +24,7 @@ import { digitsEnd, } from './provider-wire-text.ts';
  */
 export type MemberCapacity = {
   /**
-   Whether the next admission needs a fresh provider reading.
-   */
-  needsProbe: boolean;
-  /**
-   Shared read so overlapping requests do not all poll the quota endpoint.
+   Shared read so overlapping refusals do not all poll the quota endpoint.
    */
   pending?: Promise<void>;
   /**
@@ -36,9 +32,13 @@ export type MemberCapacity = {
    */
   active: number;
   /**
-   When this member was last read from its quota endpoint, or zero before the first read.
+   When this member's quota endpoint was last asked, or zero before the first read.
    */
   lastReadAt: number;
+  /**
+   When the concurrency ceiling on record was read, or zero before a reading published one.
+   */
+  concurrencyReadAt: number;
   /**
    Retry/reset timestamp supplied by the provider or its documented guidance.
    */
@@ -87,9 +87,9 @@ export function capacityOf({
    Member-specific state for rate evidence and local admission.
    */
   const capacity: MemberCapacity = {
-    needsProbe: true,
     active: 0,
     lastReadAt: 0,
+    concurrencyReadAt: 0,
     retryAt: 0,
     evidence: {},
   };
@@ -126,8 +126,18 @@ function isReadTooSoon(capacity: Readonly<{ lastReadAt: number }>,): boolean {
 }
 
 /**
- Provisional pre-install bound for optional quota reads on the inference path. Set it from the live endpoint
- check before install; there is no endpoint latency measurement from this offline work.
+ Deadline for optional quota reads on the inference path, from the live endpoint measurement of
+ 2026-11-19 (`doc/quota-read-latency.md`): twenty alternating rounds against Synthetic's `/v2/quotas`,
+ NeuralWatt's `/v1/rate_limits` and `/v1/quota`, and six for NeuralWatt's flex lane, every quota read
+ bounded by this same two seconds. The highest read took 464.4 ms and the nearest-rank 95th percentile
+ 402.7 ms, and no read failed or timed out. Two seconds covers that highest reading 4.3 times over, and
+ still covers it once NeuralWatt's control spread after the warm-up round (325.4 ms) is added
+ (789.8 ms), while staying at or below half of any caller timeout above four seconds. At the deadline
+ `readQuotaWithinDeadline` stops waiting on `probeQuota` and resolves `QUOTA_UNAVAILABLE`, so the read
+ publishes no evidence and routing continues: a slow endpoint costs that reading, never the request.
+ Paired with a same-host listing each round, the read's median ratio was 1.32 on Synthetic (range 1.01
+ to 1.80) and 1.45 on NeuralWatt (range 0.35 to 5.12); the ratio is not what the value rests on, because
+ the listings return bodies tens of times larger and NeuralWatt's host noise spans that whole range.
  */
 const QUOTA_READ_TIMEOUT_MS = 2_000;
 
@@ -255,22 +265,30 @@ async function waitForCapacity({
 }
 
 /**
- Refresh quota at first use and on reentry after a refusal or exhausted window.
+ Read one member's quota endpoint at the moment it refuses a request.
+
+ The owner's decision of 2026-11-19 reads the endpoint at refusal, not on the first eligible attempt
+ or before returning to the member: quota endpoints carry their own, far higher rate limits than
+ inference, so a read costs a refused request nothing it was not already paying, and the reading
+ describes the plan as it stands when the member said no. No read happens on admission.
+
+ A read that fails leaves the evidence already held in place, and the next refusal asks again; the
+ docs/README state the deadline.
 
  @param capacity - state shared by the member's requests
 
  @param registry - registry used for the quota credential
 
- @param model - exact physical member
+ @param model - exact physical member that refused
 
  @param options - probe transport and cancellation
 
  @example
  ```ts
- await refreshCapacity({ capacity, registry, model });
+ await readAtRefusal({ capacity, registry, model, options });
  ```
  */
-export async function refreshCapacity({
+export async function readAtRefusal({
   capacity,
   registry,
   model,
@@ -284,7 +302,7 @@ export async function refreshCapacity({
   /**
    Read and publish fresh evidence, releasing the shared lookup when settled.
    */
-  async function refresh(): Promise<void> {
+  async function read(): Promise<void> {
     /**
      Clears the pending lookup only when its own read has settled.
      */
@@ -293,9 +311,6 @@ export async function refreshCapacity({
         delete capacity.pending;
       },
     };
-    capacity.needsProbe = false;
-    if (capacity.retryAt <= Date.now())
-      capacity.retryAt = 0;
     capacity.lastReadAt = Date.now();
     /**
      Fresh quota facts that may supersede previous capacity or retry hints.
@@ -308,12 +323,8 @@ export async function refreshCapacity({
     },);
     if (options?.signal
       ?.aborted
-      === true) {
-      capacity.needsProbe = true;
+      === true)
       return;
-    }
-    if (reading === QUOTA_UNAVAILABLE)
-      capacity.needsProbe = true;
     /**
      Leave existing evidence in place after an unavailable read, but still expire past deadlines.
      */
@@ -322,6 +333,10 @@ export async function refreshCapacity({
      Observation time used to compare provider deadlines.
      */
     const now = Date.now();
+    // A reading's own time names when it published the ceiling now on record, which a later failed
+    // read leaves in place while moving `lastReadAt` alone.
+    if (evidence.concurrency !== undefined)
+      capacity.concurrencyReadAt = now;
     capacity.evidence = {
       ...capacity.evidence,
       ...(evidence.concurrency === undefined ? {} : { concurrency: evidence.concurrency, }),
@@ -351,7 +366,7 @@ export async function refreshCapacity({
   }
 
   /**
-   This caller's cancellation, independent of the shared lookup.
+   This refusal's own cancellation, independent of the shared lookup.
    */
   const { signal, } = options ?? {};
   /**
@@ -365,26 +380,54 @@ export async function refreshCapacity({
     },);
     return;
   }
-  if ((!capacity.needsProbe) && (capacity.retryAt !== 0)
-    && (capacity.retryAt <= Date.now()))
-    capacity.needsProbe = true;
-  if ((capacity.overage !== undefined) && (capacity.overage
-    .periodEnd
-    <= Date.now()))
-    capacity.needsProbe = true;
-  if (!capacity.needsProbe)
-    return;
   if (isReadTooSoon(capacity,)) {
-    // The endpoint's own rate limits how often this member may ask; ask again on a later admission
-    // instead of polling it now.
-    capacity.needsProbe = true;
+    // The endpoint's own rate limit bounds how often this member may be asked; the next refusal asks
+    // again instead of polling it now.
     return;
   }
-  capacity.pending = refresh();
+  capacity.pending = read();
   await waitForCapacity({
     pending: capacity.pending,
     ...cancellation,
   },);
+}
+
+/**
+ The ceiling a refusal's own number sets, while its period lasts.
+
+ The owner's decision of 2026-11-19 takes the cap a 429 reports, not the lower of it and a published
+ ceiling: the refusal describes the account as it actually stands, while a published ceiling is the
+ plan's promise. A cap whose renewal time has passed stops governing.
+
+ @param capacity - member state an earlier refusal wrote
+
+ @param now - admission time
+
+ @returns observed cap in force, or NaN when no refusal's cap applies
+
+ @example
+ ```ts
+ const cap = observedCeiling({ capacity, now: Date.now() });
+ ```
+ */
+export function observedCeiling({
+  capacity,
+  now,
+}: {
+  readonly capacity: MemberCapacity;
+  readonly now: number;
+},): number {
+  /**
+   Cap an earlier refusal recorded, which may have lapsed.
+   */
+  const { overage, } = capacity;
+  if (overage === undefined)
+    return Number.NaN;
+  if ((overage.periodEnd > 0) && (overage.periodEnd <= now)) {
+    delete capacity.overage;
+    return Number.NaN;
+  }
+  return overage.concurrency;
 }
 
 /**
@@ -494,7 +537,6 @@ export function noteRateLimit({
   errorMessage: string;
   retryAt: number;
 },): void {
-  capacity.needsProbe = true;
   capacity.retryAt = Math.max(
     capacity.retryAt,
     retryAt,

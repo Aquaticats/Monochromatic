@@ -42,6 +42,11 @@ import {
 } from './processes-a-tool-answer-names.ts';
 import { isRecord, } from './read-pi-fields.ts';
 import { descendsFrom, } from './processes-descended-from-a-process.ts';
+import { PROCESS_ENDED_CODES, } from './process-ended-codes.ts';
+import {
+  READS_OF_A_PROCESS_FOLDER,
+  type ReadsOfAProcessFolder,
+} from './reads-of-a-process-folder.ts';
 import {
   type RunCommand,
   runCommandWithChildProcess,
@@ -157,6 +162,8 @@ export function workTheToolReportedIn({ feedShown, }: { readonly feedShown: stri
 
  @param entry - the process's entry in that folder, or `self`
 
+ @param reads - how one record of a process is read, which a test replaces
+
  @returns the control group, or empty text when it cannot be read
 
  @example
@@ -167,24 +174,28 @@ export function workTheToolReportedIn({ feedShown, }: { readonly feedShown: stri
 export async function cgroupOf({
   processFolder,
   entry,
+  reads = READS_OF_A_PROCESS_FOLDER,
 }: {
   readonly processFolder: string;
   readonly entry: string;
+  readonly reads?: ReadsOfAProcessFolder;
 },): Promise<string> {
   try {
-    return (await readFile(
-      join(
-        processFolder,
-        entry,
-        'cgroup',
-      ),
-      'utf8',
-    )).trim();
+    return (await reads.text(join(
+      processFolder,
+      entry,
+      'cgroup',
+    ),)).trim();
   }
   catch (error) {
-    // A process that ended, or one whose folder this account may not read, is in no control group this run can name.
-    if ((errorCodeOf(error,) === MISSING_PATH_CODE) || (errorCodeOf(error,) === 'EACCES')
-      || (errorCodeOf(error,) === 'EPERM')) {
+    /**
+     The code the operating system gave the read.
+     */
+    const code = errorCodeOf(error,);
+    // A process that ended while this record was read, or one whose folder this account may not read, is in no control group this
+    // run can name: the kernel answers `ESRCH` from a record whose task it released, which is no read that failed.
+    if (PROCESS_ENDED_CODES.has(code,) || (code === 'EACCES')
+      || (code === 'EPERM')) {
       return '';
     }
     throw error;
@@ -198,19 +209,23 @@ export async function cgroupOf({
 
  @param pid - the process number
 
+ @param reads - how one record of a process is read, which a test replaces
+
  @returns whether the process is there
 
  @example
  ```ts
- const alive = processIsThere({ processFolder: '/proc', pid: 486667, },);
+ const alive = processIsThere({ processFolder: '/proc', pid: 486667, reads: READS_OF_A_PROCESS_FOLDER, },);
  ```
  */
 async function processIsThere({
   processFolder,
   pid,
+  reads,
 }: {
   readonly processFolder: string;
   readonly pid: number;
+  readonly reads: ReadsOfAProcessFolder;
 },): Promise<boolean> {
   /**
    The control group of a process that is there, which is never empty.
@@ -218,6 +233,7 @@ async function processIsThere({
   const cgroup = await cgroupOf({
     processFolder,
     entry: String(pid,),
+    reads,
   },);
   return cgroup !== '';
 }
@@ -301,6 +317,8 @@ function lineOf({ work, }: { readonly work: WorkOfARun },): string {
 
  @param run - how a command is run, which a test replaces
 
+ @param reads - how one record of a process is read, which a test replaces
+
  @returns one line per process the run still has going, empty when it has none the driver can see
 
  @example
@@ -314,12 +332,14 @@ export async function workOutlivingTheTurnIn({
   processFolder,
   ownProcess,
   run = runCommandWithChildProcess,
+  reads = READS_OF_A_PROCESS_FOLDER,
 }: {
   readonly runFolder: string;
   readonly workingFolder: string;
   readonly processFolder: string;
   readonly ownProcess: number;
   readonly run?: RunCommand;
+  readonly reads?: ReadsOfAProcessFolder;
 },): Promise<readonly string[]> {
   /**
    The feed the run's own tool wrote its answers into.
@@ -338,6 +358,7 @@ export async function workOutlivingTheTurnIn({
   const ownCgroup = await cgroupOf({
     processFolder,
     entry: 'self',
+    reads,
   },);
   /**
    The lines that name the work still going.
@@ -355,6 +376,7 @@ export async function workOutlivingTheTurnIn({
     const alive = (work.pid === undefined) ? false : await processIsThere({
       processFolder,
       pid: work.pid,
+      reads,
     },);
     /**
      Whether the unit the command names still runs it.
@@ -387,7 +409,10 @@ export async function workOutlivingTheTurnIn({
   /**
    What the process table shows working in the run's own folders.
    */
-  const processes = await processesAtTheirFolders({ processFolder, },);
+  const processes = await processesAtTheirFolders({
+    processFolder,
+    reads,
+  },);
   for (const process of processes) {
     if (named.has(process.pid,)) {
       continue;
@@ -414,6 +439,7 @@ export async function workOutlivingTheTurnIn({
     const cgroup = await cgroupOf({
       processFolder,
       entry: String(process.pid,),
+      reads,
     },);
     // A process in the run's own unit is the driver or the Pi of this run, which is no work the run left: a scope the agent
     // made leaves that unit, and a service of its own never joins it. A control group nobody can read is no evidence either
@@ -431,6 +457,7 @@ export async function workOutlivingTheTurnIn({
       processFolder,
       pid: process.pid,
       rootPid: ownProcess,
+      reads,
     },);
     if (!own) {
       continue;

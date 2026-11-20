@@ -30,16 +30,12 @@ import {
 } from './pool-limits.ts';
 import { optionIn, } from './option-in.ts';
 import { errorCodeOf, } from './error-code-of.ts';
+import { PROCESS_ENDED_CODES, } from './process-ended-codes.ts';
 import {
   firstWordOf,
   isDigitsOnly,
   valueOfOption,
 } from './text-of-an-option.ts';
-
-/**
- The code the operating system gives a path that is not there.
- */
-const MISSING_PATH_CODE = 'ENOENT';
 
 /**
  The option that names the provider a run asks for.
@@ -170,7 +166,9 @@ async function commandLineOrNothingIn(path: string,): Promise<readonly string[]>
      The code the operating system gave the read.
      */
     const code = errorCodeOf(error,);
-    if ((code === MISSING_PATH_CODE) || (code === 'ESRCH')) {
+    // A process that ended between the listing and the read is gone, exactly as one whose folder is already gone is: the kernel
+    // answers `ESRCH` from a record whose task it released, which is no read that failed.
+    if (PROCESS_ENDED_CODES.has(code,)) {
       return [];
     }
     throw error;

@@ -64,6 +64,10 @@ const RECORDED_QUOTED_REFUSAL: string = `429 "You've exceeded your subscription 
 /**
  Other non-capacity failures are returned unchanged.
 
+ All four are made up: no capture of a 401, a bare timeout phrase or an overflow body exists on this
+ machine. Boundaries: a mention of 429, a timeout phrase, an overflow body and a number that merely
+ begins with 429 are none of them a refusal (`doc/captures.md`, "Made-up texts").
+
  The last entry is a hand-written number that merely begins with `429`: another package's tests hold
  the same shape (`package/pi-shared/subagent-driver/src/retries-of-a-model-error.unit.test.ts`),
  and a digit after the status token means the text is not a refusal.
@@ -110,7 +114,7 @@ await describe({
             );
           },
         },);
-        const model = poolModel({ provider, id: 'writer', },);
+        const model = poolModel({ provider, id: 'writer-pool', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, {
           ...options,
           maxRetries: CALLER_RETRIES,
@@ -142,7 +146,7 @@ await describe({
               : immediate({ model, },);
           },
         },);
-        const model = poolModel({ provider, id: 'writer', },);
+        const model = poolModel({ provider, id: 'writer-pool', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(calls.map(call => labelOf(call.model,),),).toEqual([
           labelOf(responses,),
@@ -167,7 +171,7 @@ await describe({
             return immediate({ model, },);
           },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(calls.map(call => labelOf(call.model,),),).toEqual([
           labelOf(qwen,),
@@ -182,6 +186,9 @@ await describe({
       fn: async function unreadableBody() {
         /**
          Refusal whose body opens a brace but carries no JSON, so reading a delay from it throws.
+
+         Made up: boundary is the unreadable body, which names no delay
+         (`doc/captures.md`, "Made-up texts").
          */
         const unreadable = '429: {not json';
         const { provider, calls, options, } = await fixture({
@@ -193,7 +200,7 @@ await describe({
               : immediate({ model, },);
           },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(calls.map(call => labelOf(call.model,),),).toEqual([
           labelOf(qwen,),
@@ -216,8 +223,8 @@ await describe({
           },
         },);
         expect(provider.id,).toBe(PROVIDER_ID,);
-        expect(provider.getModels().map(model => model.id,),).toEqual(['writer', 'reviewer',],);
-        const model = poolModel({ provider, id: 'writer', },);
+        expect(provider.getModels().map(model => model.id,),).toEqual(['writer-pool', 'reviewer-pool',],);
+        const model = poolModel({ provider, id: 'writer-pool', },);
         const { events, result, } = await collect(provider.stream(model, TRANSCRIPT, {
           ...options,
           maxTokens: Number.MAX_SAFE_INTEGER,
@@ -245,7 +252,9 @@ await describe({
             return calls.length === FIRST_ATTEMPT ? immediate({ model, errorMessage: rateLimitRefusal({ model, },), },) : immediate({ model, },);
           },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
+        // Made up stand-ins: boundary is that nothing the caller supplies as a credential reaches a
+        // member (`doc/captures.md`, "Made-up texts").
         const requestOptions = {
           ...options,
           apiKey: 'stand-in-outer-key',
@@ -273,7 +282,7 @@ await describe({
             extension,
             play({ model, }) { return immediate({ model, errorMessage, },); },
           },);
-          const model = poolModel({ provider, id: 'writer', },);
+          const model = poolModel({ provider, id: 'writer-pool', },);
           const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           expect(result.errorMessage,).toBe(errorMessage,);
           expect(calls.map(call => call.model.provider,),).toEqual([HEAD.provider,],);
@@ -289,6 +298,8 @@ await describe({
             play({ model, }) {
               const stream = createAssistantMessageEventStream();
               const message = assistant({ model, errorMessage: rateLimitRefusal({ model, },), },);
+              // A made-up tool call: boundary is that output exposed before a failure keeps the
+              // request at that member (`doc/captures.md`, "Made-up texts").
               const toolCall = { type: 'toolCall', id: 'tool-fixture', name: 'fixtureTool', arguments: {}, } as const;
               message.content.push(toolCall,);
               if (publish) {
@@ -299,7 +310,7 @@ await describe({
               return stream;
             },
           },);
-          const model = poolModel({ provider, id: 'writer', },);
+          const model = poolModel({ provider, id: 'writer-pool', },);
           const { events, result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           expect(result.errorMessage,).toBe(rateLimitRefusal({ model: HEAD, },),);
           expect(events.map(event => event.type,),).toEqual(publish ? ['start', 'toolcall_start', 'error',] : ['error',],);
@@ -321,7 +332,7 @@ await describe({
             return stream;
           },
         },);
-        const model = poolModel({ provider, id: 'writer', },);
+        const model = poolModel({ provider, id: 'writer-pool', },);
         const { events, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(events.map(event => event.type,),).toEqual(['start', 'text_start', 'error',],);
         expect(calls.map(call => call.model.provider,),).toEqual([HEAD.provider,],);
@@ -338,7 +349,7 @@ await describe({
             return immediate({ model, errorMessage: rateLimitRefusal({ model, },), },);
           },
         },);
-        const model = poolModel({ provider, id: 'writer', },);
+        const model = poolModel({ provider, id: 'writer-pool', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, {
           ...options, signal: controller.signal,
         },),);
@@ -353,7 +364,7 @@ await describe({
           extension,
           play({ model, }) { return immediate({ model, errorMessage: rateLimitRefusal({ model, },), },); },
         },);
-        const model = poolModel({ provider, id: 'reviewer', },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
         const { events, result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(calls.map(call => call.model.provider,),).toEqual(REVIEWER_TARGETS.map(target => target.provider,),);
         expect(events.map(event => event.type,),).toEqual(['error',],);
@@ -373,11 +384,13 @@ await describe({
                 status: calls.length === FIRST_ATTEMPT ? RATE_LIMIT_STATUS : 400,
                 headers: {},
               }, model,);
+              // Made up text naming no status: boundary is that the exposed status decides
+              // (`doc/captures.md`, "Made-up texts").
               return immediate({ model, errorMessage: 'Provider returned an error', },);
             },);
           },
         },);
-        const model = poolModel({ provider, id: 'writer', },);
+        const model = poolModel({ provider, id: 'writer-pool', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(result.provider,).toBe(WRITER_TARGETS[1].provider,);
         expect(result.model,).toBe(WRITER_TARGETS[1].id,);
@@ -398,7 +411,7 @@ await describe({
             return stream;
           },
         },);
-        const model = poolModel({ provider, id: 'writer', },);
+        const model = poolModel({ provider, id: 'writer-pool', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(result.errorMessage,).toContain('closed without a terminal assistant event',);
         expect(calls.map(call => call.model.provider,),).toEqual([HEAD.provider,],);
