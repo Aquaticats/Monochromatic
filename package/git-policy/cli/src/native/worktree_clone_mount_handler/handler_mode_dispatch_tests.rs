@@ -13,8 +13,48 @@
 //! expect(run(['--help'])).toBe(0); expect(run([])).toBe(2);
 //! ```
 
-use super::{EXIT_DONE, EXIT_REFUSED, run};
+use super::{EXIT_DONE, EXIT_REFUSED, run_behind};
+use crate::zfs_compatibility_gate::gate_verdict::{Facts, Verdict};
+use crate::zfs_compatibility_gate::{BeforeRequests, gate_words::TESTED_MODULE_VERSION};
 use std::ffi::OsString;
+
+/// The gate a control hands in:
+/// compatible,
+/// with the tested module's release text,
+/// so a mode's own answer is what the control reads.
+struct PassingGate;
+
+impl BeforeRequests for PassingGate {
+    fn verdict(&self) -> Verdict {
+        return Verdict::Compatible(Facts {
+            target: "x86_64",
+            version: Some(String::from(TESTED_MODULE_VERSION)),
+            absent: Vec::new(),
+            base_btf_bytes: 10,
+            module_btf_bytes: 10,
+            header_bytes: (32, 32),
+        });
+    }
+}
+
+/// The gate that refuses,
+/// as a machine with no device answers.
+struct RefusingGate;
+
+impl BeforeRequests for RefusingGate {
+    fn verdict(&self) -> Verdict {
+        return Verdict::Refused(monochromatic_zfs_request_to_openzfs_kernel_device::CompatibilityRefusal {
+            step: monochromatic_zfs_request_to_openzfs_kernel_device::CompatibilityStep::Device,
+            file: None,
+            detail: String::from("it is absent"),
+        });
+    }
+}
+
+/// One invocation through the passing gate.
+fn run(words: &[OsString]) -> i32 {
+    return run_behind(&PassingGate, words);
+}
 
 /// The arguments of one invocation,
 /// as the kernel hands them over.
@@ -60,4 +100,19 @@ fn an_unreadable_invocation_answers_the_refusal_status() {
     assert_eq!(run(arguments(&["boot-reconcile", "--force"]).as_slice()), EXIT_REFUSED);
     assert_eq!(run(arguments(&["adopt-worktree-parent"]).as_slice()), EXIT_REFUSED);
     assert_eq!(run(arguments(&["adopt-worktree-parent", "--checkout"]).as_slice()), EXIT_REFUSED);
+}
+
+/// A gate that refuses keeps the mode unentered,
+/// so nothing that mode owns is opened or changed.
+#[test]
+fn a_refused_gate_answers_the_refusal_status_and_runs_no_mode() {
+    for words in [Vec::<&str>::new(), vec!["boot-reconcile"], vec!["shutdown-unmount"]] {
+        let status: i32 = run_behind(&RefusingGate, arguments(words.as_slice()).as_slice());
+        assert_eq!(status, EXIT_REFUSED, "{words:?}");
+    }
+    assert_eq!(
+        run_behind(&RefusingGate, arguments(&["--help"]).as_slice()),
+        EXIT_DONE,
+        "the words that ask what this build is need no gate"
+    );
 }

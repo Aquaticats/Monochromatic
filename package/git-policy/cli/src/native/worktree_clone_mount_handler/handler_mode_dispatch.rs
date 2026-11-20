@@ -24,6 +24,8 @@ use super::boot_reconcile_mode;
 use super::handler_mode_arguments::{self, HandlerMode};
 use super::shutdown_unmount_mode;
 use crate::diagnostic_lines_off_the_calling_thread::write;
+use crate::zfs_compatibility_gate::gate_verdict::Verdict;
+use crate::zfs_compatibility_gate::{BeforeRequests, LiveGate, verdict_line};
 use std::ffi::OsString;
 use std::io::Write;
 
@@ -112,6 +114,34 @@ fn report(outcome: Result<String, String>) -> i32 {
 }
 
 /// What:
+///  Run the compatibility gate before a mode that will make requests,
+///  and answer
+///  with the gate's line when it refuses.
+/// Why:
+///  No mode may send a raw request before the loaded module's declaration is
+///  compared,
+///  and a refusal is the whole answer:
+///  the mode is not entered,
+///  so nothing is opened,
+///  mounted,
+///  unmounted or recorded,
+///  and registrations and durable recovery state stay as they were.
+fn behind_the_gate(
+    gate: &dyn BeforeRequests,
+    outcome: impl FnOnce() -> Result<String, String>,
+) -> Result<String, String> {
+    let verdict: Verdict = gate.verdict();
+    let line: String = verdict_line(&verdict);
+    if let Verdict::Refused(_) = verdict {
+        return Err(line);
+    }
+    return match outcome() {
+        Ok(done) => Ok(format!("{line}\n{done}")),
+        Err(refusal) => Err(format!("{line}\n{refusal}")),
+    };
+}
+
+/// What:
 ///  Read one invocation and run it.
 /// Why:
 ///   The argument grammar is the only way in:
@@ -124,6 +154,23 @@ fn report(outcome: Result<String, String>) -> i32 {
 /// const status = run(argv); // 0 when the mode did its work, 2 otherwise
 /// ```
 pub fn run(arguments: &[OsString]) -> i32 {
+    return run_behind(&LiveGate, arguments);
+}
+
+/// What:
+///  Read one invocation and run it behind the given gate.
+/// Why:
+///   The release path's gate reads this machine's kernel files and device,
+///  so a
+///  control hands in a gate that answers without them,
+///  and the order the modes run
+///  in stays the one the release path takes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const status = runBehind(gate, argv);
+/// ```
+pub fn run_behind(gate: &dyn BeforeRequests, arguments: &[OsString]) -> i32 {
     let mode: HandlerMode = match handler_mode_arguments::parse(arguments) {
         Ok(mode) => mode,
         Err(refusal) => {
@@ -141,9 +188,15 @@ pub fn run(arguments: &[OsString]) -> i32 {
             report_line(handler_mode_arguments::version_line().as_str());
             EXIT_DONE
         }
-        HandlerMode::AttachingSweep => report(attaching_sweep_mode::run().map_err(|awaiting| return awaiting.message())),
-        HandlerMode::BootReconcile => report(boot_reconcile_mode::run().map_err(|awaiting| return awaiting.message())),
-        HandlerMode::ShutdownUnmount => report(shutdown_unmount_mode::run().map_err(|awaiting| return awaiting.message())),
+        HandlerMode::AttachingSweep => report(behind_the_gate(gate, || {
+            return attaching_sweep_mode::run().map_err(|awaiting| return awaiting.message());
+        })),
+        HandlerMode::BootReconcile => report(behind_the_gate(gate, || {
+            return boot_reconcile_mode::run().map_err(|awaiting| return awaiting.message());
+        })),
+        HandlerMode::ShutdownUnmount => report(behind_the_gate(gate, || {
+            return shutdown_unmount_mode::run().map_err(|awaiting| return awaiting.message());
+        })),
         HandlerMode::AdoptWorktreeParent(request) => report(adopt_worktree_parent_mode::run(&request).map_err(|failure| return failure.message())),
     };
 }
