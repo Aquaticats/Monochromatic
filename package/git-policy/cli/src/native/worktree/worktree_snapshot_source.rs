@@ -29,16 +29,16 @@ use crate::add_timing::{begin_work, end_work};
 use crate::diagnostic_log::debug;
 pub use crate::worktree_snapshot_source_changed_paths::{ChangedPaths, changed_paths, plain};
 use crate::config_snapshot::{ConfigEntry, ConfigSnapshot, read_config_snapshot, read_config_snapshot_awaiting};
-use crate::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root, may_clone};
+use crate::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
 use crate::fs_mount_options::read_mount_facts;
 use crate::lazy_runtime::run_on_runtime;
 use crate::transaction_git::GitContext;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clean::{CleanRefusal, CleanRefusalKind, CleanSource, check_clean, check_clean_awaiting, dirty_source};
+use crate::worktree_clone_domain::{clone_domain_refusal_of, clone_write_target, unclonable_filesystem};
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_trash_ignore_rule::{trash_location_is_ignored, trash_location_is_ignored_awaiting};
 use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
@@ -247,23 +247,6 @@ pub fn snapshot_refusal(identity: &WorktreeIdentity, plan: &AddPlan) -> Option<S
 }
 
 /// What:
-///  The device number of what a path leads to,
-/// or nothing when it cannot be examined.
-/// Why:
-///   Two paths share data blocks only on one device.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// statSync(path).dev
-/// ```
-fn device_of_path(path: &Path) -> Option<u64> {
-    return match std::fs::metadata(path) {
-        Ok(found) => Some(found.dev()),
-        Err(_unreadable) => None,
-    };
-}
-
-/// What:
 ///  The cheap reasons the clone rung cannot serve a planned add:
 /// either side is on a filesystem that never clones,
 /// or the
@@ -290,10 +273,10 @@ pub fn clone_refusal(identity: &WorktreeIdentity, plan: &AddPlan) -> Option<Stri
     };
     let Some(parent) = plan.destination.parent() else { return Some(String::from("the destination has no parent directory")) };
     let target: PathBuf = clone_write_target((plan.destination.as_path(), parent));
-    if !may_clone(root.as_path()) || !may_clone(target.as_path()) {
-        return Some(String::from("the filesystem does not share data blocks between files"));
+    if let Some(reason) = unclonable_filesystem((root.as_path(), target.as_path())) {
+        return Some(reason);
     }
-    return clone_domain_refusal(&clone_side_of(root.as_path()), &clone_side_of(target.as_path()));
+    return clone_domain_refusal_of((root.as_path(), target.as_path()));
 }
 
 /// Which kind of check refused a source,
