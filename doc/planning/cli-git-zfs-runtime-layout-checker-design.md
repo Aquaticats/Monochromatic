@@ -784,8 +784,12 @@ the pick is not made here.
   The commits that carry the body this entry records are `40fea4e6eb` at
   2026-11-20T17:43:38-05:00,
   `ae597db4a4` at 2026-11-20T17:44:36-05:00,
-  and `ac364c61e6` at 2026-11-20T17:45:30-05:00.
-  The commit that carries this sentence names them.
+  `ac364c61e6` at 2026-11-20T17:45:30-05:00,
+  `e280f31281` at 2026-11-20T17:46:50-05:00,
+  `53ec673c1c` at 2026-11-20T17:47:45-05:00,
+  and `127e01078c` at 2026-11-20T17:48:18-05:00.
+  The commit that carries this sentence names them,
+  and it is the last of the round.
   This is the revision that finishes discovery.
   It writes the pre-discovery check-in of 2026-11-20,
   records the three class 3 queries and the class 2 repository and project lists,
