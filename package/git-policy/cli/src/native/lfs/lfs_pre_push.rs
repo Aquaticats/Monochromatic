@@ -471,17 +471,38 @@ pub fn reads_as_a_key_failure(text: &str) -> bool {
 ///  `sshconnect.c` at `V_10_6_P2` lines 603 to 627).
 ///  That refusal is neither a credential the push lacked nor a fault it can retry away,
 ///  so it gets its own sentence.
+///  OpenSSH prints that same last line for a key that changed,
+///  after its warning that someone may be attacking the connection,
+///  and for a host it does not know while the account asks for strict checking;
+///  the changed key is a different cause with its own warning and is left to OpenSSH's words,
+///  as `main` leaves it,
+///  and the strict-checking refusal is the unknown key this reading is for.
+///  The census is the transcript of each arm, measured against a throwaway `sshd` on `127.0.0.1` with OpenSSH 10.6p2
+///  and the wrapper's own two variables (`SSH_ASKPASS=false`,
+///  `SSH_ASKPASS_REQUIRE=force`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// text.includes('Host key verification failed')
+/// text.includes('Host key verification failed') && !text.includes('REMOTE HOST IDENTIFICATION HAS CHANGED') && !text.includes('has changed and you have requested strict checking')
 /// ```
 pub fn reads_as_unknown_host_key(text: &str) -> bool {
-    return text.contains(HOST_KEY_NOT_KNOWN_PHRASE);
+    return text.contains(HOST_KEY_NOT_KNOWN_PHRASE)
+        && !text.contains(HOST_KEY_CHANGED_PHRASE)
+        && !text.contains(HOST_KEY_CHANGE_UNDER_STRICT_CHECKING_PHRASE);
 }
 
 /// The words OpenSSH prints when it will not connect to a host whose key this machine does not know.
 const HOST_KEY_NOT_KNOWN_PHRASE: &str = "Host key verification failed";
+
+/// The banner of OpenSSH's warning that the key a host offered is not the one this machine holds,
+/// which says that someone may be attacking the connection
+/// (`sshconnect.c` at `V_10_6_P2`,
+/// `hostkeys_foreach` and `verify_host_key`).
+const HOST_KEY_CHANGED_PHRASE: &str = "REMOTE HOST IDENTIFICATION HAS CHANGED";
+
+/// The line that ends OpenSSH's warning about a changed key,
+/// which a transcript may carry without the banner above it.
+const HOST_KEY_CHANGE_UNDER_STRICT_CHECKING_PHRASE: &str = "has changed and you have requested strict checking";
 
 /// What:
 ///  The one sentence a refusal prints when the cause is a host key this machine does not know:

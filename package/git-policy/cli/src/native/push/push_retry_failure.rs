@@ -177,18 +177,22 @@ pub fn protected_branch_refusal(output: &str) -> Option<&str> {
 /// no retry adds it,
 /// and the words of `plain_words` say to connect once with plain `ssh <host>` or add the key to `known_hosts`,
 /// then retry (the project's answer of 2026-11-20).
+///  That reading comes after the hook's decline,
+/// as `main` orders its readings,
+/// because a hook that reaches another host over SSH can print those same words about its own connection
+/// and the push's cause is then the server's refusal, not this machine's `known_hosts`.
 pub fn final_failure(output: &str) -> Option<FinalFailure> {
     if output.contains(CONFLICT_PHRASE) {
         return Some(FinalFailure::Conflict);
-    }
-    if reads_as_unknown_host_key(output) {
-        return Some(FinalFailure::HostKeyNotKnown);
     }
     let protected: bool = protected_branch_refusal(output).is_some();
     for line in rejection_lines(output) {
         if !protected && line.contains(HOOK_DECLINED) {
             return Some(FinalFailure::Declined);
         }
+    }
+    if reads_as_unknown_host_key(output) {
+        return Some(FinalFailure::HostKeyNotKnown);
     }
     for phrase in LOGIN_PHRASES {
         if output.contains(phrase) {
