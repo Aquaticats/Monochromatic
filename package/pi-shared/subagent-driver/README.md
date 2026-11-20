@@ -1100,6 +1100,17 @@ the launcher that builds the session's environment asks it, once, before it make
   then rename it to one without the dot,
   because any other name is read at once.
   Pi gets it as a steer while it works and as a new prompt while it rests.
+  Every message is sent as a prompt that names `streamingBehavior: 'steer'`,
+  whichever state the driver's own read of the feed gave:
+  a turn Pi is in queues it there,
+  and a turn Pi starts between that read and the delivery takes it too,
+  because Pi reads the field only while its agent run is active
+  (`prompt()` in `dist/core/agent-session.js` of Pi 1.5.2).
+  A resting agent ignores the field and starts a turn as before,
+  and a `steer` command is never sent:
+  its queue is drained only by a running agent run,
+  so a message that met a settle would wait there unread.
+  The feed's `sentAs` says which of the two the driver's own read expected.
   A message is read only while the driver is up:
   with the default idle window of `0` a settled run ends within one look of the folder,
   so a run that must be steered after it settles needs a positive `--idle-seconds`.
@@ -1108,6 +1119,9 @@ the launcher that builds the session's environment asks it, once, before it make
   A message Pi refused stays as `.failed-<name>`,
   and a later message of the same name that is also refused gets `.failed-<name>.<n>`,
   so no kept message replaces another.
+  Pi's answer that its agent is already processing is busy, never a refusal:
+  the message goes back to the inbox and the next look sends it again,
+  and a newer message of the same name keeps the name.
   While a message is being delivered it is held under a dot name of its own,
   so a newer message published under the same name is neither deleted nor kept in its place.
 - `stop`:

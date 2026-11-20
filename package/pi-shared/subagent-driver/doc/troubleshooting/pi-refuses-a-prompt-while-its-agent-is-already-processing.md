@@ -83,6 +83,11 @@ get isIdle() {
 }
 ```
 
+The field is read only inside that branch,
+and the input handlers are handed `this.isStreaming ? options?.streamingBehavior : undefined`
+(`dist/core/agent-session.js:1736`),
+so while the agent rests the field is treated as absent and the prompt starts a turn as it always did.
+
 `_isAgentRunActive` is set by `_startRun` (`dist/core/agent-session.js:1488`)
 and cleared by `_emitAgentSettled` (`dist/core/agent-session.js:740`),
 so any turn makes it true, including one Pi starts by itself rather than from a client prompt.
@@ -193,14 +198,18 @@ Both are the package's own, in `kept-while-work-runs.ts`.
 The wake is not the only prompt this package sends while an agent may be at work.
 Each was read on 2026-11-19, in the code named.
 
-- Inbox delivery (`deliverMessage` in `watch-pi-run.ts`) sends `steer` while its view of the feed says Pi runs,
-  and `prompt` otherwise.
-  A turn Pi starts after that read, which is the same race, makes the prompt meet the busy answer;
-  the driver keeps the message aside as `.failed-<name>`, skips it in later scans and never retries it.
-  The message stays readable on disk and the run goes on, but it is never delivered.
-  Sending it as a prompt with `streamingBehavior: "steer"` unconditionally would close this,
-  because Pi ignores the field while its agent rests.
-  Left unchanged by the fix for the wake.
+- Inbox delivery (`deliverMessage` in `watch-pi-run.ts`) sends every message as a prompt naming
+  `streamingBehavior: "steer"`, whichever state its view of the feed gave.
+  A turn Pi starts after that read takes the message, where the plain prompt it used to send met the busy answer
+  and the driver kept the message aside as `.failed-<name>`, skipped it in later scans and never retried it.
+  A resting agent ignores the field: `_preparePrompt` reads it only under `if (this.isStreaming)`, and the
+  input handlers get `this.isStreaming ? options?.streamingBehavior : undefined`
+  (`dist/core/agent-session.js:1736`), so the message starts a turn as before.
+  The busy answer is now read as the agent being busy, never as a refusal: the message goes back to the inbox under its
+  own name, the next look sends it again, and a newer message of the same name keeps the name
+  (`returnToInbox` in `an-inbox-message-pi-did-not-take.ts`).
+  A refusal Pi makes for a reason of its own still keeps the message as `.failed-<name>`.
+  Fixed on its own, after the wake.
 - The model-error retry (`answerWithAnotherAttempt` in `answer-a-model-error.ts`) sends only when its view of the
   feed says Pi rests (`answerModelError` returns `still-running` while `record.isRunning()`).
   A turn Pi starts after that read makes the retry prompt meet the busy answer,
