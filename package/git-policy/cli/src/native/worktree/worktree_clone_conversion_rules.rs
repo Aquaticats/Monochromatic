@@ -16,8 +16,12 @@
 //! so equal sizes leave nothing dropped).
 //! The rules here are Git's own,
 //! from `convert.c` (`convert_attrs`,
-//!  `output_eol`,
+//!  `git_path_check_crlf`,
+//! `output_eol`,
 //! `will_convert_lf_to_crlf`) at Git 2.56:
+//! `text` decides first and the legacy `crlf` attribute is its fallback,
+//! `eol` refines every action but the binary one (an action nothing named included),
+//! and only an action still unnamed falls to `core.autocrlf`;
 //! a rule that may convert answers "Git writes it",
 //! so the error is always the expensive one and never a wrong worktree.
 //!
@@ -111,6 +115,9 @@ pub enum OutputEnding {
 /// The action `convert_attrs` makes of a path's attributes and the configuration.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CrlfAction {
+    /// Nothing has named an action yet (`CRLF_UNDEFINED`),
+    /// which `core.autocrlf` decides.
+    Undefined,
     /// Never convert,
     /// on either side.
     Binary,
@@ -154,24 +161,24 @@ impl ConversionRules {
     /// What:
     ///  The action Git makes of one path's attributes (`convert_attrs`).
     /// Why:
-    ///   The attribute wins over the configuration,
-    /// `eol` refines the action,
-    /// and an action nothing names falls to `core.autocrlf`.
+    ///   `text` is read first and the legacy `crlf` attribute is its fallback,
+    /// `eol` refines any action but the binary one,
+    /// and an action still unnamed falls to `core.autocrlf`.
+    /// A bare `eol=crlf` therefore makes Git write carriage returns,
+    /// and a bare `eol=lf` makes the clean side strip them,
+    /// with no `text` attribute anywhere
+    ///  (`convert.c`,
+    /// `git_path_check_crlf` and the `eol` branch of `convert_attrs`).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// function actionOf(text, eol, rules): CrlfAction;
+    /// function actionOf(text, crlf, eol, rules): CrlfAction;
     /// ```
-    pub fn action_of(&self, text: TextAttribute, eol: EolAttribute) -> CrlfAction {
-        // What the attribute says; `text=foo` is `CRLF_UNDEFINED` too, which the caller refuses rather than models.
-        let named: CrlfAction = match text {
-            TextAttribute::Set => CrlfAction::Text,
-            TextAttribute::Unset => CrlfAction::Binary,
-            TextAttribute::Input => CrlfAction::TextInput,
-            TextAttribute::Auto => CrlfAction::Auto,
-            TextAttribute::Unspecified | TextAttribute::Other => CrlfAction::Binary,
-        };
-        // `eol` refines any action but the binary one, then an action nothing names falls to `core.autocrlf`.
+    pub fn action_of(&self, text: TextAttribute, crlf: TextAttribute, eol: EolAttribute) -> CrlfAction {
+        // Git reads `text`, and only an action that is still undefined falls back to the legacy `crlf` attribute.
+        let primary: CrlfAction = crlf_action_of(text);
+        let named: CrlfAction = if primary == CrlfAction::Undefined { crlf_action_of(crlf) } else { primary };
+        // `eol` refines every action but the binary one, an action nothing named included.
         let with_eol: CrlfAction = match (named, eol) {
             (CrlfAction::Binary, _) => CrlfAction::Binary,
             (CrlfAction::Auto, EolAttribute::Lf) => CrlfAction::AutoInput,
@@ -180,18 +187,16 @@ impl ConversionRules {
             (_, EolAttribute::Crlf) => CrlfAction::TextCrlf,
             (action, EolAttribute::Unspecified) => action,
         };
-        return match text {
-            TextAttribute::Unspecified => match self.auto_crlf {
+        return match with_eol {
+            // `text` alone takes the platform's ending from the configuration (`text_eol_is_crlf`).
+            CrlfAction::Text => if self.text_eol_is_crlf() { CrlfAction::TextCrlf } else { CrlfAction::TextInput },
+            // An action nothing named is `core.autocrlf`'s to decide.
+            CrlfAction::Undefined => match self.auto_crlf {
                 AutoCrlf::False => CrlfAction::Binary,
                 AutoCrlf::Input => CrlfAction::AutoInput,
                 AutoCrlf::True => CrlfAction::AutoCrlf,
             },
-            TextAttribute::Other => match self.auto_crlf {
-                AutoCrlf::False => CrlfAction::Binary,
-                AutoCrlf::Input => CrlfAction::AutoInput,
-                AutoCrlf::True => CrlfAction::AutoCrlf,
-            },
-            _ => with_eol,
+            action => action,
         };
     }
 
@@ -204,6 +209,8 @@ impl ConversionRules {
     pub fn output_ending(&self, action: CrlfAction) -> OutputEnding {
         return match action {
             CrlfAction::Binary => OutputEnding::Unset,
+            // Git's own `output_eol` answers the carriage return here, and `action_of` never leaves this action.
+            CrlfAction::Undefined => OutputEnding::Crlf,
             CrlfAction::TextInput | CrlfAction::AutoInput => OutputEnding::Lf,
             CrlfAction::TextCrlf | CrlfAction::AutoCrlf => OutputEnding::Crlf,
             CrlfAction::Text | CrlfAction::Auto => {
@@ -217,6 +224,27 @@ impl ConversionRules {
     }
 }
 
+/// What:
+///  The action one line-ending attribute value names on its own (`git_path_check_crlf`).
+/// Why:
+///   `text` and the legacy `crlf` attribute are read by the same function in Git,
+/// so `crlf=input` means what `text=input` means,
+/// and only a value Git does not name leaves the action undefined.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function crlfActionOf(value): CrlfAction;
+/// ```
+fn crlf_action_of(value: TextAttribute) -> CrlfAction {
+    return match value {
+        TextAttribute::Set => CrlfAction::Text,
+        TextAttribute::Unset => CrlfAction::Binary,
+        TextAttribute::Input => CrlfAction::TextInput,
+        TextAttribute::Auto => CrlfAction::Auto,
+        TextAttribute::Unspecified | TextAttribute::Other => CrlfAction::Undefined,
+    };
+}
+
 //endregion
 
 //region the rules of one path
@@ -227,6 +255,9 @@ impl ConversionRules {
 pub struct PathAttributes {
     /// The `text` attribute.
     pub text: TextAttribute,
+    /// The legacy `crlf` attribute,
+    /// which Git reads when `text` names no action.
+    pub crlf: TextAttribute,
     /// The `eol` attribute.
     pub eol: EolAttribute,
     /// Whether a `filter` attribute selects a program.
@@ -254,8 +285,11 @@ pub enum FenceVerdict {
 /// a filter,
 /// `ident` and an encoding can rewrite the bytes;
 /// an ending Git may add is a conversion the clone's bytes do not have;
-/// and where the ending can only be stripped on the way in,
-/// equal sizes prove nothing was stripped.
+/// and wherever the checkout writes the blob unchanged,
+/// the file must have the blob's own size:
+/// a rule that only strips carriage returns shrinks a file it touches,
+/// and a path with no rule at all holds its blob's size only when it holds its bytes
+///  (a file the source's index vouched for can still be a CRLF form an earlier rule wrote).
 /// `blob_size` is `None` for a path the tree does not list,
 /// which is a path Git writes.
 ///
@@ -279,36 +313,58 @@ pub fn decide(attributes: &PathAttributes, rules: &ConversionRules, is_link: boo
     if attributes.ident {
         return FenceVerdict::WriteThroughGit(String::from("an ident attribute expands the keyword in the checked-out bytes"));
     }
-    let action: CrlfAction = rules.action_of(attributes.text, attributes.eol);
-    return match rules.output_ending(action) {
-        OutputEnding::Unset => FenceVerdict::Carry,
-        OutputEnding::Crlf => FenceVerdict::WriteThroughGit(String::from("a line-ending rule may add carriage returns to the checked-out bytes")),
-        OutputEnding::Lf => match blob_size {
-            Some(size) if size == file_size => FenceVerdict::Carry,
-            Some(_) => FenceVerdict::WriteThroughGit(String::from("its recorded size differs from its blob's, so a line-ending rule dropped or added bytes")),
-            None => FenceVerdict::WriteThroughGit(String::from("the tree lists no blob for it")),
-        },
+    let action: CrlfAction = rules.action_of(attributes.text, attributes.crlf, attributes.eol);
+    if rules.output_ending(action) == OutputEnding::Crlf {
+        return FenceVerdict::WriteThroughGit(String::from("a line-ending rule may add carriage returns to the checked-out bytes"));
+    }
+    return match blob_size {
+        Some(size) if size == file_size => FenceVerdict::Carry,
+        Some(_) => FenceVerdict::WriteThroughGit(String::from("its recorded size differs from its blob's, so its bytes are not the blob's")),
+        None => FenceVerdict::WriteThroughGit(String::from("the tree lists no blob for it")),
     };
 }
 
 /// What:
-///  Whether the path's ending rule can strip carriage returns on the way into the index,
-/// which is the one case where the blob's size decides.
+///  Whether the path's checkout can write the blob unchanged,
+/// so the blob's size decides whether the source's file is the blob.
 /// Why:
 ///   A rule whose checkout never adds a carriage return and whose clean side only drops them
 /// leaves equal sizes as the proof that nothing was dropped;
-/// a filter,
+/// a path with no rule at all needs the same proof,
+/// because a file can hold a CRLF form written under a rule that is gone today
+///  (`core.autocrlf` unset after the add,
+/// a tracked attributes file deleted by a later commit).
+/// A filter,
 /// an encoding or `ident` answers the fence before the ending is looked at.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const needsSize = (attributes, rules) => !converting(attributes) && outputEnding(actionOf(attributes)) === 'lf';
+/// const needsSize = (attributes, rules) => !converting(attributes) && outputEnding(actionOf(attributes)) !== 'crlf';
 /// ```
 pub fn needs_blob_size(attributes: &PathAttributes, rules: &ConversionRules) -> bool {
-    if attributes.filter || attributes.encoding || attributes.ident {
+    if attributes.filter || attributes.encoding || attributes.ident || attributes.text == TextAttribute::Other {
         return false;
     }
-    return rules.output_ending(rules.action_of(attributes.text, attributes.eol)) == OutputEnding::Lf;
+    return rules.output_ending(rules.action_of(attributes.text, attributes.crlf, attributes.eol)) != OutputEnding::Crlf;
+}
+
+/// What:
+///  Whether a rule of the path's own converts its bytes on the way out,
+/// with no size read at all.
+/// Why:
+///   These are the paths a fence must hand to Git whatever their sizes say,
+/// so their count is the one a decline rule can price before reading a blob
+/// (`fence_the_clone`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const converts = (attributes, rules) => filter || ident || encoding || otherText || outputEnding(actionOf(attributes)) === 'crlf';
+/// ```
+pub fn checkout_converts(attributes: &PathAttributes, rules: &ConversionRules) -> bool {
+    if attributes.filter || attributes.encoding || attributes.ident || attributes.text == TextAttribute::Other {
+        return true;
+    }
+    return rules.output_ending(rules.action_of(attributes.text, attributes.crlf, attributes.eol)) == OutputEnding::Crlf;
 }
 
 //endregion
@@ -405,6 +461,16 @@ pub fn apply_attribute(attributes: &mut PathAttributes, name: &[u8], value: &[u8
                 b"lf" => EolAttribute::Lf,
                 b"crlf" => EolAttribute::Crlf,
                 _ => EolAttribute::Unspecified,
+            };
+        }
+        // The legacy `crlf` attribute, which Git reads with the same function as `text` when `text` names no action.
+        b"crlf" => {
+            attributes.crlf = match value {
+                SET_VALUE => TextAttribute::Set,
+                UNSET_VALUE => TextAttribute::Unset,
+                b"input" => TextAttribute::Input,
+                b"auto" => TextAttribute::Auto,
+                _ => TextAttribute::Unspecified,
             };
         }
         b"filter" => {

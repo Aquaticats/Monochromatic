@@ -58,6 +58,12 @@ path = "src/native/binary/binary_tests.rs"
 name = "native_candidates"
 path = "src/native/candidate/candidate_consumer_tests.rs"
 
+# Off by default and never enabled by a shipped build: the clone conversion fence's measurement-only routes (options C
+# and D of doc/planning/cli-git-clone-rung-conversion-fence.md) are compiled only for a report that times the options, so
+# no setting can reach a route the shipped code does not take.
+[features]
+measurement-routes = []
+
 [dependencies]
 # Both native tools use the already adopted comment-preserving JSONC foundation.
 monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.3" }

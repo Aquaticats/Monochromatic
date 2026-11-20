@@ -1,6 +1,7 @@
 //! Controls for the conversion fence's decision:
 //! one per conversion class Git's checkout can apply,
-//! with the sizes that prove a carried file holds its blob.
+//! with the sizes that prove a carried file holds its blob,
+//! and the `eol`-without-`text` and legacy `crlf` forms Git's own `convert_attrs` reads.
 
 use super::*;
 
@@ -15,7 +16,8 @@ fn entry_of(key: &str, value: Option<&str>) -> ConfigEntry {
     return ConfigEntry { scope: String::from("local"), key: String::from(key), value: value.map(|text| return text.as_bytes().to_vec()) };
 }
 
-/// The attributes one test names.
+/// The attributes one test names,
+/// with no legacy `crlf` attribute.
 fn attributes_of(text: TextAttribute, eol: EolAttribute) -> PathAttributes {
     return PathAttributes { text, eol, ..PathAttributes::default() };
 }
@@ -23,18 +25,42 @@ fn attributes_of(text: TextAttribute, eol: EolAttribute) -> PathAttributes {
 /// An ordinary file of 18 bytes whose blob is 18 bytes.
 const EQUAL: (u64, Option<u64>) = (18, Some(18));
 
+/// A file of 20 bytes whose blob is 18:
+/// a carriage return a rule took out on the way into the index.
+const ADDED_CARRIAGE_RETURN: (u64, Option<u64>) = (20, Some(18));
+
 #[test]
 fn no_rule_and_no_configuration_carries_the_file() {
     let rules = rules_of(&[]);
-    assert_eq!(rules.action_of(TextAttribute::Unspecified, EolAttribute::Unspecified), CrlfAction::Binary);
+    assert_eq!(rules.action_of(TextAttribute::Unspecified, TextAttribute::Unspecified, EolAttribute::Unspecified), CrlfAction::Binary);
     assert_eq!(decide(&PathAttributes::default(), &rules, false, EQUAL.0, EQUAL.1), FenceVerdict::Carry);
+    assert!(needs_blob_size(&PathAttributes::default(), &rules));
+    assert!(!checkout_converts(&PathAttributes::default(), &rules));
+}
+
+#[test]
+fn a_path_with_no_rule_whose_file_size_differs_from_its_blob_is_written_by_git() {
+    // `core.autocrlf=input` and a CRLF file added (blob LF), then the setting unset: no rule is left, and the file
+    // still holds the form the rule Git no longer reads wrote (the gate review's `m04`).
+    let rules = rules_of(&[]);
+    assert_eq!(decide(&PathAttributes::default(), &rules, false, ADDED_CARRIAGE_RETURN.0, ADDED_CARRIAGE_RETURN.1), FenceVerdict::WriteThroughGit(String::from("its recorded size differs from its blob's, so its bytes are not the blob's")));
+}
+
+#[test]
+fn a_tracked_attributes_file_a_later_commit_deleted_leaves_the_size_to_catch_it() {
+    // `* text=auto` when a CRLF file was added, the tracked `.gitattributes` deleted afterwards (the gate review's
+    // `m06`): today the path has no rule, and its blob is the LF form the old rule made.
+    let rules = rules_of(&[]);
+    assert_eq!(rules.action_of(TextAttribute::Unspecified, TextAttribute::Unspecified, EolAttribute::Unspecified), CrlfAction::Binary);
+    assert!(matches!(decide(&PathAttributes::default(), &rules, false, ADDED_CARRIAGE_RETURN.0, ADDED_CARRIAGE_RETURN.1), FenceVerdict::WriteThroughGit(_)));
 }
 
 #[test]
 fn text_alone_over_a_lf_platform_never_adds_a_carriage_return_and_needs_the_size() {
     let rules = rules_of(&[]);
     let held = attributes_of(TextAttribute::Set, EolAttribute::Unspecified);
-    assert_eq!(rules.action_of(held.text, held.eol), CrlfAction::Text);
+    // `text` alone makes `CRLF_TEXT`, which `convert_attrs` then resolves to the ending the configuration names.
+    assert_eq!(rules.action_of(held.text, held.crlf, held.eol), CrlfAction::TextInput);
     assert_eq!(decide(&held, &rules, false, 18, Some(18)), FenceVerdict::Carry);
     assert!(matches!(decide(&held, &rules, false, 20, Some(18)), FenceVerdict::WriteThroughGit(_)));
     assert!(matches!(decide(&held, &rules, false, 18, None), FenceVerdict::WriteThroughGit(_)));
@@ -45,17 +71,72 @@ fn text_alone_over_a_lf_platform_never_adds_a_carriage_return_and_needs_the_size
 fn text_with_eol_crlf_may_add_carriage_returns_so_git_writes_it() {
     let rules = rules_of(&[]);
     let held = attributes_of(TextAttribute::Set, EolAttribute::Crlf);
-    assert_eq!(rules.action_of(held.text, held.eol), CrlfAction::TextCrlf);
+    assert_eq!(rules.action_of(held.text, held.crlf, held.eol), CrlfAction::TextCrlf);
     assert_eq!(rules.output_ending(CrlfAction::TextCrlf), OutputEnding::Crlf);
     assert!(!needs_blob_size(&held, &rules));
     assert!(matches!(decide(&held, &rules, false, 18, Some(18)), FenceVerdict::WriteThroughGit(_)));
 }
 
 #[test]
+fn eol_crlf_with_no_text_attribute_makes_the_checkout_write_carriage_returns() {
+    // `convert_attrs`: `text` is undefined, and the `eol` attribute refines an undefined action into `CRLF_TEXT_CRLF`
+    // before `core.autocrlf` is consulted, so `*.txt eol=crlf` alone writes carriage returns.
+    let rules = rules_of(&[]);
+    let held = attributes_of(TextAttribute::Unspecified, EolAttribute::Crlf);
+    assert_eq!(rules.action_of(held.text, held.crlf, held.eol), CrlfAction::TextCrlf);
+    assert_eq!(rules.output_ending(CrlfAction::TextCrlf), OutputEnding::Crlf);
+    assert!(checkout_converts(&held, &rules));
+    assert!(!needs_blob_size(&held, &rules));
+    assert!(matches!(decide(&held, &rules, false, 18, Some(18)), FenceVerdict::WriteThroughGit(_)));
+}
+
+#[test]
+fn eol_lf_with_no_text_attribute_strips_carriage_returns_so_the_size_decides() {
+    // `convert_attrs`: an undefined action with `eol=lf` becomes `CRLF_TEXT_INPUT`, so the checkout writes the blob and
+    // the clean side only drops carriage returns, even with no `text` attribute at all.
+    let rules = rules_of(&[]);
+    let held = attributes_of(TextAttribute::Unspecified, EolAttribute::Lf);
+    assert_eq!(rules.action_of(held.text, held.crlf, held.eol), CrlfAction::TextInput);
+    assert_eq!(rules.output_ending(CrlfAction::TextInput), OutputEnding::Lf);
+    assert!(!checkout_converts(&held, &rules));
+    assert!(needs_blob_size(&held, &rules));
+    assert_eq!(decide(&held, &rules, false, 18, Some(18)), FenceVerdict::Carry);
+    assert!(matches!(decide(&held, &rules, false, 20, Some(18)), FenceVerdict::WriteThroughGit(_)));
+}
+
+#[test]
+fn the_legacy_crlf_attribute_is_the_fallback_text_has_in_git() {
+    // `git_path_check_crlf` reads the `crlf` attribute with the same function as `text`, and `convert_attrs` consults it
+    // only while `text` names no action.
+    let rules = rules_of(&[("core.eol", Some("crlf"))]);
+    let legacy = PathAttributes { crlf: TextAttribute::Set, ..PathAttributes::default() };
+    assert_eq!(rules.action_of(legacy.text, legacy.crlf, legacy.eol), CrlfAction::TextCrlf);
+    assert!(matches!(decide(&legacy, &rules, false, EQUAL.0, EQUAL.1), FenceVerdict::WriteThroughGit(_)));
+    // `text` wins where it names an action, even the binary one.
+    let both = PathAttributes { text: TextAttribute::Unset, crlf: TextAttribute::Set, ..PathAttributes::default() };
+    assert_eq!(rules.action_of(both.text, both.crlf, both.eol), CrlfAction::Binary);
+    assert_eq!(decide(&both, &rules, false, EQUAL.0, EQUAL.1), FenceVerdict::Carry);
+    // Its own values are read like `text`'s.
+    assert_eq!(rules.action_of(TextAttribute::Unspecified, TextAttribute::Input, EolAttribute::Unspecified), CrlfAction::TextInput);
+    assert_eq!(rules.action_of(TextAttribute::Unspecified, TextAttribute::Auto, EolAttribute::Crlf), CrlfAction::AutoCrlf);
+    assert_eq!(rules.action_of(TextAttribute::Unspecified, TextAttribute::Unset, EolAttribute::Crlf), CrlfAction::Binary);
+}
+
+#[test]
+fn a_legacy_crlf_attribute_over_an_added_crlf_file_is_written_by_git() {
+    // `*.txt crlf` over a file that was `git add`ed with carriage returns: the blob is the LF form, the file the CRLF
+    // one, so the checkout writes the blob and the clean side drops the carriage returns (the gate review's `m03b`).
+    let rules = rules_of(&[]);
+    let legacy = PathAttributes { crlf: TextAttribute::Set, ..PathAttributes::default() };
+    assert_eq!(rules.action_of(legacy.text, legacy.crlf, legacy.eol), CrlfAction::TextInput);
+    assert!(matches!(decide(&legacy, &rules, false, ADDED_CARRIAGE_RETURN.0, ADDED_CARRIAGE_RETURN.1), FenceVerdict::WriteThroughGit(_)));
+}
+
+#[test]
 fn text_auto_eol_lf_is_the_identity_on_the_way_out_and_needs_the_size() {
     let rules = rules_of(&[]);
     let held = attributes_of(TextAttribute::Auto, EolAttribute::Lf);
-    assert_eq!(rules.action_of(held.text, held.eol), CrlfAction::AutoInput);
+    assert_eq!(rules.action_of(held.text, held.crlf, held.eol), CrlfAction::AutoInput);
     assert_eq!(rules.output_ending(CrlfAction::AutoInput), OutputEnding::Lf);
     assert_eq!(decide(&held, &rules, false, 18, Some(18)), FenceVerdict::Carry);
     assert!(matches!(decide(&held, &rules, false, 20, Some(18)), FenceVerdict::WriteThroughGit(_)));
@@ -65,21 +146,21 @@ fn text_auto_eol_lf_is_the_identity_on_the_way_out_and_needs_the_size() {
 fn text_auto_eol_crlf_may_add_carriage_returns() {
     let held = attributes_of(TextAttribute::Auto, EolAttribute::Crlf);
     let rules = rules_of(&[]);
-    assert_eq!(rules.action_of(held.text, held.eol), CrlfAction::AutoCrlf);
+    assert_eq!(rules.action_of(held.text, held.crlf, held.eol), CrlfAction::AutoCrlf);
     assert!(matches!(decide(&held, &rules, false, 18, Some(18)), FenceVerdict::WriteThroughGit(_)));
 }
 
 #[test]
 fn core_autocrlf_true_writes_every_text_path_without_an_attribute() {
     let rules = rules_of(&[("core.autocrlf", Some("true"))]);
-    assert_eq!(rules.action_of(TextAttribute::Unspecified, EolAttribute::Unspecified), CrlfAction::AutoCrlf);
+    assert_eq!(rules.action_of(TextAttribute::Unspecified, TextAttribute::Unspecified, EolAttribute::Unspecified), CrlfAction::AutoCrlf);
     assert!(matches!(decide(&PathAttributes::default(), &rules, false, 18, Some(18)), FenceVerdict::WriteThroughGit(_)));
 }
 
 #[test]
 fn core_autocrlf_input_only_strips_carriage_returns_so_the_size_decides() {
     let rules = rules_of(&[("core.autocrlf", Some("input"))]);
-    assert_eq!(rules.action_of(TextAttribute::Unspecified, EolAttribute::Unspecified), CrlfAction::AutoInput);
+    assert_eq!(rules.action_of(TextAttribute::Unspecified, TextAttribute::Unspecified, EolAttribute::Unspecified), CrlfAction::AutoInput);
     assert_eq!(decide(&PathAttributes::default(), &rules, false, 18, Some(18)), FenceVerdict::Carry);
     assert!(matches!(decide(&PathAttributes::default(), &rules, false, 20, Some(18)), FenceVerdict::WriteThroughGit(_)));
 }
@@ -88,14 +169,14 @@ fn core_autocrlf_input_only_strips_carriage_returns_so_the_size_decides() {
 fn text_unset_keeps_the_file_even_under_core_autocrlf_true() {
     let rules = rules_of(&[("core.autocrlf", Some("true"))]);
     let held = attributes_of(TextAttribute::Unset, EolAttribute::Crlf);
-    assert_eq!(rules.action_of(held.text, held.eol), CrlfAction::Binary);
+    assert_eq!(rules.action_of(held.text, held.crlf, held.eol), CrlfAction::Binary);
     assert_eq!(decide(&held, &rules, false, 18, Some(18)), FenceVerdict::Carry);
 }
 
 #[test]
 fn core_eol_crlf_gives_text_alone_the_carriage_return_ending() {
     let rules = rules_of(&[("core.eol", Some("crlf"))]);
-    assert_eq!(rules.action_of(TextAttribute::Set, EolAttribute::Unspecified), CrlfAction::Text);
+    assert_eq!(rules.action_of(TextAttribute::Set, TextAttribute::Unspecified, EolAttribute::Unspecified), CrlfAction::TextCrlf);
     assert_eq!(rules.output_ending(CrlfAction::Text), OutputEnding::Crlf);
     assert!(matches!(decide(&attributes_of(TextAttribute::Set, EolAttribute::Unspecified), &rules, false, 18, Some(18)), FenceVerdict::WriteThroughGit(_)));
 }
@@ -110,6 +191,7 @@ fn ident_filter_and_encoding_are_written_by_git() {
     ] {
         assert!(matches!(decide(&held, &rules, false, 18, Some(18)), FenceVerdict::WriteThroughGit(_)), "{held:?}");
         assert!(!needs_blob_size(&held, &rules), "{held:?}");
+        assert!(checkout_converts(&held, &rules), "{held:?}");
     }
 }
 
@@ -118,6 +200,7 @@ fn a_text_value_git_does_not_name_is_written_by_git() {
     let rules = rules_of(&[]);
     let held = attributes_of(TextAttribute::Other, EolAttribute::Unspecified);
     assert!(matches!(decide(&held, &rules, false, 18, Some(18)), FenceVerdict::WriteThroughGit(_)));
+    assert!(checkout_converts(&held, &rules));
 }
 
 #[test]
@@ -141,15 +224,17 @@ fn the_attribute_triples_of_git_become_the_rules_of_one_path() {
     let mut held = PathAttributes::default();
     apply_attribute(&mut held, b"text", b"auto");
     apply_attribute(&mut held, b"eol", b"crlf");
+    apply_attribute(&mut held, b"crlf", b"set");
     apply_attribute(&mut held, b"ident", b"set");
     apply_attribute(&mut held, b"filter", b"lfs");
     apply_attribute(&mut held, b"working-tree-encoding", b"UTF-16LE");
-    assert_eq!(held, PathAttributes { text: TextAttribute::Auto, eol: EolAttribute::Crlf, filter: true, ident: true, encoding: true });
-    let mut reset = PathAttributes { text: TextAttribute::Set, eol: EolAttribute::Crlf, filter: true, ident: true, encoding: true };
+    assert_eq!(held, PathAttributes { text: TextAttribute::Auto, crlf: TextAttribute::Set, eol: EolAttribute::Crlf, filter: true, ident: true, encoding: true });
+    let mut reset = PathAttributes { text: TextAttribute::Set, crlf: TextAttribute::Input, eol: EolAttribute::Crlf, filter: true, ident: true, encoding: true };
     apply_attribute(&mut reset, b"text", b"unset");
     apply_attribute(&mut reset, b"eol", b"unspecified");
+    apply_attribute(&mut reset, b"crlf", b"unset");
     apply_attribute(&mut reset, b"ident", b"unset");
     apply_attribute(&mut reset, b"filter", b"unset");
     apply_attribute(&mut reset, b"working-tree-encoding", b"unset");
-    assert_eq!(reset, PathAttributes { text: TextAttribute::Unset, eol: EolAttribute::Unspecified, filter: false, ident: false, encoding: false });
+    assert_eq!(reset, PathAttributes { text: TextAttribute::Unset, crlf: TextAttribute::Unset, eol: EolAttribute::Unspecified, filter: false, ident: false, encoding: false });
 }

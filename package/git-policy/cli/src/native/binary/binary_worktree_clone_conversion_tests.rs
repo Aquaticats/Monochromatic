@@ -141,6 +141,116 @@ fn a_crlf_file_added_under_text_auto_eol_lf_is_written_by_git() {
 }
 
 #[test]
+fn an_eol_crlf_attribute_without_text_is_written_by_git() {
+    // `convert_attrs` lets `eol` refine an action nothing has named yet, so `*.txt eol=crlf` alone writes carriage
+    // returns; the prototype carried these LF files before the fix (the gate review's `m01`).
+    let fixture: Fixture = fixture("zfs-clone-conversion-bare-eol-crlf");
+    if !on_zfs_or_acknowledged(&fixture, "an_eol_crlf_attribute_without_text_is_written_by_git") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = conversion_fixture(&fixture, "repo", b"*.txt eol=crlf\n", b"line one\nline two\n", &|_repo| {});
+    assert_rung_equals_git(&fixture, repo.as_path(), true);
+}
+
+#[test]
+fn an_eol_lf_attribute_without_text_is_written_by_git() {
+    // The same refinement in the other direction: a CRLF file added under `*.txt eol=lf` has an LF blob and the fence's
+    // size proof sends it to Git; the prototype carried it before the fix (the gate review's `m02`).
+    let fixture: Fixture = fixture("zfs-clone-conversion-bare-eol-lf");
+    if !on_zfs_or_acknowledged(&fixture, "an_eol_lf_attribute_without_text_is_written_by_git") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = conversion_fixture(&fixture, "repo", b"*.txt eol=lf\n", b"line one\nline two\n", &|repo| {
+        super::worktree_snapshot::age(repo.join("notes.txt").as_path());
+        std::fs::write(repo.join("notes.txt"), b"line one\r\nline two\r\n").expect("CRLF file");
+        super::worktree_snapshot::age(repo.join("notes.txt").as_path());
+        git(&fixture, repo, &["add", "--no-enforce-bulk-add", "--", "notes.txt"]);
+        git(&fixture, repo, &["update-index", "--refresh"]);
+    });
+    assert_rung_equals_git(&fixture, repo.as_path(), true);
+}
+
+#[test]
+fn a_legacy_crlf_attribute_beside_core_eol_crlf_is_written_by_git() {
+    // The legacy `crlf` attribute is `text`'s fallback, and `core.eol=crlf` gives it the carriage return ending, so Git
+    // writes these LF files; the prototype read no `crlf` attribute at all (the gate review's `m03`).
+    let fixture: Fixture = fixture("zfs-clone-conversion-legacy-crlf");
+    if !on_zfs_or_acknowledged(&fixture, "a_legacy_crlf_attribute_beside_core_eol_crlf_is_written_by_git") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = conversion_fixture(&fixture, "repo", b"*.txt crlf\n", b"line one\nline two\n", &|repo| {
+        git(&fixture, repo, &["config", "core.eol", "crlf"]);
+    });
+    assert_rung_equals_git(&fixture, repo.as_path(), true);
+}
+
+#[test]
+fn a_legacy_crlf_attribute_over_an_added_crlf_file_is_written_by_git() {
+    // `*.txt crlf` over a file added with carriage returns: the blob is the LF form and the file the CRLF one, so the
+    // size proof sends it to Git (the gate review's `m03b`).
+    let fixture: Fixture = fixture("zfs-clone-conversion-legacy-crlf-added");
+    if !on_zfs_or_acknowledged(&fixture, "a_legacy_crlf_attribute_over_an_added_crlf_file_is_written_by_git") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = conversion_fixture(&fixture, "repo", b"*.txt crlf\n", b"line one\nline two\n", &|repo| {
+        super::worktree_snapshot::age(repo.join("notes.txt").as_path());
+        std::fs::write(repo.join("notes.txt"), b"line one\r\nline two\r\n").expect("CRLF file");
+        super::worktree_snapshot::age(repo.join("notes.txt").as_path());
+        git(&fixture, repo, &["add", "--no-enforce-bulk-add", "--", "notes.txt"]);
+        git(&fixture, repo, &["update-index", "--refresh"]);
+    });
+    assert_rung_equals_git(&fixture, repo.as_path(), true);
+}
+
+#[test]
+fn a_config_rule_gone_after_the_add_is_written_by_git() {
+    // `core.autocrlf=input` when the CRLF file was added and unset afterwards: no rule is left, the file is stat-exact,
+    // and only the sizes differ (the gate review's `m04`).
+    let fixture: Fixture = fixture("zfs-clone-conversion-config-gone");
+    if !on_zfs_or_acknowledged(&fixture, "a_config_rule_gone_after_the_add_is_written_by_git") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = conversion_fixture(&fixture, "repo", b"", b"line one\nline two\n", &|repo| {
+        git(&fixture, repo, &["config", "core.autocrlf", "input"]);
+        super::worktree_snapshot::age(repo.join("notes.txt").as_path());
+        std::fs::write(repo.join("notes.txt"), b"line one\r\nline two\r\n").expect("CRLF file");
+        super::worktree_snapshot::age(repo.join("notes.txt").as_path());
+        git(&fixture, repo, &["add", "--no-enforce-bulk-add", "--", "notes.txt"]);
+        git(&fixture, repo, &["commit", "--quiet", "--message=added"]);
+        git(&fixture, repo, &["config", "--unset", "core.autocrlf"]);
+        git(&fixture, repo, &["update-index", "--refresh"]);
+    });
+    assert_rung_equals_git(&fixture, repo.as_path(), true);
+}
+
+#[test]
+fn a_tracked_attributes_file_a_later_commit_deleted_is_written_by_git() {
+    // `* text=auto` when the CRLF file was added, the tracked `.gitattributes` deleted by a later commit: the path has no
+    // rule today, the file is stat-exact, and only the sizes differ (the gate review's `m06`).
+    let fixture: Fixture = fixture("zfs-clone-conversion-attributes-deleted");
+    if !on_zfs_or_acknowledged(&fixture, "a_tracked_attributes_file_a_later_commit_deleted_is_written_by_git") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = conversion_fixture(&fixture, "repo", b"* text=auto\n", b"line one\nline two\n", &|repo| {
+        super::worktree_snapshot::age(repo.join("notes.txt").as_path());
+        std::fs::write(repo.join("notes.txt"), b"line one\r\nline two\r\n").expect("CRLF file");
+        super::worktree_snapshot::age(repo.join("notes.txt").as_path());
+        git(&fixture, repo, &["add", "--no-enforce-bulk-add", "--", "notes.txt"]);
+        git(&fixture, repo, &["commit", "--quiet", "--message=added"]);
+        git(&fixture, repo, &["rm", "--quiet", "--", ".gitattributes"]);
+        git(&fixture, repo, &["commit", "--quiet", "--message=deleted"]);
+        git(&fixture, repo, &["update-index", "--refresh"]);
+    });
+    assert_rung_equals_git(&fixture, repo.as_path(), true);
+}
+
+#[test]
 fn an_ignored_untracked_attributes_file_sends_the_add_to_gits_checkout() {
     let fixture: Fixture = fixture("zfs-clone-conversion-ignored-attributes");
     if !on_zfs_or_acknowledged(&fixture, "an_ignored_untracked_attributes_file_sends_the_add_to_gits_checkout") {
@@ -155,7 +265,10 @@ fn an_ignored_untracked_attributes_file_sends_the_add_to_gits_checkout() {
     // Git reads the ignored attributes file when the ignored path is added, and the new worktree will not have it:
     // the blob is the LF form while the index records the CRLF file's stat, so no stat check sees the difference.
     std::fs::create_dir_all(repo.join("edge")).expect("directory");
-    std::fs::write(repo.join("edge/.gitattributes"), b"edge/file.txt text eol=lf\n").expect("ignored attributes");
+    // The pattern is relative to `edge/`, so it must not repeat the directory: `edge/file.txt` never matches there,
+    // and the control stayed green on step 3 by its route assertion alone instead of by its bytes (the gate review's
+    // `c06` and `c06b`).
+    std::fs::write(repo.join("edge/.gitattributes"), b"file.txt text eol=lf\n").expect("ignored attributes");
     std::fs::write(repo.join("edge/file.txt"), b"edge line one\r\nedge line two\r\n").expect("CRLF file");
     super::worktree_snapshot::age(repo.join("edge/file.txt").as_path());
     git(&fixture, repo.as_path(), &["add", "--no-enforce-bulk-add", "--force", "--", "edge/file.txt"]);

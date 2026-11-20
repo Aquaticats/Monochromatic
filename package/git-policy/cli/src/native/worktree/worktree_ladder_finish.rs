@@ -405,6 +405,9 @@ fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim:
         }
         Err(reason) => {
             debug(TAG, format!("the clone rung ended: {reason}; Git checks the worktree out").as_str());
+            // The record said which rung was chosen; the worktree this add publishes is Git's checkout, and a report that
+            // read the route would otherwise take the clone for what wrote it.
+            crate::add_timing::note("route", "Git's checkout after the clone rung ended");
             // The clones failed after the cause that already sent the add this way, if any: the person hears the later one.
             *slow = Some(explain_failure(reason.as_str()));
             LadderResult { git: complete_like_git(plan, &bound, run_git), carried: None, placed: None, trash: None, claim: Some(claim) }
@@ -455,6 +458,8 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
         }
         Err(ended) if ended.stage_is_ours => {
             debug(TAG, format!("the snapshot rung ended: {}; Git checks the worktree out", ended.reason).as_str());
+            // The record said a snapshot was chosen; Git's checkout is what publishes this worktree.
+            crate::add_timing::note("route", "Git's checkout after the snapshot rung ended");
             discard_stage(stage, made);
             *slow = Some(explain_failure(ended.reason.as_str()));
             LadderResult { git: complete_like_git(plan, &bound, run_git), carried: None, placed: None, trash: None, claim: Some(claim) }

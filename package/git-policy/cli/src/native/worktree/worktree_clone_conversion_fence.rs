@@ -41,7 +41,7 @@ use crate::repo_read_index::parse_index;
 use crate::repo_read_layout::ObjectFormat;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_clean::{StatEntry, stored_stats};
-use crate::worktree_clone_conversion_rules::{ConversionRules, FenceVerdict, PathAttributes, apply_attribute, conversion_rules_from_config, decide, needs_blob_size};
+use crate::worktree_clone_conversion_rules::{ConversionRules, FenceVerdict, PathAttributes, apply_attribute, checkout_converts, conversion_rules_from_config, decide, needs_blob_size};
 use crate::worktree_ladder_target::checkout_environment;
 use crate::worktree_snapshot_source::SnapshotSource;
 use std::collections::{HashMap, HashSet};
@@ -63,6 +63,24 @@ const ATTRIBUTES_NAME: &str = ".gitattributes";
 /// The paths beyond which the fence logs no more reasons,
 /// because the count says the rest and a line per path would bury it.
 const WRITTEN_PATHS_REPORTED: usize = 8;
+
+/// The share of the tracked paths past which the rung declines instead of writing them through Git,
+/// as `1 / DECLINE_SHARE_DIVISOR`.
+/// Why a quarter:
+///  the fence's own reads and clone cost about 1350 ms of this repository's 2018 ms `main` checkout,
+/// Git writes a path in about 0.084 ms,
+/// so A stays under `main` while Git writes fewer than roughly a third of 24,389 paths;
+/// a quarter leaves room for the spread,
+/// and the measured converting source (14,153 of 24,389 paths, 0.58) is far above either number.
+const DECLINE_SHARE_DIVISOR: usize = 4;
+
+/// The counted paths below which the share is not worth a decline.
+/// Why:
+///  a written path costs about 0.084 ms, so a thousand of them is 84 ms,
+/// which is inside the run-to-run spread of an add this size;
+/// a small repository with a converting rule should keep its clone rung,
+/// and the class controls of four paths must still reach the fence.
+const DECLINE_PATHS_FLOOR: usize = 1000;
 
 /// What:
 ///  What one clone rung's fence decided.
@@ -297,11 +315,14 @@ fn config_of(source: &SnapshotSource) -> &[ConfigEntry] {
 ///  so neither answer costs a Git run.
 /// Why:
 ///   The whole point of the option is that it reads a few small files and nothing else.
+/// It exists only in a measurement build (`measurement-routes`),
+/// because a route no shipped code takes is a defect waiting for a setting to turn it on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function declineWhenConversionCouldApply(source, entries): Fence; // throws the reason
 /// ```
+#[cfg(feature = "measurement-routes")]
 fn decline_when_conversion_could_apply(source: &SnapshotSource, entries: &[StatEntry]) -> Result<Fence, String> {
     let rules: ConversionRules = conversion_rules_from_config(config_of(source));
     let filter_setting: bool = config_of(source).iter().any(|entry| return entry.key.starts_with("filter."));
@@ -322,6 +343,7 @@ fn decline_when_conversion_could_apply(source: &SnapshotSource, entries: &[StatE
 /// ```ts
 /// const allPaths = (entries) => ({ gitWrites: entries.map((entry) => entry.path), carried: 0 });
 /// ```
+#[cfg(feature = "measurement-routes")]
 fn all_paths_through_git(entries: &[StatEntry]) -> Fence {
     let mut git_writes: Vec<Vec<u8>> = Vec::with_capacity(entries.len());
     for entry in entries {
@@ -350,40 +372,68 @@ pub fn fence_the_clone(source: &SnapshotSource, context: &GitContext) -> Result<
         return Err(reason);
     }
     // What:
-    //  The two measurement switches of this prototype: `decline` is option C (refuse the rung whenever anything could
+    //  The measurement routes of a measurement build: `decline` is option C (refuse the rung whenever anything could
     //  convert, with no Git run at all) and `all` is option D (Git writes every tracked path, with no attribute read).
     // Why:
-    //  A report of options has to time the options, and neither needs a second build: each is the same binary with one
-    //  variable set, so the arms differ in nothing else. Neither switch belongs in any merge.
+    //  A report of options has to time the options, and neither needs a second behaviour in shipped code: the feature is
+    //  off in every shipped build, so the release binary holds no switch at all, and a route no shipped code takes can
+    //  never be turned on by a setting.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const sw = process.env.MONOCHROMATIC_CLONE_FENCE;
     // ```
-    match std::env::var("MONOCHROMATIC_CLONE_FENCE").unwrap_or_default().as_str() {
+    #[cfg(feature = "measurement-routes")]
+    let measure_decline: bool = match std::env::var("MONOCHROMATIC_CLONE_FENCE").unwrap_or_default().as_str() {
         "decline" => return decline_when_conversion_could_apply(source, entries.as_slice()),
         "all" => return Ok(all_paths_through_git(entries.as_slice())),
-        "off" => return Ok(Fence { git_writes: Vec::new(), carried: entries.len() }),
-        _ => {}
-    }
+        // The fence's own shape with the decline rule off, so a report can price the rule against its absence.
+        "nodecline" => false,
+        _ => true,
+    };
+    #[cfg(not(feature = "measurement-routes"))]
+    let measure_decline: bool = true;
     let rules: ConversionRules = conversion_rules_from_config(config_of(source));
     let attributes: HashMap<Vec<u8>, PathAttributes> = attributes_of(context, source.root.as_path(), entries.as_slice())?;
-    let mut sizes: Option<HashMap<Vec<u8>, u64>> = None;
+    // What:
+    //  The decline rule: how many paths a rule of their own would convert is known from the attributes alone, before any
+    //  blob is read and before anything is cloned.
+    // Why:
+    //  Writing many paths through Git makes the fence slower than `main`'s own checkout (the converting source measured
+    //  1.28 times `main`),
+    //  and a shape that is slower than the thing it replaces is not something to ship quietly.
+    let mut converting: usize = 0;
+    for entry in &entries {
+        let held: PathAttributes = attributes.get(entry.path.as_slice()).cloned().unwrap_or_default();
+        if entry.mode & MODE_TYPE_MASK != MODE_SYMLINK && checkout_converts(&held, &rules) {
+            converting += 1;
+        }
+    }
+    if measure_decline && converting > DECLINE_PATHS_FLOOR && converting * DECLINE_SHARE_DIVISOR > entries.len() {
+        return Err(format!(
+            "a line-ending rule, a filter, an ident or an encoding can change {converting} of {} paths, more than a quarter of them, so this rung declines and Git's checkout writes the worktree",
+            entries.len()
+        ));
+    }
+    // One `git ls-tree` for every path whose checkout can write the blob unchanged, which is every path this fence may
+    // carry: the blob's size is the proof the file holds it, and a file can hold another rule's form even when today it
+    // has no rule at all (an unset `core.autocrlf`, a tracked attributes file a later commit deleted).
+    let sizes: Option<HashMap<Vec<u8>, u64>> = if entries.iter().any(|entry| {
+        let held: PathAttributes = attributes.get(entry.path.as_slice()).cloned().unwrap_or_default();
+        return entry.mode & MODE_TYPE_MASK != MODE_SYMLINK && needs_blob_size(&held, &rules);
+    }) {
+        Some(blob_sizes(context, source.root.as_path(), source.clean.head_commit.as_str())?)
+    } else {
+        None
+    };
     let mut git_writes: Vec<Vec<u8>> = Vec::new();
     let mut carried: usize = 0;
     for entry in &entries {
         let held: PathAttributes = attributes.get(entry.path.as_slice()).cloned().unwrap_or_default();
         let is_link: bool = entry.mode & MODE_TYPE_MASK == MODE_SYMLINK;
         let file_size: u64 = u64::from(entry.stored.size);
-        let mut verdict: FenceVerdict = decide(&held, &rules, is_link, file_size, None);
-        if !is_link && matches!(verdict, FenceVerdict::WriteThroughGit(_)) && needs_blob_size(&held, &rules) {
-            if sizes.is_none() {
-                sizes = Some(blob_sizes(context, source.root.as_path(), source.clean.head_commit.as_str())?);
-            }
-            let listed: Option<u64> = sizes.as_ref().and_then(|known| return known.get(entry.path.as_slice()).copied());
-            verdict = decide(&held, &rules, is_link, file_size, listed);
-        }
-        match verdict {
+        let listed: Option<u64> = sizes.as_ref().and_then(|known| return known.get(entry.path.as_slice()).copied());
+        match decide(&held, &rules, is_link, file_size, listed) {
             FenceVerdict::Carry => carried += 1,
             FenceVerdict::WriteThroughGit(reason) => {
                 if git_writes.len() < WRITTEN_PATHS_REPORTED {
@@ -415,7 +465,8 @@ fn fence_sentence(path: &[u8], reason: &str) -> String {
 /// What:
 ///  Zero the instance data of the index entries for `paths`,
 /// with one `git update-index -z --index-info`,
-/// so the entry no longer vouches for whatever the rung put in the work tree.
+/// so the entry no longer vouches for whatever the rung put in the work tree,
+/// and answer the paths the destination's index actually holds.
 /// Why:
 ///   `git checkout-index` in place writes a path only when its entry's stat data no longer matches the file
 /// (`entry.c`,
@@ -426,12 +477,16 @@ fn fence_sentence(path: &[u8], reason: &str) -> String {
 /// and a btrfs snapshot keeps the source's inode and times, so the copied file *is* the file the source's index recorded.
 /// A zeroed entry matches nothing (`read-tree` leaves entries this way),
 /// so Git rewrites it and the first status hashes it once and finds it clean.
+/// The intersection is a correctness matter, not a saving:
+/// `git update-index --index-info` *adds* an entry a path lacks,
+/// so a fenced path the new `HEAD` does not carry would be injected into the destination's index,
+/// and `git checkout-index` would then fail the whole rung ("is not in the cache").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function zeroTheEntries(admin, destination, context, paths, hashLength); // throws the reason
 /// ```
-fn zero_the_entries(admin: &Path, destination: &Path, context: &GitContext, paths: &[Vec<u8>], hash_length: usize) -> Result<(), String> {
+fn zero_the_entries(admin: &Path, destination: &Path, context: &GitContext, paths: &[Vec<u8>], hash_length: usize) -> Result<Vec<Vec<u8>>, String> {
     let index_path: PathBuf = admin.join("index");
     let bytes: Vec<u8> = std::fs::read(index_path.as_path()).map_err(|error| return format!("the new worktree's index cannot be read ({error})"))?;
     let format: ObjectFormat = if hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
@@ -440,6 +495,7 @@ fn zero_the_entries(admin: &Path, destination: &Path, context: &GitContext, path
     };
     let wanted: HashSet<&[u8]> = paths.iter().map(|path| return path.as_slice()).collect();
     let mut input: Vec<u8> = Vec::new();
+    let mut zeroed: Vec<Vec<u8>> = Vec::new();
     for entry in &entries {
         if !wanted.contains(entry.path.as_slice()) || entry.mode & MODE_TYPE_MASK == MODE_SYMLINK {
             continue;
@@ -448,12 +504,13 @@ fn zero_the_entries(admin: &Path, destination: &Path, context: &GitContext, path
         input.extend_from_slice(format!("{:o} {object}\t", entry.mode).as_bytes());
         input.extend_from_slice(entry.path.as_slice());
         input.push(0);
+        zeroed.push(entry.path.clone());
     }
     if input.is_empty() {
-        return Ok(());
+        return Ok(zeroed);
     }
     let output: GitOutput = run_in(context, destination, words(&["update-index", "-z", "--index-info"]).as_slice(), Some(input), checkout_environment(admin, destination))?;
-    return if output.code == Some(0) { Ok(()) } else { Err(run_reason("`git update-index --index-info`", &output)) };
+    return if output.code == Some(0) { Ok(zeroed) } else { Err(run_reason("`git update-index --index-info`", &output)) };
 }
 
 /// What:
@@ -467,20 +524,27 @@ fn zero_the_entries(admin: &Path, destination: &Path, context: &GitContext, path
 /// the runs name the destination's Git directory and work tree,
 /// as the ladder's other runs do,
 /// so the destination's own settings decide.
-/// The entries are zeroed first (`zero_the_entries`), because an entry that still matches the file is left alone.
+/// The entries are zeroed first (`zero_the_entries`), because an entry that still matches the file is left alone,
+/// and only the paths the destination's index holds are sent,
+/// because one it lacks would be injected into the index and then fail the run.
+/// `-u` records the stat data of each file Git writes,
+/// so the new worktree's first `git status` compares instead of rehashing every fenced path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function writeThroughGit(admin, destination, context, paths, hashLength); // throws the reason
 /// ```
 pub fn write_through_git(admin: &Path, destination: &Path, context: &GitContext, paths: &[Vec<u8>], hash_length: usize) -> Result<(), String> {
-    zero_the_entries(admin, destination, context, paths, hash_length)?;
+    let zeroed: Vec<Vec<u8>> = zero_the_entries(admin, destination, context, paths, hash_length)?;
+    if zeroed.is_empty() {
+        return Ok(());
+    }
     let mut input: Vec<u8> = Vec::new();
-    for path in paths {
+    for path in &zeroed {
         input.extend_from_slice(path.as_slice());
         input.push(0);
     }
-    let output: GitOutput = run_in(context, destination, words(&["checkout-index", "--force", "-z", "--stdin"]).as_slice(), Some(input), checkout_environment(admin, destination))?;
+    let output: GitOutput = run_in(context, destination, words(&["checkout-index", "--force", "-u", "-z", "--stdin"]).as_slice(), Some(input), checkout_environment(admin, destination))?;
     return if output.code == Some(0) { Ok(()) } else { Err(run_reason("`git checkout-index`", &output)) };
 }
 
