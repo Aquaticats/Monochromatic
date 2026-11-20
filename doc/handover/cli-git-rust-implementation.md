@@ -40163,8 +40163,13 @@ What follows from them, as work:
   bound is cited to `fetch.rs` but lives in `src/source.rs:123`; a redirect or a 4xx answer ends the build with an
   uncaught `HTTPError` traceback. GOING: `pi-git-policy-cli-gate-base-image-browserslist-recheck-findings-fixed`
   (DeepSeek on Neuralwatt, cap 200): bound the whole request, fix the citations, name the refusal; brief under
-  `~/temp/agent/git-policy-cli-gate-base-image-browserslist-recheck-findings-fixed-2026-11-19/`. Then the branch (which
-  carries the githooks fix) goes into the LFS integration pass. The githooks
+  `~/temp/agent/git-policy-cli-gate-base-image-browserslist-recheck-findings-fixed-2026-11-19/`. It ended `idle` (80
+  turns) at `61f702030f` (report in that folder's `keep/report.md`): the download runs in a thread joined at 60 s, so a
+  server sending a byte every five seconds now fails at 60.0 s with the reader's own sentence (it was accepted after 80
+  s); the size bound cited to `src/source.rs:123`; every HTTP refusal and the redirect end with one named line through
+  the real opener; base rebuilt (`…-bbd969e09a87`), `check --outputs committed` clean offline as the gate's user, the
+  empty-cache control failing. Ready: the branch (which carries the githooks fix) goes into the LFS integration pass
+  once the ZFS-host gate fix is in main. The githooks
   fix's lows round ended `idle` (61 turns) at `8702d8a03e` (two commits; report in
   `~/temp/agent/git-policy-cli-gate-base-image-githooks-review-lows-fixed-2026-11-19/keep/report.md`): "most of its
   packages" with the image-wide counts; the entry is a top-level section labelled `2026-11-19T19:18:44-05:00`; the page
@@ -40338,8 +40343,16 @@ What follows from them, as work:
   that cite the file were left (no code in that run); two proposed additions for the coordinator (Pi trial figures for
   the skill, a rule `MPN` on moved-path notes in decision records), not applied. GOING: its short review on the Qwen plan,
   `pi-qwen-review-open-questions-cleanup-at-ebb28b912f` (watched), checking every move against its home; brief under
-  `~/temp/agent/open-questions-cleanup-short-review-on-the-qwen-plan-2026-11-19/`. Then merge, then the thirteen
-  comments as their own small run. By the owner's answers of
+  `~/temp/agent/open-questions-cleanup-short-review-on-the-qwen-plan-2026-11-19/`. It ended `idle` (93 turns; that
+  folder's `keep/review.md`, with a per-section list): mediums: `package/git-policy/cli/SPEC.md:15791-15793` still cites
+  a deleted section while the branch's repoints send readers there; the error-class answer filed in
+  `package/or-throw/core/README.md`, which exports no error class; nine code comments now dangle and one calls an
+  answered question unanswered; the wrapper mutation campaign's record (label, commit, file count) has no home; a kept
+  bullet (dead `cli-git@` units, the 0.5.34 folder) was already done; lows: a stale bullet on four retired codes, the
+  kv-store answer only on an unmerged branch, the report's counts. GOING: the second round
+  `pi-open-questions-cleanup-review-findings-fixed` (DeepSeek on Neuralwatt, cap 300), allowed to change comments only in
+  code; brief under `~/temp/agent/open-questions-cleanup-review-findings-fixed-2026-11-19/`. Then merge. By the owner's
+  answers of
   2026-11-19T17:10:00-05:00 (questions file) the LFS review and the provider rebuild finish and nothing else off the
   ZFS path starts, and owner questions off the ZFS path wait in the questions file (new rule `QWP`).
 - **Ended**: the DeepSeek short review of `b5294a7325..53187c9c61` on the Qwen plan, unit
@@ -40429,8 +40442,14 @@ What follows from them, as work:
   every push; last `pushurl` wins; `pushInsteadOf` then `insteadOf` applied before naming the host; pflag boolean forms
   read; each red then green; 84 targeted tests, Clippy, `lint:types`. GOING: its short re-check on the Qwen plan,
   `pi-qwen-review-lfs-third-round-at-badd9f609c` (watched); brief under
-  `~/temp/agent/git-policy-cli-lfs-third-round-short-review-on-the-qwen-plan-2026-11-19/`. Then its integration pass,
-  after the gate fix is in main.
+  `~/temp/agent/git-policy-cli-lfs-third-round-short-review-on-the-qwen-plan-2026-11-19/`. It ended `idle` (151 turns;
+  that folder's `keep/review.md`, measurements beside it): medium: the `--worktree` notice is false inside a linked
+  worktree (keys land in `<git dir>/worktrees/<name>/config.worktree`) and with several worktrees and the extension
+  unset (git-lfs exits 2 and writes nothing, while the notice says the keys were written); lows: `-l=false` read as on,
+  three git-lfs citations off by some lines, an empty alias value skipped though Git and git-lfs honour it. GOING: the
+  fourth round `pi-git-policy-cli-lfs-third-round-review-findings-fixed` (DeepSeek on Neuralwatt, cap 300); brief under
+  `~/temp/agent/git-policy-cli-lfs-third-round-review-findings-fixed-2026-11-19/`. Then its integration pass, after
+  the gate fix is in main.
 - **The wrapper's container gate cannot pass on this ZFS host.** The LFS writer ran the gate's body
   (`node bin/test-native-container.ts`; the mise task's first step needs `cargo-shadow`, not installed here) twice:
   `9189 tests run: 9002 passed, 187 failed`, against 6 of 9,173 on the old Btrfs host. By its reading about 109 fail on
