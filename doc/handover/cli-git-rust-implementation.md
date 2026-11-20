@@ -40295,7 +40295,18 @@ What follows from them, as work:
   31 releases not 30) and missing fields; `/sys/module/zfs/srcversion` and the build-id note exist, against "the version
   text is the only identity". GOING: `pi-zfs-runtime-layout-checker-design-second-recheck-findings-fixed` (DeepSeek on
   Neuralwatt, cap 300); brief under
-  `~/temp/agent/zfs-runtime-layout-checker-design-second-recheck-findings-fixed-2026-11-19/`. After these rounds and
+  `~/temp/agent/zfs-runtime-layout-checker-design-second-recheck-findings-fixed-2026-11-19/`. It ended `idle` (141
+  turns) at `7fd0df9cf8` (report in that folder's `keep/report.md`): N1 to N8 and N10 to N15 fixed, N9 in part (scores
+  called provisional, the tally said to count stated labels); Q1 now conditional with no recommendation; Q2 and Q4
+  ready, Q3 held; item 10 cites the single probe run as one run with no control; the module's `srcversion` and build id
+  read with the version; the discovery record corrected (31 releases, board counts read). Checker clean with a control.
+  The staging re-check came back too (that folder's `keep/review.md`): high: taking the nonce out of the folder name
+  left the root handler no way to learn the folder's name or read the claim; mediums: the recovery capability never
+  said to be held, retained-mount scenes the kernel cannot produce, F14 wrong on which mount a move acts on, the `/run`
+  handle record against two accepted sentences, questions not answerable alone, three readings missing from the veto
+  list. GOING: `pi-zfs-staging-under-cache-design-second-recheck-findings-fixed` (DeepSeek on Neuralwatt, cap 300);
+  brief under `~/temp/agent/zfs-staging-under-cache-design-second-recheck-findings-fixed-2026-11-19/`. After these
+  rounds and
   the staging re-check (and its round if it finds something), the question round. The owner, asked
   in the question tool at 2026-11-19T19:49:44-05:00 whether to put the three designs' questions now or after these second
   re-checks, answered "Wait for re-checks (Recommended)": they go in one question-tool round once all three re-checks
@@ -40565,7 +40576,12 @@ What follows from them, as work:
   are unlinked; wording fixed; 213 passes with one failure in `secret-values-of-this-machine.unit.test.ts`, the known
   env-local-json fixture race. GOING: its short re-check on the Qwen plan,
   `pi-qwen-review-driver-inbox-round-at-9dacf19d39` (watched), because the round now unlinks files in a run's inbox;
-  brief under `~/temp/agent/pi-driver-inbox-follow-up-round-short-review-on-the-qwen-plan-2026-11-19/`. Then merge. The
+  brief under `~/temp/agent/pi-driver-inbox-follow-up-round-short-review-on-the-qwen-plan-2026-11-19/`. It ended `idle`
+  (106 turns; that folder's `keep/review.md`) with no high or medium finding: the merge keeps `main`, one busy read, both
+  new guards shown red without their code, the unlink races tried (growth bounded, no undelivered message unlinked);
+  lows: two wrong sentences on the troubleshooting page, and a message starting with `/` now runs as an extension or
+  skill command while Pi works too (the old `steer` refused it), which nothing recorded. The coordinator fixed the two
+  sentences and recorded the `/` change in the README (commit on the branch), and merged: IN MAIN as `984f0e3680`. The
   second resume ended
   `idle` (40 turns)
   with its final report (that folder's `keep/report.md`): branch at `deed732fc1`, five commits (`ddec538f27`,
