@@ -239,7 +239,8 @@ so a slow endpoint costs only the reading,
 never the request.
 A request joining a shared lookup bounds its own wait without canceling that lookup.
 The model request retains its own timeout.
-That bound comes from a live endpoint measurement on 2026-11-19:
+That bound comes from a live endpoint measurement on 2026-11-19,
+recorded from 2026-11-19T18:45:41-05:00 to 2026-11-19T18:47:32-05:00:
 twenty alternating rounds against Synthetic's `/v2/quotas` and NeuralWatt's
 `/v1/rate_limits` and `/v1/quota`,
 with NeuralWatt's flex lane measured over six rounds.
