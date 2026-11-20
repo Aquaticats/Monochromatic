@@ -175,7 +175,7 @@ function shortHash(text: string): string {
  @param containerfileText - text of the derived base's Containerfile
 
  @param buildArgumentsText - text of the arguments the build is given, which carry files the build reads instead of
- copying them; empty when the build takes none
+ copying them; empty when the build takes none, which leaves the tag the one the Containerfile text alone produces
 
  @returns the image reference; it changes when an input changes and only then
 
@@ -201,10 +201,17 @@ export function testBaseTag({
   const digits = cachyosImageId.startsWith(digestPrefix)
     ? cachyosImageId.slice(digestPrefix.length)
     : cachyosImageId;
+  /**
+   Hash of the build's inputs: the Containerfile alone for a build that is given no arguments, so a tag recorded before
+   the arguments existed still names the same image, and the arguments added after a newline otherwise.
+   */
+  const inputsHash = buildArgumentsText === ''
+    ? shortHash(containerfileText,)
+    : shortHash(`${containerfileText}\n${buildArgumentsText}`,);
   return `${repository}:${digits.slice(
     0,
     tagHashLength,
-  )}-${shortHash(`${containerfileText}\n${buildArgumentsText}`)}`;
+  )}-${inputsHash}`;
 }
 
 /**
@@ -497,14 +504,22 @@ export async function ensureTestBase({
   readonly limits: ContainerLimits;
   readonly source?: PulledCachyos;
 },): Promise<TestBase> {
+  /**
+   Text of the browserslist data lock, which the build reads through an argument: the Containerfile copies nothing from
+   its build context.
+   */
+  const browserslistDataLockText = await readFile(
+    browserslistDataLockPath,
+    'utf8',
+  );
   return ensureDerivedImage({
     repository: gateRepository,
     containerfilePath: gateContainerfilePath,
     source: source ?? await pullCachyosLatest(),
     limits,
-    // The Containerfile copies nothing from its build context, so the lock file reaches it as an argument, whose text the
-    // tag names too: a changed lock builds a new base instead of leaving a cache the new lock no longer matches.
-    buildArguments: [`${browserslistDataLockArgument}=${await readFile(browserslistDataLockPath, 'utf8')}`],
+    // The lock's text is a build argument because the Containerfile copies nothing from its build context, and the tag
+    // names it too: a changed lock builds a new base instead of leaving a cache the new lock no longer matches.
+    buildArguments: [`${browserslistDataLockArgument}=${browserslistDataLockText}`],
   });
 }
 

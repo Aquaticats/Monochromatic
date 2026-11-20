@@ -45,49 +45,118 @@ RUN --mount=type=cache,target=/var/cache/pacman/pkg,sharing=locked \
     ["sh", "-c", "test -e /usr/share/man/man5/githooks.5.gz || pacman --disable-sandbox --sync --noconfirm git"]
 
 # What:  the pinned browserslist data, cached where the gate's browserslist rule reads it.
-# Why:   `file-enforcer check`'s `browserslist` rule resolves a `.browserslistrc` against two npm tarballs that it fetches
-#        into a per-user cache on first use, and a missing tarball is its own offline failure
+# Why:   `file-enforcer check`'s `browserslist` rule resolves a `.browserslistrc` against two npm tarballs that it
+#        fetches into a per-user cache on first use, and a missing tarball is its own offline failure
 #        (package/file-enforcer/cli/src/kind_browserslist.rs, `browserslist-fetch-failed`).
 #        The tarballs therefore arrive here, where the build may use the network, and never at check time.
-#        The versions and the sha512 digests are not typed below: BROWSERSLIST_DATA_LOCK carries the text of the
-#        repository's browserslist-data.lock.json, which stays the one source of them, and that text is part of the image
-#        tag, so a changed lock builds a new base instead of leaving a cache that no longer matches it.
+#        Neither the packages, their versions nor their digests are typed below: BROWSERSLIST_DATA_LOCK carries the
+#        text of the repository's browserslist-data.lock.json, which stays the one source of them, and that text is
+#        part of the image tag, so a changed lock builds a new base instead of leaving a cache that no longer matches.
+#        Each download carries the bounds the rule's own fetch applies (package/browserslist/core-rust/src/fetch.rs:
+#        a body of at most 64 MiB, no redirect, a status of exactly 200, a 60-second timeout), so this cache holds
+#        nothing the rule would refuse.
 #        The rule reads `$HOME/.cache/browserslist` and names each tarball after the hex of the digest the lock pins
 #        (package/browserslist/core-rust/src/source.rs and src/integrity.rs).
-#        Two users run images built on this base: the plan's own gate image as root (`HOME=/root`), and the wrapper's gate
-#        image as user 1000 with `HOME=/home/tester`. One verified copy under the unprivileged home serves both, and the
-#        root cache is a symlink to it. Every download is refused unless its sha512 equals the lock's, so a tampered lock
-#        fails the build here.
+#        Two users run images built on this base: the plan's own gate image as root (`HOME=/root`), and the wrapper's
+#        gate image as user 1000 with `HOME=/home/tester`. One verified copy under the unprivileged home serves both,
+#        and the root cache is a symlink to it. Every download is refused unless its sha512 equals the lock's, so a
+#        tampered lock fails the build here.
 ARG BROWSERSLIST_DATA_LOCK
 RUN <<'PY'
 #!/usr/bin/env python
 import base64
+import binascii
 import hashlib
 import json
 import os
 import pathlib
+import string
+import urllib.error
 import urllib.request
 
-# The npm packages the resolve reads its data out of; the lock names the version and the digest of each.
-PACKAGES = ("caniuse-lite", "node-releases")
+# The lock's keys that hold no pinned package: the format version and the Firefox ESR value, which the reader validates
+# itself (package/browserslist/core-rust/src/lock.rs, DataLock::from_json). Every other key pins one npm tarball, so a
+# lock that gains or renames a package is followed here without an edit.
+NOT_PACKAGES = ("lockVersion", "firefoxEsr")
 REGISTRY = "https://registry.npmjs.org"
+# The bounds the reader puts on the same download (package/browserslist/core-rust/src/fetch.rs): a body of at most
+# MAX_TARBALL_BYTES, no redirect, a status of exactly 200, and REQUEST_TIMEOUT for the request. Python's timeout bounds
+# each socket operation where the reader bounds the whole request, so only a registry that trickles bytes can hold this
+# build longer than the reader allows.
+REQUEST_TIMEOUT_SECONDS = 60
+MAX_TARBALL_BYTES = 64 * 1024 * 1024
+# The bytes a version may hold so it stays safe in a URL path; the reader refuses others (lock.rs, valid_version).
+VERSION_BYTES = frozenset(string.ascii_letters + string.digits + ".-_")
 # Owner of the unprivileged home the wrapper's gate image runs from.
 TESTER = 1000
+
+
+# A registry download that refuses a redirect, because the reader refuses one too (fetch.rs, get_bytes)
+class RefuseRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(
+            req.full_url, code, f"redirected to {newurl}, and this build follows no redirect", headers, fp
+        )
+
+
+# Whether every byte of a version may appear in a URL path (lock.rs, valid_version)
+def url_safe(version):
+    for byte in version:
+        if byte not in VERSION_BYTES:
+            return False
+    return True
+
+
+# The version, the integrity text and the digest bytes of one lock entry, validated as the reader validates them
+# (lock.rs, read_package, and integrity.rs, parse_sha512)
+def pinned(name, entry):
+    if not isinstance(entry, dict) or set(entry) != {"version", "integrity"}:
+        raise SystemExit(f"{name}: a lock entry holds exactly version and integrity")
+    version = entry["version"]
+    integrity = entry["integrity"]
+    if not isinstance(version, str) or not version or not url_safe(version):
+        raise SystemExit(
+            f"{name}: version {version!r} holds characters outside letters, digits, dot, dash and underscore"
+        )
+    if not isinstance(integrity, str) or not integrity.startswith("sha512-"):
+        raise SystemExit(f"{name}: integrity {integrity!r} is not sha512-<base64>")
+    try:
+        expected = base64.b64decode(integrity.removeprefix("sha512-"), validate=True)
+    except binascii.Error as error:
+        raise SystemExit(f"{name}: integrity {integrity} is not base64: {error}") from error
+    if len(expected) != hashlib.sha512().digest_size:
+        raise SystemExit(f"{name}: integrity {integrity} decodes to {len(expected)} bytes, not a sha512 digest")
+    return version, integrity, expected
+
+
+# The tarball bytes of one pinned package, within the reader's timeout and size bounds
+def download(name, version):
+    url = f"{REGISTRY}/{name}/-/{name}-{version}.tgz"
+    with urllib.request.build_opener(RefuseRedirects).open(url, timeout=REQUEST_TIMEOUT_SECONDS) as answer:
+        if answer.status != 200:
+            raise SystemExit(f"{name} {version}: {url} answered HTTP {answer.status}, not 200")
+        tarball = answer.read(MAX_TARBALL_BYTES + 1)
+    if len(tarball) > MAX_TARBALL_BYTES:
+        raise SystemExit(f"{name} {version}: the download is longer than the reader's {MAX_TARBALL_BYTES} bytes")
+    return tarball
+
+
 lock_text = os.environ.get("BROWSERSLIST_DATA_LOCK", "")
 if not lock_text.strip():
-    raise SystemExit("BROWSERSLIST_DATA_LOCK is empty: build with the text of browserslist-data.lock.json as that argument")
+    raise SystemExit(
+        "BROWSERSLIST_DATA_LOCK is empty: build with the text of browserslist-data.lock.json as that argument"
+    )
 lock = json.loads(lock_text)
 tester_home = pathlib.Path("/home/tester")
 cache = tester_home / ".cache" / "browserslist"
 cache.mkdir(parents=True, exist_ok=True)
 for directory in (tester_home, cache.parent, cache):
     os.chown(directory, TESTER, TESTER)
-for name in PACKAGES:
-    version = lock[name]["version"]
-    integrity = lock[name]["integrity"]
-    expected = base64.b64decode(integrity.removeprefix("sha512-"), validate=True)
-    with urllib.request.urlopen(f"{REGISTRY}/{name}/-/{name}-{version}.tgz") as answer:
-        tarball = answer.read()
+for name, entry in lock.items():
+    if name in NOT_PACKAGES:
+        continue
+    version, integrity, expected = pinned(name, entry)
+    tarball = download(name, version)
     actual = hashlib.sha512(tarball).digest()
     if actual != expected:
         raise SystemExit(
