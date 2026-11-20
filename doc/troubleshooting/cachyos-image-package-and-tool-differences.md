@@ -192,9 +192,10 @@ and the missing files are the package's whole `/usr/share/man` and `/usr/share/l
 `0 altered files`.
 The image was built as a slimmed copy that removed manual pages, translations, info pages and docs from most of its
 packages while keeping the pacman database that names them: `xz` still reports `400 total files, 0 altered files`,
-where `bash` lost 62 files, `coreutils` 257 and `perl` 966, and the image's whole `pacman --query --check` names 21,089
-missing files, 17,079 of them under `/usr/share/man`, 2,416 under `/usr/share/locale`, 761 under `/usr/share/doc`,
-563 under `/usr/share/i18n`, 221 under `/usr/share/info` and 49 under `/usr/share/gtk-doc`.
+where `bash` lost 62 files, `coreutils` 257 and `perl` 966.
+The image's whole `pacman --query --check` names 21,090 missing files, one of them `/etc/resolv.conf` and the rest
+under `/usr/share`: 17,079 manual pages, 2,416 locale files, 761 docs, 563 i18n files, 221 info pages and 49
+gtk-doc files.
 `/etc/pacman.conf` carries no `NoExtract` line in either image, only the commented `#NoExtract   =` one.
 Because the Containerfile installs with `--needed`, pacman reads such a package as complete:
 `warning: git-2.56.1-1 is up to date -- skipping`.
