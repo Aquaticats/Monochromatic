@@ -198,6 +198,63 @@ let listed = device.snapshot_list_next("pool/dataset", 0)?; // None at the end
   Its refusal carries the conflicting snapshot's name the kernel leaves in
   `zc_string`.
 
+## The start-time layout check
+
+A module whose `zfs_cmd_t` moved a field reads another request's bytes once a
+request is sent,
+and nothing in userspace can see that without a device,
+so `compatibility_check` compares the loaded module's declaration before the
+first ioctl:
+
+- `check_module_layout` reads `/sys/kernel/btf/vmlinux` and the loaded module's
+  `/sys/kernel/btf/zfs`,
+  each through one bounded open that follows no link,
+  and a file past its bound is a refusal.
+- Before any type is decoded,
+  each file's magic,
+  byte order,
+  version,
+  flags,
+  header length and section list are checked,
+  and every type entry is walked with the widest member count and kind the
+  format has,
+  so a file this reader cannot walk is refused rather than misread.
+- The comparison walks the module's `zfs_cmd` in a fixed order:
+  the struct's size,
+  one pass over its members,
+  the member count,
+  then the interiors of `dmu_objset_stats`,
+  of the anonymous union and of `zinject_record`,
+  and finally every request number this crate sends with the range's two
+  endpoints.
+  It stops at the first difference and names the field path with both values.
+- A missing device,
+  a missing or unreadable file,
+  a short read,
+  a header it cannot represent,
+  a mismatch or a module that changed under the check disables every raw
+  request,
+  reads included.
+  There is no force flag and no environment override,
+  and the caller takes its same-dataset reflink or ordinary Git route for an
+  unused slot.
+
+The two programs hold what this crate does not:
+the device check,
+the module's version string,
+`srcversion` and build ID as identity for one check and its recheck,
+the `x86_64` allowlist,
+and the words a person reads.
+The verdict is remembered per process and never written to disk
+(`doc/decision/cli-git-zfs-runtime-layout-checker.md`).
+
+The reader is this crate's own minimal decoder for the two checked files, kept
+behind `btf_decode.rs`.
+The project's reader pick (Q1 of the design) is still owed,
+and the design measured a dependency for it;
+until that pick lands this decoder serves the gate and the pick replaces it
+without touching `expectations.rs` or `comparison.rs`.
+
 ## The guest fixture
 
 A live request must never reach this host's pool,
@@ -266,12 +323,7 @@ and
 
 ## What this crate does not do
 
-- It checks no kernel compatibility at start.
-  The start-time gate that compares the loaded module's architecture,
-  endianness and layout is step 6;
-  the guest tests compare the fields and
-  request numbers now,
-  and no program refuses to start on a mismatch yet.
+- It proves no module release.
   The module's release string is not part of the gate:
   by the project's answer of 2026-11-19,
   "Any version,
@@ -279,6 +331,9 @@ and
   the layout comparison and the request numbers decide,
   and `doctor` prints the release string and says when it is not the tested text,
   `2.4.4-1`.
+  The layout and the request numbers decide,
+  in `compatibility_check`,
+  which the two programs call before their first ioctl.
 - It never retries a mutating request.
   A reply buffer grows only for reads;
   a write whose outcome is unknown is
