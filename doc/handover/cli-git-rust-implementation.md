@@ -40683,7 +40683,8 @@ stated in this entry. What follows from them, as work:
   Sonnet gate review, then the owner's question. THE LFS ROUND ended `idle` (238 turns) at `23d938de68` (its folder's
   `keep/report-from-summary.md`): the agentless control at a pty and without one, the passphrase message naming
   `eval "$(ssh-agent)"` then `ssh-add` or a key without a passphrase, the unknown host key refused with the "plain
-  `ssh <host>`" sentence (`FinalFailure::HostKeyNotKnown` stops the service's retry), F1 to F7 fixed with reds; 0 linter
+  `ssh <host>`" sentence (`FinalFailure::HostKeyNotKnown` stopped the service's retry; removed at `80d8b1649f` after the
+  owner's "Keep retrying" of 2026-11-20), F1 to F7 fixed with reds; 0 linter
   findings on added lines; gate (on `8aebee60c9`, later commits comments only) 9305 of 9308: the cause-H pair and
   `shadow::shadow_pool_member::tests::an_entry_no_commit_reads_that_the_repository_lost_is_no_refusal`, its second
   full-gate failure (`gone: NotFound` at `shadow_pool_member_tests.rs:362`: an entry the test wrote into `.git` was gone
@@ -40839,7 +40840,15 @@ stated in this entry. What follows from them, as work:
   `pi-git-policy-cli-shadow-pool-integration-pass-findings-fixed` in the coordinator-made worktree
   `.claude/worktrees/git-policy-cli-shadow-pool-findings`, suggested to switch automatic maintenance off in the fixture's
   own Git runs and show the red deterministically by holding the lock by hand (brief under
-  `~/temp/agent/git-policy-cli-shadow-pool-integration-pass-findings-fixed-2026-11-20/`).
+  `~/temp/agent/git-policy-cli-shadow-pool-integration-pass-findings-fixed-2026-11-20/`). THE LFS FINDINGS ROUND ended at
+  `5334856c73` (its folder's `keep/report-from-summary.md`): M1 the reading excludes a changed key and comes after the
+  hook-decline loop (two reds then green); M2 the relay test drives the shipped `relayed_head` (the notice-off and the
+  leak mutations red); M3 as answered, `FinalFailure::HostKeyNotKnown` removed and the retried record promising the
+  service pushes once the key is known; M4 zero linter findings on the branch's added lines and `lfs_install_arguments.rs`
+  split; the fish form `eval (ssh-agent -c)` beside the Bourne one; the host named where the wrapper knows it; gate 9312
+  of 9315, the cause-H pair and cause G `package_repair::pnpm_runs_in_the_new_worktree_only`. GOING: its narrow
+  integration re-check on Sonnet with one gate (brief under
+  `~/temp/agent/integration-recheck-lfs-after-the-integration-findings-2026-11-20/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
