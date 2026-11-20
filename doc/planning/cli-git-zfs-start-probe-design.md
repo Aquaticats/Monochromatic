@@ -950,12 +950,15 @@ ten seconds without work (tokio 1.54.1 `src/runtime/blocking/pool.rs:231`, `KEEP
 `thread_keep_alive`, `.../foundation/lazy_runtime.rs:164` to `:170`), so the signal is safe here only because the
 thread that forked the child blocks until it has reaped that child or its deadline fires.
 
-What it runs. The child calls `unshare(CLONE_NEWUSER)`, writes `deny` to `/proc/self/setgroups`, writes one line
-each to `uid_map` and `gid_map` mapping the account's own effective user and group to 0 in the new namespace, then
-calls `unshare(CLONE_NEWNS)`, makes every mount private, and mounts a tmpfs at the scratch directory the parent made
-for the run. Those writes are the ones an unprivileged caller may make: one line, its own effective ID, and
-`setgroups` denied before `gid_map` (`user_namespaces(7)`, the sections on defining the two mappings and on
-`/proc/pid/setgroups`). tmpfs declares `FS_USERNS_MOUNT` and carries fs_context operations, so the descriptor calls
+What it runs. The parent records the account's effective user and group, and whether `/proc/self/ns/user` exists,
+before the fork: a map line may name only the opener's effective ids, and the ids read after the `unshare` are the
+overflow ids, which build a line the kernel refuses. The child calls `unshare(CLONE_NEWUSER)`, writes `deny` to
+`/proc/self/setgroups`, writes one line each to `uid_map` and `gid_map` mapping the account's own effective user and
+group to 0 in the new namespace, then calls `unshare(CLONE_NEWNS)`, makes every mount private, and mounts a tmpfs at
+the scratch directory the parent made for the run. Those writes are the ones an unprivileged caller may make: one
+line, its own effective ID, and `setgroups` denied before `gid_map` (`user_namespaces(7)`, the sections on
+defining the two mappings and on `/proc/pid/setgroups`). tmpfs declares `FS_USERNS_MOUNT` and carries fs_context
+operations, so the descriptor calls
 reach it without a path mount (`mm/shmem.c:5103`, `:5284`, `:5311` and `:5316`, read at v7.3).
 
 Then it walks its own tmpfs and makes the probe's calls there: the no-crossing walk from the tmpfs root to the slot
@@ -1033,22 +1036,37 @@ namespace setup answers:
   (`security/selinux/hooks.c:4734` to `:4739`, `security/selinux/avc.c:1188`) and AppArmor's `apparmor_userns_create`
   (`security/apparmor/lsm.c:1050`) reaching `aa_check_perms` (`security/apparmor/task.c:374` to `:394`, its denial at
   `security/apparmor/lib.c:440`).
+- A kernel built without user namespaces, where `unshare(CLONE_NEWUSER)` answers `EINVAL` and `/proc/self/ns/user`
+  does not exist: `include/linux/user_namespace.h:222` to `:227` makes `unshare_userns` an inline that answers
+  `EINVAL` for `CLONE_NEWUSER` when the option is off, `ksys_unshare` calls it (`kernel/fork.c:3304`), and
+  `/proc/<pid>/ns` carries the user entry only with `CONFIG_USER_NS` (`fs/proc/namespaces.c:29` to `:31`). The run
+  reads that entry before the setup, so the same errno with the entry present stays an arm failure.
 - The first mapping write answering `EPERM`, where the line is the one this design builds: `map_write` checks
   `file_ns_capable(file, map_ns, CAP_SYS_ADMIN)`
   (`kernel/user_namespace.c:986`) through `security_capable` (`kernel/capability.c:450` to `:458`), which
   AppArmor's `apparmor_capable` (`security/apparmor/lsm.c:198` to `:210`) answers under Ubuntu 24.04's default
-  profile. That check runs before the line is parsed and before the permission check `new_idmap_permitted` makes
-  (`:1054`), so with a line of the one extent this design builds, mapping the account's own effective id, this
-  errno is the host denying the capability rather than the companion's line.
+  profile. A SELinux denial reaches the caller as this same `EPERM`, because `file_ns_capable` answers a bool
+  (`kernel/capability.c:450` to `:462`) and `map_write` had already set `-EPERM` (`kernel/user_namespace.c:982`),
+  so the hook's `-EACCES` (`security/selinux/avc.c:995` to `:1004`) never leaves that function. That check runs
+  before the line is parsed and before the permission check `new_idmap_permitted` makes (`:1054`), so with a line
+  of the one extent this design builds, mapping the account's own effective id, this errno is the host denying the
+  capability rather than the companion's line.
 - `unshare(CLONE_NEWNS)` answering `EPERM`: `unshare_nsproxy_namespaces` requires `CAP_SYS_ADMIN` in the caller's
   user namespace (`kernel/nsproxy.c:221` to `:223`).
-- The private propagation, through `mount_setattr` or `mount`, answering `EPERM`: `may_mount` requires
-  `CAP_SYS_ADMIN` over the mount namespace's own (`fs/namespace.c:2063` to `:2066`).
+- The private propagation through `mount_setattr` answering `EPERM`: `wants_mount_setattr` asks `may_mount`
+  (`fs/namespace.c:5298`), which requires `CAP_SYS_ADMIN` over the mount namespace's own (`:2063` to `:2066`), and
+  that path asks no mount hook, so this `EPERM` is its only refusal there.
+- A `mount` call answering `EPERM`: the same `may_mount` check, after the hook named next
+  (`fs/namespace.c:4270` to `:4271`).
+- A `mount` call answering `EACCES`: `path_mount` asks `security_sb_mount` before `may_mount`
+  (`fs/namespace.c:4267`), and SELinux's `selinux_mount` answers `EACCES` (`security/selinux/hooks.c:2820` to
+  `:2833`, wired to that hook at `:7694`), which is mount mediation the errno list would otherwise miss. It covers
+  the tmpfs mount at the scratch directory and the propagation when the companion makes that with `mount`.
 
 Everything else the setup can answer is an arm failure, so a defect in the companion's own code lands on the
-refused side rather than the skip: `EINVAL` from any of those calls, which is the malformed line at
-`kernel/user_namespace.c:990`, a `unshare(CLONE_NEWUSER)` from a caller whose thread group is not empty
-(`kernel/fork.c:3188` to `:3191`, an implied `CLONE_THREAD`); an `EPERM` from the
+refused side rather than the skip: `EINVAL` from any of those calls where `/proc/self/ns/user` exists, which is the
+malformed line at `kernel/user_namespace.c:990` or a `unshare(CLONE_NEWUSER)` from a caller whose thread group is
+not empty (`kernel/fork.c:3188` to `:3191`, an implied `CLONE_THREAD`); an `EPERM` from the
 `setgroups` write, which `proc_setgroups_write` gives only to a `deny` written after a `gid_map` (`:1264` to
 `:1278`, a defect of the companion's order) and not to this design's own write, which asks for no capability; an
 `EPERM` from the second mapping write or from any call after the first write succeeded; `ENOMEM`; and any errno a
@@ -1056,14 +1074,21 @@ call was not named here to give, a seccomp filter's arbitrary answer included. T
 unproven. `EUSERS` is not in either set on any kernel this design supports: `unshare(2)` gives it only from Linux
 3.11 to Linux 4.8, and `kernel/user_namespace.c` at v7.3 names it nowhere.
 
-The line can be drawn because those refusal paths are enumerable and each of those errnos has a line that answers
-it, and because the capability check inside `map_write` runs before both the parse and the permission check, so the
-one errno the Ubuntu restriction and a malformed line could share is told apart. One case is left where the reading
-cannot separate a host refusal from a defect: a mapping write whose own line maps some other id than the account's
-own also answers `EPERM`, so a companion that built the wrong line would skip. The design accepts that residue rather
-than hide it, and the skip line names the call and the errno, which is what a person needs to see it. What the rule
-costs in the other direction is that a sandbox that answers an arbitrary errno at a setup call is now a refused add
-rather than a skip, which is the fail-closed side, and this machine's threat model trusts it against that case.
+The line can be drawn because the refusals these calls answer today are named here, each with the line that
+answers it, and because the capability check inside `map_write` runs before both the parse and the permission
+check, so the one errno the Ubuntu restriction and a malformed line could share is told apart. Two cases are left
+where the reading cannot separate a host refusal from a defect. One is a first mapping write whose line or opener
+is not the one this design builds: a line that is not one extent of count one mapping the opener's effective id,
+or a mapping file opened before the `unshare`, also answers `EPERM` (`proc_uid_map_write` refuses that opener at
+`kernel/user_namespace.c:1127` to `:1131`, and `new_idmap_permitted` refuses that line at `:1171` to `:1212`), so a
+companion that built the wrong line, or read the ids after the `unshare` and got the overflow ids, would skip. The
+run reads the ids before the fork, and [M11](#m11-the-account-companion-per-add)'s pass control, where no pass arm
+prints a skip line, is what catches a companion that misreads them. The other is a host whose `/proc` is not
+mounted, where the absence of `/proc/self/ns/user` reads as a kernel without the option. The design accepts that
+residue rather than hide it, and the skip line names the call and the errno, which is what a person needs to see it.
+What the rule costs in the other direction is that a sandbox that answers an arbitrary errno at a setup call is now
+a refused add rather than a skip, which is the fail-closed side, and this machine's threat model trusts it against
+that case.
 
 The wrapper's own control draws a related line: it runs
 `unshare --user --map-root-user --mount --propagation private /bin/true` and fails the run unless the run states the
@@ -1094,8 +1119,9 @@ add.
 That last step, and the printing of the skip, are this design's own choice, not the project's, and one the project
 can veto separately from the boundary: Q6's option text named a skip on a host that refuses user namespaces as one
 of its costs, so that a skip exists was before the project, while the add going ahead after it was not. The skip's
-reach matters to that choice, and the skip's boundary keeps it to the host's refusals, defects excluded, with the
-Ubuntu guest among the hosts that skip. The choice differs from the direction Q4 chose for the probe's arms, where
+reach matters to that choice, and the skip's boundary keeps it to the refusals the skip paragraph lists, bar the
+residue that paragraph names, with the Ubuntu guest among the hosts that skip. The choice differs from the direction
+Q4 chose for the probe's arms, where
 an arm that could not run keeps the route blocked. The reason: the companion touches no ZFS and its pass cannot
 predict the root attach, so a host that refuses user namespaces would lose the whole managed route to a check that
 cannot speak about it, while the root probe's arms and the module gate still bound that route. The alternative is
@@ -1109,9 +1135,10 @@ Every ending, and the line it prints. The companion's run ends in one of these, 
 its own:
 
 - A pass: nothing is printed, and the add goes on.
-- A namespace setup failure: a skip, printed with the call and its errno as the skip line gives it, and the add goes
-  on, which is this design's choice open to the project's veto.
-- An arm failure after the setup: a refusal, printed on the failed-arm line.
+- A refusal on the skip paragraph's list: a skip, printed with the call and its errno as the skip line gives it,
+  and the add goes on, which is this design's choice open to the project's veto.
+- Any other failure of any call, in the setup or after it: an arm failure, a refusal printed on the failed-arm
+  line.
 - A refused `fork`: a refusal, because a start the system refused started nothing and the wrapper's own rule is to
   start again: the parent pauses and retries within the wrapper's five-second budget
   (`package/git-policy/cli/src/native/push/start_retry.rs:33`, `START_RETRY_BUDGET`, over `retry_refused_start` at
