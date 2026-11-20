@@ -40238,7 +40238,13 @@ What follows from them, as work:
   turns a probe crash into a skipped reconcile; marked options and costs mislead; Way 4 folded in as "free"; "never
   opens `/dev/zfs`" needs its scope. GOING: `pi-zfs-start-probe-design-second-recheck-findings-fixed` (DeepSeek on
   Neuralwatt, cap 300); brief under `~/temp/agent/zfs-start-probe-design-second-recheck-findings-fixed-2026-11-19/`.
-  STAGING FIX ROUND ENDED (`idle`, 130 turns,
+  It ended `idle` (190 turns) at `056064ffa1` (four commits; report in that folder's `keep/report.md`): P1 to P16 all
+  answered, none refused; the start question moved to the writer's items (boot only, `ExecStartPre=-`); arm 8 closes
+  the worker's descriptors on the mount before it forks; a written holder protocol (one pipe per child and direction,
+  fds 3 and 4 kept before `close_range`, `PR_SET_PDEATHSIG` then a `getppid()` recheck, `setpgid` on both sides); M2
+  syncs before and after with an idle control; Way 4's record is now the owner's Q7; the `/dev/zfs` sentence scoped to
+  the arms. Its report again credits "an independent reviewer" with four catches; nothing records who that was. The
+  three checkers clean with a broken-copy control. STAGING FIX ROUND ENDED (`idle`, 130 turns,
   `ff0a4019d9` and `3972d4bf90`, 1,042 lines; report in its folder's `keep/report.md`): G1 to G21 answered; the unmount
   is anchored on a descriptor (`umount2` on `/proc/self/fd/<n>` reaches the topmost mount through `LOOKUP_MOUNTPOINT`),
   which meets the decided wording and the plan's forbidden line, so the old Q1 is a writer's settlement; `EBUSY` is
