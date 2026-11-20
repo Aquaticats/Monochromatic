@@ -1670,9 +1670,9 @@ to veto: its answer either amends those sentences on acceptance or says the roll
   misplacement the rollback undoes; (c) refusing to roll back at all, leaving every misplaced clone staged and
   reported for the administrator, which never misplaces but withholds the move the third question chose in the very
   scenes it wanted moved. A narrower (c), refusing only when the slot is not provably free, is no third option: the
-  slot cannot be proven free at the move, so that rule reduces to (a)'s pre-open `EXDEV` refusal. Ranking a > c > b,
-  because a runs the answered move with the accepted proofs, c never misplaces but hands every reopened scene to a
-  person, and b can put an account mount over the worktree it is restoring.
+  slot cannot be proven free at the move, so that rule reduces to (a)'s pre-open `EXDEV` refusal. Ranking a > c > b:
+  a > c because a runs the answered move with the accepted proofs while c never misplaces but hands every reopened
+  scene to a person; c > b because b can put an account mount over the worktree it is restoring.
 - The scene where a mount is stacked on the clone after the move, and where that scene ends. The design refuses,
   leaves the clone staged with the account's mount over it, reports both, and unbinds nothing. Two scenes share the
   refusal, and they stand differently: the combined scene, a mount on the folder the clone landed on and a second
@@ -1682,19 +1682,18 @@ to veto: its answer either amends those sentences on acceptance or says the roll
   so the refusal there is the writer's. Options: (a) this refusal in both scenes; (b) rolling back anyway, which
   carries the account's mount onto the slot because a move takes the clone's whole subtree; (c) unmounting the
   account's mount first and then rolling back, which removes a mount the handler did not make and cannot verify.
-  Ranking a > c > b, because a removes
-  nothing it did not make and leaves the clone where the handler can still reach it, c removes a mount the handler
-  cannot verify, and b moves the account's mount over the worktree. The boundary is the project's to draw: whether
-  the refusal for a mount on the clone alone is, like the combined case, that option text applied, or a separate
-  writer's refusal to veto.
+  Ranking a > c > b: a > c because a removes nothing it did not make and leaves the clone where the handler can still
+  reach it, while c removes a mount the handler cannot verify; c > b because b moves the account's mount over the
+  worktree. The boundary is the project's to draw: whether the refusal for a mount on the clone alone is, like the
+  combined case, that option text applied, or a separate writer's refusal to veto.
 - The end state and the receipts after a successful rollback, after a reattach and after a cancel. The design keeps
   the bind, folder, record and claim for the sweep, writes a refusal receipt for a removal and a cancelled-removal
   receipt for a reattach or a cancel, and lets the wrapper remove the folder on the second. Options: (a) this
   route; (b) unbinding and removing the folder and record at once after every rollback, which tidies sooner but
   cannot succeed while the account's mount covers the bind and would remove the wrong mount or none; (c) leaving
-  every one of the three to the administrator, which settles nothing automatically. Ranking a > b > c, because a
-  settles what can be proved and reports the rest, b promises a teardown the covered bind forbids, and c leaves a
-  state every later `doctor` prints with no automatic way out.
+  every one of the three to the administrator, which settles nothing automatically. Ranking a > b > c: a > b because a
+  settles what can be proved and reports the rest while b promises a teardown the covered bind forbids; b > c because
+  c leaves a state every later `doctor` prints with no automatic way out.
 - A record whose folder is gone. The handler replaces a record whose handle gives `ESTALE`, and no row in its mount
   table names the folder path, before it binds. Options: (a) this route; (b) a wrapper scan that unlinks a record
   whose recorded identity matches no live entry under `~/.cache` before it creates the folder, which needs no
@@ -1703,15 +1702,15 @@ to veto: its answer either amends those sentences on acceptance or says the roll
   deletes the file; (d) widening the mount-row guard to any row whose source is the clone's dataset, whichever path
   it stands at, which closes the one scene a non-death `ESTALE` and a folder renamed off its recorded path leave
   open, at the cost of a source comparison in every void test and one more scene that keeps and reports a record.
-  Ranking a > d > c > b, because a is the guard the answered route needs with one key on the folder, d closes the
-  renamed-folder scene but reads a second key and keeps a record in one more scene, c blocks every later staging of
-  that clone, and b can lose a live recovery handle.
+  Ranking a > d > c > b: a > d because a is the guard the answered route needs, on one key, while d reads a second
+  key and keeps a record in one more scene; d > c because d clears the block where c blocks every later staging of
+  that clone; c > b because b can lose a live recovery handle.
 - A record from another boot. The wrapper settles the folder, the record, any temporary name and the claim once the
   boot id differs, with its own mount-table read and `rmdir`'s `EBUSY` as the guards. Options: (a) this route; (b)
   waiting for a later removal of that clone to rewrite the record, which the standing `unmount` intent may never
-  produce; (c) leaving the folder to the administrator after `doctor` prints it. Ranking a > c > b, because a settles
-  a folder no bind of this design can hold from the previous boot, c at least reports it once, and b promises a
-  settlement that may never come.
+  produce; (c) leaving the folder to the administrator after `doctor` prints it. Ranking a > c > b: a > c because a
+  settles a folder no bind of this design can hold from the previous boot while c at least reports it once; c > b
+  because b promises a settlement that may never come.
 - The rollback's classification against "No implicit remount after a failure or restart" is a question for the
   project rather than a veto of a behaviour, and the design behaves the same whichever answer it gets. "The private
   bind" states both readings: a second exception to the default, beside "the checked reattach of a removal that
@@ -1720,9 +1719,9 @@ to veto: its answer either amends those sentences on acceptance or says the roll
   either. Options: (a) the second reading, under which the accepted text stands unchanged; (b) the first reading,
   which needs the proposal's "Decided defaults" and the plan's two sentences amended on acceptance to say two
   exceptions; (c) settling neither and letting the three accepted sentences be read as they stand, which leaves an
-  implementer to guess which default the rollback tests. Ranking a > b > c, because a keeps the accepted text true
-  and needs no amendment, b is the more cautious claim but amends three accepted sentences, and c hides the tension
-  the readings name.
+  implementer to guess which default the rollback tests. Ranking a > b > c: a > b because a keeps the accepted text
+  true and needs no amendment while b is the more cautious claim but amends three accepted sentences; b > c because c
+  hides the tension the readings name.
 
 ## Hardening the stated threat model may make unnecessary
 
