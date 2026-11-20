@@ -3,7 +3,8 @@
 Non-final, unapproved design proposal by an agent. It is not approved by the project owner and nothing in it is
 final. It designs the open item "Staging under `~/.cache` and the wrapper's cleanup" of the accepted ZFS worktree
 design, and it makes no decision that design or the project's answers of 2026-11-19 did not make, beyond the
-writer's choices "Choices this revision marks for the project's veto" lists for the project to veto. It ran no ZFS
+writer's choices, and the one question about how an accepted default is read, that "Choices this revision marks for
+the project's veto" lists for the project to settle. It ran no ZFS
 command that changes anything, started no VM and no container, touched no pool, and edited no other file.
 
 Every kernel fact here is read at upstream Linux `v6.8`, and at `v7.3` where a fact the host's newer kernel decides
@@ -57,7 +58,8 @@ commit and so does not carry it. The answers, in the project's words:
   ("The staged-folder record", "The unmount call from staging", M6).
 - What the handler does when the move lands on a mount the account stacked: "Move it back at once (Recommended)",
   answered after "What?" to the same question and a second asking in plain words. The handler rolls the exact mount
-  back to its slot by its own descriptor, and keeps it staged only if the rollback fails ("The private bind", M1).
+  back to its slot by its own descriptor, and keeps it staged only if the rollback fails, which is the option text's
+  "keep it staged only if that fails" (`16e46d6f49`; "The private bind", M1).
 - The proposals left open to veto: "Veto none (Recommended)", for the `~/.cache` lookup from the pinned UID's passwd
   home, for the `user-cache` pin, and for the two readings of a `/proc`-path argument, that a `umount2` on it acts on
   the held descriptor and that a `mount(2)` on it is not path-based. Each is now the design ("Proposals the owner
