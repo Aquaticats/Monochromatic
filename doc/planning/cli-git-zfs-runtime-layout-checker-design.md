@@ -150,8 +150,8 @@ changed at 2.3.0: `zfs_prop_set_special` sends both through `zvol_set_common`
 `zvol_set_volmode` at `:1708`, and 2.3.0's `zvol_set_common` is at `:1963`.
 So what that routing does when it meets a filesystem dataset is unread, because the body was
 compared with neither 2.2.2 function's.
-So a volume's property set answers differently at 2.3.0 with the layout kept, and no comparison of
-layout can see it.
+Taken together, a volume's property set answers differently at 2.3.0 with the layout kept, and no
+comparison of layout can see it.
 For the wrapper's call shapes it is no change, and that is a source reading, not a measurement.
 The wrapper sends two user properties: the mount desired-state property
 `org.monochromatic:git-worktree-clone-mount-desired-state`, named as `SET_PROP`'s own change under
@@ -908,9 +908,12 @@ Not run:
 
 A checker written for the revision gate re-check, kept at
 `/home/user/temp/agent/zfs-runtime-layout-checker-design-revision-gate-recheck-2026-11-19/notes/check-prose.ts`,
-read this file after the revision that answered the narrow gate check of the fourth revision.
+read this file after the revision that answered the diff-only gate check of the fifth revision.
 The checker is not part of the repository, so its path is a scratch path like the logs this file
 cites.
+Its SHA-256 is `8038cb5bd8c10006760d405f20e8e0963f7fc9b056ad4320e778b922f3e0bc05`, and the copy
+this revision ran it from, `check-prose.ts` in this round's scratch folder, carries the same
+SHA-256, so `node check-prose.ts <file>` reads the same checks at either path.
 It reports no em or en dash, no line of 120 characters or more (the longest is 116), no table,
 no heading problem, no italics or bold, no numbered-marker problem and no broken link.
 Its positional-word, count-word and bare-date hits are the ones the rules leave: a quoted section
@@ -926,23 +929,27 @@ is the list marker of the `README.md` bullet quoted in
 Its ALL CAPS hits include the two quoted markers of the main checkout's handover paragraphs,
 "THE ROUND WAS ASKED" and "LAYOUT CHECKER REVIEW ENDED", which are a record's own words.
 This revision's counts: dashes 0, spaced hyphens 5, long lines 0 with the longest at 116, tables 0,
-heading issues 0, positional words 25, emphasis 0, ALL CAPS words 22, marker padding 0,
-bare dates 61, count words 275, digit-plus-noun hits 67 and link problems 0.
-ALL CAPS words went from 19 to 22, for the quoted markers and these sentences about them, and
-count words from 250 to 275 as the file grew; the rest held the counts the revision before it
-recorded.
+heading issues 0, positional words 25, emphasis 0, ALL CAPS words 21, marker padding 0,
+bare dates 61, count words 286, digit-plus-noun hits 67 and link problems 0 over 15 reference
+definitions.
+Emphasis 0 and capitalised words 21 held, and count words went from 275 to 286 with the sentences
+this revision added; the rest held the counts `fe6ba8ed59` recorded, which the same checker
+reproduces on that commit's text: dashes 0, spaced hyphens 5, long lines 0 with the longest at
+116, tables 0, heading issues 0, positional words 25, emphasis 0, capitalised words 22, marker
+padding 0, bare dates 61, count words 275, digit-plus-noun hits 67, and link problems 22 there
+only because the copy sat outside the folder the relative links resolve against.
 
 Control: the same checker on a copy in this round's scratch folder with one injected defect per
 prose rule moved every count it targets: dashes 0 to 1, spaced hyphens 5 to 6, long lines 0 to 1
-with the longest at 200, tables 0 to 3, heading issues 0 to 2, positional words 25 to 26,
-emphasis 0 to 1, ALL CAPS words 22 to 23, marker padding 0 to 1, bare dates 61 to 62, count words
-275 to 277 and digit-plus-noun hits 67 to 68.
+with the longest at 220, tables 0 to 2, heading issues 0 to 4, positional words 25 to 26,
+emphasis 0 to 1, ALL CAPS words 21 to 22, marker padding 0 to 1, bare dates 61 to 62, count words
+286 to 288 and digit-plus-noun hits 67 to 68.
 Link problems rose from 0 to 26: 22 of them are the copy's own folder breaking the relative links to
 the sibling design files, and the other four are the injected missing anchor, the injected link to
 a file that does not exist, and the injected unused definition, which counts once as unused and
 once as a file that does not exist, so the checker detects each kind it reports.
 The copy, its generator and the two logs are in
-`~/temp/agent/zfs-runtime-layout-checker-design-fourth-revision-narrow-check-findings-fixed-2026-11-19/scratch/`.
+`~/temp/agent/zfs-runtime-layout-checker-design-fifth-revision-diff-check-findings-fixed-2026-11-19/scratch/`.
 
 ## The open item and the decisions that bound it
 
