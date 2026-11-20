@@ -599,10 +599,10 @@ The example this design names, for the owner to accept or replace at
 [Q3](#q3-whether-a-setup-time-probe-dataset-exists), is the dataset `zpcachyos/nosnap/git-worktree-probe` with
 the snapshot `ready`. It sits under the container `zpcachyos/nosnap`, which is unmounted (`mountpoint=none`,
 `canmount=off`) and carries `autosnap = no` with each of its children (the [proposal][proposal], lines 1098 to
-1124); those children are mounted caches, and the container is the one dataset there that nothing mounts. Its
-properties are `mountpoint=legacy`, `canmount=off`, `com.sun:auto-snapshot=false` and the user property
-`org.monochromatic:git-worktree-probe-source=v1`, which `doctor` reads through an ioctl to name the source; the
-probe reads no property, because that is a raw request it does not make. The snapshot is empty.
+1124); those children are mounted data directories, and the container is the one dataset there that nothing
+mounts. Its properties are `mountpoint=legacy`, `canmount=off`, `com.sun:auto-snapshot=false` and the user
+property `org.monochromatic:git-worktree-probe-source=v1`, which `doctor` reads through an ioctl to name the
+source; the probe reads no property, because that is a raw request it does not make. The snapshot is empty.
 Nothing mounts a legacy dataset automatically and `canmount=off` stops `zfs mount -a` and the mount generator too
 (the [proposal][proposal], lines 262 to 270), so no automatic mount job reaches it and only a root process that
 asks for it attaches it. Its key is the pool root's, which the boot unit already waits for before `ExecStart`; an
