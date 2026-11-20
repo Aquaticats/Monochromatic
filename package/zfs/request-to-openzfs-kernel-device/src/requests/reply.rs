@@ -50,18 +50,23 @@ const LARGEST_CHANNEL_PROGRAM_REPLY: usize = 100 * 1024 * 1024;
 /// (100 MiB,
 /// so 128 MiB),
 /// the largest reply this crate asks for.
-/// 128 MiB is also the ceiling the Linux module puts on an nvlist it parses
-/// (`MIN(memory / 4, 128 * 1024 * 1024)`,
-/// `module/os/linux/zfs/zfs_ioctl_os.c:197-204`),
-/// so a reply larger than any list the module itself would handle is refused
-/// rather than allocated.
+/// `libzfs_core` sizes a channel-program reply buffer to that memlimit
+/// (`lib/libzfs_core/libzfs_core.c:246-248`).
+/// The module refuses a memlimit past `zfs_lua_max_memlimit`
+/// (`module/zfs/zcp.c:1048`),
+/// whose default is `ZCP_MAX_MEMLIMIT`
+/// (`module/zfs/zcp.c:114`),
+/// so 100 MiB is the stock maximum:
+/// an administrator may raise that parameter
+/// (`module/zfs/zcp.c:1453` and `ZMOD_RW`),
+/// and a reply past this cap is refused rather than allocated.
 pub const MAXIMUM_REPLY_SIZE: usize = LARGEST_CHANNEL_PROGRAM_REPLY.next_power_of_two();
 
 /// What:
 ///  The pinning of the reply cap:
 /// it stays above the module's largest channel-program reply,
-/// and it is the module's own nvlist ceiling,
-/// 128 MiB.
+/// and it is 128 MiB,
+/// the next power of two at or above that.
 /// Why:
 ///  A changed derivation would otherwise ship a cap that no longer covers the
 ///  reply it exists for.

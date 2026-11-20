@@ -96,10 +96,12 @@ the notices below are what those grants require.
   in `stream_cursor.rs`.
 - Additions:
   `NvData::data_type` (the wire type a value encodes as),
-  and the documentation of the depth bound;
-  the original already refused that bound on both the read and the write
-  side (`src/nvlist.rs:409` and `:600`),
-  so only the documentation is new.
+  and the nesting bound at level 20,
+  the module's own `nvpair_max_recursion` under `_KERNEL`
+  (`module/nvpair/nvpair.c:152`),
+  where the original refused past 64 (`src/nvlist.rs:44`).
+  The original already refused its own bound on both the read and the write
+  side (`src/nvlist.rs:409` and `:600`).
 - Not carried:
   the `NvList` helpers `get_u64_array`,
   `add_byte_array` and

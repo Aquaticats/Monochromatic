@@ -102,13 +102,18 @@ fn a_busy_snapshot_batch_prints_the_line_the_readme_shows() {
         errno: libc::EBUSY,
         elements,
     };
-    // The README's failure example is this exact line; the test is what keeps
-    // the two from drifting apart.
+    // The README's failure example is this exact line, and the test reads the
+    // file so that an edit to either side fails here rather than drifting.
+    let printed: String = error.to_string();
     assert_eq!(
-        error.to_string(),
+        printed,
         "DESTROY_SNAPS on 'pool/dataset' failed: Device or resource busy (os error 16) \
          (busy: mounted, held, or has children); pool/dataset@s1: Device or resource \
          busy (os error 16); pool/dataset@s2: Device or resource busy (os error 16)"
+    );
+    assert!(
+        include_str!("../../README.md").contains(&printed),
+        "README.md no longer shows the line this test prints: {printed}"
     );
 }
 

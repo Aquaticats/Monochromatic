@@ -128,8 +128,9 @@ DESTROY_SNAPS on 'pool/dataset' failed: Device or resource busy (os error 16) (b
 ```
 
 The device-free test `a_busy_snapshot_batch_prints_the_line_the_readme_shows`
-prints exactly that line,
-so this example cannot drift from the crate's output.
+compares what the crate prints with this file's copy of the line,
+reading `README.md` itself,
+so the two cannot drift apart.
 
 A listing that reached its end says so by the kernel's `ESRCH`,
 which is not a

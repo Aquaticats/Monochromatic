@@ -46,10 +46,26 @@ pub const DEFAULT_COMMAND_BUFFER_SIZE: usize = COMMAND_STRUCT_SIZE.next_power_of
 /// room only hedges a struct that grew a little.
 /// A struct that outgrew the slab is what the start-time BTF check refuses:
 /// it does not run against a module whose struct is bigger
-/// (`doc/decision/cli-git-zfs-worktree-design.md`,
-/// "ABI gate and tests"),
+/// (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+/// "ABI gate and tests",
+/// the check being step 6 of
+/// `doc/planning/cli-git-zfs-worktree-implementation-plan.md`),
 /// and a larger buffer is not meant to absorb that growth.
 pub const MAXIMUM_COMMAND_BUFFER_SIZE: usize = DEFAULT_COMMAND_BUFFER_SIZE;
+
+/// What:
+///  The pinning of the two buffer sizes:
+/// the default keeps room past the struct,
+/// and the maximum is that same slab.
+/// Why:
+///  A maximum given its own size would let a later growth narrow the default
+/// to the struct alone,
+/// costing the room a newer module's struct lands in
+/// while every runtime test still passes.
+const _: () = {
+    assert!(DEFAULT_COMMAND_BUFFER_SIZE > COMMAND_STRUCT_SIZE);
+    assert!(DEFAULT_COMMAND_BUFFER_SIZE == MAXIMUM_COMMAND_BUFFER_SIZE);
+};
 
 /// A command buffer size this crate refuses to allocate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

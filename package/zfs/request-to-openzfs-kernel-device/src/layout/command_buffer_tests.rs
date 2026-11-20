@@ -32,6 +32,17 @@ fn a_new_buffer_is_the_default_size_zeroed_and_word_aligned() {
 }
 
 #[test]
+fn a_default_buffer_keeps_room_past_the_struct() {
+    let buffer: CommandBuffer = CommandBuffer::new();
+    assert!(
+        buffer.len() > COMMAND_STRUCT_SIZE,
+        "a default buffer must keep room past the {} byte struct, it holds {}",
+        COMMAND_STRUCT_SIZE,
+        buffer.len()
+    );
+}
+
+#[test]
 fn a_requested_size_never_shrinks_below_the_struct() {
     let small: CommandBuffer = CommandBuffer::with_size(0).expect("zero bytes is allowed");
     assert_eq!(small.len(), COMMAND_STRUCT_SIZE);
