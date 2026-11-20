@@ -243,6 +243,64 @@ fn a_token_in_the_path_of_an_lfs_url_is_hidden() {
     );
 }
 
+/// What:
+///  A path word of [`LONGEST_PLAIN_WORD`] or more unbroken lowercase letters is hidden,
+///  and the short labels a real LFS URL's path is made of stay as they are.
+/// Why:
+///   The owner's answer of 2026-11-19T16:58:00-05:00 ("Hide long words only",
+/// recorded in
+///  `doc/handover/questions-for-the-owner.md`) settled the audit's H1:
+///  a token made of lowercase letters alone read as a plain label and was printed and journaled,
+///  and hiding every path segment after the host was refused;
+///  so the length is the only rule,
+///  `objects`,
+/// `info`,
+/// `lfs`,
+/// `batch` and a repository's own short name stay readable,
+///  and the cost the owner accepted is that a shorter lowercase token still prints.
+///  The words are built from the constant,
+/// so a change to it moves the control with it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(masked(`https://h.invalid/${'a'.repeat(20)}/lfs`)).toBe(`https://h.invalid/${MASK}/lfs`)
+/// ```
+#[test]
+fn a_long_unbroken_word_in_a_path_is_hidden_and_short_labels_stay() {
+    let at_the_edge: String = "a".repeat(LONGEST_PLAIN_WORD - 1);
+    let at_the_limit: String = "a".repeat(LONGEST_PLAIN_WORD);
+    let longer: String = "a".repeat(LONGEST_PLAIN_WORD + 4);
+    assert_eq!(
+        masked(&format!("https://lfs.example.invalid/{at_the_edge}/lfs")),
+        format!("https://lfs.example.invalid/{at_the_edge}/lfs"),
+        "a word one letter under the limit is a label"
+    );
+    assert_eq!(
+        masked(&format!("https://lfs.example.invalid/{at_the_limit}/lfs")),
+        format!("https://lfs.example.invalid/{CREDENTIALS_MASK}/lfs"),
+        "a word at the limit is hidden"
+    );
+    assert_eq!(
+        masked(&format!("https://lfs.example.invalid/{longer}/objects/batch")),
+        format!("https://lfs.example.invalid/{CREDENTIALS_MASK}/objects/batch"),
+        "a longer word is hidden and the short labels after it stay"
+    );
+    // A word is broken by every byte that is not a lowercase letter, so a real folder name of short words stays.
+    let broken: String = format!("{short}.{short}", short = "a".repeat(LONGEST_PLAIN_WORD - 1));
+    assert_eq!(
+        masked(&format!("https://lfs.example.invalid/{broken}/lfs")),
+        format!("https://lfs.example.invalid/{broken}/lfs"),
+        "hyphens and dots break a word"
+    );
+    for plain in [
+        "https://lfs.example.invalid/objects/batch",
+        "https://lfs.example.invalid/repository-name.git/info/lfs",
+        "http://127.0.0.1:36437/silent.git",
+    ] {
+        assert_eq!(masked(plain), plain, "a path of short labels stays readable");
+    }
+}
+
 /// Every value of a query is hidden and every plain key stays,
 /// so a person still sees which settings the server was given.
 #[test]
