@@ -9,12 +9,23 @@
 //! and an empty run through the slices on any filesystem.
 
 use super::*;
+use crate::fs_beneath::open_root;
 use crate::fs_btrfs_test_support::btrfs_fixture;
+use crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES;
 use crate::test_support::{git, git_context, git_text, remove, repository};
+use crate::worktree_clean::{StatEntry, stored_stats};
+use crate::worktree_clone_entry::{Seams, Work, clone_entry};
+use crate::worktree_clone_paths::{Created, Directories, entry_names};
+use crate::worktree_clone_slices::{clone_in_slices, clone_with, clone_worker_count};
 use crate::worktree_ladder_test_support::{commit_all, main_identity, tracked};
 use crate::worktree_snapshot_source::common_source;
-use crate::worktree_clean::stored_stats;
 use crate::subvolume_index::StatFields;
+use std::collections::HashMap;
+use std::ffi::OsString;
+use std::fs::File;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// An ordinary-directory repository with an executable file,
 /// a link,
@@ -168,7 +179,9 @@ fn sliced_handles(source: &SnapshotSource, destination: &Path, admin: &Path) -> 
 ///   A file with no bytes is cloned by being created and given the source's fields,
 /// so this control needs no
 ///  reflink recency and no reflink at all:
-/// it covers `clone_in_slices`, the per-slice stat merge, the single
+/// it covers `clone_in_slices`,
+/// the per-slice stat merge,
+/// the single
 ///  index install and the created order on ZFS and in the gate image,
 /// where the btrfs controls print `BTRFS CONTROL NOT RUN`
 ///  and pass without doing anything.

@@ -267,6 +267,18 @@ pub mod worktree_add_binding;
 #[cfg(target_os = "linux")]
 pub mod worktree_clone;
 
+/// The path of one frozen index entry and the destination directories a clone run holds.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_paths;
+
+/// One entry of the frozen index made in the destination, and the run of entries one slice owns.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_entry;
+
+/// The clone rung's run of entries in slices, and the index install that follows it.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_slices;
+
 /// What both filling rungs read from Git's `--no-checkout` result,
 /// and the one step that applies the tree difference.
 #[cfg(target_os = "linux")]
