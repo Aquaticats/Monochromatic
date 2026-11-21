@@ -156,11 +156,19 @@ words mise appended to the end of the script,
 `-h`/`--help` after `--`,
  so that shape sees nothing and the task runs with no arguments at all.
 `root-task-shared-shapes.unit.test.ts` rejects it.
-The words come back exactly as mise wrote them, a trailing space, tab, U+00A0, U+FEFF, U+3000,
-U+2003, vertical tab or form feed included.
-A word holding a line feed, a carriage return, U+2028 or U+2029 is
-refused and named, the last word included, and text after the marker that is not mise's paste is
-refused as the body's own code.
+The words come back exactly as mise wrote them:
+ a trailing space,
+ a tab,
+ U+00A0,
+ U+FEFF,
+ U+3000,
+ U+2003,
+ a vertical tab or a form feed.
+A word holding a line feed,
+ a carriage return,
+ U+2028 or U+2029 is refused and named,
+ the last word included.
+Text after the marker that is not mise's paste is refused as the body's own code.
  The marker,
  its recovery and the words
 it refuses together with the words it keeps are recorded in
