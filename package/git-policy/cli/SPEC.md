@@ -19601,9 +19601,17 @@ It resolves a named type,
 a chained type,
 a record's members and an enumeration's values;
 the binding multiplies out each array's byte size,
-and the pre-scan stays here because that crate validates no section list,
-which is also what refuses a kernel that widens the format's masks until a
-`btf-rs` release carries them.
+and the pre-scan stays here because that crate validates no section list.
+That pre-scan reads the header and the section list and no type entry,
+and `btf-rs` 2.0.1 reads a type entry's kind in five bits and its member count
+in sixteen,
+so a kernel that widened either field is misread where the high bits only
+extend a kind,
+and refused only when that reader's own parse fails;
+no kernel on record writes one,
+and the adoption record names the lag as a revisit trigger
+(`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
+"Exit, rollback and revisit triggers").
 
 What it proves,
 in this order:
