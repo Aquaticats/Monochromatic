@@ -26,7 +26,6 @@ use crate::fs_clone_exchange::clone_file;
 use crate::subvolume_index::StatFields;
 use crate::subvolume_index_files::fields_of;
 use crate::worktree_clean::{StatEntry, metadata_differs_from_entry};
-use crate::worktree_clone::{Created, Directories};
 use crate::worktree_path_failure_message::subject_failure;
 use crate::worktree_snapshot_source::SnapshotSource;
 use std::collections::HashMap;
@@ -88,6 +87,39 @@ pub(crate) fn entry_names(path: &[u8]) -> Result<Vec<OsString>, String> {
     };
     return if names.is_empty() || names_dot_git(names.as_slice()) { Err(index_path_refusal(path)) } else { Ok(names) };
 }
+
+/// What:
+///  An entry this run created,
+/// named by its components below the destination.
+/// Why:
+///   Nothing is removed on a failure:
+/// a name cannot be checked and unlinked in one step,
+/// and the entry may by then be another
+///  process's,
+/// so the run keeps what it made and reports it.
+/// The list is what the report names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Created = { names: string[]; directory: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Created {
+    /// The components below the destination.
+    pub names: Vec<OsString>,
+    /// Whether the entry is a directory.
+    pub directory: bool,
+}
+
+/// The directories this entry's path was walked through,
+/// by their components below the destination (the empty list is the destination),
+/// each
+///  held open so a later file is placed through the directory it was entered by,
+/// whatever its name became.
+/// Only the levels of the entry being cloned are held;
+/// the index is sorted by path,
+/// so no directory the walk left is entered again.
+pub(crate) type Directories = HashMap<Vec<OsString>, File>;
 
 /// What:
 ///  The access and modification times of metadata,
@@ -417,3 +449,16 @@ pub(crate) fn clone_one_entry(work: OneEntry<'_, '_>, results: EntryResults<'_>)
     results.spent.files += files_entered.elapsed();
     return outcome;
 }
+
+/// What:
+///  Do nothing;
+/// the seams of the clones run this unless a control puts work there.
+/// Why:
+///   The release code passes a call that does nothing at every seam,
+/// so a control's own seams and the shipped ones are the same shape.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const doNothing = () => {};
+/// ```
+pub(crate) fn do_nothing() {}

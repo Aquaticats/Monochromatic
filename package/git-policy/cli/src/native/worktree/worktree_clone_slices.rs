@@ -25,11 +25,9 @@ use crate::parallel_budget::{HostResources, PARALLEL_BREAK_EVEN_ENTRIES, sliced_
 use crate::side_by_side_on_the_runtime::{AJob, run_all_side_by_side_on_the_runtime};
 use crate::subvolume_index::StatFields;
 use crate::worktree_clean::StatEntry;
-use crate::worktree_clone::{Created, Directories};
 use crate::worktree_clone_entries::{ClonedEntries, EntriesToClone, clone_the_entries, clone_with};
 use crate::fs_beneath::open_root;
-use crate::worktree_clone::do_nothing;
-use crate::worktree_clone_entry::Seams;
+use crate::worktree_clone_entry::{Created, Directories, Seams, do_nothing};
 use crate::worktree_copy_stage_leaf_copying::PARALLEL_COPY_MAX_WORKERS;
 use crate::worktree_path_failure_message::subject_failure;
 use crate::worktree_snapshot_source::SnapshotSource;

@@ -55,7 +55,9 @@ use crate::side_by_side_on_the_runtime::AJob;
 use crate::subvolume_index::StatFields;
 use crate::worktree_path_failure_message::subject_failure;
 use crate::worktree_clone_entries::clone_with;
-use crate::worktree_clone_entry::Seams;
+use crate::worktree_clone_entry::{Seams, do_nothing};
+pub use crate::worktree_clone_entry::Created;
+pub(crate) use crate::worktree_clone_entry::Directories;
 pub(crate) use crate::worktree_clone_index::install_the_index;
 use crate::worktree_clone_slices::{clone_in_slices, clone_worker_count};
 use crate::worktree_clean::stored_stats;
@@ -67,39 +69,6 @@ use std::ffi::OsString;
 use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
-
-/// What:
-///  An entry this run created,
-/// named by its components below the destination.
-/// Why:
-///   Nothing is removed on a failure:
-/// a name cannot be checked and unlinked in one step,
-/// and the entry may by then be another
-///  process's,
-/// so the run keeps what it made and reports it.
-/// The list is what the report names.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Created = { names: string[]; directory: boolean };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Created {
-    /// The components below the destination.
-    pub names: Vec<OsString>,
-    /// Whether the entry is a directory.
-    pub directory: bool,
-}
-
-/// The directories this entry's path was walked through,
-/// by their components below the destination (the empty list is the destination),
-/// each
-///  held open so a later file is placed through the directory it was entered by,
-/// whatever its name became.
-/// Only the levels of the entry being cloned are held;
-/// the index is sorted by path,
-/// so no directory the walk left is entered again.
-pub(crate) type Directories = HashMap<Vec<OsString>, File>;
 
 /// What:
 ///  What a successful clone run holds:
@@ -251,11 +220,6 @@ where
     let mut seams: Seams<'_> = Seams { after_lookup: &mut do_nothing, after_clone: &mut do_nothing, before_index: &mut do_nothing };
     return clone_with(source, &mut directories, created, &mut seams).map(|stats| return (stats, beside_answer));
 }
-
-/// Log what the index install did.
-/// Do nothing;
-/// the seams of the clones run this unless a control puts work there.
-pub(crate) fn do_nothing() {}
 
 /// What:
 ///  Clone every tracked file of the frozen index into the held `destination`.

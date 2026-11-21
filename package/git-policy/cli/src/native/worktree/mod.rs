@@ -263,39 +263,43 @@ pub mod worktree_snapshot_placeholders;
 #[cfg(target_os = "linux")]
 pub mod worktree_add_binding;
 
-/// The clone rung:
-/// tracked files cloned into the new worktree,
-/// the source's index installed with fresh stat fields.
-#[cfg(target_os = "linux")]
-pub mod worktree_clone;
-
-/// One entry of that rung:
-/// its path's components,
-/// the source directory it is read from,
-/// the folders it is written through,
-///  and the clone of the file or link itself.
+/// The clone rung's files in dependency order,
+/// the entry point last:
+/// one tracked entry and its clone
+/// (`worktree_clone_entry`),
+/// one run of entries on this thread (`worktree_clone_entries`),
+/// the slices of the blocking pool (`worktree_clone_slices`),
+/// the index install (`worktree_clone_index`),
+/// and the rung itself,
+/// whose module doc names each of them.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_entry;
 
-/// One run of that rung's entries on this thread:
+/// One run of those entries on this thread:
 /// what it created,
 /// what it recorded for the index,
 ///  and why it stopped.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_entries;
 
-/// The slices of that rung:
-/// contiguous runs of the frozen entries,
+/// Those entries cut into slices:
+/// contiguous runs,
 /// one job of the blocking pool each,
 ///  and the worker count the host's budget allows.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_slices;
 
-/// The install of that rung's index:
+/// The install of the rung's index:
 /// the stat fields the clones recorded,
 /// and none for the paths the conversion fence leaves to Git.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_index;
+
+/// The clone rung itself:
+/// tracked files cloned into the new worktree,
+/// the source's index installed with fresh stat fields.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone;
 
 /// Git's conversion rules for one path,
 /// read from its attributes and `core.autocrlf`/`core.eol`,
