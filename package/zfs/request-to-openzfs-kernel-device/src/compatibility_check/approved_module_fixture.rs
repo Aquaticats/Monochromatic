@@ -113,6 +113,10 @@ pub enum Change {
     /// `ZFS_IOC_CHANNEL_PROGRAM` absent,
     /// with every layout kept.
     MissingChannelProgram,
+    /// Every number this crate sends kept,
+    /// and `ZFS_IOC_LAST` moved by one as a release that appends a request
+    ///  does.
+    AppendedRequest,
 }
 
 /// The member types one declaration reads,
@@ -375,6 +379,10 @@ fn request_values(change: Change) -> Vec<(&'static str, i32)> {
     if change != Change::MissingChannelProgram {
         values.push(("ZFS_IOC_CHANNEL_PROGRAM", 0x5a48));
     }
-    values.push(("ZFS_IOC_LAST", 0x5a89));
+    if change == Change::AppendedRequest {
+        values.push(("ZFS_IOC_LAST", 0x5a8a));
+    } else {
+        values.push(("ZFS_IOC_LAST", 0x5a89));
+    }
     return values;
 }

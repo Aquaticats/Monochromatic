@@ -248,12 +248,16 @@ and the words a person reads.
 The verdict is remembered per process and never written to disk
 (`doc/decision/cli-git-zfs-runtime-layout-checker.md`).
 
-The reader is this crate's own minimal decoder for the two checked files,
-kept behind `btf_decode.rs`.
+The reader is this crate's own minimal decoder for the two checked files.
+`src/compatibility_check/declaration.rs` states what the comparison,
+the expectations,
+the records and the entry point ask of a reader,
+and `src/compatibility_check/in_house_declaration.rs` is the one adapter that
+maps this decoder onto it.
 The project's reader pick (Q1 of the design) is still owed,
 and the design measured a dependency for it;
-until that pick lands this decoder serves the gate and the pick replaces it
-without touching `expectations.rs` or `comparison.rs`.
+until that pick lands this decoder serves the gate behind the declaration,
+and a picked reader replaces that one adapter file and nothing beside it.
 
 ## The guest fixture
 

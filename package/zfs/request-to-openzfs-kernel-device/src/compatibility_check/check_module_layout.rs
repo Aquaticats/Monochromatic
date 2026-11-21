@@ -32,16 +32,10 @@
 use super::bounded_read::{BASE_BTF_BOUND, MODULE_BTF_BOUND, ReadRequest, read_bounded};
 /// The section cut of each file.
 use super::btf_header::{Sections, read_sections};
-/// The indexed type entries.
-use super::btf_types::TypeInformation;
-/// The walk that compares the declared layout.
-use super::comparison::compare;
-/// The walk that compares the request numbers.
-use super::comparison_requests::compare_requests;
-/// The one difference value either walk returns.
-use super::mismatch::Mismatch;
+/// The one adapter that compares the two files through the declaration.
+use super::in_house_declaration::compare_declared_layout;
 /// The one refusal value both programs render.
-use super::refusal::{Refusal, Step, refusal_at};
+use super::refusal::{Refusal, Step};
 /// The borrowed path type of one call.
 use std::path::Path;
 
@@ -111,16 +105,7 @@ pub fn check_module_layout(request: &LayoutRequest<'_>) -> Result<Compatible, Re
         step: Step::ModuleBtf,
     })?;
     let module: Sections<'_> = read_sections(&module_bytes, request.module_btf)?;
-    let base_types: TypeInformation<'_> =
-        TypeInformation::alone(base.types, base.strings, request.base_btf)?;
-    let module_types: TypeInformation<'_> =
-        TypeInformation::over_base(module.types, module.strings, &base_types, request.module_btf)?;
-    compare(&module_types).map_err(|mismatch: Mismatch| {
-        return refusal_at(mismatch.step, request.module_btf, mismatch.detail);
-    })?;
-    compare_requests(&module_types).map_err(|mismatch: Mismatch| {
-        return refusal_at(mismatch.step, request.module_btf, mismatch.detail);
-    })?;
+    compare_declared_layout(&base, &module, request.base_btf, request.module_btf)?;
     return Ok(Compatible {
         base_bytes: base_bytes.len(),
         module_bytes: module_bytes.len(),

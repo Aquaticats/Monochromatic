@@ -20,11 +20,8 @@
 use super::mismatch::Mismatch;
 /// The expectation's request table and the enumeration's name and width.
 use super::expected_requests::{REQUEST_ENUM, REQUEST_ENUM_BYTES, expected_enumerators};
-/// The kinds one enumeration is,
-/// and the indexed type entries.
-use super::btf_entry::ENUM_KINDS;
-/// The indexed type entries.
-use super::btf_types::TypeInformation;
+/// The reader-neutral declaration the walk reads.
+use super::declaration::{DeclaredType, Declaration};
 /// The step one difference is reported as.
 use super::refusal::Step;
 
@@ -33,8 +30,8 @@ use super::refusal::Step;
 ///
 /// # Errors
 /// A mismatch naming the enumerator and both values.
-pub(super) fn compare_requests(module: &TypeInformation<'_>) -> Result<(), Mismatch> {
-    let found: Option<u32> = module.find(REQUEST_ENUM, &ENUM_KINDS);
+pub(super) fn compare_requests(module: &dyn Declaration) -> Result<(), Mismatch> {
+    let found: Option<u32> = module.find_enumeration(REQUEST_ENUM);
     let Some(id): Option<u32> = found else {
         return Err(Mismatch {
             step: Step::Enum,
@@ -49,7 +46,7 @@ pub(super) fn compare_requests(module: &TypeInformation<'_>) -> Result<(), Misma
             ),
         });
     }
-    let Some(values): Option<Vec<(String, i64)>> = module.enumeration_values(id) else {
+    let Some(DeclaredType::Enumeration { values, .. }) = module.declared(id) else {
         return Err(Mismatch {
             step: Step::Enum,
             detail: format!("{REQUEST_ENUM}'s values could not be read"),

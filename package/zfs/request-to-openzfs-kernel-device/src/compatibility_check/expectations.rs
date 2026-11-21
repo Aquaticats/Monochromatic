@@ -37,8 +37,8 @@ use crate::layout::{
     DrrBegin, DmuObjsetStats, MAXNAMELEN, MAX_VALUE_LEN, MAXPATHLEN, ZcDestroyControl,
     ZcInjectOverlay, ZfsCmd, ZfsShare, ZfsStat, ZinjectRecord,
 };
-/// The two record kinds the loader numbers.
-use super::btf_entry::{KIND_STRUCT, KIND_UNION};
+/// The container kind the declaration names.
+use super::declaration::ContainerKind;
 /// The offsets the table is built from.
 use std::mem::{offset_of, size_of};
 
@@ -53,38 +53,6 @@ const STRING_BYTES: usize = size_of::<[u8; MAXNAMELEN]>();
 /// `sizeof (zinject_record_t) - 16` in `include/sys/zfs_ioctl.h`,
 /// which keeps the three control fields where they sit.
 const DESTROY_PAD_BYTES: usize = size_of::<ZinjectRecord>() - 16;
-
-/// What:
-///  Which of the two record kinds an expected container is.
-/// Why:
-///   The format gives each kind its own number,
-/// and an anonymous container is matched
-///  by kind and position,
-/// so the kind is part of the expectation.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ContainerKind = 'struct' | 'union';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ContainerKind {
-    /// A structure.
-    Struct,
-    /// A union,
-    /// whose members share their first bit.
-    Union,
-}
-
-/// The format's kind number for one container kind.
-impl ContainerKind {
-    /// The kind number the loader reports for this kind.
-    pub fn btf_kind(self) -> u8 {
-        return match self {
-            ContainerKind::Struct => KIND_STRUCT,
-            ContainerKind::Union => KIND_UNION,
-        };
-    }
-}
 
 /// What:
 ///  One member the module must declare,

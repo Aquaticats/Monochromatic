@@ -124,12 +124,18 @@ impl Blob {
 
     /// One structure.
     pub fn structure(&mut self, name: &str, bytes: u32, members: &[WrittenMember]) -> u32 {
-        return self.record(name, 4, bytes, members);
+        return self.record(name, 4, false, bytes, members);
+    }
+
+    /// One structure whose members carry bitfields,
+    /// as the format's kind flag states.
+    pub fn structure_with_bitfields(&mut self, name: &str, bytes: u32, members: &[WrittenMember]) -> u32 {
+        return self.record(name, 4, true, bytes, members);
     }
 
     /// One union.
     pub fn union(&mut self, name: &str, bytes: u32, members: &[WrittenMember]) -> u32 {
-        return self.record(name, 5, bytes, members);
+        return self.record(name, 5, false, bytes, members);
     }
 
     /// One enumeration of 32-bit values.
@@ -145,7 +151,7 @@ impl Blob {
     }
 
     /// One structure or union with its members.
-    fn record(&mut self, name: &str, kind: u32, bytes: u32, members: &[WrittenMember]) -> u32 {
+    fn record(&mut self, name: &str, kind: u32, bitfields: bool, bytes: u32, members: &[WrittenMember]) -> u32 {
         let mut extra: Vec<u8> = Vec::<u8>::new();
         for member in members {
             let offset: u32 = self.name(member.name);
@@ -153,7 +159,7 @@ impl Blob {
             extra.extend_from_slice(&member.type_id.to_le_bytes());
             extra.extend_from_slice(&member.bit_offset.to_le_bytes());
         }
-        let entry: Vec<u8> = self.entry(name, kind, members.len() as u32, bytes, &extra);
+        let entry: Vec<u8> = self.entry_flagged(name, kind, bitfields, members.len() as u32, bytes, &extra);
         return self.push(entry);
     }
 
@@ -195,8 +201,15 @@ impl Blob {
 
     /// One type entry's bytes.
     fn entry(&mut self, name: &str, kind: u32, vlen: u32, size: u32, extra: &[u8]) -> Vec<u8> {
+        return self.entry_flagged(name, kind, false, vlen, size, extra);
+    }
+
+    /// One type entry's bytes,
+    /// with the kind flag set when its members carry bitfields.
+    fn entry_flagged(&mut self, name: &str, kind: u32, bitfields: bool, vlen: u32, size: u32, extra: &[u8]) -> Vec<u8> {
         let name_offset: u32 = self.name(name);
-        let info: u32 = (kind << 24) | (vlen & 0x00ff_ffff);
+        let flag: u32 = if bitfields { 1 << 31 } else { 0 };
+        let info: u32 = flag | (kind << 24) | (vlen & 0x00ff_ffff);
         let mut entry: Vec<u8> = Vec::<u8>::new();
         entry.extend_from_slice(&name_offset.to_le_bytes());
         entry.extend_from_slice(&info.to_le_bytes());

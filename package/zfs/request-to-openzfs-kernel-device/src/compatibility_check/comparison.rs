@@ -22,6 +22,9 @@
 //! is a `Type` mismatch,
 //! which is what a release that kept the total size and moved
 //!  four fields into an anonymous union meets first.
+//!  The walk reads the reader-neutral declaration alone,
+//! so a reader picked later
+//!  fills one adapter and changes no line here.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,21 +32,12 @@
 //! compareRequests();
 //! ```
 
-/// The expectation vocabulary.
-use super::expectations::{ContainerKind, ExpectedContainer, ExpectedMember, ZFS_CMD};
-/// The member list and the enumeration values.
-use super::btf_records::{Member, Members};
-/// The decoded entries and the kinds the walk names.
-use super::btf_entry::{
-    Entry, KIND_ARRAY, KIND_ENUM, KIND_ENUM64, KIND_INT, KIND_PTR, KIND_STRUCT, KIND_TYPEDEF,
-    KIND_UNION,
-};
-/// The indexed type entries.
-use super::btf_types::TypeInformation;
+/// The reader-neutral declaration this walk reads.
+use super::declaration::{ContainerKind, DeclaredMember, DeclaredType, Declaration};
+/// The expectation table this walk compares against.
+use super::expectations::{ExpectedContainer, ExpectedMember, ZFS_CMD};
 /// The one difference value this walk returns.
 use super::mismatch::Mismatch;
-/// The two lookups that follow a type through its aliases.
-use super::resolved_type::{is_base_integer, is_kind, resolve};
 /// The step one difference is reported as.
 use super::refusal::Step;
 
@@ -57,8 +51,8 @@ type Descent<'a> = (String, &'a ExpectedContainer, u32);
 /// # Errors
 /// A mismatch naming the step,
 /// the field path and both values.
-pub fn compare(module: &TypeInformation<'_>) -> Result<(), Mismatch> {
-    let found: Option<u32> = module.find(ZFS_CMD.name, &[ZFS_CMD.kind.btf_kind()]);
+pub fn compare(module: &dyn Declaration) -> Result<(), Mismatch> {
+    let found: Option<u32> = module.find_container(ZFS_CMD.name, ZFS_CMD.kind);
     let Some(id): Option<u32> = found else {
         return Err(Mismatch {
             step: Step::Type,
@@ -77,55 +71,52 @@ pub fn compare(module: &TypeInformation<'_>) -> Result<(), Mismatch> {
 /// # Errors
 /// A mismatch at the first difference the order reaches.
 fn compare_container(
-    module: &TypeInformation<'_>,
+    module: &dyn Declaration,
     expected: &ExpectedContainer,
     id: u32,
     path: &str,
 ) -> Result<(), Mismatch> {
-    let Some((_resolved_id, entry)): Option<(u32, Entry<'_>)> = resolve(module, id) else {
+    let Some(declared): Option<DeclaredType> = module.declared(id) else {
         return Err(Mismatch {
             step: Step::Type,
             detail: format!("{path} is named and its type entry could not be read"),
         });
     };
-    let Entry::Record {
-        name: _,
-        bytes,
+    let DeclaredType::Record {
         kind,
+        byte_size,
         members,
-        bitfield,
-    } = entry
+    } = declared
     else {
-        return Err(not_a_container(path, entry.kind(), expected));
+        return Err(not_a_container(path, declared.words(), expected));
     };
-    if kind != expected.kind.btf_kind() {
-        return Err(not_a_container(path, kind, expected));
+    if kind != expected.kind {
+        return Err(not_a_container(path, kind.words(), expected));
     }
-    if bytes != expected.byte_size {
+    if byte_size != u64::from(expected.byte_size) {
         return Err(Mismatch {
             step: Step::Type,
             detail: format!(
-                "{path} holds {bytes} bytes where {} was expected",
+                "{path} holds {byte_size} bytes where {} was expected",
                 expected.byte_size
             ),
         });
     }
-    let found: Members<'_> = Members::new(members, bitfield);
     let mut descent: Vec<Descent<'_>> = Vec::<Descent<'_>>::new();
     for wanted in expected.members {
-        let member: Member<'_> = match_member(module, &found, wanted, path)?;
+        let member: &DeclaredMember = match_member(module, &members, wanted, path)?;
         if let Some(interior) = wanted.interior {
             descent.push((field_path(path, wanted), interior, member.type_id));
         }
     }
-    if found.len() != expected.members.len() {
+    if members.len() != expected.members.len() {
         return Err(Mismatch {
             step: Step::Member,
             detail: format!(
                 "{path} declares {} members where {} were expected{}",
-                found.len(),
+                members.len(),
                 expected.members.len(),
-                first_extra(module, &found, expected)
+                first_extra(module, &members, expected)
             ),
         });
     }
@@ -141,16 +132,16 @@ fn compare_container(
 /// # Errors
 /// A mismatch naming the step that differs.
 fn match_member<'a>(
-    module: &TypeInformation<'a>,
-    found: &Members<'a>,
+    module: &dyn Declaration,
+    found: &'a [DeclaredMember],
     wanted: &ExpectedMember,
     path: &str,
-) -> Result<Member<'a>, Mismatch> {
+) -> Result<&'a DeclaredMember, Mismatch> {
     let index: Option<usize> = covered_index(module, found, wanted);
-    let Some(member): Option<Member<'a>> = index.and_then(|at| {
-        return found.at(module, at);
+    let Some(member): Option<&'a DeclaredMember> = index.and_then(|at| {
+        return found.get(at);
     }) else {
-        return Err(not_found(module, found, wanted, path));
+        return Err(not_found(found, wanted, path));
     };
     let field: String = field_path(path, wanted);
     if member.bit_offset != wanted.bit_offset {
@@ -162,7 +153,7 @@ fn match_member<'a>(
             ),
         });
     }
-    if let Some(width) = member.bitfield {
+    if let Some(width) = member.bitfield_bits {
         return Err(Mismatch {
             step: Step::Member,
             detail: format!("{field} is a {width}-bit field, and this crate reads whole members"),
@@ -187,7 +178,7 @@ fn match_member<'a>(
         });
     }
     if let Some(element_bytes) = wanted.element_bytes {
-        check_array(module, &member, element_bytes, &field)?;
+        check_array(module, member, element_bytes, &field)?;
     }
     return Ok(member);
 }
@@ -195,10 +186,9 @@ fn match_member<'a>(
 /// The index one expectation covers:
 /// by name,
 /// or by kind and bit offset for an anonymous container.
-fn covered_index(module: &TypeInformation<'_>, found: &Members<'_>, wanted: &ExpectedMember) -> Option<usize> {
-    for index in 0..found.len() {
-        let member: Member<'_> = found.at(module, index)?;
-        if covers(module, wanted, &member) {
+fn covered_index(module: &dyn Declaration, found: &[DeclaredMember], wanted: &ExpectedMember) -> Option<usize> {
+    for (index, member) in found.iter().enumerate() {
+        if covers(module, wanted, member) {
             return Some(index);
         }
     }
@@ -206,13 +196,13 @@ fn covered_index(module: &TypeInformation<'_>, found: &Members<'_>, wanted: &Exp
 }
 
 /// Whether one member of the module is the one an expectation covers.
-fn covers(module: &TypeInformation<'_>, wanted: &ExpectedMember, member: &Member<'_>) -> bool {
+fn covers(module: &dyn Declaration, wanted: &ExpectedMember, member: &DeclaredMember) -> bool {
     return match (wanted.name, wanted.container) {
-        (Some(name), _) => member.name == Some(name),
+        (Some(name), _) => member.name.as_deref() == Some(name),
         (None, Some(kind)) => {
             member.name.is_none()
                 && member.bit_offset == wanted.bit_offset
-                && is_kind(module, member.type_id, kind.btf_kind())
+                && module.is_container(member.type_id, kind)
         }
         (None, None) => false,
     };
@@ -220,17 +210,9 @@ fn covers(module: &TypeInformation<'_>, wanted: &ExpectedMember, member: &Member
 
 /// Why an expectation found no member,
 /// naming the container that stands where it was expected.
-fn not_found(
-    module: &TypeInformation<'_>,
-    found: &Members<'_>,
-    wanted: &ExpectedMember,
-    path: &str,
-) -> Mismatch {
+fn not_found(found: &[DeclaredMember], wanted: &ExpectedMember, path: &str) -> Mismatch {
     let field: String = field_path(path, wanted);
-    for index in 0..found.len() {
-        let Some(member): Option<Member<'_>> = found.at(module, index) else {
-            continue;
-        };
+    for member in found {
         if member.bit_offset != wanted.bit_offset {
             continue;
         }
@@ -240,7 +222,7 @@ fn not_found(
                 step: Step::Type,
                 detail: format!(
                     "{path} holds {} at {} bits where {field} was expected",
-                    member_name(&member),
+                    member_name(member),
                     member.bit_offset
                 ),
             };
@@ -260,19 +242,18 @@ fn not_found(
 /// # Errors
 /// A mismatch naming the element type's size and the expected one.
 fn check_array(
-    module: &TypeInformation<'_>,
-    member: &Member<'_>,
+    module: &dyn Declaration,
+    member: &DeclaredMember,
     element_bytes: u32,
     field: &str,
 ) -> Result<(), Mismatch> {
-    let Some((_array_id, Entry::Array { element, .. })): Option<(u32, Entry<'_>)> = resolve(module, member.type_id) else {
+    let Some(DeclaredType::Array { element, .. }) = module.declared(member.type_id) else {
         return Err(Mismatch {
             step: Step::Type,
             detail: format!("{field} is not an array of whole elements"),
         });
     };
-    let base: bool = is_base_integer(module, element);
-    if !base {
+    if !module.is_base_integer(element) {
         return Err(Mismatch {
             step: Step::Type,
             detail: format!("{field} is an array whose element is no base integer"),
@@ -296,36 +277,17 @@ fn check_array(
 }
 
 /// Why a container's own entry is not the container the expectation names.
-fn not_a_container(path: &str, kind: u8, expected: &ExpectedContainer) -> Mismatch {
+fn not_a_container(path: &str, kind: &str, expected: &ExpectedContainer) -> Mismatch {
     return Mismatch {
         step: Step::Type,
-        detail: format!(
-            "{path} is {} where {} was expected",
-            kind_name(kind),
-            expected.kind_name()
-        ),
-    };
-}
-
-/// The kind one loader kind is,
-/// in the words a mismatch prints.
-fn kind_name(kind: u8) -> &'static str {
-    return match kind {
-        KIND_STRUCT => "a structure",
-        KIND_UNION => "a union",
-        KIND_INT => "an integer",
-        KIND_ARRAY => "an array",
-        KIND_PTR => "a pointer",
-        KIND_ENUM | KIND_ENUM64 => "an enumeration",
-        KIND_TYPEDEF => "a typedef",
-        _ => "another kind",
+        detail: format!("{path} is {kind} where {} was expected", expected.kind_name()),
     };
 }
 
 /// One member's name,
 /// or the word for an anonymous container.
-fn member_name(member: &Member<'_>) -> String {
-    return match member.name {
+fn member_name(member: &DeclaredMember) -> String {
+    return match member.name.as_deref() {
         Some(name) => name.to_string(),
         None => "an anonymous container".to_string(),
     };
@@ -350,18 +312,15 @@ fn anonymous_word(wanted: &ExpectedMember) -> &'static str {
 
 /// The first member the expectation does not cover,
 /// as the words a member-count mismatch ends with.
-fn first_extra(module: &TypeInformation<'_>, found: &Members<'_>, expected: &ExpectedContainer) -> String {
-    for index in 0..found.len() {
-        let Some(member): Option<Member<'_>> = found.at(module, index) else {
-            continue;
-        };
+fn first_extra(module: &dyn Declaration, found: &[DeclaredMember], expected: &ExpectedContainer) -> String {
+    for member in found {
         let covered: bool = expected.members.iter().any(|wanted| {
-            return covers(module, wanted, &member);
+            return covers(module, wanted, member);
         });
         if !covered {
             return format!(
                 ", and {} at {} bits is one this crate does not expect",
-                member_name(&member),
+                member_name(member),
                 member.bit_offset
             );
         }
@@ -373,9 +332,6 @@ fn first_extra(module: &TypeInformation<'_>, found: &Members<'_>, expected: &Exp
 impl ExpectedContainer {
     /// The container kind in the words a mismatch prints.
     pub fn kind_name(&self) -> &'static str {
-        return match self.kind {
-            ContainerKind::Struct => "a structure",
-            ContainerKind::Union => "a union",
-        };
+        return self.kind.words();
     }
 }

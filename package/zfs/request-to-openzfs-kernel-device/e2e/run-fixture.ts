@@ -270,7 +270,8 @@ function fixtureEnvironment(options: Options): string {
     `MONOCHROMATIC_ZFS_FIXTURE_ROOT=${FIXTURE_ROOT} ` +
     `MONOCHROMATIC_ZFS_FIXTURE_ACCOUNT=${ACCOUNT} ` +
     `MONOCHROMATIC_ZFS_FIXTURE_ACCOUNT_POOL=${ACCOUNT_POOL} ` +
-    `MONOCHROMATIC_ZFS_FIXTURE_SOURCE=${OPENZFS_SOURCE}`;
+    `MONOCHROMATIC_ZFS_FIXTURE_SOURCE=${OPENZFS_SOURCE} ` +
+    `MONOCHROMATIC_ZFS_FIXTURE_GATE_EXPECT=compatible`;
 }
 
 //endregion Commands
@@ -427,6 +428,8 @@ function run(options: Options): void {
     'tail --lines=30 /root/zfs-root-suite.log',
     'test "$status" = 0',
     `if grep --quiet '^SKIP live_' /root/zfs-root-suite.log; then echo 'a live arm returned without running'; exit 1; fi`,
+    `if grep --quiet '^SKIP gate_arm' /root/zfs-root-suite.log; then echo 'the gate arm returned without running'; exit 1; fi`,
+    `grep --quiet '^MEASUREMENT gate ' /root/zfs-root-suite.log`,
     `grep --quiet '^MEASUREMENT guest kernel=' /root/zfs-root-suite.log`,
     `grep --quiet '^layout zfs_cmd bytes=' /root/zfs-root-suite.log`,
     `grep --quiet '^MEASUREMENT promoted-batch ' /root/zfs-root-suite.log`,
@@ -758,6 +761,156 @@ function step4(options: Options): void {
 
 //endregion The step 4 arm: the descriptor attach against a real clone
 
+//region The step 6 gate arms: the layout comparison against the guest's module
+
+/** The one live gate test the arms drive. */
+const GATE_ARM_FILTER = 'compatibility_check::live_gate_tests';
+
+/**
+ Run one gate arm against the guest's loaded module and fail when it skips or prints no measurement.
+ The arm names its expectation in `MONOCHROMATIC_ZFS_FIXTURE_GATE_EXPECT`; a run that never reached it is
+ a failure, not a green suite.
+ */
+function gateArm(options: Options, expectation: string, label: string): void {
+  const script = [
+    'set -eu',
+    `cd ${CRATE_DIR}`,
+    'export PATH=/root/.cargo/bin:$PATH',
+    `export MONOCHROMATIC_ZFS_FIXTURE_GUEST=${options.name}`,
+    `export MONOCHROMATIC_ZFS_FIXTURE_GATE_EXPECT=${expectation}`,
+    `if cargo test --release --locked --lib ${GATE_ARM_FILTER} -- --ignored --nocapture > /root/${label}.log 2>&1; then status=0; else status=$?; fi`,
+    `tail --lines=20 /root/${label}.log`,
+    'test "$status" = 0',
+    `if grep --quiet '^SKIP gate_arm' /root/${label}.log; then echo 'the gate arm returned without running'; exit 1; fi`,
+    `grep --quiet '^MEASUREMENT gate ' /root/${label}.log`,
+  ].join('\n');
+  guest({ options, script, log: `${label}.log`, timeout: SUITE_TIMEOUT_MS });
+}
+
+/**
+ Run one gate arm that must refuse, so the arms are proved able to fail.
+ The exit status must be non-zero and the measurement must name the field the arm expected.
+ */
+function gateRed(options: Options, expectation: string, label: string, field: string): void {
+  const script = [
+    'set -eu',
+    `cd ${CRATE_DIR}`,
+    'export PATH=/root/.cargo/bin:$PATH',
+    `export MONOCHROMATIC_ZFS_FIXTURE_GUEST=${options.name}`,
+    `export MONOCHROMATIC_ZFS_FIXTURE_GATE_EXPECT=${expectation}`,
+    `if cargo test --release --locked --lib ${GATE_ARM_FILTER} -- --ignored --nocapture > /root/${label}.log 2>&1; then status=0; else status=$?; fi`,
+    `tail --lines=20 /root/${label}.log`,
+    'test "$status" != 0',
+    `grep --quiet '^MEASUREMENT gate ' /root/${label}.log`,
+    `grep --quiet '${field}' /root/${label}.log`,
+  ].join('\n');
+  guest({ options, script, log: `${label}.log`, timeout: SUITE_TIMEOUT_MS });
+}
+
+/** Reboot the guest and wait until it answers again. */
+function rebootGuest(options: Options): void {
+  const command = `test "$(hostname)" = ${options.name} && (systemctl reboot || true)`;
+  const started = spawnSync('mvm', ['--backend', 'libvirt', 'exec', options.name, '--', command], {
+    encoding: 'utf8',
+    timeout: HOST_COMMAND_TIMEOUT_MS,
+  });
+  writeFileSync(join(options.logDir, 'gate-reboot.log'), `${started.stdout}${started.stderr}`, { mode: 0o600 });
+  const deadline: number = Date.now() + 300_000;
+  for (;;) {
+    const probe = spawnSync(
+      'mvm',
+      ['--backend', 'libvirt', 'exec', options.name, '--', `test "$(hostname)" = ${options.name} && hostname`],
+      { encoding: 'utf8', timeout: 60_000 },
+    );
+    if (probe.status === 0)
+      return;
+    if (Date.now() > deadline)
+      throw new Error(`guest '${options.name}' did not answer within 300 s of its reboot`);
+    spawnSync('sleep', ['10'], { timeout: 30_000 });
+  }
+}
+
+/**
+ Patch the built module's release text from `2.4.4-1` to `2.4.4-2` and reload it.
+ The layout and every request number stay the approved module's by construction, so this arm shows only
+ that no step reads the release string; it is not a second release.
+ */
+function gateVersionArm(options: Options): void {
+  const script = [
+    'set -eu',
+    'kernel="$(uname --kernel-release)"',
+    'module="/lib/modules/$kernel/extra/zfs.ko"',
+    'cp --archive "$module" /root/zfs.ko.approved',
+    'python3 - "$module" <<\'PY\'',
+    'import sys',
+    'from pathlib import Path',
+    'path = Path(sys.argv[1])',
+    'data = path.read_bytes()',
+    'old = b"2.4.4-1\\x00"',
+    'if data.count(old) != 1:',
+    '    raise SystemExit("the release text is not exactly once in the module")',
+    'path.write_bytes(data.replace(old, b"2.4.4-2\\x00"))',
+    'PY',
+    'systemctl stop zfs-zed.service zfs-mount.service zfs-load-module.service 2>/dev/null || true',
+    `export LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib`,
+    `export PATH=${OPENZFS_PATH}`,
+    // The run step leaves the delegated account's pool in place for its suite, and a loaded pool holds the module.
+    'for pool in $(zpool list -H -o name 2>/dev/null); do zpool destroy -f "$pool"; done',
+    'if test -d /sys/module/zfs; then modprobe --remove zfs || true; fi',
+    'if test -d /sys/module/spl; then modprobe --remove spl || true; fi',
+    'insmod "/lib/modules/$kernel/extra/spl.ko"',
+    'insmod "$module"',
+    'test "$(cat /sys/module/zfs/version)" = 2.4.4-2',
+  ].join('\n');
+  guest({ options, script, log: 'gate-version-patch.log', timeout: SUITE_TIMEOUT_MS });
+  gateArm(options, 'compatible', 'gate-version-arm');
+}
+
+/**
+ Swap `zi_iotype` and `zi_duration`, the two same-size members of `zinject_record`, rebuild the module,
+ reboot, reload it, and expect the member refusal that names both offsets.
+ The swap moves no total size and no other offset, which is the design's owed item 16.
+ */
+function gateChangeArm(options: Options): void {
+  gateRed(options, 'member:dds_flags', 'gate-red-approved-layout', 'dds_flags');
+  const patch = [
+    'set -eu',
+    `cd ${OPENZFS_SOURCE}`,
+    'cp --archive include/sys/zfs_ioctl.h /root/zfs_ioctl.h.approved',
+    "python3 - <<'PY'",
+    'import re',
+    'from pathlib import Path',
+    'path = Path("include/sys/zfs_ioctl.h")',
+    'text = path.read_text()',
+    'pattern = re.compile(r"(?P<a>[ \\t]*uint32_t[ \\t]+zi_iotype;[^\\n]*\\n)(?P<b>[ \\t]*int32_t[ \\t]+zi_duration;[^\\n]*\\n)")',
+    'match = pattern.search(text)',
+    'if match is None:',
+    '    raise SystemExit("zi_iotype and zi_duration are not adjacent as expected")',
+    'path.write_text(text[:match.start()] + match.group("b") + match.group("a") + text[match.end():])',
+    'PY',
+    'make --jobs=4 -C module > /root/zfs-module-swapped.log 2>&1',
+    'make --jobs=4 -C module install >> /root/zfs-module-swapped.log 2>&1',
+    'depmod --all',
+  ].join('\n');
+  guest({ options, script: patch, log: 'gate-change-patch.log', timeout: PREPARE_BUILD_TIMEOUT_MS });
+  rebootGuest(options);
+  const load = [
+    'set -eu',
+    'kernel="$(uname --kernel-release)"',
+    'if test -d /sys/module/zfs; then modprobe --remove zfs || true; fi',
+    'if test -d /sys/module/spl; then modprobe --remove spl || true; fi',
+    'test ! -d /sys/module/zfs',
+    'insmod "/lib/modules/$kernel/extra/spl.ko"',
+    'insmod "/lib/modules/$kernel/extra/zfs.ko"',
+    'test -f /sys/kernel/btf/zfs',
+    'cat /sys/module/zfs/version',
+  ].join('\n');
+  guest({ options, script: load, log: 'gate-change-load.log', timeout: RECORD_TIMEOUT_MS });
+  gateArm(options, 'member:zi_iotype', 'gate-change-arm');
+}
+
+//endregion The step 6 gate arms: the layout comparison against the guest's module
+
 //region Entry point
 
 /** The steps by name, and the whole run. */
@@ -828,9 +981,21 @@ const step4Steps: Record<string, (checked: Options) => void> = {
   'zfs-attach-arm': step4,
   'zfs-attach-pool': step4Pool,
 };
-const step = steps[chosen.step] ?? step4Steps[chosen.step];
+/**
+ The step 6 gate arms, in one place of their own so a branch that adds other steps merges beside it.
+ `zfs-gate-arm` runs the control on a guest the recipe prepared; the `run` step runs the same control
+ once by itself, so a whole `all` run never reports a skipped gate arm.
+ */
+const gateSteps: Record<string, (checked: Options) => void> = {
+  'zfs-gate-arm': (checked: Options): void => gateArm(checked, 'compatible', 'gate-control-arm'),
+  'zfs-gate-version-arm': gateVersionArm,
+  'zfs-gate-change-arm': gateChangeArm,
+};
+const step = steps[chosen.step] ?? step4Steps[chosen.step] ?? gateSteps[chosen.step];
 if (step === undefined)
-  throw new Error(`unknown step '${chosen.step}'; use ${[...Object.keys(steps), ...Object.keys(step4Steps)].join(', ')}`);
+  throw new Error(
+    `unknown step '${chosen.step}'; use ${[...Object.keys(steps), ...Object.keys(step4Steps), ...Object.keys(gateSteps)].join(', ')}`,
+  );
 step(chosen);
 console.log(`zfs step 2 fixture: step '${chosen.step}' finished; logs in ${chosen.logDir}`);
 

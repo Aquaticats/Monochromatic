@@ -51,9 +51,9 @@
 //! - `btf_types.rs`:
 //!   the decoded type entries,
 //!   the walk that indexes them and the lookups the comparison asks.
-//! - `btf_records.rs`:
-//!   one record's member list and one enumeration's values,
-//!   as the module declares them.
+//! - `declaration.rs`:
+//!   the reader-neutral declaration of one module's types,
+//!   which everything after it reads.
 //! - `expectations.rs`:
 //!   the layout this crate's type compiles,
 //!   and the two records compared member by member.
@@ -61,14 +61,13 @@
 //!   the request numbers this crate can send and the range's two endpoints.
 //! - `mismatch.rs`:
 //!   the step and the detail of one difference.
-//! - `resolved_type.rs`:
-//!   the entry one type id finally names,
-//!   and the two questions the walk asks of it.
 //! - `comparison.rs`:
 //!   the fixed-order walk that compares the module's declaration and stops at
 //!   the first difference.
 //! - `comparison_requests.rs`:
 //!   the request numbers and the range's two endpoints.
+//! - `in_house_declaration.rs`:
+//!   the one adapter that maps the in-house decoder onto the declaration.
 //! - `check_module_layout.rs`:
 //!   the entry point both executables call,
 //!   and what a pass read.
@@ -91,20 +90,20 @@ mod btf_entry;
 mod btf_decode;
 /// The decoded type entries and the lookups the comparison asks.
 mod btf_types;
-/// One record's members and one enumeration's values.
-mod btf_records;
+/// The reader-neutral declaration everything after it reads.
+mod declaration;
 /// The layout this crate's type compiles.
 mod expectations;
 /// The request numbers this crate can send.
 mod expected_requests;
 /// The one difference value both walks return.
 mod mismatch;
-/// The two lookups that follow a type through its aliases.
-mod resolved_type;
 /// The walk that compares the module's declaration with the expectation.
 mod comparison;
 /// The request numbers compared with the module's `enum zfs_ioc`.
 mod comparison_requests;
+/// The one adapter that maps the in-house decoder onto the declaration.
+mod in_house_declaration;
 /// The entry point both executables call.
 mod check_module_layout;
 
@@ -130,10 +129,10 @@ mod btf_header_tests;
 #[cfg(test)]
 #[path = "btf_types_tests.rs"]
 mod btf_types_tests;
-/// The member list and enumeration values.
+/// The adapter's member list and enumeration values.
 #[cfg(test)]
-#[path = "btf_records_tests.rs"]
-mod btf_records_tests;
+#[path = "in_house_declaration_tests.rs"]
+mod in_house_declaration_tests;
 /// The expectation table's own checks.
 #[cfg(test)]
 #[path = "expectations_tests.rs"]

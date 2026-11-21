@@ -13,9 +13,13 @@
 //! expect(run(['--help'])).toBe(0); expect(run([])).toBe(2);
 //! ```
 
-use super::{EXIT_DONE, EXIT_REFUSED, run_behind};
+use super::{
+    EXIT_DONE, EXIT_REFUSED, attaching_sweep_mode, behind_the_gate, boot_reconcile_mode, run_behind,
+    shutdown_unmount_mode,
+};
 use crate::zfs_compatibility_gate::gate_verdict::{Facts, Verdict};
 use crate::zfs_compatibility_gate::{BeforeRequests, gate_words::TESTED_MODULE_VERSION};
+use std::cell::Cell;
 use std::ffi::OsString;
 
 /// The gate a control hands in:
@@ -100,6 +104,47 @@ fn an_unreadable_invocation_answers_the_refusal_status() {
     assert_eq!(run(arguments(&["boot-reconcile", "--force"]).as_slice()), EXIT_REFUSED);
     assert_eq!(run(arguments(&["adopt-worktree-parent"]).as_slice()), EXIT_REFUSED);
     assert_eq!(run(arguments(&["adopt-worktree-parent", "--checkout"]).as_slice()), EXIT_REFUSED);
+}
+
+/// A refused gate never calls the mode's own work,
+/// and the line it answers says so.
+#[test]
+fn a_refused_gate_keeps_the_mode_unentered_and_says_so() {
+    let ran: Cell<bool> = Cell::new(false);
+    let answer: Result<String, String> = behind_the_gate(&RefusingGate, || {
+        ran.set(true);
+        return Ok(String::from("the mode ran"));
+    });
+    let Err(line): Result<String, String> = answer else {
+        panic!("a refused gate ran the mode");
+    };
+    assert!(!ran.get(), "the refused gate called the mode");
+    assert!(line.contains("no mode was entered"), "{line}");
+    assert!(!line.contains("the mode ran"), "{line}");
+    let passed: Result<String, String> = behind_the_gate(&PassingGate, || {
+        ran.set(true);
+        return Ok(String::from("the mode ran"));
+    });
+    assert!(passed.is_ok(), "a passing gate refused the mode");
+    assert!(ran.get(), "a passing gate did not call the mode");
+}
+
+/// Each unbuilt mode names the plan step that lands it,
+/// so a passing gate still leaves the step a person can act on.
+#[test]
+fn each_unbuilt_mode_names_its_plan_step() {
+    for (awaiting, words) in [
+        (boot_reconcile_mode::AWAITING, Vec::<&str>::new()),
+        (attaching_sweep_mode::AWAITING, vec!["sweep"]),
+        (shutdown_unmount_mode::AWAITING, vec!["shutdown-unmount"]),
+    ] {
+        let message: String = awaiting.message();
+        assert!(
+            message.contains(format!("plan step {}", awaiting.step).as_str()),
+            "{message}"
+        );
+        assert_eq!(run(arguments(words.as_slice()).as_slice()), EXIT_REFUSED);
+    }
 }
 
 /// A gate that refuses keeps the mode unentered,

@@ -46,6 +46,14 @@ fn another_release_text_gets_the_sentence_quoting_both() {
 }
 
 #[test]
+fn a_module_with_no_release_text_gets_its_own_sentence() {
+    let sentence: String = release_sentence(None).expect("the absent text is reported");
+    assert!(sentence.contains("no release text"), "{sentence}");
+    assert!(sentence.contains(TESTED_MODULE_VERSION), "{sentence}");
+    assert!(!sentence.contains("reports the release text no"), "{sentence}");
+}
+
+#[test]
 fn a_module_with_no_identity_attribute_says_the_check_is_weaker() {
     let words: String = compatible_line(&facts(None, vec!["version", "build ID"]));
     assert!(words.contains("no version, build ID"), "{words}");
@@ -64,7 +72,8 @@ fn a_refusal_names_the_step_the_disabled_requests_and_no_bypass() {
     assert!(words.contains("dds_flags"), "{words}");
     assert!(words.contains("reads included"), "{words}");
     assert!(words.contains("registrations and durable recovery state"), "{words}");
-    assert!(words.contains("reflink or ordinary Git route"), "{words}");
+    assert!(words.contains("no mode is entered"), "{words}");
+    assert!(!words.contains("reflink or ordinary Git route"), "{words}");
     assert!(words.contains("No flag and no environment"), "{words}");
 }
 

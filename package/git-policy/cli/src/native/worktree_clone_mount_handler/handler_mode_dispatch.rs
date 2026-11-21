@@ -122,9 +122,9 @@ fn report(outcome: Result<String, String>) -> i32 {
 ///  compared,
 ///  and a refusal is the whole answer:
 ///  the mode is not entered,
-///  so nothing is opened,
-///  mounted,
-///  unmounted or recorded,
+///  so it opens nothing,
+///  mounts nothing,
+///  unmounts nothing and records nothing,
 ///  and registrations and durable recovery state stay as they were.
 fn behind_the_gate(
     gate: &dyn BeforeRequests,
@@ -133,7 +133,9 @@ fn behind_the_gate(
     let verdict: Verdict = gate.verdict();
     let line: String = verdict_line(&verdict);
     if let Verdict::Refused(_) = verdict {
-        return Err(line);
+        return Err(format!(
+            "{line}\nno mode was entered and no raw request was made, so this invocation mounted nothing, unmounted nothing and recorded nothing"
+        ));
     }
     return match outcome() {
         Ok(done) => Ok(format!("{line}\n{done}")),

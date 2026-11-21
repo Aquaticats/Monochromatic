@@ -12,9 +12,8 @@
 //!  and the tiling is what fails then;
 //! the counts alone would still agree.
 
-use super::expectations::{
-    ContainerKind, ExpectedContainer, ExpectedMember, ZFS_CMD, compared_structures,
-};
+use super::declaration::ContainerKind;
+use super::expectations::{ExpectedContainer, ExpectedMember, ZFS_CMD, compared_structures};
 use super::expected_requests::{ExpectedEnumerator, expected_enumerators};
 use crate::layout::{ZcDestroyControl, ZcInjectOverlay, ZfsCmd};
 use crate::requests::Operation;

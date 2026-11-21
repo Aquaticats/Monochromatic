@@ -14,6 +14,8 @@
 //!  recipe built,
 //! `member:dds_flags` for a module that lost the flag `zfs-2.4.4`
 //!  added,
+//! `member:zi_iotype` for one whose two same-size inject-record members were
+//!  swapped,
 //! and `type:zc_inject_record` for one whose anonymous union is gone.
 //!  The driver sets it per arm and reads the `MEASUREMENT gate` line,
 //! so a run that
@@ -57,7 +59,7 @@ fn the_running_modules_declaration_answers_what_the_arm_expects() {
         .trim()
         .to_string();
     let module: std::path::PathBuf = Path::new(MODULE_BTF).to_path_buf();
-    let module_bytes: u64 = std::fs::metadata(&module).map(|metadata| { return metadata.len(); }).unwrap_or(0);
+    let module_bytes: u64 = std::fs::metadata(&module).map(|metadata| metadata.len()).unwrap_or(0);
     let verdict: Result<Compatible, Refusal> = check_module_layout(&LayoutRequest {
         base_btf: Path::new(BASE_BTF),
         module_btf: module.as_path(),
@@ -82,6 +84,15 @@ fn the_running_modules_declaration_answers_what_the_arm_expects() {
             assert_eq!(refusal.step, Step::Member);
             assert!(refusal.detail.contains("dds_flags"), "{}", refusal.detail);
             assert!(refusal.detail.contains("2296"), "{}", refusal.detail);
+        }
+        "member:zi_iotype" => {
+            let Err(refusal): Result<Compatible, Refusal> = verdict else {
+                panic!("a module with zi_iotype and zi_duration swapped passed the gate");
+            };
+            assert_eq!(refusal.step, Step::Member);
+            assert!(refusal.detail.contains("zi_iotype"), "{}", refusal.detail);
+            assert!(refusal.detail.contains("2592"), "{}", refusal.detail);
+            assert!(refusal.detail.contains("2560"), "{}", refusal.detail);
         }
         "type:zc_inject_record" => {
             let Err(refusal): Result<Compatible, Refusal> = verdict else {

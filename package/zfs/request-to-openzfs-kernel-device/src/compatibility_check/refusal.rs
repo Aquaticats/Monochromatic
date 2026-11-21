@@ -42,12 +42,13 @@ use std::path::{Path, PathBuf};
 /// a type whose shape moved,
 /// a member,
 /// an enumerator or a base type size.
-///  `Device` and `Identity` are the caller's two steps,
+///  `Device`,
+///  `Identity` and `Target` are the caller's three steps,
 /// which the binding never performs itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Step = 'Device' | 'Identity' | 'BaseBtf' | 'ModuleBtf' | 'Header' | 'Type' | 'Member' | 'Enum' | 'BaseType';
+/// type Step = 'Device' | 'Identity' | 'Target' | 'BaseBtf' | 'ModuleBtf' | 'Header' | 'Type' | 'Member' | 'Enum' | 'BaseType';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Step {
@@ -55,6 +56,9 @@ pub enum Step {
     Device,
     /// The module changed between the two identity reads.
     Identity,
+    /// The binary's compiled target is not one the managed route is qualified
+    ///  for.
+    Target,
     /// The kernel's own type information could not be read.
     BaseBtf,
     /// The loaded module's type information could not be read.
@@ -81,6 +85,7 @@ impl Step {
         return match self {
             Step::Device => "device",
             Step::Identity => "identity",
+            Step::Target => "target",
             Step::BaseBtf => "base type information",
             Step::ModuleBtf => "module type information",
             Step::Header => "header",

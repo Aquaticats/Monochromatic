@@ -13,8 +13,9 @@
 
 use super::blob_fixture::{Blob, WrittenMember};
 use super::btf_header::{Sections, read_sections};
-use super::btf_records::{Member, Members};
 use super::btf_entry::Entry;
+/// The adapter's member list and one member.
+use super::in_house_declaration::{Member, Members};
 /// The indexed type entries.
 use super::btf_types::TypeInformation;
 use std::path::Path;
@@ -76,6 +77,43 @@ fn a_structure_reads_each_member_name_and_offset() {
     assert_eq!(third.bit_offset, 64);
     assert_eq!(third.bitfield, None);
     assert!(list.at(&types, 3).is_none());
+}
+
+#[test]
+fn a_record_with_the_kind_flag_reads_only_a_real_bitfield_as_one() {
+    let mut blob: Blob = Blob::new();
+    let word: u32 = blob.int("unsigned int", 4);
+    let structure: u32 = blob.structure_with_bitfields(
+        "flagged",
+        16,
+        &[
+            WrittenMember {
+                name: "whole",
+                type_id: word,
+                bit_offset: 0,
+            },
+            WrittenMember {
+                name: "second",
+                type_id: word,
+                bit_offset: 32,
+            },
+            WrittenMember {
+                name: "nibble",
+                type_id: word,
+                bit_offset: (4 << 24) | 64,
+            },
+        ],
+    );
+    let bytes: Vec<u8> = blob.bytes();
+    let types: TypeInformation<'_> = information(&bytes);
+    let list: Members<'_> = members(&types, structure);
+    let whole: Member<'_> = list.at(&types, 0).expect("the first member");
+    assert_eq!(whole.bitfield, None);
+    let second: Member<'_> = list.at(&types, 1).expect("the second member");
+    assert_eq!(second.bitfield, None);
+    let nibble: Member<'_> = list.at(&types, 2).expect("the third member");
+    assert_eq!(nibble.bitfield, Some(4));
+    assert_eq!(nibble.bit_offset, 64);
 }
 
 #[test]

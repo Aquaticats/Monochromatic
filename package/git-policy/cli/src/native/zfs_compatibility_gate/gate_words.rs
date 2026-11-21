@@ -38,8 +38,12 @@ pub const TESTED_MODULE_VERSION: &str = "2.4.4-1";
 /// The sentence that says the release string is not the tested text,
 /// or nothing when it is.
 pub fn release_sentence(version: Option<&str>) -> Option<String> {
-    let read: &str = version.unwrap_or("no release string");
-    if Some(read) == Some(TESTED_MODULE_VERSION) {
+    let Some(read): Option<&str> = version else {
+        return Some(format!(
+            "the loaded module reports no release text, and the module this repository tested reports {TESTED_MODULE_VERSION}: nothing compares a release text with a rule, so this is a fact a person reads and not a refusal"
+        ));
+    };
+    if read == TESTED_MODULE_VERSION {
         return None;
     }
     return Some(format!(
@@ -76,7 +80,7 @@ pub fn compatible_line(facts: &Facts) -> String {
 /// with what stays disabled and that nothing was changed.
 pub fn refusal_line(refusal: &Refusal) -> String {
     return format!(
-        "the start-time ZFS compatibility gate refused: {refusal}. Every raw request, reads included, stays disabled until a module whose declared layout and request numbers match this build is loaded; this is not a failure of the command, so registrations and durable recovery state stay as they were and an unused slot takes the same-dataset reflink or ordinary Git route. No flag and no environment turns this refusal into a pass."
+        "the start-time ZFS compatibility gate refused: {refusal}. Every raw request, reads included, stays disabled until a module whose declared layout and request numbers match this build is loaded; this is not a failure of the command, so registrations and durable recovery state stay as they were and no mode is entered. No flag and no environment turns this refusal into a pass."
     );
 }
 

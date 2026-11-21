@@ -89,10 +89,25 @@ fn another_value_is_another_module() {
 }
 
 #[test]
-fn a_module_with_no_value_is_compared_by_the_two_files_facts() {
-    let first: ModuleIdentity = ModuleIdentity::read(&paths("identity-no-values", None, None));
-    let same: ModuleIdentity = first.clone();
-    assert!(first.same_as(&same));
+fn a_module_with_no_value_never_refuses_the_check_and_the_cache_compares_its_files() {
+    let fixture: GatePaths = paths("identity-no-values", None, None);
+    let first: ModuleIdentity = ModuleIdentity::read(&fixture);
+    assert!(first.same_as(&first.clone()));
     let other: ModuleIdentity = ModuleIdentity::read(&paths("identity-no-values-other", None, None));
-    assert!(!first.same_as(&other) || first.base != other.base);
+    assert!(first.same_as(&other), "the check compares no term and never refuses");
+    assert!(!first.same_module_as(&other), "the cache compares the two files' own facts");
+    std::fs::write(fixture.module_btf.as_path(), b"a longer module file").expect("the module moves");
+    let moved: ModuleIdentity = ModuleIdentity::read(&fixture);
+    assert!(!first.same_module_as(&moved), "a moved file is a re-run");
+}
+
+#[test]
+fn the_cache_notices_a_moved_file_even_when_the_module_carries_its_values() {
+    let fixture: GatePaths = paths("identity-cache-values", Some("2.4.4-1"), Some("A3553C308C29FD4B6595A72"));
+    let first: ModuleIdentity = ModuleIdentity::read(&fixture);
+    assert!(first.same_module_as(&first.clone()));
+    std::fs::write(fixture.module_btf.as_path(), b"a longer module file").expect("the module moves");
+    let moved: ModuleIdentity = ModuleIdentity::read(&fixture);
+    assert!(first.same_as(&moved), "the in-check reads compare only the carried values");
+    assert!(!first.same_module_as(&moved), "the cache compares the files too");
 }

@@ -32,7 +32,7 @@ pub fn target_refusal(target: &str) -> Option<Refusal> {
         return None;
     }
     return Some(Refusal {
-        step: Step::Type,
+        step: Step::Target,
         file: None,
         detail: format!(
             "this binary runs on {target}, and the managed ZFS route is qualified for {} only until a guest run qualifies another target; BTF records no architecture, so the compiled target is the only evidence the gate has",
