@@ -32,13 +32,13 @@ fn a_holder_without_mount_authority_reports_a_failed_attach() {
     let root: PathBuf = fixture("start-probe-holder");
     let place: RecordPlace = RecordPlace::at(root.join("records"));
     place.prepare().expect("the record place is made");
-    let holder: Holder = Holder::start(&place, "pool/ds@ready").expect("the holder forks");
-    let holder: RefCell<Holder> = RefCell::new(holder);
+    let started: Holder = Holder::start(&place, "pool/ds@ready").expect("the holder forks");
+    let held: RefCell<Holder> = RefCell::new(started);
     let feed: RefCell<LineFeed> = RefCell::new(LineFeed::new());
     let report: RefCell<ProbeReport> = RefCell::new(ProbeReport::new());
     let arrival: Cell<Arrival> = Cell::new(Arrival::Nothing);
     let answered: bool = wait_until(&|| {
-        let next: Arrival = holder.borrow_mut().drain(&mut feed.borrow_mut(), &mut report.borrow_mut());
+        let next: Arrival = held.borrow_mut().drain(&mut feed.borrow_mut(), &mut report.borrow_mut());
         if next == Arrival::Nothing {
             return false;
         }
@@ -48,10 +48,10 @@ fn a_holder_without_mount_authority_reports_a_failed_attach() {
     assert!(answered, "the holder did not answer within the control's deadline");
     assert_eq!(arrival.get(), Arrival::Attach { passed: false }, "a holder that cannot unshare must not pass");
     assert!(report.borrow().lines().iter().any(|line| return line.step == super::super::probe_arms::ProbeStep::HolderAttach));
-    let mut holder: Holder = holder.into_inner();
-    holder.stop();
-    let _ = holder.reap();
-    holder.end();
+    let mut finished: Holder = held.into_inner();
+    finished.stop();
+    let _ = finished.reap();
+    finished.end();
 }
 
 /// The old count of polls cannot see an answer that arrives after the last
@@ -74,5 +74,5 @@ fn a_late_answer_is_missed_by_a_count_of_polls_and_seen_by_the_deadline() {
         std::thread::sleep(std::time::Duration::from_millis(100));
         late.store(true, Ordering::SeqCst);
     });
-    assert!(wait_until(&|| answered.load(Ordering::SeqCst)), "the deadline wait did not see the late answer");
+    assert!(wait_until(&|| return answered.load(Ordering::SeqCst)), "the deadline wait did not see the late answer");
 }

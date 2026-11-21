@@ -187,11 +187,11 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
     if holder_namespace.is_empty() {
         ending(StepLine::failed(ProbeStep::ScanWhileHeld, None));
     }
-    let own: String = match own_namespace() {
+    let worker_own: String = match own_namespace() {
         Ok(namespace) => namespace,
         Err(()) => ending(StepLine::failed(ProbeStep::ScanWhileHeld, None)),
     };
-    if scan_expecting(source.as_str(), &[own.as_str(), holder_namespace.as_str()]).is_err() {
+    if scan_expecting(source.as_str(), &[worker_own.as_str(), holder_namespace.as_str()]).is_err() {
         ending(StepLine::failed(ProbeStep::ScanWhileHeld, None));
     }
     say(start.status, StepLine::passed(ProbeStep::ScanWhileHeld));
@@ -199,11 +199,11 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
     if ask_holder(start, b'S').is_none() {
         ending(StepLine::failed(ProbeStep::ScanAfterHolder, None));
     }
-    let own: String = match own_namespace() {
+    let worker_own_after: String = match own_namespace() {
         Ok(namespace) => namespace,
         Err(()) => ending(StepLine::failed(ProbeStep::ScanAfterHolder, None)),
     };
-    if scan_expecting(source.as_str(), &[own.as_str()]).is_err() {
+    if scan_expecting(source.as_str(), &[worker_own_after.as_str()]).is_err() {
         ending(StepLine::failed(ProbeStep::ScanAfterHolder, None));
     }
     say(start.status, StepLine::passed(ProbeStep::ScanAfterHolder));
@@ -245,7 +245,7 @@ fn ask_holder(start: &WorkerStart<'_>, request: u8) -> Option<String> {
 
 /// This process's own mount-namespace identity.
 fn own_namespace() -> Result<String, ()> {
-    return std::fs::read_link("/proc/self/ns/mnt").map(|path| return path.to_string_lossy().into_owned()).map_err(|_| return ());
+    return std::fs::read_link("/proc/self/ns/mnt").map(|path| return path.to_string_lossy().into_owned()).map_err(|_| ());
 }
 
 /// Scan this PID namespace for the source and require exactly the namespaces
