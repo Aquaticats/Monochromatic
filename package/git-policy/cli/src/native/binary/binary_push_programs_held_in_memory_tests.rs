@@ -13,6 +13,7 @@
 //! and a push whose settings are gone with a service restart must stop and say what to run rather than speak a
 //!  transport nobody chose.
 //! Every value in these controls is plainly fake,
+//! the stand-in `git-lfs` of a push reads no variable and writes nothing,
 //! and no control prints the environment of any process.
 //!
 //! In TS you'd write (pseudocode):
@@ -23,7 +24,7 @@
 
 use super::commit::{keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
 use super::support::{
-    Fixture, Observed, decline_in_process_lfs_scan, fixture, git, give_service_environment, observe_raw, repository, start_fixture_service, stderr_of,
+    Fixture, Observed, decline_in_process_lfs_scan, executable, fixture, git, give_service_environment, observe_raw, repository, start_fixture_service, stderr_of,
     wrapper_first_path, FixtureService,
 };
 use git_policy_cli::service_fault::AFTER_PROMOTE;
@@ -47,9 +48,23 @@ const FAKE_TRANSPORT_TWO: &str = "ssh -i /nowhere/FAKE_KEY_TWO_9c7e";
 /// The plainly fake proxy command a commit's shell names.
 const FAKE_PROXY: &str = "nc -x fakeuser:FAKE_PROXY_PASSWORD_2a6f proxy.invalid 1080";
 
+/// The folder the stand-in `git-lfs` of these controls lives in,
+/// outside the fixture:
+/// it stands in for a program the shell that commits has and the service's own list does not,
+/// and it is reached through the list the request carries,
+/// so it must not sit anywhere a sweep of the fixture reads.
+/// A control removes its own folder when it ends,
+/// so a run leaves none behind.
+fn stand_in_folder(name: &str) -> PathBuf {
+    return PathBuf::from(std::env::var_os("HOME").expect("a home directory"))
+        .join("temp/agent/lfs-push-programs-held-in-memory-stand-in-git-lfs")
+        .join(name);
+}
+
 /// A repository with one tracked file,
 /// its bare origin,
 /// Git LFS keys,
+/// a stand-in `git-lfs` for the push to find,
 /// and a service whose own `PATH` holds no `git-lfs`.
 struct World {
     /// The fixture root.
@@ -61,8 +76,27 @@ struct World {
     /// The service of the fixture.
     service: FixtureService,
     /// The `PATH` the shell that commits in this control searches,
-    /// which is the fixture's own and not the service's list.
+    /// which holds that shell's own stand-in `git-lfs` and not the service's list.
     shell_path: OsString,
+    /// The stand-in's own folder,
+    /// removed when the control ends.
+    stand_in: PathBuf,
+}
+
+/// What:
+///  The stand-in `git-lfs` of these controls:
+///  a program that does nothing and says it did,
+///  because the push of a repository with LFS keys runs one before it publishes.
+/// Why:
+///   A repository that carries `filter.lfs.*` and `lfs.*` makes every push start the upload first,
+///  so a shell with no `git-lfs` anywhere is refused and nothing is pushed.
+/// Two controls of this file failed that way in the gate of 2026-11-21T13:25:00-05:00,
+///  where this program was not on the shell's `PATH`,
+///  and it stands in for the program the person's shell holds and the service's own list does not.
+/// It reads no variable and writes nothing,
+/// so the search that a commit and a typed push leave no command line on any disk still holds.
+fn stand_in_source() -> String {
+    return String::from("#!/bin/sh\nexit 0\n");
 }
 
 fn world(name: &str) -> World {
@@ -80,23 +114,29 @@ fn world(name: &str) -> World {
     git(&fixture, &repo, &["push", "--quiet", "--set-upstream", "origin", "main"]);
     git(&fixture, &repo, &["config", "lfs.url", "http://127.0.0.1:9/never-contacted"]);
     decline_in_process_lfs_scan(&fixture, repo.as_path());
-    let shell_path: OsString = shell_path(&fixture);
+    // One folder per control: the controls of this file run side by side in one process, and a shared stand-in would be
+    //  written and removed by two of them at once.
+    let stand_in: PathBuf = stand_in_folder(name);
+    std::fs::create_dir_all(stand_in.as_path()).expect("the stand-in's own folder");
+    executable(stand_in.join("git-lfs").as_path(), stand_in_source().as_bytes());
+    let shell_path: OsString = shell_path(&fixture, stand_in.as_path());
     let service: FixtureService = start_fixture_service(&fixture);
     service.serve(&fixture, repo.join(".git").as_path());
-    return World { fixture, repo, origin, service, shell_path };
+    return World { fixture, repo, origin, service, shell_path, stand_in };
 }
 
 /// What:
 ///  The `PATH` the shell that commits in these controls searches:
 ///  the fixture's wrapper first,
+/// then the stand-in `git-lfs`,
 /// then the host's own programs.
 /// Why:
-///   The fixture's wrapper must be what runs `git` for the commands here,
-/// and no stand-in program is on this list:
-/// a push that introduces no object starts no Git LFS program at all,
-/// so a stand-in would never run and would prove nothing.
-fn shell_path(fixture: &Fixture) -> OsString {
+///   The push must find `git-lfs` where that shell finds it and nowhere else,
+/// and the fixture's wrapper must be what runs `git` for the commands here.
+fn shell_path(fixture: &Fixture, stand_in: &Path) -> OsString {
     let mut path: OsString = wrapper_first_path(fixture);
+    path.push(":");
+    path.push(stand_in);
     path.push(":/usr/bin:/bin");
     return path;
 }
@@ -242,6 +282,7 @@ fn a_commit_and_a_typed_push_write_neither_command_line_anywhere() {
     }
     world.service.stop_all();
     remove_settled(&world.fixture);
+    std::fs::remove_dir_all(world.stand_in.as_path()).expect("the stand-in's own folder goes");
 }
 
 /// What:
@@ -304,6 +345,7 @@ fn a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command() {
     assert_eq!(origin_main(&world), commit, "the commit the stopped push held is on the remote");
     world.service.stop_all();
     remove_settled(&world.fixture);
+    std::fs::remove_dir_all(world.stand_in.as_path()).expect("the stand-in's own folder goes");
 }
 
 /// What:
@@ -332,4 +374,5 @@ fn the_record_an_unreleased_branch_wrote_is_removed_by_the_first_command() {
     assert!(folder.is_dir(), "the work records' own folder stays");
     world.service.stop_all();
     remove_settled(&world.fixture);
+    std::fs::remove_dir_all(world.stand_in.as_path()).expect("the stand-in's own folder goes");
 }
