@@ -942,8 +942,8 @@ A planted removal of the reader's tolerance,
 a sum that expects a thread's own file,
 fails this control on every run,
 which is the guard this incident was about.
-A reader that answered zero everywhere would still pass it,
-because the thread that only waits has spent no ticks to expect;
+A reader that answered zero everywhere still passed it in the runs that planted it,
+because the thread that only waits had spent no ticks to expect;
 no test in the tree pins that undercount,
 which is recorded here rather than left for the next reader to discover.
 
