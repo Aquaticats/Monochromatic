@@ -41375,7 +41375,16 @@ stated in this entry. What follows from them, as work:
   `.config/mise/conf.d/10-bin.local.toml` differs from the main checkout's. GOING: the up-front skip as
   `pi-clone-rung-skips-a-differing-fenced-tree` (brief under `~/temp/agent/clone-rung-skips-a-differing-fenced-tree-2026-11-21/`).
   NEXT: the faster size reader (the btrfs snapshot cost; same reads, so after the skip), the partial clone (task 415), and
-  the `worktree_remove_hand_over.rs` split (both blocking branches have now merged or are about to). Step 7's
+  the `worktree_remove_hand_over.rs` split (both blocking branches have now merged or are about to). STEP 7'S FINISHING
+  ROUND ended at `2c6286cd19`: the guest arm passed in its own guest (malformed, oversized and inherited intent refused
+  with nothing mounted, the stale receipt kept as the last observation, the nudge delivered with only `mount,userprop` and
+  refused on the parent); three kept rounds from the property change to the zedlet 10.2 to 10.6 ms, to the product
+  receipt 11.2 to 12.1 ms (the deadline stays provisional at 30 s); the nudge and readiness reds shown; the claim keeps
+  its per-slot `flock` with the reason written beside it and in the SPEC; the linker abort not reproduced (now exit 0 on
+  the branch and on `main`), read as a host condition; gate 9559 of 9561. It stated its first round stopped three
+  containers on a creation-time match. GOING: step 7's integration pass on Sonnet (review to
+  `~/temp/agent/integration-pass-zfs-step-7-intent-receipts-readiness-2026-11-21/keep/review.md`), sorting its six open
+  questions into settled, later-step or owner's. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
