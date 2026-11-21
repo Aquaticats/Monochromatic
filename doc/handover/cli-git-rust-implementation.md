@@ -41349,9 +41349,10 @@ stated in this entry. What follows from them, as work:
   N2; harness 26 of 26, sample 300 of 300, gate 9480 of 9482. GOING: the fence reviewer's closure check of `87b4af4062`.
   INCIDENT: step 7's first round reports stopping three gate containers it matched by creation time; the fence round lists
   one of them (`gallant_moore`) as its own, and two fence gates were ended by an unexplained SIGTERM in that hour.
-  `podman events` shows only `died` and `remove` for all four named containers (no `stop` or `kill`; `gallant_moore` and
-  `hardcore_pasteur` created together at 16:16:56, died 16:28:46 and 16:19:19), so whether one round ended another's gate
-  is not established; the log cannot say whose container it was. THE PER-SLOT DESIGN'S RECHECK said ready (0 high, 0
+  `podman events` shows only `died` and `remove` for all four named containers (`gallant_moore` and `hardcore_pasteur`
+  created together at 16:16:56, died 16:28:46 and 16:19:19). Corrected by issue 6334's integration pass: an outside
+  `podman stop` on a container whose client still runs also leaves only `died` and `remove`, so the log neither shows nor
+  rules out a stop; whether one round ended another's gate is not established (corrective comment posted on 6334). THE PER-SLOT DESIGN'S RECHECK said ready (0 high, 0
   medium, 8 lows R1 to R8 for the build). THE OWNER ACCEPTED it, recorded 2026-11-21T17:23:49-05:00: "A: accept with its
   proposals (Recommended)", "A: O_EXCL staging, then link (Recommended)", "A: no listing per sweep (Recommended)"
   (recorded in `doc/decision/cli-git-zfs-slot-identity-store-format.md`, "The design accepted", with the losses accepted
