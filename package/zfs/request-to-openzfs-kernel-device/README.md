@@ -216,9 +216,7 @@ first ioctl:
   version,
   flags,
   header length and section list are checked,
-  and every type entry is walked with the widest member count and kind the
-  format has,
-  so a file this reader cannot walk is refused rather than misread.
+  so a file whose sections do not add up is refused before the reader sees it.
 - The comparison walks the module's `zfs_cmd` in a fixed order:
   the struct's size,
   one pass over its members,
@@ -248,34 +246,38 @@ and the words a person reads.
 The verdict is remembered per process and never written to disk
 (`doc/decision/cli-git-zfs-runtime-layout-checker.md`).
 
-The reader is this crate's own minimal decoder for the two checked files.
+The reader is `btf-rs` 2.0.1,
+the crate the project adopted on 2026-11-20 with its `LGPL-2.1-or-later`
+licence
+(`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
+"The reader adopted: `btf-rs` 2.0.1";
+the vet report is
+`doc/audit/tech-btf-reader-for-the-zfs-layout-checker-vet-2026-11-20.md`).
 `src/compatibility_check/declaration.rs` states what the comparison,
 the expectations,
 the records and the entry point ask of a reader,
 and the three duties every reader owes them,
-and `src/compatibility_check/in_house_declaration.rs` is the one adapter that
-maps this decoder onto it.
-The project's reader pick (Q1 of the design) is still owed,
-and the design measured a dependency for it;
-until that pick lands this decoder serves the gate behind the declaration.
+and `src/compatibility_check/btf_rs_declaration.rs` is the one adapter that
+maps `btf-rs` onto it.
+`btf-rs` leaves one piece of arithmetic to this crate:
+an array's byte size,
+which the adapter multiplies out of the element's own size and the count.
+`btf-rs` validates no section list of its own,
+so `bounded_read.rs` and `btf_header.rs` keep the pre-scan that refuses a
+header or a section list before a byte is parsed,
+and that pre-scan is also what refuses a kernel that widens the format's
+masks,
+until a `btf-rs` release carries the widened ones.
 
-A picked reader replaces that adapter file and its own controls,
+A later reader replaces that adapter file and its own controls,
 `declaration_contract_tests.rs` excepted,
-and it touches these four places,
+and it touches these three places,
 because an adapter cannot change them alone:
 
 - the entry point's call in `check_module_layout.rs`,
-  which hands a reader the pre-scan's cut sections:
-  a reader that takes whole files,
-  as `btf-rs` 2.0.1 and `bpftool` and `pahole` do,
-  needs those files' bytes passed beside them;
+  which hands a reader both files' bytes beside the pre-scan's header length;
 - `mod.rs`,
-  whose file list and test-module lines name the decoder's files;
-- the two decoder-side places a swap leaves items unread,
-  which `cargo clippy -D warnings` then refuses:
-  `btf_header.rs`'s `Sections` fields and `blob_fixture.rs`'s
-  `string_bytes`,
-  `alias` and `structure_with_bitfields`;
+  whose file list and test-module lines name the adapter's files;
 - `Cargo.toml` and `Cargo.lock`.
 
 Nothing else moves:
@@ -285,6 +287,9 @@ Nothing else moves:
 `declaration.rs` and its three contract controls read the declaration alone,
 so a swap keeps every verdict and every refusal sentence the comparison
 writes.
+The swap to `btf-rs` was measured on the fourteen real-byte pairs the first
+step 6 review built:
+every verdict and every sentence is the one the gate gave before it.
 
 ## The guest fixture
 

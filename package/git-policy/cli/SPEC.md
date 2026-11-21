@@ -19580,10 +19580,11 @@ and no raw request is made until it passes.
 The wrapper `monochromatic-git-policy-cli` makes no request in this build and
 runs no gate;
 the step that gives the wrapper a ZFS request route adds that call.
-The gate is this repository's own code on both sides:
+The gate is this repository's own code except for the type reader:
 `compatibility_check` in `package/zfs/request-to-openzfs-kernel-device`
-holds the bounded reader,
+holds the bounded read,
 the pre-scan,
+the declaration and its adapter over `btf-rs` 2.0.1,
 the expectation table compiled from its own `repr(C)` type,
 the comparison and one refusal value,
 and `src/native/zfs_compatibility_gate/` in this package holds the paths,
@@ -19591,6 +19592,17 @@ the read order,
 the module's identity,
 the target allowlist,
 the per-process verdict and the words a person reads.
+`btf-rs` 2.0.1 is the reader the project adopted on 2026-11-20 under
+`LGPL-2.1-or-later`
+(`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
+"The reader adopted: `btf-rs` 2.0.1").
+It resolves a named type,
+a chained type,
+a record's members and an enumeration's values;
+the binding multiplies out each array's byte size,
+and the pre-scan stays here because that crate validates no section list,
+which is also what refuses a kernel that widens the format's masks until a
+`btf-rs` release carries them.
 
 What it proves,
 in this order:
