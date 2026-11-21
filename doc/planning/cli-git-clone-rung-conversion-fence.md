@@ -1057,6 +1057,10 @@ all under
 `~/temp/agent/clone-rung-conversion-fence-beside-the-clone-2026-11-20/scratch/keep/binaries/`
 with `sha256.txt` and `commits.txt` beside them.
 The shipped build holds no `MONOCHROMATIC_CLONE_FENCE` string (`strings` finds none) and the measurement build does.
+The two commits after the measured one (`0fe2cece9e`, which moves the clone rung's serving step to its own file,
+moves the index seed's function into the index-install module and takes the repository fixer's line breaks)
+change no behaviour the runs touch;
+the measured binary is therefore the shipped code's own, byte for byte before that move.
 
 The step split,
 medians in ms:
