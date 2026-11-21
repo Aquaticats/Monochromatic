@@ -41413,7 +41413,16 @@ stated in this entry. What follows from them, as work:
   `take_claim`; receipt outcomes partly settled, step 9 owns the rest; the wait's synchronous read settled by the tokio
   rulings; readiness writers' ordering steps 8 and 19's. GOING: `pi-zfs-step-7-integration-findings-fixed` in
   `.claude/worktrees/zfs-step-7-integration-findings` (brief under
-  `~/temp/agent/zfs-step-7-integration-findings-fixed-2026-11-21/`). Step 7's
+  `~/temp/agent/zfs-step-7-integration-findings-fixed-2026-11-21/`). THE PUSH PROGRAMS' THIRD CLOSURE CHECK said fit
+  (integration branch at `daca2d60dc`): the empty-cause fix and the handler control closed; the `lfs_hang` failure is a
+  race in the control that `main` has too (it never waits for the second worktree's push because that worktree's `.git` is
+  a file; slowing the upload fails both arms, a bounded wait passes both), filed as issue 6336; the SIGKILL comes from the
+  fixture's teardown after the early failure (retry line within 2 ms of a service exit in all five failure logs), not
+  memory (suite peak 38 to 49 percent of 2 GiB, `oom_kill 0` in four gates); issue 6335 corrected and closed for 6336.
+  Low left: the forget seam's manager-first order has no control. Its last merge of `main` (108 commits, 7 shared files)
+  was not gated, so the coordinator runs one gate on `daca2d60dc` before merging (log under
+  `~/temp/agent/coordinator-gate-of-the-push-programs-integration-tip-2026-11-21/`). The branch's troubleshooting note
+  still blames a memory-bound killer: correct after the merge. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
