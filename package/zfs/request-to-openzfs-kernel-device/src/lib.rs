@@ -35,6 +35,8 @@
 //! import { snapshot, destroySnaps, nvlist } from '@monochromatic-dev/zfs-request-to-openzfs-kernel-device';
 //! ```
 
+/// The start-time compatibility gate's layout half.
+pub mod compatibility_check;
 /// The open `/dev/zfs` handle and the live calls it carries.
 pub mod kernel_device;
 /// The ABI bytes:
@@ -49,6 +51,12 @@ pub mod nvlist;
 /// their replies and their failure type.
 pub mod requests;
 
+/// The gate's entry point,
+/// its refusal and what a pass read.
+pub use compatibility_check::{
+    Compatible, LayoutRequest, Refusal as CompatibilityRefusal, Step as CompatibilityStep,
+    check_module_layout,
+};
 /// The open device,
 /// why a live call failed,
 /// the identity read and one step of a listing.

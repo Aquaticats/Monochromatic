@@ -131,21 +131,34 @@ fn the_matcher_names_a_planted_cddl_library_and_nothing_else() {
     assert_eq!(cddl_libraries(clean), Vec::<String>::new());
 }
 
-/// The handler answers its version and refuses every mode whose step has not landed,
-/// naming the step and that nothing was touched.
+/// The handler answers its version,
+/// and on a machine whose kernel has no ZFS device every mode that will make
+/// a request refuses at the start-time gate before the mode is entered.
+///
+/// The device is stated absent first:
+/// on a host whose kernel loaded OpenZFS the gate may pass there and the mode
+/// answers its own step instead,
+/// which the dispatch controls read with a gate that answers without a kernel
+/// (`handler_mode_dispatch_tests`).
 #[test]
-fn the_handler_answers_its_version_and_refuses_its_unbuilt_modes() {
+fn the_handler_answers_its_version_and_refuses_its_request_modes_behind_the_gate() {
     let (version_status, version) = started(RELEASE_BINS[1], &["--version"]);
     assert_eq!(version_status, Some(0), "{version}");
     let (report_status, report) = reported(RELEASE_BINS[1], &["--version"]);
     assert_eq!(report_status, Some(0), "{report}");
     assert_eq!(report, format!("mount-git-worktree-clone-datasets {}\n", env!("CARGO_PKG_VERSION")));
     assert!(version.contains(env!("CARGO_PKG_VERSION")), "{version}");
-    for (arguments, step) in [([].as_slice(), "plan step 8"), (["boot-reconcile"].as_slice(), "plan step 6"), (["shutdown-unmount"].as_slice(), "plan step 9")] {
-        let (status, said) = started(RELEASE_BINS[1], arguments);
+    if Path::new("/dev/zfs").exists() {
+        eprintln!("SKIPPED: this machine's kernel has /dev/zfs, so a start here says nothing about a machine without the device; the gate image has none and runs this arm");
+        return;
+    }
+    for arguments in [Vec::<&str>::new(), vec!["boot-reconcile"], vec!["shutdown-unmount"]] {
+        let (status, said) = started(RELEASE_BINS[1], arguments.as_slice());
         assert_eq!(status, Some(2), "{arguments:?} must refuse: {said}");
-        assert!(said.contains(step), "{arguments:?} names the step that lands it: {said}");
-        assert!(said.contains("Nothing was opened"), "{arguments:?} says nothing was touched: {said}");
+        assert!(said.contains("the start-time ZFS compatibility gate refused"), "{arguments:?} names the gate: {said}");
+        assert!(said.contains("reads included"), "{arguments:?} names what stays disabled: {said}");
+        assert!(said.contains("registrations and durable recovery state"), "{arguments:?} says nothing was changed: {said}");
+        assert!(!said.contains("plan step"), "{arguments:?} never enters the mode: {said}");
     }
 }
 
