@@ -41180,7 +41180,16 @@ stated in this entry. What follows from them, as work:
   Sonnet, asked for an end-to-end control in the gate image (brief under
   `~/temp/agent/integration-pass-lfs-push-programs-held-in-memory-2026-11-21/`); and the start probe's findings round with
   the three answers as `pi-zfs-step-6-start-probe-integration-findings-fixed` (brief under
-  `~/temp/agent/zfs-step-6-start-probe-integration-findings-fixed-2026-11-21/`).
+  `~/temp/agent/zfs-step-6-start-probe-integration-findings-fixed-2026-11-21/`). THE PUSH PROGRAMS' INTEGRATION PASS
+  (Sonnet; its folder's `keep/review.md`) found it not fit on one point: A12(b) half fixed, the values kept while a retry
+  is queued but never forgotten when that retry lands, fails for good, is skipped, or an older record settles (three
+  probes red at the tip); follow-ups: other drop sites (dropped batches, a repository gone, gate-blocked pushes), a race
+  read but not reproduced, `Debug` derives that would print values, the `Skipped` arm's order, A7 without a guard, a note
+  naming tests that do not exist. Its end-to-end control in the gate image ran 4 of 4 green (the service's push ran a
+  stand-in `git-lfs` found only on the shell's `PATH`; nothing written). GOING:
+  `pi-git-policy-cli-lfs-push-programs-integration-findings-fixed` in the coordinator-made worktree
+  `.claude/worktrees/git-policy-cli-lfs-push-programs-findings` (brief under
+  `~/temp/agent/git-policy-cli-lfs-push-programs-integration-findings-fixed-2026-11-21/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
