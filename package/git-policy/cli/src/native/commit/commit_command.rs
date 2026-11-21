@@ -492,7 +492,7 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
             handoff,
             landed,
             if said.is_empty() { NO_BLOCKING_CAUSE } else { said.as_str() },
-            &crate::held_push_release_wakes_the_service::AskTheService { context: &command.context },
+            &crate::held_push_release_wakes_the_service::AskTheService { context: command.context },
         );
         timing.handoff += taking_back.elapsed();
         if let Some(kept) = unkept {

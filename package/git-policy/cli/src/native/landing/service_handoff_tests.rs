@@ -803,14 +803,14 @@ fn the_values_reach_the_service_before_the_push_record_can_be_claimed() {
     let mut notices: Vec<u8> = Vec::new();
     hand_over_push(&handoff, OID, &mut notices).expect("the values and the wake reach the service");
     let _joined = server.join();
-    let seen: Vec<(String, bool, bool)> = seen.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
-    assert_eq!(seen.len(), 2, "the values travel in one message and the wake in another");
+    let arriving: Vec<(String, bool, bool)> = seen.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+    assert_eq!(arriving.len(), 2, "the values travel in one message and the wake in another");
     let carries_values = |line: &str| -> bool {
         return matches!(crate::service_protocol::decode_client(line.trim_end()), Ok(crate::service_protocol::ClientMessage::Work { push_programs, .. }) if !push_programs.is_empty());
     };
-    assert!(carries_values(seen[0].0.as_str()), "the first message carries this command's values: {}", seen[0].0);
-    assert!(seen[0].2 && !seen[0].1, "the record waits in `held`, where no round claims it, while its values travel");
-    assert!(!carries_values(seen[1].0.as_str()), "the second message is the wake that runs the record: {}", seen[1].0);
-    assert!(seen[1].1 && !seen[1].2, "the record is runnable when the wake that runs it arrives");
+    assert!(carries_values(arriving[0].0.as_str()), "the first message carries this command's values: {}", arriving[0].0);
+    assert!(arriving[0].2 && !arriving[0].1, "the record waits in `held`, where no round claims it, while its values travel");
+    assert!(!carries_values(arriving[1].0.as_str()), "the second message is the wake that runs the record: {}", arriving[1].0);
+    assert!(arriving[1].1 && !arriving[1].2, "the record is runnable when the wake that runs it arrives");
     remove(root.as_path());
 }
