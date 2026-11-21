@@ -148,6 +148,29 @@ fn push_of(branch: &str, oid: &str) -> WorkItem {
     return WorkItem { branch_ref: String::from(branch), transport: false, ..item(WorkKind::Push, oid) };
 }
 
+/// What:
+///  A push record keeps one flag of the environment its command had and no value,
+///  a record written before that field existed reads as a push that chose none,
+///  and such a record encodes exactly as it did then.
+/// Why:
+///   The settings themselves live only in the service's memory (`service_push_programs_held_in_memory`),
+/// so the flag is all a record may say;
+/// a push an earlier release queued names none,
+/// and a record of one must not gain a field
+///  that says otherwise when it is queued again.
+#[test]
+fn a_push_record_keeps_whether_its_command_chose_a_transport() {
+    let chose: WorkItem = WorkItem { transport: true, ..item(WorkKind::Push, "ttt") };
+    let read: WorkItem = WorkItem::decode(chose.encode().as_str()).expect("the record decodes");
+    assert!(read.transport, "a command that chose a transport is remembered by the record");
+    let never: WorkItem = item(WorkKind::Push, "uuu");
+    assert!(!never.encode().contains("transport"), "a record whose command chose none says nothing: {}", never.encode());
+    let as_an_earlier_release_wrote_it: String = chose.encode().replace(",\"transport\":true", "");
+    assert!(!as_an_earlier_release_wrote_it.contains("transport"), "the text is the field an earlier release wrote: {as_an_earlier_release_wrote_it}");
+    let older: WorkItem = WorkItem::decode(as_an_earlier_release_wrote_it.as_str()).expect("a record of an earlier release decodes");
+    assert!(!older.transport, "a record of an earlier release reads as a push that chose no transport");
+}
+
 /// Two branches can hold one commit,
 /// and each must reach its own remote:
 /// the record of the second branch is an item of its own,
