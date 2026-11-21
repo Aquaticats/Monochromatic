@@ -11,7 +11,8 @@
 //! The record is written into the queue before anything asks whether a service can be reached,
 //! so a context with no route leaves the push on disk for the next wake,
 //! and the values that push must run with go with the wake that follows the record.
-//! A branch whose name is not text has no record, and the person is told that instead.
+//! A branch whose name is not text has no record,
+//! and the person is told that instead.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

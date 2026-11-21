@@ -1,6 +1,7 @@
 //! What:
 //!  Controls of the two one-way messages the client writes:
-//!  what a running service is told, and that giving a record's programs up starts no service.
+//!  what a running service is told,
+//!  and that giving a record's programs up starts no service.
 //! Why:
 //!  The message that names the records which can no longer run is best effort,
 //!  and it is the only step of a command that has nothing to wait for;
@@ -27,7 +28,8 @@ use std::time::Duration;
 static STARTS_ASKED: AtomicUsize = AtomicUsize::new(0);
 
 /// How long a control's stand-in service may take to answer:
-/// a bound of its own, so no control waits on a thread that never ends.
+/// a bound of its own,
+/// so no control waits on a thread that never ends.
 const STAND_IN_PATIENCE: Duration = Duration::from_secs(30);
 
 /// The manager's word for a service that is running now.
@@ -36,23 +38,29 @@ fn running(_bus: &Path, _unit: &str) -> ManagerAnswer {
 }
 
 /// The manager's word for a service that is not running:
-/// the state a person's own stop leaves, which a command may not repair by connecting.
+/// the state a person's own stop leaves,
+/// which a command may not repair by connecting.
 fn stopped(_bus: &Path, _unit: &str) -> ManagerAnswer {
     return ManagerAnswer::State(String::from("inactive"));
 }
 
-/// A start the manager takes, counted, because a start is what these controls prove does not happen.
+/// A start the manager takes,
+/// counted,
+/// because a start is what these controls prove does not happen.
 fn a_start_is_asked_for(_bus: &Path, _unit: &str) -> bool {
     let _counted = STARTS_ASKED.fetch_add(1, Ordering::SeqCst);
     return true;
 }
 
-/// A reset and a restart the manager takes, which no message of this file asks for.
+/// A reset and a restart the manager takes,
+/// which no message of this file asks for.
 fn a_repair_is_asked_for(_bus: &Path, _unit: &str) -> bool {
     return true;
 }
 
-/// A watch on a manager that answers `answer`, counts every start it is asked for, and asks it nothing else.
+/// A watch on a manager that answers `answer`,
+/// counts every start it is asked for,
+/// and asks it nothing else.
 fn watching(answer: fn(&Path, &str) -> ManagerAnswer) -> ManagerWatch {
     return ManagerWatch {
         bus: std::path::PathBuf::from("/nowhere/the-session-bus"),
@@ -67,7 +75,8 @@ fn watching(answer: fn(&Path, &str) -> ManagerAnswer) -> ManagerWatch {
 }
 
 /// The settings of a client that reaches `address` and asks the manager in `watch`:
-/// the waits are milliseconds, so a control ends in well under a second.
+/// the waits are milliseconds,
+/// so a control ends in well under a second.
 fn a_config(address: &str, watch: Option<ManagerWatch>) -> ClientConfig {
     return ClientConfig {
         address: Bind::Abstract(String::from(address)),
@@ -98,7 +107,8 @@ fn a_listener_on(name: &str) -> UnixListener {
 
 /// What:
 ///  A command that only settles a push record asks the manager nothing and starts no service,
-///  and nothing answers it, which is no failure:
+///  and nothing answers it,
+///  which is no failure:
 ///  a service that is not running holds none of the values this message would give up.
 /// Why:
 ///   The message is best effort and the command has nothing to wait for,
@@ -124,7 +134,9 @@ fn a_record_settled_where_no_service_runs_starts_none_to_tell_it() {
 ///  A service that is running is told exactly the records the command named.
 /// Why:
 ///   The values live in that process's memory and the message is the only way they go,
-///  so a message that named other records, or none, would leave them for the life of the service.
+///  so a message that named other records,
+///  or none,
+///  would leave them for the life of the service.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

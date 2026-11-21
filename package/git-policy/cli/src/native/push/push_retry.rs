@@ -506,7 +506,8 @@ impl PushRetries {
     ///  so a plan this one replaces leaves a record that can never run,
     ///  and a value that can hold a password may not outlive it here.
     /// A plan replaced by one of the same record keeps the values:
-    ///  that is the next try of the same push, and the plan a stale proof of a gone repository puts back.
+    ///  that is the next try of the same push,
+    ///  and the plan a stale proof of a gone repository puts back.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

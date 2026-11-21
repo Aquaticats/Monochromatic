@@ -115,10 +115,12 @@ pub fn forget_programs(config: &ClientConfig, git_dir: &std::path::Path, records
 ///   The manager's `ActiveState` is the one answer about a service that starts nothing;
 ///  a connection is what asks a socket-activated unit to start,
 ///  so the question has to be answered before one is made.
-/// Where no manager can be asked, nothing on that platform starts a service for a connection,
+/// Where no manager can be asked,
+/// nothing on that platform starts a service for a connection,
 ///  so the connection is made and finds out.
 /// A start between this answer and the connection is possible and is left as it is:
-///  it is a service that stopped in that moment, whose values went with it.
+///  it is a service that stopped in that moment,
+///  whose values went with it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -201,12 +203,15 @@ fn send_one(config: &ClientConfig, message: &ClientMessage, notices: &mut dyn Wr
 }
 
 /// What:
-///  Waits, no longer than the silence bound, for the service to close the connection it was written on,
+///  Waits,
+///  no longer than the silence bound,
+///  for the service to close the connection it was written on,
 ///  which is its confirmation that it read the line.
 /// Why:
 ///   A service that keeps answering resets the silence of every single read,
 ///  so a loop that only reads waits without end and the command waits behind it;
-/// the close is what this waits for and nothing else, and what is lost by reaching the bound is only the confirmation.
+/// the close is what this waits for and nothing else,
+/// and what is lost by reaching the bound is only the confirmation.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

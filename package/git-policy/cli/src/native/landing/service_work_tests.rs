@@ -1285,7 +1285,8 @@ fn a_later_push_that_lands_gives_up_the_values_of_the_plan_it_cancels() {
 ///  A later commit whose push also fails to pass replaces the plan of its branch,
 ///  and the values of the record the replaced plan carried go with it.
 /// Why:
-///   A plan holds one record of a branch, the newest,
+///   A plan holds one record of a branch,
+///   the newest,
 /// so planning a newer record drops the plan of the older one;
 /// that record was settled and its plan was the only thing that would run it again,
 /// so a value that can hold a password may not stay in the service's memory,
