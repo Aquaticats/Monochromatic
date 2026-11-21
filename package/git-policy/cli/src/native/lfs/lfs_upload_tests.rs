@@ -1,6 +1,8 @@
 //! Controls for the parent's run of the Git LFS upload.
 
 use super::*;
+use crate::bounded_push::{StopReport, StopWindow};
+use crate::lfs_pre_push::failed_message;
 use crate::test_support::{executable, fixture, remove};
 use std::path::PathBuf;
 
@@ -11,7 +13,15 @@ fn words(items: &[&str]) -> Vec<OsString> {
 
 /// A plan for `origin main`.
 fn plan() -> UploadPlan {
-    return UploadPlan { remotes: words(&["origin"]), refs: words(&["main"]), everything: false, submodules: false, full_scan: false, objects: None };
+    return UploadPlan {
+        remotes: words(&["origin"]),
+        refs: words(&["main"]),
+        everything: false,
+        submodules: false,
+        full_scan: false,
+        objects: None,
+        lfs_server: None,
+    };
 }
 
 /// A stand-in `git-lfs` that records its arguments,
@@ -47,7 +57,7 @@ fn run_with(
 }
 
 /// The same with the given variables added to the child's environment,
-/// which is where the wrapper puts the never-prompt pair of a command that has no controlling terminal.
+/// which is where the wrapper puts the no-prompt rule every command it runs carries.
 fn run_with_overlay(
     root: &std::path::Path,
     path: &[&std::path::Path],
@@ -702,6 +712,7 @@ fn credentialed_plan() -> UploadPlan {
         submodules: false,
         full_scan: true,
         objects: None,
+        lfs_server: None,
     };
 }
 
@@ -726,13 +737,23 @@ fn an_upload_that_needed_a_login_names_the_server_and_how_to_give_one() {
     failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, LOGIN_NEEDED_LINE, 128);
     let state: String = root.join("state").to_string_lossy().into_owned();
     let variables = [("XDG_STATE_HOME", state.as_str())];
-    // The command has no controlling terminal, so the wrapper adds the never-prompt pair to its children.
-    let never_prompt: [(&str, &str); 2] = [(crate::child_environment::ASKPASS_VARIABLE, ""), (crate::child_environment::TERMINAL_PROMPT_VARIABLE, "0")];
+    // Every child is given the no-prompt rule, so the refusal's words must say that and never that a terminal decided it.
+    let no_prompt: [(&str, &str); 4] = [
+        (crate::child_environment::ASKPASS_VARIABLE, ""),
+        (crate::child_environment::TERMINAL_PROMPT_VARIABLE, "0"),
+        (crate::child_environment::SSH_ASKPASS_VARIABLE, crate::child_environment::NO_ANSWER_PROGRAM),
+        (crate::child_environment::ASKPASS_REQUIRE_VARIABLE, crate::child_environment::ASKPASS_REQUIRE_FORCE),
+    ];
     let (code, diagnostics) =
-        run_with_overlay(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables, &never_prompt);
+        run_with_overlay(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables, &no_prompt);
     assert_eq!(code, Some(128), "{diagnostics}");
     assert!(diagnostics.contains("the server `lfs.example.invalid`"), "the server is named: {diagnostics}");
-    assert!(diagnostics.contains("no controlling terminal"), "the reason nothing asked is stated: {diagnostics}");
+    assert!(diagnostics.contains("never lets a command ask"), "the reason nothing asked is stated: {diagnostics}");
+    assert!(
+        diagnostics.contains(crate::child_environment::ASKPASS_REQUIRE_VARIABLE),
+        "the words name the rule OpenSSH reads: {diagnostics}"
+    );
+    assert!(!diagnostics.contains("controlling terminal"), "no terminal decides this any more: {diagnostics}");
     assert!(diagnostics.contains("credential.helper"), "the way to store a login is named: {diagnostics}");
     assert!(diagnostics.contains("doc/troubleshooting/lfs-credential-in-url.md"), "the note is cited: {diagnostics}");
     assert!(!diagnostics.contains("user:secret"), "the credential part of the destination is never repeated: {diagnostics}");
@@ -740,38 +761,153 @@ fn an_upload_that_needed_a_login_names_the_server_and_how_to_give_one() {
 }
 
 /// What:
-///  A login failure at a terminal is not diagnosed as terminal-less:
-/// the wrapper added no never-prompt pair,
-/// and its words must say what it did instead of claiming a terminal and a prompt nobody had.
+///  A login failure whose stand-in has a terminal at it is explained with the same no-prompt rules,
+///  because the wrapper tells every command never to ask.
 /// Why:
-///   A stand-in at a terminal opens `/dev/tty` and prints the refusal git-lfs prints when every login it was given is
-///   rejected (`too many authentication attempts`);
-///  a refusal that says the command had no terminal sends its reader to fix a cause that was never there.
+///   The owner's answer of 2026-11-19T16:58:00-05:00 supersedes the rule that a command a person typed keeps Git's own
+///   prompting for credentials:
+///  a stand-in at a terminal opens `/dev/tty` and prints the refusal git-lfs prints when every login it was given is
+///  rejected (`too many authentication attempts`),
+///  and the words a person reads may not claim that a terminal changed what the wrapper allowed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(diagnostics).toContain('has a controlling terminal'); expect(diagnostics).not.toContain('no controlling terminal');
+/// expect(diagnostics).toContain('never lets a command ask'); expect(diagnostics).not.toContain('controlling terminal');
 /// ```
 #[test]
-fn an_upload_that_needed_a_login_at_a_terminal_is_not_told_there_was_none() {
+fn an_upload_that_needed_a_login_at_a_terminal_is_told_the_same_rule() {
     let root: PathBuf = fixture("lfs-upload-login-at-terminal");
     let counter: PathBuf = root.join("count.txt");
     failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, REFUSED_LOGIN_LINE, 128);
     let state: String = root.join("state").to_string_lossy().into_owned();
     let variables = [("XDG_STATE_HOME", state.as_str())];
-    // No overlay: the command has a controlling terminal, so no never-prompt pair reaches the child.
-    let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables);
+    // The overlay every command is given now, so the stand-in's terminal is the only difference from the case above.
+    let no_prompt: [(&str, &str); 4] = [
+        (crate::child_environment::ASKPASS_VARIABLE, ""),
+        (crate::child_environment::TERMINAL_PROMPT_VARIABLE, "0"),
+        (crate::child_environment::SSH_ASKPASS_VARIABLE, crate::child_environment::NO_ANSWER_PROGRAM),
+        (crate::child_environment::ASKPASS_REQUIRE_VARIABLE, crate::child_environment::ASKPASS_REQUIRE_FORCE),
+    ];
+    let (code, diagnostics) =
+        run_with_overlay(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables, &no_prompt);
     assert_eq!(code, Some(128), "{diagnostics}");
-    assert!(diagnostics.contains("has a controlling terminal"), "the terminal this command had is stated: {diagnostics}");
-    assert!(!diagnostics.contains("no controlling terminal"), "nothing claims the command had no terminal: {diagnostics}");
-    assert!(
-        !diagnostics.contains(&format!("{}` set to the empty string", crate::child_environment::ASKPASS_VARIABLE)),
-        "nothing claims the prompt variables were set: {diagnostics}"
-    );
+    assert!(diagnostics.contains("never lets a command ask"), "the rule is stated the same way: {diagnostics}");
+    assert!(!diagnostics.contains("controlling terminal"), "no terminal decides this any more: {diagnostics}");
     assert!(diagnostics.contains("credential.helper"), "the way to store a login is named: {diagnostics}");
-    assert!(diagnostics.contains("doc/troubleshooting/lfs-credential-in-url.md"), "the note is cited: {diagnostics}");
     assert!(!diagnostics.contains("user:secret"), "the credential part of the destination is never repeated: {diagnostics}");
     remove(root.as_path());
+}
+
+/// What:
+///  An upload that fails because an SSH key's passphrase was never loaded says how to start an agent and load the key,
+///  or to use a key without a passphrase,
+///  and never assumes an agent is already there.
+/// Why:
+///   The owner's answers of 2026-11-19 and 2026-11-20:
+///  a passphrase counts as a credential,
+///  a key that no agent holds fails at once,
+/// at a terminal or without one,
+///  and OpenSSH's own words (`Permission denied (publickey).`) do not say what to do about it.
+///  The project's answer of 2026-11-20 also says a person must be able to work with no agent at all
+///  ("We must support situations in which ssh-agent isn't there"),
+///  so the sentence starts the agent rather than naming a command whose socket it assumes.
+///  Every bracket in what a person reads is closed,
+///  which the earlier sentence failed at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(diagnostics).toContain('eval "$(ssh-agent)"'); expect(diagnostics).toContain('a key without a passphrase')
+/// ```
+#[test]
+fn an_upload_whose_ssh_key_no_agent_holds_says_how_to_start_an_agent_or_use_a_key_without_a_passphrase() {
+    let root: PathBuf = fixture("lfs-upload-ssh-key");
+    let counter: PathBuf = root.join("count.txt");
+    failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, "ssh: connect to host 127.0.0.1 port 22: Permission denied (publickey).", 128);
+    let state: String = root.join("state").to_string_lossy().into_owned();
+    let variables = [("XDG_STATE_HOME", state.as_str())];
+    let no_prompt: [(&str, &str); 4] = [
+        (crate::child_environment::ASKPASS_VARIABLE, ""),
+        (crate::child_environment::TERMINAL_PROMPT_VARIABLE, "0"),
+        (crate::child_environment::SSH_ASKPASS_VARIABLE, crate::child_environment::NO_ANSWER_PROGRAM),
+        (crate::child_environment::ASKPASS_REQUIRE_VARIABLE, crate::child_environment::ASKPASS_REQUIRE_FORCE),
+    ];
+    let (code, diagnostics) =
+        run_with_overlay(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables, &no_prompt);
+    assert_eq!(code, Some(128), "{diagnostics}");
+    assert!(diagnostics.contains("needed a login"), "the failure is read as a login the program could not get: {diagnostics}");
+    assert!(diagnostics.contains("`ssh-add`"), "the command that loads the key is named: {diagnostics}");
+    assert!(diagnostics.contains("`eval \"$(ssh-agent)\"`"), "the words say how to start an agent: {diagnostics}");
+    assert!(
+        diagnostics.contains("`eval (ssh-agent -c)` in fish"),
+        "the words name the form fish accepts, which the Bourne one is not: {diagnostics}"
+    );
+    assert!(diagnostics.contains("a key without a passphrase"), "the words name the other way that needs no agent: {diagnostics}");
+    assert!(diagnostics.contains("passphrase"), "the words say what the agent would have answered: {diagnostics}");
+    assert!(!diagnostics.contains("known_hosts"), "a refused key is not a host key this machine does not know: {diagnostics}");
+    assert_eq!(
+        diagnostics.matches('(').count(),
+        diagnostics.matches(')').count(),
+        "every bracket a person reads is closed: {diagnostics}"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  An upload refused because this machine does not know the SSH host key says to connect once with plain `ssh <host>`
+///  or add the key to `known_hosts`,
+///  then retry.
+/// Why:
+///   The project's answer of 2026-11-20 keeps the refusal the no-prompt rule causes at a terminal,
+///  and OpenSSH's own `Host key verification failed.` says nothing about what to do;
+///  no retry adds a host key,
+///  and plain `ssh`,
+///  which the wrapper does not touch,
+///  still asks the question.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(diagnostics).toContain('plain `ssh <host>`'); expect(diagnostics).toContain('known_hosts')
+/// ```
+#[test]
+fn an_upload_refused_for_an_unknown_host_key_says_how_to_add_it() {
+    let root: PathBuf = fixture("lfs-upload-unknown-host-key");
+    let counter: PathBuf = root.join("count.txt");
+    failing_stand_in(
+        root.join("bin").as_path(),
+        counter.as_path(),
+        99,
+        "Host key verification failed.\nfatal: Could not read from remote repository.",
+        2,
+    );
+    let state: String = root.join("state").to_string_lossy().into_owned();
+    let variables = [("XDG_STATE_HOME", state.as_str())];
+    let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &plan(), &variables);
+    assert_eq!(code, Some(2), "{diagnostics}");
+    for said in ["plain `ssh <host>`", "`known_hosts`", "push again"] {
+        assert!(diagnostics.contains(said), "{said} in {diagnostics}");
+    }
+    assert!(!diagnostics.contains("needed a login"), "a host key is not a credential the upload needed: {diagnostics}");
+    remove(root.as_path());
+}
+
+/// What:
+///  The sentence names the host a destination written as a URL gives,
+///  so a person told to connect once with plain `ssh` knows which machine to name.
+/// Why:
+///   An LFS server may live on another host than the Git remote,
+///  and a sentence that says only `ssh <host>` leaves its reader to work out which host asked.
+///  The host is the one the login sentence beside it names,
+///  read the same way.
+#[test]
+fn an_upload_refused_for_an_unknown_host_key_names_the_host_the_destination_gives() {
+    let destination: &std::ffi::OsStr = std::ffi::OsStr::new("ssh://git@git.example.invalid/owner/repo.git");
+    let explanation: String = crate::lfs_upload_explanations::explanation_after_failure(
+        "exited with status 2",
+        destination,
+        b"Host key verification failed.\nfatal: Could not read from remote repository.",
+    );
+    assert!(explanation.contains("plain `ssh git.example.invalid`"), "the host is named: {explanation}");
+    assert!(!explanation.contains("`ssh <host>`"), "the placeholder is only for a destination that names no host: {explanation}");
 }
 
 /// A failure that says nothing about a login gets no login paragraph:
@@ -791,3 +927,304 @@ fn a_failure_that_names_no_login_keeps_the_words_it_had() {
 }
 
 //endregion
+
+//region The head of a relayed output, and the words of a stop
+
+/// What:
+///  A standard error longer than the relay cap is relayed as whole lines only,
+///  the line the cap falls inside is dropped whole,
+///  and the loss is said on a line of its own.
+/// Why:
+///   The audit's reproduction wrote filler so that the cap fell inside the password of a URL:
+///  the mask ran after the cut,
+///  a URL cut before its `@` shows no userinfo,
+///  and the front of the password reached the terminal with no word that anything was missing.
+///  The read is driven from a prepared file through the shipped `relayed_head`,
+///  so a change to the shipped read,
+/// its one byte past the cap or its notice fails this control;
+///  a test that repeated those steps in its own body would pass with the shipped steps removed.
+///  A file rather than a process,
+///  because which ending a write of just over the cap gets is the timing of one look against one process:
+///  a whole gate of 2026-11-20 saw this control fail once with `Some(124)` against `Some(1)`,
+///  the flood look winning over the stand-in's own exit.
+///  The process's own ending is kept by `an_upload_that_keeps_printing_past_the_cap_is_stopped_by_the_flood_look`,
+///  whose stand-in stays alive after writing past the cap.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const text = relayedHead(file.open(bytes)); expect(text).toContain(notice()); expect(text).not.toContain('planted')
+/// ```
+#[test]
+fn a_relay_past_the_cap_keeps_no_part_of_a_cut_url_and_says_it_was_cut() {
+    let secret: &str = "plantedsecretpasswordABCDEFGH";
+    // Written from the parts, so the repository's credential scanner reads no URL userinfo here.
+    let url: String = format!("https://user:{secret}@lfs.example.invalid/objects/batch");
+    let first_line: &str = "first line\n";
+    // The cap falls after `https://user:planted`, so the rest of the password is what a raw cut would keep.
+    let kept_of_url: usize = format!("https://user:{}", &secret[..7]).len();
+    let limit: usize = usize::try_from(MAX_RELAYED_BYTES).expect("a cap");
+    let filler: usize = limit - kept_of_url - first_line.len();
+    let mut bytes: Vec<u8> = Vec::new();
+    bytes.extend_from_slice(first_line.as_bytes());
+    bytes.extend(std::iter::repeat_n(b'x', filler));
+    bytes.extend_from_slice(url.as_bytes());
+    bytes.push(b'\n');
+    let root: PathBuf = fixture("lfs-upload-relay-over-cap");
+    let path: PathBuf = root.join("stderr.txt");
+    std::fs::write(path.as_path(), bytes.as_slice()).expect("the prepared output");
+    let mut captured: std::fs::File = std::fs::File::open(path.as_path()).expect("open");
+    let relayed: Vec<u8> = relayed_head(&mut captured).expect("the shipped read answers");
+    let diagnostics: String = String::from_utf8_lossy(relayed.as_slice()).into_owned();
+    let kept: String = diagnostics.trim_end_matches(shortened_relay_notice().as_str()).to_string();
+    assert!(diagnostics.len() > kept.len(), "the read says the output was longer than the cap: {}", &diagnostics[diagnostics.len().saturating_sub(400)..]);
+    assert_eq!(kept, first_line, "only the whole lines the cap holds are kept");
+    assert!(!kept.contains("planted"), "no part of the password survives the cut");
+    assert!(!kept.contains(secret), "the planted secret is not relayed");
+    let notice: String = shortened_relay_notice();
+    assert!(
+        notice.contains(&format!("more than {MAX_RELAYED_BYTES} bytes of standard error")),
+        "the relay says the output was cut: {notice}"
+    );
+    assert!(notice.ends_with('\n'), "the explanation after the notice starts on a line of its own: {notice:?}");
+    assert!(diagnostics.ends_with(notice.as_str()), "the notice is what the relayed text ends with: {}", &diagnostics[diagnostics.len().saturating_sub(400)..]);
+    remove(root.as_path());
+}
+
+/// What:
+///  An upload whose stand-in keeps printing past the cap is stopped by the flood look,
+///  with the program's own status replaced by the wrapper's stop,
+/// and what it printed before the stop is still relayed masked.
+/// Why:
+///   Which ending a write just past the cap gets is the timing of one look against one process,
+///  so the flood ending needs a program that is still alive after the write:
+///  the stand-in writes past the cap and then waits,
+///  which leaves the look no other ending to find,
+///  and this control is the only one that claims the flood ending at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(code).toBe(124); expect(diagnostics).toContain('wrote more than 4194304 bytes of output and was stopped')
+/// ```
+#[test]
+fn an_upload_that_keeps_printing_past_the_cap_is_stopped_by_the_flood_look() {
+    let root = fixture("lfs-upload-flood");
+    let bin: PathBuf = root.join("bin");
+    let secret: &str = "plantedsecretpasswordABCDEFGH";
+    // Written from the parts, so the repository's credential scanner reads no URL userinfo here.
+    let url: String = format!("https://user:{secret}@lfs.example.invalid/objects/batch");
+    std::fs::create_dir_all(bin.as_path()).expect("bin directory");
+    executable(
+        bin.join("git-lfs").as_path(),
+        // The tools are named by absolute path: the fixture's `PATH` holds only the stand-in's own directory.
+        format!("#!/bin/sh\n/usr/bin/head -c {} /dev/zero | /usr/bin/tr '\\0' 'x' >&2\nprintf '%s\\n' '{url}' >&2\nexec /usr/bin/sleep 30\n", MAX_RELAYED_BYTES).as_bytes(),
+    );
+    let state: String = root.join("state").to_string_lossy().into_owned();
+    let variables = [("XDG_STATE_HOME", state.as_str())];
+    let (code, diagnostics) = run_with(root.as_path(), &[bin.as_path()], &[], &plan(), &variables);
+    assert_eq!(code, Some(i32::try_from(STOPPED_EXIT_CODE).unwrap_or(1)), "the flood look stopped it: {diagnostics}");
+    assert!(
+        diagnostics.contains(&format!("wrote more than {MAX_RELAYED_BYTES} bytes of output and was stopped")),
+        "the stop says why: {}",
+        &diagnostics[diagnostics.len().saturating_sub(400)..]
+    );
+    assert!(!diagnostics.contains("planted"), "no part of the password survives the stop");
+    assert!(diagnostics.contains("This push was not started"), "the push is said not to have started");
+    remove(root.as_path());
+}
+
+/// A report of a connected stop that carried the given bytes.
+fn connected_report(carried: u64) -> StopReport {
+    return StopReport {
+        window: StopWindow::Connected,
+        limit: crate::bounded_push::connected_window(&[]),
+        moved: 0,
+        elapsed: crate::bounded_push::connected_window(&[]),
+        carried,
+        minimum: crate::push_minimum_rate::DEFAULT_PUSH_MINIMUM_RATE_BYTES,
+    };
+}
+
+/// What:
+///  A connected stop of an upload says which server held the connection,
+///  names the rate setting only where the connection carried something,
+///  and leaves its ways forward to one list.
+/// Why:
+///   Moving the floor does not let a server that sent nothing through:
+///  no line speed is what stopped it,
+///  so advice to lower the floor removes the only bound there is;
+///  and the tail after a stop must not start a second list of ways forward nor glue
+///  "so this push was not started" onto the end of the first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(silent).toContain('the server `lfs.example.invalid`'); expect(silent).not.toContain('CLI_GIT_PUSH_MINIMUM_RATE_BYTES')
+/// ```
+#[test]
+fn a_connected_stop_names_the_server_and_offers_no_rate_setting_when_nothing_moved() {
+    let silent: String = stopped_upload_words(&StopCause::Stalled(connected_report(0)), Some("lfs.example.invalid"));
+    assert!(silent.contains("the server `lfs.example.invalid`"), "the server that held the connection is named: {silent}");
+    assert!(
+        !silent.contains(crate::push_minimum_rate::PUSH_MINIMUM_RATE_VARIABLE),
+        "nothing moved, so no rate setting is offered: {silent}"
+    );
+    assert!(silent.contains("nothing moved"), "the stop says what the connection carried: {silent}");
+    let trickling: String = stopped_upload_words(&StopCause::Stalled(connected_report(4096)), Some("lfs.example.invalid"));
+    assert!(
+        trickling.contains(crate::push_minimum_rate::PUSH_MINIMUM_RATE_VARIABLE),
+        "a connection that carried something is offered the floor: {trickling}"
+    );
+    for words in [silent, trickling] {
+        assert_eq!(words.matches("Ways forward:").count(), 1, "one list of ways forward: {words}");
+    }
+    let stop: String = format!("{} {}\n", stopped_upload_words(&StopCause::Stalled(connected_report(0)), None), stopped_upload_tail());
+    assert_eq!(stop.matches("Ways forward:").count(), 1, "the tail adds no second list of ways forward: {stop}");
+    assert!(!stop.contains("so this push was not started"), "the tail does not arrive inside the ways forward: {stop}");
+    assert!(stop.contains("This push was not started and nothing was published"), "the tail says what happened to the push: {stop}");
+    assert!(!stop.contains(".."), "the stop's own full stop and the tail's join are one full stop: {stop}");
+    assert!(stop.contains("answers this time. This push was not started"), "the two sentences meet at one full stop: {stop}");
+}
+
+/// What:
+///  A stopped upload names the server the plan read,
+///  and the program's own words only when they name that same server.
+/// Why:
+///  `git-lfs` prints whatever it likes before it holds a connection:
+///  a documentation link first and its error second must not make the stop name
+///  `docs.example.invalid`,
+/// a host the upload never contacted;
+///  and when the plan read no endpoint at all,
+/// the program's own words are the only witness there is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(uploadServerOf(planWith('127.0.0.1:4000'), 'See https://docs.example.invalid/x')).toBe('127.0.0.1:4000')
+/// ```
+#[test]
+fn a_stopped_upload_names_the_plans_server_unless_the_program_names_it_too() {
+    let at_plan = |server: Option<&str>| -> UploadPlan {
+        return UploadPlan { lfs_server: server.map(str::to_owned), ..plan() };
+    };
+    let word_of_docs: &[u8] = b"See https://docs.example.invalid/git-lfs/troubleshooting for the list of causes.\n";
+    assert_eq!(
+        upload_server_of(&at_plan(Some("127.0.0.1:4000")), word_of_docs),
+        Some(String::from("127.0.0.1:4000")),
+        "a host the program names and the plan did not is not the server"
+    );
+    let held: &[u8] = b"batch response: Post \"https://lfs:plantedpass@127.0.0.1:4000/lfs/objects/batch\": refused\n";
+    assert_eq!(
+        upload_server_of(&at_plan(Some("127.0.0.1:4000")), held),
+        Some(String::from("127.0.0.1:4000")),
+        "the program's own words confirm the plan's server, with no credential in the name"
+    );
+    assert_eq!(
+        upload_server_of(&at_plan(None), held),
+        Some(String::from("127.0.0.1:4000")),
+        "a plan that read no server leaves the program's own words to name it"
+    );
+    assert_eq!(upload_server_of(&at_plan(None), b""), None, "a silent program with no plan names nothing");
+}
+
+//endregion
+
+/// What:
+///  A `git-lfs` the lookup found and the system refused to start is reported as found and unstartable,
+///  with the operating system's own error,
+///  on both faces.
+/// Why:
+///   The audit's reproduction ran a `git-lfs` whose interpreter does not exist:
+///  the file is there,
+///  so reporting it as absent sends its reader to a `PATH` that is right.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(diagnostics).toContain('was found at'); expect(diagnostics).not.toContain('not found in any directory of PATH')
+/// ```
+#[test]
+fn a_program_that_is_found_and_cannot_start_is_named_with_the_operating_systems_error() {
+    let root: PathBuf = fixture("lfs-upload-start-failure");
+    let bin: PathBuf = root.join("bin");
+    std::fs::create_dir_all(bin.as_path()).expect("bin directory");
+    executable(bin.join("git-lfs").as_path(), b"#!/nonexistent/interpreter-for-this-control\nexit 0\n");
+    let state: String = root.join("state").to_string_lossy().into_owned();
+    let variables = [("XDG_STATE_HOME", state.as_str())];
+    let (code, diagnostics) = run_with(root.as_path(), &[bin.as_path()], &[], &plan(), &variables);
+    assert_eq!(code, Some(1), "{diagnostics}");
+    assert!(
+        diagnostics.contains(&format!("was found at {}", bin.join("git-lfs").display())),
+        "the file that was found is named: {diagnostics}"
+    );
+    assert!(diagnostics.contains("No such file or directory"), "the operating system's error is named: {diagnostics}");
+    assert!(
+        !diagnostics.contains("was not found in any directory of PATH"),
+        "a program that is there is not reported as absent: {diagnostics}"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  The bounded face of the upload says the same thing,
+///  and a `git-lfs` that is not on the caller's `PATH` keeps the missing-program refusal there.
+/// Why:
+///   The auto-push's attempt is the only place a person sees that failure,
+///  and the audit could not exercise it (the bounded face had no control for either ending).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(attempt.output).toContain('could not be started'); expect(missing.output).toContain('not found in any directory of PATH')
+/// ```
+#[test]
+fn the_bounded_face_names_a_found_program_that_cannot_start_and_refuses_a_missing_one() {
+    let unstartable: PathBuf = fixture("lfs-upload-bounded-start-failure");
+    std::fs::write(unstartable.join("real-git"), b"#!/bin/sh\n").expect("stand-in real git");
+    let bin: PathBuf = unstartable.join("bin");
+    std::fs::create_dir_all(bin.as_path()).expect("bin directory");
+    executable(bin.join("git-lfs").as_path(), b"#!/nonexistent/interpreter-for-this-control\nexit 0\n");
+    let context: PushGit = push_git_through(bin.as_path(), unstartable.as_path());
+    let attempt: PushAttempt = run_upload_bounded(&context, &plan()).expect("the upload answered").expect("the upload failed");
+    assert_eq!(attempt.exit_code, 1, "{}", attempt.output);
+    assert!(attempt.output.contains("was found at"), "the file that was found is named: {}", attempt.output);
+    assert!(attempt.output.contains("No such file or directory"), "the operating system's error is named: {}", attempt.output);
+    assert!(!attempt.output.contains("was not found in any directory of PATH"), "{}", attempt.output);
+    remove(unstartable.as_path());
+
+    let absent: PathBuf = fixture("lfs-upload-bounded-missing-program");
+    std::fs::write(absent.join("real-git"), b"#!/bin/sh\n").expect("stand-in real git");
+    let empty: PathBuf = absent.join("bin");
+    std::fs::create_dir_all(empty.as_path()).expect("bin directory");
+    let absent_context: PushGit = push_git_through(empty.as_path(), absent.as_path());
+    let refusal: PushAttempt = run_upload_bounded(&absent_context, &plan()).expect("the upload answered").expect("the upload failed");
+    assert_eq!(refusal.exit_code, 1, "{}", refusal.output);
+    assert!(refusal.output.contains("was not found in any directory of PATH"), "{}", refusal.output);
+    assert!(!refusal.output.contains("could not be started"), "nothing claims a program that is absent was found: {}", refusal.output);
+    remove(absent.as_path());
+}
+
+/// What:
+///  The bounded face keeps the signal that ended `git-lfs`:
+///  the status is `128 + N`,
+///  the attempt carries the signal,
+///  and the explanation says "was ended by signal N" instead of a status of `1`.
+/// Why:
+///   The audit's reproduction killed the stand-in with `SIGKILL`
+///  and the recorded attempt said "exited with status 1",
+///  the same words a program that chose status 1 gets.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(attempt.signal).toBe(SIGKILL); expect(attempt.output).toContain('was ended by signal 9')
+/// ```
+#[test]
+fn the_bounded_face_keeps_the_signal_that_ended_the_upload() {
+    let root: PathBuf = fixture("lfs-upload-bounded-signal");
+    std::fs::write(root.join("real-git"), b"#!/bin/sh\n").expect("stand-in real git");
+    let bin: PathBuf = root.join("bin");
+    std::fs::create_dir_all(bin.as_path()).expect("bin directory");
+    executable(bin.join("git-lfs").as_path(), format!("#!/bin/sh\nkill -KILL $$\nsleep {HOLD_SECONDS}\n").as_bytes());
+    let context: PushGit = push_git_through(bin.as_path(), root.as_path());
+    let attempt: PushAttempt = run_upload_bounded(&context, &plan()).expect("the upload answered").expect("the upload failed");
+    assert_eq!(attempt.signal, Some(libc::SIGKILL), "{}", attempt.output);
+    assert_eq!(attempt.exit_code, i64::from(crate::forwarding::SIGNAL_EXIT_BASE + libc::SIGKILL), "{}", attempt.output);
+    assert!(attempt.output.contains(&format!("was ended by signal {}", libc::SIGKILL)), "{}", attempt.output);
+    assert!(!attempt.output.contains("exited with status 1"), "a signal is not a status the program chose: {}", attempt.output);
+    remove(root.as_path());
+}

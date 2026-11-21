@@ -93,7 +93,8 @@ mod support_zfs_controls;
 #[path = "binary_support_first_physical_extent.rs"]
 mod support_first_physical_extent;
 
-/// The clock ticks one process used, summed over every thread of it,
+/// The clock ticks one process used,
+/// summed over every thread of it,
 /// and the two moments a listing and its reading are.
 #[path = "binary_support_process_cpu_counters.rs"]
 mod support_process_cpu_counters;
@@ -467,7 +468,8 @@ mod worktree_copy_forms;
 mod worktree_ladder;
 
 /// A removal goes around a subvolume or a mount point it did not make:
-/// the worktree and its registration go, what was not the removal's stays as it stood,
+/// the worktree and its registration go,
+/// what was not the removal's stays as it stood,
 /// and the person is told what frees the path.
 #[path = "binary_worktree_removal_around_a_volume_tests.rs"]
 mod worktree_removal_around_a_volume;
@@ -539,6 +541,11 @@ mod push_stacking;
 #[path = "binary_lfs_pre_push_tests.rs"]
 mod lfs_pre_push;
 
+/// `git lfs install` through the executable:
+/// inside a repository it runs with `--skip-repo` and says why no hook is needed.
+#[path = "binary_lfs_install_tests.rs"]
+mod lfs_install;
+
 /// The parent that owns an LFS push explains a failed upload from Git's own trace,
 /// and no wrapper is started for it.
 #[path = "binary_lfs_parent_tests.rs"]
@@ -564,6 +571,12 @@ mod push_scope;
 /// The same upload with the real `git-lfs` against an LFS server written inline.
 #[path = "binary_lfs_server_tests.rs"]
 mod lfs_server;
+
+/// A typed command over `ssh://` at a real terminal asks no SSH key passphrase:
+/// the terminal shows the question for a control,
+/// and the wrapper's rule ends the run instead.
+#[path = "binary_ssh_terminal_tests.rs"]
+mod ssh_terminal;
 
 /// The configuration of a push,
 /// given on its command line,

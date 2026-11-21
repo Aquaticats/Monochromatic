@@ -461,18 +461,15 @@ Read-only commands,
   The plan's own Git questions are bounded the same
    way,
   so a Git that never answers is stopped and named.
-  A push whose process has no controlling terminal uploads with `GIT_ASKPASS` set to the empty string and
+  Every push uploads with `GIT_ASKPASS` set to the empty string,
    `GIT_TERMINAL_PROMPT=0`,
+   `SSH_ASKPASS=false` and `SSH_ASKPASS_REQUIRE=force`,
+  whether or not its process has a controlling terminal,
   so a login it does not have fails at once instead of opening a desktop password window for nobody
    to answer,
-  and the refusal names the server and how to store a login in a credential helper (see "Git commands that may need a
-   login").
-  A push typed at a terminal keeps Git's and `git-lfs`'s own prompting.
-  That refusal says which prompting the wrapper left:
-  a push with a terminal is told the wrapper kept Git's and `git-lfs`'s own prompting and names a variable or setting
-   that would have refused the login,
-  and only a push without one is told the never-prompt pair was added,
-  so no person is sent to fix a missing terminal that was there.
+  and the refusal names the server,
+   says the wrapper never lets a command ask for a credential,
+   and says how to store a login in a credential helper (see "Git commands that may need a login").
   `--dry-run` pushes and the wrapper's own probes never upload.
   `--no-verify`,
   `GIT_LFS_SKIP_PUSH` and `-c hook.cli-git-lfs-pre-push.enabled=false` skip it.
@@ -3169,7 +3166,8 @@ Commands without a table of their own (`rm`,
 ### The remote settings every worktree shares
 
 The owner chose "Refuse in worktrees (Recommended)" on 2026-11-10
- (this section; the questions file's section "A push URL changed from a worktree" left for it on 2026-11-19).
+ (this section;
+the questions file's section "A push URL changed from a worktree" left for it on 2026-11-19).
 Every worktree of a repository shares one `.git/config`,
  so a remote setting changed from a linked worktree changes the main checkout and every other worktree too.
 An agent had made a worktree outside the repository folder,
@@ -5173,10 +5171,35 @@ fractional or non-numeric value is ignored.
   which is the login
    failure above,
   and no desktop password dialog opens for nobody to answer.
-  `SSH_ASKPASS` stays in the environment for OpenSSH's key passphrases,
-  and a command typed at a terminal keeps Git's own prompting
-   while one whose process has no controlling terminal gets the same pair,
-  because nobody can answer it.
+  OpenSSH reads neither of those,
+  so its own two variables name a program that prints nothing and exits non-zero (`SSH_ASKPASS=false`)
+   and send every question to it (`SSH_ASKPASS_REQUIRE=force`),
+   which reaches the questions OpenSSH asks at a terminal as well,
+  and a command typed at a terminal gets the same four variables as one whose process has no controlling terminal,
+  because no command the wrapper runs or forwards asks a person for a credential.
+  An SSH key whose passphrase no agent holds therefore fails at once,
+  at a terminal or without one,
+   while a key without a passphrase needs no agent at all,
+   which a control against a throwaway `sshd` proves.
+  A failed LFS upload's explanation says how to start an agent (`eval "$(ssh-agent)"`,
+   or `eval (ssh-agent -c)` in fish,
+   whose own syntax the Bourne form is not) and load the key with
+   `ssh-add` (`ssh-add <key file>` for a key outside the default list),
+   or to use a key without a passphrase;
+  a command the wrapper forwards is replaced by real Git,
+   so its reader has OpenSSH's own `Permission denied (publickey).` alone.
+  An unknown host key fails at once as well,
+   and the upload's explanation and the push's failure record say to connect once with plain `ssh <host>`
+   or add the host key to `known_hosts`,
+   then retry;
+  the explanation names the host when the destination or the program's own words give one,
+   since an LFS server may live on another host than the Git remote;
+  a forwarded command shows OpenSSH's own `Host key verification failed.` alone.
+  It is not one of the three stops (the project's answer of 2026-11-20,
+   "Keep retrying"):
+  the service keeps its usual retry schedule for it,
+  and the record says that it pushes the branch by itself once this machine knows the key,
+  so a person who connects once or adds the key needs no new commit to publish it.
   The evidence is in [the askpass troubleshooting note][askpass-dialog].
   The failure record the next command shows says that the service keeps trying,
   and goes when the push lands.
@@ -6084,7 +6107,8 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
 - `native:check` type-checks every target.
   `native:clippy` lints every target with warnings denied.
   `native:build` writes the debug executable to `package/git-policy/cli/target/debug/monochromatic-git-policy-cli`.
-- This package has no `rustfmt` check, unlike the Rust packages that carry a `lint:rustfmt` task,
+- This package has no `rustfmt` check,
+  unlike the Rust packages that carry a `lint:rustfmt` task,
   and its sources are not laid out as `cargo fmt` would write them:
   `cargo fmt --check` in the gate image reported 1975 files on 2026-11-19,
   on `main` as much as on any branch.
@@ -6104,7 +6128,8 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   `--env CLI_GIT_TEST_ROOT=/work/package/git-policy/cli/target/gate-fixtures`
   (`bin/native-gate-fixture-root.ts`),
   `CLI_GIT_TEST_ROOT` being the variable both faces of the suite already read to move their fixture root.
-  The root stays below the image's `/work` tree, where the root it replaces was,
+  The root stays below the image's `/work` tree,
+  where the root it replaces was,
   because a fixture crate that runs Cargo reads the vendored-source mapping in `/work/.cargo/config.toml`
   from its ancestors;
   two `package_repair_prewarm_job` controls build a fixture workspace offline and need that mapping.
@@ -6115,7 +6140,9 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   is on neither of the product's local-file-system lists,
   and makes Git refuse `core.fsmonitor`,
   and the dataset under it refuses a name that is not UTF-8 under `utf8only=on`.
-  The investigation measured those facts, and the causes that follow from them, behind 185 failures
+  The investigation measured those facts,
+  and the causes that follow from them,
+  behind 185 failures
   of the suite on this host (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
   A tmpfs answers all four the way the kernel overlay of the earlier btrfs host did.
   The size is a ceiling under the container's memory bound,
@@ -6124,10 +6151,12 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   and its kernel `memory.peak` was 1123.8 MiB of the 2048 MiB bound,
   while the highest charge any sample read,
   with 3 s between iterations,
-  was 953.1 MiB, 170.7 MiB below that peak,
+  was 953.1 MiB,
+  170.7 MiB below that peak,
   which is why its figures are the samples' and not the run's.
   The bound beside the kernel's peak leaves 924.2 MiB for fixtures,
-  so the 768 MiB ceiling sits 156.2 MiB below that, and a run whose other pages hold to that peak
+  so the 768 MiB ceiling sits 156.2 MiB below that,
+  and a run whose other pages hold to that peak
   meets the ceiling before the memory bound
   (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`,
   with the reasoning behind the 768 MiB value in
@@ -6255,10 +6284,12 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   so a sidecar lock this package's dependencies moved past stops the gate in milliseconds
   instead of surfacing later in the sidecar's own build.
   Set `GIT_POLICY_NATIVE_IMAGE_TAG=<name>` to keep the images of parallel runs apart.
-  The Clippy step mounts the Rust toolchain `toolchain.lock.json` records, not the one the caller's environment
+  The Clippy step mounts the Rust toolchain `toolchain.lock.json` records,
+  not the one the caller's environment
   resolves (`bin/native-gate-clippy-toolchain.ts`):
   `rustup which` names that toolchain's own sysroot,
-  and the gate refuses, naming the missing component and the command that installs it,
+  and the gate refuses,
+  naming the missing component and the command that installs it,
   when the sysroot holds no Clippy.
   A sysroot taken from the environment was rustup's default `nightly`,
   which has no Clippy component,
@@ -6685,12 +6716,25 @@ check them with `git diff --cached -- <file>`.
 ### Git commands that may need a login
 
 NDG:
- Git or git-lfs commands this package's tests,
-scripts or agents start that may reach a login set `GIT_ASKPASS` to the empty string and `GIT_TERMINAL_PROMPT=0`
+ Git,
+git-lfs or ssh commands this package's tests,
+scripts or agents start that may reach a login set `GIT_ASKPASS` to the empty string,
+ `GIT_TERMINAL_PROMPT=0`,
+ `SSH_ASKPASS=false` and `SSH_ASKPASS_REQUIRE=force`
  ([why][askpass-dialog]).
 
-Set only `GIT_TERMINAL_PROMPT=0` and the desktop's password dialog still opens on a host whose `SSH_ASKPASS` names one.
-In a Rust test that is `.env("GIT_ASKPASS", "").env("GIT_TERMINAL_PROMPT", "0")`.
+Set only `GIT_TERMINAL_PROMPT=0` and the desktop's password dialog still opens on a host whose `SSH_ASKPASS` names one;
+leave out the two OpenSSH variables and an `ssh://` remote still asks for a key's passphrase,
+which the owner counts as a credential (answer of 2026-11-19T16:58:00-05:00,
+"Passphrases count too");
+`SSH_ASKPASS_REQUIRE=never` alone stops the askpass program and not OpenSSH's own question at a terminal
+(measured through this wrapper at a real pseudo-terminal,
+2026-11-19),
+so the rule names a program that answers nothing and tells OpenSSH to use it everywhere.
+In a Rust test that is
+`.env("GIT_ASKPASS", "")`,
+`.env("GIT_TERMINAL_PROMPT", "0")`,
+`.env("SSH_ASKPASS", "false")` and `.env("SSH_ASKPASS_REQUIRE", "force")`.
 A test that has to see the prompt program start (the controls in `src/native/landing/service_push_retry_tests.rs`) points
 both `GIT_ASKPASS` and `SSH_ASKPASS` at a recorder that answers a name,
 so no window opens,
@@ -6700,16 +6744,21 @@ naming only `SSH_ASKPASS` would leave the host's own `GIT_ASKPASS` to be the pro
 runs,
 and the recorder's empty log would then prove nothing.
 
-The wrapper adds the same pair to a forwarded command whose process has no controlling terminal
-(`invocation_overlay` in `src/native/invocation/child_environment.rs`).
-A control that compares a forwarded command's environment builds the pair from the same reading,
-`control_terminal()`
-(`expected_overlay` in `src/native/invocation/entry_tests.rs`).
-A control that froze the environment without the pair passed at a person's terminal and failed under a test runner,
+The wrapper adds the same four variables to every command it forwards
+(`no_prompt_overlay` and `invocation_overlay` in `src/native/invocation/child_environment.rs`),
+with or without a controlling terminal:
+the owner's answer of 2026-11-19T16:58:00-05:00 is that no command the wrapper runs or forwards asks for a credential.
+A control that compares a forwarded command's environment builds the rule from those two functions
+(`forward` in `src/native/invocation/entry_tests.rs`),
+so no control depends on the terminal the runner happens to have.
+That dependence used to be real:
+before this rule,
+a control that froze the environment without the pair passed at a
+person's terminal and failed under a test runner,
 an agent's shell or a container started without `--tty`,
-which is how the campaigns start theirs:
-`podman run --network=none <campaign image> sh -c tty` printed `not a tty`,
-and the `invocation::entry` group ran 36 tests with 10 of them failed on a clean tree (2026-11-10).
+which is how the campaigns start theirs (`podman run --network=none <campaign image> sh -c tty` printed `not a tty`,
+and the `invocation::entry` group ran 36 tests with 10 of them failed on a clean tree,
+2026-11-10).
 
 ### Controls that depend on timing
 
@@ -6798,7 +6847,8 @@ the owner chose "B:
 off for internal Git (Recommended)".
 So `-c core.fsmonitor=false` reaches every Git the wrapper starts for its own work,
 and never a command the person typed
-(this section; the questions file's section on fsmonitor left for it on 2026-11-19).
+(this section;
+the questions file's section on fsmonitor left for it on 2026-11-19).
 
 The owner's earlier words,
 kept as history;
@@ -6899,9 +6949,14 @@ Pacman checks every package signature (`SigLevel = Required DatabaseOptional` in
 `mise run //package/git-policy/cli:test:git-image` prints the release of each tool the base image got;
 the wrapper's
 `MINIMUM_GIT_VERSION` follows the Git release printed there (an older Git draws a warning and is not refused).
-The CachyOS x86-64 image is a slimmed copy: most of its packages lost their manual pages, translations and docs, while
-the pacman database still lists every file and `--needed` never restores them, so the base image reinstalls Git
-whenever the installed copy lacks the `githooks(5)` page the hook-event guard test reads; its closing
+The CachyOS x86-64 image is a slimmed copy:
+most of its packages lost their manual pages,
+translations and docs,
+while
+the pacman database still lists every file and `--needed` never restores them,
+so the base image reinstalls Git
+whenever the installed copy lacks the `githooks(5)` page the hook-event guard test reads;
+its closing
 `man --where githooks` check still fails the build when the page is missing
 (`doc/troubleshooting/cachyos-image-package-and-tool-differences.md`).
 
@@ -6929,7 +6984,8 @@ built on this base:
 the wrapper's gate image as user 1000 with `HOME=/home/tester`,
 and an image built on the base without that switch as root,
 whose `/root/.cache/browserslist` is a symlink to it.
-Those tarballs are data, not tools,
+Those tarballs are data,
+not tools,
 so the owner decisions of 2026-11-04 that every tool is pacman's current package
 still hold for the tools of both images.
 
@@ -6941,7 +6997,8 @@ Each run of `native:test:container`,
 a registry that cannot be reached is reported and the copy the host holds is used).
 The derived base is tagged `<first digits of the pulled image ID>-<first digits of a hash of the Containerfile text and
 the build arguments>`,
-so a new CachyOS image, an edited Containerfile or a changed browserslist data lock builds a new base (with network,
+so a new CachyOS image,
+an edited Containerfile or a changed browserslist data lock builds a new base (with network,
 once) and every run after that finds it.
 The gate image then builds from the base's ID with no network,
 exactly as before,
@@ -6975,7 +7032,9 @@ because a release waits on that gate and its suite is what the CPUs shorten
   The same four tests at 1024 processes passed all 7,192.
 - The 2 GiB memory bound is the repository default,
   because four tests at once peaked at 978 MiB of it.
-  With the suite's fixture root on a tmpfs, whose pages count against the same bound, a whole suite on a ZFS
+  With the suite's fixture root on a tmpfs,
+  whose pages count against the same bound,
+  a whole suite on a ZFS
   host peaked at 1123.8 MiB of it
   (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`,
   read in `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
@@ -7557,7 +7616,8 @@ each with its sidecar test file.
 - The source scans (`source_guard/`) follow `mod` declarations from the `Cargo.toml` targets,
   so a file that no
   declaration reaches fails them.
-- A change that adds, moves or links anything under `src/` runs the whole `source_guard` set
+- A change that adds,
+  moves or links anything under `src/` runs the whole `source_guard` set
   (`cargo nextest run --lib -E 'test(source_guard)'` in the gate container),
   not only the tests of the modules it touched:
   the scans read the whole tree and refuse what they cannot prove they read,
@@ -8447,10 +8507,19 @@ the measurements and the migration plan are in `doc/planning/cli-git-resident-se
 
 ## Owner answers of 2026-11-10
 
-- Asked whether a forced `git checkout -f`, a forced `git switch -f` or a `git reset --hard` should refuse when
-  it would replace an ignored file, the owner answered at 2026-11-10T07:24:16-05:00: "Yes forced checkouts and
-  resets should refuse when they'd replace an ignored file." So those forms are rejected in a linked worktree
+- Asked whether a forced `git checkout -f`,
+  a forced `git switch -f` or a `git reset --hard` should refuse when
+  it would replace an ignored file,
+  the owner answered at 2026-11-10T07:24:16-05:00:
+  "Yes forced checkouts and
+  resets should refuse when they'd replace an ignored file."
+  So those forms are rejected in a linked worktree
   while it holds an ignored file at a path the written tree tracks.
-- Asked whether `add-explicit` should judge a pathspec by its spelling or by what it selects, the owner answered
-  at 2026-11-10T08:04:14-05:00: "However spelled (Recommended)": "Any spelling that selects everything is
-  refused, and the message says how many files it selected." Ordinary named paths skip the check.
+- Asked whether `add-explicit` should judge a pathspec by its spelling or by what it selects,
+  the owner answered
+  at 2026-11-10T08:04:14-05:00:
+  "However spelled (Recommended)":
+  "Any spelling that selects everything is
+  refused,
+  and the message says how many files it selected."
+  Ordinary named paths skip the check.

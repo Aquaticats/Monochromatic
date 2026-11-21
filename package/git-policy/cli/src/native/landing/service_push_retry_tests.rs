@@ -74,6 +74,9 @@ struct Stage {
     remote: PathBuf,
     /// The commit to deliver.
     landed: String,
+    /// The work item of that commit's push,
+    /// as the service enqueued it.
+    item: WorkItem,
 }
 
 /// Build the stage with a `pre-receive` hook that stalls the first push,
@@ -130,7 +133,7 @@ fn stage_installing(name: &str, hook_name: Option<&str>) -> Stage {
         tries: 0,
     };
     enqueue(work_directory(repo.join(".git").as_path()).as_path(), &work_item).expect("enqueue");
-    let staged: Stage = Stage { root, repo, remote, landed };
+    let staged: Stage = Stage { root, repo, remote, landed, item: work_item };
     // The reading of the remote's ref file is the one every control waits on, so it is shown to see a push this stage made.
     assert_eq!(remote_tip(&staged), first, "the control's reading of the remote's ref shows the push the stage made");
     return staged;
@@ -179,6 +182,54 @@ fn a_stopped_push_is_tried_again_without_a_new_commit_and_lands() {
     assert_eq!(remote_tip(&stage), stage.landed, "the retry delivered the commit");
     assert_eq!(notices(&stage), 0, "the record of the failure is gone once the push landed");
     assert_eq!(second, None, "nothing is left to try again");
+    remove(stage.root.as_path());
+}
+
+/// What:
+///  A push whose own words are OpenSSH's refusal of a host key this machine does not know is retried,
+///  and the verdict the handler hands the settle step carries the way to add the key and the promise the plan keeps.
+/// Why:
+///   The line in `service_work.rs` that turns such a failure into a retried one is where the promise reaches the person,
+///  and no control named it:
+///  a control that puts the program's own words there instead passes every test that only counts a push or waits for it to
+///  land.
+///  A push's own words for this refusal name no host,
+///  so the record writes `ssh <host>`,
+///  and the retry stays scheduled because no retry adds a key.
+///  The words are Git's own measured failure transcript,
+///  printed by a stand-in `real_git`,
+///  so the control needs no `sshd` and no terminal.
+#[test]
+#[cfg(unix)]
+fn a_push_refused_for_an_unknown_host_key_is_retried_with_the_way_to_add_the_key_in_its_record() {
+    let stage: Stage = stage_without_a_hook("push-unknown-host-key-verdict");
+    let before: String = remote_tip(&stage);
+    let marker: PathBuf = stage.root.join("stand-in-answered-the-push");
+    let script: String = format!(
+        "#!/bin/sh\ncase \" $* \" in\n  *' push '*)\n    : > '{marker}'\n    printf '%s\\n' 'Host key verification failed.' 'fatal: Could not read from remote repository.' '' 'Please make sure you have the correct access rights' 'and the repository exists.' >&2\n    exit 128\n    ;;\nesac\nexec '{real}' \"$@\"\n",
+        marker = marker.display(),
+        real = crate::test_support::REAL_GIT,
+    );
+    let stand_in: PathBuf = stage.root.join("git-stand-in");
+    crate::test_support::executable(stand_in.as_path(), script.as_bytes());
+    let mut context: crate::transaction_git::GitContext = git_context();
+    context.real_git = stand_in;
+    let handlers: GitHandlers = GitHandlers::new(context);
+    let verdict: Verdict = handlers.push(std::slice::from_ref(&stage.item));
+    assert!(marker.exists(), "the stand-in answered the push, so these are one push's own words");
+    let Verdict::Retry(record) = verdict else {
+        panic!("this refusal can pass once the key is known, so the service keeps trying it: {verdict:?}");
+    };
+    for said in [
+        "does not know the SSH host key",
+        "plain `ssh <host>`",
+        "`known_hosts`",
+        "keeps its usual retry schedule",
+        "pushes this branch by itself once this machine knows the key",
+    ] {
+        assert!(record.contains(said), "{said} in {record}");
+    }
+    assert_eq!(remote_tip(&stage), before, "the refused push published nothing");
     remove(stage.root.as_path());
 }
 
@@ -1258,7 +1309,15 @@ fn a_background_lfs_upload_never_starts_the_hosts_askpass_program() {
         created: String::from("2026-11-07T07:00:00.000Z"),
         tries: 0,
     };
-    let plan: crate::lfs_upload_plan::UploadPlan = crate::lfs_upload_plan::UploadPlan { remotes: vec![std::ffi::OsString::from("origin")], refs: vec![std::ffi::OsString::from("main")], everything: false, submodules: false, full_scan: false, objects: None };
+    let plan: crate::lfs_upload_plan::UploadPlan = crate::lfs_upload_plan::UploadPlan {
+        remotes: vec![std::ffi::OsString::from("origin")],
+        refs: vec![std::ffi::OsString::from("main")],
+        everything: false,
+        submodules: false,
+        full_scan: false,
+        objects: None,
+        lfs_server: None,
+    };
     // The lookup of `git-lfs` takes the first `PATH` of the environment, so the stand-in's directory replaces the inherited one.
     let mut git: crate::auto_push_single_flight::PushGit = handlers.push_git(&item);
     git.environment.retain(|(name, _)| { return name != "PATH"; });
@@ -2097,7 +2156,8 @@ fn the_words_of_an_accepted_push_whose_record_was_refused_are_said_and_it_is_not
 }
 
 /// What:
-///  A push Git refused whose record the storage refused is not settled, so its refusal is not the last thing said to nobody.
+///  A push Git refused whose record the storage refused is not settled,
+/// so its refusal is not the last thing said to nobody.
 /// Why:
 ///  Nothing scans the `failed` records,
 /// so an item there is the end of it:
@@ -2199,7 +2259,9 @@ fn a_terminal_refusal_whose_record_was_refused_keeps_the_plan_and_says_its_words
 }
 
 /// What:
-///  A push the retry plan makes, which lands and has something to say, leaves the same record a round's push does.
+///  A push the retry plan makes,
+/// which lands and has something to say,
+/// leaves the same record a round's push does.
 /// Why:
 ///  A server's line about a push the service made after a failure reaches the person only through that record:
 ///  the command that would have printed it returned long before,
