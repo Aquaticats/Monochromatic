@@ -31,10 +31,10 @@ use super::probe_configuration::{checkout_from_configuration, read_configuration
 use super::probe_mount_calls::{make_mounts_private, mount_scratch_tmpfs, unshare_mount_namespace};
 use super::probe_namespace_scan::scan_namespaces;
 use super::probe_open_beneath::open_path_handle;
-use super::probe_pipe_lines::{ReadSome, read_available, read_one_blocking, write_all};
+use super::probe_pipe_lines::{read_one_blocking, write_all};
 use super::probe_processes::{fork, pipe_pair, raw, set_process_group, wait_blocking};
 use super::probe_record_files::RecordPlace;
-use super::probe_status_line::{StepAnswer, StepLine};
+use super::probe_status_line::{LineFeed, StepAnswer, StepLine};
 use super::probe_walk_arm::{make_scratch_tree, open_checkout, refusal_controls, walk_to_slot};
 use std::os::fd::{AsRawFd, OwnedFd, RawFd};
 use std::path::{Path, PathBuf};
@@ -190,12 +190,12 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
     }
     say(start.status, StepLine::passed(ProbeStep::ScanAfterHolder));
     hold_after(ProbeStep::ScanAfterHolder);
-    let mut child = match fork_unmount_child(slot.as_path(), move_target.as_path(), evidence.mount.mount_id) {
+    let mut child = match fork_unmount_child(slot.as_path(), move_target.as_path(), evidence.mount.mount_id, start.hold) {
         Ok(child) => child,
         Err(errno) => ending(StepLine::failed(ProbeStep::Move, errno)),
     };
+    let failed: bool = child.relay_until_eof(start.status);
     let _ended = wait_blocking(child.pid);
-    let failed: bool = child.relay(start.status);
     if failed {
         exit_now(1);
     }
@@ -247,41 +247,42 @@ struct UnmountChild {
 }
 
 impl UnmountChild {
-    /// Read the child's lines after it ended,
-    /// relay each one to the mode,
-    /// and answer whether one of them failed.
-    fn relay(&mut self, status: RawFd) -> bool {
-        let _ = super::probe_pipe_lines::set_nonblocking(raw(&self.reports));
-        let mut pending: Vec<u8> = Vec::new();
+    /// What:
+    ///  Relay every line the child writes,
+    ///  as it writes it,
+    ///  and answer whether one of them failed.
+    /// Why:
+    ///  The mode can name which of arm 8's steps was in flight only if the
+    ///  step's line reaches it before the next step starts,
+    ///  so the worker relays while the child lives rather than after it ends.
+    ///  The child holds its status pipe open until `_exit`,
+    ///  so the end of the pipe is the child's own end.
+    fn relay_until_eof(&mut self, status: RawFd) -> bool {
+        let mut feed: LineFeed = LineFeed::new();
         let mut failed: bool = false;
         loop {
-            let mut buffer: [u8; 512] = [0; 512];
-            match read_available(raw(&self.reports), buffer.as_mut_slice()).unwrap_or(ReadSome::NothingYet) {
-                ReadSome::Bytes(count) => pending.extend_from_slice(&buffer[..count]),
-                ReadSome::NothingYet | ReadSome::End => break,
-            }
-        }
-        for line in pending.split(|byte| return *byte == b'\n') {
-            if line.is_empty() {
-                continue;
-            }
-            let Ok(text) = std::str::from_utf8(line) else {
-                continue;
+            let byte: u8 = match read_one_blocking(raw(&self.reports)) {
+                Ok(byte) => byte,
+                Err(_) => break,
             };
-            let Ok(parsed) = StepLine::parse(text) else {
-                continue;
-            };
-            if matches!(parsed.answer, StepAnswer::Failed { .. }) {
-                failed = true;
+            for parsed in feed.push(&[byte]) {
+                match parsed {
+                    Ok(step_line) => {
+                        if matches!(step_line.answer, StepAnswer::Failed { .. }) {
+                            failed = true;
+                        }
+                        say(status, step_line);
+                    }
+                    Err(_refusal) => say(status, StepLine::failed(ProbeStep::Move, None)),
+                }
             }
-            say(status, parsed);
         }
         return failed;
     }
 }
 
 /// Fork the unmount child with its two pipes.
-fn fork_unmount_child(slot: &Path, move_target: &Path, mount_id: u64) -> Result<UnmountChild, Option<&'static str>> {
+fn fork_unmount_child(slot: &Path, move_target: &Path, mount_id: u64, hold: Option<ProbeStep>) -> Result<UnmountChild, Option<&'static str>> {
     let control = pipe_pair().map_err(|error| return error.errno_name())?;
     let reports = pipe_pair().map_err(|error| return error.errno_name())?;
     match fork() {
@@ -290,7 +291,7 @@ fn fork_unmount_child(slot: &Path, move_target: &Path, mount_id: u64) -> Result<
             let _ = move_descriptor(raw(&control.read), CHILD_CONTROL_DESCRIPTOR);
             let _ = move_descriptor(raw(&reports.write), CHILD_STATUS_DESCRIPTOR);
             let _ = close_from(5);
-            super::probe_unmount_child::run(CHILD_STATUS_DESCRIPTOR, slot, move_target, mount_id);
+            super::probe_unmount_child::run(CHILD_STATUS_DESCRIPTOR, slot, move_target, mount_id, hold);
         }
         Ok(Some(pid)) => {
             let _ = set_process_group(pid);

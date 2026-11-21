@@ -40,13 +40,21 @@ use std::path::Path;
 /// # Errors
 /// Never returns:
 ///  the child ends itself on every path.
-pub fn run(status: std::os::fd::RawFd, slot: &Path, move_target: &Path, expected_mount_id: u64) -> ! {
+pub fn run(status: std::os::fd::RawFd, slot: &Path, move_target: &Path, expected_mount_id: u64, hold: Option<ProbeStep>) -> ! {
     if parent_death_signal().is_err() || parent_id() == 1 {
         crate::start_probe::probe_child_prelude::exit_now(1);
     }
     let _ = super::probe_child_prelude::close_from(CHILD_FIRST_KEPT_DESCRIPTOR);
     match move_mount_between_paths(slot, move_target) {
-        Ok(()) => say(status, StepLine::passed(ProbeStep::Move)),
+        Ok(()) => {
+            say(status, StepLine::passed(ProbeStep::Move));
+            if hold == Some(ProbeStep::Move) {
+                let mut byte: [u8; 1] = [0];
+                // SAFETY: the buffer is this call's own and the read waits for a byte this arm never sends.
+                let waited: libc::ssize_t = unsafe { libc::read(super::probe_child_prelude::CHILD_CONTROL_DESCRIPTOR, byte.as_mut_ptr().cast::<libc::c_void>(), 1) };
+                let _ = waited;
+            }
+        }
         Err(error) => {
             say(status, StepLine::failed(ProbeStep::Move, error.errno_name()));
             crate::start_probe::probe_child_prelude::exit_now(1);
