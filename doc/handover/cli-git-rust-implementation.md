@@ -41317,6 +41317,19 @@ stated in this entry. What follows from them, as work:
   lists twice; per-file bound 1 MiB on the `XATTR_SIZE_MAX` basis; the lock, `STORE_LOCK_WAIT` and the whole-store check go;
   eight choices ranked, none taken. Probe on this host's `home` dataset as the account (root arms owed). GOING: its gate
   review on Sonnet (to `~/temp/agent/gate-review-zfs-slot-identity-store-per-slot-files-design-2026-11-21/keep/review.md`).
+  ZFS STEP 7'S ROUND ended at `43e618033f` (397 turns): the intent grammar (43-byte bound before parsing, local source
+  only), the sweep nonce as a nudge, receipts under `/run/git-worktree-clone-mount-results` named by GUID, the readiness
+  record at `/run/git-worktree-clone-mount-readiness/result` with `admit_attach`, a per-slot root claim by `flock` on
+  `<slot>.claim`, the wrapper's intent writer and receipt wait, `PROVISIONAL_MOUNT_REQUEST_DEADLINE` 30 s marked
+  provisional, the SPEC section; the store untouched (the slot-name rule moved to a neutral `slot_name.rs`); intent and
+  stale-result controls red then green; gate 9559 of 9561, the cause-H pair. NOT DONE: the guest arms and VM measurement
+  (it read "one guest at a time" as machine-wide while another session's guest ran; the rule bounds a round's own guests),
+  the nudge and readiness reds, and the ZFS binding's `lint:types:crate` died twice in the linker (signal 6). Its narrow
+  choices and questions (readiness by pool name and checkout path only; the sweep state gating nothing; the claim's
+  path, mode, `flock` and refuse-not-wait; receipt outcomes; the wait's synchronous read; readiness writers' ordering)
+  go to its integration pass. GOING: the same session resumed as `pi-zfs-step-7-intent-receipts-readiness-2` (guest arms
+  and measurement in its own guest, the two reds, the claim's lock against rule `NLK` and the store decision, the linker
+  cause; continuation under `~/temp/agent/zfs-step-7-intent-receipts-readiness-2026-11-21/continuation-1.md`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
