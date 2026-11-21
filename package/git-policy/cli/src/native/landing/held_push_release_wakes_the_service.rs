@@ -61,7 +61,8 @@ pub trait WakeTheService {
     ///   A record a command settles here is one the service learns nothing about from the queue,
     /// and the values it
     ///  was given live in the service's memory alone (`service_push_programs_held_in_memory`).
-    /// Best effort, as the wake is.
+    /// Best effort,
+    /// as the wake is.
     fn forget_programs(&self, git_dir: &Path, records: &[String]);
 }
 

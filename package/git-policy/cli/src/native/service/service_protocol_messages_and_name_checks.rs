@@ -456,7 +456,8 @@ pub enum ClientMessage {
     /// and a record a command of another process removed leaves nothing else to forget them by:
     /// the post-commit gate blocks a backup here in the committing wrapper,
     /// and one of the values can hold a password.
-    ///  A service of an earlier release holds no values at all, so nothing is lost where it refuses the message
+    ///  A service of an earlier release holds no values at all,
+    /// so nothing is lost where it refuses the message
     ///  as one it does not know.
     ForgetPrograms {
         /// The worktree's own Git directory,

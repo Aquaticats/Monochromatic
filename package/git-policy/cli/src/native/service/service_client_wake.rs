@@ -77,10 +77,12 @@ pub fn wake(
 /// Why:
 ///   A record the committing wrapper settles or removes after its post-commit gate is not the service's to notice:
 /// nothing is queued for it and no round looks at it,
-///  while the values it was given live in the service's memory alone, and one of them can hold a password
+///  while the values it was given live in the service's memory alone,
+/// and one of them can hold a password
 ///  (`service_push_programs_held_in_memory`).
 /// The message is best effort,
-/// as the wake is: a service of an earlier release holds no values and refuses a message it does not know,
+/// as the wake is:
+/// a service of an earlier release holds no values and refuses a message it does not know,
 /// and one this command cannot reach holds none of them either.
 ///
 /// In TS you'd write (pseudocode):

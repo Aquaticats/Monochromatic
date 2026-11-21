@@ -126,7 +126,8 @@ pub struct PushPrograms {
 /// const debug = (programs) => `PushPrograms { variables: [${programs.variables.map(([name]) => `"${name}"`).join(', ')}], transport: ${programs.transport} }`;
 /// ```
 impl std::fmt::Debug for PushPrograms {
-    /// Writes the names, and a placeholder for each value.
+    /// Writes the names,
+    /// and a placeholder for each value.
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let names: Vec<&str> = self.variables.iter().map(|(name, _value)| { return name.as_str(); }).collect();
         return write!(formatter, "PushPrograms {{ variables: {names:?}, transport: {} }}", self.transport);

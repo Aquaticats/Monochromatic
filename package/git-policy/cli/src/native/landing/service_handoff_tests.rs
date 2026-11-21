@@ -454,7 +454,8 @@ fn held_with_verdict(handoff: &ServiceHandoff, commit: &str, holding: &Holding) 
 /// Why:
 ///   A released record that nobody is woken for waits for the next commit,
 /// which is the wait this settlement exists to end.
-/// The woken directories and the forgotten records, as the seam recorded them.
+/// The woken directories and the forgotten records,
+/// as the seam recorded them.
 #[derive(Default)]
 struct Woken(std::cell::RefCell<Vec<std::path::PathBuf>>, std::cell::RefCell<Vec<(std::path::PathBuf, Vec<String>)>>);
 
@@ -767,7 +768,9 @@ fn a_gate_whose_verdict_cannot_be_written_keeps_the_held_record_and_the_refusal(
 /// a held record is invisible to the queue,
 /// so the values are in the
 ///  service's memory before any round can see it.
-/// The socket below records, for each message, where the record stood when the message arrived.
+/// The socket below records,
+/// for each message,
+/// where the record stood when the message arrived.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
