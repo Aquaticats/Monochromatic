@@ -23,7 +23,8 @@
 /// The clock that stops a run on a stall,
 /// and the wait it lets pass instead.
 use crate::push_progress::{Clock, WaitReport};
-/// How long a run may show nothing before it is stopped, and the window a connected one gets.
+/// How long a run may show nothing before it is stopped,
+/// and the window a connected one gets.
 use crate::push_deadline_and_patience_settings::Patience;
 /// The error a run that cannot be started or read reports.
 use crate::auto_push_single_flight::SingleFlightError;
