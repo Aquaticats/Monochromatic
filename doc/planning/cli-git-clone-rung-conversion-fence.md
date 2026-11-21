@@ -3416,6 +3416,40 @@ this branch `a6d8c40645…`,
 its source has everything this branch has except the skip,
 so the converting shape's 0.83 is the improvement and the other three shapes are the check that nothing else moved.
 
+A second run of all four shapes,
+after the gate's suite showed that the new step needed a sentence of its own in the standing notice
+(the binary is then `099565b9283…`,
+and the four runs above timed `a6d8c40645…`,
+where the two binaries differ only by that table entry),
+gives the same picture and shows how wide this host's runs are.
+Converting:
+488 ms (410 to 527),
+a per-round median 0.80,
+the identical pair 483 (472 to 718,
+0.83),
+and `main` 577 (543 to 896).
+Size:
+522 (464 to 543,
+1.00),
+the pair 509 (0.99),
+`main` 520.
+The add that names no commit:
+410 (348 to 461,
+1.14),
+the pair 417 (1.11),
+`main` 346 (329 to 603).
+The add that names the source's commit:
+414 (385 to 460,
+1.04),
+the pair 419 (1.02),
+`main` 392.
+The identical binary's own median for the same-tree shapes is 1.01 in the first run and 1.11 in the second,
+so a same-tree add's wall time is not resolved below about a tenth of the add on this host,
+which is far above the work the change adds there:
+none at all when no commit is named
+(the record has no `targetTreeDifference` step and no `git diff-tree`),
+and one 2 to 3 ms `git diff-tree` when the source's own commit is named.
+
 ## Limitations
 
 Each line is a case where option B,
