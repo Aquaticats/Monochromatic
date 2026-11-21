@@ -933,20 +933,30 @@ The control now:
   until the kernel has released the thread's own file,
   so it reaches the state it is named for under either order,
   instead of assuming the moment;
-- sums with a lower bound from the threads that stay,
-  and an upper bound from the live threads,
-  both of which hold whichever moment the release lands in.
+- sums beside a thread that only waits,
+  whose clock ticks cannot grow between the two readings,
+  and asserts that sum is exactly that thread's own ticks,
+  so a thread whose own file is gone adds nothing and counts nothing twice.
 
-The image was `localhost/git-policy-native-test:gpc-6330-final-20261121`,
-built 2026-11-21T04:21:47-05:00 from this branch's tree,
+A planted removal of the reader's tolerance,
+a sum that expects a thread's own file,
+fails this control on every run,
+which is the guard this incident was about.
+A reader that answered zero everywhere would still pass it,
+because the thread that only waits has spent no ticks to expect;
+no test in the tree pins that undercount,
+which is recorded here rather than left for the next reader to discover.
+
+The image was `localhost/git-policy-native-test:gpc-6330-final2-20261121`,
+built 2026-11-21T04:28:08-05:00 from this branch's tree,
 and each run was the gate image's own `cargo nextest run --offline --locked --all-targets --no-fail-fast`
 narrowed by a name filter under those bounds.
 The module's control passed
 (`1 test run: 1 passed`,
-0.021 s),
+0.019 s),
 and so did the whole `source_guard` set
 (`80 tests run: 80 passed`,
-4.520 s).
+4.083 s).
 
 ### If this name fails again
 
