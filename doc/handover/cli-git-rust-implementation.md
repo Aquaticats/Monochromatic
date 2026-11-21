@@ -41020,7 +41020,16 @@ stated in this entry. What follows from them, as work:
   nits: report line 324 says every count reproduced though one was stale, line 221 "into this one", the "this is not
   adoption" bullet beside the adoption sentence); the decision record's pointer now names the merge. The wrapper kept the
   report's worktree for `kscreenlocker_greet` (issue 6321, commented) and kept its service journal for `rules-repository`
-  (issue 6322); the coordinator removed the worktree by hand.
+  (issue 6322); the coordinator removed the worktree by hand. GIT LFS THROUGH THE WRAPPER MERGED into `main` as
+  `64f9a20335` at 2026-11-20T21:05:29-05:00 (final check on Sonnet fit, its gate 9324 of 9326 with the cause-H pair; real
+  `sshd` and real `git-lfs` transcripts read as designed; its folder
+  `~/temp/agent/integration-final-check-lfs-after-the-recheck-findings-2026-11-20/keep/`). The screen locker kept both
+  LFS worktrees; the coordinator removed them by hand after checking both branches are on `main`. The older
+  `integrate/git-policy-cli-lfs-and-gate-base-image-data` is not on `main` and stays. GOING: the three lows (F1 the
+  recorded limit is `CheckHostIP` under `ask`, not the cited lines; F2 a debug line or a URL naming "certificate" turns the
+  sentence off; F3 two nits) as `pi-git-policy-cli-lfs-final-check-lows` on `fix/git-policy-cli-lfs-final-check-lows`; and
+  whether two old LFS branches hold anything `main` lacks (17 and 9 commits; the one holding `9e23c2623e`) as
+  `pi-review-old-lfs-branches-against-main` on the Qwen plan, watched to its end.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
