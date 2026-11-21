@@ -64,6 +64,9 @@ const FSYNC_FOLDER = '/var/lib/monochromatic-git-policy-cli-probe';
 /** The store's path inside the guest, which the arms write. */
 const STORE_PATH = '/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities';
 
+/** The folder inside the probe's dataset that the probe creates and removes for each run. */
+const FSYNC_ROUND_FOLDER = `${FSYNC_FOLDER}/round`;
+
 /** The pool the guest makes so the store is on a ZFS dataset, and the file-backed vdev it stands on. */
 const STORE_POOL = 'git-policy-cli-store';
 const STORE_POOL_IMAGE = '/home/git-policy-cli-store-fixture/store.img';
@@ -285,12 +288,15 @@ function publicationFsync({ chosen, }: { readonly chosen: Options; }): void {
   const script = [
     'set -eu',
     `export PATH=${OPENZFS_PATH}`,
+    // The probe reads its folder's dataset before it creates anything, and it removes and recreates its own folder,
+    // so it is given a folder inside the dataset rather than the dataset's mount point.
+    `mkdir --parents ${FSYNC_ROUND_FOLDER}`,
     // The block device the pool's own file-backed vdev lives on, so the counters the probe reads are the ones the
     // pool's writes reach; the probe reads the pool's own ZIL counters from its kstat folder.
     `pool_device=$(findmnt --target ${STORE_POOL_IMAGE} --output SOURCE --noheadings --first-only)`,
     'test -n "$pool_device"',
     'pool_disk=$(lsblk --noheadings --output PKNAME --paths "$pool_device")',
-    `python3 -I /root/probe-reaches-storage.py ${FSYNC_FOLDER} ${FSYNC_ROUNDS} --pool-device "$(basename "$pool_device")" --pool-disk "$(basename "$pool_disk")" > /mnt/shared/store-fsync.log 2>&1`,
+    `python3 -I /mnt/shared/probe-reaches-storage.py ${FSYNC_ROUND_FOLDER} ${FSYNC_ROUNDS} --pool-device "$(basename "$pool_device")" --pool-disk "$(basename "$pool_disk")" > /mnt/shared/store-fsync.log 2>&1`,
   ].join('\n');
   guest({ chosen, script, log: 'guest-store-fsync.log', timeout: ARM_TIMEOUT_MS, });
   host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/store-fsync.log', join(chosen.logDir, 'store-fsync.log'),], log: 'host-pull-store-fsync.log', });
