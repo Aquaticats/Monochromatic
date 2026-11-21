@@ -77,7 +77,7 @@ which no machine here can do.
   2026-11-20T18:07:38-05:00,
   the clock reading taken as this session's work began.
   Last updated:
-  2026-11-20T19:41:43-05:00,
+  2026-11-20T19:43:07-05:00,
   the write time of the third revision.
 - Revisions:
   three.
@@ -3813,7 +3813,11 @@ Kept evidence:
   its arms and its output,
   the crate-archive measurement and its output,
   the container driver,
-  the three pahole-suite logs and their outputs,
+  the four pahole-suite logs and their outputs:
+  the first failed attempt,
+  the offline run without `bpftool`,
+  the killed attempt at a perf tarball,
+  and the final run;
   the five `v7.3.4` source files,
   the three packaging patches,
   the lock record copy,
