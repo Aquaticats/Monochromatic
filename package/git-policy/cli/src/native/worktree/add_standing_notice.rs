@@ -486,6 +486,7 @@ const STEP_SENTENCES: &[(&str, &str)] = &[
     ("cloneEntries", "it is cloning the tracked files of the source into the new worktree"),
     ("cloneIndex", "it is writing the index the clones' worktree is read through"),
     ("conversionFence", "it is reading which files Git's checkout would write other bytes for"),
+    ("conversionBesideTheClone", "it is letting the fences read the source while the tracked files are copied"),
     ("writeConversions", "it is letting Git write the files a conversion changes"),
     ("copyIgnored", "it is copying the ignored files into the new worktree"),
     ("handOverTrash", "it is handing the files the snapshot set aside to the commit service"),

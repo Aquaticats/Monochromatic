@@ -184,7 +184,7 @@ fn the_slices_clone_every_empty_entry_without_a_reflink() {
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
     let (entries, held, administrative) = sliced_handles(&source, destination.as_path(), admin.as_path());
     let mut created: Vec<Created> = Vec::new();
-    let stats: HashMap<Vec<u8>, StatFields> = clone_in_slices(&source, Arc::clone(&entries), &held, &mut created, SLICES_OF_A_CONTROL).expect("clones");
+    let (stats, _beside): (HashMap<Vec<u8>, StatFields>, Option<Beside<()>>) = clone_in_slices::<(), ()>(&source, Arc::clone(&entries), &held, &mut created, SLICES_OF_A_CONTROL, None).expect("clones");
     install_the_index(&administrative, source.clean.index_bytes.as_slice(), &stats, &HashSet::new(), source.clean.hash_length).expect("index");
     let listed: Vec<String> = entries.iter().map(|entry: &StatEntry| { return String::from_utf8_lossy(entry.path.as_slice()).into_owned(); }).collect();
     let made: Vec<String> = created.iter().filter(|entry: &&Created| { return !entry.directory; }).map(|entry: &Created| { return joined_names(entry.names.as_slice()); }).collect();
@@ -219,7 +219,7 @@ fn the_wait_for_the_slices_is_a_step_of_the_record() {
     let mut created: Vec<Created> = Vec::new();
     let common: PathBuf = repo.join(".git");
     crate::add_timing::begin(common.clone(), true);
-    clone_in_slices(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL).expect("clones");
+    clone_in_slices::<(), ()>(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL, None).expect("clones");
     crate::add_timing::finish(0);
     let text: String = std::fs::read_to_string(common.join(crate::add_timing::ADD_TIMING_FILE)).expect("the add's record");
     let record: serde_json::Value = serde_json::from_str(text.trim_end()).expect("one JSON object");
@@ -249,7 +249,7 @@ fn the_record_names_the_slices_the_run_was_split_into() {
     let mut created: Vec<Created> = Vec::new();
     let common: PathBuf = repo.join(".git");
     crate::add_timing::begin(common.clone(), true);
-    clone_in_slices(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL).expect("clones");
+    clone_in_slices::<(), ()>(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL, None).expect("clones");
     crate::add_timing::finish(0);
     let text: String = std::fs::read_to_string(common.join(crate::add_timing::ADD_TIMING_FILE)).expect("the add's record");
     let record: serde_json::Value = serde_json::from_str(text.trim_end()).expect("one JSON object");
@@ -274,7 +274,7 @@ fn btrfs_the_slices_clone_every_entry_of_a_large_run() {
     let held: File = open_root(destination.as_path()).expect("destination");
     let administrative: File = open_root(admin.as_path()).expect("administrative directory");
     let mut created: Vec<Created> = Vec::new();
-    let stats: HashMap<Vec<u8>, StatFields> = clone_in_slices(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL).expect("clones");
+    let (stats, _beside): (HashMap<Vec<u8>, StatFields>, Option<Beside<()>>) = clone_in_slices::<(), ()>(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL, None).expect("clones");
     install_the_index(&administrative, source.clean.index_bytes.as_slice(), &stats, &HashSet::new(), source.clean.hash_length).expect("index");
     assert_eq!(created.iter().filter(|entry: &&Created| { return !entry.directory; }).count(), tracked, "every file of every slice was made");
     for index in 0..MANY_FILES {
@@ -300,7 +300,11 @@ fn btrfs_a_changed_entry_ends_a_sliced_run_and_keeps_what_the_slices_made() {
     std::fs::write(repo.join(changed.as_str()), b"CHANGED\n").expect("edit after the check");
     crate::test_support::age(repo.join(changed.as_str()).as_path());
     let mut created: Vec<Created> = Vec::new();
-    let reason: String = clone_in_slices(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL).expect_err("refused");
+    let refused: Result<(HashMap<Vec<u8>, StatFields>, Option<Beside<()>>), String> = clone_in_slices::<(), ()>(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL, None);
+    let reason: String = match refused {
+        Err(reason) => reason,
+        Ok(_cloned) => panic!("the changed entry must end the run"),
+    };
     assert!(reason.contains("the source changed while it was cloned") && reason.contains(changed.as_str()), "{reason}");
     assert!(!created.is_empty(), "what the slices made before the failure is kept, not removed");
     assert!(!admin.join("index").exists(), "no index for a refused run");

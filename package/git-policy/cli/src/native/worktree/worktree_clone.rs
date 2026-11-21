@@ -50,7 +50,9 @@ use crate::diagnostic_log::debug;
 use crate::fs_beneath::{create_file_at, entry_metadata_at, make_directory_at, open_directory_at, open_file_at, open_root, plain_components, read_link_at, set_times_at, symlink_at};
 use crate::fs_beneath_walk_chain::open_directory_beneath;
 use crate::fs_clone_exchange::clone_file;
+use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 use crate::parallel_budget::{HostResources, PARALLEL_BREAK_EVEN_ENTRIES, sliced_workers};
+use crate::side_by_side_on_the_runtime::AJob;
 use crate::side_by_side_on_the_runtime::run_all_side_by_side_on_the_runtime;
 use crate::subvolume_index::{StatFields, StatLookup};
 use crate::subvolume_index_files::{fields_of, install_index_in};
@@ -268,6 +270,29 @@ pub struct ClonedBytes {
     /// The stat fields of the objects made,
     /// by path.
     stats: HashMap<Vec<u8>, StatFields>,
+}
+
+/// What:
+///  What the work beside the copies answered:
+/// its own answer,
+/// or the reason the blocking pool did not run it.
+/// Why:
+///   The caller's job is the fence's,
+/// and the two answers end the rung differently:
+/// a fence that answered decides the paths,
+///  and a fence the pool refused leaves them unproven,
+/// which is the same answer as a fence that failed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Beside<T> = { ran: T } | { notRun: string };
+/// ```
+pub enum Beside<T> {
+    /// The job ran and answered.
+    Ran(T),
+    /// The pool did not run it,
+    /// for this reason.
+    NotRun(String),
 }
 
 impl ClonedBytes {
@@ -873,7 +898,11 @@ fn clone_worker_count(entries: usize) -> usize {
 /// ```ts
 /// cloneInSlices({ source, entries, destination, created, workers }); // throws a reason
 /// ```
-fn clone_in_slices(source: &SnapshotSource, entries: Arc<[StatEntry]>, destination: &File, created: &mut Vec<Created>, workers: usize) -> Result<HashMap<Vec<u8>, StatFields>, String> {
+fn clone_in_slices<S, T>(source: &SnapshotSource, entries: Arc<[StatEntry]>, destination: &File, created: &mut Vec<Created>, workers: usize, beside: Option<AJob<S, T>>) -> Result<(HashMap<Vec<u8>, StatFields>, Option<Beside<T>>), String>
+where
+    S: Clone + Send + 'static,
+    T: Send + 'static,
+{
     let source_root: Arc<File> = Arc::new(subject_failure(open_root(source.root.as_path()), &"the source's root", "cannot be opened")?);
     let destination_held: Arc<File> = Arc::new(subject_failure(destination.try_clone(), &"the destination handle", "cannot be kept")?);
     let shared_source: Arc<SnapshotSource> = Arc::new(source.clone());
@@ -888,16 +917,17 @@ fn clone_in_slices(source: &SnapshotSource, entries: Arc<[StatEntry]>, destinati
     let slices: usize = states.len();
     note("cloneSlices", format!("{} entries in {} slices, up to {} workers", entries.len(), slices, workers).as_str());
     let entries_entered: bool = begin_step("cloneEntries");
-    let ran = crate::lazy_runtime::run_on_runtime(clone_the_slices(states));
+    let ran = crate::lazy_runtime::run_on_runtime(clone_the_slices_beside(states, beside));
     end_step(entries_entered);
-    let answers: Vec<Result<ClonedEntries, String>> = match ran {
-        Ok(answers) => answers,
+    let (beside_answer, answers): (Option<Beside<T>>, Vec<Result<ClonedEntries, String>>) = match ran {
+        Ok(pair) => pair,
         Err(refusal) => {
             debug(TAG, format!("the clones run in one turn ({refusal})").as_str());
             let mut directories: Directories = HashMap::new();
             directories.insert(Vec::new(), subject_failure(destination.try_clone(), &"the destination handle", "cannot be kept")?);
             let mut seams: Seams<'_> = Seams { after_lookup: &mut do_nothing, after_clone: &mut do_nothing, before_index: &mut do_nothing };
-            return clone_with(source, &mut directories, created, &mut seams);
+            let stats: HashMap<Vec<u8>, StatFields> = clone_with(source, &mut directories, created, &mut seams)?;
+            return Ok((stats, None));
         }
     };
     let mut stats: HashMap<Vec<u8>, StatFields> = HashMap::new();
@@ -921,25 +951,62 @@ fn clone_in_slices(source: &SnapshotSource, entries: Arc<[StatEntry]>, destinati
     if let Some(reason) = failure {
         return Err(reason);
     }
-    return Ok(stats);
+    return Ok((stats, beside_answer));
+}
+
+/// What:
+///  The clone's slices and, when one came, the work that runs beside them,
+/// joined as one future of the process's runtime.
+/// Why:
+///  The work beside the copies is a job of the blocking pool,
+/// and the slices are jobs of it too,
+/// so this is the one place that starts the first and waits for both:
+/// a job that refused a thread runs in turn before the slices answer,
+///  and the caller's own thread waits once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [beside, answers] = besideJob ? await Promise.all([runAJObBeside(besideJob), cloneTheSlices(states)]) : [undefined, await cloneTheSlices(states)];
+/// ```
+async fn clone_the_slices_beside<S, T>(states: Vec<SliceOfClones>, beside: Option<AJob<S, T>>) -> (Option<Beside<T>>, Vec<Result<ClonedEntries, String>>)
+where
+    S: Clone + Send + 'static,
+    T: Send + 'static,
+{
+    let Some((state, work)) = beside else {
+        return (None, clone_the_slices(states).await);
+    };
+    let (answer, answers): (Result<T, crate::blocking_job::BlockingJobError>, Vec<Result<ClonedEntries, String>>) = tokio::join!(run_a_job_or_in_turn(state, work), clone_the_slices(states));
+    let beside_answer: Beside<T> = match answer {
+        Ok(value) => Beside::Ran(value),
+        Err(refusal) => Beside::NotRun(format!("the work beside the copies did not run ({refusal:?})")),
+    };
+    return (Some(beside_answer), answers);
 }
 
 /// The run itself:
 /// every tracked file in the slices the host's budget allows;
 /// the caller installs the index,
 /// and removes `created` when this fails.
-fn clone_all(source: &SnapshotSource, destination: &File, created: &mut Vec<Created>) -> Result<HashMap<Vec<u8>, StatFields>, String> {
+fn clone_all<S, T>(source: &SnapshotSource, destination: &File, created: &mut Vec<Created>, mut beside: Option<AJob<S, T>>) -> Result<(HashMap<Vec<u8>, StatFields>, Option<Beside<T>>), String>
+where
+    S: Clone + Send + 'static,
+    T: Send + 'static,
+{
     let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
         return Err(String::from("the source's index changed shape"));
     };
     let workers: usize = clone_worker_count(entries.len());
     if workers > 1 {
-        return clone_in_slices(source, Arc::from(entries), destination, created, workers);
+        return clone_in_slices(source, Arc::from(entries), destination, created, workers, beside);
     }
+    // A repository below the clone's break-even has no second thread for the copies, so the work beside them runs
+    // first: it is the same answer, and on this size running it beside a one-thread copy would buy nothing.
+    let beside_answer: Option<Beside<T>> = beside.take().map(|(state, work)| return Beside::Ran(work(state)));
     let mut directories: Directories = HashMap::new();
     directories.insert(Vec::new(), subject_failure(destination.try_clone(), &"the destination handle", "cannot be kept")?);
     let mut seams: Seams<'_> = Seams { after_lookup: &mut do_nothing, after_clone: &mut do_nothing, before_index: &mut do_nothing };
-    return clone_with(source, &mut directories, created, &mut seams);
+    return clone_with(source, &mut directories, created, &mut seams).map(|stats| return (stats, beside_answer));
 }
 
 /// Log what the index install did.
@@ -970,8 +1037,36 @@ fn debug_report(report: &str) {
 /// ```
 pub fn clone_tracked_bytes(source: &SnapshotSource, destination: &File) -> Result<ClonedBytes, String> {
     let mut created: Vec<Created> = Vec::new();
-    return match clone_all(source, destination, &mut created) {
-        Ok(stats) => Ok(ClonedBytes { created, stats }),
+    return match clone_all(source, destination, &mut created, None::<AJob<(), ()>>) {
+        Ok((stats, _beside)) => Ok(ClonedBytes { created, stats }),
+        Err(reason) => Err(if created.is_empty() { reason } else { format!("{reason}; {} entries it created stay", created.len()) }),
+    };
+}
+
+/// What:
+///  Copy every tracked file while the caller's job runs beside the copies,
+///  and give both answers.
+/// Why:
+///   The conversion fence's reads are the work this carries:
+/// they need no runtime,
+/// they change nothing the copies read,
+///  and the copy is the same wait whether they run beside it or not.
+/// The job is a job of the process's blocking pool,
+/// so the add's own thread still waits once,
+///  and a pool that refuses a thread runs the job in turn before the slices answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [cloned, beside] = cloneTrackedBytesBeside(source, destination, job); // throws a reason
+/// ```
+pub fn clone_tracked_bytes_beside<S, T>(source: &SnapshotSource, destination: &File, beside: AJob<S, T>) -> Result<(ClonedBytes, Option<Beside<T>>), String>
+where
+    S: Clone + Send + 'static,
+    T: Send + 'static,
+{
+    let mut created: Vec<Created> = Vec::new();
+    return match clone_all(source, destination, &mut created, Some(beside)) {
+        Ok((stats, answered)) => Ok((ClonedBytes { created, stats }, answered)),
         Err(reason) => Err(if created.is_empty() { reason } else { format!("{reason}; {} entries it created stay", created.len()) }),
     };
 }

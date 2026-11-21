@@ -35,12 +35,12 @@
 //! ```
 
 use crate::add_timing::{begin_work, end_work};
+use crate::side_by_side_on_the_runtime::AJob;
 use crate::subvolume_index::{StatFields, with_zeroed_stat};
 use crate::transaction_git::GitContext;
 use crate::worktree_clone_conversion_fence::{Fence, fence_the_clone};
 use crate::worktree_snapshot_source::SnapshotSource;
 use std::collections::{HashMap, HashSet};
-use std::thread::JoinHandle;
 
 /// The name the fence's own duration is noted under in the add's record,
 /// where it runs on a thread the join waits for.
@@ -50,80 +50,42 @@ use std::thread::JoinHandle;
 ///  beside the window's own step.
 const WORK: &str = "fenceBesideTheClone";
 
-/// The thread's name,
-/// which a `ps` or a debugger shows while it runs.
-const THREAD: &str = "clone-conversion-fence";
-
 /// What:
-///  The fence that another thread is deciding,
-/// and the reason its thread could not be started.
+///  The fence's job for the clone's join:
+/// what it reads and the function that reads it.
 /// Why:
-///   The caller starts the fence before it clones,
-/// joins it after the clone whatever the clone's answer was,
-///  and never leaves a thread reading the source while Git's own checkout writes the destination.
+///   The work beside the copies is a job of the process's blocking pool
+/// (`side_by_side_on_the_runtime.rs`),
+/// not a thread of its own:
+/// the add's own thread waits once for the copies and the fence together,
+///  and a pool that refuses a thread runs this job in turn before the copies answer.
+/// The job records its own duration as work,
+/// because a timing step belongs to the thread that runs it and this one runs on a worker.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type FenceBesideTheClone = { handle?: Thread; refusal?: string };
+/// const job = fenceBesideTheClone(source, context); // [state, runTheFence]
 /// ```
-pub struct FenceBesideTheClone {
-    /// The thread the fence runs on,
-    /// while it runs.
-    handle: Option<JoinHandle<Result<Fence, String>>>,
-    /// Why no thread was started,
-    /// when none was.
-    refusal: Option<String>,
+pub fn fence_beside_the_clone(source: &SnapshotSource, context: &GitContext) -> AJob<(SnapshotSource, GitContext), Result<Fence, String>> {
+    return ((source.clone(), context.clone()), run_the_fence);
 }
 
-impl FenceBesideTheClone {
-    /// What:
-    ///  Start the fence's reads on a thread of their own.
-    /// Why:
-    ///   The reads take no lock and change nothing,
-    /// so they may run beside the copy of the same files;
-    /// a thread the system refuses is a reason the rung cannot be proven,
-    ///  never an add without the fence.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// const started = startFenceBesideTheClone(source, context);
-    /// ```
-    pub fn start(source: &SnapshotSource, context: &GitContext) -> FenceBesideTheClone {
-        let held: SnapshotSource = source.clone();
-        let environment: GitContext = context.clone();
-        let spawned = std::thread::Builder::new().name(THREAD.to_string()).spawn(move || {
-            let began: std::time::Instant = begin_work();
-            let outcome: Result<Fence, String> = fence_the_clone(&held, &environment);
-            end_work(WORK, began);
-            return outcome;
-        });
-        return match spawned {
-            Ok(handle) => FenceBesideTheClone { handle: Some(handle), refusal: None },
-            Err(error) => FenceBesideTheClone { handle: None, refusal: Some(format!("the fence's thread could not be started ({error})")) },
-        };
-    }
-
-    /// What:
-    ///  Wait for the fence and give its answer.
-    /// Why:
-    ///   The join is what says the thread no longer reads the source,
-    /// and a thread that panicked proved nothing about any path,
-    /// so its panic is
-    ///  the rung's reason rather than a silence.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// const fence = started.join(); // throws the reason the rung cannot be proven
-    /// ```
-    pub fn join(mut self) -> Result<Fence, String> {
-        if let Some(refusal) = self.refusal.take() {
-            return Err(refusal);
-        }
-        let Some(handle) = self.handle.take() else {
-            return Err(String::from("the fence's thread was not started"));
-        };
-        return handle.join().unwrap_or_else(|_| return Err(String::from("the fence's own thread panicked, so nothing is proven about the source's paths")));
-    }
+/// What:
+///  The job itself:
+/// the fence's reads over the source the add proved clean.
+/// Why:
+///   The job owns what it reads,
+/// so it takes the source and the Git context by value and answers the fence or its reason.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runTheFence([source, context]) { return fenceTheClone(source, context); }
+/// ```
+fn run_the_fence(state: (SnapshotSource, GitContext)) -> Result<Fence, String> {
+    let began: std::time::Instant = begin_work();
+    let outcome: Result<Fence, String> = fence_the_clone(&state.0, &state.1);
+    end_work(WORK, began);
+    return outcome;
 }
 
 /// What:

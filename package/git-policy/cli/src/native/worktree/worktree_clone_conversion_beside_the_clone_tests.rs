@@ -78,7 +78,8 @@ fn the_fence_beside_the_clone_answers_what_the_fence_before_it_answers() {
     let (root, repo) = converting_fixture("fence-beside-answers");
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
     let before: Fence = fence_the_clone(&source, &git_context()).expect("a fence");
-    let beside: Fence = FenceBesideTheClone::start(&source, &git_context()).join().expect("a fence beside the clone");
+    let (state, work): AJob<(SnapshotSource, GitContext), Result<Fence, String>> = fence_beside_the_clone(&source, &git_context());
+    let beside: Fence = work(state).expect("a fence beside the clone");
     assert_eq!(beside.git_writes, before.git_writes);
     assert_eq!(beside.carried, before.carried);
     // The seed is a function of the answer, so the same answer gives the same bytes.
@@ -91,7 +92,7 @@ fn the_fence_beside_the_clone_answers_what_the_fence_before_it_answers() {
 fn a_seed_declines_an_index_it_cannot_walk() {
     let (root, repo) = converting_fixture("fence-seed-unwalkable");
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
-    let fence: Fence = FenceBesideTheClone::start(&source, &git_context()).join().expect("a fence");
+    let fence: Fence = run_the_fence((source.clone(), git_context())).expect("a fence");
     let mut broken = source.clone();
     broken.clean.index_bytes = b"DIRC".to_vec();
     let reason: String = seed_without_stat(&broken, &fence).expect_err("refused");
@@ -157,7 +158,7 @@ fn the_installed_index_vouches_for_no_path_git_still_has_to_write() {
     git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
     git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "reference", "../reference"]);
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
-    let fence: Fence = FenceBesideTheClone::start(&source, &git_context()).join().expect("a fence");
+    let fence: Fence = run_the_fence((source.clone(), git_context())).expect("a fence");
     assert_eq!(fence.git_writes, vec![b"notes.txt".to_vec()], "the rule leaves one path to Git");
     let stats: HashMap<Vec<u8>, StatFields> = copy_the_source_files(&source, destination.as_path());
     let admin: PathBuf = repo.join(".git/worktrees/topic");
