@@ -117,7 +117,9 @@ pub mod worktree_remove_outcome;
 pub mod worktree_remove_notices;
 
 /// The half of a removal that goes around a volume it did not make:
-/// the record a killed pass leaves, the continuation that record proves, and the pass.
+/// the record a killed pass leaves,
+/// the continuation that record proves,
+/// and the pass.
 pub mod worktree_remove_around;
 pub mod worktree_remove_hand_over;
 

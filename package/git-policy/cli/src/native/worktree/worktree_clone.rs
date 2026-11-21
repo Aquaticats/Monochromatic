@@ -547,27 +547,36 @@ struct OneEntry<'a, 'run> {
 
 /// What one entry's clone records.
 struct EntryResults<'a> {
-    /// The entries created, in creation order.
+    /// The entries created,
+    /// in creation order.
     created: &'a mut Vec<Created>,
-    /// The stat fields of the files made, by path.
+    /// The stat fields of the files made,
+    /// by path.
     stats: &'a mut HashMap<Vec<u8>, StatFields>,
-    /// What the entries of this run spent in each part of an entry, summed here so the ledger is written once per run.
+    /// What the entries of this run spent in each part of an entry,
+    /// summed here so the ledger is written once per run.
     spent: &'a mut SpentByTheEntries,
 }
 
-/// What the entries of one run spent, by the part of an entry that spent it.
+/// What the entries of one run spent,
+/// by the part of an entry that spent it.
 #[derive(Default)]
 struct SpentByTheEntries {
     /// Opening or reusing the source directory of an entry.
     source_dirs: Duration,
     /// Making and finding the destination directories of an entry.
     parents: Duration,
-    /// Everything else of an entry: its look, its clone, its mode, its times and its index fields.
+    /// Everything else of an entry:
+    /// its look,
+    /// its clone,
+    /// its mode,
+    /// its times and its index fields.
     files: Duration,
 }
 
 impl SpentByTheEntries {
-    /// Note the run's sums in the add timing record, one entry per name.
+    /// Note the run's sums in the add timing record,
+    /// one entry per name.
     fn note(&self) {
         note_work("cloneSourceDirs", self.source_dirs);
         note_work("cloneDestinationDirs", self.parents);
@@ -603,11 +612,14 @@ fn clone_one_entry(work: OneEntry<'_, '_>, results: EntryResults<'_>) -> Result<
     return outcome;
 }
 
-/// What one run of entries owns, whichever engine runs it.
+/// What one run of entries owns,
+/// whichever engine runs it.
 struct EntriesToClone<'a, 'run> {
-    /// The frozen index entries, whole.
+    /// The frozen index entries,
+    /// whole.
     entries: &'a [StatEntry],
-    /// The entries this run owns, as indexes into `entries`,
+    /// The entries this run owns,
+    /// as indexes into `entries`,
     /// in the order the index lists them.
     positions: &'a [usize],
     /// What the checks proved about the source.
@@ -619,22 +631,29 @@ struct EntriesToClone<'a, 'run> {
     /// The moments a control moves the trees;
     /// one turn in a test supplies them and a slice supplies calls that do nothing.
     seams: &'a mut Seams<'run>,
-    /// Raised by the first failure, so the other slices stop at their next entry.
+    /// Raised by the first failure,
+    /// so the other slices stop at their next entry.
     failed: &'a AtomicBool,
 }
 
-/// What one run of entries made, what it recorded for the index, and why it stopped.
+/// What one run of entries made,
+/// what it recorded for the index,
+/// and why it stopped.
 struct ClonedEntries {
-    /// The entries created, in the order the index lists them.
+    /// The entries created,
+    /// in the order the index lists them.
     created: Vec<Created>,
-    /// The stat fields of the files made, by path.
+    /// The stat fields of the files made,
+    /// by path.
     stats: HashMap<Vec<u8>, StatFields>,
-    /// The reason the run stopped, when it did.
+    /// The reason the run stopped,
+    /// when it did.
     failure: Option<String>,
 }
 
 /// What:
-///  Clone the entries at `positions`, in the order they are listed,
+///  Clone the entries at `positions`,
+/// in the order they are listed,
 /// recording what was created and the stat fields of the files made.
 /// Why:
 ///   A whole rung and one slice of a parallel run do the same work per entry,
@@ -718,7 +737,8 @@ impl StatLookup for StatsMadeByTheClones<'_> {
 /// (`subvolume_index::with_zeroed_stat`),
 /// and the install writes no fresh fields over them,
 /// so the published index never vouches for a path Git still has to write.
-/// The step is the install's own, so the fence before the clone and the fence beside it
+/// The step is the install's own,
+/// so the fence before the clone and the fence beside it
 ///  record it alike.
 ///
 /// In TS you'd write (pseudocode):
@@ -734,7 +754,8 @@ pub fn install_the_index(admin: &File, seed: &[u8], stats: &HashMap<Vec<u8>, Sta
     return Ok(report);
 }
 
-/// `clone_all` in one turn, with the moments at which a control may move the tree.
+/// `clone_all` in one turn,
+/// with the moments at which a control may move the tree.
 fn clone_with(source: &SnapshotSource, directories: &mut Directories, created: &mut Vec<Created>, seams: &mut Seams<'_>) -> Result<HashMap<Vec<u8>, StatFields>, String> {
     let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
         return Err(String::from("the source's index changed shape"));
@@ -760,9 +781,11 @@ fn clone_with(source: &SnapshotSource, directories: &mut Directories, created: &
 /// What one slice of the clones works on.
 #[derive(Clone)]
 struct SliceOfClones {
-    /// The frozen entries, whole.
+    /// The frozen entries,
+    /// whole.
     entries: Arc<[StatEntry]>,
-    /// The entries this slice owns, as indexes into `entries`.
+    /// The entries this slice owns,
+    /// as indexes into `entries`.
     positions: Vec<usize>,
     /// What the checks proved about the source.
     source: Arc<SnapshotSource>,
@@ -770,7 +793,8 @@ struct SliceOfClones {
     source_root: Arc<File>,
     /// The held root the destinations are opened below.
     destination: Arc<File>,
-    /// Raised by the first failure, so the other slices stop at their next entry.
+    /// Raised by the first failure,
+    /// so the other slices stop at their next entry.
     failed: Arc<AtomicBool>,
 }
 
@@ -795,7 +819,8 @@ fn clone_a_slice(state: SliceOfClones) -> ClonedEntries {
 }
 
 /// What:
-///  `clone_a_slice` for every slice on the process's runtime, in slice order.
+///  `clone_a_slice` for every slice on the process's runtime,
+/// in slice order.
 /// Why:
 ///   A job that panicked or that the pool refused answered nothing about its entries,
 /// and the caller must hear that
@@ -829,9 +854,11 @@ async fn clone_the_slices(states: Vec<SliceOfClones>) -> Vec<Result<ClonedEntrie
 /// Both limits are borrowed:
 /// they were measured on btrfs reflinked trees of this repository,
 /// for copies of whole
-///  files, the install and `clone_tree`,
+///  files,
+/// the install and `clone_tree`,
 /// and never for this rung,
-/// not on XFS, overlayfs or ZFS,
+/// not on XFS,
+/// overlayfs or ZFS,
 /// and not between the break-even this rung uses and the entry counts those
 ///  measurements took,
 /// which is where a small repository sits;
@@ -867,7 +894,8 @@ fn clone_worker_count(entries: usize) -> usize {
 /// which is the same work on one thread.
 /// The step around the fan-out is entered on this thread,
 /// so the record holds the wait for the slices,
-/// and a note names the entries, the slices and the workers the wait was split across,
+/// and a note names the entries,
+/// the slices and the workers the wait was split across,
 /// because neither is visible in a record that only sums the work per slice.
 ///
 /// In TS you'd write (pseudocode):

@@ -10,6 +10,8 @@
 //! the lookup is a closure.
 
 use super::*;
+use crate::subvolume_index_files::with_zeroed_stat;
+use std::collections::HashSet;
 
 /// A function-like value with the right shape is a lookup in tests:
 /// the shipped callers write a small struct that holds the state.
@@ -428,13 +430,16 @@ fn racy_entries_and_untrusted_entries_keep_their_stat_fields() {
     assert_eq!(seen, vec![StoredStat { ctime_seconds: 1, ctime_nanos: 2, mtime_seconds: 100, mtime_nanos: 7, ino: 4, uid: 8, gid: 9, size: 10 }]);
 }
 
-/// The paths whose stat data a seed zeroes, as the set the install is given.
+
+/// The paths whose stat data a seed zeroes,
+/// as the set the install is given.
 fn written_paths(paths: &[&str]) -> HashSet<Vec<u8>> {
     return paths.iter().map(|path: &&str| { return path.as_bytes().to_vec(); }).collect();
 }
 
 /// A seed whose written paths are zeroed:
-/// the entries, their modes and their object names are the same,
+/// the entries,
+/// their modes and their object names are the same,
 /// the written entries hold no stat data at all,
 /// the others keep theirs,
 /// and the checksum verifies.

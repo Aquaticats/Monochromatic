@@ -36,7 +36,8 @@
 
 use crate::add_timing::{begin_work, end_work};
 use crate::side_by_side_on_the_runtime::AJob;
-use crate::subvolume_index::{StatFields, with_zeroed_stat};
+use crate::subvolume_index::StatFields;
+use crate::subvolume_index_files::with_zeroed_stat;
 use crate::transaction_git::GitContext;
 use crate::worktree_clone_conversion_fence::{Fence, fence_the_clone};
 use crate::worktree_snapshot_source::SnapshotSource;
@@ -99,7 +100,8 @@ fn run_the_fence(state: (SnapshotSource, GitContext)) -> Result<Fence, String> {
 /// because those paths' bytes on disk are not Git's checkout's yet,
 ///  and an entry whose stat data matches is exactly what makes Git skip a file.
 /// A seed the reader cannot walk is the rung's reason:
-///  the add then takes Git's own checkout, which is correct.
+///  the add then takes Git's own checkout,
+/// which is correct.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

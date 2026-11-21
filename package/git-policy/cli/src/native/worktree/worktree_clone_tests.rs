@@ -168,7 +168,9 @@ fn sliced_handles(source: &SnapshotSource, destination: &Path, admin: &Path) -> 
 ///   A file with no bytes is cloned by being created and given the source's fields,
 /// so this control needs no
 ///  reflink recency and no reflink at all:
-/// it covers `clone_in_slices`, the per-slice stat merge, the single
+/// it covers `clone_in_slices`,
+/// the per-slice stat merge,
+/// the single
 ///  index install and the created order on ZFS and in the gate image,
 /// where the btrfs controls print `BTRFS CONTROL NOT RUN`
 ///  and pass without doing anything.

@@ -20,7 +20,8 @@
 //! so every source Git reads is answered by Git,
 //! macros and precedence included;
 //! sizes come from one `git ls-tree -r -l`,
-//! for every path the fence may carry, because a path with no rule can still hold an earlier rule's form;
+//! for every path the fence may carry,
+//! because a path with no rule can still hold an earlier rule's form;
 //! and the paths Git must write go through one `git checkout-index` in the destination,
 //! which applies the destination's own conversion.
 //! The source's bytes must be the blob's,
@@ -69,10 +70,12 @@ const WRITTEN_PATHS_REPORTED: usize = 8;
 /// Why this share:
 ///  the write step prices a path through Git's own rules at about 0.12 ms for a text path and 0.31 to 0.57 ms for an
 ///  LFS path across kept runs (`measure-recheck2-md-*` and `-real-*`,
-///  `measure-gdc-real-*`; both classes in one `git checkout-index`),
+///  `measure-gdc-real-*`;
+/// both classes in one `git checkout-index`),
 ///  and the rule's threshold is above the break-even those prices give:
 ///  the fence stays under `main` while the paths it writes cost less than `main`'s checkout minus the fence's non-write
-///  work, which lies between this repository's 0.065 and the measured 0.199 share.
+///  work,
+/// which lies between this repository's 0.065 and the measured 0.199 share.
 ///  The part of that band the rule does not decline is a cost the proposal states.
 ///  One measured source above the threshold is the converting one (0.644 of its paths) and it declines.
 pub const DECLINE_SHARE_DIVISOR: usize = 4;
@@ -87,9 +90,12 @@ pub const DECLINE_PATHS_FLOOR: usize = 1000;
 /// What:
 ///  Whether the rung declines the add instead of writing its converting paths through Git.
 /// Why:
-///   The rule is two boundaries a control can stand on: a repository below the path floor keeps its rung whatever its
-/// share, and a share must be strictly more than `1 / DECLINE_SHARE_DIVISOR` of the tracked paths.
-/// The share is counted from the attributes alone, before any blob is read and before anything is cloned.
+///   The rule is two boundaries a control can stand on:
+/// a repository below the path floor keeps its rung whatever its
+/// share,
+/// and a share must be strictly more than `1 / DECLINE_SHARE_DIVISOR` of the tracked paths.
+/// The share is counted from the attributes alone,
+/// before any blob is read and before anything is cloned.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -103,8 +109,11 @@ pub fn declines(converting: usize, tracked: usize) -> bool {
 ///  How many tracked paths a rule of their own would convert,
 /// from the attributes and the configuration alone.
 /// Why:
-///   This is the count the decline rule prices before it reads a blob, and a link is never converted by its path's
-/// rules; a path Git answers nothing for keeps the defaults, which the configuration then decides.
+///   This is the count the decline rule prices before it reads a blob,
+/// and a link is never converted by its path's
+/// rules;
+/// a path Git answers nothing for keeps the defaults,
+/// which the configuration then decides.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

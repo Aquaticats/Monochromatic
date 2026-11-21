@@ -87,7 +87,8 @@ fn the_fence_beside_the_clone_answers_what_the_fence_before_it_answers() {
     remove(root.as_path());
 }
 
-/// A source index the reader cannot walk is the rung's reason, never a seed that vouches for a path.
+/// A source index the reader cannot walk is the rung's reason,
+/// never a seed that vouches for a path.
 #[test]
 fn a_seed_declines_an_index_it_cannot_walk() {
     let (root, repo) = converting_fixture("fence-seed-unwalkable");
@@ -139,7 +140,8 @@ fn copy_the_source_files(source: &SnapshotSource, destination: &Path) -> HashMap
 ///  and the path's bytes at that moment are not the ones Git's checkout makes,
 /// which is why a stat that vouched for them would have been a lie.
 /// A plant that installs the source's index unchanged
-/// (`seed_without_stat` returning it as it is, the fence-before-the-clone order)
+/// (`seed_without_stat` returning it as it is,
+/// the fence-before-the-clone order)
 /// makes the first assertion fail and names the path,
 ///  the size the entry records and the size Git writes.
 ///

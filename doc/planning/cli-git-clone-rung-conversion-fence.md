@@ -1,11 +1,20 @@
 # The clone and snapshot rungs under Git's checkout conversions: a fence, its cost, and the options
 
 **Unapproved and non-final.**
-Nothing here is a project decision and nothing is declared complete;
+Nothing here is declared complete;
 the owner declares
 completion.
 This is a proposal with a prototype and measurements on this host,
 under the load it had.
+**The project has chosen option B as the remedy**
+(2026-11-20T23:27:00-05:00,
+"Yeah,
+do B.",
+`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 10's notes),
+so the shape this proposal ships is B,
+the options section is the record of what it was chosen over,
+and the "Limitations" section lists what B still is not right about.
 
 Issue:
 GitHub issue 6323,
@@ -44,6 +53,15 @@ and both keep every arm's worktree equal to `main`'s,
 so what the project weighs is step 3's **0.49 to 0.59** (resolved in both) against the fence's **0.98 to 1.11**
 (not resolved more tightly than that;
 see "This repository as it is" below).
+Those numbers are option A′'s,
+the fence decided before the clone.
+This round built option B,
+which runs the same reads beside the clone and keeps the same right bytes,
+and measured it on the same three fixtures:
+its numbers,
+and each option's cost above `main`,
+are in "The options,
+with their measured cost" and "Option B beside the clone".
 
 ## What is wrong, in one paragraph
 
@@ -415,7 +433,7 @@ with its own controls),
 `worktree_clone_conversion_fence.rs` (the reads and the two write steps)
 and,
 for the shipped order,
-`worktree_clone_conversion_beside_the_clone.rs` (the reads on their own thread and the seed the index is
+`worktree_clone_conversion_beside_the_clone.rs` (the reads as a job beside the copies and the seed the index is
 installed from).
 Its steps are the same in both orders this round built:
 
@@ -464,7 +482,9 @@ Its steps are the same in both orders this round built:
 
 The two orders differ in when steps 2 to 5 run and what the index holds when step 6 runs:
 
-- **A′, the fence before the clone** (this branch's earlier shape, kept behind the off-by-default
+- **A′,
+  the fence before the clone** (this branch's earlier shape,
+  kept behind the off-by-default
   `measurement-routes` feature because it is the arm the report times):
   steps 2 to 5 run in `choose_rung`,
   before the add's record is claimed and before real Git runs;
@@ -473,7 +493,9 @@ The two orders differ in when steps 2 to 5 run and what the index holds when ste
   step 6 first zeroes the written paths' entries with one `git update-index -z --index-info`
   (the intersection with the index is also why that run sends only paths the index holds),
   then asks for them.
-- **B, the fence beside the clone** (shipped; the order and its safety argument are the next section):
+- **B,
+  the fence beside the clone** (shipped;
+  the order and its safety argument are the next section):
   steps 2 to 5 run concurrently with the copies,
   and the index is installed only after both have answered,
   from a seed that holds no stat data for the written paths,
@@ -552,7 +574,8 @@ paths to Git.
 
 ## Option B: the order beside the clone, and why each step is safe
 
-This round built option B, which the project asked for first
+This round built option B,
+which the project asked for first
 (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 step 10's notes,
 the project's 2026-11-20T22:37:00-05:00 answer).
@@ -573,31 +596,46 @@ the new `HEAD` must be a plain commit,
 the tracked attribute files of the two trees must agree,
 and no untracked or ignored `.gitattributes` may sit above a tracked path.
 
-1. **The fence starts on its own thread**
-   (`FenceBesideTheClone::start`): one `git check-attr` over every tracked path,
+1. **The copies start as one task of the process's runtime,
+   and the fence starts on the add's own thread**
+   (`clone_tracked_bytes_beside`).
+   The task awaits the slices' jobs of the blocking pool;
+   the fence's Git runs cannot run inside the runtime at all,
+   because the synchronous face enters it around the pipes it reads and is refused from within it
+   (`RuntimeError::Nested`),
+   and a blocking-pool thread carries the runtime's handle.
+   So the add's own thread,
+   which is otherwise waiting,
+   runs the fence:
+   one `git check-attr` over every tracked path,
    the decline count from those attributes,
    one `git ls-tree` for the blob sizes,
    and the per-path decision.
    It reads the source's attributes and the frozen commit,
    and nothing else.
+   A repository below the clone's break-even has one thread for the copies,
+   so the fence runs before them there instead of beside them.
 2. **The clones copy every tracked file**
-   (`clone_tracked_bytes`):
+   (`clone_tracked_bytes_beside`):
    each source file is opened below a held handle of the source root,
    its descriptor's fields are compared with the frozen index entry before and after the copy,
    and the destination entry is created below a held handle of the destination.
    No index exists yet,
    so nothing can vouch for a copied path.
 3. **The join is taken whatever each side answered**
-   (`FenceBesideTheClone::join`),
-   so no thread is left reading the source while Git's own checkout writes the destination,
-   and a thread that panicked is the rung's reason.
+   (`run_on_runtime` awaits the copies' task once the fence has returned),
+   so no task or job is left reading the source while Git's own checkout writes the destination,
+   and a task that ended without an answer is the rung's reason.
+   The copies' jobs take their places in the process's one bound on blocking jobs,
+   so the fence adds no thread to the fan-out and the slices keep their own.
 4. **A fence that ends the rung ends it here**,
    before any index exists:
    the copies stay (Git's checkout overwrites the tracked ones),
    the reason is logged and,
    for the decline and every other clone-rung ending,
    told to the person in the clone rung's words
-   (`explain_clone_failure`, or `explain_decline` for a decline decided before any copy in option A′).
+   (`explain_clone_failure`,
+   or `explain_decline` for a decline decided before any copy in option A′).
 5. **The seed is built in memory**
    (`seed_without_stat`):
    the proven source index bytes with the stat data of every written path zeroed,
@@ -638,12 +676,13 @@ not by what it would have cleaned up.
   so no interleaving of them changes an answer:
   a fence killed leaves the copies as they were,
   and a clone killed leaves the fence's reads to finish or fail on their own.
-  The fence's thread records its duration as work (`fenceBesideTheClone`),
-  because a timing step belongs to the thread that runs it.
+  The fence records its duration as work (`fenceBesideTheClone`),
+  because a timing step belongs to the thread that runs it and this one runs beside the copies' task.
 - **A kill before step 6 leaves no index at all.**
   The destination holds copies of tracked files and Git's `.git` file;
   no entry vouches for any path,
-  so Git's own checkout (`git reset --hard`, the rung's fallback) writes every tracked path,
+  so Git's own checkout (`git reset --hard`,
+  the rung's fallback) writes every tracked path,
   and the add's claim,
   taken before any of this began,
   is what the next command uses to remove or finish the add.
@@ -684,8 +723,10 @@ not by what it would have cleaned up.
   an add to a differing tree whose written path's clean form is not its blob ends the clone rung.
   The three measured fixtures check out one commit in both trees,
   so no timed arm reaches it;
-  the fix (run the tree difference against a copy of the index that still has its stat data, then install the zeroed
-  seed from that result) is recorded as open work, not shipped.
+  the fix (run the tree difference against a copy of the index that still has its stat data,
+  then install the zeroed
+  seed from that result) is recorded as open work,
+  not shipped.
 - **A failure of step 8** is a Git failure with Git's own words,
   and it ends the rung the same way.
 
@@ -705,8 +746,10 @@ past its threshold the clone is wasted work,
 and below it the fence's write is cheaper than Git's checkout,
 which is the same comparison the rule was set from.
 This round measured both:
-the converting fixture (0.644 of its paths) declines and pays the copy, and the 0.199 fixture does not
-and pays the write step ("What it costs", "Option B beside the clone").
+the converting fixture (0.644 of its paths) declines and pays the copy,
+and the 0.199 fixture does not
+and pays the write step ("What it costs",
+"Option B beside the clone").
 Two consequences the project should weigh with the numbers:
 
 - a source above the threshold is now slower than `main` by about the clone's time,
@@ -962,6 +1005,231 @@ the early decision took it from two Git checkouts to one,
 and what remains is a cost the project must accept or refuse,
 not an absent one.
 
+### Option B beside the clone, this round's runs
+
+Three runs of this round,
+each on a throwaway repository of this repository's tracked files built from its working tree,
+**with its real attribute set:
+all eight `filter=lfs` lines kept**,
+their 1,578 files added through the standard Git LFS filter,
+24,435 tracked files,
+14,166 of them `.md` or `.ts`.
+The runs differ in the attribute lines alone:
+"as it is" appends nothing,
+the 0.199 source appends `*.md text eol=crlf`,
+and the 0.644 source appends `*.md text eol=crlf` and `*.ts text eol=crlf`;
+none sets `core.autocrlf`.
+Five arms rotate one position per round:
+option B (the shipped build),
+its identical-binary control,
+option A′ (`MONOCHROMATIC_CLONE_FENCE=beforeclone` on the measurement build),
+option C (`decline`),
+and `main`.
+Every add ran in its own capped `systemd-run --user --scope`
+(`CPUQuota=200%`,
+`MemoryMax=4G`,
+`TasksMax=400`,
+`IOWeight=1`,
+its environment through `env --ignore-environment`),
+with `sync --file-system` and 300 ms between adds,
+one warm-up round,
+and every worktree compared with `main`'s **after** the counted rounds,
+outside the timed window.
+
+Rule `QNB`'s spread came first in each run,
+one arm alone on unchanged input:
+1,823 to 3,365 ms on this repository,
+2,138 to 2,212 on the 0.199 source,
+and 3,353 to 3,589 on the 0.644 source.
+The host carried other sessions' work through all three runs
+(load averages 8.9,
+7.2 and 5.7 at their ends),
+which is why each arm is quoted with its identical-binary control's own per-round disagreement beside it.
+
+Binaries,
+each tied to its commit:
+option B at `a95b3e2eb3` (sha256 `c97aa0de…`),
+the same code plus `measurement-routes` for A′ and C (sha256 `dc5de205…`),
+and `main` at `f055bdc5c4`,
+the tip this round merged (sha256 `ccd37cc5…`;
+the two commits after it are handover documents and touch no module the add runs),
+all under
+`~/temp/agent/clone-rung-conversion-fence-beside-the-clone-2026-11-20/scratch/keep/binaries/`
+with `sha256.txt` and `commits.txt` beside them.
+The shipped build holds no `MONOCHROMATIC_CLONE_FENCE` string (`strings` finds none) and the measurement build does.
+
+The step split,
+medians in ms:
+
+- option B on this repository:
+  the clean check 76,
+  the fence 451 on the add's thread (check-attr 35.8,
+  ls-tree 299.8,
+  decision 12.7,
+  the window's tail 73.1),
+  the copies' wait 477,
+  the install 45,
+  `git checkout-index` 512 for 1,578 LFS paths,
+  the whole record 1,875;
+- option A′ on this repository:
+  the clean check 77,
+  the fence 276 on the waiting path (35.5,
+  197.7 and 43.9),
+  the copies 701,
+  the install 46,
+  `git update-index` 14,
+  `git checkout-index` 538,
+  the whole record 1,905;
+- option B on the 0.199 source:
+  the fence 463 (47.5,
+  345.2,
+  12.8 and 54.4),
+  the copies 448,
+  the install 44,
+  `git checkout-index` 876 for 4,866 paths,
+  the record 2,177;
+- option A′ on the 0.199 source:
+  the fence 266 (33.3,
+  188.5 and 43.7),
+  the copies 733,
+  the install 46,
+  `git update-index` 15,
+  `git checkout-index` 890,
+  the record 2,321;
+- option B on the 0.644 source:
+  the copies 731,
+  then `finishRung` 2,522,
+  which is the fallback `git reset --hard` writing all 24,435 paths over the copies,
+  against `main`'s `gitAdd` 1,971;
+- option C and `main` never clone or write through the fence:
+  C is `main`'s checkout (`gitAdd` 1,845 to 1,926) plus the reads (26 to 27 ms).
+
+Per round,
+the option B arm against its identical control and against the other arms
+(wall ms):
+
+- this repository,
+  five counted rounds:
+  B 1,729,
+  1,992,
+  1,907,
+  1,899,
+  1,774;
+  control 1,814,
+  1,844,
+  1,813,
+  1,834,
+  1,648;
+  A′ 1,979,
+  1,914,
+  1,928,
+  1,985,
+  1,737;
+  C 2,337,
+  2,183,
+  2,215,
+  2,166,
+  2,038;
+  `main` 2,154,
+  2,240,
+  2,225,
+  2,050,
+  2,218;
+- the 0.199 source,
+  seven counted rounds:
+  B 2,054,
+  2,149,
+  2,129,
+  2,338,
+  2,198,
+  2,288,
+  2,248;
+  control 2,236,
+  2,084,
+  2,078,
+  2,251,
+  2,309,
+  2,131,
+  2,288;
+  A′ 2,349,
+  2,158,
+  2,200,
+  2,446,
+  2,383,
+  2,352,
+  2,294;
+  C 2,258,
+  2,133,
+  2,115,
+  2,239,
+  2,207,
+  2,178,
+  2,266;
+  `main` 2,108,
+  1,972,
+  2,091,
+  2,180,
+  2,254,
+  2,259,
+  2,212;
+- the 0.644 source,
+  seven counted rounds:
+  B 3,756,
+  3,787,
+  4,048,
+  3,839,
+  3,543,
+  3,430,
+  3,780;
+  control 3,451,
+  3,623,
+  3,443,
+  3,584,
+  3,602,
+  3,606,
+  3,658;
+  A′ 2,165,
+  3,783,
+  2,267,
+  2,574,
+  2,534,
+  2,289,
+  2,159;
+  C 2,094,
+  2,282,
+  2,201,
+  2,410,
+  2,424,
+  2,239,
+  2,403;
+  `main` 2,027,
+  2,344,
+  2,080,
+  2,163,
+  2,198,
+  2,142,
+  2,267.
+
+What these say:
+
+- **B against A′ is not resolved on wall time where the fence serves the rung.**
+  The identical pair disagrees by 0.93 to 1.05 on this repository and 0.93 to 1.09 on the 0.199 source,
+  and A′ against B is 1.01 and 1.03 across those rounds (rule `QNB`).
+  What the records show instead is where the time went:
+  B's copies overlap the fence,
+  so the copies' wait is 477 against 701 ms and 448 against 733,
+  while the fence's own steps are longer for the same overlap (451 against 276,
+  463 against 266).
+- **B's decline is resolved as a cost.**
+  On the 0.644 source B is slower than A′ in six of the seven rounds,
+  by 1,009 to 1,781 ms (the seventh is 4 ms apart),
+  and slower than `main` in all seven by 1,288 to 1,968;
+  its identical pair agrees at 0.96 (0.85 to 1.05),
+  so 1.67 to 1.75 of `main` is a difference and not noise.
+- **Every arm's bytes are right in all three runs:**
+  `git status` clean and `diffVsMain=0` for all five arms of all three,
+  after the rounds.
+
 ### The decline rule's threshold, from these runs
 
 No fitted model,
@@ -973,7 +1241,7 @@ against `main`'s 2,260 in the same run.
 The fence stays under `main` while its written paths cost less than 2,260 − 1,520.6 = 739 ms.
 1,578 LFS paths cost 552 ms,
 which is under;
-4,855 mixed paths cost 930 ms,
+4,866 mixed paths cost 930 ms,
 which is over.
 The break-even therefore lies between those shares,
 **0.065 and 0.199**,
@@ -984,6 +1252,15 @@ The previous round's derivation (a 0.114 ms mean over both classes and one `chec
 
 The rule is therefore not a break-even rule,
 and this proposal no longer says it is.
+Its threshold prices option A′'s decision,
+and option B changes what a decline costs:
+measured on the 0.644 source,
+A′'s decline is 1.06 to 1.09 of `main` and B's is 1.67 to 1.75,
+because B pays the copies first.
+A threshold that minimized B's cost would be lower,
+or the decline would be decided from the attributes before the copies;
+neither is measured,
+and the quarter is kept as the threshold A′'s runs set.
 What it does:
 it keeps the clone rung for sources whose converting share is small
 (this repository's 0.065 is measured at 0.98 to 1.11 of `main`)
@@ -1091,6 +1368,13 @@ because their `text` action applies before the size is looked at).
 
 ### What this round did not measure
 
+- An add whose new `HEAD` differs in a path Git must write:
+  the timed fixtures check out one commit in both trees,
+  so no measured arm pays the clone-and-checkout the tree difference can force on option B;
+  the class harness's `m05` reaches it at three files and shows the route,
+  not a price.
+- A clone rung below the decline rule with a share between this repository's 0.065 and the measured 0.199:
+  the band is priced by the two endpoints and no run sits inside it.
 - A repository with no conversion rules at all:
   not built.
   What differs from the "as it is" run is that no path is written through Git,
@@ -1209,181 +1493,194 @@ and its dirty path's `restore_dirty` believes every stat-exact entry.
 
 ## The options, with their measured cost
 
-Every option below is a way to keep the clone rung (or give it up) while writing no byte Git's own checkout would not.
-Only options built and measured are ranked;
-one unbuilt option is listed after them,
-marked unmeasured,
-and ranked nowhere
-(the gate review's M2).
-The numbers are this round's medians on the three fixtures above,
-24,426 tracked files and 1,578 LFS paths,
-`main` at 2,119 ms as it is,
-2,287 on the 0.199 source and 1,952 on the converting one,
-with the identical-binary control beside every arm.
+The project chose option B on 2026-11-20T23:27:00-05:00
+("Yeah,
+do B.",
+`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 10's notes),
+after the previous round put A′,
+B,
+C,
+D and E to it.
+This section is therefore the record of what B was chosen over,
+not a ranking to answer again:
+**B is the remedy**,
+and each option below carries the cost it was measured at,
+so the project can see what it accepted.
 
-**A.
-The per-path fence before the clone,
-without a decline rule.**
-One `git check-attr` over every tracked path,
-one `git ls-tree` for the sizes,
-the decision in process,
-then one `git update-index` and one `git checkout-index -u` for the paths left to Git.
-Measured this round on the 0.199 source:
-**2,703 ms,
-1.18 of `main`** [1.05 to 2.95 per round],
-control 1.01;
-the earlier round measured it at 3,192 ms (1.50) on the converting source
-(`measure-r5-crlf-*`).
-Right on every path it was measured on.
-Pros:
-nothing is refused,
-so any source keeps the clone's disk saving;
-the decision is Git's own rules and an unknown state is a path for Git.
-Cons:
-where many paths convert it is slower than the thing it replaces,
-which is why it does not ship in this shape (H4).
-
-**A′.
-A plus the decline rule,
-the shipped shape of this proposal.**
-The count of paths whose own rule converts them is known from the attributes alone,
-before any blob is read;
-past a quarter of the tracked paths and past a thousand of them,
-the fence decides in `choose_rung`,
-before the add's record is claimed and before real Git runs,
-and Git's own single checkout writes the worktree.
-Measured this round:
-**2,021 ms on this repository as it is** (the rule does not fire:
-1,578 of 24,426,
-0.065;
-fence 0.98 of `main`,
-control 0.90),
-**2,477 ms on the 0.199 source,
-1.13** [1.07 to 2.65],
-control 1.01,
-where the rule does not fire either,
-and **2,089 ms on the converting source,
-1.08** [0.98 to 1.51],
-control 1.01,
-where it fires and pays about 0.07 of `main` in reads.
-Right on every path in all three.
-Pros:
-it keeps the clone rung wherever the share is small
-(this repository's 0.065),
-and where it declines it is one Git checkout plus the fence's reads,
-not two checkouts.
-Cons:
-its threshold is a quarter,
-above the measured break-even (between 0.065 and 0.199),
-so a share between them is not declined and costs up to about 1.2 of `main` (1.13 measured at 0.199);
-and on rung 1 the rule is still decided after the snapshot,
-which is the cost this proposal does not yet have.
-This is the option the ranking puts first,
-on the design reason and not on a cost difference (below).
+Every option keeps the clone rung (or gives it up) while writing no byte Git's own checkout would not.
+The numbers are kept runs'
+medians of the whole add,
+24,435 tracked files and 1,578 LFS paths in this round's fixtures,
+with the identical-binary control beside every arm that this round ran,
+and every arm's worktree clean with `diffVsMain=0` against `main`'s.
 
 **B.
-The same fence beside the clone.**
-**Not built,
-not measured,
-not ranked.**
-The earlier draft placed it between measured options on a bound computed from measured steps;
-that bound is still only a bound,
-and the option needs the clone,
-the fence and the index install reordered around a concurrency the add does not have.
-It stays open for a repository whose clone is much longer than its fence,
-and building it is the first thing to do if the fence's reads are to come off the add's waiting path.
+The fence beside the clone (the project's remedy).**
+The fence's reads (`git check-attr`,
+the decline count,
+`git ls-tree` and the decision) run on their own thread while the clones copy the tracked files;
+the index is installed only after both have answered,
+from the source's proven index with the written paths' stat data zeroed;
+one `git checkout-index` then writes them.
+Measured this round (`measure-beside-real-*`,
+`-md-*`,
+`-crlf-*`,
+five and seven counted rounds):
+
+- this repository as it is (1,578 of 24,435 paths convert,
+  0.065):
+  **1,899 ms,
+  0.86 of `main` per round (median of per-round ratios;
+  the ratio of medians is 0.86)**,
+  its identical-binary control 1,814 ms (0.82 per round,
+  0.82 of medians),
+  `main` 2,218;
+  the identical pair agrees at 0.95 (0.93 to 1.05),
+  so this run separates neither B from `main` nor B from A′
+  (A′ 1,928,
+  0.87;
+  the pair's per-round ratio of A′ to B is 1.01,
+  0.96 to 1.15).
+- the 0.199 source (4,866 of 24,435 paths written by Git):
+  **2,198 ms,
+  1.02 of `main` per round (1.01 as a ratio of medians)**,
+  control 2,236 (1.03 per round),
+  A′ 2,349 (1.06),
+  C 2,207 (1.02),
+  `main` 2,180;
+  the pair agrees at 0.98 (0.93 to 1.09) and A′ against B is 1.03 (1.00 to 1.14),
+  so again not separable.
+- the 0.644 source (15,743 of 24,435 paths,
+  above the quarter,
+  so B declines after its copies):
+  **3,780 ms,
+  1.67 of `main` per round** (1.75 as a ratio of medians),
+  control 3,602 (1.66 per round;
+  the identical pair agrees at 0.96,
+  0.85 to 1.05),
+  A′ 2,289 (1.09),
+  C 2,282 (1.06),
+  `main` 2,163.
+  Here the difference is resolved:
+  B is slower than A′ in six of the seven rounds,
+  by 1,009 to 1,781 ms (the seventh is 4 ms apart),
+  and than `main` in all seven by 1,288 to 1,968.
+
+What B buys,
+and what it does not,
+is in the record of the same runs:
+the copies start as a task of the runtime and their slices' jobs run on the blocking pool while the add's own thread
+runs the fence,
+so the copies' wait overlaps the fence's reads.
+The fence's steps on the add's own thread are **451 ms on this repository** (`git check-attr` 35.8,
+`git ls-tree` 299.8,
+the decision 12.7 and the window's own tail 73.1)
+against A′'s **276 ms** (35.5,
+197.7 and 43.9),
+and on the 0.199 source **463 against 266**:
+B's `git ls-tree` is slower because during its pipe reads the add's thread also drives the copies' task.
+What the overlap saves is the copies' wait:
+the clones' own step is 477 against 701 ms on this repository and 448 against 733 on the 0.199 source,
+because in B part of that wait is spent inside the fence's steps.
+The two totals then are 1,899 against 1,928 and 2,198 against 2,349 ms,
+inside the identical pair's disagreement in both runs,
+so what B removes from the waiting path is the rest of the copies' wait,
+and this round did not resolve its wall-time size:
+the readings that would (the fence's own work,
+421 to 443 ms,
+against the copies' 448 to 477) are the same order.
+Right on every path in all three:
+18 of 18 class controls in the guest,
+26 of 26 scenarios in the class harness (one of which ends the rung at the tree difference,
+`m05`),
+and 300 of 300 repositories of the 150-combination sample.
+Its limits are the "Limitations" section's.
+
+**A′.
+The fence before the clone with its decline rule**
+(the shape the previous round put first,
+kept as the measurement arm behind `measurement-routes`).
+One `git check-attr` over every tracked path,
+one `git ls-tree`,
+the decision in process,
+then one `git update-index` and one `git checkout-index` for the paths left to Git;
+past a quarter of the converting paths and past a thousand of them,
+the rung ends before anything is copied.
+Measured this round (`beforeclone`):
+**1,928 ms on this repository (0.87 of `main` per round,
+0.87 of medians)**,
+**2,349 on the 0.199 source (1.06,
+1.08)**,
+**2,289 on the 0.644 source (1.09,
+1.06)**;
+its fence puts 266 to 276 ms on the waiting path,
+and its copies are 701 to 733 ms because they start after that read.
+Right on every path in all three.
+Its costs above `main`:
+a declining add is `main` plus the reads (1.06 to 1.09 measured here,
+0.07 to 0.11 in the previous round),
+and the 0.199 band is up to about 1.1.
+
+**A.
+A′ without its decline rule.**
+Measured in the previous round on the 0.199 source at 2,703 ms,
+1.18 of `main` [1.05 to 2.95 per round],
+control 1.01,
+and in the round before on the converting source at 3,192 ms (1.50).
+Not measured this round.
+Its cost above `main` is the whole write step where many paths convert,
+which is why the rule exists.
 
 **C.
 A whole-source refusal,
 no per-path fence.**
-Measured this round:
-**2,292 ms on the 0.199 source (0.98 of `main`)** and
-**2,037 ms on the converting source (1.07)**,
+Measured this round (`decline`):
+**2,183 ms on this repository (1.00 of `main` per round,
+0.98 of medians)**,
+**2,207 on the 0.199 source (1.02,
+1.01)**,
+**2,282 on the 0.644 source (1.06,
+1.06)**,
 which is `main`'s checkout plus the wrapper's checks,
-because a declined add is Git's checkout.
-It gives up the clone rung for every source with a conversion setting or an attributes file,
-and this repository's first attribute line is one;
-on this repository as it is it was measured only in the earlier round's first run
-(2,583 ms,
-which that round itself says was polluted and does not quote for A,
-so it is not quoted here either).
-Pros:
-no `git check-attr`,
-no `git ls-tree`,
-no per-path model,
-0.3 ms of configuration reading.
-Cons:
-it gives up the clone rung even where almost nothing converts,
-which on this repository means the disk saving at 0.49 to 0.59 of `main`.
+because a refused add is Git's checkout.
+Its cost above `main` is those checks,
+and it gives up the clone rung for every source with a conversion setting or an attributes file,
+which includes this repository's first attribute line:
+on this repository that is the disk saving at 0.49 to 0.59 of `main`.
 
 **D.
 Git writes every tracked path after the clone.**
-Measured in the earlier round's `r4` on its clean fixture,
-with its own control arm:
+Measured in the earlier round on its clean fixture:
 4,274 ms against `main` 2,057 (2.07 times `main`),
 and 4,170 on the converting one.
-The later "as it is" run measured it once,
-at 4,735 ms median (4,091 to 9,801) against `main` 4,225 in that run,
-whose control spread was 1.44,
-so the 2.07 is the number to use.
-Pros:
-no attribute model,
-no untracked-attribute rule.
-Cons:
-twice `main`;
-the rung keeps only its disk saving.
+Not measured this round.
+Its cost above `main` is about one whole checkout,
+because the clone is wasted work under it.
 
 **E.
 Keep step 3 as it is and accept the wrong bytes.**
-Measured wrong in the earlier round's converting run:
-7,097,444 lines of `diff` against `main`'s worktree,
+Wrong by 7,097,444 lines of `diff` against `main`'s worktree in the earlier round's converting run,
 with every stat check green.
 Rejected:
 `main` on ZFS gets these bytes right,
-so this fails the merge bar with no waiver that covers it,
+so it fails the merge bar with no waiver that covers it,
 and `SPEC.md:1223` promises the snapshot's worktree is what Git's checkout makes.
 
-**The declining shape's overhead is a cost the project must weigh.**
-Where the rule fires,
-the add is `main` plus the fence's reads:
-about 0.07 of `main` in this round's converting run (137 ms median)
-and about 0.11 in the previous round's (246 ms).
-The merger's waiver record covers two named time costs,
-neither this one,
-so this proposal puts it to the project as the cost of the shape rather than calling it absent.
-
-Ranking:
-**A′ first,
-C second,
-D third,
-E last;
-B unranked until it is measured.**
-
-- A′ over C:
-  **not resolved on cost.**
-  On the 0.199 source A′ is 2,477 ms and C 2,292,
-  and on the converting source 2,089 against 2,037;
-  the identical-binary control's own per-round ratio spans 0.93 to 1.15 on the first and 0.99 to 1.03 on the second,
-  so the 0.97 to 1.08 differences are inside the spread that says nothing (rule `QNB`).
-  What ranks A′ first is the design reason:
-  where few paths convert it keeps the clone rung,
-  and C gives it up;
-  on this repository as it is that is the disk saving step 3 already had at 0.49 to 0.59 of `main`.
-  The time it saves over C where nothing converts is not measured,
-  and this ranking does not claim one.
-- C over D:
-  C is 2,292 ms on the 0.199 source and D 4,274 ms on its own fixture,
-  because D's clone is wasted work on top of a checkout that writes everything;
-  both are right,
-  and C is the cheapest correct answer for a repository with no conversion rules at all.
-- D over E:
-  D is right and E is wrong by 7,097,444 lines of `diff` with every check green.
-
-Why B is not between them:
-an option that was not built cannot be ranked against options that were,
-and the earlier draft's B over C reason ("C is measured and needs no new concurrency") was a reason to prefer the
-built one,
-not a cost.
+**The costs above `main` the project accepted with B.**
+One paragraph,
+because they are the price of the choice and not an absence of one:
+where the fence writes few paths B measures 0.86 of `main` on this repository and 1.02 at 0.199,
+with its identical pair agreeing at 0.95 and 0.98,
+so neither distance is resolved and the costs there are not shown to be above `main` at all;
+above the quarter a decline now pays the copies as well as Git's checkout,
+measured at 1.67 to 1.75 of `main` on the 0.644 source against A′'s 1.06 to 1.09 and C's 1.06.
+The third is the one the choice buys and the project should have in front of it:
+a repository whose attributes convert most of its paths gets a correct worktree at about 1.7 times `main`'s time,
+where the same repository under A′ would get it at about `main`'s.
+Deciding the decline from the attributes before the copies (33 to 35 ms of `git check-attr`) is the change that would
+remove that cost,
+and it is not built or measured.
 
 ## What these costs imply for the partial-clone proposal
 
@@ -1410,9 +1707,11 @@ This round's numbers support only the parts of that estimate that compare like w
   so a fenced dirty partial clone of a source with this repository's own attribute set is expected near `main`,
   with the partial clone's gain erased by the fence's reads and its LFS handling,
   not multiplied.
-  A source with no LFS content and no converting rule was named as the case where the review's earlier 0.97 to 1.08 stands
-  as a ceiling, and that figure is **withdrawn**: it came from the estimate this section removes, and no kept run measured
-  that case.
+  A source with no LFS content and no converting rule was named as the case where the review's earlier 0.97 to 1.08
+  stands as a ceiling,
+  and that figure is **withdrawn**:
+  it came from the estimate this section removes,
+  and no kept run measured that case.
 
 No fenced partial clone has been measured,
 so the partial clone cannot be put to the project with this fence as it stands,
@@ -1486,7 +1785,9 @@ after the sentence about the clean-source requirement:
 > the rung declines when the fence answers and Git's checkout writes the worktree,
 > so the write step is the one Git's own checkout would have made;
 > after the copies a decline has paid them,
-> and where the rung declines the add is Git's checkout plus the fence's reads and, in the beside-the-clone order, the
+> and where the rung declines the add is Git's checkout plus the fence's reads and,
+> in the beside-the-clone order,
+> the
 > copy (measured:
 > about 0.07 to 0.11 of `main` for the reads in the order that decides it before the copy).
 > An add whose new `HEAD` differs in a path Git must write can end the rung at the tree difference,
@@ -1566,7 +1867,8 @@ not an absence of them:
 a declining add is `main` plus the fence's reads (0.07 of `main` in the previous round's run and 0.11 in the one before
 it),
 and an add below the decline rule that writes many paths is up to about 1.2 of `main` (1.13 measured at 0.199).
-Option B changes the first of those: a decline after its clone pays the copy and then Git's checkout,
+Option B changes the first of those:
+a decline after its clone pays the copy and then Git's checkout,
 which is this round's to state as a cost (see the options).
 Whether the project asks for a waiver for them or refuses the shape is the project's answer to give;
 this proposal does not decide it,
@@ -1635,7 +1937,8 @@ with the evidence kept beside this round's records:
   and 0.55 to 0.91 s for this repository's 1,578).
   The earlier promise of a section about carrying them is replaced by that reasoning.
 - **H4,
-  the decline rule priced, and the shapes that are slower than `main` stated as costs.**
+  the decline rule priced,
+  and the shapes that are slower than `main` stated as costs.**
   The rule declines past a quarter of the tracked paths and past a thousand;
   measured on the converting source:
   2,468 ms with the rule against 3,192 without,
@@ -1944,12 +2247,76 @@ and it fixed the sentences that diff check found wrong.
 Everything it measured is kept under
 `~/temp/agent/clone-rung-conversion-fence-beside-the-clone-2026-11-20/scratch/keep/`.
 
+### What the diff check found, and what this round did
+
+The diff check's verdict was "not fit to put to the project as it stands;
+what is left is a few sentences",
+and every finding it raised is closed here:
+
+- **N1 (high),
+  a section that said no shape is slower than `main`.**
+  The waiver section and the retrospective bullet now state the costs above `main` as costs:
+  the declining add at `main` plus the fence's reads (0.07 to 0.11 of `main`),
+  the 0.199 band at 1.13,
+  and option B's decline paying the copy as well.
+  Whether the project asks for a waiver is left to the project.
+- **N2/M3 (medium),
+  the false reason for not building the in-process reads.**
+  Both places now say what the body said:
+  the repository has a pack reader,
+  a size-only method on it is new code,
+  and neither read was built or measured.
+  The claim that the object reader "cannot walk" this repository's packs is retracted.
+- **N3 (low),
+  two fence unit controls that did not exist at that gate.**
+  The section is retitled as the previous round's gate,
+  and it says the module had four unit controls at that commit and has six at the tip.
+- **N4 (low),
+  prices quoted from the wrong run.**
+  The shipped constant's comment,
+  the btrfs proposal's proposed text and the retrospective now give the range the kept runs give
+  (0.31 to 0.57 ms per LFS path),
+  and the comment no longer calls the quarter a break-even point.
+- **N5 (low),
+  the earlier fixture's converting counts.**
+  The counts are this fixture's:
+  3,288 `.md` plus 1,578 LFS paths is 4,866 of 24,426,
+  and the converting fixture's 15,743 of 24,426 is 0.644.
+- **N6 (low),
+  two sentences about A′ against C.**
+  A′ against C is "not separable" in both places,
+  the control's whole span is printed (0.93 to 2.16 and 0.78 to 1.03),
+  and the mixed "0.97 to 1.08" is gone.
+- **N8 (low),
+  the person is not told why a decline happened,
+  and a dead route note.**
+  Fixed in code:
+  a clone rung that ends now sets the slow route from its own reason
+  (`explain_clone_failure`,
+  and `explain_decline` for a decline decided before any copy),
+  so the person reads why the add took Git's checkout,
+  in the clone rung's words and never a snapshot's;
+  the dead `note_timing` line is deleted.
+- **N9 (low),
+  one partial-clone figure.**
+  The 0.97 to 1.08 ceiling is withdrawn,
+  because no kept run measured a no-LFS no-rule source.
+- **N10 (low),
+  no kept log for the whole container gate.**
+  This round's gate log is kept and named under "The runs,
+  and this round's gate".
+- **N11 (low),
+  a `-text` exemption the text claimed under `core.autocrlf=true`.**
+  The bullet now says the exemption holds only where nothing converts,
+  that under `core.autocrlf=true` a `-text` path is written by Git and counts toward the decline share,
+  and that what that costs is not priced.
+
 ### The ordering, red first
 
 The wrong ordering the option exists to avoid is a path recorded clean whose bytes Git would write differently.
 The control `the_installed_index_vouches_for_no_path_git_still_has_to_write`
-(`worktree_clone_conversion_beside_the_clone_tests.rs`) builds a repository whose `*.txt` rule makes Git's checkout write
-carriage returns,
+(`worktree_clone_conversion_beside_the_clone_tests.rs`) builds a repository whose `*.txt` rule makes Git's checkout
+write carriage returns,
 copies the source's files into a `--no-checkout` worktree with the source's times,
 installs the index the way the shipped order does,
 and asserts two things about the written path before Git's write:
@@ -1968,32 +2335,256 @@ With the seed as shipped it passes
 (`green-ordering-control.log`),
 and the plant patch is kept as `red-plant-seed-unzeroed.patch`.
 
-Two more unit controls stand beside it:
+Three more unit controls stand beside it:
 `the_seed_zeroes_the_stat_data_of_the_path_the_fence_leaves_to_git` reads the published seed entry by entry,
-and `the_fence_beside_the_clone_answers_what_the_fence_before_it_answers` runs the same fence on its own thread and
-compares its answer,
+`the_fence_beside_the_clone_answers_what_the_fence_before_it_answers` runs the same fence as the work beside the
+copies and compares its answer,
 and the seed built from it,
-with the caller's.
+with the caller's,
+and `the_slices_answer_beside_a_job_that_runs_with_the_copies` drives the sliced copy's start-and-wait with a job
+beside it and reads the index installed afterwards.
+The class controls' fixtures are below the clone's break-even,
+so they take the one-thread path;
+this control and the whole-repository runs are what reach the concurrent order.
 
 ### The class controls
 
-The eighteen committed binary controls of `worktree_clone_conversion` (the twelve classes, the two spellings fixed last
-round, and the four decline boundaries) ran in the guest below.
+The eighteen committed binary controls of `worktree_clone_conversion` (the twelve classes,
+the two spellings fixed last
+round,
+and the four decline boundaries) ran in a throwaway `libvirt` guest through `mvm`
+(their fixtures have three paths each,
+so they exercise the one-thread order,
+the same fence and the same seed the concurrent order uses,
+not the concurrent start)
+(`crf-b-controls`,
+created by the recipe of `package/zfs/request-to-openzfs-kernel-device`,
+Ubuntu 24.04 on 6.8.0-147-generic,
+Git 2.43.0,
+OpenZFS 2.4.4 on a 1 GiB encrypted file-backed pool with block cloning on),
+where the crate was built inside the guest and the controls ran one at a time:
+**18 of 18 passed**
+(`guest-zfs-conversion-suite-18-of-18.log`).
+The same guest then made a 6 GiB btrfs image and ran the ladder's and the clone module's own controls on it:
+**62 of 62 passed**,
+including `btrfs_the_slices_clone_every_entry_of_a_large_run`,
+`the_slices_answer_beside_a_job_that_runs_with_the_copies` and the other beside-the-clone unit controls
+(`guest-btrfs-ladder-and-clone-suite-62-of-62.log`).
+The first btrfs run there named every module whose name begins `worktree_clone`,
+189 tests,
+and 187 passed:
+the two failures are the clone-mount store controls for which root may rewrite a store its owner may not.
+The 62 are the ladder's and the clone's own modules by name;
+the 189-test run also carried `worktree_clone_mount`,
+whose two store controls fail as root,
+and the earlier guest's run of the pre-fix code named the same two the same way
+(`btrfs-suite.log` in the round's `guest-logs/`).
 The diff check's own harness (`classes.ts`,
 its copy kept here) ran twenty-six scenarios against the built binary on this host:
 **26 EQUAL**,
 23 served by the clone rung,
-2 refused before any copy by an untracked `.gitattributes` (`c06`, `c06b`),
+2 refused before any copy by an untracked `.gitattributes` (`c06`,
+`c06b`),
 and one (`m05`) ended at the tree difference as the option's known regression describes
-(`class-records-beside-db5bc6818b.json`, `class-stderr-beside-db5bc6818b-*.log`).
+(`class-records-beside-346ec0bec0.json`,
+`class-stderr-beside-346ec0bec0-*.log`,
+run against the final code;
+the earlier run's records are kept beside them).
 
-The re-check's 150-combination sample (seed 11) ran here too: MATRIX_RESULT.
+The re-check's 150-combination sample (seed 11) ran here too,
+from the diff check's kept harness (`matrix.ts`) against the same built binary:
+**300 repositories,
+300 EQUAL,
+300 served by the clone rung**
+(150 combinations,
+each in the two states the harness uses:
+the rules in place when the files were added and the rules set after the add),
+in `matrix-beside-346ec0bec0-seed11-n150.json`
+(the earlier run's `matrix-beside-seed11-n150.json` is kept beside it).
+
+### What went wrong in this round, and what caught it
+
+- The first build of option B started the fence on a thread of its own.
+  The container gate's `source_guard` set refused it by name
+  (`worktree/worktree_clone_conversion_beside_the_clone.rs:94 [thread-start] starts a thread; work the runtime can carry is
+  a task, and work it cannot carry is a job of the blocking pool`),
+  and the same gate run found that the standing notice's table had no sentence for the new step
+  (`a step an add enters has no sentence of its own: ["conversionBesideTheClone"]`).
+  The gate's first log is kept as `container-gate-beside-db5bc6818b.log`.
+- The first fix moved the fence onto the blocking pool,
+  and the measurement run that followed showed every served add
+  ending at the tree difference:
+  `a Git run of the fence could not start (the runtime that runs this command's waits was asked for from inside itself…)`.
+  The synchronous Git face enters the runtime around the pipes it reads,
+  and a blocking-pool thread carries the runtime's handle,
+  so it is refused there as it is inside a task.
+  The shipped shape therefore starts the copies as one task of the runtime and runs the fence on the add's own thread,
+  which is otherwise waiting;
+  that run's numbers are kept and superseded (`measure-beside-real-real-…T05-27-11` and `-md-md-…T05-34-38`).
+- The first btrfs guest run failed `btrfs_the_slices_clone_every_entry_of_a_large_run`,
+  whose assertion counted the `MANY_FILES` constant while the fixture tracks that many files plus a `.gitignore`.
+  The control now counts the source's index (41 paths at that fixture).
+  The same run's two clone-mount store controls fail as root,
+  which is the account the guest suite runs as,
+  and they were excluded by naming only the modules this round touches.
+- - Three timing batches were run.
+  The first (`measure-beside-real-real-…T04-26-36`,
+    `-md-md-…T04-32-09`,
+    `-crlf-crlf-…T04-39-00`)
+  measured the thread version under another session's load,
+  with the control's disagreement reaching 44 percent on this repository;
+  the second (`…T05-27-11`,
+    `…T05-34-38`,
+    and the `-crlf` run this round stopped)
+  measured the pool version,
+    whose served adds all ended at the tree difference;
+  the third (`…T05-45-56`,
+    `…T05-51-05`,
+    `…T05-56-56`) measures the shipped code and is what this proposal quotes.
+- The first driver run's guest build named no `package/zfs/request-to-openzfs-kernel-device`,
+  which the wrapper depends on by path,
+  and failed before compiling;
+  the second's guest had no `HOME`,
+  which the socket-folder fixture needs;
+  both are recorded in the round's `guest-logs/` and fixed in the driver.
+- Two shell slips of mine are recorded rather than hidden:
+  one command chained with `;` where `AGENTS.md` asks for one script,
+  and one long command was not put in a scope of its own.
 
 ### The runs, and this round's gate
 
-RUNS_RESULT
+The three timing runs are "Option B beside the clone,
+this round's runs":
+five counted rounds on this repository,
+seven on the 0.199 source and seven on the 0.644 source,
+with the identical-binary control beside B in every one,
+and their numbers are in that section and in the options'.
+Each run's JSON and summary are kept as
+`measure-beside-<label>-<mode>-<stamp>.json` and `.summary.txt` in this round's `keep/`,
+beside `run-measurements.ts`,
+`measure-beside-the-clone.ts` and `stats-beside.ts`,
+so every number above can be recomputed.
 
-GATE_RESULT
+The whole container gate ran at the code of `a95b3e2eb3` as its own capped `systemd-run --user --scope` unit
+(`CPUQuota=800%`,
+`MemoryMax=14G`,
+`TasksMax=800`,
+`IOWeight=10`),
+through `node bin/test-native-container.ts` in `package/git-policy/cli`,
+with the image `localhost/git-policy-native-test:development`,
+and its log is kept as `container-gate-beside-a95b3e2eb3.log` in this round's `keep/`:
+
+- **9,409 tests run:
+  9,407 passed (5 slow),
+  2 failed,
+  35 skipped**,
+  in 787.419 s.
+- The two failures are the repository's documented standing pair,
+  `repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone` and
+  `service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing`
+  (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
+  "Cause H:
+  the two standing failures").
+- The whole `source_guard` set ran in the same image and passed there:
+  80 distinct controls,
+  among them `the_release_code_keeps_blocking_work_off_the_runtime` and
+  `every_step_an_add_enters_has_its_own_sentence`,
+  which the first gate of this round refused.
+  It passed on the host too,
+  80 of 80,
+  in `source-guard-host-346ec0bec0.log`.
+- The image's `Clippy` step did not run,
+  because the suite failed first;
+  the host's Clippy is clean for both configurations (`native:clippy` and `native:clippy:measurement`).
+- The image did not run the eighteen binary class controls (their fixture root is a tmpfs and they print
+  `ZFS CONTROL NOT RUN` there);
+  their evidence is the guest run below,
+  on the final code.
+
+## Limitations
+
+Each line is a case where option B,
+which the project has chosen
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 10's notes,
+the project's 2026-11-20T23:27:00-05:00
+word "Yeah,
+do B."),
+is still not completely right,
+with the evidence behind it.
+
+- **A decline pays the copy as well as Git's checkout.**
+  `git check-attr` and the decline count run beside the copies,
+  so a source above the quarter is copied and then written
+  again by Git:
+  on the 0.644 source B measured 1.67 to 1.75 of `main` (3,780 ms against 2,163,
+  six of seven rounds
+  slower than A′ by 1,009 to 1,781 ms,
+  the identical pair agreeing at 0.96),
+  where A′ measured 1.06 to 1.09
+  (`measure-beside-crlf-*`).
+- **The declining shape's reads are still on the waiting path in one respect.**
+  The refusal for an untracked or ignored `.gitattributes` and the decline count need the attributes,
+  and a decline cannot
+  end the rung before the copy,
+  because the answer arrives after it;
+  on the 0.644 source that is why a decline pays the
+  copy.
+- **A source between this repository's converting share and the quarter is not declined.**
+  At 0.199 the fence writes 4,866 paths through Git and the add costs 1.02 of `main` per round in this round's B run
+  (1.01 as a ratio of medians,
+  inside the control's 0.93 to 1.09) and 1.13 in the previous round's A′ run,
+  which is at best `main`'s time and is the band the quarter leaves.
+- **An add whose new `HEAD` differs in a path Git must write can end the clone rung.**
+  `git read-tree -m -u` refuses a zeroed entry whose clean form is not its blob
+  (`error: Entry 'extra.txt' not uptodate. Cannot merge.`,
+  the harness's `m05`),
+  so the bytes are right but the add pays the copy and Git's checkout,
+  where option A′ would finish the rung.
+- **Rung 1 has no beside-the-snapshot order and no measurement at this repository's size.**
+  The snapshot rung still installs the snapshot's index before its fence zeroes the written paths,
+  so the window B closes here is open there,
+  and the last evidence for rung 1's fence is the earlier round's 90-file
+  guest run of an older fence.
+- **An add killed between the index install and the write step leaves a worktree whose written paths report as changed.**
+  That is the safe direction (nothing is vouched for and `git status` reads the bytes),
+  but it is not a clean worktree,
+  and the recovery is the one the add's record already names.
+- **A path with the `-text` attribute under `core.autocrlf=true` is written by Git.**
+  The exemption the class table describes holds only where nothing converts,
+  so such a repository's binaries count toward
+  the decline share,
+  and that cost is not priced.
+- **The LFS paths are copied and then overwritten.**
+  The clone copies this repository's 1,578 LFS files and Git's smudge writes them again;
+  option A′ copies them too,
+  so it is not a difference between the options,
+  but it is a cost neither avoids.
+- **The fence's reads are not off the add's thread in B;
+  only the copies' wait is.**
+  B's thread runs `git check-attr` (33 to 48 ms),
+  `git ls-tree` (300 to 345 ms under the copies' own load) and the
+  decision,
+  451 to 463 ms of steps against A′'s 266 to 276,
+  while the copies' wait falls from 701 to 733 ms in A′ to
+  448 to 477 in B;
+  the totals differ by 29 to 151 ms,
+  inside the identical pair's disagreement.
+  No in-process replacement is built or measured.
+- **The `attr.tree` setting is still not refused by the shipped code.**
+  `git check-attr` honours it and so would the destination,
+  so the two agree,
+  but the refusal the proposed `SPEC.md` text
+  requires is not in `prepare_target`.
+- **A repository with no conversion rules,
+  XFS and overlayfs are unmeasured for B.**
+  The no-rule case is arithmetic on measured steps,
+  and no B run exists on either filesystem.
+- **A clone rung that ends after its copies tells the person in the clone rung's words.**
+  That is better than the snapshot sentence it replaced,
+  but a decline and a failure to read Git's answers read alike in one
+  line,
+  and the difference is only in the journal's detail.
 
 ## What this proposal does not do
 

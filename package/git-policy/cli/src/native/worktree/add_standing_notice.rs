@@ -151,11 +151,13 @@ pub fn the_plain_add_began(clause: &str, began: Instant) {
 }
 
 /// The step a plainly run add is in:
-/// Git's own `git worktree add`, with nothing of the ladder around it.
+/// Git's own `git worktree add`,
+/// with nothing of the ladder around it.
 const PLAIN_ADD_STEP: &str = "gitAdd";
 
 /// What:
-///  Publish the add's step, its start and an optional route clause.
+///  Publish the add's step,
+/// its start and an optional route clause.
 /// Why:
 ///   One place sets the state the notice reads,
 /// so a step of the ladder can never keep a clause
@@ -436,7 +438,8 @@ fn notice_line_on_route(step: Option<&str>, waited: Duration, plain: Option<&str
 }
 
 /// What:
-///  Every step an add enters, and the words a person reads for it.
+///  Every step an add enters,
+/// and the words a person reads for it.
 /// Why:
 ///   The step names are the timing record's,
 /// written for someone reading that record,

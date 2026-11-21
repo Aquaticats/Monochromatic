@@ -60,9 +60,11 @@ const TAG: &str = "worktreeLadder";
 /// type CloneFence = { when: 'beside' } | { when: 'before'; fence: Fence };
 /// ```
 pub(crate) enum CloneFence {
-    /// The fence's reads run beside the clone (option B, shipped).
+    /// The fence's reads run beside the clone (option B,
+    /// shipped).
     Beside,
-    /// The fence was decided before the clone (option A′, measurement only).
+    /// The fence was decided before the clone (option A′,
+    /// measurement only).
     #[cfg(feature = "measurement-routes")]
     BeforeTheClone(crate::worktree_clone_conversion_fence::Fence),
 }
