@@ -28,6 +28,13 @@ const HOLD_SECONDS: u64 = 3_000;
 /// Extra time a control allows beyond a derived bound for process starts under host load.
 const LOAD_ALLOWANCE: Duration = Duration::from_secs(60);
 
+/// How long the second worktree's upload takes before it announces itself, in whole seconds.
+/// The two worktrees of the control commit at once, so the wait after the first commit cannot stand in for the second push:
+/// a control that waits for the wrong worktree reads the origin while this upload is still running,
+/// every run,
+/// and its assertion fails (issue 6336).
+const SECOND_WORKTREE_UPLOAD_SECONDS: u64 = 1;
+
 /// A repository with a bare origin,
 /// an LFS key,
 /// and a stand-in `git-lfs` made from `source`.
@@ -60,11 +67,14 @@ fn commit_file(fixture: &Fixture, directory: &Path, name: &str, environment: &[(
     return observe(&mut command, b"");
 }
 
-/// Two worktrees of one repository commit at the same moment while every upload takes a while:
+/// Two worktrees of one repository commit at the same moment while every upload takes a while,
+/// the second worktree's upload the longer:
 /// both finish,
 /// neither
 ///  waits for the other (the upload runs under no lock another wrapper process takes),
 /// and both branches reach the origin.
+///  The second upload is slowed so that the wait after the first worktree's commit cannot be mistaken for the second's:
+/// the control fails every run on a helper that waits for no worktree whose `.git` is a file.
 #[test]
 fn two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other() {
     let fixture: Fixture = fixture("lfs-hang-two-worktrees");
@@ -73,24 +83,28 @@ fn two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiti
     let marks: PathBuf = fixture.root.join("marks");
     std::fs::create_dir(&marks).expect("marks directory");
     let barrier: String = format!(
-        "#!/bin/sh\ntouch '{dir}/started.'$$\ni=0\nwhile [ \"$(ls '{dir}' | grep -c '^started\\.')\" -lt 2 ] && [ $i -lt {tries} ]; do sleep 0.1; i=$((i+1)); done\n\
+        "#!/bin/sh\ncase \"$PWD\" in */second) sleep {slow} ;; esac\ntouch '{dir}/started.'$$\ni=0\nwhile [ \"$(ls '{dir}' | grep -c '^started\\.')\" -lt 2 ] && [ $i -lt {tries} ]; do sleep 0.1; i=$((i+1)); done\n\
          if [ \"$(ls '{dir}' | grep -c '^started\\.')\" -lt 2 ]; then touch '{dir}/alone'; fi\nexit 0\n",
         dir = marks.display(),
         // The service pushes the branches of one repository one after another, so its uploads cannot wait for each other.
-        tries = 1
+        tries = 1,
+        slow = SECOND_WORKTREE_UPLOAD_SECONDS
     );
     let (repo, origin) = world(&fixture, barrier.as_str());
     let second: PathBuf = fixture.root.join("second");
     git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "other", second.to_str().expect("UTF-8")]);
     git(&fixture, second.as_path(), &["push", "--quiet", "--no-verify", "--set-upstream", "origin", "other"]);
-    let (first_seen, second_seen) = std::thread::scope(|scope| {
+    let (first_seen, second_seen, second_waited) = std::thread::scope(|scope| {
         let first = scope.spawn(|| {
             return commit_file(&fixture, repo.as_path(), "first.txt", &[]);
         });
         let other = scope.spawn(|| {
-            return commit_file(&fixture, second.as_path(), "second.txt", &[]);
+            let began: Instant = Instant::now();
+            let seen: Observed = commit_file(&fixture, second.as_path(), "second.txt", &[]);
+            return (seen, began.elapsed());
         });
-        return (first.join().expect("first commit"), other.join().expect("second commit"));
+        let (other_seen, waited) = other.join().expect("second commit");
+        return (first.join().expect("first commit"), other_seen, waited);
     });
     for (label, seen) in [("first", &first_seen), ("second", &second_seen)] {
         assert_eq!(seen.code, Some(0), "{label}: {}", stderr_of(seen));
@@ -101,6 +115,12 @@ fn two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiti
         let landed: String = git_text(&fixture, worktree, &["rev-parse", "HEAD"]);
         assert_eq!(published.trim(), landed.trim(), "{branch}: the new commit, not the earlier one, reached the origin");
     }
+    // The forcing itself is controlled: the wait after the second worktree's commit outlasted its slowed upload, so the
+    //  wait above covered that push and not only the commit.
+    assert!(
+        second_waited >= Duration::from_secs(SECOND_WORKTREE_UPLOAD_SECONDS),
+        "the wait after the second worktree's commit covered its slowed upload: {second_waited:?}"
+    );
     assert_nothing_left(&fixture, repo.as_path());
     remove_settled(&fixture);
 }
